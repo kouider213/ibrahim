@@ -1,13 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business, type CashEntry } from '../../services/api.ts';
-import { Hero, StatCard, SkeletonCards } from '../ui/Premium.tsx';
+import { T, Screen, PageHeader, HeadBtn, Sheet, Field, inputStyle, Btn, Card, Badge, Empty, KpiGrid, Kpi, SectionTitle, Segmented, Chips, Avatar, tone } from '../ui/Kit.tsx';
+import { SkeletonCards } from '../ui/Premium.tsx';
 
-const C = {
-  bg: '#050a16', surface: '#0c1730', surface2: '#12203d', border: 'rgba(90,150,255,0.16)',
-  green: '#38d8f5', red: '#ef4444', text: '#f5f5f7', muted: '#8ea3c8', gold: '#fbbf24',
-  font: '-apple-system, "Segoe UI", Roboto, sans-serif',
-};
 const CATS = ['location', 'vente', 'immo', 'import', 'carburant', 'entretien', 'salaire', 'autre'];
+const CAT_ICON: Record<string, string> = { location: '🚗', vente: '🏷️', immo: '🏠', import: '🚢', carburant: '⛽', entretien: '🔧', salaire: '👷', autre: '📌' };
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export default function CaisseScreen() {
   const [entries, setEntries] = useState<CashEntry[]>([]);
@@ -16,6 +14,7 @@ export default function CaisseScreen() {
   const [show, setShow]       = useState(false);
   const [busy, setBusy]       = useState('');
   const [toast, setToast]     = useState('');
+  const [confirmDel, setConfirmDel] = useState('');
   const empty = { kind: 'income', category: 'location', label: '', amount: '', currency: 'DZD' };
   const [f, setF] = useState(empty);
   const setFF = (k: keyof typeof empty, v: string) => setF(s => ({ ...s, [k]: v }));
@@ -47,80 +46,73 @@ export default function CaisseScreen() {
   };
 
   const fmt = (n: number, cur = 'DZD') => `${Math.round(Number(n) || 0).toLocaleString('fr-FR')} ${cur === 'EUR' ? '€' : 'DA'}`;
-  const inp: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none' };
+  const curs = Object.keys(month).length ? Object.keys(month) : ['DZD'];
+  const moisNom = new Date().toLocaleDateString('fr-FR', { month: 'long' });
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px', position: 'relative' }}>
-      <div style={{ margin: '-20px -16px 4px' }}><Hero eyebrow="Dzaryx · Caisse" title="Caisse & Compta" /></div>
-
-      {/* Totaux du mois — séparés par devise (jamais mélangés) */}
-      {(() => {
-        const curs = Object.keys(month);
-        if (curs.length === 0) curs.push('DZD');
-        return curs.map(cur => {
-          const m = month[cur] || { income: 0, expense: 0, balance: 0 };
-          return (
-            <div key={cur} style={{ marginBottom: 10 }}>
-              {curs.length > 1 && <div style={{ fontSize: 13.5, color: C.muted, marginBottom: 5, fontWeight: 700 }}>{cur === 'EUR' ? 'EUROS' : 'DINARS'}</div>}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
-                {[
-                  { l: 'Entrées', v: m.income, c: C.green },
-                  { l: 'Sorties', v: m.expense, c: C.red },
-                  { l: 'Solde', v: m.balance, c: m.balance >= 0 ? C.gold : C.red },
-                ].map(s => (
-                  <StatCard key={s.l} value={fmt(s.v, cur)} label={`${s.l} (mois)`} color={s.c} />
-                ))}
+    <Screen toast={toast} header={<PageHeader eyebrow="Caisse" title="Caisse & compta" subtitle={`Entrées et sorties d'argent — ${moisNom}`} right={<HeadBtn icon="＋" label="Ajouter" onClick={() => setShow(true)} />} />}>
+      {curs.map(cur => {
+        const m = month[cur] || { income: 0, expense: 0, balance: 0 };
+        return (
+          <div key={cur}>
+            {curs.length > 1 && <SectionTitle>{cur === 'EUR' ? 'En euros' : 'En dinars'}</SectionTitle>}
+            <Card style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 13, color: T.muted }}>Solde du mois</div>
+              <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.02em', color: m.balance >= 0 ? T.text : T.bad, marginTop: 2 }}>{m.balance >= 0 ? '' : '−'}{fmt(Math.abs(m.balance), cur)}</div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                <div style={{ flex: 1, padding: '10px 12px', borderRadius: 13, background: tone(T.ok, 0.1), border: `1px solid ${tone(T.ok, 0.25)}` }}>
+                  <div style={{ fontSize: 12, color: T.ok, fontWeight: 600 }}>↗ Entrées</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, marginTop: 2 }}>{fmt(m.income, cur)}</div>
+                </div>
+                <div style={{ flex: 1, padding: '10px 12px', borderRadius: 13, background: tone(T.bad, 0.1), border: `1px solid ${tone(T.bad, 0.25)}` }}>
+                  <div style={{ fontSize: 12, color: T.bad, fontWeight: 600 }}>↘ Sorties</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, marginTop: 2 }}>{fmt(m.expense, cur)}</div>
+                </div>
               </div>
-            </div>
-          );
-        });
-      })()}
-      <div style={{ marginBottom: 4 }} />
-
-      <button onClick={() => setShow(s => !s)} style={{ width: '100%', marginBottom: 12, padding: '12px', borderRadius: 12, border: 'none', background: C.green, color: '#06210f', fontFamily: C.font, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
-        {show ? '✕ Fermer' : '＋ Ajouter un mouvement'}
-      </button>
-
-      {show && (
-        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 12, marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 9 }}>
-          <div style={{ display: 'flex', gap: 7 }}>
-            {(['income', 'expense'] as const).map(k => (
-              <button key={k} onClick={() => setFF('kind', k)} style={{ flex: 1, padding: '9px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: C.font, background: f.kind === k ? (k === 'income' ? C.green : C.red) : 'rgba(255,255,255,0.04)', color: f.kind === k ? '#fff' : C.muted, border: 'none' }}>{k === 'income' ? '➕ Entrée' : '➖ Sortie'}</button>
-            ))}
+            </Card>
           </div>
-          <select value={f.category} onChange={e => setFF('category', e.target.value)} style={inp}>{CATS.map(c => <option key={c} value={c}>{c}</option>)}</select>
-          <input value={f.label} onChange={e => setFF('label', e.target.value)} placeholder="Libellé (optionnel)" style={inp} />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input value={f.amount} onChange={e => setFF('amount', e.target.value)} placeholder="Montant" inputMode="numeric" style={{ ...inp, flex: 2 }} />
-            <select value={f.currency} onChange={e => setFF('currency', e.target.value)} style={{ ...inp, flex: 1 }}><option value="DZD">DZD</option><option value="EUR">EUR</option></select>
-          </div>
-          <button disabled={busy === 'add'} onClick={() => void add()} style={{ padding: '11px', borderRadius: 11, border: 'none', background: C.gold, color: '#1a1300', fontFamily: C.font, fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>{busy === 'add' ? 'Ajout…' : 'Enregistrer'}</button>
-        </div>
-      )}
+        );
+      })}
 
-      {/* Liste */}
+      <SectionTitle>Mouvements</SectionTitle>
       {loading ? <SkeletonCards count={5} />
-        : entries.length === 0 ? <div style={{ textAlign: 'center', padding: 24, color: C.muted, fontSize: 13 }}>Aucun mouvement</div>
+        : entries.length === 0 ? <Empty icon="💰" title="Aucun mouvement" text="Note chaque entrée ou sortie d'argent pour suivre ton solde." action={<Btn variant="primary" onClick={() => setShow(true)}>＋ Ajouter</Btn>} />
         : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {entries.map(e => {
               const isInc = e.kind === 'income';
+              const col = isInc ? T.ok : T.bad;
               return (
-                <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 13, padding: '11px 13px' }}>
-                  <span style={{ fontSize: 16 }}>{isInc ? '➕' : '➖'}</span>
+                <Card key={e.id} pad={12} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <Avatar icon={CAT_ICON[e.category ?? ''] ?? (isInc ? '➕' : '➖')} color={col} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.label || e.category || (isInc ? 'Entrée' : 'Sortie')}</div>
-                    <div style={{ fontSize: 13.5, color: C.muted, marginTop: 1 }}>{e.category} · {e.entry_date ? new Date(e.entry_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : ''}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.label || cap(e.category || (isInc ? 'Entrée' : 'Sortie'))}</div>
+                    <div style={{ fontSize: 13, color: T.muted, marginTop: 2 }}>{cap(e.category || '')} · {e.entry_date ? new Date(e.entry_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : ''}</div>
                   </div>
-                  <div style={{ fontSize: 13.5, fontWeight: 800, color: isInc ? C.green : C.red }}>{isInc ? '+' : '−'}{fmt(Number(e.amount), e.currency || 'DZD')}</div>
-                  <button onClick={() => void del(e.id)} disabled={busy === e.id} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: C.muted, padding: 2 }}>✕</button>
-                </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 15.5, fontWeight: 800, color: col, whiteSpace: 'nowrap' }}>{isInc ? '+' : '−'}{fmt(Number(e.amount), e.currency || 'DZD')}</div>
+                    <button disabled={busy === e.id} onClick={() => { if (confirmDel === e.id) { void del(e.id); setConfirmDel(''); } else { setConfirmDel(e.id); setTimeout(() => setConfirmDel(c => c === e.id ? '' : c), 3000); } }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: confirmDel === e.id ? T.bad : T.faint, padding: '6px 0 0', minHeight: 28 }}>{confirmDel === e.id ? 'Confirmer ?' : 'Supprimer'}</button>
+                  </div>
+                </Card>
               );
             })}
           </div>
         )}
 
-      {toast && <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: 'rgba(56,216,245,0.15)', border: `1px solid ${C.green}40`, borderRadius: 10, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: C.green, whiteSpace: 'nowrap' }}>{toast}</div>}
-    </div>
+      {show && (
+        <Sheet title="Nouveau mouvement" onClose={() => setShow(false)}
+          footer={<Btn variant="primary" disabled={busy === 'add'} onClick={() => void add()} style={{ width: '100%' }}>{busy === 'add' ? 'Ajout…' : 'Enregistrer'}</Btn>}>
+          <Field label="Type"><Segmented items={[{ id: 'income', label: '↗ Entrée' }, { id: 'expense', label: '↘ Sortie' }]} value={f.kind} onChange={k => setFF('kind', k)} /></Field>
+          <Field label="Catégorie"><Chips items={CATS.map(c => ({ id: c, label: `${CAT_ICON[c]} ${cap(c)}` }))} value={f.category} onChange={k => setFF('category', k)} /></Field>
+          <Field label="Montant">
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={f.amount} onChange={e => setFF('amount', e.target.value)} placeholder="0" inputMode="numeric" style={{ ...inputStyle, flex: 2, fontSize: 20, fontWeight: 700 }} />
+              <div style={{ flex: 1.2 }}><Segmented items={[{ id: 'DZD', label: 'DA' }, { id: 'EUR', label: '€' }]} value={f.currency} onChange={k => setFF('currency', k)} /></div>
+            </div>
+          </Field>
+          <Field label="Libellé (facultatif)"><input value={f.label} onChange={e => setFF('label', e.target.value)} placeholder="Ex : Clio — Karim" style={inputStyle} /></Field>
+        </Sheet>
+      )}
+    </Screen>
   );
 }

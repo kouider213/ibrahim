@@ -1,14 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { business } from '../../services/api.ts';
-import { Hero } from '../ui/Premium.tsx';
+import { T, Screen, PageHeader, Row, Avatar, Badge, Empty, inputStyle } from '../ui/Kit.tsx';
 
-const C = {
-  bg: '#050a16', surface: '#0c1730', border: 'rgba(90,150,255,0.16)',
-  accent: '#38d8f5', text: '#f5f5f7', muted: '#8ea3c8',
-  font: '-apple-system, "Segoe UI", Roboto, sans-serif',
-};
 const TYPE_COL: Record<string, string> = {
   'Véhicule': '#00e676', 'Client/Résa': '#38d8f5', 'Bien': '#a78bfa', 'Dossier': '#8b5cf6', 'Import': '#06b6d4', 'Lead': '#f59e0b',
+};
+const TYPE_ICON: Record<string, string> = {
+  'Véhicule': '🚗', 'Client/Résa': '👤', 'Bien': '🏠', 'Dossier': '📁', 'Import': '🚢', 'Lead': '📥',
 };
 type R = { type: string; label: string; sub?: string; ref?: string };
 
@@ -35,33 +33,32 @@ export default function SearchScreen({ onOpen }: { onOpen?: (p: string) => void 
   }, [q]);
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px' }}>
-      <div style={{ margin: '-20px -16px 4px' }}><Hero eyebrow="Dzaryx · Recherche" title="Tout chercher" /></div>
-
-      <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Nom client, voiture, réf dossier/import, bien…"
-        style={{ width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '13px 15px', color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none', marginBottom: 16 }} />
-
-      {loading ? <div style={{ textAlign: 'center', padding: 20, color: C.muted, fontSize: 16 }}>Recherche…</div>
-        : q.trim().length < 2 ? <div style={{ textAlign: 'center', padding: 20, color: C.muted, fontSize: 13 }}>Tape au moins 2 lettres</div>
-        : results.length === 0 ? <div style={{ textAlign: 'center', padding: 20, color: C.muted, fontSize: 13 }}>Aucun résultat</div>
+    <Screen header={<>
+      <PageHeader eyebrow="Recherche" title="Tout chercher" subtitle="Clients, réservations, voitures, biens, dossiers, demandes" />
+      <div style={{ padding: '0 16px 8px', position: 'relative' }}>
+        <span style={{ position: 'absolute', left: 30, top: 14, fontSize: 16, opacity: 0.7 }}>🔍</span>
+        <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Nom, voiture, référence…" style={{ ...inputStyle, paddingLeft: 42 }} />
+      </div>
+    </>}>
+      {loading ? <div style={{ textAlign: 'center', padding: 24, color: T.muted, fontSize: 15 }}>Recherche…</div>
+        : q.trim().length < 2 ? <Empty icon="🔎" title="Que cherches-tu ?" text="Tape au moins 2 lettres : un nom de client, une voiture, une référence de dossier ou d'import, un bien…" />
+        : results.length === 0 ? <Empty icon="🤷" title="Aucun résultat" text={`Rien ne correspond à « ${q.trim()} ».`} />
         : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontSize: 13, color: T.muted, margin: '2px 2px 2px' }}>{results.length} résultat{results.length > 1 ? 's' : ''}</div>
             {results.map((r, i) => {
-              const col = TYPE_COL[r.type] ?? C.muted;
+              const col = TYPE_COL[r.type] ?? T.muted;
               const dest = TYPE_PAGE[r.type];
               return (
-                <div key={i} onClick={() => dest && onOpen?.(dest)} style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '11px 13px', cursor: dest ? 'pointer' : 'default' }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: col, background: `${col}1f`, border: `1px solid ${col}44`, borderRadius: 7, padding: '3px 8px', flexShrink: 0 }}>{r.type}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.label}</div>
-                    {(r.sub || r.ref) && <div style={{ fontSize: 11, color: C.muted }}>{r.ref ? `${r.ref} · ` : ''}{r.sub}</div>}
-                  </div>
-                  {dest && <span style={{ color: C.muted, fontSize: 16 }}>›</span>}
-                </div>
+                <Row key={i} onClick={dest ? () => onOpen?.(dest) : undefined}
+                  left={<Avatar icon={TYPE_ICON[r.type] ?? '•'} color={col} />}
+                  title={r.label}
+                  sub={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}><Badge color={col}>{r.type}</Badge>{(r.ref || r.sub) && <span>{r.ref ? `${r.ref} · ` : ''}{r.sub}</span>}</span>}
+                  right={dest ? <span style={{ color: T.muted, fontSize: 20 }}>›</span> : undefined} />
               );
             })}
           </div>
         )}
-    </div>
+    </Screen>
   );
 }

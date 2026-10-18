@@ -1,12 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business } from '../../services/api.ts';
-import { Hero, SkeletonCards } from '../ui/Premium.tsx';
+import { T, Screen, PageHeader, Segmented, Row, Avatar, Btn, Empty, Kpi, KpiGrid } from '../ui/Kit.tsx';
+import { SkeletonCards } from '../ui/Premium.tsx';
 
-const C = {
-  bg: '#050a16', surface: '#0c1730', border: 'rgba(90,150,255,0.16)',
-  accent: '#38d8f5', gold: '#fbbf24', text: '#f5f5f7', muted: '#8ea3c8',
-  font: '-apple-system, "Segoe UI", Roboto, sans-serif',
-};
 type D = { name: string; phone: string | null; date: string; car: string; count: number };
 
 export default function ReengageScreen() {
@@ -27,30 +23,29 @@ export default function ReengageScreen() {
     window.open(`https://wa.me/${p}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
+  const withPhone = list.filter(d => d.phone).length;
+  const fmt = (d: string) => d ? new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  const PERIODS = [3, 4, 6, 12].map(m => ({ id: String(m), label: `${m} mois` }));
+
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px' }}>
-      <div style={{ margin: '-20px -16px 0' }}><Hero eyebrow="Dzaryx · Fidélisation" title="Relancer les clients" /></div>
-      <div style={{ fontSize: 12, color: C.muted, marginBottom: 14 }}>Clients qui ne sont pas revenus — réactive-les en 1 tap</div>
-
-      <div style={{ display: 'flex', gap: 7, marginBottom: 16 }}>
-        {[3, 4, 6, 12].map(m => (
-          <button key={m} onClick={() => setMonths(m)} style={{ flex: 1, padding: '8px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 700, background: months === m ? C.accent : 'rgba(255,255,255,0.04)', color: months === m ? '#06210f' : C.muted, border: 'none' }}>+{m} mois</button>
-        ))}
-      </div>
-
-      {loading ? <SkeletonCards count={5} /> : list.length === 0 ? <div style={{ textAlign: 'center', padding: 30, color: C.muted, fontSize: 13 }}>Aucun client dormant 🎉</div> : (
+    <Screen header={<>
+      <PageHeader eyebrow="Fidélisation" title="Relancer les clients" subtitle="Ceux qui ne sont pas revenus depuis…" />
+      <div style={{ padding: '0 16px 10px' }}><Segmented items={PERIODS} value={String(months)} onChange={k => setMonths(+k)} /></div>
+    </>}>
+      <KpiGrid>
+        <Kpi value={loading ? '—' : list.length} label="Clients à relancer" color={T.warn} />
+        <Kpi value={loading ? '—' : withPhone} label="Joignables sur WhatsApp" color={T.ok} />
+      </KpiGrid>
+      {loading ? <SkeletonCards count={5} /> : list.length === 0 ? <Empty icon="🎉" title="Personne à relancer" text={`Tous tes clients sont revenus depuis moins de ${months} mois.`} /> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {list.map((d, i) => (
-            <div key={d.phone || d.name + i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 13, padding: '11px 13px' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.name}</div>
-                <div style={{ fontSize: 11, color: C.muted }}>Dernière : {d.car} · {d.date ? new Date(d.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : ''} · {d.count} résa</div>
-              </div>
-              {d.phone && <button onClick={() => wa(d)} style={{ background: 'rgba(37,211,102,0.15)', border: '1px solid rgba(37,211,102,0.4)', borderRadius: 9, padding: '7px 11px', cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#25D366' }}>💬 Relancer</button>}
-            </div>
+            <Row key={d.phone || d.name + i} left={<Avatar name={d.name} color={d.count > 1 ? T.warn : T.accent} />}
+              title={d.name}
+              sub={<>{d.car} · {fmt(d.date)}<br />{d.count} location{d.count > 1 ? 's' : ''}{d.count > 1 ? ' · fidèle ⭐' : ''}</>}
+              right={d.phone ? <Btn onClick={() => wa(d)} color="#25D366" style={{ padding: '0 12px' }}>💬 Relancer</Btn> : <span style={{ fontSize: 12, color: T.faint }}>pas de n°</span>} />
           ))}
         </div>
       )}
-    </div>
+    </Screen>
   );
 }

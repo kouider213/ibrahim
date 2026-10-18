@@ -1,12 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business, type Referral } from '../../services/api.ts';
-import { Hero, StatCard, SkeletonCards } from '../ui/Premium.tsx';
+import { T, Screen, PageHeader, HeadBtn, Sheet, Field, inputStyle, Btn, Card, Badge, Empty, KpiGrid, Kpi, SectionTitle, Segmented, Chips, Avatar, tone } from '../ui/Kit.tsx';
+import { SkeletonCards } from '../ui/Premium.tsx';
 
-const C = {
-  bg: '#050a16', surface: '#0c1730', border: 'rgba(90,150,255,0.16)',
-  accent: '#38d8f5', gold: '#fbbf24', red: '#ef4444', text: '#f5f5f7', muted: '#8ea3c8',
-  font: '-apple-system, "Segoe UI", Roboto, sans-serif',
-};
 
 export default function ParrainageScreen() {
   const [list, setList] = useState<Referral[]>([]);
@@ -44,56 +40,55 @@ export default function ParrainageScreen() {
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
-  const inp: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none' };
   const totalUses = list.reduce((s, r) => s + (r.uses || 0), 0);
+  const best = [...list].sort((a, b) => (b.uses || 0) - (a.uses || 0))[0];
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px', position: 'relative' }}>
-      <div style={{ margin: '-20px -16px 4px' }}><Hero eyebrow="Dzaryx · Croissance" title="Parrainage" accent={C.gold} subtitle="La famille ramène la famille — codes parrain partageables" /></div>
+    <Screen toast={toast} header={<PageHeader eyebrow="Croissance" title="Parrainage" subtitle="La famille ramène la famille : un code par client, partagé sur WhatsApp" right={<HeadBtn icon="＋" label="Code" color={T.warn} onClick={() => setShow(true)} />} />}>
+      <KpiGrid cols={3}>
+        <Kpi value={list.length} label="Codes actifs" color={T.warn} />
+        <Kpi value={totalUses} label="Clients amenés" color={T.ok} />
+        <Kpi value={best && best.uses ? best.referrer_name?.split(' ')[0] || best.code : '—'} label="Meilleur parrain" color={T.violet} />
+      </KpiGrid>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10, marginBottom: 14 }}>
-        <StatCard icon="🎁" value={String(list.length)} label="CODES" color={C.gold} />
-        <StatCard icon="🤝" value={String(totalUses)} label="PARRAINAGES" color={C.accent} />
-      </div>
-
-      <button onClick={() => setShow(s => !s)} style={{ width: '100%', marginBottom: 12, padding: '12px', borderRadius: 12, border: 'none', background: C.gold, color: '#1a1300', fontFamily: C.font, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>{show ? '✕ Fermer' : '＋ Nouveau code parrain'}</button>
-
-      {show && (
-        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 12, marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 9 }}>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="Nom du parrain (client existant)" style={inp} />
-          <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Téléphone (optionnel)" style={inp} />
-          <input value={reward} onChange={e => setReward(e.target.value)} placeholder="Récompense (ex: 10% de réduction)" style={inp} />
-          <button disabled={busy === 'add'} onClick={() => void create()} style={{ padding: '11px', borderRadius: 11, border: 'none', background: C.accent, color: '#06210f', fontFamily: C.font, fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>{busy === 'add' ? 'Création…' : 'Créer le code'}</button>
-        </div>
-      )}
-
-      {loading ? <SkeletonCards count={4} height={92} /> : list.length === 0 ? <div style={{ textAlign: 'center', padding: 24, color: C.muted, fontSize: 13 }}>Aucun code. Crée le premier ☝️</div> : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+      <SectionTitle>Codes parrain</SectionTitle>
+      {loading ? <SkeletonCards count={4} height={92} /> : list.length === 0 ? <Empty icon="🎁" title="Aucun code" text="Donne un code à tes meilleurs clients : chaque ami qui réserve avec, c'est une récompense pour eux." action={<Btn variant="primary" onClick={() => setShow(true)}>＋ Créer le premier</Btn>} /> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {list.map(r => (
-            <div key={r.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 13, padding: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: C.gold, fontFamily: 'monospace', letterSpacing: '0.05em' }}>{r.code}</div>
-                  <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{r.referrer_name || 'Parrain'}{r.reward ? ` · ${r.reward}` : ''}</div>
+            <Card key={r.id} accent={T.warn}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <Avatar name={r.referrer_name || 'P'} color={T.warn} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: T.warn, fontFamily: 'ui-monospace, monospace', letterSpacing: '0.06em' }}>{r.code}</div>
+                  <div style={{ fontSize: 13, color: T.muted, marginTop: 2 }}>{r.referrer_name || 'Parrain'}{r.reward ? ` · ${r.reward}` : ''}</div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <button onClick={() => void bump(r, -1)} disabled={busy === r.id} style={{ width: 26, height: 26, borderRadius: 8, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, cursor: 'pointer', fontSize: 14 }}>−</button>
-                  <span style={{ minWidth: 20, textAlign: 'center', fontWeight: 800, color: C.accent }}>{r.uses}</span>
-                  <button onClick={() => void bump(r, 1)} disabled={busy === r.id} style={{ width: 26, height: 26, borderRadius: 8, border: `1px solid ${C.accent}55`, background: `${C.accent}14`, color: C.accent, cursor: 'pointer', fontSize: 14 }}>+</button>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, padding: '8px 10px', borderRadius: 13, background: 'rgba(255,255,255,0.03)', border: `1px solid ${T.line}` }}>
+                <span style={{ fontSize: 13.5, color: T.muted }}>Clients amenés</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Btn variant="ghost" onClick={() => void bump(r, -1)} disabled={busy === r.id} style={{ minHeight: 40, padding: '0 14px' }}>−</Btn>
+                  <span style={{ minWidth: 26, textAlign: 'center', fontSize: 18, fontWeight: 800, color: T.ok }}>{r.uses}</span>
+                  <Btn color={T.ok} onClick={() => void bump(r, 1)} disabled={busy === r.id} style={{ minHeight: 40, padding: '0 14px' }}>＋</Btn>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                <button onClick={() => share(r)} style={{ flex: 2, padding: '8px', borderRadius: 9, border: 'none', background: '#25D366', color: '#06210f', fontFamily: C.font, fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}>💬 Partager le code</button>
-                <button onClick={() => { if (confirmDel === r.id) { void del(r); setConfirmDel(''); } else { setConfirmDel(r.id); setTimeout(() => setConfirmDel(c => c === r.id ? '' : c), 3000); } }} style={{ flex: 1, padding: '8px', borderRadius: 9, border: `1px solid ${C.red}${confirmDel === r.id ? '' : '44'}`, background: confirmDel === r.id ? C.red : `${C.red}12`, color: confirmDel === r.id ? '#fff' : C.red, fontFamily: C.font, fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>{confirmDel === r.id ? 'Confirmer ?' : 'Suppr.'}</button>
+                <Btn onClick={() => share(r)} style={{ flex: 2, background: '#25D366', color: '#04210f', border: 'none' }}>💬 Partager</Btn>
+                <Btn variant="danger" onClick={() => { if (confirmDel === r.id) { void del(r); setConfirmDel(''); } else { setConfirmDel(r.id); setTimeout(() => setConfirmDel(c => c === r.id ? '' : c), 3000); } }} style={{ flex: 1, ...(confirmDel === r.id ? { background: T.bad, color: '#fff' } : {}) }}>{confirmDel === r.id ? 'Confirmer ?' : 'Supprimer'}</Btn>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
+      <div style={{ fontSize: 13, color: T.muted, marginTop: 16, lineHeight: 1.5 }}>💡 Quand un client réserve avec un code, touche ＋ sur ce code pour le compter et penser à la récompense du parrain.</div>
 
-      <div style={{ fontSize: 13.5, color: C.muted, marginTop: 16, lineHeight: 1.5 }}>💡 Le client utilise le code → tu cliques + pour compter le parrainage et appliquer la récompense.</div>
-
-      {toast && <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: 'rgba(251,191,36,0.15)', border: `1px solid ${C.gold}40`, borderRadius: 10, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: C.gold, whiteSpace: 'nowrap' }}>{toast}</div>}
-    </div>
+      {show && (
+        <Sheet title="Nouveau code parrain" subtitle="Le code est créé à partir du nom" accent={T.warn} onClose={() => setShow(false)}
+          footer={<Btn variant="primary" disabled={busy === 'add' || !name.trim()} onClick={() => void create()} style={{ width: '100%' }}>{busy === 'add' ? 'Création…' : 'Créer le code'}</Btn>}>
+          <Field label="Nom du parrain" hint="Un client existant"><input value={name} onChange={e => setName(e.target.value)} placeholder="Ex : Karim Benali" style={inputStyle} /></Field>
+          <Field label="Téléphone (facultatif)"><input value={phone} onChange={e => setPhone(e.target.value)} inputMode="tel" style={inputStyle} /></Field>
+          <Field label="Récompense"><input value={reward} onChange={e => setReward(e.target.value)} placeholder="Ex : 10 % de réduction, 1 jour offert" style={inputStyle} /></Field>
+        </Sheet>
+      )}
+    </Screen>
   );
 }

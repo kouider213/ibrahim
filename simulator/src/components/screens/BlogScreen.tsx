@@ -1,12 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business, type BlogPost } from '../../services/api.ts';
-import { Hero } from '../ui/Premium.tsx';
-
-const C = {
-  bg: '#050a16', surface: '#0c1730', border: 'rgba(90,150,255,0.16)',
-  accent: '#60a5fa', green: '#38d8f5', red: '#ef4444', text: '#f5f5f7', muted: '#8ea3c8', gold: '#fbbf24',
-  font: '-apple-system, "Segoe UI", Roboto, sans-serif',
-};
+import { T, Screen, PageHeader, HeadBtn, Sheet, Field, inputStyle, Btn, Card, Badge, Empty, KpiGrid, Kpi, SectionTitle } from '../ui/Kit.tsx';
+import { SkeletonCards } from '../ui/Premium.tsx';
 
 export default function BlogScreen() {
   const [posts, setPosts]   = useState<BlogPost[]>([]);
@@ -72,56 +67,63 @@ export default function BlogScreen() {
     catch { flash('Erreur'); } finally { setBusy(''); }
   };
 
-  const inp: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none' };
+  const area = { ...inputStyle, padding: '12px 14px', resize: 'vertical' as const, lineHeight: 1.5 };
+  const live = posts.filter(p => p.published).length;
+  const fmt = (d?: string) => d ? new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px', position: 'relative' }}>
-      <div style={{ margin: '-20px -16px 0' }}><Hero eyebrow="Dzaryx · Contenu" title="Blog" accent={C.accent} /></div>
-      <div style={{ fontSize: 12, color: C.muted, marginBottom: 14 }}>Rédige avec l'IA → publie sur le site (traduit auto à l'affichage)</div>
+    <Screen toast={toast} header={<PageHeader eyebrow="Contenu" title="Blog" subtitle="Dzaryx rédige, tu relis, c'est publié sur le site (traduit automatiquement)" right={<HeadBtn icon="✍️" label="Écrire" onClick={() => setShow(true)} />} />}>
+      <KpiGrid cols={3}>
+        <Kpi value={posts.length} label="Articles" />
+        <Kpi value={live} label="En ligne" color={T.ok} />
+        <Kpi value={posts.length - live} label="Brouillons" color={T.warn} />
+      </KpiGrid>
 
-      <button onClick={() => setShow(s => !s)} style={{ width: '100%', marginBottom: 12, padding: '12px', borderRadius: 12, border: 'none', background: C.accent, color: '#06182e', fontFamily: C.font, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
-        {show ? '✕ Fermer' : '✍️ Nouvel article'}
-      </button>
-
-      {show && (
-        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 12, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 9 }}>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input value={topic} onChange={e => setTopic(e.target.value)} placeholder="Sujet (ex: Louer une voiture à Oran)" style={{ ...inp, flex: 2 }} />
-            <button disabled={busy === 'gen'} onClick={() => void generate()} style={{ flex: 1, padding: '11px', borderRadius: 11, border: 'none', background: C.gold, color: '#1a1300', fontFamily: C.font, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>{busy === 'gen' ? '…' : '🤖 IA'}</button>
-          </div>
-          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Titre" style={inp} />
-          <input value={excerpt} onChange={e => setExcerpt(e.target.value)} placeholder="Accroche" style={inp} />
-          <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Contenu (HTML accepté)" rows={8} style={{ ...inp, resize: 'vertical', lineHeight: 1.5 }} />
-
-          {/* Photo d'affiche (cover) */}
-          {cover && <div style={{ width: '100%', height: 120, borderRadius: 11, background: `url(${cover}) center/cover`, border: `1px solid ${C.border}` }} />}
-          <label style={{ display: 'block', textAlign: 'center', padding: '11px', borderRadius: 11, border: `1px dashed ${C.accent}55`, background: `${C.accent}10`, color: C.accent, fontFamily: C.font, fontSize: 12.5, fontWeight: 700, cursor: busy === 'cover' ? 'wait' : 'pointer' }}>
-            {busy === 'cover' ? 'Envoi…' : cover ? '🖼️ Changer la photo d’affiche' : '🖼️ Ajouter une photo d’affiche'}
-            <input type="file" accept="image/*" disabled={busy === 'cover'} style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) void uploadCover(f); e.currentTarget.value = ''; }} />
-          </label>
-
-          <button disabled={busy === 'pub'} onClick={() => void publish()} style={{ padding: '12px', borderRadius: 11, border: 'none', background: C.green, color: '#06210f', fontFamily: C.font, fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>{busy === 'pub' ? 'Publication…' : '📤 Publier sur le site'}</button>
-        </div>
-      )}
-
-      {loading ? <div style={{ textAlign: 'center', padding: 24, color: C.muted, fontSize: 13 }}>Chargement…</div>
-        : posts.length === 0 ? <div style={{ textAlign: 'center', padding: 24, color: C.muted, fontSize: 13 }}>Aucun article</div>
+      <SectionTitle>Articles</SectionTitle>
+      {loading ? <SkeletonCards count={3} height={92} />
+        : posts.length === 0 ? <Empty icon="📝" title="Aucun article" text="Un article de blog aide ton site à remonter sur Google." action={<Btn variant="primary" onClick={() => setShow(true)}>✍️ Écrire le premier</Btn>} />
         : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {posts.map(p => (
-              <div key={p.id} style={{ background: C.surface, border: `1px solid ${p.published ? C.green + '33' : C.border}`, borderRadius: 13, padding: 12 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 700 }}>{p.title_fr || '(sans titre)'}</div>
-                <div style={{ fontSize: 13.5, color: C.muted, marginTop: 2 }}>{p.created_at ? new Date(p.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : ''} · {p.published ? '🟢 publié' : '⚪ brouillon'}</div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 9 }}>
-                  <button disabled={busy === p.id} onClick={() => void toggle(p)} style={{ flex: 1, padding: '7px', borderRadius: 9, border: `1px solid ${p.published ? C.border : C.green + '55'}`, background: p.published ? 'transparent' : `${C.green}18`, color: p.published ? C.muted : C.green, fontFamily: C.font, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{p.published ? 'Dépublier' : 'Publier'}</button>
-                  <button disabled={busy === p.id} onClick={() => { if (confirmDel === p.id) { void del(p); setConfirmDel(''); } else { setConfirmDel(p.id); setTimeout(() => setConfirmDel(c => c === p.id ? '' : c), 3000); } }} style={{ flex: 1, padding: '7px', borderRadius: 9, border: `1px solid ${C.red}${confirmDel === p.id ? '' : '44'}`, background: confirmDel === p.id ? C.red : `${C.red}12`, color: confirmDel === p.id ? '#fff' : C.red, fontFamily: C.font, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{confirmDel === p.id ? 'Confirmer ?' : 'Supprimer'}</button>
+              <Card key={p.id} accent={p.published ? T.ok : T.warn}>
+                {p.cover_url && <div style={{ margin: '-14px -14px 12px', aspectRatio: '16 / 7', background: `url(${p.cover_url}) center/cover` }} />}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15.5, fontWeight: 700, lineHeight: 1.3 }}>{p.title_fr || '(sans titre)'}</div>
+                    <div style={{ fontSize: 13, color: T.muted, marginTop: 4 }}>{fmt(p.created_at)}</div>
+                  </div>
+                  <Badge color={p.published ? T.ok : T.warn}>{p.published ? 'En ligne' : 'Brouillon'}</Badge>
                 </div>
-              </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                  <Btn variant={p.published ? 'ghost' : 'soft'} color={T.ok} disabled={busy === p.id} onClick={() => void toggle(p)} style={{ flex: 1 }}>{p.published ? 'Retirer du site' : '📤 Publier'}</Btn>
+                  <Btn variant="danger" disabled={busy === p.id} onClick={() => { if (confirmDel === p.id) { void del(p); setConfirmDel(''); } else { setConfirmDel(p.id); setTimeout(() => setConfirmDel(c => c === p.id ? '' : c), 3000); } }} style={{ flex: 1, ...(confirmDel === p.id ? { background: T.bad, color: '#fff' } : {}) }}>{confirmDel === p.id ? 'Confirmer ?' : 'Supprimer'}</Btn>
+                </div>
+              </Card>
             ))}
           </div>
         )}
 
-      {toast && <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: 'rgba(96,165,250,0.15)', border: `1px solid ${C.accent}40`, borderRadius: 10, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: C.accent, whiteSpace: 'nowrap', maxWidth: '90%' }}>{toast}</div>}
-    </div>
+      {show && (
+        <Sheet title="Nouvel article" subtitle="Donne un sujet, Dzaryx écrit tout" onClose={() => setShow(false)}
+          footer={<Btn variant="primary" disabled={busy === 'pub'} onClick={() => void publish()} style={{ width: '100%' }}>{busy === 'pub' ? 'Publication…' : '📤 Publier sur le site'}</Btn>}>
+          <Field label="Sujet">
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={topic} onChange={e => setTopic(e.target.value)} placeholder="Ex : Louer une voiture à Oran" style={{ ...inputStyle, flex: 1 }} />
+              <Btn color={T.warn} disabled={busy === 'gen'} onClick={() => void generate()}>{busy === 'gen' ? '⏳' : '🤖 Rédiger'}</Btn>
+            </div>
+          </Field>
+          <Field label="Titre"><input value={title} onChange={e => setTitle(e.target.value)} style={inputStyle} /></Field>
+          <Field label="Accroche" hint="1 phrase qui donne envie de lire"><input value={excerpt} onChange={e => setExcerpt(e.target.value)} style={inputStyle} /></Field>
+          <Field label="Contenu"><textarea value={body} onChange={e => setBody(e.target.value)} rows={9} style={area} /></Field>
+          <Field label="Photo d'affiche">
+            {cover && <div style={{ width: '100%', aspectRatio: '16 / 9', borderRadius: 13, background: `url(${cover}) center/cover`, border: `1px solid ${T.line}`, marginBottom: 8 }} />}
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 48, borderRadius: 13, border: `1px dashed ${T.lineStrong}`, color: T.accent, fontSize: 14, fontWeight: 700, cursor: busy === 'cover' ? 'wait' : 'pointer' }}>
+              {busy === 'cover' ? 'Envoi…' : cover ? '🖼️ Changer la photo' : '🖼️ Ajouter une photo'}
+              <input type="file" accept="image/*" disabled={busy === 'cover'} style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) void uploadCover(f); e.currentTarget.value = ''; }} />
+            </label>
+          </Field>
+        </Sheet>
+      )}
+    </Screen>
   );
 }

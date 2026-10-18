@@ -1,13 +1,9 @@
 import { useState } from 'react';
 import { business } from '../../services/api.ts';
-import { Hero } from '../ui/Premium.tsx';
+import { T, Screen, PageHeader, Segmented, Field, inputStyle, Btn, Card, SectionTitle } from '../ui/Kit.tsx';
 
-const C = {
-  bg: '#050a16', surface: '#0c1730', border: 'rgba(90,150,255,0.16)',
-  accent: '#38d8f5', pink: '#ec4899', text: '#f5f5f7', muted: '#8ea3c8',
-  font: '-apple-system, "Segoe UI", Roboto, sans-serif',
-};
-const PLATFORMS = ['Instagram', 'TikTok', 'Facebook'];
+const PLATFORMS = [{ id: 'Instagram', label: 'Instagram' }, { id: 'TikTok', label: 'TikTok' }, { id: 'Facebook', label: 'Facebook' }];
+const LANGS = [{ id: 'fr', label: '🇫🇷 Français' }, { id: 'ar', label: '🇩🇿 Arabe' }, { id: 'en', label: '🇬🇧 Anglais' }];
 
 export default function SocialScreen() {
   const [topic, setTopic] = useState('');
@@ -31,40 +27,30 @@ export default function SocialScreen() {
   };
   const copyAll = () => { navigator.clipboard?.writeText(`${caption}\n\n${hashtags}`).then(() => flash('Copié — colle dans Insta/TikTok')).catch(() => {}); };
 
-  const inp: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none' };
+  const area = { ...inputStyle, padding: '12px 14px', resize: 'vertical' as const, lineHeight: 1.5 };
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px', position: 'relative' }}>
-      <div style={{ margin: '-20px -16px 0' }}><Hero eyebrow="Dzaryx · Marketing" title="Contenu social" accent={C.pink} /></div>
-      <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>Posts TikTok/Insta/Facebook + hashtags → visibilité Oran</div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-        <div style={{ display: 'flex', gap: 7 }}>
-          {PLATFORMS.map(p => (
-            <button key={p} onClick={() => setPlatform(p)} style={{ flex: 1, padding: '8px', borderRadius: 10, cursor: 'pointer', fontSize: 11.5, fontWeight: 700, background: platform === p ? `${C.pink}22` : 'rgba(255,255,255,0.04)', color: platform === p ? C.pink : C.muted, border: `1px solid ${platform === p ? C.pink + '55' : 'transparent'}` }}>{p}</button>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 7 }}>
-          {(['fr', 'ar', 'en'] as const).map(l => (
-            <button key={l} onClick={() => setLang(l)} style={{ flex: 1, padding: '7px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 700, background: lang === l ? '#60a5fa' : 'rgba(255,255,255,0.04)', color: lang === l ? '#06182e' : C.muted, border: 'none' }}>{l === 'fr' ? '🇫🇷' : l === 'ar' ? '🇩🇿' : '🇬🇧'}</button>
-          ))}
-        </div>
-        <input value={topic} onChange={e => setTopic(e.target.value)} placeholder="Sujet (ex: promo location été, nouvelle Clio, pack séjour Oran)" style={inp} />
-        <button disabled={busy} onClick={() => void gen()} style={{ padding: '13px', borderRadius: 12, border: 'none', background: C.pink, color: '#fff', fontFamily: C.font, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>{busy ? 'Génération…' : '✨ Générer le post'}</button>
-      </div>
+    <Screen toast={toast} header={<PageHeader eyebrow="Marketing" title="Contenu social" subtitle="Dzaryx écrit le post + les hashtags, tu copies et tu publies" />}>
+      <Card>
+        <Field label="Réseau"><Segmented items={PLATFORMS} value={platform} onChange={setPlatform} /></Field>
+        <Field label="Langue du post"><Segmented items={LANGS} value={lang} onChange={setLang} /></Field>
+        <Field label="Sujet" hint="Ex : promo location été, nouvelle Clio, pack séjour Oran">
+          <input value={topic} onChange={e => setTopic(e.target.value)} placeholder="De quoi parle le post ?" style={inputStyle} />
+        </Field>
+        <Btn variant="primary" disabled={busy} onClick={() => void gen()} style={{ width: '100%' }}>{busy ? 'Génération…' : '✨ Générer le post'}</Btn>
+      </Card>
 
       {caption && (
-        <div style={{ marginTop: 16 }}>
-          <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={6} style={{ ...inp, resize: 'vertical', lineHeight: 1.5 }} />
-          <textarea value={hashtags} onChange={e => setHashtags(e.target.value)} rows={3} style={{ ...inp, resize: 'vertical', marginTop: 8, color: '#60a5fa', fontSize: 12.5 }} />
-          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-            <button onClick={() => void gen()} disabled={busy} style={{ flex: 1, padding: '12px', borderRadius: 11, border: `1px solid ${C.border}`, background: C.surface, color: C.muted, fontFamily: C.font, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>🔄 Régénérer</button>
-            <button onClick={copyAll} style={{ flex: 2, padding: '12px', borderRadius: 11, border: 'none', background: C.accent, color: '#06210f', fontFamily: C.font, fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>📋 Copier tout</button>
+        <div style={{ marginTop: 18 }}>
+          <SectionTitle>Ton post {platform}</SectionTitle>
+          <Field label="Texte (modifiable)"><textarea value={caption} onChange={e => setCaption(e.target.value)} rows={7} style={area} /></Field>
+          <Field label="Hashtags"><textarea value={hashtags} onChange={e => setHashtags(e.target.value)} rows={3} style={{ ...area, color: T.accent2, fontSize: 14 }} /></Field>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Btn variant="ghost" onClick={() => void gen()} disabled={busy} style={{ flex: 1 }}>🔄 Régénérer</Btn>
+            <Btn variant="primary" onClick={copyAll} style={{ flex: 2 }}>📋 Copier tout</Btn>
           </div>
         </div>
       )}
-
-      {toast && <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: 'rgba(236,72,153,0.15)', border: `1px solid ${C.pink}40`, borderRadius: 10, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: C.pink, whiteSpace: 'nowrap', maxWidth: '90%' }}>{toast}</div>}
-    </div>
+    </Screen>
   );
 }

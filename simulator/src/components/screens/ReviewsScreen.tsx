@@ -1,12 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business, type SiteReview } from '../../services/api.ts';
-import { Hero, StatCard, SkeletonCards } from '../ui/Premium.tsx';
+import { T, Screen, PageHeader, HeadBtn, Sheet, Field, inputStyle, Btn, Card, Badge, Empty, KpiGrid, Kpi, SectionTitle, Segmented, Chips, Avatar, tone } from '../ui/Kit.tsx';
+import { SkeletonCards } from '../ui/Premium.tsx';
 
-const C = {
-  bg: '#050a16', surface: '#0c1730', border: 'rgba(90,150,255,0.16)',
-  green: '#38d8f5', red: '#ef4444', gold: '#fbbf24', text: '#f5f5f7', muted: '#8ea3c8',
-  font: '-apple-system, "Segoe UI", Roboto, sans-serif',
-};
 
 export default function ReviewsScreen() {
   const [reviews, setReviews] = useState<SiteReview[]>([]);
@@ -40,48 +36,45 @@ export default function ReviewsScreen() {
   const shown = reviews.filter(r => filter === 'all' || (filter === 'approved' ? r.approved : !r.approved));
   const stars = (n: number) => '★'.repeat(Math.max(0, Math.min(5, Math.round(n)))) + '☆'.repeat(5 - Math.max(0, Math.min(5, Math.round(n))));
 
+  const fmt = (d?: string) => d ? new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+  const FILTERS = [{ id: 'all' as const, label: 'Tous', count: counts.total }, { id: 'pending' as const, label: 'À valider', count: counts.pending }, { id: 'approved' as const, label: 'Publiés', count: counts.approved }];
+
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px', position: 'relative' }}>
-      <div style={{ margin: '-20px -16px 4px' }}><Hero eyebrow="Dzaryx · Réputation" title="Avis clients" accent={C.gold} /></div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 14 }}>
-        {[
-          { l: 'Note moyenne', v: counts.avg ? `${counts.avg}★` : '—', c: C.gold },
-          { l: 'En attente', v: String(counts.pending), c: counts.pending ? C.red : C.muted },
-          { l: 'Publiés', v: String(counts.approved), c: C.green },
-        ].map(s => <StatCard key={s.l} value={s.v} label={s.l} color={s.c} />)}
-      </div>
-
-      <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-        {(['all', 'pending', 'approved'] as const).map(k => (
-          <button key={k} onClick={() => setFilter(k)} style={{ flex: 1, padding: '8px', borderRadius: 10, cursor: 'pointer', fontSize: 11.5, fontWeight: 700, fontFamily: C.font, background: filter === k ? C.gold : 'rgba(255,255,255,0.04)', color: filter === k ? '#1a1300' : C.muted, border: 'none' }}>{k === 'all' ? 'Tous' : k === 'pending' ? 'En attente' : 'Publiés'}</button>
-        ))}
-      </div>
-
+    <Screen toast={toast} header={<>
+      <PageHeader eyebrow="Réputation" title="Avis clients" subtitle="Les avis laissés sur le site : tu choisis ceux qui s'affichent" />
+      <div style={{ padding: '0 16px 10px' }}><Segmented items={FILTERS} value={filter} onChange={setFilter} /></div>
+    </>}>
+      <KpiGrid cols={3}>
+        <Kpi value={counts.avg ? <span>{counts.avg}<span style={{ color: T.warn }}> ★</span></span> : '—'} label="Note moyenne" color={T.warn} />
+        <Kpi value={counts.pending} label="À valider" color={counts.pending ? T.bad : T.muted} />
+        <Kpi value={counts.approved} label="Sur le site" color={T.ok} />
+      </KpiGrid>
       {loading ? <SkeletonCards count={5} height={92} />
-        : shown.length === 0 ? <div style={{ textAlign: 'center', padding: 24, color: C.muted, fontSize: 13 }}>Aucun avis</div>
+        : shown.length === 0 ? <Empty icon="⭐" title={filter === 'pending' ? 'Rien à valider' : 'Aucun avis'} text="Les avis arrivent après chaque location (lien envoyé au client)." />
         : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {shown.map(r => (
-              <div key={r.id} style={{ background: C.surface, border: `1px solid ${r.approved ? C.green + '33' : C.border}`, borderRadius: 14, padding: 13 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700 }}>{r.client_name || 'Client'}</div>
-                  <div style={{ fontSize: 13, color: C.gold }}>{stars(r.rating)}</div>
+              <Card key={r.id} accent={r.approved ? T.ok : T.warn}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <Avatar name={r.client_name || 'Client'} color={r.rating >= 4 ? T.ok : r.rating >= 3 ? T.warn : T.bad} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700 }}>{r.client_name || 'Client'}{r.verified && <span style={{ color: T.ok, fontSize: 12.5, fontWeight: 600 }}> · ✓ vérifié</span>}</div>
+                    <div style={{ fontSize: 15, color: T.warn, letterSpacing: 1 }}>{stars(r.rating)}</div>
+                  </div>
+                  <Badge color={r.approved ? T.ok : T.warn}>{r.approved ? 'Publié' : 'À valider'}</Badge>
                 </div>
-                <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{r.created_at ? new Date(r.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}{r.verified ? ' · ✓ vérifié' : ''}{r.approved ? ' · publié' : ' · en attente'}</div>
-                {r.comment && <div style={{ fontSize: 12.5, color: '#d8d8de', marginTop: 8, lineHeight: 1.5, fontStyle: 'italic' }}>« {r.comment} »</div>}
-                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                {r.comment && <div style={{ fontSize: 14.5, color: '#dbe4f5', marginTop: 10, lineHeight: 1.55, fontStyle: 'italic' }}>« {r.comment} »</div>}
+                <div style={{ fontSize: 12.5, color: T.faint, marginTop: 8 }}>{fmt(r.created_at)}</div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                   {!r.approved
-                    ? <button disabled={busy === r.id} onClick={() => void setApproved(r, true)} style={{ flex: 1, padding: '8px', borderRadius: 9, border: `1px solid ${C.green}55`, background: `${C.green}18`, color: C.green, fontFamily: C.font, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>✓ Publier</button>
-                    : <button disabled={busy === r.id} onClick={() => void setApproved(r, false)} style={{ flex: 1, padding: '8px', borderRadius: 9, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, fontFamily: C.font, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>🔒 Masquer</button>}
-                  <button disabled={busy === r.id} onClick={() => { if (confirmDel === r.id) { void del(r); setConfirmDel(''); } else { setConfirmDel(r.id); setTimeout(() => setConfirmDel(c => c === r.id ? '' : c), 3000); } }} style={{ flex: 1, padding: '8px', borderRadius: 9, border: `1px solid ${C.red}${confirmDel === r.id ? '' : '44'}`, background: confirmDel === r.id ? C.red : `${C.red}12`, color: confirmDel === r.id ? '#fff' : C.red, fontFamily: C.font, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{confirmDel === r.id ? 'Confirmer ?' : 'Supprimer'}</button>
+                    ? <Btn color={T.ok} disabled={busy === r.id} onClick={() => void setApproved(r, true)} style={{ flex: 1 }}>✓ Publier</Btn>
+                    : <Btn variant="ghost" disabled={busy === r.id} onClick={() => void setApproved(r, false)} style={{ flex: 1 }}>🔒 Masquer</Btn>}
+                  <Btn variant="danger" disabled={busy === r.id} onClick={() => { if (confirmDel === r.id) { void del(r); setConfirmDel(''); } else { setConfirmDel(r.id); setTimeout(() => setConfirmDel(c => c === r.id ? '' : c), 3000); } }} style={{ flex: 1, ...(confirmDel === r.id ? { background: T.bad, color: '#fff' } : {}) }}>{confirmDel === r.id ? 'Confirmer ?' : 'Supprimer'}</Btn>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         )}
-
-      {toast && <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: 'rgba(251,191,36,0.15)', border: `1px solid ${C.gold}40`, borderRadius: 10, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: C.gold, whiteSpace: 'nowrap' }}>{toast}</div>}
-    </div>
+    </Screen>
   );
 }
