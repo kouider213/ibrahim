@@ -100,6 +100,9 @@ class CallState:
 
 active: dict[int, CallState] = {}
 last_call: dict[int, float] = {}   # user_id → monotonic du dernier appel (entrant ou sortant)
+call_ended: dict[int, float] = {}  # user_id → monotonic de la fin du dernier appel
+# Recomposer juste après un raccroché fait planter ntgcalls (SIGSEGV le 18/10 : 2e appel 3 s après le 1er).
+CALL_GAP_S = float(os.environ.get('CALL_GAP_S', '15'))
 ROTATION = {VideoRotation.VIDEO_ROTATION_0: 0, VideoRotation.VIDEO_ROTATION_90: 90,
             VideoRotation.VIDEO_ROTATION_180: 180, VideoRotation.VIDEO_ROTATION_270: 270}
 
@@ -367,6 +370,7 @@ async def on_incoming(_, update: ChatUpdate) -> None:
 @calls.on_update(cfilters.chat_update(ChatUpdate.Status.LEFT_CALL))
 async def on_left(_, update: ChatUpdate) -> None:
     st = active.pop(update.chat_id, None)
+    call_ended[update.chat_id] = time.monotonic()
     if st:
         if st.rt:
             await st.rt.close()
@@ -572,6 +576,7 @@ async def hang_up(user_id: int) -> None:
     if st and st.rt:
         await st.rt.wait_silent()          # finir son « au revoir »
     st = active.pop(user_id, None)
+    call_ended[user_id] = time.monotonic()
     try:
         await calls.leave_call(user_id)
     except Exception as e:
@@ -647,7 +652,8 @@ async def poll_pending() -> None:
                 res = await api('/api/call/pending', {}, actor, 15)
                 for m in res.get('messages') or []:      # résultats arrivés après coup (mise à jour Nexus, écran du PC…), même en plein appel
                     asyncio.create_task(send_outbox_message(uid, m))
-                if res.get('call') and uid not in active:
+                # l'appel reste en attente côté serveur tant qu'on n'a pas composé : on le prend au tour suivant
+                if res.get('call') and uid not in active and time.monotonic() - call_ended.get(uid, -1e9) >= CALL_GAP_S:
                     log.info('appel en attente pour %s → je compose', actor)
                     asyncio.create_task(start_call(actor, uid))
             except Exception as e:
