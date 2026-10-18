@@ -662,6 +662,35 @@ async def send_outbox_message(uid: int, m: dict) -> None:
         log.error('message backend → Telegram: %s', e)
 
 
+def split_text(text: str, limit: int = 4000) -> list[str]:
+    """Telegram refuse les messages > 4096 caractères : on coupe aux paragraphes."""
+    parts, cur = [], ''
+    for para in text.split('\n\n'):
+        while len(para) > limit:                     # paragraphe géant : coupe brute
+            parts.append(para[:limit]); para = para[limit:]
+        if cur and len(cur) + len(para) + 2 > limit:
+            parts.append(cur); cur = para
+        else:
+            cur = f'{cur}\n\n{para}' if cur else para
+    if cur:
+        parts.append(cur)
+    return parts or ['…']
+
+
+async def reply_out(msg: Message, out: dict) -> None:
+    """Réponse du cerveau → Telegram : texte (coupé si long) puis les graphiques en images."""
+    for i, part in enumerate(split_text((out.get('text') or '…').strip())):
+        if i == 0:
+            await msg.reply_text(part, disable_web_page_preview=True)
+        else:
+            await app.send_message(msg.chat.id, part, disable_web_page_preview=True)
+    for img in out.get('images') or []:
+        try:
+            await app.send_photo(msg.chat.id, img['url'], caption=(img.get('title') or '')[:1000] or None)
+        except Exception as e:
+            log.warning('graphique → Telegram: %s', e)
+
+
 async def poll_pending() -> None:
     while True:
         for actor, uid in actor_peer.items():
@@ -750,7 +779,7 @@ async def on_message(_, msg: Message) -> None:
             body = (f"[Document PDF reçu sur Telegram : « {name} ». Si c'est un billet d'avion / une carte d'embarquement, "
                     f"enregistre-le avec l'outil travel (add_trip).]\n{msg.caption or ''}\n\n{text.strip()[:9000] or '(PDF sans texte lisible)'}")
             out = await api('/api/call/turn', {'message': body, 'textOnly': True, 'channel': 'message'}, actor, 120)
-            await msg.reply_text(out.get('text') or '…')
+            await reply_out(msg, out)
             return
         if msg.voice or msg.audio:
             path = await msg.download(file_name=tempfile.mktemp(prefix='dzin_', suffix='.ogg'))
@@ -782,7 +811,7 @@ async def on_message(_, msg: Message) -> None:
                 await msg.reply_voice(ogg)
                 os.unlink(mp3); os.unlink(ogg)
             else:
-                await msg.reply_text(out.get('text') or '…')
+                await reply_out(msg, out)
         elif msg.photo or (msg.document and (msg.document.mime_type or '').startswith('image/')):
             await app.send_chat_action(uid, enums.ChatAction.TYPING)
             path = await msg.download(file_name=tempfile.mktemp(prefix='dzimg_', suffix='.jpg'))
@@ -791,7 +820,7 @@ async def on_message(_, msg: Message) -> None:
             mime = 'image/jpeg' if msg.photo else msg.document.mime_type
             out = await api('/api/call/turn', {'message': msg.caption or '', 'image': b64, 'imageMime': mime,
                                                'textOnly': True, 'channel': 'message'}, actor, 120)
-            await msg.reply_text(out.get('text') or '…')
+            await reply_out(msg, out)
         elif msg.text and PASSCODE_CMD.match(msg.text.strip()) and actor == speaker.OWNER:
             speaker.set_passcode(PASSCODE_CMD.match(msg.text.strip()).group(1))
             try:
@@ -810,7 +839,7 @@ async def on_message(_, msg: Message) -> None:
         elif msg.text:
             await app.send_chat_action(uid, enums.ChatAction.TYPING)
             out = await api('/api/call/turn', {'message': msg.text, 'textOnly': True, 'channel': 'message'}, actor)
-            await msg.reply_text(out.get('text') or '…')
+            await reply_out(msg, out)
     except Exception as e:
         log.error('message échoué: %s', e)
         await msg.reply_text('Petit souci technique, réessaie dans un instant.')

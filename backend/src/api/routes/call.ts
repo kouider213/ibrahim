@@ -155,6 +155,12 @@ router.post('/turn', requireCallerAuth, async (req, res) => {
     const out = await processMessage(inCall, `voice_${who}`, true, image, imageMime ?? 'image/jpeg', actor);
     const text = (out.text ?? '').trim() || 'Pardon, je n\'ai pas compris.';
     if (stream && !textOnly) { await streamTurn(res, text); return; }
+    // Message écrit sur Telegram : les blocs ```chart (que seule l'app sait dessiner) deviennent des images
+    if (textOnly && channel === 'message' && text.includes('```chart')) {
+      const { extractCharts } = await import('../../integrations/chart-image.js');
+      const out = await extractCharts(text);
+      res.json({ text: out.text, images: out.images, audio: null }); return;
+    }
     const buf =textOnly ? null : await synthesizeVoice(text.replace(/[*_#`>|]/g, '').slice(0, 900), true);
     res.json({ text, audio: buf ? buf.toString('base64') : null });
   } catch (err) {

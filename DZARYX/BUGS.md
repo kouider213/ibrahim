@@ -7,6 +7,10 @@
 
 ## Bugs Ouverts 🔴
 
+### B037 — Dossier « gagner de l'argent avec Dzaryx » : « réponse non JSON » + graphiques en code brut sur Telegram ✅
+- Cause : le rédacteur (askJson) lisait le JSON de Claude à la main ; une réponse coupée (max_tokens) ou un guillemet non échappé = échec après 2 essais. Les blocs ```chart (dessinés seulement par l'app) arrivaient en texte brut sur Telegram, et le dossier Google Docs ne savait pas faire de graphiques.
+- Fix : sortie structurée de l'API (schéma JSON imposé → JSON valide garanti) pour les dossiers ; askJson en streaming, relance avec 2× plus de place si coupée, réparation si JSON cassé (sert aussi capabilities, sites clients/démo, studio vidéo). Blocs chart dans les dossiers → PNG (chart-image.ts, SVG → Cloudinary) insérés dans le Doc ; sur Telegram, /api/call/turn renvoie `images` et tgcall les envoie en photos (+ textes > 4 000 car. coupés proprement).
+
 ### B036 — Mail jamais envoyé pendant un appel (« le serveur exige ton oui » en boucle) ✅
 - **Statut** : ✅ FIXÉ — 2026-10-18
 - **Fichier(s)** : `backend/src/integrations/tool-executor.ts` (`sendEmailTool`)

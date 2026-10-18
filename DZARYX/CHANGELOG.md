@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-18 — B037 : dossiers fiables + vrais graphiques (Docs et Telegram)
+- `pro-doc.ts` : schéma DOSSIER_SCHEMA en sortie structurée, 32k tokens, bloc `chart` (bar/pie/line) que le rédacteur ajoute quand il y a des chiffres ; images refusées par Google → nouvel essai sans images (chiffres en liste).
+- `askJson` : streaming, `schema` optionnel, relance si coupée / JSON invalide (3 essais).
+- `chart-image.ts` : graphique SVG thème FIK → PNG Cloudinary ; `extractCharts()` pour Telegram.
+- `call.ts` /turn (message écrit) : ```chart → `images` ; `tgcall/dzaryx_tg.py` reply_out : texte découpé + photos.
+
 ## 2026-10-18 — Jours facturés = tranches de 24 h + nutrition oubliée (demandes de Kouider)
 - `rentalDays()` : 03/11 → 07/11 = **4 jours** (avant : 5, jours inclus). +1 jour seulement si le retour est plus tard que l'heure de départ (03/11 10h → 07/11 14h = 5 j). Paramètres start_time/end_time (create_booking). Les ~10 calculs recopiés (route bookings, check_car_availability, contrat signé, appels rapides, CA, voucher, excel, fiche client) passent par la même règle. Anciennes réservations : nb_days déjà enregistré → aucun chiffre passé ne change.
 - Consigne Dzaryx (constants.ts) : 4 jours, jamais « 5 jours inclus », ne demande plus « lequel tu factures ».

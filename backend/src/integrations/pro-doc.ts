@@ -3,6 +3,7 @@ import { createAnthropic, CLAUDE_MAIN } from './anthropic-compat.js';
 import { token, notConnected } from './google-docs.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
+import { chartPngUrl, cleanChart, type ChartSpec } from './chart-image.js';
 
 // Dossier de présentation soigné dans Google Docs (create_presentation_doc) :
 //   page de garde avec le logo FIK → résumé + sommaire (numéros de page réels) → une partie par page.
@@ -16,7 +17,8 @@ export type Block =
   | { type: 'p'; text: string }
   | { type: 'h2'; text: string }
   | { type: 'bullets'; items: string[] }
-  | { type: 'numbers'; items: string[] };
+  | { type: 'numbers'; items: string[] }
+  | { type: 'chart'; chart: ChartSpec };
 export interface Section { title: string; blocks: Block[] }
 export interface DocSpec { title: string; subtitle?: string; summary: string[]; sections: Section[] }
 
@@ -107,6 +109,23 @@ class Builder {
     } });
   }
 
+  /** Graphique en image (PNG) + légende ; sans image → les chiffres en liste. */
+  chart(c: ChartSpec, url: string | null) {
+    if (!url) {
+      this.para(c.title, 'h2');
+      this.list(c.data.map(d => `${d.label} : ${d.value.toLocaleString('fr-FR').replace(/[\u202f\u00a0]/g, ' ')}${c.unit ? ` ${c.unit}` : ''}`), false);
+      return;
+    }
+    const start = this.cursor;
+    this.reqs.push({ insertInlineImage: { location: { index: start }, uri: url,
+      objectSize: { width: { magnitude: 450, unit: 'PT' }, height: { magnitude: 262.5, unit: 'PT' } } } });
+    this.reqs.push({ insertText: { location: { index: start + 1 }, text: '\n' } });
+    this.cursor += 2;
+    this.reqs.push({ updateParagraphStyle: { range: { startIndex: start, endIndex: this.cursor },
+      paragraphStyle: { namedStyleType: 'NORMAL_TEXT', alignment: 'CENTER', spaceAbove: { magnitude: 10, unit: 'PT' }, spaceBelow: { magnitude: 10, unit: 'PT' } },
+      fields: 'namedStyleType,alignment,spaceAbove,spaceBelow' } });
+  }
+
   pageBreak() {
     this.reqs.push({ insertPageBreak: { location: { index: this.cursor } } });
     this.cursor += 2;
@@ -125,7 +144,7 @@ class Builder {
   }
 }
 
-function build(spec: DocSpec, withLogo: boolean): Builder {
+function build(spec: DocSpec, withLogo: boolean, chartUrls: Map<ChartSpec, string | null>): Builder {
   const b = new Builder();
   const date = new Date().toLocaleDateString('fr-FR', { timeZone: 'Europe/Brussels', day: 'numeric', month: 'long', year: 'numeric' });
 
@@ -155,6 +174,7 @@ function build(spec: DocSpec, withLogo: boolean): Builder {
       else if (bl.type === 'h2') b.para(bl.text, 'h2');
       else if (bl.type === 'bullets') b.list(bl.items, false);
       else if (bl.type === 'numbers') b.list(bl.items, true);
+      else if (bl.type === 'chart') b.chart(bl.chart, chartUrls.get(bl.chart) ?? null);
     }
   });
   return b;
@@ -198,7 +218,7 @@ async function sectionPages(docId: string, headers: Record<string, string>, spec
   }
 }
 
-export async function renderProDoc(spec: DocSpec, withLogo = true): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+export async function renderProDoc(spec: DocSpec, withLogo = true, withImages = true): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   const t = await token();
   if (!t) return { ok: false, error: notConnected() };
   const headers = { Authorization: `Bearer ${t}` };
@@ -208,14 +228,18 @@ export async function renderProDoc(spec: DocSpec, withLogo = true): Promise<{ ok
   try {
     const { data: created } = await axios.post('https://docs.googleapis.com/v1/documents', { title: spec.title }, { headers, timeout: 15_000 });
     const id = (created as { documentId: string }).documentId;
-    const b = build(spec, withLogo);
+    // Graphiques → PNG publics (Google les télécharge pendant le montage)
+    const charts = spec.sections.flatMap(s => s.blocks.flatMap(bl => (bl.type === 'chart' ? [bl.chart] : [])));
+    const urls = withImages ? await Promise.all(charts.map(chartPngUrl)) : charts.map(() => null);
+    const chartUrls = new Map(charts.map((c, i) => [c, urls[i] ?? null] as const));
+    const b = build(spec, withLogo, chartUrls);
     try { await api(id, [...b.reqs, ...b.bullets]); }
     catch (err) {
-      // Logo injoignable par Google → on refait sans logo plutôt que d'échouer
-      if (!withLogo) throw err;
-      console.warn('[pro-doc] rendu avec logo refusé, nouvel essai sans logo');
+      // Logo ou graphique injoignable par Google → on refait sans images plutôt que d'échouer
+      if (!withLogo && !withImages) throw err;
+      console.warn('[pro-doc] rendu avec images refusé, nouvel essai sans images:', axios.isAxiosError(err) ? JSON.stringify(err.response?.data ?? '').slice(0, 200) : String(err));
       await axios.delete(`https://www.googleapis.com/drive/v3/files/${id}`, { headers }).catch(() => {});
-      return renderProDoc(spec, false);
+      return renderProDoc(spec, false, false);
     }
 
     // Pied de page (pas sur la page de garde) + sommaire cliquable vers chaque partie
@@ -274,20 +298,72 @@ Règles absolues :
 - N'utilise QUE les faits fournis. N'invente aucun chiffre, nom, prix, date ni client. S'il manque une info, n'en parle pas.
 - Pas de markdown sauf **gras** pour quelques mots-clés. Pas d'émojis. Pas de titres dans les paragraphes.
 - Chaque partie est vraiment rédigée : un paragraphe d'introduction, puis des développements (paragraphes, sous-titres h2, listes). Pas de style télégraphique.
+- GRAPHIQUES : dès que les faits contiennent des chiffres comparables (revenus, répartition, évolution, projection, comparaison), ajoute un bloc chart là où il éclaire le propos (2 à 5 dans un dossier chiffré, aucun sinon). chart.type = "bar" (comparer), "pie" (répartition d'un total), "line" (évolution dans le temps). Valeurs = uniquement les chiffres fournis ; si ce sont des hypothèses, écris-le dans le titre du graphique. Le texte autour commente le graphique.
 Réponds UNIQUEMENT avec un objet JSON valide, sans texte autour, de la forme :
-{"title": "...", "subtitle": "...", "summary": ["paragraphe", "..."], "sections": [{"title": "...", "blocks": [{"type":"p","text":"..."},{"type":"h2","text":"..."},{"type":"bullets","items":["..."]},{"type":"numbers","items":["..."]}]}]}
+{"title": "...", "subtitle": "...", "summary": ["paragraphe", "..."], "sections": [{"title": "...", "blocks": [{"type":"p","text":"..."},{"type":"h2","text":"..."},{"type":"bullets","items":["..."]},{"type":"numbers","items":["..."]},{"type":"chart","chart":{"type":"bar","title":"...","unit":"€","data":[{"label":"...","value":123}]}}]}]}
 summary = 2 ou 3 paragraphes qui présentent le dossier et annoncent ce que contient chaque partie. sections = 3 à 8 parties, titres courts (sans numéro).`;
 
-export async function askJson<T>(system: string, user: string, maxTokens: number): Promise<T> {
-  let last = '';
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await anthropic.messages.create({ model: MODEL, max_tokens: maxTokens, system,
-      messages: [{ role: 'user', content: attempt ? `${user}\n\n(Ta réponse précédente n'était pas du JSON valide. Réponds UNIQUEMENT avec le JSON.)` : user }] });
-    last = res.content.filter(c => c.type === 'text').map(c => (c as { text: string }).text).join('');
-    const a = last.indexOf('{'), z = last.lastIndexOf('}');
-    try { return JSON.parse(last.slice(a, z + 1)) as T; } catch { /* nouvel essai */ }
+// Schéma imposé à l'API (sortie structurée) : la réponse est TOUJOURS un JSON valide de cette forme
+const STR = { type: 'string' } as const;
+const strs = { type: 'array', items: STR } as const;
+const block = (type: string, props: Record<string, unknown>) => ({
+  type: 'object', additionalProperties: false, required: ['type', ...Object.keys(props)],
+  properties: { type: { type: 'string', enum: [type] }, ...props },
+});
+const DOSSIER_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['title', 'subtitle', 'summary', 'sections'],
+  properties: {
+    title: STR, subtitle: STR, summary: strs,
+    sections: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['title', 'blocks'], properties: {
+      title: STR,
+      blocks: { type: 'array', items: { anyOf: [
+        block('p', { text: STR }), block('h2', { text: STR }),
+        block('bullets', { items: strs }), block('numbers', { items: strs }),
+        block('chart', { chart: { type: 'object', additionalProperties: false, required: ['type', 'title', 'unit', 'data'], properties: {
+          type: { type: 'string', enum: ['bar', 'pie', 'line'] }, title: STR, unit: STR,
+          data: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['label', 'value'],
+            properties: { label: STR, value: { type: 'number' } } } },
+        } } }),
+      ] } },
+    } } },
+  },
+};
+
+function parseJson<T>(text: string): T | null {
+  const t = text.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+  const a = t.indexOf('{'), z = t.lastIndexOf('}');
+  if (a < 0 || z <= a) return null;
+  try { return JSON.parse(t.slice(a, z + 1)) as T; } catch { return null; }
+}
+
+/**
+ * Réponse JSON de Claude, fiable :
+ *  - schema fourni → sortie structurée de l'API (JSON valide garanti) ;
+ *  - réponse coupée (max_tokens) → on relance avec 2× plus de place ;
+ *  - JSON cassé (guillemet non échappé…) → Claude répare sa propre réponse.
+ * Le 18/10 le dossier « gagner de l'argent avec Dzaryx » est mort sur « réponse non JSON ».
+ */
+export async function askJson<T>(system: string, user: string, maxTokens: number, schema?: object): Promise<T> {
+  let max = maxTokens, last = '', why = '';
+  const ask = async (content: string) => {
+    const res = await anthropic.messages.stream({ model: MODEL, max_tokens: max, system,
+      messages: [{ role: 'user', content }],
+      ...(schema ? { output_config: { format: { type: 'json_schema', schema } } } : {}) } as never).finalMessage();
+    if (res.stop_reason === 'refusal') throw new Error('demande refusée par l\'IA');
+    return { text: res.content.filter(c => c.type === 'text').map(c => (c as { text: string }).text).join(''), cut: res.stop_reason === 'max_tokens' };
+  };
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const r = await ask(attempt && why === 'json' && !schema
+      ? `${user}\n\nTa réponse précédente n'était pas du JSON valide (souvent un guillemet " non échappé dans un texte : écris « » à la place). Réponds UNIQUEMENT avec le JSON complet et valide.`
+      : attempt && why === 'cut' ? `${user}\n\n(Sois un peu plus concis : ta réponse précédente était trop longue et a été coupée.)` : user);
+    last = r.text;
+    const out = r.cut ? null : parseJson<T>(r.text);
+    if (out) return out;
+    why = r.cut ? 'cut' : 'json';
+    if (r.cut) max = Math.min(64_000, max * 2);
+    console.warn(`[askJson] essai ${attempt + 1} : ${r.cut ? 'réponse coupée' : 'JSON invalide'} (${r.text.length} car.)`);
   }
-  throw new Error(`réponse non JSON : ${last.slice(0, 200)}`);
+  throw new Error(why === 'cut' ? 'réponse trop longue, coupée 3 fois' : `réponse non JSON : ${last.slice(0, 200)}`);
 }
 
 function cleanSpec(raw: DocSpec, fallbackTitle: string): DocSpec {
@@ -300,6 +376,10 @@ function cleanSpec(raw: DocSpec, fallbackTitle: string): DocSpec {
         const items = bl.items.map(str).filter(Boolean);
         return items.length ? [{ type: bl.type, items }] : [];
       }
+      if (bl.type === 'chart') {
+        const chart = cleanChart(bl.chart);
+        return chart ? [{ type: 'chart', chart }] : [];
+      }
       return [];
     }),
   })).filter(s => s.title && s.blocks.length);
@@ -309,7 +389,7 @@ function cleanSpec(raw: DocSpec, fallbackTitle: string): DocSpec {
 
 export async function writeDossier(title: string, brief: string, material: string): Promise<DocSpec> {
   const raw = await askJson<DocSpec>(WRITER_SYSTEM,
-    `Titre souhaité : ${title}\nObjectif / public : ${brief || 'dossier de présentation'}\n\nFAITS À UTILISER (seule source autorisée) :\n${material}`, 16000);
+    `Titre souhaité : ${title}\nObjectif / public : ${brief || 'dossier de présentation'}\n\nFAITS À UTILISER (seule source autorisée) :\n${material}`, 32000, DOSSIER_SCHEMA);
   const spec = cleanSpec(raw, title);
   if (!spec.sections.length) throw new Error('aucune partie rédigée');
   return spec;
@@ -327,7 +407,8 @@ export function startDossierJob(title: string, make: () => Promise<DocSpec>): st
     try {
       const spec = await make();
       const r = await renderProDoc(spec);
-      msg = r.ok ? `📄 Ton dossier « ${spec.title} » est prêt (page de garde, résumé, sommaire, ${spec.sections.length} parties) :\n${r.url}` : r.error;
+      const nCharts = spec.sections.reduce((n, s) => n + s.blocks.filter(bl => bl.type === 'chart').length, 0);
+      msg = r.ok ? `📄 Ton dossier « ${spec.title} » est prêt (page de garde, résumé, sommaire, ${spec.sections.length} parties${nCharts ? `, ${nCharts} graphique${nCharts > 1 ? 's' : ''}` : ''}) :\n${r.url}` : r.error;
     } catch (err) {
       msg = `❌ Le dossier « ${title} » n'a pas pu être fait : ${err instanceof Error ? err.message : String(err)}`;
     } finally {
