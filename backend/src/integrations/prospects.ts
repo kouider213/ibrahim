@@ -197,11 +197,21 @@ export async function markProspectContacted(email: string): Promise<void> {
   }).eq('id', row.id);
 }
 
-/** Vrai si l'adresse a demandé à ne plus être contactée (STOP) ou a refusé. */
+/** Vrai si l'adresse a demandé à ne plus être contactée (STOP) ou a refusé — sur n'importe laquelle de ses fiches. */
 export async function isOptedOut(email: string): Promise<boolean> {
-  const { data } = await supabase.from('prospects').select('status').ilike('email', norm(email)).limit(1).maybeSingle();
-  const status = (data as { status?: string } | null)?.status;
-  return status === 'stop' || status === 'refus';
+  const { data } = await supabase.from('prospects').select('status').ilike('email', norm(email)).in('status', ['stop', 'refus']).limit(1);
+  return !!data?.length;
+}
+
+/** Réponse « STOP » : toutes les fiches de cette adresse passent en « Pas intéressé » (refus) → plus aucun mail ni relance. */
+export async function optOutEmail(email: string, note: string): Promise<void> {
+  const { data } = await supabase.from('prospects').select('id, status, notes').ilike('email', norm(email));
+  const day = new Date().toISOString().slice(0, 10);
+  for (const r of (data ?? []) as Array<{ id: string; status: ProspectStatus; notes: string | null }>) {
+    if (r.status === 'client') continue;
+    await updateProspect(r.id, { status: 'refus', suggested_reply: null,
+      notes: [r.notes, `[${day}] ${note}`].filter(Boolean).join('\n') });
+  }
 }
 
 // ── Démarchage automatique : réglages (une seule ligne) ──

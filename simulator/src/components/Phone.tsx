@@ -116,6 +116,12 @@ export default function Phone() {
   const [page, setPage]       = useState<Page>(carteLink ? 'carte' : 'voice');
   const [showOnboard, setShowOnboard] = useState<boolean>(() => { try { return !localStorage.getItem('dz:onboarded'); } catch { return false; } });
   const [wsOk, setWsOk]       = useState(false);
+  // Hors de la page vocale (pas de socket), une lecture réussie suffit pour afficher « EN LIGNE »
+  useEffect(() => {
+    const onNet = (e: Event) => setWsOk(!(e as CustomEvent).detail);
+    window.addEventListener('dz:offline', onNet as EventListener);
+    return () => window.removeEventListener('dz:offline', onNet as EventListener);
+  }, []);
   const [notif, setNotif]     = useState<Notif | null>(null);
   // Appels Dzaryx : ringing = « Dzaryx t'appelle » à l'écran ; activeCall = conversation en cours (écran Voix)
   const [ringing, setRinging]       = useState<{ id: string; reason: string } | null>(null);

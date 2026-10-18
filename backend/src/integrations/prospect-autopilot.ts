@@ -5,7 +5,7 @@ import { multiProviderWebSearch, jinaAuthHeaders } from './web-search-provider.j
 import crypto from 'crypto';
 import { sendEmail, canSendEmail, countSentToday, listInboxMessages, readEmail, getMessageIdHeader, getThreadLastMessageId, proSenderAddress, getGmailConnectLink, PRO_ALIAS } from './gmail.js';
 import { reportIncident } from '../notifications/incident-call.js';
-import { addProspect, getAutopilot, updateProspect, companyKey, type Prospect, type ProspectSegment, type LinkedinContact, type QuoteDraftLine } from './prospects.js';
+import { addProspect, getAutopilot, updateProspect, optOutEmail, isOptedOut, companyKey, type Prospect, type ProspectSegment, type LinkedinContact, type QuoteDraftLine } from './prospects.js';
 import { findFreeSlots } from './google-calendar.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { autoCall } from '../notifications/auto-call.js';
@@ -26,7 +26,7 @@ const MAX_PER_DAY    = 15;
 const SEND_GAP_MS    = 20_000;
 const FOOTER         = '\n\n—\nVous ne souhaitez plus recevoir nos messages ? Répondez simplement « STOP ».';
 const EMAIL_RE       = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-const STOP_RE        = /^\W*(stop|unsubscribe|désinscri|desinscri|ne plus (me )?(recevoir|contacter)|retirez[- ]moi|توقف|إلغاء الاشتراك)/im;
+const STOP_RE        = /^\W*(stop\b|unsubscribe|désinscri|desinscri|retirez[- ]moi|توقف|إلغاء الاشتراك)|ne plus (me |m'|m’|nous )?(recevoir|contacter|écrire|ecrire|envoyer|solliciter|relancer)|ne pas (me |m'|m’|nous )?(re)?(contacter|solliciter|relancer)|retirez[- ](moi|nous|mon adresse)|(me|nous) (désinscrire|desinscrire|retirer de)/im;
 const BOUNCE_RE      = /mailer-daemon|postmaster/i;
 
 const anthropic = createAnthropic();
@@ -668,8 +668,10 @@ export async function checkProspectReplies(): Promise<number> {
       last_subject: latest.subject || p.last_subject, last_reply_text: mail.body.slice(0, 4000) };
 
     if (STOP_RE.test(mail.body.slice(0, 300))) {
-      await updateProspect(p.id, { ...base, status: 'stop', suggested_reply: null });
-      emitProactive(`${p.company} a demandé à ne plus recevoir de mails — noté, je ne leur écrirai plus.`, 'info', undefined, 'kouider');
+      await updateProspect(p.id, { ...base, replied_at: new Date().toISOString() });
+      await optOutEmail(p.email ?? latest.fromEmail, 'A répondu STOP — ne plus jamais écrire');
+      if (latest.fromEmail && latest.fromEmail !== p.email) await optOutEmail(latest.fromEmail, 'A répondu STOP — ne plus jamais écrire');
+      emitProactive(`${p.company} a répondu STOP — mis en « Pas intéressé », je ne leur écrirai plus.`, 'info', undefined, 'kouider', 'demarchage');
       continue;
     }
 
@@ -724,7 +726,7 @@ export async function sendProspectReply(prospectId: string, text: string): Promi
   const { data } = await supabase.from('prospects').select('*').eq('id', prospectId).maybeSingle();
   const p = data as Prospect | null;
   if (!p?.email) throw new Error('Prospect introuvable ou sans email.');
-  if (p.status === 'stop') throw new Error(`${p.company} a demandé à ne plus être contacté.`);
+  if (p.status === 'stop' || p.status === 'refus' || await isOptedOut(p.email)) throw new Error(`${p.company} a demandé à ne plus être contacté.`);
   const body = text.trim();
   if (body.length < 10) throw new Error('Réponse vide.');
   if ((await countSentToday('pro')) >= DAILY_CAP) throw new Error(`Limite de ${DAILY_CAP} mails/jour atteinte, réessaie demain.`);

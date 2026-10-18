@@ -159,11 +159,17 @@ export interface CoachOverview {
   gained?: number; message?: string;
 }
 
+const GET_TIMEOUT_MS = 20_000;
+
 export async function apiFetch<T>(path: string, options: RequestInit = {}, _attempt = 0): Promise<T> {
   const isGet = !options.method || options.method.toUpperCase() === 'GET';
   let res: Response;
+  // Une lecture bloquée (réseau mobile qui décroche, serveur qui redémarre) ne doit pas laisser la page charger à l'infini
+  const ctrl = isGet && !options.signal ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), GET_TIMEOUT_MS) : null;
   try {
     res = await fetch(`${BACKEND_URL}${path}`, {
+      ...(ctrl ? { signal: ctrl.signal } : {}),
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -183,6 +189,8 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}, _atte
       if (cached) { setOffline(true); return cached.data; }
     }
     throw netErr;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
   // 502/503/504 = backend mort derrière le proxy → même bascule
   if ([502, 503, 504].includes(res.status) && _attempt < _BACKENDS.length - 1 && switchToNextBackend()) {
