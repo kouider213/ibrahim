@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { business, type RevenueSummary, type FinancialReport } from '../../services/api.ts';
-import { Hero } from '../ui/Premium.tsx';
+import { SkeletonCards } from '../ui/Premium.tsx';
+import { T, tone, Screen, PageHeader, Segmented, Kpi, KpiGrid, Card, Row, Avatar, Badge, Btn, SectionTitle, Empty, money } from '../ui/Kit.tsx';
 
 const SCORE_COL: Record<string, string> = {
-  VIP: '#ffd700', FREQUENT: '#38d8f5', FRÉQUENT: '#38d8f5',
-  REGULAR: '#00e676', RÉGULIER: '#00e676', NEW: '#ffffff66', NOUVEAU: '#ffffff66',
+  VIP: T.warn, FREQUENT: T.accent, FRÉQUENT: T.accent, A: T.accent,
+  REGULAR: T.ok, RÉGULIER: T.ok, B: T.ok, NEW: T.muted, NOUVEAU: T.muted,
 };
-const MONTH_FR = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
+const MONTH_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const K_COL = T.accent, H_COL = T.violet;
+type Fmt = (n: number | null | undefined) => string;
 
 export default function RevenueScreen({ actor = 'kouider' }: { actor?: string }) {
   const isHouari = actor === 'houari';
@@ -63,10 +66,7 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
     finally { setClear(false); }
   };
 
-  const fmt = (n: number | null | undefined) => {
-    if (n == null) return '—';
-    return n >= 1000 ? `${(n / 1000).toFixed(1)}k€` : `${Math.round(n)}€`;
-  };
+  const fmt: Fmt = (n) => money(n);
 
   const isAtNow = isCurrentMonth;
 
@@ -78,302 +78,215 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
   const encaisse   = report?.encaisse ?? 0;
   const aEncaisser = report?.aEncaisser ?? 0;
 
+  const navBtn = (dis: boolean): React.CSSProperties => ({ width: 44, height: 44, borderRadius: 13, border: `1px solid ${T.line}`, background: T.surface, color: dis ? T.faint : T.accent, fontSize: 22, cursor: dis ? 'default' : 'pointer', opacity: dis ? 0.4 : 1, flexShrink: 0 });
+
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#050a16', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
-      <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
-
-      {/* Header premium (cohérent avec les autres écrans) */}
-      <div style={{ flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
-        <Hero eyebrow="Dzaryx · Finances" title="Revenus" subtitle={msg || undefined} />
-        <div style={{ padding: '0 16px 6px' }}>
-
-        {/* Month navigator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <button onClick={prevMonth} style={navBtn}>‹</button>
+    <Screen toast={msg} header={<>
+      <PageHeader eyebrow="Finances" title="Chiffre d'affaires" subtitle={isHouari ? 'Tes locations et ton CA' : 'Ma marge, la part de Houari, ce qui reste à encaisser'} />
+      <div style={{ padding: '0 16px 10px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button onClick={prevMonth} aria-label="Mois précédent" style={navBtn(false)}>‹</button>
           <div style={{ flex: 1, textAlign: 'center' }}>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#38d8f5', letterSpacing: '0.15em' }}>
-              {MONTH_FR[viewMonth - 1].toUpperCase()} {viewYear}
-            </span>
-            {!isAtNow && (
-              <button onClick={goToNow} style={{ marginLeft: 8, background: '#38d8f518', border: '1px solid #38d8f544', borderRadius: 4,
-                fontFamily: 'Inter, sans-serif', fontSize: 6, color: '#38d8f5aa', cursor: 'pointer', padding: '2px 6px' }}>
-                ↩ CE MOIS
-              </button>
-            )}
+            <div style={{ fontSize: 17, fontWeight: 800 }}>{MONTH_FR[viewMonth - 1]} {viewYear}</div>
+            {!isAtNow && <button onClick={goToNow} style={{ background: 'none', border: 'none', color: T.accent, fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 2, fontFamily: T.font }}>↩ Revenir à ce mois</button>}
           </div>
-          <button onClick={nextMonth} disabled={isAtNow} style={{ ...navBtn, opacity: isAtNow ? 0.3 : 1 }}>›</button>
+          <button onClick={nextMonth} disabled={isAtNow} aria-label="Mois suivant" style={navBtn(isAtNow)}>›</button>
         </div>
-
-        {/* Tab switcher */}
-        <div style={{ display: 'flex', gap: 4 }}>
-          {([
-            { id: 'overview', label: '◉ MOIS'    },
-            { id: 'detail',   label: '≡ RÉSAS'   },
-            { id: 'annual',   label: '📊 ANNÉE'  },
-          ] as const).map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              flex: 1, padding: '5px', borderRadius: 6,
-              background: tab === t.id ? 'rgba(56,216,245,0.15)' : 'transparent',
-              border: `1px solid ${tab === t.id ? '#38d8f555' : '#ffffff0f'}`,
-              fontFamily: 'Inter, sans-serif', fontSize: 6, color: tab === t.id ? '#38d8f5' : '#ffffff33',
-              cursor: 'pointer', letterSpacing: '0.12em',
-            }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        <div style={{ marginTop: 6, height: 1, background: 'linear-gradient(90deg, transparent, #38d8f544, transparent)' }} />
-        </div>
+        <Segmented<'overview' | 'detail' | 'annual'> value={tab} onChange={setTab} items={[
+          { id: 'overview', label: 'Mois' }, { id: 'detail', label: 'Réservations', count: report?.totalBookings || undefined }, { id: 'annual', label: `Année ${viewYear}` },
+        ]} />
       </div>
+    </>}>
+      {loading ? <SkeletonCards count={4} height={110} /> : tab === 'overview' ? (
+        <OverviewTab rev={rev} report={report} caMonth={caMonth} profitK={profitK} caHouari={caHouari}
+          nbBookings={nbBookings} encaisse={encaisse} aEncaisser={aEncaisser} isCurrentMonth={isCurrentMonth} fmt={fmt} isHouari={isHouari} />
+      ) : tab === 'detail' ? (
+        <DetailTab report={report} fmt={fmt} />
+      ) : (
+        <AnnualTab report={annualReport} year={viewYear} fmt={fmt} />
+      )}
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {report?.dzd && (isHouari || report.dzd.bookings > 0) && (
-          <div style={{ borderRadius: 12, border: '1px solid #38d8f544', background: 'linear-gradient(135deg, rgba(56,216,245,0.10), rgba(10,10,12,0.6))', padding: '11px 13px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#38d8f5', letterSpacing: '0.15em' }}>💱 EN DINARS (DA)</span>
-              <span style={{ fontSize: 7, color: '#38d8f599' }}>{report.dzd.bookings} location{report.dzd.bookings > 1 ? 's' : ''}</span>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6 }}>
-              {[
-                { l: 'CA', v: report.dzd.ca, c: '#38d8f5' },
-                { l: 'ENCAISSÉ', v: report.dzd.encaisse, c: '#00e676' },
-                { l: 'À ENCAISSER', v: report.dzd.aEncaisser, c: '#ffb347' },
-              ].map(s => (
-                <div key={s.l} style={{ textAlign: 'center' }}>
-                  <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: s.c }}>{Math.round(s.v).toLocaleString('fr-FR')}</div>
-                  <div style={{ fontSize: 6, color: `${s.c}88`, letterSpacing: '0.08em', marginTop: 1 }}>{s.l} (DA)</div>
-                </div>
-              ))}
-            </div>
-            {/* Détail par associé en dinars */}
-            <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: 8, paddingTop: 7, borderTop: '1px solid #ffffff10' }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#7c3aed' }}>{Math.round(report.dzd.houariCA).toLocaleString('fr-FR')}</div>
-                <div style={{ fontSize: 6, color: '#7c3aed88', letterSpacing: '0.08em' }}>HOUARI CA (DA)</div>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#00e5ff' }}>{Math.round(report.dzd.kouiderProfit ?? 0).toLocaleString('fr-FR')}</div>
-                <div style={{ fontSize: 6, color: '#00e5ff88', letterSpacing: '0.08em' }}>KOUIDER BÉNÉF. (DA)</div>
-              </div>
-            </div>
-            <div style={{ fontSize: 6.5, color: '#ffffff33', textAlign: 'center', marginTop: 7 }}>Séparé du CA en euros · Houari = CA complet, Kouider = bénéfice net (CA − prix proprio)</div>
+      {!loading && report?.dzd && (isHouari || report.dzd.bookings > 0) && (
+        <Card accent={T.violet} style={{ marginTop: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ flex: 1, fontSize: 15, fontWeight: 800 }}>💱 En dinars</div>
+            <Badge color={T.violet}>{report.dzd.bookings} location{report.dzd.bookings > 1 ? 's' : ''}</Badge>
           </div>
-        )}
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#38d8f533', letterSpacing: '0.25em' }}>
-            CHARGEMENT…
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 8 }}>
+            {[{ l: 'CA', v: report.dzd.ca, c: T.text }, { l: 'Encaissé', v: report.dzd.encaisse, c: T.ok }, { l: 'À encaisser', v: report.dzd.aEncaisser, c: T.warn }].map(x => (
+              <div key={x.l}><div style={{ fontSize: 16, fontWeight: 800, color: x.c }}>{money(x.v, 'DZD')}</div><div style={{ fontSize: 12, color: T.muted }}>{x.l}</div></div>
+            ))}
           </div>
-        ) : tab === 'overview' ? (
-          <OverviewTab
-            rev={rev} report={report}
-            caMonth={caMonth} profitK={profitK} caHouari={caHouari}
-            nbBookings={nbBookings} encaisse={encaisse} aEncaisser={aEncaisser}
-            isCurrentMonth={isCurrentMonth} fmt={fmt}
-          />
-        ) : tab === 'detail' ? (
-          <DetailTab report={report} fmt={fmt} />
-        ) : (
-          <AnnualTab report={annualReport} year={viewYear} fmt={fmt} />
-        )}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 8, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.line}` }}>
+            <div><div style={{ fontSize: 15, fontWeight: 800, color: H_COL }}>{money(report.dzd.houariCA, 'DZD')}</div><div style={{ fontSize: 12, color: T.muted }}>CA Houari</div></div>
+            <div><div style={{ fontSize: 15, fontWeight: 800, color: K_COL }}>{money(report.dzd.kouiderProfit ?? 0, 'DZD')}</div><div style={{ fontSize: 12, color: T.muted }}>Bénéfice Kouider</div></div>
+          </div>
+          <div style={{ fontSize: 12, color: T.faint, marginTop: 10, lineHeight: 1.4 }}>Séparé du CA en euros · Houari = CA complet, Kouider = bénéfice net (CA − prix proprio).</div>
+        </Card>
+      )}
 
-        {/* Actions */}
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={() => void load()} style={{ ...aBtn('#38d8f5'), flex: 1 }}>↻ ACTUALISER</button>
-          {isCurrentMonth && (
-            <button onClick={() => void clearCache()} disabled={clearing} style={{ ...aBtn('#ff6b00'), flex: 1 }}>
-              {clearing ? '…' : '⚡ CACHE'}
-            </button>
-          )}
-        </div>
+      <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+        <Btn onClick={() => void load()} style={{ flex: 1 }}>↻ Actualiser</Btn>
+        {isCurrentMonth && <Btn variant="ghost" onClick={() => void clearCache()} disabled={clearing} style={{ flex: 1 }}>{clearing ? '…' : '⚡ Recalculer'}</Btn>}
       </div>
+    </Screen>
+  );
+}
+
+// ─── Petites briques ──────────────────────────────────────────────────────────
+
+function PartnerCard({ who, value, label, sub }: { who: 'K' | 'H'; value: string; label: string; sub?: string }) {
+  const c = who === 'K' ? K_COL : H_COL;
+  return (
+    <Card accent={c}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <Avatar name={who} color={c} size={30} />
+        <span style={{ fontSize: 13, fontWeight: 700, color: c }}>{who === 'K' ? 'Kouider' : 'Houari'}</span>
+      </div>
+      <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em' }}>{value}</div>
+      <div style={{ fontSize: 12.5, color: T.muted, marginTop: 2 }}>{label}</div>
+      {sub && <div style={{ fontSize: 12, color: T.faint, marginTop: 4 }}>{sub}</div>}
+    </Card>
+  );
+}
+
+function Alert({ icon, text, col }: { icon: string; text: string; col: string }) {
+  return (
+    <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '12px 14px', borderRadius: 14, background: tone(col, 0.1), border: `1px solid ${tone(col, 0.32)}`, fontSize: 14, color: T.text, marginBottom: 10 }}>
+      <span style={{ fontSize: 18 }}>{icon}</span><span style={{ lineHeight: 1.35 }}>{text}</span>
     </div>
   );
 }
 
-// ─── Overview Tab ─────────────────────────────────────────────────────────────
+function Bars({ rows, fmt }: { rows: Array<{ name: string; ca: number; sub: string }>; fmt: Fmt }) {
+  const max = Math.max(...rows.map(r => r.ca), 1);
+  return (
+    <Card>
+      {rows.map((r, i) => (
+        <div key={r.name} style={{ marginBottom: i < rows.length - 1 ? 14 : 0 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: 6 }}>
+            <span style={{ flex: 1, fontSize: 14.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
+            <span style={{ fontSize: 15, fontWeight: 800, marginLeft: 8 }}>{fmt(r.ca)}</span>
+          </div>
+          <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${(r.ca / max) * 100}%`, background: `linear-gradient(90deg, ${tone(T.accent, 0.45)}, ${T.accent})`, borderRadius: 3 }} />
+          </div>
+          <div style={{ fontSize: 12, color: T.faint, marginTop: 4 }}>{r.sub}</div>
+        </div>
+      ))}
+    </Card>
+  );
+}
 
-function OverviewTab({ rev, report, caMonth, profitK, caHouari, nbBookings, encaisse, aEncaisser, isCurrentMonth, fmt }: {
+// ─── Mois ─────────────────────────────────────────────────────────────────────
+
+function OverviewTab({ rev, report, caMonth, profitK, caHouari, nbBookings, encaisse, aEncaisser, isCurrentMonth, fmt, isHouari }: {
   rev: RevenueSummary | null; report: FinancialReport | null;
   caMonth: number; profitK: number; caHouari: number;
   nbBookings: number; encaisse: number; aEncaisser: number;
-  isCurrentMonth: boolean; fmt: (n: number | null | undefined) => string;
+  isCurrentMonth: boolean; fmt: Fmt; isHouari: boolean;
 }) {
-  const vsLast     = rev?.month_vs_last_pct ?? 0;
-  const vsLastCol  = vsLast >= 0 ? '#00e676' : '#ff3366';
-  const vsLastSign = vsLast >= 0 ? '+' : '';
+  const vsLast = rev?.month_vs_last_pct ?? 0;
+
+  // Par véhicule (hors réservations refusées)
+  const byVehicle: Record<string, { ca: number; profit: number; count: number }> = {};
+  for (const b of report?.bookings ?? []) {
+    if (b.status === 'REJECTED') continue;
+    const v = b.car_name || '—';
+    if (!byVehicle[v]) byVehicle[v] = { ca: 0, profit: 0, count: 0 };
+    byVehicle[v].ca += b.final_price ?? 0; byVehicle[v].profit += b.kouider_profit ?? 0; byVehicle[v].count += 1;
+  }
+  const vehicles = Object.entries(byVehicle).sort((a, b) => b[1].ca - a[1].ca)
+    .map(([name, st]) => ({ name, ca: st.ca, sub: `${st.count} résa${st.count > 1 ? 's' : ''}${!isHouari ? ` · ma marge ${fmt(st.profit)}` : ''}` }));
 
   return (
     <>
-      {/* CA + variation */}
-      <div style={{ textAlign: 'center', background: 'rgba(56,216,245,0.05)', borderRadius: 12, padding: '14px', border: '1px solid #38d8f51a' }}>
-        <div style={{ fontSize: 7, color: '#38d8f555', letterSpacing: '0.25em', fontFamily: 'Inter, sans-serif', marginBottom: 4 }}>CA TOTAL</div>
-        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 32, color: '#38d8f5', textShadow: '0 0 20px #38d8f555' }}>
-          {fmt(caMonth)}
+      {/* CA du mois */}
+      <Card style={{ marginBottom: 12, padding: '18px 16px', background: `radial-gradient(120% 120% at 100% 0%, ${tone(T.accent, 0.18)}, transparent 60%), linear-gradient(160deg, ${T.surface2}, ${T.surface})` }}>
+        <div style={{ fontSize: 13, color: T.muted, fontWeight: 600 }}>CA total du mois</div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+          <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.05 }}>{fmt(caMonth)}</div>
+          {isCurrentMonth && vsLast !== 0 && <Badge color={vsLast >= 0 ? T.ok : T.bad}>{vsLast >= 0 ? '▲ +' : '▼ '}{Math.round(vsLast)} % vs mois dernier</Badge>}
         </div>
-        {isCurrentMonth && vsLast !== 0 && (
-          <div style={{ marginTop: 4, fontSize: 7, color: vsLastCol, fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em' }}>
-            {vsLastSign}{Math.round(vsLast)}% vs mois précédent ({fmt(rev?.last_month_revenue)})
-          </div>
-        )}
         {isCurrentMonth && rev && (
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 8 }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9b59b6' }}>{fmt(rev.today_revenue)}</div>
-              <div style={{ fontSize: 6, color: '#9b59b666', letterSpacing: '0.1em' }}>AUJOURD'HUI</div>
-            </div>
-            <div style={{ width: 1, background: '#ffffff12' }} />
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#7c3aed' }}>{fmt(rev.week_revenue)}</div>
-              <div style={{ fontSize: 6, color: '#7c3aed66', letterSpacing: '0.1em' }}>SEMAINE</div>
-            </div>
+          <div style={{ display: 'flex', gap: 18, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${T.line}`, fontSize: 13, color: T.muted }}>
+            <span>Aujourd'hui <b style={{ color: T.text, fontSize: 15 }}>{fmt(rev.today_revenue)}</b></span>
+            <span>Semaine <b style={{ color: T.text, fontSize: 15 }}>{fmt(rev.week_revenue)}</b></span>
+            {rev.last_month_revenue > 0 && <span>Mois dernier <b style={{ color: T.text, fontSize: 15 }}>{fmt(rev.last_month_revenue)}</b></span>}
           </div>
         )}
+      </Card>
+
+      {/* Kouider / Houari */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 10, marginBottom: 12 }}>
+        <PartnerCard who="K" value={fmt(profitK)} label="Bénéfice net" sub={report ? `${report.kouiderBookings} résas` : undefined} />
+        <PartnerCard who="H" value={fmt(caHouari)} label="CA véhicules" sub={report ? `${report.houariBookings} résas` : undefined} />
       </div>
 
-      {/* Kouider / Houari split */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-        <div style={{ background: 'rgba(0,229,255,0.07)', borderRadius: 10, padding: '10px', border: '1px solid #00e5ff22' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#00e5ff18', border: '1.5px solid #00e5ff44',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#00e5ff' }}>K</div>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#00e5ffaa', letterSpacing: '0.15em' }}>KOUIDER</span>
-          </div>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 18, color: '#00e5ff', textShadow: '0 0 10px #00e5ff44' }}>
-            {fmt(profitK)}
-          </div>
-          <div style={{ fontSize: 6, color: '#00e5ff44', marginTop: 2 }}>bénéfice net</div>
-          {report && (
-            <div style={{ fontSize: 6, color: '#ffffff22', marginTop: 4 }}>
-              {report.kouiderBookings} résas · {fmt(report.encaisse)} encaissé
-            </div>
-          )}
-        </div>
+      <KpiGrid cols={3}>
+        <Kpi value={nbBookings} label="Réservations" color={T.accent} />
+        <Kpi value={fmt(encaisse)} label="Encaissé" color={T.ok} />
+        <Kpi value={fmt(aEncaisser)} label="À encaisser" color={aEncaisser > 0 ? T.bad : T.ok} />
+      </KpiGrid>
 
-        <div style={{ background: 'rgba(124,58,237,0.07)', borderRadius: 10, padding: '10px', border: '1px solid #7c3aed22' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#7c3aed18', border: '1.5px solid #7c3aed44',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#7c3aed' }}>H</div>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#7c3aedaa', letterSpacing: '0.15em' }}>HOUARI</span>
-          </div>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 18, color: '#7c3aed', textShadow: '0 0 10px #7c3aed44' }}>
-            {fmt(caHouari)}
-          </div>
-          <div style={{ fontSize: 6, color: '#7c3aed44', marginTop: 2 }}>CA véhicules</div>
-          {report && (
-            <div style={{ fontSize: 6, color: '#ffffff22', marginTop: 4 }}>
-              {report.houariBookings} résas
-            </div>
-          )}
-        </div>
-      </div>
+      {(report?.missingOwnerPrice ?? 0) > 0 && <Alert icon="⚠️" col={T.warn} text={`${report!.missingOwnerPrice} réservation${report!.missingOwnerPrice > 1 ? 's' : ''} sans prix propriétaire : marge incomplète.`} />}
+      {isCurrentMonth && (rev?.total_unpaid_receivables ?? 0) > 0 && <Alert icon="💸" col={T.bad} text={`Créances impayées au total : ${fmt(rev!.total_unpaid_receivables)}.`} />}
 
-      {/* Payment stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
-        <StatMini label="RÉSAS" val={String(nbBookings)} col="#38d8f5" />
-        <StatMini label="ENCAISSÉ" val={fmt(encaisse)} col="#00e676" />
-        <StatMini label="À ENCAISSER" val={fmt(aEncaisser)} col="#ff3366" />
-      </div>
+      {vehicles.length > 0 && <>
+        <SectionTitle>Par véhicule</SectionTitle>
+        <div style={{ marginBottom: 16 }}><Bars rows={vehicles} fmt={fmt} /></div>
+      </>}
 
-      {/* Warnings */}
-      {(report?.missingOwnerPrice ?? 0) > 0 && (
-        <WarningBar icon="⚠️" text={`${report!.missingOwnerPrice} résa(s) sans prix propriétaire`} col="#ffb347" />
-      )}
-      {isCurrentMonth && (rev?.total_unpaid_receivables ?? 0) > 0 && (
-        <WarningBar icon="💸" text={`Créances impayées: ${fmt(rev!.total_unpaid_receivables)}`} col="#ff3366" />
-      )}
-
-      {/* Per-vehicle breakdown from report */}
-      {(report?.bookings ?? []).length > 0 && (
-        <VehicleBreakdown bookings={report!.bookings} fmt={fmt} />
-      )}
-
-      {/* Top clients (current month only) */}
-      {isCurrentMonth && (rev?.top_clients?.length ?? 0) > 0 && (
-        <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: '12px', border: '1px solid #ffffff0a' }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#ffffff44', letterSpacing: '0.25em', marginBottom: 10 }}>TOP CLIENTS</div>
+      {isCurrentMonth && (rev?.top_clients?.length ?? 0) > 0 && <>
+        <SectionTitle>Meilleurs clients</SectionTitle>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {rev!.top_clients.slice(0, 5).map((c, i) => {
-            const scoreCol = SCORE_COL[c.score?.toUpperCase() ?? ''] ?? '#ffffff44';
-            return (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#ffffff22', minWidth: 14 }}>{i + 1}</span>
-                <div style={{ padding: '2px 5px', borderRadius: 4, fontSize: 6, background: `${scoreCol}18`, color: scoreCol,
-                  fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em', minWidth: 28, textAlign: 'center' }}>
-                  {(c.score ?? 'NEW').slice(0, 4).toUpperCase()}
-                </div>
-                <span style={{ flex: 1, fontSize: 10, color: '#c8e8ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.client_name}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#ffd700', flexShrink: 0 }}>{fmt(c.total_spent)}</span>
-              </div>
-            );
+            const col = SCORE_COL[c.score?.toUpperCase() ?? ''] ?? T.muted;
+            return <Row key={i} left={<Avatar name={c.client_name} color={col} size={38} />} title={c.client_name}
+              sub={<Badge color={col}>{c.score || 'Nouveau'}</Badge>}
+              right={<span style={{ fontSize: 16, fontWeight: 800 }}>{fmt(c.total_spent)}</span>} />;
           })}
         </div>
-      )}
+      </>}
     </>
   );
 }
 
-// ─── Detail Tab ───────────────────────────────────────────────────────────────
+// ─── Réservations du mois ─────────────────────────────────────────────────────
 
-function DetailTab({ report, fmt }: { report: FinancialReport | null; fmt: (n: number | null | undefined) => string }) {
-  if (!report) return (
-    <div style={{ textAlign: 'center', padding: 20, fontSize: 8, color: '#ffffff22' }}>Aucune donnée</div>
-  );
-
-  const STATUS_COL: Record<string, string> = {
-    CONFIRMED: '#00e676', PENDING: '#ffb347', ACTIVE: '#38d8f5',
-    COMPLETED: '#ffffff55', REJECTED: '#ff3366',
-  };
-  const PAID_COL: Record<string, string> = {
-    PAID: '#00e676', PARTIAL: '#ffb347', UNPAID: '#ff3366', PENDING: '#ffffff44',
-  };
-
+function DetailTab({ report, fmt }: { report: FinancialReport | null; fmt: Fmt }) {
+  if (!report || !report.bookings.length) return <Empty icon="📋" title="Aucune réservation ce mois-ci" />;
+  const ST: Record<string, [string, string]> = { CONFIRMED: ['Confirmée', T.ok], PENDING: ['En attente', T.warn], ACTIVE: ['En cours', T.accent], COMPLETED: ['Terminée', T.faint], REJECTED: ['Refusée', T.bad] };
+  const PAY: Record<string, [string, string]> = { PAID: ['Payé', T.ok], PARTIAL: ['Acompte', T.warn], UNPAID: ['À payer', T.bad], PENDING: ['À payer', T.bad] };
+  const d = (x: string) => new Date(x).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
   return (
     <>
-      {/* Summary row */}
-      <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: '10px', border: '1px solid #ffffff08',
-        display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <InfoChip label="Résas" val={String(report.totalBookings)} col="#38d8f5" />
-        <InfoChip label="CA brut" val={fmt(report.grossCA)} col="#00e676" />
-        <InfoChip label="Profit K" val={fmt(report.kouiderProfit)} col="#ffd700" />
-        <InfoChip label="À encaisser" val={fmt(report.aEncaisser)} col="#ff3366" />
-      </div>
-
-      {/* Per-booking list */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      <KpiGrid>
+        <Kpi value={fmt(report.grossCA)} label="CA brut" color={T.accent} />
+        <Kpi value={fmt(report.kouiderProfit)} label="Ma marge" color={T.warn} />
+      </KpiGrid>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {report.bookings.map(b => {
-          const sc = STATUS_COL[b.status] ?? '#ffffff44';
-          const pc = PAID_COL[b.payment_status] ?? '#ffffff44';
-          const rentCol = b.rented_by === 'Houari' ? '#7c3aed' : '#00e5ff';
+          const [stL, stC] = ST[b.status?.toUpperCase()] ?? [b.status, T.faint];
+          const [pL, pC] = PAY[b.payment_status?.toUpperCase()] ?? [b.payment_status, T.faint];
+          const isH = (b.rented_by ?? '').toLowerCase().startsWith('h');
           return (
-            <div key={b.id} style={{ borderRadius: 10, border: `1px solid ${sc}1a`, background: `${sc}05`, padding: '8px 10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                <span style={{ fontSize: 10, color: '#e8f4ff', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: 8 }}>
-                  {b.client_name}
-                </span>
-                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                  <span style={{ fontSize: 6, color: rentCol, fontFamily: 'Inter, sans-serif', background: `${rentCol}14`, padding: '2px 5px', borderRadius: 3 }}>
-                    {b.rented_by.slice(0, 1).toUpperCase()}
-                  </span>
-                  <span style={{ fontSize: 6, color: sc, fontFamily: 'Inter, sans-serif', background: `${sc}14`, padding: '2px 5px', borderRadius: 3 }}>
-                    {b.status.slice(0, 4)}
-                  </span>
+            <Card key={b.id} accent={stC}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <Avatar name={b.client_name} color={isH ? H_COL : K_COL} size={38} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.client_name}</div>
+                  <div style={{ fontSize: 13, color: T.muted }}>{b.car_name} · {d(b.start_date)} → {d(b.end_date)} · {b.nb_days} j</div>
                 </div>
+                <div style={{ fontSize: 16, fontWeight: 800 }}>{fmt(b.final_price)}</div>
               </div>
-              <div style={{ fontSize: 7, color: '#ffffff44', marginBottom: 3 }}>
-                {b.car_name} · {b.start_date.slice(5)} → {b.end_date.slice(5)} ({b.nb_days}j)
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+                <Badge color={pC}>{pL}</Badge>
+                <Badge color={stC}>{stL}</Badge>
+                {b.client_price_per_day != null && <span style={{ fontSize: 12.5, color: T.muted }}>{b.client_price_per_day} €/j</span>}
+                {b.kouider_profit != null && <span style={{ marginLeft: 'auto', fontSize: 13, color: T.ok, fontWeight: 700 }}>marge {fmt(b.kouider_profit)}</span>}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                {b.client_price_per_day != null && (
-                  <span style={{ fontSize: 7, color: '#38d8f566' }}>{b.client_price_per_day}€/j</span>
-                )}
-                {b.kouider_profit != null && (
-                  <span style={{ fontSize: 7, color: '#ffd70088' }}>profit: {fmt(b.kouider_profit)}</span>
-                )}
-                <span style={{ marginLeft: 'auto', fontSize: 6, color: pc, fontFamily: 'Inter, sans-serif', background: `${pc}14`, padding: '2px 5px', borderRadius: 3 }}>
-                  {b.payment_status}
-                </span>
-              </div>
-            </div>
+            </Card>
           );
         })}
       </div>
@@ -381,234 +294,39 @@ function DetailTab({ report, fmt }: { report: FinancialReport | null; fmt: (n: n
   );
 }
 
-// ─── Annual Tab ───────────────────────────────────────────────────────────────
+// ─── Année ────────────────────────────────────────────────────────────────────
 
-function AnnualTab({ report, year, fmt }: {
-  report: FinancialReport | null; year: number;
-  fmt: (n: number | null | undefined) => string;
-}) {
-  if (!report) return (
-    <div style={{ textAlign: 'center', padding: 20, fontSize: 8, color: '#ffffff22' }}>Aucune donnée annuelle</div>
-  );
-
-  // Per-vehicle annual breakdown
+function AnnualTab({ report, year, fmt }: { report: FinancialReport | null; year: number; fmt: Fmt }) {
+  if (!report) return <Empty icon="📊" title="Aucune donnée pour l'année" />;
   const byVehicle: Record<string, { ca: number; profitK: number; caH: number; count: number }> = {};
   for (const b of report.bookings) {
     if (b.status === 'REJECTED') continue;
     const v = b.car_name || '—';
     if (!byVehicle[v]) byVehicle[v] = { ca: 0, profitK: 0, caH: 0, count: 0 };
-    byVehicle[v].ca     += b.final_price ?? 0;
-    byVehicle[v].count  += 1;
+    byVehicle[v].ca += b.final_price ?? 0; byVehicle[v].count += 1;
     if (b.rented_by === 'Kouider') byVehicle[v].profitK += b.kouider_profit ?? 0;
     if (b.rented_by === 'Houari')  byVehicle[v].caH     += b.owner_total ?? 0;
   }
-  const vehicles = Object.entries(byVehicle).sort((a, b) => b[1].ca - a[1].ca);
-  const maxCA = Math.max(...vehicles.map(v => v[1].ca), 1);
+  const vehicles = Object.entries(byVehicle).sort((a, b) => b[1].ca - a[1].ca)
+    .map(([name, st]) => ({ name, ca: st.ca, sub: [`${st.count} résa${st.count > 1 ? 's' : ''}`, st.profitK > 0 ? `Kouider ${fmt(st.profitK)}` : '', st.caH > 0 ? `Houari ${fmt(st.caH)}` : ''].filter(Boolean).join(' · ') }));
 
   return (
     <>
-      {/* Year header */}
-      <div style={{ textAlign: 'center', fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#38d8f555', letterSpacing: '0.3em', marginBottom: 2 }}>
-        BILAN {year}
+      <Card style={{ marginBottom: 12, padding: '18px 16px', background: `radial-gradient(120% 120% at 100% 0%, ${tone(T.violet, 0.18)}, transparent 60%), linear-gradient(160deg, ${T.surface2}, ${T.surface})` }}>
+        <div style={{ fontSize: 13, color: T.muted, fontWeight: 600 }}>CA {year}</div>
+        <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.05, marginTop: 4 }}>{fmt(report.grossCA)}</div>
+        <div style={{ fontSize: 13.5, color: T.muted, marginTop: 8 }}>{report.totalBookings} réservations{report.encaisse > 0 ? ` · ${fmt(report.encaisse)} encaissé` : ''}</div>
+        {report.aEncaisser > 0 && <div style={{ marginTop: 10 }}><Badge color={T.warn}>💸 Reste à encaisser : {fmt(report.aEncaisser)}</Badge></div>}
+      </Card>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 10, marginBottom: 12 }}>
+        <PartnerCard who="K" value={fmt(report.kouiderProfit)} label="Bénéfice net annuel" sub={`${report.kouiderBookings} résas`} />
+        <PartnerCard who="H" value={fmt(report.ownerTotal)} label="CA véhicules annuel" sub={`${report.houariBookings} résas`} />
       </div>
-
-      {/* Big annual CA */}
-      <div style={{ textAlign: 'center', background: 'rgba(56,216,245,0.05)', borderRadius: 12, padding: '14px', border: '1px solid #38d8f51a' }}>
-        <div style={{ fontSize: 7, color: '#38d8f544', letterSpacing: '0.25em', fontFamily: 'Inter, sans-serif', marginBottom: 4 }}>CA ANNUEL TOTAL</div>
-        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 34, color: '#38d8f5', textShadow: '0 0 20px #38d8f555', lineHeight: 1 }}>
-          {fmt(report.grossCA)}
-        </div>
-        <div style={{ marginTop: 6, fontSize: 7, color: '#ffffff33' }}>
-          {report.totalBookings} réservations · {report.encaisse > 0 ? `${fmt(report.encaisse)} encaissé` : ''}
-        </div>
-        {report.aEncaisser > 0 && (
-          <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,179,71,0.12)', border: '1px solid #ffb34744', borderRadius: 9, padding: '6px 12px' }}>
-            <span style={{ fontSize: 11 }}>💸</span>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#ffb347' }}>Reste à encaisser :</span>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#ffb347', fontWeight: 700 }}>{fmt(report.aEncaisser)}</span>
-          </div>
-        )}
-      </div>
-
-      {/* K / H annual split */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-        {/* Kouider annual */}
-        <div style={{ background: 'rgba(0,229,255,0.07)', borderRadius: 12, padding: '12px', border: '1px solid #00e5ff22' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-            <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#00e5ff18', border: '1.5px solid #00e5ff55',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#00e5ff' }}>K</div>
-            <div>
-              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#00e5ffaa', letterSpacing: '0.2em' }}>KOUIDER</div>
-              <div style={{ fontSize: 6, color: '#ffffff22' }}>{report.kouiderBookings} résas</div>
-            </div>
-          </div>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 22, color: '#00e5ff', textShadow: '0 0 12px #00e5ff44' }}>
-            {fmt(report.kouiderProfit)}
-          </div>
-          <div style={{ fontSize: 6, color: '#00e5ff44', marginTop: 3 }}>bénéfice net annuel</div>
-          <div style={{ marginTop: 6, height: 1, background: '#00e5ff10' }} />
-          <div style={{ fontSize: 6, color: '#ffffff22', marginTop: 5 }}>
-            Encaissé: {fmt(report.encaisse)}
-          </div>
-        </div>
-
-        {/* Houari annual */}
-        <div style={{ background: 'rgba(124,58,237,0.07)', borderRadius: 12, padding: '12px', border: '1px solid #7c3aed22' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-            <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#7c3aed18', border: '1.5px solid #7c3aed55',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#7c3aed' }}>H</div>
-            <div>
-              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#7c3aedaa', letterSpacing: '0.2em' }}>HOUARI</div>
-              <div style={{ fontSize: 6, color: '#ffffff22' }}>{report.houariBookings} résas</div>
-            </div>
-          </div>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 22, color: '#7c3aed', textShadow: '0 0 12px #7c3aed44' }}>
-            {fmt(report.ownerTotal)}
-          </div>
-          <div style={{ fontSize: 6, color: '#7c3aed44', marginTop: 3 }}>CA véhicules annuel</div>
-          <div style={{ marginTop: 6, height: 1, background: '#7c3aed10' }} />
-          <div style={{ fontSize: 6, color: '#ffffff22', marginTop: 5 }}>
-            À encaisser: {fmt(report.aEncaisser)}
-          </div>
-        </div>
-      </div>
-
-      {/* Warnings */}
-      {report.missingOwnerPrice > 0 && (
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '7px 10px', borderRadius: 8,
-          background: 'rgba(255,179,71,0.07)', border: '1px solid #ffb34722' }}>
-          <span style={{ fontSize: 12 }}>⚠️</span>
-          <span style={{ fontSize: 8, color: '#ffb347aa', lineHeight: 1.4 }}>
-            {report.missingOwnerPrice} résa(s) sans prix propriétaire — profit partiel
-          </span>
-        </div>
-      )}
-
-      {/* Per-vehicle annual breakdown */}
-      {vehicles.length > 0 && (
-        <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 12, padding: '12px', border: '1px solid #ffffff08' }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#ffffff33', letterSpacing: '0.25em', marginBottom: 10 }}>
-            PAR VÉHICULE — {year}
-          </div>
-          {vehicles.map(([name, stats]) => (
-            <div key={name} style={{ marginBottom: 9 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2, alignItems: 'center' }}>
-                <span style={{ fontSize: 9, color: '#c8e8ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                  {name}
-                </span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#38d8f5', flexShrink: 0, marginLeft: 8 }}>
-                  {fmt(stats.ca)}
-                </span>
-              </div>
-              <div style={{ height: 4, background: '#ffffff08', borderRadius: 2, overflow: 'hidden', marginBottom: 2 }}>
-                <div style={{ height: '100%', width: `${(stats.ca / maxCA) * 100}%`,
-                  background: 'linear-gradient(90deg, #38d8f555, #38d8f5)', borderRadius: 2 }} />
-              </div>
-              <div style={{ display: 'flex', gap: 10, fontSize: 6, color: '#ffffff22' }}>
-                <span>{stats.count} résa(s)</span>
-                {stats.profitK > 0 && <span style={{ color: '#00e5ff33' }}>K: {fmt(stats.profitK)}</span>}
-                {stats.caH    > 0 && <span style={{ color: '#7c3aed44' }}>H: {fmt(stats.caH)}</span>}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {report.missingOwnerPrice > 0 && <Alert icon="⚠️" col={T.warn} text={`${report.missingOwnerPrice} réservation${report.missingOwnerPrice > 1 ? 's' : ''} sans prix propriétaire : marge partielle.`} />}
+      {vehicles.length > 0 && <>
+        <SectionTitle>Par véhicule — {year}</SectionTitle>
+        <Bars rows={vehicles} fmt={fmt} />
+      </>}
     </>
   );
-}
-
-// ─── Per-vehicle breakdown ────────────────────────────────────────────────────
-
-function VehicleBreakdown({ bookings, fmt }: { bookings: FinancialReport['bookings']; fmt: (n: number | null | undefined) => string }) {
-  const byVehicle: Record<string, { ca: number; profit: number; count: number }> = {};
-  for (const b of bookings) {
-    if (b.status === 'REJECTED') continue;
-    const v = b.car_name || '—';
-    if (!byVehicle[v]) byVehicle[v] = { ca: 0, profit: 0, count: 0 };
-    byVehicle[v].ca     += b.final_price ?? 0;
-    byVehicle[v].profit += b.kouider_profit ?? 0;
-    byVehicle[v].count  += 1;
-  }
-  const vehicles = Object.entries(byVehicle).sort((a, b) => b[1].ca - a[1].ca);
-  if (!vehicles.length) return null;
-  const maxCA = Math.max(...vehicles.map(v => v[1].ca), 1);
-
-  return (
-    <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 12, padding: '12px', border: '1px solid #ffffff08' }}>
-      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#ffffff33', letterSpacing: '0.25em', marginBottom: 10 }}>
-        PAR VÉHICULE
-      </div>
-      {vehicles.map(([name, stats]) => (
-        <div key={name} style={{ marginBottom: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-            <span style={{ fontSize: 9, color: '#c8e8ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{name}</span>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#38d8f5', flexShrink: 0, marginLeft: 8 }}>{fmt(stats.ca)}</span>
-          </div>
-          <div style={{ height: 3, background: '#ffffff0a', borderRadius: 2, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${(stats.ca / maxCA) * 100}%`, background: 'linear-gradient(90deg, #38d8f588, #38d8f5)', borderRadius: 2 }} />
-          </div>
-          <div style={{ fontSize: 6, color: '#ffffff22', marginTop: 1 }}>
-            {stats.count} résa(s) · profit: {fmt(stats.profit)}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ─── Small components ─────────────────────────────────────────────────────────
-
-function StatMini({ label, val, col }: { label: string; val: string; col: string }) {
-  return (
-    <div style={{ background: '#0c1730', borderRadius: 14, padding: '12px 6px', border: '1px solid rgba(90,150,255,0.15)', textAlign: 'center' }}>
-      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 17, fontWeight: 800, color: col }}>{val}</div>
-      <div style={{ fontSize: 10, color: '#8ea3c8', marginTop: 3 }}>{label}</div>
-    </div>
-  );
-}
-
-function InfoChip({ label, val, col }: { label: string; val: string; col: string }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 700, color: col }}>{val}</div>
-      <div style={{ fontSize: 10, color: '#8ea3c8' }}>{label}</div>
-    </div>
-  );
-}
-
-function WarningBar({ icon, text, col }: { icon: string; text: string; col: string }) {
-  return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '7px 10px', borderRadius: 8,
-      background: `${col}0a`, border: `1px solid ${col}22` }}>
-      <span style={{ fontSize: 12 }}>{icon}</span>
-      <span style={{ fontSize: 8, color: `${col}cc`, lineHeight: 1.4 }}>{text}</span>
-    </div>
-  );
-}
-
-const navBtn: React.CSSProperties = {
-  background: 'rgba(56,216,245,0.08)', border: '1px solid #38d8f522', borderRadius: 6,
-  width: 26, height: 26, cursor: 'pointer', color: '#38d8f5aa',
-  fontFamily: 'Inter, sans-serif', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
-};
-
-function aBtn(col: string): React.CSSProperties {
-  return {
-    background: `${col}0f`, border: `1px solid ${col}44`, borderRadius: 8,
-    padding: '7px 10px', fontFamily: 'Inter, sans-serif', fontSize: 7,
-    color: `${col}cc`, cursor: 'pointer', letterSpacing: '0.15em',
-  };
-}
-
-function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
-  const s = 12, t = 1.5, col = 'transparent';
-  const bT = pos.startsWith('t') ? `${t}px solid ${col}33` : 'none';
-  const bB = pos.startsWith('b') ? `${t}px solid ${col}33` : 'none';
-  const bL = pos.endsWith('l')   ? `${t}px solid ${col}33` : 'none';
-  const bR = pos.endsWith('r')   ? `${t}px solid ${col}33` : 'none';
-  const h  = pos.endsWith('l')   ? { left: 4 }  : { right: 4 };
-  const v  = pos.startsWith('t') ? { top: 4 }   : { bottom: 4 };
-  return <div style={{ position: 'absolute', zIndex: 1, width: s, height: s, borderTop: bT, borderBottom: bB, borderLeft: bL, borderRight: bR, ...h, ...v }} />;
 }

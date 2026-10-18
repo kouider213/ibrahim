@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import { business, type ClientSummary, type ClientIntelligence, type ClientOperation, type ClientType, type ClientDetail, type ClientBookingHistory, type Car } from '../../services/api.ts';
-import { SkeletonCards } from '../ui/Premium.tsx';
+import { SkeletonCards, SearchPill } from '../ui/Premium.tsx';
+import { T, PageHeader, Kpi, KpiGrid } from '../ui/Kit.tsx';
+
+// Libellés français des statuts (les valeurs envoyées au serveur restent en anglais)
+const FR: Record<string, string> = { CONFIRMED: 'Confirmée', PENDING: 'En attente', ACTIVE: 'En cours', COMPLETED: 'Terminée', REJECTED: 'Refusée', CANCELLED: 'Annulée', UNPAID: 'À payer', PARTIAL: 'Acompte', PAID: 'Payé' };
+const dfr = (x?: string | null) => x ? new Date(String(x).slice(0, 10)).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
 
 // ── Palette premium (cartes sur obsidian + accent émeraude) ─────
 const C = {
@@ -254,52 +259,31 @@ export default function ClientsScreen() {
     !search || c.name.toLowerCase().includes(search.toLowerCase()) || (c.phone?.includes(search) ?? false)
   );
   const getScore = (name: string) => intel.get(name)?.score?.toUpperCase() ?? 'NOUVEAU';
-  const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k€` : `${Math.round(n)}€`;
+  const fmt = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} €`;
   const vipCount = clients.filter(c => getScore(c.name) === 'VIP').length;
   const totalSpent = clients.reduce((s, c) => s + (intel.get(c.name)?.total_spent ?? 0), 0);
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, position: 'relative' }}>
       {toast && (
-        <div style={{ position: 'fixed', left: '50%', bottom: 90, transform: 'translateX(-50%)', zIndex: 200, maxWidth: '90%', background: C.surface2, border: `1px solid ${C.accent}55`, color: C.text, fontSize: 12, padding: '10px 14px', borderRadius: 12, boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>{toast}</div>
+        <div style={{ position: 'fixed', left: '50%', top: 80, transform: 'translateX(-50%)', zIndex: 200, width: 'calc(100% - 32px)', maxWidth: 520, boxSizing: 'border-box', background: C.surface2, border: `1px solid ${C.accent}55`, color: C.text, fontSize: 14, fontWeight: 600, padding: '12px 14px', borderRadius: 12, boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>{toast}</div>
       )}
-      {/* Hero */}
-      <div style={{ position: 'relative', padding: '24px 18px 16px', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: -80, right: -50, width: 240, height: 240, background: `radial-gradient(circle, ${C.accent}26, transparent 70%)`, pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', top: -40, left: -60, width: 180, height: 180, background: `radial-gradient(circle, ${C.gold}12, transparent 70%)`, pointerEvents: 'none' }} />
-        <div style={{ fontSize: 11, letterSpacing: '0.22em', color: C.accent, fontWeight: 700, textTransform: 'uppercase', marginBottom: 8 }}>Dzaryx · Clients</div>
-        <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1, background: `linear-gradient(120deg, #fff 30%, ${C.accentSoft})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Clients</div>
-        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 8 }}>{clients.length} profil{clients.length !== 1 ? 's' : ''} · ton fichier clients vivant</div>
-      </div>
-
-      {/* Stats premium */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, padding: '0 18px 14px' }}>
-        {[
-          { v: String(clients.length), l: 'Profils', c: C.accentSoft, icon: '👥' },
-          { v: String(vipCount), l: 'VIP', c: C.gold, icon: '👑' },
-          { v: fmt(totalSpent), l: 'CA total', c: C.accent, icon: '💰' },
-        ].map(s => (
-          <div key={s.l} style={{ position: 'relative', background: 'linear-gradient(160deg, #0e1a34, #091328)', border: `1px solid ${C.border}`, borderRadius: 18, padding: '14px 6px 12px', textAlign: 'center', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', insetInline: 0, top: 0, height: 2, background: `linear-gradient(90deg, transparent, ${s.c}, transparent)` }} />
-            <div style={{ position: 'absolute', top: -16, right: -16, width: 60, height: 60, borderRadius: '50%', background: `${s.c}14`, filter: 'blur(8px)' }} />
-            <div style={{ fontSize: 16, marginBottom: 3 }}>{s.icon}</div>
-            <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.02em', background: `linear-gradient(120deg, #fff, ${s.c})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{s.v}</div>
-            <div style={{ fontSize: 9.5, color: C.muted, marginTop: 3, letterSpacing: '0.04em' }}>{s.l}</div>
-          </div>
-        ))}
+      <PageHeader eyebrow="Fichier clients" title="Clients" subtitle={`${clients.length} profil${clients.length !== 1 ? 's' : ''} · historique, pièces, préférences`} />
+      <div style={{ padding: '0 16px' }}>
+        <KpiGrid cols={3}>
+          <Kpi value={clients.length} label="Profils" color={T.ok} />
+          <Kpi value={vipCount} label="VIP" color={T.warn} />
+          <Kpi value={fmt(totalSpent)} label="CA total" color={T.accent} />
+        </KpiGrid>
       </div>
 
       {/* Recherche (pilule) */}
-      <div style={{ padding: '0 18px 14px' }}>
-        <div style={{ position: 'relative' }}>
-          <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', fontSize: 14, opacity: 0.5 }}>🔍</span>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher un nom ou téléphone…"
-            style={{ width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 999, padding: '13px 16px 13px 42px', color: C.text, fontFamily: C.font, fontSize: 14, outline: 'none' }} />
-        </div>
+      <div style={{ padding: '0 16px 14px' }}>
+        <SearchPill value={search} onChange={setSearch} placeholder="Rechercher un nom ou un téléphone…" />
       </div>
 
       {/* ➕ Nouvelle réservation GLOBALE (choisir le client dans la liste) */}
-      <div style={{ padding: '0 18px 14px' }}>
+      <div style={{ padding: '0 16px 14px' }}>
         {newGlobal ? (
           <NewBookingForm cars={cars} clients={clients} saving={saving}
             onCancel={() => setNewGlobal(false)} onCreate={createBookingFor} />
@@ -312,7 +296,7 @@ export default function ClientsScreen() {
       </div>
 
       {/* Liste */}
-      <div style={{ padding: '0 18px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ padding: '0 16px 130px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {loading ? (
           <SkeletonCards count={5} height={78} />
         ) : filtered.length === 0 ? (
@@ -334,19 +318,19 @@ export default function ClientsScreen() {
                   <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>{c.bookingCount} résa · {fmt(c.totalSpent)}</div>
                   {c.lastCarName && (
                     <div style={{ fontSize: 11.5, color: C.accentSoft, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      🚗 Dernière : {c.lastCarName}{c.lastBookingDate ? ` · ${String(c.lastBookingDate).slice(0, 10)}` : ''}
+                      🚗 Dernière : {c.lastCarName}{c.lastBookingDate ? ` · ${dfr(c.lastBookingDate)}` : ''}
                     </div>
                   )}
                   {c.types && c.types.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 7 }}>
                       {c.types.map(t => { const m = TYPE_META[t]; if (!m) return null; return (
-                        <span key={t} style={{ fontSize: 10, fontWeight: 600, color: m.col, background: `${m.col}1a`, border: `1px solid ${m.col}40`, borderRadius: 20, padding: '2px 9px' }}>{m.label}</span>
+                        <span key={t} style={{ fontSize: 12, fontWeight: 600, color: m.col, background: `${m.col}1a`, border: `1px solid ${m.col}40`, borderRadius: 20, padding: '2px 9px' }}>{m.label}</span>
                       ); })}
                     </div>
                   )}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: scCol, background: `${scCol}1f`, border: `1px solid ${scCol}55`, borderRadius: 20, padding: '3px 10px' }}>{score}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: scCol, background: `${scCol}1f`, border: `1px solid ${scCol}55`, borderRadius: 20, padding: '3px 10px' }}>{score}</span>
                   {c.phone && <a href={`tel:${c.phone}`} onClick={e => e.stopPropagation()} style={{ fontSize: 20, textDecoration: 'none' }}>📞</a>}
                 </div>
               </div>
@@ -377,7 +361,7 @@ export default function ClientsScreen() {
                   </>}
                   {cOps.length > 0 && (
                     <div style={{ marginTop: ci ? 14 : 0 }}>
-                      <div style={{ fontSize: 10, color: C.muted, letterSpacing: '0.1em', marginBottom: 8, textTransform: 'uppercase' }}>Immo · Vente · Demandes</div>
+                      <div style={{ fontSize: 12, color: C.muted, letterSpacing: '0.1em', marginBottom: 8, textTransform: 'uppercase' }}>Immo · Vente · Demandes</div>
                       {cOps.map(op => {
                         const m = OP_META[op.deal_type] ?? { label: op.deal_type, icon: '•', col: C.muted };
                         const cur = op.currency === 'DZD' ? 'DA' : (op.currency || '€');
@@ -390,7 +374,7 @@ export default function ClientsScreen() {
                             </div>
                             <div style={{ textAlign: 'right' }}>
                               <div style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{op.amount != null ? `${Number(op.amount).toLocaleString('fr-FR')} ${cur}` : '—'}</div>
-                              <div style={{ fontSize: 10, color: C.muted }}>{String(op.created_at).slice(0, 10)}</div>
+                              <div style={{ fontSize: 12, color: C.muted }}>{dfr(op.created_at)}</div>
                             </div>
                           </div>
                         );
@@ -408,7 +392,7 @@ export default function ClientsScreen() {
                 return (
                   <div style={{ padding: '12px 16px 16px', borderTop: `1px solid ${C.border}`, background: C.surface2 }}>
                     {/* Historique des réservations */}
-                    <div style={{ fontSize: 10, color: C.muted, letterSpacing: '0.1em', marginBottom: 8, textTransform: 'uppercase' }}>Historique réservations ({det.bookings.length})</div>
+                    <div style={{ fontSize: 12, color: C.muted, letterSpacing: '0.1em', marginBottom: 8, textTransform: 'uppercase' }}>Historique réservations ({det.bookings.length})</div>
                     {det.bookings.length === 0 ? (
                       <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Aucune réservation enregistrée.</div>
                     ) : det.bookings.map(bk => {
@@ -424,11 +408,11 @@ export default function ClientsScreen() {
                             <span style={{ fontSize: 15 }}>🚗</span>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: 13, color: C.text, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bk.car_name || 'Véhicule'}</div>
-                              <div style={{ fontSize: 11, color: C.muted }}>{(bk.start_date ?? '').slice(0, 10)}{bk.end_date ? ` → ${bk.end_date.slice(0, 10)}` : ''}{bk.nb_days ? ` · ${bk.nb_days}j` : ''}</div>
+                              <div style={{ fontSize: 12.5, color: C.muted }}>{dfr(bk.start_date)}{bk.end_date ? ` → ${dfr(bk.end_date)}` : ''}{bk.nb_days ? ` · ${bk.nb_days}j` : ''}</div>
                             </div>
                             <div style={{ textAlign: 'right' }}>
                               <div style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{bk.final_price != null ? fmt(bk.final_price) : '—'}</div>
-                              <span style={{ fontSize: 9, fontWeight: 700, color: stCol }}>{bk.status ?? ''}</span>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: stCol }}>{FR[bk.status ?? ''] ?? bk.status ?? ''}</span>
                             </div>
                           </div>
 
@@ -438,12 +422,12 @@ export default function ClientsScreen() {
                                 <EditField label="Début" value={bkForm.start_date} onChange={v => bkSetDate('start_date', v)} type="date" />
                                 <EditField label="Fin" value={bkForm.end_date} onChange={v => bkSetDate('end_date', v)} type="date" />
                               </div>
-                              <div style={{ fontSize: 11, color: C.muted }}>{bkForm.start_date && bkForm.end_date ? `${daysIncl(bkForm.start_date, bkForm.end_date)} jours (inclus)` : ''}</div>
+                              <div style={{ fontSize: 12.5, color: C.muted }}>{bkForm.start_date && bkForm.end_date ? `${daysIncl(bkForm.start_date, bkForm.end_date)} jours (inclus)` : ''}</div>
                               <div style={{ display: 'flex', gap: 8 }}>
                                 <EditField label="Prix client/j" value={bkForm.client_price_per_day} onChange={bkSetPerDay} type="number" />
                                 <EditField label="Prix TOTAL" value={bkForm.total ?? ''} onChange={bkSetTotal} type="number" />
                               </div>
-                              <div style={{ fontSize: 10, color: C.muted }}>↳ Le TOTAL = ce que le client paie réellement.</div>
+                              <div style={{ fontSize: 12, color: C.muted }}>↳ Le TOTAL = ce que le client paie réellement.</div>
                               <div style={{ display: 'flex', gap: 8 }}>
                                 <EditField label="Prix proprio/j" value={bkForm.owner_price_per_day} onChange={v => setBkForm(f => ({ ...f, owner_price_per_day: v }))} type="number" />
                                 <EditField label="Payé (€)" value={bkForm.paid_amount} onChange={v => setBkForm(f => ({ ...f, paid_amount: v }))} type="number" />
@@ -459,12 +443,12 @@ export default function ClientsScreen() {
                             </div>
                           ) : (
                             <div style={{ marginTop: 6, paddingLeft: 25 }}>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 11, color: C.muted }}>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 12.5, color: C.muted }}>
                                 {bk.client_price_per_day != null && <span>Client {bk.client_price_per_day}€/j</span>}
                                 {bk.owner_price_per_day != null && <span>Proprio {bk.owner_price_per_day}€/j</span>}
                                 {marge != null && <span style={{ color: C.gold }}>Marge {marge}€</span>}
-                                {bk.payment_status && <span>{bk.payment_status}{reste > 0 ? ` · reste ${Math.round(reste)}€` : ''}</span>}
-                                {bk.client_passport && <span style={{ color: C.blue }}>🪪 {bk.client_passport}{bk.passport_expiry ? ` (exp ${bk.passport_expiry.slice(0, 10)})` : ''}</span>}
+                                {bk.payment_status && <span>{FR[bk.payment_status] ?? bk.payment_status}{reste > 0 ? ` · reste ${Math.round(reste)}€` : ''}</span>}
+                                {bk.client_passport && <span style={{ color: C.blue }}>🪪 {bk.client_passport}{bk.passport_expiry ? ` (exp. ${dfr(bk.passport_expiry)})` : ''}</span>}
                               </div>
                               <button onClick={() => startBkEdit(bk)} style={{ ...miniBtn(C.blue), marginTop: 6 }}>✏️ Modifier la réservation</button>
                             </div>
@@ -484,12 +468,12 @@ export default function ClientsScreen() {
                     {/* Documents */}
                     {det.documents.length > 0 && (
                       <div style={{ marginTop: 14 }}>
-                        <div style={{ fontSize: 10, color: C.muted, letterSpacing: '0.1em', marginBottom: 8, textTransform: 'uppercase' }}>Documents ({det.documents.length})</div>
+                        <div style={{ fontSize: 12, color: C.muted, letterSpacing: '0.1em', marginBottom: 8, textTransform: 'uppercase' }}>Documents ({det.documents.length})</div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                           {det.documents.map(doc => {
                             const lbl = doc.type === 'passport' ? '🪪 Passeport' : doc.type === 'license' ? '🚘 Permis' : doc.type === 'contract' ? '📄 Contrat' : '📎 Document';
                             const hasUrl = !!doc.file_url && doc.file_url.length > 4;
-                            const st = { fontSize: 11, fontWeight: 600, color: C.blue, background: `${C.blue}15`, border: `1px solid ${C.blue}40`, borderRadius: 10, padding: '6px 11px', textDecoration: 'none' } as const;
+                            const st = { fontSize: 12.5, fontWeight: 600, color: C.blue, background: `${C.blue}15`, border: `1px solid ${C.blue}40`, borderRadius: 10, padding: '6px 11px', textDecoration: 'none' } as const;
                             // Photo dispo → vignette cliquable (ouvre la pièce en grand). Sinon label "(sans photo)".
                             // 🗑 en coin → supprimer la pièce (ex: passeport ajouté par erreur, à re-scanner).
                             return (
@@ -500,12 +484,12 @@ export default function ClientsScreen() {
                                        style={{ display: 'inline-block', textDecoration: 'none' }}>
                                       <img src={doc.file_url} alt={lbl}
                                            style={{ width: 104, height: 70, objectFit: 'cover', borderRadius: 10, border: `1px solid ${C.blue}55`, display: 'block' }} />
-                                      <span style={{ fontSize: 10, fontWeight: 700, color: C.blue, display: 'block', marginTop: 3, textAlign: 'center' }}>{lbl}</span>
+                                      <span style={{ fontSize: 12, fontWeight: 700, color: C.blue, display: 'block', marginTop: 3, textAlign: 'center' }}>{lbl}</span>
                                     </a>
                                   )
                                   : <span style={{ ...st, color: C.muted, border: `1px solid ${C.border}`, background: C.surface }}>{lbl} (sans photo)</span>}
                                 <button onClick={() => void handleDeleteDoc(c, doc.id)} title="Supprimer la pièce"
-                                        style={{ position: 'absolute', top: -6, right: -6, width: 22, height: 22, borderRadius: 11, border: 'none', background: '#ef4444', color: '#fff', fontSize: 11, lineHeight: '22px', padding: 0, cursor: 'pointer' }}>🗑</button>
+                                        style={{ position: 'absolute', top: -6, right: -6, width: 22, height: 22, borderRadius: 11, border: 'none', background: '#ef4444', color: '#fff', fontSize: 12.5, lineHeight: '22px', padding: 0, cursor: 'pointer' }}>🗑</button>
                               </div>
                             );
                           })}
@@ -515,12 +499,12 @@ export default function ClientsScreen() {
 
                     {/* Ajouter une pièce directement (sans le chat) → scan + rattache à la résa */}
                     <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-                      <label style={{ fontSize: 11, fontWeight: 700, color: C.accent, background: `${C.accent}15`, border: `1px solid ${C.accent}40`, borderRadius: 10, padding: '8px 12px', cursor: scanning === c.name ? 'wait' : 'pointer', opacity: scanning === c.name ? 0.6 : 1 }}>
+                      <label style={{ fontSize: 12.5, fontWeight: 700, color: C.accent, background: `${C.accent}15`, border: `1px solid ${C.accent}40`, borderRadius: 10, padding: '8px 12px', cursor: scanning === c.name ? 'wait' : 'pointer', opacity: scanning === c.name ? 0.6 : 1 }}>
                         {scanning === c.name ? '⏳ Lecture…' : '🪪 Ajouter passeport'}
                         <input type="file" accept="image/*" style={{ display: 'none' }} disabled={scanning === c.name}
                           onChange={e => { const f = e.target.files?.[0]; if (f) void handleScan(c, f, false); e.currentTarget.value = ''; }} />
                       </label>
-                      <label style={{ fontSize: 11, fontWeight: 700, color: C.blue, background: `${C.blue}15`, border: `1px solid ${C.blue}40`, borderRadius: 10, padding: '8px 12px', cursor: scanning === c.name ? 'wait' : 'pointer', opacity: scanning === c.name ? 0.6 : 1 }}>
+                      <label style={{ fontSize: 12.5, fontWeight: 700, color: C.blue, background: `${C.blue}15`, border: `1px solid ${C.blue}40`, borderRadius: 10, padding: '8px 12px', cursor: scanning === c.name ? 'wait' : 'pointer', opacity: scanning === c.name ? 0.6 : 1 }}>
                         {scanning === c.name ? '⏳ Lecture…' : '🚘 Ajouter permis'}
                         <input type="file" accept="image/*" style={{ display: 'none' }} disabled={scanning === c.name}
                           onChange={e => { const f = e.target.files?.[0]; if (f) void handleScan(c, f, true); e.currentTarget.value = ''; }} />
@@ -538,7 +522,7 @@ export default function ClientsScreen() {
 }
 
 function miniBtn(col: string): React.CSSProperties {
-  return { fontSize: 11, fontWeight: 700, color: col, background: `${col}15`, border: `1px solid ${col}40`, borderRadius: 10, padding: '7px 12px', cursor: 'pointer' };
+  return { fontSize: 12.5, fontWeight: 700, color: col, background: `${col}15`, border: `1px solid ${col}40`, borderRadius: 10, padding: '7px 12px', cursor: 'pointer' };
 }
 
 // ── Formulaire "Nouvelle réservation" — réutilisé fiche client (fixedClient) + global (clients picker) ──
@@ -615,21 +599,21 @@ function NewBookingForm({ cars, clients, fixedClient, saving, onCancel, onCreate
 
   return (
     <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8, padding: '10px', background: C.bg, borderRadius: 12, border: `1px solid ${C.accent}55` }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: C.accent }}>Nouvelle réservation{fixedClient ? ` — ${fixedClient.name}` : ''}</div>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: C.accent }}>Nouvelle réservation{fixedClient ? ` — ${fixedClient.name}` : ''}</div>
       {!fixedClient && (
         <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          <span style={{ fontSize: 10, color: C.muted }}>Client</span>
+          <span style={{ fontSize: 12, color: C.muted }}>Client</span>
           <select value={clientKey} onChange={e => setClientKey(e.target.value)}
-            style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', color: C.text, fontSize: 13, fontFamily: C.font, outline: 'none', width: '100%' }}>
+            style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', color: C.text, fontSize: 16, fontFamily: C.font, outline: 'none', width: '100%', minHeight: 44 }}>
             <option value="">— choisir un client —</option>
             {(clients ?? []).map(cl => <option key={`${cl.name}|${cl.phone ?? ''}`} value={`${cl.name}|${cl.phone ?? ''}`}>{cl.name}{cl.phone ? ` · ${cl.phone}` : ''}</option>)}
           </select>
         </label>
       )}
       <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        <span style={{ fontSize: 10, color: C.muted }}>Voiture</span>
+        <span style={{ fontSize: 12, color: C.muted }}>Voiture</span>
         <select value={v.car_id} onChange={e => pickCar(e.target.value)}
-          style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', color: C.text, fontSize: 13, fontFamily: C.font, outline: 'none', width: '100%' }}>
+          style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', color: C.text, fontSize: 16, fontFamily: C.font, outline: 'none', width: '100%', minHeight: 44 }}>
           <option value="">— choisir une voiture —</option>
           {cars.map(car => <option key={car.id} value={car.id}>{car.name}{car.available ? '' : ' (occupée)'}</option>)}
         </select>
@@ -638,12 +622,12 @@ function NewBookingForm({ cars, clients, fixedClient, saving, onCancel, onCreate
         <EditField label="Début" value={v.start_date} onChange={x => setDate('start_date', x)} type="date" />
         <EditField label="Fin" value={v.end_date} onChange={x => setDate('end_date', x)} type="date" />
       </div>
-      <div style={{ fontSize: 11, color: C.muted }}>{days} jours (inclus)</div>
+      <div style={{ fontSize: 12.5, color: C.muted }}>{days} jours (inclus)</div>
       <div style={{ display: 'flex', gap: 8 }}>
         <EditField label={`Prix client/j (${cur})`} value={v.client_price_per_day} onChange={setPerDay} type="number" />
         <EditField label={`Prix TOTAL (${cur})`} value={v.total} onChange={setTotal} type="number" />
       </div>
-      <div style={{ fontSize: 10, color: C.muted }}>↳ Modifie l'un ou l'autre — le total = ce que le client paie réellement.</div>
+      <div style={{ fontSize: 12, color: C.muted }}>↳ Modifie l'un ou l'autre — le total = ce que le client paie réellement.</div>
       <div style={{ display: 'flex', gap: 8 }}>
         <EditField label={`Prix proprio/j (${cur})`} value={v.owner_price_per_day} onChange={x => setV(f => ({ ...f, owner_price_per_day: x }))} type="number" />
         <EditField label={`Payé (${cur})`} value={v.paid_amount} onChange={x => setV(f => ({ ...f, paid_amount: x }))} type="number" />
@@ -664,9 +648,9 @@ function NewBookingForm({ cars, clients, fixedClient, saving, onCancel, onCreate
 function EditField({ label, value, onChange, type = 'text', placeholder }: { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string }) {
   return (
     <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <span style={{ fontSize: 10, color: C.muted }}>{label}</span>
+      <span style={{ fontSize: 12, color: C.muted }}>{label}</span>
       <input type={type} value={value} placeholder={placeholder} onChange={e => onChange(e.target.value)}
-        style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', color: C.text, fontSize: 13, fontFamily: C.font, outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+        style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', color: C.text, fontSize: 16, fontFamily: C.font, outline: 'none', width: '100%', minWidth: 0, boxSizing: 'border-box', minHeight: 44 }} />
     </label>
   );
 }
@@ -674,10 +658,10 @@ function EditField({ label, value, onChange, type = 'text', placeholder }: { lab
 function EditSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
   return (
     <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <span style={{ fontSize: 10, color: C.muted }}>{label}</span>
+      <span style={{ fontSize: 12, color: C.muted }}>{label}</span>
       <select value={value} onChange={e => onChange(e.target.value)}
-        style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', color: C.text, fontSize: 13, fontFamily: C.font, outline: 'none', width: '100%' }}>
-        {options.map(o => <option key={o} value={o}>{o}</option>)}
+        style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', color: C.text, fontSize: 16, fontFamily: C.font, outline: 'none', width: '100%', minHeight: 44 }}>
+        {options.map(o => <option key={o} value={o}>{FR[o] ?? o}</option>)}
       </select>
     </label>
   );
