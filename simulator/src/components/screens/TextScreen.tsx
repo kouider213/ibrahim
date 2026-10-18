@@ -533,7 +533,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
                   background: 'rgba(0,0,0,0.85)', border: '1px solid rgba(255,255,255,0.22)', cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
                 }}>
-                  <span style={{ fontSize: 10, color: '#fff', lineHeight: 1 }}>✕</span>
+                  <span style={{ fontSize: 13.5, color: '#fff', lineHeight: 1 }}>✕</span>
                 </button>
               </div>
             ))}
@@ -972,7 +972,7 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
                       style={{
                         position: 'absolute', bottom: 6, right: 6,
                         background: 'rgba(0,0,0,0.65)', border: '1px solid #ffffff33',
-                        borderRadius: 8, color: '#fff', fontFamily: 'Inter', fontSize: 10,
+                        borderRadius: 8, color: '#fff', fontFamily: 'Inter', fontSize: 13.5,
                         padding: '4px 10px', cursor: 'pointer',
                       }}
                     >⬇ Enregistrer</button>
@@ -1000,7 +1000,7 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
                       <span style={{ fontSize: 22 }}>{icon}</span>
                       <div>
                         <div style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: '#38d8f5' }}>{filename}</div>
-                        <div style={{ fontFamily: 'Inter', fontSize: 9, color: 'rgba(56,216,245,0.55)', marginTop: 2 }}>
+                        <div style={{ fontFamily: 'Inter', fontSize: 13, color: 'rgba(56,216,245,0.55)', marginTop: 2 }}>
                           Appuyer pour télécharger
                         </div>
                       </div>
@@ -1012,7 +1012,7 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
             </>
           )}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, gap: 8 }}>
-            <span style={{ fontFamily: 'Inter', fontSize: 9, fontWeight: 400, color: isUser ? 'rgba(255,180,80,0.3)' : `${actorCol}33`, letterSpacing: '0.03em' }}>{msg.ts}</span>
+            <span style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 400, color: isUser ? 'rgba(255,180,80,0.3)' : `${actorCol}33`, letterSpacing: '0.03em' }}>{msg.ts}</span>
             <div style={{ display: 'flex', gap: 6 }}>
             {isUser && onEdit && (
               <button

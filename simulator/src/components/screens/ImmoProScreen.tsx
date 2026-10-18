@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
+import PhotoGallery from '../ui/PhotoGallery.tsx';
 import { Hero, StatCard } from '../ui/Premium.tsx';
 import { business, getOrCreateSessionId, type SiteProperty } from '../../services/api.ts';
 import { InspectionModal } from './FleetScreen.tsx';
@@ -139,35 +140,12 @@ export default function ImmoProScreen() {
     catch { flash('❌ Échec'); } finally { setBusy(null); }
   };
 
-  // Gestion des photos d'un bien EXISTANT (voir / ajouter / supprimer → site)
-  const existPhotoRef = useRef<HTMLInputElement>(null);
-  const photoTargetRef = useRef<string>('');
-  const [manage, setManage] = useState<{ id: string; title: string } | null>(null);
-  const [managePhotos, setManagePhotos] = useState<string[]>([]);
-  const openManager = async (p: SiteProperty) => {
-    setManage({ id: p.id, title: propTitle(p) }); setManagePhotos([]);
-    try { const r = await business.propertyPhotos(p.id); setManagePhotos(r.photos.map(x => x.url)); } catch { /* vide */ }
-  };
-  const addExistingPhotos = async (files: File[]) => {
-    const id = photoTargetRef.current;
-    if (!id || !files.length) return;
-    setBusy(id);
-    try {
-      const urls = await Promise.all(files.slice(0, 10).map(fileToDataUrl));
-      const out = await business.addPropertyPhotos(id, urls);
-      flash(`✅ ${out.count} photo(s)`); void load();
-      if (manage && manage.id === id) { const r = await business.propertyPhotos(id); setManagePhotos(r.photos.map(x => x.url)); }
-    } catch { flash('❌ Échec photos'); } finally { setBusy(null); }
-  };
-  const delPhoto = async (url: string) => {
-    if (!manage) return;
-    try { await business.propertyPhotoDelete(manage.id, url); setManagePhotos(ps => ps.filter(u => u !== url)); void load(); }
-    catch { flash('❌ Échec suppression'); }
-  };
+  // Photos d'un bien existant : galerie commune (voir, ajouter plusieurs, photo principale, enregistrer, Telegram)
+  const [gallery, setGallery] = useState<{ id: string; name: string } | null>(null);
+  const openManager = (p: SiteProperty) => setGallery({ id: p.id, name: propTitle(p) });
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, position: 'relative' }}>
-      <input ref={existPhotoRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => { if (e.target.files?.length) void addExistingPhotos(Array.from(e.target.files)); e.currentTarget.value = ''; }} />
       {/* Hero */}
       <Hero eyebrow="Dzaryx · Immobilier" title="Immobilier" accent={C.gold} subtitle="Synchronisé avec fikconciergerie.com" />
 
@@ -224,7 +202,7 @@ export default function ImmoProScreen() {
               </div>
               <div style={{ display: 'flex', gap: 1, borderTop: `1px solid ${C.border}` }}>
                 <ActBtn label="Statut" onClick={() => void cycleStatus(p)} disabled={busy === p.id} />
-                <ActBtn label="📷 Photos" onClick={() => void openManager(p)} disabled={busy === p.id} accent />
+                <ActBtn label="📷 Photos" onClick={() => openManager(p)} disabled={busy === p.id} accent />
                 <ActBtn label="État lieux" onClick={() => setInspect(propTitle(p))} />
                 <ActBtn label={confirmDel === p.id ? 'Confirmer ?' : 'Suppr.'} onClick={() => { if (confirmDel === p.id) { void del(p); setConfirmDel(null); } else { setConfirmDel(p.id); setTimeout(() => setConfirmDel(c => c === p.id ? null : c), 3000); } }} disabled={busy === p.id} danger />
               </div>
@@ -310,28 +288,7 @@ export default function ImmoProScreen() {
 
       {inspect && <InspectionModal kind="property" subject={inspect} sessionId={sessionId} onClose={() => setInspect(null)} />}
 
-      {/* Gestion photos */}
-      {manage && (
-        <div onClick={() => setManage(null)} style={{ position: 'absolute', inset: 0, zIndex: 30, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-end' }}>
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', background: C.surface, borderRadius: '22px 22px 0 0', border: `1px solid ${C.border}`, padding: '18px 16px 24px', maxHeight: '85%', overflowY: 'auto' }}>
-            <div style={{ width: 38, height: 4, borderRadius: 2, background: C.border, margin: '0 auto 14px' }} />
-            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}>Photos — {manage.title}</div>
-            <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 14 }}>{managePhotos.length} photo(s) · appuie sur ✕ pour supprimer</div>
-            {managePhotos.length === 0 ? (
-              <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>Aucune photo pour ce bien.</div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 14 }}>
-                {managePhotos.map(url => (
-                  <div key={url} style={{ position: 'relative', paddingTop: '75%', borderRadius: 12, overflow: 'hidden', background: `#0e0e12 url(${url}) center/cover` }}>
-                    <button onClick={() => void delPhoto(url)} style={{ position: 'absolute', top: 4, right: 4, width: 24, height: 24, borderRadius: '50%', border: 'none', background: 'rgba(239,68,68,0.92)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer', lineHeight: 1 }}>✕</button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <button onClick={() => { photoTargetRef.current = manage.id; existPhotoRef.current?.click(); }} style={{ width: '100%', padding: '12px', borderRadius: 12, border: `1px dashed ${C.green}55`, background: `${C.green}12`, color: C.green, fontFamily: C.font, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>＋ Ajouter des photos</button>
-          </div>
-        </div>
-      )}
+      {gallery && <PhotoGallery kind="property" id={gallery.id} name={gallery.name} fixed onClose={() => setGallery(null)} onChanged={() => void load()} />}
 
       {toast && <div style={{ position: 'absolute', bottom: 18, left: '50%', transform: 'translateX(-50%)', background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12, padding: '10px 20px', fontSize: 13, fontWeight: 600, zIndex: 40, whiteSpace: 'nowrap' }}>{toast}</div>}
     </div>
@@ -340,7 +297,7 @@ export default function ImmoProScreen() {
 
 function ActBtn({ label, onClick, disabled, accent, danger }: { label: string; onClick: () => void; disabled?: boolean; accent?: boolean; danger?: boolean }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{ flex: 1, padding: '11px 0', border: 'none', background: 'transparent', cursor: disabled ? 'default' : 'pointer', fontFamily: C.font, fontSize: 12, fontWeight: 600, color: danger ? C.red : accent ? C.gold : C.muted, opacity: disabled ? 0.4 : 1 }}>{label}</button>
+    <button onClick={onClick} disabled={disabled} style={{ flex: 1, minHeight: 46, padding: '0 2px', border: 'none', background: 'transparent', cursor: disabled ? 'default' : 'pointer', fontFamily: C.font, fontSize: 13.5, fontWeight: 700, color: danger ? C.red : accent ? C.gold : C.text, opacity: disabled ? 0.4 : 1 }}>{label}</button>
   );
 }
 

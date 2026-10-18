@@ -1200,7 +1200,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
             background: wsConn ? '#34d399' : '#f87171',
             boxShadow: `0 0 6px ${wsConn ? '#34d399' : '#f87171'}`,
           }} />
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 10, color: '#8ea3c8', letterSpacing: '0.12em' }}>
+          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 13.5, color: '#8ea3c8', letterSpacing: '0.12em' }}>
             {wsConn ? 'EN LIGNE' : 'HORS LIGNE'}{wakeWordOn ? ' · À L\'ÉCOUTE' : ''}
           </span>
         </div>
@@ -1290,7 +1290,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <div style={{ width: 18, height: 1, background: `${col}66` }} />
-          <span style={{ fontFamily: 'Orbitron', fontSize: 9, fontWeight: 600, color: col, letterSpacing: '0.34em', textShadow: `0 0 10px ${col}88` }}>
+          <span style={{ fontFamily: 'Orbitron', fontSize: 13, fontWeight: 600, color: col, letterSpacing: '0.34em', textShadow: `0 0 10px ${col}88` }}>
             {STATE_TAG[status]}
           </span>
           <div style={{ width: 18, height: 1, background: `${col}66` }} />
@@ -1319,7 +1319,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
               maxHeight: respExpanded ? '100%' : 150, animation: 'fadeIn 0.3s ease',
             }}
           >
-            <div style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#4f6288', letterSpacing: '0.16em', marginBottom: 6 }}>
+            <div style={{ fontFamily: 'Share Tech Mono', fontSize: 13, color: '#4f6288', letterSpacing: '0.16em', marginBottom: 6 }}>
               DZARYX ▸
             </div>
             <div style={{ fontFamily: 'Inter', fontSize: 15, fontWeight: 400, color: '#e8f0ff', lineHeight: 1.55 }}>
@@ -1372,7 +1372,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
           background: continuousMode ? `${col}1c` : 'transparent',
           border: `1px solid ${continuousMode ? col + '88' : 'rgba(90,150,255,0.18)'}`,
           cursor: 'pointer', color: continuousMode ? col : '#8ea3c8',
-          fontFamily: 'Inter', fontSize: 10, fontWeight: 500, letterSpacing: '0.02em',
+          fontFamily: 'Inter', fontSize: 13.5, fontWeight: 500, letterSpacing: '0.02em',
           transition: 'all 0.2s ease', whiteSpace: 'nowrap',
         }}
       >

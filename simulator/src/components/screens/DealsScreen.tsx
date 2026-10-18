@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
+import PhotoGallery, { type GalleryKind } from '../ui/PhotoGallery.tsx';
 import { business, type SaleVehicle, type SiteProperty, type OpportunitiesReport, type Opportunity } from '../../services/api.ts';
 import { Hero } from '../ui/Premium.tsx';
 
@@ -121,6 +122,9 @@ export default function DealsScreen() {
     } catch { flash('❌ Échec'); } finally { setSaving(false); }
   };
 
+  // Photos d'une annonce : galerie commune (voir, ajouter, photo principale, enregistrer, Telegram)
+  const [gallery, setGallery] = useState<{ kind: GalleryKind; id: string; name: string } | null>(null);
+
   const cycleVehicle = async (v: SaleVehicle) => {
     const order = ['disponible', 'reserve', 'vendu'];
     const next = order[(order.indexOf((v.status || 'disponible').toLowerCase()) + 1) % order.length];
@@ -167,7 +171,8 @@ export default function DealsScreen() {
                   </div>
                   <span style={{ fontSize: 13.5, fontWeight: 700, color: sm.col, background: `${sm.col}1f`, padding: '3px 9px', borderRadius: 20, height: 'fit-content' }}>{sm.label}</span>
                 </div>
-                <div style={{ borderTop: `1px solid ${C.border}` }}>
+                <div style={{ borderTop: `1px solid ${C.border}`, display: 'flex' }}>
+                  <button onClick={() => setGallery({ kind: 'sale', id: v.id, name: `${v.brand} ${v.model}` })} style={{ ...rowBtn, color: C.text }}>📷 Photos</button>
                   <button onClick={() => void cycleVehicle(v)} disabled={busy === v.id} style={rowBtn}>Changer le statut →</button>
                 </div>
               </div>
@@ -193,7 +198,8 @@ export default function DealsScreen() {
                   </div>
                   <span style={{ fontSize: 13.5, fontWeight: 700, color: sm.col, background: `${sm.col}1f`, padding: '3px 9px', borderRadius: 20, height: 'fit-content' }}>{(p.status || 'disponible') === 'vendu' ? 'Vendu' : 'À vendre'}</span>
                 </div>
-                <div style={{ borderTop: `1px solid ${C.border}` }}>
+                <div style={{ borderTop: `1px solid ${C.border}`, display: 'flex' }}>
+                  <button onClick={() => setGallery({ kind: 'property', id: p.id, name: p.title || p.name || 'Bien' })} style={{ ...rowBtn, color: C.text }}>📷 Photos</button>
                   <button onClick={() => void cycleProp(p)} disabled={busy === p.id} style={rowBtn}>Changer le statut →</button>
                 </div>
               </div>
@@ -332,6 +338,7 @@ export default function DealsScreen() {
         </div>
       )}
 
+      {gallery && <PhotoGallery kind={gallery.kind} id={gallery.id} name={gallery.name} fixed onClose={() => setGallery(null)} onChanged={() => void load()} />}
       {toast && <div style={{ position: 'absolute', bottom: 18, left: '50%', transform: 'translateX(-50%)', background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 12, padding: '10px 20px', fontSize: 13, fontWeight: 600, zIndex: 40, whiteSpace: 'nowrap' }}>{toast}</div>}
     </div>
   );
@@ -351,5 +358,5 @@ function Field({ label, children, flex }: { label: string; children: ReactNode; 
 
 const card: CSSProperties = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 18, overflow: 'hidden' };
 const addBtn: CSSProperties = { width: '100%', padding: '13px 0', borderRadius: 14, border: `1px dashed ${C.gold}66`, background: `${C.gold}10`, color: C.goldSoft, fontFamily: C.font, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' };
-const rowBtn: CSSProperties = { width: '100%', padding: '11px 0', border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: C.font, fontSize: 16, fontWeight: 600, color: C.gold };
+const rowBtn: CSSProperties = { flex: 1, minHeight: 46, padding: '0 4px', border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: C.font, fontSize: 14, fontWeight: 600, color: C.gold };
 const inp: CSSProperties = { width: '100%', padding: '11px 12px', borderRadius: 11, border: `1px solid ${C.border}`, background: C.surface2, color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none', boxSizing: 'border-box' };
