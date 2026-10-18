@@ -21,7 +21,7 @@ const C = {
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 
-const PLACES = ['Aéroport d\'Oran', 'Bureau Fik (Oran)'];
+const PLACES = ['Aéroport d\'Oran', 'Agence Hay Badr (Oran)'];
 
 const L = {
   hello: { fr: 'Bonjour', ar: 'مرحباً', en: 'Hello' },

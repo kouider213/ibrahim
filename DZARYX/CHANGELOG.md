@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-18 — Immo par jour/mois + lieu de prise en charge
+- Immo : location « Par mois / Par jour » (app Immo + PARC, `price_type` jour|mois, `monthly_rent` vide si par jour, outil `create_property` price_type). Site : « /jour » ou « /mois » sur les annonces + choix dans l'admin.
+- Prise en charge des voitures : agence de Hay Badr OU aéroport d'Oran (site : contact, étapes, FAQ, pages SEO, contexte assistant ; app : Bon de réservation « Agence Hay Badr (Oran) »).
+
 ## 2026-10-18 — Prix : une seule source (table cars), changé partout d'un coup
 - `config/pricing.ts` : la grille de Dzaryx (contexte, finance, marketing) se recharge depuis `cars` (base_price = Houari, resale_price = client) au démarrage, toutes les 2 min et après chaque changement ; la liste en dur ne sert plus que de secours. Prix plancher de ristourne dans app_kv `pricing:discount_floors` (jamais affiché sur le site).
 - `update_car` : nouveau champ `discount_floor` ; grille rafraîchie aussitôt ; confirmation corrigée (prix client et prix Houari étaient inversés) + marge.
