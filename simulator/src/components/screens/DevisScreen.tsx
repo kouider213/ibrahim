@@ -74,9 +74,9 @@ export default function DevisScreen() {
 
   // Packs entreprise (B2B) — pré-remplit une ligne, prix à négocier/saisir.
   const PACKS_B2B = [
-    { name: 'Platinium', desc: 'voiture de location + appartement' },
-    { name: 'Gold', desc: 'voiture luxe/van + appartement ou maison' },
-    { name: 'Diamant', desc: 'voiture luxe + chauffeur + maison + guide & négociations' },
+    { name: 'Essentiel', desc: 'voiture de location + appartement' },
+    { name: 'Premium', desc: 'voiture luxe/van + appartement ou maison' },
+    { name: 'Signature', desc: 'voiture luxe + chauffeur + maison + guide & négociations' },
   ];
   const addPack = (p: { name: string; desc: string }) =>
     setLines(ls => [...ls, { id: uid(), label: `Pack ${p.name} entreprise — ${p.desc}`, amount: '', currency: 'EUR' }]);
