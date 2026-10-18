@@ -198,6 +198,10 @@ router.patch('/:id', requireMobileAuth, async (req, res) => {
       .select()
       .single();
     if (error) throw new Error(error.message);
+    // Prix changé depuis l'app → la grille de Dzaryx suit tout de suite (table cars = seule source)
+    if ('base_price' in updates || 'resale_price' in updates || 'name' in updates) {
+      void import('../../config/pricing.js').then(m => m.refreshPricing());
+    }
     res.json({ car: data, message: 'Véhicule mis à jour' });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
