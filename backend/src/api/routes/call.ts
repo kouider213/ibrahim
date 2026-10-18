@@ -21,6 +21,15 @@ import { noteKouiderActivity } from '../../integrations/morning-routine.js';
 import { storeLocation, getLocation } from '../../integrations/location.js';
 import { pcCommand, pcStatus, pcWake, pcScreenToTelegram, pcLookJpeg } from '../../integrations/nexus-remote.js';
 
+/** Texte pour Telegram : titres « ## » → gras ; photos « ![x](url) » et lignes « 📹 url » → vraies images envoyées après le texte. */
+function telegramMedia(text: string): { text: string; images: Array<{ url: string; title: string }> } {
+  const images: Array<{ url: string; title: string }> = [];
+  let t = text.replace(/!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g, (_m, alt: string, url: string) => { images.push({ url, title: alt }); return ''; });
+  t = t.replace(/^.*📹\s*(https?:\/\/\S+).*$/gm, (_m, url: string) => { images.push({ url, title: '' }); return ''; });
+  t = t.replace(/^#{1,6}\s+(.+)$/gm, '**$1**').replace(/\n{3,}/g, '\n\n').trim();
+  return { text: t || '📎', images };
+}
+
 const router = Router();
 
 // Nexus (jeton de l'agent PC) parle au nom de Kouider : voix temps réel du PC (nexus/modules/realtime_voice.py)
@@ -159,7 +168,8 @@ router.post('/turn', requireCallerAuth, async (req, res) => {
     if (textOnly && channel === 'message' && text.includes('```chart')) {
       const { extractCharts } = await import('../../integrations/chart-image.js');
       const out = await extractCharts(text);
-      res.json({ text: out.text, images: out.images, audio: null }); return;
+      const media = telegramMedia(out.text);
+      res.json({ text: media.text, images: [...media.images, ...out.images], audio: null }); return;
     }
     const buf =textOnly ? null : await synthesizeVoice(text.replace(/[*_#`>|]/g, '').slice(0, 900), true);
     res.json({ text, audio: buf ? buf.toString('base64') : null });

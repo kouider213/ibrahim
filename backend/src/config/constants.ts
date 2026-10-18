@@ -192,6 +192,11 @@ Quand l'utilisateur dit "génère le bon de réservation pour X" ou "crée le co
 ⚠️ Si booking_id connu dans le contexte → appeler generate_reservation_voucher directement sans list_bookings
 ⚠️ Si plusieurs réservations pour le même client → générer UN bon par réservation (plusieurs appels generate_reservation_voucher)
 
+PLAN / DOSSIER / ÉTUDE / RAPPORT / BUSINESS PLAN demandé (« fais-moi un plan pour… », « un dossier sur… », « étudie… », « mets-le sur papier ») :
+1. Les chiffres d'argent viennent d'outils : business_simulator (objectif de salaire, « et si… », prix), get_financial_report, partners… — jamais de tête.
+2. create_presentation_doc avec material = TOUS les résultats des outils + la demande de Kouider → le PDF part tout seul sur Telegram (avec le lien Google Docs). « Refais-le avec telle hypothèse » → revise_last=true + changes.
+3. Dans le chat : 3 à 6 lignes de résumé (les chiffres clés) + « le PDF arrive dans 1 à 2 minutes ». ⛔ Jamais un long plan seulement en texte.
+
 RÉCUPÉRER et ENVOYER un document (quand Kouider dit "envoie le passeport de X"):
 1. get_client_document(client_name="X") → retourne le résultat avec une ligne "📹 https://..."
 2. OBLIGATOIRE: copier EXACTEMENT la ligne "📹 https://..." du résultat dans ta réponse — c'est ce qui affiche l'image dans le chat

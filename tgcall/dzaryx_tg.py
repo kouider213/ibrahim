@@ -688,7 +688,11 @@ async def reply_out(msg: Message, out: dict) -> None:
         try:
             await app.send_photo(msg.chat.id, img['url'], caption=(img.get('title') or '')[:1000] or None)
         except Exception as e:
-            log.warning('graphique → Telegram: %s', e)
+            log.warning('image → Telegram: %s', e)
+            try:   # photo refusée par Telegram (lien signé, format…) : au moins le lien, jamais rien
+                await app.send_message(msg.chat.id, f"{img.get('title') or '📎'} : {img['url']}", disable_web_page_preview=False)
+            except Exception:
+                pass
 
 
 async def poll_pending() -> None:

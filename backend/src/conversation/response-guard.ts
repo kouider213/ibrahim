@@ -25,6 +25,12 @@ const WRITE_TOOLS = new Set([
   'cut_video', 'optimize_for_platform',
 ]);
 
+// Outils qui envoient / créent quelque chose (leur succès suffit à confirmer l'action)
+const ACTION_TOOLS = new Set([
+  'send_doc_pdf', 'create_presentation_doc', 'create_google_doc', 'create_google_sheet', 'export_excel',
+  'get_car_photo', 'get_client_document', 'partners', 'update_car', 'add_car', 'delete_car', 'business_mentor', 'kouider_dossier',
+]);
+
 // Patterns qui indiquent que Claude prétend avoir exécuté une action write
 const PHANTOM_ACTION_PATTERNS: RegExp[] = [
   // ✅ + verbe d'action write (début de réponse ou de paragraphe)
@@ -55,8 +61,12 @@ export function phantomGuard(
 
   // Y a-t-il au moins un outil write qui a réussi ?
   // whatsapp_web : seul un vrai envoi (« ✅ Envoyé… ») compte, pas une lecture ni une relecture
-  const hasSuccessfulWriteTool = toolsExecuted.some(t => WRITE_TOOLS.has(t.name) && t.success
-    && (t.name !== 'whatsapp_web' || /^\s*✅ Envoyé/.test(t.result ?? '')));
+  // + tout outil qui a VRAIMENT agi et le dit (« ✅ … », « 📄 … ») : sans ça, un PDF/une photo réellement envoyés
+  // étaient pris pour une invention → relance → Dzaryx refaisait les actions des messages précédents (doublons, 18/10).
+  const hasSuccessfulWriteTool = toolsExecuted.some(t => t.success && (
+    (WRITE_TOOLS.has(t.name) && (t.name !== 'whatsapp_web' || /^\s*✅ Envoyé/.test(t.result ?? '')))
+    || ACTION_TOOLS.has(t.name)
+    || /^\s*(✅|📄|🗑️|⏳ Dossier)/.test(t.result ?? '')));
   if (hasSuccessfulWriteTool) return text;
 
   // ⛔ PHANTOM DÉTECTÉ

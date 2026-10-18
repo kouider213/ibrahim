@@ -7,6 +7,11 @@
 
 ## Bugs Ouverts 🔴
 
+### B038 — Actions refaites en double + « vraies vérifications » parasites (18/10) ✅ FIXÉ
+- Symptôme : « envoie la photo de la Clio » → Dzaryx renvoie aussi le PDF de la veille ; « fais-moi un plan » → la réponse commence par re-vérifier PDF/photo/passeport. Plan livré en texte (titres « ## » bruts), pas en PDF ; photo/passeport en liens.
+- Cause : phantomGuard ne connaissait que WRITE_TOOLS → « ✅ PDF envoyé » après send_doc_pdf (ou get_car_photo…) = « invention » → relance « ta réponse précédente affirmait une action » → le modèle refaisait les actions des messages précédents.
+- Fix : ACTION_TOOLS + tout outil réussi dont le résultat commence par ✅/📄 ; relance limitée au DERNIER message ; règle PLAN/DOSSIER → business_simulator + create_presentation_doc (PDF) ; /turn : « ## » → gras, ![](url) et « 📹 url » → vraies photos (tgcall : lien en secours).
+
 ### B037 — Dossier « gagner de l'argent avec Dzaryx » : « réponse non JSON » + graphiques en code brut sur Telegram ✅
 - Cause : le rédacteur (askJson) lisait le JSON de Claude à la main ; une réponse coupée (max_tokens) ou un guillemet non échappé = échec après 2 essais. Les blocs ```chart (dessinés seulement par l'app) arrivaient en texte brut sur Telegram, et le dossier Google Docs ne savait pas faire de graphiques.
 - Fix : sortie structurée de l'API (schéma JSON imposé → JSON valide garanti) pour les dossiers ; askJson en streaming, relance avec 2× plus de place si coupée, réparation si JSON cassé (sert aussi capabilities, sites clients/démo, studio vidéo). Blocs chart dans les dossiers → PNG (chart-image.ts, SVG → Cloudinary) insérés dans le Doc ; sur Telegram, /api/call/turn renvoie `images` et tgcall les envoie en photos (+ textes > 4 000 car. coupés proprement).

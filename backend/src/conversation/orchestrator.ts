@@ -613,7 +613,8 @@ export async function processMessage(
   if (!imageBase64 && phantomText === PHANTOM_REFUSAL && !halluCheck.blocked) {
     console.log(`[orch:${requestId}] phantom retry → forcing real tool call`);
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId, toolLabel: '🔁 Je le fais vraiment…' });
-    const retrySystem = `${agentSystemExtra}\n\n⚠️ Ta réponse précédente affirmait une action (envoyé, créé, modifié, programmé…) SANS avoir appelé l'outil. `
+    const retrySystem = `${agentSystemExtra}\n\n⚠️ Ton brouillon de réponse au DERNIER message de Kouider affirmait une action (envoyé, créé, modifié, programmé…) SANS avoir appelé l'outil. `
+      + `Ne traite QUE ce dernier message : les actions des messages précédents sont déjà faites, ne les refais pas et n'en reparle pas. `
       + `Cette fois : appelle RÉELLEMENT l'outil qui fait l'action demandée (cherche-le avec la recherche d'outils si besoin : mails/pièces jointes, WhatsApp, agenda, Telegram, rappels…), `
       + `puis confirme seulement ce que le résultat de l'outil confirme. Si aucun outil ne permet de le faire, dis-le simplement et propose l'alternative la plus proche, sans prétendre l'avoir fait.`;
     try {
