@@ -161,7 +161,7 @@ async function getLiveFleetContext(): Promise<string> {
     return ctx;
   } catch {
     // Fallback to static list if DB unavailable
-    return `\nCATALOGUE VÉHICULES:\n• Hyundai i10 — 25€/jour\n• Clio 4 essence — 25€/jour\n• Dacia Sandero — 35€/jour\n• Fiat 500 — 35€/jour\n• Clio 4 diesel — 35€/jour\n• Clio 5 — 45€/jour\n• Renault Duster — 45€/jour\n• Hyundai Creta — 45€/jour\n• Fiat 500 XL — 45€/jour\n• Clio 5 Alpine — 50€/jour\n• Dacia Jogger — 50€/jour\n• Dacia Duster — 50€/jour\n• Citroën Berlingo — 55€/jour\n• Citroën Jumpy — 55€/jour`;
+    return `\nCATALOGUE VÉHICULES:\n• Hyundai i10 — 30€/jour\n• Clio 4 essence — 30€/jour\n• Dacia Sandero — 35€/jour\n• Fiat 500 — 35€/jour\n• Clio 4 diesel — 35€/jour\n• Clio 5 — 45€/jour\n• Renault Duster — 45€/jour\n• Hyundai Creta — 45€/jour\n• Fiat 500 XL — 45€/jour\n• Clio 5 Alpine — 50€/jour\n• Dacia Jogger — 50€/jour\n• Dacia Duster — 50€/jour\n• Citroën Berlingo — 55€/jour\n• Citroën Jumpy — 55€/jour`;
   }
 }
 

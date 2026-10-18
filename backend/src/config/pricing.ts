@@ -3,6 +3,8 @@ export interface VehiclePricing {
   houariPrice:  number;
   kouiderPrice: number;
   benefit:      number;
+  /** Prix client minimum accepté si le client demande une ristourne (jamais affiché sur le site). */
+  discountFloor?: number;
 }
 
 export const VEHICLE_PRICING: VehiclePricing[] = [
@@ -13,9 +15,9 @@ export const VEHICLE_PRICING: VehiclePricing[] = [
   { name: 'Sandero',       houariPrice: 22, kouiderPrice: 35, benefit: 13 },
   { name: 'Clio 5',        houariPrice: 37, kouiderPrice: 45, benefit:  8 },
   { name: 'Clio 5 Alpine', houariPrice: 44, kouiderPrice: 50, benefit:  6 },
-  { name: 'Clio 4 Essence', houariPrice: 16, kouiderPrice: 25, benefit:  9 },
+  { name: 'Clio 4 Essence', houariPrice: 16, kouiderPrice: 30, benefit: 14, discountFloor: 25 },
   { name: 'Clio 4 Diesel', houariPrice: 24, kouiderPrice: 35, benefit: 11 },
-  { name: 'i10',           houariPrice: 16, kouiderPrice: 25, benefit:  9 },
+  { name: 'i10',           houariPrice: 16, kouiderPrice: 30, benefit: 14, discountFloor: 25 },
   { name: 'Fiat 500',      houariPrice: 24, kouiderPrice: 35, benefit: 11 },
   { name: 'R.Duster',      houariPrice: 31, kouiderPrice: 45, benefit: 14 },
   { name: 'D.Duster',      houariPrice: 44, kouiderPrice: 50, benefit:  6 },
@@ -30,6 +32,6 @@ export function getPricingForVehicle(vehicleName: string): VehiclePricing | unde
 
 export function formatPricingTable(): string {
   return VEHICLE_PRICING.map(p =>
-    `${p.name.padEnd(14)} | Houari: ${p.houariPrice}€ | Kouider: ${p.kouiderPrice}€ | Bénéfice: ${p.benefit}€`,
+    `${p.name.padEnd(14)} | Houari: ${p.houariPrice}€ | Kouider: ${p.kouiderPrice}€ | Bénéfice: ${p.benefit}€${p.discountFloor ? ` | Ristourne SEULEMENT si le client la demande : ${p.discountFloor}€ minimum` : ''}`,
   ).join('\n');
 }
