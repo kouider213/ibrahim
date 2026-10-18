@@ -1,4 +1,4 @@
-import{Z as kl,S as Ou}from"./index-BJsnxjUq.js";/**
+import{Z as kl,S as Ou}from"./index-485FI3Zv.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
