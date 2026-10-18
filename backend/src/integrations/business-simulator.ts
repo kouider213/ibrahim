@@ -6,6 +6,7 @@
 // Marge Kouider / jour = client − propriétaire. Profit réservation = computeBookingFinancials (même règle que partout).
 import { supabase } from './supabase.js';
 import { computeBookingFinancials } from './finance.js';
+import { listPartners, findPartner, offerLine } from './partners.js';
 
 type Car = { id: string; name: string; category: string; client: number | null; owner: number | null; available: boolean };
 type CarStat = Car & { days: number; profit: number; revenue: number };
@@ -183,6 +184,19 @@ async function baseline(input: Record<string, unknown>): Promise<string> {
 
 async function scenario(input: Record<string, unknown>): Promise<string> {
   const b = await loadBaseline(num(input['year']) ?? new Date().getFullYear());
+  // partner=Karim : ses véhicules pas encore dans le parc deviennent des voitures ajoutées ; ses autres offres sont listées
+  const partnerLines: string[] = [];
+  if (input['partner']) {
+    const list = await listPartners();
+    const pa = findPartner(list, String(input['partner']));
+    if (!pa) return `❌ Partenaire « ${input['partner']} » introuvable (${list.map(x => x.name).join(', ') || 'aucun enregistré'}). Ajoute-le avec l'outil partners.`;
+    const extra = Array.isArray(input['extra_cars']) ? [...(input['extra_cars'] as unknown[])] : [];
+    for (const o of pa.offers) {
+      if (o.type === 'vehicle' && !o.car_id && o.client_price != null && o.owner_price != null && o.currency === 'EUR') extra.push({ name: `${o.title} (${pa.name})`, client_price: o.client_price, owner_price: o.owner_price, count: 1 });
+      else if (o.type !== 'vehicle') partnerLines.push(offerLine(o));
+    }
+    input = { ...input, extra_cars: extra, label: input['label'] ?? `Avec ${pa.name}` };
+  }
   const { cars: priced, unknown, notes } = applyPrices(b.cars, input);
   const cars = addExtraCars(priced, input, notes);
   const util = num(input['occupancy_pct']);
@@ -215,6 +229,7 @@ async function scenario(input: Record<string, unknown>): Promise<string> {
     `Écart : ${net - rentBefore >= 0 ? '+' : ''}${eur(net - rentBefore)} / mois.`,
     '',
     `Grille du scénario :\n${carTable(b.cars, cars)}`,
+    partnerLines.length ? `\nAutres offres du partenaire (marge par unité — pour les compter, ajoute-les dans other_income avec unit_price = marge et units_per_month) :\n${partnerLines.join('\n')}` : '',
     '',
     'ℹ️ « Volume égal » = mêmes jours loués qu\'en ' + b.year + ' ; une baisse de prix client peut attirer plus de clients (demand_change_pct pour le tester). Pour appliquer ces prix au site : action apply_prices.',
   ];

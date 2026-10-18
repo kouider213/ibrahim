@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-18 — Partenaires (Houari, Karim…)
+- `partners.ts` (app_kv `partners:v1`) : fiche partenaire (rôle, contacts, paiement, commission, caution, contrat, note, statut) + offres véhicule/immobilier/service/activité/autre avec photos (Cloudinary), prix partenaire, prix client, unité, capacité, lieu. Véhicule lié au parc (cars = source de vérité, add_to_fleet), bien publiable sur le site (properties). Houari créé avec les 15 voitures du parc.
+- Routes `/api/partners` (Kouider) ; outil `partners` ; `business_simulator scenario partner=…`.
+
 ## 2026-10-18 — Simulateur business + dossier « refais avec cette hypothèse »
 - `business-simulator.ts` (outil `business_simulator`) : baseline (chiffres réels 2026), scenario (nouveau fournisseur −X %, prix client ±%, prix par voiture, voitures en plus, demande, autres activités, charges), target_income (« 2 000 € net/mois » : leviers, tableau marge × volume, plan réaliste voiture par voiture), price_car, price_grid, apply_prices (aperçu puis confirm=true). Tout est calculé, ancré sur la marge RÉELLE (prix négociés), jamais estimé par l'IA.
 - `pro-doc.ts` : le dernier dossier (titre, but, matière, lien) est gardé (`dossier:last`) ; `create_presentation_doc revise_last=true + changes` le refait avec l'hypothèse.

@@ -13,6 +13,7 @@ import { sandboxIntercept, sandboxRecord } from './crash-test-sandbox.js';
 import { convertCurrency, weatherAlerts, footballScores } from './jarvis-tools.js';
 import { createGoogleDoc, createGoogleSheet, sendDocPdf } from './google-docs.js';
 import { businessSimulator } from './business-simulator.js';
+import { partnersTool } from './partners.js';
 import { listMyCapabilities } from './capabilities.js';
 import { selfTestTool } from './self-test.js';
 import { seasonsReport } from './seasons.js';
@@ -401,6 +402,7 @@ async function _dispatch(
       case 'create_google_sheet':       return await createGoogleSheet(input);
       case 'send_doc_pdf':              return await sendDocPdf(input);
       case 'business_simulator':        return await businessSimulator(input);
+      case 'partners':                  return await partnersTool(input, sessionId);
       case 'list_my_capabilities':      return await listMyCapabilities(input);
       case 'cloud_pc':                  return await cloudPcTool(input);
       case 'watch_page':                return await watchPageTool(input);
