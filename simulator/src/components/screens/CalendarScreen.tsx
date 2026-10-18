@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { business, apiFetch, getSimActor, type Booking } from '../../services/api.ts';
+import { SkeletonCards } from '../ui/Premium.tsx';
+import { T, tone, Screen, PageHeader, HeadBtn, Chips, Segmented, Card, Badge, Btn, SectionTitle, Kpi, KpiGrid, Sheet, Field, Toggle, inputStyle as kitInput } from '../ui/Kit.tsx';
 
 type Source = 'fik' | 'kouider' | 'houari';
 type Filter = 'all' | Source;
@@ -13,28 +15,14 @@ interface CalEvent {
   source: Source;
 }
 
-const SOURCE_COL: Record<Source, string> = {
-  fik:     '#38d8f5',
-  kouider: '#00e676',
-  houari:  '#b388ff',
-};
-
-const SOURCE_LABEL: Record<Source, string> = {
-  fik:     'FIK',
-  kouider: 'KOUIDER',
-  houari:  'HOUARI',
-};
-
-const STATUS_COL: Record<string, string> = {
-  CONFIRMED: '#00e676',
-  PENDING:   '#ffb347',
-  ACTIVE:    '#38d8f5',
-  COMPLETED: '#ffffff33',
-  REJECTED:  '#ff3366',
-};
+const SOURCE_COL: Record<Source, string> = { fik: T.accent, kouider: T.ok, houari: T.violet };
+const SOURCE_LABEL: Record<Source, string> = { fik: 'FIK', kouider: 'Kouider', houari: 'Houari' };
+const STATUS_COL: Record<string, string> = { CONFIRMED: T.ok, PENDING: T.warn, ACTIVE: T.accent, COMPLETED: T.faint, REJECTED: T.bad };
+const STATUS_FR: Record<string, string> = { CONFIRMED: 'Confirmée', PENDING: 'En attente', ACTIVE: 'En cours', COMPLETED: 'Terminée', REJECTED: 'Refusée' };
+const stKey = (s: string) => (s ?? '').toUpperCase();
 
 const DAY_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-const MONTH_FR   = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
+const MONTH_FR   = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
 // Format une Date en YYYY-MM-DD dans le fuseau LOCAL (jamais toISOString = UTC,
 // qui décale d'un jour en Algérie UTC+1). Source unique de vérité des jours.
@@ -64,7 +52,7 @@ export default function CalendarScreen() {
   const [bookings, setBookings]     = useState<Booking[]>([]);
   const [calEvents, setCalEvents]   = useState<CalEvent[]>([]);
   const [loading, setLoading]       = useState(true);
-  const [selected, setSelected]     = useState<string | null>(null);
+  const [selected, setSelected]     = useState<string | null>(() => isoDate(new Date()));
   const [viewDate, setViewDate]     = useState(new Date());
   const [filter, setFilter]         = useState<Filter>('all');
   const [showAdd, setShowAdd]       = useState(false);
@@ -78,12 +66,12 @@ export default function CalendarScreen() {
 
   const tabs: Array<{ id: Filter; label: string; col: string }> = useMemo(() => {
     const base: Array<{ id: Filter; label: string; col: string }> = [
-      { id: 'all',     label: 'TOUT',    col: '#ffffff' },
+      { id: 'all',     label: 'Tout',    col: T.text },
       { id: 'fik',     label: 'FIK',     col: SOURCE_COL.fik },
-      { id: 'houari',  label: 'HOUARI',  col: SOURCE_COL.houari },
+      { id: 'houari',  label: 'Houari',  col: SOURCE_COL.houari },
     ];
     if (actor === 'kouider') {
-      base.splice(2, 0, { id: 'kouider', label: 'KOUIDER', col: SOURCE_COL.kouider });
+      base.splice(2, 0, { id: 'kouider', label: 'Kouider', col: SOURCE_COL.kouider });
     }
     return base;
   }, [actor]);
@@ -199,409 +187,160 @@ export default function CalendarScreen() {
     }
   };
 
-  const fmtDate = (iso: string) => {
-    const d = new Date(iso);
-    return `${d.getDate()} ${MONTH_FR[d.getMonth()]}`;
+  const dayTitle = (iso: string) => {
+    const s = parseYmd(iso).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+    return (iso === today ? "Aujourd'hui · " : '') + s.charAt(0).toUpperCase() + s.slice(1);
+  };
+  const shortD = (x: string) => parseYmd(x).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  const pfx = `${year}-${String(month + 1).padStart(2, '0')}`;
+  const countSt = (st: string) => bookings.filter(b => stKey(b.status) === st && (b.start_date.startsWith(pfx) || b.end_date.startsWith(pfx))).length;
+  const monthEvents = calEvents.filter(e => eventDate(e).startsWith(pfx)).length;
+  const monthBks = bookings
+    .filter(b => stKey(b.status) !== 'REJECTED' && (b.start_date.slice(0, 7) === pfx || b.end_date.slice(0, 7) === pfx || (b.start_date <= `${pfx}-31` && b.end_date >= `${pfx}-01`)))
+    .sort((a, b) => a.start_date.localeCompare(b.start_date));
+  const showBookings = filter === 'all' || filter === 'fik';
+  const navBtn = { width: 40, height: 40, borderRadius: 12, border: `1px solid ${T.line}`, background: 'rgba(255,255,255,0.03)', color: T.accent, fontSize: 20, cursor: 'pointer' } as const;
+
+  const BookingLine = ({ b, onClick }: { b: Booking; onClick?: () => void }) => {
+    const col = STATUS_COL[stKey(b.status)] ?? T.faint;
+    return (
+      <Card accent={col} pad={12} onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 52, flexShrink: 0, textAlign: 'center' }}>
+          <div style={{ fontSize: 18 }}>🚗</div>
+          <div style={{ fontSize: 11.5, color: T.faint, marginTop: 2 }}>Location</div>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.client_name}</div>
+          <div style={{ fontSize: 13, color: T.muted }}>{b.cars?.name ?? '—'} · {shortD(b.start_date)} → {shortD(b.end_date)}</div>
+        </div>
+        <Badge color={col}>{STATUS_FR[stKey(b.status)] ?? b.status}</Badge>
+      </Card>
+    );
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#050a16', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
-      {/* Header */}
-      <div style={{ padding: '16px 16px 8px', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div>
-            <div style={{ fontSize: 10.5, letterSpacing: '0.22em', color: '#38d8f5', fontWeight: 700, textTransform: 'uppercase' }}>Dzaryx · Agenda</div>
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 26, color: '#fff', letterSpacing: '-0.02em', fontWeight: 800, lineHeight: 1.05, background: 'linear-gradient(120deg, #fff, #34d399)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Agenda</div>
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button onClick={() => void load()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#38d8f555' }}>↻</button>
-            <button
-              onClick={() => setShowAdd(true)}
-              style={{ background: 'rgba(56,216,245,0.1)', border: '1px solid #38d8f544', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#38d8f5', letterSpacing: '0.1em' }}
-            >
-              + AJOUTER
-            </button>
-          </div>
-        </div>
-
-        {/* Filter tabs */}
-        <div style={{ display: 'flex', gap: 4 }}>
-          {tabs.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setFilter(t.id)}
-              style={{
-                flex: 1, padding: '4px 2px',
-                background: filter === t.id ? `${t.col}18` : 'transparent',
-                border: `1px solid ${filter === t.id ? t.col + '66' : '#ffffff11'}`,
-                borderRadius: 6, cursor: 'pointer',
-                fontFamily: 'Inter, sans-serif', fontSize: 6, letterSpacing: '0.08em',
-                color: filter === t.id ? t.col : '#ffffff33',
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+    <Screen toast={toast ?? ''} header={<>
+      <PageHeader eyebrow="Agenda" title={`${MONTH_FR[month]} ${year}`}
+        subtitle={loading ? 'Chargement…' : `${monthBks.length} location${monthBks.length > 1 ? 's' : ''} · ${monthEvents} rendez-vous ce mois-ci`}
+        right={<div style={{ display: 'flex', gap: 8 }}>
+          <HeadBtn icon="↻" label="Actualiser" onClick={() => void load()} busy={loading} />
+          <HeadBtn icon="＋" label="Ajouter" onClick={() => { setAddForm(f => ({ ...f, date: selected ?? today })); setShowAdd(true); }} />
+        </div>} />
+      <div style={{ padding: '0 16px 10px' }}>
+        <Chips<Filter> value={filter} onChange={setFilter} items={tabs.map(t => ({ id: t.id, label: t.label }))} />
       </div>
-
-      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-
-        {/* Month navigation */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 2px' }}>
-          <button onClick={prevMonth} style={navBtn}>‹</button>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#38d8f5', letterSpacing: '0.2em' }}>
-            {MONTH_FR[month].toUpperCase()} {year}
-          </span>
-          <button onClick={nextMonth} style={navBtn}>›</button>
+    </>}>
+      {/* Calendrier du mois */}
+      <Card style={{ marginBottom: 14 }} pad={12}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <button onClick={prevMonth} aria-label="Mois précédent" style={navBtn}>‹</button>
+          <div style={{ flex: 1, textAlign: 'center', fontSize: 16, fontWeight: 800 }}>{MONTH_FR[month]} {year}</div>
+          <button onClick={nextMonth} aria-label="Mois suivant" style={navBtn}>›</button>
         </div>
-
-        {/* Source legend */}
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {(Object.entries(SOURCE_COL) as Array<[Source, string]>).map(([s, c]) => (
-            <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: c, boxShadow: `0 0 4px ${c}` }} />
-              <span style={{ fontSize: 6, color: `${c}99`, letterSpacing: '0.1em' }}>{SOURCE_LABEL[s]}</span>
-            </div>
-          ))}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0,1fr))', gap: 4, marginBottom: 4 }}>
+          {DAY_LABELS.map((l, i) => <div key={i} style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: i >= 5 ? T.faint : T.muted, padding: '2px 0' }}>{l}</div>)}
         </div>
-
-        {/* Day labels */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
-          {DAY_LABELS.map((l, i) => (
-            <div key={i} style={{ textAlign: 'center', fontSize: 7, color: '#38d8f544', fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em', padding: '2px 0' }}>
-              {l}
-            </div>
-          ))}
-        </div>
-
-        {/* Calendar grid */}
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: 20, fontSize: 8, color: '#38d8f533', fontFamily: 'Inter, sans-serif', letterSpacing: '0.2em' }}>CHARGEMENT…</div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
+        {loading && !bookings.length ? <SkeletonCards count={1} height={260} /> : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0,1fr))', gap: 4 }}>
             {cells.map((cell, i) => {
-              if (!cell.day || !cell.iso) return <div key={i} style={{ aspectRatio: '1', borderRadius: 4 }} />;
-              const bks     = bookingsByDay[cell.iso] ?? [];
-              const gcEvts  = filteredGcByDay[cell.iso] ?? [];
-              const hasAny  = bks.length > 0 || gcEvts.length > 0;
+              if (!cell.day || !cell.iso) return <div key={i} />;
+              const bks    = showBookings ? (bookingsByDay[cell.iso] ?? []) : [];
+              const gcEvts = filteredGcByDay[cell.iso] ?? [];
               const isToday = cell.iso === today;
               const isSel   = cell.iso === selected;
-
-              // dots: up to 3 booking dots + gc source dots
-              const bkDots  = [...new Set(bks.map(b => STATUS_COL[b.status] ?? '#ffffff44'))].slice(0, 2);
-              const gcDots  = [...new Set(gcEvts.map(e => SOURCE_COL[e.source]))].slice(0, 2);
-
+              const bkDots = [...new Set(bks.map(b => STATUS_COL[stKey(b.status)] ?? T.faint))].slice(0, 2);
+              const gcDots = [...new Set(gcEvts.map(e => SOURCE_COL[e.source]))].slice(0, 2);
               return (
-                <div
-                  key={cell.iso}
-                  onClick={() => setSelected(isSel ? null : cell.iso)}
-                  style={{
-                    aspectRatio: '1', borderRadius: 6,
-                    background: isSel ? '#38d8f518' : isToday ? '#38d8f50a' : hasAny ? '#ffffff05' : 'transparent',
-                    border: isSel ? '1px solid #38d8f555' : isToday ? '1px solid #38d8f533' : '1px solid transparent',
-                    cursor: hasAny ? 'pointer' : 'default',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
-                    padding: '3px 1px',
-                  }}
-                >
-                  <span style={{
-                    fontSize: 9, lineHeight: 1,
-                    color: isToday ? '#38d8f5' : isSel ? '#e8f4ff' : hasAny ? '#c8e8ff' : '#ffffff33',
-                    fontFamily: isToday ? 'Inter, sans-serif' : undefined,
-                    fontWeight: isToday ? 700 : undefined,
-                  }}>
-                    {cell.day}
+                <button key={cell.iso} onClick={() => setSelected(cell.iso)} style={{
+                  aspectRatio: '1', minHeight: 40, borderRadius: 12, cursor: 'pointer', fontFamily: T.font, padding: 0,
+                  background: isSel ? `linear-gradient(135deg, ${T.accent}, ${T.accent2})` : isToday ? tone(T.accent, 0.12) : bks.length || gcEvts.length ? 'rgba(255,255,255,0.04)' : 'transparent',
+                  border: isToday && !isSel ? `1px solid ${tone(T.accent, 0.55)}` : '1px solid transparent',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+                }}>
+                  <span style={{ fontSize: 15, fontWeight: isToday || isSel ? 800 : 600, color: isSel ? '#04101f' : isToday ? T.accent : T.text, lineHeight: 1 }}>{cell.day}</span>
+                  <span style={{ display: 'flex', gap: 3, height: 6 }}>
+                    {[...bkDots, ...gcDots].slice(0, 3).map((c, di) => <span key={di} style={{ width: 6, height: 6, borderRadius: '50%', background: isSel ? '#04101f' : c }} />)}
                   </span>
-                  {(bkDots.length > 0 || gcDots.length > 0) && (
-                    <div style={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
-                      {bkDots.map((c, di) => (
-                        <div key={`b${di}`} style={{ width: 3, height: 3, borderRadius: '50%', background: c }} />
-                      ))}
-                      {gcDots.map((c, di) => (
-                        <div key={`g${di}`} style={{ width: 3, height: 3, borderRadius: '50%', background: c, boxShadow: `0 0 3px ${c}` }} />
-                      ))}
-                    </div>
-                  )}
-                </div>
+                </button>
               );
             })}
           </div>
         )}
-
-        {/* Selected day detail */}
-        {selected && (selectedBookings.length > 0 || selectedGc.length > 0) && (
-          <div style={{ background: 'rgba(56,216,245,0.04)', borderRadius: 12, padding: '10px', border: '1px solid #38d8f51a' }}>
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#38d8f566', letterSpacing: '0.2em', marginBottom: 8 }}>
-              {fmtDate(selected)}
-            </div>
-
-            {/* Google Calendar events */}
-            {selectedGc.map((e, idx) => {
-              const col = SOURCE_COL[e.source];
-              return (
-                <div key={e.id ?? idx} style={{
-                  padding: '7px 9px', borderRadius: 8, marginBottom: 5,
-                  background: `${col}08`, border: `1px solid ${col}22`,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                    <span style={{
-                      fontSize: 5, color: col, fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em',
-                      background: `${col}18`, padding: '1px 4px', borderRadius: 3,
-                    }}>
-                      {SOURCE_LABEL[e.source]}
-                    </span>
-                    <span style={{ fontSize: 9, color: '#e8f4ff', fontWeight: 600 }}>{e.summary}</span>
-                  </div>
-                  <div style={{ fontSize: 7, color: '#ffffff44' }}>{fmtTime(e)}</div>
-                  {e.description && (
-                    <div style={{ fontSize: 6, color: '#ffffff33', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {e.description}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Supabase booking entries (only when filter is all or fik) */}
-            {(filter === 'all' || filter === 'fik') && selectedBookings.map(b => {
-              const col = STATUS_COL[b.status] ?? '#ffffff44';
-              return (
-                <div key={b.id} style={{
-                  padding: '7px 9px', borderRadius: 8, marginBottom: 5,
-                  background: `${col}08`, border: `1px solid ${col}22`,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                    <span style={{
-                      fontSize: 5, color: SOURCE_COL.fik, fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em',
-                      background: `${SOURCE_COL.fik}18`, padding: '1px 4px', borderRadius: 3,
-                    }}>
-                      RÉSA
-                    </span>
-                    <span style={{ fontSize: 9, color: '#e8f4ff', fontWeight: 600 }}>{b.client_name}</span>
-                    <span style={{ marginLeft: 'auto', fontSize: 6, color: col, fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em',
-                      background: `${col}18`, padding: '2px 5px', borderRadius: 4 }}>
-                      {b.status}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 7, color: '#ffffff44' }}>
-                    {b.cars?.name ?? '—'} · {b.start_date.slice(5)} → {b.end_date.slice(5)}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {selected && selectedBookings.length === 0 && selectedGc.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '10px', fontSize: 8, color: '#ffffff22' }}>
-            Aucun événement ce jour
-          </div>
-        )}
-
-        {/* Monthly summary */}
-        {!loading && (
-          <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: '10px 12px', border: '1px solid #ffffff08' }}>
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#ffffff33', letterSpacing: '0.2em', marginBottom: 8 }}>
-              MOIS EN COURS
-            </div>
-            <div style={{ display: 'flex', gap: 4 }}>
-              {(['CONFIRMED','PENDING','ACTIVE'] as const).map(s => {
-                const pfx = `${year}-${String(month + 1).padStart(2, '0')}`;
-                const count = bookings.filter(b =>
-                  b.status === s && (b.start_date.startsWith(pfx) || b.end_date.startsWith(pfx))
-                ).length;
-                return (
-                  <div key={s} style={{ flex: 1, textAlign: 'center', background: `${STATUS_COL[s]}0a`, borderRadius: 8, padding: '6px 4px', border: `1px solid ${STATUS_COL[s]}22` }}>
-                    <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: STATUS_COL[s] }}>{count}</div>
-                    <div style={{ fontSize: 5, color: `${STATUS_COL[s]}66`, letterSpacing: '0.1em', marginTop: 1 }}>{s.slice(0,4)}</div>
-                  </div>
-                );
-              })}
-              <div style={{ flex: 1, textAlign: 'center', background: '#b388ff0a', borderRadius: 8, padding: '6px 4px', border: '1px solid #b388ff22' }}>
-                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#b388ff' }}>
-                  {calEvents.filter(e => eventDate(e).startsWith(`${year}-${String(month+1).padStart(2,'0')}`)).length}
-                </div>
-                <div style={{ fontSize: 5, color: '#b388ff66', letterSpacing: '0.1em', marginTop: 1 }}>GCAL</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Réservations du mois (vue mois, aucun jour sélectionné) */}
-        {!loading && !selected && (() => {
-          const pfx = `${year}-${String(month + 1).padStart(2, '0')}`;
-          const monthBks = bookings
-            .filter(b => b.status !== 'REJECTED' && (b.start_date.slice(0, 7) === pfx || b.end_date.slice(0, 7) === pfx || (b.start_date <= `${pfx}-31` && b.end_date >= `${pfx}-01`)))
-            .sort((a, b) => a.start_date.localeCompare(b.start_date));
-          if (monthBks.length === 0) return null;
-          return (
-            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: '10px 12px', border: '1px solid #ffffff08' }}>
-              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#ffffff33', letterSpacing: '0.2em', marginBottom: 8 }}>
-                RÉSERVATIONS DU MOIS ({monthBks.length})
-              </div>
-              {monthBks.map(b => {
-                const col = STATUS_COL[b.status] ?? '#ffffff44';
-                return (
-                  <div key={b.id} onClick={() => setSelected(b.start_date.slice(0, 10))} style={{ padding: '7px 9px', borderRadius: 8, marginBottom: 5, background: `${col}08`, border: `1px solid ${col}22`, cursor: 'pointer' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                      <span style={{ fontSize: 5, color: SOURCE_COL.fik, fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em', background: `${SOURCE_COL.fik}18`, padding: '1px 4px', borderRadius: 3 }}>RÉSA</span>
-                      <span style={{ fontSize: 9, color: '#e8f4ff', fontWeight: 600 }}>{b.client_name}</span>
-                      <span style={{ marginLeft: 'auto', fontSize: 6, color: col, fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em', background: `${col}18`, padding: '2px 5px', borderRadius: 4 }}>{b.status}</span>
-                    </div>
-                    <div style={{ fontSize: 7, color: '#ffffff44' }}>
-                      {b.cars?.name ?? '—'} · {b.start_date.slice(5)} → {b.end_date.slice(5)}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* Toast */}
-      {toast && (
-        <div style={{
-          position: 'absolute', bottom: 80, left: '50%', transform: 'translateX(-50%)',
-          background: 'rgba(56,216,245,0.15)', border: '1px solid #38d8f544',
-          borderRadius: 20, padding: '8px 18px', fontSize: 9, color: '#38d8f5',
-          fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em', zIndex: 100,
-          backdropFilter: 'blur(10px)',
-        }}>
-          {toast}
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.line}` }}>
+          {([['Location', T.ok], ['En attente', T.warn], ...((Object.entries(SOURCE_COL) as Array<[Source, string]>).map(([k, c]) => [`Agenda ${SOURCE_LABEL[k]}`, c]))] as Array<[string, string]>).map(([l, c]) => (
+            <span key={l} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.muted }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: c }} />{l}</span>
+          ))}
         </div>
+      </Card>
+
+      {/* Programme du jour sélectionné */}
+      {selected && (
+        <>
+          <SectionTitle right={selected !== today ? <button onClick={() => setSelected(today)} style={{ background: 'none', border: 'none', color: T.accent, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: T.font }}>Aujourd'hui</button> : undefined}>{dayTitle(selected)}</SectionTitle>
+          {selectedGc.length === 0 && (!showBookings || selectedBookings.length === 0) ? (
+            <div style={{ fontSize: 14, color: T.faint, padding: '2px 2px 16px' }}>Rien de prévu ce jour-là.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+              {selectedGc.map((e, idx) => {
+                const col = SOURCE_COL[e.source];
+                return (
+                  <Card key={e.id ?? idx} accent={col} pad={12} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 52, flexShrink: 0, textAlign: 'center' }}>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: col }}>{fmtTime(e)}</div>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700 }}>{e.summary}</div>
+                      {e.description && <div style={{ fontSize: 13, color: T.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.description}</div>}
+                    </div>
+                    <Badge color={col}>{SOURCE_LABEL[e.source]}</Badge>
+                  </Card>
+                );
+              })}
+              {showBookings && selectedBookings.map(b => <BookingLine key={b.id} b={b} />)}
+            </div>
+          )}
+        </>
       )}
 
-      {/* Add event modal */}
+      {!loading && <>
+        <SectionTitle>Ce mois-ci</SectionTitle>
+        <KpiGrid>
+          <Kpi value={countSt('CONFIRMED')} label="Confirmées" color={T.ok} />
+          <Kpi value={countSt('PENDING')} label="En attente" color={T.warn} />
+          <Kpi value={countSt('ACTIVE')} label="En cours" color={T.accent} />
+          <Kpi value={monthEvents} label="Rendez-vous" color={T.violet} />
+        </KpiGrid>
+        {showBookings && monthBks.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {monthBks.map(b => <BookingLine key={b.id} b={b} onClick={() => setSelected(b.start_date.slice(0, 10))} />)}
+          </div>
+        )}
+      </>}
+
+      {/* Nouvel événement */}
       {showAdd && (
-        <div
-          onClick={() => setShowAdd(false)}
-          style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'flex-end' }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{ width: '100%', background: '#061220', borderTop: '1px solid #38d8f533', borderRadius: '16px 16px 0 0', padding: '16px 14px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}
-          >
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#38d8f5', letterSpacing: '0.2em', marginBottom: 4 }}>
-              + NOUVEL ÉVÉNEMENT
-            </div>
-
-            {/* Calendar selector */}
-            <div style={{ display: 'flex', gap: 4 }}>
-              {(['fik', actor === 'houari' ? 'houari' : 'kouider'] as const).map(cal => {
-                const col = SOURCE_COL[cal as Source];
-                return (
-                  <button
-                    key={cal}
-                    onClick={() => setAddForm(f => ({ ...f, calendar: cal }))}
-                    style={{
-                      flex: 1, padding: '6px 4px',
-                      background: addForm.calendar === cal ? `${col}20` : 'transparent',
-                      border: `1px solid ${addForm.calendar === cal ? col + '66' : '#ffffff11'}`,
-                      borderRadius: 8, cursor: 'pointer',
-                      fontFamily: 'Inter, sans-serif', fontSize: 7, letterSpacing: '0.1em',
-                      color: addForm.calendar === cal ? col : '#ffffff33',
-                    }}
-                  >
-                    {SOURCE_LABEL[cal as Source]}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Title */}
-            <input
-              type="text"
-              placeholder="Titre de l'événement"
-              value={addForm.title}
-              onChange={e => setAddForm(f => ({ ...f, title: e.target.value }))}
-              style={inputStyle}
-            />
-
-            {/* Date + allDay toggle */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input
-                type="date"
-                value={addForm.date}
-                onChange={e => setAddForm(f => ({ ...f, date: e.target.value }))}
-                style={{ ...inputStyle, flex: 1, colorScheme: 'dark' }}
-              />
-              <button
-                onClick={() => setAddForm(f => ({ ...f, allDay: !f.allDay }))}
-                style={{
-                  padding: '6px 10px', borderRadius: 8, cursor: 'pointer',
-                  background: addForm.allDay ? 'rgba(56,216,245,0.15)' : 'transparent',
-                  border: `1px solid ${addForm.allDay ? '#38d8f566' : '#ffffff11'}`,
-                  fontFamily: 'Inter, sans-serif', fontSize: 6, color: addForm.allDay ? '#38d8f5' : '#ffffff33',
-                  letterSpacing: '0.1em', whiteSpace: 'nowrap',
-                }}
-              >
-                JOURNÉE
-              </button>
-            </div>
-
-            {/* Time + Duration (hidden if allDay) */}
-            {!addForm.allDay && (
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  type="time"
-                  value={addForm.time}
-                  onChange={e => setAddForm(f => ({ ...f, time: e.target.value }))}
-                  style={{ ...inputStyle, flex: 1, colorScheme: 'dark' }}
-                />
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
-                  <input
-                    type="number"
-                    min="0.5"
-                    max="24"
-                    step="0.5"
-                    value={addForm.duration}
-                    onChange={e => setAddForm(f => ({ ...f, duration: e.target.value }))}
-                    style={{ ...inputStyle, flex: 1, textAlign: 'center' }}
-                  />
-                  <span style={{ fontSize: 7, color: '#ffffff33', whiteSpace: 'nowrap' }}>h</span>
-                </div>
-              </div>
-            )}
-
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-              <button
-                onClick={() => setShowAdd(false)}
-                style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid #ffffff11', borderRadius: 10, cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#ffffff33' }}
-              >
-                ANNULER
-              </button>
-              <button
-                onClick={() => void handleAddSubmit()}
-                disabled={addSaving || !addForm.title || !addForm.date}
-                style={{
-                  flex: 2, padding: '10px', borderRadius: 10, cursor: addSaving ? 'default' : 'pointer',
-                  background: addSaving ? 'rgba(56,216,245,0.05)' : 'rgba(56,216,245,0.15)',
-                  border: '1px solid #38d8f544',
-                  fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#38d8f5', letterSpacing: '0.1em',
-                }}
-              >
-                {addSaving ? '...' : '✓ AJOUTER'}
-              </button>
-            </div>
+        <Sheet title="Nouvel événement" onClose={() => setShowAdd(false)} footer={<>
+          <Btn variant="ghost" onClick={() => setShowAdd(false)} style={{ flex: 1 }}>Annuler</Btn>
+          <Btn variant="primary" onClick={() => void handleAddSubmit()} disabled={addSaving || !addForm.title || !addForm.date} style={{ flex: 2 }}>{addSaving ? 'Ajout…' : 'Ajouter à l\'agenda'}</Btn>
+        </>}>
+          <Field label="Agenda">
+            <Segmented<'fik' | 'kouider' | 'houari'> value={addForm.calendar} onChange={cal => setAddForm(f => ({ ...f, calendar: cal }))}
+              items={(['fik', actor === 'houari' ? 'houari' : 'kouider'] as const).map(c => ({ id: c, label: SOURCE_LABEL[c] }))} />
+          </Field>
+          <Field label="Titre"><input type="text" placeholder="Ex. Livraison Clio à l'aéroport" value={addForm.title} onChange={e => setAddForm(f => ({ ...f, title: e.target.value }))} style={kitInput} /></Field>
+          <Field label="Date"><input type="date" value={addForm.date} onChange={e => setAddForm(f => ({ ...f, date: e.target.value }))} style={{ ...kitInput, colorScheme: 'dark' }} /></Field>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+            <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>Toute la journée</span>
+            <Toggle on={addForm.allDay} onChange={() => setAddForm(f => ({ ...f, allDay: !f.allDay }))} colorOff={T.faint} />
           </div>
-        </div>
+          {!addForm.allDay && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 10 }}>
+              <Field label="Heure"><input type="time" value={addForm.time} onChange={e => setAddForm(f => ({ ...f, time: e.target.value }))} style={{ ...kitInput, colorScheme: 'dark' }} /></Field>
+              <Field label="Durée (heures)"><input type="number" min="0.5" max="24" step="0.5" value={addForm.duration} onChange={e => setAddForm(f => ({ ...f, duration: e.target.value }))} style={kitInput} /></Field>
+            </div>
+          )}
+        </Sheet>
       )}
-    </div>
+    </Screen>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.04)', border: '1px solid #ffffff11',
-  borderRadius: 8, padding: '8px 10px', color: '#e8f4ff',
-  fontFamily: 'Inter, sans-serif', fontSize: 10, outline: 'none', width: '100%', boxSizing: 'border-box',
-};
-
-const navBtn: React.CSSProperties = {
-  background: 'rgba(56,216,245,0.08)', border: '1px solid #38d8f522', borderRadius: 6,
-  width: 28, height: 28, cursor: 'pointer', color: '#38d8f5aa',
-  fontFamily: 'Inter, sans-serif', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
-};
-
