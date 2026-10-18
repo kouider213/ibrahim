@@ -178,14 +178,17 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
 
         {/* Visites du site via le lien des mails */}
         {visits.length > 0 && (
-          <Section title={`👀 Ont visité ton site (${visits.length})`} hint="Ils ont cliqué sur le lien de ton mail : c'est le bon moment pour les appeler.">
+          <Section title={`👀 Ont visité ton site (${visits.length})`} hint="Ils ont cliqué sur le lien de ton mail : c'est le bon moment pour les contacter. Touche une société pour voir sa fiche et le mail envoyé — ou demande à Dzaryx : « qui a visité mon site ? », « qu'est-ce qu'on a envoyé à Repsol ? ».">
             {visits.slice(0, 5).map(r => (
-              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 9, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '10px 12px', marginBottom: 7 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700 }}>{r.company}</div>
-                  <div style={{ fontSize: 11.5, color: C.muted }}>{r.site_visits > 1 ? `${r.site_visits} visites · ` : ''}dernière le {r.site_visit_at ? fmtSlot(r.site_visit_at) : '—'}</div>
+              <div key={r.id} style={{ background: C.surface, border: `1px solid ${open === `v-${r.id}` ? C.accent : C.border}`, borderRadius: 12, marginBottom: 7, overflow: 'hidden' }}>
+                <div onClick={() => setOpen(open === `v-${r.id}` ? null : `v-${r.id}`)} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 12px', cursor: 'pointer' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700 }}>{r.company} <span style={{ color: C.muted, fontWeight: 400, fontSize: 11 }}>{open === `v-${r.id}` ? '▲' : '▼ voir la fiche'}</span></div>
+                    <div style={{ fontSize: 11.5, color: C.muted }}>{r.site_visits > 1 ? `${r.site_visits} visites · ` : ''}dernière le {r.site_visit_at ? fmtSlot(r.site_visit_at) : '—'}</div>
+                  </div>
+                  {r.phone && <a href={`tel:${r.phone}`} onClick={e => e.stopPropagation()} style={{ ...btn('rgba(56,216,245,0.18)', C.accent), textDecoration: 'none' }}>📞 Appeler</a>}
                 </div>
-                {r.phone && <a href={`tel:${r.phone}`} style={{ ...btn('rgba(56,216,245,0.18)', C.accent), textDecoration: 'none' }}>📞 Appeler</a>}
+                {open === `v-${r.id}` && <div style={{ paddingBottom: 10 }}><ProspectDetails p={r} mailOpen /></div>}
               </div>
             ))}
           </Section>
@@ -317,30 +320,39 @@ function ProspectCard({ p, open, onToggle, onStatus }: { p: ProspectRow; open: b
         <span style={{ fontSize: 10.5, fontWeight: 700, color: s.color, border: `1px solid ${s.color}55`, borderRadius: 20, padding: '3px 8px', whiteSpace: 'nowrap' }}>{s.label}</span>
       </button>
       {open && (
-        <div style={{ padding: '0 13px 12px', fontSize: 12, lineHeight: 1.5 }}>
-          {p.email && <div>✉️ <a href={`mailto:${p.email}`} style={{ color: '#7fb5ff' }}>{p.email}</a></div>}
-          {p.phone && <div>📞 <a href={`tel:${p.phone}`} style={{ color: '#7fb5ff' }}>{p.phone}</a></div>}
-          {p.website && <div>🌐 {p.website}</div>}
-          {p.lang && <div>🌐 Mail écrit en {LANG[p.lang] ?? p.lang}</div>}
-          {p.last_subject && <div>📨 Objet : {p.last_subject}</div>}
-          {p.followup_at && <div>🔁 Relancé le {fmtDate(p.followup_at)}</div>}
-          {p.site_visit_at && <div style={{ color: C.accent }}>👀 A visité le site via ton mail{p.site_visits > 1 ? ` (${p.site_visits} fois)` : ''} — dernière fois le {fmtSlot(p.site_visit_at)}</div>}
-          {p.whatsapp_sent_at && <div>💬 Message WhatsApp envoyé le {fmtDate(p.whatsapp_sent_at)}</div>}
-          {p.last_sent_text && <details style={{ marginTop: 4 }}><summary style={{ cursor: 'pointer', color: C.gold }}>Voir le mail envoyé</summary>
-            <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', background: 'rgba(255,255,255,0.04)', borderRadius: 9, padding: 8, maxHeight: 260, overflowY: 'auto' }}>{p.last_sent_text}</div></details>}
-          {p.source && <div style={{ color: C.muted, wordBreak: 'break-all' }}>Source : {/^https?:/.test(p.source) ? <a href={p.source} target="_blank" rel="noreferrer" style={{ color: C.muted }}>{p.source}</a> : p.source}</div>}
-          {p.linkedin_contacts.map((c, i) => (
-            <div key={i} style={{ marginTop: 4 }}>👔 <a href={c.url} target="_blank" rel="noreferrer" style={{ color: '#7fb5ff' }}>{c.name}</a> — {c.title}{c.email ? <> · <a href={`mailto:${c.email}`} style={{ color: '#7fb5ff' }}>{c.email}</a></> : ''} {c.sent_at ? <span style={{ color: C.accent }}>· envoyé</span> : ''}</div>
-          ))}
-          {p.last_reply_text && <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', background: 'rgba(255,255,255,0.04)', borderRadius: 9, padding: 8, maxHeight: 160, overflowY: 'auto' }}>{p.last_reply_text}</div>}
-          {p.notes && <div style={{ marginTop: 6, color: C.muted, whiteSpace: 'pre-wrap' }}>{p.notes}</div>}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 9 }}>
+        <div style={{ paddingBottom: 12 }}>
+          <ProspectDetails p={p} />
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '9px 13px 0' }}>
             {(['interesse', 'client', 'refus'] as const).filter(x => x !== p.status).map(x => (
               <button key={x} onClick={() => onStatus(x)} style={btn('rgba(255,255,255,0.06)', STATUS[x]!.color)}>→ {STATUS[x]!.label}</button>
             ))}
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Fiche d'une société : contacts, décideurs (email), mail envoyé, visites, réponse. */
+function ProspectDetails({ p, mailOpen }: { p: ProspectRow; mailOpen?: boolean }) {
+  return (
+    <div style={{ padding: '0 13px 4px', fontSize: 12, lineHeight: 1.5 }}>
+      {p.email && <div>✉️ <a href={`mailto:${p.email}`} style={{ color: '#7fb5ff' }}>{p.email}</a></div>}
+      {p.phone && <div>📞 <a href={`tel:${p.phone}`} style={{ color: '#7fb5ff' }}>{p.phone}</a></div>}
+      {p.website && <div>🌐 {p.website}</div>}
+      {p.linkedin_contacts.map((c, i) => (
+        <div key={i} style={{ marginTop: 4 }}>👔 <a href={c.url} target="_blank" rel="noreferrer" style={{ color: '#7fb5ff' }}>{c.name}</a> — {c.title}{c.email ? <> · <a href={`mailto:${c.email}`} style={{ color: '#7fb5ff' }}>{c.email}</a></> : ''} {c.sent_at ? <span style={{ color: C.accent }}>· envoyé</span> : ''}</div>
+      ))}
+      {p.lang && <div>🌐 Mail écrit en {LANG[p.lang] ?? p.lang}</div>}
+      {p.last_subject && <div>📨 Objet : {p.last_subject}</div>}
+      {p.followup_at && <div>🔁 Relancé le {fmtDate(p.followup_at)}</div>}
+      {p.site_visit_at && <div style={{ color: C.accent }}>👀 A visité le site via ton mail{p.site_visits > 1 ? ` (${p.site_visits} fois)` : ''} — dernière fois le {fmtSlot(p.site_visit_at)}</div>}
+      {p.whatsapp_sent_at && <div>💬 Message WhatsApp envoyé le {fmtDate(p.whatsapp_sent_at)}</div>}
+      {p.last_sent_text && <details open={mailOpen} style={{ marginTop: 4 }}><summary style={{ cursor: 'pointer', color: C.gold }}>{mailOpen ? 'Le mail envoyé' : 'Voir le mail envoyé'}</summary>
+        <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', background: 'rgba(255,255,255,0.04)', borderRadius: 9, padding: 8, maxHeight: 260, overflowY: 'auto' }}>{p.last_sent_text}</div></details>}
+      {p.source && <div style={{ color: C.muted, wordBreak: 'break-all' }}>Source : {/^https?:/.test(p.source) ? <a href={p.source} target="_blank" rel="noreferrer" style={{ color: C.muted }}>{p.source}</a> : p.source}</div>}
+      {p.last_reply_text && <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', background: 'rgba(255,255,255,0.04)', borderRadius: 9, padding: 8, maxHeight: 160, overflowY: 'auto' }}>{p.last_reply_text}</div>}
+      {p.notes && <div style={{ marginTop: 6, color: C.muted, whiteSpace: 'pre-wrap' }}>{p.notes}</div>}
     </div>
   );
 }

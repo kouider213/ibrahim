@@ -164,8 +164,11 @@ export async function addProspect(p: {
   return { prospect: data as Prospect, duplicate: false };
 }
 
-export async function listProspects(f: { segment?: string; status?: string; limit?: number } = {}): Promise<Prospect[]> {
-  let q = supabase.from('prospects').select('*').order('created_at', { ascending: false })
+export async function listProspects(f: { segment?: string; status?: string; limit?: number; visited?: boolean } = {}): Promise<Prospect[]> {
+  // visited : ceux qui ont ouvert le lien du mail et visité le site, les plus récents d'abord
+  let q = (f.visited
+    ? supabase.from('prospects').select('*').not('site_visit_at', 'is', null).order('site_visit_at', { ascending: false })
+    : supabase.from('prospects').select('*').order('created_at', { ascending: false }))
     .limit(Math.min(Math.max(f.limit ?? 20, 1), 100));
   if (f.segment) q = q.eq('segment', f.segment);
   if (f.status)  q = q.eq('status', f.status);

@@ -40,7 +40,7 @@ import { storePdf } from '../utils/pdf-store.js';
 import { kvGet, kvSet, kvDel } from './app-store.js';
 import { getConversationHistory } from './supabase.js';
 import { addProspect, listProspects, findProspect, updateProspect, markProspectContacted, isOptedOut, listPendingReplies, getAutopilot, setAutopilot, PROSPECT_SEGMENTS, PROSPECT_STATUSES, type Prospect, type ProspectSegment, type ProspectStatus } from './prospects.js';
-import { runDailyOutreach } from './prospect-autopilot.js';
+import { runDailyOutreach, langName } from './prospect-autopilot.js';
 import { getProspectMode, setProspectMode, getSiteCities, setSiteCities, retrySiteDemo, isBelgianCity } from './site-prospecting.js';
 import { recordExpense, getExpenses, deleteExpense, findCar } from './expenses.js';
 import { clientRisk, recordCarKm, flashOffers } from '../notifications/client-care.js';
@@ -2489,15 +2489,45 @@ async function addProspectTool(input: Record<string, unknown>): Promise<string> 
 }
 
 async function listProspectsTool(input: Record<string, unknown>): Promise<string> {
+  const query = String(input['query'] ?? '').trim();
+  if (query) {
+    const found = await findProspect(query);
+    if (!found.length) return `📭 Aucun prospect ne correspond à « ${query} ».`;
+    return found.slice(0, 3).map(prospectSheet).join('\n\n———\n\n');
+  }
+  const visited = input['visited'] === true || input['visited'] === 'true';
   const rows = await listProspects({
     segment: input['segment'] as string | undefined, status: input['status'] as string | undefined,
-    limit: input['limit'] ? Number(input['limit']) : undefined,
+    limit: input['limit'] ? Number(input['limit']) : undefined, visited,
   });
-  if (!rows.length) return '📭 Aucun prospect pour ces critères.';
+  if (!rows.length) return visited ? '📭 Personne n\'a encore visité le site via un mail de démarchage.' : '📭 Aucun prospect pour ces critères.';
   return `📋 ${rows.length} prospect(s) :\n` + rows.map(p =>
     `- ${SEGMENT_LABEL[p.segment] ?? p.segment} **${p.company}**${p.contact_name ? ` (${p.contact_name})` : ''} — ${p.email ?? '—'} ${p.phone ? `| ${p.phone}` : ''} | ${p.status}` +
-    `${p.last_contacted_at ? ` | contacté le ${p.last_contacted_at.slice(0, 10)}` : ''}${p.notes ? `\n  ${p.notes.slice(0, 120)}` : ''}`).join('\n');
+    `${p.last_contacted_at ? ` | contacté le ${p.last_contacted_at.slice(0, 10)}` : ''}` +
+    `${p.site_visit_at ? ` | 👀 site visité ${p.site_visits || 1} fois, dernière le ${fmtOran(p.site_visit_at)}` : ''}` +
+    `${p.notes ? `\n  ${p.notes.slice(0, 120)}` : ''}`).join('\n') +
+    '\n→ Pour le détail d\'une société (décideurs, mail envoyé) : list_prospects avec query = son nom.';
 }
+
+/** Fiche complète d'un prospect : ce que Kouider doit savoir avant de le contacter. */
+function prospectSheet(p: Prospect): string {
+  const lines = [`🏢 **${p.company}** — ${SEGMENT_LABEL[p.segment] ?? p.segment}, ${p.city} | statut ${p.status}`];
+  if (p.email)   lines.push(`✉️ Email : ${p.email}`);
+  if (p.phone)   lines.push(`📞 Téléphone : ${p.phone}`);
+  if (p.website) lines.push(`🌐 Site : ${p.website}`);
+  if (p.notes)   lines.push(`📝 ${p.notes}`);
+  const people = (p.linkedin_contacts ?? []).filter(c => c.email);
+  for (const c of people) lines.push(`👔 Décideur : ${c.name}, ${c.title} — ${c.email}${c.sent_at ? ` (mail envoyé le ${c.sent_at.slice(0, 10)})` : ' (mail prêt, pas encore envoyé)'}`);
+  if (p.last_contacted_at) lines.push(`📤 Mail envoyé le ${fmtOran(p.last_contacted_at)}${p.lang && p.lang !== 'fr' ? ` (en ${langName(p.lang)})` : ''}${p.last_subject ? ` — objet « ${p.last_subject} »` : ''}`);
+  if (p.last_sent_text) lines.push(`Texte du mail :\n${p.last_sent_text.slice(0, 1800)}`);
+  if (p.followup_at) lines.push(`🔁 Relancé le ${fmtOran(p.followup_at)}`);
+  if (p.site_visit_at) lines.push(`👀 A visité le site via le lien du mail : ${p.site_visits || 1} fois, dernière le ${fmtOran(p.site_visit_at)}`);
+  if (p.last_reply_text) lines.push(`📩 Leur réponse :\n${p.last_reply_text.slice(0, 1200)}`);
+  if (!p.email && !p.phone && !people.length) lines.push('⚠️ Aucun email ni téléphone connu.');
+  return lines.join('\n');
+}
+
+const fmtOran = (iso: string) => new Date(iso).toLocaleString('fr-FR', { timeZone: 'Africa/Algiers', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 async function prospectRepliesTool(input: Record<string, unknown>): Promise<string> {
   const rows = await listPendingReplies(input['query'] as string | undefined);

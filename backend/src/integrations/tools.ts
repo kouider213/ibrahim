@@ -1074,10 +1074,14 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'list_prospects',
-    description: 'Lister le fichier de prospection (qui démarcher, qui a été contacté, qui a répondu). Ex: "mes prospects", "qui reste à contacter", "les agences de voyage".',
+    description: 'Fichier de prospection. Sans query : la liste (qui démarcher, contacté, a répondu ; visited=true → ceux qui ont visité le site via le mail). ' +
+      'Avec query (nom de société ou email) : la FICHE COMPLÈTE — contacts, décideurs et leurs emails, le mail qu\'on leur a envoyé (objet + texte), ' +
+      'relance, visites du site, leur réponse. Ex: "mes prospects", "qui a visité mon site", "c\'est qui Repsol, qu\'est-ce qu\'on leur a envoyé ?", "l\'email de Repsol".',
     input_schema: {
       type: 'object' as const,
       properties: {
+        query:   { type: 'string', description: 'Nom de la société ou email → fiche complète' },
+        visited: { type: 'boolean', description: 'true = seulement ceux qui ont visité le site via le lien du mail' },
         segment: { type: 'string', enum: ['proprietaire_appart', 'loueur_voitures', 'agence_voyage', 'entreprise', 'grand_compte', 'organisme', 'autre', 'site_web'] },
         status:  { type: 'string', enum: ['a_contacter', 'contacte', 'a_repondu', 'interesse', 'client', 'refus', 'stop'] },
         limit:   { type: 'number', description: 'Défaut 20' },
