@@ -131,6 +131,7 @@ router.post('/location', requireCallerAuth, async (req, res) => {
       const { redis } = await import('../../queue/queue.js');
       await redis.setex(`location:${who}`, 86_400, JSON.stringify({ ...prev, lat, lng, updated_at: new Date().toISOString() }));
     } else await storeLocation(who, lat, lng);
+    if (who === 'kouider') void import('../../integrations/presence.js').then(m => m.onLocationUpdate()).catch(() => {});   // assistant GPS
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
@@ -153,10 +154,14 @@ router.post('/turn', requireCallerAuth, async (req, res) => {
     // Dzaryx doit savoir qu'il est DÉJÀ au téléphone : sinon « tu m'entends ? » relance call_me.
     const wakeNote = who === 'kouider' ? await noteKouiderActivity() : null;   // réponse au contrôle de réveil du matin ?
     // « oui » / « non » juste après une réponse WhatsApp proposée → envoi direct, sans repasser par l'IA
-    const wa = who === 'kouider' && channel === 'message' && !image && message
+    // Réponse à une question de l'assistant GPS (« tu vas où ? », « tu es à la salle ? », « brief ? ») : passe avant WhatsApp
+    const gps = who === 'kouider' && channel === 'message' && !image && message
+      ? await import('../../integrations/presence.js').then(m => m.handlePresenceReply(message)).catch(() => null) : null;
+    if (gps?.reply) { res.json({ text: gps.reply, audio: null }); return; }
+    const wa = !gps && who === 'kouider' && channel === 'message' && !image && message
       ? await import('../../integrations/whatsapp-web.js').then(m => m.handleWaYesNo(message)).catch(() => null) : null;
     if (wa?.reply) { res.json({ text: wa.reply, audio: null }); return; }
-    const said = `${wakeNote ? `${wakeNote}\n` : ''}${wa?.note ? `${wa.note}\n` : ''}${(message?.trim() || 'Voici une photo.').slice(0, 2000)}`;
+    const said = `${wakeNote ? `${wakeNote}\n` : ''}${gps?.note ? `${gps.note}\n` : ''}${wa?.note ? `${wa.note}\n` : ''}${(message?.trim() || 'Voici une photo.').slice(0, 2000)}`;
     // Message Telegram écrit (texte/photo) : pas de consigne « appel en cours »
     // Photo écrite (capture d'un billet, d'un document…) : boucle complète avec outils, pas la vision rapide de l'appel vidéo
     const photoNote = channel === 'message' && image ? `${PHOTO_TG}. Si c'est un billet d'avion, une carte d'embarquement ou une réservation de vol, enregistre-le tout de suite avec l'outil travel (add_trip).]\n` : '';

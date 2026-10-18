@@ -380,6 +380,46 @@ export async function jobSportWatch(): Promise<void> {
   }
 }
 
+/** Séance du jour pour l'assistant GPS (presence.ts). */
+export async function sportToday(): Promise<{ date: string; slot: PlanSlot | null; label: string | null; arrived: boolean; skipped: boolean }> {
+  const st = await getState();
+  const { date } = localNow();
+  const slot = st.plan[date] ?? null;
+  return { date, slot, label: slot ? SESSIONS[slot.type].label : null, arrived: !!st.arrived[date], skipped: !!st.skips[date] };
+}
+
+const CHAIN = /^(🚗 Trajet → salle|🏋️|🚗 Retour maison|🚿 Douche)/u;
+
+/** Arrivée EN AVANCE confirmée par Kouider (GPS + « oui ») : séance validée maintenant, plus d'alerte départ/« oublié »,
+ *  et la matinée de l'agenda (trajet, séance, retour, douche) avancée d'autant. Le petit-déj en famille et le travail ne bougent pas. */
+export async function confirmGymArrival(at = Date.now()): Promise<{ text: string; shifted: string[] }> {
+  const st = await getState();
+  const { date } = localNow(at);
+  st.arrived[date] = at;
+  st.alerts[date] = [...new Set([...(st.alerts[date] ?? []), 'depart', 'forgot', 'nogps'])];
+  const p = st.plan[date];
+  const shifted: string[] = [];
+  if (p) {
+    const delta = at - Date.parse(p.start);
+    if (delta < -10 * 60_000) {
+      const evs = await listAgendaRange(new Date(localTs(date, '00:00')).toISOString(), new Date(localTs(date, '23:59')).toISOString(), 60).catch(() => null);
+      for (const e of evs ?? []) {
+        if (!e.id || !e.start.dateTime || !e.end.dateTime || !CHAIN.test(e.summary ?? '')) continue;
+        const s = new Date(Date.parse(e.start.dateTime) + delta).toISOString(), en = new Date(Date.parse(e.end.dateTime) + delta).toISOString();
+        if (await updateAgendaEvent(e.id, { start: s, end: en }).catch(() => false)) shifted.push(`${(e.summary ?? '').split(' — ')[0]} ${hm(Date.parse(s))}`);
+        await kvSet(`dep:${e.id}`, JSON.stringify({ done: true }), 86_400).catch(() => {});   // plus de « pars à… » ni d'appel
+        if (e.id === p.eventId) { p.start = s; p.end = en; }
+      }
+    }
+  }
+  await saveState(st);
+  const s = p ? SESSIONS[p.type] : null;
+  const text = p && s
+    ? `💪 ${s.label} — validée à ${hm(at)}.\n\n${sessionText(p.type, p.minutes, await readSportLog())}`
+    : `💪 Séance hors programme notée à ${hm(at)}. Dis-moi ce que tu fais (ex. « 4×10 squat à 40 kg ») et je le note.`;
+  return { text, shifted };
+}
+
 /** 20h15 : clôture du jour, planning des 7 jours dans l'agenda (avant le plan du coach de 20h30). */
 export async function jobSportPlan(): Promise<void> {
   const st = await getState();

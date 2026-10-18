@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-10-18 — Assistant GPS (position en direct) + Clio 4 Essence / i10 à 25 €
+- Prix : Clio 4 Essence et i10 → 25 €/j client (Houari 16 €, marge 9 €), prix plancher retiré ; site, admin, partenaires, grille Dzaryx.
+- `integrations/presence.ts` (job `presence-watch` toutes les 5 min 5h–22h + à chaque position Telegram, ≤ 1/45 s) : lieux maison/salle/travail (adresses routine:config).
+  - Départ de la maison → « je te vois partir, tu vas où ? » ; vers la salle : point GPS + playlist Apple Music (rap DZ/FR, goûts dans app_kv `presence:prefs`). S'il répond → il est SEUL (45 min), Dzaryx parle librement ; le matin → appel du brief.
+  - Salle EN AVANCE → « tu y es ? » → « oui » : `sport-coach.confirmGymArrival` valide la séance, coupe les alertes départ/« oublié », avance trajet/séance/retour/douche dans l'agenda.
+  - Arrivé au travail → programme du jour ; rentré le soir → demain en 2 lignes. Trou dans le partage → recalage sans message.
+  - BRIEF DU MATIN (hier, agenda, locations, mails, WhatsApp en attente, visites du site, 3 conseils ; écrit + oral) : seulement s'il répond qu'il est seul ; sinon redemandé 10 min avant le travail ; sans réponse 25 min → écrit sur Telegram. Le récap de 10h ne sonne plus si le brief est fait.
+- Réponses Telegram à ces questions interceptées dans `/api/call/turn` avant WhatsApp (le vieux brouillon WA est annulé).
+- Outil `gps_assistant` : status, eta (trafic + Waze), nearby (station, pharmacie…), brief, playlist, music, settings.
+
 ## 2026-10-18 — Immo par jour/mois + lieu de prise en charge
 - Immo : location « Par mois / Par jour » (app Immo + PARC, `price_type` jour|mois, `monthly_rent` vide si par jour, outil `create_property` price_type). Site : « /jour » ou « /mois » sur les annonces + choix dans l'admin.
 - Prise en charge des voitures : agence de Hay Badr OU aéroport d'Oran (site : contact, étapes, FAQ, pages SEO, contexte assistant ; app : Bon de réservation « Agence Hay Badr (Oran) »).

@@ -18,6 +18,7 @@ const carOf = (b: { cars?: { name?: string } | null }) => b.cars?.name ?? 'la vo
 const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`;
 
 export async function jobDailyRecapCall(): Promise<void> {
+  if (await import('../../integrations/presence.js').then(m => m.briefDoneToday()).catch(() => false)) return;   // brief du matin déjà fait (assistant GPS)
   const today = oranDate(), tomorrow = oranDate(1);
   type B = { client_name: string; cars?: { name?: string } | null };
   const [actives, departs, returns, arrivals, late, unpaid, recap] = await Promise.all([

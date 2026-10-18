@@ -144,6 +144,16 @@ export async function handleWaYesNo(message: string): Promise<{ reply?: string; 
 }
 
 /** Réponse proposée (ex. suite à un mail de démarchage) : « envoie la réponse à <chat> » la retrouve. */
+/** Pour le brief du matin : les messages WhatsApp qui attendent une réponse (brouillon prêt). */
+export async function waPendingDrafts(): Promise<Array<{ chat: string; preview: string }>> {
+  return Object.values(await drafts()).map(d => ({ chat: d.chat, preview: d.preview }));
+}
+
+/** Une autre question (assistant GPS) vient d'être répondue : le « oui » suivant ne doit pas envoyer un vieux brouillon. */
+export async function clearWaPending(): Promise<void> {
+  await kvSet(PENDING_KEY, '', 60);
+}
+
 export async function saveWaDraft(chat: string, preview: string, draft: string): Promise<void> {
   const all = await drafts();
   all[chat.toLowerCase()] = { chat, preview, draft, at: new Date().toISOString() };

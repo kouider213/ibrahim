@@ -2807,6 +2807,28 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
   {
+    name: 'gps_assistant',
+    description: "Son ASSISTANT GPS (Kouider seulement) : Dzaryx voit sa position en direct (partagée sur Telegram) et agit tout seul — départ de la maison → « tu vas où ? » (s'il répond, il est seul), salle en avance → « tu y es ? » puis séance validée + agenda avancé + rappel annulé, arrivée au travail, retour le soir, brief du matin. action='status' : où il est, depuis quand, distances et temps de route vers maison/salle/travail, prochain RDV, s'il a dit être seul (« je suis où ? », « tu me vois ? »). 'eta' + destination (adresse, lieu, « salle », « maison », « travail ») : temps de route avec le trafic depuis sa position + heure d'arrivée + Waze (« j'arrive à quelle heure chez Houari ? »). 'nearby' + query : lieux autour de lui (station essence, pharmacie, café, garage, lavage auto…). 'brief' : le BRIEF DU MATIN (hier, aujourd'hui, mails, WhatsApp, visites du site, conseils) — « fais mon récap », « brief », « résumé de ma journée » ; sans mode tu reçois le brief et tu le lui donnes (pendant un appel : la version orale) ; mode='call' s'il veut que tu l'appelles, 'write' pour l'envoyer à part sur Telegram ; refresh=true pour le refaire. 'playlist' (+ for) : liens Apple Music rap algérien / français selon ses goûts, envoyés sur Telegram. 'music' + artists[] : ajouter des artistes à ses goûts (replace=true pour remplacer). 'settings' : enabled / leave_ask / brief true/false.",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action: { type: 'string', enum: ['status', 'eta', 'nearby', 'brief', 'playlist', 'music', 'settings'] },
+        destination: { type: 'string' },
+        query: { type: 'string' },
+        mode: { type: 'string', enum: ['write', 'call', 'text'] },
+        refresh: { type: 'boolean' },
+        for: { type: 'string' },
+        send: { type: 'boolean' },
+        artists: { type: 'array', items: { type: 'string' } },
+        replace: { type: 'boolean' },
+        enabled: { type: 'boolean' },
+        leave_ask: { type: 'boolean' },
+        brief: { type: 'boolean' },
+      },
+      required: ['action'],
+    },
+  },
+  {
     name: 'sport_coach',
     description: "Son COACH SPORTIF (Kouider seulement) : chaque créneau sport de l'agenda a sa séance (PUSH DAY, PULL DAY, LEG DAY, CARDIO DAY, UPPER DAY, CORE & MOBILITÉ) avec exercices, séries × reps, repos et charge conseillée, écrite dans l'agenda ; adapté à son dos et à son agenda (séance ratée refaite au prochain créneau, créneau raccourci = séance courte). action='week' : le programme des 7 jours. 'session' (+ date AAAA-MM-JJ / 'demain' / 'lundi'…) : la séance détaillée (« c'est quoi ma séance ? », « je fais quoi à la salle ? »). 'swap' + date + type (push/pull/legs/cardio/upper/core) : changer la séance d'un jour (« demain je veux faire cardio »). 'skip' + date + reason : pas de sport ce jour-là (malade, fatigué, imprévu) → pas d'appel ni d'alerte, séance décalée. 'unskip'. 'log' : noter une perf (exercise + sets + reps + kg, ex. « 4×8 à 22 kg au développé couché ») ou done=true (+ rpe 1-10, duration_min, note) pour une séance faite. 'progress' : records, série, récupération des muscles, niveau et points du jeu. 'settings' : call_before (appel + point GPS au moment de partir) / gym_check (GPS loin de la salle après le début → appel « tu as oublié ? ») true/false. 'sync' : réécrire les séances dans l'agenda. La page SPORT de l'app a le mode séance (séries, minuteur de repos parlé).",
     input_schema: {
