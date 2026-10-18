@@ -1040,7 +1040,7 @@ export function takeTmpFile(id: string): { buf: Buffer; name: string } | null {
   const f = _tmpFiles.get(id);
   return f && Date.now() - f.at < 30 * 60_000 ? f : null;
 }
-async function _queueTelegramFile(base64: string, filename: string, caption: string): Promise<void> {
+export async function queueTelegramFile(base64: string, filename: string, caption: string): Promise<void> {
   const { randomBytes } = await import('crypto');
   for (const [k, v] of _tmpFiles) if (Date.now() - v.at > 30 * 60_000) _tmpFiles.delete(k);
   const id = randomBytes(16).toString('hex');
@@ -1051,7 +1051,7 @@ async function _queueTelegramFile(base64: string, filename: string, caption: str
 }
 
 async function _sendTelegramDocument(base64: string, filename: string, caption: string): Promise<void> {
-  try { await _queueTelegramFile(base64, filename, caption || `📎 ${filename}`); }
+  try { await queueTelegramFile(base64, filename, caption || `📎 ${filename}`); }
   catch (e) { console.warn('[NEXUS] fichier → Telegram :', e); }
 }
 
@@ -1059,7 +1059,7 @@ async function _sendTelegramPhoto(base64: string, caption: string): Promise<void
   try {
     const { queueTelegramMessage } = await import('../../notifications/tg-outbox.js');
     if (base64.length <= 900_000) await queueTelegramMessage(caption || '📸 Capture NEXUS', base64, 'kouider');
-    else await _queueTelegramFile(base64, `capture-${Date.now()}.jpg`, caption || '📸 Capture NEXUS');
+    else await queueTelegramFile(base64, `capture-${Date.now()}.jpg`, caption || '📸 Capture NEXUS');
   } catch (e) { console.warn('[NEXUS] photo → Telegram :', e); }
 }
 

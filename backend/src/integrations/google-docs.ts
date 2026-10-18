@@ -21,6 +21,50 @@ function apiError(err: unknown, what: string): string {
   return `❌ Création ${what} échouée : ${msg}`;
 }
 
+/** Id d'un Doc/Sheet Dzaryx à partir de son lien (ou de l'id seul). */
+export function googleFileRef(ref: string): { id: string; kind: 'document' | 'spreadsheets' } | null {
+  const m = ref.match(/docs\.google\.com\/(document|spreadsheets)\/d\/([\w-]{20,})/);
+  if (m) return { id: m[2]!, kind: m[1] as 'document' | 'spreadsheets' };
+  return /^[\w-]{20,}$/.test(ref.trim()) ? { id: ref.trim(), kind: 'document' } : null;
+}
+
+/** PDF d'un Doc/Sheet (lien d'export : marche avec drive.file, sans l'API Drive). */
+export async function exportGooglePdf(id: string, kind: 'document' | 'spreadsheets' = 'document'): Promise<Buffer> {
+  const t = await token();
+  if (!t) throw new Error(notConnected());
+  const { data } = await axios.get(`https://docs.google.com/${kind}/d/${id}/export`,
+    { headers: { Authorization: `Bearer ${t}` }, params: { format: 'pdf' }, responseType: 'arraybuffer', timeout: 90_000 });
+  const buf = Buffer.from(data as ArrayBuffer);
+  if (buf.subarray(0, 4).toString() !== '%PDF') throw new Error('Google n\'a pas renvoyé de PDF');
+  return buf;
+}
+
+const pdfName = (title: string) => `${title.replace(/[^\p{L}\p{N} _-]+/gu, '').trim().replace(/\s+/g, '_').slice(0, 80) || 'document'}.pdf`;
+
+/** Envoie le Doc/Sheet en fichier PDF sur Telegram (légende = caption). Renvoie false si l'export échoue. */
+export async function sendGooglePdfToTelegram(id: string, kind: 'document' | 'spreadsheets', title: string, caption: string): Promise<boolean> {
+  try {
+    const pdf = await exportGooglePdf(id, kind);
+    const { queueTelegramFile } = await import('../actions/handlers/nexus-relay.js');   // import dynamique : évite un cycle
+    await queueTelegramFile(pdf.toString('base64'), pdfName(title), caption.slice(0, 1000));
+    return true;
+  } catch (err) {
+    console.warn('[google-docs] PDF → Telegram:', err instanceof Error ? err.message : String(err));
+    return false;
+  }
+}
+
+/** Outil send_doc_pdf : « envoie-le-moi en PDF » pour un Doc/Sheet créé par Dzaryx. */
+export async function sendDocPdf(input: Record<string, unknown>): Promise<string> {
+  const ref = googleFileRef(String(input['url'] ?? ''));
+  if (!ref) return '❌ Donne le lien Google Docs/Sheets du document (docs.google.com/…) à envoyer en PDF.';
+  const title = String(input['title'] ?? '').trim() || 'Document Dzaryx';
+  const ok = await sendGooglePdfToTelegram(ref.id, ref.kind, title, `📄 ${title}`);
+  return ok
+    ? `✅ PDF « ${title} » envoyé sur Telegram (il arrive dans quelques secondes).`
+    : `❌ Je n'ai pas pu exporter « ${title} » en PDF (document créé par quelqu'un d'autre que Dzaryx, ou connexion Google à refaire). Le lien reste valable : https://docs.google.com/${ref.kind}/d/${ref.id}/edit`;
+}
+
 export async function createGoogleDoc(input: Record<string, unknown>): Promise<string> {
   const title = String(input['title'] ?? '').trim() || 'Document Dzaryx';
   const content = String(input['content'] ?? '');
@@ -34,7 +78,12 @@ export async function createGoogleDoc(input: Record<string, unknown>): Promise<s
       await axios.post(`https://docs.googleapis.com/v1/documents/${id}:batchUpdate`,
         { requests: [{ insertText: { location: { index: 1 }, text: content } }] }, { headers, timeout: 15_000 });
     }
-    return `📄 Google Doc créé : « ${title} »\nhttps://docs.google.com/document/d/${id}/edit`;
+    const url = `https://docs.google.com/document/d/${id}/edit`;
+    if (input['send_pdf'] === true) {
+      const sent = await sendGooglePdfToTelegram(id, 'document', title, `📄 ${title}\n${url}`);
+      return `📄 Google Doc créé : « ${title} »\n${url}\n${sent ? '✅ PDF envoyé sur Telegram.' : '⚠️ PDF non envoyé (export refusé).'}`;
+    }
+    return `📄 Google Doc créé : « ${title} »\n${url}`;
   } catch (err) {
     return apiError(err, 'Google Docs');
   }

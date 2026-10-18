@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-18 — Documents en PDF sur Telegram
+- `google-docs.ts` : `exportGooglePdf` (lien d'export, marche avec drive.file), `sendGooglePdfToTelegram`, outil `send_doc_pdf` (« envoie-le-moi en PDF ») ; `create_google_doc` accepte `send_pdf`.
+- `pro-doc.ts` startDossierJob : chaque dossier prêt part en fichier PDF sur Telegram (légende = lien Google Docs) ; si l'export rate → lien seul comme avant.
+- `nexus-relay.ts` : `queueTelegramFile` exporté (lien temporaire 30 min que tgcall télécharge).
+
 ## 2026-10-18 — B037 : dossiers fiables + vrais graphiques (Docs et Telegram)
 - `pro-doc.ts` : schéma DOSSIER_SCHEMA en sortie structurée, 32k tokens, bloc `chart` (bar/pie/line) que le rédacteur ajoute quand il y a des chiffres ; images refusées par Google → nouvel essai sans images (chiffres en liste).
 - `askJson` : streaming, `schema` optionnel, relance si coupée / JSON invalide (3 essais).

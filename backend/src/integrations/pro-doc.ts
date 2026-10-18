@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { createAnthropic, CLAUDE_MAIN } from './anthropic-compat.js';
-import { token, notConnected } from './google-docs.js';
+import { token, notConnected, googleFileRef, sendGooglePdfToTelegram } from './google-docs.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { chartPngUrl, cleanChart, type ChartSpec } from './chart-image.js';
@@ -404,10 +404,14 @@ export function startDossierJob(title: string, make: () => Promise<DocSpec>): st
   running.add(key);
   void (async () => {
     let msg: string;
+    let okUrl = '';
+    let docTitle = title;
     try {
       const spec = await make();
       const r = await renderProDoc(spec);
       const nCharts = spec.sections.reduce((n, s) => n + s.blocks.filter(bl => bl.type === 'chart').length, 0);
+      okUrl = r.ok ? r.url : '';
+      docTitle = spec.title;
       msg = r.ok ? `📄 Ton dossier « ${spec.title} » est prêt (page de garde, résumé, sommaire, ${spec.sections.length} parties${nCharts ? `, ${nCharts} graphique${nCharts > 1 ? 's' : ''}` : ''}) :\n${r.url}` : r.error;
     } catch (err) {
       msg = `❌ Le dossier « ${title} » n'a pas pu être fait : ${err instanceof Error ? err.message : String(err)}`;
@@ -415,10 +419,13 @@ export function startDossierJob(title: string, make: () => Promise<DocSpec>): st
       running.delete(key);
     }
     console.log('[pro-doc]', msg.replace(/\n/g, ' '));
-    await queueTelegramMessage(msg).catch(() => {});
+    // Prêt → le PDF arrive directement sur Telegram (légende = le lien Google Docs) ; export raté → lien seul.
+    const ref = okUrl ? googleFileRef(okUrl) : null;
+    const sentPdf = ref ? await sendGooglePdfToTelegram(ref.id, ref.kind, docTitle, msg) : false;
+    if (!sentPdf) await queueTelegramMessage(msg).catch(() => {});
     emitProactive(msg.split('\n')[0]!.slice(0, 100), 'info', msg);
   })();
-  return `⏳ Dossier « ${title} » en préparation (1 à 2 minutes) : page de garde avec le logo FIK, résumé, sommaire avec les pages, une partie par page. Le lien sera envoyé sur Telegram et dans l'app dès qu'il est prêt.`;
+  return `⏳ Dossier « ${title} » en préparation (1 à 2 minutes) : page de garde avec le logo FIK, résumé, sommaire avec les pages, une partie par page. Le PDF (avec le lien Google Docs) sera envoyé sur Telegram, et le lien dans l'app, dès qu'il est prêt.`;
 }
 
 export function createPresentationDoc(input: Record<string, unknown>): string {

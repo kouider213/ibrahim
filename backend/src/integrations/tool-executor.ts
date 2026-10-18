@@ -11,7 +11,7 @@ import { lifeCoachTool } from './life-coach.js';
 import { supabase } from './supabase.js';
 import { sandboxIntercept, sandboxRecord } from './crash-test-sandbox.js';
 import { convertCurrency, weatherAlerts, footballScores } from './jarvis-tools.js';
-import { createGoogleDoc, createGoogleSheet } from './google-docs.js';
+import { createGoogleDoc, createGoogleSheet, sendDocPdf } from './google-docs.js';
 import { listMyCapabilities } from './capabilities.js';
 import { selfTestTool } from './self-test.js';
 import { seasonsReport } from './seasons.js';
@@ -398,6 +398,7 @@ async function _dispatch(
       case 'manage_emails':             return await manageEmailsTool(input);
       case 'create_google_doc':         return await createGoogleDoc(input);
       case 'create_google_sheet':       return await createGoogleSheet(input);
+      case 'send_doc_pdf':              return await sendDocPdf(input);
       case 'list_my_capabilities':      return await listMyCapabilities(input);
       case 'cloud_pc':                  return await cloudPcTool(input);
       case 'watch_page':                return await watchPageTool(input);

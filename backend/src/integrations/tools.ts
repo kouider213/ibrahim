@@ -1013,8 +1013,21 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
       properties: {
         title:   { type: 'string', description: 'Titre du document' },
         content: { type: 'string', description: 'Texte du document (sauts de ligne autorisés)' },
+        send_pdf: { type: 'boolean', description: 'true = envoyer aussi le document en fichier PDF sur Telegram (si Kouider demande un document / un PDF / « envoie-le-moi »)' },
       },
       required: ['title'],
+    },
+  },
+  {
+    name: 'send_doc_pdf',
+    description: "Envoyer à Kouider, en fichier PDF sur Telegram, un Google Doc ou Sheet créé par Dzaryx (dossier, document, tableau). Ex : « envoie-le-moi en PDF », « mets-le en PDF », « je veux le fichier ». Les dossiers (create_presentation_doc, plans du mentor, dossier de présentation de Dzaryx) partent déjà en PDF tout seuls. Le lien se retrouve dans la conversation (docs.google.com/…) ou via search_conversations.",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        url:   { type: 'string', description: 'Lien docs.google.com/document/… ou /spreadsheets/… du fichier' },
+        title: { type: 'string', description: 'Nom du fichier PDF (titre du document)' },
+      },
+      required: ['url'],
     },
   },
   {
