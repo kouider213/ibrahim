@@ -663,7 +663,7 @@ function ImmoPane({ onMsg, onInspect, onCount }: { onMsg: (m: string) => void; o
   const [loading, setLoad] = useState(true);
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
-  const [f, setF] = useState({ title: '', transaction: 'location', city: 'Oran', district: '', address: '', price: '', currency: 'DZD', type: 'appartement', rooms: '' });
+  const [f, setF] = useState({ title: '', transaction: 'location', city: 'Oran', district: '', address: '', price: '', per: 'mois', currency: 'DZD', type: 'appartement', rooms: '' });
 
   const load = async () => { setLoad(true); try { const r = await business.fetchProperties(); setItems(r.properties ?? []); onCount((r.properties ?? []).length); } catch { setItems([]); } finally { setLoad(false); } };
   useEffect(() => { void load(); }, []);
@@ -675,11 +675,11 @@ function ImmoPane({ onMsg, onInspect, onCount }: { onMsg: (m: string) => void; o
       await business.createProperty({
         title: f.title.trim(), name: f.title.trim(), transaction: f.transaction,
         city: f.city.trim() || 'Oran', district: f.district.trim() || null, address: f.address.trim() || null,
-        price: Number(f.price), currency: f.currency, price_type: f.transaction === 'location' ? 'mois' : 'total',
+        price: Number(f.price), currency: f.currency, price_type: f.transaction === 'location' ? f.per : 'total',
         type: f.type, rooms: f.rooms ? Number(f.rooms) : null, status: 'disponible',
       });
       onMsg('✅ Bien ajouté au site'); setShow(false);
-      setF({ title: '', transaction: 'location', city: 'Oran', district: '', address: '', price: '', currency: 'DZD', type: 'appartement', rooms: '' });
+      setF({ title: '', transaction: 'location', city: 'Oran', district: '', address: '', price: '', per: 'mois', currency: 'DZD', type: 'appartement', rooms: '' });
       void load();
     } catch { onMsg('❌ Échec de l\'ajout'); } finally { setBusy(null); }
   };
@@ -712,8 +712,9 @@ function ImmoPane({ onMsg, onInspect, onCount }: { onMsg: (m: string) => void; o
             <Field label="Quartier"><input value={f.district} onChange={e => setF(s => ({ ...s, district: e.target.value }))} placeholder="ex. Hay Badr" style={inputStyle} /></Field>
           </div>
           <Field label="Adresse précise" hint="Sert à placer le bien sur Google Maps."><input value={f.address} onChange={e => setF(s => ({ ...s, address: e.target.value }))} style={inputStyle} /></Field>
+          {f.transaction === 'location' && <Segmented items={[{ id: 'mois', label: 'Par mois' }, { id: 'jour', label: 'Par jour' }]} value={f.per} onChange={per => setF(s => ({ ...s, per }))} />}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 96px', gap: 8 }}>
-            <Field label={f.transaction === 'location' ? 'Loyer / mois' : 'Prix de vente'}><input value={f.price} onChange={e => setF(s => ({ ...s, price: e.target.value }))} type="number" inputMode="decimal" style={inputStyle} /></Field>
+            <Field label={f.transaction === 'location' ? (f.per === 'jour' ? 'Prix par jour' : 'Loyer par mois') : 'Prix de vente'}><input value={f.price} onChange={e => setF(s => ({ ...s, price: e.target.value }))} type="number" inputMode="decimal" style={inputStyle} /></Field>
             <Field label="Devise"><select value={f.currency} onChange={e => setF(s => ({ ...s, currency: e.target.value }))} style={inputStyle}><option>DZD</option><option>EUR</option></select></Field>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 96px', gap: 8 }}>

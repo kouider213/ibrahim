@@ -75,6 +75,8 @@ router.post('/properties', requireMobileAuth, async (req, res) => {
               : b.monthly_rent != null ? Number(b.monthly_rent)
               : null;
   const num = (v: unknown) => (v != null && v !== '' ? Number(v) : null);
+  // Location : loyer par mois (défaut) ou par jour.
+  const perDay = transaction === 'location' && b.price_type === 'jour';
   try {
     const { data, error } = await supabase.from('properties').insert({
       title,
@@ -83,7 +85,7 @@ router.post('/properties', requireMobileAuth, async (req, res) => {
       transaction,
       status:       normStatus(b.status) || 'disponible',
       price,
-      price_type:   transaction === 'vente' ? 'total' : 'mois',
+      price_type:   transaction === 'vente' ? 'total' : perDay ? 'jour' : 'mois',
       currency:     b.currency?.toString().trim() || 'DZD',
       city:         b.city?.toString().trim()     || 'Oran',
       district:     b.district?.toString().trim() || null,
@@ -97,7 +99,7 @@ router.post('/properties', requireMobileAuth, async (req, res) => {
       conditions:   b.conditions?.toString().trim()  || null,
       featured:     b.featured === true || b.featured === 'true',
       image_url:    b.image_url?.toString().trim() || null,
-      monthly_rent: transaction === 'location' ? price : null,
+      monthly_rent: transaction === 'location' && !perDay ? price : null,
       tenant_name:  b.tenant_name?.toString().trim() || null,
       notes:        b.notes?.toString().trim()       || null,
     }).select().single();
@@ -127,6 +129,7 @@ router.patch('/properties/:id', requireMobileAuth, async (req, res) => {
   if ('title' in updates && updates['title']) updates['name'] = updates['title']; // garde le mirror legacy
   // En location, garde monthly_rent synchro avec price si le prix change.
   if ('price' in updates && (body['transaction'] ?? '') !== 'vente') updates['monthly_rent'] = updates['price'];
+  if (updates['price_type'] === 'jour') updates['monthly_rent'] = null;
   updates['updated_at'] = new Date().toISOString();
 
   try {

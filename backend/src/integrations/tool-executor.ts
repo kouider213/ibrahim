@@ -5638,7 +5638,7 @@ async function createPropertyTool(input: Record<string, unknown>, sessionId?: st
     address:     (input['address'] as string | undefined)?.trim() || null,
     price,
     currency:    (input['currency'] as string | undefined)?.trim() || 'DZD',
-    price_type:  transaction === 'location' ? 'mois' : 'total',
+    price_type:  transaction === 'location' ? (input['price_type'] === 'jour' ? 'jour' : 'mois') : 'total',
     type:        (input['type'] as string | undefined)?.trim() || 'appartement',
     rooms:       (input['rooms'] as number | undefined) ?? null,
     surface:     (input['surface'] as number | undefined) ?? null,
@@ -5648,7 +5648,7 @@ async function createPropertyTool(input: Record<string, unknown>, sessionId?: st
   const { data, error } = await supabase.from('properties').insert([row]).select('id, title').single();
   if (error) return `❌ Erreur création bien: ${error.message}`;
   const cur = row.currency === 'DZD' ? 'DA' : '€';
-  const suffix = transaction === 'location' ? '/mois' : '';
+  const suffix = transaction === 'location' ? (row.price_type === 'jour' ? '/jour' : '/mois') : '';
   const nPhotos = await attachSessionPhotos(sessionId, { photoTable: 'property_photos', fk: 'property_id', ownerId: (data as any).id, mainTable: 'properties' });
   const photoNote = nPhotos > 0 ? ` 📸 ${nPhotos} photo(s) attachée(s).` : ' Joins des photos dans le chat ou ajoute via l\'admin.';
   return `✅ Bien ajouté sur le site : "${(data as any).title}" — ${transaction === 'vente' ? 'à vendre' : 'à louer'} à ${row.city} · ${Number(price).toLocaleString()} ${cur}${suffix}. Visible sur fikconciergerie.com.${photoNote}`;

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import PhotoGallery from '../ui/PhotoGallery.tsx';
 import { Hero, StatCard } from '../ui/Premium.tsx';
+import { Segmented } from '../ui/Kit.tsx';
 import { business, getOrCreateSessionId, type SiteProperty } from '../../services/api.ts';
 import { InspectionModal } from './FleetScreen.tsx';
 
@@ -45,12 +46,12 @@ const HOWTO = [
 
 interface AddForm {
   title: string; transaction: 'location' | 'vente'; type: string;
-  price: string; currency: string; city: string; district: string; address: string;
+  price: string; per: 'mois' | 'jour'; currency: string; city: string; district: string; address: string;
   surface: string; rooms: string; bedrooms: string; bathrooms: string; floor: string;
   description: string;
 }
 const EMPTY: AddForm = {
-  title: '', transaction: 'location', type: 'appartement', price: '', currency: 'DZD',
+  title: '', transaction: 'location', type: 'appartement', price: '', per: 'mois', currency: 'DZD',
   city: 'Oran', district: '', address: '', surface: '', rooms: '', bedrooms: '', bathrooms: '', floor: '',
   description: '',
 };
@@ -114,7 +115,7 @@ export default function ImmoProScreen() {
         title: form.title.trim(), name: form.title.trim(), transaction: form.transaction,
         type: form.type, status: 'disponible',
         price: form.price ? Number(form.price) : null, currency: form.currency,
-        price_type: form.transaction === 'location' ? 'mois' : 'total',
+        price_type: form.transaction === 'location' ? form.per : 'total',
         city: form.city.trim() || 'Oran', district: form.district.trim() || null,
         address: form.address.trim() || null,
         surface: form.surface || null, rooms: form.rooms || null,
@@ -192,7 +193,7 @@ export default function ImmoProScreen() {
                   <div style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{propTitle(p)}</div>
                   <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{loc || '—'}{p.rooms ? ` · ${p.rooms} pièces` : ''}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 7 }}>
-                    <span style={{ fontSize: 15, fontWeight: 800, color: C.goldSoft }}>{p.price != null ? `${Number(p.price).toLocaleString('fr-FR')} ${cur}` : '—'}<span style={{ fontSize: 13.5, color: C.muted, fontWeight: 500 }}>{isVente ? '' : '/mois'}</span></span>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: C.goldSoft }}>{p.price != null ? `${Number(p.price).toLocaleString('fr-FR')} ${cur}` : '—'}<span style={{ fontSize: 13.5, color: C.muted, fontWeight: 500 }}>{isVente ? '' : p.price_type === 'jour' ? '/jour' : '/mois'}</span></span>
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
@@ -237,8 +238,9 @@ export default function ImmoProScreen() {
               <Field label="Ville" flex><input value={form.city} onChange={e => setForm(s => ({ ...s, city: e.target.value }))} style={inp} /></Field>
               <Field label="Quartier" flex><input value={form.district} onChange={e => setForm(s => ({ ...s, district: e.target.value }))} style={inp} /></Field>
             </div>
+            {form.transaction === 'location' && <Segmented items={[{ id: 'mois', label: 'Par mois' }, { id: 'jour', label: 'Par jour' }]} value={form.per} onChange={per => setForm(s => ({ ...s, per }))} />}
             <div style={{ display: 'flex', gap: 8 }}>
-              <Field label={form.transaction === 'location' ? 'Loyer/mois' : 'Prix'} flex><input type="number" value={form.price} onChange={e => setForm(s => ({ ...s, price: e.target.value }))} style={inp} /></Field>
+              <Field label={form.transaction === 'location' ? (form.per === 'jour' ? 'Prix par jour' : 'Loyer par mois') : 'Prix'} flex><input type="number" value={form.price} onChange={e => setForm(s => ({ ...s, price: e.target.value }))} style={inp} /></Field>
               <Field label="Devise"><select value={form.currency} onChange={e => setForm(s => ({ ...s, currency: e.target.value }))} style={{ ...inp, minWidth: 80 }}><option>DZD</option><option>EUR</option></select></Field>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
