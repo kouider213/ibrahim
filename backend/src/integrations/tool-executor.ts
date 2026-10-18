@@ -32,7 +32,7 @@ import {
   isValidTimezone,
 } from '../utils/timezone.js';
 import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent, updateCalendarEvent, createAgendaEvent, deleteAgendaEvent, listAgendaRange, updateAgendaEvent, updateAgendaSeries, agendaAccess } from './google-calendar.js';
-import { getFinancialReport, formatFinancialReport } from './finance.js';
+import { getFinancialReport, formatFinancialReport, rentalDays } from './finance.js';
 import { setCarPapers, getCarPapers } from './car-papers.js';
 import { listEmails, readEmail, readThread, getAttachment, modifyEmails, searchEmailIds, type MailAction, sendEmail, canSendEmail, type ThreadRef, countSentToday, getGmailConnectLink, gmailAddress, proSenderAddress, GmailNotConnectedError, GmailSendNotAllowedError, GmailModifyNotAllowedError, type GmailAccount } from './gmail.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
@@ -740,10 +740,9 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
     ? '\n📅 RAMADAN: Dates en période de Ramadan — tarifs spéciaux Ramadan peuvent s\'appliquer. Vérifie si une remise Ramadan a été accordée au client.'
     : '';
 
-  // Calcul nb_days = JOURS INCLUS (départ + retour comptent). 24/07→08/08 = 16j.
-  const nb_days = Math.max(1, Math.round(
-    (new Date(input['end_date'] as string).getTime() - new Date(input['start_date'] as string).getTime()) / 86_400_000,
-  ) + 1);
+  // nb_days = tranches de 24 h ; retour plus tard que l'heure de départ → +1 jour (rentalDays)
+  const nb_days = rentalDays(input['start_date'] as string, input['end_date'] as string, null,
+    input['start_time'] as string | undefined, input['end_time'] as string | undefined);
 
   // Vérification prix Houari — refuse si prix client < coût Houari
   try {
@@ -1590,8 +1589,8 @@ async function checkCarAvailability(input: Record<string, unknown>): Promise<str
   const { data: cars, error } = await carsQuery;
   if (error) return `❌ Erreur: ${error.message}`;
 
-  // Jours INCLUS (départ + retour), comme create_booking
-  const days = Math.max(1, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000) + 1);
+  // Jours = tranches de 24 h, comme create_booking
+  const days = rentalDays(startDate, endDate);
 
   const available = (cars ?? []).filter((c: { id: string }) => !busyCarIds.has(c.id));
 

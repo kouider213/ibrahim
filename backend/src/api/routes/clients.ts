@@ -4,6 +4,7 @@ import { supabase, getClientHistory, getClientDocuments, saveClientDocument } fr
 import { scanIdentity } from '../../integrations/tool-executor.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { updateClientIntelFromBooking } from '../../orchestrator/client-intelligence.js';
+import { rentalDays } from '../../integrations/finance.js';
 
 const router = Router();
 
@@ -192,9 +193,7 @@ router.post('/backfill', requireMobileAuth, async (_req, res) => {
       payment_status: string | null; paid_amount: number | null;
     }>) {
       const carName = carMap.get(b.car_id) ?? 'Véhicule';
-      const nbDays  = b.nb_days ?? Math.max(1, Math.round(
-        (new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000,
-      ) + 1); // jours inclus
+      const nbDays  = rentalDays(b.start_date, b.end_date, b.nb_days);
       try {
         await updateClientIntelFromBooking({
           client_name:          b.client_name,

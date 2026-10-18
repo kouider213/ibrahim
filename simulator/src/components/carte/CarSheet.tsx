@@ -153,7 +153,7 @@ function RentalActions({ b, busy, run }: { b: Booking; busy: boolean; run: (fn: 
           <L t="Nouveau retour"><input type="date" value={ext} min={b.start_date} onChange={e => setExt(e.target.value)} style={inp} /></L>
           <L t="Nouveau total"><input value={price} inputMode="decimal" onChange={e => setPrice(e.target.value.replace(',', '.'))} style={inp} /></L>
           <Btn bg="#4f46e5" fg="#fff" disabled={busy} onClick={() => {
-            const nb = Math.max(1, Math.round((new Date(ext).getTime() - new Date(b.start_date).getTime()) / 86_400_000) + 1);
+            const nb = Math.max(1, Math.round((new Date(ext).getTime() - new Date(b.start_date).getTime()) / 86_400_000)); // tranches de 24 h
             void run(() => business.updateBooking(b.id, { end_date: ext, nb_days: nb, ...(price !== '' && Number(price) >= 0 ? { final_price: Number(price) } : {}) }), 'Location modifiée').then(() => setExt(null));
           }}>OK</Btn>
         </div>

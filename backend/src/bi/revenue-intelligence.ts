@@ -1,5 +1,5 @@
 import { supabase } from '../integrations/supabase.js';
-import { getFinancialReport } from '../integrations/finance.js';
+import { getFinancialReport, rentalDays } from '../integrations/finance.js';
 import { redis } from '../queue/queue.js';
 
 export interface ClientScore {
@@ -45,9 +45,7 @@ function realBookingCA(b: {
   start_date:            string;
   end_date:              string;
 }): number {
-  const nb_days = b.nb_days ?? Math.max(1,
-    Math.round((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000) + 1,
-  ); // jours inclus
+  const nb_days = rentalDays(b.start_date, b.end_date, b.nb_days);
   if (b.client_price_per_day != null && b.client_price_per_day > 0) {
     return Math.round(b.client_price_per_day * nb_days * 100) / 100;
   }
@@ -211,7 +209,7 @@ export async function getRevenueSummary(): Promise<RevenueSummary> {
     const ppd  = b.client_price_per_day;
     const oppd = b.owner_price_per_day;
     if (ppd == null || oppd == null) return s;
-    const days = b.nb_days ?? Math.max(1, Math.round((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000) + 1); // jours inclus
+    const days = rentalDays(b.start_date, b.end_date, b.nb_days);
     return s + (ppd - oppd) * days;
   }, 0);
   const monthVsLastPct = lastMonthRevenue > 0

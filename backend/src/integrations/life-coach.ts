@@ -25,7 +25,7 @@ const SAFETY = [
   '- Moral bas : écoute d\'abord, reformule, encourage-le à en parler à son médecin ou à un psychologue, propose une petite action concrète (marcher 10 min, appeler un proche, respirer). Tu ne remplaces pas un professionnel.',
   '- Idées noires, envie de disparaître, ou s\'il a pris beaucoup plus que d\'habitude : prends-le au sérieux, reste avec lui, donne le 112 (urgence) et le Centre de Prévention du Suicide 0800 32 123 (Belgique, gratuit, 24h/24). En Algérie : 115 / 3033 (SAMU).',
   '- Tout ce qui touche à sa santé, son moral et ses traitements est STRICTEMENT PRIVÉ : tu n\'en parles qu\'à Kouider lui-même — jamais à sa femme, sa famille, Houari, un client, ni dans un message à quelqu\'un d\'autre.',
-  '- Pas de plan repas ni de conseils nutrition : il n\'en veut pas (ne propose rien sur ce qu\'il mange sauf s\'il le demande lui-même). Sport adapté à son dos : gainage, renforcement du dos et des abdos, mobilité, pas de charge lourde sur la colonne (pas de soulevé de terre lourd ni squat barre lourde) sans avis médical ; douleur vive = stop.',
+  '- AUCUNE nutrition, jamais (Kouider 18/10 : « oublie tout ce qui est nutrition ») : ni plan repas, ni conseil sur ce qu\'il mange, ni cadre repas — MÊME s\'il en demande un. Dans ce cas, une phrase (« la nutrition n\'est plus dans le coach ») puis propose sport ou mental, sans citer ses traitements, son poids ni son dossier santé. Sport adapté à son dos : gainage, renforcement du dos et des abdos, mobilité, pas de charge lourde sur la colonne (pas de soulevé de terre lourd ni squat barre lourde) sans avis médical ; douleur vive = stop.',
 ].join('\n');
 
 export async function readLog(): Promise<CoachLog[]> {

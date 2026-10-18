@@ -253,11 +253,11 @@ export async function buildContext(
     : '';
 
   const pendingBookings = allBookings.filter((b: any) => b.status === 'PENDING');
-  // Chiffres EXACTS de la résa (prix négocié, jours inclus, total, payé, bénéfice) — pour que le modèle
+  // Chiffres EXACTS de la résa (prix négocié, jours facturés, total, payé, bénéfice) — pour que le modèle
   // n'utilise JAMAIS le prix catalogue de la voiture ni ne recompte les jours lui-même.
   const bookingFin = (b: any) => {
     const parts: string[] = [];
-    if (b.nb_days != null)              parts.push(`${b.nb_days}j inclus`);
+    if (b.nb_days != null)              parts.push(`${b.nb_days} j facturés`);
     if (b.client_price_per_day != null) parts.push(`prix client ${b.client_price_per_day}€/j`);
     if (b.final_price != null)          parts.push(`total ${b.final_price}€`);
     if (b.paid_amount != null)          parts.push(`payé ${b.paid_amount}€`);

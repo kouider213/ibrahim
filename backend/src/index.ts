@@ -78,6 +78,7 @@ import inspectionsRoutes    from './api/routes/inspections.js';
 import dealsRoutes          from './api/routes/deals.js';
 // import whatsappRoutes       from './api/routes/whatsapp.js'; // désactivé — bot client WhatsApp pas utilisé pour l'instant
 import fikSiteWebhookRoutes from './api/routes/fik-site-webhook.js';
+import { rentalDays } from './integrations/finance.js';
 import clientSitesRoutes from './api/routes/client-sites.js';
 import fikSitesRoutes from './api/routes/fik-sites.js';
 import billingRoutes from './api/routes/billing.js';
@@ -482,9 +483,7 @@ async function autoBackfillClientIntel(): Promise<void> {
       payment_status: string | null; paid_amount: number | null;
     }>) {
       const carName = carMap.get(b.car_id) ?? 'Véhicule';
-      const nbDays  = b.nb_days ?? Math.max(1, Math.round(
-        (new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000,
-      ) + 1); // jours inclus
+      const nbDays  = rentalDays(b.start_date, b.end_date, b.nb_days);
       await updateClientIntelFromBooking({
         client_name:          b.client_name,
         client_phone:         b.client_phone ?? undefined,

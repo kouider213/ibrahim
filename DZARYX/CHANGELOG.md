@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-18 — Jours facturés = tranches de 24 h + nutrition oubliée (demandes de Kouider)
+- `rentalDays()` : 03/11 → 07/11 = **4 jours** (avant : 5, jours inclus). +1 jour seulement si le retour est plus tard que l'heure de départ (03/11 10h → 07/11 14h = 5 j). Paramètres start_time/end_time (create_booking). Les ~10 calculs recopiés (route bookings, check_car_availability, contrat signé, appels rapides, CA, voucher, excel, fiche client) passent par la même règle. Anciennes réservations : nb_days déjà enregistré → aucun chiffre passé ne change.
+- Consigne Dzaryx (constants.ts) : 4 jours, jamais « 5 jours inclus », ne demande plus « lequel tu factures ».
+- App v156 : formulaires de réservation, liste, carte (argent du mois, prolongation) alignés.
+- Coach : plus AUCUNE nutrition, même si Kouider la demande ; ne cite plus ses traitements dans ce cas. Crash-test : nouveaux scénarios calcul-retard + nutrition. Tests financiers 11/11.
+
 ## 2026-10-18 — Crash-test de Dzaryx (faux messages, rien ne part)
 - `backend/scripts/crash-test.ts` : 18 scénarios passent par le vrai cerveau (processWithOrchestration, comme Telegram), un juge Claude note chaque réponse, rapport .md, messages de test effacés de `conversations`. Run : `cd backend && npx tsx --env-file ../.env scripts/crash-test.ts rapport.md [filtre]`.
 - `integrations/crash-test-sandbox.ts` (AsyncLocalStorage) : outils de lecture réels, tout le reste simulé (relecture imitée pour whatsapp_web / send_whatsapp_to_client sans confirmed). Branché dans executeTool ; pas de mémoire auto, d'apprentissage ni d'épisode pendant un test.

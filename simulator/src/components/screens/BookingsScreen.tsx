@@ -3,10 +3,10 @@ import { business, type Booking, type Car, type ClientOperation } from '../../se
 
 type ResaMode = 'resa' | 'ops';
 
-// Jours de location = JOURS INCLUS (le jour de départ ET le jour de retour comptent).
-// Ex : 24/07 → 08/08 = 16 jours. Convention Kouider. Une ristourne se fait en éditant nb_days.
+// Jours de location = tranches de 24 h (Kouider 18/10/2026) : 03/11 → 07/11 = 4 jours, comme le serveur (rentalDays).
+// Retour plus tard que l'heure de départ = 1 jour de plus : se règle en éditant nb_days.
 function daysInclusive(start: string, end: string): number {
-  return Math.max(1, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86400000) + 1);
+  return Math.max(1, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86400000));
 }
 
 const OP_META: Record<string, { label: string; icon: string; col: string }> = {

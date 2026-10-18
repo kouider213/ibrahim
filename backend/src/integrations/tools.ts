@@ -51,6 +51,8 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
         client_age:  { type: 'number', description: 'Âge du client' },
         start_date:  { type: 'string', description: 'YYYY-MM-DD' },
         end_date:    { type: 'string', description: 'YYYY-MM-DD' },
+        start_time:  { type: 'string', description: 'Heure de départ si Kouider la dit (ex 10:00). Jours = tranches de 24 h ; retour plus tard que cette heure = 1 jour de plus.' },
+        end_time:    { type: 'string', description: 'Heure de retour si Kouider la dit (ex 14:00).' },
         final_price: { type: 'number', description: 'Prix total facturé au client (obligatoire)' },
         client_price_per_day: { type: 'number', description: 'Prix par jour négocié avec le client. Optionnel — si non fourni, laisse null.' },
         owner_price_per_day:  { type: 'number', description: 'Prix payé à Houari par jour. Optionnel — pour calcul profit Kouider.' },

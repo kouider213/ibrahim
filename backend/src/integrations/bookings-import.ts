@@ -29,7 +29,7 @@ export async function parseRentals(input: { text?: string; imageBase64?: string;
     ` "start_date": "AAAA-MM-JJ", "end_date": "AAAA-MM-JJ", "final_price": total ou null, "currency": "EUR" ou "DZD",` +
     ` "paid": true/false/null, "paid_amount": montant déjà versé si partiel sinon null, "note": "ce qui est incertain"}\n` +
     `Règles : n'invente rien (null / "" si absent). Année absente → l'année la plus logique (pas dans le futur lointain).` +
-    ` Prix en DA/dinars → DZD, sinon EUR. Si seul un prix par jour est donné, total = prix/jour × jours inclus (départ et retour comptés).` +
+    ` Prix en DA/dinars → DZD, sinon EUR. Si seul un prix par jour est donné, total = prix/jour × jours (tranches de 24 h : du 3 au 7 = 4 jours).` +
     ` « payé », « réglé », « ok » → paid true ; « reste », « doit » → false. Rapproche les noms approximatifs (« clio » → la Clio du parc).`;
 
   const content: Anthropic.ContentBlockParam[] = [];

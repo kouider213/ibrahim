@@ -78,7 +78,7 @@ export function buildCars(cars: Car[], bookings: Booking[], reminders: SmartRemi
 export const addDays = (d: string, n: number) => { const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return ymd(x); };
 
 // ── Argent du mois ────────────────────────────────────────────────────────────
-// Même règle que le serveur (finance.ts) : jours inclus (départ + retour), prix client/jour = client_price_per_day
+// Même règle que le serveur (finance.ts rentalDays) : tranches de 24 h (03/11→07/11 = 4 j), prix client/jour = client_price_per_day
 // sinon final_price / jours ; bénéfice = (prix client − prix propriétaire) × jours, UNIQUEMENT si le prix
 // propriétaire est saisi sur la location (jamais pris du catalogue) → sinon « bénéfice inconnu ».
 export type Cur = '€' | 'DA';
@@ -94,7 +94,7 @@ export function monthMoney(cars: Car[], bookings: Booking[], month: string /* YY
   for (const b of bookings) {
     if (!ACTIVE.includes((b.status ?? '').toUpperCase()) || b.end_date < m0 || b.start_date > m1) continue;
     const car = cars.find(c => (b.car_id ? c.id === b.car_id : norm(c.name) === norm(b.cars?.name)));
-    const days = b.nb_days && b.nb_days > 0 ? b.nb_days : span(b.start_date, b.end_date);
+    const days = b.nb_days && b.nb_days > 0 ? b.nb_days : Math.max(1, span(b.start_date, b.end_date) - 1);
     const inMonth = Math.min(days, span(b.start_date < m0 ? m0 : b.start_date, b.end_date > m1 ? m1 : b.end_date));
     const cur: Cur = (b as Booking & { currency?: string }).currency === 'DZD' ? 'DA' : '€';
     const cppd = b.client_price_per_day && b.client_price_per_day > 0 ? b.client_price_per_day : b.final_price != null ? b.final_price / days : null;

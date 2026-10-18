@@ -3,6 +3,7 @@ import { supabase, checkVehicleAvailability, isVipClient } from '../../integrati
 import { learnRule } from '../../integrations/claude-api.js';
 import { BUSINESS_RULES } from '../../config/constants.js';
 import type { ActionPayload, ActionResult } from '../executor.js';
+import { rentalDays } from '../../integrations/finance.js';
 
 const createSchema = z.object({
   client_name:      z.string().min(2),
@@ -47,11 +48,8 @@ async function createReservation(params: Record<string, unknown>): Promise<Actio
   }
 
   const data = parsed.data;
-  const start = new Date(data.start_date);
-  const end   = new Date(data.end_date);
-
-  // Business rule: minimum 2 days. Jours = JOURS INCLUS (départ + retour). 24/07→08/08 = 16j.
-  const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1);
+  // Business rule: minimum 2 days. Jours = tranches de 24 h (rentalDays).
+  const days = rentalDays(data.start_date, data.end_date);
   if (days < BUSINESS_RULES.MIN_RENTAL_DAYS) {
     return { success: false, error: 'min_duration', message: `La durée minimale est de ${BUSINESS_RULES.MIN_RENTAL_DAYS} jours.` };
   }

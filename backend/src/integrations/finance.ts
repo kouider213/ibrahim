@@ -67,13 +67,25 @@ export async function seedPricingTable(): Promise<void> {
 //   profit      → null si owner_ppd manquant (pas inventé)
 //
 /**
- * Nombre de jours facturés d'une location = JOURS INCLUS (départ + retour comptent) : 24/07→08/08 = 16 j.
- * nb_days enregistré sur la réservation prioritaire. Seule règle de calcul à utiliser partout (contrat, Houari, CA).
+ * Nombre de jours facturés d'une location = tranches de 24 h (Kouider 2026-10-18) : 03/11 → 07/11 = 4 j.
+ * Si la voiture revient PLUS TARD que l'heure de départ (03/11 10h → 07/11 14h), le jour entamé compte : 5 j.
+ * Sans heures connues → on compte en jours pleins (4 j). nb_days enregistré sur la réservation prioritaire.
+ * Seule règle de calcul à utiliser partout (contrat, Houari, CA, dispo, devis).
  */
-export function rentalDays(startDate: string, endDate: string, nbDays?: number | null): number {
+export function rentalDays(startDate: string, endDate: string, nbDays?: number | null, startTime?: string | null, endTime?: string | null): number {
   if (nbDays != null && nbDays > 0) return nbDays;
-  const diff = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000);
-  return Number.isFinite(diff) ? Math.max(1, diff + 1) : 1;
+  const diff = Math.round((Date.parse(String(endDate ?? '').slice(0, 10)) - Date.parse(String(startDate ?? '').slice(0, 10))) / 86_400_000);
+  if (!Number.isFinite(diff)) return 1;
+  const from = minutesOf(startTime ?? timeOf(startDate)), to = minutesOf(endTime ?? timeOf(endDate));
+  const late = from >= 0 && to > from ? 1 : 0;
+  return Math.max(1, diff + late);
+}
+
+// « 10h », « 10:30 », « 14h15 » ou l'heure d'un ISO « 2026-11-03T10:00 » → minutes ; inconnue → -1 (il faut les 2 heures pour compter un jour en plus)
+function timeOf(d: string): string | null { const m = /T(\d{1,2}:\d{2})/.exec(String(d ?? '')); return m ? m[1]! : null; }
+function minutesOf(t: string | null | undefined): number {
+  const m = /^\s*(\d{1,2})\s*(?:h|:)\s*(\d{2})?/i.exec(String(t ?? ''));
+  return m ? Number(m[1]) * 60 + Number(m[2] ?? 0) : -1;
 }
 
 export function computeBookingFinancials(b: {
@@ -98,7 +110,7 @@ export function computeBookingFinancials(b: {
   price_source:         'explicit' | 'computed' | 'missing';
   data_complete:        boolean;
 } {
-  // Jours = JOURS INCLUS (départ + retour comptent). 24/07→08/08 = 16j. Fallback si nb_days absent.
+  // Jours = tranches de 24 h (rentalDays). Fallback si nb_days absent.
   const nb_days = rentalDays(b.start_date, b.end_date, b.nb_days);
   const paid_amount     = b.paid_amount     ?? 0;
   const discount_applied = b.discount_applied ?? 0;

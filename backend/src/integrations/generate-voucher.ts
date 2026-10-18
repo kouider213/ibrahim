@@ -2,6 +2,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from './supabase.js';
 import { createAnthropic } from './anthropic-compat.js';
+import { rentalDays } from './finance.js';
 
 const anthropic = createAnthropic();
 
@@ -153,9 +154,7 @@ function buildPDF(booking: Record<string, unknown>, passport: Record<string, str
 
     const startDate = String(booking['start_date'] ?? '');
     const endDate   = String(booking['end_date']   ?? '');
-    const days = Math.max(1, Math.ceil(
-      (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000,
-    ));
+    const days = rentalDays(startDate, endDate, booking['nb_days'] as number | null | undefined);
     const total   = Number(booking['final_price']  ?? 0);
     const paid    = Number(booking['paid_amount']   ?? 0);
     const daily   = days > 0 ? Math.round(total / days) : total;

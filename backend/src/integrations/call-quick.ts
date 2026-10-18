@@ -2,7 +2,7 @@
 // au lieu du cerveau complet (5-15 s). Réservation et paiement en deux temps : sans confirmed:true on
 // renvoie seulement la relecture (« je crée ? »), rien n'est écrit.
 // Prix (Kouider, en €) : cars.resale_price = prix client catalogue, cars.base_price = prix Houari (coût).
-// Jours INCLUS (départ + retour comptent), comme create_booking.
+// Jours = tranches de 24 h (rentalDays), comme create_booking.
 import { supabase, checkCarAvailability as isCarFree } from './supabase.js';
 import { findCar } from './expenses.js';
 import { executeTool } from './tool-executor.js';
@@ -12,6 +12,7 @@ import { listInboxMessages, readEmail, sendEmail, canSendEmail, countSentToday, 
 import { isOptedOut, listPendingReplies, updateProspect } from './prospects.js';
 import { paperWarning } from './car-papers.js';
 import { clientWhatsappLink } from '../notifications/client-care.js';
+import { rentalDays } from './finance.js';
 
 type CarRow = { id: string; name: string; base_price: number | null; resale_price: number | null; available: boolean | null };
 
@@ -19,7 +20,7 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TZ = 'Europe/Brussels';
 const eur = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2).replace('.', ',')} €`;
 const frDate = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
-const inclusiveDays = (a: string, b: string) => Math.max(1, Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000) + 1);
+const inclusiveDays = (a: string, b: string) => rentalDays(a, b);
 const todayYmd = (tz = TZ) => new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
 
 async function carByName(name: string): Promise<CarRow | string> {

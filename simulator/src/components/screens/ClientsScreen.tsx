@@ -149,7 +149,7 @@ export default function ClientsScreen() {
   // ── Édition d'une réservation depuis la fiche client ──
   const [bkEdit, setBkEdit] = useState<string | null>(null);
   const [bkForm, setBkForm] = useState<Record<string, string>>({});
-  const daysIncl = (s: string, e: string) => Math.max(1, Math.round((new Date(e).getTime() - new Date(s).getTime()) / 86400000) + 1);
+  const daysIncl = (s: string, e: string) => Math.max(1, Math.round((new Date(e).getTime() - new Date(s).getTime()) / 86400000)); // tranches de 24 h (03/11→07/11 = 4 j)
 
   const startBkEdit = (bk: ClientBookingHistory) => {
     setBkForm({
@@ -163,7 +163,7 @@ export default function ClientsScreen() {
     });
     setBkEdit(bk.id);
   };
-  // Prix/jour ↔ Prix TOTAL liés (jours inclus) dans le form édition. Total = ce que le client paie.
+  // Prix/jour ↔ Prix TOTAL liés (jours = tranches de 24 h) dans le form édition. Total = ce que le client paie.
   const bkSetPerDay = (x: string) => {
     const n = parseFloat(x);
     setBkForm(f => { const d = f.start_date && f.end_date ? daysIncl(f.start_date, f.end_date) : 1;
@@ -558,17 +558,17 @@ function NewBookingForm({ cars, clients, fixedClient, saving, onCancel, onCreate
   onCancel: () => void;
   onCreate: (client: { name: string; phone: string | null }, v: NewBkValues) => void;
 }) {
-  // Dates par défaut : aujourd'hui → demain (jours inclus = 2j).
+  // Dates par défaut : aujourd'hui → demain (1 jour).
   const [v, setV] = useState<NewBkValues>({
     car_id: '', start_date: isoDay(new Date()), end_date: isoDay(new Date(Date.now() + 86_400_000)),
     client_price_per_day: '', total: '', owner_price_per_day: '', paid_amount: '', status: 'CONFIRMED', payment_status: 'UNPAID', currency: 'EUR',
   });
   const [clientKey, setClientKey] = useState(''); // "name|phone" quand on choisit dans la liste
-  const nbDays = (s: string, e: string) => Math.max(1, Math.round((new Date(e).getTime() - new Date(s).getTime()) / 86_400_000) + 1);
+  const nbDays = (s: string, e: string) => Math.max(1, Math.round((new Date(e).getTime() - new Date(s).getTime()) / 86_400_000)); // tranches de 24 h
   const days = nbDays(v.start_date, v.end_date);
   const cur  = v.currency === 'DZD' ? 'DA' : '€';
 
-  // Prix/jour ↔ Prix TOTAL liés (jours inclus). Le TOTAL est la vérité (= ce que le client paie).
+  // Prix/jour ↔ Prix TOTAL liés (jours = tranches de 24 h). Le TOTAL est la vérité (= ce que le client paie).
   const setPerDay = (x: string) => {
     const n = parseFloat(x);
     setV(f => ({ ...f, client_price_per_day: x, total: !isNaN(n) ? String(Math.round(n * days)) : f.total }));

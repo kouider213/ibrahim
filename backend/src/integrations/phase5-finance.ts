@@ -37,9 +37,7 @@ function resolveFinancials(b: {
   nb_days?:              number | null;
   discount_applied?:     number | null;
 }): ResolvedFinancials {
-  const nb_days = b.nb_days ?? Math.max(1, Math.ceil(
-    (new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000,
-  ));
+  const nb_days = rentalDays(b.start_date, b.end_date, b.nb_days);
   const discount_applied = b.discount_applied ?? 0;
 
   // client_ppd: prix négocié réel (jamais catalogue)
@@ -562,7 +560,7 @@ export async function generatePdfReceipt(bookingId: string): Promise<{ url: stri
 
   const booking  = b as any;
   const carName  = booking.cars?.name ?? 'Véhicule';
-  const nbDays   = rentalDays(booking.start_date, booking.end_date, booking.nb_days);   // jours inclus (départ + retour)
+  const nbDays   = rentalDays(booking.start_date, booking.end_date, booking.nb_days);   // tranches de 24 h
   const daily    = Math.round((booking.final_price ?? 0) / nbDays);
   const acompte  = booking.acompte_amount ?? 0;
   const solde    = (booking.final_price ?? 0) - acompte;
