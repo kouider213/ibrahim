@@ -7,6 +7,14 @@
 
 ## Bugs Ouverts 🔴
 
+### B036 — Mail jamais envoyé pendant un appel (« le serveur exige ton oui » en boucle) ✅
+- **Statut** : ✅ FIXÉ — 2026-10-18
+- **Fichier(s)** : `backend/src/integrations/tool-executor.ts` (`sendEmailTool`)
+- **Description** : en appel, le message de Kouider est enregistré avec la consigne « [APPEL TÉLÉPHONIQUE EN COURS …] » devant.
+  Le verrou d'envoi cherchait « oui/envoie » au tout début → toujours refusé, même après « CONFIRMÉ AU TÉLÉPHONE »
+  (réponse à Hello Appart Hôtel, 17/10 18h09, 4 refus).
+- **Fix** : consigne d'appel retirée avant le test ; en appel seul « CONFIRMÉ AU TÉLÉPHONE » vaut accord (et le brouillon refait ce tour-là est accepté).
+
 ### B035 — Messages Telegram à Dzaryx toujours en échec ✅
 - **Statut** : ✅ FIXÉ — 2026-10-14 (`5cde7bf`)
 - **Fichier(s)** : `tgcall/dzaryx_tg.py` (`on_message`, `voice_command`)

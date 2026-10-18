@@ -5,6 +5,9 @@
 
 ---
 
+## 2026-10-18 — B036 : envoi de mail confirmé au téléphone
+- `sendEmailTool` : le « oui » dit en appel (« CONFIRMÉ AU TÉLÉPHONE ») est enfin reconnu ; avant, la consigne d'appel en tête du message faisait refuser tous les envois de mail demandés par la voix.
+
 ## 2026-10-17 (soir) — Page COACH : sport + nutrition + mental + jeu — 3e5b3b0
 - Page app SPORT → COACH (onglets 🏋️ Sport · 🍽️ Nutrition · 🧠 Mental · 🎮 Progrès), app v154.
 - Nutrition/mental dans l'agenda : `buildCoachDay` (life-coach.ts) génère en JSON 4 repas + eau + objectif mental + coucher, écrits chaque soir (20h30, rattrapage `ensureCoachDays` dans sport-watch) comme événements LIBRES (transparents) 🍳🍽️🥜🍲🧠😴 ; jamais de santé/poids/moral dans l'agenda. meeting-prep et departures ignorent ces événements (fenêtre meeting-prep 20 → 40).

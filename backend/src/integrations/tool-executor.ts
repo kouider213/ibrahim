@@ -2331,7 +2331,8 @@ async function manageEmailsTool(input: Record<string, unknown>): Promise<string>
 const EMAIL_DAILY_CAP = 30;  // au-delà, Gmail risque de classer la boîte en spam
 const EMAIL_RE        = /^[^\s@<>,;"]+@[^\s@<>,;"]+\.[a-z]{2,}$/i;
 const SEND_CONFIRM_RE = /^\W*(oui|ok|okay|go|vas[- ]y|envoie|envoi|envoies|envoyer?|confirme|valide|c'est bon|parfait|yes)\b/i;
-const PROSPECT_FOOTER = '\n\n—\nVous ne souhaitez plus recevoir nos messages ? Répondez simplement « STOP ».';
+const PHONE_CONFIRM_RE = /^\W*CONFIRMÉ AU TÉLÉPHONE\b/i;
+const PROSPECT_FOOTER ='\n\n—\nVous ne souhaitez plus recevoir nos messages ? Répondez simplement « STOP ».';
 
 interface EmailDraft { to: string; subject: string; body: string; createdAt: number; reply?: ThreadRef; prospectId?: string }
 // En mémoire + copie dans app_kv (Supabase, pas Redis : quota Upstash) : un redémarrage/déploiement de Railway
@@ -2414,16 +2415,23 @@ async function sendEmailTool(input: Record<string, unknown>, sessionId?: string)
   const history  = await getConversationHistory(sessionId, 6);
   const lastUser = [...history].reverse().find(m => m.role === 'user');
   const lastAt   = lastUser ? new Date(lastUser.created_at as string).getTime() : 0;
-  if (!lastUser || !SEND_CONFIRM_RE.test(String(lastUser.content))) {
+  // En appel, le message commence par la consigne « [APPEL TÉLÉPHONIQUE EN COURS …] » (call.ts) : sans la retirer, le
+  // « oui » n'était jamais vu → envoi refusé en boucle (Hello Appart Hôtel, 17/10). La voix a relu le mail avant « CONFIRMÉ AU TÉLÉPHONE ».
+  const raw      = String(lastUser?.content ?? '');
+  const said     = raw.replace(/^\s*\[APPEL TÉLÉPHONIQUE EN COURS[^\]]*\]\s*/, '');
+  const inCall   = said !== raw;   // en appel, seul « CONFIRMÉ AU TÉLÉPHONE » vaut accord (« envoie un mail à… » = demande, pas relu)
+  const byPhone  = PHONE_CONFIRM_RE.test(said);
+  if (!lastUser || (!byPhone && (inCall || !SEND_CONFIRM_RE.test(said)))) {
     return '❌ Envoi refusé : Kouider doit d\'abord voir le brouillon puis répondre "oui" / "envoie" dans un nouveau message.' + NOT_SENT;
   }
   // …et on envoie le brouillon qu'il a VU : le plus récent créé AVANT sa confirmation
-  // (le draft_id n'est pas dans l'historique → le LLM le perd ; un brouillon refait ce tour-ci n'a pas été vu)
+  // (le draft_id n'est pas dans l'historique → le LLM le perd ; un brouillon refait ce tour-ci n'a pas été vu,
+  // sauf confirmé au téléphone : la demande contient déjà le texte exact qu'il a validé à l'oral)
   const prefix = `${sessionId}:`;
   await loadDrafts(sessionId);
   let key: string | null = null; let draft: EmailDraft | undefined;
   for (const [k, d] of emailDrafts) {
-    if (!k.startsWith(prefix) || d.createdAt >= lastAt || Date.now() - d.createdAt > DRAFT_TTL_MS) continue;
+    if (!k.startsWith(prefix) || (!byPhone && d.createdAt >= lastAt) || Date.now() - d.createdAt > DRAFT_TTL_MS) continue;
     if (!draft || d.createdAt > draft.createdAt) { key = k; draft = d; }
   }
   if (!draft || !key) {
