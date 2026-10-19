@@ -27,6 +27,8 @@ from array import array
 
 import aiohttp
 
+from modules.gemini_live import GeminiLiveWS
+
 log = logging.getLogger('nexus.realtime')
 
 RATE = 24000
@@ -113,10 +115,16 @@ class PCVoiceSession:
         import sounddevice as sd
         self.http = aiohttp.ClientSession()
         try:
-            res = await self.api('/api/call/realtime', {'mode': 'pc'}, 20)
-            self.ws = await self.http.ws_connect(
-                f"wss://api.openai.com/v1/realtime?model={res.get('model', 'gpt-realtime')}",
-                headers={'Authorization': f"Bearer {res['key']}"}, heartbeat=20, max_msg_size=0)
+            try:   # Gemini Live d'abord (gratuit, même voix que les appels Telegram) ; en panne → OpenAI
+                res = await self.api('/api/call/realtime-gemini', {'mode': 'pc'}, 20)
+                self.ws = await GeminiLiveWS.connect(self.http, res)
+                await self.ws.receive(timeout=8)   # session.created
+            except Exception as e:
+                log.warning('Gemini Live indisponible (%s) → OpenAI', str(e)[:160])
+                res = await self.api('/api/call/realtime', {'mode': 'pc'}, 20)
+                self.ws = await self.http.ws_connect(
+                    f"wss://api.openai.com/v1/realtime?model={res.get('model', 'gpt-realtime')}",
+                    headers={'Authorization': f"Bearer {res['key']}"}, heartbeat=20, max_msg_size=0)
             loop = asyncio.get_running_loop()
 
             def on_mic(indata, _frames, _t, status):     # thread PortAudio

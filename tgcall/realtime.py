@@ -106,21 +106,26 @@ class RealtimeCall:
         return res
 
     async def connect(self) -> None:
-        """OpenAI Realtime ; plus de crédit / panne → Gemini Live (gratuit) ; sinon exception → ancienne voix."""
+        """Gemini Live d'abord (GRATUIT, toujours la même voix — Kouider 19/10 : Dzaryx gratuit sauf Railway) ;
+        en panne → OpenAI Realtime s'il a du crédit ; sinon exception → ancienne voix."""
         global openai_out_until
         res = None
-        if time.monotonic() > openai_out_until:
-            try:
-                res = await self._connect_openai()
-            except Exception as e:
-                if re.search(r'quota|credit|billing|401|402|429', str(e), re.I):
-                    openai_out_until = time.monotonic() + OPENAI_OUT_S   # inutile de retenter à chaque appel
-                log.warning('OpenAI temps réel indisponible (%s) → Gemini Live', str(e)[:160])
-        if res is None:
+        try:
             res = await self.api('/api/call/realtime-gemini', {}, self.actor, 20)
             self.ws = await GeminiLiveWS.connect(self.http, res)
             await self.ws.receive(timeout=8)   # session.created
             self.provider = 'gemini'
+        except Exception as e:
+            res = None
+            log.warning('Gemini Live indisponible (%s) → OpenAI', str(e)[:160])
+            if time.monotonic() < openai_out_until:
+                raise RuntimeError('OpenAI sans crédit') from e
+            try:
+                res = await self._connect_openai()
+            except Exception as e2:
+                if re.search(r'quota|credit|billing|401|402|429', str(e2), re.I):
+                    openai_out_until = time.monotonic() + OPENAI_OUT_S   # inutile de retenter à chaque appel
+                raise
         self.tasks.append(asyncio.create_task(self._reader()))
         self.tasks.append(asyncio.create_task(self._sender()))
         self.full_instr, self.guest_instr = res.get('instructions') or '', res.get('guestInstructions') or ''
@@ -486,7 +491,15 @@ class RealtimeCall:
 
 
 async def speak(http: aiohttp.ClientSession, api: ApiFn, text: str, actor: str, voice: str | None = None) -> bytes:
-    """Fait dire `text` par la voix temps réel (même voix que les appels) → PCM 24 kHz mono 16 bits."""
+    """Fait dire `text` par la voix des appels → PCM 24 kHz mono 16 bits. Gemini Live (gratuit) d'abord,
+    OpenAI seulement pour essayer une de ses voix (« voix N ») ou si Gemini est en panne."""
+    if voice is None:
+        try:
+            return await speak_gemini(http, api, text, actor)
+        except Exception as e:
+            log.warning('voix Gemini pour le vocal: %s → OpenAI', str(e)[:160])
+        if time.monotonic() < openai_out_until:
+            raise RuntimeError('OpenAI sans crédit')
     res = await api('/api/call/realtime', {}, actor, 20)
     pcm = bytearray()
     async with http.ws_connect(
@@ -513,6 +526,31 @@ async def speak(http: aiohttp.ClientSession, api: ApiFn, text: str, actor: str, 
                 break
             elif t == 'error':
                 raise RuntimeError(ev.get('error'))
+    if not pcm:
+        raise RuntimeError('aucun son reçu')
+    return bytes(pcm)
+
+
+async def speak_gemini(http: aiohttp.ClientSession, api: ApiFn, text: str, actor: str) -> bytes:
+    res = await api('/api/call/realtime-gemini', {}, actor, 20)
+    res = {**res, 'tools': [], 'instructions': 'Tu es une voix de lecture. Lis le texte fourni EXACTEMENT, mot pour mot, '
+           'en français, ton naturel et chaleureux, sans rien ajouter ni commenter.'}
+    ws = await GeminiLiveWS.connect(http, res)
+    pcm = bytearray()
+    try:
+        await ws.receive(timeout=8)   # session.created
+        await ws.send_str(json.dumps({'type': 'response.create', 'response': {'instructions':
+            f'Prononce EXACTEMENT ce texte, mot pour mot, et RIEN d\'autre : « {text} »'}}))
+        async def collect() -> None:
+            async for msg in ws:
+                ev = json.loads(msg.data)
+                if ev['type'] == 'response.output_audio.delta':
+                    pcm.extend(base64.b64decode(ev['delta']))
+                elif ev['type'] == 'response.done':
+                    return
+        await asyncio.wait_for(collect(), 90)
+    finally:
+        await ws.close()
     if not pcm:
         raise RuntimeError('aucun son reçu')
     return bytes(pcm)

@@ -6,10 +6,10 @@ conversation.item.create…) et elle rend des événements OpenAI (response.outp
 appels d'outils…). Ainsi tout le reste de l'appel (outils, caméra, interruption, mémoire) reste identique.
 """
 import asyncio
-import audioop
 import base64
 import json
 import logging
+from array import array
 
 import aiohttp
 
@@ -17,6 +17,17 @@ log = logging.getLogger('dzaryx-tg')
 
 URL = ('wss://generativelanguage.googleapis.com/ws/'
        'google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key={key}')
+
+
+def to16k(pcm24k: bytes) -> bytes:
+    """24 kHz → 16 kHz (3 échantillons → 2), sans audioop (retiré de Python 3.13, PC de Kouider)."""
+    s = array('h', pcm24k[:len(pcm24k) // 6 * 6])
+    out = array('h', bytes(len(s) // 3 * 4))
+    out[0::2] = s[0::3]
+    out[1::2] = array('h', ((a + b) // 2 for a, b in zip(s[1::3], s[2::3])))
+    return out.tobytes()
+
+
 NOTE = '[Note interne, ne la lis pas à voix haute] '
 
 
@@ -31,7 +42,6 @@ class GeminiLiveWS:
     def __init__(self, ws: aiohttp.ClientWebSocketResponse):
         self.ws = ws
         self.queue: asyncio.Queue[dict | None] = asyncio.Queue()
-        self.rate_state = None
         self.tool_names: dict[str, str] = {}   # id d'appel d'outil → nom (Gemini veut le nom dans la réponse)
         self.pending_tools = 0                 # après une réponse d'outil, Gemini reprend tout seul la parole
         self.in_text = ''                      # transcription de Kouider en cours
@@ -104,7 +114,7 @@ class GeminiLiveWS:
         ev = json.loads(data)
         t = ev.get('type')
         if t == 'input_audio_buffer.append':   # 24 kHz → 16 kHz (format natif de Gemini Live)
-            pcm, self.rate_state = audioop.ratecv(base64.b64decode(ev['audio']), 2, 1, 24000, 16000, self.rate_state)
+            pcm = to16k(base64.b64decode(ev['audio']))
             await self._g({'realtimeInput': {'audio': {'data': base64.b64encode(pcm).decode(), 'mimeType': 'audio/pcm;rate=16000'}}})
         elif t == 'session.update':            # la config est fixée au démarrage : les nouvelles consignes passent en note
             instr = (ev.get('session') or {}).get('instructions')
