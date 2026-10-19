@@ -37,7 +37,7 @@ router.post('/', requireMobileAuth, async (req, res) => {
     return;
   }
   try {
-    const audio = await synthesizeVoice(text.slice(0, 500));
+    const audio = await synthesizeVoice(text.slice(0, 900));
     if (!audio) {
       res.status(502).json({ error: 'ElevenLabs synthesis failed' });
       return;

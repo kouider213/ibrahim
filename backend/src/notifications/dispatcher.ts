@@ -3,6 +3,7 @@ import { env } from '../config/env.js';
 import { supabase } from '../integrations/supabase.js';
 import type { Namespace } from 'socket.io';
 import { SOCKET_EVENTS } from '../config/constants.js';
+import { isOut, noteFailure } from '../integrations/credit-guard.js';
 
 let _io: Namespace | null = null;
 
@@ -160,7 +161,35 @@ export async function synthesizeVoiceGemini(text: string): Promise<Buffer | null
 }
 
 // fast = modèle flash (latence ~75 ms) : pour les vrais appels, où chaque seconde compte.
+// Dernier secours SANS clé ni crédit : voix Google Traduction (MP3, morceaux de ≤ 190 caractères).
+export async function synthesizeVoiceFree(text: string): Promise<Buffer | null> {
+  const chunks: string[] = [];
+  let cur = '';
+  for (const w of cleanTextForTTS(text).slice(0, 1500).split(/\s+/)) {
+    if (cur && (cur + ' ' + w).length > 190) { chunks.push(cur); cur = ''; }
+    cur = cur ? cur + ' ' + w : w.slice(0, 190);
+  }
+  if (cur) chunks.push(cur);
+  try {
+    const parts: Buffer[] = [];
+    for (const q of chunks) {
+      const { data } = await axios.get<ArrayBuffer>('https://translate.google.com/translate_tts', {
+        params: { ie: 'UTF-8', tl: 'fr', client: 'tw-ob', q },
+        headers: { 'User-Agent': 'Mozilla/5.0' }, responseType: 'arraybuffer', timeout: 10_000,
+      });
+      parts.push(Buffer.from(data));
+    }
+    const mp3 = Buffer.concat(parts);
+    console.log(`[free-tts] ✅ dernier secours — ${mp3.length} bytes MP3`);
+    return mp3.length ? mp3 : null;
+  } catch (err) {
+    console.error('[free-tts] failed:', err instanceof Error ? err.message : String(err));
+    return null;
+  }
+}
+
 export async function synthesizeVoice(text: string, fast = false): Promise<Buffer | null> {
+  if (isOut('elevenlabs')) return (await synthesizeVoiceGemini(text)) ?? synthesizeVoiceFree(text);
   const picked = pickTTSModel(text);
   const model_id = fast ? 'eleven_flash_v2_5' : picked.model_id;
   const { language_code } = picked;
@@ -178,8 +207,9 @@ export async function synthesizeVoice(text: string, fast = false): Promise<Buffe
     return Buffer.from(response.data);
   } catch (err) {
     console.error('[elevenlabs] TTS failed:', err instanceof Error ? err.message : String(err));
-    // Secours gratuit : quota/abonnement ElevenLabs fini → Gemini TTS (WAV)
-    return synthesizeVoiceGemini(text);
+    noteFailure('elevenlabs', err);
+    // Secours gratuits : quota/abonnement ElevenLabs fini → Gemini TTS (WAV) → voix Google sans clé (MP3)
+    return (await synthesizeVoiceGemini(text)) ?? synthesizeVoiceFree(text);
   }
 }
 
@@ -217,9 +247,10 @@ export async function synthesizeVoiceStream(
     return true;
   } catch (err) {
     console.error('[elevenlabs] streaming TTS failed:', err instanceof Error ? err.message : String(err));
-    // Secours gratuit : Gemini TTS → un seul chunk WAV (decodeAudioData le lit tel quel)
-    const wav = await synthesizeVoiceGemini(text);
-    if (wav) { onChunk(wav); return true; }
+    noteFailure('elevenlabs', err);
+    // Secours gratuits : Gemini TTS (WAV) → voix Google sans clé (MP3), en un seul chunk (decodeAudioData lit les deux)
+    const audio = (await synthesizeVoiceGemini(text)) ?? (await synthesizeVoiceFree(text));
+    if (audio) { onChunk(audio); return true; }
     return false;
   }
 }

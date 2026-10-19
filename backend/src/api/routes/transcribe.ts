@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { env } from '../../config/env.js';
+import { isOut, noteFailure } from '../../integrations/credit-guard.js';
 
 const router = Router();
 
@@ -16,29 +17,29 @@ router.post('/', requireMobileAuth, async (req, res) => {
     return;
   }
 
-  // Ordre STT : OpenAI gpt-4o-transcribe (meilleur sur darija/accents) → Groq Whisper → Google.
-  // 'provider' force un moteur si fourni.
+  // Ordre STT : Groq Whisper (gratuit, ~0,3 s) → OpenAI gpt-4o-transcribe (payant) → Google → Gemini (gratuit, dernier secours).
+  // Un fournisseur sans crédit est sauté 30 min (credit-guard). 'provider' force un moteur si fourni.
   const chain: Array<{ key: string; fn: () => Promise<string> }> = [];
   if (provider === 'google' && env.GOOGLE_SERVICE_ACCOUNT_JSON) {
     chain.push({ key: 'google', fn: () => transcribeWithGoogle(audio, mimeType) });
-  } else if (provider === 'fast') {
-    // Vrais appels : Groq Whisper turbo (~0,3 s) d'abord — chaque seconde compte, la darija n'est plus utilisée.
-    if (env.GROQ_API_KEY)                chain.push({ key: 'groq',      fn: () => transcribeWithGroq(audio, mimeType, 'fr') });
-    if (env.OPENAI_API_KEY)              chain.push({ key: 'openai-4o', fn: () => transcribeWithOpenAI(audio, mimeType) });
   } else {
+    // Vrais appels ('fast') : français imposé — chaque seconde compte, la darija n'est plus utilisée.
+    if (env.GROQ_API_KEY)                chain.push({ key: 'groq',      fn: () => transcribeWithGroq(audio, mimeType, provider === 'fast' ? 'fr' : undefined) });
     if (env.OPENAI_API_KEY)              chain.push({ key: 'openai-4o', fn: () => transcribeWithOpenAI(audio, mimeType) });
-    if (env.GROQ_API_KEY)               chain.push({ key: 'groq',      fn: () => transcribeWithGroq(audio, mimeType) });
-    if (env.GOOGLE_SERVICE_ACCOUNT_JSON) chain.push({ key: 'google',    fn: () => transcribeWithGoogle(audio, mimeType) });
+    if (env.GOOGLE_SERVICE_ACCOUNT_JSON && provider !== 'fast') chain.push({ key: 'google', fn: () => transcribeWithGoogle(audio, mimeType) });
   }
+  if (env.GEMINI_API_KEY)                chain.push({ key: 'gemini',    fn: () => transcribeWithGemini(audio, mimeType) });
 
   let lastErr = 'no STT provider configured';
   for (const stt of chain) {
+    if (isOut(stt.key)) continue;
     try {
       const text = cleanTranscript(await stt.fn());
       res.json({ text, provider: stt.key });
       return;
     } catch (err) {
       lastErr = err instanceof Error ? err.message : String(err);
+      noteFailure(stt.key, err);
       console.error(`[transcribe] ${stt.key} failed:`, lastErr, '→ next');
     }
   }
@@ -169,6 +170,30 @@ async function transcribeWithGoogle(audio: string, mimeType: string): Promise<st
 
   if (!transcript) throw new Error('Google STT returned empty transcript');
   return transcript;
+}
+
+// Dernier secours gratuit : Gemini comprend l'audio directement (ogg/wav/mp3/m4a/webm).
+async function transcribeWithGemini(audio: string, mimeType: string): Promise<string> {
+  const key = env.GEMINI_API_KEY;
+  if (!key) throw new Error('GEMINI_API_KEY not configured');
+  const mime = mimeType.includes('m4a') ? 'audio/mp4' : mimeType;
+  for (const model of ['gemini-3.5-flash', 'gemini-flash-latest']) {
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [
+          { inlineData: { mimeType: mime, data: audio } },
+          { text: 'Transcris exactement ce qui est dit dans cet audio (surtout du français). Réponds UNIQUEMENT par la transcription, rien d\'autre. Si on n\'entend rien, réponds vide.' },
+        ] }],
+        generationConfig: { temperature: 0 },
+      }),
+    });
+    if (!resp.ok) { if (resp.status === 404) continue; throw new Error(`Gemini STT: HTTP ${resp.status} — ${(await resp.text()).slice(0, 200)}`); }
+    const data = await resp.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+    return (data.candidates?.[0]?.content?.parts ?? []).map(p => p.text ?? '').join('').trim();
+  }
+  throw new Error('Gemini STT: aucun modèle disponible');
 }
 
 export default router;

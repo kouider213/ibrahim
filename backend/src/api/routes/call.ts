@@ -457,6 +457,57 @@ function realtimeInstructions(who: CallActor, calls: string, dossier = '', famil
   ].join('\n');
 }
 
+// Outils de la voix temps réel (format OpenAI ; convertis pour Gemini Live par /realtime-gemini)
+function realtimeTools(pcMode: boolean): Array<Record<string, unknown>> {
+  return [{
+            type: 'function',
+            name: 'ask_dzaryx',
+            description: 'Le cerveau de Dzaryx, plus de 200 outils (réservations, voitures, clients, paiements, mails, agenda, rappels, démarchage, web, Google Docs / Sheets, Excel, contrats, sites et applis, images, vidéos…). Pose la demande complète de Kouider, en français. Renvoie la réponse à redire à l\'oral.',
+            parameters: { type: 'object', properties: { request: { type: 'string', description: 'La demande complète, avec le contexte utile de la conversation' } }, required: ['request'] },
+          }, ...[...quickToolDefs, ...quickWriteDefs, ...CALL_QUICK_DEFS, ...CALL_TOOLS]
+              .filter(t => !pcMode || !PC_REMOTE_TOOLS.has((t as { name: string }).name)),
+             ...(pcMode ? PC_LOCAL_TOOLS : [])];
+}
+
+// Gemini Live n'accepte qu'un sous-ensemble de JSON Schema (pas d'additionalProperties, $schema…)
+function geminiSchema(x: unknown): unknown {
+  if (Array.isArray(x)) return x.map(geminiSchema);
+  if (!x || typeof x !== 'object') return x;
+  const keep = ['type', 'description', 'properties', 'required', 'items', 'enum', 'format', 'nullable', 'minimum', 'maximum'];
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(x as Record<string, unknown>)) {
+    if (!keep.includes(k)) continue;
+    if (k === 'properties' && v && typeof v === 'object') {
+      out[k] = Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([pk, pv]) => [pk, geminiSchema(pv)]));
+    } else if (k === 'type' && Array.isArray(v)) {
+      out[k] = v.find(t => t !== 'null') ?? 'string';
+    } else {
+      out[k] = k === 'items' ? geminiSchema(v) : v;
+    }
+  }
+  return out;
+}
+
+// Modèle Gemini Live (voix native) : choisi dans la liste de Google, gardé 6 h
+let geminiLiveModel: { name: string; at: number } | null = null;
+async function pickGeminiLiveModel(key: string): Promise<string> {
+  if (geminiLiveModel && Date.now() - geminiLiveModel.at < 6 * 3600_000) return geminiLiveModel.name;
+  let name = 'models/gemini-2.5-flash-native-audio-preview-09-2025';
+  try {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=${key}`);
+    const { models = [] } = await r.json() as { models?: Array<{ name: string; supportedGenerationMethods?: string[] }> };
+    const live = models.filter(m => m.supportedGenerationMethods?.includes('bidiGenerateContent')).map(m => m.name);
+    const rank = (n: string) => (n.includes('native-audio') ? 0 : 10) + (n.includes('preview') ? 1 : 0) + (n.includes('lite') ? 2 : 0);
+    live.sort((a, b) => rank(a) - rank(b) || b.localeCompare(a));
+    if (live[0]) name = live[0];
+    console.log('[call] Gemini Live modèles:', live.slice(0, 6).join(', '));
+  } catch (err) {
+    console.warn('[call] liste modèles Gemini:', err instanceof Error ? err.message : String(err));
+  }
+  geminiLiveModel = { name, at: Date.now() };
+  return name;
+}
+
 router.post('/realtime', requireCallerAuth, async (req, res) => {
   if (!env.OPENAI_API_KEY) { res.status(503).json({ error: 'OPENAI_API_KEY absente' }); return; }
   const who = callActor(req);
@@ -488,14 +539,7 @@ router.post('/realtime', requireCallerAuth, async (req, res) => {
             },
             output: { format: { type: 'audio/pcm', rate: 24000 }, voice: await realtimeVoice() },
           },
-          tools: [{
-            type: 'function',
-            name: 'ask_dzaryx',
-            description: 'Le cerveau de Dzaryx, plus de 200 outils (réservations, voitures, clients, paiements, mails, agenda, rappels, démarchage, web, Google Docs / Sheets, Excel, contrats, sites et applis, images, vidéos…). Pose la demande complète de Kouider, en français. Renvoie la réponse à redire à l\'oral.',
-            parameters: { type: 'object', properties: { request: { type: 'string', description: 'La demande complète, avec le contexte utile de la conversation' } }, required: ['request'] },
-          }, ...[...quickToolDefs, ...quickWriteDefs, ...CALL_QUICK_DEFS, ...CALL_TOOLS]
-              .filter(t => !pcMode || !PC_REMOTE_TOOLS.has((t as { name: string }).name)),
-             ...(pcMode ? PC_LOCAL_TOOLS : [])],
+          tools: realtimeTools(pcMode),
           tool_choice: 'auto',
         },
       }),
@@ -512,6 +556,31 @@ router.post('/realtime', requireCallerAuth, async (req, res) => {
   } catch (err) {
     console.error('[call] realtime:', err instanceof Error ? err.message : String(err));
     res.status(500).json({ error: 'realtime failed' });
+  }
+});
+
+// POST /api/call/realtime-gemini — secours GRATUIT de la voix temps réel (Gemini Live) quand OpenAI n'a plus de crédit.
+// Mêmes consignes et mêmes outils ; tgcall ouvre lui-même la session (la clé ne quitte que vers notre propre VPS).
+router.post('/realtime-gemini', requireCallerAuth, async (req, res) => {
+  if (!env.GEMINI_API_KEY) { res.status(503).json({ error: 'GEMINI_API_KEY absente' }); return; }
+  const who = callActor(req);
+  const pcMode = (req.body as { mode?: string } | undefined)?.mode === 'pc' && who === 'kouider';
+  try {
+    const [calls, dossier, family] = await Promise.all([
+      recentCallsText(who).catch(() => ''),
+      who === 'kouider' ? kouiderDossierText().catch(() => '') : Promise.resolve(''),
+      who === 'kouider' ? familyText().catch(() => '') : Promise.resolve(''),
+    ]);
+    const base = realtimeInstructions(who, calls, dossier, family);
+    const tools = realtimeTools(pcMode).map(t => ({
+      name: t['name'], description: String(t['description'] ?? '').slice(0, 1000), parameters: geminiSchema(t['parameters'] ?? { type: 'object', properties: {} }),
+    }));
+    res.json({ provider: 'gemini', key: env.GEMINI_API_KEY, model: await pickGeminiLiveModel(env.GEMINI_API_KEY),
+      voice: 'Charon', instructions: pcMode ? pcInstructions(base) : base, tools,
+      guestInstructions: who === 'kouider' && !pcMode ? guestInstructions(family) : undefined });
+  } catch (err) {
+    console.error('[call] realtime-gemini:', err instanceof Error ? err.message : String(err));
+    res.status(500).json({ error: 'realtime-gemini failed' });
   }
 });
 

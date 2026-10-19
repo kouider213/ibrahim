@@ -12,6 +12,7 @@ import base64
 import json
 import logging
 import os
+import re
 import subprocess
 import time
 from typing import Awaitable, Callable
@@ -21,6 +22,7 @@ from pytgcalls import PyTgCalls
 from pytgcalls.types import Device
 
 import speaker
+from gemini_live import GeminiLiveWS
 
 log = logging.getLogger('dzaryx-tg')
 
@@ -36,6 +38,8 @@ VOICE_KEEP_S = 30                  # au plus 30 s de sa voix gardées (vérifica
 # Outils permis quand ce n'est PAS Kouider (sa femme, un proche, un inconnu) : rien qui touche à ses affaires
 GUEST_TOOLS = {'web_search', 'end_call', 'call_back_later', 'leave_message', 'learn_voice', 'verify_code'}
 NAMES = json.loads(os.environ.get('TG_SPEAKER_NAMES', '{}'))   # {"prénom": "Prénom (sa femme)"} dans .env : pas de prénoms dans le dépôt public
+OPENAI_OUT_S = 1800                # OpenAI sans crédit → on passe direct à Gemini Live pendant 30 min
+openai_out_until = 0.0
 ROTATE = {90: 'transpose=1', 180: 'transpose=1,transpose=1', 270: 'transpose=2'}
 
 
@@ -65,6 +69,7 @@ class RealtimeCall:
         self.rate_state = None
         self.tasks: list[asyncio.Task] = []
         self.closed = False
+        self.provider = ''
         self.playing = False              # l'appel Telegram est établi → on peut envoyer des tranches
         self.video: tuple[bytes, int, int, int, float] | None = None   # dernière image caméra (brute, l, h, rotation, quand)
         self.video_sent = 0.0
@@ -85,24 +90,44 @@ class RealtimeCall:
         self.held_outgoing = False
 
     # ── Connexion ────────────────────────────────────────────────────────────
-    async def connect(self) -> None:
+    async def _connect_openai(self) -> dict:
         res = await self.api('/api/call/realtime', {}, self.actor, 20)
         self.ws = await self.http.ws_connect(
             f"wss://api.openai.com/v1/realtime?model={res.get('model', 'gpt-realtime')}",
             headers={'Authorization': f"Bearer {res['key']}"}, heartbeat=20, max_msg_size=0)
         # 1er événement = session.created, ou une erreur (19/10 : crédit OpenAI épuisé → la socket s'ouvre
-        # quand même, puis l'erreur arrive : sans ce contrôle l'appel restait muet au lieu de passer à l'ancienne voix)
+        # quand même, puis l'erreur arrive : sans ce contrôle l'appel restait muet)
         first = await self.ws.receive(timeout=8)
         ev = json.loads(first.data) if first.type == aiohttp.WSMsgType.TEXT else {'type': 'error', 'error': str(first.type)}
         if ev.get('type') == 'error':
+            await self.ws.close()
             raise RuntimeError(ev.get('error'))
+        self.provider = 'openai'
+        return res
+
+    async def connect(self) -> None:
+        """OpenAI Realtime ; plus de crédit / panne → Gemini Live (gratuit) ; sinon exception → ancienne voix."""
+        global openai_out_until
+        res = None
+        if time.monotonic() > openai_out_until:
+            try:
+                res = await self._connect_openai()
+            except Exception as e:
+                if re.search(r'quota|credit|billing|401|402|429', str(e), re.I):
+                    openai_out_until = time.monotonic() + OPENAI_OUT_S   # inutile de retenter à chaque appel
+                log.warning('OpenAI temps réel indisponible (%s) → Gemini Live', str(e)[:160])
+        if res is None:
+            res = await self.api('/api/call/realtime-gemini', {}, self.actor, 20)
+            self.ws = await GeminiLiveWS.connect(self.http, res)
+            await self.ws.receive(timeout=8)   # session.created
+            self.provider = 'gemini'
         self.tasks.append(asyncio.create_task(self._reader()))
         self.tasks.append(asyncio.create_task(self._sender()))
         self.full_instr, self.guest_instr = res.get('instructions') or '', res.get('guestInstructions') or ''
         if self.guest_instr and speaker.available() and speaker.known() > 0 and speaker.guard_on():
             self.guarded, self.who = True, '?'
             await self._session(self.guest_instr, auto=False)   # rien d'automatique tant qu'on ne sait pas qui parle
-        log.info('voix temps réel connectée%s', ' (vérification de la voix)' if self.guarded else '')
+        log.info('voix temps réel connectée (%s)%s', self.provider, ' (vérification de la voix)' if self.guarded else '')
 
     n_in = n_out = n_voiced = 0; rms_max = 0   # diagnostic : tranches audio reçues / envoyées (voix) pendant l'appel
 

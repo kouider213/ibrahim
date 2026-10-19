@@ -4919,8 +4919,6 @@ async function generateImageTool(input: Record<string, unknown>, _sessionId?: st
       const status = axErr?.response?.status;
       // Quota / billing errors — inform user but don't fall through silently
       if (status === 429 || code === 'insufficient_quota' || code === 'billing_hard_limit_reached') {
-        const replicateToken = env.REPLICATE_API_TOKEN;
-        if (!replicateToken) return '❌ Crédits OpenAI épuisés. Ajoute des crédits sur platform.openai.com → Billing. (REPLICATE_API_TOKEN non configuré non plus.)';
         console.warn('[generate-image] DALL-E 3 quota exceeded — falling back to Flux 1.1 Pro');
       } else {
         console.error('[generate-image] DALL-E 3 error:', axErr?.response?.data ?? err);
@@ -4931,28 +4929,46 @@ async function generateImageTool(input: Record<string, unknown>, _sessionId?: st
 
   // ── Flux 1.1 Pro (fallback / no OpenAI key) ───────────────────
   const token = env.REPLICATE_API_TOKEN;
-  if (!token) {
-    if (openaiKey) return '❌ Crédits OpenAI épuisés. Ajoute des crédits sur platform.openai.com → Billing, ou configure REPLICATE_API_TOKEN dans Railway.';
-    return '❌ Aucun provider image configuré. Ajoute OPENAI_API_KEY (DALL-E 3) ou REPLICATE_API_TOKEN (Flux) dans Railway → Variables.';
+  if (token) {
+    emitImgProactive(`Génération image Flux.1…`, 'info', `🎨 Flux.1 Pro en cours pour "${prompt.slice(0, 80)}"…`);
+    try {
+      const imageUrl = await replicateGenerate(
+        'black-forest-labs/flux-1.1-pro',
+        {
+          prompt:           fullPrompt,
+          aspect_ratio:     aspectRatio,
+          output_format:    'jpg',
+          output_quality:   90,
+          safety_tolerance: 2,
+        },
+        token,
+        90_000,
+      );
+      emitImgProactive(`Image Flux.1 Pro prête`, 'info', `🎨 Image Flux.1 Pro prête\n📹 ${imageUrl}`);
+      return `✅ Image Flux.1 Pro générée et envoyée dans l'app\nURL: ${imageUrl}`;
+    } catch (err) {
+      console.warn('[generate-image] Flux indispo → secours gratuit Pollinations:', err instanceof Error ? err.message : String(err));
+    }
   }
 
-  emitImgProactive(`Génération image Flux.1…`, 'info', `🎨 Flux.1 Pro en cours pour "${prompt.slice(0, 80)}"…`);
-
-  const imageUrl = await replicateGenerate(
-    'black-forest-labs/flux-1.1-pro',
-    {
-      prompt:           fullPrompt,
-      aspect_ratio:     aspectRatio,
-      output_format:    'jpg',
-      output_quality:   90,
-      safety_tolerance: 2,
-    },
-    token,
-    90_000,
-  );
-
-  emitImgProactive(`Image Flux.1 Pro prête`, 'info', `🎨 Image Flux.1 Pro prête\n📹 ${imageUrl}`);
-  return `✅ Image Flux.1 Pro générée et envoyée dans l'app\nURL: ${imageUrl}`;
+  // ── Pollinations (gratuit, sans clé — dernier secours quand plus aucun crédit) ──
+  const dims: Record<string, [number, number]> = { '1:1': [1024, 1024], '16:9': [1536, 864], '9:16': [864, 1536] };
+  const [w, h] = dims[aspectRatio] ?? [1024, 1024];
+  try {
+    const res = await axios.get<ArrayBuffer>(`https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt.slice(0, 900))}`,
+      { params: { width: w, height: h, nologo: true, model: 'flux' }, responseType: 'arraybuffer', timeout: 120_000 });
+    const path = `generated/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+    await supabase.storage.createBucket('generated-images', { public: true }).catch(() => {});
+    await supabase.storage.from('generated-images').upload(path, Buffer.from(res.data), { contentType: 'image/jpeg', upsert: false });
+    const url = supabase.storage.from('generated-images').getPublicUrl(path).data?.publicUrl;
+    if (url) {
+      emitImgProactive('Image prête (secours gratuit)', 'info', `🎨 Image prête\n📹 ${url}`);
+      return `✅ Image générée (secours gratuit Pollinations, crédits payants épuisés) et envoyée dans l'app\nURL: ${url}`;
+    }
+  } catch (err) {
+    console.error('[generate-image] Pollinations failed:', err instanceof Error ? err.message : String(err));
+  }
+  return '❌ Image impossible : crédits OpenAI/Replicate épuisés et le secours gratuit ne répond pas. Réessaie dans quelques minutes.';
 }
 
 async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {

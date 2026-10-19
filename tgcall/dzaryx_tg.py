@@ -639,7 +639,7 @@ async def start_realtime(actor: str, user_id: int) -> bool:
     try:
         await calls.play(user_id, MediaStream(ExternalMedia.AUDIO, AudioParameters(OUT_RATE, 1),
                                               video_flags=MediaStream.Flags.IGNORE), CallConfig(timeout=45))
-        await calls.record(user_id, RecordStream(True, AudioParameters(IN_RATE, 1), camera=True))
+        await calls.record(user_id, RecordStream(True, AudioParameters(IN_RATE, 1), camera=os.environ.get('TG_CAMERA', '1') == '1'))
         rt.start_audio()
         await rt.greet(greeting, st.outgoing)
         asyncio.create_task(mute_guard(actor, user_id, rt, greeting, st.outgoing))
@@ -867,9 +867,12 @@ async def on_message(_, msg: Message) -> None:
             try:   # même voix que les appels
                 await reply_voice_pcm(msg, await speak(http, api, re.sub(r'[*_#`>|]', '', reply)[:900], actor))
                 return
-            except Exception as e:
-                log.warning('voix temps réel pour le vocal: %s → ancienne voix', e)
-                out = await api('/api/call/turn', {'message': text, 'channel': 'message'}, actor)
+            except Exception as e:   # même réponse relue par la voix de secours (ElevenLabs → Gemini → Google), sans redemander au cerveau
+                log.warning('voix temps réel pour le vocal: %s → voix de secours', str(e)[:160])
+                try:
+                    out = {**out, 'audio': (await api('/api/tts', {'text': re.sub(r'[*_#`>|]', '', reply)[:900]}, actor, 60)).get('audio')}
+                except Exception as e2:
+                    log.warning('voix de secours: %s → réponse écrite', e2)
             if out.get('audio'):
                 mp3 = save_mp3(out['audio'])
                 ogg = mp3[:-4] + '.ogg'
