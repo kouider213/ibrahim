@@ -271,7 +271,7 @@ const CALL_QUICK_DEFS = [
     description: 'DEVIS EXPRESS (« combien une Clio du 3 au 8 ? », « qu\'est-ce qui est libre ce week-end ? », « avec livraison à l\'aéroport »). Dispo + prix client + livraison, et un devis prêt à envoyer. Sans car_name → liste des voitures libres avec leurs prix. Lecture seule.',
     parameters: { type: 'object', properties: {
       start_date: { type: 'string' }, end_date: { type: 'string' }, car_name: { type: 'string' },
-      delivery_address: { type: 'string', description: 'Lieu de livraison à Oran (aéroport, Bir El Djir…)' },
+      delivery_address: { type: 'string', description: 'Seulement « aéroport » : pas de livraison à une adresse pour les clients (agence Hay Badr ou aéroport d\'Oran)' },
       price_per_day: { type: 'number', description: 'Prix par jour si Kouider en fixe un autre' } }, required: ['start_date', 'end_date'] } },
   { type: 'function', name: 'quick_agenda',
     description: 'AGENDA D\'UN JOUR (« qu\'est-ce que j\'ai demain ? », « mon programme vendredi ») : départs et retours de voitures, rendez-vous (agenda FIK + perso), rappels prévus. date YYYY-MM-DD (défaut aujourd\'hui). Lecture seule.',

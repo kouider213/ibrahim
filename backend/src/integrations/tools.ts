@@ -2094,7 +2094,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   // ─── GPS LIVRAISON ────────────────────────────────────────────────
   {
     name: 'calculate_delivery_fee',
-    description: 'Calculer les frais de livraison d\'un véhicule chez un client à Oran. Utiliser quand Kouider demande "livraison chez le client", "combien pour livrer à X", "frais livraison", "je livre la voiture à". Calcule distance dépôt → adresse client, frais livraison (200 DZD/km), temps trajet, liens navigation.',
+    description: 'Calculer les frais de livraison d\'un véhicule chez un client à Oran. Utiliser quand Kouider demande "livraison chez le client", "combien pour livrer à X", "frais livraison", "je livre la voiture à". Calcule distance dépôt → adresse client, frais livraison (200 DZD/km), temps trajet, liens navigation. RÈGLE (Kouider 19/10) : on ne propose PAS de livraison à une adresse aux clients (site, devis, WhatsApp) — prise et retour à l\'agence Hay Badr ou à l\'aéroport d\'Oran seulement. Cet outil sert uniquement si Kouider le demande lui-même.',
     input_schema: {
       type: 'object' as const,
       properties: {
