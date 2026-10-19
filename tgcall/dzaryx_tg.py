@@ -73,6 +73,13 @@ MAX_UTTERANCE_S = 30
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [tg] %(message)s')
 log = logging.getLogger('dzaryx-tg')
 logging.getLogger('pyrogram').setLevel(logging.WARNING)
+if os.environ.get('TG_DEBUG') == '1':   # journaux natifs de la connexion d'appel (ICE/relais) → ntg-debug.log
+    _h = logging.FileHandler(HERE / 'ntg-debug.log')
+    _h.setFormatter(logging.Formatter('%(asctime)s %(name)s %(message)s'))
+    for _n in ('ntgcalls', 'webrtc'):
+        logging.getLogger(_n).setLevel(logging.DEBUG)
+        logging.getLogger(_n).addHandler(_h)
+        logging.getLogger(_n).propagate = False
 
 app = Client('dzaryx', api_id=API_ID, api_hash=API_HASH, workdir=str(HERE))
 calls = PyTgCalls(app)
@@ -88,6 +95,7 @@ class _RelayOnly:
         return getattr(self._b, name)
 
     async def connect_p2p(self, chat_id, servers, versions, p2p_allowed, *rest):
+        log.info('connexion appel : versions %s, %d serveurs relais', versions, len(servers or []))
         return await self._b.connect_p2p(chat_id, servers, versions, False, *rest)
 
 
@@ -450,14 +458,14 @@ async def start_call(actor: str, user_id: int) -> None:
             pass
 
 
-async def missed_call(actor: str, user_id: int, reason: str, err: Exception) -> None:
+async def missed_call(actor: str, user_id: int, reason: str, err: Exception | None, why: str = '', tip: str = '') -> None:
     """Kouider n'a pas décroché : il reçoit par écrit ce que Dzaryx voulait lui dire, puis un 2e essai."""
     retry = RETRY_TAG not in reason          # un seul nouvel essai, jamais en boucle
     try:
-        why = 'occupé' if 'Busy' in type(err).__name__ else 'pas de réponse'
+        why = why or ('occupé' if 'Busy' in type(err).__name__ else 'pas de réponse')
         later = (f'Je réessaie dans {int(RETRY_S // 60)} min, ou rappelle-moi quand tu veux.'
                  if retry else 'Rappelle-moi quand tu veux.')
-        await app.send_message(user_id, f'📞 Appel manqué ({why}). Je voulais te dire :\n{reason}\n\n{later}')
+        await app.send_message(user_id, f'📞 Appel manqué ({why}). Je voulais te dire :\n{reason}\n\n{tip}{later}')
         log.info('appel manqué → message envoyé')
     except Exception as e:
         log.error('message appel manqué: %s', e)
@@ -626,6 +634,7 @@ async def start_realtime(actor: str, user_id: int) -> bool:
         await calls.record(user_id, RecordStream(True, AudioParameters(IN_RATE, 1), camera=True))
         rt.start_audio()
         await rt.greet(greeting, st.outgoing)
+        asyncio.create_task(mute_guard(actor, user_id, rt, greeting, st.outgoing))
     except Exception as e:
         log.error('appel %s impossible: %s', actor, e)
         await rt.close()
@@ -637,6 +646,37 @@ async def start_realtime(actor: str, user_id: int) -> bool:
         except Exception:
             pass
     return True
+
+
+MUTE_CHECK_S = float(os.environ.get('MUTE_CHECK_S', '12'))
+MUTE_TIP = ('🔇 L\'appel était muet : ton téléphone n\'envoyait aucun son (micro/haut-parleur bloqués côté iPhone). '
+            'Ferme l\'app Dzaryx (et toute app qui utilise le micro), vérifie le Bluetooth, puis rappelle-moi.\n\n')
+
+
+async def mute_guard(actor: str, user_id: int, rt: RealtimeCall, greeting: str, outgoing: bool) -> None:
+    """Appel décroché mais 100 % silence reçu (volume 0 — même un micro au repos capte du bruit) :
+    le son est bloqué côté téléphone (19/10). On ne laisse pas Kouider dans un appel muet : on raccroche,
+    il reçoit le message par écrit + l'astuce, et un 2e essai (appel sortant)."""
+    await asyncio.sleep(MUTE_CHECK_S)
+    if rt.closed or active.get(user_id) is None or active[user_id].rt is not rt:
+        return
+    if rt.n_in < MUTE_CHECK_S * 50 or rt.rms_max > 0:   # 100 tranches/s attendues ; du son → tout va bien
+        return
+    log.warning('appel MUET : %d tranches reçues, volume 0 après %.0f s → je raccroche et j\'écris', rt.n_in, MUTE_CHECK_S)
+    st = active.pop(user_id, None)
+    call_ended[user_id] = time.monotonic()
+    try:
+        await calls.leave_call(user_id)
+    except Exception as e:
+        log.warning('raccrocher (muet): %s', e)
+    await rt.close()
+    if outgoing:
+        await missed_call(actor, user_id, greeting, None, why='muet', tip=MUTE_TIP)
+    else:
+        try:
+            await app.send_message(user_id, MUTE_TIP.strip())
+        except Exception as e:
+            log.error('message appel muet: %s', e)
 
 
 async def send_outbox_message(uid: int, m: dict) -> None:
