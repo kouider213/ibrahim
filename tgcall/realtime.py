@@ -15,6 +15,7 @@ import os
 import re
 import subprocess
 import time
+from pathlib import Path
 from typing import Awaitable, Callable
 
 import aiohttp
@@ -40,6 +41,42 @@ GUEST_TOOLS = {'web_search', 'end_call', 'call_back_later', 'leave_message', 'le
 NAMES = json.loads(os.environ.get('TG_SPEAKER_NAMES', '{}'))   # {"prénom": "Prénom (sa femme)"} dans .env : pas de prénoms dans le dépôt public
 OPENAI_OUT_S = 1800                # OpenAI sans crédit → on passe direct à Gemini Live pendant 30 min
 openai_out_until = 0.0
+# Limite gratuite Gemini Live atteinte → Kouider prévenu sur Telegram, voix de secours, nouvel essai toutes les heures,
+# et message quand la voix normale revient (Kouider 19/10).
+GEMINI_RETRY_S = 3600
+gemini_out_until = 0.0
+gemini_alerted = False
+LIMIT_RE = re.compile(r'quota|exhaust|resource|429|rate.?limit|limit', re.I)
+
+
+def notify_kouider(text: str) -> None:
+    """Message Telegram à Kouider via tgcall/outbox (envoyé par outbox_loop dans les 3 s)."""
+    try:
+        out = Path(__file__).parent / 'outbox'
+        out.mkdir(exist_ok=True)
+        (out / f'{int(time.time() * 1000)}-voix.txt').write_text(text, encoding='utf-8')
+    except Exception as e:
+        log.warning('message voix: %s', e)
+
+
+def gemini_failed(err: Exception) -> None:
+    global gemini_out_until, gemini_alerted
+    if not LIMIT_RE.search(str(err)):
+        return
+    gemini_out_until = time.monotonic() + GEMINI_RETRY_S
+    if not gemini_alerted:
+        gemini_alerted = True
+        log.warning('limite gratuite Gemini Live atteinte : %s', str(err)[:160])
+        notify_kouider('🔊 Limite gratuite de ma voix (Gemini) atteinte pour aujourd\'hui. Je passe sur ma voix de secours '
+                       '(un peu plus lente) : tout continue de marcher. Je réessaie toutes les heures et je te préviens '
+                       'dès que ma voix normale revient. Si tu recharges du crédit OpenAI, je l\'utilise aussi.')
+
+
+def gemini_ok() -> None:
+    global gemini_alerted
+    if gemini_alerted:
+        gemini_alerted = False
+        notify_kouider('🔊 Ma voix normale est revenue (crédit gratuit Gemini de nouveau dispo).')
 ROTATE = {90: 'transpose=1', 180: 'transpose=1,transpose=1', 270: 'transpose=2'}
 
 
@@ -111,12 +148,17 @@ class RealtimeCall:
         global openai_out_until
         res = None
         try:
+            if time.monotonic() < gemini_out_until:
+                raise RuntimeError('limite Gemini atteinte, nouvel essai plus tard')
             res = await self.api('/api/call/realtime-gemini', {}, self.actor, 20)
             self.ws = await GeminiLiveWS.connect(self.http, res)
             await self.ws.receive(timeout=8)   # session.created
             self.provider = 'gemini'
+            gemini_ok()
         except Exception as e:
             res = None
+            if time.monotonic() >= gemini_out_until:
+                gemini_failed(e)
             log.warning('Gemini Live indisponible (%s) → OpenAI', str(e)[:160])
             if time.monotonic() < openai_out_until:
                 raise RuntimeError('OpenAI sans crédit') from e
@@ -493,13 +535,16 @@ class RealtimeCall:
 async def speak(http: aiohttp.ClientSession, api: ApiFn, text: str, actor: str, voice: str | None = None) -> bytes:
     """Fait dire `text` par la voix des appels → PCM 24 kHz mono 16 bits. Gemini Live (gratuit) d'abord,
     OpenAI seulement pour essayer une de ses voix (« voix N ») ou si Gemini est en panne."""
-    if voice is None:
+    if voice is None and time.monotonic() >= gemini_out_until:
         try:
-            return await speak_gemini(http, api, text, actor)
+            pcm = await speak_gemini(http, api, text, actor)
+            gemini_ok()
+            return pcm
         except Exception as e:
+            gemini_failed(e)
             log.warning('voix Gemini pour le vocal: %s → OpenAI', str(e)[:160])
-        if time.monotonic() < openai_out_until:
-            raise RuntimeError('OpenAI sans crédit')
+    if time.monotonic() < openai_out_until:
+        raise RuntimeError('OpenAI sans crédit')
     res = await api('/api/call/realtime', {}, actor, 20)
     pcm = bytearray()
     async with http.ws_connect(
