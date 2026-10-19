@@ -18,7 +18,7 @@ const CONFIG_KEY = 'routine:config';
 const HISTORY_KEY = 'routine:history';
 const ACTIVE_KEY = 'kouider:last_active';
 const CALENDAR_FLAG = 'routine:calendar:v1';
-const DAYS_V2_FLAG = 'routine:days:v4';                 // v4 : tous les jours sauf jeudi réveil 6h40, départ 7h00 (Kouider 19/10)
+const DAYS_V2_FLAG = 'routine:days:v5';   // v5 : douche « famille » (dim/lun) séparée de « douche + petit-déj » (autres jours)                 // v4 : tous les jours sauf jeudi réveil 6h40, départ 7h00 (Kouider 19/10)
 const START_FLAG = 'routine:start:2026-10-19';          // sport à partir du lundi 19/10 : séries recréées après la pause
 const DAY_NAMES = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 const RRULE_DAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
@@ -314,7 +314,7 @@ export async function syncRoutineCalendar(cfg?: RoutineConfig): Promise<string> 
         desc: 'Temps de trajet salle → maison.' }, d);
       if (p.shower && p.eat) {
         const familyMeal = /famille/i.test(p.next ?? '');
-        add(`douche-${p.shower}-${p.eat}`, { title: familyMeal ? '🚿 Douche (puis petit-déj en famille)' : '🚿 Douche + 🍳 petit-déj',
+        add(`douche-${p.shower}-${p.eat}-${familyMeal ? 'famille' : 'seul'}`, { title: familyMeal ? '🚿 Douche (puis petit-déj en famille)' : '🚿 Douche + 🍳 petit-déj',
           start: p.shower, end: familyMeal ? p.eat : after(p.eat, 25), location: c.addresses.home, desc: `Ensuite : ${p.next ?? ''}` }, d);
       }
     } else if (p.kind === 'work' && p.wake && p.leave) {
