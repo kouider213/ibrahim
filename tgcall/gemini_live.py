@@ -37,6 +37,7 @@ class GeminiLiveWS:
         self.in_text = ''                      # transcription de Kouider en cours
         self.out_text = ''                     # transcription de Dzaryx en cours
         self.responding = False
+        self.closing = False
         self.reader = asyncio.create_task(self._read())
 
     @classmethod
@@ -75,6 +76,7 @@ class GeminiLiveWS:
         return self.ws.closed
 
     async def close(self) -> None:
+        self.closing = True
         self.reader.cancel()
         await self.ws.close()
 
@@ -178,7 +180,7 @@ class GeminiLiveWS:
         except Exception as e:
             log.warning('Gemini Live lecture: %s', e)
         finally:
-            if self.ws.close_code and self.ws.close_code != 1000:
+            if not self.closing and self.ws.close_code and self.ws.close_code != 1000:
                 log.warning('Gemini Live fermé : %s', self.ws.close_code)
             self.queue.put_nowait(None)
 
