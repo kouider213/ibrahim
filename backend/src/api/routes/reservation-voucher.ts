@@ -144,7 +144,7 @@ function buildVoucherPDF(d: VoucherData, ref: string, logo: Buffer | null): Prom
     doc.font('Helvetica-Bold').fontSize(8.5).fillColor(DARK)
       .text('FIK CONCIERGERIE', X, footY + 10, { continued: true })
       .font('Helvetica').fillColor(SUB)
-      .text('  —  Rue Derbouz Draoua, Houari, Oran 31300, Algérie');
+      .text('  —  Rue Derbouz Draoua Houari, Hay Badr, Oran 31300, Algérie');
     doc.font('Helvetica').fontSize(8.5).fillColor(SUB)
       .text('WhatsApp +32 466 31 14 69   ·   fikconciergerie.com   ·   Merci de votre confiance', X, footY + 23);
 

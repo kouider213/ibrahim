@@ -55,7 +55,7 @@ function buildQuotePDF(clientName: string, lines: Line[], ref: string): Promise<
     doc.moveDown(1);
     doc.font('Helvetica').fontSize(9).fillColor('#888')
       .text('Devis valable 7 jours. Pour confirmer, contactez-nous sur WhatsApp.', { align: 'center' })
-      .text('Fik Conciergerie — Rue Derbouz Draoua, Houari, Oran 31300', { align: 'center' });
+      .text('Fik Conciergerie — Rue Derbouz Draoua Houari, Hay Badr, Oran 31300', { align: 'center' });
     doc.end();
   });
 }
