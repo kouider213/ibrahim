@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-19 — Survie sans crédit : voix d'appel gratuite Gemini Live (49f0a7b, 363ee55, 5d41244)
+- Appels muets : crédit OpenAI épuisé, la socket temps réel s'ouvrait puis renvoyait l'erreur → l'appel ne basculait pas. Le 1er événement est maintenant vérifié.
+- Voix d'appel : OpenAI Realtime → **Gemini Live gratuit** (tgcall/gemini_live.py imite la socket OpenAI, `/api/call/realtime-gemini`, 1er son < 1 s, outils OK) → ancienne voix. OpenAI sauté 30 min après une erreur de crédit.
+- STT Groq → OpenAI → Google → Gemini ; voix ElevenLabs → Gemini → Google Traduction sans clé ; images OpenAI → Flux → Pollinations gratuit ; disjoncteur `integrations/credit-guard.ts`.
+- Vocaux Telegram : si la voix temps réel échoue, la même réponse est relue par /api/tts (avant : le cerveau était rappelé une 2e fois).
+
 ## 2026-10-18 — Assistant GPS (position en direct) + Clio 4 Essence / i10 à 25 €
 - Prix : Clio 4 Essence et i10 → 25 €/j client (Houari 16 €, marge 9 €), prix plancher retiré ; site, admin, partenaires, grille Dzaryx.
 - `integrations/presence.ts` (job `presence-watch` toutes les 5 min 5h–22h + à chaque position Telegram, ≤ 1/45 s) : lieux maison/salle/travail (adresses routine:config).
