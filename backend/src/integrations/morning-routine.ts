@@ -1,7 +1,7 @@
 import { kvGet, kvSet } from './app-store.js';
 import { createAnthropic, QUALITY } from './anthropic-compat.js';
 import { kouiderDossierText, kouiderDossierTool } from './kouider-dossier.js';
-import { createAgendaEvent, deleteAgendaEvent, listAgendaRange, shiftAgendaSeries, updateAgendaSeries } from './google-calendar.js';
+import { createAgendaEvent, deleteAgendaEvent, listAgendaRange, updateAgendaSeries } from './google-calendar.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { callOwner, getPendingCall } from '../notifications/voice-call.js';
@@ -18,7 +18,7 @@ const CONFIG_KEY = 'routine:config';
 const HISTORY_KEY = 'routine:history';
 const ACTIVE_KEY = 'kouider:last_active';
 const CALENDAR_FLAG = 'routine:calendar:v1';
-const DAYS_V2_FLAG = 'routine:days:v3';                 // séance 1h30 + trajets ; mar/ven/sam réveil 6h, Agence FIK 10h
+const DAYS_V2_FLAG = 'routine:days:v4';                 // v4 : tous les jours sauf jeudi réveil 6h40, départ 7h00 (Kouider 19/10)
 const START_FLAG = 'routine:start:2026-10-19';          // sport à partir du lundi 19/10 : séries recréées après la pause
 const DAY_NAMES = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 const RRULE_DAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
@@ -50,7 +50,9 @@ export interface RoutineConfig {
 // trajets Google Maps avec trafic (maison → salle ≈ 15-19 min, salle → maison ≈ 16-26 min à 8h, maison → travail 3 min).
 // v2 (Kouider) : séance de 1h30 ; aller 20 min et retour 25 min comptés et visibles dans l'agenda.
 // v3 (Kouider) : mar/ven/sam réveil 6h, départ 6h30 ; l'Agence FIK passe de 9h à 10h et le créneau libre du matin fait 1h (11h-12h).
-const SPORT_EARLY: DayPlan = { kind: 'sport', wake: '06:00', leave: '06:30', sport: ['06:50', '08:20'], shower: '08:45', eat: '09:05', next: '10:00 Agence FIK' };
+// v4 (Kouider 2026-10-19) : TOUS les jours sauf le jeudi, réveil 6h40 (café tranquille, il s'habille), départ 7h00 direct à la salle ;
+// tout le reste du matin est décalé derrière (sport 7h20-8h50, douche 9h15, petit-déj 9h35, Agence FIK 10h inchangée).
+const SPORT_DAY: DayPlan = { kind: 'sport', wake: '06:40', leave: '07:00', sport: ['07:20', '08:50'], shower: '09:15', eat: '09:35' };
 export const DEFAULT_CONFIG: RoutineConfig = {
   enabled: true,
   pausedUntil: null,
@@ -60,13 +62,13 @@ export const DEFAULT_CONFIG: RoutineConfig = {
     gym: 'Wemmel, Belgique',
   },
   days: [
-    { kind: 'sport', wake: '05:45', leave: '06:05', sport: ['06:25', '07:55'], shower: '08:20', eat: '08:45', next: '08:45 petit-déj en famille, 10:00 travail' },
-    { kind: 'sport', wake: '06:30', leave: '06:50', sport: ['07:10', '08:40'], shower: '09:05', eat: '09:30', next: '09:30 petit-déj en famille (jour de congé)' },
-    { ...SPORT_EARLY, next: '10:00 Agence FIK, 12:00 travail' },
-    { kind: 'sport', wake: '06:30', leave: '06:50', sport: ['07:10', '08:40'], shower: '09:05', eat: '09:25', next: '10:00 Agence FIK, 13:00 travail' },
+    { ...SPORT_DAY, next: '09:35 petit-déj en famille, 10:00 travail' },
+    { ...SPORT_DAY, next: '09:35 petit-déj en famille (jour de congé)' },
+    { ...SPORT_DAY, next: '10:00 Agence FIK, 12:00 travail' },
+    { ...SPORT_DAY, next: '10:00 Agence FIK, 13:00 travail' },
     { kind: 'work', wake: '05:15', shower: '05:20', eat: '05:40', leave: '06:15', next: '06:30 ouverture du magasin (Jette)' },
-    { ...SPORT_EARLY, next: '10:00 Agence FIK, 12:00 travail' },
-    { ...SPORT_EARLY, next: '10:00 Agence FIK, 12:00 travail' },
+    { ...SPORT_DAY, next: '10:00 Agence FIK, 12:00 travail' },
+    { ...SPORT_DAY, next: '10:00 Agence FIK, 12:00 travail' },
   ],
   family: 'sa femme et son fils',                    // prénoms : app_kv routine:config (privé)
   callAfterMin: 7,
@@ -222,30 +224,16 @@ async function sendWakeMessage(cfg: RoutineConfig, plan: DayPlan, date: string, 
   return text;
 }
 
-/** mar/ven/sam : « 🏢 Agence FIK » 9h → 10h (même durée) et « 🟢 Libre » du matin 10h → 11h (fin inchangée). */
-async function shiftMorningAgence(): Promise<string> {
-  const { date } = localNow();
-  const evs = await listAgendaRange(new Date(localTs(date, '00:00')).toISOString(), new Date(localTs(addDays(date, 8), '00:00')).toISOString(), 200) ?? [];
-  const done = new Set<string>(); const out: string[] = [];
-  for (const e of evs) {
-    if (!e.id || !e.start.dateTime) continue;
-    const t = localNow(new Date(e.start.dateTime).getTime());
-    if (![2, 5, 6].includes(t.weekday)) continue;
-    const agence = /Agence FIK/.test(e.summary ?? '') && t.hhmm === '09:00';
-    const libre = (e.summary ?? '').startsWith('🟢') && t.hhmm === '10:00';
-    if (!agence && !libre) continue;
-    const master = e.recurringEventId ?? e.id;
-    if (done.has(master)) continue;
-    done.add(master);
-    out.push(`${agence ? 'agence' : 'libre'}:${await shiftAgendaSeries(e.id, 60, agence ? 60 : 0, ['TU', 'FR', 'SA'])}`);
-  }
-  return out.join(' ') || 'rien à décaler';
-}
-
 // ── Tâche planifiée (toutes les 2 min, 4h–11h Bruxelles) ─────────────────────
 
 /** Une seule fois : séries de l'agenda recréées pour ne commencer qu'après la pause (sport à partir du lundi 19/10). */
 export async function ensureRoutineStart(): Promise<void> {
+  // Nouveaux horaires (v4) : appliqués une fois dès le prochain passage (departure-watch, toutes les 5 min, jour et soir)
+  if ((await kvGet(CALENDAR_FLAG).catch(() => '0')) === '1' && (await kvGet(DAYS_V2_FLAG).catch(() => '1')) !== '1') {
+    const r = await syncRoutineCalendar({ ...(await getRoutineConfig()), days: DEFAULT_CONFIG.days }).catch(e => String(e));
+    if (/^\d+\/\d+ séries/.test(r) && !r.startsWith('0/')) await kvSet(DAYS_V2_FLAG, '1');
+    console.log(`[routine] horaires v4 (réveil 6h40, départ 7h, sauf jeudi) : ${r}`);
+  }
   if ((await kvGet(START_FLAG).catch(() => '1')) === '1') return;
   const r = await syncRoutineCalendar().catch(e => String(e));
   if (/^\d+\/\d+ séries/.test(r) && !r.startsWith('0/')) await kvSet(START_FLAG, '1');
@@ -255,12 +243,6 @@ export async function ensureRoutineStart(): Promise<void> {
 export async function jobMorningRoutine(): Promise<void> {
   await ensureRoutineStart();
   if ((await kvGet(CALENDAR_FLAG).catch(() => '1')) !== '1') await setupRoutineCalendar().catch(e => console.error('[routine] agenda:', e));
-  else if ((await kvGet(DAYS_V2_FLAG).catch(() => '1')) !== '1') {
-    await kvSet(DAYS_V2_FLAG, '1');
-    const r = await syncRoutineCalendar({ ...(await getRoutineConfig()), days: DEFAULT_CONFIG.days }).catch(e => String(e));
-    const shifted = await shiftMorningAgence().catch(e => String(e));
-    console.log(`[routine] horaires v3 (1h30 + trajets, Agence 10h) : ${r} · ${shifted}`);
-  }
   const cfg = await getRoutineConfig();
   const { date, hhmm, weekday } = localNow();
   const plan = cfg.days[weekday];
