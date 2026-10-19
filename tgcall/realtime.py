@@ -90,6 +90,12 @@ class RealtimeCall:
         self.ws = await self.http.ws_connect(
             f"wss://api.openai.com/v1/realtime?model={res.get('model', 'gpt-realtime')}",
             headers={'Authorization': f"Bearer {res['key']}"}, heartbeat=20, max_msg_size=0)
+        # 1er événement = session.created, ou une erreur (19/10 : crédit OpenAI épuisé → la socket s'ouvre
+        # quand même, puis l'erreur arrive : sans ce contrôle l'appel restait muet au lieu de passer à l'ancienne voix)
+        first = await self.ws.receive(timeout=8)
+        ev = json.loads(first.data) if first.type == aiohttp.WSMsgType.TEXT else {'type': 'error', 'error': str(first.type)}
+        if ev.get('type') == 'error':
+            raise RuntimeError(ev.get('error'))
         self.tasks.append(asyncio.create_task(self._reader()))
         self.tasks.append(asyncio.create_task(self._sender()))
         self.full_instr, self.guest_instr = res.get('instructions') or '', res.get('guestInstructions') or ''
