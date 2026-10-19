@@ -3,13 +3,14 @@ import { Router } from 'express';
 import PDFDocument from 'pdfkit';
 import { supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
+import { getBrandInfo, type BrandInfo } from '../../integrations/brand-info.js';
 
 const router = Router();
 
 interface Line { label: string; amount: number; currency: string; }
 const sym = (c: string) => (c === 'EUR' ? 'EUR' : c === 'USD' ? 'USD' : 'DA');
 
-function buildQuotePDF(clientName: string, lines: Line[], ref: string): Promise<Buffer> {
+function buildQuotePDF(clientName: string, lines: Line[], ref: string, brand: BrandInfo): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margins: { top: 50, bottom: 50, left: 50, right: 50 } });
     const chunks: Buffer[] = [];
@@ -55,7 +56,8 @@ function buildQuotePDF(clientName: string, lines: Line[], ref: string): Promise<
     doc.moveDown(1);
     doc.font('Helvetica').fontSize(9).fillColor('#888')
       .text('Devis valable 7 jours. Pour confirmer, contactez-nous sur WhatsApp.', { align: 'center' })
-      .text('Fik Conciergerie — Rue Derbouz Draoua Houari, Hay Badr, Oran 31300', { align: 'center' });
+      .text(`Fik Conciergerie — ${brand.address}`, { align: 'center' })
+      .text([`WhatsApp ${brand.whatsapp}`, brand.phone && `Tél. Algérie ${brand.phone}`, brand.legal].filter(Boolean).join('  ·  '), { align: 'center' });
     doc.end();
   });
 }
@@ -66,7 +68,7 @@ router.post('/pdf', requireMobileAuth, async (req, res) => {
   if (valid.length === 0) { res.status(400).json({ error: 'au moins une ligne requise' }); return; }
   try {
     const ref = 'DEV-' + Date.now().toString(36).toUpperCase().slice(-6);
-    const buffer = await buildQuotePDF(client_name || 'Client', valid, ref);
+    const buffer = await buildQuotePDF(client_name || 'Client', valid, ref, await getBrandInfo());
     const path = `quotes/${ref}.pdf`;
     await supabase.storage.createBucket('client-documents', { public: true }).catch(() => {});
     const up = await supabase.storage.from('client-documents').upload(path, buffer, { contentType: 'application/pdf', upsert: true });

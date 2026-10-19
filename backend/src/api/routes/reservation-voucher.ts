@@ -4,6 +4,7 @@ import { Router } from 'express';
 import PDFDocument from 'pdfkit';
 import { supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
+import { getBrandInfo, type BrandInfo } from '../../integrations/brand-info.js';
 
 const router = Router();
 
@@ -46,7 +47,7 @@ interface VoucherData {
 
 type Row = [string, string] | [string, string, string];
 
-function buildVoucherPDF(d: VoucherData, ref: string, logo: Buffer | null): Promise<Buffer> {
+function buildVoucherPDF(d: VoucherData, ref: string, logo: Buffer | null, brand: BrandInfo): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margins: { top: 0, bottom: 50, left: 50, right: 50 } });
     const chunks: Buffer[] = [];
@@ -144,9 +145,9 @@ function buildVoucherPDF(d: VoucherData, ref: string, logo: Buffer | null): Prom
     doc.font('Helvetica-Bold').fontSize(8.5).fillColor(DARK)
       .text('FIK CONCIERGERIE', X, footY + 10, { continued: true })
       .font('Helvetica').fillColor(SUB)
-      .text('  —  Rue Derbouz Draoua Houari, Hay Badr, Oran 31300, Algérie');
+      .text(`  —  ${brand.address}${brand.legal ? `  ·  ${brand.legal}` : ''}`);
     doc.font('Helvetica').fontSize(8.5).fillColor(SUB)
-      .text('WhatsApp +32 466 31 14 69   ·   fikconciergerie.com   ·   Merci de votre confiance', X, footY + 23);
+      .text(`WhatsApp ${brand.whatsapp}${brand.phone ? `   ·   Tél. Algérie ${brand.phone}` : ''}   ·   fikconciergerie.com   ·   Merci de votre confiance`, X, footY + 23);
 
     doc.end();
   });
@@ -161,7 +162,7 @@ router.post('/pdf', requireMobileAuth, async (req, res) => {
     const ref = 'BON-' + Date.now().toString(36).toUpperCase().slice(-6);
     const data: VoucherData = { ...b, currency: b.currency || 'DZD' };
     const logo = await fetchLogoBuffer();
-    const buffer = await buildVoucherPDF(data, ref, logo);
+    const buffer = await buildVoucherPDF(data, ref, logo, await getBrandInfo());
     const path = `vouchers/${ref}.pdf`;
     await supabase.storage.createBucket('client-documents', { public: true }).catch(() => {});
     const up = await supabase.storage.from('client-documents').upload(path, buffer, { contentType: 'application/pdf', upsert: true });
