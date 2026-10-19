@@ -360,7 +360,7 @@ function VoucherCard(p: {
           Passeport et permis valides requis. Le passeport est conservé en lieu sûr pendant toute la durée de la location et restitué au retour du véhicule. Sans caution.
         </div>
         <div style={{ borderTop: '1px solid #ececef', marginTop: 18, paddingTop: 10, fontSize: 11, color: SUB }}>
-          <b style={{ color: '#15151b' }}>FIK CONCIERGERIE</b> — Rue Derbouz Draoua, Houari, Oran 31300, Algérie · Merci de votre confiance
+          <b style={{ color: '#15151b' }}>FIK CONCIERGERIE</b> — Rue Derbouz Draoua Houari, Hay Badr, Oran 31300, Algérie · Merci de votre confiance
         </div>
       </div>
     </div>
