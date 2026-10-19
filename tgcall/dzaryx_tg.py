@@ -94,8 +94,16 @@ class _RelayOnly:
     def __getattr__(self, name: str):
         return getattr(self._b, name)
 
+    def get_protocol(self):
+        # TG_VERSIONS=13.0.0,12.0.0 : versions du protocole d'appel annoncées à Telegram (vide = celles de ntgcalls)
+        p = self._b.get_protocol()
+        want = [v.strip() for v in os.environ.get('TG_VERSIONS', '').split(',') if v.strip()]
+        if want:
+            p.library_versions = want
+        return p
+
     async def connect_p2p(self, chat_id, servers, versions, p2p_allowed, *rest):
-        log.info('connexion appel : versions %s, %d serveurs relais', versions, len(servers or []))
+        log.info('connexion appel : versions %s, %d serveurs relais, paramètres %s', versions, len(servers or []), rest[:1])
         return await self._b.connect_p2p(chat_id, servers, versions, False, *rest)
 
 
