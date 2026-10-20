@@ -212,6 +212,7 @@ class GeminiLiveWS:
         finally:
             if not self.closing and self.ws.close_code and self.ws.close_code != 1000:
                 log.warning('Gemini Live fermé : %s %s', self.ws.close_code, self.close_reason)
+            self.watchdog.cancel()   # session morte (reconnexion ou fin d'appel) : sinon relance en boucle à vide (20/10)
             self.queue.put_nowait(None)
 
     async def _watch(self) -> None:

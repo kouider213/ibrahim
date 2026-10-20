@@ -32,7 +32,22 @@ const WMO_CODES: Record<number, { label: string; icon: string }> = {
   99: { label: 'Orage avec grêle',     icon: '🌩️' },
 };
 
+// Cache 10 min : Open-Meteo gratuit renvoie 429 quand brief + carte + autotest l'appellent ensemble (20/10 6h45)
+let oranCache: { at: number; data: WeatherData } | null = null;
+const ORAN_TTL_MS = 10 * 60_000;
+
 export async function getOranWeather(): Promise<WeatherData> {
+  if (oranCache && Date.now() - oranCache.at < ORAN_TTL_MS) return oranCache.data;
+  try {
+    oranCache = { at: Date.now(), data: await fetchOranWeather() };
+    return oranCache.data;
+  } catch (err) {
+    if (oranCache) return oranCache.data;   // dernière météo connue plutôt qu'une erreur
+    throw err;
+  }
+}
+
+async function fetchOranWeather(): Promise<WeatherData> {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${ORAN_LAT}&longitude=${ORAN_LON}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weathercode,is_day&timezone=Africa%2FAlgiers`;
   const { data } = await axios.get(url, { timeout: 5000 });
   const c = data.current;

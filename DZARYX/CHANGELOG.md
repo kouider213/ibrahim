@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-20 — Contrôle général : relance Gemini fantôme + météo en cache
+
+- tgcall/gemini_live.py : quand Gemini Live coupe (1011) et que l'appel se reconnecte, l'ancienne session gardait sa surveillance « Gemini ne répond pas → relance » active : boucle à vide toutes les 10 s pendant 2 h 30 après l'appel de 7h50 (911 lignes de log). La surveillance s'arrête maintenant quand la session se ferme.
+- backend web-search.ts : météo d'Oran en cache 10 min + dernière valeur connue si Open-Meteo renvoie 429 (autotest de 7h45 en rouge).
+
 ## 2026-10-20 — Visites du site : vrais visiteurs / nous / robots
 
 Le site (track.js, repo autolux-location 4c909e4) trie chaque visite dans page_views.visitor : « nous » = appareil qui a ouvert l'admin ou le lien ?moi=1 (retenu dans le navigateur), le serveur Dzaryx / PC cloud (45.9.190.54, + FIK_OWNER_IPS), ou un autre appareil sur la même connexion ce jour-là ; « robot » = Google, aperçus de liens, Jina, navigateurs pilotés. Pays via les en-têtes Vercel. Dzaryx envoie le bilan chaque soir à 21h (site-traffic.ts), le brief du matin et l'outil stats ne comptent plus que les vrais visiteurs.
