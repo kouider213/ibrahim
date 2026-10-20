@@ -344,6 +344,27 @@ class RealtimeCall:
                           'content': [{'type': 'input_text', 'text': note}]}})
         await self._send({'type': 'response.create'})
 
+    async def announce(self, info: str) -> bool:
+        """Un appel devait partir pendant qu'on est déjà en ligne : Dzaryx le glisse dans la conversation
+        (« ah attends, j'ai aussi une autre info… ») au lieu de rappeler après (Kouider 20/10).
+        False = pas dit (quelqu'un d'autre au téléphone, appel fini) → gardé pour plus tard."""
+        if self.closed or (self.guarded and self.who != 'kouider'):
+            return False
+        end = time.monotonic() + 30
+        while (self.responding or self.out) and time.monotonic() < end and not self.closed:   # on le laisse finir sa phrase
+            await asyncio.sleep(0.3)
+        await asyncio.sleep(1.2)
+        if self.closed:
+            return False
+        await self._send({'type': 'conversation.item.create', 'item': {'type': 'message', 'role': 'system', 'content': [
+            {'type': 'input_text', 'text': 'Tu devais appeler Kouider pour une autre info, mais vous êtes DÉJÀ en ligne : ne '
+             f'raccroche pas et ne propose pas de rappeler. Info : « {info} ».'}]}})
+        await self._send({'type': 'response.create', 'response': {'instructions':
+            'Enchaîne naturellement, par exemple : « Ah attends, j\'ai aussi une autre info pour toi : … », dis l\'info en une '
+            'ou deux phrases, puis reviens à ce dont vous parliez (« bon, on en était où ? »).'}})
+        log.info('info glissée dans l\'appel en cours : %r', info[:80])
+        return True
+
     async def learn_voice(self, name: str) -> str:
         name = (name or '').strip().split()[0].lower() if (name or '').strip() else ''
         if not name or name == speaker.OWNER:

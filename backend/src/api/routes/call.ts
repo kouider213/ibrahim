@@ -2,6 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import { extractBearerToken, validateToken } from '../../auth/tokens.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { answerCall, declineCall, getPendingCall, callOwner, type CallActor } from '../../notifications/voice-call.js';
+import { saveConversationTurn } from '../../integrations/supabase.js';
 import { processMessage } from '../../conversation/orchestrator.js';
 import { synthesizeVoice } from '../../notifications/dispatcher.js';
 import { DEFAULT_MEMBER, type OrgMember } from '../../orchestrator/org-resolver.js';
@@ -112,6 +113,22 @@ router.post('/retry', requireMobileAuth, async (req, res) => {
   await removeFromCallInbox(reason).catch(() => {});   // dit dans ce 2e essai
   const { id } = await callOwner(`Je te rappelle, tu n'avais pas décroché. ${reason}`, callActor(req));
   res.json({ ok: true, id });
+});
+
+// POST /api/call/merge { callId?, keep? } — un appel devait partir alors qu'on est DÉJÀ en ligne (tgcall) : on ne recompose pas,
+// le motif est rendu pour être dit dans l'appel en cours (« ah attends, j'ai aussi une autre info »). keep = pas pu le dire
+// (quelqu'un d'autre au téléphone…) → gardé pour son prochain appel.
+router.post('/merge', requireMobileAuth, async (req, res) => {
+  const { callId, keep } = req.body as { callId?: string; keep?: string };
+  const who = callActor(req);
+  if (keep) { if (who === 'kouider') await addToCallInbox(String(keep).slice(0, 600)).catch(() => {}); res.json({ ok: true }); return; }
+  const pending = await getPendingCall(who);
+  if (!pending || (callId && pending.id !== callId)) { res.json({ reason: null }); return; }
+  await declineCall(who, pending.id);
+  await removeFromCallInbox(pending.reason).catch(() => {});
+  saveConversationTurn(`voice_${who}`, 'assistant', `(Info dite pendant l'appel en cours) ${pending.reason}`, { call: true, call_id: pending.id })
+    .catch(() => {});
+  res.json({ reason: pending.reason });
 });
 
 // POST /api/call/missed { reason, why? } — appel de Dzaryx pas décroché : l'info est gardée pour le prochain appel de Kouider.

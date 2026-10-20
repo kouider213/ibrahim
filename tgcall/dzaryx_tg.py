@@ -770,13 +770,38 @@ async def poll_pending() -> None:
                 res = await api('/api/call/pending', {}, actor, 15)
                 for m in res.get('messages') or []:      # résultats arrivés après coup (mise à jour Nexus, écran du PC…), même en plein appel
                     asyncio.create_task(send_outbox_message(uid, m))
+                # déjà en ligne avec lui : on ne recompose pas après, Dzaryx le dit dans l'appel en cours (Kouider 20/10)
+                if res.get('call') and uid in active and res['call'].get('id') not in merging:
+                    merging.add(res['call']['id'])
+                    asyncio.create_task(merge_into_call(actor, uid, res['call']['id']))
                 # l'appel reste en attente côté serveur tant qu'on n'a pas composé : on le prend au tour suivant
-                if res.get('call') and uid not in active and time.monotonic() - call_ended.get(uid, -1e9) >= CALL_GAP_S:
+                elif res.get('call') and uid not in active and time.monotonic() - call_ended.get(uid, -1e9) >= CALL_GAP_S:
                     log.info('appel en attente pour %s → je compose', actor)
                     asyncio.create_task(start_call(actor, uid))
             except Exception as e:
                 log.warning('pending %s: %s', actor, e)
         await asyncio.sleep(POLL_S)
+
+
+merging: set[str] = set()
+
+
+async def merge_into_call(actor: str, user_id: int, call_id: str) -> None:
+    """Appel demandé pendant un appel en cours → l'info est dite dans cet appel (ou gardée), jamais un 2e appel."""
+    try:
+        reason = (await api('/api/call/merge', {'callId': call_id}, actor, 15)).get('reason')
+        if not reason:
+            return
+        st = active.get(user_id)
+        said = bool(st and st.rt and await st.rt.announce(strip_greeting(reason)))
+        if not said:   # ancienne voix / quelqu'un d'autre au téléphone / appel fini → gardé pour son prochain appel
+            await api('/api/call/merge', {'keep': strip_greeting(reason)}, actor, 15)
+            log.info('info gardée pour plus tard (pas dite dans l\'appel) : %r', reason[:80])
+    except Exception as e:
+        log.warning('info pendant l\'appel: %s', e)
+    finally:
+        await asyncio.sleep(120)
+        merging.discard(call_id)
 
 
 class _ErrorCollector(logging.Handler):

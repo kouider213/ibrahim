@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-20 — Pas de 2e appel pendant un appel : l'info est dite dans l'appel en cours
+
+Kouider : s'il est déjà en appel avec Dzaryx et qu'un rappel / appel programmé doit partir, Dzaryx ne doit pas le rappeler après mais dire « ah attends, j'ai aussi une autre info » dans l'appel en cours. tgcall : appel en attente pendant un appel actif → /api/call/merge (retire l'appel en attente, rend le motif) → RealtimeCall.announce() attend la fin de sa phrase puis glisse l'info et reprend la conversation. Pas possible (quelqu'un d'autre au téléphone, ancienne voix, appel fini) → gardé pour son prochain appel (keep).
+
 ## 2026-10-20 — Ne pas déranger, vraies playlists, Waze seulement, arrivée « pas prévue »
 
 Demandes de Kouider (captures Telegram du 20/10 à 7h41) :
