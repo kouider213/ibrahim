@@ -74,18 +74,14 @@ export async function nextJobForWorker(): Promise<BrowserJob | null> {
 }
 
 /** Worker : mise à jour (question → attente de Kouider, ou résultat final). */
-// Recherche de vol finie (air-algerie.ts) : dit s'il faut prévenir Kouider et avec quel texte (surveillance = seulement si le prix baisse)
-type FlightDoneHook = (task: string, text: string) => Promise<{ notify: boolean; text: string }>;
-let flightDoneHook: FlightDoneHook | null = null;
-export function setFlightDoneHook(fn: FlightDoneHook): void { flightDoneHook = fn; }
-
 export async function updateJobFromWorker(id: string, upd: { status: 'waiting' | 'done' | 'error'; text: string }): Promise<{ ok: boolean; notify: boolean; text: string }> {
   const list = await load();
   const j = list.find(x => x.id === id);
   if (!j || j.status === 'cancelled') return { ok: false, notify: false, text: upd.text };
   let notify = true, text = upd.text;
-  if (upd.status !== 'waiting' && flightDoneHook && j.task.startsWith('RECHERCHE DE VOL AIR ALGÉRIE')) {
-    try { ({ notify, text } = await flightDoneHook(j.task, upd.text)); } catch { /* on prévient quand même */ }
+  if (upd.status !== 'waiting' && j.task.startsWith('RECHERCHE DE VOL AIR ALGÉRIE')) {
+    // Surveillance de prix : air-algerie.ts dit s'il faut prévenir et avec quel texte (import tardif : air-algerie importe ce fichier)
+    try { ({ notify, text } = await (await import('./air-algerie.js')).flightSearchDone(j.task, upd.text)); } catch { /* on prévient quand même */ }
   }
   j.status = upd.status; touch(j);
   if (upd.status === 'waiting') {

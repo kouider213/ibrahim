@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { browserTaskTool, setFlightDoneHook } from './browser-relay.js';
+import { browserTaskTool } from './browser-relay.js';
 import { kvGet, kvSet } from './app-store.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { API_BASE } from './client-sites.js';
@@ -288,7 +288,7 @@ export async function jobFlightWatch(): Promise<void> {
 }
 
 /** Fin d'une recherche (appelé par browser-relay) → décide si on prévient Kouider, et avec quel texte. */
-setFlightDoneHook(async (task, text) => {
+export async function flightSearchDone(task: string, text: string): Promise<{ notify: boolean; text: string }> {
   const id = /\[SURVEILLANCE (\w+)\]/.exec(task)?.[1];
   if (!id) return { notify: true, text };
   const list = await loadWatches();
@@ -330,7 +330,7 @@ setFlightDoneHook(async (task, text) => {
   }
   await saveWatches(list);
   return head ? { notify: true, text: head + text } : { notify: false, text };
-});
+}
 
 export async function airAlgerieWatchTool(input: Record<string, unknown>): Promise<string> {
   const list = await loadWatches();
