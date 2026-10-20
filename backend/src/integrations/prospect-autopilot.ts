@@ -23,7 +23,8 @@ const SITE_URL       = 'https://fikconciergerie.com';
 const MODEL          = 'claude-sonnet-5-5';
 const DAILY_CAP      = 30;   // même limite que l'envoi manuel (au-delà Gmail classe la boîte en spam)
 const MAX_PER_DAY    = 15;
-const SEND_GAP_MS    = 20_000;
+// 1 mail toutes les 1 à 2 min (au hasard) : une rafale toutes les 20 s fait passer la boîte pour un robot
+const sendGap = () => new Promise(r => setTimeout(r, 60_000 + Math.random() * 60_000));
 const FOOTER         = '\n\n—\nVous ne souhaitez plus recevoir nos messages ? Répondez simplement « STOP ».';
 const EMAIL_RE       = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const STOP_RE        = /^\W*(stop\b|unsubscribe|désinscri|desinscri|retirez[- ]moi|توقف|إلغاء الاشتراك)|ne plus (me |m'|m’|nous )?(recevoir|contacter|écrire|ecrire|envoyer|solliciter|relancer)|ne pas (me |m'|m’|nous )?(re)?(contacter|solliciter|relancer)|retirez[- ](moi|nous|mon adresse)|(me|nous) (désinscrire|desinscrire|retirer de)/im;
@@ -497,7 +498,7 @@ export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<
         console.error(`[prospect-auto] envoi site ${p.email}:`, err instanceof Error ? err.message : err);
         failed.push(`${p.company} (${err instanceof Error ? err.message.slice(0, 60) : 'erreur'})`);
       }
-      await new Promise(r => setTimeout(r, SEND_GAP_MS));
+      await sendGap();
     }
     // Pas assez de commerces sans site (16/10 : 3 trouvés sur 4 → 6 mails au lieu de 7) : les places restantes vont à la conciergerie
     const sitesSent = sent.length;
@@ -516,7 +517,7 @@ export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<
       const ref = p.ref_code ?? newRefCode();
       const mail = await writeOutreach(p, site, trackedLink(p, ref));
       if (!mail) { failed.push(`${p.company} (texte non généré)`); continue; }
-      const { id, threadId } = await sendEmail('pro', { to: p.email!, subject: mail.subject, body: mail.body });
+      const { id, threadId } = await sendEmail('pro', { to: p.email!, subject: mail.subject, body: mail.body, cold: true });
       await updateProspect(p.id, {
         status: 'contacte', last_contacted_at: new Date().toISOString(), gmail_thread_id: threadId, last_subject: mail.subject,
         lang: mail.lang, last_sent_text: mail.body, ref_code: ref,
@@ -527,7 +528,7 @@ export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<
       console.error(`[prospect-auto] envoi ${p.email}:`, err instanceof Error ? err.message : err);
       failed.push(`${p.company} (${err instanceof Error ? err.message.slice(0, 60) : 'erreur'})`);
     }
-    if (i < batch.length - 1) await new Promise(r => setTimeout(r, SEND_GAP_MS));
+    if (i < batch.length - 1) await sendGap();
   }
   const sendErrors = failed.filter(f => !f.endsWith('(texte non généré)'));
   if (sendErrors.length) {
@@ -638,14 +639,14 @@ export async function runFollowUps(budget: number): Promise<string[]> {
       const inReplyTo = await getThreadLastMessageId('pro', p.gmail_thread_id!);
       const base = p.last_subject || 'FIK Conciergerie';
       const subject = /^re\s*:/i.test(base) ? base : `Re: ${base}`;
-      await sendEmail('pro', { to: p.email!, subject, body, reply: inReplyTo ? { threadId: p.gmail_thread_id!, inReplyTo } : undefined,
+      await sendEmail('pro', { to: p.email!, subject, body, reply: inReplyTo ? { threadId: p.gmail_thread_id!, inReplyTo } : undefined, cold: true,
         ...(isSite ? { fromName: 'Kouider - FIK Sites' } : {}) });
       await updateProspect(p.id, {
         followup_at: new Date().toISOString(), ref_code: ref,
         notes: [p.notes, `[${new Date().toISOString().slice(0, 10)}] Relance envoyée en ${langName(p.lang)}`].filter(Boolean).join('\n'),
       });
       lines.push(`• ${p.company}`);
-      await new Promise(r => setTimeout(r, SEND_GAP_MS));
+      await sendGap();
     } catch (err) {
       console.error(`[prospect-auto] relance ${p.email}:`, err instanceof Error ? err.message : err);
     }

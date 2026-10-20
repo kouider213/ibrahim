@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-20 — Démarchage séparé de contact@
+
+Les mails de démarchage (premiers mails + relances, conciergerie et FIK Sites) partent maintenant toujours de fikconciergerie@gmail.com, 1 toutes les 1 à 2 min au lieu de 20 s. contact@fikconciergerie.com (Zoho) ne sert plus qu'aux clients, aux réponses aux prospects qui ont répondu et aux mails de Kouider → Zoho ne voit plus de rafales et ne bloque plus.
+
 ## 2026-10-20 — Mails bloqués par Zoho (5.4.6)
 
 Depuis le 18/10, Zoho bloque l'envoi depuis contact@fikconciergerie.com (« Unusual sending activity ») : 31 mails de démarchage rejetés, et chaque rejet classait le prospect en « adresse invalide » (stop). `gmail.ts` : un rejet 5.4.6 de moins de 24 h → envoi depuis fikconciergerie@gmail.com. `prospect-autopilot.ts` : rejet Zoho ≠ adresse invalide → prospect remis dans la file (ou relance à refaire) + alerte Kouider avec le lien de déblocage. 31 prospects réparés en base.
