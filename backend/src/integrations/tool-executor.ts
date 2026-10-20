@@ -105,7 +105,7 @@ import { createGoalTool, listGoalsTool, updateGoalTool } from './goals.js';
 import { assignTaskTool, completeTaskTool, listTeamTasksTool } from './team-tasks.js';
 import { saveProcedureTool, listProceduresTool, deleteProcedureTool } from './procedures.js';
 import { browserTaskTool, browserReplyTool, browserStatusTool } from './browser-relay.js';
-import { airAlgerieSearchTool } from './air-algerie.js';
+import { airAlgerieSearchTool, airAlgerieWatchTool } from './air-algerie.js';
 import { generateRentalContract } from './generate-contract.js';
 import { exportBookingsToExcel } from './excel-export.js';
 // schedulerQueue removed — schedule_reminder now uses worker-only delivery (no BullMQ)
@@ -288,7 +288,7 @@ export async function executeTool(
 }
 
 const NEXUS_TOOLS = new Set(['ping_nexus', 'send_nexus_command', 'nexus_screenshot', 'wake_nexus', 'restart_nexus', 'update_nexus', 'nexus_full_status']);
-const CLOUD_TOOLS = new Set(['cloud_pc', 'watch_page', 'web_routine', 'browser_task', 'browser_reply', 'air_algerie_search']);   // PC cloud = connexions de Kouider
+const CLOUD_TOOLS = new Set(['cloud_pc', 'watch_page', 'web_routine', 'browser_task', 'browser_reply', 'air_algerie_search', 'air_algerie_watch']);   // PC cloud = connexions de Kouider
 const PC_TOOLS    = new Set(['pc_run_command', 'pc_open_file', 'pc_screenshot', 'pc_list_files', 'pc_read_file']);
 
 async function _dispatch(
@@ -574,6 +574,7 @@ async function _dispatch(
       case 'delete_procedure':           return await deleteProcedureTool(input);
       case 'browser_task':               return await browserTaskTool(input, sessionId);
       case 'air_algerie_search':         return await airAlgerieSearchTool(input, sessionId);
+      case 'air_algerie_watch':          return await airAlgerieWatchTool(input);
       case 'browser_reply':              return await browserReplyTool(input);
       case 'browser_status':             return await browserStatusTool();
       // ─── CONTRAT PDF (Phase 8.2) ───

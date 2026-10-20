@@ -50,6 +50,7 @@ import { jobMeetingPrep } from '../integrations/meeting-prep.js';
 import { jobIntentions } from '../integrations/intentions.js';
 import { jobGoals } from '../integrations/goals.js';
 import { jobBrowserWatch } from '../integrations/browser-relay.js';
+import { jobFlightWatch } from '../integrations/air-algerie.js';
 import { jobTeamTasks } from '../integrations/team-tasks.js';
 import { jobMemoryConsolidation } from '../integrations/memory-consolidation.js';
 import { jobPrivacyExpire } from '../integrations/privacy.js';
@@ -389,6 +390,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'flight-watch',
+    cron:  '3-59/10 * * * *',       // toutes les 10 min — surveillances de prix Air Algérie (air_algerie_search watch_hours)
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'browser-watch',
     cron:  '*/10 * * * *',          // toutes les 10 min — tâche du navigateur serveur bloquée → libérée + prévenu
     tz:    'Europe/Brussels',
@@ -531,6 +537,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'intentions':              async () => { await jobIntentions(); },
   'goals':                   async () => { await jobGoals(); },
   'browser-watch':           async () => { await jobBrowserWatch(); },
+  'flight-watch':            async () => { await jobFlightWatch(); },
   'team-tasks':              async () => { await jobTeamTasks(); },
   'memory-consolidation':    async () => { await jobMemoryConsolidation(); },
   'privacy-expire':          async () => { await jobPrivacyExpire(); },

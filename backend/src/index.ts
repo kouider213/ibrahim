@@ -70,6 +70,7 @@ import orchestratorRoutes  from './api/routes/orchestrator.js';
 import healthAiRoutes      from './api/routes/health-ai.js';
 import carsRoutes           from './api/routes/cars.js';
 import pdfRoutes            from './api/routes/pdf.js';
+import volRoutes            from './api/routes/vol.js';
 import locationRoutes       from './api/routes/location.js';
 import mapsRoutes           from './api/routes/maps.js';
 import ratesRoutes          from './api/routes/rates.js';
@@ -370,6 +371,7 @@ app.use('/api/orchestrator', apiLimiter, orchestratorRoutes);
 app.use('/api/health-ai',   apiLimiter, healthAiRoutes);
 // app.use('/api/whatsapp',     whatsappRoutes); // désactivé — réactiver + sécuriser (signature Meta + rate limit + dédup) avant de brancher
 app.use('/api/pdf',         pdfRoutes);
+app.use('/api/vol',         apiLimiter, volRoutes);   // lien court des fiches billet Air Algérie (public)
 app.use('/api/location',   apiLimiter, locationRoutes);
 app.use('/api/maps',       apiLimiter, mapsRoutes);
 app.use('/api/immo',      apiLimiter, immoRoutes);

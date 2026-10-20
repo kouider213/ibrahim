@@ -21,8 +21,7 @@ router.post('/next', requireWorker, async (_req, res) => {
 router.post('/update', requireWorker, async (req, res) => {
   const { id, status, text } = req.body as { id?: string; status?: string; text?: string };
   if (!id || !['waiting', 'done', 'error'].includes(String(status))) { res.status(400).json({ error: 'bad request' }); return; }
-  const ok = await updateJobFromWorker(id, { status: status as 'waiting' | 'done' | 'error', text: String(text ?? '').slice(0, 4000) });
-  res.json({ ok });
+  res.json(await updateJobFromWorker(id, { status: status as 'waiting' | 'done' | 'error', text: String(text ?? '').slice(0, 4000) }));
 });
 
 export default router;

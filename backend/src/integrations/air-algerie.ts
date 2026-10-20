@@ -1,4 +1,8 @@
-import { browserTaskTool } from './browser-relay.js';
+import { randomUUID } from 'crypto';
+import { browserTaskTool, setFlightDoneHook } from './browser-relay.js';
+import { kvGet, kvSet } from './app-store.js';
+import { emitProactive } from '../notifications/mobile-push.js';
+import { API_BASE } from './client-sites.js';
 
 // Recherche de vols AIR ALGÉRIE uniquement, dans le Chrome du PC cloud (browser_task) : aucune clé ni API.
 // Règles fixes de Kouider (2026-10-20) : départ Lille → Oran par défaut, et TOUJOURS UN SEUL bagage en soute
@@ -44,7 +48,21 @@ async function resultsUrl(p: { from: string; to: string; depart: string; ret: st
   } catch { return null; }
 }
 
-export async function airAlgerieSearchTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+/** GET /api/vol?f=LIL&t=ORN&d=AAAA-MM-JJ&r=AAAA-MM-JJ&a=2&c=0&i=0 → lien Air Algérie tout frais (celui du site expire). */
+export async function airAlgerieLink(q: Record<string, unknown>): Promise<string> {
+  const v = (k: string) => String(q[k] ?? '').trim();
+  const iata = (x: string, d: string) => /^[A-Za-z]{3}$/.test(x) ? x.toUpperCase() : d;
+  const num = (x: string, d: number) => /^\d$/.test(x) ? Number(x) : d;
+  const depart = v('d'), ret = v('r');
+  if (isDate(depart) && depart >= today() && (!ret || (isDate(ret) && ret >= depart))) {
+    const u = await resultsUrl({ from: iata(v('f'), 'LIL'), to: iata(v('t'), 'ORN'), depart, ret,
+      adults: Math.max(1, num(v('a'), 1)), children: num(v('c'), 0), infants: num(v('i'), 0) });
+    if (u) return u;
+  }
+  return SITE;
+}
+
+export async function airAlgerieSearchTool(input: Record<string, unknown>, sessionId?: string, watchTag = ''): Promise<string> {
   let depart = String(input['depart_date'] ?? '').trim();
   let ret = String(input['return_date'] ?? '').trim();
   const month = String(input['month'] ?? '').trim();               // AAAA-MM : « une date en janvier »
@@ -110,6 +128,10 @@ export async function airAlgerieSearchTool(input: Record<string, unknown>, sessi
     ? `${tripDays ? `aller-retour (${tripDays} jours sur place)` : 'aller simple'} ${from} → ${to}, départ n'importe quel jour de ${MOIS[Number(month.slice(5)) - 1]} ${month.slice(0, 4)}`
     : ret ? `aller-retour ${from} → ${to}, aller le ${fr(depart)}, retour le ${fr(ret)}` : `aller simple ${from} → ${to} le ${fr(depart)}`;
 
+  const watchHours = Math.round(Number(input['watch_hours'] ?? 0));
+  if (watchHours > 0 && !watchTag) return startWatch(input, sessionId, watchHours, `${trip}, ${pax}`);
+
+  const link = `${API_BASE()}/api/vol?f=${from}&t=${to}&a=${adults}&c=${children}&i=${infants}&d=AAAA-MM-JJ${tripDays ? '&r=AAAA-MM-JJ' : ''}`;
   const urls: string[] = [];
   for (const c of centers) {
     const u = await resultsUrl({ from, to, depart: c, ret: tripDays ? addDays(c, tripDays) : '', adults, children, infants });
@@ -126,7 +148,8 @@ export async function airAlgerieSearchTool(input: Record<string, unknown>, sessi
         urls.map((u, i) => `Semaine ${i + 1} : ${u}`).join('\n') + '\n';
 
   const task =
-    `RECHERCHE DE VOL AIR ALGÉRIE (uniquement Air Algérie — jamais un comparateur ni une autre compagnie).\n` +
+    `RECHERCHE DE VOL AIR ALGÉRIE (uniquement Air Algérie — jamais un comparateur ni une autre compagnie).${watchTag ? ' ' + watchTag : ''}\n` +
+    `BUT : le vol direct LE MOINS CHER possible.\n` +
     `Vol : ${trip}. Passagers : ${pax} (catégories déjà réglées dans les liens, ne les change pas).\n` +
     `BAGAGE : il faut TOUJOURS UN SEUL bagage en soute EN PLUS pour tout le groupe (1 au total, pas un par personne).\n` +
     `VOLS DIRECTS SEULEMENT : ne propose QUE des vols directs sans escale (aller ET retour), le moins cher parmi eux. Un vol avec escale ne compte jamais, ` +
@@ -153,12 +176,176 @@ export async function airAlgerieSearchTool(input: Record<string, unknown>, sessi
     `Captcha ou page bloquée → ask_kouider.\n` +
     `6. Juste avant done : reviens sur la page de la MEILLEURE option et laisse-y le vol aller proposé sélectionné (tarif Light cliqué) avec les vols retour visibles — ` +
     `une capture de cette page est envoyée à Kouider sur Telegram.\n` +
-    `Termine par done, en français, court : 🥇 meilleure option (dates, horaires, direct ou non) avec le PRIX TOTAL du groupe AVEC 1 bagage en soute ` +
-    `(détail : prix Light sans bagage + supplément bagage), puis les 2 autres ${tripDays ? 'combinaisons de dates' : 'dates'} moins chères (prix Light du groupe), et ce que tu n'as pas pu vérifier. Monnaie : celle du site (€).`;
+    `Termine par done, en français, avec EXACTEMENT cette fiche (texte simple, sans ** ni #, une info par ligne ; « non vérifié » si tu ne l'as pas vue) :\n` +
+    `🎫 FICHE BILLET — Air Algérie, vols directs\n` +
+    `✈️ Trajet : ${from} → ${to}, ${tripDays ? 'aller-retour' : 'aller simple'}\n` +
+    `👥 Passagers : ${pax}\n` +
+    `🧳 Bagages : 1 bagage en soute (23 kg) pour tout le groupe · bagage cabine : <ce que le site indique pour le tarif Light>\n` +
+    `🛫 Aller : <jour JJ/MM/AAAA>, <départ HH:MM> → <arrivée HH:MM>, vol <n° AH…>, direct, <durée>\n` +
+    (tripDays ? `🛬 Retour : <jour JJ/MM/AAAA>, <départ HH:MM> → <arrivée HH:MM>, vol <n° AH…>, direct, <durée>\n` +
+      `🗓️ Séjour : <nb> jours sur place\n` : '') +
+    `💶 PRIX TOTAL AVEC 1 BAGAGE : <montant> €\n` +
+    `   Détail : tarif Light sans bagage <montant> € pour le groupe + supplément bagage <montant> €` +
+    (n > 1 ? ` → réserver ${n - 1} passager(s) en Light + 1 en Economique Promo (2 réservations séparées)\n` +
+      `   Pour comparer, tout le groupe en Economique Promo (1 bagage chacun) : <montant> €\n` : `\n`) +
+    `🔗 Voir et réserver sur Air Algérie : ${link}  (remplace AAAA-MM-JJ par la date ${tripDays ? 'aller puis la date retour' : 'aller'} de la meilleure option)\n` +
+    `💡 Autres dates moins chères : <les 2 suivantes, dates + prix Light du groupe>\n` +
+    `⚠️ Non vérifié : <ce que tu n'as pas pu vérifier, ou « rien »>\n` +
+    `Monnaie : celle du site (€). Tous les prix = total du groupe, taxes incluses.`;
 
   const res = await browserTaskTool({ task }, sessionId);
   if (res.startsWith('⏳') || res.startsWith('❌')) return res;
   return `✈️ Recherche Air Algérie lancée sur le PC cloud : ${trip}, ${pax}, + 1 bagage en soute pour le groupe` +
     `${month ? '' : ', avec les dates à ±3 jours'}.${notes.length ? `\n⚠️ ${notes.join(' ; ')}.` : ''}\n` +
     `Je t'envoie le prix total + une capture du site sur Telegram dès que c'est fini${month ? ' (tout le mois : ~5 min)' : ''} ; tu peux regarder en direct : MON PC → PC cloud.`;
+}
+
+// ── Surveillance : « surveille pendant 3 jours / 1 semaine / 12 heures » ─────────────────────────────
+// La même recherche est relancée toutes les every_hours jusqu'à la fin (job « flight-watch »). Kouider n'est
+// prévenu (Telegram + app) qu'au 1er prix, quand le prix baisse, et à la fin (meilleur prix vu). app_kv `flight:watches`.
+interface FlightWatch {
+  id: string; label: string; input: Record<string, unknown>; sessionId?: string;
+  created_at: string; until: string; every_h: number; next_at: string; runs: number;
+  status: 'active' | 'done' | 'stopped';
+  best?: { price: number; at: string }; last_price?: number;
+  // La nuit (22h-7h, Paris) : on cherche sans déranger, et à 7h une recherche fraîche + récap de la nuit
+  night?: { runs: number; first?: number; low?: number; final?: boolean }; morning?: boolean;
+}
+const parisHour = () => Number(new Date().toLocaleString('en-GB', { timeZone: 'Europe/Paris', hour: '2-digit', hour12: false }));
+const isNight = () => { const h = parisHour(); return h >= 22 || h < 7; };
+const WKEY = 'flight:watches';
+async function loadWatches(): Promise<FlightWatch[]> {
+  try { return JSON.parse((await kvGet(WKEY)) ?? '[]') as FlightWatch[]; } catch { return []; }
+}
+const saveWatches = (l: FlightWatch[]) => kvSet(WKEY, JSON.stringify(l.slice(-20)));
+const tagOf = (id: string) => `[SURVEILLANCE ${id}]`;
+const euro = (x: number) => x.toFixed(2).replace('.', ',') + ' €';
+const whenFr = (iso: string) => new Date(iso).toLocaleString('fr-FR', { timeZone: 'Europe/Paris', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+/** Prix de la fiche (« PRIX TOTAL AVEC 1 BAGAGE : 403,20 € ») → 403.2 */
+export function fichePrice(text: string): number | null {
+  const m = /PRIX TOTAL AVEC 1 BAGAGE\s*:\s*([\d\s .,]+)\s*€/i.exec(text);
+  if (!m) return null;
+  const x = Number(m[1].replace(/[\s ]/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
+  return Number.isFinite(x) && x > 0 ? x : null;
+}
+
+async function startWatch(input: Record<string, unknown>, sessionId: string | undefined, hours: number, label: string): Promise<string> {
+  if (hours > 24 * 60) return '❌ Surveillance : 60 jours maximum.';
+  // Fréquence par défaut : toutes les 2 h sur une journée, 6 h sur une semaine, 12 h au-delà (chaque recherche coûte des crédits Claude)
+  const every = Math.max(1, Math.round(Number(input['every_hours'] ?? 0)) || (hours <= 24 ? 2 : hours <= 24 * 7 ? 6 : 12));
+  const list = await loadWatches();
+  if (list.filter(w => w.status === 'active').length >= 3) return '❌ Déjà 3 surveillances de vols en cours : arrête-en une d\'abord (air_algerie_watch stop).';
+  const now = new Date();
+  const { watch_hours: _h, every_hours: _e, ...search } = input;
+  const w: FlightWatch = { id: randomUUID().slice(0, 6), label, input: search, sessionId, created_at: now.toISOString(),
+    until: new Date(now.getTime() + hours * 3_600_000).toISOString(), every_h: every, next_at: now.toISOString(), runs: 0, status: 'active' };
+  list.push(w); await saveWatches(list);
+  const first = await runWatch(w);
+  await saveWatches((await loadWatches()).map(x => x.id === w.id ? w : x));
+  const runs = Math.max(1, Math.ceil(hours / every));
+  return `👀 Surveillance Air Algérie lancée (n° ${w.id}) : ${label}, + 1 bagage pour le groupe, vols directs.\n` +
+    `Je refais la recherche toutes les ${every} h jusqu'au ${whenFr(w.until)} (≈ ${runs} recherche${runs > 1 ? 's' : ''}). ` +
+    `Je t'envoie la fiche du 1er prix, puis je ne te préviens que si le prix BAISSE, et à la fin le meilleur prix vu. ` +
+    `La nuit (22h-7h) je cherche sans te déranger, et à 7h je t'envoie le récap de la nuit avec le vol le moins cher du moment.` +
+    (first ? '' : '\n⏳ Le navigateur est occupé : la 1re recherche part dans quelques minutes.');
+}
+
+/** Lance une recherche de la surveillance ; false si le navigateur est occupé (on réessaie au prochain passage). */
+async function runWatch(w: FlightWatch): Promise<boolean> {
+  const r = await airAlgerieSearchTool(w.input, w.sessionId, tagOf(w.id));
+  if (r.startsWith('⏳')) return false;
+  if (r.startsWith('❌') || r.startsWith('❓')) {
+    w.status = 'stopped';
+    emitProactive('✈️ Surveillance arrêtée', 'alert', `✈️ Surveillance Air Algérie ${w.label} arrêtée : ${r}`);
+    return true;
+  }
+  w.runs++;
+  w.next_at = new Date(Date.now() + w.every_h * 3_600_000).toISOString();
+  return true;
+}
+
+/** Job toutes les 10 min : relance les surveillances dues. */
+export async function jobFlightWatch(): Promise<void> {
+  const list = await loadWatches();
+  const now = new Date().toISOString();
+  let changed = false;
+  const h = parisHour();
+  for (const w of list) {
+    if (w.status !== 'active') continue;
+    if (w.night && !w.morning && h >= 7 && h < 12) {
+      // 7h : recherche fraîche, son résultat part avec le récap de la nuit
+      if (await runWatch(w)) w.morning = true;
+      changed = true; break;
+    }
+    if (w.next_at > now || w.morning) continue;
+    if (w.next_at >= w.until && !w.night) { w.status = 'done'; changed = true; continue; }   // filet : la dernière recherche n'a jamais répondu
+    if (w.next_at >= w.until) continue;   // fin pendant la nuit : on attend le récap de 7h
+    await runWatch(w); changed = true;
+    break;   // une seule recherche à la fois (un seul navigateur)
+  }
+  if (changed) await saveWatches(list);
+}
+
+/** Fin d'une recherche (appelé par browser-relay) → décide si on prévient Kouider, et avec quel texte. */
+setFlightDoneHook(async (task, text) => {
+  const id = /\[SURVEILLANCE (\w+)\]/.exec(task)?.[1];
+  if (!id) return { notify: true, text };
+  const list = await loadWatches();
+  const w = list.find(x => x.id === id);
+  if (!w) return { notify: true, text };
+  const price = fichePrice(text);
+  let final = w.status === 'active' && w.next_at >= w.until;
+  const prevBest = w.best?.price;
+  if (price) { w.last_price = price; if (!prevBest || price < prevBest) w.best = { price, at: new Date().toISOString() }; }
+  if (w.status === 'active' && !w.morning && isNight()) {
+    // Nuit : on note sans prévenir (récap à 7h)
+    const n = w.night ?? { runs: 0 };
+    n.runs++;
+    if (price) { n.first ??= prevBest ?? price; n.low = Math.min(n.low ?? price, price); }
+    if (final) n.final = true;
+    w.night = n;
+    await saveWatches(list);
+    return { notify: false, text };
+  }
+  let head = '';
+  if (w.morning) {
+    const n = w.night ?? { runs: 0 };
+    final = final || !!n.final;
+    const low = Math.min(n.low ?? Infinity, price ?? Infinity);
+    head = `🌅 Récap de la nuit — surveillance Air Algérie : ${n.runs} recherche${n.runs > 1 ? 's' : ''} pendant la nuit` +
+      (n.first && Number.isFinite(low) ? `, prix ${euro(n.first)} hier soir → ${price ? euro(price) : '?'} ce matin, le plus bas vu cette nuit : ${euro(low)}` : '') +
+      (price && n.first ? (price < n.first ? ` 📉 (−${euro(n.first - price)})` : price > n.first ? ` 📈 (+${euro(price - n.first)})` : ' (pas de changement)') : '') +
+      `.${final ? ` C'était la dernière recherche — meilleur prix vu sur toute la surveillance : ${w.best ? euro(w.best.price) : '?'}.` : ''}\nLe vol le moins cher ce matin :\n`;
+    w.night = undefined; w.morning = false;
+    if (final) w.status = 'done';
+  } else if (final || w.status !== 'active') {
+    w.status = w.status === 'active' ? 'done' : w.status;
+    head = `🏁 Fin de la surveillance Air Algérie (${w.runs} recherche${w.runs > 1 ? 's' : ''}) — ` +
+      (w.best ? `meilleur prix vu : ${euro(w.best.price)} (${whenFr(w.best.at)})` : 'aucun prix trouvé') + `.\nDernier relevé :\n`;
+  } else if (price && !prevBest) {
+    head = `👀 Surveillance Air Algérie — 1er prix. Je te repréviens seulement s'il baisse (jusqu'au ${whenFr(w.until)}, toutes les ${w.every_h} h).\n`;
+  } else if (price && prevBest && price < prevBest) {
+    head = `📉 PRIX EN BAISSE : ${euro(price)} au lieu de ${euro(prevBest)} (−${euro(prevBest - price)}) !\n`;
+  }
+  await saveWatches(list);
+  return head ? { notify: true, text: head + text } : { notify: false, text };
+});
+
+export async function airAlgerieWatchTool(input: Record<string, unknown>): Promise<string> {
+  const list = await loadWatches();
+  const action = String(input['action'] ?? 'list');
+  if (action === 'stop') {
+    const id = String(input['id'] ?? '').trim();
+    const act = list.filter(w => w.status === 'active' && (!id || w.id === id || id === 'all'));
+    if (!act.length) return 'Aucune surveillance de vol en cours.';
+    if (act.length > 1 && !id) return `Laquelle arrêter ? ${act.map(w => `n° ${w.id} (${w.label})`).join(' ; ')} — ou id « all ».`;
+    act.forEach(w => { w.status = 'stopped'; });
+    await saveWatches(list);
+    return `🛑 Surveillance arrêtée : ${act.map(w => `${w.label}${w.best ? ` — meilleur prix vu ${euro(w.best.price)}` : ''}`).join(' ; ')}.`;
+  }
+  const act = list.filter(w => w.status === 'active');
+  if (!act.length) return 'Aucune surveillance de vol en cours.';
+  return act.map(w => `👀 n° ${w.id} : ${w.label} — toutes les ${w.every_h} h jusqu'au ${whenFr(w.until)}, ${w.runs} recherche(s), ` +
+    `${w.best ? `meilleur prix ${euro(w.best.price)}, dernier ${euro(w.last_price ?? w.best.price)}` : 'pas encore de prix'}, prochaine ${whenFr(w.next_at)}.`).join('\n');
 }

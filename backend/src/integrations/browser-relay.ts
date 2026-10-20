@@ -74,10 +74,19 @@ export async function nextJobForWorker(): Promise<BrowserJob | null> {
 }
 
 /** Worker : mise à jour (question → attente de Kouider, ou résultat final). */
-export async function updateJobFromWorker(id: string, upd: { status: 'waiting' | 'done' | 'error'; text: string }): Promise<boolean> {
+// Recherche de vol finie (air-algerie.ts) : dit s'il faut prévenir Kouider et avec quel texte (surveillance = seulement si le prix baisse)
+type FlightDoneHook = (task: string, text: string) => Promise<{ notify: boolean; text: string }>;
+let flightDoneHook: FlightDoneHook | null = null;
+export function setFlightDoneHook(fn: FlightDoneHook): void { flightDoneHook = fn; }
+
+export async function updateJobFromWorker(id: string, upd: { status: 'waiting' | 'done' | 'error'; text: string }): Promise<{ ok: boolean; notify: boolean; text: string }> {
   const list = await load();
   const j = list.find(x => x.id === id);
-  if (!j || j.status === 'cancelled') return false;
+  if (!j || j.status === 'cancelled') return { ok: false, notify: false, text: upd.text };
+  let notify = true, text = upd.text;
+  if (upd.status !== 'waiting' && flightDoneHook && j.task.startsWith('RECHERCHE DE VOL AIR ALGÉRIE')) {
+    try { ({ notify, text } = await flightDoneHook(j.task, upd.text)); } catch { /* on prévient quand même */ }
+  }
   j.status = upd.status; touch(j);
   if (upd.status === 'waiting') {
     j.question = upd.text;
@@ -86,11 +95,11 @@ export async function updateJobFromWorker(id: string, upd: { status: 'waiting' |
       'Ou fais-le toi-même : touche « Regarder » → MON PC → PC cloud (même navigateur), puis dis-moi « continue ».', j.owner, 'nexus-cloud');
   } else {
     j.result = upd.text;
-    emitProactive(`🌐 ${upd.status === 'done' ? 'Terminé' : 'Erreur'} : ${j.task.slice(0, 60)}`, upd.status === 'done' ? 'info' : 'alert',
-      `🌐 Navigateur — « ${j.task} »\n\n${upd.text}`, j.owner, 'nexus-cloud');
+    if (notify) emitProactive(`🌐 ${upd.status === 'done' ? 'Terminé' : 'Erreur'} : ${j.task.slice(0, 60)}`, upd.status === 'done' ? 'info' : 'alert',
+      `🌐 Navigateur — « ${j.task.split('\n')[0]} »\n\n${text}`, j.owner, 'nexus-cloud');
   }
   await save(list);
-  return true;
+  return { ok: true, notify, text };
 }
 
 /** Tâche bloquée (worker arrêté pendant « running » > 20 min) → erreur, pour libérer la file. */

@@ -2446,7 +2446,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'air_algerie_search',
-    description: "CHERCHER UN VOL PAS CHER AIR ALGÉRIE (uniquement Air Algérie, site officiel, dans le Chrome du PC cloud : aucune clé). Règles fixes de Kouider : VOLS DIRECTS seulement (le moins cher sans escale), départ LILLE (LIL) → ORAN (ORN) par défaut, et TOUJOURS UN SEUL bagage en soute EN PLUS pour tout le groupe (1 au total, quel que soit le nombre de passagers) — le prix rendu l'inclut. Ne réserve et ne paie jamais. Dates : depart_date (+ return_date ou stay_days) → regarde ±3 jours autour ; « une date en janvier », « le moins cher en février » → month (AAAA-MM) + stay_days (jours sur place) ou one_way=true — si Kouider ne l'a pas dit, DEMANDE-lui aller simple ou combien de jours. PASSAGERS : mets passengers = la liste des ÂGES qu'il donne (« moi 24, ma femme 25 et mon fils 1 an » → [24, 25, 1]) ou des dates de naissance AAAA-MM-JJ : l'outil choisit tout seul adulte (12 ans+) / enfant (2-11) / bébé (moins de 2). N'utilise adults/children/infants que s'il ne donne pas d'âges. from/to en code IATA seulement si Kouider dit une autre ville. Le résultat arrive sur Telegram/app.",
+    description: "CHERCHER UN VOL PAS CHER AIR ALGÉRIE (uniquement Air Algérie, site officiel, dans le Chrome du PC cloud : aucune clé). Règles fixes de Kouider : VOLS DIRECTS seulement (le moins cher sans escale), départ LILLE (LIL) → ORAN (ORN) par défaut, et TOUJOURS UN SEUL bagage en soute EN PLUS pour tout le groupe (1 au total, quel que soit le nombre de passagers) — le prix rendu l'inclut. Ne réserve et ne paie jamais. Dates : depart_date (+ return_date ou stay_days) → regarde ±3 jours autour ; « une date en janvier », « le moins cher en février » → month (AAAA-MM) + stay_days (jours sur place) ou one_way=true — si Kouider ne l'a pas dit, DEMANDE-lui aller simple ou combien de jours. PASSAGERS : mets passengers = la liste des ÂGES qu'il donne (« moi 24, ma femme 25 et mon fils 1 an » → [24, 25, 1]) ou des dates de naissance AAAA-MM-JJ : l'outil choisit tout seul adulte (12 ans+) / enfant (2-11) / bébé (moins de 2). N'utilise adults/children/infants que s'il ne donne pas d'âges. from/to en code IATA seulement si Kouider dit une autre ville. Le résultat arrive sur Telegram/app : fiche billet complète (passagers, dates, horaires, n° de vol, bagages, prix détaillé) + capture du site + lien pour réserver. SURVEILLANCE : « surveille / cherche pendant 3 jours, 1 semaine, 12 heures… » → mêmes paramètres + watch_hours (durée totale en heures : 12 h → 12, 3 jours → 72, 1 semaine → 168, 2 semaines → 336) et every_hours s'il dit la fréquence (« toutes les 4 heures ») : la recherche est relancée jusqu'à la fin, Kouider n'est prévenu qu'au 1er prix, quand le prix baisse et à la fin ; la nuit (22h-7h) aucune alerte, et à 7h il reçoit le récap de la nuit + la fiche du moins cher du moment. « Cherche cette nuit et dis-moi demain matin » → watch_hours = heures d'ici demain 7h. Voir/arrêter : air_algerie_watch.",
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -2458,9 +2458,19 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
         passengers: { type: 'array', items: { type: 'string' }, description: 'âge de chaque passager (« 24 », « 1 ») ou date de naissance AAAA-MM-JJ' },
         adults: { type: 'number' }, children: { type: 'number' }, infants: { type: 'number' },
         from: { type: 'string', description: 'code IATA, défaut LIL (Lille)' }, to: { type: 'string', description: 'code IATA, défaut ORN (Oran)' },
+        watch_hours: { type: 'number', description: 'SURVEILLANCE : durée totale en heures (3 jours = 72, 1 semaine = 168)' },
+        every_hours: { type: 'number', description: 'SURVEILLANCE : toutes les combien d\'heures (défaut 2 h sur 1 jour, 6 h sur 1 semaine, 12 h au-delà)' },
       },
       required: [],
     },
+  },
+  {
+    name: 'air_algerie_watch',
+    description: "Voir ou ARRÊTER les surveillances de prix Air Algérie (lancées avec air_algerie_search + watch_hours) : « où en est la surveillance du vol ? », « arrête de surveiller les vols ».",
+    input_schema: { type: 'object' as const, properties: {
+      action: { type: 'string', enum: ['list', 'stop'] },
+      id: { type: 'string', description: 'n° de la surveillance (stop) ; « all » = toutes' },
+    }, required: ['action'] },
   },
   {
     name: 'browser_reply',
