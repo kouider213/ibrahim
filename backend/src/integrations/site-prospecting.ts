@@ -222,7 +222,7 @@ export async function writeSiteOutreach(p: Prospect): Promise<{ subject: string;
 export async function sendSiteOutreach(p: Prospect): Promise<string | null> {
   const mail = await writeSiteOutreach(p);
   if (!mail) return null;
-  const { id, threadId } = await sendEmail(ACCOUNT, { to: p.email!, subject: mail.subject, body: mail.body, fromName: FROM_NAME, cold: true });
+  const { id, threadId } = await sendEmail(ACCOUNT, { to: p.email!, subject: mail.subject, body: mail.body, fromName: FROM_NAME });
   await updateProspect(p.id, {
     status: 'contacte', last_contacted_at: new Date().toISOString(), gmail_thread_id: threadId, last_subject: mail.subject,
     lang: mail.lang, last_sent_text: mail.body, notes: addNote(p, `Démarchage site web envoyé (proposition de démo, gmail ${id})`),

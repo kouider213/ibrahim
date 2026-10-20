@@ -517,7 +517,7 @@ export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<
       const ref = p.ref_code ?? newRefCode();
       const mail = await writeOutreach(p, site, trackedLink(p, ref));
       if (!mail) { failed.push(`${p.company} (texte non généré)`); continue; }
-      const { id, threadId } = await sendEmail('pro', { to: p.email!, subject: mail.subject, body: mail.body, cold: true });
+      const { id, threadId } = await sendEmail('pro', { to: p.email!, subject: mail.subject, body: mail.body });
       await updateProspect(p.id, {
         status: 'contacte', last_contacted_at: new Date().toISOString(), gmail_thread_id: threadId, last_subject: mail.subject,
         lang: mail.lang, last_sent_text: mail.body, ref_code: ref,
@@ -639,7 +639,7 @@ export async function runFollowUps(budget: number): Promise<string[]> {
       const inReplyTo = await getThreadLastMessageId('pro', p.gmail_thread_id!);
       const base = p.last_subject || 'FIK Conciergerie';
       const subject = /^re\s*:/i.test(base) ? base : `Re: ${base}`;
-      await sendEmail('pro', { to: p.email!, subject, body, reply: inReplyTo ? { threadId: p.gmail_thread_id!, inReplyTo } : undefined, cold: true,
+      await sendEmail('pro', { to: p.email!, subject, body, reply: inReplyTo ? { threadId: p.gmail_thread_id!, inReplyTo } : undefined,
         ...(isSite ? { fromName: 'Kouider - FIK Sites' } : {}) });
       await updateProspect(p.id, {
         followup_at: new Date().toISOString(), ref_code: ref,

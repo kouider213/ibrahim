@@ -372,15 +372,13 @@ export async function proSenderAddress(): Promise<string> {
 }
 
 export async function sendEmail(
-  account: GmailAccount, mail: { to: string; subject: string; body: string; reply?: ThreadRef; replyTo?: string; fromName?: string; cold?: boolean },
+  account: GmailAccount, mail: { to: string; subject: string; body: string; reply?: ThreadRef; replyTo?: string; fromName?: string },
 ): Promise<{ id: string; threadId: string }> {
   const address = gmailAddress(account);
   if (!(await canSendEmail(account))) throw new GmailSendNotAllowedError(address);
   const token = await getGmailToken(address);
   if (!token) throw new GmailNotConnectedError(address);
-  // cold : démarchage à des inconnus → toujours depuis l'adresse Gmail. Zoho bloquait contact@ chaque matin
-  // à cause de ces séries (18-20/10) ; contact@ reste réservée aux clients et aux mails de Kouider.
-  const sender = account === 'pro' && !mail.cold ? await proSenderAddress() : address;
+  const sender = account === 'pro' ? await proSenderAddress() : address;
   // fromName : nom affiché (ex. démarchage sites web) — ASCII simple, sinon nom par défaut
   const name = mail.fromName && /^[A-Za-z0-9 .\-]{2,40}$/.test(mail.fromName) ? mail.fromName : SENDER_NAME;
   const from = account === 'pro' ? `${name} <${sender}>` : address;
