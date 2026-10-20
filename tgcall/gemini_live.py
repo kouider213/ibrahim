@@ -9,6 +9,7 @@ import asyncio
 import base64
 import json
 import logging
+import time
 from array import array
 
 import aiohttp
@@ -29,6 +30,7 @@ def to16k(pcm24k: bytes) -> bytes:
 
 
 NOTE = '[Note interne, ne la lis pas à voix haute] '
+STALL_S = 4.0   # il a parlé (transcrit) mais Gemini ne répond pas depuis 4 s → on le relance (appel muet du 20/10 6h40)
 
 
 class _Msg:
@@ -48,18 +50,25 @@ class GeminiLiveWS:
         self.out_text = ''                     # transcription de Dzaryx en cours
         self.responding = False
         self.closing = False
+        self.barged = False                    # « il parle » déjà signalé pour cette phrase
+        self.heard_at = 0.0                    # dernier morceau de sa phrase transcrit
+        self.close_reason = ''
         self.reader = asyncio.create_task(self._read())
+        self.watchdog = asyncio.create_task(self._watch())
 
     @classmethod
     async def connect(cls, http: aiohttp.ClientSession, res: dict) -> 'GeminiLiveWS':
         ws = await http.ws_connect(URL.format(key=res['key']), heartbeat=20, max_msg_size=0)
+        gen = {
+            'responseModalities': ['AUDIO'],
+            'speechConfig': {'voiceConfig': {'prebuiltVoiceConfig': {'voiceName': res.get('voice') or 'Charon'}},
+                             'languageCode': 'fr-FR'},
+        }
+        if '2.5' in res['model']:   # sans « réflexion » : ~1 s de moins avant chaque réponse (testé 20/10 : 3,7 s → 2 s)
+            gen['thinkingConfig'] = {'thinkingBudget': 0}
         setup = {
             'model': res['model'],
-            'generationConfig': {
-                'responseModalities': ['AUDIO'],
-                'speechConfig': {'voiceConfig': {'prebuiltVoiceConfig': {'voiceName': res.get('voice') or 'Charon'}},
-                                 'languageCode': 'fr-FR'},
-            },
+            'generationConfig': gen,
             'systemInstruction': {'parts': [{'text': res.get('instructions') or ''}]},
             'tools': [{'functionDeclarations': res.get('tools') or []}],
             'realtimeInputConfig': {'automaticActivityDetection': {
@@ -88,6 +97,7 @@ class GeminiLiveWS:
     async def close(self) -> None:
         self.closing = True
         self.reader.cancel()
+        self.watchdog.cancel()
         await self.ws.close()
 
     async def receive(self, timeout: float | None = None) -> _Msg:
@@ -148,17 +158,27 @@ class GeminiLiveWS:
             self._put({'type': 'input_audio_buffer.committed'})
             self._put({'type': 'conversation.item.input_audio_transcription.completed', 'transcript': self.in_text.strip()})
         self.in_text = ''
+        self.barged = False
 
     async def _read(self) -> None:
         try:
-            async for msg in self.ws:
+            while True:
+                msg = await self.ws.receive()
                 if msg.type not in (aiohttp.WSMsgType.TEXT, aiohttp.WSMsgType.BINARY):
+                    if msg.type == aiohttp.WSMsgType.CLOSE:
+                        self.close_reason = str(msg.extra or '')[:200]
                     break
                 ev = json.loads(msg.data)
                 sc = ev.get('serverContent')
                 if sc:
                     if sc.get('inputTranscription', {}).get('text'):
                         self.in_text += sc['inputTranscription']['text']
+                        self.heard_at = time.monotonic()
+                        # Gemini ne signale qu'il parle (« interrupted ») que pendant qu'il génère ; or sa réponse est
+                        # générée bien plus vite qu'elle n'est jouée → sans ça, Kouider ne pouvait pas couper Dzaryx
+                        if not self.responding and not self.barged:
+                            self.barged = True
+                            self._put({'type': 'input_audio_buffer.speech_started'})
                     if sc.get('interrupted'):
                         self._flush_input()
                         self._put({'type': 'input_audio_buffer.speech_started'})
@@ -191,8 +211,19 @@ class GeminiLiveWS:
             log.warning('Gemini Live lecture: %s', e)
         finally:
             if not self.closing and self.ws.close_code and self.ws.close_code != 1000:
-                log.warning('Gemini Live fermé : %s', self.ws.close_code)
+                log.warning('Gemini Live fermé : %s %s', self.ws.close_code, self.close_reason)
             self.queue.put_nowait(None)
+
+    async def _watch(self) -> None:
+        """Kouider a parlé (transcrit) mais Gemini ne répond pas (bruit de fond qui empêche de détecter la fin
+        de sa phrase ?) → on lui dit de répondre, plutôt qu'un silence d'une minute."""
+        while True:
+            await asyncio.sleep(0.5)
+            if (self.in_text.strip() and not self.responding and not self.pending_tools and not self.tool_names
+                    and time.monotonic() - self.heard_at > STALL_S):
+                log.warning('Gemini ne répond pas à %r → relance', self.in_text.strip()[:80])
+                self.heard_at = time.monotonic() + 6   # une relance, pas une rafale
+                await self._text(NOTE + 'Il a fini de parler : réponds-lui maintenant.', True)
 
     def _end_turn(self) -> None:
         if self.out_text.strip():

@@ -35,6 +35,11 @@ SEND_EVERY_S = 0.1                 # voix de Kouider envoyée à OpenAI par paqu
 VIDEO_FRESH_S = 2.0                # image caméra considérée « en direct » si reçue il y a moins de 2 s
 VIDEO_EVERY_S = 3.0                # au plus une image caméra envoyée à OpenAI toutes les 3 s
 CHECK_EVERY_S = 4.0                # voix re-vérifiée toutes les 4 s de parole (téléphone passé à quelqu'un d'autre ?)
+BARGE_RMS = int(os.environ.get('BARGE_RMS', '1800'))   # pendant que Dzaryx parle, seule une voix forte passe (anti-écho)
+ECHO_RATIO = 0.5                   # … et plus forte que la moitié de la voix de Dzaryx qui sort (l'écho est bien plus faible)
+ECHO_TAIL_S = 0.8                  # l'écho revient encore ~0,5 s après la dernière tranche jouée
+BARGE_OPEN_S = 1.5                 # voix forte entendue → on laisse tout passer 1,5 s (il coupe la parole)
+RECONNECTS = 3                     # coupures Gemini Live (1007 le 20/10) → nouvelle session, l'appel continue
 VOICE_KEEP_S = 30                  # au plus 30 s de sa voix gardées (vérification + apprentissage en fin d'appel)
 # Outils permis quand ce n'est PAS Kouider (sa femme, un proche, un inconnu) : rien qui touche à ses affaires
 GUEST_TOOLS = {'web_search', 'end_call', 'call_back_later', 'leave_message', 'learn_voice', 'verify_code'}
@@ -125,6 +130,10 @@ class RealtimeCall:
         self.guest_instr = ''
         self.held_greeting = ''           # ce que Dzaryx devait dire (motif / messages en attente) : seulement à Kouider
         self.held_outgoing = False
+        self.play_until = 0.0             # Dzaryx est audible au téléphone jusqu'à… (écho possible)
+        self.open_until = 0.0             # anti-écho ouvert (Kouider parle par-dessus) jusqu'à…
+        self.out_env = 0.0                # volume récent de la voix de Dzaryx jouée (pic qui retombe en ~1 s)
+        self.reconnects = 0
 
     # ── Connexion ────────────────────────────────────────────────────────────
     async def _connect_openai(self) -> dict:
@@ -217,10 +226,20 @@ class RealtimeCall:
     # ── Voix de Kouider → OpenAI ─────────────────────────────────────────────
     def feed(self, pcm24k: bytes) -> None:
         self.n_in += 1
-        if self.n_in % 10 == 0:
-            self.rms_max = max(self.rms_max, audioop.rms(pcm24k, 2))
-        self.inp.extend(pcm24k)
+        rms = audioop.rms(pcm24k, 2)
+        self.rms_max = max(self.rms_max, rms)
         self.voice.extend(pcm24k); self.win.extend(pcm24k)
+        # Anti-écho (20/10 : Gemini entendait sa propre voix revenir du téléphone, se coupait et se répondait —
+        # « tu t'écoutes ») : pendant que Dzaryx parle, le faible retour du haut-parleur est remplacé par du silence.
+        now = time.monotonic()
+        if self.out:
+            self.play_until = now + ECHO_TAIL_S
+        if self.provider == 'gemini' and now < self.play_until and now >= self.open_until:
+            if rms >= max(BARGE_RMS, ECHO_RATIO * self.out_env):
+                self.open_until = now + BARGE_OPEN_S
+            else:
+                pcm24k = bytes(len(pcm24k))
+        self.inp.extend(pcm24k)
         cap = VOICE_KEEP_S * IN_RATE * 2
         if len(self.voice) > cap:
             del self.voice[:len(self.voice) - cap]
@@ -396,8 +415,10 @@ class RealtimeCall:
             if len(self.out) >= FRAME_10MS:
                 frame = bytes(self.out[:FRAME_10MS]); del self.out[:FRAME_10MS]
                 self.n_voiced += 1
+                self.out_env = max(audioop.rms(frame, 2), self.out_env * 0.99)
             else:
                 frame = SILENCE
+                self.out_env *= 0.99
             try:
                 await self.calls.send_frame(self.user_id, Device.MICROPHONE, frame)
                 self.n_out += 1
@@ -416,6 +437,39 @@ class RealtimeCall:
 
     # ── Événements OpenAI ────────────────────────────────────────────────────
     async def _reader(self) -> None:
+        while True:
+            await self._read_ws()
+            if self.closed or self.provider != 'gemini' or self.reconnects >= RECONNECTS:
+                break
+            self.reconnects += 1
+            try:
+                await self._reconnect()
+            except Exception as e:
+                log.warning('reconnexion Gemini Live impossible: %s', str(e)[:160])
+                break
+        if not self.closed:
+            log.warning('voix temps réel déconnectée')
+
+    async def _reconnect(self) -> None:
+        """Gemini Live a coupé en plein appel : nouvelle session avec la conversation jusqu'ici, Dzaryx reprend."""
+        res = await self.api('/api/call/realtime-gemini', {}, self.actor, 20)
+        guest = self.guarded and self.who != 'kouider'
+        if guest:
+            res = {**res, 'instructions': self.guest_instr}
+        self.ws = await GeminiLiveWS.connect(self.http, res)
+        await self.ws.receive(timeout=8)   # session.created
+        self.responding = False
+        log.info('voix temps réel reconnectée (%d)', self.reconnects)
+        said = '\n'.join(f"{'Dzaryx' if l['role'] == 'dzaryx' else l.get('speaker') or self.actor.capitalize()} : {l['text']}"
+                         for l in self.lines[-16:])
+        await self._send({'type': 'conversation.item.create', 'item': {'type': 'message', 'role': 'system', 'content': [
+            {'type': 'input_text', 'text': 'La ligne a eu une micro-coupure technique, l\'appel continue. Conversation '
+             f'jusqu\'ici :\n{said or "(rien encore)"}'}]}})
+        await self._send({'type': 'response.create', 'response': {'instructions':
+            'Reprends naturellement en une phrase courte : « Pardon, petite coupure. » puis réponds à sa dernière '
+            'phrase si tu ne l\'avais pas fait, sinon « je t\'écoute ».'}})
+
+    async def _read_ws(self) -> None:
         assert self.ws is not None
         async for msg in self.ws:
             if msg.type != aiohttp.WSMsgType.TEXT:
@@ -454,8 +508,6 @@ class RealtimeCall:
                 asyncio.create_task(self._tool(ev))
             elif t == 'error':
                 log.error('realtime: %s', ev.get('error'))
-        if not self.closed:
-            log.warning('voix temps réel déconnectée')
 
     async def _tool(self, ev: dict) -> None:
         call_id, name = ev.get('call_id'), ev.get('name')
