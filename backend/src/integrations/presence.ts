@@ -82,36 +82,44 @@ function classify(p: { lat: number; lng: number }, pts: Awaited<ReturnType<typeo
 
 // Vraies playlists (Kouider 20/10 : un lien de recherche ouvre juste l'app) : « <artiste> : les indispensables »
 // d'Apple Music, trouvée sur la page de l'artiste (API iTunes, gratuite) et gardée 30 jours ; à défaut, sa page artiste.
+// Boutique BELGE (son compte Apple Music est en Belgique) : un lien /fr/ ouvrait l'app sans afficher la playlist.
+const STORE = 'be';
 const GENRE_PLAYLISTS = [
-  { name: 'Magh Rap (rap algérien / maghrébin)', url: 'https://music.apple.com/fr/playlist/magh-rap/pl.4f0e32560bde4190aa01c5788d43797d' },
-  { name: 'Le Code (rap français du moment)', url: 'https://music.apple.com/fr/playlist/le-code/pl.084e56c4114a4a199e582aa7db6e7e56' },
-  { name: 'Hits Rap', url: 'https://music.apple.com/fr/playlist/hits-rap/pl.4d2a54110afa4782a4aeaf039e401550' },
+  { name: 'Magh Rap (rap algérien / maghrébin)', url: `https://music.apple.com/${STORE}/playlist/magh-rap/pl.4f0e32560bde4190aa01c5788d43797d` },
+  { name: 'Le Code (rap français du moment)', url: `https://music.apple.com/${STORE}/playlist/le-code/pl.084e56c4114a4a199e582aa7db6e7e56` },
+  { name: 'Hits Rap', url: `https://music.apple.com/${STORE}/playlist/hits-rap/pl.4d2a54110afa4782a4aeaf039e401550` },
 ];
 
-async function artistPlaylist(artist: string): Promise<string | null> {
-  const ck = `music:pl:${artist.toLowerCase()}`;
+async function artistPlaylist(artist: string): Promise<{ name: string; url: string; playlist: boolean } | null> {
+  const ck = `music:pl:${STORE}:${artist.toLowerCase()}`;
   const cached = await kvGet(ck).catch(() => null);
-  if (cached) return cached;
+  if (cached) { try { return JSON.parse(cached) as { name: string; url: string; playlist: boolean }; } catch { /* ancien format */ } }
   try {
-    const r = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(artist)}&entity=musicArtist&country=fr&limit=1`, { signal: AbortSignal.timeout(6000) });
-    const page = ((await r.json()) as { results?: Array<{ artistLinkUrl?: string }> }).results?.[0]?.artistLinkUrl?.split('?')[0];
+    const r = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(artist)}&entity=musicArtist&country=${STORE}&limit=1`, { signal: AbortSignal.timeout(6000) });
+    const a = ((await r.json()) as { results?: Array<{ artistLinkUrl?: string; artistName?: string }> }).results?.[0];
+    const page = a?.artistLinkUrl?.split('?')[0];
     if (!page) return null;
-    const html = await (await fetch(page, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(8000) })).text();
-    const url = html.match(/https:\/\/music\.apple\.com\/fr\/playlist\/[^"]*-les-indispensables\/pl\.[0-9a-f]+/)?.[0] ?? page;
-    await kvSet(ck, url, 30 * 86_400).catch(() => {});
-    return url;
+    const html = await (await fetch(`${page}?l=fr-FR`, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(8000) })).text();
+    const pl = html.match(new RegExp(`https://music\\.apple\\.com/${STORE}/playlist/[^"?]*-les-indispensables/pl\\.[0-9a-f]+`))?.[0];
+    const out = { name: a?.artistName ?? artist, url: pl ?? page, playlist: !!pl };
+    await kvSet(ck, JSON.stringify(out), 30 * 86_400).catch(() => {});
+    return out;
   } catch { return null; }
 }
 
-export async function playlistText(forWhat = 'la route'): Promise<string> {
+/** Playlists Apple Music : ses artistes du jour, ou ce qu'il demande (« mets-moi du Khaled », « une playlist Soolking et Jul »). */
+export async function playlistText(forWhat = 'la route', query?: string): Promise<string> {
   const { music } = await getPresencePrefs();
   const day = Math.floor(Date.now() / 86_400_000);
-  const pick = [0, 1, 2].map(i => music[(day * 3 + i) % music.length]!).filter((v, i, a) => a.indexOf(v) === i);
-  const urls = await Promise.all(pick.map(artistPlaylist));
+  const asked = (query ?? '').split(/,|;| et | and |\+/i).map(x => x.trim()).filter(x => x.length > 1).slice(0, 5);
+  const pick = asked.length ? asked : [0, 1, 2].map(i => music[(day * 3 + i) % music.length]!).filter((v, i, a) => a.indexOf(v) === i);
+  const found = await Promise.all(pick.map(artistPlaylist));
+  const lines = found.flatMap(f => f ? [`• ${f.name}${f.playlist ? ' — les indispensables' : ' (page artiste)'}\n${f.url}`] : []);
+  const missing = pick.filter((_, i) => !found[i]);
   const genre = GENRE_PLAYLISTS[day % GENRE_PLAYLISTS.length]!;
-  return [`🎧 Pour ${forWhat} (Apple Music — appuie et lance la lecture) :`,
-    ...pick.flatMap((a, i) => urls[i] ? [`• ${a}${urls[i]!.includes('/playlist/') ? ' — les indispensables' : ''} → ${urls[i]}`] : []),
-    `• ${genre.name} → ${genre.url}`].join('\n');
+  return [`🎧 Pour ${forWhat} — appuie sur un lien, la playlist s'ouvre dans Apple Music, puis ▶️ :`, ...lines,
+    ...(asked.length ? [] : [`• ${genre.name}\n${genre.url}`]),
+    ...(missing.length ? [`(pas trouvé sur Apple Music : ${missing.join(', ')})`] : [])].join('\n\n');
 }
 
 // ── Brief du matin ───────────────────────────────────────────────────────────
@@ -492,7 +500,7 @@ export async function presenceTool(input: Record<string, unknown>): Promise<stri
       return `${b.written}\n\n(Version orale : ${b.spoken})`;
     }
     case 'playlist': {
-      const txt = await playlistText(String(input['for'] ?? 'toi'));
+      const txt = await playlistText(String(input['for'] ?? 'toi'), input['query'] ? String(input['query']) : undefined);
       if (input['send'] !== false) await queueTelegramMessage(txt);
       return txt;
     }

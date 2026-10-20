@@ -41,7 +41,7 @@ router.post('/log', async (req, res) => {
     const after = await computeGame().catch(() => null);
     const gained = before && after ? after.total - before.total : 0;
     const levelUp = before && after && after.level > before.level ? `\n🎉 NIVEAU ${after.level} — ${after.title} !` : '';
-    await queueTelegramMessage(`✅ ${s.emoji} ${s.label} terminée${b.durationMin ? ` en ${Math.round(Number(b.durationMin))} min` : ''} — ${sets.length} séries. +${gained} pts 🎮${levelUp}${r.prs.length ? `\n🏆 Nouveau record : ${r.prs.join(', ')} !` : ''}\nBravo champion, ta femme et ton fils peuvent être fiers. 💪 Pense à boire et à manger des protéines dans l'heure.`).catch(() => {});
+    await queueTelegramMessage(`✅ ${s.emoji} ${s.label} terminée${b.durationMin ? ` en ${Math.round(Number(b.durationMin))} min` : ''} — ${sets.length} séries. +${gained} pts 🎮${levelUp}${r.prs.length ? `\n🏆 Nouveau record : ${r.prs.join(', ')} !` : ''}\nBravo champion, ta femme et ton fils peuvent être fiers. 💪 Pense à bien t'étirer et à boire de l'eau.`).catch(() => {});
     res.json({ ok: true, ...r, gained, level: after?.level ?? null, levelUp: !!levelUp });
   } catch (err) { fail(res, err); }
 });

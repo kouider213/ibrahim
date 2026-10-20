@@ -5,8 +5,9 @@ import { emitProactive } from '../notifications/mobile-push.js';
 import { API_BASE } from './client-sites.js';
 
 // Recherche de vols AIR ALGÉRIE uniquement, dans le Chrome du PC cloud (browser_task) : aucune clé ni API.
-// Règles fixes de Kouider (2026-10-20) : départ Lille → Oran par défaut, et TOUJOURS UN SEUL bagage en soute
-// en plus pour tout le groupe, quel que soit le nombre de passagers. Jamais de réservation ni de paiement.
+// Règles fixes de Kouider (2026-10-20) : départ Lille → Oran par défaut. BAGAGES (précisé le 20/10 au soir) : 1 valise en
+// soute PAR PERSONNE (tarif Economique Promo) + 1 bagage en soute ACHETÉ EN PLUS pour tout le groupe + 1 bagage à main par
+// personne (2 adultes + 1 bébé → 4 en soute, 3 à main). Jamais de réservation ni de paiement.
 //
 // Le formulaire du site (airalgerie.dz) est un widget que l'agent navigateur n'arrive pas à remplir : on
 // rejoue ici son POST (champs du bloc « flight-booking », dates AAAAMMJJ0000) et le site répond par un 302
@@ -120,7 +121,10 @@ export async function airAlgerieSearchTool(input: Record<string, unknown>, sessi
   const to = (String(input['to'] ?? '').trim() || 'ORN').toUpperCase();
   if (!/^[A-Z]{3}$/.test(from) || !/^[A-Z]{3}$/.test(to)) return '❌ Aéroports en code IATA (ex. LIL, ORN, ALG, CDG).';
 
-  const n = adults + children;   // les bébés n'ont pas de siège ni de bagage en soute à eux
+  const n = adults + children;   // passagers avec siège (tarif Economique Promo = 1 × 23 kg chacun)
+  const persons = n + infants;     // Kouider compte une valise et un bagage à main par personne, bébé compris
+  const hold = persons + 1, cabin = persons;
+  const bags = `${hold} bagage${hold > 1 ? 's' : ''} en soute (1 par personne + 1 en plus pour le groupe) et ${cabin} bagage${cabin > 1 ? 's' : ''} à main`;
   const pax = [`${adults} adulte${adults > 1 ? 's' : ''}`,
     children ? `${children} enfant${children > 1 ? 's' : ''} (2-11 ans)` : '',
     infants ? `${infants} bébé${infants > 1 ? 's' : ''} (moins de 2 ans, sur les genoux)` : ''].filter(Boolean).join(', ');
@@ -151,7 +155,7 @@ export async function airAlgerieSearchTool(input: Record<string, unknown>, sessi
     `RECHERCHE DE VOL AIR ALGÉRIE (uniquement Air Algérie — jamais un comparateur ni une autre compagnie).${watchTag ? ' ' + watchTag : ''}\n` +
     `BUT : le vol direct LE MOINS CHER possible.\n` +
     `Vol : ${trip}. Passagers : ${pax} (catégories déjà réglées dans les liens, ne les change pas).\n` +
-    `BAGAGE : il faut TOUJOURS UN SEUL bagage en soute EN PLUS pour tout le groupe (1 au total, pas un par personne).\n` +
+    `BAGAGES : 1 valise en soute PAR PERSONNE + 1 bagage en soute ACHETÉ EN PLUS pour tout le groupe + 1 bagage à main par personne → au total ${bags}.\n` +
     `VOLS DIRECTS SEULEMENT : ne propose QUE des vols directs sans escale (aller ET retour), le moins cher parmi eux. Un vol avec escale ne compte jamais, ` +
     `même moins cher. Attention : les prix « à partir de » des grilles/barres peuvent venir d'un vol avec escale — vérifie sur la page « vols » que le vol ` +
     `retenu est marqué « DIRECT » (et prends son prix à lui) ; un jour qui n'a que des vols avec escale est écarté.\n` +
@@ -166,12 +170,10 @@ export async function airAlgerieSearchTool(input: Record<string, unknown>, sessi
     `${month && tripDays ? ` en gardant environ ${tripDays} jours sur place (prix aller du jour + prix retour du jour +${tripDays})` : ''}.\n` +
     `3. Sur la grille (a) : clique la combinaison la moins chère, puis CONTINUER. Sur la page « vols » (b) : clique le jour le moins cher dans la barre si besoin. Pour le vol DIRECT le moins cher ${tripDays ? 'à l\'aller ET au retour' : ''} note : ` +
     `horaires, direct ou escale, prix « Light » et prix « Economique Promo » (prix avec réduction, totaux du groupe).\n` +
-    `4. Calcul du bagage en plus : Light = 0 bagage en soute, Economique Promo = 1 × 23 kg par passager (les bébés ne comptent pas). Pour ${n > 1 ? `ce groupe de ${n} passagers avec siège` : 'ce passager'}, ` +
-    (n > 1
-      ? `le moins cher pour avoir UN seul bagage = ${n - 1} passager(s) en Light + 1 passager en Economique Promo (2 réservations séparées), ` +
-        `soit par trajet ≈ prix Light du groupe + (prix Promo du groupe − prix Light du groupe) ÷ ${n}. Donne aussi le prix « tout le groupe en Economique Promo » ` +
-        `(1 bagage chacun) pour comparer.\n`
-      : `le prix avec bagage = prix Economique Promo.\n`) +
+    `4. Calcul des bagages : Light = 0 bagage en soute, donc il faut le tarif Economique Promo (1 × 23 kg par passager) pour TOUT le groupe — c'est le prix de base. ` +
+    (infants ? `Bébé : regarde ce que son billet inclut (franchise bébé, souvent 1 × 10 kg + poussette) ; s'il n'a pas de valise à lui, compte une valise de plus à acheter. ` : '') +
+    `Puis le bagage en soute SUPPLÉMENTAIRE (1 pour le groupe) : il s'achète en option à la réservation ou après (« bagage supplémentaire », airalgerie.dz). ` +
+    `Si le prix est affiché quelque part sans aller jusqu'aux passagers (page « Bagages » / « Franchise bagages » du site airalgerie.dz), note-le par trajet ; sinon écris « prix du bagage en plus non vérifié ».\n` +
     `5. Ne clique sur rien d'autre qu'un tarif / CONTINUER sur la page des dates : ne va PAS jusqu'à la saisie des passagers, ne réserve rien, ne paie rien. ` +
     `Captcha ou page bloquée → ask_kouider.\n` +
     `6. Juste avant done : reviens sur la page de la MEILLEURE option et laisse-y le vol aller proposé sélectionné (tarif Light cliqué) avec les vols retour visibles — ` +
@@ -180,14 +182,13 @@ export async function airAlgerieSearchTool(input: Record<string, unknown>, sessi
     `🎫 FICHE BILLET — Air Algérie, vols directs\n` +
     `✈️ Trajet : ${from} → ${to}, ${tripDays ? 'aller-retour' : 'aller simple'}\n` +
     `👥 Passagers : ${pax}\n` +
-    `🧳 Bagages : 1 bagage en soute (23 kg) pour tout le groupe · bagage cabine : <ce que le site indique pour le tarif Light>\n` +
+    `🧳 Bagages : ${bags} — <franchise exacte : kg en soute par passager, kg du bagage à main, bébé>\n` +
     `🛫 Aller : <jour JJ/MM/AAAA>, <départ HH:MM> → <arrivée HH:MM>, vol <n° AH…>, direct, <durée>\n` +
     (tripDays ? `🛬 Retour : <jour JJ/MM/AAAA>, <départ HH:MM> → <arrivée HH:MM>, vol <n° AH…>, direct, <durée>\n` +
       `🗓️ Séjour : <nb> jours sur place\n` : '') +
-    `💶 PRIX TOTAL AVEC 1 BAGAGE : <montant> €\n` +
-    `   Détail : tarif Light sans bagage <montant> € pour le groupe + supplément bagage <montant> €` +
-    (n > 1 ? ` → réserver ${n - 1} passager(s) en Light + 1 en Economique Promo (2 réservations séparées)\n` +
-      `   Pour comparer, tout le groupe en Economique Promo (1 bagage chacun) : <montant> €\n` : `\n`) +
+    `💶 PRIX TOTAL AVEC BAGAGES : <montant> €\n` +
+    `   Détail : tout le groupe en Economique Promo (1 valise chacun) <montant> € + 1 bagage en plus <montant> € par trajet (ou « non vérifié »)\n` +
+    `   Pour info, sans aucune valise (Light) : <montant> €\n` +
     `🔗 Voir et réserver sur Air Algérie : ${link}  (remplace AAAA-MM-JJ par la date ${tripDays ? 'aller puis la date retour' : 'aller'} de la meilleure option)\n` +
     `💡 Autres dates moins chères : <les 2 suivantes, dates + prix Light du groupe>\n` +
     `⚠️ Non vérifié : <ce que tu n'as pas pu vérifier, ou « rien »>\n` +
@@ -195,7 +196,7 @@ export async function airAlgerieSearchTool(input: Record<string, unknown>, sessi
 
   const res = await browserTaskTool({ task }, sessionId);
   if (res.startsWith('⏳') || res.startsWith('❌')) return res;
-  return `✈️ Recherche Air Algérie lancée sur le PC cloud : ${trip}, ${pax}, + 1 bagage en soute pour le groupe` +
+  return `✈️ Recherche Air Algérie lancée sur le PC cloud : ${trip}, ${pax}, ${bags}` +
     `${month ? '' : ', avec les dates à ±3 jours'}.${notes.length ? `\n⚠️ ${notes.join(' ; ')}.` : ''}\n` +
     `Je t'envoie le prix total + une capture du site sur Telegram dès que c'est fini${month ? ' (tout le mois : ~5 min)' : ''} ; tu peux regarder en direct : MON PC → PC cloud.`;
 }
@@ -222,9 +223,9 @@ const tagOf = (id: string) => `[SURVEILLANCE ${id}]`;
 const euro = (x: number) => x.toFixed(2).replace('.', ',') + ' €';
 const whenFr = (iso: string) => new Date(iso).toLocaleString('fr-FR', { timeZone: 'Europe/Paris', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
-/** Prix de la fiche (« PRIX TOTAL AVEC 1 BAGAGE : 403,20 € ») → 403.2 */
+/** Prix de la fiche (« PRIX TOTAL AVEC BAGAGES : 403,20 € », anciennes fiches « AVEC 1 BAGAGE ») → 403.2 */
 export function fichePrice(text: string): number | null {
-  const m = /PRIX TOTAL AVEC 1 BAGAGE\s*:\s*([\d\s .,]+)\s*€/i.exec(text);
+  const m = /PRIX TOTAL AVEC (?:1 )?BAGAGES?\s*:\s*([\d\s .,]+)\s*€/i.exec(text);
   if (!m) return null;
   const x = Number(m[1].replace(/[\s ]/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
   return Number.isFinite(x) && x > 0 ? x : null;
@@ -244,7 +245,7 @@ async function startWatch(input: Record<string, unknown>, sessionId: string | un
   const first = await runWatch(w);
   await saveWatches((await loadWatches()).map(x => x.id === w.id ? w : x));
   const runs = Math.max(1, Math.ceil(hours / every));
-  return `👀 Surveillance Air Algérie lancée (n° ${w.id}) : ${label}, + 1 bagage pour le groupe, vols directs.\n` +
+  return `👀 Surveillance Air Algérie lancée (n° ${w.id}) : ${label}, 1 valise par personne + 1 bagage en plus, vols directs.\n` +
     `Je refais la recherche toutes les ${every} h jusqu'au ${whenFr(w.until)} (≈ ${runs} recherche${runs > 1 ? 's' : ''}). ` +
     `Je t'envoie la fiche du 1er prix, puis je ne te préviens que si le prix BAISSE, et à la fin le meilleur prix vu. ` +
     `La nuit (22h-7h) je cherche sans te déranger, et à 7h je t'envoie le récap de la nuit avec le vol le moins cher du moment.` +

@@ -9,6 +9,7 @@ import { kvGet, kvSet, kvDel } from '../integrations/app-store.js';
 // S'il écrit pendant un silence à heure fixe, les réponses à SES demandes passent (fenêtre de 10 min).
 
 const KEY = 'dnd:state';
+const PLANNED_KEY = 'dnd:planned';            // silences programmés à l'avance (« demain matin ») : pas effacés par resume
 const ACTIVE_KEY = 'kouider:last_active';     // même clé que morning-routine.noteKouiderActivity
 const TALK_WINDOW_MS = 10 * 60_000;
 const REPLY_GRACE_MS = 2 * 60_000;            // il vient de répondre : 2 min pour qu'il donne son heure avant de tout renvoyer
@@ -17,11 +18,39 @@ export interface DndState { since: number; until: number; untilReply: boolean; w
 
 const hhmm = (ts: number) => new Date(ts).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }).replace(':', 'h');
 
+export interface PlannedDnd { from: number; until: number; why: string }
+
+export async function getPlannedDnd(): Promise<PlannedDnd[]> {
+  try { return (JSON.parse((await kvGet(PLANNED_KEY)) ?? '[]') as PlannedDnd[]).filter(w => w.until > Date.now()); }
+  catch { return []; }
+}
+
+/** « Ne me dérange pas demain matin » : silence de from à until, programmé à l'avance. */
+export async function planDnd(w: PlannedDnd): Promise<void> {
+  const list = [...(await getPlannedDnd()).filter(o => o.until <= w.from || o.from >= w.until), w].sort((a, b) => a.from - b.from);
+  const last = Math.max(...list.map(o => o.until));
+  await kvSet(PLANNED_KEY, JSON.stringify(list), Math.ceil((last - Date.now()) / 1000) + 600);
+}
+
+export async function clearPlannedDnd(): Promise<void> {
+  await kvDel(PLANNED_KEY);
+}
+
 export async function getDnd(): Promise<DndState | null> {
   try {
     const s = JSON.parse((await kvGet(KEY)) ?? 'null') as DndState | null;
-    return s && (s.untilReply || s.until > Date.now()) ? s : null;
+    if (s && (s.untilReply || s.until > Date.now())) return s;
+    const now = Date.now();
+    const w = (await getPlannedDnd()).find(o => o.from <= now && now < o.until);
+    return w ? { since: w.from, until: w.until, untilReply: false, why: w.why } : null;
   } catch { return null; }
+}
+
+/** Silence actif ou programmé à cette heure-là (ex. réveil de 6h40 demain). */
+export async function dndAt(ts: number): Promise<PlannedDnd | null> {
+  const now = await getDnd();
+  if (now && ts >= Date.now() && (now.untilReply || ts < now.until)) return { from: now.since, until: now.untilReply ? Infinity : now.until, why: now.why };
+  return (await getPlannedDnd()).find(o => o.from <= ts && ts < o.until) ?? null;
 }
 
 export async function setDnd(o: { until?: number; untilReply?: boolean; why: string }): Promise<void> {

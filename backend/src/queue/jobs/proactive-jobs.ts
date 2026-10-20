@@ -1868,6 +1868,10 @@ export async function jobMaintenanceAlert(_job: Job): Promise<void> {
 // ── Smart Alarm — calcul réveil optimal selon agenda (22h30 chaque soir) ────────
 // RÈGLE : zéro valeur inventée. Si lieu manquant ou GPS indisponible → dit-le explicitement.
 export async function jobSmartAlarm(_job: Job): Promise<void> {
+  // COUPÉ (Kouider 20/10) : doublon de la routine du matin (morning-routine.ts, Bruxelles, adresse réelle, sport annulé et
+  // « ne pas déranger » respectés). Ce vieux job calculait en heure d'Algérie depuis Haï Badr et a envoyé « demain sport »
+  // + programmé un « Réveil Kouider ! » alors que la séance était annulée.
+  if (_job) return;
   const ALGIERS_OFFSET_MIN = 60; // UTC+1, pas de DST en Algérie
 
   const nowAlg    = Date.now() + ALGIERS_OFFSET_MIN * 60_000;

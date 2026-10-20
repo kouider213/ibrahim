@@ -1,5 +1,5 @@
 import { kvGet, kvSet } from './app-store.js';
-import { listAgendaRange, updateAgendaEvent, type AgendaEvent } from './google-calendar.js';
+import { listAgendaRange, updateAgendaEvent, deleteAgendaEvent, type AgendaEvent } from './google-calendar.js';
 import { getLocation } from './location.js';
 import { geocode, drive, km } from './departures.js';
 import { getRoutineConfig, routinePausedReason, routineCalledRecently, localNow, localTs, hm, TZ } from './morning-routine.js';
@@ -130,6 +130,93 @@ export const demoOf = (id: string): string[] => (DEMO[id] ? [0, 1].map(i => `${D
 export const videoOf = (name: string) => `https://www.youtube.com/results?search_query=${encodeURIComponent(`${name} exercice technique exécution`)}`;
 export const ALL_EXERCISES = (): Exercise[] => Object.values(SESSIONS).flatMap(s => s.exercises);
 
+// ── PROGRAMME OFFICIEL de Kouider (demande du 20/10) ─────────────────────────────────────────────────────
+// Par défaut le coach suit le programme ci-dessus. Quand Kouider envoie SES séances (texte, photo du programme de son
+// coach…), elles remplacent ce programme PARTOUT : rotation, agenda (titres + détail), app, Telegram, appels. Chaque
+// séance prend une des 6 cases (push, pull, legs… = juste des numéros internes, l'app et l'historique restent compatibles).
+const PROGRAM_KEY = 'kouider:sport:program';
+const DEFAULT_SESSIONS = structuredClone(SESSIONS);
+const DEFAULT_ROTATION = [...ROTATION];
+export interface ProgramExercise { name: string; sets?: number; reps?: string | number; rest?: number; tip?: string; muscle?: string; alt?: string[] }
+export interface ProgramSession { label: string; emoji?: string; focus?: string; warmup?: string; exercises: ProgramExercise[] }
+interface SportProgram { sessions: ProgramSession[]; source?: string; updatedAt: string }
+let programLoadedAt = 0;
+let programInfo: { source?: string; updatedAt: string; count: number } | null = null;
+
+const slug = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
+function guessMuscle(name: string, hint?: string): Muscle {
+  const t = slug(`${hint ?? ''} ${name}`);
+  if (/cardio|velo|tapis|rameur|elliptique|course|corde_a_sauter|hiit|marche/.test(t)) return 'cardio';
+  if (/abdo|gainage|planche|crunch|core|dead_bug|bird_dog|pallof|releve_de_jambes/.test(t)) return 'abdos';
+  if (/squat|presse|fente|leg|cuisse|mollet|ischio|fessier|hip_thrust|jambe|soulev/.test(t)) return 'jambes';
+  if (/curl|biceps|triceps|bras|dips|barre_au_front/.test(t)) return 'bras';
+  if (/epaule|militaire|elevation|lateral|oiseau|face_pull|arnold/.test(t)) return 'epaules';
+  if (/tirage|rowing|traction|dos|lombaire|pull_over|row/.test(t)) return 'dos';
+  if (/pec|couche|developpe|ecarte|pompe|chest|butterfly|bench/.test(t)) return 'pecs';
+  return 'abdos';
+}
+function toSession(p: ProgramSession, slot: SessionType): typeof SESSIONS[SessionType] {
+  const used = new Set<string>();
+  const exercises: Exercise[] = p.exercises.slice(0, 15).map(e => {
+    const known = findExerciseIn(Object.values(DEFAULT_SESSIONS).flatMap(x => x.exercises), e.name, 2);
+    let id = known?.id ?? `${slot}_${slug(e.name)}`;
+    if (used.has(id)) id = `${slot}_${slug(e.name)}_${used.size}`;
+    used.add(id);
+    const muscle = (['pecs', 'dos', 'epaules', 'bras', 'jambes', 'abdos', 'cardio'] as Muscle[]).includes(e.muscle as Muscle) ? e.muscle as Muscle : known?.muscle ?? guessMuscle(e.name, e.muscle);
+    return ex(id, e.name.slice(0, 80), muscle, Math.max(1, Math.min(10, Math.round(Number(e.sets) || 3))), String(e.reps ?? '10-12').slice(0, 20),
+      Math.max(0, Math.min(300, Math.round(Number(e.rest) || (muscle === 'cardio' || muscle === 'abdos' ? 45 : 90)))),
+      (e.tip || known?.tip || 'Mouvement contrôlé, amplitude complète, pas d\'élan.').slice(0, 200), (e.alt?.length ? e.alt : known?.alt ?? []).slice(0, 3), known?.step);
+  });
+  const muscles = [...new Set(exercises.map(e => e.muscle))];
+  return { label: p.label.slice(0, 40).toUpperCase(), emoji: p.emoji?.slice(0, 4) || DEFAULT_SESSIONS[slot].emoji,
+    focus: (p.focus || muscles.join(' · ')).slice(0, 80), muscles, warmup: (p.warmup || '8 min cardio facile + 2 séries légères au premier exercice').slice(0, 200), exercises };
+}
+function applyProgram(p: SportProgram | null): void {
+  for (const t of DEFAULT_ROTATION) SESSIONS[t] = structuredClone(DEFAULT_SESSIONS[t]);
+  ROTATION.splice(0, ROTATION.length, ...DEFAULT_ROTATION);
+  programInfo = null;
+  if (!p?.sessions?.length) return;
+  const slots = DEFAULT_ROTATION.slice(0, Math.min(6, p.sessions.length));
+  slots.forEach((t, i) => { SESSIONS[t] = toSession(p.sessions[i]!, t); });
+  ROTATION.splice(0, ROTATION.length, ...slots);
+  programInfo = { source: p.source, updatedAt: p.updatedAt, count: slots.length };
+}
+async function loadProgram(force = false): Promise<void> {
+  if (!force && Date.now() - programLoadedAt < 60_000) return;
+  programLoadedAt = Date.now();
+  try { applyProgram(JSON.parse((await kvGet(PROGRAM_KEY)) ?? 'null') as SportProgram | null); } catch { /* garde le programme en mémoire */ }
+}
+/** Remplace le programme (toutes les séances) ou une seule séance (index 1…n), puis réécrit l'agenda des 7 jours. */
+export async function setSportProgram(o: { sessions?: ProgramSession[]; index?: number; session?: ProgramSession; reset?: boolean; source?: string }): Promise<string> {
+  await loadProgram(true);
+  if (o.reset) { await kvSet(PROGRAM_KEY, 'null'); applyProgram(null); }
+  else {
+    const cur = (JSON.parse((await kvGet(PROGRAM_KEY)) ?? 'null') as SportProgram | null)?.sessions
+      ?? DEFAULT_ROTATION.map(t => ({ label: DEFAULT_SESSIONS[t].label, emoji: DEFAULT_SESSIONS[t].emoji, focus: DEFAULT_SESSIONS[t].focus, warmup: DEFAULT_SESSIONS[t].warmup,
+        exercises: DEFAULT_SESSIONS[t].exercises.map(e => ({ name: e.name, sets: e.sets, reps: e.reps, rest: e.rest, tip: e.tip, muscle: e.muscle, alt: e.alt })) }));
+    let next: ProgramSession[];
+    if (o.sessions?.length) next = o.sessions;
+    else if (o.session && o.index) { next = [...cur]; next[Math.max(0, Math.min(5, o.index - 1))] = o.session; next = next.filter(Boolean); }
+    else return '❌ Donne sessions (tout le programme) ou index + session (une seule séance).';
+    next = next.filter(x => x?.label && x.exercises?.length).slice(0, 6);
+    if (!next.length) return '❌ Chaque séance doit avoir un nom (label) et au moins un exercice.';
+    const prog: SportProgram = { sessions: next, source: o.source?.slice(0, 120), updatedAt: new Date().toISOString() };
+    await kvSet(PROGRAM_KEY, JSON.stringify(prog));
+    applyProgram(prog);
+  }
+  const st = await getState();
+  st.next = st.next % ROTATION.length;
+  for (const [d, t] of Object.entries(st.overrides)) if (!ROTATION.includes(t)) delete st.overrides[d];
+  await saveState(st);
+  const r = await planSportWeek(true);
+  return `${o.reset ? '✅ Programme du coach remis par défaut' : `✅ Programme enregistré (${ROTATION.length} séance(s) en rotation)`} : ${ROTATION.map(t => `${SESSIONS[t].emoji} ${SESSIONS[t].label} (${SESSIONS[t].exercises.length} exos)`).join(' → ')}. ` +
+    `Agenda : ${r.note || 'à jour'} ; l'app et les messages utilisent déjà ces séances.`;
+}
+export function sportProgramText(): string {
+  return [programInfo ? `📋 Programme OFFICIEL de Kouider${programInfo.source ? ` (${programInfo.source})` : ''}, depuis le ${programInfo.updatedAt.slice(8, 10)}/${programInfo.updatedAt.slice(5, 7)} :` : '📋 Programme du coach Dzaryx (par défaut) :',
+    ...ROTATION.map((t, i) => `${i + 1}. ${SESSIONS[t].emoji} ${SESSIONS[t].label} — ${SESSIONS[t].focus}\n${SESSIONS[t].exercises.map(e => `   - ${e.name} : ${e.sets} × ${e.reps}, repos ${e.rest} s`).join('\n')}`)].join('\n');
+}
+
 export interface SetLog { ex: string; kg?: number; reps?: number }
 export interface SessionLog { date: string; type: SessionType; at: string; durationMin?: number; rpe?: number; note?: string; sets: SetLog[] }
 interface PlanSlot { type: SessionType; eventId: string; start: string; end: string; minutes: number; title: string }
@@ -150,6 +237,7 @@ interface SportState {
 const DEFAULT_STATE: SportState = { next: 0, plan: {}, overrides: {}, skips: {}, history: {}, arrived: {}, alerts: {}, settings: { callBefore: true, gymCheck: true } };
 
 async function getState(): Promise<SportState> {
+  await loadProgram();
   try { const s = JSON.parse((await kvGet(STATE_KEY)) ?? '{}') as Partial<SportState>; return { ...DEFAULT_STATE, ...s, settings: { ...DEFAULT_STATE.settings, ...s.settings } }; }
   catch { return { ...DEFAULT_STATE }; }
 }
@@ -433,19 +521,21 @@ export async function jobSportPlan(): Promise<void> {
 
 // ── Notes de séance + stats ─────────────────────────────────────────────────
 
-const ALL_EX = Object.values(SESSIONS).flatMap(s => s.exercises);
 const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ');
-export function findExercise(q: string): Exercise | null {
+function findExerciseIn(list: Exercise[], q: string, minScore = 1): Exercise | null {
   const n = norm(q);
-  const byId = ALL_EX.find(e => e.id === q);
+  const byId = list.find(e => e.id === q);
   if (byId) return byId;
   let best: Exercise | null = null; let score = 0;
-  for (const e of ALL_EX) {
-    const words = norm(`${e.name} ${e.alt.join(' ')}`).split(/\s+/).filter(w => w.length > 3);
+  for (const e of list) {
+    const words = [...new Set(norm(`${e.name} ${e.alt.join(' ')}`).split(/\s+/).filter(w => w.length > 3))];
     const sc = words.filter(w => n.includes(w)).length;
     if (sc > score) { score = sc; best = e; }
   }
-  return best;
+  return score >= minScore ? best : null;
+}
+export function findExercise(q: string): Exercise | null {
+  return findExerciseIn(ALL_EXERCISES(), q);
 }
 
 /** Enregistre une séance (ou ajoute des séries à celle du jour). Retourne les records battus. */
@@ -513,7 +603,7 @@ export async function sportOverview() {
     const ls = log.filter(l => l.date >= from && l.date <= to);
     return { from, sessions: ls.length, volume: Math.round(ls.reduce((a, l) => a + volume(l), 0)) };
   });
-  const prs = ALL_EX.map(e => {
+  const prs = ALL_EXERCISES().map(e => {
     const sets = log.flatMap(l => l.sets.filter(s => s.ex === e.id && s.kg != null).map(s => ({ ...s, date: l.date })));
     if (!sets.length) return null;
     const best = sets.reduce((a, b) => (b.kg! > a.kg! ? b : a));
@@ -537,11 +627,32 @@ export async function setSportOverride(date: string, type: SessionType | null): 
   await saveState(st);
   await planSportWeek(true);
 }
-export async function setSportSkip(date: string, reason: string | null): Promise<void> {
+/** Jour sans sport : trajet, séance, retour et douche de la routine enlevés de l'agenda ce jour-là (Kouider 20/10). */
+async function removeSportDayFromAgenda(date: string): Promise<string[]> {
+  if (date < localNow().date) return [];
+  const evs = await listAgendaRange(new Date(localTs(date, '00:00')).toISOString(), new Date(localTs(date, '23:59')).toISOString(), 60).catch(() => null);
+  const removed: string[] = [];
+  for (const e of evs ?? []) {
+    if (!e.id || !e.start.dateTime || !CHAIN.test(e.summary ?? '')) continue;
+    if (await deleteAgendaEvent(e.id).catch(() => false)) removed.push(`${(e.summary ?? '').split(' — ')[0]} ${hm(Date.parse(e.start.dateTime))}`);
+  }
+  return removed;
+}
+
+export async function setSportSkip(date: string, reason: string | null): Promise<string[]> {
   const st = await getState();
   if (reason) st.skips[date] = reason; else delete st.skips[date];
   await saveState(st);
+  let removed: string[] = [];
+  if (reason) removed = await removeSportDayFromAgenda(date);
+  else {
+    // Sport remis : on recrée les séries de la routine (le créneau revient), puis on ré-enlève les autres jours annulés
+    const { syncRoutineCalendar } = await import('./morning-routine.js');
+    await syncRoutineCalendar().catch(() => null);
+    for (const d of Object.keys(st.skips)) if (d >= localNow().date) await removeSportDayFromAgenda(d);
+  }
   await planSportWeek(true);
+  return removed;
 }
 export async function sportHistory(): Promise<{ history: Record<string, 'done' | 'missed' | 'skip'>; arrived: Record<string, number> }> {
   const st = await getState();
@@ -559,7 +670,7 @@ export async function setSportSettings(patch: Partial<SportSettings>): Promise<S
 
 // ── Outil sport_coach ───────────────────────────────────────────────────────
 
-const parseDate = (v: unknown): string => {
+export const parseDate = (v: unknown): string => {
   const today = localNow().date;
   const s = String(v ?? '').toLowerCase();
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
@@ -571,6 +682,14 @@ const parseDate = (v: unknown): string => {
 };
 const parseType = (v: unknown): SessionType | null => {
   const s = norm(String(v ?? ''));
+  if (!s.trim()) return null;
+  if ((ROTATION as string[]).includes(s.trim())) return s.trim() as SessionType;
+  // Programme officiel : « séance A », « haut du corps », « 2 » (numéro dans la rotation)
+  const num = /^\s*(?:seance\s*)?(\d)\s*$/.exec(s);
+  if (num && ROTATION[Number(num[1]) - 1]) return ROTATION[Number(num[1]) - 1]!;
+  const byLabel = ROTATION.find(t => { const l = norm(SESSIONS[t].label).trim(); return l && (s.includes(l) || l.includes(s.trim())); });
+  if (byLabel) return byLabel;
+  if (programInfo) return ROTATION.find(t => norm(`${SESSIONS[t].label} ${SESSIONS[t].focus}`).split(/\s+/).some(w => w.length > 3 && s.includes(w))) ?? null;
   if (/push|pec|poitrine/.test(s)) return 'push';
   if (/pull|dos|tirage/.test(s)) return 'pull';
   if (/leg|jambe/.test(s)) return 'legs';
@@ -598,10 +717,10 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
   }
   if (action === 'skip') {
     const reason = String(input['reason'] ?? 'repos').slice(0, 60);
-    await setSportSkip(date, reason);
-    return `✅ Pas de sport le ${fmt(date)} (${reason}) : pas d'appel ni d'alerte de départ ce jour-là, et la séance passe au créneau suivant.`;
+    const removed = await setSportSkip(date, reason);
+    return `✅ Pas de sport le ${fmt(date)} (${reason}) : pas de message ni d'appel de réveil, pas d'alerte de départ, et la séance passe au créneau suivant. Agenda : ${removed.length ? `enlevé ${removed.join(', ')}` : 'rien à enlever (ou agenda injoignable)'}.`;
   }
-  if (action === 'unskip') { await setSportSkip(date, null); return `✅ Sport remis le ${fmt(date)}.`; }
+  if (action === 'unskip') { await setSportSkip(date, null); return `✅ Sport remis le ${fmt(date)} (créneau remis dans l'agenda).`; }
   if (action === 'log') {
     const done = input['done'] === true || input['done'] === 'true';
     const exName = String(input['exercise'] ?? '');
@@ -636,6 +755,14 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
     ].join('\n');
   }
   if (action === 'sync') { const r = await planSportWeek(true); return `✅ ${r.slots.length} séance(s) planifiées, ${r.note}.`; }
+  if (action === 'program') { await getState(); return sportProgramText(); }
+  if (action === 'set_program' || action === 'edit_session' || action === 'reset_program') {
+    const asArr = (v: unknown) => { if (typeof v === 'string') { try { return JSON.parse(v) as unknown; } catch { return null; } } return v; };
+    const sessions = asArr(input['sessions']) as ProgramSession[] | null;
+    const session = asArr(input['session']) as ProgramSession | null;
+    return setSportProgram({ reset: action === 'reset_program', source: input['source'] ? String(input['source']) : undefined,
+      ...(Array.isArray(sessions) ? { sessions } : {}), ...(session && typeof session === 'object' ? { session, index: Number(input['index'] ?? 0) || (parseType(input['type']) ? ROTATION.indexOf(parseType(input['type'])!) + 1 : 0) } : {}) });
+  }
   // week
   const r = await planSportWeek(action === 'sync_week');
   if (!r.slots.length) return `Aucun créneau sport dans les 7 prochains jours${r.note ? ` (${r.note})` : ''}.`;

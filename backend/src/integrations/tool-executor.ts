@@ -2064,7 +2064,21 @@ async function callMeTool(input: Record<string, unknown>, sessionId?: string): P
 async function pauseCallsTool(input: Record<string, unknown>): Promise<string> {
   const { setQuietUntil } = await import('../notifications/auto-call.js');
   const dnd = await import('../notifications/dnd.js');
-  if (input['resume']) { await setQuietUntil(0); await dnd.clearDnd(); return '✅ Appels et messages réactivés (ce qui a été gardé pendant la pause arrive maintenant).'; }
+  if (input['cancel_planned']) { await dnd.clearPlannedDnd(); if (!input['resume']) return '✅ Silences programmés annulés.'; }
+  if (input['day'] || input['from_time']) {
+    // Silence programmé plus tard (« ne me dérange pas demain matin ») — n'efface pas la pause en cours, et resume ne l'efface pas
+    const { parseDate } = await import('./sport-coach.js');
+    const { localTs, localNow } = await import('./morning-routine.js');
+    const day = input['day'] ? parseDate(input['day']) : localNow().date;
+    const hm = (v: unknown, d: string) => { const m = String(v ?? '').match(/^(\d{1,2})[:h](\d{2})?$/); return m ? `${m[1]!.padStart(2, '0')}:${m[2] ?? '00'}` : d; };
+    const from = Math.max(Date.now(), localTs(day, hm(input['from_time'], '00:00')));
+    const until = localTs(day, hm(input['until_time'], '12:00'));
+    if (until <= from) return '❌ L\'heure de fin doit être après le début (from_time / until_time, heure de Bruxelles).';
+    await dnd.planDnd({ from, until, why: String(input['reason'] ?? 'ne pas déranger') });
+    const f = (ts: number) => new Date(ts).toLocaleString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', hour: '2-digit', minute: '2-digit' });
+    return `🔕 Silence programmé du ${f(from)} au ${f(until)} : pas de message du réveil, pas d'appel (même programmé), pas de message ni de notif. Les infos importantes qui tombent pendant ce créneau arrivent à la fin en UN seul message récap. Si c'est parce qu'il ne va pas au sport : sport_coach skip aussi.`;
+  }
+  if (input['resume']) { await setQuietUntil(0); await dnd.clearDnd(); return '✅ Appels et messages réactivés (ce qui a été gardé pendant la pause arrive maintenant, en un seul message). Les silences programmés plus tard restent.'; }
   if (input['until_reply']) {
     await dnd.setDnd({ untilReply: true, why: String(input['reason'] ?? 'ne pas déranger') });
     return '🔕 Plus aucun appel ni message tant qu\'il ne t\'a pas écrit. Tout est gardé pour plus tard.';

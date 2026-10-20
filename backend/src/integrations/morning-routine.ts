@@ -248,6 +248,10 @@ export async function jobMorningRoutine(): Promise<void> {
   const plan = cfg.days[weekday];
   if (!plan || plan.kind === 'none' || !plan.wake) return;
   if (await routinePausedReason(date, cfg)) return;
+  // Sport annulé ce jour-là ou « ne me dérange pas demain matin » : pas de message ni d'appel de réveil (Kouider 20/10).
+  // Imports à la demande : sport-coach importe ce fichier (pas d'import circulaire au chargement).
+  if (plan.kind === 'sport' && await (await import('./sport-coach.js')).isSportSkipped(date).catch(() => false)) return;
+  if (await (await import('../notifications/dnd.js')).dndAt(localTs(date, plan.wake)).catch(() => null)) return;
 
   const st = await getState(date);
   const now = toMin(hhmm), wake = toMin(plan.wake);

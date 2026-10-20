@@ -7,6 +7,11 @@
 
 ## Bugs Ouverts 🔴
 
+### B039 — « Pas de salle demain, ne me dérange pas le matin » pas respecté + rafale de messages (20/10) ✅ FIXÉ
+- Symptôme : séance annulée mais le réveil 6h40 (message + appel) restait prévu, les blocs sport restaient dans l'agenda ; à 23h30 l'app a reçu « Demain 🚗 Trajet → salle… réveil » et un rappel « Réveil Kouider ! » était programmé à 6h15 ; à sa réponse, tous les messages gardés pendant la pause sont partis d'un coup.
+- Cause : la routine du matin ignorait le skip sport ; pause_calls ne savait faire qu'un silence « à partir de maintenant » (et resume l'effaçait) ; vieux job smart-alarm (heure d'Algérie, Haï Badr) sans aucun garde-fou ; tg-outbox renvoyait chaque message gardé séparément.
+- Fix : silences programmés (dnd:planned, pause_calls day/from_time/until_time, resume ne les efface pas) ; routine du matin muette si sport annulé ou silence à l'heure du réveil ; skip sport = trajet/séance/retour/douche enlevés de l'agenda (unskip = remis) ; smart-alarm coupé ; messages gardés → UN récap (doublons + alertes sport d'un jour annulé jetés).
+
 ### B038 — Actions refaites en double + « vraies vérifications » parasites (18/10) ✅ FIXÉ
 - Symptôme : « envoie la photo de la Clio » → Dzaryx renvoie aussi le PDF de la veille ; « fais-moi un plan » → la réponse commence par re-vérifier PDF/photo/passeport. Plan livré en texte (titres « ## » bruts), pas en PDF ; photo/passeport en liens.
 - Cause : phantomGuard ne connaissait que WRITE_TOOLS → « ✅ PDF envoyé » après send_doc_pdf (ou get_car_photo…) = « invention » → relance « ta réponse précédente affirmait une action » → le modèle refaisait les actions des messages précédents.

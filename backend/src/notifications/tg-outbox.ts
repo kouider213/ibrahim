@@ -59,6 +59,20 @@ export async function takeTelegramMessages(actor: string): Promise<TgOutMessage[
   await kvSet(HELD_KEY, '[]', 60);
   if (!held.length) return list;
   const t = (ts: number) => new Date(ts).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }).replace(':', 'h');
-  return [{ text: `🔔 Pendant ta pause, j'ai gardé ${held.length} message${held.length > 1 ? 's' : ''} (de ${t(held[0]!.at)} à ${t(held[held.length - 1]!.at)}) :` },
-    ...held.map(({ at: _at, ...m }) => m), ...list];
+  // UN seul message récap (Kouider 20/10 : « il m'a envoyé plusieurs messages d'un coup ») : les textes sont regroupés,
+  // seuls photos / fichiers / points GPS restent à part. Doublons et alertes sport d'un jour annulé jetés.
+  const { isSportSkipped } = await import('../integrations/sport-coach.js');
+  const { localNow } = await import('../integrations/morning-routine.js');
+  const keep: Held[] = [];
+  for (const h of held) {
+    if (/^(🏋️|⏰ Ta séance|💪)/u.test(h.text) && await isSportSkipped(localNow(h.at).date).catch(() => false)) continue;
+    if (!h.image && !h.file && !h.album && !h.location && keep.some(k => k.text === h.text)) continue;
+    keep.push(h);
+  }
+  if (!keep.length) return list;
+  const texts = keep.filter(h => !h.image && !h.file && !h.album && !h.location && h.text.trim());
+  const media = keep.filter(h => h.image || h.file || h.album || h.location).map(({ at: _at, ...m }) => m);
+  const head = `🔔 Pendant ta pause (${t(keep[0]!.at)} → ${t(keep[keep.length - 1]!.at)}), j'ai gardé ça pour toi :`;
+  const body = texts.map(h => `• ${t(h.at)} — ${h.text.trim()}`).join('\n\n');
+  return [{ text: `${head}\n\n${body}`.slice(0, 4000) }, ...media, ...list];
 }
