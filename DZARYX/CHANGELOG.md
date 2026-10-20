@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-20 — Vols Air Algérie : Telegram + fiche billet + lien + surveillance de prix (65c174a, 2a9c5f1)
+
+Kouider : résultat aussi sur Telegram avec photo, vols DIRECTS seulement (le moins cher sans escale), toutes les infos du billet + le lien, et « cherche pendant X heures / jours / semaines », même la nuit avec récap le matin. browser-worker `flight_result_to_outbox` : capture de la page Air Algérie (sans pied de page) + texte dans tgcall/outbox (recherche ratée = texte seul). Fiche billet imposée (trajet, passagers par catégorie, bagages, aller/retour avec horaires + n° de vol, PRIX TOTAL AVEC 1 BAGAGE + détail, lien). Lien court public `GET /api/vol?f&t&d&r&a&c&i` → refait le POST airalgerie.dz et redirige (le lien Amadeus expire). Surveillance : `air_algerie_search` + `watch_hours` / `every_hours` (défaut 2 h / 6 h / 12 h), job `flight-watch` toutes les 10 min, app_kv `flight:watches` ; prévenu seulement au 1er prix, à chaque baisse et à la fin ; 22h-7h muet puis à 7h recherche fraîche + récap de la nuit ; outil `air_algerie_watch` (list/stop). `/api/browser/update` renvoie {ok, notify, text}. LoopGuard : click/type/select comptés par lecture de page (les refs changent).
+
 ## 2026-10-20 — air_algerie_search : âges des passagers + tout un mois
 
 Kouider : « regarde-moi une date en janvier », et donner les âges (« 24, 25 et mon fils 1 an ») sans que Dzaryx se trompe de catégorie. `passengers` = âges ou dates de naissance → adulte 12+ / enfant 2-11 / bébé <2 (catégories du site), âge pris au dernier vol, alerte si 1 an / 11 ans ou si la catégorie change pendant le voyage. `month` (AAAA-MM) + `stay_days` / `one_way` : 5 liens Amadeus (centres 4, 11, 18, 25, fin de mois), Dzaryx demande aller simple / durée si non dit. Page « vols » (au lieu de la grille) : l'agent clique l'aller Light pour voir la barre du retour. Agent navigateur : LoopGuard compte wait/read_page/scroll/screenshot par page ouverte ; worker MAX_STEPS 45. Testé janvier 2027, 7 j, [24, 25, 1] : 336,20 € Light, ≈ 411,70 € avec 1 bagage.
