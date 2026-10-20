@@ -6732,12 +6732,15 @@ async function getSiteAnalyticsTool(input: Record<string, unknown>): Promise<str
 
   try {
     const [pvRes, cvRes, bookRes] = await Promise.all([
-      supabase.from('page_views').select('page, device, country, session_id, created_at').gte('created_at', since),
+      supabase.from('page_views').select('page, device, country, session_id, created_at, visitor').gte('created_at', since),
       supabase.from('car_views').select('car_id, device, country, created_at, cars(name)').gte('created_at', since),
       supabase.from('bookings').select('id, created_at, status').gte('created_at', since),
     ]);
 
-    const pv      = pvRes.data   || [];
+    // Sans nous (équipe, Dzaryx, PC cloud) ni les robots — les visites d'avant le tri (visitor vide) restent comptées
+    const pv      = ((pvRes.data || []) as Array<{ visitor?: string | null }>).filter(v => !v.visitor || v.visitor === 'visiteur') as any[];
+    const { dayTraffic, formatTraffic } = await import('./site-traffic.js');
+    const todaySplit = formatTraffic(await dayTraffic(0), "aujourd'hui");
     const cv      = cvRes.data   || [];
     const bk      = bookRes.data || [];
 
@@ -6767,7 +6770,9 @@ async function getSiteAnalyticsTool(input: Record<string, unknown>): Promise<str
     const topCars = Object.entries(carCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
     const lines = [
-      `📊 Analytics site Fik Conciergerie — ${days} derniers jours`,
+      todaySplit,
+      ``,
+      `📊 Analytics site Fik Conciergerie — ${days} derniers jours (vrais visiteurs seulement)`,
       ``,
       `👁️ ${totalViews} pages vues | ${uniqueSessions} sessions uniques | ${mobilePct}% mobile`,
       `📅 ${bk.length} nouvelles demandes de réservation`,

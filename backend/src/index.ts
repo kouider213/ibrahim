@@ -7,6 +7,7 @@ import { Server as SocketServer } from 'socket.io';
 
 import { env } from './config/env.js';
 import { ensureProspectsTable } from './integrations/prospects.js';
+import { ensureTrafficColumns } from './integrations/site-traffic.js';
 import { ensureAppStoreTables } from './integrations/app-store.js';
 import { ensureExpenseColumns } from './integrations/expenses.js';
 import { SOCKET_EVENTS } from './config/constants.js';
@@ -561,6 +562,7 @@ startDeviceAuthSync();
 server.listen(PORT, () => {
   console.log(`✅ Dzaryx backend running on port ${PORT}`);
   void ensureProspectsTable();
+  void ensureTrafficColumns().catch(() => {});
   void ensureAppStoreTables();
   void ensureExpenseColumns().catch(() => {});
   // JOBS_ENABLED=false sur l'instance BACKUP (failover) → pas de jobs en double

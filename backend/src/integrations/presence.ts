@@ -5,6 +5,7 @@ import { getLocation } from './location.js';
 import { geocode, drive, km } from './departures.js';
 import { getRoutineConfig, routinePausedReason, localNow, localTs, hm, TZ } from './morning-routine.js';
 import { listAgendaRange } from './google-calendar.js';
+import { trafficBriefLine } from './site-traffic.js';
 import { queueTelegramMessage, queueTelegramLocation } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { callOwner, getPendingCall } from '../notifications/voice-call.js';
@@ -108,10 +109,9 @@ async function briefFacts(): Promise<string> {
     supabase.from('bookings').select('client_name, cars(name)').in('status', ['CONFIRMED', 'ACTIVE']).eq('start_date', tA),
     supabase.from('bookings').select('client_name, cars(name)').in('status', ['CONFIRMED', 'ACTIVE']).eq('end_date', tA),
     supabase.from('bookings').select('id').in('status', ['CONFIRMED', 'ACTIVE']).lt('end_date', tA),
-    supabase.from('page_views').select('page, session_id').gte('created_at', yStart).lt('created_at', tStart),
+    import('./site-traffic.js').then(m => m.dayTraffic(-1)).catch(() => null),
     supabase.from('car_views').select('cars(name)').gte('created_at', yStart).lt('created_at', tStart),
   ]);
-  const views = (pv.data ?? []) as Array<{ page?: string; session_id?: string }>;
   const carCount: Record<string, number> = {};
   for (const v of (cv.data ?? []) as Array<{ cars?: { name?: string } | null }>) { const n = v.cars?.name ?? '?'; carCount[n] = (carCount[n] ?? 0) + 1; }
   const topCars = Object.entries(carCount).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n, c]) => `${n} ${c}`).join(', ');
@@ -121,7 +121,7 @@ async function briefFacts(): Promise<string> {
   return [
     `HIER (${new Date(Date.parse(yStart)).toLocaleDateString('fr-FR', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long' })}) :`,
     `- Nouvelles réservations : ${nb.length ? nb.map(b => `${b.client_name} (${b.cars?.name ?? 'voiture'}${b.final_price ? `, ${b.final_price} €` : ''})`).join(', ') : 'aucune'}`,
-    `- Site web : ${views.length} pages vues, ${new Set(views.map(v => v.session_id).filter(Boolean)).size} visiteurs uniques${topCars ? ` ; voitures les plus vues : ${topCars}` : ''}`,
+    `- Site web : ${pv ? trafficBriefLine(pv) : 'stats indisponibles'}${topCars ? ` ; voitures les plus vues : ${topCars}` : ''}`,
     prospects?.lines.length ? `- Prospection :\n  ${prospects.lines.join('\n  ')}` : '- Prospection : rien de noté',
     `AUJOURD'HUI :`,
     `- Agenda : ${evs.length ? evs.join(' ; ') : 'rien de prévu'}`,

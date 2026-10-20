@@ -67,6 +67,7 @@ import { jobMorningRoutine } from '../integrations/morning-routine.js';
 import { jobDepartureWatch } from '../integrations/departures.js';
 import { jobTripReminders, jobFlightMailImport } from '../integrations/trips.js';
 import { jobMailDigest } from '../integrations/mail-digest.js';
+import { jobSiteTraffic } from '../integrations/site-traffic.js';
 
 const SCHEDULER_QUEUE = 'in-process';
 
@@ -408,6 +409,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'site-traffic',
+    cron:  '0 21 * * *',            // 21h — visites du site du jour : vrais visiteurs / nous / robots (Telegram + app)
+    tz:    'Africa/Algiers',
+  },
+  {
     name:  'mail-digest',
     cron:  '0 20 * * *',            // 20h — résumé des mails du jour sur Telegram (importants, prospects, sans réponse ≥ 3 j)
     tz:    'Europe/Brussels',
@@ -519,6 +525,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'trip-reminders':          async () => { await jobTripReminders(); },
   'flight-mail-import':      async () => { await jobFlightMailImport(); },
   'mail-digest':             async () => { await jobMailDigest(); },
+  'site-traffic':            async () => { await jobSiteTraffic(); },
   'missions':                async () => { await jobMissions(); },
   'meeting-prep':            async () => { await jobMeetingPrep(); },
   'intentions':              async () => { await jobIntentions(); },

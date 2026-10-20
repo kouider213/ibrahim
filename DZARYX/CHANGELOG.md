@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-20 — Visites du site : vrais visiteurs / nous / robots
+
+Le site (track.js, repo autolux-location 4c909e4) trie chaque visite dans page_views.visitor : « nous » = appareil qui a ouvert l'admin ou le lien ?moi=1 (retenu dans le navigateur), le serveur Dzaryx / PC cloud (45.9.190.54, + FIK_OWNER_IPS), ou un autre appareil sur la même connexion ce jour-là ; « robot » = Google, aperçus de liens, Jina, navigateurs pilotés. Pays via les en-têtes Vercel. Dzaryx envoie le bilan chaque soir à 21h (site-traffic.ts), le brief du matin et l'outil stats ne comptent plus que les vrais visiteurs.
+
 ## 2026-10-20 — Démarchage séparé de contact@
 
 Les mails de démarchage partent de contact@fikconciergerie.com, 1 toutes les 1 à 2 min au lieu de 20 s (plus de rafale → Zoho ne bloque plus). Si Zoho rebloque quand même, bascule auto sur fikconciergerie@gmail.com (3c43008). Kouider a refusé le démarchage 100 % Gmail.
