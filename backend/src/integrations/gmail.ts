@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { supabase } from './supabase.js';
 import { env } from '../config/env.js';
+import { kvGet } from './app-store.js';
 
 // Lecture + envoi (après accord de Kouider) des boîtes Gmail de Kouider via OAuth (le compte de service ne peut pas lire un @gmail.com).
 // Tokens stockés dans google_oauth_tokens sous la clé "gmail:<adresse>" pour ne pas écraser ceux de l'agenda.
@@ -353,6 +354,9 @@ export async function proAliasBlockedUntil(): Promise<number> {
   const id = list.messages?.[0]?.id;
   if (!id) return 0;
   const m = await gmailGet<{ internalDate?: string }>(address, `/messages/${id}`, { format: 'minimal' });
+  // Blocage Zoho temporaire : une fois levé (test d'envoi OK), les rejets d'avant ne comptent plus
+  const clearedAt = Number(await kvGet('mail:zoho-unblocked-at').catch(() => null) ?? 0);
+  if (Number(m.internalDate ?? 0) <= clearedAt) return 0;
   const until = Number(m.internalDate ?? 0) + 24 * 3600_000;
   return until > Date.now() ? until : 0;
 }
