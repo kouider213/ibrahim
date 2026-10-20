@@ -88,6 +88,9 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
       }
       recorderRef.current = null;
       setRecording(false);
+      // Micro rendu tout de suite : gardé ouvert, il bloquait le micro des appels Telegram de Dzaryx (20/10)
+      micStreamRef.current?.getTracks().forEach(t => t.stop());
+      micStreamRef.current = null;
       const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
       chunksRef.current = [];
       if (blob.size < 500) return;

@@ -35,8 +35,11 @@ SEND_EVERY_S = 0.1                 # voix de Kouider envoyée à OpenAI par paqu
 VIDEO_FRESH_S = 2.0                # image caméra considérée « en direct » si reçue il y a moins de 2 s
 VIDEO_EVERY_S = 3.0                # au plus une image caméra envoyée à OpenAI toutes les 3 s
 CHECK_EVERY_S = 4.0                # voix re-vérifiée toutes les 4 s de parole (téléphone passé à quelqu'un d'autre ?)
-BARGE_RMS = int(os.environ.get('BARGE_RMS', '1800'))   # pendant que Dzaryx parle, seule une voix forte passe (anti-écho)
-ECHO_RATIO = 0.5                   # … et plus forte que la moitié de la voix de Dzaryx qui sort (l'écho est bien plus faible)
+BARGE_RMS = int(os.environ.get('BARGE_RMS', '400'))    # pendant que Dzaryx parle, il faut au moins ce volume pour passer…
+ECHO_MARGIN = 2.0                  # … et 2× l'écho mesuré sur CE téléphone (haut-parleur ~25 %, écouteurs ~0)
+ECHO_K0 = 0.25                     # écho supposé au départ (haut-parleur), appris ensuite tranche par tranche
+VOICE_TARGET = 4000                # sa voix est remontée vers ce volume (micro d'écouteurs ~1000 le 20/10)
+MAX_GAIN = 4.0
 ECHO_TAIL_S = 0.8                  # l'écho revient encore ~0,5 s après la dernière tranche jouée
 BARGE_OPEN_S = 1.5                 # voix forte entendue → on laisse tout passer 1,5 s (il coupe la parole)
 RECONNECTS = 3                     # coupures Gemini Live (1007 le 20/10) → nouvelle session, l'appel continue
@@ -133,6 +136,8 @@ class RealtimeCall:
         self.play_until = 0.0             # Dzaryx est audible au téléphone jusqu'à… (écho possible)
         self.open_until = 0.0             # anti-écho ouvert (Kouider parle par-dessus) jusqu'à…
         self.out_env = 0.0                # volume récent de la voix de Dzaryx jouée (pic qui retombe en ~1 s)
+        self.echo_k = ECHO_K0             # écho = echo_k × voix de Dzaryx (appris : écouteurs → presque 0)
+        self.voice_lvl = 0.0              # volume habituel de sa voix (pic qui retombe en ~10 s)
         self.reconnects = 0
 
     # ── Connexion ────────────────────────────────────────────────────────────
@@ -234,11 +239,21 @@ class RealtimeCall:
         now = time.monotonic()
         if self.out:
             self.play_until = now + ECHO_TAIL_S
-        if self.provider == 'gemini' and now < self.play_until and now >= self.open_until:
-            if rms >= max(BARGE_RMS, ECHO_RATIO * self.out_env):
+        playing = now < self.play_until
+        if self.provider == 'gemini' and playing and now >= self.open_until:
+            if rms >= max(BARGE_RMS, ECHO_MARGIN * self.echo_k * self.out_env):
                 self.open_until = now + BARGE_OPEN_S
             else:
+                if self.out_env > 500:   # ce qui revient pendant qu'il se tait = l'écho : on garde son pic (retombe en ~3 s)
+                    self.echo_k = max(min(rms / self.out_env, 1.0), self.echo_k * 0.998)
                 pcm24k = bytes(len(pcm24k))
+        elif not playing and rms > 300:
+            self.voice_lvl = max(float(rms), self.voice_lvl * 0.999)
+        # Micro faible (écouteurs Bluetooth : volume max ~1000 au lieu de ~7000) → Gemini ne détectait pas sa voix
+        if self.voice_lvl and rms:
+            gain = min(MAX_GAIN, max(1.0, VOICE_TARGET / self.voice_lvl))
+            if gain > 1.05:
+                pcm24k = audioop.mul(pcm24k, 2, gain)
         self.inp.extend(pcm24k)
         cap = VOICE_KEEP_S * IN_RATE * 2
         if len(self.voice) > cap:

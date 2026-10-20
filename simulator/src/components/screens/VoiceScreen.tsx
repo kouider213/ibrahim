@@ -154,6 +154,8 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
   const soundPlayedRef = useRef(false);            // son d'activation joué une fois
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const srRecRef       = useRef<any>(null);        // instance SpeechRecognition courante
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wakeRecRef     = useRef<any>(null);        // écoute du mot « Dzaryx » (arrêtée quand l'app passe en arrière-plan)
   const srWantedRef    = useRef(false);            // on VEUT écouter (vrai tant qu'on est sur l'écran)
   const srSilenceRef   = useRef<ReturnType<typeof setTimeout> | null>(null); // timer fin-de-tour
   const srLastTextRef  = useRef('');               // dernier interim (pour finaliser au silence)
@@ -455,6 +457,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
 
   async function initMic() {
     if (micInitRef.current) return;
+    if (document.hidden && !callRef.current) return;   // en arrière-plan : le micro est à Telegram (voir releaseMic)
     micInitRef.current = true;
     drawCanvas();
     try {
@@ -513,6 +516,41 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
     };
   }, []);
 
+  // App en arrière-plan (Dzaryx t'appelle sur Telegram, écouteurs, autre app) → on REND le micro.
+  // Avant (20/10) : micro partagé + mot-clé + watchdog le reprenaient sans arrêt même en arrière-plan →
+  // l'iPhone envoyait du silence à l'appel Telegram (« volume max 0 »). Retour dans l'app → micro relancé.
+  // Exception : appel DANS l'app en cours (écran verrouillé pendant l'appel).
+  useEffect(() => {
+    const releaseMic = () => {
+      if (callRef.current) return;
+      vadGenRef.current++;
+      const w = wakeRecRef.current; wakeRecRef.current = null;
+      if (w) { try { w.onend = null; w.abort(); } catch { /* ignore */ } }
+      srWantedRef.current = false; stopSR();
+      discardRecording();
+      isRecordingRef.current = false;
+      sharedMicStream?.getTracks().forEach(t => t.stop());
+      sharedMicStream = null;
+      streamRef.current = null;
+      audioCtxRef.current?.close().catch(() => {});
+      audioCtxRef.current = null;
+      analyserRef.current = null;
+      micInitRef.current = false;
+    };
+    const onVis = () => {
+      if (document.hidden) releaseMic();
+      else if (sessionAudioUnlocked) void initMic();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('pagehide', releaseMic);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('pagehide', releaseMic);
+      const w = wakeRecRef.current; wakeRecRef.current = null;
+      if (w) { try { w.onend = null; w.abort(); } catch { /* ignore */ } }
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Retour sur l'écran Voix après l'avoir déjà débloqué une fois cette session :
   // réactive le micro automatiquement (plus besoin de re-taper "ACTIVER DZARYX").
   useEffect(() => {
@@ -550,6 +588,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
   useEffect(() => {
     const wd = setInterval(() => {
       if (!sessionAudioUnlocked) return; // pas encore activé une 1ère fois
+      if (document.hidden && !callRef.current) return; // arrière-plan : surtout ne pas reprendre le micro
       // 1) "thinking" figé > 12s → débloque (sinon micro gelé)
       if (statusRef.current === 'thinking' && thinkingSinceRef.current && Date.now() - thinkingSinceRef.current > 12_000) {
         setStatus('idle'); setHud('PRÊT — PARLE-MOI'); thinkingSinceRef.current = 0;
@@ -664,8 +703,11 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
     };
     rec.onend = () => {
       setWakeWordOn(false);
-      setTimeout(() => { try { rec.start(); } catch { /* ignore */ } }, 300);
+      if (wakeRecRef.current !== rec || document.hidden) return;
+      setTimeout(() => { if (wakeRecRef.current === rec) try { rec.start(); } catch { /* ignore */ } }, 300);
     };
+    try { wakeRecRef.current?.abort(); } catch { /* ignore */ }
+    wakeRecRef.current = rec;
     try { rec.start(); } catch { /* ignore */ }
   }
 
