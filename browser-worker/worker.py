@@ -71,6 +71,31 @@ def screenshot_to_outbox(agent: 'ba.BrowserAgent', job_id: str, caption: str) ->
     (OUTBOX / f'browser-{job_id}.txt').write_text(caption[:1000], encoding='utf-8')
 
 
+FLIGHT_TASK = 'RECHERCHE DE VOL AIR ALGÉRIE'
+_CLIP_JS = """() => { const f = document.querySelector('footer.footerIbe, footer.layout-footer');
+  const h = f ? f.getBoundingClientRect().top + scrollY : innerHeight;
+  return {x: 0, y: 0, width: innerWidth, height: Math.max(300, Math.min(h, innerHeight, 4000))}; }"""
+
+
+def flight_result_to_outbox(agent: 'ba.BrowserAgent', job_id: str, result: str) -> None:
+    """Recherche de vol finie → Telegram aussi : photo de la page Air Algérie (sans le pied de page) + le texte complet."""
+    OUTBOX.mkdir(exist_ok=True)
+    if result.startswith(("J'arrête", "J'ai atteint")):
+        # Recherche ratée : pas de capture « je te propose », juste le message
+        (OUTBOX / f'browser-{job_id}-b.txt').write_text('✈️ Recherche Air Algérie pas aboutie : ' + result[:3900], encoding='utf-8')
+        return
+    def shot() -> bytes:
+        page = agent._page
+        page.bring_to_front()
+        return page.screenshot(type='jpeg', quality=75, clip=page.evaluate(_CLIP_JS), timeout=20000)
+    try:
+        (OUTBOX / f'browser-{job_id}-a.jpg').write_bytes(agent._pool.submit(shot).result(timeout=30))
+        (OUTBOX / f'browser-{job_id}-a.txt').write_text("✈️ Ce que je te propose — capture du site Air Algérie (le détail suit).", encoding='utf-8')
+    except Exception as e:
+        log.warning('capture vol impossible : %s', e)
+    (OUTBOX / f'browser-{job_id}-b.txt').write_text(result[:4000], encoding='utf-8')
+
+
 async def handle(http: aiohttp.ClientSession, agent: 'ba.BrowserAgent', job: dict) -> None:
     jid, task = job['id'], job['task']
     try:
@@ -88,6 +113,8 @@ async def handle(http: aiohttp.ClientSession, agent: 'ba.BrowserAgent', job: dic
             screenshot_to_outbox(agent, jid, f'🌐 Navigateur — {task[:120]}\n\n{result}\n\nRéponds-moi : « continue », « le code est … », « clique sur … » ou « annule ».')
         else:
             await post(http, '/api/browser/update', {'id': jid, 'status': 'done', 'text': result})
+            if task.startswith(FLIGHT_TASK):
+                flight_result_to_outbox(agent, jid, result)
     except Exception as e:
         log.exception('tâche %s', jid)
         await post(http, '/api/browser/update', {'id': jid, 'status': 'error', 'text': f'Erreur : {e}'})

@@ -129,6 +129,9 @@ export async function airAlgerieSearchTool(input: Record<string, unknown>, sessi
     `RECHERCHE DE VOL AIR ALGÉRIE (uniquement Air Algérie — jamais un comparateur ni une autre compagnie).\n` +
     `Vol : ${trip}. Passagers : ${pax} (catégories déjà réglées dans les liens, ne les change pas).\n` +
     `BAGAGE : il faut TOUJOURS UN SEUL bagage en soute EN PLUS pour tout le groupe (1 au total, pas un par personne).\n` +
+    `VOLS DIRECTS SEULEMENT : ne propose QUE des vols directs sans escale (aller ET retour), le moins cher parmi eux. Un vol avec escale ne compte jamais, ` +
+    `même moins cher. Attention : les prix « à partir de » des grilles/barres peuvent venir d'un vol avec escale — vérifie sur la page « vols » que le vol ` +
+    `retenu est marqué « DIRECT » (et prends son prix à lui) ; un jour qui n'a que des vols avec escale est écarté.\n` +
     `Méthode (utilise read_page, pas de screenshot sauf captcha) :\n` +
     open +
     `2. Deux pages possibles (tous les prix = TOTAL pour tous les passagers, taxes incluses ; « à partir de » = tarif Light, sans bagage en soute) :\n` +
@@ -138,7 +141,7 @@ export async function airAlgerieSearchTool(input: Record<string, unknown>, sessi
       `wait 5, read_page → la barre de 7 jours du retour et ses vols s'affichent. Note les deux barres.\n` : `Note la barre.\n`) +
     `   Note les 3 ${tripDays ? 'combinaisons de dates' : 'dates'} les moins chères${month ? ' du mois' : ''}` +
     `${month && tripDays ? ` en gardant environ ${tripDays} jours sur place (prix aller du jour + prix retour du jour +${tripDays})` : ''}.\n` +
-    `3. Sur la grille (a) : clique la combinaison la moins chère, puis CONTINUER. Sur la page « vols » (b) : clique le jour le moins cher dans la barre si besoin. Pour le vol le moins cher ${tripDays ? 'à l\'aller ET au retour' : ''} note : ` +
+    `3. Sur la grille (a) : clique la combinaison la moins chère, puis CONTINUER. Sur la page « vols » (b) : clique le jour le moins cher dans la barre si besoin. Pour le vol DIRECT le moins cher ${tripDays ? 'à l\'aller ET au retour' : ''} note : ` +
     `horaires, direct ou escale, prix « Light » et prix « Economique Promo » (prix avec réduction, totaux du groupe).\n` +
     `4. Calcul du bagage en plus : Light = 0 bagage en soute, Economique Promo = 1 × 23 kg par passager (les bébés ne comptent pas). Pour ${n > 1 ? `ce groupe de ${n} passagers avec siège` : 'ce passager'}, ` +
     (n > 1
@@ -148,6 +151,8 @@ export async function airAlgerieSearchTool(input: Record<string, unknown>, sessi
       : `le prix avec bagage = prix Economique Promo.\n`) +
     `5. Ne clique sur rien d'autre qu'un tarif / CONTINUER sur la page des dates : ne va PAS jusqu'à la saisie des passagers, ne réserve rien, ne paie rien. ` +
     `Captcha ou page bloquée → ask_kouider.\n` +
+    `6. Juste avant done : reviens sur la page de la MEILLEURE option et laisse-y le vol aller proposé sélectionné (tarif Light cliqué) avec les vols retour visibles — ` +
+    `une capture de cette page est envoyée à Kouider sur Telegram.\n` +
     `Termine par done, en français, court : 🥇 meilleure option (dates, horaires, direct ou non) avec le PRIX TOTAL du groupe AVEC 1 bagage en soute ` +
     `(détail : prix Light sans bagage + supplément bagage), puis les 2 autres ${tripDays ? 'combinaisons de dates' : 'dates'} moins chères (prix Light du groupe), et ce que tu n'as pas pu vérifier. Monnaie : celle du site (€).`;
 
@@ -155,5 +160,5 @@ export async function airAlgerieSearchTool(input: Record<string, unknown>, sessi
   if (res.startsWith('⏳') || res.startsWith('❌')) return res;
   return `✈️ Recherche Air Algérie lancée sur le PC cloud : ${trip}, ${pax}, + 1 bagage en soute pour le groupe` +
     `${month ? '' : ', avec les dates à ±3 jours'}.${notes.length ? `\n⚠️ ${notes.join(' ; ')}.` : ''}\n` +
-    `Je t'envoie le prix total sur Telegram dès que c'est fini${month ? ' (tout le mois : ~5 min)' : ''} ; tu peux regarder en direct : MON PC → PC cloud.`;
+    `Je t'envoie le prix total + une capture du site sur Telegram dès que c'est fini${month ? ' (tout le mois : ~5 min)' : ''} ; tu peux regarder en direct : MON PC → PC cloud.`;
 }

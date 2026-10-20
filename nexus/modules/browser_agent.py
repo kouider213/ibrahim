@@ -322,7 +322,7 @@ class BrowserAgent:
 
     def _loop(self, messages: list) -> str:
         guard = LoopGuard()
-        navs = 0
+        navs = reads = 0
         for _ in range(MAX_STEPS):
             resp = self.client.messages.create(model=MODEL, max_tokens=4000, system=SYSTEM,
                                                tools=TOOLS, messages=messages)
@@ -355,10 +355,18 @@ class BrowserAgent:
                 except Exception as e:
                     text, img = f'❌ {type(e).__name__}: {str(e)[:300]}', None
                 log.info('browser %s %s → %s', b.name, str(b.input)[:80], text[:100])
-                if b.name == 'navigate':
+                if b.name in ('navigate', 'click', 'type', 'select', 'press', 'back'):
                     navs += 1
-                # wait / read_page / scroll / screenshot : comptés par page ouverte (lire 5 pages de suite n'est pas une boucle)
-                key_args = {**b.input, '_page': navs} if b.name in ('wait', 'read_page', 'scroll', 'screenshot') else b.input
+                elif b.name in ('read_page', 'screenshot'):
+                    reads += 1
+                # wait / read_page / scroll / screenshot : comptés depuis la dernière vraie action (cliquer puis relire n'est pas une boucle) ;
+                # click / type / select : comptés par lecture de page (les numéros ref changent à chaque relecture)
+                if b.name in ('wait', 'read_page', 'scroll', 'screenshot'):
+                    key_args = {**b.input, '_page': navs}
+                elif b.name in ('click', 'type', 'select'):
+                    key_args = {**b.input, '_read': reads}
+                else:
+                    key_args = b.input
                 stop = guard.check(b.name, key_args, text)
                 if stop:
                     return stop
