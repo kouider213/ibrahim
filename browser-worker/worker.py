@@ -40,6 +40,7 @@ import modules.browser_agent as ba  # noqa: E402  (après le chargement du .env)
 
 ba.PROFILE_DIR = Path(__file__).resolve().parent / 'profile'
 ba.DOWNLOADS = Path(__file__).resolve().parent / 'downloads'
+ba.MAX_STEPS = max(ba.MAX_STEPS, 45)   # recherche Air Algérie sur tout un mois = ~5 grilles à lire
 ba.DOWNLOADS.mkdir(exist_ok=True)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [browser-worker] %(message)s')

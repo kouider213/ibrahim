@@ -2446,16 +2446,20 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'air_algerie_search',
-    description: "CHERCHER UN VOL PAS CHER AIR ALGÉRIE (uniquement Air Algérie, site officiel, dans le Chrome du PC cloud : aucune clé). Règles fixes de Kouider : départ LILLE (LIL) → ORAN (ORN) par défaut, et TOUJOURS UN SEUL bagage en soute EN PLUS pour tout le groupe (1 au total, quel que soit le nombre de passagers) — le prix rendu l'inclut. Regarde tout seul ±3 jours autour des dates. Ne réserve et ne paie jamais. « trouve-moi un vol Air Algérie le 3 décembre retour le 10, 4 personnes », « billet pas cher pour Oran le … ». Dates AAAA-MM-JJ ; adults/children (2-11 ans)/infants (moins de 2 ans) ; from/to en code IATA seulement si Kouider dit une autre ville. Le résultat arrive sur Telegram/app.",
+    description: "CHERCHER UN VOL PAS CHER AIR ALGÉRIE (uniquement Air Algérie, site officiel, dans le Chrome du PC cloud : aucune clé). Règles fixes de Kouider : départ LILLE (LIL) → ORAN (ORN) par défaut, et TOUJOURS UN SEUL bagage en soute EN PLUS pour tout le groupe (1 au total, quel que soit le nombre de passagers) — le prix rendu l'inclut. Ne réserve et ne paie jamais. Dates : depart_date (+ return_date ou stay_days) → regarde ±3 jours autour ; « une date en janvier », « le moins cher en février » → month (AAAA-MM) + stay_days (jours sur place) ou one_way=true — si Kouider ne l'a pas dit, DEMANDE-lui aller simple ou combien de jours. PASSAGERS : mets passengers = la liste des ÂGES qu'il donne (« moi 24, ma femme 25 et mon fils 1 an » → [24, 25, 1]) ou des dates de naissance AAAA-MM-JJ : l'outil choisit tout seul adulte (12 ans+) / enfant (2-11) / bébé (moins de 2). N'utilise adults/children/infants que s'il ne donne pas d'âges. from/to en code IATA seulement si Kouider dit une autre ville. Le résultat arrive sur Telegram/app.",
     input_schema: {
       type: 'object' as const,
       properties: {
-        depart_date: { type: 'string', description: 'AAAA-MM-JJ' },
+        depart_date: { type: 'string', description: 'AAAA-MM-JJ (date précise)' },
         return_date: { type: 'string', description: 'AAAA-MM-JJ, vide = aller simple' },
+        month: { type: 'string', description: 'AAAA-MM : chercher le moins cher sur tout le mois (au lieu de depart_date)' },
+        stay_days: { type: 'number', description: 'aller-retour : nb de jours sur place (avec month, ou à la place de return_date)' },
+        one_way: { type: 'boolean', description: 'true = aller simple (utile avec month)' },
+        passengers: { type: 'array', items: { type: 'string' }, description: 'âge de chaque passager (« 24 », « 1 ») ou date de naissance AAAA-MM-JJ' },
         adults: { type: 'number' }, children: { type: 'number' }, infants: { type: 'number' },
         from: { type: 'string', description: 'code IATA, défaut LIL (Lille)' }, to: { type: 'string', description: 'code IATA, défaut ORN (Oran)' },
       },
-      required: ['depart_date', 'adults'],
+      required: [],
     },
   },
   {

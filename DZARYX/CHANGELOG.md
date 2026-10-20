@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-20 — air_algerie_search : âges des passagers + tout un mois
+
+Kouider : « regarde-moi une date en janvier », et donner les âges (« 24, 25 et mon fils 1 an ») sans que Dzaryx se trompe de catégorie. `passengers` = âges ou dates de naissance → adulte 12+ / enfant 2-11 / bébé <2 (catégories du site), âge pris au dernier vol, alerte si 1 an / 11 ans ou si la catégorie change pendant le voyage. `month` (AAAA-MM) + `stay_days` / `one_way` : 5 liens Amadeus (centres 4, 11, 18, 25, fin de mois), Dzaryx demande aller simple / durée si non dit. Page « vols » (au lieu de la grille) : l'agent clique l'aller Light pour voir la barre du retour. Agent navigateur : LoopGuard compte wait/read_page/scroll/screenshot par page ouverte ; worker MAX_STEPS 45. Testé janvier 2027, 7 j, [24, 25, 1] : 336,20 € Light, ≈ 411,70 € avec 1 bagage.
+
 ## 2026-10-20 — Recherche de vols Air Algérie (air_algerie_search)
 
 Kouider : vols Air Algérie uniquement, aux dates qu'il donne, avec le nombre de passagers, TOUJOURS 1 seul bagage en soute en plus pour tout le groupe, départ Lille → Oran par défaut. Nouvel outil `air_algerie_search` (backend/src/integrations/air-algerie.ts) : le backend rejoue le POST du formulaire airalgerie.dz (dates AAAAMMJJ0000) → 302 vers la grille Amadeus FlexPricer (±3 jours, prix totaux du groupe) ; la page est derrière Imperva donc lue par browser_task dans le Chrome du PC cloud (aucune clé). Bagage : Light = 0 soute, Economique Promo = 23 kg/pax → prix 1 bagage ≈ Light groupe + (Promo − Light) ÷ nb passagers (1 passager en Promo, 2 réservations), + prix « tous en Promo ». Jamais de saisie passager ni de réservation. Testé 3 adultes 02→09/12 : 424,80 € Light, ≈ 460,81 € avec 1 bagage. Agent navigateur : max_tokens 4000 + done coupé redemandé, read_page 12 000 caractères compactés.
