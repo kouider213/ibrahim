@@ -168,8 +168,9 @@ export function emitProactive(
               : '📱 Dzaryx';
 
   // Respecte les préférences de notif (par type) avant de pousser
-  void pushTypeEnabled(targetActor, type).then(enabled => {
+  void Promise.all([pushTypeEnabled(targetActor, type), targetActor === 'kouider' ? import('./dnd.js').then(m => m.getDnd()).catch(() => null) : null]).then(([enabled, dnd]) => {
     if (!enabled) { console.log(`[mobile-push] type ${type} désactivé pour ${targetActor} — push sauté`); return; }
+    if (dnd) { console.log('[mobile-push] ne pas déranger — push sauté (reste dans l\'historique)'); return; }
     // deepLink dans la notif → un tap ouvre directement la bonne page de l'app
     const data: Record<string, string> = deepLink ? { text, type, deepLink } : { text, type };
     sendExpoPush(title, text, data, targetActor).catch(err =>

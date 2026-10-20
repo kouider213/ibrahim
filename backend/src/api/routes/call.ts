@@ -17,6 +17,7 @@ import { takeCallInbox, addToCallInbox, removeFromCallInbox } from '../../notifi
 import { clientWhatsappLink } from '../../notifications/client-care.js';
 import { quickBooking, quickPayment, quickQuote, quickAgenda, quickModifyBooking, quickEmailReply, quickContract } from '../../integrations/call-quick.js';
 import { takeTelegramMessages, queueTelegramMessage } from '../../notifications/tg-outbox.js';
+import { getDnd, setDnd, dndOnKouiderMessage } from '../../notifications/dnd.js';
 import { noteKouiderActivity } from '../../integrations/morning-routine.js';
 import { storeLocation, getLocation } from '../../integrations/location.js';
 import { pcCommand, pcStatus, pcWake, pcScreenToTelegram, pcLookJpeg } from '../../integrations/nexus-remote.js';
@@ -88,12 +89,14 @@ router.post('/answer', requireMobileAuth, async (req, res) => {
 router.post('/decline', requireMobileAuth, async (req, res) => {
   const { callId } = req.body as { callId?: string };
   await declineCall(callActor(req), callId);
+  // Il refuse l'appel dans l'app → « ne pas déranger » jusqu'à sa réponse (Kouider 20/10 : plus d'appel insistant)
+  if (callActor(req) === 'kouider') await setDnd({ untilReply: true, why: 'appel refusé' }).catch(() => {});
   res.json({ ok: true });
 });
 
 // POST /api/call/test — fait sonner l'app (test de bout en bout)
 router.post('/test', requireMobileAuth, async (req, res) => {
-  const { id } = await callOwner('Ceci est un appel de test. Tu m\'entends bien ?', callActor(req));
+  const { id } = await callOwner('Ceci est un appel de test. Tu m\'entends bien ?', callActor(req), { force: true });
   res.json({ ok: true, id });
 });
 
@@ -102,7 +105,7 @@ router.post('/retry', requireMobileAuth, async (req, res) => {
   const reason = String((req.body as { reason?: string }).reason ?? '').trim();
   if (!reason) { res.status(400).json({ error: 'reason required' }); return; }
   const { quietUntil, addToCallInbox } = await import('../../notifications/auto-call.js');
-  if (callActor(req) === 'kouider' && await quietUntil()) {           // « pas dispo » : pas de 2e essai, gardé pour plus tard
+  if (callActor(req) === 'kouider' && (await quietUntil() || await getDnd())) {   // « pas dispo » : pas de 2e essai, gardé pour plus tard
     await addToCallInbox(reason).catch(() => {});
     res.json({ ok: true, held: true }); return;
   }
@@ -111,11 +114,17 @@ router.post('/retry', requireMobileAuth, async (req, res) => {
   res.json({ ok: true, id });
 });
 
-// POST /api/call/missed { reason } — appel de Dzaryx pas décroché : l'info est gardée pour le prochain appel de Kouider
+// POST /api/call/missed { reason, why? } — appel de Dzaryx pas décroché : l'info est gardée pour le prochain appel de Kouider.
+// Pas décroché / refusé → « ne pas déranger » jusqu'à sa réponse : ni 2e essai, ni appel programmé, ni message (hold:true).
+// why='muet' = il a décroché mais le son ne passait pas (problème technique) → pas de silence, 2e essai normal.
 router.post('/missed', requireMobileAuth, async (req, res) => {
-  const reason = String((req.body as { reason?: string }).reason ?? '').trim();
-  if (reason && callActor(req) === 'kouider') await addToCallInbox(reason.slice(0, 600)).catch(() => {});
-  res.json({ ok: true });
+  const { reason: r, why } = req.body as { reason?: string; why?: string };
+  const reason = String(r ?? '').trim();
+  const kouider = callActor(req) === 'kouider';
+  if (reason && kouider) await addToCallInbox(reason.slice(0, 600)).catch(() => {});
+  const hold = kouider && why !== 'muet';
+  if (hold) await setDnd({ untilReply: true, why: 'appel pas décroché' }).catch(() => {});
+  res.json({ ok: true, hold });
 });
 
 // POST /api/call/location { lat, lng } — position GPS partagée sur Telegram (position en direct → mises à jour)
@@ -152,6 +161,7 @@ router.post('/turn', requireCallerAuth, async (req, res) => {
     : DEFAULT_MEMBER;
   try {
     // Dzaryx doit savoir qu'il est DÉJÀ au téléphone : sinon « tu m'entends ? » relance call_me.
+    const dndNote = who === 'kouider' ? await dndOnKouiderMessage().catch(() => null) : null;   // « ne pas déranger » : il a répondu
     const wakeNote = who === 'kouider' ? await noteKouiderActivity() : null;   // réponse au contrôle de réveil du matin ?
     // « oui » / « non » juste après une réponse WhatsApp proposée → envoi direct, sans repasser par l'IA
     // Réponse à une question de l'assistant GPS (« tu vas où ? », « tu es à la salle ? », « brief ? ») : passe avant WhatsApp
@@ -161,7 +171,7 @@ router.post('/turn', requireCallerAuth, async (req, res) => {
     const wa = !gps && who === 'kouider' && channel === 'message' && !image && message
       ? await import('../../integrations/whatsapp-web.js').then(m => m.handleWaYesNo(message)).catch(() => null) : null;
     if (wa?.reply) { res.json({ text: wa.reply, audio: null }); return; }
-    const said = `${wakeNote ? `${wakeNote}\n` : ''}${gps?.note ? `${gps.note}\n` : ''}${wa?.note ? `${wa.note}\n` : ''}${(message?.trim() || 'Voici une photo.').slice(0, 2000)}`;
+    const said = `${dndNote ? `${dndNote}\n` : ''}${wakeNote ? `${wakeNote}\n` : ''}${gps?.note ? `${gps.note}\n` : ''}${wa?.note ? `${wa.note}\n` : ''}${(message?.trim() || 'Voici une photo.').slice(0, 2000)}`;
     // Message Telegram écrit (texte/photo) : pas de consigne « appel en cours »
     // Photo écrite (capture d'un billet, d'un document…) : boucle complète avec outils, pas la vision rapide de l'appel vidéo
     const photoNote = channel === 'message' && image ? `${PHOTO_TG}. Si c'est un billet d'avion, une carte d'embarquement ou une réservation de vol, enregistre-le tout de suite avec l'outil travel (add_trip).]\n` : '';
@@ -565,6 +575,7 @@ router.post('/realtime-gemini', requireCallerAuth, async (req, res) => {
   if (!env.GEMINI_API_KEY) { res.status(503).json({ error: 'GEMINI_API_KEY absente' }); return; }
   const who = callActor(req);
   const pcMode = (req.body as { mode?: string } | undefined)?.mode === 'pc' && who === 'kouider';
+  if (who === 'kouider' && !pcMode) void dndOnKouiderMessage().catch(() => null);   // on se parle : fin du silence « jusqu'à sa réponse »
   try {
     const [calls, dossier, family] = await Promise.all([
       recentCallsText(who).catch(() => ''),

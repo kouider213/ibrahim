@@ -3,7 +3,7 @@ import { listAgendaRange, updateAgendaEvent, type AgendaEvent } from './google-c
 import { getLocation } from './location.js';
 import { geocode, drive, km } from './departures.js';
 import { getRoutineConfig, routinePausedReason, routineCalledRecently, localNow, localTs, hm, TZ } from './morning-routine.js';
-import { queueTelegramMessage, queueTelegramLocation } from '../notifications/tg-outbox.js';
+import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { callOwner, getPendingCall } from '../notifications/voice-call.js';
 
@@ -11,8 +11,8 @@ import { callOwner, getPendingCall } from '../notifications/voice-call.js';
 // PULL DAY, LEG DAY, CARDIO DAY… — avec les exercices, séries × répétitions, repos et la charge conseillée (progression
 // d'après ses séances notées). Le programme s'adapte à l'agenda : la rotation suit les vrais créneaux, une séance ratée
 // est refaite la fois suivante, un créneau raccourci (RDV qui chevauche) donne une séance plus courte.
-// Rappels : au moment de partir → appel + point GPS de la salle sur Telegram ; séance commencée et GPS loin de la salle
-// → « tu as oublié le sport ? » (appel + point GPS) ; arrivé à la salle → la séance du jour arrive sur Telegram.
+// Rappels : au moment de partir → appel + lien Waze de la salle sur Telegram ; séance commencée et GPS loin de la salle
+// → « tu as oublié le sport ? » (appel + lien Waze) ; arrivé à la salle → la séance du jour arrive sur Telegram.
 // Page SPORT de l'app : mode séance (séries cochées, minuteur de repos parlé, charges pré-remplies), semaine, progrès.
 // Programme adapté au dos (règles du coach dans life-coach.ts) : rien de lourd sur la colonne.
 
@@ -313,7 +313,7 @@ async function gymPoint(): Promise<{ lat: number; lng: number; address: string }
   const g = await geocode(cfg.addresses.gym);
   return g ? { ...g, address: cfg.addresses.gym } : null;
 }
-const nav = (p: { lat: number; lng: number }) => `🧭 Waze : https://waze.com/ul?ll=${p.lat},${p.lng}&navigate=yes\n🗺️ Maps : https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=driving`;
+const nav = (p: { lat: number; lng: number }) => `🧭 Waze : https://waze.com/ul?ll=${p.lat},${p.lng}&navigate=yes`;   // Waze seulement (Kouider 20/10)
 const sayTime = (ts: number) => hm(ts).replace('h', ' h ');
 
 async function alertOnce(st: SportState, date: string, kind: string): Promise<boolean> {
@@ -324,7 +324,7 @@ async function alertOnce(st: SportState, date: string, kind: string): Promise<bo
   return true;
 }
 
-/** Appelée par departures.ts au moment du message « pars à… » d'un créneau sport : séance + point GPS + appel. */
+/** Appelée par departures.ts au moment du message « pars à… » d'un créneau sport : séance + lien Waze + appel. */
 export async function sportDepartureNotice(o: { start: number; leaveBy: number; minutes: number; traffic: string }): Promise<void> {
   const st = await getState();
   const date = localNow(o.start).date;
@@ -332,10 +332,10 @@ export async function sportDepartureNotice(o: { start: number; leaveBy: number; 
   const p = st.plan[date];
   const label = p ? SESSIONS[p.type] : null;
   const gym = await gymPoint();
-  if (gym) await queueTelegramLocation(gym.lat, gym.lng, `🏋️ Salle — ${label?.label ?? 'sport'}`, gym.address);
+  if (gym) await queueTelegramMessage(`🏋️ Salle — ${label?.label ?? 'sport'}\n${nav(gym)}`);
   if (p) await queueTelegramMessage(`🏋️ Aujourd'hui : ${sessionText(p.type, p.minutes, await readSportLog(), true)}`);
   if (!st.settings.callBefore || await getPendingCall('kouider') || await routineCalledRecently(15)) return;
-  await callOwner(`C'est l'heure du sport champion ! Aujourd'hui c'est ${label ? `${label.label.toLowerCase()}, ${label.focus.replace(/·/g, ',')}` : 'ta séance'}. Pars à ${sayTime(o.leaveBy)}, il y a ${o.minutes} minutes de route,${o.traffic.replace(/[🔴🟡🟢]/gu, '')}. Je t'ai envoyé le point GPS de la salle et ta séance sur Telegram. Allez, on y va !`);
+  await callOwner(`C'est l'heure du sport champion ! Aujourd'hui c'est ${label ? `${label.label.toLowerCase()}, ${label.focus.replace(/·/g, ',')}` : 'ta séance'}. Pars à ${sayTime(o.leaveBy)}, il y a ${o.minutes} minutes de route,${o.traffic.replace(/[🔴🟡🟢]/gu, '')}. Je t'ai envoyé le lien Waze de la salle et ta séance sur Telegram. Allez, on y va !`);
 }
 
 /** Toutes les 5 min : arrivé à la salle → séance sur Telegram ; séance commencée et GPS loin → appel « tu as oublié ? ». */
@@ -368,14 +368,12 @@ export async function jobSportWatch(): Promise<void> {
     if (!(await alertOnce(st, date, 'forgot'))) return;
     const dist = km(fresh, gym);
     const t = await drive(fresh, gym);
-    await queueTelegramLocation(gym.lat, gym.lng, `🏋️ Salle — ${s.label}`, gym.address);
-    await queueTelegramMessage(`⏰ Ta séance ${s.label} a commencé à ${hm(start)} et tu n'es pas à la salle (tu es à ${dist.toFixed(1)} km${t ? `, ${t.min} min de route` : ''}).\nTu as oublié ? Le point GPS est juste au-dessus.\n${nav(gym)}\nSi tu ne peux pas aujourd'hui, dis-moi « pas de sport aujourd'hui » : je décale la séance.`);
+    await queueTelegramMessage(`⏰ Ta séance ${s.label} a commencé à ${hm(start)} et tu n'es pas à la salle (tu es à ${dist.toFixed(1)} km${t ? `, ${t.min} min de route` : ''}).\nTu as oublié ? Itinéraire depuis où tu es :\n${nav(gym)}\nSi tu ne peux pas aujourd'hui, dis-moi « pas de sport aujourd'hui » : je décale la séance.`);
     emitProactive(`⏰ Tu as oublié le sport ? ${s.label} a commencé à ${hm(start)}`, 'reminder', undefined, 'kouider', 'sport');
     if (!(await getPendingCall('kouider'))) {
-      await callOwner(`Kouider, c'est Dzaryx. Ta séance ${s.label.toLowerCase()} a commencé à ${sayTime(start)} et je vois que tu n'es pas à la salle, tu es à ${dist < 10 ? dist.toFixed(1).replace('.', ' virgule ') : Math.round(dist)} kilomètres${t ? `, soit ${t.min} minutes de route` : ''}. Tu as oublié le sport ? Je t'ai envoyé le point GPS sur Telegram. Si tu ne peux pas aujourd'hui, dis-le-moi et je décale ta séance.`);
+      await callOwner(`Kouider, c'est Dzaryx. Ta séance ${s.label.toLowerCase()} a commencé à ${sayTime(start)} et je vois que tu n'es pas à la salle, tu es à ${dist < 10 ? dist.toFixed(1).replace('.', ' virgule ') : Math.round(dist)} kilomètres${t ? `, soit ${t.min} minutes de route` : ''}. Tu as oublié le sport ? Je t'ai envoyé le lien Waze sur Telegram. Si tu ne peux pas aujourd'hui, dis-le-moi et je décale ta séance.`);
     }
   } else if (await alertOnce(st, date, 'nogps')) {
-    await queueTelegramLocation(gym.lat, gym.lng, `🏋️ Salle — ${s.label}`, gym.address);
     await queueTelegramMessage(`🏋️ Ta séance ${s.label} a commencé à ${hm(start)} — tu es bien à la salle ?\nJe n'ai pas ta position : partage ta position en direct dans ce chat (📎 → Position → « jusqu'à désactivation ») et je vérifie tout seul, sans te déranger.`);
   }
 }

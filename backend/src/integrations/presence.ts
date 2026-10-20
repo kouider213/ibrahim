@@ -6,17 +6,17 @@ import { geocode, drive, km } from './departures.js';
 import { getRoutineConfig, routinePausedReason, localNow, localTs, hm, TZ } from './morning-routine.js';
 import { listAgendaRange } from './google-calendar.js';
 import { trafficBriefLine } from './site-traffic.js';
-import { queueTelegramMessage, queueTelegramLocation } from '../notifications/tg-outbox.js';
+import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { callOwner, getPendingCall } from '../notifications/voice-call.js';
 
 // ASSISTANT GPS (demande de Kouider 2026-10-18) : avec sa position en direct (Telegram), Dzaryx voit où il est et agit
 // comme un vrai assistant :
 // - il sort de la maison → « je te vois partir, tu vas où ? » ; s'il RÉPOND par message, il est seul → libre de parler
-//   (et le matin : appel du brief). Vers la salle : point GPS + playlist tout de suite.
+//   (et le matin : appel du brief). Vers la salle : lien Waze + vraies playlists tout de suite.
 // - il arrive à la salle EN AVANCE → « tu es bien à la salle ? » ; « oui » → séance validée, rappel de départ annulé,
 //   matinée de l'agenda avancée (sport-coach.confirmGymArrival). Dans la fenêtre normale, sport-watch valide tout seul.
-// - arrivé au travail → programme du jour ; rentré le soir → demain en 2 lignes.
+// - arrivé au travail → programme du jour (pas prévu à cette heure → « tout va bien ? ») ; rentré le soir → demain en 2 lignes.
 // - BRIEF DU MATIN (hier, aujourd'hui, mails, WhatsApp, visites du site, conseils) : seulement s'il a répondu qu'il est
 //   seul ; sinon redemandé 10 min avant le travail ; pas de réponse en 25 min → écrit sur Telegram. Ou à la demande.
 // Le retard (trafic, heure de départ) reste dans departures.ts.
@@ -29,7 +29,7 @@ const RADIUS: Record<'home' | 'gym' | 'work', number> = { home: 0.3, gym: 0.4, w
 const NAME: Record<Place, string> = { home: 'la maison', gym: 'la salle', work: 'le travail', away: 'en déplacement' };
 
 type Place = 'home' | 'gym' | 'work' | 'away';
-type AskKind = 'left' | 'gym' | 'brief';
+type AskKind = 'left' | 'gym' | 'brief' | 'odd';
 interface PresenceState {
   place?: Place; since?: number;
   ask?: { kind: AskKind; at: number; dest?: 'gym' | string };
@@ -80,13 +80,38 @@ function classify(p: { lat: number; lng: number }, pts: Awaited<ReturnType<typeo
 
 // ── Musique ──────────────────────────────────────────────────────────────────
 
-const am = (q: string) => `https://music.apple.com/fr/search?term=${encodeURIComponent(q)}`;
+// Vraies playlists (Kouider 20/10 : un lien de recherche ouvre juste l'app) : « <artiste> : les indispensables »
+// d'Apple Music, trouvée sur la page de l'artiste (API iTunes, gratuite) et gardée 30 jours ; à défaut, sa page artiste.
+const GENRE_PLAYLISTS = [
+  { name: 'Magh Rap (rap algérien / maghrébin)', url: 'https://music.apple.com/fr/playlist/magh-rap/pl.4f0e32560bde4190aa01c5788d43797d' },
+  { name: 'Le Code (rap français du moment)', url: 'https://music.apple.com/fr/playlist/le-code/pl.084e56c4114a4a199e582aa7db6e7e56' },
+  { name: 'Hits Rap', url: 'https://music.apple.com/fr/playlist/hits-rap/pl.4d2a54110afa4782a4aeaf039e401550' },
+];
+
+async function artistPlaylist(artist: string): Promise<string | null> {
+  const ck = `music:pl:${artist.toLowerCase()}`;
+  const cached = await kvGet(ck).catch(() => null);
+  if (cached) return cached;
+  try {
+    const r = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(artist)}&entity=musicArtist&country=fr&limit=1`, { signal: AbortSignal.timeout(6000) });
+    const page = ((await r.json()) as { results?: Array<{ artistLinkUrl?: string }> }).results?.[0]?.artistLinkUrl?.split('?')[0];
+    if (!page) return null;
+    const html = await (await fetch(page, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(8000) })).text();
+    const url = html.match(/https:\/\/music\.apple\.com\/fr\/playlist\/[^"]*-les-indispensables\/pl\.[0-9a-f]+/)?.[0] ?? page;
+    await kvSet(ck, url, 30 * 86_400).catch(() => {});
+    return url;
+  } catch { return null; }
+}
+
 export async function playlistText(forWhat = 'la route'): Promise<string> {
   const { music } = await getPresencePrefs();
   const day = Math.floor(Date.now() / 86_400_000);
   const pick = [0, 1, 2].map(i => music[(day * 3 + i) % music.length]!).filter((v, i, a) => a.indexOf(v) === i);
-  return [`🎧 Pour ${forWhat} (Apple Music) :`, ...pick.map(a => `• ${a} → ${am(a)}`),
-    `• Mix rap algérien → ${am('rap algérien')}`, `• Mix rap français → ${am('rap français hits')}`].join('\n');
+  const urls = await Promise.all(pick.map(artistPlaylist));
+  const genre = GENRE_PLAYLISTS[day % GENRE_PLAYLISTS.length]!;
+  return [`🎧 Pour ${forWhat} (Apple Music — appuie et lance la lecture) :`,
+    ...pick.flatMap((a, i) => urls[i] ? [`• ${a}${urls[i]!.includes('/playlist/') ? ' — les indispensables' : ''} → ${urls[i]}`] : []),
+    `• ${genre.name} → ${genre.url}`].join('\n');
 }
 
 // ── Brief du matin ───────────────────────────────────────────────────────────
@@ -187,10 +212,15 @@ async function nextTrip(now: number): Promise<{ name: string; start: number; loc
   return e ? { name: (e.summary ?? 'RDV').replace(/^[^\p{L}\d]+/u, '').split(' — ')[0]!.trim(), start: Date.parse(e.start.dateTime!), location: e.location! } : null;
 }
 
+/** Lien Waze vers la salle (Kouider 20/10 : Waze seulement, pas de point Plans/Maps) — trajet depuis sa position. */
 async function gymPin(label: string): Promise<void> {
   const g = (await places()).find(p => p.id === 'gym');
-  if (g) await queueTelegramLocation(g.lat, g.lng, `🏋️ Salle — ${label}`, g.address);
+  if (!g) return;
+  const loc = await getLocation('kouider').catch(() => null);
+  const t = loc && Date.now() - Date.parse(loc.updated_at) < 20 * 60_000 ? await drive({ lat: loc.lat, lng: loc.lng }, g).catch(() => null) : null;
+  await queueTelegramMessage(`🏋️ Salle — ${label}${t ? ` : ${t.min} min de route depuis où tu es` : ''}\n🧭 Waze : ${waze(g)}`);
 }
+const waze = (p: { lat: number; lng: number }) => `https://waze.com/ul?ll=${p.lat},${p.lng}&navigate=yes`;
 
 async function onLeftHome(st: PresenceState, now: number, prefs: Prefs): Promise<void> {
   if (!prefs.leaveAsk || (st.lastLeft && now - st.lastLeft < 2 * 3600_000)) return;
@@ -233,9 +263,30 @@ async function onGym(st: PresenceState, now: number): Promise<void> {
   st.ask = { kind: 'gym', at: now };
 }
 
+/** Qu'est-ce qu'il est censé faire maintenant d'après l'agenda ? (« 07:20 🏋️ PUSH DAY ») */
+async function agendaNow(now: number): Promise<{ text: string; isWork: boolean } | null> {
+  const evs = await listAgendaRange(new Date(now - 3 * 3600_000).toISOString(), new Date(now + 45 * 60_000).toISOString(), 20).catch(() => null);
+  const cur = (evs ?? []).filter(e => e.start.dateTime && e.end?.dateTime && !/^(🟢|⏰)/u.test(e.summary ?? '')
+    && Date.parse(e.start.dateTime) - 45 * 60_000 <= now && Date.parse(e.end.dateTime) > now);
+  const e = cur[cur.length - 1];
+  return e ? { text: `${hm(Date.parse(e.start.dateTime!))} ${e.summary}`, isWork: /travail|magasin|bureau|boulot|ouverture/i.test(e.summary ?? '') } : null;
+}
+
 async function onWork(st: PresenceState, now: number): Promise<void> {
   const hour = Number(localNow(now).hhmm.slice(0, 2));
   if (did(st, 'work') || hour < 5 || hour > 15) return;
+  // Pas censé être au travail maintenant (Kouider 20/10 : garé devant le travail à 7h41 au lieu de la salle
+  // → « bien arrivé au travail ») : on demande si tout va bien, sans rien valider.
+  const ws = workStart((await getRoutineConfig()).days[localNow(now).weekday]?.next);
+  const expected = ws ? now >= localTs(localNow(now).date, ws) - 60 * 60_000 : false;
+  const cur = await agendaNow(now);
+  if (!expected && !cur?.isWork) {
+    if (did(st, 'work-odd')) return;
+    mark(st, 'work-odd');
+    await queueTelegramMessage(`👀 Je te vois au travail (${hm(now)}) alors que ce n'était pas prévu maintenant${cur ? ` — à cette heure-ci ton agenda dit : ${cur.text}` : ws ? ` (travail prévu à ${ws.replace(':', 'h')})` : ''}.\nTout va bien ? Tu fais quoi là-bas ?`);
+    st.ask = { kind: 'odd', at: now, dest: cur?.text };
+    return;
+  }
   mark(st, 'work');
   const evs = await listAgendaRange(new Date(now).toISOString(), new Date(localTs(localNow(now).date, '23:59')).toISOString(), 20).catch(() => null);
   const list = (evs ?? []).filter(e => e.start.dateTime && !/^(🟢|🚿|⏰|🚗)/u.test(e.summary ?? '')).slice(0, 6)
@@ -281,7 +332,8 @@ export async function jobPresenceWatch(): Promise<void> {
       const gap = !st.lastFixAt || now - st.lastFixAt > 30 * 60_000;   // partage coupé puis relancé : on se recale sans rien dire
       st.lastFixAt = now;
       if (st.place && !gap && place !== st.place && hour >= 5 && hour < 23) {
-        if (st.place === 'home') await onLeftHome(st, now, prefs);
+        if (st.place === 'home' && place === 'away') await onLeftHome(st, now, prefs);
+        else if (st.place === 'home') st.lastLeft = now;   // déjà arrivé ailleurs (positions espacées) : pas de « tu vas où ? »
         if (place === 'gym') await onGym(st, now);
         else if (place === 'work') await onWork(st, now);
         else if (place === 'home') await onHomeEvening(st, now);
@@ -338,6 +390,10 @@ export async function handlePresenceReply(message: string): Promise<{ reply?: st
     return { reply: [`✅ C'est noté champion, tu es à la salle !`, r.shifted.length ? `🗓️ Agenda avancé : ${r.shifted.join(' · ')} — plus de rappel de départ.` : `🔕 Plus de rappel de départ ni d'appel pour la salle aujourd'hui.`, '', r.text].join('\n') };
   }
 
+  if (a.kind === 'odd') {
+    return { note: `[Contexte : tu l'as vu (GPS) au travail alors que ce n'était pas prévu à cette heure${a.dest ? ` (l'agenda disait : ${a.dest})` : ''}, et tu lui as demandé si tout va bien et ce qu'il fait là. Voici sa réponse : réagis avec bienveillance. S'il a sauté ou raté quelque chose de l'agenda (ex. le sport), propose de décaler (outil sport_coach / agenda) au lieu de le lui reprocher. S'il y a un souci, aide-le.]` };
+  }
+
   if (a.kind === 'brief') {
     if (WRITE.test(msg)) { await deliverBrief('write'); return { reply: '✍️ Voilà ton brief juste au-dessus. Dis-moi si tu veux que je détaille un point.' }; }
     if (busy) return { reply: `👌 Je te le garde. Écris « brief » quand tu es seul et je t'appelle (ou « écris-le »).` };
@@ -360,7 +416,7 @@ export async function handlePresenceReply(message: string): Promise<{ reply?: st
     const { sportToday } = await import('./sport-coach.js');
     const sp = await sportToday().catch(() => null);
     if (sp?.slot && !sp.arrived) { await gymPin(sp.label!); await queueTelegramMessage(await playlistText('la route et la séance')); }
-    gymNote = 'Il va à la salle : le point GPS et une playlist rap lui ont été envoyés ; motive-le en une phrase.';
+    gymNote = 'Il va à la salle : le lien Waze et des playlists lui ont été envoyés ; motive-le en une phrase.';
   }
   return { note: busy
     ? `[Contexte : ce message répond à « je te vois partir de la maison, tu vas où ? » (GPS). Il n'est PAS seul ou pas dispo : reste bref et discret, pas d'infos privées. Le brief du matin est reporté (10 min avant le travail, ou quand il écrit « brief »).]`

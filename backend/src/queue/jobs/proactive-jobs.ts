@@ -1560,7 +1560,6 @@ export async function jobDeliveryDepartureAlert(_job: Job): Promise<void> {
           ``,
           `📲 Navigation:`,
           `• Waze: ${travel.waze_link}`,
-          `• GMaps: ${travel.maps_link}`,
         ].join('\n');
 
         const pushTitle = `🚗 Livraison — ${booking.client_name}`;

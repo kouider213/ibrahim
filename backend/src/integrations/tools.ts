@@ -825,13 +825,16 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
   // ─── APPEL VOCAL DANS L'APP ─────────────────────────────────
   {
     name: 'pause_calls',
-    description: "Mettre Dzaryx en « ne pas déranger » : plus d'appels automatiques non urgents (récaps, idées, rendez-vous…) jusqu'à une heure ou pendant X minutes. « Je suis pas dispo jusqu'à 14h », « ne m'appelle pas pendant 2 heures », « je suis en réunion ». resume:true pour réactiver. Si Kouider dit aussi « rappelle-moi à 11h », utilise call_me avec at_time (il met déjà en pause jusque-là).",
+    description: "« NE PAS DÉRANGER » : plus AUCUN appel (même programmé : réveil, sport, rappels, récaps) NI message Telegram de Dzaryx, tout est gardé et arrive à la fin. « Dzaryx ne me dérange pas », « je suis pas dispo jusqu'à 14h », « ne m'appelle pas pendant 2 heures », « je suis en réunion ». Avec une heure → until_time ; une durée → minutes ; sans heure → until_reply:true (silence jusqu'à ce qu'il réécrive) et demande-lui à partir de quelle heure il sera joignable. Sa réponse « dispo à 15h » / « tu peux m'appeler après 15h » → until_time 15:00. « Je suis dispo » / « tu peux m'appeler » → resume:true. Si Kouider dit seulement « rappelle-moi à 11h », utilise call_me avec at_time (il met déjà en pause les appels jusque-là).",
     input_schema: {
       type: 'object' as const,
       properties: {
-        until_time: { type: 'string', description: 'HH:MM heure de Bruxelles' },
-        minutes:    { type: 'number', description: 'Durée de la pause en minutes' },
-        resume:     { type: 'boolean', description: 'true = réactiver les appels' },
+        until_time:  { type: 'string', description: 'HH:MM heure de Bruxelles : joignable à nouveau à partir de cette heure' },
+        minutes:     { type: 'number', description: 'Durée de la pause en minutes' },
+        until_reply: { type: 'boolean', description: 'true = silence total jusqu\'à son prochain message (pas d\'heure donnée)' },
+        messages:    { type: 'boolean', description: 'false = couper seulement les appels automatiques, garder les messages (par défaut tout est coupé)' },
+        reason:      { type: 'string', description: 'Pourquoi (réunion, famille, conduite…)' },
+        resume:      { type: 'boolean', description: 'true = réactiver appels et messages' },
       },
     },
   },

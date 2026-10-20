@@ -2041,7 +2041,7 @@ async function callMeTool(input: Record<string, unknown>, sessionId?: string): P
   }
   if (!later) {
     const actor = sessionId && /^(voice|mobile)_houari($|_)/i.test(sessionId) ? 'houari' : 'kouider';
-    const { id } = await callOwner(reason, actor);
+    const { id } = await callOwner(reason, actor, { force: true });   // il le demande lui-même : passe le « ne pas déranger »
     return `✅ Dzaryx t'appelle maintenant sur Telegram et dans l'app (appel ${id.slice(0, 8)}). Si personne ne décroche, l'appel s'arrête après 3 minutes.`;
   }
   const raw = await scheduleReminder({ ...input, message: `${CALL_REMINDER_MARK}${String(input['reason'])}` }, sessionId);
@@ -2057,10 +2057,15 @@ async function callMeTool(input: Record<string, unknown>, sessionId?: string): P
   return `❌ Appel NON programmé. ${raw}`;
 }
 
-// « Ne m'appelle pas avant 14h » / « pas d'appel pendant 2 heures » / « tu peux m'appeler à nouveau »
+// « Ne me dérange pas jusqu'à 14h » / « pas d'appel pendant 2 heures » / « dispo à 15h » / « tu peux m'appeler à nouveau »
 async function pauseCallsTool(input: Record<string, unknown>): Promise<string> {
   const { setQuietUntil } = await import('../notifications/auto-call.js');
-  if (input['resume']) { await setQuietUntil(0); return '✅ Appels automatiques réactivés.'; }
+  const dnd = await import('../notifications/dnd.js');
+  if (input['resume']) { await setQuietUntil(0); await dnd.clearDnd(); return '✅ Appels et messages réactivés (ce qui a été gardé pendant la pause arrive maintenant).'; }
+  if (input['until_reply']) {
+    await dnd.setDnd({ untilReply: true, why: String(input['reason'] ?? 'ne pas déranger') });
+    return '🔕 Plus aucun appel ni message tant qu\'il ne t\'a pas écrit. Tout est gardé pour plus tard.';
+  }
   let until = 0;
   const mins = Number(input['minutes'] ?? 0);
   if (mins > 0) until = Date.now() + Math.min(mins, 24 * 60) * 60_000;
@@ -2076,7 +2081,9 @@ async function pauseCallsTool(input: Record<string, unknown>): Promise<string> {
   if (!until) return '❌ Donne minutes ou until_time (HH:MM, heure de Bruxelles), ou resume:true.';
   await setQuietUntil(until);
   const hhmm = new Date(until).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
-  return `✅ Plus aucun appel automatique non urgent avant ${hhmm} (heure de Bruxelles). Les infos attendent et seront dites ensuite.`;
+  if (input['messages'] === false) return `✅ Plus aucun appel automatique non urgent avant ${hhmm} (heure de Bruxelles). Les infos attendent et seront dites ensuite.`;
+  await dnd.setDnd({ until, why: String(input['reason'] ?? 'ne pas déranger') });
+  return `🔕 Ne pas déranger jusqu'à ${hhmm} (heure de Bruxelles) : plus aucun appel (même programmé) ni message. Tout est gardé et arrive à ${hhmm}. Ses propres demandes d'ici là reçoivent quand même une réponse.`;
 }
 
 // ─── PHASE 15 — Recherche d'images (Pexels) ──────────────────────────────
@@ -6292,7 +6299,6 @@ async function getTravelTimeTool(input: Record<string, unknown>, sessionId?: str
     ``,
     `📍 Navigation:`,
     `• Waze: ${result.waze_link}`,
-    `• Google Maps: ${result.maps_link}`,
     result.error ? `\n⚠️ ${result.error}` : '',
   ].filter(l => l !== undefined);
 
@@ -6332,7 +6338,6 @@ async function calculateDeliveryFeeTool(input: Record<string, unknown>): Promise
     ``,
     `🗺️ Navigation:`,
     `• Waze: ${result.waze_link}`,
-    `• Google Maps: ${result.maps_link}`,
     result.error ? `\n⚠️ ${result.error}` : '',
   ].filter(l => l !== undefined);
 

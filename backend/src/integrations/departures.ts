@@ -110,7 +110,7 @@ export async function jobDepartureWatch(): Promise<void> {
     const leaveBy = start - (t.min + (airport ? 0 : 5)) * 60_000;
     const name = title.replace(/^[^\p{L}\d]+/u, '').split(' — ')[0]!.trim();
     const traffic = t.min - t.normal >= 5 ? ` 🔴 trafic chargé (+${t.min - t.normal} min)` : t.min - t.normal >= 2 ? ' 🟡 un peu de trafic' : ' 🟢 fluide';
-    const maps = `🧭 Waze : https://waze.com/ul?ll=${dest.lat},${dest.lng}&navigate=yes\n🗺️ Maps : https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}&travelmode=driving`;
+    const maps = `🧭 Waze : https://waze.com/ul?ll=${dest.lat},${dest.lng}&navigate=yes`;   // Waze seulement (Kouider 20/10)
 
     if (/^🏋️/u.test(title) && await isSportSkipped(localNow(start).date)) continue;   // « pas de sport aujourd'hui »
     if (!st.warnedAt && now >= leaveBy - 15 * 60_000) {

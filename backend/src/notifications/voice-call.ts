@@ -4,6 +4,7 @@ import { supabase, saveConversationTurn } from '../integrations/supabase.js';
 import { env } from '../config/env.js';
 import { pushToActor } from './mobile-push.js';
 import { synthesizeVoice } from './dispatcher.js';
+import { getDnd } from './dnd.js';
 
 // « Appels » Dzaryx dans l'app (sans numéro de téléphone) :
 // - Dzaryx appelle → notif « 📞 Dzaryx t'appelle » → l'app ouvre l'écran d'appel → Décrocher
@@ -26,9 +27,17 @@ function firstName(actor: CallActor): string {
   return actor === 'houari' ? env.PARTNER_NAME : env.OWNER_NAME;
 }
 
-/** Dzaryx appelle Kouider (ou Houari) : sonnerie push + appel en attente côté serveur. */
-export async function callOwner(reason: string, actor: CallActor = 'kouider'): Promise<{ id: string }> {
+/** Dzaryx appelle Kouider (ou Houari) : sonnerie push + appel en attente côté serveur.
+ *  « Ne pas déranger » (dnd.ts) : rien ne sonne, même programmé — l'info attend son prochain appel.
+ *  force = c'est lui qui vient de demander « appelle-moi ». */
+export async function callOwner(reason: string, actor: CallActor = 'kouider', opts: { force?: boolean } = {}): Promise<{ id: string; held?: boolean }> {
   const clean = reason.trim().replace(/\s+/g, " ").slice(0, 1200);   // 1200 : place pour le travail préparé (call-tasks)
+  if (actor === 'kouider' && !opts.force && await getDnd()) {
+    const { addToCallInbox } = await import('./auto-call.js');
+    await addToCallInbox(clean.replace(/^\[TÂCHE:[^\]]+\]\s*/, '')).catch(() => {});
+    console.log(`[voice-call] ne pas déranger — appel gardé : "${clean.slice(0, 60)}"`);
+    return { id: 'held', held: true };
+  }
   const call: PendingCall = {
     id:        randomUUID(),
     reason:    clean,

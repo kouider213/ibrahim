@@ -9,6 +9,7 @@ import { DEFAULT_MEMBER, type OrgMember } from '../../orchestrator/org-resolver.
 import { env } from '../../config/env.js';
 import { createAnthropic } from '../../integrations/anthropic-compat.js';
 
+import { dndOnKouiderMessage } from '../../notifications/dnd.js';
 import { noteKouiderActivity } from '../../integrations/morning-routine.js';
 const router = Router();
 
@@ -72,8 +73,10 @@ router.post('/', requireMobileAuth, async (req, res) => {
   }
 
   // Kouider écrit dans l'app → il est réveillé (contrôle du matin)
+  const dndNote = actor.ownerKey !== 'houari' ? await dndOnKouiderMessage().catch(() => null) : null;   // « ne pas déranger »
   const wakeNote = actor.ownerKey !== 'houari' ? await noteKouiderActivity() : null;
-  processWithOrchestration(wakeNote ? `${wakeNote}\n${message}` : message, sessionId, textOnly, imageBase64, imageMime, actor).catch(err => {
+  const notes = [dndNote, wakeNote].filter(Boolean).join('\n');
+  processWithOrchestration(notes ? `${notes}\n${message}` : message, sessionId, textOnly, imageBase64, imageMime, actor).catch(err => {
     console.error('[chat] processWithOrchestration error:', err instanceof Error ? err.message : String(err));
   });
 });

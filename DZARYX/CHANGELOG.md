@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-10-20 — Ne pas déranger, vraies playlists, Waze seulement, arrivée « pas prévue »
+
+Demandes de Kouider (captures Telegram du 20/10 à 7h41) :
+- **Ne pas déranger** (notifications/dnd.ts) : appel pas décroché ou refusé → un seul message (« je n'insiste pas, dis-moi à partir de quelle heure »), puis PLUS AUCUN appel (même programmé : réveil, sport, rappels — callOwner les garde dans la boîte des appels) ni message Telegram (tg-outbox les garde) ni notif de l'app, jusqu'à sa réponse. Sa réponse « dispo à 15h » → pause_calls until_time ; « ne me dérange pas (jusqu'à X) » → pause_calls (appels + messages). À la fin, les messages gardés partent d'un bloc (« pendant ta pause… », jetés après 4 h). Ses propres demandes reçoivent quand même une réponse (fenêtre 10 min). call_me « maintenant » passe outre. tgcall : plus de 2e essai sauf son muet.
+- **Musique** : vraies playlists Apple Music « <artiste> : les indispensables » (API iTunes + page artiste, cache 30 j) + Magh Rap / Le Code / Hits Rap, au lieu de liens de recherche.
+- **Waze seulement** : départs, sport, assistant GPS, outils trajet/livraison → plus de point Plans ni de lien Google Maps.
+- **Arrivée pas prévue** : au travail alors que l'agenda dit autre chose (ex. PUSH DAY) → « tout va bien ? tu fais quoi là-bas ? » au lieu de « bien arrivé au travail » ; et plus de « je te vois partir de la maison » quand la position passe directement maison → autre lieu.
+
 ## 2026-10-20 — Contrôle général : relance Gemini fantôme + météo en cache
 
 - tgcall/gemini_live.py : quand Gemini Live coupe (1011) et que l'appel se reconnecte, l'ancienne session gardait sa surveillance « Gemini ne répond pas → relance » active : boucle à vide toutes les 10 s pendant 2 h 30 après l'appel de 7h50 (911 lignes de log). La surveillance s'arrête maintenant quand la session se ferme.

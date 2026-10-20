@@ -467,20 +467,26 @@ async def start_call(actor: str, user_id: int) -> None:
 
 
 async def missed_call(actor: str, user_id: int, reason: str, err: Exception | None, why: str = '', tip: str = '') -> None:
-    """Kouider n'a pas décroché : il reçoit par écrit ce que Dzaryx voulait lui dire, puis un 2e essai."""
-    retry = RETRY_TAG not in reason          # un seul nouvel essai, jamais en boucle
-    try:
-        why = why or ('occupé' if 'Busy' in type(err).__name__ else 'pas de réponse')
-        later = (f'Je réessaie dans {int(RETRY_S // 60)} min, ou rappelle-moi quand tu veux.'
-                 if retry else 'Rappelle-moi quand tu veux.')
-        await app.send_message(user_id, f'📞 Appel manqué ({why}). Je voulais te dire :\n{reason}\n\n{tip}{later}')
-        log.info('appel manqué → message envoyé')
-    except Exception as e:
-        log.error('message appel manqué: %s', e)
+    """Kouider n'a pas décroché : il reçoit par écrit ce que Dzaryx voulait lui dire. Pas décroché / refusé → « ne pas
+    déranger » côté serveur (hold) : plus d'appel ni de message tant qu'il n'a pas répondu (Kouider 20/10). Son muet → 2e essai."""
+    why = why or ('occupé' if 'Busy' in type(err).__name__ else 'pas de réponse')
+    hold = False
     try:   # gardé pour son prochain appel (« avant tout, j'ai des choses pour toi »), retiré si le 2e essai passe
-        await api('/api/call/missed', {'reason': strip_greeting(reason)}, actor, 15)
+        hold = bool((await api('/api/call/missed', {'reason': strip_greeting(reason), 'why': why}, actor, 15)).get('hold'))
     except Exception as e:
         log.warning('boîte des appels: %s', e)
+    retry = not hold and RETRY_TAG not in reason          # un seul nouvel essai, jamais en boucle
+    try:
+        if hold:
+            later = ("🔕 Je n'insiste pas : plus d'appel ni de message de ma part tant que tu ne m'as pas répondu.\n"
+                     "Quand tu peux, dis-moi à partir de quelle heure je peux te rappeler (ex. « dispo à 15h »).")
+        else:
+            later = (f'Je réessaie dans {int(RETRY_S // 60)} min, ou rappelle-moi quand tu veux.'
+                     if retry else 'Rappelle-moi quand tu veux.')
+        await app.send_message(user_id, f'📞 Appel manqué ({why}). Je voulais te dire :\n{strip_greeting(reason)}\n\n{tip}{later}')
+        log.info('appel manqué → message envoyé%s', ' (ne pas déranger)' if hold else '')
+    except Exception as e:
+        log.error('message appel manqué: %s', e)
     if retry:
         asyncio.create_task(retry_call(actor, user_id, reason))
 
