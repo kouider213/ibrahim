@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-20 — Recherche de vols Air Algérie (air_algerie_search)
+
+Kouider : vols Air Algérie uniquement, aux dates qu'il donne, avec le nombre de passagers, TOUJOURS 1 seul bagage en soute en plus pour tout le groupe, départ Lille → Oran par défaut. Nouvel outil `air_algerie_search` (backend/src/integrations/air-algerie.ts) : le backend rejoue le POST du formulaire airalgerie.dz (dates AAAAMMJJ0000) → 302 vers la grille Amadeus FlexPricer (±3 jours, prix totaux du groupe) ; la page est derrière Imperva donc lue par browser_task dans le Chrome du PC cloud (aucune clé). Bagage : Light = 0 soute, Economique Promo = 23 kg/pax → prix 1 bagage ≈ Light groupe + (Promo − Light) ÷ nb passagers (1 passager en Promo, 2 réservations), + prix « tous en Promo ». Jamais de saisie passager ni de réservation. Testé 3 adultes 02→09/12 : 424,80 € Light, ≈ 460,81 € avec 1 bagage. Agent navigateur : max_tokens 4000 + done coupé redemandé, read_page 12 000 caractères compactés.
+
 ## 2026-10-20 — Pas de 2e appel pendant un appel : l'info est dite dans l'appel en cours
 
 Kouider : s'il est déjà en appel avec Dzaryx et qu'un rappel / appel programmé doit partir, Dzaryx ne doit pas le rappeler après mais dire « ah attends, j'ai aussi une autre info » dans l'appel en cours. tgcall : appel en attente pendant un appel actif → /api/call/merge (retire l'appel en attente, rend le motif) → RealtimeCall.announce() attend la fin de sa phrase puis glisse l'info et reprend la conversation. Pas possible (quelqu'un d'autre au téléphone, ancienne voix, appel fini) → gardé pour son prochain appel (keep).

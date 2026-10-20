@@ -2446,15 +2446,14 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'air_algerie_search',
-    description: "CHERCHER UN VOL PAS CHER AIR ALGÉRIE (uniquement Air Algérie, site officiel, dans le Chrome du PC cloud : aucune clé). Règles fixes de Kouider : départ LILLE → ORAN par défaut, et TOUJOURS UN SEUL bagage en soute EN PLUS pour tout le groupe (1 au total, quel que soit le nombre de passagers) — le prix rendu l'inclut. Regarde aussi ±3 jours autour des dates (flex_days). Ne réserve et ne paie jamais. « trouve-moi un vol Air Algérie le 3 décembre retour le 10, 4 personnes », « billet pas cher pour Oran le … ». Dates AAAA-MM-JJ ; adults/children (2-11 ans)/infants (moins de 2 ans) ; from/to seulement si Kouider dit une autre ville. Le résultat arrive sur Telegram/app.",
+    description: "CHERCHER UN VOL PAS CHER AIR ALGÉRIE (uniquement Air Algérie, site officiel, dans le Chrome du PC cloud : aucune clé). Règles fixes de Kouider : départ LILLE (LIL) → ORAN (ORN) par défaut, et TOUJOURS UN SEUL bagage en soute EN PLUS pour tout le groupe (1 au total, quel que soit le nombre de passagers) — le prix rendu l'inclut. Regarde tout seul ±3 jours autour des dates. Ne réserve et ne paie jamais. « trouve-moi un vol Air Algérie le 3 décembre retour le 10, 4 personnes », « billet pas cher pour Oran le … ». Dates AAAA-MM-JJ ; adults/children (2-11 ans)/infants (moins de 2 ans) ; from/to en code IATA seulement si Kouider dit une autre ville. Le résultat arrive sur Telegram/app.",
     input_schema: {
       type: 'object' as const,
       properties: {
         depart_date: { type: 'string', description: 'AAAA-MM-JJ' },
         return_date: { type: 'string', description: 'AAAA-MM-JJ, vide = aller simple' },
         adults: { type: 'number' }, children: { type: 'number' }, infants: { type: 'number' },
-        flex_days: { type: 'number', description: '0 à 3, défaut 3 (jours autour des dates)' },
-        from: { type: 'string', description: 'défaut Lille' }, to: { type: 'string', description: 'défaut Oran' },
+        from: { type: 'string', description: 'code IATA, défaut LIL (Lille)' }, to: { type: 'string', description: 'code IATA, défaut ORN (Oran)' },
       },
       required: ['depart_date', 'adults'],
     },
