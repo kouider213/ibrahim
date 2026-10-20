@@ -329,7 +329,8 @@ export async function proAliasReady(): Promise<boolean> {
   if (aliasCache && Date.now() - aliasCache.at < 3600_000) return aliasCache.ok;
   try {
     const r = await gmailGet<{ sendAs?: Array<{ sendAsEmail: string; verificationStatus?: string }> }>(gmailAddress('pro'), '/settings/sendAs');
-    const ok = (r.sendAs ?? []).some(a => a.sendAsEmail.toLowerCase() === PRO_ALIAS && a.verificationStatus === 'accepted');
+    const ok = (r.sendAs ?? []).some(a => a.sendAsEmail.toLowerCase() === PRO_ALIAS && a.verificationStatus === 'accepted')
+      && !(await proAliasBlockedUntil());
     aliasCache = { ok, at: Date.now() };
   } catch {
     // Erreur passagère (réseau, quota) : on garde le dernier état connu et on réessaie dans 5 min,
@@ -337,6 +338,28 @@ export async function proAliasReady(): Promise<boolean> {
     aliasCache = { ok: aliasCache?.ok ?? true, at: Date.now() - 3300_000 };
   }
   return aliasCache.ok;
+}
+
+// Zoho bloque parfois l'envoi de contact@ (« 550 5.4.6 Unusual sending activity », depuis le 18/10/2026) :
+// Gmail accepte le mail puis renvoie un rejet quelques secondes après. Tant qu'un tel rejet a moins de 24 h,
+// on envoie depuis l'adresse Gmail (sinon chaque mail repart dans le vide).
+export const SENDER_BLOCKED_RE = /5\.4\.6|Unusual sending activity|CustomFromDenied|UnblockMe/i;
+
+/** Fin du blocage Zoho (ms) si un rejet « 5.4.6 » a moins de 24 h, sinon 0. */
+export async function proAliasBlockedUntil(): Promise<number> {
+  const address = gmailAddress('pro');
+  const list = await gmailGet<{ messages?: { id: string }[] }>(address, '/messages',
+    { q: 'from:mailer-daemon "5.4.6" newer_than:2d', maxResults: 1 });
+  const id = list.messages?.[0]?.id;
+  if (!id) return 0;
+  const m = await gmailGet<{ internalDate?: string }>(address, `/messages/${id}`, { format: 'minimal' });
+  const until = Number(m.internalDate ?? 0) + 24 * 3600_000;
+  return until > Date.now() ? until : 0;
+}
+
+/** Appelé dès qu'un rejet Zoho est vu : bascule tout de suite sur l'adresse Gmail. */
+export function markProAliasBlocked(): void {
+  aliasCache = { ok: false, at: Date.now() };
 }
 
 /** Adresse qui apparaît chez le destinataire pour les mails de la boîte pro. */

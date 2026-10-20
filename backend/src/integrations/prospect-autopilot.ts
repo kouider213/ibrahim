@@ -3,7 +3,7 @@ import { env } from '../config/env.js';
 import { supabase } from './supabase.js';
 import { multiProviderWebSearch, jinaAuthHeaders } from './web-search-provider.js';
 import crypto from 'crypto';
-import { sendEmail, canSendEmail, countSentToday, listInboxMessages, readEmail, getMessageIdHeader, getThreadLastMessageId, proSenderAddress, getGmailConnectLink, PRO_ALIAS } from './gmail.js';
+import { sendEmail, canSendEmail, countSentToday, listInboxMessages, readEmail, getMessageIdHeader, getThreadLastMessageId, proSenderAddress, getGmailConnectLink, PRO_ALIAS, SENDER_BLOCKED_RE, markProAliasBlocked } from './gmail.js';
 import { reportIncident } from '../notifications/incident-call.js';
 import { addProspect, getAutopilot, updateProspect, optOutEmail, isOptedOut, companyKey, type Prospect, type ProspectSegment, type LinkedinContact, type QuoteDraftLine } from './prospects.js';
 import { findFreeSlots } from './google-calendar.js';
@@ -719,6 +719,14 @@ export async function checkProspectVisits(): Promise<number> {
   return n;
 }
 
+/** Champs à remettre quand le dernier mail a été rejeté par Zoho : relance → à refaire, 1er mail → société à recontacter. */
+export function requeueAfterBlock(p: Prospect): Partial<Prospect> {
+  const note = (t: string) => [p.notes, `[${new Date().toISOString().slice(0, 10)}] ${t}`].filter(Boolean).join('\n');
+  if (p.followup_at) return { followup_at: null, notes: note('Relance bloquée par Zoho (pas partie) — sera refaite') };
+  return { status: 'a_contacter', last_contacted_at: null, gmail_thread_id: null,
+    notes: note('Mail bloqué par Zoho (jamais parti) — remis dans la file, repartira depuis l\'adresse Gmail') };
+}
+
 // ── 3. Surveiller les réponses ──
 export async function checkProspectReplies(): Promise<number> {
   if (!(await canSendEmail('pro').catch(() => false))) return 0;
@@ -734,7 +742,7 @@ export async function checkProspectReplies(): Promise<number> {
   const prospects = new Map<string, Prospect>();
   for (const p of [...(byThread.data ?? []), ...(bySender.data ?? [])] as Prospect[]) prospects.set(p.id, p);
 
-  let handled = 0;
+  let handled = 0, senderBlocked = 0;
   const site = prospects.size ? await getSiteInfo() : '';
   for (const p of prospects.values()) {
     // Dernier mail reçu de ce prospect (dans sa conversation ou depuis son adresse), après notre envoi
@@ -746,6 +754,14 @@ export async function checkProspectReplies(): Promise<number> {
     handled++;
 
     if (BOUNCE_RE.test(latest.fromEmail)) {
+      // Rejet venant de NOTRE côté (Zoho bloque contact@) : l'adresse du prospect est bonne → il repart dans la file
+      const bounce = await readEmail('pro', latest.id, 3000).catch(() => null);
+      if (bounce && SENDER_BLOCKED_RE.test(bounce.body)) {
+        markProAliasBlocked();
+        await updateProspect(p.id, { reply_seen_id: latest.id, ...requeueAfterBlock(p) });
+        senderBlocked++;
+        continue;
+      }
       await updateProspect(p.id, { status: 'stop', reply_seen_id: latest.id,
         notes: [p.notes, `[${new Date().toISOString().slice(0, 10)}] Mail rejeté (adresse invalide) — ne plus écrire`].filter(Boolean).join('\n') });
       continue;
@@ -805,6 +821,14 @@ export async function checkProspectReplies(): Promise<number> {
         await proposeProspectWhatsapp(p, a.resume, 'conciergerie');
     emitProactive(`${p.company} a répondu à ton mail de démarchage${a.interet === 'interesse' ? ' (intéressé !)' : ''}.`, 'alert', chat, 'kouider', 'demarchage');
     void autoCall(`mail-reply:${latest.id}`, `${p.company} a répondu à ton mail de démarchage${a.interet === 'interesse' ? ', et ils sont intéressés' : a.interet === 'refus' ? ', mais ils ne sont pas intéressés' : ''}. ${a.resume}`, { level: 'normal' });
+  }
+  // Une alerte par jour au plus : Kouider seul peut débloquer Zoho (lien dans le rejet)
+  if (senderBlocked && !(await kvGet('mail:zoho-block-alert'))) {
+    await kvSet('mail:zoho-block-alert', '1', 20 * 3600);
+    emitProactive(`Zoho bloque l'envoi depuis ${PRO_ALIAS} : j'envoie depuis l'adresse Gmail en attendant.`, 'alert',
+      `⚠️ Zoho a bloqué l'envoi depuis ${PRO_ALIAS} (« Unusual sending activity »). ${senderBlocked} mail(s) ne sont pas partis : ` +
+      `je les remets dans la file et j'envoie depuis ${await proSenderAddress()} pendant 24 h.\n` +
+      `👉 Pour débloquer : connecte-toi sur https://mail.zoho.eu/UnblockMe avec ${PRO_ALIAS}.`, 'kouider', 'demarchage');
   }
   return handled;
 }

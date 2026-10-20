@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-20 — Mails bloqués par Zoho (5.4.6)
+
+Depuis le 18/10, Zoho bloque l'envoi depuis contact@fikconciergerie.com (« Unusual sending activity ») : 31 mails de démarchage rejetés, et chaque rejet classait le prospect en « adresse invalide » (stop). `gmail.ts` : un rejet 5.4.6 de moins de 24 h → envoi depuis fikconciergerie@gmail.com. `prospect-autopilot.ts` : rejet Zoho ≠ adresse invalide → prospect remis dans la file (ou relance à refaire) + alerte Kouider avec le lien de déblocage. 31 prospects réparés en base.
+
 ## 2026-10-19 — Survie sans crédit : voix d'appel gratuite Gemini Live (49f0a7b, 363ee55, 5d41244)
 - Appels muets : crédit OpenAI épuisé, la socket temps réel s'ouvrait puis renvoyait l'erreur → l'appel ne basculait pas. Le 1er événement est maintenant vérifié.
 - Voix d'appel : OpenAI Realtime → **Gemini Live gratuit** (tgcall/gemini_live.py imite la socket OpenAI, `/api/call/realtime-gemini`, 1er son < 1 s, outils OK) → ancienne voix. OpenAI sauté 30 min après une erreur de crédit.
