@@ -7,6 +7,7 @@ import { Server as SocketServer } from 'socket.io';
 
 import { env } from './config/env.js';
 import { ensureProspectsTable } from './integrations/prospects.js';
+import { startMailDnsSync } from './integrations/mail-dns.js';
 import { ensureTrafficColumns } from './integrations/site-traffic.js';
 import { ensureAppStoreTables } from './integrations/app-store.js';
 import { ensureExpenseColumns } from './integrations/expenses.js';
@@ -576,5 +577,6 @@ server.listen(PORT, () => {
     initReminderWorker();
     void autoBackfillClientIntel();
     void initFikRealtimeListener();
+    startMailDnsSync();
   }
 });

@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-21 — DNS mail (DMARC/DKIM) posés par le backend via Vercel
+
+`integrations/mail-dns.ts` `startMailDnsSync()` (instance avec jobs, au démarrage + toutes les 6 h) : avec VERCEL_TOKEN (compte perso ou équipe), ajoute le TXT `_dmarc.fikconciergerie.com` (`p=none`) s'il manque, et `zmail._domainkey` dès que la clé DKIM Zoho est dans app_kv `mail:zoho-dkim`. État dans app_kv `mail:dns-setup`.
+
 ## 2026-10-21 — Démarchage : rejet Zoho rattrapé à l'envoi (B040)
 
 `gmail.ts sendEmail` : après un envoi depuis contact@ (Zoho), `waitSenderBlockedBounce` lit la conversation (3 s, 5 s, 8 s) ; un rejet 5.4.6 → `markProAliasBlocked`, kv `mail:rescued-bounce:<id>` + `mail:zoho-blocked-at` (24 h, levé par `mail:zoho-unblocked-at`), rejet à la corbeille, mail renvoyé depuis fikconciergerie@gmail.com (même fil). `checkProspectReplies` ignore les rejets rattrapés et prévient Kouider une fois par jour (lien UnblockMe).
