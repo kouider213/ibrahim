@@ -221,7 +221,7 @@ export interface SetLog { ex: string; kg?: number; reps?: number }
 export interface SessionLog { date: string; type: SessionType; at: string; durationMin?: number; rpe?: number; note?: string; sets: SetLog[] }
 interface PlanSlot { type: SessionType; eventId: string; start: string; end: string; minutes: number; title: string }
 type DayStatus = 'done' | 'missed' | 'skip';
-export interface SportSettings { callBefore: boolean; gymCheck: boolean }
+export interface SportSettings { callBefore: boolean; gymCheck: boolean; playlist: boolean }
 interface SportState {
   next: number;                                   // index ROTATION de la prochaine séance à faire
   plan: Record<string, PlanSlot>;                 // date → séance prévue
@@ -232,13 +232,20 @@ interface SportState {
   arrived: Record<string, number>;                // date → heure d'arrivée détectée par GPS
   alerts: Record<string, string[]>;               // date → alertes déjà envoyées (forgot, nogps, depart…)
   settings: SportSettings;
+  deload?: { start: string; end: string; why: string };   // semaine allégée prévue / en cours
+  deloadLast?: string;                            // fin de la dernière semaine allégée
+  trainingSince?: string;
 }
 
-const DEFAULT_STATE: SportState = { next: 0, plan: {}, overrides: {}, skips: {}, history: {}, arrived: {}, alerts: {}, settings: { callBefore: true, gymCheck: true } };
+const DEFAULT_STATE: SportState = { next: 0, plan: {}, overrides: {}, skips: {}, history: {}, arrived: {}, alerts: {}, settings: { callBefore: true, gymCheck: true, playlist: true } };
 
 async function getState(): Promise<SportState> {
   await loadProgram();
-  try { const s = JSON.parse((await kvGet(STATE_KEY)) ?? '{}') as Partial<SportState>; return { ...DEFAULT_STATE, ...s, settings: { ...DEFAULT_STATE.settings, ...s.settings } }; }
+  try {
+    const s = JSON.parse((await kvGet(STATE_KEY)) ?? '{}') as Partial<SportState>;
+    deloadWin = s.deload ?? null;
+    return { ...DEFAULT_STATE, ...s, settings: { ...DEFAULT_STATE.settings, ...s.settings } };
+  }
   catch { return { ...DEFAULT_STATE }; }
 }
 async function saveState(s: SportState): Promise<void> {
@@ -260,12 +267,43 @@ const isSport = (e: AgendaEvent) => !!e.start.dateTime && (/^🏋️/u.test(e.su
 const reps = (r: string) => Number(r.match(/(\d+)\s*$/)?.[1] ?? r.match(/\d+/)?.[0] ?? 0);
 const isTimed = (e: Exercise) => /(s|min)\b/.test(e.reps) && !/\//.test(e.reps.replace(/s\/côté/, ''));
 
+// ── Semaine allégée (deload) ────────────────────────────────────────────────
+// Kouider 21/10 : toutes les ~7 semaines d'entraînement (ou plus tôt si les RPE notés restent ≥ 8,5), une semaine
+// allégée : mêmes exercices, ~40 % de séries en moins, charges −10 %, pas de finisher. Elle commence le lundi suivant.
+
+let deloadWin: { start: string; end: string } | null = null;     // rafraîchi à chaque getState()
+export const inDeload = (date = localNow().date) => !!deloadWin && date >= deloadWin.start && date <= deloadWin.end;
+const DELOAD_EVERY_WEEKS = 7;
+
+/** Programme la prochaine semaine allégée si c'est le moment ; renvoie le message à envoyer (sinon null). */
+async function checkDeload(st: SportState): Promise<string | null> {
+  const today = localNow().date;
+  if (st.deload && st.deload.end >= today) return null;
+  if (st.deload) { st.deloadLast = st.deload.end; delete st.deload; deloadWin = null; }
+  const log = await readSportLog();
+  st.trainingSince ??= log[0]?.date ?? today;
+  const since = st.deloadLast ?? st.trainingSince;
+  const weeks = (Date.parse(today) - Date.parse(since)) / (7 * 86_400_000);
+  const done = new Set([...Object.entries(st.history).filter(([d, v]) => d > since && v === 'done').map(([d]) => d), ...log.filter(l => l.date > since).map(l => l.date)]).size;
+  const rpes = log.filter(l => l.date > since && l.rpe).slice(-4).map(l => l.rpe!);
+  const tired = weeks >= 5 && rpes.length >= 3 && rpes.reduce((a, b) => a + b, 0) / rpes.length >= 8.5;
+  if (done < 12 || !(weeks >= DELOAD_EVERY_WEEKS || tired)) return null;
+  const start = addDays(today, (8 - localNow().weekday) % 7 || 7);   // lundi prochain
+  st.deload = { start, end: addDays(start, 6), why: tired ? 'fatigue (RPE élevé sur les dernières séances)' : `${Math.floor(weeks)} semaines d'entraînement d'affilée` };
+  deloadWin = st.deload;
+  return `🪶 Semaine allégée à partir de lundi ${start.slice(8)}/${start.slice(5, 7)} (${st.deload.why}).\nMêmes exercices, ~40 % de séries en moins et charges −10 %. C'est là que le corps récupère et que tu reviens plus fort la semaine d'après. Tes séances dans l'agenda sont déjà ajustées.`;
+}
+
 // ── Charges conseillées (progression) ───────────────────────────────────────
 
 export interface Suggestion { kg: number | null; last?: string; up?: boolean }
 
 /** Dernière perf sur l'exercice ; toutes les séries au haut de la fourchette → + step kg. */
-export function suggestFor(e: Exercise, log: SessionLog[]): Suggestion {
+export function suggestFor(e: Exercise, log: SessionLog[], date?: string): Suggestion {
+  const s = suggestRaw(e, log);
+  return inDeload(date) && s.kg ? { kg: Math.round(s.kg * 0.9 * 2) / 2, last: s.last } : s;
+}
+function suggestRaw(e: Exercise, log: SessionLog[]): Suggestion {
   for (let i = log.length - 1; i >= 0; i--) {
     const sets = log[i]!.sets.filter(s => s.ex === e.id && s.kg != null);
     if (!sets.length) continue;
@@ -287,8 +325,9 @@ const exMinutes = (e: Exercise) => {
 };
 
 /** Exercices qui tiennent dans le créneau (minutes de vraie séance) ; créneau long → finisher cardio. */
-export function fitSession(type: SessionType, minutes: number): { exercises: Exercise[]; finisher?: string; express: boolean; estMin: number } {
-  const s = SESSIONS[type];
+export function fitSession(type: SessionType, minutes: number, date?: string): { exercises: Exercise[]; finisher?: string; express: boolean; estMin: number; deload: boolean } {
+  const deload = inDeload(date);
+  const s = deload ? { ...SESSIONS[type], exercises: SESSIONS[type].exercises.map(e => ({ ...e, sets: Math.max(2, Math.round(e.sets * 0.6)) })) } : SESSIONS[type];
   const budget = Math.max(20, minutes - 8 - 5);           // échauffement + retour au calme
   const out: Exercise[] = []; let used = 0;
   const core = s.exercises.filter(e => e.muscle === 'abdos').slice(-1);
@@ -299,20 +338,21 @@ export function fitSession(type: SessionType, minutes: number): { exercises: Exe
   }
   if (core[0]) { out.push(core[0]); used += exMinutes(core[0]); }
   const left = budget - used;
-  const finisher = type !== 'cardio' && type !== 'core' && left >= 12 ? `Cardio zone 2 : ${Math.min(25, Math.floor(left / 5) * 5)} min (vélo, elliptique ou marche inclinée)` : undefined;
-  return { exercises: out, finisher, express: out.length < s.exercises.length, estMin: Math.round(used + 13 + (finisher ? Math.min(25, Math.floor(left / 5) * 5) : 0)) };
+  const finisher = !deload && type !== 'cardio' && type !== 'core' && left >= 12 ? `Cardio zone 2 : ${Math.min(25, Math.floor(left / 5) * 5)} min (vélo, elliptique ou marche inclinée)` : undefined;
+  return { exercises: out, finisher, express: out.length < s.exercises.length, estMin: Math.round(used + 13 + (finisher ? Math.min(25, Math.floor(left / 5) * 5) : 0)), deload };
 }
 
-export function sessionText(type: SessionType, minutes: number, log: SessionLog[], compact = false): string {
+export function sessionText(type: SessionType, minutes: number, log: SessionLog[], compact = false, date?: string): string {
   const s = SESSIONS[type];
-  const fit = fitSession(type, minutes);
+  const fit = fitSession(type, minutes, date);
   const lines = fit.exercises.map((e, i) => {
-    const sug = suggestFor(e, log);
+    const sug = suggestFor(e, log, date);
     const kg = sug.kg != null ? ` — ${sug.kg} kg${sug.up ? ' ⬆️' : ''}` : '';
     return compact ? `${i + 1}. ${e.name} ${e.sets}×${e.reps}${kg}` : `${i + 1}. ${e.name} — ${e.sets} × ${e.reps}, repos ${e.rest ? `${e.rest} s` : '—'}${kg}\n   💡 ${e.tip}`;
   });
   return [
     `${s.emoji} ${s.label} — ${s.focus}${fit.express ? ` (version ${minutes} min)` : ''}`,
+    fit.deload ? '🪶 SEMAINE ALLÉGÉE : moins de séries, charges −10 %, technique parfaite. On récupère pour repartir plus fort.' : '',
     `🔥 Échauffement : ${s.warmup}`,
     ...lines,
     fit.finisher ? `🏁 ${fit.finisher}` : '',
@@ -356,11 +396,11 @@ export async function planSportWeek(write = true): Promise<{ slots: Array<PlanSl
     if (!doneLog && !st.overrides[date]) idx++;
     const minutes = freeMinutes(e, evs);
     const suffix = (e.summary ?? '').includes(' — ') ? (e.summary ?? '').split(' — ').slice(1).join(' — ') : 'salle';
-    const title = `🏋️ ${SESSIONS[type].label} — ${suffix}`;
+    const title = `🏋️ ${SESSIONS[type].label}${inDeload(date) ? ' (allégée)' : ''} — ${suffix}`;
     plan[date] = { type, eventId: e.id!, start: e.start.dateTime!, end: e.end.dateTime!, minutes, title };
     if (write && e.id) {
       const base = (e.description ?? '').includes(MARK) ? (e.description ?? '').split(MARK).pop()! : (e.description ?? '');
-      const desc = `${sessionText(type, minutes, log, true)}${MARK}${base}`.slice(0, 7000);
+      const desc = `${sessionText(type, minutes, log, true, date)}${MARK}${base}`.slice(0, 7000);
       if (e.summary !== title || e.description !== desc) {
         if (await updateAgendaEvent(e.id, { title, description: desc }).catch(() => false)) changed++;
       }
@@ -391,7 +431,7 @@ export async function sportSessionFor(date: string): Promise<string | null> {
   const st = await getState();
   const p = st.plan[date];
   if (!p) return st.skips[date] ? `Pas de sport ce jour-là (${st.skips[date]}).` : null;
-  return `${hm(Date.parse(p.start))}–${hm(Date.parse(p.end))} · ${sessionText(p.type, p.minutes, await readSportLog())}`;
+  return `${hm(Date.parse(p.start))}–${hm(Date.parse(p.end))} · ${sessionText(p.type, p.minutes, await readSportLog(), false, date)}`;
 }
 
 // ── Rappels : départ, arrivée, « tu as oublié » ─────────────────────────────
@@ -412,6 +452,16 @@ async function alertOnce(st: SportState, date: string, kind: string): Promise<bo
   return true;
 }
 
+/** Playlist de la séance du jour, une seule fois par jour (départ de la maison, rappel de départ ou arrivée). */
+export async function sendSportPlaylist(date = localNow().date): Promise<boolean> {
+  const st = await getState();
+  const p = st.plan[date];
+  if (!st.settings.playlist || st.skips[date] || !(await alertOnce(st, date, 'playlist'))) return false;
+  const { sportPlaylistText } = await import('./presence.js');
+  await queueTelegramMessage(await sportPlaylistText(p?.type ?? 'push', p ? SESSIONS[p.type].label : undefined));
+  return true;
+}
+
 /** Appelée par departures.ts au moment du message « pars à… » d'un créneau sport : séance + lien Waze + appel. */
 export async function sportDepartureNotice(o: { start: number; leaveBy: number; minutes: number; traffic: string }): Promise<void> {
   const st = await getState();
@@ -421,7 +471,8 @@ export async function sportDepartureNotice(o: { start: number; leaveBy: number; 
   const label = p ? SESSIONS[p.type] : null;
   const gym = await gymPoint();
   if (gym) await queueTelegramMessage(`🏋️ Salle — ${label?.label ?? 'sport'}\n${nav(gym)}`);
-  if (p) await queueTelegramMessage(`🏋️ Aujourd'hui : ${sessionText(p.type, p.minutes, await readSportLog(), true)}`);
+  if (p) await queueTelegramMessage(`🏋️ Aujourd'hui : ${sessionText(p.type, p.minutes, await readSportLog(), true, date)}`);
+  await sendSportPlaylist(date).catch(() => null);
   if (!st.settings.callBefore || await getPendingCall('kouider') || await routineCalledRecently(15)) return;
   await callOwner(`C'est l'heure du sport champion ! Aujourd'hui c'est ${label ? `${label.label.toLowerCase()}, ${label.focus.replace(/·/g, ',')}` : 'ta séance'}. Pars à ${sayTime(o.leaveBy)}, il y a ${o.minutes} minutes de route,${o.traffic.replace(/[🔴🟡🟢]/gu, '')}. Je t'ai envoyé le lien Waze de la salle et ta séance sur Telegram. Allez, on y va !`);
 }
@@ -446,8 +497,9 @@ export async function jobSportWatch(): Promise<void> {
   if (fresh && km(fresh, gym) < GYM_RADIUS_KM) {
     st.arrived[date] = now;
     await saveState(st);
-    const text = `💪 Bien arrivé à la salle ! C'est parti pour ${s.label}.\n\n${sessionText(p.type, p.minutes, await readSportLog())}`;
+    const text = `💪 Bien arrivé à la salle ! C'est parti pour ${s.label}.\n\n${sessionText(p.type, p.minutes, await readSportLog(), false, date)}`;
     await queueTelegramMessage(text);
+    await sendSportPlaylist(date).catch(() => null);
     emitProactive(`💪 ${s.label} — ta séance est prête`, 'reminder', text, 'kouider', 'sport');
     return;
   }
@@ -501,7 +553,7 @@ export async function confirmGymArrival(at = Date.now()): Promise<{ text: string
   await saveState(st);
   const s = p ? SESSIONS[p.type] : null;
   const text = p && s
-    ? `💪 ${s.label} — validée à ${hm(at)}.\n\n${sessionText(p.type, p.minutes, await readSportLog())}`
+    ? `💪 ${s.label} — validée à ${hm(at)}.\n\n${sessionText(p.type, p.minutes, await readSportLog(), false, date)}`
     : `💪 Séance hors programme notée à ${hm(at)}. Dis-moi ce que tu fais (ex. « 4×10 squat à 40 kg ») et je le note.`;
   return { text, shifted };
 }
@@ -510,8 +562,10 @@ export async function confirmGymArrival(at = Date.now()): Promise<{ text: string
 export async function jobSportPlan(): Promise<void> {
   const st = await getState();
   const missed = await closePastDays(st);
+  const deloadMsg = await checkDeload(st).catch(() => null);
   await saveState(st);
   const r = await planSportWeek(true);
+  if (deloadMsg) await queueTelegramMessage(deloadMsg);
   if (missed.length) {
     const next = r.slots.find(s => s.date > localNow().date);
     await queueTelegramMessage(`🏋️ Séance ratée : ${missed.join(', ')}. Pas grave, on ne la saute pas : elle passe ${next ? `au prochain créneau (${new Date(next.start).toLocaleDateString('fr-FR', { timeZone: TZ, weekday: 'long' })} ${hm(Date.parse(next.start))})` : 'au prochain créneau'}. 💪`);
@@ -578,8 +632,8 @@ export async function sportOverview() {
   const sessionOf = (date: string) => {
     const p = st.plan[date];
     if (!p) return null;
-    const fit = fitSession(p.type, p.minutes);
-    return { date, type: p.type, ...SESSIONS[p.type], exercises: fit.exercises.map(e => ({ ...e, suggestion: suggestFor(e, log), timed: isTimed(e), demo: demoOf(e.id), video: videoOf(e.name) })),
+    const fit = fitSession(p.type, p.minutes, date);
+    return { date, type: p.type, ...SESSIONS[p.type], deload: fit.deload, exercises: fit.exercises.map(e => ({ ...e, suggestion: suggestFor(e, log, date), timed: isTimed(e), demo: demoOf(e.id), video: videoOf(e.name) })),
       finisher: fit.finisher ?? null, estMin: fit.estMin, start: p.start, end: p.end, minutes: p.minutes, arrived: st.arrived[date] ?? null };
   };
   const nextDate = week.find(w => w.type && w.status !== 'done' && (w.date > today || Date.parse(w.end!) > Date.now()))?.date;
@@ -616,7 +670,7 @@ export async function sportOverview() {
     today: sessionOf(today), next: nextDate && nextDate !== today ? sessionOf(nextDate) : null, week,
     recovery, stats: { streak, monthSessions: log.filter(l => l.date.startsWith(month)).length, total: log.length, weeks, prs },
     gym: gym ? { ...gym, distanceKm: loc && Date.now() - Date.parse(loc.updated_at) < 30 * 60_000 ? Math.round(km(loc, gym) * 10) / 10 : null } : { address: cfg.addresses.gym },
-    settings: st.settings, sessions: Object.fromEntries(ROTATION.map(t => [t, { label: SESSIONS[t].label, emoji: SESSIONS[t].emoji, focus: SESSIONS[t].focus }])),
+    settings: st.settings, deload: st.deload ?? null, sessions: Object.fromEntries(ROTATION.map(t => [t, { label: SESSIONS[t].label, emoji: SESSIONS[t].emoji, focus: SESSIONS[t].focus }])),
     recent: log.slice(-5).reverse().map(l => ({ date: l.date, type: l.type, label: SESSIONS[l.type].label, sets: l.sets.length, volume: Math.round(volume(l)), durationMin: l.durationMin ?? null, rpe: l.rpe ?? null })),
   };
 }
@@ -720,6 +774,42 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
     const removed = await setSportSkip(date, reason);
     return `✅ Pas de sport le ${fmt(date)} (${reason}) : pas de message ni d'appel de réveil, pas d'alerte de départ, et la séance passe au créneau suivant. Agenda : ${removed.length ? `enlevé ${removed.join(', ')}` : 'rien à enlever (ou agenda injoignable)'}.`;
   }
+  if (action === 'rest' || action === 'rest_off') {
+    const { setRestDay, restDayReason } = await import('../notifications/rest-day.js');
+    if (action === 'rest_off') {
+      const was = await restDayReason(date);
+      await setRestDay(date, null);
+      if ((await getState()).skips[date]?.startsWith('🛌')) await setSportSkip(date, null);
+      return was ? `✅ Fin du mode repos le ${fmt(date)} : sport, appels et routine reprennent.` : `Pas de mode repos le ${fmt(date)}.`;
+    }
+    const reason = String(input['reason'] ?? 'repos').slice(0, 50);
+    await setRestDay(date, reason);
+    const removed = await setSportSkip(date, `🛌 ${reason}`);
+    return `🛌 Mode repos le ${fmt(date)} (${reason}) : pas de sport (séance décalée au prochain créneau${removed.length ? `, enlevé de l'agenda : ${removed.join(', ')}` : ''}), pas de réveil ni de routine du matin, aucun appel de ta part (gardés pour plus tard). Les messages passent toujours. Souhaite-lui bon rétablissement en une phrase, sans conseil de nutrition.`;
+  }
+  if (action === 'deload') {
+    const st = await getState();
+    const mode = String(input['mode'] ?? 'status');
+    if (mode === 'on') {
+      st.deload = { start: date, end: addDays(date, 6), why: String(input['reason'] ?? 'demandée par Kouider').slice(0, 60) };
+      await saveState(st); deloadWin = st.deload;
+      await planSportWeek(true);
+      return `🪶 Semaine allégée du ${fmt(date)} au ${fmt(st.deload.end)} : ~40 % de séries en moins, charges −10 %, pas de finisher. Agenda mis à jour.`;
+    }
+    if (mode === 'off') {
+      if (st.deload) { st.deloadLast = localNow().date; delete st.deload; deloadWin = null; await saveState(st); await planSportWeek(true); return '✅ Semaine allégée annulée : retour au programme normal (agenda mis à jour).'; }
+      return 'Pas de semaine allégée prévue.';
+    }
+    const since = st.deloadLast ?? st.trainingSince ?? (await readSportLog())[0]?.date;
+    return st.deload ? `🪶 Semaine allégée prévue du ${fmt(st.deload.start)} au ${fmt(st.deload.end)} (${st.deload.why}).`
+      : `Pas de semaine allégée prévue. Elle arrive toute seule après ~${DELOAD_EVERY_WEEKS} semaines d'entraînement${since ? ` (compteur depuis le ${fmt(since)})` : ''}, ou plus tôt si tes RPE restent ≥ 8,5.`;
+  }
+  if (action === 'playlist') {
+    const st = await getState();
+    const type = parseType(input['type']) ?? st.plan[date]?.type ?? ROTATION[st.next]!;
+    const { sportPlaylistText } = await import('./presence.js');
+    return sportPlaylistText(type, SESSIONS[type].label);
+  }
   if (action === 'unskip') { await setSportSkip(date, null); return `✅ Sport remis le ${fmt(date)} (créneau remis dans l'agenda).`; }
   if (action === 'log') {
     const done = input['done'] === true || input['done'] === 'true';
@@ -741,8 +831,9 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
     const s = await setSportSettings({
       ...(input['call_before'] !== undefined ? { callBefore: input['call_before'] === true || input['call_before'] === 'true' } : {}),
       ...(input['gym_check'] !== undefined ? { gymCheck: input['gym_check'] === true || input['gym_check'] === 'true' } : {}),
+      ...(input['playlist'] !== undefined ? { playlist: input['playlist'] === true || input['playlist'] === 'true' } : {}),
     });
-    return `✅ Appel avant le sport : ${s.callBefore ? 'oui' : 'non'} · vérif GPS « tu as oublié ? » : ${s.gymCheck ? 'oui' : 'non'}.`;
+    return `✅ Appel avant le sport : ${s.callBefore ? 'oui' : 'non'} · vérif GPS « tu as oublié ? » : ${s.gymCheck ? 'oui' : 'non'} · playlist de séance : ${s.playlist ? 'oui' : 'non'}.`;
   }
   if (action === 'progress') {
     const o = await sportOverview();

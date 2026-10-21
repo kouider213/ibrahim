@@ -5,6 +5,7 @@ import { env } from '../config/env.js';
 import { pushToActor } from './mobile-push.js';
 import { synthesizeVoice } from './dispatcher.js';
 import { getDnd } from './dnd.js';
+import { restDayReason } from './rest-day.js';
 
 // « Appels » Dzaryx dans l'app (sans numéro de téléphone) :
 // - Dzaryx appelle → notif « 📞 Dzaryx t'appelle » → l'app ouvre l'écran d'appel → Décrocher
@@ -32,10 +33,10 @@ function firstName(actor: CallActor): string {
  *  force = c'est lui qui vient de demander « appelle-moi ». */
 export async function callOwner(reason: string, actor: CallActor = 'kouider', opts: { force?: boolean } = {}): Promise<{ id: string; held?: boolean }> {
   const clean = reason.trim().replace(/\s+/g, " ").slice(0, 1200);   // 1200 : place pour le travail préparé (call-tasks)
-  if (actor === 'kouider' && !opts.force && await getDnd()) {
+  if (actor === 'kouider' && !opts.force && (await getDnd() || await restDayReason())) {
     const { addToCallInbox } = await import('./auto-call.js');
     await addToCallInbox(clean.replace(/^\[TÂCHE:[^\]]+\]\s*/, '')).catch(() => {});
-    console.log(`[voice-call] ne pas déranger — appel gardé : "${clean.slice(0, 60)}"`);
+    console.log(`[voice-call] ne pas déranger / jour de repos — appel gardé : "${clean.slice(0, 60)}"`);
     return { id: 'held', held: true };
   }
   const call: PendingCall = {

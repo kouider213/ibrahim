@@ -122,6 +122,40 @@ export async function playlistText(forWhat = 'la route', query?: string): Promis
     ...(missing.length ? [`(pas trouvé sur Apple Music : ${missing.join(', ')})`] : [])].join('\n\n');
 }
 
+// Playlists SPORT (Kouider 21/10) : une playlist Apple Music Fitness (boutique belge) selon la séance du jour,
+// + « les indispensables » d'un de ses artistes. Liens relevés sur la page « Apple Music Fitness » le 21/10.
+const pl = (slug: string, id: string) => `https://music.apple.com/${STORE}/playlist/${slug}/pl.${id}`;
+const SPORT_PLAYLISTS: Record<string, Array<{ name: string; url: string }>> = {
+  force: [
+    { name: 'Sport Rap', url: pl('sport-rap', '4c62f568a0d64293a9c362037175c09b') },
+    { name: 'Pure Gym', url: pl('pure-gym', '1ca7c11397cc4a8088265a030dbffdac') },
+    { name: 'Pour tout donner', url: pl('pour-tout-donner', '6a2b374e861047bea93b8dfc40362b8a') },
+    { name: 'Phonk', url: pl('phonk', '2ff5e24b654d4195b7ba392cb613688c') },
+  ],
+  cardio: [
+    { name: '100 % Cardio', url: pl('100-cardio', 'f678e1f1f05a4533930082ecdadfb99d') },
+    { name: 'Hits pour courir', url: pl('hits-pour-courir', '6db5f7b47286460e9928d09d9ac0be69') },
+    { name: 'Sport 45 minutes', url: pl('sport-45-minutes', '918cffeb52b14d73bde02be6c22981a3') },
+  ],
+  core: [
+    { name: 'Pilates et abdos', url: pl('pilates-et-abdos', '4bc4689ef3e84852880ac55be14c2e36') },
+    { name: 'Énergie fluide', url: pl('%C3%A9nergie-fluide', 'de20dc985af84cc2aaef6c9f5f493c3b') },
+  ],
+};
+
+/** Playlist de la séance : push/pull/legs/upper = force, cardio = cardio, core & mobilité = calme. */
+export async function sportPlaylistText(type: string, label?: string): Promise<string> {
+  const kind = type === 'cardio' ? 'cardio' : type === 'core' ? 'core' : 'force';
+  const day = Math.floor(Date.now() / 86_400_000);
+  const list = SPORT_PLAYLISTS[kind]!;
+  const main = list[day % list.length]!;
+  const { music } = await getPresencePrefs();
+  const artist = music.length ? await artistPlaylist(music[day % music.length]!).catch(() => null) : null;
+  return [`🎧 Playlist pour ${label ?? 'ta séance'} — appuie, elle s'ouvre dans Apple Music, puis ▶️ :`,
+    `• ${main.name}\n${main.url}`,
+    ...(artist ? [`• ${artist.name}${artist.playlist ? ' — les indispensables' : ' (page artiste)'}\n${artist.url}`] : [])].join('\n\n');
+}
+
 // ── Brief du matin ───────────────────────────────────────────────────────────
 
 const algiers = (off = 0) => new Date(Date.now() + off * 86_400_000).toLocaleDateString('en-CA', { timeZone: 'Africa/Algiers' });
@@ -245,9 +279,10 @@ async function onLeftHome(st: PresenceState, now: number, prefs: Prefs): Promise
       : `Si tu es seul, réponds-moi : on parle, je suis là (trajet, agenda, mails, musique…).`];
   if (gymLikely) {
     await gymPin(sp!.label!);
-    lines.push('', await playlistText('la route et la séance'), '', `💪 Allez champion, chaque séance compte !`);
+    lines.push('', `💪 Allez champion, chaque séance compte !`);
   }
   await queueTelegramMessage(lines.join('\n'));
+  if (gymLikely) await (await import('./sport-coach.js')).sendSportPlaylist().catch(() => false);
   st.ask = { kind: 'left', at: now, dest: gymLikely ? 'gym' : trip?.name };
 }
 
@@ -267,7 +302,8 @@ async function onGym(st: PresenceState, now: number): Promise<void> {
   mark(st, 'gym-ask');
   const cfg = await getRoutineConfig();
   const leave = cfg.days[localNow(now).weekday]?.leave;
-  await queueTelegramMessage(`🏋️ Je te vois à la salle, en avance (séance prévue à ${hm(start)}) ! Tu y es bien ?\nRéponds « oui » : je valide ton ${sp.label}, j'avance ta matinée dans l'agenda${leave ? ` et j'annule le rappel de ${leave.replace(':', 'h')}` : ''}.\n\n${await playlistText('ta séance')}`);
+  await queueTelegramMessage(`🏋️ Je te vois à la salle, en avance (séance prévue à ${hm(start)}) ! Tu y es bien ?\nRéponds « oui » : je valide ton ${sp.label}, j'avance ta matinée dans l'agenda${leave ? ` et j'annule le rappel de ${leave.replace(':', 'h')}` : ''}.`);
+  await (await import('./sport-coach.js')).sendSportPlaylist().catch(() => false);
   st.ask = { kind: 'gym', at: now };
 }
 
@@ -423,7 +459,7 @@ export async function handlePresenceReply(message: string): Promise<{ reply?: st
   if (a.dest !== 'gym' && /salle|sport|muscu|gym|entra[iî]n/i.test(msg)) {
     const { sportToday } = await import('./sport-coach.js');
     const sp = await sportToday().catch(() => null);
-    if (sp?.slot && !sp.arrived) { await gymPin(sp.label!); await queueTelegramMessage(await playlistText('la route et la séance')); }
+    if (sp?.slot && !sp.arrived) { await gymPin(sp.label!); await (await import('./sport-coach.js')).sendSportPlaylist().catch(() => false); }
     gymNote = 'Il va à la salle : le lien Waze et des playlists lui ont été envoyés ; motive-le en une phrase.';
   }
   return { note: busy

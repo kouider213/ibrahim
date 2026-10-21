@@ -126,6 +126,9 @@ export async function routinePausedReason(date: string, cfg?: RoutineConfig): Pr
   const c = cfg ?? await getRoutineConfig();
   if (!c.enabled) return 'routine coupée';
   if (c.pausedUntil && date <= c.pausedUntil) return `en pause jusqu'au ${c.pausedUntil}${c.pauseReason ? ` (${c.pauseReason})` : ''}`;
+  const { restDayReason } = await import('../notifications/rest-day.js');
+  const rest = await restDayReason(date).catch(() => null);
+  if (rest) return `jour de repos (${rest})`;
   const { kouiderAwayOn } = await import('./trips.js');
   const away = await kouiderAwayOn(date).catch(() => null);
   return away ? `en voyage (${away})` : null;
