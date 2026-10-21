@@ -755,6 +755,11 @@ export async function checkProspectReplies(): Promise<number> {
     handled++;
 
     if (BOUNCE_RE.test(latest.fromEmail)) {
+      // Rejet Zoho déjà rattrapé à l'envoi (mail renvoyé depuis l'adresse Gmail) : rien à refaire
+      if (await kvGet(`mail:rescued-bounce:${latest.id}`).catch(() => null)) {
+        await updateProspect(p.id, { reply_seen_id: latest.id });
+        continue;
+      }
       // Rejet venant de NOTRE côté (Zoho bloque contact@) : l'adresse du prospect est bonne → il repart dans la file
       const bounce = await readEmail('pro', latest.id, 3000).catch(() => null);
       if (bounce && SENDER_BLOCKED_RE.test(bounce.body)) {
@@ -824,11 +829,14 @@ export async function checkProspectReplies(): Promise<number> {
     void autoCall(`mail-reply:${latest.id}`, `${p.company} a répondu à ton mail de démarchage${a.interet === 'interesse' ? ', et ils sont intéressés' : a.interet === 'refus' ? ', mais ils ne sont pas intéressés' : ''}. ${a.resume}`, { level: 'normal' });
   }
   // Une alerte par jour au plus : Kouider seul peut débloquer Zoho (lien dans le rejet)
-  if (senderBlocked && !(await kvGet('mail:zoho-block-alert'))) {
+  // (rejet rattrapé à l'envoi : mail déjà renvoyé depuis Gmail, seul le blocage est signalé)
+  const rescued = !senderBlocked && Boolean(await kvGet('mail:zoho-blocked-at').catch(() => null));
+  if ((senderBlocked || rescued) && !(await kvGet('mail:zoho-block-alert'))) {
     await kvSet('mail:zoho-block-alert', '1', 20 * 3600);
     emitProactive(`Zoho bloque l'envoi depuis ${PRO_ALIAS} : j'envoie depuis l'adresse Gmail en attendant.`, 'alert',
-      `⚠️ Zoho a bloqué l'envoi depuis ${PRO_ALIAS} (« Unusual sending activity »). ${senderBlocked} mail(s) ne sont pas partis : ` +
-      `je les remets dans la file et j'envoie depuis ${await proSenderAddress()} pendant 24 h.\n` +
+      `⚠️ Zoho a bloqué l'envoi depuis ${PRO_ALIAS} (« Unusual sending activity »). ` +
+      (rescued ? `Les mails rejetés sont repartis tout de suite depuis ${await proSenderAddress()}, et j'envoie depuis cette adresse pendant 24 h.\n`
+        : `${senderBlocked} mail(s) ne sont pas partis : je les remets dans la file et j'envoie depuis ${await proSenderAddress()} pendant 24 h.\n`) +
       `👉 Pour débloquer : connecte-toi sur https://mail.zoho.eu/UnblockMe avec ${PRO_ALIAS}.`, 'kouider', 'demarchage');
   }
   return handled;

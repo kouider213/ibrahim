@@ -7,6 +7,11 @@
 
 ## Bugs Ouverts 🔴
 
+### B040 — Démarchage : aucun mail n'arrive lundi 19 et mardi 20/10 ✅ FIXÉ
+- Symptôme : tous les mails du matin (13 le 19, 12 le 20) rejetés « 550 5.4.6 Unusual sending activity » par Zoho (envoi « en tant que » contact@fikconciergerie.com).
+- Cause : la bascule vers l'adresse Gmail ne se faisait qu'au passage du scanner de réponses, après coup → toute la fournée partait dans le vide avant.
+- Fix : `sendEmail` vérifie la conversation ~3-16 s après chaque envoi depuis contact@ ; rejet 5.4.6 → mail renvoyé aussitôt depuis fikconciergerie@gmail.com, rejet mis à la corbeille, 24 h sur Gmail (kv `mail:zoho-blocked-at`), alerte Telegram une fois. Les prospects rejetés les 19-20 étaient déjà remis en file (repartis le 21 / en cours).
+
 ### B039 — « Pas de salle demain, ne me dérange pas le matin » pas respecté + rafale de messages (20/10) ✅ FIXÉ
 - Symptôme : séance annulée mais le réveil 6h40 (message + appel) restait prévu, les blocs sport restaient dans l'agenda ; à 23h30 l'app a reçu « Demain 🚗 Trajet → salle… réveil » et un rappel « Réveil Kouider ! » était programmé à 6h15 ; à sa réponse, tous les messages gardés pendant la pause sont partis d'un coup.
 - Cause : la routine du matin ignorait le skip sport ; pause_calls ne savait faire qu'un silence « à partir de maintenant » (et resume l'effaçait) ; vieux job smart-alarm (heure d'Algérie, Haï Badr) sans aucun garde-fou ; tg-outbox renvoyait chaque message gardé séparément.

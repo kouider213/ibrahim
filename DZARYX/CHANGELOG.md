@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-21 — Démarchage : rejet Zoho rattrapé à l'envoi (B040)
+
+`gmail.ts sendEmail` : après un envoi depuis contact@ (Zoho), `waitSenderBlockedBounce` lit la conversation (3 s, 5 s, 8 s) ; un rejet 5.4.6 → `markProAliasBlocked`, kv `mail:rescued-bounce:<id>` + `mail:zoho-blocked-at` (24 h, levé par `mail:zoho-unblocked-at`), rejet à la corbeille, mail renvoyé depuis fikconciergerie@gmail.com (même fil). `checkProspectReplies` ignore les rejets rattrapés et prévient Kouider une fois par jour (lien UnblockMe).
+
 ## 2026-10-21 — Forme du matin, bilan sport du dimanche, objectif de la semaine
 
 FORME DU MATIN : les jours de sport, le message du réveil demande « ta forme de 1 à 5 ». `noteKouiderActivity(message)` (chat + /api/call/turn) lit un chiffre clair (« 2 », « 4/5 », « forme 3 », « … 2/5 mal dormi ») → `setMorningForm` ; en mots, le cerveau appelle `sport_coach form score`. 1-2 → séance du jour 45 min max, séries ×0,6, charges −10 %, pas de finisher, titre agenda « (courte) », bandeau 😴 (state.form, 14 j). BILAN DU DIMANCHE : job `sport-weekly` dim 20h Bruxelles → `sportWeeklyReport` : séances faites/prévues + ratées, volume vs semaine d'avant, records de la semaine, objectif atteint ?, séances de la semaine prochaine (semaine allégée signalée), nouvel objectif, niveau du jeu ; Telegram + notif app ; `sport_coach weekly` à la demande. OBJECTIF DE LA SEMAINE (state.goal) : régularité (N séances sur N) si la semaine n'était pas pleine, sinon une charge à battre (exercice en progression de la semaine qui vient) ; suivi dans `progress` et `/sport` overview (goal + done/reached).

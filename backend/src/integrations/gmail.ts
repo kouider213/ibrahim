@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { supabase } from './supabase.js';
 import { env } from '../config/env.js';
-import { kvGet } from './app-store.js';
+import { kvGet, kvSet } from './app-store.js';
 
 // Lecture + envoi (après accord de Kouider) des boîtes Gmail de Kouider via OAuth (le compte de service ne peut pas lire un @gmail.com).
 // Tokens stockés dans google_oauth_tokens sous la clé "gmail:<adresse>" pour ne pas écraser ceux de l'agenda.
@@ -348,6 +348,9 @@ export const SENDER_BLOCKED_RE = /5\.4\.6|Unusual sending activity|CustomFromDen
 
 /** Fin du blocage Zoho (ms) si un rejet « 5.4.6 » a moins de 24 h, sinon 0. */
 export async function proAliasBlockedUntil(): Promise<number> {
+  const rescuedAt = Number(await kvGet('mail:zoho-blocked-at').catch(() => null) ?? 0);
+  const clearedAt = Number(await kvGet('mail:zoho-unblocked-at').catch(() => null) ?? 0);
+  if (rescuedAt > clearedAt && rescuedAt + 24 * 3600_000 > Date.now()) return rescuedAt + 24 * 3600_000;
   const address = gmailAddress('pro');
   const list = await gmailGet<{ messages?: { id: string }[] }>(address, '/messages',
     { q: 'from:mailer-daemon "5.4.6" newer_than:2d', maxResults: 1 });
@@ -355,7 +358,6 @@ export async function proAliasBlockedUntil(): Promise<number> {
   if (!id) return 0;
   const m = await gmailGet<{ internalDate?: string }>(address, `/messages/${id}`, { format: 'minimal' });
   // Blocage Zoho temporaire : une fois levé (test d'envoi OK), les rejets d'avant ne comptent plus
-  const clearedAt = Number(await kvGet('mail:zoho-unblocked-at').catch(() => null) ?? 0);
   if (Number(m.internalDate ?? 0) <= clearedAt) return 0;
   const until = Number(m.internalDate ?? 0) + 24 * 3600_000;
   return until > Date.now() ? until : 0;
@@ -381,27 +383,55 @@ export async function sendEmail(
   const sender = account === 'pro' ? await proSenderAddress() : address;
   // fromName : nom affiché (ex. démarchage sites web) — ASCII simple, sinon nom par défaut
   const name = mail.fromName && /^[A-Za-z0-9 .\-]{2,40}$/.test(mail.fromName) ? mail.fromName : SENDER_NAME;
-  const from = account === 'pro' ? `${name} <${sender}>` : address;
-  const raw = [
-    `From: ${from}`,
-    // Envoi depuis contact@ (Zoho, sans transfert) : les réponses reviennent dans la boîte Gmail que Dzaryx surveille
-    // replyTo (ex. visiteur d'un site client) : adresse simple déjà validée, sans retour à la ligne
-    ...(mail.replyTo && /^[^\s@<>,;"]+@[^\s@<>,;"]+\.[^\s@<>,;"]+$/.test(mail.replyTo) ? [`Reply-To: ${mail.replyTo}`]
-      : sender !== address ? [`Reply-To: ${SENDER_NAME} <${address}>`] : []),
-    `To: ${mail.to}`,
-    `Subject: ${encodeHeader(mail.subject)}`,
-    // Réponse : ces en-têtes + threadId → le mail reste dans la même conversation chez le destinataire
-    ...(mail.reply ? [`In-Reply-To: ${mail.reply.inReplyTo}`, `References: ${mail.reply.inReplyTo}`] : []),
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=UTF-8',
-    'Content-Transfer-Encoding: base64',
-    '',
-    Buffer.from(mail.body, 'utf-8').toString('base64').replace(/.{76}/g, '$&\r\n'),
-  ].join('\r\n');
-  const { data } = await axios.post<{ id: string; threadId: string }>(`${GMAIL_BASE}/messages/send`,
-    { raw: Buffer.from(raw, 'utf-8').toString('base64url'), ...(mail.reply ? { threadId: mail.reply.threadId } : {}) },
-    { headers: { Authorization: `Bearer ${token}` }, timeout: 15_000 });
-  return { id: data.id, threadId: data.threadId };
+  const post = async (from: string) => {
+    const raw = [
+      `From: ${account === 'pro' ? `${name} <${from}>` : address}`,
+      // Envoi depuis contact@ (Zoho, sans transfert) : les réponses reviennent dans la boîte Gmail que Dzaryx surveille
+      // replyTo (ex. visiteur d'un site client) : adresse simple déjà validée, sans retour à la ligne
+      ...(mail.replyTo && /^[^\s@<>,;"]+@[^\s@<>,;"]+\.[^\s@<>,;"]+$/.test(mail.replyTo) ? [`Reply-To: ${mail.replyTo}`]
+        : from !== address ? [`Reply-To: ${SENDER_NAME} <${address}>`] : []),
+      `To: ${mail.to}`,
+      `Subject: ${encodeHeader(mail.subject)}`,
+      // Réponse : ces en-têtes + threadId → le mail reste dans la même conversation chez le destinataire
+      ...(mail.reply ? [`In-Reply-To: ${mail.reply.inReplyTo}`, `References: ${mail.reply.inReplyTo}`] : []),
+      'MIME-Version: 1.0',
+      'Content-Type: text/plain; charset=UTF-8',
+      'Content-Transfer-Encoding: base64',
+      '',
+      Buffer.from(mail.body, 'utf-8').toString('base64').replace(/.{76}/g, '$&\r\n'),
+    ].join('\r\n');
+    const { data } = await axios.post<{ id: string; threadId: string }>(`${GMAIL_BASE}/messages/send`,
+      { raw: Buffer.from(raw, 'utf-8').toString('base64url'), ...(mail.reply ? { threadId: mail.reply.threadId } : {}) },
+      { headers: { Authorization: `Bearer ${token}` }, timeout: 15_000 });
+    return { id: data.id, threadId: data.threadId };
+  };
+  const sent = await post(sender);
+  if (sender === address) return sent;
+  // Zoho peut refuser contact@ (5.4.6, 19-20/10/2026 : tout le démarchage perdu) : le rejet arrive ~1 s après
+  // dans la même conversation → on bascule sur l'adresse Gmail et on renvoie le mail tout de suite
+  const bounceId = await waitSenderBlockedBounce(account, sent.threadId, sent.id).catch(() => null);
+  if (!bounceId) return sent;
+  markProAliasBlocked();
+  await kvSet(`mail:rescued-bounce:${bounceId}`, '1', 14 * 86400).catch(() => {});
+  // 24 h sur l'adresse Gmail (le rejet part à la corbeille : la recherche « 5.4.6 » ne le verrait plus)
+  await kvSet('mail:zoho-blocked-at', String(Date.now()), 24 * 3600).catch(() => {});
+  await modifyEmails(account, [bounceId], 'trash').catch(() => {});
+  console.warn(`[gmail] ${PRO_ALIAS} rejeté par Zoho → mail à ${mail.to} renvoyé depuis ${address}`);
+  return post(address);
+}
+
+/** Rejet « 5.4.6 » (expéditeur contact@ bloqué) arrivé dans la conversation juste après notre envoi, sinon null. */
+export async function waitSenderBlockedBounce(account: GmailAccount, threadId: string, sentId: string): Promise<string | null> {
+  for (const wait of [3000, 5000, 8000]) {
+    await new Promise(r => setTimeout(r, wait));
+    const t = await gmailGet<{ messages?: Array<{ id: string; payload?: { headers?: Header[] } }> }>(
+      gmailAddress(account), `/threads/${encodeURIComponent(threadId)}`, { format: 'metadata', metadataHeaders: ['From'] });
+    const msgs = t.messages ?? [];
+    const after = msgs.slice(msgs.findIndex(m => m.id === sentId) + 1);
+    const dsn = after.find(m => /mailer-daemon|postmaster/i.test(header(m.payload?.headers, 'From')));
+    if (dsn) return SENDER_BLOCKED_RE.test((await readEmail(account, dsn.id, 3000)).body) ? dsn.id : null;
+  }
+  return null;
 }
 
 // ── Suivi des réponses (prospection) ──────────────────────────
