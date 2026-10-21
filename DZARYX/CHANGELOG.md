@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-21 — Survie sans Claude : secours gratuits réparés (B041)
+
+Clés Groq + Gemini ajoutées au `.env` du VPS (serveur de secours redémarré). `agentic-fallback.ts` : Gemini d'abord (7 modèles, quota épuisé → sauté 15 min), Groq en mode compact (prompt court + date, 8 outils pertinents, historique tronqué, rappel des outils si `tool_use_failed`, attente si 429 ≤ 20 s), photos transmises aux modèles qui voient. `compact-prompt.ts` (nouveau) utilisé aussi par `callGroq`/`callGroqVision`. `anthropic-compat.ts` (tâches de fond) : 120 outils max, images → `image_url` pour Gemini, avertissement anti-invention pour Groq. Orchestrator : `fastPathGuard` seulement si aucun outil n'a tourné ; Gemini vision en dernier recours pour l'appel vidéo. Test : `scripts/free-mode-test.ts free|paid` (ONLY, PAUSE, LOGFILE).
+
 ## 2026-10-21 — Revue sécurité + revue de code (site + Dzaryx)
 
 - Site (autolux-location cbe0cc0) : APIs admin protégées (session admin ou clé serveur `x-service-key` de Dzaryx), numéro de passeport retiré de « Mes réservations », newsletter réservée aux admins.

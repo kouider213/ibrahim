@@ -37,7 +37,7 @@ import { chatWithTools }                         from '../integrations/claude-ap
 import { saveConversationTurn }                  from '../integrations/supabase.js';
 import { inSandbox }                             from '../integrations/crash-test-sandbox.js';
 import { synthesizeVoiceStream }                 from '../notifications/dispatcher.js';
-import { classifyRequest, callGroq, callGroqVision, callClaudeVision, callOpenAI, callOpenAIVision, isGroqAvailable, isClaudeAvailable, isOpenAIAvailable } from '../integrations/llm-router.js';
+import { classifyRequest, callGroq, callGroqVision, callGemini, callClaudeVision, callOpenAI, callOpenAIVision, isGroqAvailable, isClaudeAvailable, isOpenAIAvailable } from '../integrations/llm-router.js';
 import { routeToAgent, detectAgentFromHistory, buildAgentSystem } from '../agents/core-router.js';
 import { needsMultiAgent, selectAgents, runMultiAgent }           from '../agents/multi-agent-orchestrator.js';
 import type { Namespace }                        from 'socket.io';
@@ -364,11 +364,13 @@ export async function processMessage(
     const fpCascade: FP[] = [];
 
     if (imageBase64) {
-      // Vision = CLAUDE uniquement (+ Groq vision en secours). JAMAIS Gemini/OpenAI (consigne Kouider).
+      // Vision = Claude d'abord. Secours : Groq vision, puis Gemini — Gemini seulement si Claude a échoué
+      // (Kouider 21/10/2026 : OK pour Gemini sur les photos quand Claude est en panne).
       // Claude Haiku 4.5 = rapide + natif images.
       console.log(`[VISION_RUNTIME] source=mobile_scanner base64_length=${imageBase64.length} mime=${imageMime} claude=${isClaudeAvailable()} groq=${isGroqAvailable()}`);
       if (isClaudeAvailable())   fpCascade.push({ key: 'claude',        fn: () => callClaudeVision(userMessage, ctx.systemExtra, imageBase64, imageMime) });
       if (isGroqAvailable())     fpCascade.push({ key: 'groq-vision',   fn: () => callGroqVision(userMessage, ctx.systemExtra, imageBase64, imageMime) });
+      if (process.env['GEMINI_API_KEY']) fpCascade.push({ key: 'gemini-vision', fn: () => callGemini(userMessage, ctx.systemExtra, imageBase64, imageMime) });
       if (isOpenAIAvailable())   fpCascade.push({ key: 'openai-vision', fn: () => callOpenAIVision(userMessage, ctx.systemExtra, imageBase64, imageMime) });
     } else {
       // Texte rapide = Groq uniquement. Si échec → fallthrough vers Claude (boucle agentique). JAMAIS Gemini/OpenAI.
@@ -477,13 +479,16 @@ export async function processMessage(
         const agRes = await runAgenticFallback(
           ctx.messages, agentSystemExtra, sessionId,
           agentRoute.agentTools, onToolStart, onToolDone,
+          imageBase64 ? { base64: imageBase64, mime: imageMime ?? 'image/jpeg' } : undefined,
         );
         redis.incr(`provider:calls:${today}:agentic-${agRes.provider}`).catch(() => {});
         redis.incr(`provider:fallback:${today}:agentic-${agRes.provider}:success`).catch(() => {});
         console.warn(`[MOBILE_RUNTIME] channel=${source_channel} session=${sessionId} provider=agentic-${agRes.provider} fast_path=false fallback=true router_used=true legacy=false`);
         const agGuarded = guardResponse(agRes.text, userMessage, requestId);
         const agPhantom = phantomGuard(agGuarded, agRes.toolsExecuted, userMessage, requestId);
-        const agSafe    = oranize(localizeGuardMessage(fastPathGuard(agPhantom, userMessage, requestId), null, guardLang), actor);
+        // fastPathGuard = « aucun outil n'a tourné » : ici les vrais outils ont lu Supabase, ne pas bloquer leur réponse
+        const agChecked = agRes.toolsExecuted.length > 0 ? agPhantom : fastPathGuard(agPhantom, userMessage, requestId);
+        const agSafe    = oranize(localizeGuardMessage(agChecked, null, guardLang), actor);
         _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: agSafe });
         saveConversationTurn(sessionId, 'assistant', agSafe).catch(() => {});
         if (!textOnly && agSafe.length > 0) {

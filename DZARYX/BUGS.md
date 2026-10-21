@@ -7,6 +7,11 @@
 
 ## Bugs Ouverts 🔴
 
+### B041 — Sans crédit Claude, Dzaryx répond « Service temporairement indisponible » (21/10) ✅ FIXÉ
+- Symptôme : test « tout gratuit » (`backend/scripts/free-mode-test.ts free`) → chat 2/11 ; « Je n'ai pas accès aux données en temps réel » alors que list_bookings avait tourné ; photos décrites au hasard (« citadine blanche » pour une Clio rouge) dans les tâches de fond.
+- Cause : Groq reçoit 237 outils (max 128) et ~9 000 tokens de prompt (free = 8 000 tokens/min) → 400/413 ; un seul modèle Gemini (souvent 503/429) ; `fastPathGuard` appliqué au secours agentique même quand de vrais outils avaient tourné ; images retirées en silence par le secours.
+- Fix : `agentic-fallback.ts` — 7 modèles Gemini (quota 429 → modèle sauté 15 min), puis Groq compact (prompt court `compact-prompt.ts` + date, 8 outils choisis par `pickFallbackTools`, historique tronqué, 2e essai si outil inconnu, attente si 429 court) ; photos envoyées à Gemini (chat, appel vidéo, tâches de fond), Groq prévenu qu'il ne voit pas l'image ; `callGroq`/`callGroqVision` passent au prompt court si trop gros ; orchestrator ne bloque plus une réponse appuyée sur des outils. Kouider 21/10 : Gemini autorisé pour les photos quand Claude est en panne.
+
 ### B040 — Démarchage : aucun mail n'arrive lundi 19 et mardi 20/10 ✅ FIXÉ
 - Symptôme : tous les mails du matin (13 le 19, 12 le 20) rejetés « 550 5.4.6 Unusual sending activity » par Zoho (envoi « en tant que » contact@fikconciergerie.com).
 - Cause : la bascule vers l'adresse Gmail ne se faisait qu'au passage du scanner de réponses, après coup → toute la fournée partait dans le vide avant.

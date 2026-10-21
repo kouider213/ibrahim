@@ -5,6 +5,7 @@
  */
 import { Dzaryx } from '../config/constants.js';
 import { CLAUDE_FAST, adaptRawRequest } from './anthropic-compat.js';
+import { groqSystemPrompt } from './compact-prompt.js';
 
 const GROQ_KEY    = process.env['GROQ_API_KEY'];
 const OPENAI_KEY  = process.env['OPENAI_API_KEY'];
@@ -88,7 +89,7 @@ export async function callGroqVision(
 
   const systemPrompt = skipBasePrompt
     ? (systemExtra ?? '')
-    : [Dzaryx.SYSTEM_PROMPT as string, systemExtra ?? ''].filter(Boolean).join('\n\n');
+    : groqSystemPrompt(Dzaryx.SYSTEM_PROMPT as string, systemExtra ?? '', 4_000);
   const userContent: unknown[] = [];
   if (imageBase64) {
     userContent.push({ type: 'image_url', image_url: { url: `data:${imageMime};base64,${imageBase64}` } });
@@ -116,7 +117,8 @@ export async function callGroqVision(
 export async function callGroq(userMessage: string, systemExtra?: string): Promise<string> {
   if (!GROQ_KEY) throw new Error('GROQ_API_KEY not configured');
 
-  const systemPrompt = [Dzaryx.SYSTEM_PROMPT as string, systemExtra ?? ''].filter(Boolean).join('\n\n');
+  // Groq free = 8 000 tokens/min : prompt complet → 413, on passe au prompt court
+  const systemPrompt = groqSystemPrompt(Dzaryx.SYSTEM_PROMPT as string, systemExtra ?? '');
   const { default: axios } = await import('axios');
   const { data } = await axios.post(
     'https://api.groq.com/openai/v1/chat/completions',
@@ -163,7 +165,7 @@ export async function callGemini(
   }
 
   const { default: axios } = await import('axios');
-  const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+  const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.1-flash-lite'];
   let lastErr = '';
   for (const model of GEMINI_MODELS) {
     try {

@@ -93,11 +93,22 @@ type Block = { type: string; text?: string; id?: string; name?: string; input?: 
 function blockText(c: unknown): string {
   if (typeof c === 'string') return c;
   if (!Array.isArray(c)) return '';
-  return (c as Block[]).map(b => b.type === 'text' ? b.text ?? '' : b.type === 'image' || b.type === 'document' ? '[pièce jointe non lisible en mode secours]' : '').filter(Boolean).join('\n');
+  return (c as Block[]).map(b => b.type === 'text' ? b.text ?? '' : b.type === 'image' || b.type === 'document'
+    ? '[pièce jointe non lisible par ce modèle de secours : dis-le, ne la décris pas, n\'invente rien]' : '').filter(Boolean).join('\n');
+}
+
+/** Message user avec images → parts OpenAI (image_url) pour les modèles qui voient (Gemini, OpenAI). */
+function userParts(blocks: Block[]): Body[] | null {
+  const imgs = blocks.filter(b => b.type === 'image') as Array<Block & { source?: { type?: string; media_type?: string; data?: string; url?: string } }>;
+  if (!imgs.length) return null;
+  const parts: Body[] = imgs.map(b => ({ type: 'image_url', image_url: { url: b.source?.type === 'url' ? b.source.url : `data:${b.source?.media_type ?? 'image/jpeg'};base64,${b.source?.data ?? ''}` } }));
+  const text = blocks.filter(b => b.type === 'text').map(b => b.text ?? '').join('\n');
+  if (text) parts.push({ type: 'text', text });
+  return parts;
 }
 
 /** Corps Anthropic → corps OpenAI chat/completions. */
-function toOpenAI(body: Body, model: string): Body {
+function toOpenAI(body: Body, model: string, vision = false): Body {
   const msgs: Body[] = [];
   const sys = blockText(body.system);
   if (sys) msgs.push({ role: 'system', content: sys });
@@ -109,11 +120,16 @@ function toOpenAI(body: Body, model: string): Body {
       msgs.push({ role: 'assistant', content: blockText(blocks) || null, ...(calls.length ? { tool_calls: calls } : {}) });
     } else {
       for (const b of blocks.filter(x => x.type === 'tool_result')) msgs.push({ role: 'tool', tool_call_id: b.tool_use_id, content: blockText(b.content) || 'ok' });
+      const parts = vision ? userParts(blocks) : null;
       const t = blockText(blocks);
-      if (t) msgs.push({ role: 'user', content: t });
+      if (parts) msgs.push({ role: 'user', content: parts });
+      else if (t) msgs.push({ role: 'user', content: t });
     }
   }
-  const tools = ((body.tools ?? []) as Array<{ name: string; description?: string; input_schema?: unknown }>).filter(t => t.input_schema)
+  // Groq refuse > 128 outils : on garde les 120 plus utiles pour la demande
+  const lastUser = [...msgs].reverse().find(m => m.role === 'user');
+  const allTools = ((body.tools ?? []) as Array<{ name: string; description?: string; input_schema?: unknown }>).filter(t => t.input_schema);
+  const tools = (allTools.length > 120 ? pickFallbackTools(allTools as Anthropic.Tool[], typeof lastUser?.content === 'string' ? lastUser.content : '', 120) : allTools)
     .map(t => ({ type: 'function', function: { name: t.name, description: (t.description ?? '').slice(0, 1024), parameters: t.input_schema } }));
   return { model, messages: msgs, max_tokens: Math.min(Number(body.max_tokens) || 1024, 8000), ...(tools.length ? { tools } : {}) };
 }
@@ -136,13 +152,16 @@ function toAnthropic(data: Body, model: string): Body {
   };
 }
 
+let pickFallbackTools: typeof import('./agentic-fallback.js').pickFallbackTools = t => t;
+
 async function freeBrain(body: Body): Promise<Response | null> {
-  const { fallbackEndpoints } = await import('./agentic-fallback.js');
+  const { fallbackEndpoints, pickFallbackTools: pick, markQuotaExhausted: markQuota } = await import('./agentic-fallback.js');
+  pickFallbackTools = pick;
   for (const ep of fallbackEndpoints()) {
     try {
       const r = await fetch(ep.url, { method: 'POST', headers: { 'content-type': 'application/json', Authorization: `Bearer ${ep.apiKey}` },
-        body: JSON.stringify(toOpenAI(body, ep.model)), signal: AbortSignal.timeout(90_000) });
-      if (!r.ok) { console.warn(`[claude-secours] ${ep.key} ${r.status}`); continue; }
+        body: JSON.stringify(toOpenAI(body, ep.model, ep.key !== 'groq')), signal: AbortSignal.timeout(90_000) });
+      if (!r.ok) { if (ep.key === 'gemini' && r.status === 429) markQuota(ep.model); console.warn(`[claude-secours] ${ep.key}/${ep.model} ${r.status}`); continue; }
       const out = toAnthropic(await r.json() as Body, ep.model);
       console.warn(`[claude-secours] réponse servie par ${ep.key} (${ep.model})`);
       return new Response(JSON.stringify(out), { status: 200, headers: { 'content-type': 'application/json' } });
