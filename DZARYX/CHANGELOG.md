@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-10-21 — Revue sécurité + revue de code (site + Dzaryx)
+
+- Site (autolux-location cbe0cc0) : APIs admin protégées (session admin ou clé serveur `x-service-key` de Dzaryx), numéro de passeport retiré de « Mes réservations », newsletter réservée aux admins.
+- Dzaryx 681a4ab : les appels app→site envoient `x-service-key` (publié avant le site pour ne rien casser).
+- Dzaryx 42f501f : `/api/vision/analyze` et `/scan` exigent le token de l'app (évite qu'un inconnu consomme les crédits Claude).
+- Dzaryx ba2e12f : 5 bugs de la revue de code — ne-pas-déranger (job en retard), récap outbox, coach sport (deload ne monte jamais les séries, `parseFormScore` ignore « 3 min », « 2 km »…).
+- Étude de marché + synthèse PDF, Excel et présentation : /root/reports (envoyés sur Telegram).
+
 ## 2026-10-21 — DNS mail (DMARC/DKIM) posés par le backend via Vercel
 
 `integrations/mail-dns.ts` `startMailDnsSync()` (instance avec jobs, au démarrage + toutes les 6 h) : avec VERCEL_TOKEN (compte perso ou équipe), ajoute le TXT `_dmarc.fikconciergerie.com` (`p=none`) s'il manque, et `zoho._domainkey` dès que la clé DKIM Zoho est dans app_kv `mail:zoho-dkim`. État dans app_kv `mail:dns-setup`.
