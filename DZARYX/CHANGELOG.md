@@ -7,7 +7,7 @@
 
 ## 2026-10-21 — DNS mail (DMARC/DKIM) posés par le backend via Vercel
 
-`integrations/mail-dns.ts` `startMailDnsSync()` (instance avec jobs, au démarrage + toutes les 6 h) : avec VERCEL_TOKEN (compte perso ou équipe), ajoute le TXT `_dmarc.fikconciergerie.com` (`p=none`) s'il manque, et `zmail._domainkey` dès que la clé DKIM Zoho est dans app_kv `mail:zoho-dkim`. État dans app_kv `mail:dns-setup`.
+`integrations/mail-dns.ts` `startMailDnsSync()` (instance avec jobs, au démarrage + toutes les 6 h) : avec VERCEL_TOKEN (compte perso ou équipe), ajoute le TXT `_dmarc.fikconciergerie.com` (`p=none`) s'il manque, et `zoho._domainkey` dès que la clé DKIM Zoho est dans app_kv `mail:zoho-dkim`. État dans app_kv `mail:dns-setup`.
 
 ## 2026-10-21 — Démarchage : rejet Zoho rattrapé à l'envoi (B040)
 

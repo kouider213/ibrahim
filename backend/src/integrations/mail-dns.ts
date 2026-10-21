@@ -4,11 +4,11 @@ import { kvGet, kvSet } from './app-store.js';
 
 // DNS du domaine (Vercel) pour que les mails de contact@ arrivent en boîte de réception et pas en spam :
 // DMARC posé automatiquement ; DKIM dès que la clé Zoho (Zoho Admin → Authentification e-mail → DKIM,
-// sélecteur « zmail ») est enregistrée dans app_kv 'mail:zoho-dkim'. Résultat dans app_kv 'mail:dns-setup'.
+// sélecteur « zoho ») est enregistrée dans app_kv 'mail:zoho-dkim'. Résultat dans app_kv 'mail:dns-setup'.
 
 const DOMAIN = 'fikconciergerie.com';
 const DMARC  = 'v=DMARC1; p=none; adkim=r; aspf=r';
-const DKIM_SELECTOR = 'zmail._domainkey';
+const DKIM_SELECTOR = 'zoho._domainkey';
 
 type DnsRecord = { id: string; type: string; name: string; value: string };
 
