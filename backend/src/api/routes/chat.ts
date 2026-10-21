@@ -74,7 +74,7 @@ router.post('/', requireMobileAuth, async (req, res) => {
 
   // Kouider écrit dans l'app → il est réveillé (contrôle du matin)
   const dndNote = actor.ownerKey !== 'houari' ? await dndOnKouiderMessage().catch(() => null) : null;   // « ne pas déranger »
-  const wakeNote = actor.ownerKey !== 'houari' ? await noteKouiderActivity() : null;
+  const wakeNote = actor.ownerKey !== 'houari' ? await noteKouiderActivity(message) : null;
   const notes = [dndNote, wakeNote].filter(Boolean).join('\n');
   processWithOrchestration(notes ? `${notes}\n${message}` : message, sessionId, textOnly, imageBase64, imageMime, actor).catch(err => {
     console.error('[chat] processWithOrchestration error:', err instanceof Error ? err.message : String(err));

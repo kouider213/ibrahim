@@ -144,7 +144,7 @@ export async function lastKouiderActivity(): Promise<number> {
  * À appeler à chaque message / appel décroché de Kouider. Retourne une consigne à donner à Dzaryx si ce message
  * répond au contrôle de réveil du matin (sinon null).
  */
-export async function noteKouiderActivity(): Promise<string | null> {
+export async function noteKouiderActivity(message?: string): Promise<string | null> {
   try {
     await kvSet(ACTIVE_KEY, String(Date.now()), 7 * 86_400);
     const { date, weekday } = localNow();
@@ -155,7 +155,15 @@ export async function noteKouiderActivity(): Promise<string | null> {
     const plan = (await getRoutineConfig()).days[weekday];
     const next = plan?.kind === 'sport' ? `départ pour la salle à ${plan.leave}, sport ${plan.sport?.[0]}–${plan.sport?.[1]}`
       : plan?.leave ? `départ à ${plan.leave} (${plan.next ?? 'travail'})` : plan?.next ?? '';
-    return `[Contexte : ce message répond à ton contrôle de réveil de ce matin — Kouider est RÉVEILLÉ, plus besoin de l'appeler. Félicite-le en une phrase courte et énergique et rappelle-lui ${next}. Puis réponds normalement à ce qu'il dit.]`;
+    // Jour de sport : le message du réveil demande sa forme 1-5 → séance adaptée (Kouider 21/10)
+    let form = '';
+    if (plan?.kind === 'sport') {
+      const sc = await import('./sport-coach.js');
+      const n = message ? sc.parseFormScore(message) : null;
+      form = n ? ` Forme du matin : ${await sc.setMorningForm(date, n).catch(() => `${n}/5`)}`
+        : ' Tu lui as demandé sa forme de 1 à 5 : si sa réponse la dit en mots (« crevé », « mal dormi », « au top »), appelle sport_coach action=form avec le score (1-5) ; sinon ne la redemande pas.';
+    }
+    return `[Contexte : ce message répond à ton contrôle de réveil de ce matin — Kouider est RÉVEILLÉ, plus besoin de l'appeler. Félicite-le en une phrase courte et énergique et rappelle-lui ${next}.${form} Puis réponds normalement à ce qu'il dit.]`;
   } catch { return null; }
 }
 
@@ -220,7 +228,9 @@ async function sendWakeMessage(cfg: RoutineConfig, plan: DayPlan, date: string, 
   const [motivation, nudges] = await Promise.all([motivationLines(cfg, plan, date), tripNudges().catch(() => '')]);
   const head = test
     ? `☀️ (Test) Message du matin de Dzaryx :`
-    : `☀️ Bonjour Kouider, il est ${hm(Date.now())}. Tu es réveillé ? Réponds-moi (un mot suffit) — sinon je t'appelle dans ${cfg.callAfterMin} min.`;
+    : plan.kind === 'sport'
+      ? `☀️ Bonjour Kouider, il est ${hm(Date.now())}. Tu es réveillé ? Réponds-moi avec ta forme de 1 à 5 (1 = crevé, 5 = au top) : j'adapte ta séance. Sinon je t'appelle dans ${cfg.callAfterMin} min.`
+      : `☀️ Bonjour Kouider, il est ${hm(Date.now())}. Tu es réveillé ? Réponds-moi (un mot suffit) — sinon je t'appelle dans ${cfg.callAfterMin} min.`;
   const text = [head, '', motivation, '', planLine(plan, cfg.addresses), nudges ? `\n${nudges}` : ''].join('\n').trim();
   await queueTelegramMessage(text);
   emitProactive(text.split('\n')[0]!, 'reminder', text);

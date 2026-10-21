@@ -179,7 +179,7 @@ router.post('/turn', requireCallerAuth, async (req, res) => {
   try {
     // Dzaryx doit savoir qu'il est DÉJÀ au téléphone : sinon « tu m'entends ? » relance call_me.
     const dndNote = who === 'kouider' ? await dndOnKouiderMessage().catch(() => null) : null;   // « ne pas déranger » : il a répondu
-    const wakeNote = who === 'kouider' ? await noteKouiderActivity() : null;   // réponse au contrôle de réveil du matin ?
+    const wakeNote = who === 'kouider' ? await noteKouiderActivity(typeof message === 'string' ? message : undefined) : null;   // réponse au contrôle de réveil du matin ?
     // « oui » / « non » juste après une réponse WhatsApp proposée → envoi direct, sans repasser par l'IA
     // Réponse à une question de l'assistant GPS (« tu vas où ? », « tu es à la salle ? », « brief ? ») : passe avant WhatsApp
     const gps = who === 'kouider' && channel === 'message' && !image && message

@@ -235,15 +235,19 @@ interface SportState {
   deload?: { start: string; end: string; why: string };   // semaine allégée prévue / en cours
   deloadLast?: string;                            // fin de la dernière semaine allégée
   trainingSince?: string;
+  form: Record<string, number>;                   // date → forme au réveil 1-5 (Kouider 21/10)
+  goal?: WeekGoal;                                // objectif de la semaine (fixé au bilan du dimanche)
 }
+interface WeekGoal { week: string; kind: 'sessions' | 'lift'; target: number; ex?: string; text: string }
 
-const DEFAULT_STATE: SportState = { next: 0, plan: {}, overrides: {}, skips: {}, history: {}, arrived: {}, alerts: {}, settings: { callBefore: true, gymCheck: true, playlist: true } };
+const DEFAULT_STATE: SportState = { next: 0, plan: {}, overrides: {}, skips: {}, history: {}, arrived: {}, alerts: {}, form: {}, settings: { callBefore: true, gymCheck: true, playlist: true } };
 
 async function getState(): Promise<SportState> {
   await loadProgram();
   try {
     const s = JSON.parse((await kvGet(STATE_KEY)) ?? '{}') as Partial<SportState>;
     deloadWin = s.deload ?? null;
+    formMap = s.form ?? {};
     return { ...DEFAULT_STATE, ...s, settings: { ...DEFAULT_STATE.settings, ...s.settings } };
   }
   catch { return { ...DEFAULT_STATE }; }
@@ -253,7 +257,7 @@ async function saveState(s: SportState): Promise<void> {
     const min = addDays(localNow().date, -days);
     for (const k of Object.keys(r)) if (k < min) delete r[k];
   };
-  keep(s.plan, 7); keep(s.overrides, 7); keep(s.skips, 7); keep(s.arrived, 7); keep(s.alerts, 3); keep(s.history, 180);
+  keep(s.plan, 7); keep(s.overrides, 7); keep(s.skips, 7); keep(s.arrived, 7); keep(s.alerts, 3); keep(s.form, 14); keep(s.history, 180);
   await kvSet(STATE_KEY, JSON.stringify(s));
 }
 
@@ -273,6 +277,9 @@ const isTimed = (e: Exercise) => /(s|min)\b/.test(e.reps) && !/\//.test(e.reps.r
 
 let deloadWin: { start: string; end: string } | null = null;     // rafraîchi à chaque getState()
 export const inDeload = (date = localNow().date) => !!deloadWin && date >= deloadWin.start && date <= deloadWin.end;
+// Forme au réveil (1-5) : 1-2 = mauvaise nuit / crevé → séance courte (45 min max) et légère ce jour-là.
+let formMap: Record<string, number> = {};
+const lowForm = (date = localNow().date) => (formMap[date] ?? 5) <= 2;
 const DELOAD_EVERY_WEEKS = 7;
 
 /** Programme la prochaine semaine allégée si c'est le moment ; renvoie le message à envoyer (sinon null). */
@@ -301,7 +308,7 @@ export interface Suggestion { kg: number | null; last?: string; up?: boolean }
 /** Dernière perf sur l'exercice ; toutes les séries au haut de la fourchette → + step kg. */
 export function suggestFor(e: Exercise, log: SessionLog[], date?: string): Suggestion {
   const s = suggestRaw(e, log);
-  return inDeload(date) && s.kg ? { kg: Math.round(s.kg * 0.9 * 2) / 2, last: s.last } : s;
+  return (inDeload(date) || lowForm(date)) && s.kg ? { kg: Math.round(s.kg * 0.9 * 2) / 2, last: s.last } : s;
 }
 function suggestRaw(e: Exercise, log: SessionLog[]): Suggestion {
   for (let i = log.length - 1; i >= 0; i--) {
@@ -325,9 +332,10 @@ const exMinutes = (e: Exercise) => {
 };
 
 /** Exercices qui tiennent dans le créneau (minutes de vraie séance) ; créneau long → finisher cardio. */
-export function fitSession(type: SessionType, minutes: number, date?: string): { exercises: Exercise[]; finisher?: string; express: boolean; estMin: number; deload: boolean } {
-  const deload = inDeload(date);
-  const s = deload ? { ...SESSIONS[type], exercises: SESSIONS[type].exercises.map(e => ({ ...e, sets: Math.max(2, Math.round(e.sets * 0.6)) })) } : SESSIONS[type];
+export function fitSession(type: SessionType, minutes: number, date?: string): { exercises: Exercise[]; finisher?: string; express: boolean; estMin: number; deload: boolean; low: boolean } {
+  const deload = inDeload(date), low = lowForm(date);
+  if (low) minutes = Math.min(minutes, 45);
+  const s = deload || low ? { ...SESSIONS[type], exercises: SESSIONS[type].exercises.map(e => ({ ...e, sets: Math.max(2, Math.round(e.sets * 0.6)) })) } : SESSIONS[type];
   const budget = Math.max(20, minutes - 8 - 5);           // échauffement + retour au calme
   const out: Exercise[] = []; let used = 0;
   const core = s.exercises.filter(e => e.muscle === 'abdos').slice(-1);
@@ -338,8 +346,8 @@ export function fitSession(type: SessionType, minutes: number, date?: string): {
   }
   if (core[0]) { out.push(core[0]); used += exMinutes(core[0]); }
   const left = budget - used;
-  const finisher = !deload && type !== 'cardio' && type !== 'core' && left >= 12 ? `Cardio zone 2 : ${Math.min(25, Math.floor(left / 5) * 5)} min (vélo, elliptique ou marche inclinée)` : undefined;
-  return { exercises: out, finisher, express: out.length < s.exercises.length, estMin: Math.round(used + 13 + (finisher ? Math.min(25, Math.floor(left / 5) * 5) : 0)), deload };
+  const finisher = !deload && !low && type !== 'cardio' && type !== 'core' && left >= 12 ? `Cardio zone 2 : ${Math.min(25, Math.floor(left / 5) * 5)} min (vélo, elliptique ou marche inclinée)` : undefined;
+  return { exercises: out, finisher, express: out.length < s.exercises.length, estMin: Math.round(used + 13 + (finisher ? Math.min(25, Math.floor(left / 5) * 5) : 0)), deload, low };
 }
 
 export function sessionText(type: SessionType, minutes: number, log: SessionLog[], compact = false, date?: string): string {
@@ -352,6 +360,7 @@ export function sessionText(type: SessionType, minutes: number, log: SessionLog[
   });
   return [
     `${s.emoji} ${s.label} — ${s.focus}${fit.express ? ` (version ${minutes} min)` : ''}`,
+    fit.low ? `😴 Forme ${formMap[date ?? localNow().date]}/5 ce matin : version courte (45 min max) et légère, charges −10 %. L'important c'est d'y aller, pas de tout casser.` : '',
     fit.deload ? '🪶 SEMAINE ALLÉGÉE : moins de séries, charges −10 %, technique parfaite. On récupère pour repartir plus fort.' : '',
     `🔥 Échauffement : ${s.warmup}`,
     ...lines,
@@ -396,7 +405,7 @@ export async function planSportWeek(write = true): Promise<{ slots: Array<PlanSl
     if (!doneLog && !st.overrides[date]) idx++;
     const minutes = freeMinutes(e, evs);
     const suffix = (e.summary ?? '').includes(' — ') ? (e.summary ?? '').split(' — ').slice(1).join(' — ') : 'salle';
-    const title = `🏋️ ${SESSIONS[type].label}${inDeload(date) ? ' (allégée)' : ''} — ${suffix}`;
+    const title = `🏋️ ${SESSIONS[type].label}${inDeload(date) ? ' (allégée)' : lowForm(date) ? ' (courte)' : ''} — ${suffix}`;
     plan[date] = { type, eventId: e.id!, start: e.start.dateTime!, end: e.end.dateTime!, minutes, title };
     if (write && e.id) {
       const base = (e.description ?? '').includes(MARK) ? (e.description ?? '').split(MARK).pop()! : (e.description ?? '');
@@ -633,7 +642,7 @@ export async function sportOverview() {
     const p = st.plan[date];
     if (!p) return null;
     const fit = fitSession(p.type, p.minutes, date);
-    return { date, type: p.type, ...SESSIONS[p.type], deload: fit.deload, exercises: fit.exercises.map(e => ({ ...e, suggestion: suggestFor(e, log, date), timed: isTimed(e), demo: demoOf(e.id), video: videoOf(e.name) })),
+    return { date, type: p.type, ...SESSIONS[p.type], deload: fit.deload, low: fit.low, form: st.form[date] ?? null, exercises: fit.exercises.map(e => ({ ...e, suggestion: suggestFor(e, log, date), timed: isTimed(e), demo: demoOf(e.id), video: videoOf(e.name) })),
       finisher: fit.finisher ?? null, estMin: fit.estMin, start: p.start, end: p.end, minutes: p.minutes, arrived: st.arrived[date] ?? null };
   };
   const nextDate = week.find(w => w.type && w.status !== 'done' && (w.date > today || Date.parse(w.end!) > Date.now()))?.date;
@@ -670,7 +679,7 @@ export async function sportOverview() {
     today: sessionOf(today), next: nextDate && nextDate !== today ? sessionOf(nextDate) : null, week,
     recovery, stats: { streak, monthSessions: log.filter(l => l.date.startsWith(month)).length, total: log.length, weeks, prs },
     gym: gym ? { ...gym, distanceKm: loc && Date.now() - Date.parse(loc.updated_at) < 30 * 60_000 ? Math.round(km(loc, gym) * 10) / 10 : null } : { address: cfg.addresses.gym },
-    settings: st.settings, deload: st.deload ?? null, sessions: Object.fromEntries(ROTATION.map(t => [t, { label: SESSIONS[t].label, emoji: SESSIONS[t].emoji, focus: SESSIONS[t].focus }])),
+    settings: st.settings, deload: st.deload ?? null, goal: st.goal ? { ...st.goal, ...goalProgress(st, log) } : null, sessions: Object.fromEntries(ROTATION.map(t => [t, { label: SESSIONS[t].label, emoji: SESSIONS[t].emoji, focus: SESSIONS[t].focus }])),
     recent: log.slice(-5).reverse().map(l => ({ date: l.date, type: l.type, label: SESSIONS[l.type].label, sets: l.sets.length, volume: Math.round(volume(l)), durationMin: l.durationMin ?? null, rpe: l.rpe ?? null })),
   };
 }
@@ -720,6 +729,106 @@ export async function setSportSettings(patch: Partial<SportSettings>): Promise<S
   st.settings = { ...st.settings, ...Object.fromEntries(Object.entries(patch).filter(([, v]) => typeof v === 'boolean')) };
   await saveState(st);
   return st.settings;
+}
+
+// ── Forme au réveil ─────────────────────────────────────────────────────────
+
+/** Note de forme du matin (1-5) : 1-2 → séance du jour courte et légère (agenda réécrit). */
+export async function setMorningForm(date: string, score: number): Promise<string> {
+  const n = Math.max(1, Math.min(5, Math.round(score)));
+  const st = await getState();
+  st.form[date] = n; formMap = st.form;
+  await saveState(st);
+  const p = st.plan[date];
+  if (p) await planSportWeek(true).catch(() => null);
+  if (!p) return `Forme ${n}/5 notée (pas de séance prévue ce jour-là).`;
+  const s = SESSIONS[p.type];
+  return n <= 2 ? `😴 Forme ${n}/5 : ${s.label} passe en version courte (45 min max) et légère, charges −10 % (agenda mis à jour). Encourage-le à y aller quand même ; s'il est malade → sport_coach rest.`
+    : n === 3 ? `Forme 3/5 : ${s.label} normale, sans forcer les charges max.` : `💪 Forme ${n}/5 : ${s.label} à fond, c'est le jour pour monter les charges.`;
+}
+
+/** Réponse au message du réveil : « 2 », « 4/5 », « forme 3 »… → note de forme (seulement un chiffre clair). */
+export function parseFormScore(msg: string): number | null {
+  const m = /^\s*(?:forme\s*:?\s*)?([1-5])(?:\s*\/\s*5)?(?:\s|[.!,]|$)/i.exec(msg) ?? /\b(?:forme|nuit)\s*:?\s*([1-5])\s*(?:\/\s*5)?\b/i.exec(msg) ?? /(?:^|\s)([1-5])\s*\/\s*5\b/.exec(msg);
+  return m ? Number(m[1]) : null;
+}
+
+// ── Bilan du dimanche + objectif de la semaine ──────────────────────────────
+// Kouider 21/10 : chaque dimanche 20h, un message : la semaine (séances, records, volume), la semaine qui vient,
+// l'objectif de la semaine passée (atteint ou pas) et le nouvel objectif, niveau du jeu.
+
+const mondayOf = (date: string) => addDays(date, -((localNow(localTs(date, '12:00')).weekday + 6) % 7));
+const volumeOf = (l: SessionLog) => l.sets.reduce((a, x) => a + (x.kg ?? 0) * (x.reps ?? 0), 0);
+function doneDates(st: SportState, log: SessionLog[], from: string, to: string): string[] {
+  const d = new Set<string>();
+  for (const l of log) if (l.date >= from && l.date <= to) d.add(l.date);
+  for (const [k, v] of Object.entries(st.history)) if (v === 'done' && k >= from && k <= to) d.add(k);
+  for (const k of Object.keys(st.arrived)) if (k >= from && k <= to) d.add(k);
+  return [...d].sort();
+}
+function goalProgress(st: SportState, log: SessionLog[]): { done: number; reached: boolean } {
+  const g = st.goal!;
+  const to = addDays(g.week, 6);
+  if (g.kind === 'sessions') { const n = doneDates(st, log, g.week, to).length; return { done: n, reached: n >= g.target }; }
+  const best = Math.max(0, ...log.filter(l => l.date >= g.week && l.date <= to).flatMap(l => l.sets).filter(x => x.ex === g.ex && x.kg != null).map(x => x.kg!));
+  return { done: best, reached: best >= g.target };
+}
+
+export async function sportWeeklyReport(send = false): Promise<string> {
+  const st = await getState();
+  const log = await readSportLog();
+  const today = localNow().date;
+  const from = mondayOf(today), to = addDays(from, 6);
+  const done = doneDates(st, log, from, to);
+  const missed = Object.entries(st.history).filter(([d, v]) => v === 'missed' && d >= from && d <= to).map(([d]) => d);
+  const planned = new Set([...done, ...missed, ...Object.keys(st.plan).filter(d => d >= from && d <= to && !st.skips[d])]).size;
+  const week = log.filter(l => l.date >= from && l.date <= to), prevW = log.filter(l => l.date >= addDays(from, -7) && l.date < from);
+  const vol = Math.round(week.reduce((a, l) => a + volumeOf(l), 0)), prevVol = Math.round(prevW.reduce((a, l) => a + volumeOf(l), 0));
+  const prs: string[] = [];
+  for (const e of ALL_EXERCISES()) {
+    const kgs = (ls: SessionLog[]) => ls.flatMap(l => l.sets).filter(x => x.ex === e.id && x.kg != null).map(x => x.kg!);
+    const now = kgs(week), before = kgs(log.filter(l => l.date < from));
+    if (now.length && before.length && Math.max(...now) > Math.max(...before)) prs.push(`${e.name} ${Math.max(...now)} kg`);
+  }
+  const fmtD = (d: string) => new Date(localTs(d, '12:00')).toLocaleDateString('fr-FR', { timeZone: TZ, weekday: 'long', day: 'numeric' });
+  // Objectif de la semaine passée
+  let goalLine = '';
+  if (st.goal && st.goal.week === from) {
+    const g = goalProgress(st, log);
+    goalLine = `🎯 Objectif de la semaine : ${st.goal.text} → ${g.reached ? '✅ ATTEINT, bravo !' : `❌ pas cette fois (${st.goal.kind === 'sessions' ? `${g.done}/${st.goal.target} séances` : g.done ? `meilleur ${g.done} kg` : 'pas noté'})`}`;
+  }
+  // Semaine prochaine (séances déjà calées sur l'agenda)
+  const r = await planSportWeek(send).catch(() => ({ slots: [] as Array<PlanSlot & { date: string }>, note: '' }));
+  const next = r.slots.filter(x => x.date > today);
+  // Nouvel objectif : régularité d'abord ; si la semaine est pleine, une charge à battre
+  const nextMon = addDays(from, 7);
+  let goal: WeekGoal = { week: nextMon, kind: 'sessions', target: Math.max(1, next.length), text: `${Math.max(1, next.length)} séance(s) sur ${Math.max(1, next.length)}` };
+  if (planned && done.length >= planned) {
+    const nextTypes = new Set(next.map(x => x.type));
+    const up = ALL_EXERCISES().map(e => ({ e, sug: suggestFor(e, log, nextMon) })).find(x => x.sug.up && x.sug.kg && [...nextTypes].some(t => SESSIONS[t].exercises.some(y => y.id === x.e.id)));
+    if (up && !inDeload(nextMon)) goal = { week: nextMon, kind: 'lift', target: up.sug.kg!, ex: up.e.id, text: `${up.e.name} à ${up.sug.kg} kg` };
+  }
+  if (send) { const fresh = await getState(); fresh.goal = goal; await saveState(fresh); }   // planSportWeek vient de réécrire le plan
+  const game = await (await import('./coach-game.js')).computeGame().catch(() => null);
+  const text = [
+    `📊 Bilan sport de la semaine`,
+    `✅ Séances : ${done.length}/${planned || done.length}${missed.length ? ` (ratée : ${missed.map(fmtD).join(', ')})` : ''}`,
+    vol ? `🏋️ Volume soulevé : ${vol.toLocaleString('fr-FR')} kg${prevVol ? ` (${vol >= prevVol ? '+' : ''}${Math.round((vol - prevVol) / prevVol * 100)} % vs semaine d'avant)` : ''}` : '',
+    prs.length ? `🏆 Records battus : ${prs.join(' · ')}` : '',
+    goalLine,
+    '',
+    next.length ? `🗓️ Semaine prochaine${inDeload(nextMon) ? ' — 🪶 SEMAINE ALLÉGÉE' : ''} :\n${next.map(x => `- ${fmtD(x.date)} ${hm(Date.parse(x.start))} : ${SESSIONS[x.type].emoji} ${SESSIONS[x.type].label}${x.minutes < 60 ? ` (${x.minutes} min)` : ''}`).join('\n')}` : '🗓️ Pas de séance calée la semaine prochaine.',
+    `🎯 Nouvel objectif : ${goal.text}`,
+    game ? `🎮 Niveau ${game.level} — ${game.title} · ${game.total} pts` : '',
+  ].filter((l, i, a) => l !== '' || (i > 0 && a[i - 1] !== '')).join('\n').trim();
+  return text;
+}
+
+export async function jobSportWeekly(): Promise<void> {
+  if (await routinePausedReason(localNow().date).catch(() => null)) return;
+  const text = await sportWeeklyReport(true);
+  await queueTelegramMessage(text);
+  emitProactive('📊 Ton bilan sport de la semaine', 'reminder', text, 'kouider', 'sport');
 }
 
 // ── Outil sport_coach ───────────────────────────────────────────────────────
@@ -787,6 +896,12 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
     const removed = await setSportSkip(date, `🛌 ${reason}`);
     return `🛌 Mode repos le ${fmt(date)} (${reason}) : pas de sport (séance décalée au prochain créneau${removed.length ? `, enlevé de l'agenda : ${removed.join(', ')}` : ''}), pas de réveil ni de routine du matin, aucun appel de ta part (gardés pour plus tard). Les messages passent toujours. Souhaite-lui bon rétablissement en une phrase, sans conseil de nutrition.`;
   }
+  if (action === 'form') {
+    const n = Number(input['score']);
+    if (!(n >= 1 && n <= 5)) return '❌ score de 1 (crevé) à 5 (au top).';
+    return setMorningForm(date, n);
+  }
+  if (action === 'weekly') return sportWeeklyReport(false);
   if (action === 'deload') {
     const st = await getState();
     const mode = String(input['mode'] ?? 'status');
@@ -843,6 +958,7 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
       `🔥 Série en cours : ${o.stats.streak} séance(s) d'affilée · ce mois : ${o.stats.monthSessions} · total : ${o.stats.total}`,
       o.stats.prs.length ? `🏆 Records : ${o.stats.prs.map(p => `${p!.ex} ${p!.kg} kg`).join(' · ')}` : '🏆 Pas encore de charges notées.',
       `🔋 Récupération : ${o.recovery.map(r => `${r.muscle} ${r.pct}%`).join(' · ')}`,
+      o.goal ? `🎯 Objectif de la semaine : ${o.goal.text} — ${o.goal.reached ? '✅ atteint' : o.goal.kind === 'sessions' ? `${o.goal.done}/${o.goal.target}` : `meilleur ${o.goal.done} kg`}` : '',
     ].join('\n');
   }
   if (action === 'sync') { const r = await planSportWeek(true); return `✅ ${r.slots.length} séance(s) planifiées, ${r.note}.`; }
