@@ -90,6 +90,8 @@ router.get('/', requireMobileAuth, async (_req, res) => {
 // POST /api/demandes/update — change le statut d'une demande DEPUIS l'app.
 // Proxy serveur→serveur vers les APIs du site (déclenche email/WhatsApp auto) — pas de CORS.
 const SITE = process.env['FIK_SITE_URL'] || 'https://fikconciergerie.com';
+// Les APIs admin du site exigent une preuve : on envoie la clé service Supabase (même projet).
+const siteHeaders = () => ({ 'Content-Type': 'application/json', 'x-service-key': process.env['SUPABASE_SERVICE_KEY'] || '' });
 
 router.post('/update', requireMobileAuth, async (req, res) => {
   const { source, id, status, patch } = (req.body ?? {}) as { source?: string; id?: string; status?: string; patch?: Record<string, unknown> };
@@ -99,7 +101,7 @@ router.post('/update', requireMobileAuth, async (req, res) => {
   if (patch && source === 'import') {
     try {
       const r = await fetch(`${SITE}/api/update-import-order`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: siteHeaders(),
         body: JSON.stringify({ id, patch: status ? { ...patch, status } : patch }),
       });
       if (!r.ok) throw new Error(`site update-import-order ${r.status}`);
@@ -112,7 +114,7 @@ router.post('/update', requireMobileAuth, async (req, res) => {
   try {
     if (source === 'booking') {
       const r = await fetch(`${SITE}/api/update-booking`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: siteHeaders(),
         body: JSON.stringify({ bookingId: id, patch: { status } }),
       });
       if (!r.ok) throw new Error(`site update-booking ${r.status}`);
@@ -138,13 +140,13 @@ router.post('/update', requireMobileAuth, async (req, res) => {
       }
     } else if (source === 'dossier') {
       const r = await fetch(`${SITE}/api/update-dossier`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: siteHeaders(),
         body: JSON.stringify({ id, patch: { status } }),
       });
       if (!r.ok) throw new Error(`site update-dossier ${r.status}`);
     } else if (source === 'import') {
       const r = await fetch(`${SITE}/api/update-import-order`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: siteHeaders(),
         body: JSON.stringify({ id, patch: { status } }),
       });
       if (!r.ok) throw new Error(`site update-import-order ${r.status}`);
@@ -185,14 +187,14 @@ router.post('/create', requireMobileAuth, async (req, res) => {
   try {
     if (type === 'import') {
       const r = await fetch(`${SITE}/api/create-import-order`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b),
+        method: 'POST', headers: siteHeaders(), body: JSON.stringify(b),
       });
       const j = (await r.json()) as { ref?: string; id?: string; error?: string };
       if (!r.ok) throw new Error(j.error || `site create-import-order ${r.status}`);
       res.json({ ok: true, source: 'import', ref: j.ref, id: j.id });
     } else if (type === 'dossier') {
       const r = await fetch(`${SITE}/api/create-dossier`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b),
+        method: 'POST', headers: siteHeaders(), body: JSON.stringify(b),
       });
       const j = (await r.json()) as { ref?: string; id?: string; error?: string };
       if (!r.ok) throw new Error(j.error || `site create-dossier ${r.status}`);
@@ -221,7 +223,7 @@ router.post('/photos', requireMobileAuth, async (req, res) => {
   try {
     // 1) upload → url publique
     const up = await fetch(`${SITE}/api/upload-car-image`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: siteHeaders(),
       body: JSON.stringify({ base64, fileName: fileName || `app-${Date.now()}.jpg`, mimeType: mimeType || 'image/jpeg' }),
     });
     if (!up.ok) throw new Error(`upload ${up.status}`);
@@ -235,7 +237,7 @@ router.post('/photos', requireMobileAuth, async (req, res) => {
 
     // 3) patch via le site (write path unique)
     const r = await fetch(`${SITE}${target.update}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: siteHeaders(),
       body: JSON.stringify({ id, patch: { photos } }),
     });
     if (!r.ok) throw new Error(`site ${target.update} ${r.status}`);

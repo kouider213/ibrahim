@@ -6,6 +6,8 @@ import { requireMobileAuth } from '../middleware/auth.js';
 
 const router = Router();
 const SITE = process.env['FIK_SITE_URL'] || 'https://fikconciergerie.com';
+// Les APIs admin du site exigent une preuve : on envoie la clé service Supabase (même projet).
+const siteHeaders = () => ({ 'Content-Type': 'application/json', 'x-service-key': process.env['SUPABASE_SERVICE_KEY'] || '' });
 
 // POST /api/blog/cover — upload l'image d'affiche → url (via le site, bucket)
 router.post('/cover', requireMobileAuth, async (req, res) => {
@@ -13,7 +15,7 @@ router.post('/cover', requireMobileAuth, async (req, res) => {
   if (!base64) { res.status(400).json({ error: 'base64 requis' }); return; }
   try {
     const r = await fetch(`${SITE}/api/upload-car-image`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: siteHeaders(),
       body: JSON.stringify({ base64, fileName: fileName || `blog-${Date.now()}.jpg`, mimeType: mimeType || 'image/jpeg' }),
     });
     const j = (await r.json()) as { url?: string; error?: string };
