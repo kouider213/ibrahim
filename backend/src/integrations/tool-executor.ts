@@ -2078,7 +2078,7 @@ async function pauseCallsTool(input: Record<string, unknown>): Promise<string> {
     const f = (ts: number) => new Date(ts).toLocaleString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', hour: '2-digit', minute: '2-digit' });
     return `🔕 Silence programmé du ${f(from)} au ${f(until)} : pas de message du réveil, pas d'appel (même programmé), pas de message ni de notif. Les infos importantes qui tombent pendant ce créneau arrivent à la fin en UN seul message récap. Si c'est parce qu'il ne va pas au sport : sport_coach skip aussi.`;
   }
-  if (input['resume']) { await setQuietUntil(0); await dnd.clearDnd(); return '✅ Appels et messages réactivés (ce qui a été gardé pendant la pause arrive maintenant, en un seul message). Les silences programmés plus tard restent.'; }
+  if (input['resume']) { await setQuietUntil(0); await dnd.clearDnd(); await dnd.endCurrentPlannedDnd(); return '✅ Appels et messages réactivés (ce qui a été gardé pendant la pause arrive maintenant, en un seul message). Les silences programmés plus tard restent.'; }
   if (input['until_reply']) {
     await dnd.setDnd({ untilReply: true, why: String(input['reason'] ?? 'ne pas déranger') });
     return '🔕 Plus aucun appel ni message tant qu\'il ne t\'a pas écrit. Tout est gardé pour plus tard.';

@@ -36,6 +36,16 @@ export async function clearPlannedDnd(): Promise<void> {
   await kvDel(PLANNED_KEY);
 }
 
+/** « Je suis dispo » pendant un silence programmé : termine le créneau en cours, garde ceux d'après. */
+export async function endCurrentPlannedDnd(): Promise<void> {
+  const now = Date.now();
+  const list = await getPlannedDnd();
+  const rest = list.filter(o => o.from > now);
+  if (rest.length === list.length) return;
+  if (!rest.length) { await kvDel(PLANNED_KEY); return; }
+  await kvSet(PLANNED_KEY, JSON.stringify(rest), Math.ceil((Math.max(...rest.map(o => o.until)) - now) / 1000) + 600);
+}
+
 export async function getDnd(): Promise<DndState | null> {
   try {
     const s = JSON.parse((await kvGet(KEY)) ?? 'null') as DndState | null;
@@ -49,7 +59,8 @@ export async function getDnd(): Promise<DndState | null> {
 /** Silence actif ou programmé à cette heure-là (ex. réveil de 6h40 demain). */
 export async function dndAt(ts: number): Promise<PlannedDnd | null> {
   const now = await getDnd();
-  if (now && ts >= Date.now() && (now.untilReply || ts < now.until)) return { from: now.since, until: now.untilReply ? Infinity : now.until, why: now.why };
+  // ts déjà passé (job lancé après l'heure prévue) = « maintenant » : le silence en cours compte aussi
+  if (now && (now.untilReply || Math.max(ts, Date.now()) < now.until)) return { from: now.since, until: now.untilReply ? Infinity : now.until, why: now.why };
   return (await getPlannedDnd()).find(o => o.from <= ts && ts < o.until) ?? null;
 }
 

@@ -73,6 +73,12 @@ export async function takeTelegramMessages(actor: string): Promise<TgOutMessage[
   const texts = keep.filter(h => !h.image && !h.file && !h.album && !h.location && h.text.trim());
   const media = keep.filter(h => h.image || h.file || h.album || h.location).map(({ at: _at, ...m }) => m);
   const head = `🔔 Pendant ta pause (${t(keep[0]!.at)} → ${t(keep[keep.length - 1]!.at)}), j'ai gardé ça pour toi :`;
-  const body = texts.map(h => `• ${t(h.at)} — ${h.text.trim()}`).join('\n\n');
-  return [{ text: `${head}\n\n${body}`.slice(0, 4000) }, ...media, ...list];
+  // Récap découpé en messages de 4000 caractères max : rien de ce qui a été gardé n'est perdu.
+  const parts: string[] = [head];
+  for (const h of texts) {
+    const item = `• ${t(h.at)} — ${h.text.trim()}`.slice(0, 3900);
+    if (parts[parts.length - 1]!.length + 2 + item.length > 4000) parts.push(item);
+    else parts[parts.length - 1] += `\n\n${item}`;
+  }
+  return [...parts.map(text => ({ text })), ...media, ...list];
 }

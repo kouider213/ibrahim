@@ -335,7 +335,7 @@ const exMinutes = (e: Exercise) => {
 export function fitSession(type: SessionType, minutes: number, date?: string): { exercises: Exercise[]; finisher?: string; express: boolean; estMin: number; deload: boolean; low: boolean } {
   const deload = inDeload(date), low = lowForm(date);
   if (low) minutes = Math.min(minutes, 45);
-  const s = deload || low ? { ...SESSIONS[type], exercises: SESSIONS[type].exercises.map(e => ({ ...e, sets: Math.max(2, Math.round(e.sets * 0.6)) })) } : SESSIONS[type];
+  const s = deload || low ? { ...SESSIONS[type], exercises: SESSIONS[type].exercises.map(e => ({ ...e, sets: Math.min(e.sets, Math.max(2, Math.round(e.sets * 0.6))) })) } : SESSIONS[type];
   const budget = Math.max(20, minutes - 8 - 5);           // échauffement + retour au calme
   const out: Exercise[] = []; let used = 0;
   const core = s.exercises.filter(e => e.muscle === 'abdos').slice(-1);
@@ -749,6 +749,8 @@ export async function setMorningForm(date: string, score: number): Promise<strin
 
 /** Réponse au message du réveil : « 2 », « 4/5 », « forme 3 »… → note de forme (seulement un chiffre clair). */
 export function parseFormScore(msg: string): number | null {
+  // « 2 min j'arrive », « 1 seconde », « 3h » : une durée, pas une note de forme
+  if (/^\s*[1-5]\s*(?:min|mn|sec|s\b|h\b|heure|km|fois|jour|x\b)/i.test(msg)) return null;
   const m = /^\s*(?:forme\s*:?\s*)?([1-5])(?:\s*\/\s*5)?(?:\s|[.!,]|$)/i.exec(msg) ?? /\b(?:forme|nuit)\s*:?\s*([1-5])\s*(?:\/\s*5)?\b/i.exec(msg) ?? /(?:^|\s)([1-5])\s*\/\s*5\b/.exec(msg);
   return m ? Number(m[1]) : null;
 }
