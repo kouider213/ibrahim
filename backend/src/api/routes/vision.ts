@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requireMobileAuth } from '../middleware/auth.js';
 import { callGroqVision, isGroqAvailable } from '../../integrations/llm-router.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../../config/env.js';
@@ -88,7 +89,7 @@ async function analyzeImageWithFallback(
 }
 
 // POST /api/vision/analyze — original endpoint (kept for compatibility)
-router.post('/analyze', async (req, res) => {
+router.post('/analyze', requireMobileAuth, async (req, res) => {
   const { imageBase64, mimeType } = req.body as { imageBase64?: string; mimeType?: string };
 
   if (!imageBase64) {
@@ -110,7 +111,7 @@ router.post('/analyze', async (req, res) => {
 });
 
 // POST /api/vision/scan — real-time SCAN endpoint with document detection
-router.post('/scan', async (req, res) => {
+router.post('/scan', requireMobileAuth, async (req, res) => {
   const { imageBase64, mimeType } = req.body as { imageBase64?: string; mimeType?: string };
 
   if (!imageBase64) {
