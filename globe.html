@@ -25,6 +25,7 @@ html,body{height:100%;overflow:hidden;background:#02050d;color:var(--text);font-
 #wx .s{font-size:12.5px;color:var(--dim);line-height:1.6;margin-top:3px}
 #wx .big{font-size:15px;color:var(--text)}
 #info{top:52px;left:50%;transform:translateX(-50%);display:none;font-size:13px;white-space:nowrap}
+#info.pl{white-space:normal;max-width:min(92vw,420px);line-height:1.45}#info .pc-h{font-size:14px}#info .pc-r{font-size:14px;margin:2px 0}#info .dim{color:var(--dim)}#info .pc-bar{height:4px;border-radius:2px;background:rgba(255,255,255,.15);margin:6px 0 4px}#info .pc-bar i{display:block;height:100%;border-radius:2px;background:var(--gold)}#info .pc-img{display:block;margin-top:6px;width:100%;max-height:110px;object-fit:cover;border-radius:8px}
 /* Widget vols (côté droit, sous la météo) */
 #flights{top:164px;right:14px;width:310px;max-height:calc(100% - 340px);display:none;flex-direction:column;padding:0;overflow:hidden}
 #flights.on{display:flex}
@@ -657,11 +658,43 @@ function pickAt(position){
   const id = o && (o.id && o.id.properties ? o.id.properties.getValue(Cesium.JulianDate.now()) : o && o.id);
   if(id && id.kind === 'cam'){ openCam(id.i, false); return; }
   if(id && id.kind === 'inflight'){ focusFlight(id.i); return; }
+  box.classList.remove('pl'); planeSel = null;
   if(!id || !id.kind){ box.style.display='none'; return; }
-  if(id.kind === 'plane'){ const p=id.p; box.textContent = `✈️ ${p.cs||p.id} ${p.type||''} · ${p.alt.toLocaleString('fr-FR')} m · ${p.spd} km/h · cap ${Math.round(p.trk)}°`; }
+  if(id.kind === 'plane'){ const p=id.p; box.classList.add('pl'); box.textContent = `✈️ ${p.cs||p.id} ${p.type||''} · ${p.alt.toLocaleString('fr-FR')} m · ${p.spd} km/h · cap ${Math.round(p.trk)}°`; planeCard(p); }
   else if(id.kind === 'quake'){ const q=id.q; box.textContent = `🌋 M${(q.mag??0).toFixed(1)} · ${q.place} · ${new Date(q.time).toLocaleString('fr-FR')} · ${Math.round(q.depth)} km de profondeur`; }
   else if(id.kind === 'sat'){ box.textContent = `🛰️ ${id.s.name} · ${Math.round(id.p.alt/1000)} km d'altitude`; }
   box.style.display='block';
+}
+/* Fiche complète d'un avion (Kouider 22/10 : « pas assez d'info : compagnie, départ, arrivée… ») :
+   route + appareil lus directement chez adsbdb (gratuit, CORS ouvert), gardés en mémoire pour la session. */
+const adsbdb = new Map(); let planeSel = null;
+async function adsb(path){
+  if(adsbdb.has(path)) return adsbdb.get(path);
+  const v = await fetch('https://api.adsbdb.com/v0/' + path).then(r => r.ok ? r.json() : null).then(j => j && j.response).catch(() => null);
+  adsbdb.set(path, v); return v;
+}
+const hav = (a, b, c, d) => { const r = Math.PI / 180, x = Math.sin((c - a) * r / 2) ** 2 + Math.cos(a * r) * Math.cos(c * r) * Math.sin((d - b) * r / 2) ** 2; return 12742 * Math.asin(Math.sqrt(x)); };
+async function planeCard(p){
+  const key = p.id + p.cs; planeSel = key;
+  const [rt, ac] = await Promise.all([p.cs ? adsb('callsign/' + encodeURIComponent(p.cs)) : null, p.id ? adsb('aircraft/' + encodeURIComponent(p.id)) : null]);
+  if(planeSel !== key) return;                    // un autre objet a été touché entre-temps
+  const fr = rt && rt.flightroute, a = ac && ac.aircraft, box = $('info');
+  if(!fr && !a) return;                           // inconnu : la ligne courte reste
+  const ap = x => x ? `${esc(x.municipality || x.name)} <span class="dim">(${esc(x.iata_code || x.icao_code)})</span>` : '?';
+  const lines = [`<div class="pc-h">✈️ <b>${esc(p.cs || p.id)}</b>${fr && fr.airline ? ` · ${esc(fr.airline.name)}` : a && a.registered_owner ? ` · ${esc(a.registered_owner)}` : ''}</div>`];
+  if(fr && fr.origin && fr.destination){
+    lines.push(`<div class="pc-r">${ap(fr.origin)} → ${ap(fr.destination)}</div>`);
+    const tot = hav(fr.origin.latitude, fr.origin.longitude, fr.destination.latitude, fr.destination.longitude);
+    const left = hav(p.lat, p.lon, fr.destination.latitude, fr.destination.longitude);
+    const pct = Math.max(0, Math.min(100, Math.round((1 - left / tot) * 100)));
+    const eta = p.spd > 80 ? Math.round(left / p.spd * 60) : null;
+    const at = eta != null ? new Date(Date.now() + eta * 60000).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' }) : '';
+    lines.push(`<div class="pc-bar"><i style="width:${pct}%"></i></div>`,
+      `<div>Reste ${Math.round(left).toLocaleString('fr-FR')} km${eta != null ? ` · arrivée vers ${at} (~${eta} min)` : ''}</div>`);
+  }
+  lines.push(`<div class="dim">${a ? `${esc(a.manufacturer)} ${esc(a.type)} · ${esc(a.registration)}${a.registered_owner_country_name ? ` · ${esc(a.registered_owner_country_name)}` : ''} · ` : ''}${p.alt.toLocaleString('fr-FR')} m · ${p.spd} km/h</div>`);
+  if(a && a.url_photo_thumbnail) lines.push(`<img class="pc-img" src="${esc(a.url_photo_thumbnail)}" alt="" onerror="this.remove()">`);
+  box.innerHTML = lines.join('');
 }
 new Cesium.ScreenSpaceEventHandler(viewer.canvas).setInputAction(ev => pickAt(ev.position), Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
