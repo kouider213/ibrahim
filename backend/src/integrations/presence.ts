@@ -447,7 +447,7 @@ export async function handlePresenceReply(message: string): Promise<{ reply?: st
   }
 
   // a.kind === 'left' : il a répondu → il est seul (sauf s'il dit le contraire)
-  // Départ pour un souci (Kouider 21/10 : « je pars à l'hôpital pour Ibrahim » → Dzaryx proposait une playlist) : ni musique ni business
+  // Départ pour un souci (Kouider 21/10 : « je pars à l'hôpital pour mon fils » → Dzaryx proposait une playlist) : ni musique ni business
   if (/h[oô]pital|urgence|malade|m[ée]decin|accident|pharmacie de garde|ambulance|bless|police|d[ée]c[eè]s|enterrement/i.test(msg)) {
     return { note: `[Contexte : ce message répond à « je te vois partir de la maison, tu vas où ? » (GPS). Il part pour un SOUCI (santé, urgence…). Sois humain et bref : demande ce qui se passe et si tout le monde va bien, donne le temps de trajet si utile (gps_assistant action eta), dis-lui de rouler prudemment. Ne propose NI musique NI playlist NI business. Propose seulement de couper les appels/messages (pause_calls) et de prévenir quelqu'un s'il veut.]` };
   }

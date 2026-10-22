@@ -96,7 +96,7 @@ export async function takeFamilyFollowup(): Promise<string | null> {
 export async function dndOnKouiderMessage(): Promise<string | null> {
   const s = await getDnd();
   if (!s) return null;
-  // Silence pour un souci perso (enfant malade, hôpital…) : Kouider 22/10 « tu m'as même pas demandé il avait quoi Ibrahim »
+  // Silence pour un souci perso (enfant malade, hôpital…) : Kouider 22/10 « tu m'as même pas demandé ce qu'il avait » (son fils)
   const care = PERSONAL_RE.test(s.why)
     ? ` Ce silence était pour une raison perso (${s.why}) : AVANT tout le reste, demande des nouvelles (ce qu'il avait, comment il va maintenant, comment va Kouider lui-même), avec chaleur, sans liste d'actions. Retiens ce qu'il te répond avec remember_info (santé de la famille) pour reprendre des nouvelles plus tard dans la journée.`
     : '';

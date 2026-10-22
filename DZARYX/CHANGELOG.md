@@ -24,7 +24,7 @@
 
 ## 2026-10-22 — Reprise après une nuit aux urgences (B042)
 
-Analyse de la conversation Telegram du 21-22/10 (Ibrahim aux urgences). `orchestrator.ts` sauve les outils lancés dans `metadata.tools`, `context-builder.ts` les rappelle au cerveau (`withToolTrace`, supabase.ts) → plus de faux aveux « je ne l'ai pas fait ». `dnd.ts` : silence pour raison perso → prendre des nouvelles d'abord et les retenir ; jamais « jour de congé » s'il est au travail (`kouider-dossier.ts` aussi). `tg-outbox.ts` : récap sans « 06h19 → 06h19 », sans lignes d'agenda déjà passées. `constants.ts` : « je te le note » = outil dans le même tour.
+Analyse de la conversation Telegram du 21-22/10 (son fils aux urgences). `orchestrator.ts` sauve les outils lancés dans `metadata.tools`, `context-builder.ts` les rappelle au cerveau (`withToolTrace`, supabase.ts) → plus de faux aveux « je ne l'ai pas fait ». `dnd.ts` : silence pour raison perso → prendre des nouvelles d'abord et les retenir ; jamais « jour de congé » s'il est au travail (`kouider-dossier.ts` aussi). `tg-outbox.ts` : récap sans « 06h19 → 06h19 », sans lignes d'agenda déjà passées. `constants.ts` : « je te le note » = outil dans le même tour.
 
 ## 2026-10-21 — Survie sans Claude : secours gratuits réparés (B041)
 
