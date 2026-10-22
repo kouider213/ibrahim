@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-10-22 — Cerveau selon la demande : quotidien sur Haiku, réflexion sur Sonnet
+
+- Kouider : « +310 €/mois c'est trop ». `claude-api.ts` `pickChatModel()` : résas, dispo, agenda, rappels, lectures WhatsApp/mails, oui/non → Haiku 5.5 (~20× moins cher, mêmes outils, effort medium). Réflexion, conseils, plans/dossiers, textes envoyés à un client (rédaction ou retouche d'un brouillon), photos, recherche web, long message → Sonnet 5.5. Si Haiku échoue (hors 429/crédit) → Sonnet prend le relais.
+- `spokenText()` : les consignes « [APPEL TÉLÉPHONIQUE…] » / « [Contexte : …] » ne déclenchent plus à tort réflexion, recherche web ou Sonnet. Recherche web : plus sur « aujourd'hui », « anthropic », « cours », « résultat » seuls.
+- Test sur 147 vrais messages du 15 au 22/10 : 89 Haiku / 58 Sonnet (avant : tout Sonnet).
+- Interrupteur `billing` chat_auto (défaut) / chat_sonnet (« mets tout sur Sonnet »), app_kv `billing:chat_model`.
+
 ## 2026-10-22 — Coût Claude : tout est compté, par origine (billing claude_usage)
 
 - Constat : coût par message ×2 depuis le 15/10 (≈ 0,08 $ → 0,15-0,23 $) : à chaque message ~35k caractères de consignes + 86 outils « toujours chargés » (98k caractères, +38 % d'outils en une semaine) ; 22/10 = 37 messages. Le cache 1 h (b839a12) transforme ces réécritures en relectures (~10× moins cher).

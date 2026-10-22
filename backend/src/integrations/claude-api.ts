@@ -56,6 +56,18 @@ const CACHED_SYSTEM: Anthropic.TextBlockParam[] = [
   },
 ];
 
+/** Ce que Kouider a VRAIMENT dit : sans les consignes « [APPEL TÉLÉPHONIQUE EN COURS …] » / « [Contexte : …] » ajoutées
+ *  devant (elles contiennent « aujourd'hui », « réponse »… et déclenchaient à tort recherche web, réflexion ou Sonnet). */
+function spokenText(content: unknown): string {
+  let t = typeof content === 'string' ? content : '';
+  for (let i = 0; i < 3; i++) {
+    const m = t.match(/^\s*\[(?:APPEL T[ÉE]L[ÉE]PHONIQUE|Contexte)[\s\S]*?\]\s*/);
+    if (!m) break;
+    t = t.slice(m[0].length);
+  }
+  return t;
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // FEATURE 1: FAST MODE — Questions simples = réponse ultra-rapide avec Haiku
 // ══════════════════════════════════════════════════════════════════════════════
@@ -92,12 +104,11 @@ function isFastModeEligible(messages: Message[]): boolean {
 // ══════════════════════════════════════════════════════════════════════════════
 type ComplexityLevel = 'none' | 'low' | 'medium' | 'high';
 
-function analyzeComplexity(messages: Message[]): { level: ComplexityLevel; budget: number } {
+export function analyzeComplexity(messages: Message[]): { level: ComplexityLevel; budget: number } {
   const lastUser = [...messages].reverse().find(m => m.role === 'user');
   if (!lastUser) return { level: 'none', budget: 0 };
 
-  const content = lastUser.content;
-  const text = (typeof content === 'string' ? content : '').toLowerCase();
+  const text = spokenText(lastUser.content).toLowerCase();
 
   // HIGH: Stratégie, optimisation, analyse approfondie
   if (/stratégi|optimis|analyse complète|plan d'action|business plan|prévision annuelle|comment améliorer|استراتيج|تحسين|تحليل|خطة|تطوير/i.test(text)) {
@@ -128,16 +139,58 @@ function analyzeComplexity(messages: Message[]): { level: ComplexityLevel; budge
 
 
 // ══════════════════════════════════════════════════════════════════════════════
+// FEATURE 3: CERVEAU SELON LA DEMANDE (2026-10-22, Kouider : « +310 €/mois c'est trop »)
+// Quotidien (résas, dispo, agenda, rappels, WhatsApp, appels…) → Haiku 5.5 (~20× moins cher), mêmes outils.
+// Réflexion, conseils, textes envoyés à d'autres, photos, recherche web, code → Sonnet 5.5.
+// Interrupteur app_kv « billing:chat_model » : 'auto' (défaut) | 'sonnet' (tout sur Sonnet comme avant).
+// ══════════════════════════════════════════════════════════════════════════════
+const SONNET_RE = /r[ée]fl[ée]chi|analys|ton avis|tu en pense|penses?[- ]tu|pourquoi|compar|conseil|d[ée]cid|id[ée]e|strat[ée]g|optimis|am[ée]lior|rentab|projet|invest|business|n[ée]goci|r[ée]dige|[ée]cri[st]|r[ée]ponds?[- ]lui|r[ée]pond[- ]?(au|à|a)|propos|envo\w* (un|une|le|la|sa|ma) (nouvel |nouveau )?(e-?mail|mail|courrier|message|r[ée]ponse)|lettre|devis|contrat|annonce|post\b|site|document|pdf|pr[ée]sentation|plan\b|dossier|explique|r[ée]sum|claude|sonnet|en d[ée]tail|code|bug|github|deploy|typescript/i;
+let chatModeCache: { mode: string; at: number } = { mode: 'auto', at: 0 };
+async function chatMode(): Promise<string> {
+  if (Date.now() - chatModeCache.at > 60_000) {
+    try {
+      const { kvGet } = await import('./app-store.js');
+      chatModeCache = { mode: (await kvGet('billing:chat_model')) ?? 'auto', at: Date.now() };
+    } catch { chatModeCache.at = Date.now(); }
+  }
+  return chatModeCache.mode;
+}
+export function setChatModeCache(mode: string): void { chatModeCache = { mode, at: Date.now() }; }
+
+export function pickChatModel(messages: Message[], o: { thinking: boolean; web: boolean; image: boolean }): { model: string; why: string } {
+  if (o.thinking) return { model: 'claude-sonnet-5-5', why: 'réflexion' };
+  if (o.web)      return { model: 'claude-sonnet-5-5', why: 'recherche web' };
+  if (o.image)    return { model: 'claude-sonnet-5-5', why: 'photo' };
+  const last = [...messages].reverse().find(m => m.role === 'user');
+  const text = spokenText(last?.content).replace(/whats?app business/gi, 'WhatsApp');
+  if (!text.trim())         return { model: 'claude-sonnet-5-5', why: 'contenu riche' };
+  if (text.length > 350)    return { model: 'claude-sonnet-5-5', why: 'long message' };
+  if (SONNET_RE.test(text)) return { model: 'claude-sonnet-5-5', why: 'demande importante' };
+  // Retouche d'un texte qui partira chez un client (« enlève le bonjour », « mets-le plus pro ») → Sonnet ;
+  // un simple « oui envoie » reste sur Haiku (l'envoi exige le texte exact déjà relu, rien ne part de travers)
+  const prev = [...messages].reverse().find(m => m.role === 'assistant');
+  const raw = typeof last?.content === 'string' ? last.content : '';
+  const prevText = (typeof prev?.content === 'string' ? prev.content : '') + ' ' + raw.slice(0, raw.length - text.length);
+  const lookup = /^\W*(quel|qu['’]|quoi|est[- ]ce|as[- ]tu|lis|li\b|v[ée]rifie|regarde|consulte|montre|c['’]est (quoi|fait)|supprim|annul|rappelle|confirm)/i.test(text.trim());
+  const yesNo = /^\W*(oui|ok|ouais|non|nan|vas[- ]y|go|envoie|envoi|valide|confirme|c'est bon|parfait|annule)\b[\w\s'’-]{0,20}$/i.test(text.trim());
+  if (/\bpro\b|enl[eè]ve|rajoute|ajoute|reformul|corrige|modifie|change (le|la|les|ce)|plus (court|long|poli|gentil|chaleureux)|\bton (plus|moins)\b|\bsur un ton\b/i.test(text)
+      || (!yesNo && !lookup && /je l.envoie|à envoyer|relecture|r[ée]ponse propos[ée]e|brouillon/i.test(prevText))) {
+    return { model: 'claude-sonnet-5-5', why: 'texte pour un client' };
+  }
+  return { model: 'claude-haiku-5-5', why: 'quotidien' };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // FEATURE 4: WEB SEARCH NATIF ANTHROPIC — Server Tool automatique
 // ══════════════════════════════════════════════════════════════════════════════
-function needsWebSearch(messages: Message[]): boolean {
+export function needsWebSearch(messages: Message[]): boolean {
   const lastUser = [...messages].reverse().find(m => m.role === 'user');
   if (!lastUser) return false;
 
-  const content = lastUser.content;
-  const text = (typeof content === 'string' ? content : '').toLowerCase();
+  const text = spokenText(lastUser.content).toLowerCase();
 
-  const webSearchPatterns = /actualités?|news|dernières nouvelles|récent|aujourd'hui|cette semaine|ce mois|anthropic|claude.*nouveau|openai|gpt|prix.*actuel|cours|bourse|événement|match|score|météo.*monde|température.*à|qui a gagné|résultat|élection/i;
+  // Pas « aujourd'hui », « anthropic », « cours », « résultat » seuls : « mails envoyés aujourd'hui », « reçu Anthropic »… sont internes
+  const webSearchPatterns = /actualités?|news|dernières nouvelles|claude.*nouveau|openai|gpt|prix.*actuel|bourse|événement|match|score|météo.*monde|température.*à|qui a gagné|résultat (du|des|de l)[a-zà-ü ]*(match|élection|vote|bac)|élection/i;
 
   return webSearchPatterns.test(text);
 }
@@ -318,6 +371,12 @@ export async function chatWithTools(
     }
   }
 
+  const pick = (await chatMode()) === 'sonnet'
+    ? { model: 'claude-sonnet-5-5', why: 'tout sur Sonnet (réglage)' }
+    : pickChatModel(processedMessages, { thinking: useThinking, web: useWebSearch, image: !!imageBase64 });
+  let chatModel = pick.model;
+  console.log(`[claude] 🧭 cerveau : ${chatModel} (${pick.why})`);
+
   let inputTokens      = 0;
   let outputTokens     = 0;
   let cacheReadTokens  = 0;
@@ -357,7 +416,7 @@ export async function chatWithTools(
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const createParams: Anthropic.MessageCreateParamsNonStreaming = {
-          model:      'claude-sonnet-5-5',
+          model:      chatModel,
           max_tokens: 16000,
           system:     systemBlocks,
           tools:      tools,
@@ -365,6 +424,8 @@ export async function chatWithTools(
           // Cache automatique de la fin de la conversation : à chaque tour d'outil, consignes du jour + historique
           // + résultats déjà vus sont RELUS (0,1×) au lieu d'être repayés plein tarif (~11k jetons par tour avant)
           cache_control: { type: 'ephemeral' },
+          // Haiku au quotidien : effort moyen (choix d'outils fiable) plutôt que « low » par défaut
+          ...(chatModel === 'claude-haiku-5-5' ? { output_config: { effort: 'medium' } } : {}),
         } as Anthropic.MessageCreateParamsNonStreaming;
 
         if (useThinking && thinkingBudget > 0) {
@@ -386,6 +447,11 @@ export async function chatWithTools(
       } catch (err) {
         if (streamChunkEmitted) throw err;
         const status = (err as { status?: number }).status;
+        if (chatModel === 'claude-haiku-5-5' && attempt < 2 && status !== 429 && !/credit balance/i.test(String((err as Error).message))) {
+          console.warn(`[claude] Haiku a échoué (${status ?? 'réseau'}) → Sonnet prend le relais`);
+          chatModel = 'claude-sonnet-5-5';
+          continue;
+        }
         if (status === 429 && attempt < 2) {
           console.warn(`[claude] Rate limit 429 — attente 65s (tentative ${attempt + 1}/3)`);
           await new Promise(r => setTimeout(r, 65_000));
@@ -425,7 +491,7 @@ export async function chatWithTools(
 
     // Track cost per API call (fire-and-forget)
     trackTokenUsage(
-      'claude-sonnet-5-5',
+      chatModel,
       response.usage.input_tokens,
       response.usage.output_tokens,
       usage.cache_read_input_tokens ?? 0,

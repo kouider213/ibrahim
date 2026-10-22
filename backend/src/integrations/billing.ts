@@ -290,6 +290,15 @@ export async function billingTool(input: Record<string, unknown>): Promise<strin
       + list.slice(0, 15).map(x => `• ${x.source} : ${x.usd.toFixed(2)} $ (${x.calls} appels)`).join('\n')
       + '\n« chat-… » = conversations (chat-voice = appels/Telegram, chat-mobile = app) ; le reste = tâches automatiques.';
   }
+  if (action === 'chat_auto' || action === 'chat_sonnet') {
+    const mode = action === 'chat_auto' ? 'auto' : 'sonnet';
+    const { kvSet } = await import('./app-store.js');
+    await kvSet('billing:chat_model', mode);
+    (await import('./claude-api.js')).setChatModeCache(mode);
+    return mode === 'auto'
+      ? '✅ Cerveau selon la demande : le quotidien passe sur Haiku (~20× moins cher), la réflexion, les conseils, les textes pour les clients, les photos et la recherche web restent sur Sonnet.'
+      : '✅ Tout repasse sur Sonnet (comme avant, plus cher).';
+  }
   if (action === 'eco_on' || action === 'eco_off') {
     await setEco(action === 'eco_on');
     return action === 'eco_on' ? '✅ Mode économie activé : les tâches de fond passent sur le modèle léger (Haiku), le chat et les mails importants gardent Sonnet.' : '✅ Mode économie coupé : tout repasse sur Sonnet (plus cher).';
@@ -304,5 +313,5 @@ export async function billingTool(input: Record<string, unknown>): Promise<strin
     ...(input['balance'] !== undefined ? { balance: Number(input['balance']) } : {}),
     ...(input['note'] !== undefined ? { note: String(input['note']) } : {}),
   });
-  return '❌ action : list, claude_usage, paid, set, eco_on, eco_off';
+  return '❌ action : list, claude_usage, paid, set, eco_on, eco_off, chat_auto, chat_sonnet';
 }
