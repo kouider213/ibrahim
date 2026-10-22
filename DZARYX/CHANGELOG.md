@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-22 — Or : retour au square du jour (Kouider s'était trompé, 227 était faux)
+
+- `gold.ts` : plus de taux fixé par défaut ; € ↔ DA au square ExchangeDZ du jour (274,8 le 22/10), capital 600 € = 164 898 DA, suit le square chaque jour. `eur_dzd` en settings reste possible s'il le demande, `eur_dzd: 0` = retour au square.
+
 ## 2026-10-22 — Or : euros comptés au taux du marché noir de Kouider (1 € = 227 DA)
 
 - `gold.ts` : `my_eur_dzd` (défaut 227) = taux auquel Kouider change vraiment ses € ; prioritaire sur le square ExchangeDZ (274,8, affiché à côté) pour toutes les conversions €↔DA. Capital gardé en € (`capital_eur`) et recalculé à son taux : 600 € = 136 200 DA (3 × 45 400). Le prix de l'or 18 carats en DA ne change pas (prix bijoutier).

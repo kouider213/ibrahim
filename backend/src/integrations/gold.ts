@@ -30,11 +30,11 @@ interface GoldBook {
   target_pct: number;        // bénéfice net visé avant de conseiller la revente
   buys: GoldBuy[]; sells: GoldSell[];
   usd_dzd?: number; eur_dzd?: number;   // derniers taux du square vus (secours si ExchangeDZ ne répond pas)
-  my_eur_dzd?: number;       // taux auquel Kouider change VRAIMENT ses € au marché noir (prioritaire sur ExchangeDZ)
+  my_eur_dzd?: number;       // taux fixé par Kouider s'il le demande (prioritaire) ; absent = square ExchangeDZ du jour
   capital_eur?: number;      // capital donné en € → recalculé en dinars si son taux change
   last_buy_alert?: { at: string; price: number }; last_sell_alert?: { at: string; price: number };
 }
-const DEFAULT: GoldBook = { unit: 'dzd', my_eur_dzd: 227, capital: 0, cash: 0, tranches: 3, buy_premium: 0.05, sell_discount: 0.05, drop_pct: 5, target_pct: 10, buys: [], sells: [] };
+const DEFAULT: GoldBook = { unit: 'dzd', capital: 0, cash: 0, tranches: 3, buy_premium: 0.05, sell_discount: 0.05, drop_pct: 5, target_pct: 10, buys: [], sells: [] };
 
 async function book(): Promise<GoldBook> {
   try {
@@ -183,7 +183,9 @@ function marketText(m: Market): string {
     `Sur 1 mois : plus haut ${dzd(m.high30)}, moyenne ${dzd(m.avg30)}, plus bas ${dzd(m.low30)} → ` +
     (drop > 0.005 ? `${pct(drop)} sous le plus haut du mois.` : 'au plus haut du mois.') +
     (m.ago1y ? `\nSur 1 an : ${m.now >= m.ago1y ? '+' : ''}${pct(m.now / m.ago1y - 1)} en dinars.` : '') +
-    `\nTon change au marché noir : 1 € = ${g1(m.eurDzd)} DA (square ExchangeDZ : 1 € = ${g1(m.squareEurDzd)} DA, 1 $ = ${g1(m.usdDzd)} DA ; prix de l'or : ${m.source}).`;
+    (m.eurDzd !== m.squareEurDzd
+      ? `\nTon change : 1 € = ${g1(m.eurDzd)} DA (square ExchangeDZ : 1 € = ${g1(m.squareEurDzd)} DA, 1 $ = ${g1(m.usdDzd)} DA ; prix de l'or : ${m.source}).`
+      : `\nSquare : 1 € = ${g1(m.eurDzd)} DA, 1 $ = ${g1(m.usdDzd)} DA (source ${m.source}).`);
 }
 
 const HONEST = `⚠️ L'or monte sur le long terme mais peut baisser pendant des mois : n'y mets que l'argent dont tu n'as pas besoin avant 1 à 2 ans. ` +
@@ -285,16 +287,20 @@ export async function goldWatchTool(input: Record<string, unknown>): Promise<str
       `Cash restant : ${money(b.cash)}.` + (action === 'buy' ? `\nRentable quand un bijoutier t'en donnera ${dzd(paid)} : 18 carats à ${dzd(per18 / (1 - b.sell_discount))}/g.` : '');
   }
   if (action === 'settings') {
+    if (input['eur_dzd'] === 0 || input['eur_dzd'] === 'square') delete b.my_eur_dzd;   // retour au square du jour
     if (num('eur_dzd') > 0) {   // « je change à 230 maintenant » → son taux du marché noir
       b.my_eur_dzd = num('eur_dzd');
-      if (b.capital_eur && !b.sells.length) { b.capital = b.capital_eur * b.my_eur_dzd; b.cash = Math.max(0, b.capital - holdings(b).paid); }
+    }
+    {
+      const r = b.my_eur_dzd ?? m.squareEurDzd;
+      if (b.capital_eur && !b.sells.length) { b.capital = b.capital_eur * r; b.cash = Math.max(0, b.capital - holdings(b).paid); }
     }
     if (num('drop_pct') > 0) b.drop_pct = num('drop_pct');
     if (num('target_pct') > 0) b.target_pct = num('target_pct');
     if (num('buy_premium_pct') >= 0 && input['buy_premium_pct'] !== undefined) b.buy_premium = num('buy_premium_pct') / 100;
     if (num('sell_discount_pct') >= 0 && input['sell_discount_pct'] !== undefined) b.sell_discount = num('sell_discount_pct') / 100;
     await saveBook(b);
-    return `✅ Ton change : 1 € = ${b.my_eur_dzd ?? m.squareEurDzd} DA (marché noir). Alerte d'achat à −${b.drop_pct} % sous le plus haut du mois, revente conseillée à +${b.target_pct} % net, marge bijoutier ${pct(b.buy_premium)}, retenue à la revente ${pct(b.sell_discount)}.`;
+    return `✅ Change : 1 € = ${b.my_eur_dzd ?? m.squareEurDzd} DA (${b.my_eur_dzd ? 'ton taux' : 'square du jour ExchangeDZ'}). Alerte d'achat à −${b.drop_pct} % sous le plus haut du mois, revente conseillée à +${b.target_pct} % net, marge bijoutier ${pct(b.buy_premium)}, retenue à la revente ${pct(b.sell_discount)}.`;
   }
 
   // status
