@@ -12,6 +12,7 @@ const KEY = 'dnd:state';
 const PLANNED_KEY = 'dnd:planned';            // silences programmés à l'avance (« demain matin ») : pas effacés par resume
 const ACTIVE_KEY = 'kouider:last_active';     // même clé que morning-routine.noteKouiderActivity
 const TALK_WINDOW_MS = 10 * 60_000;
+const PERSONAL_RE = /h[oô]pital|urgence|malade|m[ée]decin|ibrahim|fatima|famille|enfant|b[ée]b[ée]|d[ée]c[eè]s|enterrement|accident|bless/i;
 const REPLY_GRACE_MS = 2 * 60_000;            // il vient de répondre : 2 min pour qu'il donne son heure avant de tout renvoyer
 
 export interface DndState { since: number; until: number; untilReply: boolean; why: string }
@@ -84,11 +85,16 @@ export async function dndAllowsMessage(): Promise<boolean> {
 export async function dndOnKouiderMessage(): Promise<string | null> {
   const s = await getDnd();
   if (!s) return null;
+  // Silence pour un souci perso (enfant malade, hôpital…) : Kouider 22/10 « tu m'as même pas demandé il avait quoi Ibrahim »
+  const care = PERSONAL_RE.test(s.why)
+    ? ` Ce silence était pour une raison perso (${s.why}) : AVANT tout le reste, demande des nouvelles (ce qu'il avait, comment il va maintenant, comment va Kouider lui-même), avec chaleur, sans liste d'actions. Retiens ce qu'il te répond avec remember_info (santé de la famille) pour reprendre des nouvelles plus tard dans la journée.`
+    : '';
+  const work = ' S\'il dit qu\'il est au travail, ne parle pas de jour de congé : il travaille aujourd\'hui.';
   if (s.untilReply) {
     await setDnd({ until: Date.now() + REPLY_GRACE_MS, why: s.why });
-    return `[Contexte : tu étais en « ne pas déranger » depuis ${hhmm(s.since)} (${s.why}) : plus d'appels ni de messages. Il vient de te répondre. S'il dit à partir de quelle heure il est joignable (« dispo à 15h », « après 14h », « dans 2 heures »), appelle pause_calls (until_time ou minutes). S'il dit qu'il est dispo, pause_calls resume:true. Sinon, demande-lui en une phrase si tout va bien et à partir de quelle heure tu peux le rappeler. Puis réponds à ce qu'il dit.]`;
+    return `[Contexte : tu étais en « ne pas déranger » depuis ${hhmm(s.since)} (${s.why}) : plus d'appels ni de messages. Il vient de te répondre. S'il dit à partir de quelle heure il est joignable (« dispo à 15h », « après 14h », « dans 2 heures »), appelle pause_calls (until_time ou minutes). S'il dit qu'il est dispo ou qu'on peut tout débloquer, pause_calls resume:true — et ne confirme qu'après le résultat de l'outil. Sinon, demande-lui en une phrase si tout va bien et à partir de quelle heure tu peux le rappeler. Puis réponds à ce qu'il dit.${care}${work}]`;
   }
-  return `[Contexte : il est en « ne pas déranger » jusqu'à ${hhmm(s.until)} : réponds à ce qu'il demande, sans rien lancer d'autre (pas d'appel). S'il dit qu'il est de nouveau dispo, pause_calls resume:true.]`;
+  return `[Contexte : il est en « ne pas déranger » jusqu'à ${hhmm(s.until)} (${s.why}) : réponds à ce qu'il demande, sans rien lancer d'autre (pas d'appel). S'il dit qu'il est de nouveau dispo ou qu'on peut tout débloquer, pause_calls resume:true — et ne confirme qu'après le résultat de l'outil.${care}${work}]`;
 }
 
 export function dndLabel(s: DndState): string {

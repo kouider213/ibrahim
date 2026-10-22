@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-22 — Reprise après une nuit aux urgences (B042)
+
+Analyse de la conversation Telegram du 21-22/10 (Ibrahim aux urgences). `orchestrator.ts` sauve les outils lancés dans `metadata.tools`, `context-builder.ts` les rappelle au cerveau (`withToolTrace`, supabase.ts) → plus de faux aveux « je ne l'ai pas fait ». `dnd.ts` : silence pour raison perso → prendre des nouvelles d'abord et les retenir ; jamais « jour de congé » s'il est au travail (`kouider-dossier.ts` aussi). `tg-outbox.ts` : récap sans « 06h19 → 06h19 », sans lignes d'agenda déjà passées. `constants.ts` : « je te le note » = outil dans le même tour.
+
 ## 2026-10-21 — Survie sans Claude : secours gratuits réparés (B041)
 
 Clés Groq + Gemini ajoutées au `.env` du VPS (serveur de secours redémarré). `agentic-fallback.ts` : Gemini d'abord (7 modèles, quota épuisé → sauté 15 min), Groq en mode compact (prompt court + date, 8 outils pertinents, historique tronqué, rappel des outils si `tool_use_failed`, attente si 429 ≤ 20 s), photos transmises aux modèles qui voient. `compact-prompt.ts` (nouveau) utilisé aussi par `callGroq`/`callGroqVision`. `anthropic-compat.ts` (tâches de fond) : 120 outils max, images → `image_url` pour Gemini, avertissement anti-invention pour Groq. Orchestrator : `fastPathGuard` seulement si aucun outil n'a tourné ; Gemini vision en dernier recours pour l'appel vidéo. Test : `scripts/free-mode-test.ts free|paid` (ONLY, PAUSE, LOGFILE).

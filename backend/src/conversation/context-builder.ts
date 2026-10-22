@@ -1,4 +1,4 @@
-﻿import { getConversationHistory, getActiveRules, getFleet, getBookings, getRecentUserMessages, getRecentEpisodes, supabase } from '../integrations/supabase.js';
+﻿import { getConversationHistory, withToolTrace, getActiveRules, getFleet, getBookings, getRecentUserMessages, getRecentEpisodes, supabase } from '../integrations/supabase.js';
 import { kouiderDossierText } from '../integrations/kouider-dossier.js';
 import { getOranWeather, formatWeatherForContext, getAlgeriaNews, formatNewsForContext, type WeatherData } from '../integrations/web-search.js';
 import { listUpcomingEvents } from '../integrations/google-calendar.js';
@@ -152,7 +152,7 @@ export async function buildContext(
   const isKouider = actor.ownerKey === 'kouider';
 
   const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary, clientIntel, recentEpisodes, smartReminders, vipClients, learnedRules, clientBrain, actorBrainCtx, personalCalendarEvents, callsMemText, dossierText] = await Promise.all([
-    getConversationHistory(sessionId, historyLimit).catch(() => []),
+    getConversationHistory(sessionId, historyLimit).then(h => h.map(m => ({ role: m.role, content: withToolTrace(m) }))).catch(() => []),
     crossChannelSessionId
       ? supabase
           .from('conversations')

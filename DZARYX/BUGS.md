@@ -7,6 +7,11 @@
 
 ## Bugs Ouverts 🔴
 
+### B042 — Reprise après « ne pas déranger » (Ibrahim aux urgences, 22/10) ✅ FIXÉ
+- Symptôme : à 6h28 Dzaryx réactive tout (vrai pause_calls), puis au message suivant écrit « je ne l'ai pas fait, l'outil n'a jamais été lancé » ; ne demande pas ce qu'avait Ibrahim ; « comme c'est jeudi, ton jour de congé » alors que Kouider bosse depuis 5h ; récap « Pendant ta pause (06h19 → 06h19) » avec des lignes d'agenda déjà passées ; « je te le note » sans outil puis aveu.
+- Cause : l'historique ne gardait que le texte (pas les outils lancés) → le cerveau ne voit aucune preuve et s'accuse ; consigne DND sans volet humain ; dossier « jour de congé » sans exception travail ; récap sans cas même minute.
+- Fix : metadata.tools sauvée à chaque tour + note « outils réellement lancés » dans l'historique (`withToolTrace`) ; dnd.ts : raison perso → demander des nouvelles d'abord + remember_info, pas de « congé » s'il est au travail ; dossier : congé annulé s'il travaille ; tg-outbox : une seule heure si même minute, lignes « • HHhMM » passées retirées ; règle « je te le note » = outil dans le même tour.
+
 ### B041 — Sans crédit Claude, Dzaryx répond « Service temporairement indisponible » (21/10) ✅ FIXÉ
 - Symptôme : test « tout gratuit » (`backend/scripts/free-mode-test.ts free`) → chat 2/11 ; « Je n'ai pas accès aux données en temps réel » alors que list_bookings avait tourné ; photos décrites au hasard (« citadine blanche » pour une Clio rouge) dans les tâches de fond.
 - Cause : Groq reçoit 237 outils (max 128) et ~9 000 tokens de prompt (free = 8 000 tokens/min) → 400/413 ; un seul modèle Gemini (souvent 503/429) ; `fastPathGuard` appliqué au secours agentique même quand de vrais outils avaient tourné ; images retirées en silence par le secours.

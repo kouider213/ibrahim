@@ -72,11 +72,16 @@ export async function takeTelegramMessages(actor: string): Promise<TgOutMessage[
   if (!keep.length) return list;
   const texts = keep.filter(h => !h.image && !h.file && !h.album && !h.location && h.text.trim());
   const media = keep.filter(h => h.image || h.file || h.album || h.location).map(({ at: _at, ...m }) => m);
-  const head = `🔔 Pendant ta pause (${t(keep[0]!.at)} → ${t(keep[keep.length - 1]!.at)}), j'ai gardé ça pour toi :`;
+  // « (06h19 → 06h19) » quand tout tient dans la même minute : une seule heure (22/10)
+  const from = t(keep[0]!.at), to = t(keep[keep.length - 1]!.at);
+  const head = `🔔 Pendant ta pause${from === to ? '' : ` (${from} → ${to})`}, j'ai gardé ça pour toi :`;
+  // Les lignes d'agenda « • 06h20 … » déjà passées au moment de l'envoi sont retirées (le récap arrivait à 6h28 avec 6h20 et 6h30)
+  const nowHm = t(Date.now());
+  const fresh = (txt: string) => txt.split('\n').filter(l => { const m = /^\s*•\s*(\d{2}h\d{2})\s/.exec(l); return !m || m[1]! >= nowHm; }).join('\n');
   // Récap découpé en messages de 4000 caractères max : rien de ce qui a été gardé n'est perdu.
   const parts: string[] = [head];
   for (const h of texts) {
-    const item = `• ${t(h.at)} — ${h.text.trim()}`.slice(0, 3900);
+    const item = `• ${t(h.at)} — ${fresh(h.text).trim()}`.slice(0, 3900);
     if (parts[parts.length - 1]!.length + 2 + item.length > 4000) parts.push(item);
     else parts[parts.length - 1] += `\n\n${item}`;
   }

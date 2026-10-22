@@ -490,7 +490,7 @@ export async function processMessage(
         const agChecked = agRes.toolsExecuted.length > 0 ? agPhantom : fastPathGuard(agPhantom, userMessage, requestId);
         const agSafe    = oranize(localizeGuardMessage(agChecked, null, guardLang), actor);
         _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: agSafe });
-        saveConversationTurn(sessionId, 'assistant', agSafe).catch(() => {});
+        saveConversationTurn(sessionId, 'assistant', agSafe, { tools: agRes.toolsExecuted.map(t => `${t.name} ${t.success ? '✅' : '❌'}`) }).catch(() => {});
         if (!textOnly && agSafe.length > 0) {
           _io?.emit(SOCKET_EVENTS.STATUS, { status: 'speaking', sessionId });
           await streamAudioSentences(agSafe, sessionId);
@@ -657,7 +657,7 @@ export async function processMessage(
   _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });
 
   // 5. Sauvegarder en base + épisode mémoire (non-bloquant)
-  saveConversationTurn(sessionId, 'assistant', safeText).catch((err: unknown) =>
+  saveConversationTurn(sessionId, 'assistant', safeText, { tools: response.toolsExecuted.map(t => `${t.name} ${t.success ? '✅' : '❌'}`) }).catch((err: unknown) =>
     console.error('[orchestrator] save error:', err),
   );
   if (!sandbox) trackEpisode({

@@ -337,13 +337,21 @@ export async function getRecentUserMessages(limit = 40): Promise<string[]> {
 export async function getConversationHistory(sessionId: string, limit = 20) {
   const { data, error } = await supabase
     .from('conversations')
-    .select('role, content, created_at')
+    .select('role, content, created_at, metadata')
     .eq('session_id', sessionId)
     .in('role', ['user', 'assistant'])
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) throw new Error(`Conversation fetch failed: ${error.message}`);
   return (data ?? []).reverse();
+}
+
+/** Trace des outils lancés à un tour (metadata.tools) → note pour le cerveau : sans elle, au message suivant Dzaryx
+ *  ne voyait que « C'est fait » sans preuve et s'accusait à tort de ne pas l'avoir fait (22/10, pause_calls). */
+export function withToolTrace(m: { role: string; content: string; metadata?: { tools?: string[] } | null }): string {
+  const tools = m.role === 'assistant' ? m.metadata?.tools : undefined;
+  if (!Array.isArray(tools)) return m.content;
+  return `${m.content}\n\n[note interne, ne pas recopier — outils réellement lancés à ce tour : ${tools.length ? tools.join(', ') : 'aucun'}]`;
 }
 
 export async function saveConversationTurn(

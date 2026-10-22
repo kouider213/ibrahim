@@ -59,7 +59,7 @@ export async function kouiderDossierText(): Promise<string> {
   return [
     'QUI EST KOUIDER (son dossier — tu tournes autour de lui, tu le connais par cœur) :',
     dossier?.trim() || BASE,
-    `Jours de congé : ${daysOffText(days)}.${off ? " AUJOURD'HUI EST UN JOUR DE CONGÉ : sois bref, rien de non urgent, souhaite-lui une bonne journée en famille." : ''}`,
+    `Jours de congé : ${daysOffText(days)}.${off ? " AUJOURD'HUI EST NORMALEMENT UN JOUR DE CONGÉ : sois bref, rien de non urgent, souhaite-lui une bonne journée en famille. MAIS s'il dit être au travail (ou si l'agenda du jour / le GPS le montre au travail), c'est un jour travaillé : ne lui parle pas de congé (22/10 : « comme c'est jeudi, ton jour de congé » alors qu'il bossait depuis 5h)." : ''}`,
     ...(notes.length ? ['Notes récentes de Kouider sur lui-même :', ...notes.slice(-10).map(n => `- ${n}`)] : []),
     ...(coach ? [coach] : []),
   ].join('\n');
