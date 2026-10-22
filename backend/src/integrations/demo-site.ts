@@ -2,6 +2,7 @@ import axios from 'axios';
 import { createHash, randomBytes } from 'crypto';
 import { askJson } from './pro-doc.js';
 import { kvGet, kvSet } from './app-store.js';
+import { supabase } from './supabase.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 
@@ -30,6 +31,7 @@ export interface Content {
 
 export interface DemoRecord {
   slug: string; url: string; createdAt: string; place: Omit<Place, 'photoRefs'>; content: Content; notes?: string;
+  hostedHere?: true;   // Netlify indisponible → servie gratuitement par notre serveur
 }
 
 // ── 1. Lien Google → fiche Google ────────────────────────────────────────────
@@ -372,6 +374,46 @@ export async function deployNetlify(slug: string, files: Record<string, Buffer>,
   return { url: `https://${slug}.netlify.app`, siteId };
 }
 
+// ── 4b. Secours gratuit : plus de crédit Netlify (ou Netlify en panne) → la démo est servie par notre serveur ──
+// Fichiers dans le stockage Supabase (bucket privé fik-demos), servis par la route /demo/<slug>/ du backend.
+// L'adresse reste valable pour toujours : on ne la déplace pas sur Netlify quand le crédit revient (le prospect l'a déjà).
+const DEMO_BUCKET = 'fik-demos';
+let demoBucketReady = false;
+const DEMO_BASE = () => process.env['PUBLIC_API_URL'] ?? 'https://ibrahim-backend-production.up.railway.app';
+const TYPES: Record<string, string> = { html: 'text/html; charset=utf-8', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', svg: 'image/svg+xml', css: 'text/css', js: 'text/javascript' };
+const typeOf = (path: string) => TYPES[path.split('.').pop()!.toLowerCase()] ?? 'application/octet-stream';
+
+async function hostDemoHere(slug: string, files: Record<string, Buffer>): Promise<string> {
+  if (!demoBucketReady) {
+    await supabase.storage.createBucket(DEMO_BUCKET, { public: false, fileSizeLimit: 10 * 1024 * 1024 }).catch(() => {});
+    demoBucketReady = true;
+  }
+  for (const [path, data] of Object.entries(files)) {
+    const up = await supabase.storage.from(DEMO_BUCKET).upload(`${slug}/${path}`, data, { contentType: typeOf(path), upsert: true });
+    if (up.error) throw new Error(`stockage démo : ${up.error.message}`);
+  }
+  return `${DEMO_BASE()}/demo/${slug}/`;
+}
+
+/** Fichier d'une démo hébergée chez nous (route publique /demo/<slug>/<path>). */
+export async function demoFile(slug: string, path: string): Promise<{ data: Buffer; type: string } | null> {
+  if (!/^demo-[a-z0-9-]{1,60}$/.test(slug) || path.includes('..')) return null;
+  const { data, error } = await supabase.storage.from(DEMO_BUCKET).download(`${slug}/${path || 'index.html'}`);
+  if (error || !data) return null;
+  return { data: Buffer.from(await data.arrayBuffer()), type: typeOf(path || 'index.html') };
+}
+
+/** Netlify d'abord ; s'il refuse (crédit épuisé, jeton, panne), la démo part quand même, gratuitement chez nous. */
+export async function deployDemo(slug: string, files: Record<string, Buffer>): Promise<{ url: string; free?: string }> {
+  try {
+    return { url: (await deployNetlify(slug, files)).url };
+  } catch (err) {
+    const why = axios.isAxiosError(err) ? `${err.response?.status ?? ''} ${JSON.stringify(err.response?.data ?? err.message).slice(0, 150)}` : (err instanceof Error ? err.message : String(err));
+    console.warn('[demo-site] Netlify refuse, démo hébergée chez nous :', why);
+    return { url: await hostDemoHere(slug, files), free: why };
+  }
+}
+
 // ── 5. Outil ─────────────────────────────────────────────────────────────────
 export const slugify = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30);
 const running = new Set<string>();
@@ -391,9 +433,9 @@ export async function buildDemo(link: string, notes: string, knownPlaceId?: stri
   const files: Record<string, Buffer> = { 'index.html': Buffer.from(renderHtml(place, content, photoNames)) };
   photoBufs.forEach((b, i) => { files[photoNames[i]!] = b; });
   const slug = `demo-${slugify(place.name) || 'commerce'}-${randomBytes(2).toString('hex')}`;
-  const { url } = await deployNetlify(slug, files);
+  const { url, free } = await deployDemo(slug, files);
   const { photoRefs: _drop, ...placeData } = place;
-  const rec: DemoRecord = { slug, url, createdAt: new Date().toISOString(), place: placeData, content, ...(notes ? { notes } : {}) };
+  const rec: DemoRecord = { slug, url, createdAt: new Date().toISOString(), place: placeData, content, ...(notes ? { notes } : {}), ...(free ? { hostedHere: true } : {}) };
   await kvSet(`demo:site:${slug}`, JSON.stringify(rec));
   const index = JSON.parse((await kvGet(DEMO_INDEX)) ?? '[]') as Array<{ slug: string; name: string; url: string; createdAt: string }>;
   index.unshift({ slug, name: place.name, url, createdAt: rec.createdAt });
@@ -413,7 +455,8 @@ export function createDemoSite(input: Record<string, unknown>): string {
     try {
       const rec = await buildDemo(link, notes);
       const inv = rec.content.invented.length ? `\n\n✏️ Inventé pour la démo (à remplacer par les vraies infos) :\n- ${rec.content.invented.join('\n- ')}` : '\n\n✅ Rien d\'inventé : tout vient de Google.';
-      msg = `🌐 Démo du site « ${rec.place.name} » en ligne :\n${rec.url}${inv}`;
+      msg = `🌐 Démo du site « ${rec.place.name} » en ligne :\n${rec.url}${inv}` +
+        (rec.hostedHere ? '\n\nℹ️ Netlify n\'a pas accepté (crédit épuisé ou panne) : démo hébergée gratuitement sur notre serveur, le lien marche pareil.' : '');
     } catch (err) {
       const e = axios.isAxiosError(err) ? JSON.stringify(err.response?.data ?? err.message).slice(0, 300) : (err instanceof Error ? err.message : String(err));
       msg = `❌ La démo du site n'a pas pu être faite : ${e}`;

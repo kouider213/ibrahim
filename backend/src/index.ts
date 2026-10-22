@@ -45,6 +45,7 @@ import githubRoutes        from './api/routes/github.js';
 import schedulerRoutes     from './api/routes/scheduler.js';
 import widgetRoutes        from './api/routes/widget.js';
 import signRoutes          from './api/routes/sign.js';
+import { demoFile }         from './integrations/demo-site.js';
 import financeRoutes       from './api/routes/finance.js';
 import documentsRoutes     from './api/routes/documents.js';
 import ttsRoutes           from './api/routes/tts.js';
@@ -343,6 +344,15 @@ app.use('/api/siri',          apiLimiter, siriRoutes);
 app.use('/api/github',        apiLimiter, githubRoutes);
 app.use('/api/scheduler',     apiLimiter, schedulerRoutes);
 app.use('/api/widget',        apiLimiter, widgetRoutes);
+// Démos de sites hébergées chez nous quand Netlify n'a plus de crédit (public, lien envoyé au prospect)
+app.use('/demo', apiLimiter, async (req, res) => {
+  const [, slug = '', ...rest] = req.path.split('/');
+  if (!rest.length) { res.redirect(301, `${req.baseUrl}/${slug}/`); return; }
+  const f = await demoFile(slug, decodeURIComponent(rest.join('/'))).catch(() => null);
+  if (!f) { res.status(404).send('Démo introuvable'); return; }
+  res.removeHeader('Content-Security-Policy');   // page statique générée par nous : polices, carte, styles inline
+  res.set('Content-Type', f.type).set('Cache-Control', 'public, max-age=300').send(f.data);
+});
 app.use('/sign',              apiLimiter, signRoutes);   // signature contrat (public, lien client)
 app.use('/api/finance',       apiLimiter, financeRoutes);
 app.use('/api/documents',     apiLimiter, documentsRoutes);

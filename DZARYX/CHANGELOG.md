@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-22 — Démos de sites : secours gratuit quand Netlify n'a plus de crédit
+
+- `demo-site.ts` : `deployDemo()` essaie Netlify ; s'il refuse (crédit épuisé, jeton, panne), les fichiers vont dans le stockage Supabase (bucket privé `fik-demos`) et la démo est servie par le backend → la démo se fait toujours. Message Telegram le signale. L'adresse ne bouge plus ensuite (déjà envoyée au prospect).
+- `index.ts` : route publique `/demo/<slug>/` (sans CSP, cache 5 min, 404 sinon).
+- Testé sans jeton Netlify (page + photo + redirection). Les vrais sites clients (domaine) restent sur Netlify.
+
 ## 2026-10-22 — « L'euro est à combien ? » → taux du marché noir
 
 - `gold.ts` / `tools.ts` : `gold_watch` action `change` = taux du square du jour (ExchangeDZ, € et $), conversion d'un montant (amount_eur / amount_dzd), jamais le taux des banques ni une recherche web. Outil déjà dans ALWAYS_TOOLS (écrit) et via ask_dzaryx (appels).
