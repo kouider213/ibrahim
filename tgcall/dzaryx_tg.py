@@ -836,6 +836,35 @@ GUARD_CMD = re.compile(r'^v[ée]rif(?:ication)?\s+(?:de\s+la\s+)?voix\s+(on|off|
 PASSCODE_CMD = re.compile(r'^code secret\s*[:=]?\s*(\S.{1,40})$', re.I)
 
 
+OFFICE_EXT = ('.docx', '.xlsx', '.csv', '.txt')
+
+
+def office_text(path: str, name: str) -> str:
+    """Texte d'un Word / Excel / CSV / TXT envoyé sur Telegram (menu, liste de prix…), sans bibliothèque en plus."""
+    import zipfile
+    from html import unescape
+    low = name.lower()
+    if low.endswith(('.csv', '.txt')):
+        return Path(path).read_text(errors='ignore')
+    with zipfile.ZipFile(path) as z:
+        if low.endswith('.docx'):
+            xml = z.read('word/document.xml').decode('utf8', 'ignore')
+            xml = re.sub(r'</w:p>|<w:tab/>|<w:br/>', lambda m: '\n' if m.group(0) != '<w:tab/>' else '\t', xml)
+            return unescape(re.sub(r'<[^>]+>', '', xml))
+        shared = [unescape(re.sub(r'<[^>]+>', '', x)) for x in re.findall(r'<si>(.*?)</si>', z.read('xl/sharedStrings.xml').decode('utf8', 'ignore'), re.S)] \
+            if 'xl/sharedStrings.xml' in z.namelist() else []
+        out = []
+        for sheet in sorted(n for n in z.namelist() if re.match(r'xl/worksheets/sheet\d+\.xml$', n)):
+            for row in re.findall(r'<row[^>]*>(.*?)</row>', z.read(sheet).decode('utf8', 'ignore'), re.S):
+                cells = []
+                for attrs, inner in re.findall(r'<c\b([^>]*?)(?:/>|>(.*?)</c>)', row, re.S):
+                    v = ''.join(re.findall(r'<v>(.*?)</v>', inner, re.S)) or ''.join(re.findall(r'<t[^>]*>(.*?)</t>', inner, re.S))
+                    cells.append(shared[int(v)] if 't="s"' in attrs and v.isdigit() and int(v) < len(shared) else unescape(v))
+                if any(c.strip() for c in cells):
+                    out.append(' | '.join(cells))
+        return '\n'.join(out)
+
+
 def learn_owner_voice(path: str) -> None:
     """Vocal Telegram de Kouider → sa voix s'apprend (reconnaissance au téléphone)."""
     if not speaker.available():
@@ -874,7 +903,36 @@ async def on_message(_, msg: Message) -> None:
                 os.unlink(path)
             name = msg.document.file_name or 'document.pdf'
             body = (f"[Document PDF reçu sur Telegram : « {name} ». Si c'est un billet d'avion / une carte d'embarquement, "
-                    f"enregistre-le avec l'outil travel (add_trip).]\n{msg.caption or ''}\n\n{text.strip()[:9000] or '(PDF sans texte lisible)'}")
+                    f"enregistre-le avec l'outil travel (add_trip). Si c'est un menu / une liste de produits ou de prix pour un site client, "
+                    f"recopie TOUT dans manage_client_site edit.]\n{msg.caption or ''}\n\n{text.strip()[:15000]}")
+            if text.strip():
+                out = await api('/api/call/turn', {'message': body, 'textOnly': True, 'channel': 'message'}, actor, 120)
+            else:   # PDF scanné (photo d'un menu…) : la 1re page part en image, Claude la lit
+                path = await msg.download(file_name=tempfile.mktemp(prefix='dzpdf_', suffix='.pdf'))
+                try:
+                    subprocess.run(['pdftoppm', '-r', '110', '-l', '1', '-jpeg', '-singlefile', path, path[:-4]], timeout=60, check=True)
+                    b64 = base64.b64encode(Path(path[:-4] + '.jpg').read_bytes()).decode()
+                finally:
+                    for f in (path, path[:-4] + '.jpg'):
+                        if os.path.exists(f):
+                            os.unlink(f)
+                out = await api('/api/call/turn', {'message': body + '(PDF scanné : voici sa 1re page en image)', 'image': b64,
+                                                   'imageMime': 'image/jpeg', 'textOnly': True, 'channel': 'message'}, actor, 120)
+            await reply_out(msg, out)
+            return
+        if msg.document and (msg.document.file_name or '').lower().endswith(OFFICE_EXT):
+            await app.send_chat_action(uid, enums.ChatAction.TYPING)
+            name = msg.document.file_name
+            path = await msg.download(file_name=tempfile.mktemp(prefix='dzdoc_', suffix=Path(name).suffix))
+            try:
+                text = office_text(path, name)
+            except Exception as e:
+                log.warning('document %s: %s', name, e)
+                text = ''
+            finally:
+                os.unlink(path)
+            body = (f"[Document reçu sur Telegram : « {name} ». Si c'est un menu / une liste de produits ou de prix pour un site client, "
+                    f"recopie TOUT dans manage_client_site edit.]\n{msg.caption or ''}\n\n{text.strip()[:15000] or '(document vide ou illisible)'}")
             out = await api('/api/call/turn', {'message': body, 'textOnly': True, 'channel': 'message'}, actor, 120)
             await reply_out(msg, out)
             return

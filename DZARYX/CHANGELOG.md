@@ -5,6 +5,15 @@
 
 ---
 
+## 2026-10-22 — FIK Sites : grille de prix, fiche client, vrai site après paiement, documents Telegram
+
+- `site-tarifs.ts` (nouveau) : grille Algérie (Vitrine 1 500 DA/mois · Pro 2 500 DA/mois · achat unique 25 000 DA + 6 000/an) et France (19 € · 39 € · 390 € + 60/an), options (visibilité, domaine), offres ; app_kv `fik:tarifs`, modifiable par message (`manage_client_site action=tarifs changes`).
+- `client-sites.ts` : `pack` + `contact` sur chaque site ; `applyPack()` règle l'abonnement depuis la grille et note le paiement ; `create_client_site` avec pack/period/paid_amount → site + abonnement + paiement + espace client (e-mail du démarchage par défaut) + prospect « client » + message « il ne te reste QUE le nom de domaine » (idée de domaine). Action `pack`, fiche client dans `info` (client depuis, total payé, services). Overview : fiche client + grille.
+- `site-prospecting.ts` : `classifySiteReply()` séparé (testable) ; une réponse « je veux un site / appelez-moi » AVANT la démo envoie aussi la démo. Testé : 6 réponses types bien lues + vrai mail de démo envoyé à notre boîte.
+- `tools.ts` : documents (PDF, photo, Word, Excel) pour un site client → tout recopié dans edit, sans résumer.
+- `tgcall/dzaryx_tg.py` : Word (.docx), Excel (.xlsx), CSV, TXT lus sans bibliothèque ; PDF scanné → 1re page envoyée en image.
+- App (`SitesScreen.tsx`) : section « Mes tarifs » (Algérie/France, détails, changer un prix), FICHE CLIENT au clic (contact, téléphone, e-mail, client depuis, formule, il paie, total payé, services, changer de formule), choix de la formule et du paiement en créant le vrai site.
+
 ## 2026-10-22 — Démos de sites : secours gratuit quand Netlify n'a plus de crédit
 
 - `demo-site.ts` : `deployDemo()` essaie Netlify ; s'il refuse (crédit épuisé, jeton, panne), les fichiers vont dans le stockage Supabase (bucket privé `fik-demos`) et la démo est servie par le backend → la démo se fait toujours. Message Telegram le signale. L'adresse ne bouge plus ensuite (déjà envoyée au prospect).

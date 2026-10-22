@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { business, type ClientSiteRow, type SitesOverview, type SiteMessage } from '../../services/api.ts';
+import { business, type ClientSiteRow, type SitesOverview, type SiteMessage, type SiteTarifs, type SitePack } from '../../services/api.ts';
 import { Hero, StatCard, SkeletonCards, SearchPill } from '../ui/Premium.tsx';
 
 // Sites clients (FIK Sites) : démos depuis Google Maps → vrais sites, espace client du patron, abonnements payés à la
@@ -21,6 +21,10 @@ const MSG_KIND = { table: '🍽️ Réservation', rdv: '📅 Rendez-vous', conta
 const money = (n: number, cur: string) => `${n.toLocaleString('fr-FR')} ${cur}`;
 const fmtDay = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
 const fmtAt = (iso: string) => new Date(iso).toLocaleString('fr-FR', { timeZone: 'Africa/Algiers', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const packPrice = (p: SitePack) => p.once != null
+  ? `${money(p.once, p.currency)} une fois + ${money(p.renewal ?? 0, p.currency)}/an`
+  : `${money(p.monthly ?? 0, p.currency)}/mois · ${money(p.yearly ?? 0, p.currency)}/an`;
+const PERIOD = { mois: 'au mois', an: 'à l\'année', unique: 'achat unique' } as const;
 const errText = (e: unknown) => {
   const m = e instanceof Error ? e.message : 'Erreur';
   try { return (JSON.parse(m.replace(/^API \d+: /, '')) as { error?: string }).error ?? m; } catch { return m; }
@@ -74,6 +78,8 @@ export default function SitesScreen() {
         </div>
         <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 16, textAlign: 'center' }}>💰 Revenus mensuels : <b style={{ color: C.accent }}>{mrr || '—'}</b></div>
 
+        {data.tarifs && <TarifsSection t={data.tarifs} onEdit={changes => run(() => business.sitesTarifs(changes), '✅ Tarifs mis à jour')} />}
+
         {/* Nouvelle démo */}
         <Section title="➕ Nouvelle démo de site" hint="Colle le lien Google Maps du commerce (bouton « Partager »), ou son nom + sa ville. Le lien arrive sur Telegram en 1 à 2 minutes.">
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 13, padding: 12 }}>
@@ -86,8 +92,8 @@ export default function SitesScreen() {
 
         {/* Démos pas encore transformées */}
         {demos.length > 0 && (
-          <Section title={`🧪 Démos (${demos.length})`} hint="Le client est d'accord ? « Faire le vrai site » : donne les vraies infos et l'e-mail du patron.">
-            {demos.slice(0, 20).map(d => <DemoCard key={d.slug} d={d} onCreate={(info, email) => run(() => business.sitesCreate(d.name, info, email))} />)}
+          <Section title={`🧪 Démos (${demos.length})`} hint="Le client a payé ? « Faire le vrai site » : choisis sa formule, Dzaryx fait tout, il ne restera que le nom de domaine.">
+            {demos.slice(0, 20).map(d => <DemoCard key={d.slug} d={d} tarifs={data.tarifs} onCreate={(info, email, extra) => run(() => business.sitesCreate(d.name, info, email, extra))} />)}
           </Section>
         )}
 
@@ -126,10 +132,16 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function DemoCard({ d, onCreate }: { d: SitesOverview['demos'][number]; onCreate: (info: string, email: string) => Promise<boolean> }) {
+type CreateExtra = { pack?: string; period?: string; paid_amount?: number; country?: string };
+function DemoCard({ d, tarifs, onCreate }: { d: SitesOverview['demos'][number]; tarifs?: SiteTarifs; onCreate: (info: string, email: string, extra: CreateExtra) => Promise<boolean> }) {
   const [form, setForm] = useState(false);
   const [info, setInfo] = useState('');
   const [email, setEmail] = useState('');
+  const [country, setCountry] = useState<'DZ' | 'FR'>('DZ');
+  const [pack, setPack] = useState('');
+  const [period, setPeriod] = useState<'mois' | 'an'>('mois');
+  const [paid, setPaid] = useState('');
+  const chosen = tarifs?.packs.find(p => p.id === pack);
   return (
     <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 13, padding: 12, marginBottom: 7 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -143,9 +155,17 @@ function DemoCard({ d, onCreate }: { d: SitesOverview['demos'][number]; onCreate
       {form && (
         <div style={{ marginTop: 10 }}>
           <textarea value={info} onChange={e => setInfo(e.target.value)} rows={6} placeholder="Les vraies infos, même en vrac : vrai menu et prix, vraies prestations, autre téléphone, horaires… (vide = garder la démo telle quelle)" style={{ ...input, resize: 'vertical', lineHeight: 1.45 }} />
-          <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="E-mail du patron (pour son espace client)" style={{ ...input, marginTop: 7 }} />
-          <button onClick={() => { void onCreate(info.trim(), email.trim()).then(ok => { if (ok) setForm(false); }); }} style={{ ...btn(C.accent, '#06210f'), marginTop: 8, width: '100%' }}>✅ Créer le vrai site</button>
-          <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>Prêt en 1 à 2 min : le lien, l'espace client et le mot de passe arrivent sur Telegram.</div>
+          <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="E-mail du patron (vide = celui du démarchage)" style={{ ...input, marginTop: 7 }} />
+          {tarifs && (<div style={{ marginTop: 9 }}>
+            <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 5 }}>Formule choisie par le client</div>
+            <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>{(['DZ', 'FR'] as const).map(c => <button key={c} onClick={() => { setCountry(c); setPack(''); }} style={btn(country === c ? C.blue : 'rgba(255,255,255,0.06)', country === c ? '#04152b' : C.text)}>{c === 'DZ' ? '🇩🇿 Algérie' : '🇫🇷 France'}</button>)}</div>
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>{tarifs.packs.filter(p => p.country === country).map(p => <button key={p.id} onClick={() => setPack(pack === p.id ? '' : p.id)} style={btn(pack === p.id ? C.accent : 'rgba(255,255,255,0.06)', pack === p.id ? '#06210f' : C.text)}>{p.name}</button>)}</div>
+            {chosen && <div style={{ fontSize: 11.5, color: C.accent, marginTop: 5 }}>{packPrice(chosen)}</div>}
+            {chosen && chosen.once == null && <div style={{ display: 'flex', gap: 5, marginTop: 6 }}>{(['mois', 'an'] as const).map(x => <button key={x} onClick={() => setPeriod(x)} style={btn(period === x ? C.blue : 'rgba(255,255,255,0.06)', period === x ? '#04152b' : C.text)}>{x === 'mois' ? 'Payé au mois' : 'Payé à l\'année'}</button>)}</div>}
+            {chosen && <input value={paid} onChange={e => setPaid(e.target.value.replace(/[^0-9]/g, ''))} inputMode="numeric" placeholder={`Montant déjà reçu (vide = pas encore payé, 0 = prix normal) en ${chosen.currency}`} style={{ ...input, marginTop: 6 }} />}
+          </div>)}
+          <button onClick={() => { void onCreate(info.trim(), email.trim(), chosen ? { pack: chosen.id, country, period: chosen.once != null ? 'unique' : period, ...(paid !== '' ? { paid_amount: Number(paid) } : {}) } : {}).then(ok => { if (ok) setForm(false); }); }} style={{ ...btn(C.accent, '#06210f'), marginTop: 8, width: '100%' }}>✅ Créer le vrai site</button>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>Prêt en 1 à 2 min : site, abonnement, paiement et espace client. Dzaryx te prévient sur Telegram ; il ne restera que le nom de domaine.</div>
         </div>
       )}
     </div>
@@ -165,7 +185,7 @@ function SiteCard({ s, open, onToggle, act, onRead }: { s: ClientSiteRow; open: 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
           <div style={{ fontSize: 11, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {KIND[s.kind] ?? s.kind}{b ? ` · ${money(b.monthly, b.currency)}/mois` : ' · abonnement à régler'}{s.domain ? ` · ${s.domain.name}` : ''}
+            {KIND[s.kind] ?? s.kind}{s.pack ? ` · ${s.pack.name}` : ''}{b ? ` · ${money(b.monthly, b.currency)}/mois` : ' · abonnement à régler'} · client depuis {s.clientFor}
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
@@ -182,6 +202,76 @@ function Badge({ color, children }: { color: string; children: React.ReactNode }
   return <span style={{ fontSize: 13.5, fontWeight: 700, color, border: `1px solid ${color}55`, borderRadius: 20, padding: '3px 8px', whiteSpace: 'nowrap' }}>{children}</span>;
 }
 
+function TarifsSection({ t, onEdit }: { t: SiteTarifs; onEdit: (changes: string) => Promise<boolean> }) {
+  const [open, setOpen] = useState(false);
+  const [country, setCountry] = useState<'DZ' | 'FR'>('DZ');
+  const [changes, setChanges] = useState('');
+  return (
+    <Section title="💶 Mes tarifs FIK Sites" hint={`Ce que tu proposes aux clients. Grille du ${fmtDay(t.updatedAt)}.`}>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 13, padding: 12 }}>
+        <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+          {(['DZ', 'FR'] as const).map(c => <button key={c} onClick={() => setCountry(c)} style={btn(country === c ? C.blue : 'rgba(255,255,255,0.06)', country === c ? '#04152b' : C.text)}>{c === 'DZ' ? '🇩🇿 Algérie' : '🇫🇷 France'}</button>)}
+          <span style={{ flex: 1 }} />
+          <button onClick={() => setOpen(!open)} style={btn('rgba(255,255,255,0.07)', C.text)}>{open ? 'Réduire' : 'Détails'}</button>
+        </div>
+        {t.packs.filter(p => p.country === country).map(p => (
+          <div key={p.id} style={{ borderTop: `1px solid ${C.border}`, marginTop: 9, paddingTop: 9 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <b style={{ fontSize: 13.5 }}>{p.name}</b>
+              <span style={{ fontSize: 12.5, color: C.accent, fontWeight: 700, textAlign: 'right' }}>{packPrice(p)}</span>
+            </div>
+            <div style={{ fontSize: 11.5, color: C.muted }}>{p.for}</div>
+            {open && p.includes.map((x, i) => <div key={i} style={{ fontSize: 12, marginTop: 2 }}>✓ {x}</div>)}
+          </div>
+        ))}
+        <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 9, paddingTop: 9, fontSize: 12 }}>
+          {t.options.filter(o => o.country === country).map(o => <div key={o.id}>➕ <b>{o.name}</b>{o.monthly ? ` +${money(o.monthly, o.currency)}/mois` : ''}{o.once ? ` ${money(o.once, o.currency)}` : ''} <span style={{ color: C.muted }}>— {o.note}</span></div>)}
+          <div style={{ color: C.gold, marginTop: 6 }}>🎁 {t.offers[country]}</div>
+        </div>
+        {open && (<div style={{ marginTop: 10 }}>
+          <input value={changes} onChange={e => setChanges(e.target.value)} placeholder="Changer un prix : « passe le Pro France à 45 € »" style={input} />
+          <button disabled={!changes.trim()} onClick={() => { void onEdit(changes.trim()).then(ok => { if (ok) setChanges(''); }); }} style={{ ...btn(C.blue, '#04152b'), marginTop: 7, width: '100%', opacity: changes.trim() ? 1 : 0.5 }}>Mettre à jour les tarifs</button>
+        </div>)}
+      </div>
+    </Section>
+  );
+}
+
+function ClientFile({ s, act }: { s: ClientSiteRow; act: Act }) {
+  const c = s.contact;
+  const cur = s.billing?.currency ?? '';
+  return (
+    <Block title="👤 FICHE CLIENT">
+      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '3px 10px', fontSize: 12.5 }}>
+        {c?.name && <><span style={{ color: C.muted }}>Contact</span><span>{c.name}</span></>}
+        {c?.phone && <><span style={{ color: C.muted }}>Téléphone</span><a href={`tel:${c.phone.replace(/\s/g, '')}`} style={{ color: C.blue }}>{c.phone}</a></>}
+        {(c?.email || s.account) && <><span style={{ color: C.muted }}>E-mail</span><a href={`mailto:${c?.email ?? s.account}`} style={{ color: C.blue, wordBreak: 'break-all' }}>{c?.email ?? s.account}</a></>}
+        <span style={{ color: C.muted }}>Adresse</span><span>{s.address}</span>
+        <span style={{ color: C.muted }}>Client depuis</span><span><b>{s.clientFor}</b> (le {fmtDay(s.clientSince)})</span>
+        <span style={{ color: C.muted }}>Formule</span><span>{s.pack ? `${s.pack.name} · ${PERIOD[s.pack.period]}` : 'pas encore choisie'}</span>
+        <span style={{ color: C.muted }}>Il paie</span><span>{s.billing ? (s.pack?.period === 'unique' ? `${money(s.billing.monthly * 12, cur)}/an (hébergement)` : `${money(s.billing.monthly, cur)}/mois`) : '—'}</span>
+        <span style={{ color: C.muted }}>Total payé</span><span style={{ color: C.accent, fontWeight: 700 }}>{money(s.totalPaid, cur)}</span>
+        <span style={{ color: C.muted }}>Services</span><span>{s.services.length ? s.services.join(' · ') : '—'}</span>
+      </div>
+      <PackChanger s={s} act={act} />
+    </Block>
+  );
+}
+
+function PackChanger({ s, act }: { s: ClientSiteRow; act: Act }) {
+  const [open, setOpen] = useState(false);
+  const [pack, setPack] = useState(s.pack?.name.toLowerCase() ?? '');
+  const [period, setPeriod] = useState<'mois' | 'an'>(s.pack?.period === 'an' ? 'an' : 'mois');
+  if (!open) return <button onClick={() => setOpen(true)} style={{ ...btn('rgba(255,255,255,0.07)', C.text), marginTop: 8 }}>{s.pack ? 'Changer de formule' : 'Choisir sa formule'}</button>;
+  return (
+    <div style={{ marginTop: 8, display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
+      {['vitrine', 'pro', 'unique'].map(p => <button key={p} onClick={() => setPack(p)} style={btn(pack === p ? C.accent : 'rgba(255,255,255,0.06)', pack === p ? '#06210f' : C.text)}>{p === 'unique' ? 'Achat unique' : p[0]!.toUpperCase() + p.slice(1)}</button>)}
+      {pack !== 'unique' && (['mois', 'an'] as const).map(x => <button key={x} onClick={() => setPeriod(x)} style={btn(period === x ? C.blue : 'rgba(255,255,255,0.06)', period === x ? '#04152b' : C.text)}>{x === 'mois' ? 'Au mois' : 'À l\'année'}</button>)}
+      <button disabled={!pack} onClick={() => { void act('pack', { pack, period: pack === 'unique' ? 'unique' : period }).then(ok => { if (ok) setOpen(false); }); }} style={btn(C.accent, '#06210f')}>Valider</button>
+    </div>
+  );
+}
+
 function SiteDetail({ s, act, onRead }: { s: ClientSiteRow; act: Act; onRead: () => void }) {
   const copy = (t: string) => { void navigator.clipboard?.writeText(t); };
   return (
@@ -192,6 +282,7 @@ function SiteDetail({ s, act, onRead }: { s: ClientSiteRow; act: Act; onRead: ()
         <button onClick={() => copy(s.adminUrl)} style={btn('rgba(255,255,255,0.07)', C.text)}>📋 Lien espace client</button>
         <OpenAsMe s={s} />
       </div>
+      <ClientFile s={s} act={act} />
       <BillingBlock s={s} act={act} />
       <MessagesBlock s={s} onRead={onRead} />
       <EditBlock s={s} act={act} />

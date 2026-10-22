@@ -12,6 +12,7 @@ import {
   type Place, type Content, type OfferItem, FONT_PAIRS, HEX, esc, renderHtml, deployNetlify, slugify, loadDemo, formKind,
 } from './demo-site.js';
 import { adminPageHtml } from './client-site-admin.js';
+import { type Country, type Pack, getTarifs, tarifsText, editTarifs, countryOf, findPack, packPrice } from './site-tarifs.js';
 
 // FIK SITES — les VRAIS sites des clients de Kouider (plan A). Une démo (create_demo_site) devient un vrai site :
 // Kouider donne les vraies infos, Dzaryx remplace ce qui était inventé, enlève l'étiquette « démo » et met en ligne.
@@ -34,6 +35,8 @@ export interface ClientSite {
   siteV?: number;    // version de la page publique (SITE_VERSION)
   statsSince?: string; // date du début du comptage des visites
   visibility?: import('./site-visibility.js').Visibility;  // pack visibilité (post Google + Instagram chaque semaine)
+  pack?: { id: string; name: string; country: Country; period: 'mois' | 'an' | 'unique'; since: string };   // formule de la grille de prix
+  contact?: { name?: string; phone?: string; email?: string; city?: string; prospectId?: string };          // fiche client
 }
 export interface Payment { at: string; amount: number; months: number; note?: string }
 export interface Billing {
@@ -203,6 +206,29 @@ async function copyDemoPhotos(siteId: string, demoUrl: string): Promise<string[]
   return out;
 }
 
+/** Prospect du démarchage à qui cette démo a été envoyée (la note « Démo envoyée : <lien> »). */
+async function prospectOfDemo(demoUrl: string): Promise<{ id: string; contact_name: string | null; phone: string | null; email: string | null; city: string } | null> {
+  const { data } = await supabase.from('prospects').select('id, contact_name, phone, email, city').ilike('notes', `%${demoUrl}%`).limit(1);
+  return (data?.[0] as never) ?? null;
+}
+
+/** Règle la formule de la grille de prix (abonnement) et note le paiement reçu s'il y en a un. */
+export async function applyPack(s: ClientSite, pack: Pack, period: 'mois' | 'an' | 'unique', paid: number | null, note: string): Promise<string> {
+  if (pack.once != null) period = 'unique';
+  else if (period === 'unique') period = 'mois';
+  // Abonnement : prix du mois ; payé à l'année → 12 mois couverts. Achat unique : l'hébergement annuel est l'« abonnement ».
+  const monthly = period === 'unique' ? Math.round((pack.renewal ?? 0) / 12) : pack.monthly ?? 0;
+  const err = setBilling(s, { monthly, currency: pack.currency, paid_until: s.billing?.paidUntil ?? todayDz() });
+  if (err) return err;
+  s.pack = { id: pack.id, name: pack.name, country: pack.country, period, since: s.pack?.since ?? new Date().toISOString() };
+  if (paid == null) { await saveSite(s); return ''; }
+  const months = period === 'mois' ? Math.max(1, Math.round(paid / Math.max(1, monthly))) : 12;
+  return markPaid(s, paid || (period === 'an' ? pack.yearly : period === 'unique' ? pack.once : monthly), months, note);
+}
+
+/** Nom de domaine à proposer : nom du commerce + .com (Algérie) / .fr (France). */
+const domainIdea = (s: ClientSite) => `${slugify(s.name).replace(/-/g, '') || 'monsite'}.${(s.pack?.country ?? countryOf(s.place.address, s.place.phone)) === 'DZ' ? 'com' : 'fr'}`;
+
 export async function buildClientSite(demoName: string, realInfo: string, email: string): Promise<{ site: ClientSite; password?: string }> {
   const demo = await loadDemo(demoName);
   if (!demo) throw new Error(`aucune démo trouvée pour « ${demoName} » (fais d'abord la démo avec son lien Google Maps)`);
@@ -221,6 +247,14 @@ export async function buildClientSite(demoName: string, realInfo: string, email:
     realInfo ? applyInstructions(site, realInfo) : Promise.resolve({ place: site.place, content: site.content }),
   ]);
   site = { ...site, ...edited, name: edited.place.name, photos };
+  const prospect = await prospectOfDemo(demo.url);
+  site.contact = {
+    ...(prospect?.contact_name ? { name: prospect.contact_name } : {}),
+    ...((prospect?.phone || site.place.phone) ? { phone: prospect?.phone || site.place.phone || '' } : {}),
+    ...((email || prospect?.email) ? { email: (email || prospect!.email)!.toLowerCase() } : {}),
+    ...((prospect?.city) ? { city: prospect.city } : {}), ...(prospect ? { prospectId: prospect.id } : {}),
+  };
+  if (!email && prospect?.email && EMAIL.test(prospect.email)) email = prospect.email;   // espace client à l'e-mail du démarchage
   let password: string | undefined;
   if (email) {
     password = newPassword();
@@ -260,12 +294,27 @@ export function createClientSite(input: Record<string, unknown>): string {
   if (email && !EMAIL.test(email)) return `❌ E-mail du client invalide : « ${email} ».`;
   const key = `create:${demo.toLowerCase()}`;
   if (running.has(key)) return '⏳ Ce site est déjà en préparation : le lien arrive sur Telegram et dans l\'app.';
+  const packName = str(input['pack'], 40);
+  const period = (['mois', 'an', 'unique'] as const).find(x => x === str(input['period'], 10)) ?? 'mois';
+  const paid = input['paid_amount'] != null && input['paid_amount'] !== '' ? Number(input['paid_amount']) : input['paid'] === true ? 0 : null;
   inBackground(key, async () => {
     const { site, password } = await buildClientSite(demo, realInfo, email);
-    return `🌐 Vrai site « ${site.name} » en ligne (sans l'étiquette démo) :\n${site.url}${loginLines(site, password)}${inventedLines(site)}`;
+    let billingLine = '';
+    if (packName) {
+      const country = (str(input['country'], 2).toUpperCase() as Country) || countryOf(site.place.address, site.place.phone);
+      const pack = await findPack(packName, country === 'DZ' ? 'DZ' : 'FR');
+      if (pack) {
+        const r = await applyPack(site, pack, period, paid, str(input['payment_note'], 200));
+        billingLine = `\n\n💳 Formule ${pack.name} (${packPrice(pack)})${r ? `\n${r}` : ''}`;
+      } else billingLine = `\n\n⚠️ Formule « ${packName} » introuvable dans la grille : dis-moi laquelle (manage_client_site action=pack).`;
+    }
+    if (site.contact?.prospectId) await supabase.from('prospects').update({ status: 'client' }).eq('id', site.contact.prospectId);
+    return `✅ C'est fait : le vrai site « ${site.name} » est créé et en ligne (sans l'étiquette démo) :\n${site.url}${billingLine}${loginLines(site, password)}${inventedLines(site)}` +
+      `\n\n👉 Il ne te reste QUE le nom de domaine : achète-le (idée : ${domainIdea(site)}), puis dis-moi « domaine ${domainIdea(site)} pour ${site.name} ». ` +
+      `Je le branche, je te donne les 2 réglages DNS à copier, et je vérifie chaque jour jusqu'à ce que le cadenas (https) soit actif.`;
   });
   return '⏳ Je transforme la démo en vrai site (1 à 2 minutes) : vraies infos à la place de ce qui était inventé, photos, mise en ligne' +
-    `${email ? ', espace client' : ''}. Le lien${email ? ' et les identifiants arrivent' : ' arrive'} sur Telegram et dans l'app.`;
+    `${email ? ', espace client' : ''}${packName ? ', abonnement' : ''}. Je te dis sur Telegram et dans l'app quand c'est fini : il ne restera que le nom de domaine.`;
 }
 
 // ── Gestion (Kouider) ────────────────────────────────────────────────────────
@@ -278,6 +327,10 @@ export async function manageClientSite(input: Record<string, unknown>): Promise<
     return `Sites clients (${index.length}) :\n${index.map(r => `- ${r.name} — ${r.url}${r.status === 'paused' ? ' (EN PAUSE)' : ''}`).join('\n')}`;
   }
   if (action === 'report') return billingReport();
+  if (action === 'tarifs') {   // grille de prix : la lire, ou la changer (changes)
+    const changes = str(input['changes'], 4000);
+    return changes ? editTarifs(changes) : tarifsText();
+  }
   const s = await findSite(name);
   if (!s) {
     const index = await readIndex();
@@ -298,9 +351,19 @@ export async function manageClientSite(input: Record<string, unknown>): Promise<
       return (await import('./site-visibility.js')).setVisibility(s, input['visibility'] !== false, input['visibility_monthly']);
     case 'visibility_post':  // post de la semaine maintenant : aperçu, ou envoyé au patron si send=true
       return (await import('./site-visibility.js')).visibilityPost(s, input['send'] === true);
+    case 'pack': {         // changer / régler la formule (pack, period, paid_amount)
+      const pack = await findPack(str(input['pack'], 40), (str(input['country'], 2).toUpperCase() as Country) || s.pack?.country || countryOf(s.place.address, s.place.phone));
+      if (!pack) return `❌ Formule inconnue. Grille :\n${await tarifsText()}`;
+      const period = (['mois', 'an', 'unique'] as const).find(x => x === str(input['period'], 10)) ?? s.pack?.period ?? 'mois';
+      const paid = input['paid_amount'] != null && input['paid_amount'] !== '' ? Number(input['paid_amount']) : null;
+      const r = await applyPack(s, pack, period, paid, str(input['note'], 200));
+      return `💳 « ${s.name} » : formule ${pack.name} (${packPrice(pack)}), ${s.pack!.period === 'an' ? 'payée à l\'année' : s.pack!.period === 'unique' ? 'achat unique' : 'au mois'}.${r ? `\n${r}` : ''}`;
+    }
     case 'info':
       return [
         `« ${s.name} » — ${s.url} (${s.status === 'paused' ? 'EN PAUSE' : 'en ligne'}, mis à jour le ${s.updatedAt.slice(0, 10)})`,
+        `Client depuis le ${frDate(clientSince(s))} (${sinceText(clientSince(s))})${s.contact ? ` — ${[s.contact.name, s.contact.phone, s.contact.email, s.contact.city].filter(Boolean).join(' · ')}` : ''}`,
+        s.pack ? `Formule : ${s.pack.name} (${s.pack.period}) — total payé ${money(totalPaid(s), s.billing?.currency ?? '')}` : 'Formule : pas encore choisie',
         s.account ? `Espace client : ${adminUrl(s)} — e-mail ${s.account.email}` : 'Pas d\'espace client (action=account avec client_email pour le créer).',
         `Adresse ${s.place.address} ; tél. ${s.place.phone ?? '—'} ; horaires : ${s.place.hours.join(' | ') || '—'}`,
         `${s.content.offerTitle} : ${s.content.offer.map(g => `${g.group} (${g.items.map(i => `${i.name}${i.price ? ` ${i.price}` : ''}`).join(', ')})`).join(' ; ')}`,
@@ -374,7 +437,7 @@ export async function manageClientSite(input: Record<string, unknown>): Promise<
       return `📨 Messages du site « ${s.name} » envoyés à ${s.notify.email ?? s.account?.email ?? '(personne : ajoute un e-mail)'}${s.notify.kouider ? ', avec une copie pour toi sur Telegram' : ''}.`;
     }
     default:
-      return `❌ Action inconnue « ${action} » (list, info, edit, pause, resume, account, domain, domain_check, domain_remove, billing, paid, report, messages, notify, stats, send_report, visibility, visibility_post).`;
+      return `❌ Action inconnue « ${action} » (list, info, tarifs, pack, edit, pause, resume, account, domain, domain_check, domain_remove, billing, paid, report, messages, notify, stats, send_report, visibility, visibility_post).`;
   }
 }
 
@@ -516,6 +579,14 @@ const dayDiff = (from: string, to: string) => Math.round((Date.parse(`${to}T00:0
 /** Jours de retard (> 0), 0 = dû aujourd'hui ou à jour, < 0 = jours avant l'échéance. */
 export const lateDays = (b: Billing) => dayDiff(b.paidUntil, todayDz());
 const money = (n: number, cur: string) => `${n.toLocaleString('fr-FR')} ${cur}`;
+/** Client depuis : 1er paiement, sinon mise en ligne du vrai site. */
+export const clientSince = (s: ClientSite) => (s.billing?.payments.at(-1)?.at ?? s.pack?.since ?? s.createdAt).slice(0, 10);
+export const totalPaid = (s: ClientSite) => (s.billing?.payments ?? []).reduce((a, p) => a + p.amount, 0);
+export function sinceText(day: string): string {
+  const d = Math.max(0, Math.floor((Date.now() - Date.parse(`${day}T00:00:00Z`)) / 86_400_000));
+  const m = Math.floor(d / 30.44);
+  return d === 0 ? 'nouveau client' : d < 31 ? `${d} jour${d > 1 ? 's' : ''}` : m < 12 ? `${m} mois` : `${Math.floor(m / 12)} an${m >= 24 ? 's' : ''}${m % 12 ? ` et ${m % 12} mois` : ''}`;
+}
 const frDate = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 
 export function setBilling(s: ClientSite, v: { monthly?: unknown; currency?: unknown; paid_until?: unknown; auto_pause?: unknown; grace_days?: unknown }): string {
@@ -620,6 +691,9 @@ export async function sitesOverview() {
       billing: x.billing ? { ...x.billing, late: lateDays(x.billing) } : null,
       notify: { email: x.notify?.email ?? null, kouider: !!x.notify?.kouider },
       unread: msgs.filter(m => !m.read).length, messages: msgs.slice(0, 30),
+      pack: x.pack ?? null, contact: x.contact ?? null, address: x.place.address,
+      clientSince: clientSince(x), clientFor: sinceText(clientSince(x)), totalPaid: totalPaid(x),
+      services: [x.pack ? `Formule ${x.pack.name}` : null, x.visibility ? 'Pack visibilité' : null, x.domain ? `Domaine ${x.domain.name}` : null, x.account ? 'Espace client' : null].filter(Boolean),
     };
   }));
   const demos = JSON.parse((await kvGet('demo:sites')) ?? '[]') as Array<{ slug: string; name: string; url: string; createdAt: string }>;
@@ -627,7 +701,7 @@ export async function sitesOverview() {
   const mrr: Record<string, number> = {};
   for (const x of sites) if (x.billing && x.status === 'live') mrr[x.billing.currency] = (mrr[x.billing.currency] ?? 0) + x.billing.monthly;
   return {
-    sites: rows,
+    sites: rows, tarifs: await getTarifs(),
     demos: demos.map(d => ({ ...d, converted: converted.has(d.slug) })),
     stats: {
       live: sites.filter(x => x.status === 'live').length, paused: sites.filter(x => x.status === 'paused').length,

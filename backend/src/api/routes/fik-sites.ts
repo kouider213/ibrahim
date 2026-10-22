@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { sitesOverview, manageClientSite, createClientSite, getSite, markMessagesRead, openAsStaff } from '../../integrations/client-sites.js';
 import { createDemoSite } from '../../integrations/demo-site.js';
+import { editTarifs, tarifsText, getTarifs } from '../../integrations/site-tarifs.js';
 
 // Page « Sites clients » de l'app Dzaryx (Kouider) : démos, vrais sites, abonnements, domaines, messages.
 // Les actions passent par les mêmes fonctions que les outils vocaux (manage_client_site), donc même comportement.
@@ -18,17 +19,21 @@ router.get('/overview', async (_req, res) => {
   catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : 'Erreur' }); }
 });
 
+router.post('/tarifs', async (req, res) => {
+  const changes = String((req.body ?? {}).changes ?? '').trim();
+  res.json({ message: changes ? await editTarifs(changes) : await tarifsText(), tarifs: await getTarifs() });
+});
+
 router.post('/demo', (req, res) => {
   const { link, notes } = (req.body ?? {}) as Record<string, unknown>;
   res.json({ message: createDemoSite({ link, notes }) });
 });
 
 router.post('/create', (req, res) => {
-  const { demo, real_info, client_email } = (req.body ?? {}) as Record<string, unknown>;
-  res.json({ message: createClientSite({ demo, real_info, client_email }) });
+  res.json({ message: createClientSite(req.body ?? {}) });
 });
 
-const ACTIONS = ['info', 'edit', 'pause', 'resume', 'account', 'domain', 'domain_check', 'domain_remove', 'billing', 'paid', 'notify'];
+const ACTIONS = ['info', 'pack', 'edit', 'pause', 'resume', 'account', 'domain', 'domain_check', 'domain_remove', 'billing', 'paid', 'notify'];
 
 router.post('/:id/action', async (req, res) => {
   const body = (req.body ?? {}) as Record<string, unknown>;

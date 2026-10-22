@@ -952,9 +952,14 @@ export interface ClientSiteRow {
   billing: { monthly: number; currency: string; paidUntil: string; autoPause: boolean; graceDays: number; late: number;
     payments: Array<{ at: string; amount: number; months: number; note?: string }> } | null;
   notify: { email: string | null; kouider: boolean }; unread: number; messages: SiteMessage[];
+  pack: { id: string; name: string; country: 'DZ' | 'FR'; period: 'mois' | 'an' | 'unique'; since: string } | null;
+  contact: { name?: string; phone?: string; email?: string; city?: string } | null; address: string;
+  clientSince: string; clientFor: string; totalPaid: number; services: string[];
 }
+export interface SitePack { id: string; country: 'DZ' | 'FR'; name: string; currency: string; for: string; includes: string[]; monthly?: number; yearly?: number; once?: number; renewal?: number }
+export interface SiteTarifs { updatedAt: string; packs: SitePack[]; options: Array<{ id: string; country: 'DZ' | 'FR'; name: string; currency: string; monthly?: number; once?: number; note: string }>; offers: Record<'DZ' | 'FR', string> }
 export interface SitesOverview {
-  sites: ClientSiteRow[];
+  sites: ClientSiteRow[]; tarifs?: SiteTarifs;
   demos: Array<{ slug: string; name: string; url: string; createdAt: string; converted: boolean }>;
   stats: { live: number; paused: number; late: number; unread: number; mrr: Record<string, number> };
 }
@@ -1077,8 +1082,9 @@ export const business = {
   prospectsOverview: () => apiFetch<ProspectsOverview>('/api/prospects/overview'),
   sitesOverview: () => apiFetch<SitesOverview>('/api/fik-sites/overview'),
   sitesDemo: (link: string, notes: string) => apiFetch<{ message: string }>('/api/fik-sites/demo', { method: 'POST', body: JSON.stringify({ link, notes }) }),
-  sitesCreate: (demo: string, real_info: string, client_email: string) =>
-    apiFetch<{ message: string }>('/api/fik-sites/create', { method: 'POST', body: JSON.stringify({ demo, real_info, client_email }) }),
+  sitesCreate: (demo: string, real_info: string, client_email: string, extra: { pack?: string; period?: string; paid_amount?: number; country?: string } = {}) =>
+    apiFetch<{ message: string }>('/api/fik-sites/create', { method: 'POST', body: JSON.stringify({ demo, real_info, client_email, ...extra }) }),
+  sitesTarifs: (changes = '') => apiFetch<{ message: string; tarifs: SiteTarifs }>('/api/fik-sites/tarifs', { method: 'POST', body: JSON.stringify({ changes }) }),
   siteAction: (id: string, action: string, params: Record<string, unknown> = {}) =>
     apiFetch<{ message: string }>(`/api/fik-sites/${encodeURIComponent(id)}/action`, { method: 'POST', body: JSON.stringify({ ...params, action }) }),
   siteOpenAdmin: (id: string) => apiFetch<{ url: string }>(`/api/fik-sites/${encodeURIComponent(id)}/open-admin`, { method: 'POST' }),
