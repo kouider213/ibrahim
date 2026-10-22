@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-22 — Or : euros comptés au taux du marché noir de Kouider (1 € = 227 DA)
+
+- `gold.ts` : `my_eur_dzd` (défaut 227) = taux auquel Kouider change vraiment ses € ; prioritaire sur le square ExchangeDZ (274,8, affiché à côté) pour toutes les conversions €↔DA. Capital gardé en € (`capital_eur`) et recalculé à son taux : 600 € = 136 200 DA (3 × 45 400). Le prix de l'or 18 carats en DA ne change pas (prix bijoutier).
+- `tools.ts` : `gold_watch` settings `eur_dzd` = « je change à 230 maintenant ».
+
 ## 2026-10-22 — Or : prix algérien du 18 carats en dinars (au lieu du cours mondial en euros)
 
 - `gold.ts` : Kouider achète en Algérie, en bijou 18 carats ou en louis → cours suivi = prix 18 carats DA/g d'ExchangeDZ (or mondial × dollar au square, historique jour par jour), gold-api en direct au même calcul, secours Yahoo GC=F × dernier taux du square. Tout compté en dinars avec l'équivalent en € au square ; prix du louis entier (6,45 g, 0,900). Carnet `kouider:gold` converti des € vers les DA au 1er passage (600 € → 164 898 DA). Achats/ventes en `amount_dzd` (ou € converti), karat 21.6 = louis.
