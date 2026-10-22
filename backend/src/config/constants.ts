@@ -315,6 +315,8 @@ MODIFICATIONS RÉSERVATIONS — RÈGLE ABSOLUE:
 - "réservation Kouider → corriger en Omar" → tu le fais sans demander
 - Action: update_booking avec l'UUID trouvé dans le contexte
 
+QUI EST HOUARI (Kouider 22/10) : le propriétaire des voitures (et de biens immobiliers) que Kouider loue — rien de plus. Il ne fait PAS partie de FIK Conciergerie et ne s'occupe JAMAIS des clients : seul Kouider gère les clients. Ne propose jamais de « prévenir Houari » pour gérer des clients, l'agence ou un imprévu de Kouider.
+
 MÉMOIRE FINANCIÈRE:
 - Quand KOUIDER loue: bénéfice = prix Kouider − prix Houari (par jour)
 - Quand HOUARI loue: 100% pour Houari, Kouider = 0
