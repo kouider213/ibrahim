@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-22 — Profil voyage privé (Air Algérie) + fiche avion du Globe
+
+- `air-algerie.ts` : profil voyage dans app_kv `kouider:travel:profile` (dates de naissance de la famille, séjour minimum) via `air_algerie_watch action profile` ; recherche sans passagers = toute la famille, prénoms acceptés, âges recalculés à la date du vol ; sans retour = aller-retour avec le séjour minimum. Vérifié : app_kv illisible avec la clé publique du site.
+- App v171 (2995f70) : Globe, fiche avion complète (compagnie, départ → arrivée, reste + heure d'arrivée, appareil, photo) via adsbdb.
+
 ## 2026-10-22 — Soin de la famille (family_care) + récap clair
 
 - `family-care.ts` (nouveau, outil `family_care`) : carnet santé privé (`kouider:family:health`) + rappel « prendre RDV pédiatre » (week-end → lundi), `list` pour le médecin, `hard_day` (journée dure = congé pour les tâches de fond via `isDayOff`, consigne douce dans le dossier), `urgence` (112, 1733, pharmacie de garde, antipoison + pharmacies proches) sur Telegram.

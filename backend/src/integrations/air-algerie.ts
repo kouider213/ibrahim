@@ -16,6 +16,16 @@ import { API_BASE } from './client-sites.js';
 // Tarifs vus le 2026-10-20 : Light = SANS bagage en soute, Economique Promo = 1 × 23 kg par passager.
 
 const SITE = 'https://airalgerie.dz/';
+
+// PROFIL VOYAGE (Kouider 22/10 : « retiens ces infos pour les prochaines fois, sauf les dates ») : dates de naissance de la
+// famille (les âges se recalculent à chaque vol) + aller-retour par défaut, minimum N jours sur place.
+// Privé : dans app_kv, jamais dans le code (dépôt public).
+const PROFILE_KEY = 'kouider:travel:profile';
+interface TravelProfile { family: Array<{ name: string; birth: string }>; min_stay_days: number }
+async function travelProfile(): Promise<TravelProfile> {
+  try { const p = JSON.parse((await kvGet(PROFILE_KEY)) ?? 'null') as TravelProfile | null; if (p) return p; } catch { /* défaut */ }
+  return { family: [], min_stay_days: 0 };
+}
 const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
 const fr = (iso: string) => iso.split('-').reverse().join('/');
 const amadeus = (iso: string) => iso.replace(/-/g, '') + '0000';
@@ -67,8 +77,11 @@ export async function airAlgerieSearchTool(input: Record<string, unknown>, sessi
   let depart = String(input['depart_date'] ?? '').trim();
   let ret = String(input['return_date'] ?? '').trim();
   const month = String(input['month'] ?? '').trim();               // AAAA-MM : « une date en janvier »
-  const stay = Math.round(Number(input['stay_days'] ?? 0));        // nb de jours sur place (aller-retour)
+  let stay = Math.round(Number(input['stay_days'] ?? 0));        // nb de jours sur place (aller-retour)
   const oneWay = input['one_way'] === true;
+  const profile = await travelProfile();
+  // Rien dit sur le retour : aller-retour avec le séjour minimum de son profil (pas d'aller simple par défaut)
+  if (!ret && !stay && !oneWay && profile.min_stay_days > 0) stay = profile.min_stay_days;
   if (month && !/^\d{4}-\d{2}$/.test(month)) return '❌ Mois invalide (AAAA-MM).';
   if (!month && !isDate(depart)) return '❌ Il me faut la date de départ (AAAA-MM-JJ) ou le mois (AAAA-MM).';
   if (ret && !isDate(ret)) return '❌ Date de retour invalide (AAAA-MM-JJ).';
@@ -92,7 +105,11 @@ export async function airAlgerieSearchTool(input: Record<string, unknown>, sessi
   // Passagers : de préférence la liste des âges (ou dates de naissance) → bonne catégorie toute seule.
   // On prend l'âge au jour du RETOUR (dernier vol) : un bébé qui a 2 ans au retour doit avoir un siège enfant.
   const lastFlight = month ? addDays(centers.at(-1)!, 3 + tripDays) : (ret || depart);
-  const people = Array.isArray(input['passengers']) ? (input['passengers'] as unknown[]).map(x => String(x).trim()).filter(Boolean) : [];
+  // Prénoms de la famille → dates de naissance enregistrées ; family=true (ou rien du tout) → toute la famille
+  const birthOf = (p: string) => profile.family.find(f => f.name.toLowerCase() === p.toLowerCase())?.birth ?? p;
+  let people = Array.isArray(input['passengers']) ? (input['passengers'] as unknown[]).map(x => birthOf(String(x).trim())).filter(Boolean) : [];
+  const noPax = input['adults'] == null && input['children'] == null && input['infants'] == null;
+  if (!people.length && noPax && profile.family.length && input['family'] !== false) people = profile.family.map(f => f.birth);
   let adults: number, children: number, infants: number;
   const notes: string[] = [];
   if (people.length) {
@@ -344,6 +361,18 @@ export async function airAlgerieWatchTool(input: Record<string, unknown>): Promi
     act.forEach(w => { w.status = 'stopped'; });
     await saveWatches(list);
     return `🛑 Surveillance arrêtée : ${act.map(w => `${w.label}${w.best ? ` — meilleur prix vu ${euro(w.best.price)}` : ''}`).join(' ; ')}.`;
+  }
+  if (action === 'profile') {
+    const p = await travelProfile();
+    const fam = Array.isArray(input['family']) ? (input['family'] as Array<{ name?: string; birth?: string }>)
+      .filter(f => f.name && f.birth && isDate(String(f.birth))).map(f => ({ name: String(f.name).trim(), birth: String(f.birth) })) : null;
+    if (fam?.length) p.family = fam;
+    if (Number(input['min_stay_days']) > 0) p.min_stay_days = Math.round(Number(input['min_stay_days']));
+    if (fam?.length || Number(input['min_stay_days']) > 0) await kvSet(PROFILE_KEY, JSON.stringify(p));
+    const t = today();
+    return `${fam?.length || Number(input['min_stay_days']) > 0 ? '✅ Profil voyage enregistré.\n' : ''}`
+      + `Famille : ${p.family.length ? p.family.map(f => `${f.name} (né(e) le ${fr(f.birth)}, ${ageAt(f.birth, t)} an(s) aujourd'hui)`).join(', ') : 'pas encore enregistrée'}.\n`
+      + `Par défaut : aller-retour${p.min_stay_days ? `, ${p.min_stay_days} jours minimum sur place` : ''} ; les dates sont à donner à chaque recherche.`;
   }
   const act = list.filter(w => w.status === 'active');
   if (!act.length) return 'Aucune surveillance de vol en cours.';
