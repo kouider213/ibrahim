@@ -33,7 +33,7 @@ router.post('/create', (req, res) => {
   res.json({ message: createClientSite(req.body ?? {}) });
 });
 
-const ACTIONS = ['info', 'pack', 'edit', 'pause', 'resume', 'account', 'domain', 'domain_check', 'domain_remove', 'billing', 'paid', 'notify'];
+const ACTIONS = ['info', 'pack', 'edit', 'pause', 'resume', 'account', 'account_off', 'domain', 'domain_check', 'domain_remove', 'billing', 'paid', 'notify'];
 
 router.post('/:id/action', async (req, res) => {
   const body = (req.body ?? {}) as Record<string, unknown>;

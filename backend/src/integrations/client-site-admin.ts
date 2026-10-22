@@ -36,6 +36,7 @@ textarea{min-height:90px;resize:vertical}input:focus,textarea:focus{outline:2px 
 .ph .tag{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.65);color:#fff;font-size:.7rem;padding:3px 8px;border-radius:10px}
 .ph .tools{position:absolute;inset:auto 0 0 0;display:flex;justify-content:space-between;padding:6px;background:linear-gradient(transparent,rgba(0,0,0,.6))}
 .ph .tools button{background:rgba(255,255,255,.9);border:0;border-radius:8px;width:34px;height:30px;cursor:pointer;font-size:.9rem}
+.styles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}.stl{text-align:left;padding:12px;border-radius:12px;border:2px solid #e5e5e5;background:#fff;cursor:pointer;font:inherit;display:flex;flex-direction:column;gap:3px}.stl span{font-size:.8rem;color:#777}.stl.on{border-color:#111;background:#f6f6f4}
 .colors{display:flex;gap:16px}.colors input{height:46px;padding:4px;width:90px}
 .bar{position:sticky;top:56px;z-index:4;background:#fff;border-bottom:1px solid var(--line);padding:10px 16px;display:flex;gap:12px;align-items:center;justify-content:space-between}
 .bar .btn.main{padding:11px 18px;font-size:.95rem;flex:0 0 auto}
@@ -93,16 +94,23 @@ function render(){
     h('main',{},
       messagesCard(),
       card('Informations','Ce qui s\\'affiche en haut du site et dans le pied de page.',
-        ...field('Nom du commerce',p,'name'),...field('Phrase d\\'accroche',c,'tagline'),...field('Téléphone',p,'phone',{ph:'+213 …'}),...field('Adresse',p,'address')),
+        ...field('Nom du commerce',p,'name'),...field('Phrase d\\'accroche',c,'tagline'),...field('Phrase signature (mise en avant dans la présentation)',c,'signature'),...field('Téléphone',p,'phone',{ph:'+213 …'}),...field('Adresse',p,'address')),
       hoursCard(),
       aboutCard(),
       offerCard(),
       card('Points forts','Un par ligne (ex. « Terrasse », « Wi-Fi gratuit »).',linesArea(c,'highlights')),
       photosCard(),
+      styleCard(),
       card('Couleurs',null,h('div',{class:'colors'},color('Couleur principale','primary'),color('Couleur d\\'accent','accent'))),
       staff?null:passwordCard()));
 }
 
+const STYLES=[['luxe','Luxe','Fond sombre, doré, élégant'],['editorial','Magazine','Clair, grand titre, photo encadrée'],['vibrant','Vitaminé','Couleurs vives, formes arrondies'],['minimal','Épuré','Blanc, très grand texte'],['urban','Urbain','Noir, majuscules, néon']];
+function styleCard(){
+  const box=h('div',{class:'styles'});
+  const draw=()=>box.replaceChildren(...STYLES.map(([id,name,desc])=>h('button',{class:'stl'+(st.content.style===id?' on':''),type:'button',on:{click:()=>{st.content.style=id;touch();draw()}}},h('b',{text:name}),h('span',{text:desc}))));
+  draw();return card('Style du site','L\\'univers graphique de tout le site. Choisissez, puis « Publier » pour voir le résultat.',box);
+}
 function messagesCard(){
   const box=h('div',{},h('p',{class:'hint',text:'Chargement…'}));
   const fmt=iso=>new Date(iso).toLocaleString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});

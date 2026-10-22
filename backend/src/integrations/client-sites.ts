@@ -12,6 +12,7 @@ import {
   type Place, type Content, type OfferItem, FONT_PAIRS, HEX, esc, renderHtml, deployNetlify, slugify, loadDemo, formKind,
 } from './demo-site.js';
 import { adminPageHtml } from './client-site-admin.js';
+import { STYLES, STYLE_HINT, styleOf } from './site-design.js';
 import { type Country, type Pack, getTarifs, tarifsText, editTarifs, countryOf, findPack, packPrice } from './site-tarifs.js';
 
 // FIK SITES — les VRAIS sites des clients de Kouider (plan A). Une démo (create_demo_site) devient un vrai site :
@@ -53,8 +54,8 @@ const INDEX = 'fik:sites';
 const BUCKET = 'fik-sites';
 const SESSION_DAYS = 30;
 export const MAX_PHOTOS = 20;
-const ADMIN_VERSION = 2;   // à monter quand client-site-admin.ts change
-const SITE_VERSION = 2;    // 2 = compteur de visites (bilan mensuel) ; les sites plus vieux sont republiés par le job du matin
+const ADMIN_VERSION = 3;   // à monter quand client-site-admin.ts change (3 = choix du style + phrase signature)
+const SITE_VERSION = 3;    // 2 = compteur de visites ; 3 = nouveau design FIK (styles uniques) ; les sites plus vieux sont republiés par le job du matin
 const STAFF_HOURS = 2;
 export const API_BASE = () => process.env['PUBLIC_API_URL'] ?? 'https://ibrahim-backend-production.up.railway.app';
 export const publicUrl = (s: ClientSite) => (s.domain?.status === 'active' ? `https://${s.domain.name}` : s.url);
@@ -165,6 +166,8 @@ export function cleanEdit(prev: ClientSite, raw: { place?: any; content?: any })
         light: HEX.test(pal.light) ? pal.light : prev.content.palette.light,
       },
       fonts,
+      ...((STYLES as readonly string[]).includes(str(c.style, 20)) ? { style: str(c.style, 20) } : {}),
+      ...('signature' in c ? { signature: str(c.signature, 200) } : {}),
       invented: 'invented' in c ? strList(c.invented, 30, 300) : prev.content.invented,
     },
   };
@@ -177,13 +180,14 @@ Tu reçois le JSON actuel du site et les consignes ou vraies infos données par 
 - Si Kouider donne de vraies infos (vrai menu, vrais prix, vraies prestations…), elles REMPLACENT entièrement ce qui avait été inventé pour la même partie.
 - "content.invented" liste ce qui est encore inventé : retire ce qui est maintenant remplacé par du vrai, garde le reste tel quel. N'invente rien de nouveau, sauf si Kouider le demande (et alors ajoute-le à "invented").
 - Horaires : une ligne par jour au format « lundi: 09:00 – 18:00 » (ou « lundi: Fermé »).
-Réponds UNIQUEMENT avec le JSON complet mis à jour, même forme : {"place": {"name","address","phone","hours"}, "content": {"tagline","about","offerTitle","offerIntro","offer","highlights","palette","invented"}}`;
+- "style" = univers graphique du site, à changer seulement si Kouider le demande : ${STYLES.map(x => STYLE_HINT[x]).join(' ; ')}. "signature" = la phrase signature mise en avant.
+Réponds UNIQUEMENT avec le JSON complet mis à jour, même forme : {"place": {"name","address","phone","hours"}, "content": {"tagline","about","offerTitle","offerIntro","offer","highlights","palette","style","signature","invented"}}`;
 
 async function applyInstructions(s: ClientSite, instructions: string): Promise<Pick<ClientSite, 'place' | 'content'>> {
   const current = {
     place: { name: s.place.name, address: s.place.address, phone: s.place.phone ?? '', hours: s.place.hours },
     content: { tagline: s.content.tagline, about: s.content.about, offerTitle: s.content.offerTitle, offerIntro: s.content.offerIntro,
-      offer: s.content.offer, highlights: s.content.highlights, palette: s.content.palette, invented: s.content.invented },
+      offer: s.content.offer, highlights: s.content.highlights, palette: s.content.palette, style: styleOf(s.content), signature: s.content.signature ?? '', invented: s.content.invented },
   };
   const r = await askJson<{ place?: unknown; content?: unknown }>(EDITOR,
     `SITE ACTUEL :\n${JSON.stringify(current, null, 1)}\n\nCONSIGNES DE KOUIDER :\n${instructions}`, 12000);
@@ -402,7 +406,22 @@ export async function manageClientSite(input: Record<string, unknown>): Promise<
       await saveSite(s);
       await revokeSessions(s.id);
       await queueTelegramMessage(`🔑 Espace client « ${s.name} » :\n${adminUrl(s)}\nE-mail : ${s.account.email}\nMot de passe : ${password}`).catch(() => {});
-      return `✅ Espace client prêt pour « ${s.name} » (${s.account.email}). Le lien et le nouveau mot de passe sont envoyés sur Telegram. Les anciennes connexions sont coupées.`;
+      let mailed = '';
+      if (input['send_to_client'] === true) {   // l'accès part directement au patron, par e-mail
+        mailed = await sendEmail('pro', { to: s.account.email, fromName: 'FIK Sites', subject: `Votre espace pour gérer le site ${s.name}`,
+          body: `Bonjour,\n\nVotre site ${publicUrl(s)} a son espace de gestion : vous pouvez y changer vous-même votre carte et vos prix, vos photos, vos horaires, vos textes, le style du site, et voir les réservations et messages reçus.\n\n` +
+            `Adresse : ${adminUrl(s)}\nE-mail : ${s.account.email}\nMot de passe : ${password}\n\nVous pourrez changer ce mot de passe dans l'espace, en bas de la page.\nUne question ? Répondez simplement à ce mail.\n\nKouider\nFIK Sites` })
+          .then(() => ' Je lui ai aussi envoyé ses accès par e-mail.').catch(err => ` ⚠️ E-mail au patron non parti (${err instanceof Error ? err.message : err}) : donne-lui les accès toi-même.`);
+      }
+      return `✅ Accès donné au patron de « ${s.name} » (${s.account.email}). Le lien et le mot de passe sont sur ton Telegram. Les anciennes connexions sont coupées.${mailed}`;
+    }
+    case 'account_off': {    // couper l'accès du patron (Kouider garde le sien depuis l'app)
+      if (!s.account) return `Le patron de « ${s.name} » n'a déjà aucun accès.`;
+      const was = s.account.email;
+      delete s.account;
+      await saveSite(s);
+      await revokeSessions(s.id);
+      return `🔒 Accès coupé pour ${was} sur « ${s.name} » : il est déconnecté et ne peut plus entrer. Toi, tu y as toujours accès depuis l'app (« Ouvrir son espace »).`;
     }
     case 'domain': {
       const d = str(input['domain'], 260);
@@ -437,7 +456,7 @@ export async function manageClientSite(input: Record<string, unknown>): Promise<
       return `📨 Messages du site « ${s.name} » envoyés à ${s.notify.email ?? s.account?.email ?? '(personne : ajoute un e-mail)'}${s.notify.kouider ? ', avec une copie pour toi sur Telegram' : ''}.`;
     }
     default:
-      return `❌ Action inconnue « ${action} » (list, info, tarifs, pack, edit, pause, resume, account, domain, domain_check, domain_remove, billing, paid, report, messages, notify, stats, send_report, visibility, visibility_post).`;
+      return `❌ Action inconnue « ${action} » (list, info, tarifs, pack, account_off, edit, pause, resume, account, domain, domain_check, domain_remove, billing, paid, report, messages, notify, stats, send_report, visibility, visibility_post).`;
   }
 }
 

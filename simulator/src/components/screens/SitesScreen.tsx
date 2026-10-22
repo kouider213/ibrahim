@@ -537,20 +537,31 @@ function DomainBlock({ s, act }: { s: ClientSiteRow; act: Act }) {
 }
 
 function AccountBlock({ s, act }: { s: ClientSiteRow; act: Act }) {
-  const [email, setEmail] = useState(s.account ?? '');
-  const [open, setOpen] = useState(!s.account);
+  const [email, setEmail] = useState(s.account ?? s.contact?.email ?? '');
+  const [open, setOpen] = useState(false);
+  const [mail, setMail] = useState(true);
   return (
-    <Block title="🔑 ESPACE CLIENT DU PATRON">
-      {s.account && <div>Connexion : <b>{s.account}</b> sur {s.adminUrl.replace(/^https:\/\//, '')}</div>}
-      {!s.account && <div style={{ color: C.gold, fontSize: 12 }}>Pas encore d'espace client : donne l'e-mail du patron.</div>}
-      {s.account && !open && <button onClick={() => setOpen(true)} style={{ ...btn('rgba(255,255,255,0.07)', C.text), marginTop: 6 }}>Nouveau mot de passe / changer l'e-mail</button>}
-      {open && (
-        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+    <Block title="🔑 QUI A ACCÈS À L'ESPACE ADMIN">
+      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 10px', fontSize: 12.5 }}>
+        <span style={{ color: C.muted }}>Toi</span><span style={{ color: C.accent }}>✅ toujours (bouton « Ouvrir son espace »)</span>
+        <span style={{ color: C.muted }}>Le patron</span>
+        <span style={{ color: s.account ? C.accent : C.gold }}>{s.account ? `✅ ${s.account}` : '⛔ pas d\'accès'}</span>
+      </div>
+      {!open && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+        <button onClick={() => setOpen(true)} style={btn(s.account ? 'rgba(255,255,255,0.07)' : C.accent, s.account ? C.text : '#06210f')}>{s.account ? 'Nouveau mot de passe / autre e-mail' : 'Donner l\'accès au patron'}</button>
+        {s.account && <ConfirmButton label="⛔ Couper son accès" confirm="Oui, couper" color={C.red} onGo={() => act('account_off')} />}
+      </div>}
+      {open && (<div style={{ marginTop: 8 }}>
+        <div style={{ display: 'flex', gap: 6 }}>
           <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="E-mail du patron" style={{ ...input, flex: 1 }} />
-          <button disabled={!email.trim()} onClick={() => { void act('account', { client_email: email.trim() }).then(ok => { if (ok) setOpen(false); }); }} style={{ ...btn(C.accent, '#06210f'), opacity: email.trim() ? 1 : 0.5 }}>{s.account ? 'Envoyer' : 'Créer'}</button>
+          <button disabled={!email.trim()} onClick={() => { void act('account', { client_email: email.trim(), send_to_client: mail }).then(ok => { if (ok) setOpen(false); }); }} style={{ ...btn(C.accent, '#06210f'), opacity: email.trim() ? 1 : 0.5 }}>Valider</button>
         </div>
-      )}
-      <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Le mot de passe arrive sur ton Telegram ; les anciennes connexions du patron sont coupées.</div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, marginTop: 7, color: C.text }}>
+          <input type="checkbox" checked={mail} onChange={e => setMail(e.target.checked)} /> Lui envoyer ses accès par e-mail
+        </label>
+        <button onClick={() => setOpen(false)} style={{ ...btn('rgba(255,255,255,0.07)', C.muted), marginTop: 6 }}>Annuler</button>
+      </div>)}
+      <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>Le mot de passe arrive toujours sur ton Telegram. Changer le mot de passe ou couper l'accès déconnecte le patron tout de suite.</div>
     </Block>
   );
 }

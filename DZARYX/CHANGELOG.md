@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-10-22 — FIK Sites : des sites uniques (5 styles + touche FIK), interactifs, style dans l'espace admin, accès du patron géré depuis l'app
+
+- `site-design.ts` (nouveau, la page publique sort de demo-site.ts) : 5 univers (luxe, editorial, vibrant, minimal, urban) avec chacun son héros, sa présentation, sa carte (liste à points ou cartes), ses formes et son fond ; variante tirée du nom. Touche FIK commune : badge « Ouvert maintenant / Ouvre à … » en direct, bandeau des points forts qui défile, barre de progression, apparitions animées, onglets de la carte par catégorie, parallaxe du héros, cartes qui s'inclinent sous la souris, visionneuse photos, avis qui défilent, barre Appeler / Itinéraire / WhatsApp sur téléphone, signature FIK. Respecte « réduire les animations ».
+- `demo-site.ts` : Claude choisit le style + une phrase signature, palette et polices propres au commerce (14 paires de polices), évite les combinaisons des 6 dernières démos. Testé sur 2 vraies démos (garage Oran → urban, salon Lille → editorial), supprimées ensuite.
+- `client-sites.ts` : SITE_VERSION 3 (les sites existants passent au nouveau design au job du matin), ADMIN_VERSION 3 ; style/signature modifiables par message ; actions `account` (+ `send_to_client` : accès envoyés au patron par e-mail) et `account_off` (couper l'accès).
+- Espace admin du patron : carte « Style du site » (5 styles) + phrase signature.
+- App v173 : bloc « Qui a accès à l'espace admin » (toi toujours, le patron : donner / nouveau mot de passe / couper, envoi par e-mail).
+
 ## 2026-10-22 — FIK Sites : grille de prix, fiche client, vrai site après paiement, documents Telegram
 
 - `site-tarifs.ts` (nouveau) : grille Algérie (Vitrine 1 500 DA/mois · Pro 2 500 DA/mois · achat unique 25 000 DA + 6 000/an) et France (19 € · 39 € · 390 € + 60/an), options (visibilité, domaine), offres ; app_kv `fik:tarifs`, modifiable par message (`manage_client_site action=tarifs changes`).

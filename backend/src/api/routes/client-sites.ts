@@ -1,3 +1,4 @@
+import { styleOf } from '../../integrations/site-design.js';
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import {
   type ClientSite, loginClient, sessionOf, logoutClient, changeClientPassword, cleanEdit, publishSite, saveSite,
@@ -24,7 +25,7 @@ async function auth(req: Authed, res: Response, next: NextFunction): Promise<voi
 const editable = (s: ClientSite) => ({
   place: { name: s.place.name, address: s.place.address, phone: s.place.phone ?? '', hours: s.place.hours },
   content: { tagline: s.content.tagline, about: s.content.about, offerTitle: s.content.offerTitle, offerIntro: s.content.offerIntro,
-    offer: s.content.offer, highlights: s.content.highlights, palette: s.content.palette },
+    offer: s.content.offer, highlights: s.content.highlights, palette: s.content.palette, style: styleOf(s.content), signature: s.content.signature ?? '' },
   photos: s.photos,
 });
 
