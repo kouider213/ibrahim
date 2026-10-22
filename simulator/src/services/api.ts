@@ -11,29 +11,60 @@ const _PRIMARY  = (_env['VITE_BACKEND_URL'] as string) ?? 'https://ibrahim-backe
 const _BACKUPS  = ((_env['VITE_BACKEND_BACKUPS'] as string) ?? 'https://dzaryx-backend-backup.onrender.com').split(',').map(s => s.trim()).filter(Boolean);
 const _BACKENDS = [_PRIMARY, ..._BACKUPS];
 
-function _loadBackendIdx(): number {
-  try {
-    const i = parseInt(localStorage.getItem('dzaryx:backend:idx') ?? '0', 10);
-    return Number.isFinite(i) && i >= 0 && i < _BACKENDS.length ? i : 0;
-  } catch { return 0; }
-}
-let _backendIdx = _loadBackendIdx();
+// 2026-10-22 : on démarre TOUJOURS sur Railway. Avant, le choix du secours était gardé en mémoire : après 4 coupures
+// réseau (voiture…) l'app restait collée au secours Render, mort → chat bloqué sur « CONNEXION… » même après relance.
+try { localStorage.removeItem('dzaryx:backend:idx'); } catch { /* ignore */ }
+let _backendIdx = 0;
 
 export let BACKEND_URL = _BACKENDS[_backendIdx];
 export let WS_URL      = (_env['VITE_WS_URL'] as string) && _backendIdx === 0
   ? (_env['VITE_WS_URL'] as string)
   : BACKEND_URL.replace(/^http/, 'ws');
 
-export function switchToNextBackend(): boolean {
-  if (_BACKENDS.length < 2) return false;
-  _backendIdx = (_backendIdx + 1) % _BACKENDS.length;
-  BACKEND_URL = _BACKENDS[_backendIdx];
-  WS_URL      = BACKEND_URL.replace(/^http/, 'ws');
-  try { localStorage.setItem('dzaryx:backend:idx', String(_backendIdx)); } catch { /* ignore */ }
-  console.warn(`[failover] backend bascule → ${BACKEND_URL}`);
+async function _alive(url: string): Promise<boolean> {
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 5000);
+    const r = await fetch(`${url}/health`, { signal: ctl.signal });
+    clearTimeout(t);
+    return r.ok;
+  } catch { return false; }
+}
+
+function _useBackend(i: number): void {
+  _backendIdx = i;
+  BACKEND_URL = _BACKENDS[i];
+  WS_URL      = i === 0 && (_env['VITE_WS_URL'] as string) ? (_env['VITE_WS_URL'] as string) : BACKEND_URL.replace(/^http/, 'ws');
+  console.warn(`[failover] backend → ${BACKEND_URL}`);
   // Le socket doit se reconnecter sur la nouvelle URL
   try { _socket?.disconnect(); } catch { /* ignore */ }
   _socket = null;
+}
+
+// Sur le secours : on revient sur Railway dès qu'il répond
+let _backTimer: ReturnType<typeof setInterval> | null = null;
+function _watchPrimary(): void {
+  if (_backTimer) return;
+  _backTimer = setInterval(() => {
+    if (_backendIdx === 0) { clearInterval(_backTimer!); _backTimer = null; return; }
+    void _alive(_BACKENDS[0]).then(ok => { if (ok && _backendIdx !== 0) _useBackend(0); });
+  }, 20_000);
+}
+
+export function switchToNextBackend(): boolean {
+  if (_BACKENDS.length < 2) return false;
+  _useBackend((_backendIdx + 1) % _BACKENDS.length);
+  if (_backendIdx !== 0) _watchPrimary();
+  return true;
+}
+
+/** Bascule seulement si le serveur suivant répond vraiment (sinon on reste et on réessaie). */
+async function switchIfNextAlive(): Promise<boolean> {
+  if (_BACKENDS.length < 2) return false;
+  const next = (_backendIdx + 1) % _BACKENDS.length;
+  if (!(await _alive(_BACKENDS[next]))) return false;
+  _useBackend(next);
+  if (next !== 0) _watchPrimary();
   return true;
 }
 
@@ -80,11 +111,11 @@ export async function loginDevice(user: string, password: string): Promise<{ tok
       });
       const data = await res.json().catch(() => ({})) as { token?: string; actor?: 'kouider' | 'houari'; error?: string };
       if (res.ok && data.token && data.actor) return { token: data.token, actor: data.actor };
-      if ([502, 503, 504].includes(res.status) && switchToNextBackend()) continue;
+      if ([502, 503, 504].includes(res.status) && await switchIfNextAlive()) continue;
       throw new Error(data.error ?? `Erreur ${res.status}`);
     } catch (e) {
       lastErr = e as Error;
-      if (e instanceof TypeError && switchToNextBackend()) continue;   // réseau → backend de secours
+      if (e instanceof TypeError && await switchIfNextAlive()) continue;   // réseau → backend de secours
       break;
     }
   }
@@ -180,7 +211,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}, _atte
     });
   } catch (netErr) {
     // Backend injoignable (réseau/down) → bascule sur le backup et retente
-    if (_attempt < _BACKENDS.length - 1 && switchToNextBackend()) {
+    if (_attempt < _BACKENDS.length - 1 && await switchIfNextAlive()) {
       return apiFetch<T>(path, options, _attempt + 1);
     }
     // Hors-ligne : resert la dernière donnée connue pour les lectures
@@ -193,7 +224,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}, _atte
     if (timer) clearTimeout(timer);
   }
   // 502/503/504 = backend mort derrière le proxy → même bascule
-  if ([502, 503, 504].includes(res.status) && _attempt < _BACKENDS.length - 1 && switchToNextBackend()) {
+  if ([502, 503, 504].includes(res.status) && _attempt < _BACKENDS.length - 1 && await switchIfNextAlive()) {
     return apiFetch<T>(path, options, _attempt + 1);
   }
   if (!res.ok) {
@@ -500,9 +531,9 @@ export function connectSocket(sessionId: string, cbs: SocketCbs): Socket {
     // 4 échecs de connexion d'affilée → backend mort → bascule + reconnexion
     _socket.on('connect_error', () => {
       _wsErrCount += 1;
-      if (_wsErrCount >= 4 && switchToNextBackend()) {
+      if (_wsErrCount >= 4) {
         _wsErrCount = 0;
-        setTimeout(() => connectSocket(sessionId, cbs), 500);
+        void switchIfNextAlive().then(ok => { if (ok) setTimeout(() => connectSocket(sessionId, cbs), 500); });
       }
     });
   }

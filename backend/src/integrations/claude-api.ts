@@ -50,7 +50,9 @@ const CACHED_SYSTEM: Anthropic.TextBlockParam[] = [
   {
     type:          'text',
     text:          Dzaryx.SYSTEM_PROMPT as string,
-    cache_control: { type: 'ephemeral' },
+    // 1 h au lieu de 5 min (2026-10-22) : Kouider écrit souvent à plus de 5 min d'écart → ~30k jetons réécrits
+    // dans le cache à chaque message (62 % de la facture du jour). Écriture 1 h = 2× l'entrée, relue ensuite à 0,1×.
+    cache_control: { type: 'ephemeral', ttl: '1h' } as Anthropic.CacheControlEphemeral,
   },
 ];
 
@@ -360,7 +362,10 @@ export async function chatWithTools(
           system:     systemBlocks,
           tools:      tools,
           messages:   currentMessages,
-        };
+          // Cache automatique de la fin de la conversation : à chaque tour d'outil, consignes du jour + historique
+          // + résultats déjà vus sont RELUS (0,1×) au lieu d'être repayés plein tarif (~11k jetons par tour avant)
+          cache_control: { type: 'ephemeral' },
+        } as Anthropic.MessageCreateParamsNonStreaming;
 
         if (useThinking && thinkingBudget > 0) {
           (createParams as any).thinking = {

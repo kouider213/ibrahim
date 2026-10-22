@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-10-22 — Crédit Claude vidé trop vite + app bloquée sur « CONNEXION… »
+
+- Dépense suivie du jour (app_kv claude:cost) : Sonnet 966k entrée / 1,69M écriture cache / 2,48M lecture cache / 16k sortie ≈ 6,8 $ ; 62 % = écritures de cache. Pas de signe de clé volée.
+- `claude-api.ts` : prompt système en cache 1 h (au lieu de 5 min, Kouider écrit souvent à > 5 min d'écart) + cache automatique de la fin de conversation à chaque tour d'outil (les ~11k jetons de consignes du jour + historique étaient repayés plein tarif à chaque tour).
+- App (`simulator/src/services/api.ts`, SW v174) : le choix du serveur de secours n'est plus gardé en mémoire (l'app restait collée au secours Render, mort, après 4 coupures réseau) ; bascule seulement si le secours répond à /health, retour automatique sur Railway dès qu'il répond.
+- Constaté : Upstash (REDIS_URL) limité, mais le code n'utilise plus Redis (KvRedis = mémoire + app_kv) → sans effet.
+
 ## 2026-10-22 — WhatsApp : Dzaryx MONTRE les photos des clients (whatsapp_web action photos)
 
 - Kouider : « tu peux me montrer les photos ? » → Dzaryx répondait qu'il ne pouvait pas (l'outil ne lisait que le texte).
