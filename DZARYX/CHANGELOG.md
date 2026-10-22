@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-22 — Or : surveillance du cours + capital à faire grossir ; conseiller élargi aux business hors FIK
+
+- `gold.ts` (nouveau, outil `gold_watch`, job `gold-watch` 10h15/15h15/20h15 en semaine) : cours Yahoo (GC=F + EUR/USD, 1 an) + gold-api en direct, en €/g pur et 18 carats. Alerte d'achat (message + appel `autoCall` normal) quand l'or est ≥ 5 % sous son plus haut du mois et sous sa moyenne, pas de rappel au même niveau (−3 % ou 14 jours). Capital en tranches (600 € → 3 × 200 €), achats/ventes notés (€ ou dinars + taux square), revente conseillée à +10 % net frais compris. « Rentable en combien de temps » = hausse nécessaire (marge vendeur 5 % + retenue bijoutier 5 % ≈ 10,5 %) au rythme de 8 %/an et au rythme de la dernière année. Portefeuille dans app_kv `kouider:gold` (capital 600 € enregistré).
+- `business-mentor.ts` : un jour sur deux l'idée du jour est HORS de FIK (business à lancer, revenu en plus) ; la veille 8h/17h cherche aussi les occasions de gagner de l'argent, et une vraie opportunité chiffrable → appel (1 max par veille, gardé les jours de congé).
+
 ## 2026-10-22 — Surveillance de vol : Dzaryx appelle quand le prix est vraiment bon
 
 - `air-algerie.ts` : surveillance (`watch_hours`, 24 h / 1 semaine…) → vrai appel (`callOwner`, donc Telegram) quand le total avec bagages passe sous `call_below` (« appelle-moi si moins de 900 € »), ou sans seuil dès −12 % sous le 1er prix vu. Pas de rappel tant que le prix ne baisse pas encore de 5 %. Jamais la nuit (attend le récap de 7h) ; « ne pas déranger » respecté. La fiche + lien partent sur Telegram comme avant.

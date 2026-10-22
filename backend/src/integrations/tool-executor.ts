@@ -5,6 +5,7 @@
  * Signature: DZX-FK-OAN-2024-K7X9M2Q1
  */
 import { businessMentorTool } from './business-mentor.js';
+import { goldWatchTool } from './gold.js';
 import { whatsappWebTool } from './whatsapp-web.js';
 import { kouiderDossierTool } from './kouider-dossier.js';
 import { lifeCoachTool } from './life-coach.js';
@@ -577,6 +578,7 @@ async function _dispatch(
       case 'browser_task':               return await browserTaskTool(input, sessionId);
       case 'air_algerie_search':         return await airAlgerieSearchTool(input, sessionId);
       case 'air_algerie_watch':          return await airAlgerieWatchTool(input);
+      case 'gold_watch':                 return await goldWatchTool(input);
       case 'browser_reply':              return await browserReplyTool(input);
       case 'browser_status':             return await browserStatusTool();
       // ─── CONTRAT PDF (Phase 8.2) ───

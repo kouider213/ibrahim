@@ -59,6 +59,7 @@ import { jobDbBackup } from '../integrations/db-backup.js';
 import { jobSelfTest } from '../integrations/self-test.js';
 import { jobSeasonWatch } from '../integrations/seasons.js';
 import { jobBusinessMentor, jobMentorNewsWatch } from '../integrations/business-mentor.js';
+import { jobGoldWatch } from '../integrations/gold.js';
 import { jobBillingWatch } from '../integrations/billing.js';
 import { jobKouiderDossier } from '../integrations/kouider-dossier.js';
 import { jobLifeCoachEvening, jobLifeCoachWeekly } from '../integrations/life-coach.js';
@@ -272,6 +273,11 @@ const JOBS = [
   {
     name:  'mentor-news',
     cron:  '0 8,17 * * *',          // 8h + 17h — veille actu : risque/opportunité URGENT → appel, le reste par message
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'gold-watch',
+    cron:  '15 10,15,20 * * 1-5',   // 10h15, 15h15, 20h15 en semaine — cours de l'or : baisse → acheter, bénéfice → revendre (message + appel)
     tz:    'Europe/Brussels',
   },
   {
@@ -511,6 +517,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'self-test':               async () => { console.log(`[self-test] ${await jobSelfTest()}`); },
   'business-mentor':         jobBusinessMentor,
   'mentor-news':             jobMentorNewsWatch,
+  'gold-watch':              jobGoldWatch,
   'sport-plan':              async () => { await (await import('../integrations/sport-coach.js')).jobSportPlan(); },
   'sport-weekly':            async () => { await (await import('../integrations/sport-coach.js')).jobSportWeekly(); },
   'presence-watch':          async () => { await (await import('../integrations/presence.js')).jobPresenceWatch(); },

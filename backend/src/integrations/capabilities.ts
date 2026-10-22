@@ -14,7 +14,7 @@ const CATEGORIES: Array<[string, RegExp]> = [
   ['Immobilier, ventes de véhicules et prospects', /propert|vehicles?_for_sale|vehicle_sale|vehicle_sold|vehicle_details|^list_packs|_pack|lead|prospect/],
   ['Images et vidéos', /image|video|subtitle|thumbnail|background|text_overlay|optimize_for|social_variants|voice|scenario|animate|photo/],
   ['Réservations, flotte et voitures', /booking|car|fleet|late_returns|voucher|contract|signature|vehicle|damage|pricing|delivery_fee|travel_time|rate_client/],
-  ['Argent et comptabilité', /payment|revenue|financ|receipt|expense|accounting|export_excel|anomal|unpaid|client_deal|daily_report/],
+  ['Argent et comptabilité', /payment|revenue|financ|^gold_|receipt|expense|accounting|export_excel|anomal|unpaid|client_deal|daily_report/],
   ['Clients', /client|_reviews?$|arrival_pattern/],
   ['Marketing et réseaux sociaux', /tiktok|social|competitor/],
   ['Mails, documents et tableaux', /email|gmail|google_doc|google_sheet|document|presentation_doc/],

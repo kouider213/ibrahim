@@ -46,6 +46,9 @@ async function saveHistory(list: MentorIdea[]): Promise<void> {
   await kvSet(HISTORY_KEY, JSON.stringify(list.slice(-40)));
 }
 
+// Un jour sur deux, le conseiller cherche hors de FIK : nouveau business, revenu en plus (Kouider 22/10)
+const outsideFik = () => Math.floor(Date.now() / 86_400_000) % 2 === 0;
+
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: TZ });
 
 const MENTOR_SYSTEM = `Tu es le CONSEILLER BUSINESS personnel de Kouider : un entrepreneur qui a réussi, qui dirige une société à plusieurs millions d'euros de chiffre d'affaires, et qui met toute son expérience au service du business de Kouider comme si c'était le sien.
@@ -54,7 +57,7 @@ Tu penses en patron : chiffre d'affaires, marge, cash, risque, effet de levier, 
 Ta méthode :
 1. Regarde l'état réel de FIK (réservations, finances, flotte, prospects, saisons, avis) avec tes outils de lecture.
 2. Cherche sur le web ce qui bouge maintenant (Oran, Algérie, diaspora, Belgique/Europe, auto, tourisme, immobilier, devises, lois, concurrents, nouvelles tendances).
-3. Choisis LA meilleure proposition du jour parmi : une idée pour gagner plus, un nouveau projet, un plan pour un objectif, une personne ou entreprise précise à contacter (nom réel, pourquoi, quoi lui dire), un risque à parer, une opportunité à saisir, un conseil de patron.
+3. Choisis LA meilleure proposition du jour parmi : une idée pour gagner plus, un nouveau projet ou un NOUVEAU BUSINESS à lancer (même hors de FIK : petit capital, en Algérie, en France ou en ligne), un plan pour un objectif, une personne ou entreprise précise à contacter (nom réel, pourquoi, quoi lui dire), un risque à parer, une opportunité à saisir, un conseil de patron.
 4. Chiffre-la (investissement, gain espéré, délai) — en indiquant clairement ce qui est estimé.
 
 Règles : n'invente aucun fait ni contact (un contact = une entreprise/organisme réel trouvé dans tes recherches ou dans les données). Ne répète pas une idée déjà proposée (historique fourni). Varie les sujets d'un jour à l'autre. Tu tutoies Kouider, tu parles comme un mentor direct et bienveillant.
@@ -118,7 +121,9 @@ export async function generateMentorIdea(focus = ''): Promise<MentorIdea | null>
   const instruction = [
     dossier,
     `Aujourd'hui : ${new Date().toLocaleDateString('fr-BE', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}.`,
-    focus ? `SUJET DEMANDÉ PAR KOUIDER : ${focus}` : 'Choisis toi-même le sujet le plus rentable pour lui aujourd\'hui.',
+    focus ? `SUJET DEMANDÉ PAR KOUIDER : ${focus}`
+      : outsideFik() ? 'AUJOURD\'HUI : une opportunité HORS de FIK — un business à lancer ou une façon de gagner de l\'argent en plus, adaptée à son temps (il travaille la semaine) et à un petit capital, avec un vrai marché trouvé dans tes recherches.'
+      : 'Choisis toi-même le sujet le plus rentable pour lui aujourd\'hui.',
     'Fais l\'analyse COMPLÈTE (données FIK + web), même si c\'est un jour de congé : soit Kouider la demande lui-même, soit elle lui est dite un jour travaillé.',
     pastText ? `DÉJÀ PROPOSÉ (ne pas répéter) :\n${pastText}` : '',
     oppText ? `VEILLE DU JOUR (piste, à vérifier/approfondir) :\n${oppText}` : '',
@@ -150,15 +155,17 @@ export async function jobBusinessMentor(): Promise<void> {
 
 const ALERT_SYSTEM = `Tu surveilles l'actualité pour Kouider (FIK Conciergerie : location de voitures et conciergerie à Oran, Algérie ; il vit à Bruxelles ; clients surtout diaspora).
 Cherche sur le web les nouvelles des DERNIÈRES 24-48 HEURES qui changent quelque chose pour son business : lois/décrets (import, change, location, fiscalité), devises euro-dinar, vols/ports/visas/frontières, carburant, sécurité, grève, météo extrême à Oran, gros événement à Oran, concurrent, opportunité qui se ferme vite.
+Cherche AUSSI les occasions de gagner de l'argent, même hors de FIK : un business à lancer, un marché qui s'ouvre, un appel d'offres, une aide ou subvention, une bonne affaire (voiture, local, stock) à saisir.
 Ne remonte QUE ce qui est vraiment important et nouveau. Si rien de tel : {"items":[]}.
-Réponds UNIQUEMENT avec ce JSON : {"items":[{"title":"...","what":"ce qui se passe (2-3 phrases, avec la source)","impact":"risque|opportunite","why_for_kouider":"ce que ça change pour lui","action":"ce qu'il devrait faire","spoken":"3-4 phrases orales pour le lui dire au téléphone","urgent":true|false}]}`;
+Réponds UNIQUEMENT avec ce JSON : {"items":[{"title":"...","what":"ce qui se passe (2-3 phrases, avec la source)","impact":"risque|opportunite","why_for_kouider":"ce que ça change pour lui","action":"ce qu'il devrait faire","spoken":"3-4 phrases orales pour le lui dire au téléphone","urgent":true|false,"call":true|false}]}
+call = true pour une VRAIE occasion de gagner de l'argent, concrète et chiffrable, qui mérite un appel (pas une simple info).`;
 
 /** Veille actu (2×/jour) : un risque/une opportunité URGENTE → appel tout de suite ; le reste par message. */
 export async function jobMentorNewsWatch(): Promise<void> {
   const run = await runReadOnlyAgent('Fais la veille maintenant (recherche web), puis réponds avec le JSON.',
     { system: ALERT_SYSTEM, sessionId: 'business_mentor', maxRounds: 8, maxTokens: 2500 });
   const a = run.text.indexOf('{'), z = run.text.lastIndexOf('}');
-  let items: Array<{ title: string; what: string; impact: string; why_for_kouider: string; action: string; spoken: string; urgent: boolean }> = [];
+  let items: Array<{ title: string; what: string; impact: string; why_for_kouider: string; action: string; spoken: string; urgent: boolean; call?: boolean }> = [];
   try { items = (JSON.parse(run.text.slice(a, z + 1)).items ?? []).filter((i: { title?: string }) => i?.title); } catch { return; }
   if (!items.length) return;
 
@@ -169,11 +176,16 @@ export async function jobMentorNewsWatch(): Promise<void> {
   if (!fresh.length) return;
   await kvSet(ALERTS_KEY, JSON.stringify([...seen, ...fresh.map(i => norm(i.title))].slice(-60)), 14 * 86_400);
 
+  let called = false;   // une seule opportunité non urgente appelée par veille (pas de rafale d'appels)
   for (const i of fresh) {
     const text = `${i.impact === 'risque' ? '⚠️ Risque' : '📈 Opportunité'} — ${i.title}\n\n${i.what}\n\nPour toi : ${i.why_for_kouider}\nÀ faire : ${i.action}`;
     await queueTelegramMessage(text).catch(() => {});
     emitProactive(i.title.slice(0, 100), i.urgent ? 'alert' : 'info', text);
     if (i.urgent && i.spoken) await autoCall(`news:${norm(i.title)}`, `Une actu importante pour toi. ${i.spoken}`, { level: 'urgent' });
+    else if (i.call && i.impact === 'opportunite' && i.spoken && !called) {
+      called = true;
+      await autoCall(`news:${norm(i.title)}`, `J'ai repéré une occasion de gagner de l'argent. ${i.spoken}`, { level: 'normal' });
+    }
   }
   console.log(`[mentor] veille : ${fresh.length} nouvelle(s)`);
 }

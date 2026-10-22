@@ -2759,6 +2759,23 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
   {
+    name: 'gold_watch',
+    description: "OR / INVESTISSEMENT : Kouider investit dans l'or avec un capital en cash en Algérie (600 € au départ) que Dzaryx doit faire grossir. Dzaryx n'achète rien lui-même : il surveille le cours 3×/jour et l'APPELLE + lui écrit quand l'or a assez baissé pour acheter (une tranche du capital) et quand son or vaut assez pour revendre avec bénéfice. action='status' : cours du jour (€/g pur et 18 carats, mois, an), bon moment ou pas, combien acheter, APRÈS COMBIEN DE TEMPS c'est rentable (frais d'achat + de revente compris), son or et son bénéfice — pour « le cours de l'or ? », « je suis rentable quand ? », « c'est le moment d'acheter ? ». 'capital' : « je te donne 600 € » → amount (+ tranches, défaut 3). 'buy' / 'sell' : « j'ai acheté 5 g 18 carats pour 420 € » → grams, karat (18 par défaut), amount_eur, ou amount_dzd + eur_dzd (taux du square). 'settings' : drop_pct (alerte d'achat, défaut 5 % sous le plus haut du mois), target_pct (bénéfice net visé, défaut 10 %), buy_premium_pct / sell_discount_pct (marges bijoutier, défaut 5/5). Sois honnête : l'or n'est jamais garanti, on parle d'estimations.",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action: { type: 'string', enum: ['status', 'capital', 'buy', 'sell', 'settings'] },
+        amount: { type: 'number', description: 'capital en € (action capital)' },
+        tranches: { type: 'number' },
+        grams: { type: 'number' }, karat: { type: 'number', description: '24, 22, 21 ou 18 (défaut 18)' },
+        amount_eur: { type: 'number' }, amount_dzd: { type: 'number' }, eur_dzd: { type: 'number', description: 'dinars pour 1 € (change au square)' },
+        note: { type: 'string' },
+        drop_pct: { type: 'number' }, target_pct: { type: 'number' }, buy_premium_pct: { type: 'number' }, sell_discount_pct: { type: 'number' },
+      },
+      required: ['action'],
+    },
+  },
+  {
     name: 'business_mentor',
     description: "Ton CONSEILLER BUSINESS (homme d'affaires qui a réussi) : chaque jour travaillé il appelle Kouider avec UNE proposition (idée, nouveau projet, plan, personne à contacter, risque, opportunité), analysée avec les chiffres FIK + recherche web. action='new' : nouvelle analyse maintenant (focus = sujet facultatif : « l'immobilier à Oran », « comment doubler le CA cet été ») — résultat sur Telegram + app. 'history' : les dernières propositions. 'show' : le détail d'une proposition. 'paper' : « mets-le sur papier » → business plan complet en Google Docs envoyé par Telegram. 'execute' : « vas-y, exécute » → plan validé, Dzaryx le suit chaque semaine. 'reject' : on laisse tomber. idea = id ou mots du titre (vide = la dernière). Pour « donne-moi une idée », « un plan pour… », « ton idée d'hier, mets-la sur papier », « exécute ».",
     input_schema: {
