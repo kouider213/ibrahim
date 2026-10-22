@@ -544,6 +544,19 @@ async def on_wa(d):
         # Uniquement un fichier du dossier Téléchargements du PC cloud (nom seul, jamais un chemin)
         f = FILES / Path(str(d.get('file') or '')).name
         return await asyncio.wait_for(whatsapp_web.action({**d, 'path': str(f)}), 600)
+    if d.get('action') == 'photos':
+        r = await asyncio.wait_for(whatsapp_web.action(d), 150)
+        # Copie dans les Téléchargements : Kouider peut les retrouver (MON PC) ou les renvoyer (send_file)
+        stamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+        safe = ''.join(ch for ch in str(r.get('chat') or 'wa') if ch.isalnum())[:30] or 'wa'
+        for i, ph in enumerate(r.get('photos') or []):
+            try:
+                name = f'wa-{safe}-{stamp}-{i + 1}.jpg'
+                (FILES / name).write_bytes(base64.b64decode(ph['b64']))
+                ph['file'] = name
+            except Exception as e:
+                log.warning('photo WhatsApp non enregistrée : %s', e)
+        return r
     return await asyncio.wait_for(whatsapp_web.action(d), 90)
 
 

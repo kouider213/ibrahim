@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-10-22 — WhatsApp : Dzaryx MONTRE les photos des clients (whatsapp_web action photos)
+
+- Kouider : « tu peux me montrer les photos ? » → Dzaryx répondait qu'il ne pouvait pas (l'outil ne lisait que le texte).
+- `cloudpc/whatsapp_web.py` : action `photos` (chat, n ≤ 10). WhatsApp garde l'image pleine taille (blob 1500×2000) dans la bulle, albums compris → redessinée en JPEG 1600 px sur un canvas, avec qui l'a envoyée, heure, légende ; clique les ↓ des photos pas encore téléchargées.
+- `cloudpc/agent.py` : copie aussi chaque photo dans les Téléchargements du PC cloud (`wa-<contact>-<date>-N.jpg`), renvoyable avec send_file.
+- `whatsapp-web.ts` : action `photos` → chaque photo part sur le Telegram de Kouider + courte description (vision Groq gratuite, OpenAI en secours) ; la lecture d'une discussion avec des photos rappelle à Dzaryx qu'il peut les montrer. `tools.ts` : description + enum.
+- Testé sur la vraie discussion +33 6 51 91 53 69 : 10 photos récupérées et envoyées à Kouider sur Telegram.
+
 ## 2026-10-22 — FIK Sites : des sites uniques (5 styles + touche FIK), interactifs, style dans l'espace admin, accès du patron géré depuis l'app
 
 - `site-design.ts` (nouveau, la page publique sort de demo-site.ts) : 5 univers (luxe, editorial, vibrant, minimal, urban) avec chacun son héros, sa présentation, sa carte (liste à points ou cartes), ses formes et son fond ; variante tirée du nom. Touche FIK commune : badge « Ouvert maintenant / Ouvre à … » en direct, bandeau des points forts qui défile, barre de progression, apparitions animées, onglets de la carte par catégorie, parallaxe du héros, cartes qui s'inclinent sous la souris, visionneuse photos, avis qui défilent, barre Appeler / Itinéraire / WhatsApp sur téléphone, signature FIK. Respecte « réduire les animations ».

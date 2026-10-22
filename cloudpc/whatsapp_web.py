@@ -6,7 +6,7 @@ conversations existantes, tapées dans la vraie page comme un humain (limite le 
 
 - `watch()` : toutes les 20 s, liste les discussions NON LUES (sans les ouvrir : elles restent non lues sur le téléphone)
   et prévient le backend (`cloud:wa_new`) pour chaque nouveau message.
-- `action(d)` : status | link_code | unread | read | send — appelé par l'outil `whatsapp_web` du backend.
+- `action(d)` : status | link_code | unread | read | photos | send | send_file — appelé par l'outil `whatsapp_web` du backend.
 """
 import asyncio
 import json
@@ -314,6 +314,61 @@ async def send(chat: str, text: str) -> dict:
     return {'ok': sent, 'chat': title or chat, **({} if sent else {'error': "Le message n'apparaît pas comme envoyé."})}
 
 
+# Photos reçues dans une discussion (2026-10-22, Kouider : « montre-moi les photos ») : WhatsApp garde déjà l'image
+# pleine taille (blob 1500×2000…) dans la bulle, albums compris → on la redessine en JPEG sur un canvas (même origine).
+JS_PHOTOS = r"""(async (max) => {
+  const seen = new Set();
+  const imgs = [...document.querySelectorAll('#main img[src^="blob:"]')].filter(i => i.naturalWidth >= 200 && !seen.has(i.src) && seen.add(i.src)).slice(-max);
+  const out = [];
+  for (const img of imgs) {
+    const m = img.closest('[data-testid^="conv-msg-"], div.message-in, div.message-out') || img.parentElement;
+    const R = m.getBoundingClientRect(), r = img.getBoundingClientRect();
+    const me = m.classList.contains('message-out') || !!m.querySelector('.message-out') || (!m.querySelector('.message-in') && (R.right - r.right) < (r.left - R.left));
+    const cap = [...m.querySelectorAll('span.selectable-text')].filter(s => !s.parentElement.closest('span.selectable-text')).map(s => s.innerText).join(' ').trim();
+    const time = ((m.innerText || '').match(/\b(\d{1,2}:\d{2})\s*$/m) || [])[1] || '';
+    const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    out.push({ me, caption: cap.slice(0, 300), time, w: c.width, h: c.height, b64: c.toDataURL('image/jpeg', 0.82).split(',')[1] });
+  }
+  return out;
+})"""
+
+COUNT_PHOTOS = "document.querySelectorAll('#main img[src^=\"blob:\"]').length"
+
+
+async def photos(chat: str, n: int = 6) -> dict:
+    """Les n dernières photos de la discussion (des deux côtés), en JPEG base64 + qui l'a envoyée + heure + légende."""
+    n = max(1, min(int(n), 10))
+    async with LOCK:
+        async with await _page() as p:
+            if not await _open_chat(p, chat):
+                return {'ok': False, 'error': f'Discussion « {chat} » introuvable.'}
+            title = await p.js("((document.querySelector('#main header span[title], #main header span[dir=\"auto\"]') || {}).innerText || '')")
+            last, stable = -1, 0
+            for _ in range(20):       # les photos se chargent après la discussion : attendre que leur nombre ne bouge plus
+                await asyncio.sleep(0.5)
+                cnt = await p.js(COUNT_PHOTOS) or 0
+                stable = stable + 1 if cnt == last else 0
+                last = cnt
+                if stable >= 4:
+                    break
+            for _ in range(3):        # pas assez de photos à l'écran → on remonte dans la discussion
+                if last >= n or not await p.js(JS_SCROLL_UP):
+                    break
+                await asyncio.sleep(2)
+                cnt = await p.js(COUNT_PHOTOS) or 0
+                if cnt <= last:
+                    break
+                last = cnt
+            # Photos pas encore téléchargées (miniature floue + bouton ↓) → clic pour les charger
+            if await p.js("""(() => { const d = [...document.querySelectorAll('#main [data-icon*="download"]')]; d.forEach(e => (e.closest('[role=button],button') || e).click()); return d.length; })()"""):
+                await asyncio.sleep(4)
+            out = await p.js(f'({JS_PHOTOS})({n})') or []
+    return {'ok': True, 'chat': title or chat, 'photos': out}
+
+
 MEDIA = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp4', '.mov', '.3gp', '.mkv', '.webm', '.avi'}
 
 
@@ -414,6 +469,8 @@ async def action(d: dict) -> dict:
         return await read(str(d.get('chat') or ''), int(d.get('n') or 15))
     if a == 'send':
         return await send(str(d.get('chat') or ''), str(d.get('text') or ''))
+    if a == 'photos':
+        return await photos(str(d.get('chat') or ''), int(d.get('n') or 6))
     if a == 'send_file':
         return await send_file(str(d.get('chat') or ''), str(d.get('path') or ''), str(d.get('caption') or ''))
     return {'ok': False, 'error': f'action inconnue : {a}'}
