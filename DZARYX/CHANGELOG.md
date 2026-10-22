@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-22 — « L'euro est à combien ? » → taux du marché noir
+
+- `gold.ts` / `tools.ts` : `gold_watch` action `change` = taux du square du jour (ExchangeDZ, € et $), conversion d'un montant (amount_eur / amount_dzd), jamais le taux des banques ni une recherche web. Outil déjà dans ALWAYS_TOOLS (écrit) et via ask_dzaryx (appels).
+
 ## 2026-10-22 — Or : retour au square du jour (Kouider s'était trompé, 227 était faux)
 
 - `gold.ts` : plus de taux fixé par défaut ; € ↔ DA au square ExchangeDZ du jour (274,8 le 22/10), capital 600 € = 164 898 DA, suit le square chaque jour. `eur_dzd` en settings reste possible s'il le demande, `eur_dzd: 0` = retour au square.

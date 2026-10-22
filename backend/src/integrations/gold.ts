@@ -263,6 +263,14 @@ export async function goldWatchTool(input: Record<string, unknown>): Promise<str
   /** Montant en dinars : amount_dzd, sinon amount_eur / amount (€) au change du square. */
   const dinars = (eurKey: string) => num('amount_dzd') > 0 ? num('amount_dzd') : num(eurKey) * rate;
 
+  if (action === 'change') {   // « l'euro est à combien ? » → taux du marché noir, jamais celui des banques
+    const eurAmt = num('amount_eur') || num('amount'), dzdAmt = num('amount_dzd');
+    return `💱 Marché noir (square) aujourd'hui : 1 € = ${g1(m.squareEurDzd)} DA, 1 $ = ${g1(m.usdDzd)} DA (ExchangeDZ, prix d'achat du cambiste).` +
+      (m.eurDzd !== m.squareEurDzd ? `\nTon taux enregistré : 1 € = ${g1(m.eurDzd)} DA.` : '') +
+      (eurAmt > 0 ? `\n${eurAmt} € = ${dzd(eurAmt * m.eurDzd)}.` : '') +
+      (dzdAmt > 0 ? `\n${dzd(dzdAmt)} = ${Math.round(dzdAmt / m.eurDzd)} €.` : '') +
+      `\nLe taux de la banque est bien plus bas : ne change pas à la banque.`;
+  }
   if (action === 'capital') {
     const amount = dinars('amount');
     if (!(amount > 0)) return '❓ Quel capital (en dinars, ou en euros) ?';
