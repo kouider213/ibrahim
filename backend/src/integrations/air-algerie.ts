@@ -22,8 +22,10 @@ const SITE = 'https://airalgerie.dz/';
 const FR_AIRPORTS = new Set(['LIL', 'CDG', 'ORY', 'MRS', 'LYS', 'NCE', 'TLS', 'BOD', 'MPL', 'NTE', 'MLH', 'BSL', 'SXB', 'BVA', 'PUF', 'RNS', 'TLN', 'BIQ', 'FSC', 'AJA', 'BIA']);
 function extraBag(from: string, to: string): string {
   const fr = FR_AIRPORTS.has(from) || FR_AIRPORTS.has(to);
-  const [eur, dzd] = fr ? [40, '6 000 DZD (≈ 40 €)'] : [60, '9 000 DZD (≈ 60 €)'];
-  return `aller vers l'Algérie ${eur} €, retour depuis l'Algérie ${dzd} — dans la fiche, compte ${eur} € par trajet pour le PRIX TOTAL et précise « barème Air Algérie, à acheter plus de 24 h avant le vol (moins de 24 h ou à l'aéroport : le double) »`;
+  const [eur, dzd, eur2, dzd2] = fr ? [40, '6 000 DZD (≈ 40 €)', 75, '11 000 DZD (≈ 75 €)'] : [60, '9 000 DZD (≈ 60 €)', 110, '16 500 DZD (≈ 110 €)'];
+  return `1re pièce en plus : aller vers l'Algérie ${eur} €, retour ${dzd} ; 2e pièce en plus : aller ${eur2} €, retour ${dzd2}. `
+    + `Règle de Kouider : le bébé a AUSSI sa valise en soute ; sa franchise bébé (10 kg) ne compte pas comme une valise → si le bébé n'a pas de 23 kg, il faut 2 pièces en plus (la sienne + celle du groupe) : ${eur} + ${eur2} € par trajet. `
+    + `Mets ces montants dans le PRIX TOTAL et précise « barème Air Algérie, à acheter plus de 24 h avant le vol (moins de 24 h ou à l'aéroport : plus cher) »`;
 }
 
 // PROFIL VOYAGE (Kouider 22/10 : « retiens ces infos pour les prochaines fois, sauf les dates ») : dates de naissance de la
@@ -197,7 +199,7 @@ export async function airAlgerieSearchTool(input: Record<string, unknown>, sessi
     `3. Sur la grille (a) : clique la combinaison la moins chère, puis CONTINUER. Sur la page « vols » (b) : clique le jour le moins cher dans la barre si besoin. Pour le vol DIRECT le moins cher ${tripDays ? 'à l\'aller ET au retour' : ''} note : ` +
     `horaires, direct ou escale, prix « Light » et prix « Economique Promo » (prix avec réduction, totaux du groupe).\n` +
     `4. Calcul des bagages : Light = 0 bagage en soute, donc il faut le tarif Economique Promo (1 × 23 kg par passager) pour TOUT le groupe — c'est le prix de base. ` +
-    (infants ? `Bébé : regarde ce que son billet inclut (franchise bébé, souvent 1 × 10 kg + poussette) ; s'il n'a pas de valise à lui, compte une valise de plus à acheter. ` : '') +
+    (infants ? `Bébé : regarde ce que son billet inclut (franchise bébé, souvent 1 × 10 kg + poussette) ; s'il n'a pas de valise de 23 kg à lui, compte une valise de plus à acheter (voir barème ci-dessous). ` : '') +
     `Puis le bagage en soute SUPPLÉMENTAIRE (1 pour le groupe) : NE LE CHERCHE PAS sur le site (ni page Bagages, ni PDF — 22/10 l'agent s'y est perdu et n'a rien rendu). ` +
     `Prends le barème officiel Air Algérie (sept. 2026, 1 pièce en plus achetée plus de 24 h avant le vol) : ${extraBag(from, to)}.\n` +
     `5. Ne clique sur rien d'autre qu'un tarif / CONTINUER sur la page des dates : ne va PAS jusqu'à la saisie des passagers, n'ouvre aucune autre page ni aucun PDF, ne réserve rien, ne paie rien. ` +
