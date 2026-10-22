@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-22 — Soin de la famille (family_care) + récap clair
+
+- `family-care.ts` (nouveau, outil `family_care`) : carnet santé privé (`kouider:family:health`) + rappel « prendre RDV pédiatre » (week-end → lundi), `list` pour le médecin, `hard_day` (journée dure = congé pour les tâches de fond via `isDayOff`, consigne douce dans le dossier), `urgence` (112, 1733, pharmacie de garde, antipoison + pharmacies proches) sur Telegram.
+- `tg-outbox.ts` : plusieurs messages gardés → un récap « ce que tu as raté / ce qui compte aujourd'hui » (Haiku), liste brute en secours.
+- Houari = propriétaire des voitures/immobilier seulement, jamais pour les clients (Kouider 22/10).
+
 ## 2026-10-22 — Nouvelles de la famille, courte nuit, départ pour un souci
 
 - `dnd.ts` : souci perso pendant un silence → `kouider:family:followup` ; nouvelles demandées au retour à la maison (`presence.ts`) ou dans le plan de 20h30 (`life-coach.ts`), une seule fois. Prénoms retirés du code (dépôt public).

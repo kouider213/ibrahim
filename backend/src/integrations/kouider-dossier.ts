@@ -40,8 +40,22 @@ export function brusselsWeekday(offsetDays = 0): number {
   return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(name);
 }
 
+// « JOURNÉE DURE » (Kouider 22/10, après une nuit aux urgences) : ce jour-là compte comme un congé pour les tâches
+// de fond (pas de conseiller business, appels non urgents gardés, récap du matin réduit à l'urgent).
+const HARD_DAY_KEY = (date: string) => `kouider:hardday:${date}`;
+const brusselsDate = (offsetDays = 0) => new Date(Date.now() + offsetDays * 86_400_000).toLocaleDateString('en-CA', { timeZone: TZ });
+
+export async function isHardDay(offsetDays = 0): Promise<boolean> {
+  return !!(await kvGet(HARD_DAY_KEY(brusselsDate(offsetDays))).catch(() => null));
+}
+
+export async function setHardDay(on: boolean, why = ''): Promise<void> {
+  if (on) await kvSet(HARD_DAY_KEY(brusselsDate()), why || '1', 36 * 3600);
+  else await kvSet(HARD_DAY_KEY(brusselsDate()), '', 60);
+}
+
 export async function isDayOff(offsetDays = 0): Promise<boolean> {
-  return (await getDaysOff()).includes(brusselsWeekday(offsetDays));
+  return (await getDaysOff()).includes(brusselsWeekday(offsetDays)) || await isHardDay(offsetDays);
 }
 
 export const daysOffText = (days: number[]) => days.map(d => DAY_NAMES[d]).join(' et ') || 'aucun';
@@ -53,13 +67,14 @@ async function readNotes(): Promise<string[]> {
 /** Le portrait à donner à Dzaryx (chat, appels, conseiller). Jamais vide. */
 export async function kouiderDossierText(): Promise<string> {
   const [dossier, notes, days, off, coach] = await Promise.all([
-    kvGet(DOSSIER_KEY).catch(() => null), readNotes(), getDaysOff(), isDayOff(),
+    kvGet(DOSSIER_KEY).catch(() => null), readNotes(), getDaysOff(), getDaysOff().then(d => d.includes(brusselsWeekday())),
     import('./life-coach.js').then(m => m.lifeCoachText()).catch(() => ''),   // import dynamique : life-coach → morning-routine → ce fichier
   ]);
   return [
     'QUI EST KOUIDER (son dossier — tu tournes autour de lui, tu le connais par cœur) :',
     dossier?.trim() || BASE,
     `Jours de congé : ${daysOffText(days)}.${off ? " AUJOURD'HUI EST NORMALEMENT UN JOUR DE CONGÉ : sois bref, rien de non urgent, souhaite-lui une bonne journée en famille. MAIS s'il dit être au travail (ou si l'agenda du jour / le GPS le montre au travail), c'est un jour travaillé : ne lui parle pas de congé (22/10 : « comme c'est jeudi, ton jour de congé » alors qu'il bossait depuis 5h)." : ''}`,
+    ...(await isHardDay() ? ["AUJOURD'HUI = JOURNÉE DURE (il l'a demandé) : aucune prospection ni idée business, rien de non urgent, propose de décaler ce qui peut l'être, sois doux et bref. « journée normale » / « c'est bon » → family_care action hard_day off:true."] : []),
     ...(notes.length ? ['Notes récentes de Kouider sur lui-même :', ...notes.slice(-10).map(n => `- ${n}`)] : []),
     ...(coach ? [coach] : []),
   ].join('\n');

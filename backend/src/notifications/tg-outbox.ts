@@ -85,5 +85,24 @@ export async function takeTelegramMessages(actor: string): Promise<TgOutMessage[
     if (parts[parts.length - 1]!.length + 2 + item.length > 4000) parts.push(item);
     else parts[parts.length - 1] += `\n\n${item}`;
   }
-  return [...parts.map(text => ({ text })), ...media, ...list];
+  // Plusieurs messages gardés : un récap clair « ce que tu as raté / ce qui compte aujourd'hui » (Kouider 22/10) ;
+  // la liste brute reste le secours si l'IA ne répond pas.
+  const clear = texts.length >= 2 ? await clearRecap(parts.join('\n\n')).catch(() => null) : null;
+  return [...(clear ? [{ text: clear }] : parts.map(text => ({ text }))), ...media, ...list];
+}
+
+async function clearRecap(raw: string): Promise<string | null> {
+  const { createAnthropic } = await import('../integrations/anthropic-compat.js');
+  const now = new Date().toLocaleString('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', hour: '2-digit', minute: '2-digit' });
+  const res = await createAnthropic().messages.create({
+    model: 'claude-haiku-5-5', max_tokens: 700,
+    system: `Tu es Dzaryx, l'assistant de Kouider. Pendant qu'il ne voulait pas être dérangé, tu as gardé des messages. Il est ${now}. `
+      + 'Réécris-les en UN message Telegram court, en français simple, sans markdown (pas de ** ni #) :\n'
+      + '🔔 Pendant ta pause\n\nCe que tu as raté d\'important :\n• …\n\nCe qui compte aujourd\'hui :\n• …\n'
+      + 'Règles : garde chaque info utile (noms, montants, heures, liens) sans rien inventer ; supprime le périmé (heures déjà passées, « je te vois partir », « bien arrivé ») et les doublons ; '
+      + 'une section vide est omise ; maximum 10 puces en tout.',
+    messages: [{ role: 'user', content: raw.slice(0, 12_000) }],
+  });
+  const out = res.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('').trim();
+  return out.length > 20 ? out.slice(0, 4000) : null;
 }

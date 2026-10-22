@@ -8,6 +8,7 @@ import { businessMentorTool } from './business-mentor.js';
 import { whatsappWebTool } from './whatsapp-web.js';
 import { kouiderDossierTool } from './kouider-dossier.js';
 import { lifeCoachTool } from './life-coach.js';
+import { familyCareTool } from './family-care.js';
 import { supabase } from './supabase.js';
 import { sandboxIntercept, sandboxRecord } from './crash-test-sandbox.js';
 import { convertCurrency, weatherAlerts, footballScores } from './jarvis-tools.js';
@@ -414,6 +415,7 @@ async function _dispatch(
       case 'travel':                    return await (await import('./trips.js')).travelTool(input, sessionId);
       case 'kouider_dossier':           return await kouiderDossierTool(input, sessionId);
       case 'life_coach':                return await lifeCoachTool(input, sessionId);
+      case 'family_care':               return await familyCareTool(input, sessionId);
       case 'gps_assistant':             return await (await import('./presence.js')).presenceTool(input);
       case 'sport_coach':               return await (await import('./sport-coach.js')).sportCoachTool(input, sessionId);
       case 'get_upcoming_seasons':      return await seasonsReport(Math.min(365, Math.max(7, Number(input['days']) || 120)));

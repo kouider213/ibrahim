@@ -2842,6 +2842,19 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
   {
+    name: 'family_care',
+    description: "SOIN DE SA FAMILLE (privé, Kouider seulement). action='add' + who (prénom) + what (symptômes / ce qui s'est passé) + outcome (ce qu'ont dit les médecins) + date (AAAA-MM-JJ, défaut aujourd'hui) + followup_days (ex. 3 → rappel « prendre RDV chez le pédiatre » ce jour-là à 10h) : carnet santé de la famille — à utiliser dès qu'il raconte qu'un proche a été malade / aux urgences. 'list' (+ who, + send=true pour l'envoyer sur Telegram) : tout l'historique pour un RDV médecin. 'hard_day' (+ why ; off=true pour annuler) : « journée dure », « je suis cassé », « journée compliquée » → la journée s'allège (pas de business/prospection, appels non urgents gardés). 'urgence' : numéros utiles (112, médecin de garde 1733, pharmacie de garde, antipoison) + pharmacies proches de sa position, envoyés sur Telegram — dès qu'il est à l'hôpital / aux urgences / qu'un enfant va mal. Jamais d'info santé à quelqu'un d'autre que lui.",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action: { type: 'string', enum: ['add', 'list', 'hard_day', 'urgence'] },
+        who: { type: 'string' }, what: { type: 'string' }, outcome: { type: 'string' }, date: { type: 'string' },
+        followup_days: { type: 'number' }, send: { type: 'boolean' }, why: { type: 'string' }, off: { type: 'boolean' },
+      },
+      required: ['action'],
+    },
+  },
+  {
     name: 'gps_assistant',
     description: "Son ASSISTANT GPS (Kouider seulement) : Dzaryx voit sa position en direct (partagée sur Telegram) et agit tout seul — départ de la maison → « tu vas où ? » (s'il répond, il est seul), salle en avance → « tu y es ? » puis séance validée + agenda avancé + rappel annulé, arrivée au travail, retour le soir, brief du matin. action='status' : où il est, depuis quand, distances et temps de route vers maison/salle/travail, prochain RDV, s'il a dit être seul (« je suis où ? », « tu me vois ? »). 'eta' + destination (adresse, lieu, « salle », « maison », « travail ») : temps de route avec le trafic depuis sa position + heure d'arrivée + Waze (« j'arrive à quelle heure chez Houari ? »). 'nearby' + query : lieux autour de lui (station essence, pharmacie, café, garage, lavage auto…). 'brief' : le BRIEF DU MATIN (hier, aujourd'hui, mails, WhatsApp, visites du site, conseils) — « fais mon récap », « brief », « résumé de ma journée » ; sans mode tu reçois le brief et tu le lui donnes (pendant un appel : la version orale) ; mode='call' s'il veut que tu l'appelles, 'write' pour l'envoyer à part sur Telegram ; refresh=true pour le refaire. 'playlist' (+ for, + query = artiste(s) qu'il demande, ex. « Khaled, Soolking ») : VRAIES playlists Apple Music (les indispensables de l'artiste, boutique belge : le lien ouvre directement la playlist) envoyées sur Telegram — pour TOUTE demande de musique / playlist, utilise cette action, jamais un lien de recherche ni « ouvre Apple Music ». 'music' + artists[] : ajouter des artistes à ses goûts (replace=true pour remplacer). 'settings' : enabled / leave_ask / brief true/false.",
     input_schema: {

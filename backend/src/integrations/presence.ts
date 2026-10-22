@@ -474,7 +474,7 @@ export async function handlePresenceReply(message: string): Promise<{ reply?: st
 
 // ── Outil gps_assistant ──────────────────────────────────────────────────────
 
-async function nearby(q: string, p: { lat: number; lng: number }): Promise<string> {
+export async function nearby(q: string, p: { lat: number; lng: number }): Promise<string> {
   const key = process.env['GOOGLE_MAPS_API_KEY'];
   const fallback = `🗺️ https://www.google.com/maps/search/${encodeURIComponent(q)}/@${p.lat},${p.lng},14z`;
   if (!key) return fallback;
