@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { browserTaskTool } from './browser-relay.js';
 import { kvGet, kvSet } from './app-store.js';
 import { emitProactive } from '../notifications/mobile-push.js';
+import { callOwner } from '../notifications/voice-call.js';
 import { API_BASE } from './client-sites.js';
 
 // Recherche de vols AIR ALGÉRIE uniquement, dans le Chrome du PC cloud (browser_task) : aucune clé ni API.
@@ -237,6 +238,9 @@ interface FlightWatch {
   created_at: string; until: string; every_h: number; next_at: string; runs: number;
   status: 'active' | 'done' | 'stopped';
   best?: { price: number; at: string }; last_price?: number;
+  // « Si c'est vraiment un bon prix, appelle-moi » : call_below = son seuil (€ total) ; sans seuil, −12 % sous le 1er prix vu.
+  // called = dernier prix pour lequel on a appelé (on ne rappelle que s'il baisse encore d'au moins 5 %).
+  first_price?: number; call_below?: number; called?: number;
   // La nuit (22h-7h, Paris) : on cherche sans déranger, et à 7h une recherche fraîche + récap de la nuit
   night?: { runs: number; first?: number; low?: number; final?: boolean }; morning?: boolean;
 }
@@ -266,9 +270,10 @@ async function startWatch(input: Record<string, unknown>, sessionId: string | un
   const list = await loadWatches();
   if (list.filter(w => w.status === 'active').length >= 3) return '❌ Déjà 3 surveillances de vols en cours : arrête-en une d\'abord (air_algerie_watch stop).';
   const now = new Date();
-  const { watch_hours: _h, every_hours: _e, ...search } = input;
+  const { watch_hours: _h, every_hours: _e, call_below: _c, ...search } = input;
+  const callBelow = Number(input['call_below'] ?? 0) > 0 ? Number(input['call_below']) : undefined;
   const w: FlightWatch = { id: randomUUID().slice(0, 6), label, input: search, sessionId, created_at: now.toISOString(),
-    until: new Date(now.getTime() + hours * 3_600_000).toISOString(), every_h: every, next_at: now.toISOString(), runs: 0, status: 'active' };
+    until: new Date(now.getTime() + hours * 3_600_000).toISOString(), every_h: every, next_at: now.toISOString(), runs: 0, status: 'active', call_below: callBelow };
   list.push(w); await saveWatches(list);
   const first = await runWatch(w);
   await saveWatches((await loadWatches()).map(x => x.id === w.id ? w : x));
@@ -276,6 +281,7 @@ async function startWatch(input: Record<string, unknown>, sessionId: string | un
   return `👀 Surveillance Air Algérie lancée (n° ${w.id}) : ${label}, 1 valise par personne + 1 bagage en plus, vols directs.\n` +
     `Je refais la recherche toutes les ${every} h jusqu'au ${whenFr(w.until)} (≈ ${runs} recherche${runs > 1 ? 's' : ''}). ` +
     `Je t'envoie la fiche du 1er prix, puis je ne te préviens que si le prix BAISSE, et à la fin le meilleur prix vu. ` +
+    (callBelow ? `Si le total avec bagages passe sous ${euro(callBelow)}, je t'APPELLE. ` : `Si le prix tombe vraiment bas (au moins 12 % sous le 1er prix), je t'APPELLE. `) +
     `La nuit (22h-7h) je cherche sans te déranger, et à 7h je t'envoie le récap de la nuit avec le vol le moins cher du moment.` +
     (first ? '' : '\n⏳ Le navigateur est occupé : la 1re recherche part dans quelques minutes.');
 }
@@ -326,7 +332,7 @@ export async function flightSearchDone(task: string, text: string): Promise<{ no
   const price = fichePrice(text);
   let final = w.status === 'active' && w.next_at >= w.until;
   const prevBest = w.best?.price;
-  if (price) { w.last_price = price; if (!prevBest || price < prevBest) w.best = { price, at: new Date().toISOString() }; }
+  if (price) { w.last_price = price; w.first_price ??= price; if (!prevBest || price < prevBest) w.best = { price, at: new Date().toISOString() }; }
   if (w.status === 'active' && !w.morning && isNight()) {
     // Nuit : on note sans prévenir (récap à 7h)
     const n = w.night ?? { runs: 0 };
@@ -357,8 +363,25 @@ export async function flightSearchDone(task: string, text: string): Promise<{ no
   } else if (price && prevBest && price < prevBest) {
     head = `📉 PRIX EN BAISSE : ${euro(price)} au lieu de ${euro(prevBest)} (−${euro(prevBest - price)}) !\n`;
   }
+  const good = price ? goodPrice(w, price) : '';
+  if (good) {
+    w.called = price!;
+    if (!head) head = `🔥 BON PRIX : ${euro(price!)} — ${good}.\n`;
+    const flights = text.split('\n').filter(l => /^\s*(🛫|🛬)/u.test(l)).map(l => l.replace(/^\s*\S+\s*/u, '').replace(/,? vol AH\S*/i, '').trim()).join('. ');
+    void callOwner(`Bonne nouvelle pour le billet Air Algérie : ${Math.round(price!)} euros au total avec les bagages, ${good}. ` +
+      `${flights ? flights + '. ' : ''}Je t'ai envoyé la fiche et le lien pour réserver sur Telegram. Tu veux que je continue à surveiller ?`)
+      .catch(e => console.error('[flight-watch] appel:', e));
+  }
   await saveWatches(list);
   return head ? { notify: true, text: head + text } : { notify: false, text };
+}
+
+/** Le prix mérite-t-il un appel ? → la raison en clair, sinon ''. */
+function goodPrice(w: FlightWatch, price: number): string {
+  if (w.called && price > w.called * 0.95) return '';   // déjà appelé pour ce niveau de prix
+  if (w.call_below) return price <= w.call_below ? `sous ton seuil de ${euro(w.call_below)}` : '';
+  const first = w.first_price;
+  return first && price <= first * 0.88 ? `${Math.round((1 - price / first) * 100)} % moins cher que le 1er prix vu (${euro(first)})` : '';
 }
 
 export async function airAlgerieWatchTool(input: Record<string, unknown>): Promise<string> {
@@ -388,5 +411,6 @@ export async function airAlgerieWatchTool(input: Record<string, unknown>): Promi
   const act = list.filter(w => w.status === 'active');
   if (!act.length) return 'Aucune surveillance de vol en cours.';
   return act.map(w => `👀 n° ${w.id} : ${w.label} — toutes les ${w.every_h} h jusqu'au ${whenFr(w.until)}, ${w.runs} recherche(s), ` +
-    `${w.best ? `meilleur prix ${euro(w.best.price)}, dernier ${euro(w.last_price ?? w.best.price)}` : 'pas encore de prix'}, prochaine ${whenFr(w.next_at)}.`).join('\n');
+    `${w.best ? `meilleur prix ${euro(w.best.price)}, dernier ${euro(w.last_price ?? w.best.price)}` : 'pas encore de prix'}, prochaine ${whenFr(w.next_at)}, ` +
+    `appel si ${w.call_below ? `moins de ${euro(w.call_below)}` : '−12 % sous le 1er prix'}.`).join('\n');
 }

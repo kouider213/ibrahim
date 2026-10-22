@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-22 — Surveillance de vol : Dzaryx appelle quand le prix est vraiment bon
+
+- `air-algerie.ts` : surveillance (`watch_hours`, 24 h / 1 semaine…) → vrai appel (`callOwner`, donc Telegram) quand le total avec bagages passe sous `call_below` (« appelle-moi si moins de 900 € »), ou sans seuil dès −12 % sous le 1er prix vu. Pas de rappel tant que le prix ne baisse pas encore de 5 %. Jamais la nuit (attend le récap de 7h) ; « ne pas déranger » respecté. La fiche + lien partent sur Telegram comme avant.
+- `tools.ts` : paramètre `call_below` + consigne « cherche pendant 1 semaine et appelle-moi si bon prix » = watch_hours 168 sans demander de seuil.
+
 ## 2026-10-22 — App : plus de faux « Dzaryx ne répond pas » + recherche de vol qui rend toujours quelque chose
 
 - App v172 (`TextScreen.tsx`) : si la réponse n'arrive pas par Socket.IO, l'app la récupère dans l'historique (toutes les 4 s, 3 min max) au lieu d'afficher l'erreur à 45 s.
