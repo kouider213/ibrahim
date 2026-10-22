@@ -487,7 +487,10 @@ export async function processMessage(
         const agGuarded = guardResponse(agRes.text, userMessage, requestId);
         const agPhantom = phantomGuard(agGuarded, agRes.toolsExecuted, userMessage, requestId);
         // fastPathGuard = « aucun outil n'a tourné » : ici les vrais outils ont lu Supabase, ne pas bloquer leur réponse
-        const agChecked = agRes.toolsExecuted.length > 0 ? agPhantom : fastPathGuard(agPhantom, userMessage, requestId);
+        // Demande d'avis (« quel tarif lui proposer ? », « tu en penses quoi ? ») : un montant conseillé n'est pas une donnée
+        // inventée → pas de blocage (22/10 : deux conseils remplacés par « je n'ai pas accès aux données en temps réel »)
+        const agAdvice  = /tu en pense|penses?[- ]tu|tu pense|ton avis|conseil|propos|quel (tarif|prix)|combien (je|on) (devrais|peu|doi)|int[ée]ressant/i.test(userMessage);
+        const agChecked = agRes.toolsExecuted.length > 0 || agAdvice ? agPhantom : fastPathGuard(agPhantom, userMessage, requestId);
         const agSafe    = oranize(localizeGuardMessage(agChecked, null, guardLang), actor);
         _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: agSafe });
         saveConversationTurn(sessionId, 'assistant', agSafe, { tools: agRes.toolsExecuted.map(t => `${t.name} ${t.success ? '✅' : '❌'}`) }).catch(() => {});

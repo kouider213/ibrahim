@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-22 — Secours sans Claude : les conseils ne sont plus remplacés par « pas accès aux données »
+
+- Crédit Claude vide → cerveau de secours (Gemini). Deux demandes d'avis de Kouider (« quel tarif proposer au propriétaire de Bir El Djir ? ») ont reçu le message tout fait FAST_PATH_REFUSAL, parce que la réponse contenait un montant et qu'aucun outil n'avait tourné.
+- `orchestrator.ts` (secours agentique) : fastPathGuard sauté quand Kouider demande un avis (tu en penses quoi, conseil, quel tarif, intéressant…). phantomGuard (« j'ai vérifié… » sans outil) reste actif.
+
 ## 2026-10-22 — Cerveau selon la demande : quotidien sur Haiku, réflexion sur Sonnet
 
 - Kouider : « +310 €/mois c'est trop ». `claude-api.ts` `pickChatModel()` : résas, dispo, agenda, rappels, lectures WhatsApp/mails, oui/non → Haiku 5.5 (~20× moins cher, mêmes outils, effort medium). Réflexion, conseils, plans/dossiers, textes envoyés à un client (rédaction ou retouche d'un brouillon), photos, recherche web, long message → Sonnet 5.5. Si Haiku échoue (hors 429/crédit) → Sonnet prend le relais.
