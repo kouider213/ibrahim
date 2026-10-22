@@ -349,7 +349,8 @@ async function onHomeEvening(st: PresenceState, now: number): Promise<void> {
   const paused = await routinePausedReason(tomorrow.date, cfg).catch(() => null);
   const evs = await listAgendaRange(new Date(localTs(tomorrow.date, '00:00')).toISOString(), new Date(localTs(tomorrow.date, '23:59')).toISOString(), 20).catch(() => null);
   const first = (evs ?? []).find(e => e.start.dateTime && !/^(🟢|🚿|⏰|🚗)/u.test(e.summary ?? ''));
-  await queueTelegramMessage(`🏠 Bien rentré ! Profite de ta famille.\nDemain : ${!paused && plan?.wake ? `réveil ${plan.wake.replace(':', 'h')}` : 'pas de réveil prévu'}${first ? `, ${hm(Date.parse(first.start.dateTime!))} ${first.summary}` : ''}.`);
+  const care = await (await import('../notifications/dnd.js')).takeFamilyFollowup();
+  await queueTelegramMessage(`🏠 Bien rentré ! Profite de ta famille.${care ? `\n❤️ Et depuis hier (${care.toLowerCase()}), comment ça va à la maison ce soir ?` : ''}\nDemain : ${!paused && plan?.wake ? `réveil ${plan.wake.replace(':', 'h')}` : 'pas de réveil prévu'}${first ? `, ${hm(Date.parse(first.start.dateTime!))} ${first.summary}` : ''}.`);
 }
 
 // ── Boucle : chaque position reçue (≤ 1 fois / 45 s) + toutes les 5 min ──────
@@ -446,6 +447,10 @@ export async function handlePresenceReply(message: string): Promise<{ reply?: st
   }
 
   // a.kind === 'left' : il a répondu → il est seul (sauf s'il dit le contraire)
+  // Départ pour un souci (Kouider 21/10 : « je pars à l'hôpital pour Ibrahim » → Dzaryx proposait une playlist) : ni musique ni business
+  if (/h[oô]pital|urgence|malade|m[ée]decin|accident|pharmacie de garde|ambulance|bless|police|d[ée]c[eè]s|enterrement/i.test(msg)) {
+    return { note: `[Contexte : ce message répond à « je te vois partir de la maison, tu vas où ? » (GPS). Il part pour un SOUCI (santé, urgence…). Sois humain et bref : demande ce qui se passe et si tout le monde va bien, donne le temps de trajet si utile (gps_assistant action eta), dis-lui de rouler prudemment. Ne propose NI musique NI playlist NI business. Propose seulement de couper les appels/messages (pause_calls) et de prévenir quelqu'un s'il veut.]` };
+  }
   const briefDue = !did(st, 'brief') && Number(localNow(now).hhmm.slice(0, 2)) < 12 && (await getPresencePrefs()).brief;
   let briefNote = '';
   if (briefDue && !busy) {

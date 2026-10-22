@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-22 — Nouvelles de la famille, courte nuit, départ pour un souci
+
+- `dnd.ts` : souci perso pendant un silence → `kouider:family:followup` ; nouvelles demandées au retour à la maison (`presence.ts`) ou dans le plan de 20h30 (`life-coach.ts`), une seule fois. Prénoms retirés du code (dépôt public).
+- `life-coach.ts` + `tools.ts` : `life_coach log sleep_hours` ; sous 6 h, coucher du soir avancé (1 h à 1 h 30) tout de suite, puis Dzaryx propose séance plus légère / réveil plus tard (rien sans son oui).
+- `presence.ts` : « je pars à l'hôpital / urgence… » en réponse au « tu vas où ? » → ni musique, ni business, ni brief ; humain + trajet + pause_calls proposé.
+
 ## 2026-10-22 — Reprise après une nuit aux urgences (B042)
 
 Analyse de la conversation Telegram du 21-22/10 (Ibrahim aux urgences). `orchestrator.ts` sauve les outils lancés dans `metadata.tools`, `context-builder.ts` les rappelle au cerveau (`withToolTrace`, supabase.ts) → plus de faux aveux « je ne l'ai pas fait ». `dnd.ts` : silence pour raison perso → prendre des nouvelles d'abord et les retenir ; jamais « jour de congé » s'il est au travail (`kouider-dossier.ts` aussi). `tg-outbox.ts` : récap sans « 06h19 → 06h19 », sans lignes d'agenda déjà passées. `constants.ts` : « je te le note » = outil dans le même tour.

@@ -2825,7 +2825,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'life_coach',
-    description: "Son COACH DE VIE + coach sportif (privé, Kouider seulement ; PAS de nutrition ni de repas, il n'en veut pas). action='plan' (+ date 'tomorrow' ou AAAA-MM-JJ, défaut aujourd'hui) : séance de sport adaptée à son dos, objectif mental, coucher, calés sur son agenda — pour « ma séance de demain », « mon programme ». 'log' + mood (1-10) / weight (kg) / note : noter son moral, son poids ou comment il se sent (« j'ai pas le moral », « je fais 79 kg »). 'add' + fact : retenir une info privée sur sa santé, son mental, ses objectifs. 'history' : son suivi récent. 'show' : tout son profil coach. L'objectif mental et l'heure du coucher sont écrits chaque soir dans son agenda FIK (événements libres) et se cochent dans l'app → COACH (jeu de points) ; action='plan' + regenerate=true refait la journée et l'agenda (« refais mon plan »). Jamais d'info santé à quelqu'un d'autre que lui.",
+    description: "Son COACH DE VIE + coach sportif (privé, Kouider seulement ; PAS de nutrition ni de repas, il n'en veut pas). action='plan' (+ date 'tomorrow' ou AAAA-MM-JJ, défaut aujourd'hui) : séance de sport adaptée à son dos, objectif mental, coucher, calés sur son agenda — pour « ma séance de demain », « mon programme ». 'log' + mood (1-10) / weight (kg) / sleep_hours / note : noter son moral, son poids, sa nuit ou comment il se sent (« j'ai pas le moral », « je fais 79 kg », « j'ai dormi 4h » → sleep_hours 4 : sous 6 h le coucher de ce soir est avancé tout seul dans l'agenda). 'add' + fact : retenir une info privée sur sa santé, son mental, ses objectifs. 'history' : son suivi récent. 'show' : tout son profil coach. L'objectif mental et l'heure du coucher sont écrits chaque soir dans son agenda FIK (événements libres) et se cochent dans l'app → COACH (jeu de points) ; action='plan' + regenerate=true refait la journée et l'agenda (« refais mon plan »). Jamais d'info santé à quelqu'un d'autre que lui.",
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -2833,6 +2833,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
         date: { type: 'string' },
         mood: { type: 'number' },
         weight: { type: 'number' },
+        sleep_hours: { type: 'number' },
         note: { type: 'string' },
         fact: { type: 'string' },
         regenerate: { type: 'boolean' },

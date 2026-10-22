@@ -16,7 +16,7 @@ const TZ = 'Europe/Brussels';
 const PROFILE_KEY = 'kouider:coach:profile';   // texte libre, privé
 const LOG_KEY = 'kouider:coach:log';           // [{ at, mood?, weight?, note? }]
 
-export interface CoachLog { at: string; mood?: number; weight?: number; note?: string }
+export interface CoachLog { at: string; mood?: number; weight?: number; sleep?: number; note?: string }
 
 // Règles de sécurité (générales, pas d'info perso) — données au coach partout où il parle.
 const SAFETY = [
@@ -37,7 +37,7 @@ const fmtDay = (iso: string) => new Date(iso).toLocaleDateString('fr-FR', { time
 function logSummary(log: CoachLog[]): string {
   const recent = log.slice(-10);
   if (!recent.length) return 'Aucun suivi noté pour l\'instant (humeur, poids).';
-  const lines = recent.map(l => `- ${fmtDay(l.at)} :${l.mood != null ? ` moral ${l.mood}/10` : ''}${l.weight != null ? ` poids ${l.weight} kg` : ''}${l.note ? ` — ${l.note.slice(0, 160)}` : ''}`);
+  const lines = recent.map(l => `- ${fmtDay(l.at)} :${l.mood != null ? ` moral ${l.mood}/10` : ''}${l.weight != null ? ` poids ${l.weight} kg` : ''}${l.sleep != null ? ` sommeil ${l.sleep} h` : ''}${l.note ? ` — ${l.note.slice(0, 160)}` : ''}`);
   return `SUIVI RÉCENT :\n${lines.join('\n')}`;
 }
 
@@ -75,6 +75,14 @@ export interface CoachDay {
   date: string; mental: { time: string; goal: string; action: string }; sleep: { time: string; why: string };
   sport: string | null; eventIds: string[]; at: number;
 }
+const SHORT_NIGHT_H = 6;
+
+/** Dernière nuit notée dans les 20 dernières heures (« j'ai dormi 4 h »), sinon null. */
+async function lastNightSleep(): Promise<number | null> {
+  const l = (await readLog()).filter(x => x.sleep != null && Date.now() - new Date(x.at).getTime() < 20 * 3600_000).pop();
+  return l?.sleep ?? null;
+}
+
 const DAY_KEY = (date: string) => `kouider:coach:day:${date}`;
 // Les titres repas restent reconnus : ceux posés avant le 18/10 sont effacés de l'agenda à chaque (re)génération.
 const COACH_TITLE = /^(🍳 Petit-déj|🍽️ Déjeuner|🥜 Collation|🍲 Dîner|🧠 Mental|😴 Au lit) — /u;
@@ -86,12 +94,14 @@ export async function getCoachDay(date: string): Promise<CoachDay | null> {
 
 /** Génère la journée du coach (mental, coucher) et l'écrit dans l'agenda FIK (événements « libres »). */
 export async function buildCoachDay(date: string, writeAgenda = true): Promise<CoachDay> {
-  const [coach, agenda, sport, old] = await Promise.all([lifeCoachText(), agendaOf(date),
-    import('./sport-coach.js').then(m => m.sportSessionFor(date)).catch(() => null), getCoachDay(date)]);
+  const [coach, agenda, sport, old, slept] = await Promise.all([lifeCoachText(), agendaOf(date),
+    import('./sport-coach.js').then(m => m.sportSessionFor(date)).catch(() => null), getCoachDay(date), lastNightSleep()]);
+  const tired = slept != null && slept < SHORT_NIGHT_H && date === localNow().date
+    ? `\n\nNUIT DERNIÈRE : seulement ${slept} h de sommeil → coucher ce soir 1 h à 1 h 30 plus tôt que d'habitude (jamais avant 20:30), raison douce dans « why ».` : '';
   const day = new Date(localTs(date, '12:00')).toLocaleDateString('fr-FR', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long' });
   const res = await createAnthropic().messages.create({
     model: 'claude-sonnet-5-5', max_tokens: 600, system: PLAN_SYSTEM,
-    messages: [{ role: 'user', content: `${coach}\n\nJOUR : ${day}\nAGENDA (sans ce que tu as déjà posé) :\n${agenda}${sport ? `\n\nSÉANCE PRÉVUE :\n${sport}` : ''}` }],
+    messages: [{ role: 'user', content: `${coach}\n\nJOUR : ${day}\nAGENDA (sans ce que tu as déjà posé) :\n${agenda}${sport ? `\n\nSÉANCE PRÉVUE :\n${sport}` : ''}${tired}` }],
   }, QUALITY);
   const raw = res.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('');
   const j = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as Partial<CoachDay>;
@@ -150,19 +160,26 @@ export async function lifeCoachTool(input: Record<string, unknown>, sessionId?: 
     return `✅ Retenu (privé) : « ${fact} ».`;
   }
   if (action === 'log') {
-    const mood = Number(input['mood']), weight = Number(input['weight']);
+    const mood = Number(input['mood']), weight = Number(input['weight']), sleep = Number(input['sleep_hours']);
     const entry: CoachLog = { at: new Date().toISOString() };
     if (mood >= 1 && mood <= 10) entry.mood = Math.round(mood);
     if (weight > 30 && weight < 250) entry.weight = Math.round(weight * 10) / 10;
+    if (sleep > 0 && sleep <= 14) entry.sleep = Math.round(sleep * 2) / 2;
     const note = String(input['note'] ?? '').trim();
     if (note) entry.note = note.slice(0, 300);
-    if (entry.mood == null && entry.weight == null && !entry.note) return '❌ Donne-moi ton moral (1 à 10), ton poids ou une note.';
+    if (entry.mood == null && entry.weight == null && entry.sleep == null && !entry.note) return '❌ Donne-moi ton moral (1 à 10), ton poids, tes heures de sommeil ou une note.';
     const log = await readLog();
     log.push(entry);
     await kvSet(LOG_KEY, JSON.stringify(log.slice(-120)));
     const w = log.filter(l => l.weight != null);
     const trend = entry.weight != null && w.length >= 2 ? ` (${(entry.weight - w[0].weight!).toFixed(1)} kg depuis le ${fmtDay(w[0].at)})` : '';
-    return `✅ Noté${entry.mood != null ? ` — moral ${entry.mood}/10` : ''}${entry.weight != null ? ` — ${entry.weight} kg${trend}` : ''}.${entry.mood != null && entry.mood <= 3 ? ' Moral très bas : écoute-le vraiment, applique les règles de sécurité.' : ''}`;
+    // Courte nuit (Kouider 22/10 : 4 h après les urgences) : le coucher de ce soir est avancé tout de suite dans l'agenda
+    let short = '';
+    if (entry.sleep != null && entry.sleep < SHORT_NIGHT_H) {
+      const day = await buildCoachDay(localNow().date).catch(() => null);
+      short = ` Courte nuit : coucher de ce soir ${day ? `avancé à ${day.sleep.time.replace(':', 'h')}${day.eventIds.length ? ' dans son agenda' : ' (agenda injoignable : pas écrit dedans)'} — dis-le-lui` : 'à avancer (plan indisponible)'}. Propose-lui ensuite, sans rien changer sans son oui : une séance plus légère demain (sport_coach) ou un réveil un peu plus tard (morning_routine).`;
+    }
+    return `✅ Noté${entry.mood != null ? ` — moral ${entry.mood}/10` : ''}${entry.weight != null ? ` — ${entry.weight} kg${trend}` : ''}${entry.sleep != null ? ` — ${entry.sleep} h de sommeil` : ''}.${entry.mood != null && entry.mood <= 3 ? ' Moral très bas : écoute-le vraiment, applique les règles de sécurité.' : ''}${short}`;
   }
   if (action === 'plan') {
     const today = localNow().date;
@@ -178,7 +195,9 @@ export async function jobLifeCoachEvening(): Promise<void> {
   const today = localNow().date;
   try {
     const plan = coachDayText(await buildCoachDay(plusDays(today, 1)));
-    const text = `🌙 Ton plan pour demain\n\n${plan}\n\n❓ Et toi, ce soir, ton moral de 1 à 10 ?`;
+    // Pas rentré (GPS) avant 20h30 : les nouvelles du souci perso de la veille sont demandées ici
+    const care = await (await import('../notifications/dnd.js')).takeFamilyFollowup().catch(() => null);
+    const text = `🌙 Ton plan pour demain\n\n${plan}\n\n${care ? `❤️ Et depuis hier (${care.toLowerCase()}), comment ça va à la maison ?\n` : ''}❓ Et toi, ce soir, ton moral de 1 à 10 ?`;
     await queueTelegramMessage(text);
     emitProactive('🌙 Ton plan pour demain est prêt', 'info', text, 'kouider');
   } catch (err) {

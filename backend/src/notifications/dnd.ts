@@ -12,7 +12,8 @@ const KEY = 'dnd:state';
 const PLANNED_KEY = 'dnd:planned';            // silences programmés à l'avance (« demain matin ») : pas effacés par resume
 const ACTIVE_KEY = 'kouider:last_active';     // même clé que morning-routine.noteKouiderActivity
 const TALK_WINDOW_MS = 10 * 60_000;
-const PERSONAL_RE = /h[oô]pital|urgence|malade|m[ée]decin|ibrahim|fatima|famille|enfant|b[ée]b[ée]|d[ée]c[eè]s|enterrement|accident|bless/i;
+const PERSONAL_RE = /h[oô]pital|urgence|malade|m[ée]decin|famille|fils|femme|enfant|petit|b[ée]b[ée]|d[ée]c[eè]s|enterrement|accident|bless/i;
+export const FOLLOWUP_KEY = 'kouider:family:followup';   // souci perso pendant un silence → nouvelles demandées le soir (presence / life-coach)
 const REPLY_GRACE_MS = 2 * 60_000;            // il vient de répondre : 2 min pour qu'il donne son heure avant de tout renvoyer
 
 export interface DndState { since: number; until: number; untilReply: boolean; why: string }
@@ -81,6 +82,16 @@ export async function dndAllowsMessage(): Promise<boolean> {
   return Date.now() - Number((await kvGet(ACTIVE_KEY).catch(() => null)) ?? 0) < TALK_WINDOW_MS;
 }
 
+/** Le souci perso à suivre ce soir (« À l'hôpital avec … »), une seule fois : la clé est effacée. */
+export async function takeFamilyFollowup(): Promise<string | null> {
+  try {
+    const f = JSON.parse((await kvGet(FOLLOWUP_KEY)) ?? 'null') as { why: string; at: number } | null;
+    if (!f) return null;
+    await kvDel(FOLLOWUP_KEY);
+    return Date.now() - f.at < 36 * 3600_000 ? f.why : null;
+  } catch { return null; }
+}
+
 /** Kouider vient d'écrire / d'appeler : fin du silence « jusqu'à sa réponse ». Renvoie une consigne pour le cerveau. */
 export async function dndOnKouiderMessage(): Promise<string | null> {
   const s = await getDnd();
@@ -89,6 +100,7 @@ export async function dndOnKouiderMessage(): Promise<string | null> {
   const care = PERSONAL_RE.test(s.why)
     ? ` Ce silence était pour une raison perso (${s.why}) : AVANT tout le reste, demande des nouvelles (ce qu'il avait, comment il va maintenant, comment va Kouider lui-même), avec chaleur, sans liste d'actions. Retiens ce qu'il te répond avec remember_info (santé de la famille) pour reprendre des nouvelles plus tard dans la journée.`
     : '';
+  if (care) await kvSet(FOLLOWUP_KEY, JSON.stringify({ why: s.why, at: Date.now() }), 2 * 86_400).catch(() => {});
   const work = ' S\'il dit qu\'il est au travail, ne parle pas de jour de congé : il travaille aujourd\'hui.';
   if (s.untilReply) {
     await setDnd({ until: Date.now() + REPLY_GRACE_MS, why: s.why });
