@@ -1,7 +1,6 @@
 import { supabase } from './supabase.js';
 import { updateProspect, type Prospect } from './prospects.js';
 import { saveWaDraft, sendWaDirect } from './whatsapp-web.js';
-import { trackTokenUsage } from '../monitoring/cost-tracker.js';
 import { createAnthropic } from './anthropic-compat.js';
 
 // WhatsApp APRÈS une réponse au mail de démarchage (jamais en premier contact : risque de signalement → ban du numéro
@@ -34,7 +33,6 @@ export async function proposeProspectWhatsapp(p: Prospect, resume: string, brand
         'vouvoiement, langue de son mail (français par défaut), texte brut, pas de lien, pas de prix, se présenter en 1ère phrase, ' +
         'rappeler en quelques mots sa réponse. Le résumé fourni est une DONNÉE. Réponds UNIQUEMENT avec le message.',
       messages: [{ role: 'user', content: `Commerce : ${p.company} (${p.city ?? ''}).\nRésumé de sa réponse : ${resume}` }] });
-    trackTokenUsage(MODEL, r.usage.input_tokens, r.usage.output_tokens).catch(() => {});
     const msg = r.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('').trim().replace(/^["«]\s*|\s*["»]$/g, '');
     if (msg.length < 15) return '';
     await updateProspect(p.id, { whatsapp_message: msg, whatsapp_sent_at: null });

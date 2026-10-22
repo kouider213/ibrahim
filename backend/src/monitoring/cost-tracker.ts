@@ -31,6 +31,7 @@ export async function trackTokenUsage(
   outputTokens: number,
   cacheReadTokens = 0,
   cacheWriteTokens = 0,
+  source = '',
 ): Promise<void> {
   const key = modelKeyFor(model);
   const pipe = redis.pipeline();
@@ -48,7 +49,35 @@ export async function trackTokenUsage(
   const pr = PRICING[key];
   const usd = (inputTokens * pr.input + outputTokens * pr.output + cacheReadTokens * pr.cacheRead + cacheWriteTokens * pr.cacheWrite) / 1_000_000;
   if (usd > 0) pipe.incrbyfloat('claude:spend:total_usd', usd);
+  // Qui dépense ? (2026-10-22) : coût et nombre d'appels par origine (chat, mission, mentor…), pour la page À PAYER
+  if (source && usd > 0) {
+    const src = source.replace(/[^\w.-]/g, '_').slice(0, 40);
+    pipe.incrbyfloat(redisKey(`src:${src}:usd`), usd);
+    pipe.incrbyfloat(redisKey(`src:${src}:n`), 1);
+    pipe.expire(redisKey(`src:${src}:usd`), TTL_SECONDS);
+    pipe.expire(redisKey(`src:${src}:n`), TTL_SECONDS);
+  }
   await pipe.exec();
+}
+
+/** Coût du jour par origine, du plus cher au moins cher. */
+export async function getDailyCostBySource(date?: string): Promise<Array<{ source: string; usd: number; calls: number }>> {
+  const d = date ?? todayKey();
+  const { supabase } = await import('../integrations/supabase.js');
+  const { data } = await supabase.from('app_kv').select('key, value').like('key', `claude:cost:${d}:src:%`).limit(500);
+  const by: Record<string, { usd: number; calls: number }> = {};
+  for (const r of (data ?? []) as Array<{ key: string; value: string }>) {
+    const m = r.key.match(/:src:(.+):(usd|n)$/);
+    if (!m) continue;
+    const e = (by[m[1]] ??= { usd: 0, calls: 0 });
+    if (m[2] === 'usd') e.usd = parseFloat(r.value) || 0; else e.calls = parseFloat(r.value) || 0;
+  }
+  // Valeurs encore en mémoire (pas encore recopiées dans app_kv) : la mémoire fait foi
+  for (const src of Object.keys(by)) {
+    const [u, n] = await Promise.all([redis.get(redisKey(`src:${src}:usd`)), redis.get(redisKey(`src:${src}:n`))]);
+    if (u) by[src].usd = parseFloat(u); if (n) by[src].calls = parseFloat(n);
+  }
+  return Object.entries(by).map(([source, v]) => ({ source, ...v })).sort((a, b) => b.usd - a.usd);
 }
 
 export interface DailyCostReport {

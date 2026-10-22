@@ -350,6 +350,9 @@ export async function askJson<T>(system: string, user: string, maxTokens: number
     const res = await anthropic.messages.stream({ model: MODEL, max_tokens: max, system,
       messages: [{ role: 'user', content }],
       ...(schema ? { output_config: { format: { type: 'json_schema', schema } } } : {}) } as never).finalMessage();
+    const u = res.usage as { input_tokens: number; output_tokens: number; cache_read_input_tokens?: number | null; cache_creation_input_tokens?: number | null };
+    void import('../monitoring/cost-tracker.js').then(c => c.trackTokenUsage(res.model, u.input_tokens, u.output_tokens,
+      u.cache_read_input_tokens ?? 0, u.cache_creation_input_tokens ?? 0, 'pro-doc')).catch(() => {});
     if (res.stop_reason === 'refusal') throw new Error('demande refusée par l\'IA');
     return { text: res.content.filter(c => c.type === 'text').map(c => (c as { text: string }).text).join(''), cut: res.stop_reason === 'max_tokens' };
   };

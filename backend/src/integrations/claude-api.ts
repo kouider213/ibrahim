@@ -430,6 +430,7 @@ export async function chatWithTools(
       response.usage.output_tokens,
       usage.cache_read_input_tokens ?? 0,
       usage.cache_creation_input_tokens ?? 0,
+      `chat-${sid.replace(/[_:].*$/, '')}`,
     ).catch(() => {});
 
     if (usage.cache_read_input_tokens || usage.cache_creation_input_tokens) {
@@ -596,7 +597,6 @@ export async function chat(
     .map(b => (b as { type: 'text'; text: string }).text)
     .join('');
 
-  trackTokenUsage('claude-haiku-5-5', response.usage.input_tokens, response.usage.output_tokens).catch(() => {});
 
   return {
     text,
@@ -640,7 +640,7 @@ export async function chatStream(
     }
   }
 
-  trackTokenUsage('claude-haiku-5-5', inputTokens, outputTokens).catch(() => {});
+  trackTokenUsage('claude-haiku-5-5', inputTokens, outputTokens, 0, 0, 'chat-rapide').catch(() => {});
   return { text: fullText, inputTokens, outputTokens, stopReason, toolsExecuted: [] };
 }
 

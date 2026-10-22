@@ -7,7 +7,6 @@ import { buildDemo, loadDemo } from './demo-site.js';
 import { findFreeSlots } from './google-calendar.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { kvGet, kvSet, kvDel } from './app-store.js';
-import { trackTokenUsage } from '../monitoring/cost-tracker.js';
 import { createAnthropic, QUALITY } from './anthropic-compat.js';
 import { proposeProspectWhatsapp } from './prospect-whatsapp.js';
 import { rdvLink } from './rdv-booking.js';
@@ -83,7 +82,6 @@ async function saveSiteInfo(id: string, info: SiteProspectInfo): Promise<void> {
 const anthropic = createAnthropic();
 async function ask(system: string, user: string, maxTokens = 1200): Promise<string> {
   const r = await anthropic.messages.create({ model: MODEL, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] }, QUALITY);
-  trackTokenUsage(MODEL, r.usage.input_tokens, r.usage.output_tokens).catch(() => {});
   return r.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('');
 }
 function parseJson<T>(text: string): T | null {

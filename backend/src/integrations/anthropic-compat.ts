@@ -193,6 +193,17 @@ function ecoSafe(body: Body): boolean {
   return ((body.tools ?? []) as Body[]).every(t => !t.type || t.type === 'custom');
 }
 
+/** Origine d'un appel (fichier appelant, sinon début du prompt système) — pour savoir QUI consomme le crédit. */
+function callerSource(body: Body): string {
+  const frames = (new Error().stack ?? '').split('\n');
+  for (const f of frames) {
+    const m = f.match(/src\/(?:integrations|queue|agents|conversation|api|notifications|bi|orchestrator|actions)\/(?:[\w-]+\/)*([\w-]+)\.(?:ts|js)/);
+    if (m && !/anthropic-compat|cost-tracker/.test(m[1])) return m[1];
+  }
+  const sys = Array.isArray(body.system) ? String((body.system as Body[])[0]?.text ?? '') : String(body.system ?? '');
+  return `sys-${sys.replace(/\s+/g, ' ').trim().slice(0, 24)}` || 'inconnu';
+}
+
 export const compatFetch: typeof fetch = async (input, init) => {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
   let parsed: Body | null = null;
@@ -220,7 +231,16 @@ export const compatFetch: typeof fetch = async (input, init) => {
     const r = await freeBrain(parsed!);
     if (r) return r;
   }
+  const src = parsed && !parsed.stream ? callerSource(parsed) : '';
   const res = await fetch(input, init);
+  if (parsed && !parsed.stream && res.ok) {
+    void res.clone().json().then((x: unknown) => {
+      const j = x as Body;
+      const u = j?.usage ?? {};
+      return import('../monitoring/cost-tracker.js').then(c => c.trackTokenUsage(String(j?.model ?? parsed!.model), u.input_tokens ?? 0,
+        u.output_tokens ?? 0, u.cache_read_input_tokens ?? 0, u.cache_creation_input_tokens ?? 0, src));
+    }).catch(() => {});
+  }
   if (parsed && res.ok && claudeDeadUntil) {       // Claude remarche (recharge faite) → fin du mode secours
     claudeDeadUntil = 0;
     void import('./billing.js').then(b => b.clearClaudeOut()).catch(() => {});

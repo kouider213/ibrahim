@@ -1130,11 +1130,11 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'billing',
-    description: 'À PAYER pour garder Dzaryx actif : Railway (vital), Claude, VPS/PC cloud, domaine, ElevenLabs, Google Maps… et les services gratuits. list = état de chaque service (échéance, montant, crédit, ce qui casse si pas payé, survie sans crédit). paid = Kouider a payé (« j\'ai payé Railway ») → échéance suivante. set = noter une date d\'échéance (due AAAA-MM-JJ), un montant réel, ou le solde après une recharge (balance en $, ex. « j\'ai rechargé Claude de 50 $ »). eco_on / eco_off = mode économie Claude (tâches de fond sur Haiku, ~20× moins cher ; chat et mails importants gardent Sonnet).',
+    description: 'À PAYER pour garder Dzaryx actif : Railway (vital), Claude, VPS/PC cloud, domaine, ElevenLabs, Google Maps… et les services gratuits. list = état de chaque service (échéance, montant, crédit, ce qui casse si pas payé, survie sans crédit). paid = Kouider a payé (« j\'ai payé Railway ») → échéance suivante. set = noter une date d\'échéance (due AAAA-MM-JJ), un montant réel, ou le solde après une recharge (balance en $, ex. « j\'ai rechargé Claude de 50 $ »). eco_on / eco_off = mode économie Claude (tâches de fond sur Haiku, ~20× moins cher ; chat et mails importants gardent Sonnet). claude_usage = QUI consomme le crédit Claude aujourd\'hui (coût par origine : chat, missions, mentor… ; due = AAAA-MM-JJ pour un autre jour) — pour « qu\'est-ce qui mange mon crédit Claude ? ».',
     input_schema: {
       type: 'object' as const,
       properties: {
-        action:  { type: 'string', enum: ['list', 'paid', 'set', 'eco_on', 'eco_off'] },
+        action:  { type: 'string', enum: ['list', 'claude_usage', 'paid', 'set', 'eco_on', 'eco_off'] },
         service: { type: 'string', description: 'railway, anthropic, vps, domain, elevenlabs, google_maps, supabase, upstash, openai, fal…' },
         due:     { type: 'string', description: 'Prochaine échéance AAAA-MM-JJ' },
         amount:  { type: 'string', description: 'Montant réel, ex. « 6 € »' },

@@ -280,6 +280,16 @@ export async function billingTool(input: Record<string, unknown>): Promise<strin
       (claudeSpent7d !== null ? `\nClaude, 7 derniers jours : ≈ ${claudeSpent7d.toFixed(2)} $ (estimation)` : '') +
       `\n\nSurvie : ${survival.join(' ')}`;
   }
+  if (action === 'claude_usage') {
+    // « qu'est-ce qui consomme mon crédit Claude ? » — coût du jour par origine (chat, missions, mentor…)
+    const { getDailyCostBySource, getDailyCostReport } = await import('../monitoring/cost-tracker.js');
+    const day = /^\d{4}-\d{2}-\d{2}$/.test(String(input['due'] ?? '')) ? String(input['due']) : undefined;
+    const [list, rep] = await Promise.all([getDailyCostBySource(day), getDailyCostReport(day)]);
+    if (!list.length) return `Claude aujourd'hui : ≈ ${rep.totalUSD.toFixed(2)} $ (détail par origine pas encore disponible : il se remplit au fil des appels).`;
+    return `💸 Claude ${rep.date} : ≈ ${rep.totalUSD.toFixed(2)} $ (estimation). Par origine, du plus cher :\n`
+      + list.slice(0, 15).map(x => `• ${x.source} : ${x.usd.toFixed(2)} $ (${x.calls} appels)`).join('\n')
+      + '\n« chat-… » = conversations (chat-voice = appels/Telegram, chat-mobile = app) ; le reste = tâches automatiques.';
+  }
   if (action === 'eco_on' || action === 'eco_off') {
     await setEco(action === 'eco_on');
     return action === 'eco_on' ? '✅ Mode économie activé : les tâches de fond passent sur le modèle léger (Haiku), le chat et les mails importants gardent Sonnet.' : '✅ Mode économie coupé : tout repasse sur Sonnet (plus cher).';
@@ -294,5 +304,5 @@ export async function billingTool(input: Record<string, unknown>): Promise<strin
     ...(input['balance'] !== undefined ? { balance: Number(input['balance']) } : {}),
     ...(input['note'] !== undefined ? { note: String(input['note']) } : {}),
   });
-  return '❌ action : list, paid, set';
+  return '❌ action : list, claude_usage, paid, set, eco_on, eco_off';
 }

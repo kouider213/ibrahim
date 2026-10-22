@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-10-22 — Coût Claude : tout est compté, par origine (billing claude_usage)
+
+- Constat : coût par message ×2 depuis le 15/10 (≈ 0,08 $ → 0,15-0,23 $) : à chaque message ~35k caractères de consignes + 86 outils « toujours chargés » (98k caractères, +38 % d'outils en une semaine) ; 22/10 = 37 messages. Le cache 1 h (b839a12) transforme ces réécritures en relectures (~10× moins cher).
+- `anthropic-compat.ts` : compatFetch compte TOUS les appels non streamés (vrai modèle de la réponse, donc Haiku quand le mode éco bascule) avec leur origine (fichier appelant ou début du prompt). Avant, seules les conversations étaient comptées.
+- `cost-tracker.ts` : `source` → `claude:cost:<jour>:src:<origine>:usd|n` + `getDailyCostBySource()`. Chat : `chat-<session>`, `chat-rapide`, `pro-doc` (streamés).
+- Comptage manuel retiré de prospect-whatsapp, mail-digest, prospect-autopilot, site-prospecting, chat rapide Haiku (doublons, et mauvais tarif quand éco).
+- Outil `billing` action `claude_usage` : « qu'est-ce qui mange mon crédit Claude ? » → coût du jour par origine.
+
 ## 2026-10-22 — Crédit Claude vidé trop vite + app bloquée sur « CONNEXION… »
 
 - Dépense suivie du jour (app_kv claude:cost) : Sonnet 966k entrée / 1,69M écriture cache / 2,48M lecture cache / 16k sortie ≈ 6,8 $ ; 62 % = écritures de cache. Pas de signe de clé volée.

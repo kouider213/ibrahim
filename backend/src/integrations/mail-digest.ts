@@ -3,7 +3,6 @@
 import { supabase } from './supabase.js';
 import { canSendEmail, listInboxMessages, readThread, type InboxMessage } from './gmail.js';
 import { createAnthropic } from './anthropic-compat.js';
-import { trackTokenUsage } from '../monitoring/cost-tracker.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 
@@ -25,7 +24,6 @@ async function classify(mails: Array<{ id: string; from: string; subject: string
       'Réponds UNIQUEMENT en JSON : [{"id":"…","important":true,"besoin_reponse":false,"resume":"6 à 12 mots en français simple"}].',
     messages: [{ role: 'user', content: mails.map(m => `id=${m.id}\nDe: ${m.from}\nObjet: ${m.subject}\n${m.text.slice(0, 600)}`).join('\n\n---\n\n') }],
   });
-  trackTokenUsage(MODEL, r.usage.input_tokens, r.usage.output_tokens).catch(() => {});
   const text = r.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('');
   try { return JSON.parse(text.match(/\[[\s\S]*\]/)?.[0] ?? '[]') as Classified[]; } catch { return []; }
 }
