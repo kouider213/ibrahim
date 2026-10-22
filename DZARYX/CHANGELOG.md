@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-22 — Or : prix algérien du 18 carats en dinars (au lieu du cours mondial en euros)
+
+- `gold.ts` : Kouider achète en Algérie, en bijou 18 carats ou en louis → cours suivi = prix 18 carats DA/g d'ExchangeDZ (or mondial × dollar au square, historique jour par jour), gold-api en direct au même calcul, secours Yahoo GC=F × dernier taux du square. Tout compté en dinars avec l'équivalent en € au square ; prix du louis entier (6,45 g, 0,900). Carnet `kouider:gold` converti des € vers les DA au 1er passage (600 € → 164 898 DA). Achats/ventes en `amount_dzd` (ou € converti), karat 21.6 = louis.
+- `tools.ts` : description de `gold_watch` mise à jour (DA, louis, square).
+
 ## 2026-10-22 — Or : surveillance du cours + capital à faire grossir ; conseiller élargi aux business hors FIK
 
 - `gold.ts` (nouveau, outil `gold_watch`, job `gold-watch` 10h15/15h15/20h15 en semaine) : cours Yahoo (GC=F + EUR/USD, 1 an) + gold-api en direct, en €/g pur et 18 carats. Alerte d'achat (message + appel `autoCall` normal) quand l'or est ≥ 5 % sous son plus haut du mois et sous sa moyenne, pas de rappel au même niveau (−3 % ou 14 jours). Capital en tranches (600 € → 3 × 200 €), achats/ventes notés (€ ou dinars + taux square), revente conseillée à +10 % net frais compris. « Rentable en combien de temps » = hausse nécessaire (marge vendeur 5 % + retenue bijoutier 5 % ≈ 10,5 %) au rythme de 8 %/an et au rythme de la dernière année. Portefeuille dans app_kv `kouider:gold` (capital 600 € enregistré).
