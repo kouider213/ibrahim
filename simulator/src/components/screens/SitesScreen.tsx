@@ -185,7 +185,7 @@ function SiteCard({ s, open, onToggle, act, onRead }: { s: ClientSiteRow; open: 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
           <div style={{ fontSize: 11, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {KIND[s.kind] ?? s.kind}{s.pack ? ` · ${s.pack.name}` : ''}{b ? ` · ${money(b.monthly, b.currency)}/mois` : ' · abonnement à régler'} · client depuis {s.clientFor}
+            {KIND[s.kind] ?? s.kind}{s.pack ? ` · ${s.pack.name}` : ''}{b ? ` · ${money(b.monthly, b.currency)}/mois` : ' · abonnement à régler'}{s.clientFor ? ` · client depuis ${s.clientFor}` : ''}
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
@@ -246,12 +246,12 @@ function ClientFile({ s, act }: { s: ClientSiteRow; act: Act }) {
         {c?.name && <><span style={{ color: C.muted }}>Contact</span><span>{c.name}</span></>}
         {c?.phone && <><span style={{ color: C.muted }}>Téléphone</span><a href={`tel:${c.phone.replace(/\s/g, '')}`} style={{ color: C.blue }}>{c.phone}</a></>}
         {(c?.email || s.account) && <><span style={{ color: C.muted }}>E-mail</span><a href={`mailto:${c?.email ?? s.account}`} style={{ color: C.blue, wordBreak: 'break-all' }}>{c?.email ?? s.account}</a></>}
-        <span style={{ color: C.muted }}>Adresse</span><span>{s.address}</span>
-        <span style={{ color: C.muted }}>Client depuis</span><span><b>{s.clientFor}</b> (le {fmtDay(s.clientSince)})</span>
+        {s.address && <><span style={{ color: C.muted }}>Adresse</span><span>{s.address}</span></>}
+        {s.clientSince && <><span style={{ color: C.muted }}>Client depuis</span><span><b>{s.clientFor}</b> (le {fmtDay(s.clientSince)})</span></>}
         <span style={{ color: C.muted }}>Formule</span><span>{s.pack ? `${s.pack.name} · ${PERIOD[s.pack.period]}` : 'pas encore choisie'}</span>
         <span style={{ color: C.muted }}>Il paie</span><span>{s.billing ? (s.pack?.period === 'unique' ? `${money(s.billing.monthly * 12, cur)}/an (hébergement)` : `${money(s.billing.monthly, cur)}/mois`) : '—'}</span>
-        <span style={{ color: C.muted }}>Total payé</span><span style={{ color: C.accent, fontWeight: 700 }}>{money(s.totalPaid, cur)}</span>
-        <span style={{ color: C.muted }}>Services</span><span>{s.services.length ? s.services.join(' · ') : '—'}</span>
+        <span style={{ color: C.muted }}>Total payé</span><span style={{ color: C.accent, fontWeight: 700 }}>{money(s.totalPaid ?? 0, cur)}</span>
+        <span style={{ color: C.muted }}>Services</span><span>{s.services?.length ? s.services.join(' · ') : '—'}</span>
       </div>
       <PackChanger s={s} act={act} />
     </Block>
