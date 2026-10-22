@@ -369,7 +369,12 @@ class BrowserAgent:
                     key_args = b.input
                 stop = guard.check(b.name, key_args, text)
                 if stop:
-                    return stop
+                    # Avant (22/10) : tout ce qui avait été lu (les prix des calendriers) était perdu → on demande un bilan
+                    done_ids = {r['tool_use_id'] for r in results}
+                    results += [{'type': 'tool_result', 'tool_use_id': o.id,
+                                 'content': text if o.id == b.id else 'Annulé.'} for o in uses if o.id not in done_ids]
+                    messages.append({'role': 'user', 'content': results})
+                    return self._wrap_up(messages, stop)
                 content = [{'type': 'text', 'text': text}]
                 if img:
                     content.append({'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': img}})
@@ -377,7 +382,25 @@ class BrowserAgent:
             else:
                 messages.append({'role': 'user', 'content': results})
             self._trim_images(messages)
+        last = messages[-1]
+        if last['role'] == 'user':
+            return self._wrap_up(messages, "J'ai atteint la limite d'étapes.")
         return "J'ai atteint la limite d'étapes. Redonne-moi la suite de la tâche si tu veux que je continue."
+
+    def _wrap_up(self, messages: list, why: str) -> str:
+        """Arrêt forcé (boucle, limite) : un dernier appel qui oblige à finir par done avec ce qui a DÉJÀ été trouvé."""
+        messages[-1]['content'].append({'type': 'text', 'text':
+            f'STOP ({why}). Ne fais plus aucune action. Termine MAINTENANT par done en suivant le format demandé, avec tout ce '
+            f'que tu as déjà lu (prix, dates, horaires) ; écris « non vérifié » pour le reste.'})
+        try:
+            resp = self.client.messages.create(model=MODEL, max_tokens=3000, system=SYSTEM, tools=TOOLS, messages=messages,
+                                               tool_choice={'type': 'tool', 'name': 'done'})
+            for blk in resp.content:
+                if blk.type == 'tool_use' and blk.name == 'done' and blk.input.get('summary'):
+                    return blk.input['summary']
+        except Exception as e:
+            log.warning('wrap-up: %s', e)
+        return why + ' Dis-moi comment continuer.'
 
     @staticmethod
     def _trim_images(messages: list) -> None:

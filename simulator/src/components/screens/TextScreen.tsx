@@ -353,15 +353,32 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
       try { await api.uploadSessionPhotos(sessionId.current, photosToCache); } catch { /* non bloquant */ }
     }
 
-    // Timeout: if Socket.IO never delivers response in 45s, show error
+    // La réponse arrive normalement par Socket.IO. Si la connexion en direct a décroché (iPhone en veille, réseau…),
+    // la réponse est quand même enregistrée : on va la chercher dans l'historique toutes les 4 s (Kouider 22/10 :
+    // « Dzaryx ne répond pas » alors que la réponse était là). Erreur seulement après 3 min sans rien.
+    const myId = aiMsg.id, sentAt = Date.now() - 5_000;
+    const poll = setInterval(async () => {
+      if (streamingMsgId.current !== myId) { clearInterval(poll); return; }
+      try {
+        const { history } = await api.getChatHistory(sessionId.current, 4);
+        const last = [...history].reverse().find(h => h.role === 'assistant' && Date.parse(h.created_at) > sentAt);
+        if (last && streamingMsgId.current === myId) {
+          clearInterval(poll); clearTimeout(timeoutId);
+          setMsgs(ms => ms.map(m => m.id === myId ? { ...m, text: last.content, status: 'done', fresh: true } : m));
+          streamingMsgId.current = null;
+          setStatus('idle');
+        }
+      } catch { /* réseau : on réessaie au prochain tour */ }
+    }, 4_000);
     const timeoutId = setTimeout(() => {
-      if (streamingMsgId.current) {
-        setMsgs(ms => ms.map(m => m.id === streamingMsgId.current
+      clearInterval(poll);
+      if (streamingMsgId.current === myId) {
+        setMsgs(ms => ms.map(m => m.id === myId
           ? { ...m, text: '⚠️ Dzaryx ne répond pas — réessaie', status: 'error' } : m));
         streamingMsgId.current = null;
         setStatus('idle');
       }
-    }, 45_000);
+    }, 180_000);
 
     try {
       const res = await api.chat(text || '📷 Photo', sessionId.current, img?.base64, img ? 'image/jpeg' : undefined, true);

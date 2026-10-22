@@ -17,6 +17,15 @@ import { API_BASE } from './client-sites.js';
 
 const SITE = 'https://airalgerie.dz/';
 
+// Barème « pièce supplémentaire » Air Algérie (PDF airalgerie.dz, septembre 2026), 1re pièce en plus achetée plus de 24 h avant.
+// France : 40 € vers l'Algérie, 6 000 DZD au retour ; autres pays d'Europe : 60 € / 9 000 DZD.
+const FR_AIRPORTS = new Set(['LIL', 'CDG', 'ORY', 'MRS', 'LYS', 'NCE', 'TLS', 'BOD', 'MPL', 'NTE', 'MLH', 'BSL', 'SXB', 'BVA', 'PUF', 'RNS', 'TLN', 'BIQ', 'FSC', 'AJA', 'BIA']);
+function extraBag(from: string, to: string): string {
+  const fr = FR_AIRPORTS.has(from) || FR_AIRPORTS.has(to);
+  const [eur, dzd] = fr ? [40, '6 000 DZD (≈ 40 €)'] : [60, '9 000 DZD (≈ 60 €)'];
+  return `aller vers l'Algérie ${eur} €, retour depuis l'Algérie ${dzd} — dans la fiche, compte ${eur} € par trajet pour le PRIX TOTAL et précise « barème Air Algérie, à acheter plus de 24 h avant le vol (moins de 24 h ou à l'aéroport : le double) »`;
+}
+
 // PROFIL VOYAGE (Kouider 22/10 : « retiens ces infos pour les prochaines fois, sauf les dates ») : dates de naissance de la
 // famille (les âges se recalculent à chaque vol) + aller-retour par défaut, minimum N jours sur place.
 // Privé : dans app_kv, jamais dans le code (dépôt public).
@@ -189,9 +198,9 @@ export async function airAlgerieSearchTool(input: Record<string, unknown>, sessi
     `horaires, direct ou escale, prix « Light » et prix « Economique Promo » (prix avec réduction, totaux du groupe).\n` +
     `4. Calcul des bagages : Light = 0 bagage en soute, donc il faut le tarif Economique Promo (1 × 23 kg par passager) pour TOUT le groupe — c'est le prix de base. ` +
     (infants ? `Bébé : regarde ce que son billet inclut (franchise bébé, souvent 1 × 10 kg + poussette) ; s'il n'a pas de valise à lui, compte une valise de plus à acheter. ` : '') +
-    `Puis le bagage en soute SUPPLÉMENTAIRE (1 pour le groupe) : il s'achète en option à la réservation ou après (« bagage supplémentaire », airalgerie.dz). ` +
-    `Si le prix est affiché quelque part sans aller jusqu'aux passagers (page « Bagages » / « Franchise bagages » du site airalgerie.dz), note-le par trajet ; sinon écris « prix du bagage en plus non vérifié ».\n` +
-    `5. Ne clique sur rien d'autre qu'un tarif / CONTINUER sur la page des dates : ne va PAS jusqu'à la saisie des passagers, ne réserve rien, ne paie rien. ` +
+    `Puis le bagage en soute SUPPLÉMENTAIRE (1 pour le groupe) : NE LE CHERCHE PAS sur le site (ni page Bagages, ni PDF — 22/10 l'agent s'y est perdu et n'a rien rendu). ` +
+    `Prends le barème officiel Air Algérie (sept. 2026, 1 pièce en plus achetée plus de 24 h avant le vol) : ${extraBag(from, to)}.\n` +
+    `5. Ne clique sur rien d'autre qu'un tarif / CONTINUER sur la page des dates : ne va PAS jusqu'à la saisie des passagers, n'ouvre aucune autre page ni aucun PDF, ne réserve rien, ne paie rien. ` +
     `Captcha ou page bloquée → ask_kouider.\n` +
     `6. Juste avant done : reviens sur la page de la MEILLEURE option et laisse-y le vol aller proposé sélectionné (tarif Light cliqué) avec les vols retour visibles — ` +
     `une capture de cette page est envoyée à Kouider sur Telegram.\n` +

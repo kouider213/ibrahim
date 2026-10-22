@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-22 — App : plus de faux « Dzaryx ne répond pas » + recherche de vol qui rend toujours quelque chose
+
+- App v172 (`TextScreen.tsx`) : si la réponse n'arrive pas par Socket.IO, l'app la récupère dans l'historique (toutes les 4 s, 3 min max) au lieu d'afficher l'erreur à 45 s.
+- `nexus/modules/browser_agent.py` : boucle détectée ou limite d'étapes → dernier appel forcé `done` avec ce qui a déjà été lu (avant : tout perdu).
+- `air-algerie.ts` : bagage en plus = barème officiel (PDF sept. 2026 : France 40 € aller / 6 000 DZD retour, Europe 60 € / 9 000 DZD), l'agent ne le cherche plus sur le site (il s'était perdu dans le PDF) ; aucune autre page ni PDF.
+
 ## 2026-10-22 — Profil voyage privé (Air Algérie) + fiche avion du Globe
 
 - `air-algerie.ts` : profil voyage dans app_kv `kouider:travel:profile` (dates de naissance de la famille, séjour minimum) via `air_algerie_watch action profile` ; recherche sans passagers = toute la famille, prénoms acceptés, âges recalculés à la date du vol ; sans retour = aller-retour avec le séjour minimum. Vérifié : app_kv illisible avec la clé publique du site.
