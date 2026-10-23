@@ -83,6 +83,8 @@ function mergeBetas(headers: Headers, betas: string[]): void {
 // Anthropic : le code appelant ne voit pas la différence. Le chat (streamé) a déjà son propre repli (orchestrator).
 const DEAD_RE = /credit balance|billing|purchase credits|insufficient|quota/i;
 let claudeDeadUntil = 0;
+/** Crédit Claude connu comme épuisé (revérifié toutes les 10 min) : le chat saute direct au cerveau de secours. */
+export const claudeKnownDead = (): boolean => Date.now() < claudeDeadUntil;
 
 function isClaudeDead(status: number, text: string): boolean {
   if (status === 401 || status === 402) return true;

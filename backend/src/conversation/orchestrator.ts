@@ -451,6 +451,9 @@ export async function processMessage(
   // 3. Claude répond avec Tool Streaming temps réel
   let response: Awaited<ReturnType<typeof chatWithTools>>;
   try {
+    // Crédit Claude épuisé (23/10 : « Petit souci technique » à 6h42) : on n'attend plus l'échec de Claude à chaque
+    // message, on part tout de suite sur le secours — sinon Telegram abandonnait avant la réponse (> 90 s)
+    if ((await import('../integrations/anthropic-compat.js')).claudeKnownDead()) throw new Error('crédit Claude épuisé (connu)');
     response = await chatWithTools(
       ctx.messages,
       agentSystemExtra,

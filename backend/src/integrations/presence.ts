@@ -41,7 +41,8 @@ interface PresenceState {
 interface Prefs { enabled: boolean; leaveAsk: boolean; brief: boolean; music: string[] }
 const DEFAULT_PREFS: Prefs = {
   enabled: true, leaveAsk: true, brief: true,
-  music: ['Didine Canon 16', 'Soolking', "L'Algérino", 'Lacrim', 'Ninho', 'Jul', 'SCH', 'Naps', "Rim'K", 'Kofs', 'Werenoi', 'Gazo'],
+  // Rap FR uniquement (Kouider 23/10 : « que du rap fr style SoSo Maness, Lacrim »)
+  music: ['SoSo Maness', 'Lacrim', 'Jul', 'Naps', 'SCH', 'Kofs', "L'Algérino", 'Ninho', "Rim'K", 'Werenoi', 'Gazo', 'Alonzo', 'Kaaris', 'Hornet La Frappe'],
 };
 
 async function getState(): Promise<PresenceState> {
@@ -84,10 +85,9 @@ function classify(p: { lat: number; lng: number }, pts: Awaited<ReturnType<typeo
 // d'Apple Music, trouvée sur la page de l'artiste (API iTunes, gratuite) et gardée 30 jours ; à défaut, sa page artiste.
 // Boutique BELGE (son compte Apple Music est en Belgique) : un lien /fr/ ouvrait l'app sans afficher la playlist.
 const STORE = 'be';
+// « Magh Rap » et « Hits Rap » (rap US) retirés le 23/10 : rap FR uniquement
 const GENRE_PLAYLISTS = [
-  { name: 'Magh Rap (rap algérien / maghrébin)', url: `https://music.apple.com/${STORE}/playlist/magh-rap/pl.4f0e32560bde4190aa01c5788d43797d` },
   { name: 'Le Code (rap français du moment)', url: `https://music.apple.com/${STORE}/playlist/le-code/pl.084e56c4114a4a199e582aa7db6e7e56` },
-  { name: 'Hits Rap', url: `https://music.apple.com/${STORE}/playlist/hits-rap/pl.4d2a54110afa4782a4aeaf039e401550` },
 ];
 
 async function artistPlaylist(artist: string): Promise<{ name: string; url: string; playlist: boolean } | null> {
@@ -122,38 +122,17 @@ export async function playlistText(forWhat = 'la route', query?: string): Promis
     ...(missing.length ? [`(pas trouvé sur Apple Music : ${missing.join(', ')})`] : [])].join('\n\n');
 }
 
-// Playlists SPORT (Kouider 21/10) : une playlist Apple Music Fitness (boutique belge) selon la séance du jour,
-// + « les indispensables » d'un de ses artistes. Liens relevés sur la page « Apple Music Fitness » le 21/10.
-const pl = (slug: string, id: string) => `https://music.apple.com/${STORE}/playlist/${slug}/pl.${id}`;
-const SPORT_PLAYLISTS: Record<string, Array<{ name: string; url: string }>> = {
-  force: [
-    { name: 'Sport Rap', url: pl('sport-rap', '4c62f568a0d64293a9c362037175c09b') },
-    { name: 'Pure Gym', url: pl('pure-gym', '1ca7c11397cc4a8088265a030dbffdac') },
-    { name: 'Pour tout donner', url: pl('pour-tout-donner', '6a2b374e861047bea93b8dfc40362b8a') },
-    { name: 'Phonk', url: pl('phonk', '2ff5e24b654d4195b7ba392cb613688c') },
-  ],
-  cardio: [
-    { name: '100 % Cardio', url: pl('100-cardio', 'f678e1f1f05a4533930082ecdadfb99d') },
-    { name: 'Hits pour courir', url: pl('hits-pour-courir', '6db5f7b47286460e9928d09d9ac0be69') },
-    { name: 'Sport 45 minutes', url: pl('sport-45-minutes', '918cffeb52b14d73bde02be6c22981a3') },
-  ],
-  core: [
-    { name: 'Pilates et abdos', url: pl('pilates-et-abdos', '4bc4689ef3e84852880ac55be14c2e36') },
-    { name: 'Énergie fluide', url: pl('%C3%A9nergie-fluide', 'de20dc985af84cc2aaef6c9f5f493c3b') },
-  ],
-};
-
-/** Playlist de la séance : push/pull/legs/upper = force, cardio = cardio, core & mobilité = calme. */
-export async function sportPlaylistText(type: string, label?: string): Promise<string> {
-  const kind = type === 'cardio' ? 'cardio' : type === 'core' ? 'core' : 'force';
+// Playlists SPORT : rap FR uniquement (Kouider 23/10). Les playlists Apple Fitness (« Pure Gym », « Sport Rap »…)
+// étaient du rap US / phonk → remplacées par « les indispensables » de 2 de ses rappeurs + « Le Code » (rap FR).
+/** Playlist de la séance : 2 rappeurs FR du jour (tournent chaque jour) + Le Code. */
+export async function sportPlaylistText(_type: string, label?: string): Promise<string> {
   const day = Math.floor(Date.now() / 86_400_000);
-  const list = SPORT_PLAYLISTS[kind]!;
-  const main = list[day % list.length]!;
   const { music } = await getPresencePrefs();
-  const artist = music.length ? await artistPlaylist(music[day % music.length]!).catch(() => null) : null;
-  return [`🎧 Playlist pour ${label ?? 'ta séance'} — appuie, elle s'ouvre dans Apple Music, puis ▶️ :`,
-    `• ${main.name}\n${main.url}`,
-    ...(artist ? [`• ${artist.name}${artist.playlist ? ' — les indispensables' : ' (page artiste)'}\n${artist.url}`] : [])].join('\n\n');
+  const pick = [0, 1].map(i => music[(day * 2 + i) % music.length]!).filter((v, i, a) => v && a.indexOf(v) === i);
+  const found = (await Promise.all(pick.map(a => artistPlaylist(a).catch(() => null)))).filter(Boolean) as Array<{ name: string; url: string; playlist: boolean }>;
+  return [`🎧 Playlist pour ${label ?? 'ta séance'} — rap FR, appuie, elle s'ouvre dans Apple Music, puis ▶️ :`,
+    ...found.map(f => `• ${f.name}${f.playlist ? ' — les indispensables' : ' (page artiste)'}\n${f.url}`),
+    `• ${GENRE_PLAYLISTS[0]!.name}\n${GENRE_PLAYLISTS[0]!.url}`].join('\n\n');
 }
 
 // ── Brief du matin ───────────────────────────────────────────────────────────

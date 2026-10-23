@@ -996,11 +996,13 @@ async def on_message(_, msg: Message) -> None:
             await voice_command(msg, actor, VOICE_CMD.match(msg.text.strip()).group(1))
         elif msg.text:
             await app.send_chat_action(uid, enums.ChatAction.TYPING)
-            out = await api('/api/call/turn', {'message': msg.text, 'textOnly': True, 'channel': 'message'}, actor)
+            # 180 s : sans crédit Claude, le cerveau de secours peut dépasser 90 s (23/10 6h42 : 2 × « souci technique »)
+            out = await api('/api/call/turn', {'message': msg.text, 'textOnly': True, 'channel': 'message'}, actor, 180)
             await reply_out(msg, out)
     except Exception as e:
-        log.error('message échoué: %s', e)
-        await msg.reply_text('Petit souci technique, réessaie dans un instant.')
+        log.error('message échoué: %s %r', e, e)
+        await msg.reply_text('⏳ Je n\'ai pas réussi à te répondre à temps (serveur lent). Renvoie ton message, je le reprends.'
+                             if isinstance(e, asyncio.TimeoutError) else 'Petit souci technique, réessaie dans un instant.')
 
 
 @app.on_raw_update(group=-1)

@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-23 — Playlists 100 % rap FR + plus de « Petit souci technique » sans crédit Claude
+
+- `presence.ts` : playlists de séance = « les indispensables » de 2 rappeurs FR du jour (SoSo Maness, Lacrim, Jul, Naps, SCH, Kofs, L'Algérino, Ninho, Rim'K, Werenoi, Gazo, Alonzo, Kaaris, Hornet La Frappe) + « Le Code ». Retirés : Pure Gym / Sport Rap / Phonk (rap US), Magh Rap, Hits Rap, Soolking, Didine.
+- 6h42/6h44 : « Petit souci technique » ×2 = Telegram coupait à 90 s pendant que le secours (crédit Claude à 0) répondait. `orchestrator.ts` saute Claude quand son crédit est connu épuisé (`claudeKnownDead`), `dzaryx_tg.py` attend 180 s et dit clairement si c'est un délai dépassé.
+
 ## 2026-10-22 — Secours sans Claude : les conseils ne sont plus remplacés par « pas accès aux données »
 
 - Crédit Claude vide → cerveau de secours (Gemini). Deux demandes d'avis de Kouider (« quel tarif proposer au propriétaire de Bir El Djir ? ») ont reçu le message tout fait FAST_PATH_REFUSAL, parce que la réponse contenait un montant et qu'aucun outil n'avait tourné.
