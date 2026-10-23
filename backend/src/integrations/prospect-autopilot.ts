@@ -3,7 +3,7 @@ import { env } from '../config/env.js';
 import { supabase } from './supabase.js';
 import { multiProviderWebSearch, jinaAuthHeaders } from './web-search-provider.js';
 import crypto from 'crypto';
-import { sendEmail, canSendEmail, countSentToday, listInboxMessages, readEmail, getMessageIdHeader, getThreadLastMessageId, proSenderAddress, getGmailConnectLink, PRO_ALIAS, SENDER_BLOCKED_RE, markProAliasBlocked } from './gmail.js';
+import { sendEmail, canSendEmail, countSentToday, listInboxMessages, readEmail, getMessageIdHeader, getThreadLastMessageId, proSenderAddress, getGmailConnectLink, PRO_ALIAS, SENDER_BLOCKED_RE, markProAliasBlocked, GmailNotConnectedError } from './gmail.js';
 import { reportIncident } from '../notifications/incident-call.js';
 import { addProspect, getAutopilot, updateProspect, optOutEmail, isOptedOut, companyKey, type Prospect, type ProspectSegment, type LinkedinContact, type QuoteDraftLine } from './prospects.js';
 import { findFreeSlots } from './google-calendar.js';
@@ -729,7 +729,11 @@ export function requeueAfterBlock(p: Prospect): Partial<Prospect> {
 // ── 3. Surveiller les réponses ──
 export async function checkProspectReplies(): Promise<number> {
   if (!(await canSendEmail('pro').catch(() => false))) return 0;
-  const msgs = await listInboxMessages('pro', 'in:inbox newer_than:7d', 50);
+  // Gmail déconnecté (accès expiré) : déjà signalé ailleurs → pas de « tâche plantée » + appel d'incident (23/10)
+  const msgs = await listInboxMessages('pro', 'in:inbox newer_than:7d', 50).catch(err => {
+    if (err instanceof GmailNotConnectedError) { console.warn('[prospect-auto] réponses : Gmail déconnecté, je saute'); return []; }
+    throw err;
+  });
   if (!msgs.length) return 0;
 
   const threadIds = [...new Set(msgs.map(m => m.threadId))];

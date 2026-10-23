@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-10-23 — Appel muet raccroché, heure des mails, Gmail déconnecté sans incident
+
+- `tgcall/dzaryx_tg.py` : appel 15h (10 s de silence total, Kouider raccroche avant le contrôle des 12 s) → aucun message ni 2e essai. Maintenant un appel sortant raccroché avec volume 0 = appel muet : message écrit + astuce + 2e essai dans 10 min.
+- `tool-executor.ts` list_emails : date en heure belge (slice(0, 22) coupait le fuseau → mail de 15h18 annoncé « 13h18 »).
+- `prospect-autopilot.ts` : Gmail déconnecté → prospect-replies saute au lieu de planter (appel d'incident 15h).
+- `billing.ts` : alerte « plus de crédit » lisible (plus de JSON brut d'Anthropic).
+- Google OAuth passé « In production » par Kouider : plus d'expiration Gmail tous les 7 jours.
+
 ## 2026-10-23 — Secours sans Claude : appels plus rapides, tâches de fond, mémoire des appels, « je vérifie »
 
 - Appel 6h : réponse en 48 s (gemini-flash-latest figé, timeout 45 s) → Kouider a raccroché. `agentic-fallback.ts` : timeout Gemini 20 s, modèle sauté 15 min sur 429/503/timeout, flash-latest en dernier.

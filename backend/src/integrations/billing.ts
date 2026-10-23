@@ -131,7 +131,9 @@ async function claudeSpent(): Promise<number> { return parseFloat((await redis.g
 export async function markClaudeCreditOut(detail: string): Promise<void> {
   const first = await redis.set(CLAUDE_OUT_KEY, new Date().toISOString(), 'EX', 6 * 3600, 'NX').catch(() => null);
   if (first !== 'OK') return;
-  const text = `🔴 Claude n'a plus de crédit (${detail.slice(0, 80)}).\nJe continue avec les cerveaux gratuits (Groq/Gemini) : je réponds toujours, un peu moins finement.\n` +
+  // Message lisible : le détail brut (« 400 {"type":"error",… ») ne parle pas à Kouider
+  const why = /credit balance|crédit|billing/i.test(detail) ? 'solde à 0 $' : /turned off|disabled/i.test(detail) ? 'accès API coupé' : 'refusé par Anthropic';
+  const text = `🔴 Claude n'a plus de crédit (${why}).\nJe continue avec les cerveaux gratuits (Groq/Gemini) : je réponds toujours, un peu moins finement.\n` +
     `👉 Recharge ici : https://console.anthropic.com/settings/billing puis dis-moi « j'ai rechargé Claude de 50 $ ».`;
   emitProactive('Claude n\'a plus de crédit — je passe en mode gratuit.', 'alert', text, 'kouider', 'paiements');
   await queueTelegramMessage(text).catch(() => {});

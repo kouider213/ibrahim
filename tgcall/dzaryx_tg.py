@@ -126,6 +126,7 @@ class CallState:
         self.answered = False         # Dzaryx a commencé à répondre (au-delà du « Mmh »)
         self.rt: RealtimeCall | None = None   # voix temps réel (sinon ancienne chaîne)
         self.outgoing = False         # c'est Dzaryx qui appelle (motif en attente)
+        self.greeting = ''            # ce que Dzaryx voulait dire (appel muet raccroché → message écrit)
         self.buf = bytearray()
         self.voiced_s = 0.0
         self.silence_s = 0.0
@@ -408,6 +409,10 @@ async def on_left(_, update: ChatUpdate) -> None:
         if st.rt:
             await st.rt.close()
             asyncio.create_task(remember_call(update.chat_id, st.actor, st.rt))
+            # Raccroché avant le contrôle des 12 s (23/10 15h : 10 s de silence total) → même traitement qu'un appel muet
+            if st.outgoing and st.rt.rms_max == 0 and st.rt.n_in >= 200:
+                log.warning('appel MUET raccroché par %s : %d tranches, volume 0 → j\'écris', st.actor, st.rt.n_in)
+                asyncio.create_task(missed_call(st.actor, update.chat_id, st.greeting, None, why='muet', tip=MUTE_TIP))
         log.info('appel terminé avec %s', update.chat_id)
 
 
@@ -642,6 +647,7 @@ async def start_realtime(actor: str, user_id: int) -> bool:
     st.outgoing = bool(ans.get('incoming'))   # Dzaryx appelle (motif en attente) ≠ Kouider qui appelle
     greeting = ans.get('text') or 'Oui, je t\'écoute.'
     log.info('appel %s (temps réel) → %r', actor, greeting)
+    st.greeting = greeting
     try:
         await calls.play(user_id, MediaStream(ExternalMedia.AUDIO, AudioParameters(OUT_RATE, 1),
                                               video_flags=MediaStream.Flags.IGNORE), CallConfig(timeout=45))
