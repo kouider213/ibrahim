@@ -184,7 +184,7 @@ export async function runAgenticFallback(
           max_tokens:  ep.compact ? 1024 : 4096,
           temperature: 0.5,
         };
-        const post = () => axios.post(ep.url, body, { headers: { Authorization: `Bearer ${ep.apiKey}` }, timeout: ep.key === 'gemini' ? 45_000 : 60_000 });
+        const post = () => axios.post(ep.url, body, { headers: { Authorization: `Bearer ${ep.apiKey}` }, timeout: ep.key === 'gemini' ? 20_000 : 45_000 });   // 23/10 : un Gemini figé faisait attendre 45 s en plein appel
         let data;
         try {
           ({ data } = await post());
@@ -235,7 +235,9 @@ export async function runAgenticFallback(
       throw new Error(`${ep.name} loop exhausted`);
     } catch (err) {
       lastErr = err;
-      if (ep.key === 'gemini' && (err as { response?: { status?: number } }).response?.status === 429) markQuotaExhausted(ep.model);
+      // quota (429), surcharge (503) ou figé (timeout) → ce modèle est sauté 15 min au lieu de refaire attendre
+      const st = (err as { response?: { status?: number }; code?: string });
+      if (ep.key === 'gemini' && (st.response?.status === 429 || st.response?.status === 503 || st.code === 'ECONNABORTED')) markQuotaExhausted(ep.model);
       const res = (err as { response?: { status?: number; data?: unknown } }).response;
       console.warn(`[agentic-fallback] ${ep.key}/${ep.model} FAILED status=${res?.status ?? 'network'} body=${JSON.stringify(res?.data ?? {}).slice(0, 200)} msg="${err instanceof Error ? err.message.slice(0, 120) : String(err)}" → provider suivant`);
       // Des outils ont déjà tourné (ex. mail envoyé) : rejouer ailleurs risquerait un doublon
