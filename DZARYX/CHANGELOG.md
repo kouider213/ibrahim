@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-10-23 — Secours sans Claude : appels plus rapides, tâches de fond, mémoire des appels, « je vérifie »
+
+- Appel 6h : réponse en 48 s (gemini-flash-latest figé, timeout 45 s) → Kouider a raccroché. `agentic-fallback.ts` : timeout Gemini 20 s, modèle sauté 15 min sur 429/503/timeout, flash-latest en dernier.
+- `anthropic-compat.ts` (tâches de fond : mentor-news, business-mentor plantaient « credit balance too low ») : Gemini 30 s + sauté sur 429/503/figé, Groq descriptions d'outils raccourcies + attente du retry-after sur 429. Testé : réponse servie par gemini-3.5-flash-lite en 3-4 s. Veille actu : date du jour donnée (cherchait « janvier 2025 »).
+- `provider-manager.ts` : dernier recours Gemini puis Groq quand Claude + OpenAI sont morts (/api/call/summary renvoyait 500).
+- `realtime.py` : « Attends, je vérifie ça. » à 7 s puis « Je cherche encore, quelques secondes. » à 22 s pendant ask_dzaryx (PCM en cache dans tgcall/cache/wait).
+- `call.ts` : la note interne « [note interne, ne pas recopier…] » n'est plus renvoyée à la voix ; une info à retenir (famille, goûts) est enregistrée directement, et la voix ne dit plus « je l'ajoute » si le cerveau demandait encore « Je l'enregistre ? ».
+
 ## 2026-10-23 — Playlists 100 % rap FR + plus de « Petit souci technique » sans crédit Claude
 
 - `presence.ts` : playlists de séance = « les indispensables » de 2 rappeurs FR du jour (SoSo Maness, Lacrim, Jul, Naps, SCH, Kofs, L'Algérino, Ninho, Rim'K, Werenoi, Gazo, Alonzo, Kaaris, Hornet La Frappe) + « Le Code ». Retirés : Pure Gym / Sport Rap / Phonk (rap US), Magh Rap, Hits Rap, Soolking, Didine.

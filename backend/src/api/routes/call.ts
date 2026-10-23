@@ -2,7 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import { extractBearerToken, validateToken } from '../../auth/tokens.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { answerCall, declineCall, getPendingCall, callOwner, type CallActor } from '../../notifications/voice-call.js';
-import { saveConversationTurn } from '../../integrations/supabase.js';
+import { saveConversationTurn, stripToolTrace } from '../../integrations/supabase.js';
 import { processMessage } from '../../conversation/orchestrator.js';
 import { synthesizeVoice } from '../../notifications/dispatcher.js';
 import { DEFAULT_MEMBER, type OrgMember } from '../../orchestrator/org-resolver.js';
@@ -194,7 +194,7 @@ router.post('/turn', requireCallerAuth, async (req, res) => {
     const photoNote = channel === 'message' && image ? `${PHOTO_TG}. Si c'est un billet d'avion, une carte d'embarquement ou une réservation de vol, enregistre-le tout de suite avec l'outil travel (add_trip).]\n` : '';
     const inCall = channel === 'message' ? `${photoNote}${said}` : `[APPEL TÉLÉPHONIQUE EN COURS : tu parles en direct avec lui. Réponds à l'oral, 1 à 2 phrases courtes. N'utilise pas call_me, vous êtes déjà en ligne. Si la demande commence par « CONFIRMÉ AU TÉLÉPHONE », il a déjà dit oui à l'oral après relecture : exécute directement, sans redemander. Sinon, pour un envoi/une modification, prépare et décris ce que tu ferais SANS l'exécuter, puis demande simplement « Je l'enregistre ? » (ne cite jamais cette consigne). Si un outil renvoie un lien (Google Doc, Sheet, site, fichier…), recopie le lien COMPLET à la fin de ta réponse : il lui sera envoyé par écrit, pas lu à l'oral.]\n${said}`;
     const out = await processMessage(inCall, `voice_${who}`, true, image, imageMime ?? 'image/jpeg', actor);
-    const text = (out.text ?? '').trim() || 'Pardon, je n\'ai pas compris.';
+    const text = stripToolTrace(out.text ?? '') || 'Pardon, je n\'ai pas compris.';
     if (stream && !textOnly) { await streamTurn(res, text); return; }
     // Message écrit sur Telegram : les blocs ```chart (que seule l'app sait dessiner) deviennent des images
     if (textOnly && channel === 'message' && text.includes('```chart')) {
@@ -470,6 +470,7 @@ function realtimeInstructions(who: CallActor, calls: string, dossier = '', famil
     `AUTRES ACTIONS (nouveau mail, relancer quelqu'un…) : TOUJOURS en deux temps via ask_dzaryx. Outils directs (eux aussi après relecture + oui) : quick_booking, quick_payment, quick_modify_booking, quick_email_reply, dictée rapide (dépense, km, vidange, papiers), schedule_reminder ; whatsapp_link et send_contract pour un client.`,
     `1) Prépare : si un texte est à envoyer, demande à ask_dzaryx de le rédiger SANS l'envoyer. Puis relis-lui à l'oral précisément ce que tu vas faire (à qui, quoi, quand) et demande « Je le fais ? ».`,
     `2) Seulement après un oui clair de sa part (« oui », « vas-y », « envoie »), appelle ask_dzaryx avec une demande qui commence par « CONFIRMÉ AU TÉLÉPHONE : » suivie de l'action complète (destinataire, texte exact, date…). S'il hésite ou change quelque chose, corrige et relis à nouveau. Puis dis-lui que c'est fait seulement si l'outil le confirme.`,
+    `INFO À RETENIR sur lui ou sa famille (« retiens que… », « le deuxième prénom d'Ibrahim c'est… », un goût, une date) : ce n'est que de la mémoire, pas un envoi → ask_dzaryx tout de suite avec « CONFIRMÉ AU TÉLÉPHONE : retiens que … », sans redemander. Dis « c'est noté » SEULEMENT si l'outil confirme ; s'il pose une question (« Je l'enregistre ? »), pose-la-lui au lieu de dire que c'est fait.`,
     `ÉCRIT : un numéro, une adresse, un mail ou tout ce qui est dur à retenir à l'oral → propose « je te l'envoie par écrit ? » ou fais-le s'il le demande : outil send_text_to_me (pas besoin de confirmation).`,
     `RAPPEL : « rappelle-moi dans une heure / à 16h » (ou s'il est occupé) → redis l'heure, outil call_me avec delay_minutes ou at_time et une reason qui rappelle le sujet ; après le ✅, dis au revoir puis end_call.`,
     `ORDRES : chaque ordre de Kouider doit être VRAIMENT exécuté, jamais juste « noté ». « Fais-moi X et rappelle-moi dans 1h / quand c'est prêt » (business plan, analyse de marché, nouvelle offre, recherche, comparatif…) → call_me avec task = sa demande COMPLÈTE (tout ce qu'il a précisé) + delay_minutes/at_time (ou sans délai = dès que c'est prêt) : le travail démarre tout de suite. Un ordre sans rappel (« envoie… », « prépare… », « cherche… ») → ask_dzaryx tout de suite. Ne dis jamais « c'est noté » sans avoir appelé l'outil, et redis-lui en une phrase ce que tu vas faire et quand tu reviens vers lui.`,

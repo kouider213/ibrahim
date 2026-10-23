@@ -162,7 +162,8 @@ call = true pour une VRAIE occasion de gagner de l'argent, concrète et chiffrab
 
 /** Veille actu (2×/jour) : un risque/une opportunité URGENTE → appel tout de suite ; le reste par message. */
 export async function jobMentorNewsWatch(): Promise<void> {
-  const run = await runReadOnlyAgent('Fais la veille maintenant (recherche web), puis réponds avec le JSON.',
+  const day = new Date().toLocaleDateString('fr-BE', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const run = await runReadOnlyAgent(`Nous sommes le ${day}. Fais la veille maintenant (recherche web sur ces derniers jours), puis réponds avec le JSON.`,
     { system: ALERT_SYSTEM, sessionId: 'business_mentor', maxRounds: 8, maxTokens: 2500 });
   const a = run.text.indexOf('{'), z = run.text.lastIndexOf('}');
   let items: Array<{ title: string; what: string; impact: string; why_for_kouider: string; action: string; spoken: string; urgent: boolean; call?: boolean }> = [];

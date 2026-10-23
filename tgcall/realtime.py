@@ -9,6 +9,7 @@ La clé OpenAI est temporaire (fournie par le backend, /api/call/realtime) : la 
 import asyncio
 import audioop
 import base64
+import hashlib
 import json
 import logging
 import os
@@ -55,6 +56,11 @@ GEMINI_RETRY_S = 3600
 gemini_out_until = 0.0
 gemini_alerted = False
 LIMIT_RE = re.compile(r'quota|exhaust|resource|429|rate.?limit|limit', re.I)
+# Le cerveau met du temps (secours gratuit sans Claude : jusqu'à 48 s le 23/10, Kouider a raccroché dans le silence)
+# → Dzaryx dit « je vérifie » après WAIT_S, puis « encore quelques secondes ». Phrases générées une fois, gardées sur disque.
+WAIT_LINES = [(7, 'Attends, je vérifie ça.'), (22, 'Je cherche encore, quelques secondes.')]
+WAIT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache', 'wait')
+wait_pcm: dict[str, bytes] = {}
 
 
 def notify_kouider(text: str) -> None:
@@ -197,6 +203,34 @@ class RealtimeCall:
         if not self.playing:
             self.playing = True
             self.tasks.append(asyncio.create_task(self._pacer()))
+            if len(wait_pcm) < len(WAIT_LINES):
+                self.tasks.append(asyncio.create_task(self._load_wait_lines()))
+
+    async def _load_wait_lines(self) -> None:
+        for _, text in WAIT_LINES:
+            if text in wait_pcm:
+                continue
+            path = os.path.join(WAIT_DIR, hashlib.md5(text.encode()).hexdigest()[:12] + '.pcm')
+            try:
+                if not os.path.exists(path):
+                    pcm = await speak(self.http, self.api, text, self.actor)
+                    os.makedirs(WAIT_DIR, exist_ok=True)
+                    with open(path, 'wb') as f:
+                        f.write(pcm)
+                with open(path, 'rb') as f:
+                    wait_pcm[text] = f.read()
+            except Exception as e:
+                log.warning('phrase d\'attente %r : %s', text, str(e)[:120])
+                return
+
+    async def _say_while_waiting(self) -> None:
+        """Pendant que ask_dzaryx cherche : une courte phrase si le silence dure (annulé dès que la réponse arrive)."""
+        t0 = time.monotonic()
+        for at, text in WAIT_LINES:
+            await asyncio.sleep(max(0.0, at - (time.monotonic() - t0)))
+            if text in wait_pcm and not self.responding and not self.out and not self.closed:
+                log.info('attente du cerveau → %r', text)
+                self._play(wait_pcm[text])
 
     async def close(self) -> None:
         if not self.closed:
@@ -574,7 +608,11 @@ class RealtimeCall:
                 jpg = await asyncio.to_thread(self.snapshot)
                 if jpg:   # caméra allumée → le vrai Dzaryx reçoit l'image (état des lieux, documents…), comme dans l'app
                     body.update(image=jpg, imageMime='image/jpeg')
-                out = await self.api('/api/call/turn', body, self.actor, 90)
+                waiting = asyncio.create_task(self._say_while_waiting())
+                try:
+                    out = await self.api('/api/call/turn', body, self.actor, 90)
+                finally:
+                    waiting.cancel()
                 result = out.get('text') or 'Pas de réponse.'
             except Exception as e:
                 result = f'Erreur technique : {e}. Dis-lui que tu n\'arrives pas à vérifier pour le moment.'

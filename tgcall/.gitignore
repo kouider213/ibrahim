@@ -11,3 +11,4 @@ outbox/
 watchdog.log
 voiceprints/
 models/
+cache/

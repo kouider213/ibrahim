@@ -161,13 +161,26 @@ async function freeBrain(body: Body): Promise<Response | null> {
   pickFallbackTools = pick;
   for (const ep of fallbackEndpoints()) {
     try {
-      const r = await fetch(ep.url, { method: 'POST', headers: { 'content-type': 'application/json', Authorization: `Bearer ${ep.apiKey}` },
-        body: JSON.stringify(toOpenAI(body, ep.model, ep.key !== 'groq')), signal: AbortSignal.timeout(90_000) });
-      if (!r.ok) { if (ep.key === 'gemini' && r.status === 429) markQuota(ep.model); console.warn(`[claude-secours] ${ep.key}/${ep.model} ${r.status}`); continue; }
+      const oai = toOpenAI(body, ep.model, ep.key !== 'groq');
+      // Groq : 8 000 tokens/min → descriptions d'outils raccourcies (61 outils = 8 500 tokens : 2e tour toujours refusé)
+      if (ep.key === 'groq') for (const t of (oai.tools ?? []) as Body[]) t.function.description = String(t.function.description ?? '').slice(0, 200);
+      const post = () => fetch(ep.url, { method: 'POST', headers: { 'content-type': 'application/json', Authorization: `Bearer ${ep.apiKey}` },
+        body: JSON.stringify(oai), signal: AbortSignal.timeout(ep.key === 'gemini' ? 30_000 : 60_000) });
+      let r = await post();
+      const wait = Number(r.headers.get('retry-after') ?? NaN);
+      if (ep.key === 'groq' && r.status === 429 && wait <= 30) {   // quota/minute : attendre vaut mieux que planter la tâche
+        await new Promise(res => setTimeout(res, (wait + 1) * 1000));
+        r = await post();
+      }
+      // 23/10 : quota du jour (429), surcharge (503) → modèle sauté 15 min au lieu d'être réessayé à chaque tour
+      if (!r.ok) { if (ep.key === 'gemini' && (r.status === 429 || r.status === 503)) markQuota(ep.model); console.warn(`[claude-secours] ${ep.key}/${ep.model} ${r.status}`); continue; }
       const out = toAnthropic(await r.json() as Body, ep.model);
       console.warn(`[claude-secours] réponse servie par ${ep.key} (${ep.model})`);
       return new Response(JSON.stringify(out), { status: 200, headers: { 'content-type': 'application/json' } });
-    } catch (err) { console.warn(`[claude-secours] ${ep.key}:`, err instanceof Error ? err.message : err); }
+    } catch (err) {
+      if (ep.key === 'gemini') markQuota(ep.model);   // figé (gemini-flash-latest ne répondait plus du tout le 23/10)
+      console.warn(`[claude-secours] ${ep.key}:`, err instanceof Error ? err.message : err);
+    }
   }
   return null;
 }

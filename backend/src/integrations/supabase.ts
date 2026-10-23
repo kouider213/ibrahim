@@ -354,6 +354,11 @@ export function withToolTrace(m: { role: string; content: string; metadata?: { t
   return `${m.content}\n\n[note interne, ne pas recopier — outils réellement lancés à ce tour : ${tools.length ? tools.join(', ') : 'aucun'}]`;
 }
 
+/** Le cerveau de secours recopiait parfois cette note dans sa réponse (23/10, appel) → retirée avant envoi. */
+export function stripToolTrace(text: string): string {
+  return text.replace(/\s*\[note interne, ne pas recopier[^\]]*\]?/g, '').trim();
+}
+
 export async function saveConversationTurn(
   sessionId: string,
   role: 'user' | 'assistant' | 'system',

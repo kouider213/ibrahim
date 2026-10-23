@@ -199,10 +199,12 @@ export async function callProvider(
     }
   };
 
-  let r: { text: string; inputTokens: number; outputTokens: number };
+  let r: { text: string; inputTokens: number; outputTokens: number } | undefined;
   try {
     r = await callForProvider(provider);
-  } catch (primaryErr: unknown) {
+  } catch (firstErr: unknown) {
+   try {
+    const primaryErr = firstErr;
     // Runtime error (429, network, etc.) — try fallback even if primary was "available"
     const errMsg = primaryErr instanceof Error ? primaryErr.message : String(primaryErr);
     const is429  = errMsg.includes('429') || errMsg.includes('rate limit') || errMsg.includes('quota');
@@ -223,7 +225,22 @@ export async function callProvider(
     } else {
       throw primaryErr;
     }
+   } catch (chainErr) {
+    // 23/10 : crédit Claude à 0 + OpenAI mort → la mémoire des appels plantait (500). Dernier recours : les gratuits.
+    for (const free of ['gemini', 'groq'] as ProviderName[]) {
+      if (free === provider || !isAvailableEff(free)) continue;
+      try {
+        console.warn(`[provider-mgr] ${provider} KO → secours gratuit ${free}`);
+        model = defaultModel(free);   // callForProvider lit `model`
+        r = await callForProvider(free);
+        provider = free; usedFallback = true;
+        break;
+      } catch { /* suivant */ }
+    }
+    if (!r) throw chainErr;
+   }
   }
+  if (!r) throw new Error('[provider-mgr] no result');
 
   const latencyMs  = Date.now() - t0;
   const costEstUsd = estimateCost(provider, r.inputTokens, r.outputTokens);

@@ -50,7 +50,8 @@ interface FallbackEndpoint {
 }
 
 const GEMINI_URL    = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
-const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-3-flash-preview', 'gemini-3.6-flash', 'gemini-flash-latest', 'gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.1-flash-lite'];
+// gemini-flash-latest en dernier : le 23/10 il restait figé sans répondre (30 s+) pendant que les « lite » répondaient
+const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-3-flash-preview', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
 
 // Modèle Gemini à quota épuisé (429) → on le saute 15 min au lieu de le réessayer à chaque message
 const quotaUntil = new Map<string, number>();
