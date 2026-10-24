@@ -109,6 +109,15 @@ function userParts(blocks: Block[]): Body[] | null {
   return parts;
 }
 
+// Gemini 3 exige qu'on lui renvoie la « thought_signature » de chaque appel d'outil (sinon 400 au tour suivant :
+// 24/10, conseiller et veille plantés). Le format Anthropic n'a pas de place pour elle → gardée ici par id d'appel.
+const toolSignatures = new Map<string, unknown>();
+function keepSignature(id: string, extra: unknown): void {
+  if (!id || !extra) return;
+  toolSignatures.set(id, extra);
+  if (toolSignatures.size > 500) toolSignatures.delete(toolSignatures.keys().next().value as string);
+}
+
 /** Corps Anthropic → corps OpenAI chat/completions. */
 function toOpenAI(body: Body, model: string, vision = false): Body {
   const msgs: Body[] = [];
@@ -118,7 +127,8 @@ function toOpenAI(body: Body, model: string, vision = false): Body {
     if (typeof m.content === 'string') { msgs.push({ role: m.role, content: m.content }); continue; }
     const blocks = (m.content ?? []) as Block[];
     if (m.role === 'assistant') {
-      const calls = blocks.filter(b => b.type === 'tool_use').map(b => ({ id: b.id, type: 'function', function: { name: b.name, arguments: JSON.stringify(b.input ?? {}) } }));
+      const calls = blocks.filter(b => b.type === 'tool_use').map(b => ({ id: b.id, type: 'function', function: { name: b.name, arguments: JSON.stringify(b.input ?? {}) },
+        ...(toolSignatures.has(b.id ?? '') ? { extra_content: toolSignatures.get(b.id ?? '') } : {}) }));
       msgs.push({ role: 'assistant', content: blockText(blocks) || null, ...(calls.length ? { tool_calls: calls } : {}) });
     } else {
       for (const b of blocks.filter(x => x.type === 'tool_result')) msgs.push({ role: 'tool', tool_call_id: b.tool_use_id, content: blockText(b.content) || 'ok' });
@@ -130,8 +140,10 @@ function toOpenAI(body: Body, model: string, vision = false): Body {
   }
   // Groq refuse > 128 outils : on garde les 120 plus utiles pour la demande
   const lastUser = [...msgs].reverse().find(m => m.role === 'user');
+  const userText = typeof lastUser?.content === 'string' ? lastUser.content : '';
+  const pickText = userText.trim().length < 25 ? msgs.slice(-4).map(m => typeof m.content === 'string' ? m.content.slice(0, 600) : '').join('\n') : userText;
   const allTools = ((body.tools ?? []) as Array<{ name: string; description?: string; input_schema?: unknown }>).filter(t => t.input_schema);
-  const tools = (allTools.length > 120 ? pickFallbackTools(allTools as Anthropic.Tool[], typeof lastUser?.content === 'string' ? lastUser.content : '', 120) : allTools)
+  const tools = (allTools.length > 120 ? pickFallbackTools(allTools as Anthropic.Tool[], pickText, 120) : allTools)
     .map(t => ({ type: 'function', function: { name: t.name, description: (t.description ?? '').slice(0, 1024), parameters: t.input_schema } }));
   return { model, messages: msgs, max_tokens: Math.min(Number(body.max_tokens) || 1024, 8000), ...(tools.length ? { tools } : {}) };
 }
@@ -141,7 +153,8 @@ function toAnthropic(data: Body, model: string): Body {
   const msg = data?.choices?.[0]?.message ?? {};
   const content: Body[] = [];
   if (msg.content) content.push({ type: 'text', text: String(msg.content) });
-  for (const c of (msg.tool_calls ?? []) as Array<{ id: string; function: { name: string; arguments: string } }>) {
+  for (const c of (msg.tool_calls ?? []) as Array<{ id: string; function: { name: string; arguments: string }; extra_content?: unknown }>) {
+    keepSignature(c.id, c.extra_content);
     let input: unknown = {};
     try { input = JSON.parse(c.function.arguments || '{}'); } catch { /* arguments illisibles */ }
     content.push({ type: 'tool_use', id: c.id, name: c.function.name, input });
@@ -173,7 +186,7 @@ async function freeBrain(body: Body): Promise<Response | null> {
         r = await post();
       }
       // 23/10 : quota du jour (429), surcharge (503) → modèle sauté 15 min au lieu d'être réessayé à chaque tour
-      if (!r.ok) { if (ep.key === 'gemini' && (r.status === 429 || r.status === 503)) markQuota(ep.model); console.warn(`[claude-secours] ${ep.key}/${ep.model} ${r.status}`); continue; }
+      if (!r.ok) { if (ep.key === 'gemini' && (r.status === 429 || r.status === 503)) markQuota(ep.model); console.warn(`[claude-secours] ${ep.key}/${ep.model} ${r.status}`, (await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 200)); continue; }
       const out = toAnthropic(await r.json() as Body, ep.model);
       console.warn(`[claude-secours] réponse servie par ${ep.key} (${ep.model})`);
       return new Response(JSON.stringify(out), { status: 200, headers: { 'content-type': 'application/json' } });

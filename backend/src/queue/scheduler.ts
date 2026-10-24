@@ -584,6 +584,8 @@ async function runJob(name: string, slot: string): Promise<void> {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[scheduler] ❌ ${name} failed:`, msg);
     if (await firstTransientFailure(name, msg)) return;
+    // Crédit Claude vide : déjà signalé une fois (alerte « recharge ») → pas d'appel « tâche plantée » par tâche (24/10)
+    if (/credit balance|purchase credits/i.test(msg)) return;
     void reportIncident(`job:${name}`, `La tâche automatique « ${name} » a planté.`, `La tâche automatique « ${name} » a échoué :\n${msg.slice(0, 400)}`);
   }
 }

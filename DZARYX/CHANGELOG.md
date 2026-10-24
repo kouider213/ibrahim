@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-24 — Secours sans crédit Claude réparé (Gemini + « Oui »), plus d'appels « tâche plantée »
+
+- `anthropic-compat.ts` : Gemini 3 refusait (400 « missing thought_signature ») tout 2e tour avec outils → mentor-news / business-mentor plantaient sans crédit Claude. La signature est gardée par id d'appel et renvoyée. Erreur des cerveaux de secours maintenant écrite dans le log.
+- `agentic-fallback.ts` : réponse courte (« Oui ») → outils choisis sur les derniers échanges et parmi tous les outils ; mots pondérés par rareté (23/10 : « Oui » pour avancer le sport → morning_routine absent, rien fait).
+- `scheduler.ts` : tâche en échec pour crédit Claude vide → pas d'appel d'incident (l'alerte « recharge » suffit).
+
 ## 2026-10-23 — Appel muet raccroché, heure des mails, Gmail déconnecté sans incident
 
 - `tgcall/dzaryx_tg.py` : appel 15h (10 s de silence total, Kouider raccroche avant le contrôle des 12 s) → aucun message ni 2e essai. Maintenant un appel sortant raccroché avec volume 0 = appel muet : message écrit + astuce + 2e essai dans 10 min.

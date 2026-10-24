@@ -76,10 +76,13 @@ const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u
 export function pickFallbackTools(tools: Anthropic.Tool[], userText: string, max: number): Anthropic.Tool[] {
   if (tools.length <= max) return tools;
   const words = [...new Set(norm(userText).split(/[^a-z0-9]+/).filter(w => w.length >= 4))].map(w => w.slice(0, 6));
+  const hays  = new Map(tools.map(t => [t.name, norm(`${t.name.replace(/_/g, ' ')} ${t.description ?? ''}`)]));
+  // Mot rare = signal fort (« sport »), mot présent partout = bruit (« pour », « être », « comme »)
+  const weight = new Map(words.map(w => [w, Math.log(tools.length / (1 + [...hays.values()].filter(h => h.includes(w)).length))]));
   const score = (t: Anthropic.Tool) => {
-    const hay = norm(`${t.name.replace(/_/g, ' ')} ${t.description ?? ''}`);
+    const hay = hays.get(t.name) ?? '';
     const must = MUST_TOOLS.indexOf(t.name);
-    return words.filter(w => hay.includes(w)).length * 2 + (must >= 0 ? 3 - must / MUST_TOOLS.length : 0);
+    return words.filter(w => hay.includes(w)).reduce((a, w) => a + Math.max(0, weight.get(w) ?? 0), 0) * 2 + (must >= 0 ? 3 - must / MUST_TOOLS.length : 0);
   };
   return tools
     .map((t, i) => ({ t, s: score(t), i }))
@@ -142,9 +145,13 @@ export async function runAgenticFallback(
   const eps = fallbackEndpoints();
   if (eps.length === 0) throw new Error('No agentic fallback provider configured');
 
-  const tools        = toolOverride && toolOverride.length > 0 ? toolOverride : Dzaryx_TOOLS;
   const flat         = messages.map(m => ({ role: m.role, content: flattenContent(m.content) }) as OAIMessage);
   const lastUserText = String([...flat].reverse().find(m => m.role === 'user')?.content ?? '');
+  // Réponse courte (« Oui », « vas-y ») = suite de la question d'avant : les outils se choisissent sur les derniers
+  // échanges et parmi TOUS les outils (23/10 : « Oui » pour avancer le sport → morning_routine absent, rien fait)
+  const shortReply   = lastUserText.trim().length < 25;
+  const tools        = toolOverride && toolOverride.length > 0 && !shortReply ? toolOverride : Dzaryx_TOOLS;
+  const pickText     = shortReply ? flat.slice(-4).map(m => String(m.content ?? '').slice(0, 600)).join('\n') : lastUserText;
   // Photo : Gemini/OpenAI la voient (image_url) ; Groq non → on le lui dit pour qu'il n'invente rien
   const withImage = (msgs: OAIMessage[], vision: boolean): OAIMessage[] => {
     const last = msgs.map(m => m.role).lastIndexOf('user');
@@ -157,13 +164,13 @@ export async function runAgenticFallback(
       : { ...m, content: `${text}\n\n(Photo jointe, mais ce modèle de secours ne voit pas les images : dis-le, ne la décris pas.)` };
     });
   };
-  const fullTools    = toOpenAITools(pickFallbackTools(tools, lastUserText, 120));
+  const fullTools    = toOpenAITools(pickFallbackTools(tools, pickText, 120));
   const fullHistory: OAIMessage[] = [
     { role: 'system', content: [Dzaryx.SYSTEM_PROMPT as string, systemExtra ?? ''].filter(Boolean).join('\n\n') },
     ...flat,
   ];
   // Groq : ~4 500 tokens par requête pour tenir 2 tours dans les 8 000 tokens/min
-  const compactTools   = toOpenAITools(pickFallbackTools(tools, lastUserText, 8), 300);
+  const compactTools   = toOpenAITools(pickFallbackTools(tools, pickText, 8), 300);
   const compactHistory: OAIMessage[] = [
     { role: 'system', content: groqSystemPrompt('', systemExtra ?? '', 1_200) },
     ...flat.slice(-6).map(m => ({ ...m, content: String(m.content ?? '').slice(0, 800) })),
