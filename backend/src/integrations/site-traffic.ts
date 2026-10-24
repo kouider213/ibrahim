@@ -23,6 +23,8 @@ export interface DayTraffic {
   topPages: Array<[string, number]>; countries: Array<[string, number]>; sources: Array<[string, number]>;
   // Parcours (24/10) : visiteurs qui ont vu une voiture → ouvert la réservation → envoyé une demande ; contacts WhatsApp/tél.
   funnel: { car: number; resa: number; sent: number; contact: number };
+  // Visites sans aucun geste humain (ni défilement, ni toucher) : robots probables (24/10 : 9 « visiteurs » US sur 16)
+  passive: number;
 }
 
 /** Début du jour à Alger (UTC+1, pas d'heure d'été), décalé de `offsetDays`. */
@@ -64,6 +66,7 @@ export async function dayTraffic(offsetDays = 0): Promise<DayTraffic> {
   const mails = new Set<string>(), seen = new Set<string>();
   const pages = new Map<string, number>(), countries = new Map<string, number>(), sources = new Map<string, number>();
   const step = { car: new Set<string>(), resa: new Set<string>(), sent: new Set<string>(), contact: new Set<string>() };
+  const engaged = new Set<string>();
   let pageCount = 0;
   for (const v of views) {
     const k = kind(v), sid = v.session_id ?? v.ip_hash ?? v.created_at;
@@ -71,7 +74,8 @@ export async function dayTraffic(offsetDays = 0): Promise<DayTraffic> {
     if (!ev) (sessions[k] ?? sessions.inconnu).add(sid);
     if (k !== 'visiteur') continue;
     if (ev) {
-      if (/reservation_complete|import_order|lead/.test(ev)) step.sent.add(sid);
+      if (ev === 'engaged') engaged.add(sid);
+      else if (/reservation_complete|import_order|lead/.test(ev)) step.sent.add(sid);
       else if (/whatsapp_click|phone_click|contact/.test(ev)) step.contact.add(sid);
       continue;
     }
@@ -85,8 +89,11 @@ export async function dayTraffic(offsetDays = 0): Promise<DayTraffic> {
     if (v.country) bump(countries, v.country);
     bump(sources, sourceOf(v.referrer, v.page));
   }
+  // Signal « engaged » envoyé par le site depuis le 24/10 : s'il existe ce jour-là, seuls les vrais gestes humains comptent
+  const passive = engaged.size ? [...sessions.visiteur].filter(sid => !engaged.has(sid)).length : 0;
   return {
-    visitors: sessions.visiteur.size, pages: pageCount, fromMails: mails.size,
+    passive,
+    visitors: sessions.visiteur.size - passive, pages: pageCount, fromMails: mails.size,
     us: sessions.nous.size, robots: sessions.robot.size, unknown: sessions.inconnu.size,
     topPages: top(pages, 5), countries: top(countries, 4), sources: top(sources, 4),
     funnel: { car: step.car.size, resa: step.resa.size, sent: step.sent.size, contact: step.contact.size },
@@ -101,7 +108,7 @@ export function formatTraffic(t: DayTraffic, label: string): string {
     `🌐 Site fikconciergerie.com — ${label}`,
     `👤 Vrais visiteurs : ${t.visitors}${t.visitors ? ` (${t.pages} pages vues)` : ''}${t.fromMails ? `, dont ${t.fromMails} venu${t.fromMails > 1 ? 's' : ''} d'un mail de démarchage` : ''}`,
     `🏠 Nous (toi, l'équipe, Dzaryx) : ${t.us}`,
-    `🤖 Robots (Google, aperçus de liens…) : ${t.robots}`,
+    `🤖 Robots (Google, aperçus de liens…) : ${t.robots}${t.passive ? ` + ${t.passive} visite${t.passive > 1 ? 's' : ''} sans aucun geste (ni défilement ni clic : robots probables)` : ''}`,
   ];
   if (t.unknown) lines.push(`❔ Avant la mise en place du tri : ${t.unknown}`);
   if (t.visitors) {
@@ -126,6 +133,6 @@ export function trafficBriefLine(t: DayTraffic): string {
 export async function jobSiteTraffic(): Promise<void> {
   const { gscSection } = await import('./search-console.js');
   const text = formatTraffic(await dayTraffic(0), "aujourd'hui") + await gscSection().catch(() => '');
-  await queueTelegramMessage(text);
-  emitProactive(text, 'info', undefined, 'kouider');
+  await queueTelegramMessage(text, undefined, 'kouider', undefined, true);   // le bilan de 21h part à 21h, pas dans le point
+  emitProactive(text, 'info', undefined, 'kouider', undefined, true);
 }

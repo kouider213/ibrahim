@@ -286,6 +286,16 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'digest',
+    cron:  '30 12 * * *',           // 12h30 — « le point » : les infos secondaires de la matinée en UN message
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'digest-evening',
+    cron:  '0 19 * * *',            // 19h — le point du soir
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'dzaryx-weekly',
     cron:  '0 19 * * 0',            // dimanche 19h — « ce que j'ai fait pour toi cette semaine » (Telegram + app)
     tz:    'Europe/Brussels',
@@ -524,6 +534,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'mentor-news':             jobMentorNewsWatch,
   'gold-watch':              jobGoldWatch,
   'sport-plan':              async () => { await (await import('../integrations/sport-coach.js')).jobSportPlan(); },
+  'digest':                  async () => { console.log(`[digest] ${await (await import('../notifications/digest.js')).jobDigest()}`); },
+  'digest-evening':          async () => { console.log(`[digest] ${await (await import('../notifications/digest.js')).jobDigest()}`); },
   'dzaryx-weekly':           async () => { await (await import('../integrations/dzaryx-weekly.js')).jobDzaryxWeekly(); },
   'sport-weekly':            async () => { await (await import('../integrations/sport-coach.js')).jobSportWeekly(); },
   'presence-watch':          async () => { await (await import('../integrations/presence.js')).jobPresenceWatch(); },

@@ -4,6 +4,7 @@ import { kvGet, kvSet } from '../integrations/app-store.js';
 import { env } from '../config/env.js';
 import { sendFcm, isFcmToken } from './fcm.js';
 import { getWebSub, getAllWebSubs, sendWebPush } from './web-push-service.js';
+import { routeOf, addToDigest } from './digest.js';
 
 let _io: Namespace | null = null;
 
@@ -147,9 +148,17 @@ export function emitProactive(
   chatText?: string,
   targetActor: ProactiveActor = 'kouider',
   deepLink?: string,
+  bypassDigest = false,
 ): void {
   const timestamp   = new Date().toISOString();
   const chatPayload = chatText ?? text;
+  // Tri anti-bruit (digest.ts) : inutile → rien ; secondaire → historique sans sonner, envoyé dans le point de 12h30 / 19h
+  let digest = false;
+  if (targetActor === 'kouider' && !bypassDigest) {
+    const route = routeOf(chatPayload);
+    if (route === 'drop') { console.log(`[mobile-push] inutile, pas envoyé : ${chatPayload.slice(0, 50)}`); return; }
+    if (route === 'digest') { digest = true; void addToDigest(chatPayload).catch(() => {}); }
+  }
 
   // Historique durable (Supabase) — chaque acteur ne voit que les siennes + celles pour 'all'
   void supabase.from('proactive_history')
@@ -167,6 +176,7 @@ export function emitProactive(
               : type === 'reminder' ? '🔔 Dzaryx — Rappel'
               : '📱 Dzaryx';
 
+  if (digest) { console.log(`[mobile-push] rangé pour le point : ${chatPayload.slice(0, 50)}`); return; }
   // Respecte les préférences de notif (par type) avant de pousser
   void Promise.all([pushTypeEnabled(targetActor, type), targetActor === 'kouider' ? import('./dnd.js').then(m => m.getDnd()).catch(() => null) : null]).then(([enabled, dnd]) => {
     if (!enabled) { console.log(`[mobile-push] type ${type} désactivé pour ${targetActor} — push sauté`); return; }

@@ -36,7 +36,13 @@ async function push(actor: string, m: TgOutMessage): Promise<void> {
   await kvSet(key(actor), JSON.stringify(list.slice(-10)), 24 * 3600);
 }
 
-export async function queueTelegramMessage(text: string, image?: string, actor = 'kouider', file?: TgOutMessage['file']): Promise<void> {
+export async function queueTelegramMessage(text: string, image?: string, actor = 'kouider', file?: TgOutMessage['file'], bypassDigest = false): Promise<void> {
+  if (actor === 'kouider' && !bypassDigest && !image && !file) {   // tri anti-bruit (digest.ts)
+    const { routeOf, addToDigest } = await import('./digest.js');
+    const route = routeOf(text);
+    if (route === 'drop') return;
+    if (route === 'digest') { await addToDigest(text); return; }
+  }
   await push(actor, { text: text.slice(0, 4000), ...(image && image.length <= MAX_IMAGE_B64 ? { image } : {}), ...(file ? { file } : {}) });
 }
 

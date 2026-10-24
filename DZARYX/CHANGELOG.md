@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-10-24 — Moins de messages (tri anti-bruit + 2 points par jour), vrais visiteurs, voitures en haut de l'accueil, Houari bof
+
+- `notifications/digest.ts` + hooks `emitProactive` / `queueTelegramMessage` : inutile (« image en cours », « aucune donnée », « journée terminée », prépa RDV vide) → jamais envoyé ; secondaire (agenda, BI, véhicules inactifs, démarchage du jour, opportunités, contenu…) → rangé, envoyé en UN « point » à 12h30 et 19h (jobs `digest`, `digest-evening`) ; le reste part tout de suite. Le bilan de 21h passe directement.
+- `site-traffic.ts` : visites sans aucun geste humain (signal `engaged` du site) comptées comme robots probables.
+- Site (autolux-location) : section voitures remontée juste sous l'accueil + bouton « Réserver sur WhatsApp » ; `_app.js` envoie `engaged` au 1er défilement/toucher.
+- Dossier privé (app_kv) : « Houari bof » = beau-frère, associé et bras droit (≠ Houari propriétaire) → le mentor peut l'inclure.
+
 ## 2026-10-24 — Site : adresses de voitures lisibles + parcours visiteurs
 
 - Site (autolux-location a79e429) : `lib/carUrl.js` → /cars/clio-4-essence-location-oran-<id> (sitemap, liens, JSON-LD) ; l'ancienne adresse /cars/<id> redirige en 301. `lib/tracker.js` : `trackEvent` aussi dans page_views (page « #event:… ») ; `_app.js` compte les clics WhatsApp / téléphone.
