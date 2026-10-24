@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-24 — Démarchage : alertes sur Telegram + fiche vente (prix + arguments) après chaque démo
+
+- `site-prospecting.ts` : les « oui », démos envoyées, échecs de démo et réponses des commerces partent maintenant AUSSI sur Telegram (`tellKouider`) — avant, seulement dans l'app (Caramelia pastry 24/10 : Kouider n'a rien vu).
+- `salesBrief()` : juste après l'envoi d'une démo, fiche vente pour Kouider : pack conseillé au prix de SA grille (`site-tarifs.ts`, jamais inventé), autres packs, offre en cours, 4-5 arguments pour ce commerce, objection probable + réponse, phrase pour conclure.
+- Rappel : la réponse est vue au passage suivant (toutes les 30 min, 7h-22h Oran) ; la démo a déjà un secours si Netlify n'a plus de crédit (hébergée sur Railway /demo/<slug>/, be7cc9b).
+
 ## 2026-10-24 — Secours sans crédit Claude réparé (Gemini + « Oui »), plus d'appels « tâche plantée »
 
 - `anthropic-compat.ts` : Gemini 3 refusait (400 « missing thought_signature ») tout 2e tour avec outils → mentor-news / business-mentor plantaient sans crédit Claude. La signature est gardée par id d'appel et renvoyée. Erreur des cerveaux de secours maintenant écrite dans le log.

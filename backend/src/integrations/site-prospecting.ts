@@ -5,7 +5,9 @@ import { sendEmail, countSentToday, type GmailAccount } from './gmail.js';
 import { addProspect, updateProspect, companyKey, type Prospect } from './prospects.js';
 import { buildDemo, loadDemo } from './demo-site.js';
 import { findFreeSlots } from './google-calendar.js';
-import { emitProactive } from '../notifications/mobile-push.js';
+import { emitProactive, type ProactiveType } from '../notifications/mobile-push.js';
+import { queueTelegramMessage } from '../notifications/tg-outbox.js';
+import { getTarifs, packPrice, countryOf as tarifCountry } from './site-tarifs.js';
 import { kvGet, kvSet, kvDel } from './app-store.js';
 import { createAnthropic, QUALITY } from './anthropic-compat.js';
 import { proposeProspectWhatsapp } from './prospect-whatsapp.js';
@@ -90,6 +92,12 @@ function parseJson<T>(text: string): T | null {
   try { return JSON.parse(m[0]) as T; } catch { return null; }
 }
 const stamp = () => new Date().toISOString().slice(0, 10);
+
+/** Alerte démarchage dans l'app ET sur Telegram (emitProactive seul = app seulement : Kouider ne voyait pas les « oui », 24/10). */
+function tellKouider(short: string, type: ProactiveType, chat: string): void {
+  emitProactive(short, type, chat, 'kouider', 'demarchage');
+  void queueTelegramMessage(chat).catch(err => console.error('[site-prospect] telegram:', err instanceof Error ? err.message : err));
+}
 /** Retire une signature que le modèle aurait ajoutée malgré la consigne (sinon elle apparaît en double). */
 const stripSig = (body: string) => body.trim().replace(/(\n\s*(cordialement|bien à vous|bien cordialement|belle journée)?[,.]?\s*\n?\s*kouider[^\n]*(\n[^\n]*fik[^\n]*)?)\s*$/i, '').trim();
 const addNote = (p: Prospect, line: string) => [p.notes, `[${stamp()}] ${line}`].filter(Boolean).join('\n');
@@ -279,15 +287,15 @@ export async function handleSiteReply(p: Prospect, mail: { subject: string; body
     await updateProspect(p.id, { ...base, status: 'interesse', replied_at: new Date().toISOString(), suggested_reply: null });
     // Une seule annonce par réponse, même si l'envoi est retenté à la vérification suivante
     const once = async (k: string) => { const key = `siteprospect:said:${k}:${base.reply_seen_id}`; if (await kvGet(key)) return false; await kvSet(key, '1', 7 * 86_400); return true; };
-    if (await once('yes')) emitProactive(`${p.company} veut voir la démo de son site — je la prépare et je la lui envoie.`, 'alert',
-      `📩 ${p.company} (${p.email}) a dit oui à la démo de son site.\nRésumé : ${a.resume}\n⏳ Je fais la démo avec sa fiche Google et je la lui envoie (2-3 min).${waLine}`, 'kouider', 'demarchage');
+    if (await once('yes')) tellKouider(`${p.company} veut voir la démo de son site — je la prépare et je la lui envoie.`, 'alert',
+      `📩 ${p.company} (${p.email}) a dit oui à la démo de son site.\nRésumé : ${a.resume}\n⏳ Je fais la démo avec sa fiche Google et je la lui envoie (2-3 min).${waLine}`);
     await sendDemo(p, base, slots).catch(async err => {
       const e = err instanceof Error ? err.message : String(err);
       console.error('[site-prospect] démo:', e);
       // Pas marquée comme lue → nouvel essai à la prochaine vérification des mails (toutes les 30 min)
       await updateProspect(p.id, { reply_seen_id: p.reply_seen_id }).catch(() => {});
-      if (await once('fail')) emitProactive(`La démo pour ${p.company} n'a pas pu être envoyée.`, 'alert',
-        `⚠️ ${p.company} a dit oui à la démo mais je n'ai pas réussi à la faire ou à l'envoyer : ${e.slice(0, 200)}\nDis-moi « réessaie la démo de ${p.company} » ou fais-la avec create_demo_site.`, 'kouider', 'demarchage');
+      if (await once('fail')) tellKouider(`La démo pour ${p.company} n'a pas pu être envoyée.`, 'alert',
+        `⚠️ ${p.company} a dit oui à la démo mais je n'ai pas réussi à la faire ou à l'envoyer : ${e.slice(0, 200)}\nDis-moi « réessaie la démo de ${p.company} » ou fais-la avec create_demo_site.`);
     });
     return;
   }
@@ -299,7 +307,7 @@ export async function handleSiteReply(p: Prospect, mail: { subject: string; body
     : `📩 ${p.company} (${p.email}) a répondu${demoSent ? ' après avoir reçu sa démo' : ''} !\nRésumé : ${a.resume}\n` +
       `${info?.demoUrl ? `🌐 Sa démo : ${info.demoUrl}\n` : ''}${slotTxt && a.intent === 'rdv' ? `📅 Ma réponse propose : ${slotTxt}\n` : ''}` +
       `\n👉 Valide la réponse dans la page Démarchage, ou dis « réponds à ${p.company} » ici.${waLine}`;
-  emitProactive(`${p.company} a répondu${a.intent === 'rdv' ? ' : il veut un rendez-vous !' : '.'}`, 'alert', chat, 'kouider', 'demarchage');
+  tellKouider(`${p.company} a répondu${a.intent === 'rdv' ? ' : il veut un rendez-vous !' : '.'}`, 'alert', chat);
 }
 
 /** Fait la démo (fiche Google) et l'envoie dans la même conversation, avec la liste de ce qui a été inventé. */
@@ -342,14 +350,45 @@ export async function sendDemo(p: Prospect, base: Pick<ReplyBase, 'gmail_thread_
     await saveSiteInfo(p.id, { ...(info ?? { placeId: '', address: '', types: [] }), demoSlug: demo.slug, demoUrl: demo.url, demoSentAt: now });
     await updateProspect(p.id, { last_contacted_at: now, gmail_thread_id: threadId, proposed_slots: slots.length ? slots : p.proposed_slots,
       notes: addNote(p, `Démo envoyée : ${demo.url}${invented.length ? ` (inventé : ${invented.join(' ; ')})` : ''}`) });
-    emitProactive(`Démo envoyée à ${p.company}.`, 'info',
+    tellKouider(`Démo envoyée à ${p.company}.`, 'info',
       `🌐 Démo envoyée à ${p.company} (${p.email}) :\n${demo.url}\n` +
       (invented.length ? `\n✏️ Inventé (signalé dans le mail) :\n- ${invented.join('\n- ')}\n` : '') +
-      (slots.length ? `\n📅 Créneaux proposés : ${slotsText(slots)}` : '') + `\n\nJe te préviens dès qu'il répond.`, 'kouider', 'demarchage');
+      (slots.length ? `\n📅 Créneaux proposés : ${slotsText(slots)}` : '') + `\n\nJe te préviens dès qu'il répond.`);
+    // Fiche vente juste après : prix à proposer + arguments, pour être prêt quand il rappelle
+    void salesBrief(p, info?.address ?? '', info?.types ?? [], demo.url)
+      .then(brief => tellKouider(`Fiche vente ${p.company} prête.`, 'info', brief))
+      .catch(err => console.error('[site-prospect] fiche vente:', err instanceof Error ? err.message : err));
     return demo.url;
   } finally {
     await kvDel(lock).catch(() => {});
   }
+}
+
+/** Fiche vente pour Kouider : pack conseillé au prix de SA grille (jamais inventé), arguments pour CE commerce, objection probable. */
+export async function salesBrief(p: Prospect, address: string, types: string[], demoUrl: string): Promise<string> {
+  const country = tarifCountry(`${address} ${p.city ?? ''}`, p.phone);
+  const t = await getTarifs();
+  const packs = t.packs.filter(x => x.country === country);
+  const out = parseJson<{ pack: string; pourquoi: string; arguments: string[]; objection: string; reponse: string; phrase: string }>(await ask(
+    'Tu prépares Kouider (FIK Sites) à vendre un site web à un commerce qui vient de recevoir la démo de son site. Français simple, phrases courtes, ' +
+    'vouvoiement dans ce qu\'il dira au client. Réponds UNIQUEMENT en JSON {"pack":"id du pack conseillé","pourquoi":"1 phrase",' +
+    '"arguments":["4 à 5 arguments à dire au client, concrets pour CE commerce (ex. faire découvrir vos produits en photos, toucher de nouveaux clients qui cherchent sur Google, commandes par WhatsApp…)"],' +
+    '"objection":"l\'objection la plus probable","reponse":"quoi répondre, 1-2 phrases","phrase":"une phrase pour conclure la vente"}. ' +
+    'AUCUN prix ni chiffre de prix dans les textes (les prix viennent de la grille).',
+    `Commerce : ${p.company} (${p.city ?? ''}), type : ${types.join(', ') || 'inconnu'}.\nNotes : ${(p.notes ?? '').slice(0, 600)}\n` +
+    `Sa réponse : ${(p.last_reply_text ?? '').slice(0, 800)}\n\nPacks :\n${packs.map(x => `${x.id} — ${x.name} (${x.for}) : ${x.includes.join(', ')}`).join('\n')}`, 800,
+  ).catch(() => ''));
+  const pack = packs.find(x => x.id === out?.pack) ?? packs.find(x => x.id.startsWith('pro')) ?? packs[0];
+  const others = packs.filter(x => x !== pack).map(x => `${x.name} ${packPrice(x)}`).join(' ; ');
+  const args = (out?.arguments ?? []).filter(a => typeof a === 'string' && a.trim()).slice(0, 5);
+  return `💰 Fiche vente — ${p.company}\n🌐 ${demoUrl}\n\n` +
+    (pack ? `✅ Pack conseillé : ${pack.name} — ${packPrice(pack)}${out?.pourquoi ? `\n   ${out.pourquoi}` : ''}\n` : '') +
+    (others ? `Autres choix : ${others}\n` : '') +
+    (t.offers[country] ? `🎁 Offre : ${t.offers[country]}\n` : '') +
+    (args.length ? `\n🗣️ À dire au client :\n${args.map(a => `- ${a.trim()}`).join('\n')}\n` : '') +
+    (out?.objection ? `\n⚠️ Objection probable : ${out.objection}${out.reponse ? `\n   → ${out.reponse}` : ''}\n` : '') +
+    (out?.phrase ? `\n🎯 Pour conclure : « ${out.phrase} »\n` : '') +
+    `\n(Prix = ta grille du ${t.updatedAt}. Pour changer : « passe le Pro Algérie à 3 000 DA ».)`;
 }
 
 /** Relancer la démo à la main (outil) : « réessaie la démo de X ». */
