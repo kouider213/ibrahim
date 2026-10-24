@@ -63,6 +63,10 @@ RETRY_S = float(os.environ.get('RETRY_S', '600'))   # appel manqué → 2e essai
 RETRY_TAG = "tu n'avais pas décroché"
 # Voix temps réel (OpenAI Realtime) : discussion naturelle. 0 → ancienne chaîne (transcription → Dzaryx → voix).
 REALTIME = os.environ.get('REALTIME', '1') == '1'
+# « appels claude on » (Telegram) : les appels passent par le cerveau Claude (tous les outils, plus intelligent, un peu plus
+# lent et payant) au lieu de la voix gratuite Gemini Live. Sinon Gemini d'abord, et bascule sur Claude s'il bloque (24/10).
+CLAUDE_CALLS = HERE / 'cache' / 'claude-calls'
+CLAUDE_CALLS_CMD = re.compile(r'^appels?\s+claude\s+(on|off|oui|non)$', re.I)
 
 SAMPLE_RATE = 16000
 SPEECH_RMS = int(os.environ.get('SPEECH_RMS', '600'))   # seuil de voix (PCM 16 bits)
@@ -130,6 +134,8 @@ class CallState:
         self.buf = bytearray()
         self.voiced_s = 0.0
         self.silence_s = 0.0
+        self.in_rate = SAMPLE_RATE    # 24 kHz si l'appel a commencé en voix temps réel puis basculé (enregistrement déjà lancé)
+        self.rc_state = None
 
 
 active: dict[int, CallState] = {}
@@ -369,6 +375,8 @@ async def on_frames(_, update: StreamFrames) -> None:
         return
     for fr in update.frames:
         data = fr.frame
+        if st.in_rate != SAMPLE_RATE and data:
+            data, st.rc_state = audioop.ratecv(data, 2, 1, st.in_rate, SAMPLE_RATE, st.rc_state)
         dur = len(data) / (2 * SAMPLE_RATE)
         rms = audioop.rms(data, 2) if data else 0
         if rms >= SPEECH_RMS:
@@ -405,6 +413,8 @@ async def on_incoming(_, update: ChatUpdate) -> None:
 async def on_left(_, update: ChatUpdate) -> None:
     st = active.pop(update.chat_id, None)
     call_ended[update.chat_id] = time.monotonic()
+    if not active:
+        asyncio.create_task(tg_live(False))
     if st:
         if st.rt:
             await st.rt.close()
@@ -452,7 +462,8 @@ async def start_call(actor: str, user_id: int) -> None:
         return
     last_call[user_id] = time.monotonic()
     active[user_id] = CallState(actor)
-    if REALTIME and await start_realtime(actor, user_id):
+    asyncio.create_task(tg_live(True))
+    if REALTIME and not CLAUDE_CALLS.exists() and await start_realtime(actor, user_id):
         return
     ans: dict | None = None
     try:
@@ -469,6 +480,14 @@ async def start_call(actor: str, user_id: int) -> None:
             await calls.leave_call(user_id)
         except Exception:
             pass
+
+
+async def tg_live(live: bool) -> None:
+    """Appel Telegram en cours : l'app Dzaryx de l'iPhone lâche son micro (sinon Telegram n'envoie que du silence)."""
+    try:
+        await api('/api/call/tg-live', {'live': live}, 'kouider', 10)
+    except Exception as e:
+        log.warning('tg-live: %s', e)
 
 
 async def missed_call(actor: str, user_id: int, reason: str, err: Exception | None, why: str = '', tip: str = '') -> None:
@@ -621,6 +640,8 @@ async def hang_up(user_id: int) -> None:
         await st.rt.wait_silent()          # finir son « au revoir »
     st = active.pop(user_id, None)
     call_ended[user_id] = time.monotonic()
+    if not active:
+        asyncio.create_task(tg_live(False))
     try:
         await calls.leave_call(user_id)
     except Exception as e:
@@ -644,6 +665,7 @@ async def start_realtime(actor: str, user_id: int) -> bool:
         await rt.close()
         return False
     st.rt = rt
+    rt.on_stall = lambda why: switch_to_claude(user_id, rt, why)
     st.outgoing = bool(ans.get('incoming'))   # Dzaryx appelle (motif en attente) ≠ Kouider qui appelle
     greeting = ans.get('text') or 'Oui, je t\'écoute.'
     log.info('appel %s (temps réel) → %r', actor, greeting)
@@ -673,6 +695,24 @@ MUTE_TIP = ('🔇 L\'appel était muet : ton téléphone n\'envoyait aucun son (
             'Ferme l\'app Dzaryx (et toute app qui utilise le micro), vérifie le Bluetooth, puis rappelle-moi.\n\n')
 
 
+async def switch_to_claude(user_id: int, rt: RealtimeCall, why: str) -> None:
+    """La voix temps réel (Gemini) ne répond plus en plein appel : l'appel continue sur l'ancienne chaîne
+    (transcription → cerveau Claude avec tous ses outils → voix), au lieu de laisser Kouider parler dans le vide."""
+    st = active.get(user_id)
+    if st is None or st.rt is not rt:
+        return
+    log.warning('appel %s : voix temps réel %s → je passe sur le cerveau Claude', st.actor, why)
+    st.rt = None
+    st.in_rate, st.rc_state = IN_RATE, None
+    await rt.close()
+    asyncio.create_task(remember_call(user_id, st.actor, rt))
+    try:
+        tts = await api('/api/tts', {'text': 'Pardon, je t\'entendais mal. C\'est bon, je t\'écoute : tu peux répéter ?'}, st.actor, 30)
+        await say(user_id, tts.get('audio'))
+    except Exception as e:
+        log.warning('phrase de reprise: %s', e)
+
+
 async def mute_guard(actor: str, user_id: int, rt: RealtimeCall, greeting: str, outgoing: bool) -> None:
     """Appel décroché mais 100 % silence reçu (volume 0 — même un micro au repos capte du bruit) :
     le son est bloqué côté téléphone (19/10). On ne laisse pas Kouider dans un appel muet : on raccroche,
@@ -685,6 +725,8 @@ async def mute_guard(actor: str, user_id: int, rt: RealtimeCall, greeting: str, 
     log.warning('appel MUET : %d tranches reçues, volume 0 après %.0f s → je raccroche et j\'écris', rt.n_in, MUTE_CHECK_S)
     st = active.pop(user_id, None)
     call_ended[user_id] = time.monotonic()
+    if not active:
+        asyncio.create_task(tg_live(False))
     try:
         await calls.leave_call(user_id)
     except Exception as e:
@@ -830,7 +872,7 @@ async def heartbeat() -> None:
     while True:
         try:
             errs, _errors.items = _errors.items, []
-            await api('/api/call/heartbeat', {'connected': app.is_connected, 'errors': errs}, 'kouider', 15)
+            await api('/api/call/heartbeat', {'connected': app.is_connected, 'errors': errs, 'inCall': bool(active)}, 'kouider', 15)
         except Exception as e:
             log.warning('heartbeat: %s', e)
         await asyncio.sleep(60)
@@ -998,6 +1040,14 @@ async def on_message(_, msg: Message) -> None:
             speaker.set_guard(on)
             await app.send_message(uid, '🔐 Vérification de la voix ACTIVÉE : au téléphone je vérifie que c\'est toi avant de parler affaires.'
                                    if on else '🔓 Vérification de la voix désactivée : ton compte Telegram suffit, je te parle direct.')
+        elif msg.text and CLAUDE_CALLS_CMD.match(msg.text.strip()) and actor == speaker.OWNER:
+            on = CLAUDE_CALLS_CMD.match(msg.text.strip()).group(1).lower() in ('on', 'oui')
+            CLAUDE_CALLS.parent.mkdir(exist_ok=True)
+            CLAUDE_CALLS.touch() if on else CLAUDE_CALLS.unlink(missing_ok=True)
+            await app.send_message(uid, '🧠 Appels sur le cerveau Claude : je t\'entends et je réfléchis avec tous mes outils '
+                                        '(réponse ~2-3 s, utilise ton crédit Claude). « appels claude off » pour revenir à la voix gratuite.'
+                                   if on else '⚡ Appels sur la voix gratuite (Gemini), avec bascule automatique sur Claude si elle bloque. '
+                                              '« appels claude on » pour tout passer sur Claude.')
         elif msg.text and VOICE_CMD.match(msg.text.strip()):
             await voice_command(msg, actor, VOICE_CMD.match(msg.text.strip()).group(1))
         elif msg.text:

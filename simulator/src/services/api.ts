@@ -593,6 +593,7 @@ export const callApi = {
     method: 'POST', body: JSON.stringify({ callId, actor: _actor }),
   }),
   decline: (callId?: string) => apiFetch<{ ok: boolean }>('/api/call/decline', { method: 'POST', body: JSON.stringify({ callId, actor: _actor }) }),
+  tgLive:  () => apiFetch<{ live: boolean }>('/api/call/tg-live-state', { method: 'POST', body: JSON.stringify({ actor: _actor }) }),
 };
 
 export function disconnectSocket(): void { _socket?.disconnect(); _socket = null; }

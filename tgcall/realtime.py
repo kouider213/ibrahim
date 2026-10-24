@@ -44,6 +44,11 @@ MAX_GAIN = 4.0
 ECHO_TAIL_S = 0.8                  # l'écho revient encore ~0,5 s après la dernière tranche jouée
 BARGE_OPEN_S = 1.5                 # voix forte entendue → on laisse tout passer 1,5 s (il coupe la parole)
 RECONNECTS = 3                     # coupures Gemini Live (1007 le 20/10) → nouvelle session, l'appel continue
+# Voix bloquée (24/10 17h : sa voix arrivait, Gemini ne transcrivait ni ne répondait → Dzaryx muet) : s'il a parlé
+# au moins STALL_SPEECH_S et que rien ne répond STALL_WAIT_S après sa dernière phrase → on passe sur le cerveau Claude.
+STALL_RMS = int(os.environ.get('STALL_RMS', '900'))
+STALL_SPEECH_S = 1.2
+STALL_WAIT_S = float(os.environ.get('STALL_WAIT_S', '7'))
 VOICE_KEEP_S = 30                  # au plus 30 s de sa voix gardées (vérification + apprentissage en fin d'appel)
 # Outils permis quand ce n'est PAS Kouider (sa femme, un proche, un inconnu) : rien qui touche à ses affaires
 GUEST_TOOLS = {'web_search', 'end_call', 'call_back_later', 'leave_message', 'learn_voice', 'verify_code'}
@@ -145,6 +150,10 @@ class RealtimeCall:
         self.echo_k = ECHO_K0             # écho = echo_k × voix de Dzaryx (appris : écouteurs → presque 0)
         self.voice_lvl = 0.0              # volume habituel de sa voix (pic qui retombe en ~10 s)
         self.reconnects = 0
+        self.on_stall = None              # async (why) → l'appel passe sur l'ancienne chaîne (cerveau Claude)
+        self.loud_s = 0.0                 # secondes de sa voix depuis la dernière réaction de Dzaryx
+        self.last_loud = 0.0
+        self.tools_running = 0
 
     # ── Connexion ────────────────────────────────────────────────────────────
     async def _connect_openai(self) -> dict:
@@ -203,6 +212,7 @@ class RealtimeCall:
         if not self.playing:
             self.playing = True
             self.tasks.append(asyncio.create_task(self._pacer()))
+            self.tasks.append(asyncio.create_task(self._stall_watch()))
             if len(wait_pcm) < len(WAIT_LINES):
                 self.tasks.append(asyncio.create_task(self._load_wait_lines()))
 
@@ -221,6 +231,26 @@ class RealtimeCall:
                     wait_pcm[text] = f.read()
             except Exception as e:
                 log.warning('phrase d\'attente %r : %s', text, str(e)[:120])
+                return
+
+    def _reacted(self) -> None:
+        self.loud_s = 0.0
+
+    def _stall(self, why: str) -> None:
+        cb, self.on_stall = self.on_stall, None   # une seule bascule
+        if cb and not self.closed:
+            asyncio.create_task(cb(why))
+
+    async def _stall_watch(self) -> None:
+        """Il a parlé, puis plus rien ne répond (ni voix, ni outil) → bascule sur le cerveau Claude."""
+        while not self.closed:
+            await asyncio.sleep(0.5)
+            if self.guarded and self.who == '?':
+                continue
+            if (self.loud_s >= STALL_SPEECH_S and not self.responding and not self.out and not self.tools_running
+                    and time.monotonic() - self.last_loud >= STALL_WAIT_S):
+                log.warning('voix temps réel muette (%.1fs de sa voix sans réponse) → cerveau Claude', self.loud_s)
+                self._stall('pas de réponse')
                 return
 
     async def _say_while_waiting(self) -> None:
@@ -283,6 +313,9 @@ class RealtimeCall:
                 pcm24k = bytes(len(pcm24k))
         elif not playing and rms > 300:
             self.voice_lvl = max(float(rms), self.voice_lvl * 0.999)
+        if not playing and rms >= STALL_RMS:
+            self.loud_s += len(pcm24k) / (2 * IN_RATE)
+            self.last_loud = now
         # Micro faible (écouteurs Bluetooth : volume max ~1000 au lieu de ~7000) → Gemini ne détectait pas sa voix
         if self.voice_lvl and rms:
             gain = min(MAX_GAIN, max(1.0, VOICE_TARGET / self.voice_lvl))
@@ -519,6 +552,7 @@ class RealtimeCall:
                 break
         if not self.closed:
             log.warning('voix temps réel déconnectée')
+            self._stall('déconnectée')
 
     async def _reconnect(self) -> None:
         """Gemini Live a coupé en plein appel : nouvelle session avec la conversation jusqu'ici, Dzaryx reprend."""
@@ -552,6 +586,7 @@ class RealtimeCall:
                 self._play(base64.b64decode(ev['delta']))
             elif t == 'response.created':
                 self.responding = True
+                self._reacted()
             elif t == 'response.done':
                 self.responding = False
             elif t == 'input_audio_buffer.committed':
@@ -575,11 +610,20 @@ class RealtimeCall:
                 if said:
                     self.lines.append({'role': 'dzaryx', 'text': said})
             elif t == 'response.function_call_arguments.done':
+                self._reacted()
                 asyncio.create_task(self._tool(ev))
             elif t == 'error':
                 log.error('realtime: %s', ev.get('error'))
 
     async def _tool(self, ev: dict) -> None:
+        self.tools_running += 1   # un outil qui cherche 20 s n'est pas une voix bloquée
+        try:
+            await self._run_tool(ev)
+        finally:
+            self.tools_running -= 1
+            self._reacted()
+
+    async def _run_tool(self, ev: dict) -> None:
         call_id, name = ev.get('call_id'), ev.get('name')
         try:
             args = json.loads(ev.get('arguments') or '{}')

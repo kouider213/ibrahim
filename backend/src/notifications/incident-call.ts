@@ -1,8 +1,9 @@
-// Anomalie / bug / panne → Dzaryx APPELLE Kouider tout de suite (Telegram + l'app sonne), en plus de l'alerte écrite.
+// Anomalie / bug / panne → message Telegram + alerte dans l'app. Plus d'APPEL pour un bug (Kouider 24/10 : l'appel
+// « mentor-news a planté » de 8h l'a mis en « ne pas déranger » toute la matinée ; ses bugs ne sont pas à lui de gérer).
 // Garde-fous : un même incident n'appelle qu'une fois toutes les REPEAT_H heures, et pas plus de DAILY_MAX appels
 // d'incident par jour (au-delà : alerte écrite seulement). Si la base ne répond pas, on se rabat sur la mémoire du process.
 import { kvGet, kvSet } from '../integrations/app-store.js';
-import { callOwner } from './voice-call.js';
+import { queueTelegramMessage } from './tg-outbox.js';
 import { emitProactive } from './mobile-push.js';
 
 const REPEAT_H  = 3;
@@ -48,8 +49,8 @@ export async function reportIncident(key: string, spoken: string, detail?: strin
     if (what === 'dup') return;
     if (detail !== null) emitProactive(`🚨 ${spoken}`.slice(0, 140), 'alert', `🚨 PROBLÈME DÉTECTÉ\n${detail ?? spoken}`, 'kouider');
     if (what === 'call') {
-      await callOwner(`J'ai détecté un problème. ${spoken} Les détails sont dans tes notifications. Tu veux que je regarde quelque chose ?`);
-      console.log(`[incident] appel lancé : ${key.slice(0, 80)}`);
+      await queueTelegramMessage(`🛠 ${spoken} (Pas besoin de répondre : les détails sont dans l'app.)`);
+      console.log(`[incident] message envoyé : ${key.slice(0, 80)}`);
     }
   } catch (err) {
     // Jamais de throw ici : appelé depuis les gardes-fous globaux (uncaughtException…)

@@ -18,7 +18,7 @@ import { takeCallInbox, addToCallInbox, removeFromCallInbox } from '../../notifi
 import { clientWhatsappLink } from '../../notifications/client-care.js';
 import { quickBooking, quickPayment, quickQuote, quickAgenda, quickModifyBooking, quickEmailReply, quickContract } from '../../integrations/call-quick.js';
 import { takeTelegramMessages, queueTelegramMessage } from '../../notifications/tg-outbox.js';
-import { getDnd, setDnd, dndOnKouiderMessage } from '../../notifications/dnd.js';
+import { getDnd, setMissedCallDnd, dndOnKouiderMessage } from '../../notifications/dnd.js';
 import { noteKouiderActivity } from '../../integrations/morning-routine.js';
 import { storeLocation, getLocation } from '../../integrations/location.js';
 import { pcCommand, pcStatus, pcWake, pcScreenToTelegram, pcLookJpeg } from '../../integrations/nexus-remote.js';
@@ -60,7 +60,8 @@ router.post('/pending', requireMobileAuth, async (req, res) => {
 
 // POST /api/call/heartbeat { connected } — battement du service d'appels Telegram (VPS), toutes les minutes
 router.post('/heartbeat', requireMobileAuth, async (req, res) => {
-  const body = req.body as { connected?: boolean; errors?: unknown };
+  const body = req.body as { connected?: boolean; errors?: unknown; inCall?: boolean };
+  if (body.inCall === false) await kvSet(TG_LIVE_KEY, '', 1).catch(() => {});
   await recordTgcallHeartbeat(body.connected !== false)
     .catch(err => console.error('[call] heartbeat:', err instanceof Error ? err.message : err));
   if (Array.isArray(body.errors)) {
@@ -68,6 +69,22 @@ router.post('/heartbeat', requireMobileAuth, async (req, res) => {
       .catch(err => console.error('[call] erreurs tgcall:', err instanceof Error ? err.message : err));
   }
   res.json({ ok: true });
+});
+
+// Appel Telegram en cours (tgcall) → l'app de l'iPhone lâche son micro, sinon Telegram n'envoie que du silence
+// (« volume max 0 » : 4 appels muets le 23/10). Effacé à la fin de l'appel, et au plus tard au battement suivant.
+const TG_LIVE_KEY = 'tgcall:live';
+
+// POST /api/call/tg-live { live } — tgcall : début / fin d'un appel Telegram
+router.post('/tg-live', requireMobileAuth, async (req, res) => {
+  const live = !!(req.body as { live?: boolean }).live;
+  await kvSet(TG_LIVE_KEY, live ? String(Date.now()) : '', live ? 15 * 60 : 1).catch(() => {});
+  res.json({ ok: true });
+});
+
+// POST /api/call/tg-live-state — l'app (micro ouvert) : un appel Telegram est-il en cours ?
+router.post('/tg-live-state', requireMobileAuth, async (_req, res) => {
+  res.json({ live: !!(await kvGet(TG_LIVE_KEY).catch(() => null)) });
 });
 
 // POST /api/call/answer { callId? } — décrocher (ou lancer l'appel) → phrase d'accueil + audio
@@ -90,8 +107,8 @@ router.post('/answer', requireMobileAuth, async (req, res) => {
 router.post('/decline', requireMobileAuth, async (req, res) => {
   const { callId } = req.body as { callId?: string };
   await declineCall(callActor(req), callId);
-  // Il refuse l'appel dans l'app → « ne pas déranger » jusqu'à sa réponse (Kouider 20/10 : plus d'appel insistant)
-  if (callActor(req) === 'kouider') await setDnd({ untilReply: true, why: 'appel refusé' }).catch(() => {});
+  // Il refuse l'appel dans l'app → « ne pas déranger » 1 h (Kouider 20/10 : plus d'appel insistant ; 24/10 : pas toute la matinée)
+  if (callActor(req) === 'kouider') await setMissedCallDnd('appel refusé').catch(() => {});
   res.json({ ok: true });
 });
 
@@ -132,7 +149,7 @@ router.post('/merge', requireMobileAuth, async (req, res) => {
 });
 
 // POST /api/call/missed { reason, why? } — appel de Dzaryx pas décroché : l'info est gardée pour le prochain appel de Kouider.
-// Pas décroché / refusé → « ne pas déranger » jusqu'à sa réponse : ni 2e essai, ni appel programmé, ni message (hold:true).
+// Pas décroché / refusé → « ne pas déranger » 1 h : ni 2e essai, ni appel programmé, ni message (hold:true), puis récap.
 // why='muet' = il a décroché mais le son ne passait pas (problème technique) → pas de silence, 2e essai normal.
 router.post('/missed', requireMobileAuth, async (req, res) => {
   const { reason: r, why } = req.body as { reason?: string; why?: string };
@@ -140,7 +157,7 @@ router.post('/missed', requireMobileAuth, async (req, res) => {
   const kouider = callActor(req) === 'kouider';
   if (reason && kouider) await addToCallInbox(reason.slice(0, 600)).catch(() => {});
   const hold = kouider && why !== 'muet';
-  if (hold) await setDnd({ untilReply: true, why: 'appel pas décroché' }).catch(() => {});
+  if (hold) await setMissedCallDnd('appel pas décroché').catch(() => {});
   res.json({ ok: true, hold });
 });
 

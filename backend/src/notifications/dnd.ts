@@ -15,6 +15,10 @@ const TALK_WINDOW_MS = 10 * 60_000;
 const PERSONAL_RE = /h[oô]pital|urgence|malade|m[ée]decin|famille|fils|femme|enfant|petit|b[ée]b[ée]|d[ée]c[eè]s|enterrement|accident|bless/i;
 export const FOLLOWUP_KEY = 'kouider:family:followup';   // souci perso pendant un silence → nouvelles demandées le soir (presence / life-coach)
 const REPLY_GRACE_MS = 2 * 60_000;            // il vient de répondre : 2 min pour qu'il donne son heure avant de tout renvoyer
+// Appel pas décroché / refusé : 1 h de silence, puis tout reprend tout seul (Kouider 24/10 : « jusqu'à ta réponse »
+// l'a laissé sans nouvelles de 8h à 12h45 alors qu'il sortait juste de la salle)
+export const MISSED_CALL_DND_MS = 60 * 60_000;
+export const DND_RECAP_KEY = 'dnd:recap';     // silence d'appel manqué : à la fin, ce qui attendait part en un message
 
 export interface DndState { since: number; until: number; untilReply: boolean; why: string }
 
@@ -72,6 +76,12 @@ export async function setDnd(o: { until?: number; untilReply?: boolean; why: str
   await kvSet(KEY, JSON.stringify(s), s.untilReply ? 3 * 86_400 : Math.max(120, Math.ceil((s.until - Date.now()) / 1000) + 600));
 }
 
+/** Appel manqué / refusé : silence 1 h (pas « jusqu'à sa réponse »), puis récap de ce qui attendait. */
+export async function setMissedCallDnd(why: string): Promise<void> {
+  await setDnd({ until: Date.now() + MISSED_CALL_DND_MS, why });
+  await kvSet(DND_RECAP_KEY, '1', 6 * 3600).catch(() => {});
+}
+
 export async function clearDnd(): Promise<void> {
   await kvDel(KEY);
 }
@@ -102,7 +112,7 @@ export async function dndOnKouiderMessage(): Promise<string | null> {
     : '';
   if (care) await kvSet(FOLLOWUP_KEY, JSON.stringify({ why: s.why, at: Date.now() }), 2 * 86_400).catch(() => {});
   const work = ' S\'il dit qu\'il est au travail, ne parle pas de jour de congé : il travaille aujourd\'hui.';
-  if (s.untilReply) {
+  if (s.untilReply || /^appel (pas décroché|refusé)$/.test(s.why)) {   // appel manqué : il réécrit = il est de retour
     await setDnd({ until: Date.now() + REPLY_GRACE_MS, why: s.why });
     return `[Contexte : tu étais en « ne pas déranger » depuis ${hhmm(s.since)} (${s.why}) : plus d'appels ni de messages. Il vient de te répondre. S'il dit à partir de quelle heure il est joignable (« dispo à 15h », « après 14h », « dans 2 heures »), appelle pause_calls (until_time ou minutes). S'il dit qu'il est dispo ou qu'on peut tout débloquer, pause_calls resume:true — et ne confirme qu'après le résultat de l'outil. Sinon, demande-lui en une phrase si tout va bien et à partir de quelle heure tu peux le rappeler. Puis réponds à ce qu'il dit.${care}${work}]`;
   }

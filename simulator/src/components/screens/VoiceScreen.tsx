@@ -75,6 +75,10 @@ const MAX_FLOOR     = 0.03;
 // l'audio est débloqué au niveau navigateur → inutile de redemander à chaque
 // retour sur l'écran Voix.
 let sessionAudioUnlocked = false;
+// Appel Telegram de Dzaryx en cours (24/10) : sur iPhone, la bannière d'appel laisse l'app au premier plan (pas de
+// visibilitychange) → elle gardait le micro et Telegram n'envoyait que du silence. Le serveur le signale, on lâche le micro.
+let tgCallLive = false;
+const TG_LIVE_POLL_MS = 4000;
 
 // Extrait les URLs d'images d'une réponse (ex: passeport/permis client envoyé
 // par le backend) pour les afficher EN MODE VOIX aussi (avant: texte seul).
@@ -458,6 +462,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
   async function initMic() {
     if (micInitRef.current) return;
     if (document.hidden && !callRef.current) return;   // en arrière-plan : le micro est à Telegram (voir releaseMic)
+    if (tgCallLive && !callRef.current) return;         // appel Telegram en cours : le micro est à lui
     micInitRef.current = true;
     drawCanvas();
     try {
@@ -543,7 +548,16 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
     };
     document.addEventListener('visibilitychange', onVis);
     window.addEventListener('pagehide', releaseMic);
+    // Micro ouvert au premier plan : toutes les 4 s, un appel Telegram a-t-il commencé ?
+    const tgPoll = setInterval(() => {
+      if (document.hidden || callRef.current || (!micInitRef.current && !tgCallLive)) return;
+      callApi.tgLive().then(r => {
+        if (r.live && !tgCallLive) { tgCallLive = true; releaseMic(); }
+        else if (!r.live && tgCallLive) { tgCallLive = false; if (sessionAudioUnlocked) void initMic(); }
+      }).catch(() => {});
+    }, TG_LIVE_POLL_MS);
     return () => {
+      clearInterval(tgPoll);
       document.removeEventListener('visibilitychange', onVis);
       window.removeEventListener('pagehide', releaseMic);
       const w = wakeRecRef.current; wakeRecRef.current = null;

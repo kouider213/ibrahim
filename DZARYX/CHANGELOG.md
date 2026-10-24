@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-10-24 — Dzaryx ne se tait plus toute la journée ; appels qui basculent sur Claude ; micro libéré pendant les appels
+
+- `dnd.ts`, `call.ts` : appel pas décroché / refusé → silence de 1 h (avant : jusqu'à sa réponse → muet de 8h à 12h45 le 24/10) ; s'il écrit, le silence finit aussitôt.
+- `auto-call.ts` : fin du silence → ce qui attendait (boîte d'appels) part en UN message Telegram.
+- `incident-call.ts` : plus jamais d'APPEL pour un bug (tâche plantée…) : message Telegram + alerte app.
+- `realtime.py`, `dzaryx_tg.py` : voix temps réel (Gemini) muette en plein appel (sa voix arrive mais aucune réponse 7 s, ou session coupée) → l'appel continue sur l'ancienne chaîne (transcription → cerveau Claude avec tous les outils → voix) avec « Pardon, je t'entendais mal… ». Commande Telegram « appels claude on/off » pour tout passer sur Claude.
+- `call.ts` /tg-live, /tg-live-state + `VoiceScreen.tsx` (SW v175) : pendant un appel Telegram, l'app lâche le micro même au premier plan (bannière d'appel iPhone = pas de visibilitychange → appels « volume max 0 », 4 le 23/10).
+
 ## 2026-10-24 — Sites v4 « waouh » : ouverture cinéma, incontournables en photos IA, chiffres, appel final
 
 - `site-design.ts` : dès 2 photos, ouverture plein écran (vraies photos en fondu + zoom lent, nom lettre par lettre, flèche de défilement) ; section « Nos incontournables » (3 grandes cartes photo, prix, « Commander ») ; bande de chiffres animés (note Google, avis, jours d'ouverture) ; appel final plein écran en parallaxe. Typo française (espace insécable avant ? !), avis coupés sans casser les émojis.

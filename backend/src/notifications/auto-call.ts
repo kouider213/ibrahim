@@ -162,6 +162,7 @@ export async function autoCall(key: string, spoken: string, opts: { level?: Auto
 
 /** Tâche planifiée (toutes les 15 min) : appelle avec les infos mises en file (nuit, appels rapprochés). */
 export async function flushAutoCalls(): Promise<void> {
+  await sendDndRecap().catch(e => console.warn('[auto-call] récap fin de silence:', e instanceof Error ? e.message : e));
   // Fin du congé : ce qui a été gardé (non urgent) rejoint la file, dès 9h le jour travaillé suivant
   const held = await readList(HELD_KEY);
   if (held.length && !(await isDayOff().catch(() => true)) && localNow().hour >= 9) {
@@ -178,4 +179,15 @@ export async function flushAutoCalls(): Promise<void> {
     : `J'ai ${queue.length} infos pour toi. ${queue.map((q, i) => `${i + 1} : ${q}`).join(' ')}`;
   await ring(spoken);
   console.log(`[auto-call] RING groupé (${queue.length} infos)`);
+}
+
+/** Fin du silence d'appel manqué (1 h) : ce qu'il avait à lui dire part en UN message Telegram (24/10 : rien ne revenait). */
+async function sendDndRecap(): Promise<void> {
+  const { getDnd, DND_RECAP_KEY } = await import('./dnd.js');
+  if (!(await kvGet(DND_RECAP_KEY)) || await getDnd()) return;
+  await kvSet(DND_RECAP_KEY, '', 1);
+  const items = await takeCallInbox();
+  if (!items.length) return;
+  const { queueTelegramMessage } = await import('./tg-outbox.js');
+  await queueTelegramMessage(`📋 Tu n'avais pas décroché tout à l'heure. Voici ce que j'avais pour toi :\n\n${items.map(t => `• ${t}`).join('\n')}\n\nDis-moi si tu veux que je t'appelle pour en parler.`);
 }
