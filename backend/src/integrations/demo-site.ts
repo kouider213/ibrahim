@@ -122,7 +122,7 @@ Tu reçois sa fiche Google. Écris dans la langue du pays (français par défaut
 RÈGLE CLÉ : utilise d'abord les VRAIES infos de la fiche. Ce qui manque (carte/menu, prestations, prix, véhicules à vendre, produits…), tu l'INVENTES de façon crédible pour ce type de commerce et ce pays, et tu le notes précisément dans "invented" (ex. « Menu : 14 plats et leurs prix inventés — aucun menu sur Google »). Ne jamais inventer : nom, adresse, téléphone, horaires, note, avis.
 Prix dans la monnaie du pays de l'adresse (Algérie → DA, zone euro → €).
 Réponds UNIQUEMENT en JSON :
-{"kind": "restaurant|cafe|bar|coiffure|beaute|garage|vente_auto|boutique|librairie|tabac|hotel|sante|autre",
+{"kind": "restaurant|cafe|patisserie|boulangerie|traiteur|fleuriste|bar|coiffure|beaute|garage|vente_auto|boutique|librairie|tabac|hotel|sante|autre",
  "tagline": "accroche courte (8 mots max)",
  "about": ["2 paragraphes de présentation"],
  "offerTitle": "Notre carte | Nos prestations | Véhicules à vendre | Nos produits…",
@@ -171,7 +171,7 @@ async function writeContent(p: Place, notes: string): Promise<Content> {
 }
 
 // ── 3. Page HTML : site-design.ts (styles, touche FIK) ──────────────────────
-export { esc, formKind, renderHtml, type RenderOpts } from './site-design.js';
+export { esc, formKind, renderHtml, type RenderOpts, type FormMode } from './site-design.js';
 import { renderHtml, STYLES, STYLE_HINT } from './site-design.js';
 
 // ── 4. Mise en ligne Netlify (déploiement par empreintes, sans zip) ──────────

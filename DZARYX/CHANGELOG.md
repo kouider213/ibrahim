@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-10-24 — Plus jamais « Bruxelles » ni de date de RDV envoyée sans Kouider ; commandes WhatsApp sur les sites clients
+
+- `site-prospecting.ts`, `prospect-autopilot.ts` : les mails de démo et les réponses aux prospects ne proposent plus AUCUN créneau de l'agenda ni « heure de Bruxelles » (Caramelia 24/10 a reçu 3 créneaux « heure de Bruxelles »). Ils disent que Kouider revient vers eux ; Kouider reçoit « dis-moi quand tu es dispo ».
+- `rdv-booking.ts` : la page /rdv/ ne montre plus de créneaux : le commerçant écrit quand il est joignable (+ tél) → alerte Telegram/app + appel à Kouider, qui fixe la date.
+- `context-builder.ts`, `call.ts` : règle DISCRÉTION — jamais la Belgique/Bruxelles dans un message client, heures en heure du client, aucune date de RDV que Kouider n'a pas donnée.
+- `site-design.ts`, `client-sites.ts`, `client-site-admin.ts`, `demo-site.ts` : nouveau mode « commande » (pâtisserie, boulangerie, traiteur, fleuriste, boutique ; café/restaurant : choix « Réserver une table / Commander à emporter »). Après l'envoi, bouton « 📲 Envoyer aussi sur WhatsApp » avec la demande déjà écrite au numéro du patron. Testé dans Chrome sans écran (fetch simulé).
+
 ## 2026-10-24 — FIK Sites : grille de prix alignée sur le marché
 
 - `site-tarifs.ts` : France Vitrine 19 → 29 €/mois (290 €/an), Pro 39 → 49 €/mois (490 €/an), Achat unique 390 € + 60 → 490 € + 90 €/an. Algérie : Vitrine 1 500 et Pro 2 500 DA/mois inchangés (panel d'acheteurs : 0 % à 2 500 DA sans garantie), Achat unique 25 000 → 30 000 DA (+ 6 000/an). Modifiable par message.

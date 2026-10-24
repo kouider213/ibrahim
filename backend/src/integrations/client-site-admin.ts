@@ -115,7 +115,7 @@ function messagesCard(){
   const box=h('div',{},h('p',{class:'hint',text:'Chargement…'}));
   const fmt=iso=>new Date(iso).toLocaleString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
   const day=d=>new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
-  const KIND={table:'Réservation',rdv:'Rendez-vous',contact:'Message'};
+  const KIND={table:'Réservation',rdv:'Rendez-vous',contact:'Message',commande:'Commande'};
   api('/me/messages').then(d=>{const list=d.messages||[];const unread=list.filter(m=>!m.read).length;
     if(!list.length){box.replaceChildren(h('p',{class:'hint',text:'Aucun message pour le moment. Les demandes envoyées depuis le formulaire de votre site arrivent ici et par e-mail.'}));return}
     box.replaceChildren(...list.slice(0,40).map(m=>h('div',{class:'msg'+(m.read?'':' new')},

@@ -9,7 +9,7 @@ import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { sendEmail } from './gmail.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import {
-  type Place, type Content, type OfferItem, FONT_PAIRS, HEX, esc, renderHtml, deployNetlify, slugify, loadDemo, formKind,
+  type Place, type Content, type OfferItem, FONT_PAIRS, HEX, esc, renderHtml, deployNetlify, slugify, loadDemo, formKind, type FormMode,
 } from './demo-site.js';
 import { adminPageHtml } from './client-site-admin.js';
 import { STYLES, STYLE_HINT, styleOf } from './site-design.js';
@@ -45,7 +45,7 @@ export interface Billing {
   autoPause: boolean; graceDays: number; payments: Payment[]; reminded?: string;   // dernière alerte (clé jour/étape)
 }
 export interface SiteMessage {
-  id: string; at: string; mode: 'table' | 'rdv' | 'contact'; name: string; phone: string; email?: string;
+  id: string; at: string; mode: FormMode; name: string; phone: string; email?: string;
   date?: string; time?: string; people?: number; message?: string; read: boolean;
 }
 interface IndexRow { id: string; name: string; url: string; status: ClientSite['status']; fromDemo?: string }
@@ -474,7 +474,7 @@ export async function markMessagesRead(siteId: string, ids?: string[]): Promise<
   await kvSet(MSGS(siteId), JSON.stringify(list));
 }
 
-const MODE_LABEL = { table: 'réservation de table', rdv: 'demande de rendez-vous', contact: 'message' } as const;
+const MODE_LABEL = { table: 'réservation de table', rdv: 'demande de rendez-vous', contact: 'message', commande: 'commande' } as const;
 
 function describeMessage(m: SiteMessage): string {
   return [
@@ -497,16 +497,18 @@ export async function receiveMessage(siteId: string, raw: Record<string, unknown
   const name = str(raw['name'], 80), phone = str(raw['phone'], 30);
   if (!name || phone.replace(/\D/g, '').length < 6) return 'Nom et téléphone obligatoires';
   const email = str(raw['email'], 120);
-  const mode = formKind(s.content.kind).mode;
+  const base = formKind(s.content.kind).mode;
+  const mode: FormMode = base === 'table' && str(raw['type']) === 'commande' ? 'commande' : base;   // café/restaurant : commande à emporter
   const m: SiteMessage = {
     id: randomBytes(6).toString('hex'), at: new Date().toISOString(), mode, name, phone, read: false,
     ...(EMAIL.test(email) ? { email } : {}),
     ...(/^\d{4}-\d{2}-\d{2}$/.test(str(raw['date'])) ? { date: str(raw['date']) } : {}),
     ...(/^\d{2}:\d{2}$/.test(str(raw['time'])) ? { time: str(raw['time']) } : {}),
-    ...(Number(raw['people']) > 0 ? { people: Math.min(200, Math.round(Number(raw['people']))) } : {}),
+    ...(mode === 'table' && Number(raw['people']) > 0 ? { people: Math.min(200, Math.round(Number(raw['people']))) } : {}),
     ...(str(raw['message'], 2000) ? { message: str(raw['message'], 2000) } : {}),
   };
   if (mode === 'contact' && !m.message) return 'Écrivez votre message';
+  if (mode === 'commande' && !m.message) return 'Écrivez votre commande';
   const list = await listMessages(siteId);
   if (list.filter(x => now - Date.parse(x.at) < 86400_000).length >= 60) return 'Trop de messages aujourd\'hui, appelez-nous';
   list.unshift(m);

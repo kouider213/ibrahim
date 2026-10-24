@@ -20,7 +20,7 @@ export const STYLE_HINT: Record<StyleId, string> = {
   urban: 'urban = noir, majuscules condensées, néon, grain (garage, barbier, vente auto, street-food, tatouage)',
 };
 const BY_KIND: Record<string, StyleId> = {
-  restaurant: 'luxe', hotel: 'luxe', cafe: 'editorial', librairie: 'editorial', boutique: 'editorial', bar: 'urban',
+  restaurant: 'luxe', hotel: 'luxe', traiteur: 'luxe', patisserie: 'editorial', boulangerie: 'editorial', fleuriste: 'minimal', cafe: 'editorial', librairie: 'editorial', boutique: 'editorial', bar: 'urban',
   garage: 'urban', vente_auto: 'urban', coiffure: 'minimal', beaute: 'minimal', sante: 'minimal', tabac: 'vibrant', autre: 'vibrant',
 };
 
@@ -30,32 +30,44 @@ const hash = (s: string) => [...s].reduce((h, ch) => (h * 31 + ch.charCodeAt(0))
 export interface RenderOpts { demo: boolean; siteId?: string; formApi?: string }
 
 // Formulaire du site selon le métier : réservation de table, rendez-vous, ou simple message.
-export function formKind(kind: string): { mode: 'table' | 'rdv' | 'contact'; title: string; nav: string } {
+export type FormMode = 'table' | 'rdv' | 'contact' | 'commande';
+/** Restaurant / café : réservation de table OU commande à emporter (gâteau, plateau…) au choix du visiteur. */
+export const ORDER_KINDS = ['patisserie', 'boulangerie', 'traiteur', 'fleuriste', 'boutique'];
+const TAKEAWAY_KINDS = ['restaurant', 'cafe'];
+export function formKind(kind: string): { mode: FormMode; title: string; nav: string } {
+  if (ORDER_KINDS.includes(kind)) return { mode: 'commande', title: 'Passer commande', nav: 'Commander' };
   if (['restaurant', 'cafe', 'bar', 'hotel'].includes(kind)) return { mode: 'table', title: kind === 'hotel' ? 'Réserver' : 'Réserver une table', nav: 'Réserver' };
   if (['coiffure', 'beaute', 'garage', 'sante'].includes(kind)) return { mode: 'rdv', title: 'Prendre rendez-vous', nav: 'Rendez-vous' };
   return { mode: 'contact', title: 'Nous écrire', nav: 'Contact' };
 }
 
-function formSection(c: Content, siteId: string, api: string): string {
+function formSection(c: Content, siteId: string, api: string, wa: string, shop: string): string {
   const f = formKind(c.kind);
-  const extra = f.mode === 'table'
-    ? `<div class="f3"><label>Date<input name="date" type="date" required></label><label>Heure<input name="time" type="time" required></label><label>Personnes<input name="people" type="number" min="1" max="200" value="2" required></label></div>`
+  const takeaway = f.mode === 'table' && TAKEAWAY_KINDS.includes(c.kind);
+  const extra = f.mode === 'commande'
+    ? `<div class="f3"><label>Pour le<input name="date" type="date" required></label><label>Heure de retrait<input name="time" type="time"></label></div>`
+    : f.mode === 'table'
+    ? `${takeaway ? `<label>Votre demande<select name="type"><option value="table">Réserver une table</option><option value="commande">Commander à emporter</option></select></label>` : ''}<div class="f3"><label>Date<input name="date" type="date" required></label><label>Heure<input name="time" type="time" required></label><label>Personnes<input name="people" type="number" min="1" max="200" value="2" required></label></div>`
     : f.mode === 'rdv' ? `<div class="f3"><label>Date souhaitée<input name="date" type="date" required></label><label>Heure<input name="time" type="time"></label></div>` : '';
   return `<section id="form" class="formsec"><div class="wrap narrow reveal"><div class="eyebrow">${esc(f.nav)}</div><h2>${esc(f.title)}</h2>
   <form id="fikform" autocomplete="on">
     <div class="f2"><label>Nom<input name="name" required maxlength="80"></label><label>Téléphone<input name="phone" type="tel" required maxlength="30"></label></div>
     <label>E-mail (facultatif)<input name="email" type="email" maxlength="120"></label>
     ${extra}
-    <label>${f.mode === 'contact' ? 'Votre message' : 'Précisions (facultatif)'}<textarea name="message" rows="4" maxlength="2000"${f.mode === 'contact' ? ' required' : ''}></textarea></label>
+    <label>${f.mode === 'contact' ? 'Votre message' : f.mode === 'commande' ? 'Votre commande (produits, quantités, parts…)' : takeaway ? 'Précisions ou votre commande' : 'Précisions (facultatif)'}<textarea name="message" rows="4" maxlength="2000"${f.mode === 'contact' || f.mode === 'commande' ? ' required' : ''}></textarea></label>
     <input name="website" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true">
     <button class="btn" type="submit">Envoyer</button><p class="fmsg" role="status"></p>
+    ${wa ? `<a class="btn fwa" target="_blank" rel="noopener" hidden>📲 Envoyer aussi sur WhatsApp</a>` : ''}
   </form></div></section>
 <script>
-(function(){const f=document.getElementById('fikform'),m=f.querySelector('.fmsg'),t0=Date.now();
+(function(){const f=document.getElementById('fikform'),m=f.querySelector('.fmsg'),t0=Date.now(),ty=f.querySelector('select[name=type]');
+if(ty)ty.addEventListener('change',()=>{const o=ty.value==='commande',pp=f.querySelector('input[name=people]'),tm=f.querySelector('input[name=time]');pp.required=!o;pp.closest('label').hidden=o;tm.required=!o});
 f.addEventListener('submit',async e=>{e.preventDefault();const b=f.querySelector('button');b.disabled=true;m.textContent='Envoi…';
 const d=Object.fromEntries(new FormData(f));d.mode=${JSON.stringify(f.mode)};d.elapsed=Date.now()-t0;
+const L={type:'',name:'Nom',phone:'Tél',email:'E-mail',date:'Date',time:'Heure',people:'Personnes',message:'Message'},k=d.type==='commande'||d.mode==='commande'?'Nouvelle commande':d.mode==='table'?'Réservation de table':d.mode==='rdv'?'Demande de rendez-vous':'Message';
+const txt=k+' ('+${JSON.stringify(shop)}+', via le site)\\n'+Object.keys(L).filter(x=>L[x]&&d[x]&&!(x==='people'&&d.type==='commande')).map(x=>L[x]+' : '+d[x]).join('\\n');
 try{const r=await fetch(${JSON.stringify(`${api}/api/client-sites/public/${siteId}/message`)},{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});const j=await r.json().catch(()=>({}));
-if(!r.ok)throw new Error(j.error||'Envoi impossible');f.reset();m.textContent=${JSON.stringify(f.mode === 'contact' ? 'Merci, votre message a bien été envoyé. Nous vous répondons rapidement.' : 'Merci, votre demande a bien été envoyée. Nous vous recontactons pour la confirmer.')}}
+if(!r.ok)throw new Error(j.error||'Envoi impossible');f.reset();const w=f.querySelector('.fwa');if(w){w.href=${JSON.stringify(wa)}+'?text='+encodeURIComponent(txt);w.hidden=false}m.textContent=${JSON.stringify(f.mode === 'contact' ? 'Merci, votre message a bien été envoyé. Nous vous répondons rapidement.' : 'Merci, votre demande a bien été envoyée. Nous vous recontactons pour la confirmer.')}}
 catch(x){m.textContent=x.message+'. Vous pouvez aussi nous appeler.'}b.disabled=false})})();
 </script>`;
 }
@@ -157,6 +169,8 @@ nav.solid{background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filte
 .formsec .f2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.formsec .f3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 @media(max-width:600px){.formsec .f2,.formsec .f3{grid-template-columns:1fr}}
 .formsec .btn{margin-top:20px}.formsec .btn:disabled{opacity:.6}.fmsg{margin-top:12px;font-weight:700;color:var(--hl)}.hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+.formsec select{width:100%;font:inherit;padding:13px 15px;border:1px solid var(--line);border-radius:12px;margin-top:4px;background:var(--card);color:var(--fg)}
+.formsec [hidden]{display:none!important}.fwa{background:#25d366;border-color:#25d366;color:#fff;margin-left:0}
 footer{padding:46px 22px 110px;text-align:center;font-size:.88rem;color:var(--muted);border-top:1px solid var(--line)}
 footer b{color:var(--fg)}.fik{display:inline-flex;align-items:center;gap:8px;margin-top:16px;font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;opacity:.8}
 .fik svg{width:18px;height:18px}
@@ -329,7 +343,7 @@ ${reviews.length ? `<section class="offer"><div class="wrap narrow reveal">${eb(
   <div class="rv">${reviews.map((r, i) => `<blockquote class="${i ? '' : 'on'}"><span class="s">${stars(r.rating)}</span>« ${esc(r.text.length > 260 ? `${r.text.slice(0, 257)}…` : r.text)} »<cite>${esc(r.author)} · avis Google</cite></blockquote>`).join('')}</div>
   ${reviews.length > 1 ? `<div class="dots2">${reviews.map((_, i) => `<b class="${i ? '' : 'on'}"></b>`).join('')}</div>` : ''}</div></section>` : ''}
 
-${hasForm ? formSection(c, opts.siteId!, opts.formApi!) : ''}
+${hasForm ? formSection(c, opts.siteId!, opts.formApi!, wa, p.name) : ''}
 
 <section id="contact"><div class="wrap info">
   <div class="reveal">${eb('Horaires')}<h2>Quand venir</h2>
