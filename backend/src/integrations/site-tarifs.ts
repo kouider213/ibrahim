@@ -21,15 +21,17 @@ const BASE_DZ = ['Site d\'une page à son nom, sur téléphone et ordinateur', '
 const BASE_FR = ['Site à son nom, sur téléphone et ordinateur', 'Plan Google Maps, boutons Appeler et WhatsApp', 'Horaires, photos, formulaire de contact', 'Modifications par simple message à FIK'];
 const PRO = ['Tout le pack Vitrine', 'Menu / catalogue avec les prix', 'Réservation ou prise de rendez-vous en ligne', 'Espace client pour tout modifier soi-même', 'Bilan des visites chaque mois'];
 
+// 24/10 : alignés sur le marché (DZ : freelances 20-50 000 DA, Hostynet 22 000 + 8 000/an ; FR : Simplébo 400 € + 60 €/mois, Wix 3-14 €/mois)
+// Coût FIK par site ≈ 0,10 €/mois de Claude + Netlify gratuit (~20 mises à jour/mois) ; domaine payé par le client.
 export const DEFAULT_TARIFS: Tarifs = {
-  updatedAt: '2026-10-22',
+  updatedAt: '2026-10-24',
   packs: [
     { id: 'vitrine-dz', country: 'DZ', name: 'Vitrine', currency: 'DA', monthly: 1500, yearly: 15000, for: 'commerce de quartier', includes: BASE_DZ },
     { id: 'pro-dz', country: 'DZ', name: 'Pro', currency: 'DA', monthly: 2500, yearly: 25000, for: 'restaurants, cafés, artisans, salons', includes: PRO },
-    { id: 'unique-dz', country: 'DZ', name: 'Achat unique', currency: 'DA', once: 25000, renewal: 6000, for: 'ceux qui ne veulent pas d\'abonnement', includes: [...BASE_DZ, 'Payé une fois, puis hébergement + domaine chaque année'] },
-    { id: 'vitrine-fr', country: 'FR', name: 'Vitrine', currency: '€', monthly: 19, yearly: 190, for: 'commerce de quartier, artisan', includes: BASE_FR },
-    { id: 'pro-fr', country: 'FR', name: 'Pro', currency: '€', monthly: 39, yearly: 390, for: 'restaurants, salons, instituts', includes: PRO },
-    { id: 'unique-fr', country: 'FR', name: 'Achat unique', currency: '€', once: 390, renewal: 60, for: 'ceux qui ne veulent pas d\'abonnement', includes: [...BASE_FR, 'Payé une fois, puis hébergement + domaine chaque année'] },
+    { id: 'unique-dz', country: 'DZ', name: 'Achat unique', currency: 'DA', once: 30000, renewal: 6000, for: 'ceux qui ne veulent pas d\'abonnement', includes: [...BASE_DZ, 'Payé une fois, puis hébergement + domaine chaque année'] },
+    { id: 'vitrine-fr', country: 'FR', name: 'Vitrine', currency: '€', monthly: 29, yearly: 290, for: 'commerce de quartier, artisan', includes: BASE_FR },
+    { id: 'pro-fr', country: 'FR', name: 'Pro', currency: '€', monthly: 49, yearly: 490, for: 'restaurants, salons, instituts', includes: PRO },
+    { id: 'unique-fr', country: 'FR', name: 'Achat unique', currency: '€', once: 490, renewal: 90, for: 'ceux qui ne veulent pas d\'abonnement', includes: [...BASE_FR, 'Payé une fois, puis hébergement + domaine chaque année'] },
   ],
   options: [
     { id: 'visibilite-dz', country: 'DZ', name: 'Pack visibilité', currency: 'DA', monthly: 1500, note: 'un post Google + Instagram préparé chaque semaine' },

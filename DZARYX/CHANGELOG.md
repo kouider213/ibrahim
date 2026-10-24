@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-24 — FIK Sites : grille de prix alignée sur le marché
+
+- `site-tarifs.ts` : France Vitrine 19 → 29 €/mois (290 €/an), Pro 39 → 49 €/mois (490 €/an), Achat unique 390 € + 60 → 490 € + 90 €/an. Algérie : Vitrine 1 500 et Pro 2 500 DA/mois inchangés (panel d'acheteurs : 0 % à 2 500 DA sans garantie), Achat unique 25 000 → 30 000 DA (+ 6 000/an). Modifiable par message.
+
 ## 2026-10-24 — Démarchage : alertes sur Telegram + fiche vente (prix + arguments) après chaque démo
 
 - `site-prospecting.ts` : les « oui », démos envoyées, échecs de démo et réponses des commerces partent maintenant AUSSI sur Telegram (`tellKouider`) — avant, seulement dans l'app (Caramelia pastry 24/10 : Kouider n'a rien vu).
