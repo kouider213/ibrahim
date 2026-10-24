@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-24 — Site : adresses de voitures lisibles + parcours visiteurs
+
+- Site (autolux-location a79e429) : `lib/carUrl.js` → /cars/clio-4-essence-location-oran-<id> (sitemap, liens, JSON-LD) ; l'ancienne adresse /cars/<id> redirige en 301. `lib/tracker.js` : `trackEvent` aussi dans page_views (page « #event:… ») ; `_app.js` compte les clics WhatsApp / téléphone.
+- `site-traffic.ts` (2b929ee) : rapport de 21h → « Parcours : visiteurs → voiture vue → réservation ouverte → demande envoyée · contacts », alerte si des réservations sont ouvertes sans être envoyées.
+- Comparateurs : Trip.com accepte les loueurs locaux (registre de commerce location + assurance) → question envoyée à Kouider.
+
 ## 2026-10-24 — Crédit Claude suivi pour de vrai, bilan santé du matin, rapport du dimanche, Google Search Console
 
 - `orchestrator.ts` `claudeRechargeAmount()` : « 14 $ je rajoute sur Claude » est enregistré dans À PAYER (avant : le cerveau disait « noté » sans rien enregistrer). Solde 13,68 $ saisi le 24/10.
