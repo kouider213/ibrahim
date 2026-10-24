@@ -84,8 +84,10 @@ export async function gscReport(days = 7): Promise<GscReport | string | null> {
   } catch (err) {
     const msg = axios.isAxiosError(err) ? `${err.response?.status ?? ''} ${JSON.stringify(err.response?.data ?? err.message).slice(0, 160)}` : String(err);
     console.error('[gsc] report:', msg);
+    const project = msg.match(/project (\d+)/)?.[1];
     return /SERVICE_DISABLED|has not been used|accessNotConfigured/i.test(msg)
-      ? 'l\'API Search Console n\'est pas activée dans Google Cloud (à faire une fois)' : `Google ne répond pas (${msg.slice(0, 60)})`;
+      ? `le service Search Console n'est pas encore activé dans Google Cloud. Ouvre ce lien et clique « Activer » (une seule fois) :\nhttps://console.cloud.google.com/apis/library/searchconsole.googleapis.com${project ? `?project=${project}` : ''}`
+      : `Google ne répond pas (${msg.slice(0, 60)})`;
   }
 }
 
