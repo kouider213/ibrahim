@@ -286,6 +286,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'dzaryx-weekly',
+    cron:  '0 19 * * 0',            // dimanche 19h — « ce que j'ai fait pour toi cette semaine » (Telegram + app)
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'sport-weekly',
     cron:  '0 20 * * 0',            // dimanche 20h — bilan sport de la semaine + objectif de la semaine suivante
     tz:    'Europe/Brussels',
@@ -322,7 +327,7 @@ const JOBS = [
   },
   {
     name:  'billing-watch',
-    cron:  '0 10 * * *',            // 10h — « À PAYER » : échéances J-7/J-3/J-1/J0, retards, crédit Claude bas ou coupé
+    cron:  '0 10,18 * * *',         // 10h + 18h — « À PAYER » : échéances J-7/J-3/J-1/J0, retards, crédit Claude bas ou coupé
     tz:    'Europe/Brussels',
   },
   {
@@ -519,6 +524,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'mentor-news':             jobMentorNewsWatch,
   'gold-watch':              jobGoldWatch,
   'sport-plan':              async () => { await (await import('../integrations/sport-coach.js')).jobSportPlan(); },
+  'dzaryx-weekly':           async () => { await (await import('../integrations/dzaryx-weekly.js')).jobDzaryxWeekly(); },
   'sport-weekly':            async () => { await (await import('../integrations/sport-coach.js')).jobSportWeekly(); },
   'presence-watch':          async () => { await (await import('../integrations/presence.js')).jobPresenceWatch(); },
   'sport-watch':             async () => { await (await import('../integrations/sport-coach.js')).jobSportWatch(); await (await import('../integrations/life-coach.js')).ensureCoachDays(); },

@@ -134,6 +134,15 @@ function getToolLabel(toolName: string): string {
 }
 
 // ── Processeur principal ──────────────────────────────────────────────────────
+/** « j'ai rechargé Claude de 50 $ », « 14$ je rajoute sur Claude », « mis 20 dollars sur claude » → montant, sinon null. */
+export function claudeRechargeAmount(msg: string): number | null {
+  if (!/claude|anthropic/i.test(msg) || !/recharg|rajout|ajout|remis|mis |mettre|crédit|credit|pay[ée]/i.test(msg)) return null;
+  const m = msg.match(/(\d{1,4}(?:[.,]\d{1,2})?)\s*(?:\$|€|usd|dollars?|euros?)/i) ?? msg.match(/(?:\$|€)\s*(\d{1,4}(?:[.,]\d{1,2})?)/);
+  if (!m) return null;
+  const v = parseFloat(m[1]!.replace(',', '.'));
+  return v > 0 && v <= 2000 ? v : null;
+}
+
 export async function processMessage(
   userMessage:  string,
   sessionId:    string,
@@ -186,6 +195,14 @@ export async function processMessage(
   if (extraNotes) ctx.systemExtra = `${extraNotes}\n\n${ctx.systemExtra ?? ''}`.trim();
 
   // Inject V2 pending-action context into system extra if present
+  // « 14 $ je rajoute sur Claude » (24/10) : le cerveau répondait « noté » sans rien enregistrer → plus d'alerte « crédit bas ».
+  // Recharge Claude détectée ici, enregistrée pour de vrai dans À PAYER (solde estimé + alerte avant 0).
+  const recharge = actorUserId === 'kouider' && !sandbox ? claudeRechargeAmount(userMessage) : null;
+  if (recharge !== null) {
+    const { updateBilling } = await import('../integrations/billing.js');
+    const done = await updateBilling('anthropic', { balance: recharge }).catch(e => `échec : ${e instanceof Error ? e.message : e}`);
+    ctx.systemExtra = `[Système : recharge Claude de ${recharge} $ ENREGISTRÉE dans la page À PAYER (${done}). Confirme-le en une phrase ; je préviendrai Kouider quand il restera moins de 3 $.]\n\n${ctx.systemExtra ?? ''}`.trim();
+  }
   if (v2ContextAddition) {
     ctx.systemExtra = `${v2ContextAddition}\n\n${ctx.systemExtra ?? ''}`.trim();
   }

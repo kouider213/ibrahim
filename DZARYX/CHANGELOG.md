@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-10-24 — Crédit Claude suivi pour de vrai, bilan santé du matin, rapport du dimanche, Google Search Console
+
+- `orchestrator.ts` `claudeRechargeAmount()` : « 14 $ je rajoute sur Claude » est enregistré dans À PAYER (avant : le cerveau disait « noté » sans rien enregistrer). Solde 13,68 $ saisi le 24/10.
+- `billing.ts` : solde estimé + « ~N jours au rythme actuel » ; alerte à 3 $ restants (Telegram + app), contrôle à 10h ET 18h.
+- `self-test.ts` + tgcall `call_event` + `/api/call/health-event` : le bilan de 7h45 compte les appels de la veille (réussis / pas décrochés / muets / basculés sur Claude) et le crédit Claude ; problème → aussi sur Telegram.
+- `dzaryx-weekly.ts` (job `dzaryx-weekly`, dimanche 19h) : « ce que j'ai fait pour toi cette semaine » (messages, appels, démarchage, idées, visites, coût Claude).
+- `search-console.ts` + `/api/calendar/gsc-connect` : rapport de 21h + bloc Google (vues, clics, place moyenne, 5 recherches) une fois le lien cliqué.
+
 ## 2026-10-24 — Dzaryx ne se tait plus toute la journée ; appels qui basculent sur Claude ; micro libéré pendant les appels
 
 - `dnd.ts`, `call.ts` : appel pas décroché / refusé → silence de 1 h (avant : jusqu'à sa réponse → muet de 8h à 12h45 le 24/10) ; s'il écrit, le silence finit aussitôt.

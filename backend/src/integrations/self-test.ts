@@ -14,6 +14,28 @@ export interface Check { name: string; ok: boolean; info: string; ms: number }
 export interface SelfTestReport { at: string; ok: number; failed: number; checks: Check[] }
 
 const SID = 'selftest';
+
+// Santé des appels Telegram (24/10 : 4 appels muets la veille, voix gratuite bloquée — Kouider ne l'a su que 2 jours après).
+type CallKind = 'ok' | 'muet' | 'manque' | 'bascule';
+const brusselsDay = (ts = Date.now()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels' }).format(new Date(ts));
+const healthKey = (day: string) => `calls:health:${day}`;
+
+export async function recordCallHealth(kind: CallKind): Promise<void> {
+  const key = healthKey(brusselsDay());
+  const h = JSON.parse((await kvGet(key)) ?? '{}') as Partial<Record<CallKind, number>>;
+  h[kind] = (h[kind] ?? 0) + 1;
+  await kvSet(key, JSON.stringify(h), 4 * 86_400);
+}
+
+async function callHealthYesterday(): Promise<{ ok: boolean; info: string }> {
+  const h = JSON.parse((await kvGet(healthKey(brusselsDay(Date.now() - 86_400_000)))) ?? '{}') as Partial<Record<CallKind, number>>;
+  const [ok, muet, manque, bascule] = [h.ok ?? 0, h.muet ?? 0, h.manque ?? 0, h.bascule ?? 0];
+  if (!ok && !muet && !manque && !bascule) return { ok: true, info: 'aucun appel hier' };
+  const parts = [`${ok} réussi${ok > 1 ? 's' : ''}`, manque ? `${manque} pas décroché${manque > 1 ? 's' : ''}` : '',
+    muet ? `${muet} muet${muet > 1 ? 's' : ''} (ton iPhone n'envoyait pas de son)` : '',
+    bascule ? `${bascule} fois la voix gratuite a bloqué → passé sur Claude` : ''].filter(Boolean);
+  return { ok: !muet && !bascule, info: parts.join(', ') };
+}
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
 // Outils de lecture, avec des paramètres sans effet de bord.
@@ -101,6 +123,12 @@ export async function runSelfTest(): Promise<SelfTestReport> {
     return { ok: true, info: 'en ligne, aucune erreur en 24 h' };
   }));
 
+  checks.push(await timed('Appels d\'hier', callHealthYesterday));
+  checks.push(await timed('Crédit Claude', async () => {
+    const { getBilling } = await import('./billing.js');
+    const row = (await getBilling()).rows.find(r => r.id === 'anthropic');
+    return { ok: !!row && row.state !== 'out' && row.state !== 'soon', info: row?.status ?? 'inconnu' };
+  }));
   checks.push(await timed('Tâches automatiques', async () => {
     // Dernier passage de chaque tâche ; une tâche jamais lancée (ajoutée aujourd'hui) n'est pas une panne.
     const last = await Promise.all(DAILY_JOBS.map(async j => {
@@ -154,8 +182,11 @@ export async function jobSelfTest(): Promise<string> {
   const r = await runSelfTest();
   const monday = new Date().getDay() === 1;
   if (r.failed) {
-    emitProactive(`🩺 Auto-test : ${r.failed} problème${r.failed > 1 ? 's' : ''} détecté${r.failed > 1 ? 's' : ''}.`, 'alert',
-      `${formatSelfTest(r, true)}\n\nDis « auto-test » pour relancer, ou demande à Claude Code de regarder.`, 'kouider');
+    const text = `${formatSelfTest(r, true)}\n\nDis « auto-test » pour relancer, ou demande à Claude Code de regarder.`;
+    emitProactive(`🩺 Auto-test : ${r.failed} problème${r.failed > 1 ? 's' : ''} détecté${r.failed > 1 ? 's' : ''}.`, 'alert', text, 'kouider');
+    // Sur Telegram aussi : c'est là qu'il lit (l'historique de l'app seul, il ne le voyait pas)
+    const { queueTelegramMessage } = await import('../notifications/tg-outbox.js');
+    await queueTelegramMessage(`🩺 Bilan santé de Dzaryx\n${text}`).catch(() => {});
   } else if (monday) {
     emitProactive('🩺 Auto-test : tout fonctionne.', 'info', formatSelfTest(r, true), 'kouider');
   }

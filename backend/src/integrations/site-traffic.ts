@@ -106,7 +106,8 @@ export function trafficBriefLine(t: DayTraffic): string {
 
 /** 21h : bilan du jour sur Telegram + app. */
 export async function jobSiteTraffic(): Promise<void> {
-  const text = formatTraffic(await dayTraffic(0), "aujourd'hui");
+  const { gscSection } = await import('./search-console.js');
+  const text = formatTraffic(await dayTraffic(0), "aujourd'hui") + await gscSection().catch(() => '');
   await queueTelegramMessage(text);
   emitProactive(text, 'info', undefined, 'kouider');
 }

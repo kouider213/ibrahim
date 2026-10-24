@@ -82,6 +82,15 @@ router.post('/tg-live', requireMobileAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /api/call/health-event { kind } — tgcall : un appel réussi / muet / manqué / basculé sur Claude (bilan du matin)
+router.post('/health-event', requireMobileAuth, async (req, res) => {
+  const kind = String((req.body as { kind?: string }).kind ?? '');
+  if (!['ok', 'muet', 'manque', 'bascule'].includes(kind)) { res.status(400).json({ error: 'kind' }); return; }
+  const { recordCallHealth } = await import('../../integrations/self-test.js');
+  await recordCallHealth(kind as 'ok').catch(() => {});
+  res.json({ ok: true });
+});
+
 // POST /api/call/tg-live-state — l'app (micro ouvert) : un appel Telegram est-il en cours ?
 router.post('/tg-live-state', requireMobileAuth, async (_req, res) => {
   res.json({ live: !!(await kvGet(TG_LIVE_KEY).catch(() => null)) });

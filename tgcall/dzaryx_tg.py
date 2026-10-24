@@ -432,6 +432,8 @@ async def remember_call(user_id: int, actor: str, rt: RealtimeCall) -> None:
         await asyncio.to_thread(rt.learn_at_end)
     except Exception as e:
         log.warning('apprentissage de la voix: %s', e)
+    if any(l['role'] == 'user' for l in rt.lines):
+        asyncio.create_task(call_event('ok'))
     if not rt.lines:
         return
     try:
@@ -482,6 +484,14 @@ async def start_call(actor: str, user_id: int) -> None:
             pass
 
 
+async def call_event(kind: str) -> None:
+    """Santé des appels (bilan du matin) : ok / muet / manque / bascule (voix gratuite bloquée → Claude)."""
+    try:
+        await api('/api/call/health-event', {'kind': kind}, 'kouider', 10)
+    except Exception as e:
+        log.warning('santé des appels: %s', e)
+
+
 async def tg_live(live: bool) -> None:
     """Appel Telegram en cours : l'app Dzaryx de l'iPhone lâche son micro (sinon Telegram n'envoie que du silence)."""
     try:
@@ -494,6 +504,7 @@ async def missed_call(actor: str, user_id: int, reason: str, err: Exception | No
     """Kouider n'a pas décroché : il reçoit par écrit ce que Dzaryx voulait lui dire. Pas décroché / refusé → « ne pas
     déranger » côté serveur (hold) : plus d'appel ni de message tant qu'il n'a pas répondu (Kouider 20/10). Son muet → 2e essai."""
     why = why or ('occupé' if 'Busy' in type(err).__name__ else 'pas de réponse')
+    asyncio.create_task(call_event('muet' if why == 'muet' else 'manque'))
     hold = False
     try:   # gardé pour son prochain appel (« avant tout, j'ai des choses pour toi »), retiré si le 2e essai passe
         hold = bool((await api('/api/call/missed', {'reason': strip_greeting(reason), 'why': why}, actor, 15)).get('hold'))
@@ -502,8 +513,8 @@ async def missed_call(actor: str, user_id: int, reason: str, err: Exception | No
     retry = not hold and RETRY_TAG not in reason          # un seul nouvel essai, jamais en boucle
     try:
         if hold:
-            later = ("🔕 Je n'insiste pas : plus d'appel ni de message de ma part tant que tu ne m'as pas répondu.\n"
-                     "Quand tu peux, dis-moi à partir de quelle heure je peux te rappeler (ex. « dispo à 15h »).")
+            later = ("🔕 Je n'insiste pas : silence pendant 1 h (ou jusqu'à ton message), puis je t'envoie ce que j'avais pour toi.\n"
+                     "Si tu es pris plus longtemps, dis-moi à partir de quelle heure je peux te rappeler (ex. « dispo à 15h »).")
         else:
             later = (f'Je réessaie dans {int(RETRY_S // 60)} min, ou rappelle-moi quand tu veux.'
                      if retry else 'Rappelle-moi quand tu veux.')
@@ -702,6 +713,7 @@ async def switch_to_claude(user_id: int, rt: RealtimeCall, why: str) -> None:
     if st is None or st.rt is not rt:
         return
     log.warning('appel %s : voix temps réel %s → je passe sur le cerveau Claude', st.actor, why)
+    asyncio.create_task(call_event('bascule'))
     st.rt = None
     st.in_rate, st.rc_state = IN_RATE, None
     await rt.close()

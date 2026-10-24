@@ -168,8 +168,11 @@ export async function getBilling(): Promise<{ rows: BillingRow[]; claudeSpent7d:
       if (outSince) { state = 'out'; status = 'Plus de crédit — Dzaryx tourne en mode gratuit'; live = true; }
       else if (o.balance !== undefined) {
         const left = o.balance - (spent - (o.spentAtBalance ?? 0));
-        status = `≈ ${Math.max(0, left).toFixed(2)} $ restants (estimation depuis ta recharge du ${fmtDay((o.balanceAt ?? today()).slice(0, 10))})`;
-        state = left <= 5 ? 'soon' : 'ok';
+        const days = Math.max(1, (Date.now() - Date.parse(o.balanceAt ?? new Date().toISOString())) / 86_400_000);
+        const perDay = (spent - (o.spentAtBalance ?? 0)) / days;
+        const lasts = perDay > 0.05 && days >= 0.5 ? ` · ~${Math.max(0, Math.floor(left / perDay))} jour(s) au rythme actuel` : '';
+        status = `≈ ${Math.max(0, left).toFixed(2)} $ restants (estimation depuis ta recharge du ${fmtDay((o.balanceAt ?? today()).slice(0, 10))})${lasts}`;
+        state = left <= 3 ? 'soon' : 'ok';
       } else status = st === 'ok' ? 'Répond — solde inconnu (dis-moi le montant à ta prochaine recharge)' : st === 'down' ? 'Ne répond pas (crédit ? clé ?)' : 'Solde inconnu';
       if (st === 'down' && !outSince) state = 'out';
       if (state === 'unknown' && st === 'ok') state = 'ok';
@@ -249,7 +252,7 @@ export async function jobBillingWatch(): Promise<void> {
       else if (r.daysLeft <= 3) step = `d3:${r.due}`;
       else if (r.daysLeft <= 7) step = `d7:${r.due}`;
       else if (r.kind === 'annuel' && r.daysLeft <= 30) step = `d30:${r.due}`;
-    } else if (r.id === 'anthropic' && r.state === 'soon') step = `low:${today().slice(0, 7)}`;
+    } else if (r.id === 'anthropic' && r.state === 'soon') step = `low:${r.status.match(/≈ (\d+)/)?.[1] === '0' ? 'zero' : 'low'}:${today()}`;
     if (!step) continue;
     const key = `billing:alerted:${r.id}:${step}`;
     // retard : rappel chaque jour ; sinon une fois par palier

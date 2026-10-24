@@ -7,6 +7,7 @@ import {
 } from '../../integrations/google-calendar.js';
 import { exchangeGmailCode, getGmailAuthUrl, GMAIL_STATE_PREFIX } from '../../integrations/gmail.js';
 import { requireMobileAuth } from '../middleware/auth.js';
+import { getGscAuthUrl, exchangeGscCode, GSC_STATE } from '../../integrations/search-console.js';
 import { getDaysOff } from '../../integrations/kouider-dossier.js';
 
 const router = Router();
@@ -22,6 +23,11 @@ router.get('/gmail-connect', (_req, res) => {
   res.redirect(getGmailAuthUrl('pro'));
 });
 
+// GET /api/calendar/gsc-connect — consentement Google Search Console (lecture seule) pour le rapport de 21h
+router.get('/gsc-connect', (_req, res) => {
+  res.redirect(getGscAuthUrl());
+});
+
 // GET /api/calendar/callback — OAuth2 callback
 router.get('/callback', async (req, res) => {
   const code = req.query['code'] as string | undefined;
@@ -31,6 +37,11 @@ router.get('/callback', async (req, res) => {
   }
   // Connexion Gmail : même URI de callback, distinguée par le paramètre state
   const state = req.query['state'] as string | undefined;
+  if (state === GSC_STATE) {
+    if (await exchangeGscCode(code)) res.send('<html><body><h2>✅ Google Search Console connecté !</h2><p>Chaque soir à 21h, Dzaryx te dira combien de fois fikconciergerie.com apparaît sur Google et sur quelles recherches. Tu peux fermer cette page.</p></body></html>');
+    else res.status(500).send('Connexion Search Console échouée');
+    return;
+  }
   if (state?.startsWith(GMAIL_STATE_PREFIX)) {
     const address = await exchangeGmailCode(code);
     if (address) {
