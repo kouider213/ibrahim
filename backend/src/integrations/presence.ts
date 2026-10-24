@@ -122,17 +122,29 @@ export async function playlistText(forWhat = 'la route', query?: string): Promis
     ...(missing.length ? [`(pas trouvé sur Apple Music : ${missing.join(', ')})`] : [])].join('\n\n');
 }
 
-// Playlists SPORT : rap FR uniquement (Kouider 23/10). Les playlists Apple Fitness (« Pure Gym », « Sport Rap »…)
-// étaient du rap US / phonk → remplacées par « les indispensables » de 2 de ses rappeurs + « Le Code » (rap FR).
-/** Playlist de la séance : 2 rappeurs FR du jour (tournent chaque jour) + Le Code. */
+// Playlists SPORT = un MIX différent à chaque séance (Kouider 24/10 : « que des rappeurs français, algériens et du rap
+// américain, rien d'autre », Apple Music uniquement) : « les indispensables » de 2 rappeurs FR (ses goûts) + 1 algérien
+// + 1 US, qui tournent chaque jour, + une playlist rap (Le Code FR / Rap Life US) un jour sur deux.
+const SPORT_DZ = ['Soolking', 'Didine Canon 16', 'Mister You', "L'Algérino", "Rim'K", 'Lacrim'];
+const SPORT_US = ['Eminem', '50 Cent', 'DMX', 'Kendrick Lamar', 'Travis Scott', 'Pop Smoke', 'Lil Wayne', 'Jay-Z', 'Dr. Dre',
+  '21 Savage', 'Future', 'J. Cole', 'Drake', '2Pac', 'The Notorious B.I.G.', 'Ice Cube'];
+const SPORT_GENRE = [GENRE_PLAYLISTS[0]!,
+  { name: 'Rap Life (rap US du moment)', url: `https://music.apple.com/${STORE}/playlist/rap-life/pl.abe8ba42278f4ef490e3a9fc5ec8e8c5` }];
+
+/** Mix de la séance : 2 rappeurs FR + 1 algérien + 1 US (tournent chaque jour) + Le Code ou Rap Life. */
 export async function sportPlaylistText(_type: string, label?: string): Promise<string> {
   const day = Math.floor(Date.now() / 86_400_000);
   const { music } = await getPresencePrefs();
-  const pick = [0, 1].map(i => music[(day * 2 + i) % music.length]!).filter((v, i, a) => v && a.indexOf(v) === i);
-  const found = (await Promise.all(pick.map(a => artistPlaylist(a).catch(() => null)))).filter(Boolean) as Array<{ name: string; url: string; playlist: boolean }>;
-  return [`🎧 Playlist pour ${label ?? 'ta séance'} — rap FR, appuie, elle s'ouvre dans Apple Music, puis ▶️ :`,
-    ...found.map(f => `• ${f.name}${f.playlist ? ' — les indispensables' : ' (page artiste)'}\n${f.url}`),
-    `• ${GENRE_PLAYLISTS[0]!.name}\n${GENRE_PLAYLISTS[0]!.url}`].join('\n\n');
+  const dzLow = SPORT_DZ.map(a => a.toLowerCase());
+  const fr = music.filter(a => !dzLow.includes(a.toLowerCase()));
+  const pick = [fr[(day * 2) % fr.length], fr[(day * 2 + 1) % fr.length], SPORT_DZ[day % SPORT_DZ.length], SPORT_US[day % SPORT_US.length]]
+    .filter((v, i, a): v is string => !!v && a.indexOf(v) === i);
+  // Playlists seulement : une page artiste n'est pas un mix prêt à lancer
+  const found = (await Promise.all(pick.map(a => artistPlaylist(a).catch(() => null)))).filter(f => f?.playlist) as Array<{ name: string; url: string }>;
+  const genre = SPORT_GENRE[day % SPORT_GENRE.length]!;
+  return [`🎧 Ton mix pour ${label ?? 'ta séance'} — rap FR 🇫🇷, DZ 🇩🇿 et US 🇺🇸, appuie, ça s'ouvre dans Apple Music, puis ▶️ (mode aléatoire 🔀 pour mélanger) :`,
+    ...found.map(f => `• ${f.name} — les indispensables\n${f.url}`),
+    `• ${genre.name}\n${genre.url}`].join('\n\n');
 }
 
 // ── Brief du matin ───────────────────────────────────────────────────────────
