@@ -180,7 +180,40 @@ footer b{color:var(--fg)}.fik{display:inline-flex;align-items:center;gap:8px;mar
 .demo{position:fixed;left:50%;transform:translateX(-50%);top:70px;z-index:45;background:rgba(0,0,0,.72);color:#fff;font-size:.72rem;padding:6px 12px;border-radius:20px}
 .reveal{opacity:0;transform:translateY(34px);transition:opacity .9s cubic-bezier(.2,.7,.2,1),transform .9s cubic-bezier(.2,.7,.2,1)}.reveal.on{opacity:1;transform:none}
 .reveal.d1{transition-delay:.12s}.reveal.d2{transition-delay:.24s}
-@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.reveal{opacity:1;transform:none}}`;
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.reveal{opacity:1;transform:none}}
+/* v4 « waouh » : ouverture cinéma, incontournables, chiffres, appel final */
+.cine{position:relative;min-height:100svh;display:flex;align-items:flex-end;color:#fff;overflow:hidden;padding:130px 0 clamp(80px,13vh,130px);background:var(--d);isolation:isolate}
+.cine.mid{align-items:center;text-align:center}.cine.mid .btns,.cine.mid .meta{justify-content:center}.cine.mid .tag{margin-inline:auto}
+.cine .sl{position:absolute;inset:-4%;z-index:-2;background-size:cover;background-position:center;opacity:0;transition:opacity 1.8s ease}
+.cine .sl.on{opacity:1;animation:kb2 9s ease-out forwards}@keyframes kb2{from{transform:scale(1.02)}to{transform:scale(1.15) translate(-1%,-1.5%)}}
+.cine .veil{position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(0,0,0,.5) 0%,rgba(0,0,0,.08) 38%,color-mix(in srgb,var(--d) 90%,transparent) 100%)}
+.cine .in{position:relative;width:100%}
+.cine h1{font-size:clamp(3.2rem,11vw,8.8rem);line-height:.95;letter-spacing:-.02em;margin:20px 0 4px;text-shadow:0 12px 50px rgba(0,0,0,.4)}
+.cine .w{display:inline-block;white-space:nowrap}.cine .ch{display:inline-block;opacity:0;transform:translateY(.55em) rotate(5deg);animation:chin .95s cubic-bezier(.2,.8,.2,1) forwards;animation-delay:calc(.3s + var(--i) * .045s)}
+@keyframes chin{to{opacity:1;transform:none}}
+.cine .tag{font-size:clamp(1.1rem,2.6vw,1.65rem);max-width:36ch;margin:16px 0 32px;opacity:0;animation:fadeup 1s 1s forwards}
+.cine .meta{display:flex;gap:12px;flex-wrap:wrap;opacity:0;animation:fadeup 1s .15s forwards}.cine .btns{opacity:0;animation:fadeup 1s 1.25s forwards}
+@keyframes fadeup{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
+.cine .btn{background:#fff;border-color:#fff;color:var(--d)}.cine .btn.ghost{background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.6);backdrop-filter:blur(8px)}
+.cine .rating{background:rgba(0,0,0,.3);padding:7px 14px;border-radius:999px;backdrop-filter:blur(6px)}.cine .rating .s{color:#ffd166}
+.cine .cue{position:absolute;left:50%;bottom:24px;width:26px;height:42px;border:2px solid rgba(255,255,255,.7);border-radius:14px;transform:translateX(-50%)}
+.cine .cue i{position:absolute;left:50%;top:8px;width:4px;height:8px;margin-left:-2px;border-radius:2px;background:#fff;animation:cue 1.6s infinite}@keyframes cue{to{transform:translateY(14px);opacity:0}}
+body.has-cine nav:not(.solid){color:#fff}@media(max-width:760px){.cine .cue{display:none}}
+.show h2{margin-bottom:34px}.sc{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:22px}
+.sci{position:relative;border-radius:26px;overflow:hidden;min-height:540px;color:#fff;background:var(--d);box-shadow:0 30px 70px rgba(0,0,0,.2);isolation:isolate}
+.sci .im{position:absolute;inset:0;z-index:-2}.sci img{width:100%;height:calc(100% + 56px);object-fit:cover;object-position:top;transition:transform 1.4s cubic-bezier(.2,.7,.2,1)}.sci:hover img{transform:scale(1.08)}
+.sci:after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,transparent 38%,rgba(0,0,0,.85))}
+.sci .tx{position:absolute;left:0;right:0;bottom:0;padding:28px}.sci h3{font-size:clamp(1.55rem,2.6vw,2.1rem);margin:12px 0 6px;color:#fff}.sci p{opacity:.9;font-size:.96rem;color:#fff}
+.sci .pz{display:inline-block;background:#fff;color:#111;font-weight:800;padding:6px 15px;border-radius:999px;font-size:.92rem}
+.sci .go{display:inline-block;margin-top:14px;font-weight:700;text-decoration:none;color:#fff;border-bottom:2px solid var(--a);padding-bottom:2px}
+@media(max-width:900px){.sc{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:84%;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:12px;margin-inline:-22px;padding-inline:22px;scrollbar-width:none}.sci{scroll-snap-align:center;min-height:470px}}
+.stats{background:var(--d);color:#fff;padding:clamp(56px,8vw,90px) 0}.st3{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:30px;text-align:center}
+.stats b{font-family:var(--fh);font-size:clamp(3rem,7vw,5.2rem);display:block;line-height:1;color:var(--a);margin-bottom:10px}.stats span{opacity:.8;letter-spacing:.16em;text-transform:uppercase;font-size:.78rem}
+.fin{position:relative;color:#fff;text-align:center;padding:clamp(120px,18vw,210px) 0;overflow:hidden;isolation:isolate}
+.fin .bg{position:absolute;inset:-18% 0;z-index:-2;background-size:cover;background-position:center}.fin:before{content:"";position:absolute;inset:0;z-index:-1;background:color-mix(in srgb,var(--d) 70%,transparent)}
+.fin h2{font-size:clamp(2.6rem,8vw,5.6rem);color:#fff}.fin p{font-size:clamp(1.05rem,2.2vw,1.35rem);opacity:.92;margin:-6px auto 34px;max-width:40ch}.fin .btns{justify-content:center}
+.fin .btn{background:#fff;border-color:#fff;color:var(--d)}.fin .btn.ghost{background:transparent;color:#fff;border-color:#fff}
+@media(prefers-reduced-motion:reduce){.cine .ch,.cine .tag,.cine .btns,.cine .meta{opacity:1;transform:none}}`;
 
 // Ce qui change d'un univers à l'autre
 const STYLE_CSS: Record<StyleId, string> = {
@@ -243,6 +276,16 @@ nav{color:#fff;text-transform:uppercase}h1,h2,h3{text-transform:uppercase;letter
 .about>div.reveal:not(.ph){background:var(--card);padding:clamp(24px,4vw,44px);margin:-110px clamp(0px,4vw,60px) 0;position:relative;z-index:2;border-left:4px solid var(--a)}`,
 };
 
+const nb = (t: string) => esc(t).replace(/ ([?!:;»])/g, '\u00a0$1').replace(/« /g, '«\u00a0');
+
+/** Ouverture « cinéma » (dès 2 photos, tous les styles) : vraies photos en fondu + zoom lent, nom qui apparaît lettre par lettre. */
+function cineHero(v: number, p: Omit<Place, 'photoRefs'>, c: Content, photos: string[], meta: string, btns: string): string {
+  let n = 0;
+  const title = p.name.trim().split(/\s+/).map(w => `<span class="w">${[...w].map(ch => `<span class="ch" style="--i:${n++}">${esc(ch)}</span>`).join('')}</span>`).join(' ');
+  return `<header class="cine ${v % 2 ? 'mid' : 'low'}">${photos.slice(0, 4).map((ph, i) => `<div class="sl${i ? '' : ' on'}" style="background-image:url('${ph}')"></div>`).join('')}<div class="veil"></div>` +
+    `<div class="wrap in">${meta}<h1 aria-label="${esc(p.name)}">${title}</h1><p class="tag">${nb(c.tagline)}</p>${btns}</div><a class="cue" href="#about" aria-label="Défiler"><i></i></a></header>`;
+}
+
 function hero(st: StyleId, v: number, p: Omit<Place, 'photoRefs'>, c: Content, photos: string[], meta: string, btns: string): string {
   const img0 = photos[0] ?? '';
   const bg = img0 ? `style="background-image:url('${img0}')"` : `style="background:linear-gradient(135deg,${c.palette.dark},${c.palette.primary})"`;
@@ -301,6 +344,20 @@ export function renderHtml(p: Omit<Place, 'photoRefs'>, c: Content, photos: stri
   const aboutImg = photos[1] ?? photos[0];
   const gallery = photos.slice(st === 'minimal' ? 0 : 2);
   const reviews = p.reviews.filter(r => r.text).slice(0, 5);
+  const cine = photos.length >= 2;
+  // Incontournables : photo IA, sinon une vraie photo du commerce
+  const show = (c.showcase ?? []).filter(it => it.img);
+  const order = hasForm ? `<a class="go" href="#form">${esc(formKind(c.kind).nav)} →</a>` : wa ? `<a class="go" href="${wa}" target="_blank" rel="noopener">Commander sur WhatsApp →</a>` : tel ? `<a class="go" href="${tel}">Appeler →</a>` : '';
+  const showcase = show.length ? `<section id="sig" class="show"><div class="wrap"><div class="reveal">${eb('Nos incontournables')}<h2>${nb(c.signature ?? 'Nos incontournables')}</h2></div>
+  <div class="sc">${show.map((it, i) => `<article class="sci reveal${i ? ` d${Math.min(i, 2)}` : ''}"><div class="im"><img src="${esc(it.img!)}" alt="${esc(it.name)}" loading="lazy"></div><div class="tx">${it.price ? `<span class="pz">${esc(it.price)}</span>` : ''}<h3>${esc(it.name)}</h3>${it.description ? `<p>${esc(it.description)}</p>` : ''}${order}</div></article>`).join('')}</div></div></section>` : '';
+  const openDays = p.hours.filter(h => /\d/.test(h) || /24\s*h/i.test(h)).length;
+  const statsBand = p.rating ? `<section class="stats"><div class="wrap st3">
+  <div><b data-to="${p.rating.toFixed(1)}" data-dec="1">${p.rating.toFixed(1).replace('.', ',')}</b><span>★ sur Google</span></div>
+  ${p.ratingsTotal ? `<div><b data-to="${p.ratingsTotal}">${p.ratingsTotal.toLocaleString('fr-FR')}</b><span>avis clients</span></div>` : ''}
+  ${openDays ? `<div><b data-to="${openDays}">${openDays}</b><span>jours sur 7</span></div>` : ''}</div></section>` : '';
+  const finImg = photos.length > 2 ? photos[photos.length - 1] : show[0]?.img ?? photos[0];
+  const finBtns = `<div class="btns">${hasForm ? `<a class="btn" href="#form">${esc(formKind(c.kind).nav)}</a>` : tel ? `<a class="btn" href="${tel}">Appeler</a>` : ''}${wa ? `<a class="btn ghost" href="${wa}" target="_blank" rel="noopener">WhatsApp</a>` : `<a class="btn ghost" href="${esc(route)}" target="_blank" rel="noopener">Itinéraire</a>`}</div>`;
+  const finale = c.cta && finImg ? `<section class="fin"><div class="bg" style="background-image:url('${finImg}')"></div><div class="wrap narrow reveal"><h2>${nb(c.cta.title)}</h2>${c.cta.text ? `<p>${nb(c.cta.text)}</p>` : ''}${finBtns}</div></section>` : '';
 
   return `<!doctype html>
 <html lang="fr"><head>
@@ -317,11 +374,11 @@ ${opts.demo ? '<meta name="robots" content="noindex">' : ''}
 ${BASE_CSS}
 ${STYLE_CSS[st]}
 </style></head>
-<body class="st-${st}">
+<body class="st-${st}${cine ? ' has-cine' : ''}">
 <div id="prog"></div>
 <nav id="nav"><b>${esc(p.name)}</b><div class="links"><a href="#about">À propos</a><a href="#offer">${esc(c.offerTitle)}</a>${gallery.length ? '<a href="#gallery">Photos</a>' : ''}<a href="#contact">Accès</a>${hasForm ? `<a href="#form">${esc(formKind(c.kind).nav)}</a>` : ''}</div></nav>
 
-${hero(st, v, p, c, photos, meta, btns)}
+${cine ? cineHero(v, p, c, photos, meta, btns) : hero(st, v, p, c, photos, meta, btns)}
 ${marquee}
 
 <section id="about"><div class="wrap about">
@@ -330,6 +387,9 @@ ${marquee}
   ${c.highlights.length ? `<div class="chips">${c.highlights.slice(0, 5).map(h => `<span>${esc(h)}</span>`).join('')}</div>` : ''}</div>
   ${aboutImg ? `<div class="ph reveal d1"><img src="${aboutImg}" alt="${esc(p.name)}" loading="lazy"></div>` : ''}
 </div></section>
+
+${showcase}
+${statsBand}
 
 <section id="offer" class="offer"><div class="wrap">
   <div class="reveal">${eb(c.offerTitle)}<h2>${esc(c.offerTitle)}</h2>${c.offerIntro ? `<p style="color:var(--muted);margin:-10px 0 40px;max-width:60ch">${esc(c.offerIntro)}</p>` : ''}</div>
@@ -340,9 +400,10 @@ ${gallery.length ? `<section id="gallery"><div class="wrap"><div class="reveal">
   <div class="gal reveal">${gallery.map(ph => `<img src="${ph}" alt="${esc(p.name)}" loading="lazy">`).join('')}</div></div></section><div id="lb"><img alt=""></div>` : ''}
 
 ${reviews.length ? `<section class="offer"><div class="wrap narrow reveal">${eb('Ils en parlent')}
-  <div class="rv">${reviews.map((r, i) => `<blockquote class="${i ? '' : 'on'}"><span class="s">${stars(r.rating)}</span>« ${esc(r.text.length > 260 ? `${r.text.slice(0, 257)}…` : r.text)} »<cite>${esc(r.author)} · avis Google</cite></blockquote>`).join('')}</div>
+  <div class="rv">${reviews.map((r, i) => `<blockquote class="${i ? '' : 'on'}"><span class="s">${stars(r.rating)}</span>« ${esc([...r.text].length > 260 ? `${[...r.text].slice(0, 257).join('')}…` : r.text)} »<cite>${esc(r.author)} · avis Google</cite></blockquote>`).join('')}</div>
   ${reviews.length > 1 ? `<div class="dots2">${reviews.map((_, i) => `<b class="${i ? '' : 'on'}"></b>`).join('')}</div>` : ''}</div></section>` : ''}
 
+${finale}
 ${hasForm ? formSection(c, opts.siteId!, opts.formApi!, wa, p.name) : ''}
 
 <section id="contact"><div class="wrap info">
@@ -377,6 +438,12 @@ e.style.transform='perspective(800px) rotateY('+(x*7)+'deg) rotateX('+(-y*7)+'de
 var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('on');io.unobserve(e.target)}})},{threshold:.1});
 document.querySelectorAll('.reveal').forEach(function(e){io.observe(e)});
 var lb=document.getElementById('lb');if(lb){document.querySelectorAll('.gal img').forEach(function(i){i.addEventListener('click',function(){lb.firstChild.src=i.src;lb.classList.add('on')})});lb.addEventListener('click',function(){lb.classList.remove('on')})}
+// v4 : photos d'ouverture en fondu, chiffres qui défilent, fond de l'appel final en parallaxe
+var sl=document.querySelectorAll('.cine .sl'),si=0;if(sl.length>1&&!calm)setInterval(function(){sl[si].classList.remove('on');si=(si+1)%sl.length;sl[si].classList.add('on')},6000);
+var co=new IntersectionObserver(function(es){es.forEach(function(e){if(!e.isIntersecting)return;co.unobserve(e.target);var b=e.target,to=+b.dataset.to,dec=+(b.dataset.dec||0),t0=performance.now();
+(function step(t){var k=Math.min(1,(t-t0)/1700),x=to*(1-Math.pow(1-k,3));b.textContent=dec?x.toFixed(dec).replace('.',','):Math.round(x).toLocaleString('fr-FR');if(k<1)requestAnimationFrame(step)})(t0)})},{threshold:.4});
+if(!calm)document.querySelectorAll('[data-to]').forEach(function(b){b.textContent='0';co.observe(b)});
+var fb=document.querySelector('.fin .bg');if(fb&&!calm)addEventListener('scroll',function(){var r=fb.parentNode.getBoundingClientRect();if(r.bottom>0&&r.top<innerHeight)fb.style.transform='translateY('+(r.top*-.15)+'px)'},{passive:true});
 var q=document.querySelectorAll('.rv blockquote'),d=document.querySelectorAll('.dots2 b'),cur=0;function show(i){q[cur].classList.remove('on');d[cur]&&d[cur].classList.remove('on');cur=i;q[cur].classList.add('on');d[cur]&&d[cur].classList.add('on')}
 if(q.length>1){d.forEach(function(b,i){b.addEventListener('click',function(){show(i)})});setInterval(function(){show((cur+1)%q.length)},6500)}
 })();

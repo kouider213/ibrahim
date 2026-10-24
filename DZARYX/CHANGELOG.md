@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-24 — Sites v4 « waouh » : ouverture cinéma, incontournables en photos IA, chiffres, appel final
+
+- `site-design.ts` : dès 2 photos, ouverture plein écran (vraies photos en fondu + zoom lent, nom lettre par lettre, flèche de défilement) ; section « Nos incontournables » (3 grandes cartes photo, prix, « Commander ») ; bande de chiffres animés (note Google, avis, jours d'ouverture) ; appel final plein écran en parallaxe. Typo française (espace insécable avant ? !), avis coupés sans casser les émojis.
+- `demo-site.ts` : le texte écrit aussi `showcase` (3 incontournables + consigne photo) et `cta` ; `showcasePhotos()` crée les photos par IA (fal.ai Flux Pro ≈ 0,04 $/image, sinon Pollinations gratuit, l'une après l'autre avec 3 essais), rangées dans le stockage public `fik-sites/showcase/` et signalées dans « inventé ».
+- Testé en local sur Caramelia pastry (captures Chrome, aucune erreur JS) — en local seul le gratuit marche (pas de clé fal) : sur Railway les photos passent par Flux Pro.
+
 ## 2026-10-24 — Plus jamais « Bruxelles » ni de date de RDV envoyée sans Kouider ; commandes WhatsApp sur les sites clients
 
 - `site-prospecting.ts`, `prospect-autopilot.ts` : les mails de démo et les réponses aux prospects ne proposent plus AUCUN créneau de l'agenda ni « heure de Bruxelles » (Caramelia 24/10 a reçu 3 créneaux « heure de Bruxelles »). Ils disent que Kouider revient vers eux ; Kouider reçoit « dis-moi quand tu es dispo ».

@@ -29,7 +29,10 @@ export interface Content {
   invented: string[]; currency: string;
   style?: string;       // univers graphique (site-design.ts STYLES)
   signature?: string;   // phrase signature du commerce, mise en avant
+  showcase?: ShowcaseItem[];                 // 3 incontournables en grandes photos (v4)
+  cta?: { title: string; text: string };     // appel final plein écran
 }
+export interface ShowcaseItem { name: string; description?: string; price?: string; img?: string; photo?: string }   // photo = consigne image (supprimée après)
 
 export interface DemoRecord {
   slug: string; url: string; createdAt: string; place: Omit<Place, 'photoRefs'>; content: Content; notes?: string;
@@ -78,7 +81,7 @@ const EXTRA_FLAGS: Record<string, string> = {
   serves_vegetarian_food: 'plats végétariens', wheelchair_accessible_entrance: 'accès fauteuil roulant',
 };
 
-async function placeDetails(placeId: string): Promise<Place> {
+export async function placeDetails(placeId: string): Promise<Place> {
   const { data } = await axios.get('https://maps.googleapis.com/maps/api/place/details/json', { timeout: 15_000,
     params: { place_id: placeId, language: 'fr', reviews_sort: 'most_relevant', key: mapsKey(),
       fields: ['name', 'formatted_address', 'international_phone_number', 'website', 'url', 'rating', 'user_ratings_total',
@@ -101,7 +104,7 @@ async function placeDetails(placeId: string): Promise<Place> {
 
 const shortName = (n: string) => { const [a, b] = n.trim().split(/\s+/); return b ? `${a} ${b[0]}.` : (a ?? 'Client'); };
 
-async function downloadPhotos(refs: string[]): Promise<Buffer[]> {
+export async function downloadPhotos(refs: string[]): Promise<Buffer[]> {
   const out = await Promise.all(refs.map((ref): Promise<Buffer | null> => axios.get('https://maps.googleapis.com/maps/api/place/photo',
     { params: { maxwidth: 1600, photo_reference: ref, key: mapsKey() }, responseType: 'arraybuffer', timeout: 30_000 })
     .then(r => Buffer.from(r.data as ArrayBuffer)).catch(() => null)));
@@ -133,14 +136,16 @@ Réponds UNIQUEMENT en JSON :
  "fontPair": 0,
  "style": "luxe|editorial|vibrant|minimal|urban",
  "signature": "une phrase signature forte et personnelle, propre à ce commerce (10-16 mots)",
+ "showcase": [{"name": "un produit/prestation phare repris de offer (même nom)", "description": "1 phrase sensorielle qui donne envie", "price": "même prix que dans offer", "photo": "ENGLISH prompt for a stunning professional photo of exactly this item as sold by THIS shop: subject, plating/props, background matching the shop's mood and palette, lighting, camera (85mm, shallow depth of field), no text, no logo, no people's faces"}],
+ "cta": {"title": "appel final court et irrésistible (ex. Une envie sucrée ?)", "text": "1 phrase qui pousse à venir ou commander aujourd'hui"},
  "currency": "DA",
  "invented": ["..."]}
-offer : 3 ou 4 groupes de 3 à 5 éléments. palette propre à ce commerce, jamais générique (dark = fond sombre lisible avec texte blanc, light = fond clair, accent = couleur qui claque). fontPair = indice parmi : ${FONT_PAIRS.map((p, i) => `${i}=${p[0]}/${p[1]}`).join(', ')}.
+offer : 3 ou 4 groupes de 3 à 5 éléments. showcase : EXACTEMENT 3 incontournables, les plus désirables. palette propre à ce commerce, jamais générique (dark = fond sombre lisible avec texte blanc, light = fond clair, accent = couleur qui claque). fontPair = indice parmi : ${FONT_PAIRS.map((p, i) => `${i}=${p[0]}/${p[1]}`).join(', ')}.
 style = l'univers graphique qui colle le mieux à CE commerce : ${STYLES.map(x => STYLE_HINT[x]).join(' ; ')}.${'${RECENT}'}`;
 
 export const HEX = /^#[0-9a-f]{6}$/i;
 
-async function writeContent(p: Place, notes: string): Promise<Content> {
+export async function writeContent(p: Place, notes: string): Promise<Content> {
   const fiche = {
     nom: p.name, adresse: p.address, telephone: p.phone, site_actuel: p.website, types_google: p.types,
     note: p.rating, nombre_avis: p.ratingsTotal, niveau_prix: p.priceLevel, horaires: p.hours, resume_google: p.summary,
@@ -167,7 +172,56 @@ async function writeContent(p: Place, notes: string): Promise<Content> {
     },
     fonts: fp, invented: (Array.isArray(r.invented) ? r.invented : []).map(s).filter(Boolean), currency: s(r.currency),
     ...((STYLES as readonly string[]).includes(s(r.style)) ? { style: s(r.style) } : {}), ...(s(r.signature) ? { signature: s(r.signature) } : {}),
+    showcase: (Array.isArray(r.showcase) ? r.showcase : []).map((x: any) => ({ name: s(x?.name), description: s(x?.description), price: s(x?.price), photo: s(x?.photo) }))
+      .filter((x: ShowcaseItem) => x.name).slice(0, 3),
+    ...(s(r.cta?.title) ? { cta: { title: s(r.cta.title), text: s(r.cta?.text) } } : {}),
   };
+}
+
+// ── 2b. Photos des incontournables (IA) ─────────────────────────────────────
+// fal.ai Flux Pro (≈ 0,04 $ l'image) ; sans clé ou en panne → Pollinations (gratuit). Rangées dans le stockage public des
+// sites (URL absolue) : la démo ET le vrai site qui en sort les gardent, jusqu'à ce que le patron mette ses vraies photos.
+async function aiPhoto(prompt: string): Promise<Buffer | null> {
+  const full = `${prompt}. Ultra realistic professional commercial photography, appetizing, rich colors, magazine quality.`;
+  const fal = process.env['FAL_KEY'];
+  if (fal) {
+    try {
+      const r = await axios.post<{ images?: Array<{ url: string }> }>('https://fal.run/fal-ai/flux-pro/v1.1',
+        { prompt: full, image_size: 'portrait_4_3', num_images: 1, output_format: 'jpeg', safety_tolerance: '2' },
+        { headers: { Authorization: `Key ${fal}`, 'Content-Type': 'application/json' }, timeout: 90_000 });
+      const url = r.data.images?.[0]?.url;
+      if (url) return Buffer.from((await axios.get<ArrayBuffer>(url, { responseType: 'arraybuffer', timeout: 60_000 })).data);
+    } catch (err) { console.warn('[demo-site] photo IA fal :', err instanceof Error ? err.message : err); }
+  }
+  for (let attempt = 0; attempt < 3; attempt++) {   // le gratuit refuse parfois (402 = trop de demandes) : on réessaie un peu plus tard
+    try {
+      const r = await axios.get<ArrayBuffer>(`https://image.pollinations.ai/prompt/${encodeURIComponent(full.slice(0, 900))}`,
+        { params: { width: 960, height: 1200, nologo: true, model: 'flux', seed: attempt + 1 }, responseType: 'arraybuffer', timeout: 120_000 });
+      const b = Buffer.from(r.data);
+      if (b.length > 20_000) return b;
+    } catch (err) { console.warn('[demo-site] photo IA gratuite :', err instanceof Error ? err.message : err); }
+    await new Promise(res => setTimeout(res, 8_000 * (attempt + 1)));
+  }
+  return null;
+}
+
+export async function showcasePhotos(slug: string, c: Content): Promise<void> {
+  if (!c.showcase?.length) return;
+  await supabase.storage.createBucket('fik-sites', { public: true, fileSizeLimit: 10 * 1024 * 1024 }).catch(() => {});
+  let made = 0;
+  // L'une après l'autre : le secours gratuit refuse les demandes simultanées (402)
+  for (const [i, it] of c.showcase.entries()) {
+    const prompt = it.photo; delete it.photo;
+    if (!prompt) continue;
+    const b = await aiPhoto(prompt);
+    if (!b) continue;
+    const path = `showcase/${slug}-${i + 1}-${randomBytes(2).toString('hex')}.jpg`;
+    const up = await supabase.storage.from('fik-sites').upload(path, b, { contentType: 'image/jpeg', upsert: true });
+    if (up.error) { console.warn('[demo-site] photo IA stockage :', up.error.message); continue; }
+    it.img = supabase.storage.from('fik-sites').getPublicUrl(path).data.publicUrl;
+    made++;
+  }
+  if (made) c.invented.push(`Photos des ${made} incontournables créées par IA pour l'exemple (remplacées par vos vraies photos)`);
 }
 
 // ── 3. Page HTML : site-design.ts (styles, touche FIK) ──────────────────────
@@ -267,10 +321,11 @@ export async function buildDemo(link: string, notes: string, knownPlaceId?: stri
   }
   const place = await placeDetails(placeId);
   const [content, photoBufs] = await Promise.all([writeContent(place, notes), downloadPhotos(place.photoRefs)]);
+  const slug = `demo-${slugify(place.name) || 'commerce'}-${randomBytes(2).toString('hex')}`;
+  await showcasePhotos(slug, content).catch(err => console.warn('[demo-site] incontournables :', err instanceof Error ? err.message : err));
   const photoNames = photoBufs.map((_, i) => `img/photo-${i + 1}.jpg`);
   const files: Record<string, Buffer> = { 'index.html': Buffer.from(renderHtml(place, content, photoNames)) };
   photoBufs.forEach((b, i) => { files[photoNames[i]!] = b; });
-  const slug = `demo-${slugify(place.name) || 'commerce'}-${randomBytes(2).toString('hex')}`;
   const { url, free } = await deployDemo(slug, files);
   const { photoRefs: _drop, ...placeData } = place;
   const rec: DemoRecord = { slug, url, createdAt: new Date().toISOString(), place: placeData, content, ...(notes ? { notes } : {}), ...(free ? { hostedHere: true } : {}) };
