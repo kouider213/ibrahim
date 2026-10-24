@@ -21,6 +21,8 @@ interface View { page: string | null; session_id: string | null; visitor: string
 export interface DayTraffic {
   visitors: number; pages: number; fromMails: number; us: number; robots: number; unknown: number;
   topPages: Array<[string, number]>; countries: Array<[string, number]>; sources: Array<[string, number]>;
+  // Parcours (24/10) : visiteurs qui ont vu une voiture → ouvert la réservation → envoyé une demande ; contacts WhatsApp/tél.
+  funnel: { car: number; resa: number; sent: number; contact: number };
 }
 
 /** Début du jour à Alger (UTC+1, pas d'heure d'été), décalé de `offsetDays`. */
@@ -61,11 +63,20 @@ export async function dayTraffic(offsetDays = 0): Promise<DayTraffic> {
   const sessions = { visiteur: new Set<string>(), nous: new Set<string>(), robot: new Set<string>(), inconnu: new Set<string>() } as Record<string, Set<string>>;
   const mails = new Set<string>(), seen = new Set<string>();
   const pages = new Map<string, number>(), countries = new Map<string, number>(), sources = new Map<string, number>();
+  const step = { car: new Set<string>(), resa: new Set<string>(), sent: new Set<string>(), contact: new Set<string>() };
   let pageCount = 0;
   for (const v of views) {
     const k = kind(v), sid = v.session_id ?? v.ip_hash ?? v.created_at;
-    (sessions[k] ?? sessions.inconnu).add(sid);
+    const ev = v.page?.startsWith('#event:') ? v.page.slice(7) : null;   // évènement envoyé par le site (lib/tracker.js)
+    if (!ev) (sessions[k] ?? sessions.inconnu).add(sid);
     if (k !== 'visiteur') continue;
+    if (ev) {
+      if (/reservation_complete|import_order|lead/.test(ev)) step.sent.add(sid);
+      else if (/whatsapp_click|phone_click|contact/.test(ev)) step.contact.add(sid);
+      continue;
+    }
+    if (/^\/cars\/./.test(v.page ?? '')) step.car.add(sid);
+    if (/^\/reservation/.test(v.page ?? '')) step.resa.add(sid);
     pageCount++;
     bump(pages, (v.page ?? '/').split('?')[0] || '/');
     if (v.page && /[?&]ref=/.test(v.page)) mails.add(sid);
@@ -78,6 +89,7 @@ export async function dayTraffic(offsetDays = 0): Promise<DayTraffic> {
     visitors: sessions.visiteur.size, pages: pageCount, fromMails: mails.size,
     us: sessions.nous.size, robots: sessions.robot.size, unknown: sessions.inconnu.size,
     topPages: top(pages, 5), countries: top(countries, 4), sources: top(sources, 4),
+    funnel: { car: step.car.size, resa: step.resa.size, sent: step.sent.size, contact: step.contact.size },
   };
 }
 
@@ -92,6 +104,12 @@ export function formatTraffic(t: DayTraffic, label: string): string {
     `🤖 Robots (Google, aperçus de liens…) : ${t.robots}`,
   ];
   if (t.unknown) lines.push(`❔ Avant la mise en place du tri : ${t.unknown}`);
+  if (t.visitors) {
+    const f = t.funnel;
+    lines.push(`🛒 Parcours : ${t.visitors} visiteurs → ${f.car} ont regardé une voiture → ${f.resa} ont ouvert la réservation → ${f.sent} demande${f.sent > 1 ? 's' : ''} envoyée${f.sent > 1 ? 's' : ''}` +
+      (f.contact ? ` · ${f.contact} t'ont contacté (WhatsApp/tél.)` : ''));
+    if (f.resa >= 2 && !f.sent) lines.push(`  ⚠️ ${f.resa} ont ouvert la réservation sans l'envoyer : le formulaire bloque peut-être (prix, champs, confiance ?)`);
+  }
   if (t.topPages.length) lines.push(`📄 Pages les plus vues : ${list(t.topPages)}`);
   if (t.sources.length) lines.push(`🔗 Arrivés par : ${list(t.sources)}`);
   if (t.countries.length) lines.push(`📍 Pays : ${list(t.countries)}`);
