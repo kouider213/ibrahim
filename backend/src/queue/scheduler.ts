@@ -40,6 +40,7 @@ import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { jobClientSites } from '../integrations/client-sites.js';
 import { jobPapaTime, jobPapaWeekly } from '../integrations/papa-time.js';
 import { jobFormeReminders, jobFormeWeekly } from '../integrations/forme.js';
+import { jobConnectionsWatch } from '../integrations/connections-watch.js';
 import { runDailyOutreach, checkProspectReplies, checkProspectVisits, sendWeeklyReport } from '../integrations/prospect-autopilot.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { flushAutoCalls } from '../notifications/auto-call.js';
@@ -328,6 +329,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'connections-watch',
+    cron:  '*/15 * * * *',          // WhatsApp, PC cloud, Telegram, Gmail, Agenda : coupure → message tout de suite + rappel toutes les 2 h (8h-22h)
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'forme-reminders',
     cron:  '*/15 7-22 * * *',       // app FORME : injection Wegovy, pesée, repas, eau, photo de suivi (1 fois/jour chacun)
     tz:    'Europe/Brussels',
@@ -566,6 +572,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'life-coach-weekly':       jobLifeCoachWeekly,
   'papa-time':               async () => { console.log(`[papa-time] ${await jobPapaTime()}`); },
   'papa-weekly':             async () => { await jobPapaWeekly(); },
+  'connections-watch':       async () => { console.log(`[connections] ${await jobConnectionsWatch()}`); },
   'forme-reminders':         async () => { console.log(`[forme] ${await jobFormeReminders()}`); },
   'forme-weekly':            async () => { await jobFormeWeekly(); },
   'kouider-dossier':         async () => { console.log(`[kouider-dossier] ${await jobKouiderDossier()}`); },

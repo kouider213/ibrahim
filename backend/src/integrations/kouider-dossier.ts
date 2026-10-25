@@ -71,6 +71,7 @@ export async function kouiderDossierText(): Promise<string> {
     import('./life-coach.js').then(m => m.lifeCoachText()).catch(() => ''),   // import dynamique : life-coach → morning-routine → ce fichier
   ]);
   const forme = await import('./forme.js').then(m => m.formeText()).catch(() => '');
+  const conns = await import('./connections-watch.js').then(m => m.connectionsText()).catch(() => '');
   return [
     'QUI EST KOUIDER (son dossier — tu tournes autour de lui, tu le connais par cœur) :',
     dossier?.trim() || BASE,
@@ -78,6 +79,7 @@ export async function kouiderDossierText(): Promise<string> {
     ...(await isHardDay() ? ["AUJOURD'HUI = JOURNÉE DURE (il l'a demandé) : aucune prospection ni idée business, rien de non urgent, propose de décaler ce qui peut l'être, sois doux et bref. « journée normale » / « c'est bon » → family_care action hard_day off:true."] : []),
     ...(notes.length ? ['Notes récentes de Kouider sur lui-même :', ...notes.slice(-10).map(n => `- ${n}`)] : []),
     ...(coach ? [coach] : []),
+    ...(conns ? [conns] : []),
     ...(forme ? [forme] : []),
   ].join('\n');
 }

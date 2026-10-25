@@ -42,8 +42,9 @@ export function initCloudPcRelay(io: SocketServer): void {
         console.log(`[CLOUDPC] WhatsApp ${st.logged_in ? 'connecté' : 'déconnecté'}`);
         const msg = was === now ? '' : st.logged_in
           ? '✅ Ton WhatsApp Business est connecté au PC cloud. Je te préviens à chaque message client avec une réponse proposée — rien ne part sans ton accord.'
-          : was === '1' ? '⚠️ WhatsApp s\'est déconnecté du PC cloud. Dis « connecte mon WhatsApp » pour un nouveau code.' : '';
-        if (msg) await (await import('../../notifications/tg-outbox.js')).queueTelegramMessage(msg);
+          : was !== '0' ? '⚠️ Ton WhatsApp Business s\'est déconnecté du PC cloud : je ne vois plus tes messages clients. Réponds « connecte mon WhatsApp » pour un nouveau code (je te le redemanderai toutes les 2 h tant que ce n\'est pas fait).' : '';
+        // Jamais retenu par le tri anti-bruit (24/10 : la coupure n'avait pas été signalée)
+        if (msg) await (await import('../../notifications/tg-outbox.js')).queueTelegramMessage(msg, undefined, 'kouider', undefined, true);
       })().catch(() => {});
     });
     socket.on('disconnect', reason => {

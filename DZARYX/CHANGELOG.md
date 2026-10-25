@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-25 (nuit) — Surveillance des connexions (WhatsApp coupé 30 h sans alerte)
+
+- WhatsApp Business était déconnecté du PC cloud depuis le 24/10 8h40 : l'unique alerte avait été avalée par le tri anti-bruit. Nouveau `integrations/connections-watch.ts` + job `connections-watch` (*/15) : WhatsApp (statut réel via le PC cloud), PC cloud (2 échecs de suite), service Telegram (heartbeat), Gmail et Agenda Google (toutes les 2 h). Coupure → Telegram + app tout de suite (bypassDigest), rappel toutes les 2 h de 8h à 22h, « ✅ reconnecté » à la fin ; `connectionsText()` dans le dossier de Dzaryx. Alerte `cloud:wa_state` aussi en direct.
+- cloudpc/whatsapp_web.py : `link_code` attend jusqu'à 15 s le champ du numéro (« null.focus » le 25/10).
+
 ## 2026-10-25 (nuit) — FORME : 100 % arabe en mode arabe
 
 - Traduction à la volée : en mode arabe, tout texte encore en français à l'écran (recettes déjà créées, exercices de sport-coach, analyses, textes avec chiffres, morceaux variables) part en lot à `/api/forme/translate` (Claude Haiku, liste ordonnée, cache serveur `forme:tr:ar` + téléphone `forme:ar-live`) et revient en arabe ; chaque nœud garde son texte d'origine pour être retraduit. Textes déjà arabes ignorés. Mode cuisine lu en arabe. App v182 (657bc53).

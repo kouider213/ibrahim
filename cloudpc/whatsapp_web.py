@@ -177,8 +177,17 @@ async def link_code(phone: str) -> dict:
             return {'ok': True, 'logged_in': True}
         await p.call('Page.navigate', {'url': URL})
         await asyncio.sleep(10)
-        await _click_text(p, '^(Se connecter|Connecter plutôt) avec un numéro')
-        await asyncio.sleep(2)
+        # La page met parfois > 2 s à afficher le champ du numéro (25/10 : « null.focus ») → on attend jusqu'à 15 s
+        for _ in range(15):
+            if await _click_text(p, '^(Se connecter|Connecter plutôt) avec un numéro'):
+                break
+            await asyncio.sleep(1)
+        for _ in range(15):
+            await asyncio.sleep(1)
+            if await p.js("!!document.querySelector('[data-testid=phone-number-input]')"):
+                break
+        else:
+            return {'ok': False, 'error': "Champ du numéro introuvable sur la page WhatsApp."}
         await p.js("document.querySelector('[data-testid=phone-number-input]').focus()")
         await _key(p, 'a', 'KeyA', 65, 2)
         await _key(p, 'Backspace', 'Backspace', 8)
