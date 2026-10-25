@@ -1124,6 +1124,14 @@ const MSG = {
   },
 } as const;
 
+/** Notification directe sur le téléphone (appli FORME), même fermée — ex. invitation à jouer. */
+export async function pushForme(uid: Uid, title: string, body: string, url: string, type = 'forme'): Promise<boolean> {
+  const sub = await readJson<PushSubscription | null>(SUB_K(uid), null);
+  if (!sub) return false;
+  await sendWebPush(sub, title, body, { url, type }, { urgency: 'high', TTL: 600 }).catch(() => {});
+  return true;
+}
+
 async function notify(uid: Uid, what: keyof typeof MSG.fr, arg: string, date = localNow().date, tag = ''): Promise<boolean> {
   if (await kvGet(SENT_K(uid, what + tag, date))) return false;
   await kvSet(SENT_K(uid, what + tag, date), '1', 2 * 86_400);

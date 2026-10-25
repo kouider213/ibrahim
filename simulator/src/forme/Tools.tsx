@@ -84,7 +84,7 @@ function Scanner({ onCode }: { onCode: (c: string) => void }) {
   }, [onCode]);
   return (
     <div style={{ position: 'relative', borderRadius: 20, overflow: 'hidden', background: '#000', aspectRatio: '4/3' }}>
-      <video ref={video} playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      <video ref={video} playsInline muted style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }} />
       <motion.div animate={{ top: ['25%', '72%', '25%'] }} transition={{ repeat: Infinity, duration: 2 }} style={{ position: 'absolute', left: '12%', right: '12%', height: 2, background: F.accent, boxShadow: `0 0 12px ${F.accent}` }} />
       <div style={{ position: 'absolute', inset: '22% 10%', border: '2px solid rgba(255,255,255,0.7)', borderRadius: 14 }} />
       {err && <div style={{ position: 'absolute', inset: 0, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, textAlign: 'center' }}>{err}</div>}

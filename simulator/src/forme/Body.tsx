@@ -98,7 +98,7 @@ function Camera({ ghost, onShot, onClose }: { ghost: string | null; onShot: (dat
   const [showGhost, setShowGhost] = useState(true);
   useEffect(() => {
     let stream: MediaStream | null = null;
-    navigator.mediaDevices?.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 1706 } }, audio: false })
+    navigator.mediaDevices?.getUserMedia({ video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1440 }, ...({ zoom: 1 } as MediaTrackConstraints) }, audio: false })
       .then(s => { stream = s; if (video.current) { video.current.srcObject = s; void video.current.play(); } })
       .catch(() => setFailed(true));
     return () => stream?.getTracks().forEach(t => t.stop());
@@ -119,9 +119,9 @@ function Camera({ ghost, onShot, onClose }: { ghost: string | null; onShot: (dat
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 70, background: '#000', display: 'flex', flexDirection: 'column' }}>
       <div style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
-        {!failed ? <video ref={video} playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: facing === 'user' ? 'scaleX(-1)' : 'none' }} />
+        {!failed ? <video ref={video} playsInline muted style={{ width: '100%', height: '100%', objectFit: 'contain', transform: facing === 'user' ? 'scaleX(-1)' : 'none' }} />
           : <div style={{ color: '#fff', padding: 30, textAlign: 'center', marginTop: 80 }}>Caméra indisponible ici. Utilise le bouton « Galerie / appareil photo » en bas.</div>}
-        {ghost && showGhost && !failed && <img src={ghost} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.32, pointerEvents: 'none' }} />}
+        {ghost && showGhost && !failed && <img src={ghost} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', opacity: 0.32, pointerEvents: 'none' }} />}
         {!ghost && !failed && <svg viewBox="0 0 100 160" preserveAspectRatio="xMidYMid meet" style={{ position: 'absolute', inset: '8% 18%', width: '64%', height: '84%', opacity: 0.45, pointerEvents: 'none' }}>
           <g fill="none" stroke="#fff" strokeWidth="1.2" strokeDasharray="3 3"><circle cx="50" cy="16" r="10" /><path d="M30 34 Q50 28 70 34 L76 80 M30 34 L24 80 M36 34 L38 92 L36 150 M64 34 L62 92 L64 150 M38 92 L62 92" /></g>
         </svg>}

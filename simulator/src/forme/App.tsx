@@ -34,6 +34,11 @@ function keepInvite(t: string) {
   if (link) link.href = `data:application/manifest+json,${encodeURIComponent(JSON.stringify(m))}`;
 }
 const inviteIn = (s: string) => { const m = /invite=([\w-]{20,})/.exec(s); return m ? m[1] : null; };
+// Notification « Kouider t'invite à jouer » : ?jeu=folie → on ouvre directement le jeu (avec son jeton)
+try {
+  const jeu = new URLSearchParams(location.search).get('jeu');
+  if (jeu && /^[a-z]+$/.test(jeu)) { const ft = new URLSearchParams(location.search).get('invite') ?? localStorage.getItem(FORME_TOKEN); location.replace(`/ibrahim/${jeu}/?hub=1${ft ? `&invite=${encodeURIComponent(ft)}` : ''}`); }
+} catch { /* */ }
 try {
   const t = new URLSearchParams(location.search).get('invite') ?? localStorage.getItem(FORME_TOKEN);
   if (t) { localStorage.setItem(FORME_TOKEN, t); keepInvite(t); }
@@ -168,6 +173,8 @@ export default function App() {
   const toast = useCallback((t: string) => { setToastText(t); setTimeout(() => setToastText(x => x === t ? null : x), 2600); }, []);
   const load = useCallback(() => forme.overview().then(x => { setO(x); setErr(''); }).catch(e => { const m = errText(e); if (/^API 40[13]|token|auth|Lien expiré/i.test(m)) { if (formeToken()) { try { localStorage.removeItem(FORME_TOKEN); history.replaceState(null, '', location.pathname); } catch { /* */ } } else setDeviceToken(null); setAuthed(false); setErr(m); } else setErr(m); }), []);
   useEffect(() => { if (authed) void load(); }, [authed, load]);
+  // Abonnement aux notifications ré-envoyé à chaque ouverture depuis l'icône (le serveur garde toujours le bon)
+  useEffect(() => { if (!o || embedded || !standalone) return; try { if (typeof Notification !== 'undefined' && Notification.permission === 'granted') void enablePush().catch(() => {}); } catch { /* */ } }, [o?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { try { localStorage.setItem('forme:tab', tab); } catch { /* */ } window.scrollTo({ top: 0 }); }, [tab]);
   useEffect(() => { const f = () => { if (document.visibilityState === 'visible' && authed) void load(); }; document.addEventListener('visibilitychange', f); return () => document.removeEventListener('visibilitychange', f); }, [authed, load]);
 
@@ -213,10 +220,10 @@ export default function App() {
         <div style={{ background: '#fff', borderRadius: 999, padding: '6px 11px', fontSize: 12.5, fontWeight: 800, boxShadow: '0 2px 8px rgba(120,60,40,0.08)' }}>{o.profile.stores.filter(s => s !== 'Boucherie halal')[0] ?? 'Halal'} · {o.profile.budgetWeek} €/sem</div>
         <button data-tour="profile" onClick={() => setSettings(true)} aria-label="Profil" style={{ width: 36, height: 36, borderRadius: 18, border: 'none', background: F.dark, color: '#fff', fontWeight: 900, cursor: 'pointer' }}>{(o.profile.name || 'K').slice(0, 1).toUpperCase()}</button>
       </header>
-      {!embedded && notifState !== 'granted' && notifState !== 'dismissed' && (
+      {!embedded && notifState !== 'granted' && (notifState !== 'dismissed' || standalone) && (
         <div style={{ margin: '6px 18px 0', ...card, display: 'flex', gap: 12, alignItems: 'center', background: F.dark, color: '#fff' }}>
           <span style={{ fontSize: 26 }}>🔔</span>
-          <div style={{ flex: 1, fontSize: 13.5, lineHeight: 1.35 }}>{standalone ? 'Active les notifications : injection, repas, eau, photo, rappels.' : 'Pour les notifications : Partager → « Sur l\'écran d\'accueil », puis ouvre FORME depuis l\'icône.'}</div>
+          <div style={{ flex: 1, fontSize: 13.5, lineHeight: 1.35 }}>{standalone ? 'Active les notifications : rappels, et les invitations à jouer de ' + (o.uid === 'femme' ? 'Kouider' : 'Fatima') + ' 🎮' : 'Pour les notifications : Partager → « Sur l\'écran d\'accueil », puis ouvre FORME depuis l\'icône.'}</div>
           {standalone ? <button onClick={async () => { try { toast(await enablePush()); } catch (e) { toast(errText(e)); } setNotifState(typeof Notification !== 'undefined' ? Notification.permission : 'default'); }} style={{ ...btn, padding: '10px 12px', fontSize: 13.5 }}>Activer</button>
             : <button onClick={() => { setNotifState('dismissed'); try { localStorage.setItem('forme:notif-dismissed', '1'); } catch { /* */ } }} style={{ ...ghostBtn, padding: '8px 10px', background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none' }}>OK</button>}
         </div>

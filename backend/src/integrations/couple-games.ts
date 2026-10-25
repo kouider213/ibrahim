@@ -1,5 +1,5 @@
 import { kvGet, kvSet } from './app-store.js';
-import { getFormeProfile, type Uid } from './forme.js';
+import { getFormeProfile, pushForme, type Uid } from './forme.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 
 // Jeux du couple (RUSH = runner 3D, L'ŒIL = jeu des différences) : records de Kouider et de sa femme + une « salle »
@@ -87,6 +87,13 @@ export async function roomAction(uid: Uid, body: Record<string, unknown>) {
     };
     const n = await playerNames();
     // Prévenir l'autre : Kouider sur Telegram ; elle verra l'invitation à l'ouverture du jeu
+    // Prévenir Fatima : notification sur son téléphone via l'appli FORME (même fermée), dans sa langue
+    if (uid === 'kouider') {
+      const ar = (await getFormeProfile('femme').catch(() => null))?.lang === 'ar';
+      const label = ({ rush: 'RUSH', oeil: ar ? 'العين' : "L'ŒIL", gardiens: ar ? 'الحراس' : 'LES GARDIENS', resto: ar ? 'المطعم المجنون' : 'LE RESTO EN FOLIE', folie: ar ? 'الجنون الكبير' : 'LA GRANDE FOLIE' } as const)[game];
+      const sent = await pushForme('femme', ar ? `🎮 ${n.kouider} يدعوك للعب!` : `🎮 ${n.kouider} t'invite à jouer !`, ar ? `${label} — اضغطي للانضمام إليه الآن` : `${label} — touche pour le rejoindre maintenant`, `https://kouider213.github.io/ibrahim/forme/?jeu=${game}`, 'invite').catch(() => false);
+      if (!sent) await queueTelegramMessage(`🎮 Invitation envoyée, mais ${n.femme} n'a pas encore activé les notifications dans FORME (profil → Notifications) : elle ne la verra qu'en ouvrant JEUX.`, undefined, 'kouider', undefined, true).catch(() => {});
+    }
     if (uid === 'femme') await queueTelegramMessage(`🎮 ${n.femme} t'invite à jouer à ${({ rush: 'RUSH', oeil: "L'ŒIL", gardiens: 'LES GARDIENS', resto: 'LE RESTO EN FOLIE', folie: 'LA GRANDE FOLIE' } as const)[game]} — ouvre JEUX dans l'app !`, undefined, 'kouider', undefined, true).catch(() => {});
     return view(uid);
   }

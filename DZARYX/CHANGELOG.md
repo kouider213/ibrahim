@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-25 (nuit, suite 2) — Invitation à jouer = notification sur le téléphone de Fatima ; caméra FORME dézoomée (app v186)
+- `couple-games.ts` + `forme.ts pushForme()` : quand Kouider invite, notification push FORME à Fatima (même appli fermée, AR/FR), lien `forme/?jeu=<jeu>` qui ouvre directement le jeu ; si elle n'a pas activé les notifications → Telegram à Kouider pour le dire. `sw.js` : notif d'invitation qui reste affichée + icône FORME.
+- `forme/App.tsx` : bandeau « Activer les notifications » toujours proposé dans l'appli installée + réabonnement automatique à chaque ouverture.
+- `forme/Body.tsx`, `Tools.tsx` : aperçu caméra en `contain` + résolution 4:3 (plus de zoom/recadrage).
+
 ## 2026-10-25 (nuit, suite) — La Grande Folie : parties toujours différentes, on s'attrape, solo sans attente (app v185)
 - `src/folie/course.ts` : 5 ambiances (jour, coucher, nuit, neige, bonbon), 4 nouveaux obstacles (tapis roulants, champignons rebondissants, poings, ventilateurs), course de 5 à 7 obstacles tirés au sort, 2 nouvelles manches (Chasse aux Queues, Montagne Folle à couronne).
 - `src/folie/main.ts` : bouton ✋ (appui court = pousser, long = attraper/ralentir, voler la queue), aussi entre Kouider et Fatima à distance (événements de salle) ; repères : nom ⭐ jaune / ♥ rose, anneau sous les pieds, flèche vers l'autre hors écran ; solo : dès qu'on a fini on passe à la suite ; à deux : la manche finit quand les deux ont fini (l'hôte donne le signal) ; ordre des manches tiré au sort.
