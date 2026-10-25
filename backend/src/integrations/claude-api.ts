@@ -174,6 +174,8 @@ export function pickChatModel(messages: Message[], o: { thinking: boolean; web: 
   const prevText = (typeof prev?.content === 'string' ? prev.content : '') + ' ' + raw.slice(0, raw.length - text.length);
   const lookup = /^\W*(quel|qu['’]|quoi|est[- ]ce|as[- ]tu|lis|li\b|v[ée]rifie|regarde|consulte|montre|c['’]est (quoi|fait)|supprim|annul|rappelle|confirm)/i.test(text.trim());
   const yesNo = /^\W*(oui|ok|ouais|non|nan|vas[- ]y|go|envoie|envoi|valide|confirme|c'est bon|parfait|annule)\b[\w\s'’-]{0,20}$/i.test(text.trim());
+  // « Oui » à « je l'envoie ? » (WhatsApp, mail) : Haiku répondait « WhatsApp pas connecté » sans lancer l'outil (25/10) → Sonnet
+  if (yesNo && /envo|confirm/i.test(prevText.replace(/\[note interne[^\]]*\]/g, ''))) return { model: 'claude-sonnet-5-5', why: 'confirmation d\'envoi' };
   if (/\bpro\b|enl[eè]ve|rajoute|ajoute|reformul|corrige|modifie|change (le|la|les|ce)|plus (court|long|poli|gentil|chaleureux)|\bton (plus|moins)\b|\bsur un ton\b/i.test(text)
       || (!yesNo && !lookup && /je l.envoie|à envoyer|relecture|r[ée]ponse propos[ée]e|brouillon/i.test(prevText))) {
     return { model: 'claude-sonnet-5-5', why: 'texte pour un client' };
@@ -213,7 +215,8 @@ const TOOL_SEARCH_HINT =
 const MONEY_WA_HINT =
   "ARGENT : toute conversion dinar ↔ euro passe par un outil (gold_watch action change = square du jour, ou convert_currency), jamais un chiffre de tête. "
   + "En Algérie « 230 millions » = millions de centimes = 2 300 000 DA ; un client qui écrit « budget 2 300 000 » parle en DA. Donne DA + € au square directement, sans demander « tu veux ? ». "
-  + "WHATSAPP : quand tu donnes à Kouider un message client resté sans réponse, ajoute TOUJOURS une réponse proposée (courte, polie, au nom de FIK) et demande « je lui envoie ? ».";
+  + "WHATSAPP : quand tu donnes à Kouider un message client resté sans réponse, ajoute TOUJOURS une réponse proposée (courte, polie, au nom de FIK) et demande « je lui envoie ? ». "
+  + "Après son oui : lance whatsapp_web send TOUT DE SUITE. Ne dis jamais « pas connecté » ou « je ne peux pas » sans qu'un outil l'ait répondu à CE tour.";
 const CORE_TOOLS = new Set([
   // Locations, flotte, clients, argent
   'list_bookings', 'create_booking', 'update_booking', 'cancel_booking', 'check_car_availability', 'get_fleet_status',

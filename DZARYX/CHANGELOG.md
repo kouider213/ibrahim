@@ -9,6 +9,7 @@
 
 - `claude-api.ts` : un « Oui » qui suit une offre de Dzaryx sans « ? » (« je te fais la conversion si tu veux. ») partait en mode rapide SANS outils → « je n'ai pas d'outil de change ». Tout oui/ok après un message de Dzaryx garde les outils ; euro/dinar/taux/WhatsApp ne sont plus jamais en mode rapide.
 - Conversion : `convert_currency` chargé d'office + consigne « jamais un chiffre de tête, DA + € au square directement, 230 millions = centimes » (avant : 2 300 000 DA ≈ 15 900 € inventé).
+- Cause du « Oui » ignoré : la note interne « [outils lancés à ce tour : …] » en fin d'historique cachait le « ? » de « Je l'envoie ? » → mode rapide sans outils. « Oui » à une proposition d'envoi (WhatsApp/mail) → Sonnet ; consigne : lancer send tout de suite, jamais « pas connecté » sans réponse d'un outil.
 - WhatsApp : les demandes WhatsApp passent sur Sonnet (textes pour clients) ; `unread`/`read` donnent la conversion 💱, la réponse déjà proposée et l'ordre « propose une réponse + demande « je lui envoie ? » ».
 
 ## 2026-10-25 (nuit) — Appels plus stables + montants en dinars convertis
