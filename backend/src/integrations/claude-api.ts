@@ -146,6 +146,8 @@ export function analyzeComplexity(messages: Message[]): { level: ComplexityLevel
 // Interrupteur app_kv « billing:chat_model » : 'auto' (défaut) | 'sonnet' (tout sur Sonnet comme avant).
 // ══════════════════════════════════════════════════════════════════════════════
 const SONNET_RE = /r[ée]fl[ée]chi|analys|ton avis|tu en pense|penses?[- ]tu|pourquoi|compar|conseil|d[ée]cid|id[ée]e|strat[ée]g|optimis|am[ée]lior|rentab|projet|invest|business|n[ée]goci|r[ée]dige|[ée]cri[st]|r[ée]ponds?[- ]lui|r[ée]pond[- ]?(au|à|a)|propos|envo\w* (un|une|le|la|sa|ma) (nouvel |nouveau )?(e-?mail|mail|courrier|message|r[ée]ponse)|lettre|devis|contrat|annonce|post\b|site|document|pdf|pr[ée]sentation|plan\b|dossier|explique|r[ée]sum|claude|sonnet|en d[ée]tail|code|bug|github|deploy|typescript|whats?app/i;
+const SPORT_RE = /sport|s[ée]ance|entra[iî]n|muscu|salle|gym|forme\b|exercice|cardio|course|courir|footing|abdos?|pompes|squat|d[ée]velopp[ée]|s[ée]rie|r[ée]p[ée]tition|repos|deload|programme|routine|poids|kilo|calories|prot[ée]ine|repas|nutrition|r[ée]gime|coach/i;
+const BUSINESS_RE = /fik|client|r[ée]serv|r[ée]sas?\b|location|lou(er|é|e)\b|voiture|v[ée]hicule|flotte|prix|tarif|paiement|pay[ée]|caution|facture|revenu|chiffre|b[ée]n[ée]fice|marge|argent|dette|prospect|d[ée]march|vente|vendre|achat|acheter|commande|houari|partenaire|fournisseur|concierg|immo|appart|dinar|euro|\bda\b|taux|budget|march[ée]|concurren|clientèle|commercial|mentor/i;
 let chatModeCache: { mode: string; at: number } = { mode: 'auto', at: 0 };
 async function chatMode(): Promise<string> {
   if (Date.now() - chatModeCache.at > 60_000) {
@@ -167,6 +169,9 @@ export function pickChatModel(messages: Message[], o: { thinking: boolean; web: 
   if (!text.trim())         return { model: 'claude-sonnet-5-5', why: 'contenu riche' };
   if (text.length > 350)    return { model: 'claude-sonnet-5-5', why: 'long message' };
   if (SONNET_RE.test(text)) return { model: 'claude-sonnet-5-5', why: 'demande importante' };
+  // Kouider 25/10 : « les trucs pas importants restent sur Haiku, mais la routine sport et le business passent par Sonnet »
+  if (SPORT_RE.test(text)) return { model: 'claude-sonnet-5-5', why: 'sport' };
+  if (BUSINESS_RE.test(text)) return { model: 'claude-sonnet-5-5', why: 'business' };
   // Retouche d'un texte qui partira chez un client (« enlève le bonjour », « mets-le plus pro ») → Sonnet ;
   // un simple « oui envoie » reste sur Haiku (l'envoi exige le texte exact déjà relu, rien ne part de travers)
   const prev = [...messages].reverse().find(m => m.role === 'assistant');
@@ -175,6 +180,10 @@ export function pickChatModel(messages: Message[], o: { thinking: boolean; web: 
   const lookup = /^\W*(quel|qu['’]|quoi|est[- ]ce|as[- ]tu|lis|li\b|v[ée]rifie|regarde|consulte|montre|c['’]est (quoi|fait)|supprim|annul|rappelle|confirm)/i.test(text.trim());
   const yesNo = /^\W*(oui|ok|ouais|non|nan|vas[- ]y|go|envoie|envoi|valide|confirme|c'est bon|parfait|annule)\b[\w\s'’-]{0,20}$/i.test(text.trim());
   // « Oui » à « je l'envoie ? » (WhatsApp, mail) : Haiku répondait « WhatsApp pas connecté » sans lancer l'outil (25/10) → Sonnet
+  // « Oui » / « ok » qui suit une proposition sport ou business garde le même cerveau que la proposition
+  const prevClean = prevText.replace(/\[note interne[^\]]*\]/g, '');
+  if (yesNo && SPORT_RE.test(prevClean)) return { model: 'claude-sonnet-5-5', why: 'sport (suite)' };
+  if (yesNo && BUSINESS_RE.test(prevClean)) return { model: 'claude-sonnet-5-5', why: 'business (suite)' };
   if (yesNo && /envo|confirm/i.test(prevText.replace(/\[note interne[^\]]*\]/g, ''))) return { model: 'claude-sonnet-5-5', why: 'confirmation d\'envoi' };
   if (/\bpro\b|enl[eè]ve|rajoute|ajoute|reformul|corrige|modifie|change (le|la|les|ce)|plus (court|long|poli|gentil|chaleureux)|\bton (plus|moins)\b|\bsur un ton\b/i.test(text)
       || (!yesNo && !lookup && /je l.envoie|à envoyer|relecture|r[ée]ponse propos[ée]e|brouillon/i.test(prevText))) {
