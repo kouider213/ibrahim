@@ -3,7 +3,7 @@ import { requireMobileAuth } from '../middleware/auth.js';
 import {
   formeOverview, setFormeProfile, swipeCandidates, generateWeek, getWeek, mondayOf, swapRecipe, logForme,
   parseImage, analyzeMealPhoto, addBodyPhoto, analyzeBodyPhoto, offBarcode, offSearch, askFormeCoach, storeFormeSub, formeTargets,
-  householdShopping, checkHouseItem, addHouseItem, removeHouseItem, adaptNextSession, doctorReport, formeAgenda, createInvite, revokeInvite, uidFromFormeToken, getProgram, programOverview, getFormeProfile,
+  householdShopping, checkHouseItem, addHouseItem, removeHouseItem, adaptNextSession, doctorReport, formeAgenda, toggleFavorite, placeFavorite, type Recipe, createInvite, revokeInvite, uidFromFormeToken, getProgram, programOverview, getFormeProfile,
   type FormeProfile, type BodyPhoto, type Uid,
 } from '../../integrations/forme.js';
 import type { PushSubscription } from 'web-push';
@@ -95,6 +95,19 @@ router.get('/program', async (req, res) => {
 });
 router.post('/program', async (req, res) => {
   try { await getProgram(U(req), true); res.json(await programOverview(U(req))); } catch (err) { fail(res, err); }
+});
+
+// POST /api/forme/fav { recipe, on } — ❤️ garder / retirer une recette complète
+router.post('/fav', async (req, res) => {
+  const b = req.body as { recipe?: Recipe; on?: boolean };
+  if (!b.recipe?.title) { fail(res, 'recette invalide', 400); return; }
+  try { res.json({ favs: await toggleFavorite(U(req), b.recipe, !!b.on) }); } catch (err) { fail(res, err); }
+});
+// POST /api/forme/place { title, date, slot } — remettre un favori dans la semaine
+router.post('/place', async (req, res) => {
+  const b = req.body as { title?: string; date?: string; slot?: string };
+  if (!b.title || !isDate(b.date) || !b.slot) { fail(res, 'jour ou repas manquant', 400); return; }
+  try { res.json({ week: await placeFavorite(U(req), b.title, b.date, String(b.slot).slice(0, 20)) }); } catch (err) { fail(res, err, 400); }
 });
 
 // GET /api/forme/agenda — les 7 prochains jours (sport, repas, injection, rappels, repos)

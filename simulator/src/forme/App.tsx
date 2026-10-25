@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch, getDeviceToken, setDeviceToken, loginDevice } from '../services/api.ts';
-import { forme, errText, type Overview, type Profile, DAYS, vibrate, formeToken, FORME_TOKEN } from './api.ts';
+import { forme, errText, type Overview, type Profile, type Recipe, DAYS, vibrate, formeToken, FORME_TOKEN } from './api.ts';
 import { applyLang } from './i18n.ts';
 import { F, Title, card, btn, ghostBtn, input, Sheet, Spinner, Toast, Chip } from './ui.tsx';
 import Onboarding from './Onboarding.tsx';
+import Tour from './Tour.tsx';
 import Home from './Home.tsx';
 import WeekScreen from './Week.tsx';
 import ShopScreen from './Shop.tsx';
@@ -79,7 +80,7 @@ function Invite({ o, toast }: { o: Overview; toast: (t: string) => void }) {
   );
 }
 
-function Settings({ o, open, onClose, onO, toast }: { o: Overview; open: boolean; onClose: () => void; onO: (o: Overview) => void; toast: (t: string) => void }) {
+function Settings({ o, open, onClose, onO, toast, onTour }: { o: Overview; open: boolean; onClose: () => void; onO: (o: Overview) => void; toast: (t: string) => void; onTour: () => void }) {
   const [p, setP] = useState<Profile>(o.profile);
   useEffect(() => { if (open) setP(o.profile); }, [open, o.profile]);
   const save = async (patch: Partial<Profile>) => {
@@ -132,6 +133,7 @@ function Settings({ o, open, onClose, onO, toast }: { o: Overview; open: boolean
       </div>
       {!embedded && <button onClick={async () => { try { toast(await enablePush()); } catch (e) { toast(errText(e)); } }} style={{ ...btn, width: '100%', marginTop: 12 }}>🔔 Activer les notifications sur ce téléphone</button>}
       <div style={{ fontSize: 12.5, color: F.muted, marginTop: 10, lineHeight: 1.45 }}>{embedded ? 'Dans Dzaryx, les rappels arrivent dans les notifications de Dzaryx. ' : ''}Pour avoir FORME comme une vraie app : ouvre kouider213.github.io/ibrahim/forme dans Safari → Partager → « Sur l'écran d'accueil ».</div>
+      <button onClick={() => { onClose(); onTour(); }} style={{ ...btn, width: '100%', marginTop: 12 }}>📖 Revoir le guide</button>
       <button onClick={() => { if (confirm('Refaire le questionnaire du début ?')) void save({ onboarded: false }); }} style={{ ...ghostBtn, width: '100%', marginTop: 12 }}>Refaire le questionnaire</button>
     </Sheet>
   );
@@ -144,6 +146,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>(() => { try { return (localStorage.getItem('forme:tab') as Tab) || 'home'; } catch { return 'home'; } });
   const [tool, setTool] = useState<ToolId | null>(null);
   const [settings, setSettings] = useState(false);
+  const [tour, setTour] = useState(false);
   const [toastText, setToastText] = useState<string | null>(null);
   const standalone = (() => { try { return matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true; } catch { return false; } })();
   const [notifState, setNotifState] = useState<string>(() => { try { if (localStorage.getItem('forme:notif-dismissed')) return 'dismissed'; } catch { /* */ } return typeof Notification !== 'undefined' ? Notification.permission : 'default'; });
@@ -167,14 +170,17 @@ export default function App() {
   }, [load, toast]);
   const onWeek = useCallback((week: NonNullable<Overview['week']>) => setO(cur => cur ? { ...cur, week } : cur), []);
   // ❤️ recette favorite : reprise de temps en temps dans les semaines suivantes
-  const onFav = useCallback(async (title: string) => {
+  const onFav = useCallback(async (r: Recipe) => {
     if (!o) return;
-    const f = o.profile.favorites.includes(title) ? o.profile.favorites.filter(x => x !== title) : [...o.profile.favorites, title];
-    setO({ ...o, profile: { ...o.profile, favorites: f } }); vibrate(20);
-    try { await forme.profile({ favorites: f }); toast(f.includes(title) ? '❤️ Ajoutée aux favoris' : 'Retirée des favoris'); } catch (e) { toast(errText(e)); }
+    const on = !o.favs.some(f => f.title === r.title);
+    const f = on ? [...o.profile.favorites, r.title] : o.profile.favorites.filter(x => x !== r.title);
+    setO({ ...o, profile: { ...o.profile, favorites: f }, favs: on ? [{ ...r, savedAt: Date.now() }, ...o.favs] : o.favs.filter(x => x.title !== r.title) }); vibrate(20);
+    try { const res = await forme.fav(r, on); setO(cur => cur ? { ...cur, favs: res.favs } : cur); toast(on ? '❤️ Gardée dans « Mes favoris »' : 'Retirée des favoris'); } catch (e) { toast(errText(e)); }
   }, [o, toast]);
 
   useEffect(() => { applyLang(o?.profile.lang ?? (formeToken() ? 'ar' : 'fr')); }, [o?.profile.lang]);
+  // 1re ouverture après le questionnaire : guide interactif (une fois par profil)
+  useEffect(() => { if (o?.profile.onboarded && tab === 'home') { try { if (!localStorage.getItem(`forme:tour:${o.uid}`)) setTimeout(() => setTour(true), 900); } catch { /* */ } } }, [o?.profile.onboarded, o?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!authed) return <Login onOk={() => setAuthed(true)} />;
   if (!o) return (
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, background: F.bg, padding: 24, textAlign: 'center' }}>
@@ -190,7 +196,7 @@ export default function App() {
         <div style={{ width: 34, height: 34, borderRadius: 11, background: F.accent, color: '#fff', fontWeight: 900, fontSize: 19, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>F</div>
         <div style={{ fontWeight: 900, fontSize: 19, letterSpacing: '-0.02em', flex: 1 }}>Forme</div>
         <div style={{ background: '#fff', borderRadius: 999, padding: '6px 11px', fontSize: 12.5, fontWeight: 800, boxShadow: '0 2px 8px rgba(120,60,40,0.08)' }}>{o.profile.stores.filter(s => s !== 'Boucherie halal')[0] ?? 'Halal'} · {o.profile.budgetWeek} €/sem</div>
-        <button onClick={() => setSettings(true)} aria-label="Profil" style={{ width: 36, height: 36, borderRadius: 18, border: 'none', background: F.dark, color: '#fff', fontWeight: 900, cursor: 'pointer' }}>{(o.profile.name || 'K').slice(0, 1).toUpperCase()}</button>
+        <button data-tour="profile" onClick={() => setSettings(true)} aria-label="Profil" style={{ width: 36, height: 36, borderRadius: 18, border: 'none', background: F.dark, color: '#fff', fontWeight: 900, cursor: 'pointer' }}>{(o.profile.name || 'K').slice(0, 1).toUpperCase()}</button>
       </header>
       {!embedded && notifState !== 'granted' && notifState !== 'dismissed' && (
         <div style={{ margin: '6px 18px 0', ...card, display: 'flex', gap: 12, alignItems: 'center', background: F.dark, color: '#fff' }}>
@@ -203,7 +209,7 @@ export default function App() {
       <AnimatePresence mode="wait">
         <motion.main key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
           {tab === 'home' && <Home onFav={t => void onFav(t)} o={o} name={o.profile.name || 'Kouider'} onLog={(k, b) => void onLog(k, b)} onWeek={onWeek} openTool={setTool} go={setTab} />}
-          {tab === 'week' && <WeekScreen onFav={t => void onFav(t)} o={o} onLog={(k, b) => void onLog(k, b)} onWeek={onWeek} />}
+          {tab === 'week' && <WeekScreen onO={setO} toast={toast} onFav={t => void onFav(t)} o={o} onLog={(k, b) => void onLog(k, b)} onWeek={onWeek} />}
           {tab === 'shop' && <ShopScreen me={o.profile.name || 'Kouider'} toast={toast} />}
           {tab === 'sport' && (o.uid === 'kouider' ? <SportScreen toast={toast} /> : <ProgramSport toast={toast} />)}
           {tab === 'body' && <BodyScreen o={o} onO={setO} toast={toast} />}
@@ -211,15 +217,16 @@ export default function App() {
       </AnimatePresence>
       <nav style={{ position: 'fixed', left: '50%', transform: 'translateX(-50%)', bottom: 'calc(14px + env(safe-area-inset-bottom))', width: 'min(calc(100% - 28px), 460px)', zIndex: 30, background: F.dark, borderRadius: 26, padding: 6, display: 'flex', gap: 2, boxShadow: '0 14px 34px rgba(30,15,10,0.35)' }}>
         {TABS.map(t => (
-          <button key={t.id} onClick={() => { vibrate(8); setTab(t.id); }} style={{ flex: 1, position: 'relative', border: 'none', background: 'none', color: tab === t.id ? '#fff' : 'rgba(255,255,255,0.55)', padding: '8px 0 7px', cursor: 'pointer', fontFamily: F.sans, borderRadius: 20 }}>
+          <button key={t.id} data-tour={`nav-${t.id}`} onClick={() => { vibrate(8); setTab(t.id); }} style={{ flex: 1, position: 'relative', border: 'none', background: 'none', color: tab === t.id ? '#fff' : 'rgba(255,255,255,0.55)', padding: '8px 0 7px', cursor: 'pointer', fontFamily: F.sans, borderRadius: 20 }}>
             {tab === t.id && <motion.div layoutId="pill" style={{ position: 'absolute', inset: 0, background: F.accent, borderRadius: 20 }} transition={{ type: 'spring', damping: 26, stiffness: 320 }} />}
             <div style={{ position: 'relative', fontSize: 19 }}>{t.icon}</div>
             <div style={{ position: 'relative', fontSize: 11, fontWeight: 800, marginTop: 1 }}>{t.label}</div>
           </button>
         ))}
       </nav>
-      <ToolSheet id={tool} o={o} onO={setO} onClose={() => setTool(null)} toast={toast} />
-      <Settings o={o} open={settings} onClose={() => setSettings(false)} onO={setO} toast={toast} />
+      <ToolSheet id={tool} o={o} onO={setO} onClose={() => setTool(null)} toast={toast} onFav={r => void onFav(r)} />
+      <Settings o={o} open={settings} onClose={() => setSettings(false)} onO={setO} toast={toast} onTour={() => { setTab('home'); setTimeout(() => setTour(true), 500); }} />
+      {tour && <Tour name={o.profile.name || 'Kouider'} kouider={o.uid === 'kouider'} onDone={() => { setTour(false); try { localStorage.setItem(`forme:tour:${o.uid}`, '1'); } catch { /* */ } }} />}
       <Toast text={toastText} />
     </div>
   );

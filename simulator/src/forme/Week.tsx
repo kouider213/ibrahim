@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { forme, errText, type Overview, type Recipe, SHORT_DAYS, dayOf, fmtLong, vibrate } from './api.ts';
 import { F, Title, Section, card, btn, darkBtn, ghostBtn, Sheet, Img, Spinner, input, Chip } from './ui.tsx';
@@ -52,7 +53,7 @@ function CookMode({ r, onClose }: { r: Recipe; onClose: () => void }) {
   );
 }
 
-export function RecipeSheet({ r, monday, eaten, onToggle, onClose, onWeek, fav, onFav }: { r: Recipe | null; monday: string; eaten?: boolean; onToggle?: () => void; onClose: () => void; onWeek: (w: NonNullable<Overview['week']>) => void; fav?: boolean; onFav?: () => void }) {
+export function RecipeSheet({ r, monday, eaten, onToggle, onClose, onWeek, fav, onFav, padBottom }: { r: Recipe | null; monday: string; eaten?: boolean; onToggle?: () => void; onClose: () => void; onWeek: (w: NonNullable<Overview['week']>) => void; fav?: boolean; onFav?: () => void; padBottom?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [wish, setWish] = useState('');
   const [k, setK] = useState(1);
@@ -93,6 +94,7 @@ export function RecipeSheet({ r, monday, eaten, onToggle, onClose, onWeek, fav, 
         ))}
         <button onClick={() => setCook(true)} style={{ ...darkBtn, width: '100%', marginTop: 6 }}>👩‍🍳 Mode cuisine (pas à pas, à voix haute)</button>
         {cook && <CookMode r={r} onClose={() => setCook(false)} />}
+        {padBottom && <div style={{ height: 150 }} />}
         {onToggle && <button onClick={() => { onToggle(); onClose(); }} style={{ ...btn, width: '100%', marginTop: 10, background: eaten ? F.dark : F.accent }}>{eaten ? 'Décocher ce repas' : "✓ J'ai mangé ce repas"}</button>}
         <div style={{ ...card, marginTop: 12 }}>
           <div style={{ fontWeight: 800, marginBottom: 8 }}>🔄 Pas envie ? Une autre recette, mêmes macros</div>
@@ -104,7 +106,7 @@ export function RecipeSheet({ r, monday, eaten, onToggle, onClose, onWeek, fav, 
   );
 }
 
-export default function WeekScreen({ o, onLog, onWeek, onFav }: { o: Overview; onLog: (kind: string, body: Record<string, unknown>) => void; onWeek: (w: NonNullable<Overview['week']>) => void; onFav: (title: string) => void }) {
+export default function WeekScreen({ o, onLog, onWeek, onFav, onO, toast }: { o: Overview; onLog: (kind: string, body: Record<string, unknown>) => void; onWeek: (w: NonNullable<Overview['week']>) => void; onFav: (r: Recipe) => void; onO: (o: Overview) => void; toast: (t: string) => void }) {
   const w = o.week;
   const [sel, setSel] = useState(() => w?.days.find(d => d.date === o.today)?.date ?? w?.days[0]?.date ?? o.today);
   const [open, setOpen] = useState<string | null>(null);
@@ -124,6 +126,7 @@ export default function WeekScreen({ o, onLog, onWeek, onFav }: { o: Overview; o
     <div style={{ padding: '6px 18px 0' }}>
       <div style={{ fontSize: 11.5, fontWeight: 700, color: F.muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{w.recipes.length} recettes · {w.days.reduce((a, d) => a + d.meals.length, 0)} repas · {w.note}</div>
       <Title a="Ta" b="semaine" />
+      {o.favs.length > 0 && <FavStrip o={o} onO={onO} onWeek={onWeek} onFav={onFav} toast={toast} />}
       <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, margin: '0 -18px', padding: '0 18px 4px' }}>
         {w.days.map(d => {
           const on = d.date === sel, done = d.meals.length > 0 && d.meals.every(m => o.day && d.date === o.today ? o.day.meals[`${m.recipe}:${m.slot}`] : false);
@@ -160,9 +163,67 @@ export default function WeekScreen({ o, onLog, onWeek, onFav }: { o: Overview; o
         );
       })}
       <button disabled={busy} onClick={async () => { if (!confirm('Refaire toute la semaine (nouvelles recettes + nouvelle liste de courses) ?')) return; setBusy(true); try { onWeek((await forme.makeWeek(true)).week); } catch (e) { alert(errText(e)); } finally { setBusy(false); } }} style={{ ...ghostBtn, width: '100%', marginTop: 4, display: 'flex', justifyContent: 'center', gap: 8 }}>{busy ? <><Spinner size={16} /> Nouvelle semaine… (~30 s)</> : '🔄 Nouvelle semaine de repas'}</button>
-      <RecipeSheet r={opened} monday={w.monday} onClose={() => setOpen(null)} onWeek={onWeek} fav={!!opened && o.profile.favorites.includes(opened.title)} onFav={opened ? () => onFav(opened.title) : undefined}
+      <RecipeSheet r={opened} monday={w.monday} onClose={() => setOpen(null)} onWeek={onWeek} fav={!!opened && o.favs.some(f => f.title === opened.title)} onFav={opened ? () => onFav(opened) : undefined}
         eaten={sel === o.today && open ? !!o.day.meals[open] : undefined}
         onToggle={sel === o.today && open ? () => onLog('meal', { key: open, eaten: !o.day.meals[open], recipe: openedSlot }) : undefined} />
+    </div>
+  );
+}
+
+/** ❤️ Mes favoris : la recette complète, à refaire quand on veut (dans la journée ou à la place d'un repas de la semaine). */
+export function FavSheet({ r, o, onO, onWeek, onClose, onFav, toast }: { r: (Recipe & { savedAt: number }) | null; o: Overview; onO: (o: Overview) => void; onWeek: (w: NonNullable<Overview['week']>) => void; onClose: () => void; onFav: (r: Recipe) => void; toast: (t: string) => void }) {
+  const w = o.week;
+  const [day, setDay] = useState(o.today);
+  const [slot, setSlot] = useState('dîner');
+  const [busy, setBusy] = useState(false);
+  return (
+    <>
+      <RecipeSheet r={r} monday={w?.monday ?? ''} onClose={onClose} onWeek={onWeek} fav onFav={r ? () => { onFav(r); onClose(); } : undefined} padBottom />
+      {r && createPortal(
+        <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 60, padding: '12px 16px calc(14px + env(safe-area-inset-bottom))', background: 'rgba(251,241,236,0.96)', backdropFilter: 'blur(10px)', boxShadow: '0 -8px 24px rgba(0,0,0,0.12)' }}>
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 8 }}>{(w?.days ?? []).map(d => <Chip key={d.date} on={day === d.date} onClick={() => setDay(d.date)}>{d.date === o.today ? "Aujourd'hui" : `${SHORT_DAYS[dayOf(d.date)]} ${d.date.slice(8)}`}</Chip>)}</div>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto' }}>{['petit-déj', 'déjeuner', 'collation', 'dîner'].map(x => <Chip key={x} on={slot === x} onClick={() => setSlot(x)}>{x}</Chip>)}</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button disabled={busy || !w} onClick={async () => { setBusy(true); try { onWeek((await forme.place(r.title, day, slot)).week); onO(await forme.overview()); toast('❤️ Remis dans ta semaine'); onClose(); } catch (e) { toast(errText(e)); } finally { setBusy(false); } }} style={{ ...btn, flex: 2, padding: '13px 8px', fontSize: 14 }}>📅 Le mettre ce jour-là</button>
+            <button onClick={async () => { try { onO(await forme.log('food', { name: r.title, kcal: r.kcal, p: r.p, c: r.c, f: r.f, src: 'favori' })); toast(`🍽️ ${r.kcal} kcal ajoutées`); onClose(); } catch (e) { toast(errText(e)); } }} style={{ ...darkBtn, flex: 1, padding: '13px 8px', fontSize: 14 }}>✓ Mangé</button>
+          </div>
+        </div>, document.body)}
+    </>
+  );
+}
+
+export function FavList({ o, onO, onWeek, onFav, toast }: { o: Overview; onO: (o: Overview) => void; onWeek: (w: NonNullable<Overview['week']>) => void; onFav: (r: Recipe) => void; toast: (t: string) => void }) {
+  const [open, setOpen] = useState<(Recipe & { savedAt: number }) | null>(null);
+  if (!o.favs.length) return <div style={{ ...card, color: F.muted, fontSize: 14, lineHeight: 1.45 }}>Aucun favori pour l'instant. Ouvre une recette et touche 🤍 : elle sera gardée ici en entier (photo, ingrédients, étapes) pour la refaire quand tu veux.</div>;
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {o.favs.map(f => (
+          <button key={f.title} onClick={() => setOpen(f)} style={{ ...card, padding: 0, overflow: 'hidden', border: 'none', cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit', color: F.ink }}>
+            <Img src={`${f.photo}/small`} style={{ width: '100%', height: 110 }} />
+            <div style={{ padding: '8px 10px 10px' }}><div style={{ fontWeight: 800, fontSize: 13.5, lineHeight: 1.25 }}>❤️ {f.title}</div><div style={{ fontSize: 12, color: F.muted, marginTop: 3 }}>{f.kcal} kcal · {f.p} g prot. · {f.minutes} min</div></div>
+          </button>
+        ))}
+      </div>
+      <FavSheet r={open} o={o} onO={onO} onWeek={onWeek} onClose={() => setOpen(null)} onFav={onFav} toast={toast} />
+    </div>
+  );
+}
+
+function FavStrip({ o, onO, onWeek, onFav, toast }: { o: Overview; onO: (o: Overview) => void; onWeek: (w: NonNullable<Overview['week']>) => void; onFav: (r: Recipe) => void; toast: (t: string) => void }) {
+  const [open, setOpen] = useState<(Recipe & { savedAt: number }) | null>(null);
+  return (
+    <div style={{ margin: '0 -18px 14px', padding: '0 18px' }}>
+      <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8 }}>❤️ Mes favoris <span style={{ color: F.muted, fontWeight: 600, fontSize: 13 }}>· à refaire</span></div>
+      <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
+        {o.favs.map(f => (
+          <button key={f.title} onClick={() => setOpen(f)} style={{ flexShrink: 0, width: 130, ...card, padding: 0, overflow: 'hidden', border: 'none', cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit', color: F.ink }}>
+            <Img src={`${f.photo}/small`} style={{ width: '100%', height: 80 }} />
+            <div style={{ padding: '6px 8px 8px', fontSize: 12.5, fontWeight: 800, lineHeight: 1.2, height: 34, overflow: 'hidden' }}>{f.title}</div>
+          </button>
+        ))}
+      </div>
+      <FavSheet r={open} o={o} onO={onO} onWeek={onWeek} onClose={() => setOpen(null)} onFav={onFav} toast={toast} />
     </div>
   );
 }

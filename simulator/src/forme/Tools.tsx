@@ -5,8 +5,9 @@ import { F, Title, Section, card, darkCard, btn, ghostBtn, Sheet, Spinner, Img, 
 import { RestTimer } from './Sport.tsx';
 import MoreTool, { MORE } from './Tools2.tsx';
 import Agenda from './Agenda.tsx';
+import { FavList } from './Week.tsx';
 import { SwipeDeck } from './Onboarding.tsx';
-import type { SwipeMeal } from './api.ts';
+import type { SwipeMeal, Recipe } from './api.ts';
 
 function Tastes({ onDone }: { onDone: (likes: string[], dislikes: string[]) => void }) {
   const [meals, setMeals] = useState<SwipeMeal[]>([]);
@@ -16,9 +17,10 @@ function Tastes({ onDone }: { onDone: (likes: string[], dislikes: string[]) => v
 
 // Les OUTILS de FORME (13) : chacun s'ouvre en feuille depuis l'accueil. Tout ce qui est noté part au serveur → Dzaryx le voit.
 export type ToolId = 'wegovy' | 'sides' | 'protein' | 'water' | 'mealphoto' | 'scan' | 'products' | 'resto' | 'tdee' | 'coach' | 'timer' | 'badges' | 'settings'
-  | 'fasting' | 'fridge' | 'batch' | 'doctor' | 'reminders' | 'sleep' | 'steps' | 'bmi' | 'craving' | 'portions' | 'agenda' | 'tastes';
+  | 'fasting' | 'fridge' | 'batch' | 'doctor' | 'reminders' | 'sleep' | 'steps' | 'bmi' | 'craving' | 'portions' | 'agenda' | 'tastes' | 'favs';
 export const TOOLS: Array<{ id: ToolId; emoji: string; label: string; color: string }> = [
   { id: 'agenda', emoji: '📅', label: 'Agenda', color: '#ffe9e2' },
+  { id: 'favs', emoji: '❤️', label: 'Mes favoris', color: '#ffe3ea' },
   { id: 'wegovy', emoji: '💉', label: 'Wegovy', color: '#e8f0ff' },
   { id: 'mealphoto', emoji: '📷', label: 'Photo repas', color: '#ffe9e2' },
   { id: 'scan', emoji: '🔎', label: 'Scanner', color: '#e9f8ef' },
@@ -143,7 +145,7 @@ export function Ask({ preset, placeholder, intro, mode = '' }: { preset: string[
   );
 }
 
-export default function ToolSheet({ id, o, onO, onClose, toast }: { id: ToolId | null; o: Overview; onO: (o: Overview) => void; onClose: () => void; toast: (t: string) => void }) {
+export default function ToolSheet({ id, o, onO, onClose, toast, onFav }: { id: ToolId | null; o: Overview; onO: (o: Overview) => void; onClose: () => void; toast: (t: string) => void; onFav: (r: Recipe) => void }) {
   const [busy, setBusy] = useState(false);
   const [meal, setMeal] = useState<(Food & { items: string[]; advice: string; halalNote: string; img: string }) | null>(null);
   const [code, setCode] = useState<Barcode | null>(null);
@@ -162,7 +164,7 @@ export default function ToolSheet({ id, o, onO, onClose, toast }: { id: ToolId |
     scan: ['Scanner', 'un produit'], products: ['Produits', 'belges'], resto: ['Resto,', 'snack & friterie'], tdee: ['Tes', 'besoins'], coach: ['Ton', 'coach'],
     timer: ['Minuteur', 'de repos'], badges: ['Tes', 'badges'], settings: ['Réglages', 'FORME'],
     fasting: ['Mode', 'jeûne'], fridge: ['Frigo', 'vide ?'], batch: ['Batch cooking', 'du dimanche'], doctor: ['Bilan', 'pour le médecin'], reminders: ['Mes', 'rappels'],
-    agenda: ['Ton', 'agenda'], tastes: ['Mes', 'goûts'],
+    agenda: ['Ton', 'agenda'], favs: ['Mes', 'favoris'], tastes: ['Mes', 'goûts'],
     sleep: ['Ton', 'sommeil'], steps: ['Tes', 'pas'], bmi: ['IMC &', 'tour de taille'], craving: ['Stop', 'fringale'], portions: ['Portions', 'à la main'],
   };
   const eatenP = o.eaten.p;
@@ -317,6 +319,7 @@ export default function ToolSheet({ id, o, onO, onClose, toast }: { id: ToolId |
 
       {id && MORE.includes(id) && <MoreTool id={id} o={o} onO={onO} toast={toast} />}
       {id === 'agenda' && <Agenda toast={toast} />}
+      {id === 'favs' && <FavList o={o} onO={onO} onWeek={w => onO({ ...o, week: w })} onFav={onFav} toast={toast} />}
       {id === 'tastes' && <Tastes onDone={async (likes, dislikes) => { try { await forme.profile({ likes: [...new Set([...o.profile.likes, ...likes])].slice(-40), dislikes: [...new Set([...o.profile.dislikes, ...dislikes])].slice(-40) }); onO(await forme.overview()); toast('😋 Goûts enregistrés : la prochaine semaine en tiendra compte'); onClose(); } catch (e) { toast(errText(e)); } }} />}
 
       {id === 'badges' && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>

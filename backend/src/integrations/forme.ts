@@ -27,7 +27,8 @@ const PK = (u: Uid) => `${u}:forme:profile`;
 const DK = (u: Uid) => `${u}:forme:days`;
 const PHK = (u: Uid) => `${u}:forme:photos`;
 const PROG_K = (u: Uid) => `${u}:forme:program`;
-const CUSTOM_K = (u: Uid) => `${u}:forme:custom`;    // prochaine séance refaite sur mesure (photo + objectif)
+const CUSTOM_K = (u: Uid) => `${u}:forme:custom`;
+const FAV_K = (u: Uid) => `${u}:forme:favrecipes`;   // recettes favorites COMPLÈTES (à refaire quand on veut)    // prochaine séance refaite sur mesure (photo + objectif)
 const SUB_K = (u: Uid) => `mobile:web_push_sub:${u}:forme`;
 const WEEK_K = (u: Uid, start: string) => `${u}:forme:week:${start}`;
 const WEEKS_K = (u: Uid) => `${u}:forme:weeks`;   // dates de début des plans (7 jours chacun)
@@ -473,6 +474,32 @@ export async function getWeek(uid: Uid = 'kouider', start?: string): Promise<Wee
   return s ? readJson<WeekPlan | null>(WEEK_K(uid, s), null) : null;
 }
 async function saveWeek(uid: Uid, w: WeekPlan) { await kvSet(WEEK_K(uid, w.monday), JSON.stringify(w), 60 * 86_400); }
+
+// ── Favoris ❤️ : la recette entière est gardée (photo, ingrédients, étapes, macros) ──
+export interface FavRecipe extends Recipe { savedAt: number }
+export async function favRecipes(uid: Uid): Promise<FavRecipe[]> { return readJson<FavRecipe[]>(FAV_K(uid), []); }
+export async function toggleFavorite(uid: Uid, recipe: Recipe, on: boolean): Promise<FavRecipe[]> {
+  const list = (await favRecipes(uid)).filter(f => f.title !== recipe.title);
+  if (on) list.unshift({ ...recipe, id: `fav-${Date.now().toString(36)}`, savedAt: Date.now() });
+  await kvSet(FAV_K(uid), JSON.stringify(list.slice(0, 80)));
+  const p = await getFormeProfile(uid);
+  await setFormeProfile({ favorites: on ? [...new Set([...p.favorites, recipe.title])] : p.favorites.filter(t => t !== recipe.title) }, uid);
+  return list;
+}
+/** Remettre un favori dans la semaine (jour + repas choisis) : il remplace le plat prévu, le reste ne bouge pas. */
+export async function placeFavorite(uid: Uid, title: string, date: string, slot: string): Promise<WeekPlan | null> {
+  const w = await getWeek(uid);
+  const fav = (await favRecipes(uid)).find(f => f.title === title);
+  if (!w || !fav) return w;
+  const day = w.days.find(d => d.date === date);
+  if (!day) throw new Error('ce jour n\'est pas dans la semaine en cours');
+  const id = `f${Date.now().toString(36)}`;
+  w.recipes.push({ ...fav, id });
+  const m = day.meals.find(x => x.slot === slot);
+  if (m) m.recipe = id; else day.meals.push({ slot, recipe: id, portion: '1 part' });
+  await saveWeek(uid, w);
+  return w;
+}
 
 // ── Courses du FOYER : les deux listes fusionnées, cases communes ───────────
 const shopKey = (s: Pick<ShopItem, 'name' | 'store'>) => `${s.store.toLowerCase()}|${s.name.toLowerCase().replace(/œ/g, 'oe').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()}`;
@@ -977,6 +1004,7 @@ export async function formeOverview(uid: Uid = 'kouider') {
     { id: 'inj4', label: '4 injections notées', emoji: '💉', ok: injections.length >= 4 },
   ];
   return {
+    favs: await favRecipes(uid),
     uid, today, profile: p, targets: t, day, eaten: dayTotals(day, week, today), week, week7, streak, badges,
     weights, measures, injections, sides, nextInjection: nextInjection(p, days), doses: WEGOVY_DOSES,
     photos: shown.map(ph => ({ ...ph, url: urls[ph.id] ?? null })).reverse(), photoDue,

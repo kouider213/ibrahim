@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { type Overview, fmtLong, weekNo, SHORT_DAYS, dayOf } from './api.ts';
+import { type Overview, type Recipe, fmtLong, weekNo, SHORT_DAYS, dayOf } from './api.ts';
 import { F, Title, Section, card, darkCard, Ring, Bar } from './ui.tsx';
 import { MealRow, RecipeSheet } from './Week.tsx';
 import { TOOLS, type ToolId } from './Tools.tsx';
 
 export default function Home({ o, name, onLog, onWeek, openTool, go, onFav }: {
-  o: Overview; name: string; onFav: (title: string) => void; onLog: (kind: string, body: Record<string, unknown>) => void; onWeek: (w: NonNullable<Overview['week']>) => void;
+  o: Overview; name: string; onFav: (r: Recipe) => void; onLog: (kind: string, body: Record<string, unknown>) => void; onWeek: (w: NonNullable<Overview['week']>) => void;
   openTool: (t: ToolId) => void; go: (tab: 'week' | 'shop' | 'sport' | 'body') => void;
 }) {
   const [open, setOpen] = useState<string | null>(null);
@@ -21,7 +21,7 @@ export default function Home({ o, name, onLog, onWeek, openTool, go, onFav }: {
       <div style={{ fontSize: 11.5, fontWeight: 700, color: F.muted, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{fmtLong(o.today)} · semaine {weekNo(o.today)}</div>
       <Title a={`Salut ${name},`} b="on mange quoi ?" size={30} />
 
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} style={{ ...darkCard }}>
+      <motion.div data-tour="ring" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} style={{ ...darkCard }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
           <Ring value={e.kcal} max={t.kcal} size={126} color={e.kcal > t.kcal * 1.08 ? F.gold : F.accent}>
             <div style={{ width: 8, height: 8, borderRadius: 4, background: F.accent, position: 'absolute', top: 2 }} />
@@ -43,10 +43,10 @@ export default function Home({ o, name, onLog, onWeek, openTool, go, onFav }: {
       </motion.div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
-        <button onClick={() => openTool('agenda')} style={{ ...card, border: 'none', cursor: 'pointer', textAlign: 'start', padding: 14, fontFamily: 'inherit', color: F.ink }}>
+        <button data-tour="agenda" onClick={() => openTool('agenda')} style={{ ...card, border: 'none', cursor: 'pointer', textAlign: 'start', padding: 14, fontFamily: 'inherit', color: F.ink }}>
           <div style={{ fontSize: 24 }}>📅</div><div style={{ fontWeight: 800, marginTop: 4 }}>Mon agenda</div><div style={{ fontSize: 12.5, color: F.muted }}>séances, repas, rappels</div>
         </button>
-        <div style={{ ...card, padding: 14 }}>
+        <div data-tour="challenge" style={{ ...card, padding: 14 }}>
           <div style={{ fontSize: 24 }}>{o.challenge.e}</div><div style={{ fontWeight: 800, marginTop: 4, fontSize: 13.5, lineHeight: 1.25 }}>Défi : {o.challenge.text}</div>
           <div style={{ marginTop: 6 }}><Bar value={o.challenge.got} max={o.challenge.goal} color={o.challenge.got >= o.challenge.goal ? F.green : F.accent} track={F.bg2} /></div>
           <div style={{ fontSize: 12, color: F.muted, marginTop: 3 }}>{Math.min(o.challenge.got, o.challenge.goal)} / {o.challenge.goal}{o.challenge.got >= o.challenge.goal ? ' 🏆' : ''}</div>
@@ -54,7 +54,7 @@ export default function Home({ o, name, onLog, onWeek, openTool, go, onFav }: {
       </div>
 
       {o.profile.wegovy.on && inj && (
-        <button onClick={() => openTool('wegovy')} style={{ ...card, width: '100%', border: inj.inDays === 0 && !o.day.injection ? `2px solid ${F.accent}` : 'none', marginTop: 12, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', textAlign: 'left', fontFamily: F.sans, color: F.ink }}>
+        <button data-tour="inj" onClick={() => openTool('wegovy')} style={{ ...card, width: '100%', border: inj.inDays === 0 && !o.day.injection ? `2px solid ${F.accent}` : 'none', marginTop: 12, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', textAlign: 'left', fontFamily: F.sans, color: F.ink }}>
           <div style={{ width: 50, height: 50, borderRadius: 16, background: '#e8f0ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>💉</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 800 }}>{o.day.injection ? 'Injection faite aujourd\'hui ✓' : inj.inDays === 0 ? `Wegovy ce soir · ${inj.hour}` : `Wegovy dans ${inj.inDays} jour${inj.inDays > 1 ? 's' : ''}`}</div>
@@ -64,7 +64,7 @@ export default function Home({ o, name, onLog, onWeek, openTool, go, onFav }: {
         </button>
       )}
 
-      <div style={{ ...card, marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div data-tour="water" style={{ ...card, marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ fontSize: 24 }}>💧</div>
         <div style={{ flex: 1, display: 'flex', gap: 4 }}>
           {Array.from({ length: o.profile.waterGoal }, (_, i) => <motion.button whileTap={{ scale: 0.8 }} key={i} aria-label="verre d'eau" onClick={() => onLog('water', { delta: i < o.day.water ? -1 : 1 })} style={{ flex: 1, height: 30, borderRadius: 8, border: 'none', background: i < o.day.water ? F.blue : '#e3f4ff', cursor: 'pointer' }} />)}
@@ -73,11 +73,13 @@ export default function Home({ o, name, onLog, onWeek, openTool, go, onFav }: {
       </div>
 
       <Section a="Au" b="menu" right="Ma semaine ›" onRight={() => go('week')} />
+      <div data-tour="menu">
       {plan?.meals.length ? plan.meals.map((m, i) => {
         const r = w!.recipes.find(x => x.id === m.recipe); if (!r) return null;
         const key = `${m.recipe}:${m.slot}`;
         return <MealRow key={key + i} r={r} slot={m.slot} eaten={!!o.day.meals[key]} onToggle={() => onLog('meal', { key, eaten: !o.day.meals[key] })} onOpen={() => setOpen(key)} />;
       }) : <div style={{ ...card, color: F.muted, fontSize: 14 }}>{w ? 'Rien de prévu aujourd\'hui dans ta semaine.' : 'Ta semaine n\'est pas encore composée.'} <button onClick={() => go('week')} style={{ border: 'none', background: 'none', color: F.accent, fontWeight: 800, cursor: 'pointer', padding: 0 }}>Voir la semaine ›</button></div>}
+      </div>
       {o.day.extra.length > 0 && <div style={{ fontSize: 13, color: F.muted, margin: '-2px 4px 0' }}>+ {o.day.extra.length} ajout(s) : {o.day.extra.map(x => x.name).join(', ')}</div>}
 
       {w && (
@@ -114,7 +116,7 @@ export default function Home({ o, name, onLog, onWeek, openTool, go, onFav }: {
       </div>
 
       <Section a="Tes" b="outils" />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+      <div data-tour="tools" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
         {TOOLS.map((x, i) => (
           <motion.button key={x.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.03 }} whileTap={{ scale: 0.92 }} onClick={() => openTool(x.id)}
             style={{ background: x.color, border: 'none', borderRadius: 18, padding: '12px 2px 10px', cursor: 'pointer', fontFamily: F.sans, color: F.ink }}>
@@ -127,7 +129,7 @@ export default function Home({ o, name, onLog, onWeek, openTool, go, onFav }: {
         {o.badges.map(b => <div key={b.id} title={b.label} style={{ flexShrink: 0, width: 54, height: 54, borderRadius: 27, background: b.ok ? '#fff' : F.bg2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, filter: b.ok ? 'none' : 'grayscale(1)', opacity: b.ok ? 1 : 0.45, boxShadow: b.ok ? '0 4px 12px rgba(120,60,40,0.12)' : 'none' }}>{b.emoji}</div>)}
       </div>
 
-      {w && <RecipeSheet r={opened} monday={w.monday} onClose={() => setOpen(null)} onWeek={onWeek} fav={!!opened && o.profile.favorites.includes(opened.title)} onFav={opened ? () => onFav(opened.title) : undefined} eaten={open ? !!o.day.meals[open] : false} onToggle={open ? () => onLog('meal', { key: open, eaten: !o.day.meals[open] }) : undefined} />}
+      {w && <RecipeSheet r={opened} monday={w.monday} onClose={() => setOpen(null)} onWeek={onWeek} fav={!!opened && o.favs.some(f => f.title === opened.title)} onFav={opened ? () => onFav(opened) : undefined} eaten={open ? !!o.day.meals[open] : false} onToggle={open ? () => onLog('meal', { key: open, eaten: !o.day.meals[open] }) : undefined} />}
     </div>
   );
 }

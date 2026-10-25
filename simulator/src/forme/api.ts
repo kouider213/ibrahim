@@ -31,6 +31,7 @@ export interface Overview {
   nextInjection: { date: string; hour: string; inDays: number; site: string; last: { date: string; site: string } | null } | null;
   photos: Photo[]; photoDue: boolean; weightRate: number | null; tooFast: boolean;
   challenge: { id: string; e: string; text: string; goal: number; got: number }; eta: string | null;
+  favs: Array<Recipe & { savedAt: number }>;
 }
 export interface AgendaDay { date: string; rest: boolean; sport: { label: string; time?: string; custom?: string; done: boolean } | null; meals: Array<{ slot: string; title: string; key: string; eaten: boolean }>; injection: { hour: string; site: string; done: boolean } | null; reminders: Array<{ time: string; label: string }>; fasting: boolean }
 export interface SwipeMeal { id: string; name: string; cat: string; area: string; photo: string }
@@ -59,6 +60,8 @@ export const forme = {
   makeWeek: (force = false, monday?: string) => post<{ week: Week }>('/api/forme/week', { force, monday }),
   shopping: () => call<House>('/api/forme/shopping'),
   shop: (key: string, checked: boolean, home = false) => post<House>('/api/forme/shop', { key, checked, home }),
+  fav: (recipe: Recipe, on: boolean) => post<{ favs: Array<Recipe & { savedAt: number }> }>('/api/forme/fav', { recipe, on }),
+  place: (title: string, date: string, slot: string) => post<{ week: Week }>('/api/forme/place', { title, date, slot }),
   agenda: () => call<{ days: AgendaDay[] }>('/api/forme/agenda'),
   shopAdd: (name: string, qty: string, store: string) => post<House>('/api/forme/shop-add', { name, qty, store }),
   shopDel: (key: string) => post<House>('/api/forme/shop-del', { key }),
