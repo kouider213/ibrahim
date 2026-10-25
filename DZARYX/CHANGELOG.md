@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-25 (nuit) — FORME : 100 % arabe en mode arabe
+
+- Traduction à la volée : en mode arabe, tout texte encore en français à l'écran (recettes déjà créées, exercices de sport-coach, analyses, textes avec chiffres, morceaux variables) part en lot à `/api/forme/translate` (Claude Haiku, liste ordonnée, cache serveur `forme:tr:ar` + téléphone `forme:ar-live`) et revient en arabe ; chaque nœud garde son texte d'origine pour être retraduit. Textes déjà arabes ignorés. Mode cuisine lu en arabe. App v182 (657bc53).
+
 ## 2026-10-25 (soir) — FORME : photo → cercles + séance de demain partout, 20 nouveautés, agenda de sa femme
 
 - Photo du corps : Claude place ses cercles sur une grille graduée (bien plus juste) ; objectif (« le ventre ») ou, sans rien dire, le coach dit lui-même quoi perdre. Dans FORME : « 📸 Photo + adapter ma séance » et « Le coach choisit pour moi ». Sur Telegram : la photo est gardée 30 min (`kouider:forme:tg-photo`), outil `forme` action `body_photo` → photo rangée, analysée, image avant/maintenant entourée renvoyée (@napi-rs/canvas, bucket privé), séance du lendemain refaite (sport-coach + agenda Google).
