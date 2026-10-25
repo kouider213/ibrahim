@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-25 (nuit) — Appels plus stables + montants en dinars convertis
+
+- Appels Telegram (tgcall/gemini_live.py) : détection de parole START_SENSITIVITY_LOW (+ 300 ms de marge, 700 ms de silence) — en HIGH, un « allô », un souffle ou l'écho coupait Dzaryx en pleine phrase ; un bruit ne coupe plus (≥ 2 mots ou 6 lettres) ; transcriptions de bruit (« <noise> », chiffres persans) ignorées ; consigne « bruit ≠ demande, jamais d'outil ni de CONFIRMÉ ». pm2 dzaryx-tg relancé.
+- WhatsApp → Telegram : `dzd-convert.ts` repère les montants en dinars (2300000, 2 300 000 DA, 230 millions = centimes, 1 milliard 200, 250 مليون, 50 mille) et ajoute « 💱 … DA ≈ … € au square (taux de l'or / de Kouider) · … € officiel ».
+
 ## 2026-10-25 (nuit) — Surveillance des connexions (WhatsApp coupé 30 h sans alerte)
 
 - WhatsApp Business était déconnecté du PC cloud depuis le 24/10 8h40 : l'unique alerte avait été avalée par le tri anti-bruit. Nouveau `integrations/connections-watch.ts` + job `connections-watch` (*/15) : WhatsApp (statut réel via le PC cloud), PC cloud (2 échecs de suite), service Telegram (heartbeat), Gmail et Agenda Google (toutes les 2 h). Coupure → Telegram + app tout de suite (bypassDigest), rappel toutes les 2 h de 8h à 22h, « ✅ reconnecté » à la fin ; `connectionsText()` dans le dossier de Dzaryx. Alerte `cloud:wa_state` aussi en direct.

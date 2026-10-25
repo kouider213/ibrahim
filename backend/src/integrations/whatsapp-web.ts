@@ -105,7 +105,9 @@ export async function onWaNew(c: WaChat): Promise<void> {
     const keep = Object.entries(all).sort((x, y) => y[1].at.localeCompare(x[1].at)).slice(0, 20);
     await kvSet(DRAFTS_KEY, JSON.stringify(Object.fromEntries(keep)), 3 * 86_400);
   }
-  const text = `📲 WhatsApp — ${name}${c.unread > 1 ? ` (${c.unread} non lus)` : ''}\n« ${preview} »`
+  // Montant en dinars dans le message → aussi en euros (change du square)
+  const money = await import('./dzd-convert.js').then(m => m.dzdLine(preview)).catch(() => '');
+  const text = `📲 WhatsApp — ${name}${c.unread > 1 ? ` (${c.unread} non lus)` : ''}\n« ${preview} »${money ? `\n${money}` : ''}`
     + (reply ? `\n\n✍️ Réponse proposée :\n${reply}\n\nRéponds « oui » pour l'envoyer à ${name}, « non » pour laisser, ou dis-moi quoi changer.` : '');
   if (reply) await kvSet(PENDING_KEY, JSON.stringify({ chat: name, draft: reply }), 12 * 3600);
   await queueTelegramMessage(text).catch(() => {});

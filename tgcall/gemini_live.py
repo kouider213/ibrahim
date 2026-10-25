@@ -8,6 +8,7 @@ appels d'outils…). Ainsi tout le reste de l'appel (outils, caméra, interrupti
 import asyncio
 import base64
 import json
+import re
 import logging
 import time
 from array import array
@@ -40,6 +41,27 @@ class _Msg:
         self.data = json.dumps(ev) if ev is not None else ''
 
 
+# Bruits transcrits par Gemini (« <noise> », souffle, mots d'une autre langue) : ce n'est pas Kouider qui parle.
+NOISE_RULE = ("\n\nAPPEL TÉLÉPHONIQUE — BRUITS : un bruit, un souffle, des mots sans sens ou dans une autre langue que le "
+              "français ou l'arabe (ex. persan, chiffres isolés) ne sont PAS une demande de Kouider : ignore-les, ne lance "
+              "aucun outil, n'écris jamais « CONFIRMÉ » pour ça. S'il y a un doute, demande simplement « tu peux répéter ? ». "
+              "Quand il dit juste « allô » au décroché, continue ta phrase sans recommencer.")
+
+
+def clean_heard(t: str) -> str:
+    return re.sub(r'\s+', ' ', re.sub(r'<[^>]{1,20}>', ' ', t or '')).strip()
+
+
+def meaningful(t: str) -> bool:
+    return len(re.findall(r'[A-Za-zÀ-ÿ\u0621-\u064A]', t)) >= 2
+
+
+def speaks(t: str) -> bool:
+    """Assez pour couper Dzaryx : au moins 2 mots ou 6 lettres (pas un « allô » ni un bruit)."""
+    words = [w for w in t.split() if re.search(r'[A-Za-zÀ-ÿ\u0621-\u064A]{2}', w)]
+    return len(words) >= 2 or len(re.findall(r'[A-Za-zÀ-ÿ\u0621-\u064A]', t)) >= 6
+
+
 class GeminiLiveWS:
     def __init__(self, ws: aiohttp.ClientWebSocketResponse):
         self.ws = ws
@@ -69,11 +91,12 @@ class GeminiLiveWS:
         setup = {
             'model': res['model'],
             'generationConfig': gen,
-            'systemInstruction': {'parts': [{'text': res.get('instructions') or ''}]},
+            'systemInstruction': {'parts': [{'text': (res.get('instructions') or '') + NOISE_RULE}]},
             'tools': [{'functionDeclarations': res.get('tools') or []}],
+            # 25/10 : en HIGH, un souffle, un « allô » ou l'écho de sa propre voix coupait Dzaryx en pleine phrase
             'realtimeInputConfig': {'automaticActivityDetection': {
-                'startOfSpeechSensitivity': 'START_SENSITIVITY_HIGH', 'endOfSpeechSensitivity': 'END_SENSITIVITY_HIGH',
-                'silenceDurationMs': 500}},
+                'startOfSpeechSensitivity': 'START_SENSITIVITY_LOW', 'endOfSpeechSensitivity': 'END_SENSITIVITY_HIGH',
+                'prefixPaddingMs': 300, 'silenceDurationMs': 700}},
             'inputAudioTranscription': {},
             'outputAudioTranscription': {},
             'contextWindowCompression': {'slidingWindow': {}},   # appels de plus de 15 min
@@ -154,9 +177,11 @@ class GeminiLiveWS:
         self.queue.put_nowait(ev)
 
     def _flush_input(self) -> None:
-        if self.in_text.strip():
+        heard = clean_heard(self.in_text)
+        noisy = bool(re.search(r'<[^>]{1,20}>|[\u06F0-\u06F9]', self.in_text))   # « <noise> », chiffres persans = bruit mal transcrit
+        if meaningful(heard) and (not noisy or speaks(heard)):   # un bruit (« <noise> », souffle) n'est pas une phrase de Kouider
             self._put({'type': 'input_audio_buffer.committed'})
-            self._put({'type': 'conversation.item.input_audio_transcription.completed', 'transcript': self.in_text.strip()})
+            self._put({'type': 'conversation.item.input_audio_transcription.completed', 'transcript': heard})
         self.in_text = ''
         self.barged = False
 
@@ -176,7 +201,7 @@ class GeminiLiveWS:
                         self.heard_at = time.monotonic()
                         # Gemini ne signale qu'il parle (« interrupted ») que pendant qu'il génère ; or sa réponse est
                         # générée bien plus vite qu'elle n'est jouée → sans ça, Kouider ne pouvait pas couper Dzaryx
-                        if not self.responding and not self.barged:
+                        if not self.responding and not self.barged and speaks(clean_heard(self.in_text)):
                             self.barged = True
                             self._put({'type': 'input_audio_buffer.speech_started'})
                     if sc.get('interrupted'):
