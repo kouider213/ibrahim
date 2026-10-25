@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>La grande course de Fennou</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&display=swap">
+<style>
+/* LA GRANDE COURSE DE FENNOU — interface pour un tout-petit : très grands boutons, presque pas de texte, images d'abord. */
+:root { --night: #13213a; --sand: #f2c98a; --ink: #fdf6ea; --mint: #8fe3c6; --rose: #ff9db0; --font: "Baloo 2", "Trebuchet MS", system-ui, sans-serif; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font-family: var(--font); color: var(--ink); -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; overscroll-behavior: none; }
+[hidden] { display: none !important; }
+#stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.layer { position: fixed; inset: 0; z-index: 2; }
+button { font-family: var(--font); cursor: pointer; border: 0; }
+.lock { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); right: 12px; z-index: 9; width: 52px; height: 52px; border-radius: 26px; background: rgba(0,0,0,.28); color: #fff; font-size: 22px; display: grid; place-items: center; overflow: hidden; }
+.lock::after { content: ''; position: absolute; inset: 0; background: rgba(255,255,255,.45); transform: scaleX(0); transform-origin: left; }
+.lock.hold::after { transform: scaleX(1); transition: transform 2s linear; }
+
+/* Carte des mondes */
+#map { overflow-y: auto; padding: calc(env(safe-area-inset-top, 0px) + 14px) 14px calc(env(safe-area-inset-bottom, 0px) + 150px); background: linear-gradient(180deg, rgba(19,33,58,.55), rgba(19,33,58,.85)); }
+.top { display: flex; align-items: center; gap: 12px; margin: 0 60px 14px 0; }
+.top .me { width: 74px; height: 74px; border-radius: 37px; background: var(--sand); display: grid; place-items: center; font-size: 46px; box-shadow: 0 6px 18px rgba(0,0,0,.25); animation: bob 1.6s ease-in-out infinite; }
+.top h1 { margin: 0; font-size: clamp(22px, 6vw, 30px); line-height: 1; color: var(--sand); text-shadow: 0 2px 8px rgba(0,0,0,.3); }
+.top .stars { font-size: 22px; font-weight: 800; }
+.world { border-radius: 30px; padding: 14px 14px 18px; margin-bottom: 16px; background: linear-gradient(160deg, var(--a), var(--b)); box-shadow: 0 10px 26px rgba(0,0,0,.25); }
+.world.locked { filter: grayscale(.7) brightness(.8); }
+.world h2 { margin: 0 0 10px; font-size: 22px; color: #1d2a44; }
+.levels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.lvl { height: 92px; border-radius: 26px; background: #fff; color: #1d2a44; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 6px 0 rgba(0,0,0,.15); }
+.lvl b { font-size: 40px; line-height: 1; }
+.lvl small { font-size: 14px; min-height: 18px; }
+.lvl.off { opacity: .55; box-shadow: none; }
+.lvl.cur { outline: 5px solid #ffd23f; animation: pulse 1.2s ease-in-out infinite; }
+.lvl:active { transform: translateY(4px); box-shadow: none; }
+.dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; gap: 12px; justify-content: center; padding: 14px 14px calc(env(safe-area-inset-bottom, 0px) + 16px); background: linear-gradient(transparent, rgba(19,33,58,.95) 40%); }
+.big { width: 96px; height: 96px; border-radius: 30px; font-size: 46px; background: #fff; box-shadow: 0 7px 0 rgba(0,0,0,.2); display: grid; place-items: center; color: #1d2a44; }
+.big.play { width: 128px; background: #ffd23f; font-size: 54px; animation: pulse 1.4s ease-in-out infinite; }
+.big:active { transform: translateY(5px); box-shadow: none; }
+
+/* Pendant la course */
+#hud { pointer-events: none; }
+#hud .bar { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 12px); left: 12px; right: 74px; display: flex; align-items: center; gap: 10px; }
+#h-world { width: 52px; height: 52px; border-radius: 18px; background: rgba(255,255,255,.85); display: grid; place-items: center; font-size: 30px; }
+#h-dots { display: flex; gap: 6px; flex-wrap: wrap; }
+#h-dots i { width: 16px; height: 16px; border-radius: 8px; background: rgba(255,255,255,.45); box-shadow: inset 0 0 0 2px rgba(0,0,0,.08); }
+#h-dots i.on { background: #ffd23f; }
+#h-dots .cnt { font-size: 30px; text-shadow: 0 2px 6px rgba(0,0,0,.35); }
+#h-target { pointer-events: auto; position: fixed; top: calc(env(safe-area-inset-top, 0px) + 74px); left: 50%; transform: translateX(-50%); width: 120px; height: 120px; border-radius: 60px; background: #fff; display: grid; place-items: center; box-shadow: 0 10px 30px rgba(0,0,0,.3), 0 0 0 8px rgba(255,210,63,.75); animation: pop .4s ease-out, glow 1.2s ease-in-out infinite .4s; }
+#h-target span { font-size: 72px; line-height: 1; }
+#h-target img { width: 104px; height: 104px; border-radius: 52px; object-fit: cover; }
+#h-target em { position: absolute; bottom: -6px; right: -6px; width: 40px; height: 40px; border-radius: 20px; background: var(--sand); display: grid; place-items: center; font-style: normal; font-size: 20px; }
+#h-target .q { position: relative; }
+#h-target .q small { position: absolute; right: -16px; top: -14px; font-size: 34px; }
+
+/* Fin de niveau */
+#end { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: radial-gradient(circle, rgba(255,210,63,.35), rgba(19,33,58,.8)); text-align: center; padding: 20px; }
+#e-stars span { font-size: 78px; display: inline-block; filter: grayscale(1) opacity(.35); transform: scale(.6); }
+#e-stars span.on { filter: none; animation: star .6s ease-out both; }
+#e-text { font-size: 42px; font-weight: 800; margin: 0; color: #fff; text-shadow: 0 3px 12px rgba(0,0,0,.35); }
+.sticker { display: inline-grid; place-items: center; width: 84px; height: 84px; border-radius: 42px; background: #fff; font-size: 52px; margin: 4px; animation: pop .6s ease-out; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+#e-outfit { font-size: 20px; font-weight: 800; }
+.row { display: flex; gap: 16px; margin-top: 8px; }
+
+/* Album / placard */
+.sheet { overflow-y: auto; padding: calc(env(safe-area-inset-top, 0px) + 18px) 16px calc(env(safe-area-inset-bottom, 0px) + 30px); background: linear-gradient(180deg, #ffecc7, #ffd6a5); color: #3a2a22; }
+.sheet h1 { margin: 6px 70px 12px 76px; font-size: 30px; }
+.back { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 12px; width: 60px; height: 60px; border-radius: 30px; background: #fff; font-size: 30px; box-shadow: 0 5px 0 rgba(0,0,0,.15); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 12px; }
+.st { height: 108px; border-radius: 28px; background: #fff; font-size: 62px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 6px 0 rgba(0,0,0,.12); color: #3a2a22; }
+.st small { font-size: 15px; font-weight: 800; }
+.st.no { background: rgba(255,255,255,.45); font-size: 46px; box-shadow: none; }
+.st.sel { outline: 5px solid #7b5cf0; }
+.st.bounce { animation: boing .6s; }
+
+/* Dodo */
+#sleep { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: radial-gradient(circle at 50% 40%, #2a3a6a, #0b1226); text-align: center; padding: 24px; }
+#sleep .moon { font-size: 120px; animation: bob 3s ease-in-out infinite; }
+#sleep p { font-size: 26px; margin: 0; color: #cdd6f5; }
+#sleep small { color: #8796c4; font-size: 14px; }
+
+/* Parents */
+#parents { overflow-y: auto; background: rgba(10,16,30,.96); padding: calc(env(safe-area-inset-top, 0px) + 24px) 20px 40px; color: #eef; font-family: system-ui, -apple-system, sans-serif; }
+#parents h2 { font-family: var(--font); margin: 0 0 14px; color: var(--sand); }
+#parents label { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.1); font-size: 16px; }
+#parents select { font-size: 16px; padding: 8px; border-radius: 10px; }
+#parents .btns { display: grid; gap: 10px; margin-top: 18px; }
+#parents .btns button { padding: 14px; border-radius: 14px; font-size: 16px; font-weight: 700; background: #26324f; color: #fff; }
+#parents .btns .main { background: var(--sand); color: #1d2a44; }
+#p-stats { font-size: 13px; color: #9fb0d6; line-height: 1.5; margin-top: 12px; }
+.note { font-size: 13px; color: #9fb0d6; line-height: 1.5; }
+
+@keyframes bob { 50% { transform: translateY(-8px); } }
+@keyframes pulse { 50% { transform: scale(1.06); } }
+@keyframes pop { from { transform: translateX(-50%) scale(.2); } }
+@keyframes glow { 50% { box-shadow: 0 10px 30px rgba(0,0,0,.3), 0 0 0 14px rgba(255,210,63,.45); } }
+@keyframes star { from { transform: scale(.2) rotate(-40deg); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes boing { 30% { transform: scale(1.25); } 60% { transform: scale(.9); } }
+</style>
+  <script type="module" crossorigin src="/ibrahim/assets/run-B6rSqwn7.js"></script>
+  <link rel="modulepreload" crossorigin href="/ibrahim/assets/modulepreload-polyfill-B5Qt9EMX.js">
+  <link rel="modulepreload" crossorigin href="/ibrahim/assets/three.module-mlND9ieM.js">
+</head>
+<body>
+<canvas id="stage"></canvas>
+
+<section id="map" class="layer">
+  <div class="top"><div class="me" id="m-fennec">🦊</div><div><h1>La grande course<br>de Fennou</h1><div class="stars" id="m-stars">⭐ 0</div></div></div>
+  <div id="m-worlds"></div>
+  <div class="dock">
+    <button class="big" id="m-album" aria-label="Album">📒</button>
+    <button class="big play" id="m-play" aria-label="Jouer">▶</button>
+    <button class="big" id="m-closet" aria-label="Habiller Fennou">👕</button>
+    <button class="big" id="m-free" aria-label="Course libre">🏃</button>
+  </div>
+</section>
+
+<section id="hud" class="layer" hidden>
+  <div class="bar"><div id="h-world">🌟</div><div id="h-dots"></div></div>
+  <button id="h-target" hidden></button>
+</section>
+
+<section id="end" class="layer" hidden>
+  <div id="e-stars"></div>
+  <p id="e-text">Bravo !</p>
+  <div id="e-stickers"></div>
+  <div id="e-outfit"></div>
+  <div class="row"><button class="big" id="e-map" aria-label="Carte">🗺️</button><button class="big play" id="e-next" aria-label="Encore">▶</button></div>
+</section>
+
+<section id="album" class="layer sheet" hidden>
+  <button class="back" aria-label="Retour">←</button>
+  <h1>📒 Mon album <small id="a-count"></small></h1>
+  <div class="grid" id="a-grid"></div>
+</section>
+
+<section id="closet" class="layer sheet" hidden>
+  <button class="back" aria-label="Retour">←</button>
+  <h1>👕 Habille Fennou</h1>
+  <div class="grid" id="c-grid"></div>
+</section>
+
+<section id="sleep" class="layer" hidden>
+  <div class="moon">🦊💤</div>
+  <p>Fennou fait dodo…<br>À demain !</p>
+  <small>Parents : maintenez 🔒 2 secondes</small>
+</section>
+
+<section id="parents" class="layer" hidden>
+  <h2>👨‍👩‍👦 Coin des parents</h2>
+  <label>Durée d'une session <select id="p-mins"><option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option></select></label>
+  <label>Vitesse de Fennou <select id="p-speed"><option value="0.7">Lente</option><option value="1">Normale</option><option value="1.3">Rapide</option></select></label>
+  <label>Voix <select id="p-voice"><option value="fr">Français</option><option value="dz">Voix de maman (darija)</option><option value="mix">Les deux, chacun son tour</option><option value="off">Sans voix</option></select></label>
+  <label>Sons et musique <input type="checkbox" id="p-sound"></label>
+  <p class="note">Les mots enregistrés par maman dans Fennou (coin parents → voix) sont réutilisés ici : « Où est… ? », « Bravo », les animaux, et aussi les couleurs, formes, chiffres et « grand / petit » si elle les enregistre. Avant 2 ans, mieux vaut de courtes sessions, à côté de lui, en nommant ensemble ce qu'il voit.</p>
+  <div id="p-stats"></div>
+  <div class="btns">
+    <button class="main" id="p-close">▶ Reprendre</button>
+    <button id="p-awake">🗺️ Carte des mondes (réveiller Fennou)</button>
+    <button id="p-map">↩︎ Quitter le niveau</button>
+    <button id="p-fennou">🦊 Retour aux jeux Fennou</button>
+    <button id="p-quit">✖ Quitter Fennou</button>
+    <button id="p-reset">Effacer la progression</button>
+  </div>
+</section>
+
+<button class="lock" aria-label="Parents (appui long)">🔒</button>
+</body>
+</html>
