@@ -90,6 +90,7 @@ import studioRoutes from './api/routes/studio.js';
 import sportRoutes from './api/routes/sport.js';
 import partnersRoutes from './api/routes/partners.js';
 import coachRoutes from './api/routes/coach.js';
+import kidRoutes from './api/routes/kid.js';
 import rdvRoutes from './api/routes/rdv.js';
 import contratRoutes from './api/routes/contrat.js';
 
@@ -395,6 +396,7 @@ app.use('/api/studio',     apiLimiter, studioRoutes);
 app.use('/api/sport',      apiLimiter, sportRoutes);
 app.use('/api/partners',   apiLimiter, partnersRoutes);
 app.use('/api/coach',      apiLimiter, coachRoutes);
+app.use('/api/kid',        apiLimiter, kidRoutes);
 app.use('/contrat',        apiLimiter, contratRoutes);     // page publique « contrat FIK Sites » à signer
 app.use('/rdv',            apiLimiter, rdvRoutes);        // page publique « choisir mon rendez-vous » (FIK Sites)    // page « À PAYER » (Kouider)
 app.use('/api/fik-sites',  apiLimiter, fikSitesRoutes);   // page « Sites clients » de l'app (Kouider)

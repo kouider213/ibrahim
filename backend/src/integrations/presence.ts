@@ -341,7 +341,8 @@ async function onHomeEvening(st: PresenceState, now: number): Promise<void> {
   const evs = await listAgendaRange(new Date(localTs(tomorrow.date, '00:00')).toISOString(), new Date(localTs(tomorrow.date, '23:59')).toISOString(), 20).catch(() => null);
   const first = (evs ?? []).find(e => e.start.dateTime && !/^(🟢|🚿|⏰|🚗)/u.test(e.summary ?? ''));
   const care = await (await import('../notifications/dnd.js')).takeFamilyFollowup();
-  await queueTelegramMessage(`🏠 Bien rentré ! Profite de ta famille.${care ? `\n❤️ Et depuis hier (${care.toLowerCase()}), comment ça va à la maison ce soir ?` : ''}\nDemain : ${!paused && plan?.wake ? `réveil ${plan.wake.replace(':', 'h')}` : 'pas de réveil prévu'}${first ? `, ${hm(Date.parse(first.start.dateTime!))} ${first.summary}` : ''}.`);
+  const kid = await (await import('./papa-time.js')).homeEveningLine().catch(() => '');
+  await queueTelegramMessage(`🏠 Bien rentré ! Profite de ta famille.${care ? `\n❤️ Et depuis hier (${care.toLowerCase()}), comment ça va à la maison ce soir ?` : ''}${kid}\nDemain : ${!paused && plan?.wake ? `réveil ${plan.wake.replace(':', 'h')}` : 'pas de réveil prévu'}${first ? `, ${hm(Date.parse(first.start.dateTime!))} ${first.summary}` : ''}.`);
 }
 
 // ── Boucle : chaque position reçue (≤ 1 fois / 45 s) + toutes les 5 min ──────

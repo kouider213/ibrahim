@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import DzaryxIcon from './ui/DzaryxLogo.tsx';
 import VoiceScreen, { prepareCallAudio } from './screens/VoiceScreen.tsx';
 import CallOverlay from './CallOverlay.tsx';
@@ -38,13 +38,14 @@ import NexusScreen from './screens/NexusScreen.tsx';
 import PhoneCamScreen from './screens/PhoneCamScreen.tsx';
 import GlobeScreen from './screens/GlobeScreen.tsx';
 import CoachScreen from './screens/CoachScreen.tsx';
+import FennouScreen from './screens/FennouScreen.tsx';
 import { setSimActor, resumeWebPush, business, callApi, loginDevice, logoutDevice, setDeviceToken, getDeviceToken } from '../services/api.ts';
 
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
   | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews' | 'blog' | 'devis' | 'reponse'
-  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'demarchage' | 'sites' | 'partners' | 'paiements' | 'studio' | 'carte' | 'nexus' | 'globe' | 'camera' | 'sport' | 'plus';
+  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'demarchage' | 'sites' | 'partners' | 'paiements' | 'studio' | 'carte' | 'nexus' | 'globe' | 'camera' | 'sport' | 'fennou' | 'plus';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -62,6 +63,7 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'settings',      icon: '⚙️', label: 'CONFIG'  },
   // ── Menu "⋯ Plus" (outils) ──
   { id: 'search',        icon: '🔍', label: 'CHERCHER', group: 'tool' },
+  { id: 'fennou',        icon: '🦊', label: 'FENNOU',  kouiderOnly: true, group: 'tool' },
   { id: 'sport',         icon: '🏆', label: 'COACH',   kouiderOnly: true, group: 'tool' },
   { id: 'carte',         icon: '🗺️', label: 'CARTE LIVE', kouiderOnly: true, group: 'tool' },
   { id: 'nexus',         icon: '🖥️', label: 'MON PC',  kouiderOnly: true, group: 'tool' },
@@ -305,13 +307,15 @@ export default function Phone() {
   const actor = loggedActor ?? 'kouider';
 
   const houariOnlyPages: Page[] = [];
-  const kouiderOnlyPages: Page[] = ['documents', 'demarchage', 'sites', 'partners', 'paiements', 'studio', 'carte', 'camera'];
+  const kouiderOnlyPages: Page[] = ['fennou', 'documents', 'demarchage', 'sites', 'partners', 'paiements', 'studio', 'carte', 'camera'];
 
   const safePage: Page = (() => {
     if (actor === 'houari' && kouiderOnlyPages.includes(page)) return 'voice';
     if (actor === 'kouider' && houariOnlyPages.includes(page)) return 'voice';
     return page;
   })();
+
+  const exitFennou = useCallback(() => setPage('plus'), []);
 
   const renderScreen = () => {
     switch (safePage) {
@@ -346,6 +350,7 @@ export default function Phone() {
       case 'camera':        return <PhoneCamScreen />;
       case 'globe':         return <GlobeScreen />;
       case 'sport':         return <CoachScreen />;
+      case 'fennou':        return <FennouScreen onExit={exitFennou} />;
       case 'carte':         return <CarteScreen actor={actor} startFull={carteLink} onOpen={(p) => setPage(p as Page)} onAsk={(prompt) => { try { localStorage.setItem('dz:ask_prompt', prompt); } catch { /* ignore */ } setPage('text'); }} />;
       case 'plus':          return <ToolsGrid onOpen={setPage} actor={actor} />;
       case 'documents':     return <DocumentsScreen />;

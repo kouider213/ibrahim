@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Fennou</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Nunito:wght@500;700&display=swap">
+<style>
+/* FENNOU : le compagnon de jeu du petit (page autonome, ouverte en plein écran depuis l'app Dzaryx).
+   Fond « nuit du Sahara » : sombre et doux, pensé pour être projeté au sol plus tard. */
+:root {
+  --night: #13213a; --night-2: #1c3053; --sand: #f2c98a; --mint: #8fe3c6; --rose: #ff9db0;
+  --ink: #fdf6ea; --muted: #a9b8d4;
+  --display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+  --body: "Nunito", system-ui, -apple-system, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--night); color: var(--ink); font-family: var(--body); overflow: hidden; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+[hidden] { display: none !important; }
+#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; background: radial-gradient(ellipse at 50% 35%, var(--night-2), var(--night) 70%); }
+.screen { position: fixed; inset: 0; overflow-y: auto; padding: calc(env(safe-area-inset-top, 0px) + 16px) max(16px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 24px) max(16px, env(safe-area-inset-left, 0px)); display: flex; flex-direction: column; align-items: center; gap: 18px; background: radial-gradient(ellipse at 50% 20%, var(--night-2), var(--night) 75%); }
+.hello { display: flex; align-items: center; gap: 14px; max-width: 680px; width: 100%; margin-top: 30px; }
+.hello svg { width: 92px; height: 92px; flex: none; }
+h1 { font-family: var(--display); font-weight: 800; font-size: clamp(1.7rem, 6vw, 2.4rem); line-height: 1; margin: 0; color: var(--sand); }
+.hello p { margin: 6px 0 0; color: var(--muted); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; width: 100%; max-width: 680px; }
+.tile { font: inherit; color: var(--ink); border: 0; cursor: pointer; border-radius: 28px; padding: 18px 16px 16px; min-height: 150px; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; text-align: left; background: var(--night-2); box-shadow: inset 0 0 0 2px rgba(242, 201, 138, .18); }
+.tile:active { transform: scale(.97); }
+.tile .art { font-size: 3.2rem; line-height: 1; }
+.tile b { font-family: var(--display); font-size: 1.35rem; font-weight: 700; line-height: 1.1; }
+.tile small { color: var(--muted); font-size: .85rem; }
+.tile .tag { font-size: .7rem; font-weight: 700; letter-spacing: .06em; color: var(--mint); text-transform: uppercase; }
+.pill { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 12px); z-index: 5; font: 700 .85rem var(--body); color: var(--muted); background: rgba(19, 33, 58, .75); border: 1px solid rgba(169, 184, 212, .3); border-radius: 999px; padding: 10px 14px; cursor: pointer; overflow: hidden; }
+#parent-btn { right: max(12px, env(safe-area-inset-right, 0px)); }
+#parent-btn .fill { position: absolute; inset: 0; background: rgba(242, 201, 138, .35); transform-origin: left; transform: scaleX(0); }
+#home-btn { left: max(12px, env(safe-area-inset-left, 0px)); }
+.panel { max-width: 580px; width: 100%; display: flex; flex-direction: column; gap: 16px; }
+.panel h2 { font-family: var(--display); font-size: 1.6rem; margin: 30px 0 0; color: var(--sand); }
+.panel h3 { font-family: var(--display); font-size: 1.15rem; margin: 10px 0 0; color: var(--sand); }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-weight: 700; font-size: .9rem; }
+.hint { color: var(--muted); font-size: .82rem; line-height: 1.45; }
+input[type=text], input[type=number], select { font: 600 16px var(--body); color: var(--ink); background: var(--night-2); border: 1px solid rgba(169, 184, 212, .35); border-radius: 12px; padding: 10px 12px; width: 100%; }
+.rows { display: flex; flex-direction: column; gap: 8px; }
+.row { display: grid; grid-template-columns: 34px 1fr auto auto; gap: 8px; align-items: center; }
+.row .e { font-size: 1.5rem; text-align: center; }
+.mini { font: 700 .8rem var(--body); color: var(--ink); background: var(--night-2); border: 1px solid rgba(169, 184, 212, .35); border-radius: 10px; padding: 9px 10px; cursor: pointer; white-space: nowrap; }
+.mini.rec { background: #c2415a; border-color: #c2415a; }
+.mini.has { border-color: var(--mint); color: var(--mint); }
+.photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.ph { display: flex; flex-direction: column; align-items: center; gap: 6px; font-weight: 700; font-size: .85rem; }
+.ph label { width: 84px; height: 84px; border-radius: 50%; background: var(--night-2) center/cover; border: 3px solid var(--sand); display: grid; place-items: center; font-size: 2rem; cursor: pointer; }
+.ph input { display: none; }
+.btn { font: 800 1.05rem var(--display); color: var(--night); background: var(--sand); border: 0; border-radius: 999px; padding: 12px 22px; cursor: pointer; align-self: flex-start; }
+.btn.ghost { background: transparent; color: var(--muted); border: 1px solid rgba(169, 184, 212, .4); }
+.pause { justify-content: center; text-align: center; }
+.pause p { color: var(--muted); max-width: 420px; }
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Zone de jeu"></canvas>
+
+<section class="screen" id="menu">
+  <div class="hello">
+    <svg viewBox="0 0 100 100" aria-hidden="true">
+      <path d="M18 8 L40 44 L22 50 Z" fill="#f2c98a"/><path d="M24 18 L36 42 L26 45 Z" fill="#ff9db0"/>
+      <path d="M82 8 L60 44 L78 50 Z" fill="#f2c98a"/><path d="M76 18 L64 42 L74 45 Z" fill="#ff9db0"/>
+      <ellipse cx="50" cy="60" rx="30" ry="26" fill="#f2c98a"/><path d="M30 64 Q50 92 70 64 Q50 74 30 64Z" fill="#fdf6ea"/>
+      <circle cx="39" cy="56" r="5" fill="#13213a"/><circle cx="61" cy="56" r="5" fill="#13213a"/>
+      <circle cx="40.5" cy="54.5" r="1.6" fill="#fff"/><circle cx="62.5" cy="54.5" r="1.6" fill="#fff"/>
+      <ellipse cx="50" cy="68" rx="4.5" ry="3.2" fill="#13213a"/>
+      <circle cx="31" cy="66" r="4" fill="#ff9db0" opacity=".5"/><circle cx="69" cy="66" r="4" fill="#ff9db0" opacity=".5"/>
+    </svg>
+    <div><h1 id="hi">Salam !</h1><p>Je suis Fennou, ton petit fennec. On joue ?</p></div>
+  </div>
+  <div class="tiles">
+    <button class="tile" data-game="family"><span class="art">👨‍👩‍👦</span><span><span class="tag">Nouveau</span><br><b>Ma famille</b><br><small>Où est papa ? Attrape-moi !</small></span></button>
+    <button class="tile" data-game="hide"><span class="art">🌳</span><span><span class="tag">Cerveau</span><br><b>Cache-cache</b><br><small>Où s'est caché l'animal ?</small></span></button>
+    <button class="tile" data-game="bunny"><span class="art">🐰</span><span><b>Attrape le lapin</b><br><small>Touche-le quand il saute</small></span></button>
+    <button class="tile" data-game="where"><span class="art">🦆</span><span><b>Où est… ?</b><br><small>Trouve le bon animal</small></span></button>
+    <button class="tile" data-game="bubbles"><span class="art">🫧</span><span><b>Les bulles</b><br><small>Éclate les bulles</small></span></button>
+  </div>
+</section>
+
+<section class="screen" id="parents" hidden>
+  <div class="panel">
+    <h2>Coin parents</h2>
+    <div class="field"><label for="p-name">Prénom</label><input type="text" id="p-name" maxlength="20"></div>
+    <div class="field"><label for="p-mins">Durée d'une séance (minutes)</label><input type="number" id="p-mins" min="2" max="20"><span class="hint">Conseillé : 10 minutes maximum à son âge, avec un adulte à côté.</span></div>
+    <div class="field"><label for="p-speed">Vitesse</label><select id="p-speed"><option value="0.7">Très lent</option><option value="1">Lent</option><option value="1.4">Normal</option></select></div>
+    <div class="field"><label for="p-voice">Qui parle ?</label>
+      <select id="p-voice"><option value="fr">Fennou en français</option><option value="dz">La voix de maman (darija)</option><option value="mix">Les deux, chacun son tour</option><option value="off">Personne (seulement les sons)</option></select>
+      <span class="hint">« La voix de maman » joue les phrases enregistrées ci-dessous. Si une phrase n'est pas encore enregistrée, Fennou la dit en français.</span></div>
+
+    <h3>Photos de la famille</h3>
+    <span class="hint">Pour le jeu « Ma famille ». Les photos restent sur ce téléphone, elles ne sont envoyées nulle part.</span>
+    <div class="photos" id="p-photos"></div>
+
+    <h3>Voix de maman</h3>
+    <span class="hint">Appuyez sur 🎙️, dites le mot en darija, puis appuyez sur ⏹️. ▶️ pour réécouter.</span>
+    <div class="rows" id="p-voices"></div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn" id="p-save">Enregistrer et revenir</button>
+      <button class="btn ghost" id="p-quit" hidden>Quitter Fennou</button>
+    </div>
+  </div>
+</section>
+
+<section class="screen pause" id="pause" hidden>
+  <svg viewBox="0 0 100 100" width="120" height="120" aria-hidden="true"><path d="M18 8 L40 44 L22 50 Z" fill="#f2c98a"/><path d="M82 8 L60 44 L78 50 Z" fill="#f2c98a"/><ellipse cx="50" cy="60" rx="30" ry="26" fill="#f2c98a"/><path d="M33 57 Q39 52 45 57" stroke="#13213a" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M55 57 Q61 52 67 57" stroke="#13213a" stroke-width="3" fill="none" stroke-linecap="round"/><ellipse cx="50" cy="68" rx="4.5" ry="3.2" fill="#13213a"/></svg>
+  <h1 id="pause-title">Bravo !</h1>
+  <p>Fennou est fatigué, il va faire dodo. On rejoue tout à l'heure. Maintenant, un câlin avec papa ou maman ?</p>
+  <button class="btn" id="pause-ok" style="align-self:center">Retour</button>
+</section>
+
+<button class="pill" id="parent-btn" aria-label="Coin parents : garder appuyé 2 secondes"><span class="fill"></span><span style="position:relative">Parents ⏳</span></button>
+<button class="pill" id="home-btn" hidden>← Jeux</button>
+
+<script>
+(() => {
+  const ANIMALS = [
+    { id: 'chat', e: '🐱', fr: 'le chat', art: 'Le chat fait miaou !' },
+    { id: 'chien', e: '🐶', fr: 'le chien', art: 'Le chien fait ouaf ouaf !' },
+    { id: 'canard', e: '🦆', fr: 'le canard', art: 'Le canard fait coin coin !' },
+    { id: 'vache', e: '🐮', fr: 'la vache', art: 'La vache fait meuh !' },
+    { id: 'mouton', e: '🐑', fr: 'le mouton', art: 'Le mouton fait bêê !' },
+    { id: 'poule', e: '🐔', fr: 'la poule', art: 'La poule fait cot cot !' },
+    { id: 'cheval', e: '🐴', fr: 'le cheval', art: 'Le cheval fait hiii !' },
+    { id: 'chameau', e: '🐪', fr: 'le chameau', art: 'Le chameau du désert !' },
+    { id: 'lion', e: '🦁', fr: 'le lion', art: 'Le lion fait rooar !' },
+  ];
+  const FAMILY = [
+    { id: 'papa', fr: 'papa', e: '👨', ring: '#9fc3ff' },
+    { id: 'maman', fr: 'maman', e: '👩', ring: '#ff9db0' },
+    { id: 'enfant', fr: '', e: '👶', ring: '#f2c98a' },
+  ];
+  // Phrases que maman peut enregistrer (voix en darija)
+  const PHRASES = [
+    { id: 'bravo', e: '👏', fr: 'Bravo !' }, { id: 'ou', e: '❓', fr: 'Où est… ?' }, { id: 'attrape', e: '🏃', fr: 'Attrape… !' },
+    { id: 'cache', e: '🌳', fr: 'Où il s\'est caché ?' },
+    { id: 'papa', e: '👨', fr: 'Papa' }, { id: 'maman', e: '👩', fr: 'Maman' }, { id: 'enfant', e: '👶', fr: 'Son prénom' },
+    ...ANIMALS.map(a => ({ id: a.id, e: a.e, fr: a.fr })),
+  ];
+
+  const inApp = window.parent !== window;
+  const DEF = { name: '', mins: 10, speed: 1, voice: 'fr' };
+  let cfg = { ...DEF }, hostName = '';
+  try { cfg = { ...DEF, ...JSON.parse(localStorage.getItem('fennou') || '{}') }; } catch {}
+  if (cfg.voice === 1 || cfg.voice === '1') cfg.voice = 'fr';
+  const save = () => { try { localStorage.setItem('fennou', JSON.stringify(cfg)); } catch {} };
+  const kidName = () => cfg.name || hostName || 'mon champion';
+  let photos = {};
+  try { photos = JSON.parse(localStorage.getItem('fennou:photos') || '{}'); } catch {}
+  const photoImgs = {};
+  const loadPhotoImgs = () => { for (const f of FAMILY) { if (photos[f.id]) { const i = new Image(); i.src = photos[f.id]; photoImgs[f.id] = i; } else delete photoImgs[f.id]; } };
+  loadPhotoImgs();
+
+  const $ = id => document.getElementById(id);
+  const cv = $('game'), cx = cv.getContext('2d');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let W = 0, H = 0;
+  const topPad = () => parseFloat(getComputedStyle(document.body).paddingTop) || 0;
+  function resize() { const d = Math.min(devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight; cv.width = W * d; cv.height = H * d; cx.setTransform(d, 0, 0, d, 0, 0); }
+  addEventListener('resize', resize); resize();
+
+  // ── Voix de maman : IndexedDB (reste sur l'appareil) ──
+  const voices = {};
+  const idb = new Promise(res => { try { const r = indexedDB.open('fennou', 1); r.onupgradeneeded = () => r.result.createObjectStore('voices'); r.onsuccess = () => res(r.result); r.onerror = () => res(null); } catch { res(null); } });
+  const idbAll = async () => { const db = await idb; if (!db) return; await new Promise(res => { const tx = db.transaction('voices'); const st = tx.objectStore('voices'); const rq = st.openCursor(); rq.onsuccess = () => { const c = rq.result; if (c) { voices[c.key] = c.value; c.continue(); } else res(); }; rq.onerror = () => res(); }); };
+  const idbPut = async (k, v) => { const db = await idb; if (!db) return; const tx = db.transaction('voices', 'readwrite'); if (v) tx.objectStore('voices').put(v, k); else tx.objectStore('voices').delete(k); };
+  idbAll();
+
+  // ── Sons ──
+  let ac = null;
+  const audio = () => { try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume(); } catch {} return ac; };
+  function tone(f, t0, dur, type = 'sine', vol = .18, f2) {
+    const a = audio(); if (!a) return;
+    const o = a.createOscillator(), g = a.createGain(), t = a.currentTime + t0;
+    o.type = type; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .02); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + .05);
+  }
+  const sChime = () => [523, 659, 784, 1047].forEach((f, i) => tone(f, i * .09, .35, 'triangle', .16));
+  const sGiggle = () => [880, 990, 880, 1100, 990, 1320].forEach((f, i) => tone(f, i * .07, .1, 'sine', .12, f * 1.1));
+  const sPop = (k = 0) => tone(900 + k * 60, 0, .12, 'sine', .22, 300);
+  const sHop = () => tone(300, 0, .18, 'sine', .08, 520);
+  const sSoft = () => tone(440, 0, .25, 'sine', .07, 380);
+  const sRustle = () => { for (let i = 0; i < 5; i++) tone(200 + Math.random() * 200, i * .05, .08, 'triangle', .05); };
+
+  let frVoice = null;
+  const pickVoice = () => { try { const v = speechSynthesis.getVoices(); frVoice = v.find(x => /^fr/i.test(x.lang) && /amelie|audrey|marie|google/i.test(x.name)) || v.find(x => /^fr/i.test(x.lang)) || null; } catch {} };
+  try { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; } catch {}
+  let player = null, turn = 0;
+  function speakFr(text) { try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'fr-FR'; if (frVoice) u.voice = frVoice; u.rate = .88; u.pitch = 1.25; speechSynthesis.speak(u); } catch {} }
+  function playSeq(keys) {
+    try { speechSynthesis.cancel(); } catch {}
+    if (player) { player.pause(); player = null; }
+    const list = keys.filter(k => voices[k]);
+    const next = () => { const k = list.shift(); if (!k) return; player = new Audio(URL.createObjectURL(voices[k])); player.onended = next; player.play().catch(() => {}); };
+    next();
+  }
+  // say(fr, keys) : keys = phrases de maman à enchaîner (ex. ['ou', 'canard']) — utilisées si toutes enregistrées
+  function say(fr, keys = []) {
+    const mode = cfg.voice; if (mode === 'off') return;
+    const haveDz = keys.length && keys.every(k => voices[k]);
+    const useDz = haveDz && (mode === 'dz' || (mode === 'mix' && (turn++ % 2 === 1)));
+    if (useDz) playSeq(keys); else speakFr(fr);
+  }
+
+  // ── Effets ──
+  let parts = [];
+  function burst(x, y, n = 26, hearts = false) {
+    const cols = ['#f2c98a', '#8fe3c6', '#ff9db0', '#fdf6ea', '#9fc3ff'];
+    for (let i = 0; i < (reduce ? 8 : n); i++) { const a = Math.random() * 6.28, s = 2 + Math.random() * 5; parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 2, life: 1, c: hearts ? '#ff9db0' : cols[i % cols.length], r: 4 + Math.random() * 6, h: hearts }); }
+  }
+  function drawParts() {
+    parts = parts.filter(p => p.life > 0);
+    for (const p of parts) {
+      p.x += p.vx; p.y += p.vy; p.vy += .15; p.life -= .018; cx.globalAlpha = Math.max(p.life, 0); cx.fillStyle = p.c;
+      if (p.h) { cx.font = `${Math.round(p.r * 3)}px system-ui`; cx.textAlign = 'center'; cx.fillText('❤', p.x, p.y); } else star(p.x, p.y, p.r);
+    }
+    cx.globalAlpha = 1;
+  }
+  function star(x, y, r) { cx.beginPath(); for (let i = 0; i < 10; i++) { const a = i * Math.PI / 5 - Math.PI / 2, rr = i % 2 ? r * .45 : r; cx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } cx.fill(); }
+  const bgStars = Array.from({ length: 60 }, () => ({ x: Math.random(), y: Math.random(), r: Math.random() * 1.6 + .3, t: Math.random() * 6 }));
+  function drawBg(t) {
+    cx.clearRect(0, 0, W, H);
+    for (const s of bgStars) { cx.globalAlpha = .25 + .25 * Math.sin(t / 900 + s.t); cx.fillStyle = '#fdf6ea'; cx.beginPath(); cx.arc(s.x * W, s.y * H, s.r, 0, 6.28); cx.fill(); }
+    cx.globalAlpha = 1;
+  }
+  function title(text) {
+    const fs = Math.round(Math.min(W, H) * .055);
+    cx.fillStyle = '#f2c98a'; cx.font = `800 ${fs}px "Baloo 2", system-ui`; cx.textAlign = 'center'; cx.textBaseline = 'alphabetic';
+    cx.fillText(text, W / 2, 64 + fs + topPad());
+  }
+  const big = () => Math.min(W, H);
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const shuffle = a => [...a].sort(() => Math.random() - .5);
+  const praise = () => { const n = kidName(); const l = [`Bravo ${n} !`, 'Super !', `Bien joué ${n} !`, 'Encore une fois !', 'Tu es trop fort !']; return l[Math.floor(Math.random() * l.length)]; };
+  let wins = 0;
+  const win = () => { wins++; };
+
+  // ── Jeu : attrape le lapin ──
+  const bunny = { x: 0, y: 0, fx: 0, fy: 0, tx: 0, ty: 0, hopT: 0, hopDur: 900, next: 0, caught: 0, wiggle: 0, score: 0 };
+  function bunnyStart(t) { Object.assign(bunny, { x: W / 2, y: H * .6, fx: W / 2, fy: H * .6, tx: W / 2, ty: H * .6, hopT: t, next: t + 1200, caught: 0, score: 0 }); say(`Attrape le lapin, ${kidName()} !`, ['attrape']); }
+  function bunnyHop(t) {
+    const m = big() * .16;
+    bunny.fx = bunny.x; bunny.fy = bunny.y; bunny.tx = rnd(m, W - m); bunny.ty = rnd(Math.max(m + 70, H * .22), H - m);
+    const d = Math.hypot(bunny.tx - bunny.fx, bunny.ty - bunny.fy), maxD = big() * .45;
+    if (d > maxD) { bunny.tx = bunny.fx + (bunny.tx - bunny.fx) * maxD / d; bunny.ty = bunny.fy + (bunny.ty - bunny.fy) * maxD / d; }
+    bunny.hopT = t; bunny.hopDur = 900 / cfg.speed; bunny.next = t + bunny.hopDur + rnd(1400, 2600) / cfg.speed; sHop();
+  }
+  function bunnyFrame(t) {
+    let lift = 0;
+    if (bunny.caught) { if (t > bunny.caught + 1300) { bunny.caught = 0; bunnyHop(t); } } else if (t > bunny.next) bunnyHop(t);
+    const k = Math.min(1, (t - bunny.hopT) / bunny.hopDur), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    if (!bunny.caught) { bunny.x = bunny.fx + (bunny.tx - bunny.fx) * e; bunny.y = bunny.fy + (bunny.ty - bunny.fy) * e; lift = k < 1 ? Math.sin(k * Math.PI) * big() * .08 : 0; }
+    drawBunny(bunny.x, bunny.y, big() * .13, lift, t);
+    cx.font = `${Math.round(big() * .05)}px system-ui`; cx.textAlign = 'center';
+    cx.fillText('🥕'.repeat(Math.min(bunny.score, 10)), W / 2, H - 36);
+  }
+  function drawBunny(x, y, s, lift, t) {
+    const squish = bunny.caught ? 1 + .18 * Math.sin((t - bunny.caught) / 60) * Math.max(0, 1 - (t - bunny.caught) / 700) : 1;
+    const wig = bunny.wiggle > t ? Math.sin(t / 50) * .25 : Math.sin(t / 700) * .05;
+    cx.fillStyle = 'rgba(0,0,0,.28)'; cx.beginPath(); cx.ellipse(x, y + s * .95, s * (1 - lift / s * .3), s * .22, 0, 0, 6.28); cx.fill();
+    cx.save(); cx.translate(x, y - lift); cx.scale(squish, 2 - squish);
+    const fur = '#f4ede4', pink = '#ffb3c4';
+    for (const side of [-1, 1]) { cx.save(); cx.translate(side * s * .3, -s * .85); cx.rotate(side * (.18 + wig)); cx.fillStyle = fur; cx.beginPath(); cx.ellipse(0, -s * .45, s * .2, s * .55, 0, 0, 6.28); cx.fill(); cx.fillStyle = pink; cx.beginPath(); cx.ellipse(0, -s * .42, s * .1, s * .4, 0, 0, 6.28); cx.fill(); cx.restore(); }
+    cx.fillStyle = fur; cx.beginPath(); cx.ellipse(0, s * .35, s * .75, s * .6, 0, 0, 6.28); cx.fill();
+    cx.beginPath(); cx.arc(0, -s * .45, s * .55, 0, 6.28); cx.fill(); cx.beginPath(); cx.arc(s * .7, s * .5, s * .2, 0, 6.28); cx.fill();
+    cx.fillStyle = '#13213a'; cx.strokeStyle = '#13213a'; cx.lineWidth = s * .06; cx.lineCap = 'round';
+    for (const side of [-1, 1]) {
+      if (bunny.caught) { cx.beginPath(); cx.arc(side * s * .2, -s * .48, s * .08, Math.PI * 1.1, Math.PI * 1.9); cx.stroke(); }
+      else { cx.beginPath(); cx.arc(side * s * .2, -s * .5, s * .08, 0, 6.28); cx.fill(); cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(side * s * .2 + s * .03, -s * .53, s * .03, 0, 6.28); cx.fill(); cx.fillStyle = '#13213a'; }
+    }
+    cx.fillStyle = pink; cx.beginPath(); cx.ellipse(0, -s * .32, s * .07, s * .05, 0, 0, 6.28); cx.fill();
+    cx.globalAlpha = .45; for (const side of [-1, 1]) { cx.beginPath(); cx.arc(side * s * .34, -s * .28, s * .08, 0, 6.28); cx.fill(); } cx.globalAlpha = 1;
+    cx.restore();
+  }
+  function bunnyTap(x, y, t) {
+    if (bunny.caught) return;
+    const s = big() * .13;
+    if (Math.hypot(x - bunny.x, y - (bunny.y - s * .3)) < s * 1.5) { bunny.caught = t; bunny.score++; win(); bunny.fx = bunny.tx = bunny.x; bunny.fy = bunny.ty = bunny.y; burst(bunny.x, bunny.y - s * .3); sChime(); say(praise(), ['bravo']); }
+    else { bunny.wiggle = t + 600; sSoft(); }
+  }
+
+  // ── Jeu : où est… ? (2 animaux, 3 après 5 réussites) ──
+  const where = { items: [], target: null, wins: 0, done: 0, hint: 0 };
+  function whereRound() {
+    const n = where.wins >= 5 ? 3 : 2, pool = shuffle(ANIMALS).slice(0, n);
+    where.items = pool.map((a, i) => ({ a, slot: i, n })); where.target = pool[Math.floor(Math.random() * n)]; where.done = 0; where.hint = 0;
+    setTimeout(() => say(`Où est ${where.target.fr} ?`, ['ou', where.target.id]), 350);
+  }
+  function slotLayout(slot, n, scale = .26) {
+    const portrait = H > W;
+    return { x: portrait ? W / 2 : W * (slot + 1) / (n + 1), y: portrait ? H * (0.24 + 0.62 * (slot + .5) / n) : H * .56,
+      s: Math.min(big() * (n >= 3 ? scale * .78 : scale), portrait ? H / (n * 2.6) : W / (n * 2.4)) };
+  }
+  function whereFrame(t) {
+    if (where.target) title(where.done ? where.target.art : `Où est ${where.target.fr} ?`);
+    for (const it of where.items) {
+      const L = slotLayout(it.slot, it.n), isT = it.a === where.target;
+      let sc = 1, dy = 0;
+      if (where.done && isT) { sc = 1.15 + .05 * Math.sin(t / 120); dy = -Math.abs(Math.sin(t / 200)) * 12; }
+      if (where.done && !isT) cx.globalAlpha = .25;
+      if (!where.done && isT && where.hint > t) dy = -Math.abs(Math.sin(t / 90)) * 18;
+      cx.fillStyle = 'rgba(242,201,138,.10)'; cx.beginPath(); cx.arc(L.x, L.y, L.s * 1.05, 0, 6.28); cx.fill();
+      cx.font = `${Math.round(L.s * 1.25 * sc)}px system-ui`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(it.a.e, L.x, L.y + dy);
+      cx.textBaseline = 'alphabetic'; cx.globalAlpha = 1;
+    }
+  }
+  function whereTap(x, y, t) {
+    if (where.done) return;
+    for (const it of where.items) {
+      const L = slotLayout(it.slot, it.n);
+      if (Math.hypot(x - L.x, y - L.y) < L.s * 1.15) {
+        if (it.a === where.target) { where.done = 1; where.wins++; win(); burst(L.x, L.y, 34); sChime(); say(`${praise()} ${where.target.art}`, ['bravo', where.target.id]); setTimeout(() => { if (mode === 'where') whereRound(); }, 3200); }
+        else { where.hint = t + 1500; sSoft(); say(`C'est ${it.a.fr}. Où est ${where.target.fr} ?`, ['ou', where.target.id]); }
+        return;
+      }
+    }
+  }
+
+  // ── Jeu CERVEAU : cache-cache (permanence de l'objet + mémoire) ──
+  // L'animal se montre, file derrière un buisson, puis « où il s'est caché ? ». 2 buissons → 3 → les buissons bougent.
+  const hide = { level: 0, n: 2, bushes: [], animal: null, under: 0, phase: 'show', t0: 0, done: 0, wrong: -1, hint: 0 };
+  function hideRound(t) {
+    hide.n = hide.level >= 3 ? 3 : 2; hide.animal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
+    hide.under = Math.floor(Math.random() * hide.n); hide.bushes = Array.from({ length: hide.n }, (_, i) => ({ slot: i, from: i, to: i }));
+    hide.phase = 'show'; hide.t0 = t; hide.done = 0; hide.wrong = -1; hide.hint = 0;
+    say(`Regarde ${hide.animal.fr} !`, [hide.animal.id]);
+  }
+  const bushPos = (b, t) => {
+    const n = hide.n, a = slotLayout(b.from, n, .22), c = slotLayout(b.to, n, .22);
+    if (hide.phase !== 'swap') return { ...c, y: c.y + big() * .06 };
+    const k = Math.min(1, (t - hide.t0) / (1400 / cfg.speed)), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    return { x: a.x + (c.x - a.x) * e, y: a.y + (c.y - a.y) * e + big() * .06 - Math.sin(e * Math.PI) * big() * .08 * (b.from < b.to ? 1 : -1), s: a.s };
+  };
+  function hideFrame(t) {
+    const dt = t - hide.t0, sp = cfg.speed;
+    if (hide.phase === 'show' && dt > 1800 / sp) { hide.phase = 'go'; hide.t0 = t; sRustle(); }
+    else if (hide.phase === 'go' && dt > 1300 / sp) {
+      if (hide.level >= 6) { hide.phase = 'swap'; hide.t0 = t; const o = [...Array(hide.n).keys()], p = shuffle(o); if (p.every((v, i) => v === i)) p.reverse(); hide.bushes.forEach(b => { b.from = b.to; b.to = p[b.to]; }); }
+      else { hide.phase = 'ask'; hide.t0 = t; say('Où il s\'est caché ?', ['cache']); }
+    }
+    else if (hide.phase === 'swap' && dt > 1400 / sp) { hide.bushes.forEach(b => { b.from = b.to; }); hide.phase = 'ask'; hide.t0 = t; say('Où il s\'est caché ?', ['cache']); }
+    title(hide.phase === 'show' ? `Regarde ${hide.animal.fr} !` : hide.done ? `Trouvé ! ${hide.animal.e}` : hide.phase === 'ask' ? 'Où il s\'est caché ?' : 'Il se cache…');
+    const target = hide.bushes.find(b => b.slot === hide.under);
+    const tp = bushPos(target, t);
+    // l'animal : visible au départ, glisse dans son buisson, ressort quand on le trouve
+    if (hide.phase === 'show' || hide.phase === 'go' || hide.done) {
+      let ax = tp.x, ay = tp.y - big() * .2, sc = 1;
+      if (hide.phase === 'show') { ax = W / 2; ay = H * .2 + Math.sin(t / 200) * 6; }
+      if (hide.phase === 'go') { const k = Math.min(1, dt / (1300 / sp)); ax = W / 2 + (tp.x - W / 2) * k; ay = H * .2 + (tp.y - H * .2) * k; sc = 1 - k * .5; }
+      if (hide.done) { ay = tp.y - big() * .16 - Math.abs(Math.sin(t / 180)) * 14; sc = 1.1; }
+      cx.font = `${Math.round(big() * .2 * sc)}px system-ui`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(hide.animal.e, ax, ay); cx.textBaseline = 'alphabetic';
+    }
+    for (const b of hide.bushes) {
+      const p = bushPos(b, t);
+      let dx = 0;
+      if (hide.wrong === b.slot && hide.hint > t) dx = Math.sin(t / 40) * 6;
+      const peek = !hide.done && b.slot === hide.under && hide.hint > t;
+      if (peek) { cx.font = `${Math.round(p.s * .7)}px system-ui`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(hide.animal.e, p.x, p.y - p.s * .75 - Math.abs(Math.sin(t / 150)) * 8); cx.textBaseline = 'alphabetic'; }
+      drawBush(p.x + dx, p.y, p.s, b.slot === hide.under && hide.done);
+    }
+  }
+  function drawBush(x, y, s, open) {
+    cx.fillStyle = 'rgba(0,0,0,.25)'; cx.beginPath(); cx.ellipse(x, y + s * .62, s * 1.05, s * .2, 0, 0, 6.28); cx.fill();
+    const g = ['#2f8f5b', '#3fae6e', '#56c482'];
+    const blobs = [[-.55, .15, .5], [.55, .15, .5], [0, -.2, .62], [-.3, -.35, .4], [.3, -.35, .4], [0, .25, .55]];
+    blobs.forEach(([bx, by, r], i) => { cx.fillStyle = g[i % 3]; cx.beginPath(); cx.arc(x + bx * s, y + by * s + (open ? s * .35 : 0), r * s, 0, 6.28); cx.fill(); });
+    cx.fillStyle = '#ff9db0'; [[-.4, -.1], [.35, .05], [0, -.45]].forEach(([bx, by]) => { cx.beginPath(); cx.arc(x + bx * s, y + by * s + (open ? s * .35 : 0), s * .07, 0, 6.28); cx.fill(); });
+  }
+  function hideTap(x, y, t) {
+    if (hide.phase !== 'ask' || hide.done) return;
+    for (const b of hide.bushes) {
+      const p = bushPos(b, t);
+      if (Math.hypot(x - p.x, y - p.y) < p.s * 1.1) {
+        if (b.slot === hide.under) { hide.done = 1; hide.level++; win(); burst(p.x, p.y - p.s * .5, 30); sChime(); say(`${praise()} ${hide.animal.art}`, ['bravo', hide.animal.id]); setTimeout(() => { if (mode === 'hide') hideRound(performance.now()); }, 3000); }
+        else { hide.wrong = b.slot; hide.hint = t + 1600; sRustle(); say('Pas ici… regarde bien !', ['cache']); }
+        return;
+      }
+    }
+  }
+
+  // ── Jeu FAMILLE : « Où est papa ? » puis « Attrape-moi ! » (papa et maman le poursuivent aussi) ──
+  const fam = { phase: 'where', target: null, done: 0, hint: 0, rounds: 0, chase: null, chaseEnd: 0 };
+  const famLabel = f => f.id === 'enfant' ? kidName() : f.fr;
+  const famSlot = i => H > W
+    ? { x: [W * .28, W * .72, W * .5][i], y: [H * .36, H * .36, H * .66][i], s: Math.min(W * .2, H * .12) }
+    : { x: W * (i + 1) / 4, y: H * .56, s: Math.min(W * .1, H * .2) };
+  function drawFace(f, x, y, r, glow) {
+    cx.save();
+    if (glow) { cx.shadowColor = f.ring; cx.shadowBlur = 30; }
+    cx.fillStyle = f.ring; cx.beginPath(); cx.arc(x, y, r + 6, 0, 6.28); cx.fill();
+    cx.shadowBlur = 0;
+    const img = photoImgs[f.id];
+    cx.beginPath(); cx.arc(x, y, r, 0, 6.28); cx.closePath();
+    if (img && img.complete && img.naturalWidth) { cx.save(); cx.clip(); cx.drawImage(img, x - r, y - r, r * 2, r * 2); cx.restore(); }
+    else { cx.fillStyle = '#1c3053'; cx.fill(); cx.font = `${Math.round(r * 1.2)}px system-ui`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(f.e, x, y + r * .05); cx.textBaseline = 'alphabetic'; }
+    cx.font = `800 ${Math.round(Math.max(14, r * .32))}px "Baloo 2", system-ui`; cx.fillStyle = '#fdf6ea'; cx.textAlign = 'center';
+    cx.fillText(famLabel(f), x, y + r + 6 + Math.max(16, r * .36));
+    cx.restore();
+  }
+  function famWhere() {
+    fam.phase = 'where'; fam.done = 0; fam.hint = 0;
+    fam.order = shuffle(FAMILY); fam.target = fam.order[Math.floor(Math.random() * 3)];
+    setTimeout(() => say(`Où est ${famLabel(fam.target)} ?`, ['ou', fam.target.id]), 350);
+  }
+  function famChase(t) {
+    fam.phase = 'chase'; fam.chaseEnd = t + 25000;
+    const r = big() * .11;
+    const start = [[W * .12, H * .88], [W * .88, H * .88], [W / 2, H * .45]];
+    fam.chase = FAMILY.map((f, i) => ({ f, x: start[i][0], y: start[i][1], vx: 0, vy: 0, r: f.id === 'enfant' ? r * 1.1 : r * .9, caught: 0 }));
+    fam.goal = { x: W / 2, y: H / 2, next: 0 };
+    say(`Attrape ${kidName()} !`, ['attrape', 'enfant']);
+  }
+  function famStart(t) { fam.rounds = 0; famWhere(); void t; }
+  function famFrame(t) {
+    if (fam.phase === 'where') {
+      title(fam.done ? `${famLabel(fam.target)} ! 💛` : `Où est ${famLabel(fam.target)} ?`);
+      fam.order.forEach((f, i) => {
+        const L = famSlot(i); let dy = 0, glow = false;
+        if (fam.done && f === fam.target) { dy = -Math.abs(Math.sin(t / 180)) * 14; glow = true; }
+        if (!fam.done && f === fam.target && fam.hint > t) dy = -Math.abs(Math.sin(t / 90)) * 16;
+        if (fam.done && f !== fam.target) cx.globalAlpha = .3;
+        drawFace(f, L.x, L.y + dy, L.s, glow); cx.globalAlpha = 1;
+      });
+      return;
+    }
+    // poursuite : l'enfant se promène, papa et maman le suivent doucement
+    const kid = fam.chase[2], sp = cfg.speed;
+    title(kid.caught ? 'Attrapé ! Bisou ! 😘' : `Attrape ${kidName()} !`);
+    if (t > fam.goal.next) { const m = big() * .14; fam.goal = { x: rnd(m, W - m), y: rnd(Math.max(H * .3, m + 90), H - m), next: t + rnd(1800, 3000) / sp }; }
+    if (!kid.caught) {
+      kid.vx += ((fam.goal.x - kid.x) * .0009 - kid.vx * .06) * sp; kid.vy += ((fam.goal.y - kid.y) * .0009 - kid.vy * .06) * sp;
+      kid.x += kid.vx; kid.y += kid.vy;
+      for (const c of fam.chase.slice(0, 2)) {
+        const d = Math.hypot(kid.x - c.x, kid.y - c.y) || 1, v = .6 * sp;   // lents : c'est lui qui doit attraper le petit en premier
+        c.x += (kid.x - c.x) / d * v; c.y += (kid.y - c.y) / d * v;
+        if (d < c.r + kid.r * .6) { kid.caught = t; burst(kid.x, kid.y, 24, true); sGiggle(); say(`${c.f.fr === 'papa' ? 'Papa' : 'Maman'} a attrapé ${kidName()} ! Bisou !`, [c.f.id]); }
+      }
+    } else if (t > kid.caught + 2200) {
+      kid.caught = 0; fam.chase[0].x = W * .12; fam.chase[1].x = W * .88; fam.chase[0].y = fam.chase[1].y = H * .88;
+    }
+    const wob = (c) => Math.sin(t / 160 + c.x * .01) * 4;
+    for (const c of fam.chase) drawFace(c.f, c.x, c.y + wob(c), c.r, c === kid && !!kid.caught);
+    if (t > fam.chaseEnd && !kid.caught) { fam.rounds = 0; famWhere(); }
+  }
+  function famTap(x, y, t) {
+    if (fam.phase === 'where') {
+      if (fam.done) return;
+      fam.order.forEach((f, i) => {
+        const L = famSlot(i);
+        if (Math.hypot(x - L.x, y - L.y) < L.s * 1.3) {
+          if (f === fam.target) {
+            fam.done = 1; fam.rounds++; win(); burst(L.x, L.y, 30, true); sChime(); say(`${praise()} C'est ${famLabel(f)} !`, ['bravo', f.id]);
+            setTimeout(() => { if (mode !== 'family') return; if (fam.rounds >= 3) famChase(performance.now()); else famWhere(); }, 2600);
+          } else { fam.hint = t + 1500; sSoft(); say(`C'est ${famLabel(f)}. Où est ${famLabel(fam.target)} ?`, ['ou', fam.target.id]); }
+        }
+      });
+      return;
+    }
+    const kid = fam.chase[2];
+    if (!kid.caught && Math.hypot(x - kid.x, y - kid.y) < kid.r * 1.4) { kid.caught = t; win(); burst(kid.x, kid.y, 30, true); sGiggle(); say(`Tu m'as attrapé ! ${praise()}`, ['bravo', 'enfant']); }
+    else for (const c of fam.chase.slice(0, 2)) if (Math.hypot(x - c.x, y - c.y) < c.r * 1.3) { sSoft(); say(`C'est ${c.f.fr} ! Attrape ${kidName()} !`, [c.f.id, 'attrape', 'enfant']); }
+  }
+
+  // ── Jeu : les bulles ──
+  let bubbles = [], popped = 0, lastSpawn = 0;
+  function bubblesFrame(t) {
+    if (t - lastSpawn > 900 / cfg.speed && bubbles.length < 7) { lastSpawn = t; bubbles.push({ x: rnd(W * .12, W * .88), y: H + 60, r: rnd(.07, .11) * big(), v: rnd(.5, 1) * cfg.speed, ph: Math.random() * 6, hue: Math.floor(rnd(0, 4)) }); }
+    const cols = ['143,227,198', '255,157,176', '159,195,255', '242,201,138'];
+    bubbles = bubbles.filter(b => b.y > -b.r * 2);
+    for (const b of bubbles) {
+      b.y -= b.v; const x = b.x + Math.sin(t / 700 + b.ph) * 18;
+      const g = cx.createRadialGradient(x - b.r * .35, b.y - b.r * .35, b.r * .1, x, b.y, b.r);
+      g.addColorStop(0, 'rgba(255,255,255,.55)'); g.addColorStop(.6, `rgba(${cols[b.hue]},.18)`); g.addColorStop(1, `rgba(${cols[b.hue]},.55)`);
+      cx.fillStyle = g; cx.beginPath(); cx.arc(x, b.y, b.r, 0, 6.28); cx.fill(); b.cx = x;
+    }
+  }
+  function bubblesTap(x, y) {
+    for (let i = bubbles.length - 1; i >= 0; i--) {
+      const b = bubbles[i];
+      if (Math.hypot(x - b.cx, y - b.y) < b.r * 1.3) { bubbles.splice(i, 1); popped++; win(); burst(b.cx, b.y, 12); sPop(popped % 8); if (popped % 6 === 0) say(praise(), ['bravo']); return; }
+    }
+  }
+
+  // ── Boucle + séance limitée ──
+  const NAMES = { bunny: 'Attrape le lapin', where: 'Où est… ?', hide: 'Cache-cache', family: 'Ma famille', bubbles: 'Les bulles' };
+  let mode = null, sessionEnd = 0, sessionStart = 0, wake = null;
+  function loop(t) {
+    if (!mode) return;
+    drawBg(t);
+    ({ bunny: bunnyFrame, where: whereFrame, hide: hideFrame, family: famFrame, bubbles: bubblesFrame })[mode](t);
+    drawParts();
+    if (performance.now() > sessionEnd) return endSession();
+    requestAnimationFrame(loop);
+  }
+  async function start(m) {
+    audio(); mode = m; wins = 0; $('menu').hidden = true; $('home-btn').hidden = false;
+    sessionStart = performance.now(); sessionEnd = sessionStart + Math.max(2, +cfg.mins || 10) * 60000;
+    try { wake = await navigator.wakeLock?.request('screen'); } catch {}
+    parts = []; const t = performance.now();
+    if (m === 'bunny') bunnyStart(t); else if (m === 'where') { where.wins = 0; whereRound(); } else if (m === 'hide') { hide.level = 0; hideRound(t); }
+    else if (m === 'family') famStart(t); else { bubbles = []; popped = 0; say('Éclate les bulles !'); }
+    requestAnimationFrame(loop);
+  }
+  function stop() {
+    if (mode && inApp) {
+      const min = (performance.now() - sessionStart) / 60000;
+      if (min >= .5) parent.postMessage({ type: 'fennou:session', game: NAMES[mode], minutes: Math.max(1, Math.round(min)), wins }, '*');
+    }
+    mode = null; try { speechSynthesis.cancel(); } catch {} if (player) { player.pause(); player = null; }
+    try { wake?.release(); } catch {} wake = null; cx.clearRect(0, 0, W, H); $('home-btn').hidden = true;
+  }
+  function endSession() { stop(); $('pause-title').textContent = `Bravo ${kidName()} !`; $('pause').hidden = false; say(`Bravo ${kidName()} ! Fennou va faire dodo.`, ['bravo', 'enfant']); }
+
+  cv.addEventListener('pointerdown', e => {
+    if (!mode) return; const t = performance.now(), x = e.clientX, y = e.clientY;
+    ({ bunny: bunnyTap, where: whereTap, hide: hideTap, family: famTap, bubbles: bubblesTap })[mode](x, y, t);
+  });
+  document.querySelectorAll('.tile').forEach(b => b.addEventListener('click', () => start(b.dataset.game)));
+  $('home-btn').addEventListener('click', () => { stop(); $('menu').hidden = false; });
+  $('pause-ok').addEventListener('click', () => { $('pause').hidden = true; $('menu').hidden = false; });
+
+  // ── Coin parents : appui long de 2 s ──
+  const pb = $('parent-btn'), fill = pb.querySelector('.fill'); let holdT = null;
+  const holdStart = e => { e.preventDefault(); fill.style.transition = 'transform 2s linear'; fill.style.transform = 'scaleX(1)'; holdT = setTimeout(openParents, 2000); };
+  const holdEnd = () => { clearTimeout(holdT); fill.style.transition = 'transform .2s'; fill.style.transform = 'scaleX(0)'; };
+  pb.addEventListener('pointerdown', holdStart); ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => pb.addEventListener(ev, holdEnd));
+  pb.addEventListener('keydown', e => { if (e.key === 'Enter') openParents(); });
+  $('p-quit').hidden = !inApp;
+
+  let rec = null;
+  function renderVoices() {
+    const box = $('p-voices'); box.innerHTML = '';
+    for (const p of PHRASES) {
+      const row = document.createElement('div'); row.className = 'row';
+      const label = p.id === 'enfant' ? `Son prénom (${kidName()})` : p.fr;
+      row.innerHTML = `<span class="e" aria-hidden="true">${p.e}</span><span>${label}</span><button class="mini ${voices[p.id] ? 'has' : ''}" data-act="rec">🎙️</button><button class="mini" data-act="play" ${voices[p.id] ? '' : 'disabled style="opacity:.35"'}>▶️</button>`;
+      row.querySelector('[data-act=rec]').addEventListener('click', ev => toggleRec(p.id, ev.currentTarget));
+      row.querySelector('[data-act=play]').addEventListener('click', () => { audio(); playSeq([p.id]); });
+      box.appendChild(row);
+    }
+  }
+  async function toggleRec(id, btn) {
+    if (rec) { const was = rec.id; rec.r.stop(); if (was === id) return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const r = new MediaRecorder(stream), chunks = [];
+      r.ondataavailable = e => e.data.size && chunks.push(e.data);
+      r.onstop = async () => { stream.getTracks().forEach(tr => tr.stop()); const blob = new Blob(chunks, { type: r.mimeType || 'audio/mp4' }); if (blob.size > 800) { voices[id] = blob; await idbPut(id, blob); } rec = null; renderVoices(); };
+      rec = { r, id }; r.start(); btn.textContent = '⏹️'; btn.classList.add('rec');
+      setTimeout(() => { if (rec && rec.r === r) r.stop(); }, 6000);   // 6 s max par phrase
+    } catch { btn.textContent = '🚫'; setTimeout(renderVoices, 1500); }
+  }
+  function renderPhotos() {
+    const box = $('p-photos'); box.innerHTML = '';
+    for (const f of FAMILY) {
+      const d = document.createElement('div'); d.className = 'ph';
+      d.innerHTML = `<label for="ph-${f.id}" style="${photos[f.id] ? `background-image:url(${photos[f.id]})` : ''}">${photos[f.id] ? '' : f.e}</label><input type="file" accept="image/*" id="ph-${f.id}"><span>${f.id === 'enfant' ? kidName() : f.fr}</span>`;
+      d.querySelector('input').addEventListener('change', e => { const file = e.target.files && e.target.files[0]; if (file) setPhoto(f.id, file); });
+      box.appendChild(d);
+    }
+  }
+  function setPhoto(id, file) {
+    const img = new Image();
+    img.onload = () => {
+      const S = 240, c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d');
+      const m = Math.min(img.width, img.height); g.drawImage(img, (img.width - m) / 2, (img.height - m) / 2.6, m, m, 0, 0, S, S);
+      photos[id] = c.toDataURL('image/jpeg', .82);
+      try { localStorage.setItem('fennou:photos', JSON.stringify(photos)); } catch {}
+      URL.revokeObjectURL(img.src); loadPhotoImgs(); renderPhotos();
+    };
+    img.src = URL.createObjectURL(file);
+  }
+  function openParents() {
+    holdEnd(); stop(); ['menu', 'pause'].forEach(id => $(id).hidden = true); $('parents').hidden = false; pb.hidden = true;
+    $('p-name').value = cfg.name || hostName; $('p-mins').value = cfg.mins; $('p-speed').value = String(cfg.speed); $('p-voice').value = cfg.voice;
+    renderPhotos(); renderVoices();
+  }
+  function closeParents() {
+    if (rec) rec.r.stop();
+    const n = $('p-name').value.trim(); cfg.name = n && n !== hostName ? n : '';
+    cfg.mins = Math.min(20, Math.max(2, +$('p-mins').value || 10)); cfg.speed = +$('p-speed').value; cfg.voice = $('p-voice').value;
+    save(); greet(); $('parents').hidden = true; $('menu').hidden = false; pb.hidden = false;
+  }
+  $('p-save').addEventListener('click', closeParents);
+  $('p-quit').addEventListener('click', () => { closeParents(); parent.postMessage({ type: 'fennou:exit' }, '*'); });
+
+  const greet = () => { $('hi').textContent = `Salam ${kidName()} !`; };
+  addEventListener('message', e => {
+    if (e.source !== parent || !e.data || e.data.type !== 'fennou:profile') return;
+    hostName = String(e.data.name || '').slice(0, 30); greet();
+  });
+  if (inApp) parent.postMessage({ type: 'fennou:ready' }, '*');
+  greet();
+})();
+</script>
+</body>
+</html>

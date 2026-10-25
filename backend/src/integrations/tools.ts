@@ -2876,6 +2876,19 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
   {
+    name: 'papa_time',
+    description: "TEMPS AVEC SON FILS (privé, Kouider seulement). Son fils a son compagnon de jeu « Fennou » (page FENNOU de l'app) et Dzaryx lui rappelle de passer du temps avec lui. action='log' + minutes + what (ce qu'ils ont fait) + who ('papa' défaut, 'maman') : « j'ai joué avec le petit », « on est allés au parc » ; now=true s'il dit qu'il joue AVEC LUI MAINTENANT → aucun dérangement pendant ce temps. 'status' : la semaine (parties de Fennou, moments notés, ce qu'il aime). 'idea' (+ outside=true pour une sortie) : une idée d'activité sans écran adaptée à son âge. 'profile' + like (« il adore les dinosaures ») / name / born (AAAA-MM) : ce que Fennou sait de lui.",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action: { type: 'string', enum: ['log', 'status', 'idea', 'profile'] },
+        minutes: { type: 'number' }, what: { type: 'string' }, who: { type: 'string', enum: ['papa', 'maman'] },
+        now: { type: 'boolean' }, outside: { type: 'boolean' }, like: { type: 'string' }, name: { type: 'string' }, born: { type: 'string' },
+      },
+      required: ['action'],
+    },
+  },
+  {
     name: 'gps_assistant',
     description: "Son ASSISTANT GPS (Kouider seulement) : Dzaryx voit sa position en direct (partagée sur Telegram) et agit tout seul — départ de la maison → « tu vas où ? » (s'il répond, il est seul), salle en avance → « tu y es ? » puis séance validée + agenda avancé + rappel annulé, arrivée au travail, retour le soir, brief du matin. action='status' : où il est, depuis quand, distances et temps de route vers maison/salle/travail, prochain RDV, s'il a dit être seul (« je suis où ? », « tu me vois ? »). 'eta' + destination (adresse, lieu, « salle », « maison », « travail ») : temps de route avec le trafic depuis sa position + heure d'arrivée + Waze (« j'arrive à quelle heure chez Houari ? »). 'nearby' + query : lieux autour de lui (station essence, pharmacie, café, garage, lavage auto…). 'brief' : le BRIEF DU MATIN (hier, aujourd'hui, mails, WhatsApp, visites du site, conseils) — « fais mon récap », « brief », « résumé de ma journée » ; sans mode tu reçois le brief et tu le lui donnes (pendant un appel : la version orale) ; mode='call' s'il veut que tu l'appelles, 'write' pour l'envoyer à part sur Telegram ; refresh=true pour le refaire. 'playlist' (+ for, + query = artiste(s) qu'il demande, ex. « Khaled, Soolking ») : VRAIES playlists Apple Music (les indispensables de l'artiste, boutique belge : le lien ouvre directement la playlist) envoyées sur Telegram — pour TOUTE demande de musique / playlist, utilise cette action, jamais un lien de recherche ni « ouvre Apple Music ». 'music' + artists[] : ajouter des artistes à ses goûts (replace=true pour remplacer). 'settings' : enabled / leave_ask / brief true/false.",
     input_schema: {

@@ -38,6 +38,7 @@ import {
 } from './jobs/proactive-jobs.js';
 import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { jobClientSites } from '../integrations/client-sites.js';
+import { jobPapaTime, jobPapaWeekly } from '../integrations/papa-time.js';
 import { runDailyOutreach, checkProspectReplies, checkProspectVisits, sendWeeklyReport } from '../integrations/prospect-autopilot.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { flushAutoCalls } from '../notifications/auto-call.js';
@@ -321,6 +322,16 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'papa-time',
+    cron:  '30 9,18 * * *',         // 9h30 jour off : idée de sortie avec le petit ; 18h30 : rien depuis 2 jours → petit rappel
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'papa-weekly',
+    cron:  '30 18 * * 0',           // dimanche 18h30 — la semaine du petit (jeux Fennou, moments avec papa)
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'life-coach-weekly',
     cron:  '0 18 * * 0',            // dimanche 18h — coach : bilan de la semaine au téléphone
     tz:    'Europe/Brussels',
@@ -542,6 +553,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'sport-watch':             async () => { await (await import('../integrations/sport-coach.js')).jobSportWatch(); await (await import('../integrations/life-coach.js')).ensureCoachDays(); },
   'life-coach-evening':      jobLifeCoachEvening,
   'life-coach-weekly':       jobLifeCoachWeekly,
+  'papa-time':               async () => { console.log(`[papa-time] ${await jobPapaTime()}`); },
+  'papa-weekly':             async () => { await jobPapaWeekly(); },
   'kouider-dossier':         async () => { console.log(`[kouider-dossier] ${await jobKouiderDossier()}`); },
   'season-watch':            async () => { console.log(`[season-watch] ${await jobSeasonWatch()}`); },
   'cloud-watch':             async () => { console.log(`[cloud-watch] ${await jobCloudWatch()}`); },

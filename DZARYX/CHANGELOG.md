@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-25 — FENNOU : le compagnon de jeu du petit + rappels « temps avec le petit »
+
+- App : page **FENNOU** (menu ⋯ Plus, Kouider) → `public/fennou.html` ouvert par-dessus toute l'app (pas de barre du bas, pas d'accès au business). 5 jeux : Ma famille (où est papa/maman + « attrape-moi », photos gardées sur l'appareil), Cache-cache (mémoire, s'adapte : 2 → 3 buissons → buissons qui bougent), Attrape le lapin, Où est… ?, Les bulles. Coin parents par appui long de 2 s : durée (10 min conseillé), vitesse, photos, **voix de maman** (enregistrements darija dans IndexedDB, joués à la place de la voix française), « Quitter Fennou ». App v176.
+- Backend : `integrations/papa-time.ts` + outil `papa_time` (log / status / idea / profile) ; `/api/kid/profile` et `/api/kid/session` (chaque partie notée) ; jobs `papa-time` (9h30 jour off : idée de sortie ; 18h30 : rien depuis 2 jours → rappel) et `papa-weekly` (dimanche 18h30, bilan) ; « bien rentré » propose 15 min avec lui + une idée sans écran. Prénom, goûts et journal UNIQUEMENT dans app_kv (`kouider:kid:*`), jamais dans le code.
+
 ## 2026-10-25 — Réponse STOP : traitée en 10 min max + message Telegram
 
 - `queue/scheduler.ts` : `prospect-replies` toutes les 10 min (au lieu de 30) de 7h à 22h → un STOP est mis en « Pas intéressé » avant que Kouider le voie.
