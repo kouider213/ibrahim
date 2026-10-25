@@ -432,9 +432,26 @@ export async function generateWeek(uid: Uid = 'kouider', monday = localNow().dat
   // Jamais deux fois le même repas : un doublon prend une recette pas encore servie
   const seen = new Set<string>();
   const spare = recipes.map(r => r.id).filter(id => !days.some(d => d.meals.some(m => m.recipe === id)));
+  const dupSlots: Array<{ date: string; slot: string; m: { recipe: string } }> = [];
   for (const d of days) for (const m of d.meals) {
-    if (seen.has(m.recipe) && spare.length) m.recipe = spare.shift()!;
+    if (seen.has(m.recipe)) { if (spare.length) m.recipe = spare.shift()!; else dupSlots.push({ date: d.date, slot: m.slot, m }); }
     seen.add(m.recipe);
+  }
+  // Pas assez de recettes : on en redemande juste pour les repas en double (jamais 2 fois le même plat)
+  if (dupSlots.length) {
+    const more = await createAnthropic().messages.stream({ model: 'claude-sonnet-5-5', max_tokens: 16_000,
+      system: `Tu complètes une semaine de repas. ${rules(p)}\nCrée EXACTEMENT ${dupSlots.length} recettes NOUVELLES, toutes différentes entre elles et de celles déjà prévues. Réponds UNIQUEMENT en JSON : {"recipes":[{"slot":"…","title","photoQuery","minutes","kcal","p","c","f","tags":[],"ingredients":[{"name","qty"}],"steps":[],"tip"}]} dans l'ordre des repas demandés (4 à 8 ingrédients, 3 à 4 étapes).`,
+      messages: [{ role: 'user', content: `Repas à remplir : ${dupSlots.map(x => `${x.date} ${x.slot}`).join(' ; ')}.\nDéjà prévues (interdit de les refaire) : ${recipes.map(r => r.title).join(' ; ')}.\nCibles/jour : ${t.kcal} kcal, ${t.p} g protéines.` }] }, QUALITY).finalMessage();
+    const extra = jsonOf<{ recipes?: Array<Partial<Recipe> & { photoQuery?: string }> }>(textOf(more)).recipes ?? [];
+    const n = (v: unknown) => Math.max(0, Math.round(Number(v) || 0));
+    dupSlots.forEach((slot, i) => {
+      const r = extra[i]; if (!r?.title) return;
+      const ph = photoFor(cat, { photoQuery: r.photoQuery, title: r.title });
+      const id = `x${i + 1}`;
+      recipes.push({ id, title: String(r.title).slice(0, 90), photo: ph.photo, mealDbId: ph.id, minutes: n(r.minutes) || 20, kcal: n(r.kcal), p: n(r.p), c: n(r.c), f: n(r.f),
+        tags: (r.tags ?? []).map(String).slice(0, 4), ingredients: (r.ingredients ?? []).slice(0, 16).map(x => ({ name: String(x.name), qty: String(x.qty ?? '') })), steps: (r.steps ?? []).map(String).slice(0, 8), tip: String(r.tip ?? '').slice(0, 160) });
+      slot.m.recipe = id;
+    });
   }
   // name = nom français (sert à fusionner les deux listes du foyer) ; label = nom affiché dans sa langue
   const shopping: ShopItem[] = (j.shopping ?? []).filter(s => s.name).slice(0, 60).map(s => ({
