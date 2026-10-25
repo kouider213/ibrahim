@@ -7,7 +7,7 @@ import {
   type FormeProfile, type BodyPhoto, type Uid,
 } from '../../integrations/forme.js';
 import type { PushSubscription } from 'web-push';
-import { gamesBoard, submitScore, roomAction, roomPeek } from '../../integrations/couple-games.js';
+import { gamesBoard, submitScore, roomAction, roomPeek, getIsland, islandAction } from '../../integrations/couple-games.js';
 
 // App « FORME » (sport + nutrition + suivi du corps) : page de l'app Dzaryx et appli à part sur l'écran d'accueil.
 // Deux profils : Kouider (session Dzaryx) et sa femme (lien d'invitation → en-tête x-forme-token, valable ICI seulement).
@@ -126,6 +126,8 @@ router.post('/games/score', async (req, res) => {
   const b = req.body as { game?: string; score?: number; date?: string };
   try { res.json(await submitScore(U(req), String(b.game ?? ''), Number(b.score ?? 0), b.date)); } catch (err) { fail(res, err, 400); }
 });
+router.get('/games/island', async (_req, res) => { try { res.json(await getIsland()); } catch (err) { fail(res, err); } });
+router.post('/games/island', async (req, res) => { try { res.json(await islandAction(U(req), (req.body ?? {}) as Record<string, unknown>)); } catch (err) { fail(res, err, 400); } });
 router.get('/games/room', (req, res) => { res.json(roomPeek(U(req))); });
 router.post('/games/room', async (req, res) => {
   try { res.json(await roomAction(U(req), (req.body ?? {}) as Record<string, unknown>)); } catch (err) { fail(res, err); }

@@ -6,8 +6,8 @@ import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 // pour jouer à deux en direct (chacun sur son téléphone, même piste / même image, positions échangées toutes les ~250 ms).
 // La salle vit en mémoire (2 joueurs seulement, rien d'important à garder si le serveur redémarre).
 
-export type GameId = 'rush' | 'oeil:facile' | 'oeil:normal' | 'oeil:difficile' | 'oeil:daily';
-const GAMES: GameId[] = ['rush', 'oeil:facile', 'oeil:normal', 'oeil:difficile', 'oeil:daily'];
+export type GameId = 'rush' | 'oeil:facile' | 'oeil:normal' | 'oeil:difficile' | 'oeil:daily' | 'gardiens' | 'resto';
+const GAMES: GameId[] = ['rush', 'oeil:facile', 'oeil:normal', 'oeil:difficile', 'oeil:daily', 'gardiens', 'resto'];
 const BOARD_KEY = 'games:board';
 const MAX_SCORE = 50_000_000;
 
@@ -48,7 +48,7 @@ export async function submitScore(uid: Uid, game: string, score: number, date?: 
   await kvSet(BOARD_KEY, JSON.stringify(b));
   if (beat && uid === 'femme') {
     const n = await playerNames();
-    const label = g === 'rush' ? 'RUSH' : `L'ŒIL (${g.split(':')[1]})`;
+    const label = g === 'rush' ? 'RUSH' : g === 'gardiens' ? 'LES GARDIENS' : g === 'resto' ? 'LE RESTO EN FOLIE' : `L'ŒIL (${g.split(':')[1]})`;
     await queueTelegramMessage(`🎮 ${n.femme} vient de battre ton record à ${label} : ${s.toLocaleString('fr-FR')} (toi : ${(theirs?.best ?? 0).toLocaleString('fr-FR')}). À toi de jouer 😏`, undefined, 'kouider', undefined, true).catch(() => {});
   }
   return { record, beat, best: mine.best, board: b };
@@ -57,8 +57,9 @@ export async function submitScore(uid: Uid, game: string, score: number, date?: 
 // ── Salle à deux (en direct) ─────────────────────────────────────────────────
 export interface RoomPlayer { ready: boolean; seen: number; state: Record<string, unknown> | null; done: boolean; score: number }
 export interface Room {
-  id: string; game: 'rush' | 'oeil'; seed: number; mode: string; host: Uid; createdAt: number;
+  id: string; game: 'rush' | 'oeil' | 'gardiens' | 'resto'; seed: number; mode: string; host: Uid; createdAt: number;
   players: Partial<Record<Uid, RoomPlayer>>; startAt: number | null; claims: Record<string, Uid>; ended: boolean;
+  events?: Array<{ from: Uid; at: number; ev: Record<string, unknown> }>;
 }
 let room: Room | null = null;
 const ROOM_TTL = 15 * 60_000;
@@ -79,14 +80,14 @@ export async function roomAction(uid: Uid, body: Record<string, unknown>) {
   const r = alive();
   const p = (u: Uid): RoomPlayer => (r!.players[u] ??= { ready: false, seen: now, state: null, done: false, score: 0 });
   if (action === 'invite') {
-    const game = body.game === 'oeil' ? 'oeil' : 'rush';
+    const game = body.game === 'oeil' ? 'oeil' : body.game === 'gardiens' ? 'gardiens' : body.game === 'resto' ? 'resto' : 'rush';
     room = {
       id: Math.random().toString(36).slice(2, 8), game, seed: Math.floor(Math.random() * 1e9), mode: String(body.mode ?? 'normal').slice(0, 20),
       host: uid, createdAt: now, players: { [uid]: { ready: false, seen: now, state: null, done: false, score: 0 } }, startAt: null, claims: {}, ended: false,
     };
     const n = await playerNames();
     // Prévenir l'autre : Kouider sur Telegram ; elle verra l'invitation à l'ouverture du jeu
-    if (uid === 'femme') await queueTelegramMessage(`🎮 ${n.femme} t'invite à jouer à ${game === 'rush' ? 'RUSH' : "L'ŒIL"} — ouvre JEUX dans l'app !`, undefined, 'kouider', undefined, true).catch(() => {});
+    if (uid === 'femme') await queueTelegramMessage(`🎮 ${n.femme} t'invite à jouer à ${({ rush: 'RUSH', oeil: "L'ŒIL", gardiens: 'LES GARDIENS', resto: 'LE RESTO EN FOLIE' } as const)[game]} — ouvre JEUX dans l'app !`, undefined, 'kouider', undefined, true).catch(() => {});
     return view(uid);
   }
   if (!r) return view(uid);
@@ -113,6 +114,10 @@ export async function roomAction(uid: Uid, body: Record<string, unknown>) {
     if (k && !r.claims[k]) r.claims[k] = uid;
     me.score = Object.values(r.claims).filter(x => x === uid).length;
   }
+  if (action === 'event' && body.ev && typeof body.ev === 'object') {
+    // petit canal d'événements (réanimation, commandes du resto…) : gardés 20 s
+    r.events = [...(r.events ?? []).filter(e => now - e.at < 20_000), { from: uid, at: now, ev: body.ev as Record<string, unknown> }].slice(-40);
+  }
   if (action === 'rematch') {
     r.seed = Math.floor(Math.random() * 1e9); r.startAt = null; r.claims = {}; r.ended = false;
     if (typeof body.mode === 'string') r.mode = body.mode.slice(0, 20);
@@ -123,3 +128,35 @@ export async function roomAction(uid: Uid, body: Record<string, unknown>) {
   return view(uid);
 }
 export function roomPeek(uid: Uid) { const v = view(uid); if (v.room?.players[uid]) v.room.players[uid]!.seen = Date.now(); return v; }
+
+// ── LES GARDIENS : l'île commune (les deux joueurs construisent la même) ─────
+const ISLAND_KEY = 'games:island';
+export const BUILDINGS = ['maison', 'forge', 'jardin', 'phare', 'fontaine', 'tour'] as const;
+type BuildingId = typeof BUILDINGS[number];
+const BASE_COST: Record<BuildingId, number> = { maison: 60, forge: 80, jardin: 70, phare: 90, fontaine: 150, tour: 200 };
+export const buildCost = (id: BuildingId, lvl: number) => Math.round(BASE_COST[id] * Math.pow(lvl + 1, 1.6));
+export interface Island { crystals: number; b: Record<BuildingId, number>; night: Record<Uid, number>; best: Record<Uid, number>; log: Array<{ uid: Uid; text: string; at: number }> }
+async function readIsland(): Promise<Island> {
+  const d: Island = { crystals: 0, b: { maison: 0, forge: 0, jardin: 0, phare: 0, fontaine: 0, tour: 0 }, night: { kouider: 1, femme: 1 }, best: { kouider: 0, femme: 0 }, log: [] };
+  try { const j = JSON.parse((await kvGet(ISLAND_KEY)) ?? '{}') as Partial<Island>; return { ...d, ...j, b: { ...d.b, ...(j.b ?? {}) }, night: { ...d.night, ...(j.night ?? {}) }, best: { ...d.best, ...(j.best ?? {}) } }; } catch { return d; }
+}
+export async function getIsland() { return { island: await readIsland(), names: await playerNames(), costs: Object.fromEntries(BUILDINGS.map(id => [id, [0, 1, 2, 3, 4].map(l => buildCost(id, l))])) }; }
+export async function islandAction(uid: Uid, body: Record<string, unknown>) {
+  const isl = await readIsland(); const names = await playerNames();
+  const log = (text: string) => { isl.log.unshift({ uid, text, at: Date.now() }); isl.log = isl.log.slice(0, 20); };
+  if (body.action === 'reward') {
+    const n = Math.max(0, Math.min(5000, Math.round(Number(body.crystals) || 0))); const night = Math.max(1, Math.min(999, Math.round(Number(body.night) || 1)));
+    isl.crystals += n;
+    if (body.win === true) { isl.night[uid] = Math.max(isl.night[uid] ?? 1, night + 1); log(`${names[uid]} a survécu à la nuit ${night} (+${n} 💎)`); }
+    else log(`${names[uid]} : +${n} 💎`);
+    isl.best[uid] = Math.max(isl.best[uid] ?? 0, Math.round(Number(body.score) || 0));
+  } else if (body.action === 'build') {
+    const id = String(body.id) as BuildingId; if (!BUILDINGS.includes(id)) throw new Error('bâtiment inconnu');
+    const lvl = isl.b[id]; if (lvl >= 5) throw new Error('niveau max');
+    const c = buildCost(id, lvl); if (isl.crystals < c) throw new Error('pas assez de cristaux');
+    isl.crystals -= c; isl.b[id] = lvl + 1; log(`${names[uid]} a amélioré ${id} → niv. ${lvl + 1}`);
+    if (uid === 'femme') await queueTelegramMessage(`🏝️ ${names.femme} a amélioré ${id} (niv. ${lvl + 1}) sur votre île des Gardiens !`, undefined, 'kouider', undefined, true).catch(() => {});
+  }
+  await kvSet(ISLAND_KEY, JSON.stringify(isl));
+  return { island: isl, names };
+}
