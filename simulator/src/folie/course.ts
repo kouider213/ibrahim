@@ -6,7 +6,7 @@ import type { Rng } from '../games/net.ts';
 // LA GRANDE FOLIE — les manches. Chaque élément du décor a un corps physique (Rapier) + un joli objet 3D.
 // Course folle (6 obstacles tirés au sort), Tuiles fondantes (3 étages qui s'effondrent), Saute-Barre (finale).
 
-export type RoundKind = 'race' | 'tiles' | 'jump';
+export type RoundKind = 'race' | 'tiles' | 'jump' | 'tail' | 'mountain';
 export interface Mover { body: RAPIER.RigidBody; mesh: THREE.Object3D; update: (t: number) => void }
 export interface Tile { body: RAPIER.RigidBody; col: RAPIER.Collider; mesh: THREE.Mesh; state: 0 | 1 | 2; t: number }
 export interface Door { body: RAPIER.RigidBody; col: RAPIER.Collider; mesh: THREE.Mesh; real: boolean; open: number }
@@ -14,7 +14,17 @@ export interface Round {
   kind: RoundKind; spawn: Array<{ x: number; y: number; z: number }>; finishZ: number; killY: number; checkpoints: number[]; movers: Mover[];
   tiles: Tile[]; doors: Door[]; balls: Array<{ body: RAPIER.RigidBody; mesh: THREE.Mesh; home: THREE.Vector3 }>; bars: Array<{ body: RAPIER.RigidBody; mesh: THREE.Object3D; h: number; angle: number }>;
   jumpHints: Array<{ z0: number; z1: number }>; group: THREE.Group; slime: THREE.Mesh; width: number; name: string; nameAr: string; goal: string; goalAr: string;
+  zones: Array<{ x0: number; x1: number; z0: number; z1: number; y: number; vx: number; vz: number }>; bumpers: Array<{ x: number; y: number; z: number; r: number; mesh: THREE.Object3D; hit: number }>;
+  theme: Theme; crown: THREE.Object3D | null; crownPos: THREE.Vector3 | null;
 }
+export interface Theme { id: string; sky: [string, string, string]; fog: string; slime: [string, string]; floor: string[] }
+export const THEMES: Theme[] = [
+  { id: 'jour', sky: ['#1f52f2', '#61b3ff', '#fa9fe6'], fog: '#7fb2ff', slime: ['#fa6bbf', '#9e47f2'], floor: ['#8b8cff', '#ffb03a', '#3ddbb2', '#ff7a5c', '#4fd1ff'] },
+  { id: 'coucher', sky: ['#4b2a9a', '#ff8a5c', '#ffd27a'], fog: '#ff9e7a', slime: ['#ff5e5e', '#ff9f1c'], floor: ['#ff6fa5', '#ffe14d', '#8b5cf6', '#ff9f1c', '#3ddbb2'] },
+  { id: 'nuit', sky: ['#0b0630', '#3b1a7a', '#ff4d9a'], fog: '#3b1a7a', slime: ['#22d3ee', '#7c3aed'], floor: ['#7c3aed', '#22d3ee', '#ff4d9a', '#a3e635', '#ffb03a'] },
+  { id: 'neige', sky: ['#5aa0ff', '#cfe6ff', '#ffffff'], fog: '#d8ecff', slime: ['#7dd3fc', '#3b82f6'], floor: ['#ffffff', '#93c5fd', '#fda4af', '#c4b5fd', '#86efac'] },
+  { id: 'bonbon', sky: ['#ff6fb5', '#ffc1e3', '#fff3b0'], fog: '#ffc1e3', slime: ['#7ee081', '#3ddbb2'], floor: ['#ff4d9a', '#4fd1ff', '#ffe14d', '#c38bff', '#ff7a5c'] },
+];
 
 const PAL = ['#ff6fa5', '#ffb03a', '#ffe14d', '#7ee081', '#4fd1ff', '#8b8cff', '#c38bff', '#ff7a5c', '#3ddbb2'];
 const stripeCache = new Map<string, THREE.Texture>();
@@ -130,15 +140,62 @@ const SEGS: Record<string, Seg> = {
   },
 };
 
+SEGS.conveyor = (b, z, r) => {
+  const L = 26; const lanes = [-4.3, 0, 4.3];
+  lanes.forEach((x, i) => {
+    const dir = i === 1 ? 1 : -1; const speed = 4 + b.R() * 2;
+    const belt = b.box(x, -0.5, z - L / 2, 4.1, 1, L, i === 1 ? '#ff7a5c' : '#4fd1ff', { stripe: '#ffffff', radius: 0.2 });
+    const tex = (belt.mesh.material as THREE.MeshPhysicalMaterial).map!; r.movers.push({ body: belt.body, mesh: belt.mesh, update: t => { tex.offset.y = (t * speed * dir * 0.25) % 1; } });
+    r.zones.push({ x0: x - 2.05, x1: x + 2.05, z0: z - L, z1: z, y: 0.6, vx: 0, vz: dir * speed });
+  });
+  for (let k = 0; k < 4; k++) { const x = lanes[Math.floor(b.R() * 3)]!; b.box(x, 0.6, z - 5 - k * 5.5, 2.4, 1.2, 0.6, '#ffe14d', { radius: 0.25 }); }
+  r.jumpHints.push({ z0: z - 2, z1: z - L + 2 });
+  return L;
+};
+SEGS.bumpers = (b, z, r) => {
+  const L = 24; b.box(0, -0.5, z - L / 2, W, 1, L, '#3ddbb2', { stripe: '#7ff0d2' });
+  for (let i = 0; i < 9; i++) {
+    const x = -W / 2 + 1.8 + b.R() * (W - 3.6), cz = z - 3 - i * 2.3 - b.R();
+    const m = b.cyl(x, 0.75, cz, 0.75, 1.5, PAL[i % PAL.length]!, { stripe: '#ffffff' });
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.8, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), mat('#ffffff', { emissive: new THREE.Color(PAL[i % PAL.length]!), emissiveIntensity: 0.35 })); cap.position.set(x, 1.5, cz); b.group.add(cap);
+    r.bumpers.push({ x, y: 0.75, z: cz, r: 0.75, mesh: m.mesh, hit: 0 });
+  }
+  return L;
+};
+SEGS.punchers = (b, z, r) => {
+  const L = 26; b.box(0, -0.5, z - L / 2, W, 1, L, '#ff6fa5', { stripe: '#ff9cc4' });
+  for (let i = 0; i < 4; i++) {
+    const cz = z - 4 - i * 6; const side = i % 2 ? 1 : -1; const ph = b.R() * 6;
+    b.box(side * (W / 2 + 1.2), 1.5, cz, 2, 3, 2.6, '#ffffff');
+    const fist = b.box(side * (W / 2 - 0.5), 1.0, cz, 2.6, 1.6, 2.0, '#ffe14d', { kin: true, stripe: '#ff7a5c', radius: 0.5 });
+    r.movers.push({ body: fist.body, mesh: fist.mesh, update: t => { const k = Math.max(0, Math.sin(t * 1.8 + ph)); const ext = Math.pow(k, 4) * 8.5; const x = side * (W / 2 - 0.5 - ext); fist.body.setNextKinematicTranslation({ x, y: 1.0, z: cz }); fist.mesh.position.x = x; } });
+  }
+  return L;
+};
+SEGS.fans = (b, z, r) => {
+  const L = 26; b.box(0, -0.5, z - L / 2, W - 3, 1, L, '#8b8cff', { stripe: '#a5a6ff' });
+  for (let i = 0; i < 3; i++) {
+    const cz = z - 5 - i * 8; const side = i % 2 ? 1 : -1;
+    const fan = new THREE.Group(); const ring = new THREE.Mesh(new THREE.TorusGeometry(1.4, 0.25, 12, 32), mat('#ffffff')); fan.add(ring);
+    for (let k = 0; k < 4; k++) { const bl = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.2, 0.08), mat('#4fd1ff')); bl.rotation.z = k * Math.PI / 2; bl.position.set(Math.cos(k * Math.PI / 2) * 0.6, Math.sin(k * Math.PI / 2) * 0.6, 0); fan.add(bl); }
+    fan.position.set(side * (W / 2 + 0.4), 1.6, cz); fan.rotation.y = Math.PI / 2; b.group.add(fan);
+    r.movers.push({ body: null as unknown as RAPIER.RigidBody, mesh: fan, update: t => { fan.rotation.z = t * 12; } });
+    r.zones.push({ x0: -W / 2, x1: W / 2, z0: cz - 2.2, z1: cz + 2.2, y: 3, vx: -side * 7, vz: 0 });
+  }
+  r.jumpHints.push({ z0: z - 3, z1: z - L + 3 });
+  return L;
+};
+
 export function buildRound(world: RAPIER.World, scene: THREE.Scene, kind: RoundKind, R: Rng, players: number): Round {
   const group = new THREE.Group(); scene.add(group); const b = new Builder(world, group, R);
-  const r: Round = { kind, spawn: [], finishZ: 0, killY: -8, checkpoints: [], movers: [], tiles: [], doors: [], balls: [], bars: [], jumpHints: [], group, slime: null as unknown as THREE.Mesh, width: W, name: '', nameAr: '', goal: '', goalAr: '' };
+  const theme = THEMES[Math.floor(R() * THEMES.length)]!; PAL.splice(0, 5, ...theme.floor);
+  const r: Round = { kind, spawn: [], finishZ: 0, killY: -8, checkpoints: [], movers: [], tiles: [], doors: [], balls: [], bars: [], jumpHints: [], group, slime: null as unknown as THREE.Mesh, width: W, name: '', nameAr: '', goal: '', goalAr: '', zones: [], bumpers: [], theme, crown: null, crownPos: null };
   if (kind === 'race') {
     r.name = 'La Course Folle'; r.nameAr = 'السباق المجنون'; r.goal = 'Fonce vers l\'arrivée !'; r.goalAr = 'أسرع إلى خط الوصول!';
     b.box(0, -0.5, 4, W, 1, 16, '#ffffff', { stripe: '#ffe1ef' });
     for (let i = 0; i < players; i++) r.spawn.push({ x: -W / 2 + 1.2 + (i % 7) * ((W - 2.4) / 6), y: 1.2, z: 8 - Math.floor(i / 7) * 2.2 });
     const gate = b.box(0, 1.5, -3.5, W, 3, 0.4, '#ff6fa5', { kin: true }); r.movers.push({ body: gate.body, mesh: gate.mesh, update: t => { const y = t < 0 ? 1.5 : -3; gate.body.setNextKinematicTranslation({ x: 0, y, z: -3.5 }); gate.mesh.position.y = y; } });
-    const keys = Object.keys(SEGS); const order: string[] = []; const bag = [...keys]; while (order.length < 6) { if (!bag.length) bag.push(...keys); order.push(bag.splice(Math.floor(R() * bag.length), 1)[0]!); }
+    const keys = Object.keys(SEGS); const order: string[] = []; const bag = [...keys]; const nSeg = 5 + Math.floor(R() * 3); while (order.length < nSeg) { if (!bag.length) bag.push(...keys); order.push(bag.splice(Math.floor(R() * bag.length), 1)[0]!); }
     let z = -4; r.checkpoints.push(4);
     for (const k of order) { const len = SEGS[k]!(b, z, r); r.checkpoints.push(z - 2); z -= len; b.box(0, -0.5, z - 2, W, 1, 4, '#ffffff', { stripe: '#e8e8ff' }); z -= 4; }
     // arrivée
@@ -175,6 +232,32 @@ export function buildRound(world: RAPIER.World, scene: THREE.Scene, kind: RoundK
     }
     for (let i = 0; i < players; i++) { const a = (i / players) * Math.PI * 2; r.spawn.push({ x: Math.cos(a) * 6.5, y: 1.5, z: Math.sin(a) * 6.5 }); }
     r.slime = slimePlane(group, -5, 300); r.killY = -4;
+  }
+  if (kind === 'tail') {
+    r.name = 'La Chasse aux Queues'; r.nameAr = 'مطاردة الذيول'; r.goal = 'Attrape une queue (bouton ✋) et garde-la jusqu\'à la fin !'; r.goalAr = 'امسك ذيلًا (زر ✋) واحتفظ به حتى النهاية!';
+    b.box(0, -0.5, 0, 28, 1, 28, PAL[0]!, { stripe: '#ffffff' });
+    for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3, d = 7; const x = Math.cos(a) * d, zz = Math.sin(a) * d; const m = b.cyl(x, 0.75, zz, 0.9, 1.5, PAL[(i + 1) % 5]!, { stripe: '#ffffff' }); r.bumpers.push({ x, y: 0.75, z: zz, r: 0.9, mesh: m.mesh, hit: 0 }); }
+    const c = b.cyl(0, 0.5, 0, 2.2, 1, PAL[2]!, { kin: true, stripe: '#ffffff' }); r.movers.push({ body: c.body, mesh: c.mesh, update: t => kinRotY(c.body, c.mesh, t * 0.8) });
+    for (let i = 0; i < players; i++) { const a = (i / players) * Math.PI * 2; r.spawn.push({ x: Math.cos(a) * 11, y: 1.5, z: Math.sin(a) * 11 }); }
+    r.slime = slimePlane(group, -5, 300); r.killY = -4;
+  }
+  if (kind === 'mountain') {
+    r.name = 'La Montagne Folle'; r.nameAr = 'الجبل المجنون'; r.goal = 'Grimpe et attrape la couronne en premier !'; r.goalAr = 'اصعد وامسك التاج أولًا!';
+    b.box(0, -0.5, 4, W, 1, 14, '#ffffff', { stripe: '#ffe1ef' });
+    for (let i = 0; i < players; i++) r.spawn.push({ x: -W / 2 + 1.2 + (i % 7) * ((W - 2.4) / 6), y: 1.2, z: 8 - Math.floor(i / 7) * 2.2 });
+    let z = -3, y = 0; const rise = 5, L = 22, ang = Math.atan2(rise, L);
+    for (let k = 0; k < 3; k++) {
+      b.box(0, y + rise / 2 - 0.5, z - L / 2, W, 1, Math.hypot(L, rise), PAL[k % 5]!, { stripe: '#ffffff', rot: new THREE.Euler(ang, 0, 0) });
+      for (const s2 of [-1, 1]) b.box(s2 * (W / 2 + 0.3), y + rise / 2 + 0.5, z - L / 2, 0.6, 2, Math.hypot(L, rise), '#ffffff', { rot: new THREE.Euler(ang, 0, 0) });
+      z -= L; y += rise; b.box(0, y - 0.5, z - 3, W, 1, 6, '#ffffff', { stripe: '#e8e8ff' }); r.checkpoints.push(z - 1);
+      if (k < 2) for (let i = 0; i < 2; i++) { const home = new THREE.Vector3(-3 + i * 6, y + 2, z - 4); const m = new THREE.Mesh(new THREE.SphereGeometry(1.1, 24, 16), mat(PAL[(i + k) % 5]!, { map: stripes(PAL[(i + k) % 5]!, '#ffffff') })); m.castShadow = true; group.add(m); const body = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(home.x, home.y, home.z)); world.createCollider(RAPIER.ColliderDesc.ball(1.1).setDensity(0.6).setRestitution(0.3), body); r.balls.push({ body, mesh: m, home }); }
+      z -= 6;
+    }
+    b.cyl(0, y + 0.5, z - 4, 4, 1, '#ffe14d', { stripe: '#ffffff' });
+    const crown = new THREE.Group(); const band = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.0, 0.7, 12, 1, true), mat('#ffd23f', { metalness: 0.9, roughness: 0.2, side: THREE.DoubleSide, emissive: new THREE.Color('#ffb000'), emissiveIntensity: 0.4 })); crown.add(band);
+    for (let i = 0; i < 8; i++) { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.5, 6), band.material); const a = i * Math.PI / 4; sp.position.set(Math.cos(a) * 0.95, 0.55, Math.sin(a) * 0.95); crown.add(sp); }
+    crown.position.set(0, y + 4.2, z - 4); group.add(crown); r.crown = crown; r.crownPos = crown.position.clone(); r.finishZ = -9999; r.checkpoints.unshift(4);
+    r.slime = slimePlane(group, -6, 500, z / 2); r.killY = -5;
   }
   // décor lointain : îles de bonbons, ballons
   for (let i = 0; i < 18; i++) {

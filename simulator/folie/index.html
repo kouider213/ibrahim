@@ -57,6 +57,11 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .cb { width: 84px; height: 84px; border-radius: 42px; font-family: var(--d); font-size: 15px; display: grid; place-items: center; color: #fff; background: radial-gradient(circle at 40% 30%, #ff9cc8, #ff3d8b); box-shadow: 0 6px 0 #b0145a, 0 10px 20px rgba(0,0,0,.25); }
 .cb.dive { width: 66px; height: 66px; font-size: 13px; background: radial-gradient(circle at 40% 30%, #8ee6ff, #2fb2ff); box-shadow: 0 5px 0 #1a77b5; }
 .cb:active { transform: translateY(4px); box-shadow: none; }
+.cb.grab { width: 66px; height: 66px; background: radial-gradient(circle at 40% 30%, #fff27a, #ffc400); box-shadow: 0 5px 0 #c48a00; }
+.cb.grab.on { box-shadow: 0 0 0 4px #fff, 0 0 24px #ffe14d; transform: scale(1.08); }
+.wait { position: fixed; left: 50%; top: calc(var(--st) + 86px); transform: translateX(-50%); z-index: 6; padding: 10px 18px; border-radius: 18px; background: #fff; color: #ff3d8b; font-family: var(--d); font-size: 18px; box-shadow: 0 5px 0 rgba(60,40,160,.3); white-space: nowrap; animation: wob 1.2s ease-in-out infinite; }
+.arrow { position: fixed; z-index: 5; width: 54px; height: 54px; border-radius: 27px; display: grid; place-items: center; background: #ff4d9a; color: #fff; font-size: 22px; box-shadow: 0 0 0 4px #fff, 0 6px 16px rgba(0,0,0,.3); transform: translate(-50%,-50%); pointer-events: none; }
+.arrow::after { content: ''; position: absolute; width: 0; height: 0; border-left: 12px solid #fff; border-top: 9px solid transparent; border-bottom: 9px solid transparent; transform: rotate(var(--a, 0rad)) translateX(36px); }
 .cb span { font-size: 28px; line-height: 1; display: block; text-align: center; }
 .joy { position: fixed; z-index: 4; width: 136px; height: 136px; border-radius: 68px; transform: translate(-50%, -50%); pointer-events: none; background: rgba(255,255,255,.25); border: 3px solid rgba(255,255,255,.6); }
 .joy i { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; border-radius: 29px; transform: translate(-50%, -50%); background: #fff; box-shadow: 0 4px 0 rgba(60,40,160,.3); }
@@ -112,7 +117,9 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 <div class="ui" id="hud" hidden>
   <div class="top"><div class="pill" id="hRound"></div><div class="pill" id="hStat" style="text-align:end"></div></div>
 </div>
-<div class="ctrl" id="ctrl" hidden><button class="cb dive" id="bDive"><span>🤸</span></button><button class="cb" id="bJump"><span>⤒</span>SAUT</button></div>
+<div class="ctrl" id="ctrl" hidden><div style="display:flex;gap:12px;align-items:flex-end"><button class="cb grab" id="bGrab"><span>✋</span></button><button class="cb dive" id="bDive"><span>🤸</span></button></div><button class="cb" id="bJump"><span>⤒</span>SAUT</button></div>
+<div class="wait" id="wait" hidden></div>
+<div class="arrow" id="arrow" hidden>♥</div>
 <div class="joy" id="joy" hidden><i id="joyK"></i></div>
 <div id="fx"></div>
 <canvas class="confetti" id="confetti"></canvas>

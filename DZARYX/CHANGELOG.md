@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-25 (nuit, suite) — La Grande Folie : parties toujours différentes, on s'attrape, solo sans attente (app v185)
+- `src/folie/course.ts` : 5 ambiances (jour, coucher, nuit, neige, bonbon), 4 nouveaux obstacles (tapis roulants, champignons rebondissants, poings, ventilateurs), course de 5 à 7 obstacles tirés au sort, 2 nouvelles manches (Chasse aux Queues, Montagne Folle à couronne).
+- `src/folie/main.ts` : bouton ✋ (appui court = pousser, long = attraper/ralentir, voler la queue), aussi entre Kouider et Fatima à distance (événements de salle) ; repères : nom ⭐ jaune / ♥ rose, anneau sous les pieds, flèche vers l'autre hors écran ; solo : dès qu'on a fini on passe à la suite ; à deux : la manche finit quand les deux ont fini (l'hôte donne le signal) ; ordre des manches tiré au sort.
+
 ## 2026-10-25 (nuit) — JEUX du couple : La Grande Folie, Les Gardiens, L'Œil (app v184)
 - Page **JEUX** (app Dzaryx + carte « Nos jeux » dans FORME pour Fatima) → `simulator/jeux/`.
 - **La Grande Folie** (`simulator/folie/`, `src/folie/*`) : jeu de fête façon Fall Guys/Stumble Guys, physique Rapier, 20 haricots (2 humains + bots), 3 manches (course d'obstacles tirée au sort, tuiles fondantes, saute-barre), couronnes, costumes.
