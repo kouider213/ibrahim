@@ -93,9 +93,10 @@ class GeminiLiveWS:
             'generationConfig': gen,
             'systemInstruction': {'parts': [{'text': (res.get('instructions') or '') + NOISE_RULE}]},
             'tools': [{'functionDeclarations': res.get('tools') or []}],
-            # 25/10 : en HIGH, un souffle, un « allô » ou l'écho de sa propre voix coupait Dzaryx en pleine phrase
+            # 25/10 : LOW ratait carrément la voix de Kouider (appel 17h40 : 0 phrase entendue) → retour en HIGH ;
+            # les bruits sont filtrés plus bas (speaks / meaningful) : un souffle ou un « allô » ne coupe plus Dzaryx
             'realtimeInputConfig': {'automaticActivityDetection': {
-                'startOfSpeechSensitivity': 'START_SENSITIVITY_LOW', 'endOfSpeechSensitivity': 'END_SENSITIVITY_HIGH',
+                'startOfSpeechSensitivity': 'START_SENSITIVITY_HIGH', 'endOfSpeechSensitivity': 'END_SENSITIVITY_HIGH',
                 'prefixPaddingMs': 300, 'silenceDurationMs': 700}},
             'inputAudioTranscription': {},
             'outputAudioTranscription': {},

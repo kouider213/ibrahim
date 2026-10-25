@@ -5,7 +5,9 @@
 
 ---
 
-## 2026-10-25 (soir) — Dzaryx retrouve ses réflexes (oui = outils, conversions, réponses WhatsApp)
+## 2026-10-25 (soir) — Dzaryx retrouve ses réflexes
+
+- Appels : START_SENSITIVITY_LOW (c505b7e) n'entendait plus Kouider du tout (appel 17h40 : 0 phrase transcrite) → retour en HIGH ; le filtre anti-bruit (speaks/meaningful) reste. pm2 dzaryx-tg relancé. (oui = outils, conversions, réponses WhatsApp)
 
 - `claude-api.ts` : un « Oui » qui suit une offre de Dzaryx sans « ? » (« je te fais la conversion si tu veux. ») partait en mode rapide SANS outils → « je n'ai pas d'outil de change ». Tout oui/ok après un message de Dzaryx garde les outils ; euro/dinar/taux/WhatsApp ne sont plus jamais en mode rapide.
 - Conversion : `convert_currency` chargé d'office + consigne « jamais un chiffre de tête, DA + € au square directement, 230 millions = centimes » (avant : 2 300 000 DA ≈ 15 900 € inventé).
