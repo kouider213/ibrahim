@@ -1,0 +1,21 @@
+{
+ "id": "/ibrahim/oeil/",
+ "name": "L'Œil",
+ "short_name": "L'Œil",
+ "description": "Jeu des différences",
+ "start_url": "/ibrahim/oeil/",
+ "scope": "/ibrahim/oeil/",
+ "display": "fullscreen",
+ "orientation": "portrait",
+ "background_color": "#101a3a",
+ "theme_color": "#101a3a",
+ "icons": [
+  {
+   "src": "/ibrahim/icons/oeil-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "any"
+  }
+ ],
+ "lang": "fr"
+}

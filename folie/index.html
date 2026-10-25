@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="La Grande Folie">
+<meta name="theme-color" content="#5b8cff">
+<link rel="manifest" href="/ibrahim/folie-manifest.json">
+<link rel="apple-touch-icon" href="/ibrahim/icons/folie-512.png">
+<link rel="icon" href="/ibrahim/icons/folie-512.png">
+<title>La Grande Folie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titan+One&family=Nunito:wght@700;800;900&family=Cairo:wght@700;900&display=swap">
+<style>
+:root { --pink: #ff4d9a; --yellow: #ffe14d; --blue: #4fd1ff; --violet: #8b5cf6; --line: rgba(255,255,255,.3); --st: env(safe-area-inset-top, 0px); --sb: env(safe-area-inset-bottom, 0px); --d: "Titan One", "Lilita One", Impact, sans-serif; --u: "Nunito", system-ui, sans-serif; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #5b8cff; color: #fff; font-family: var(--u); -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; touch-action: none; overscroll-behavior: none; }
+html[dir=rtl] body { font-family: "Cairo", var(--u); }
+[hidden] { display: none !important; }
+canvas#stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+.ui { position: fixed; inset: 0; z-index: 3; pointer-events: none; display: flex; flex-direction: column; padding: calc(var(--st) + 10px) 14px calc(var(--sb) + 14px); }
+.ui > * { pointer-events: auto; }
+.out { text-shadow: 0 3px 0 rgba(40,20,90,.55), 0 0 2px rgba(40,20,90,.6); -webkit-text-stroke: 1.5px rgba(40,20,90,.55); }
+.btn { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 62px; padding: 0 24px; border-radius: 22px; font-family: var(--d); font-size: 24px; color: #fff; letter-spacing: .5px;
+  background: linear-gradient(180deg, #ff86c0, #ff3d8b); box-shadow: 0 6px 0 #b0145a, 0 14px 30px rgba(176,20,90,.35), inset 0 3px 0 rgba(255,255,255,.45); text-shadow: 0 2px 0 rgba(120,0,50,.5); transform: rotate(-1deg); }
+.btn:active { transform: translateY(4px) rotate(-1deg); box-shadow: 0 2px 0 #b0145a; }
+.btn.y { color: #4a2a00; background: linear-gradient(180deg, #fff27a, #ffc400); box-shadow: 0 6px 0 #c48a00, 0 14px 30px rgba(255,196,0,.35), inset 0 3px 0 rgba(255,255,255,.6); text-shadow: 0 2px 0 rgba(255,255,255,.5); transform: rotate(1deg); }
+.btn.y:active { box-shadow: 0 2px 0 #c48a00; transform: translateY(4px) rotate(1deg); }
+.btn.b { background: linear-gradient(180deg, #7fe0ff, #2fb2ff); box-shadow: 0 6px 0 #1a77b5, 0 14px 30px rgba(47,178,255,.35), inset 0 3px 0 rgba(255,255,255,.5); text-shadow: 0 2px 0 rgba(0,60,120,.5); transform: none; }
+.btn.b:active { box-shadow: 0 2px 0 #1a77b5; transform: translateY(4px); }
+.btn.w { color: #5a3cff; background: #fff; box-shadow: 0 6px 0 #c9c3ff, 0 12px 26px rgba(40,20,120,.25); text-shadow: none; transform: none; font-size: 19px; min-height: 52px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px; background: rgba(255,255,255,.92); color: #4b2fd0; font-family: var(--d); font-size: 17px; box-shadow: 0 4px 0 rgba(60,40,160,.25); }
+.ib { width: 48px; height: 48px; border-radius: 16px; display: grid; place-items: center; font-size: 22px; background: rgba(255,255,255,.92); color: #4b2fd0; box-shadow: 0 4px 0 rgba(60,40,160,.25); }
+/* Menu */
+#menu { justify-content: space-between; }
+.logo { text-align: center; margin-top: 2px; transform: rotate(-3deg); }
+.logo h1 { margin: 0; font-family: var(--d); font-size: clamp(40px, 13vw, 76px); line-height: .92; color: var(--yellow); text-shadow: 0 5px 0 #ff3d8b, 0 9px 0 #8b2fd0, 0 16px 30px rgba(60,20,140,.45); -webkit-text-stroke: 2px #5a1fb0; }
+.logo h1 small { display: block; font-size: .55em; color: #fff; }
+.duel { display: flex; justify-content: center; gap: 10px; margin-top: 10px; }
+.duel .chip b { color: #ff3d8b; }
+.invite { margin: 10px auto 0; max-width: 420px; width: 100%; border-radius: 20px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; background: #fff; color: #4b2fd0; font-weight: 900; box-shadow: 0 6px 0 rgba(60,40,160,.3); animation: wob 1s ease-in-out infinite; }
+@keyframes wob { 50% { transform: scale(1.03) rotate(-1deg); } }
+.mm { display: grid; gap: 12px; max-width: 420px; width: 100%; margin: 0 auto; }
+.mrow { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; } .mrow .btn { font-size: 18px; padding: 0 10px; white-space: nowrap; }
+/* Jeu */
+#hud { pointer-events: none; }
+#hud > * { pointer-events: none; }
+.top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.pill { padding: 8px 14px; border-radius: 16px; background: rgba(255,255,255,.92); color: #4b2fd0; font-family: var(--d); font-size: 18px; box-shadow: 0 4px 0 rgba(60,40,160,.25); }
+.pill small { display: block; font-family: var(--u); font-weight: 900; font-size: 11px; color: #8a7bd8; letter-spacing: 1px; text-transform: uppercase; }
+.ctrl { position: fixed; right: 16px; bottom: calc(var(--sb) + 20px); z-index: 4; display: grid; gap: 14px; justify-items: end; pointer-events: auto; }
+.cb { width: 84px; height: 84px; border-radius: 42px; font-family: var(--d); font-size: 15px; display: grid; place-items: center; color: #fff; background: radial-gradient(circle at 40% 30%, #ff9cc8, #ff3d8b); box-shadow: 0 6px 0 #b0145a, 0 10px 20px rgba(0,0,0,.25); }
+.cb.dive { width: 66px; height: 66px; font-size: 13px; background: radial-gradient(circle at 40% 30%, #8ee6ff, #2fb2ff); box-shadow: 0 5px 0 #1a77b5; }
+.cb:active { transform: translateY(4px); box-shadow: none; }
+.cb span { font-size: 28px; line-height: 1; display: block; text-align: center; }
+.joy { position: fixed; z-index: 4; width: 136px; height: 136px; border-radius: 68px; transform: translate(-50%, -50%); pointer-events: none; background: rgba(255,255,255,.25); border: 3px solid rgba(255,255,255,.6); }
+.joy i { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; border-radius: 29px; transform: translate(-50%, -50%); background: #fff; box-shadow: 0 4px 0 rgba(60,40,160,.3); }
+.big { position: fixed; inset: 0; z-index: 7; display: grid; place-items: center; pointer-events: none; text-align: center; }
+.big b { font-family: var(--d); font-size: clamp(54px, 18vw, 120px); color: var(--yellow); -webkit-text-stroke: 3px #5a1fb0; text-shadow: 0 6px 0 #ff3d8b, 0 12px 0 #5a1fb0, 0 20px 40px rgba(0,0,0,.3); animation: pop .6s cubic-bezier(.2,1.8,.4,1); display: block; transform: rotate(-4deg); }
+.big b.bad { color: #ff6b6b; }
+.big span { display: block; font-family: var(--d); font-size: 22px; margin-top: 10px; }
+@keyframes pop { from { transform: scale(.2) rotate(-20deg); opacity: 0; } }
+.card-round { position: fixed; inset: 0; z-index: 8; display: grid; place-items: center; background: radial-gradient(circle, rgba(91,140,255,.4), rgba(60,30,160,.85)); pointer-events: none; }
+.card-round > div { text-align: center; padding: 0 22px; animation: pop .6s cubic-bezier(.2,1.6,.4,1); }
+.card-round small { font-family: var(--d); font-size: 18px; color: #ffe14d; letter-spacing: 2px; }
+.card-round h2 { margin: 6px 0; font-family: var(--d); font-size: clamp(36px, 11vw, 64px); color: #fff; -webkit-text-stroke: 2px #5a1fb0; text-shadow: 0 5px 0 #ff3d8b; transform: rotate(-2deg); }
+.card-round p { margin: 10px auto 0; max-width: 360px; font-weight: 900; font-size: 18px; background: #fff; color: #4b2fd0; padding: 10px 16px; border-radius: 16px; box-shadow: 0 5px 0 rgba(60,40,160,.3); }
+.sheet { position: fixed; inset: 0; z-index: 10; display: flex; align-items: flex-end; justify-content: center; background: rgba(40,20,120,.45); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.card { width: min(480px, 100%); max-height: 92dvh; overflow-y: auto; border-radius: 30px 30px 0 0; padding: 22px 16px calc(var(--sb) + 18px); background: #fff; color: #3b2a8a; animation: sl .35s cubic-bezier(.2,1.2,.4,1); }
+@media (min-width: 600px) and (min-height: 700px) { .sheet { align-items: center; } .card { border-radius: 30px; } }
+@keyframes sl { from { transform: translateY(50px); opacity: 0; } }
+.card h2 { margin: 0 0 6px; text-align: center; font-family: var(--d); font-size: 30px; color: #5a3cff; }
+.card .lead { text-align: center; font-weight: 800; color: #8a7bd8; margin-bottom: 14px; }
+.sw { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 14px; justify-content: center; }
+.sw button { width: 42px; height: 42px; border-radius: 21px; border: 3px solid #fff; box-shadow: 0 0 0 2px #e4defc; }
+.sw button.on { box-shadow: 0 0 0 3px #5a3cff; }
+.sw.t button { width: auto; height: auto; padding: 8px 12px; border-radius: 14px; background: #f1edff; font-weight: 900; color: #5a3cff; border: 0; box-shadow: none; }
+.sw.t button.on { background: #5a3cff; color: #fff; }
+.sw.t button.lock { opacity: .55; }
+.lbl { font-family: var(--d); font-size: 16px; color: #5a3cff; margin-top: 4px; }
+.res { display: grid; gap: 8px; margin: 10px 0 16px; }
+.res div { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 16px; background: #f4f1ff; font-weight: 900; }
+.res b { font-family: var(--d); font-size: 20px; color: #ff3d8b; }
+.lob { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 8px 0 14px; } .lob div { border-radius: 18px; padding: 14px 8px; text-align: center; background: #f4f1ff; font-weight: 900; } .lob .ok { background: #e7fbe9; }
+.loading { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: linear-gradient(180deg, #7aa8ff, #5b5cff); transition: opacity .5s; }
+.loading b { font-family: var(--d); font-size: 46px; color: var(--yellow); -webkit-text-stroke: 2px #5a1fb0; text-shadow: 0 5px 0 #ff3d8b; }
+.confetti { position: fixed; inset: 0; z-index: 9; pointer-events: none; }
+.toast { position: fixed; left: 50%; top: calc(var(--st) + 84px); transform: translateX(-50%); z-index: 12; padding: 10px 16px; border-radius: 16px; font-weight: 900; background: #fff; color: #4b2fd0; white-space: nowrap; animation: tin 2.4s forwards; pointer-events: none; box-shadow: 0 5px 0 rgba(60,40,160,.3); }
+@keyframes tin { 0% { opacity: 0; } 10%, 85% { opacity: 1; } 100% { opacity: 0; } }
+</style>
+  <script type="module" crossorigin src="/ibrahim/assets/folie-CpK9HckK.js"></script>
+  <link rel="modulepreload" crossorigin href="/ibrahim/assets/modulepreload-polyfill-B5Qt9EMX.js">
+  <link rel="modulepreload" crossorigin href="/ibrahim/assets/three.module-D2owrlYp.js">
+  <link rel="modulepreload" crossorigin href="/ibrahim/assets/RoomEnvironment-CencNHHY.js">
+  <link rel="modulepreload" crossorigin href="/ibrahim/assets/audio-DADTiKmp.js">
+  <link rel="modulepreload" crossorigin href="/ibrahim/assets/api-FtRj0Ph2.js">
+  <link rel="modulepreload" crossorigin href="/ibrahim/assets/net-Box-i656.js">
+</head>
+<body>
+<canvas id="stage"></canvas>
+<div class="loading" id="loading"><b>La Grande Folie</b></div>
+<div class="ui" id="menu" hidden>
+  <div>
+    <div style="display:flex;gap:8px;align-items:center"><div class="chip">👑 <span id="mCrowns">0</span></div><div class="chip">🪙 <span id="mKudos">0</span></div><div style="flex:1"></div><button class="ib" id="bLang">ع</button><button class="ib" id="bSound">🔊</button><button class="ib" id="bExit" hidden>✕</button></div>
+    <div class="logo"><h1>La Grande<small>FOLIE</small></h1></div>
+    <div class="duel" id="duel" hidden></div>
+    <div class="invite" id="invite" hidden><span style="font-size:28px">🎉</span><span id="invTxt" style="flex:1"></span><button class="btn y" style="min-height:42px;font-size:16px;padding:0 14px" id="bJoin">OK</button></div>
+  </div>
+  <div class="mm">
+    <button class="btn y" id="bPlay">▶ <span data-t="play">JOUER</span></button>
+    <div class="mrow"><button class="btn" id="bDuo">👫 <span data-t="duo">À DEUX</span></button><button class="btn b" id="bShop">👕 <span data-t="shop">COSTUMES</span></button></div>
+  </div>
+</div>
+<div class="ui" id="hud" hidden>
+  <div class="top"><div class="pill" id="hRound"></div><div class="pill" id="hStat" style="text-align:end"></div></div>
+</div>
+<div class="ctrl" id="ctrl" hidden><button class="cb dive" id="bDive"><span>🤸</span></button><button class="cb" id="bJump"><span>⤒</span>SAUT</button></div>
+<div class="joy" id="joy" hidden><i id="joyK"></i></div>
+<div id="fx"></div>
+<canvas class="confetti" id="confetti"></canvas>
+<div id="sheet"></div>
+</body>
+</html>
