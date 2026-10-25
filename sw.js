@@ -1,4 +1,4 @@
-const CACHE = 'dzaryx-v176';
+const CACHE = 'dzaryx-v177';
 const APP_URL = 'https://kouider213.github.io/ibrahim/';
 const STATIC = [
   '/ibrahim/',
@@ -35,7 +35,7 @@ self.addEventListener('fetch', e => {
   if (e.request.mode === 'navigate') {
     e.respondWith(
       fetch(e.request).catch(() =>
-        caches.match('/ibrahim/index.html').then(r => r ?? fetch(e.request))
+        caches.match(url.pathname.startsWith('/ibrahim/forme') ? '/ibrahim/forme/index.html' : '/ibrahim/index.html').then(r => r ?? fetch(e.request))
       )
     );
     return;
@@ -91,7 +91,9 @@ self.addEventListener('push', e => {
 self.addEventListener('notificationclick', e => {
   e.notification.close();
   const deepLink = e.notification.data?.deepLink ?? e.notification.data?.text;
-  const url = APP_URL + (deepLink ? `?deeplink=${encodeURIComponent(deepLink)}` : '');
+  // Notif de l'appli FORME : elle porte sa propre adresse
+  const url = e.notification.data?.url ?? (APP_URL + (deepLink ? `?deeplink=${encodeURIComponent(deepLink)}` : ''));
+  if (e.notification.data?.url) { e.waitUntil(self.clients.openWindow(url)); return; }
 
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
