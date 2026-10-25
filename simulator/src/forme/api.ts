@@ -6,11 +6,13 @@ export interface Profile {
   onboarded: boolean; name: string; lang: 'fr' | 'ar'; shareWithDzaryx: boolean; goal: 'perte' | 'muscle' | 'recompo'; sex: 'h' | 'f'; age: number; heightCm: number; weightKg: number; targetKg: number;
   sessionsPerWeek: number; gym: string; stores: string[]; mealsPerDay: number; budgetWeek: number; likes: string[]; dislikes: string[]; vegetarian: boolean;
   wegovy: { on: boolean; dose: string; day: number; hour: string; start?: string; doses?: Array<{ date: string; dose: string }> };
-  photoEveryDays: number; weighDaily: boolean; notif: { meals: boolean; water: boolean; injection: boolean; photo: boolean; weigh: boolean }; waterGoal: number;
+  photoEveryDays: number; weighDaily: boolean; notif: { meals: boolean; water: boolean; injection: boolean; photo: boolean; weigh: boolean; telegram?: boolean }; waterGoal: number;
+  fasting: 'off' | 'ramadan' | 'sunna'; reminders: Array<{ id: string; label: string; time: string; days: number[] }>; stepsGoal: number;
+  restDays: number[]; favorites: string[];
 }
 export interface Targets { kcal: number; p: number; c: number; f: number; tdee: number; bmr: number; fiber: number; waterL: number }
 export interface Food { name: string; kcal: number; p: number; c: number; f: number; at?: number; src?: string }
-export interface Day { meals: Record<string, boolean>; extra: Food[]; water: number; weight?: number; measures?: Record<string, number>; injection?: { at: number; site: string; dose?: string }; sides?: Array<{ what: string; level: number; at: number }> }
+export interface Day { sleep?: number; steps?: number; meals: Record<string, boolean>; extra: Food[]; water: number; weight?: number; measures?: Record<string, number>; injection?: { at: number; site: string; dose?: string }; sides?: Array<{ what: string; level: number; at: number }> }
 export interface Recipe { id: string; title: string; photo: string; minutes: number; kcal: number; p: number; c: number; f: number; tags: string[]; ingredients: Array<{ name: string; qty: string }>; steps: string[]; tip: string }
 export interface ShopItem { label?: string; name: string; qty: string; aisle: string; store: string; price: number; halal?: boolean; img?: string | null; brand?: string | null; checked?: boolean }
 export interface Week { monday: string; at: number; note: string; budget: number; total: number; recipes: Recipe[]; days: Array<{ date: string; meals: Array<{ slot: string; recipe: string; portion: string }> }>; shopping: ShopItem[] }
@@ -22,13 +24,15 @@ export interface House { items: HouseItem[]; total: number; budget: number; shar
 export interface Overview {
   uid: 'kouider' | 'femme'; doses: string[]; femme?: { active: boolean; name: string };
   today: string; profile: Profile; targets: Targets; day: Day; eaten: { kcal: number; p: number; c: number; f: number };
-  week: Week | null; week7: Array<{ date: string; kcal: number; p: number; c: number; f: number; water: number }>; streak: number;
+  week: Week | null; week7: Array<{ date: string; kcal: number; p: number; c: number; f: number; water: number; sleep: number | null; steps: number | null }>; streak: number;
   badges: Array<{ id: string; label: string; emoji: string; ok: boolean }>;
   weights: Array<{ date: string; kg: number }>; measures: Array<Record<string, number | string>>;
   injections: Array<{ date: string; at: number; site: string; dose?: string }>; sides: Array<{ date: string; what: string; level: number; at: number }>;
   nextInjection: { date: string; hour: string; inDays: number; site: string; last: { date: string; site: string } | null } | null;
   photos: Photo[]; photoDue: boolean; weightRate: number | null; tooFast: boolean;
+  challenge: { id: string; e: string; text: string; goal: number; got: number }; eta: string | null;
 }
+export interface AgendaDay { date: string; rest: boolean; sport: { label: string; time?: string; custom?: string; done: boolean } | null; meals: Array<{ slot: string; title: string; key: string; eaten: boolean }>; injection: { hour: string; site: string; done: boolean } | null; reminders: Array<{ time: string; label: string }>; fasting: boolean }
 export interface SwipeMeal { id: string; name: string; cat: string; area: string; photo: string }
 export interface Product { code: string; name: string; brand: string | null; img: string | null; stores: string[]; kcal: number | null; p: number | null }
 export interface Barcode { code: string; name: string; brand: string | null; img: string | null; quantity: string | null; serving: string | null; per100: { kcal: number | null; p: number | null; c: number | null; f: number | null; sugar: number | null; fiber: number | null }; halal: string; haram: boolean }
@@ -54,7 +58,8 @@ export const forme = {
   swipe: () => call<{ meals: SwipeMeal[] }>('/api/forme/swipe'),
   makeWeek: (force = false, monday?: string) => post<{ week: Week }>('/api/forme/week', { force, monday }),
   shopping: () => call<House>('/api/forme/shopping'),
-  shop: (key: string, checked: boolean) => post<House>('/api/forme/shop', { key, checked }),
+  shop: (key: string, checked: boolean, home = false) => post<House>('/api/forme/shop', { key, checked, home }),
+  agenda: () => call<{ days: AgendaDay[] }>('/api/forme/agenda'),
   shopAdd: (name: string, qty: string, store: string) => post<House>('/api/forme/shop-add', { name, qty, store }),
   shopDel: (key: string) => post<House>('/api/forme/shop-del', { key }),
   program: () => call<ProgramView>('/api/forme/program'),
@@ -64,12 +69,13 @@ export const forme = {
   swap: (monday: string, recipe: string, wish = '') => post<{ week: Week }>('/api/forme/swap', { monday, recipe, wish }),
   log: (kind: string, body: Record<string, unknown> = {}) => post<Overview>('/api/forme/log', { kind, ...body }),
   mealPhoto: (image: string) => post<Food & { items: string[]; advice: string; halalNote: string }>('/api/forme/meal-photo', { image }),
-  bodyPhoto: (image: string, pose: string) => post<{ photo: Photo; analysis: Analysis | { error: string } }>('/api/forme/body-photo', { image, pose }),
+  bodyPhoto: (image: string, pose: string, goal = '', adapt = false) => post<{ photo: Photo; analysis: Analysis | { error: string }; adapted: { date: string; text: string } | null }>('/api/forme/body-photo', { image, pose, goal, adapt }),
+  doctor: () => call<{ text: string }>('/api/forme/doctor'),
   analyze: (id: string) => post<{ analysis: Analysis }>('/api/forme/analyze', { id }),
   barcode: (code: string) => call<Barcode>(`/api/forme/barcode/${code}`),
   products: (q: string, store?: string) => call<{ products: Product[] }>(`/api/forme/products?q=${encodeURIComponent(q)}${store ? `&store=${encodeURIComponent(store)}` : ''}`),
   adapt: (focus: string) => post<{ date: string; text: string }>('/api/forme/adapt', { focus }),
-  ask: (question: string) => post<{ answer: string }>('/api/forme/ask', { question }),
+  ask: (question: string, mode = '') => post<{ answer: string }>('/api/forme/ask', { question, mode }),
   push: (sub: PushSubscriptionJSON) => post<{ ok: boolean }>('/api/forme/push', sub),
 };
 

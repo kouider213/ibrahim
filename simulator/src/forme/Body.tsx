@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { forme, errText, compressImage, type Overview, type Photo, type Analysis, vibrate } from './api.ts';
-import { F, Title, Section, card, darkCard, btn, ghostBtn, Sheet, Spinner, LineChart, Ring, Stat, input, Chip } from './ui.tsx';
+import { F, Title, Section, card, darkCard, btn, darkBtn, ghostBtn, Sheet, Spinner, LineChart, Ring, Stat, input, Chip } from './ui.tsx';
 import { beep } from './Sport.tsx';
 
 // Onglet CORPS : poids, mensurations et PHOTOS DE SUIVI. Caméra avec la photo d'avant en transparence pour se placer
@@ -153,8 +153,8 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
   const [goal, setGoal] = useState('');
   const [adapted, setAdapted] = useState<{ date: string; text: string } | null>(null);
   const [adapting, setAdapting] = useState(false);
+  const [adaptAfter, setAdaptAfter] = useState(false);
   const adapt = async () => {
-    if (!goal.trim()) return;
     setAdapting(true);
     try { setAdapted(await forme.adapt(goal.trim())); vibrate(60); } catch (e) { toast(errText(e)); } finally { setAdapting(false); }
   };
@@ -165,11 +165,13 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
   const shot = async (dataUrl: string) => {
     setCam(false); setBusy(true);
     try {
-      const r = await forme.bodyPhoto(dataUrl, pose);
+      const r = await forme.bodyPhoto(dataUrl, pose, goal.trim(), adaptAfter);
       const fresh = await forme.overview(); onO(fresh);
       const ph = fresh.photos.find(x => x.id === r.photo.id) ?? { ...r.photo, url: dataUrl };
       if ('error' in r.analysis) toast(`Photo gardée, analyse impossible : ${r.analysis.error}`);
       else { setView({ photo: ph, a: r.analysis }); vibrate(60); }
+      if (r.adapted?.date) { setAdapted(r.adapted); toast('🎯 Séance de demain refaite (agenda compris)'); }
+      setAdaptAfter(false);
     } catch (e) { toast(errText(e)); } finally { setBusy(false); }
   };
   const logKg = async () => { const v = Number(kg.replace(',', '.')); if (!(v > 30)) return; onO(await forme.log('weight', { kg: v })); setKg(''); toast('⚖️ Poids noté'); };
@@ -182,6 +184,7 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
         <Stat v={`${cur - start > 0 ? '+' : ''}${(cur - start).toFixed(1)}`} l="kg depuis le début" color={cur <= start ? F.green : F.accent} />
         <Stat v={`${Math.max(0, cur - o.profile.targetKg).toFixed(1)}`} l={`kg avant ${o.profile.targetKg}`} color={F.accent} />
       </div>
+      {o.eta && <div style={{ ...card, marginTop: 10, display: 'flex', gap: 12, alignItems: 'center' }}><span style={{ fontSize: 30 }}>🎯</span><div><b>{o.profile.targetKg} kg vers le {o.eta.slice(8)}/{o.eta.slice(5, 7)}/{o.eta.slice(0, 4)}</b><div style={{ fontSize: 13, color: F.muted }}>à ton rythme actuel ({o.weightRate} kg/semaine) — continue comme ça</div></div></div>}
       {o.tooFast && <div style={{ ...card, marginTop: 10, background: '#fff4e5', fontSize: 13.5, lineHeight: 1.4 }}>⚠️ Tu perds {o.weightRate} kg/semaine : un peu vite. Pour garder ton muscle : atteins tes {o.targets.p} g de protéines chaque jour et ne saute pas la muscu. Parles-en à ton médecin au prochain contrôle.</div>}
       <div style={{ ...card, marginTop: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div style={{ fontWeight: 800 }}>⚖️ Courbe de poids</div>{o.weightRate != null && <div style={{ fontSize: 12.5, color: F.muted, fontWeight: 700 }}>{o.weightRate > 0 ? '−' : '+'}{Math.abs(o.weightRate)} kg/sem.</div>}</div>
@@ -206,7 +209,9 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
         <div style={{ fontSize: 13, color: F.muted, margin: '4px 0 10px', lineHeight: 1.4 }}>Avec tes photos analysées, le coach refait ta prochaine séance exercice par exercice (programme + agenda).</div>
         <textarea value={goal} onChange={e => setGoal(e.target.value)} rows={2} placeholder="ex. le ventre et les poignées d'amour, plus de pecs" style={{ ...input, resize: 'none', fontFamily: 'inherit' }} />
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '8px 0' }}>{['Le ventre', "Les poignées d'amour", 'Le bas du dos', 'Plus de pecs', 'Les bras', 'Les cuisses', 'Le dos plus large'].map(x => <Chip key={x} onClick={() => setGoal(g => g ? `${g}, ${x.toLowerCase()}` : x)}>{x}</Chip>)}</div>
-        <button disabled={adapting || !goal.trim()} onClick={adapt} style={{ ...btn, width: '100%', opacity: goal.trim() ? 1 : 0.5, display: 'flex', justifyContent: 'center', gap: 10, alignItems: 'center' }}>{adapting ? <><Spinner size={18} color="#fff" /> Le coach prépare ta séance…</> : '🎯 Adapter ma séance de demain'}</button>
+        <button disabled={busy} onClick={() => { setAdaptAfter(true); setCam(true); }} style={{ ...darkBtn, width: '100%', marginBottom: 8, display: 'flex', justifyContent: 'center', gap: 10, alignItems: 'center' }}>{busy && adaptAfter ? <><Spinner size={18} color="#fff" /> Analyse + nouvelle séance…</> : `📸 Photo ${POSES.find(p => p.id === pose)!.label.toLowerCase()} + adapter ma séance`}</button>
+        <button disabled={adapting} onClick={adapt} style={{ ...btn, width: '100%', display: 'flex', justifyContent: 'center', gap: 10, alignItems: 'center' }}>{adapting ? <><Spinner size={18} color="#fff" /> Le coach prépare ta séance…</> : goal.trim() ? '🎯 Adapter ma séance de demain' : '🎯 Le coach choisit pour moi (sans photo)'}</button>
+        <div style={{ fontSize: 12.5, color: F.muted, marginTop: 8, lineHeight: 1.4 }}>Sans rien écrire, le coach regarde tes photos et te dit lui-même quoi perdre. Tu peux aussi envoyer ta photo à Dzaryx sur Telegram : il répond avec ta photo entourée ⭕ et refait ta séance.</div>
       </div>
       {o.photos.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 12 }}>

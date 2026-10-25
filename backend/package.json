@@ -15,6 +15,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
     "@google-cloud/speech": "^7.3.1",
+    "@napi-rs/canvas": "^0.1.100",
     "@supabase/supabase-js": "^2.49.4",
     "@types/nodemailer": "^8.0.0",
     "@types/web-push": "^3.6.4",

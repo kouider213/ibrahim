@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { forme, errText, type Overview, type Recipe, SHORT_DAYS, dayOf, fmtLong, vibrate } from './api.ts';
-import { F, Title, Section, card, btn, ghostBtn, Sheet, Img, Spinner, input } from './ui.tsx';
+import { F, Title, Section, card, btn, darkBtn, ghostBtn, Sheet, Img, Spinner, input, Chip } from './ui.tsx';
 
 const SLOT_COLOR: Record<string, string> = { 'petit-déj': F.gold, 'déjeuner': F.accent, 'collation': F.violet, 'dîner': F.blue };
 
@@ -22,9 +22,41 @@ export function MealRow({ r, slot, eaten, onToggle, onOpen }: { r: Recipe; slot:
   );
 }
 
-export function RecipeSheet({ r, monday, eaten, onToggle, onClose, onWeek }: { r: Recipe | null; monday: string; eaten?: boolean; onToggle?: () => void; onClose: () => void; onWeek: (w: NonNullable<Overview['week']>) => void }) {
+// Quantités × portions (« 150 g » → « 300 g » pour 2) — pour cuisiner pour toute la famille
+const scaleQty = (q: string, k: number) => k === 1 ? q : q.replace(/(\d+(?:[.,]\d+)?)/, n => { const v = Number(n.replace(',', '.')) * k; return (Number.isInteger(v) ? String(v) : v.toFixed(1)).replace('.', ','); });
+
+function CookMode({ r, onClose }: { r: Recipe; onClose: () => void }) {
+  const [i, setI] = useState(0);
+  const ar = document.documentElement.lang === 'ar';
+  const read = (t: string) => { try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = ar ? 'ar-SA' : 'fr-FR'; u.rate = 0.95; speechSynthesis.speak(u); } catch { /* */ } };
+  useEffect(() => {
+    let lock: { release: () => Promise<void> } | null = null;
+    void (navigator as Navigator & { wakeLock?: { request: (t: 'screen') => Promise<{ release: () => Promise<void> }> } }).wakeLock?.request('screen').then(l => { lock = l; }).catch(() => {});
+    return () => { void lock?.release().catch(() => {}); try { speechSynthesis.cancel(); } catch { /* */ } };
+  }, []);
+  useEffect(() => { read(r.steps[i] ?? ''); }, [i]);   // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 70, background: F.dark, color: '#fff', display: 'flex', flexDirection: 'column', padding: 'calc(16px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom))' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ fontWeight: 800, color: F.accent2 }}>👩‍🍳 {i + 1} / {r.steps.length}</div>
+        <button onClick={onClose} style={{ ...ghostBtn, background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none' }}>✕</button>
+      </div>
+      <div style={{ fontSize: 15, opacity: 0.6, marginTop: 8 }}>{r.title}</div>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', fontSize: 'clamp(24px, 7vw, 34px)', fontWeight: 800, lineHeight: 1.3 }}>{r.steps[i]}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+        <button disabled={i === 0} onClick={() => setI(i - 1)} style={{ ...ghostBtn, padding: '18px 0', fontSize: 18, opacity: i ? 1 : 0.4 }}>←</button>
+        <button onClick={() => read(r.steps[i] ?? '')} style={{ ...ghostBtn, padding: '18px 0', fontSize: 18 }}>🔊</button>
+        <button onClick={() => i < r.steps.length - 1 ? setI(i + 1) : onClose()} style={{ ...btn, padding: '18px 0', fontSize: 18 }}>{i < r.steps.length - 1 ? '→' : '✓'}</button>
+      </div>
+    </div>
+  );
+}
+
+export function RecipeSheet({ r, monday, eaten, onToggle, onClose, onWeek, fav, onFav }: { r: Recipe | null; monday: string; eaten?: boolean; onToggle?: () => void; onClose: () => void; onWeek: (w: NonNullable<Overview['week']>) => void; fav?: boolean; onFav?: () => void }) {
   const [busy, setBusy] = useState(false);
   const [wish, setWish] = useState('');
+  const [k, setK] = useState(1);
+  const [cook, setCook] = useState(false);
   const swap = async () => {
     if (!r) return;
     setBusy(true);
@@ -40,16 +72,17 @@ export function RecipeSheet({ r, monday, eaten, onToggle, onClose, onWeek }: { r
             {['☪️ halal', ...r.tags].map(t => <span key={t} style={{ background: 'rgba(255,255,255,0.92)', borderRadius: 999, padding: '5px 10px', fontSize: 12, fontWeight: 700 }}>{t}</span>)}
           </div>
         </div>
-        <Title a={r.title} size={24} />
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}><div style={{ flex: 1 }}><Title a={r.title} size={24} /></div>{onFav && <button onClick={onFav} aria-label="Favori" style={{ ...ghostBtn, width: 46, height: 46, padding: 0, borderRadius: 23, fontSize: 22, marginTop: 6 }}>{fav ? '❤️' : '🤍'}</button>}</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
           {[{ v: r.kcal, l: 'kcal', c: F.accent }, { v: `${r.p} g`, l: 'protéines', c: F.green }, { v: `${r.c} g`, l: 'glucides', c: F.gold }, { v: `${r.f} g`, l: 'lipides', c: F.blue }].map(x => (
             <div key={x.l} style={{ ...card, padding: '10px 6px', textAlign: 'center' }}><div style={{ fontSize: 17, fontWeight: 900, color: x.c }}>{x.v}</div><div style={{ fontSize: 11, color: F.muted, fontWeight: 700 }}>{x.l}</div></div>
           ))}
         </div>
         {r.tip && <div style={{ ...card, marginTop: 12, background: F.soft, boxShadow: 'none', fontSize: 14, lineHeight: 1.45 }}>💡 {r.tip}</div>}
+        <div style={{ display: 'flex', gap: 6, marginTop: 14, alignItems: 'center' }}><span style={{ fontWeight: 800, fontSize: 14 }}>Pour</span>{[1, 2, 3, 4].map(n => <Chip key={n} on={k === n} onClick={() => setK(n)}>{n === 1 ? '1 pers.' : `${n} pers.`}</Chip>)}</div>
         <Section a="Ingrédients" right={`${r.minutes} min`} />
         <div style={{ ...card, padding: '4px 14px' }}>
-          {r.ingredients.map((x, i) => <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: i < r.ingredients.length - 1 ? `1px solid ${F.line}` : 'none', fontSize: 14.5 }}><span>{x.name}</span><b>{x.qty}</b></div>)}
+          {r.ingredients.map((x, i) => <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: i < r.ingredients.length - 1 ? `1px solid ${F.line}` : 'none', fontSize: 14.5 }}><span>{x.name}</span><b>{scaleQty(x.qty, k)}</b></div>)}
         </div>
         <Section a="La" b="recette" />
         {r.steps.map((s, i) => (
@@ -58,6 +91,8 @@ export function RecipeSheet({ r, monday, eaten, onToggle, onClose, onWeek }: { r
             <div style={{ fontSize: 14.5, lineHeight: 1.45, paddingTop: 4 }}>{s}</div>
           </div>
         ))}
+        <button onClick={() => setCook(true)} style={{ ...darkBtn, width: '100%', marginTop: 6 }}>👩‍🍳 Mode cuisine (pas à pas, à voix haute)</button>
+        {cook && <CookMode r={r} onClose={() => setCook(false)} />}
         {onToggle && <button onClick={() => { onToggle(); onClose(); }} style={{ ...btn, width: '100%', marginTop: 10, background: eaten ? F.dark : F.accent }}>{eaten ? 'Décocher ce repas' : "✓ J'ai mangé ce repas"}</button>}
         <div style={{ ...card, marginTop: 12 }}>
           <div style={{ fontWeight: 800, marginBottom: 8 }}>🔄 Pas envie ? Une autre recette, mêmes macros</div>
@@ -69,7 +104,7 @@ export function RecipeSheet({ r, monday, eaten, onToggle, onClose, onWeek }: { r
   );
 }
 
-export default function WeekScreen({ o, onLog, onWeek }: { o: Overview; onLog: (kind: string, body: Record<string, unknown>) => void; onWeek: (w: NonNullable<Overview['week']>) => void }) {
+export default function WeekScreen({ o, onLog, onWeek, onFav }: { o: Overview; onLog: (kind: string, body: Record<string, unknown>) => void; onWeek: (w: NonNullable<Overview['week']>) => void; onFav: (title: string) => void }) {
   const w = o.week;
   const [sel, setSel] = useState(() => w?.days.find(d => d.date === o.today)?.date ?? w?.days[0]?.date ?? o.today);
   const [open, setOpen] = useState<string | null>(null);
@@ -125,7 +160,7 @@ export default function WeekScreen({ o, onLog, onWeek }: { o: Overview; onLog: (
         );
       })}
       <button disabled={busy} onClick={async () => { if (!confirm('Refaire toute la semaine (nouvelles recettes + nouvelle liste de courses) ?')) return; setBusy(true); try { onWeek((await forme.makeWeek(true)).week); } catch (e) { alert(errText(e)); } finally { setBusy(false); } }} style={{ ...ghostBtn, width: '100%', marginTop: 4, display: 'flex', justifyContent: 'center', gap: 8 }}>{busy ? <><Spinner size={16} /> Nouvelle semaine… (~30 s)</> : '🔄 Nouvelle semaine de repas'}</button>
-      <RecipeSheet r={opened} monday={w.monday} onClose={() => setOpen(null)} onWeek={onWeek}
+      <RecipeSheet r={opened} monday={w.monday} onClose={() => setOpen(null)} onWeek={onWeek} fav={!!opened && o.profile.favorites.includes(opened.title)} onFav={opened ? () => onFav(opened.title) : undefined}
         eaten={sel === o.today && open ? !!o.day.meals[open] : undefined}
         onToggle={sel === o.today && open ? () => onLog('meal', { key: open, eaten: !o.day.meals[open], recipe: openedSlot }) : undefined} />
     </div>

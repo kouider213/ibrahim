@@ -3,7 +3,7 @@ import { requireMobileAuth } from '../middleware/auth.js';
 import {
   formeOverview, setFormeProfile, swipeCandidates, generateWeek, getWeek, mondayOf, swapRecipe, logForme,
   parseImage, analyzeMealPhoto, addBodyPhoto, analyzeBodyPhoto, offBarcode, offSearch, askFormeCoach, storeFormeSub, formeTargets,
-  householdShopping, checkHouseItem, addHouseItem, removeHouseItem, adaptNextSession, createInvite, revokeInvite, uidFromFormeToken, getProgram, programOverview, getFormeProfile,
+  householdShopping, checkHouseItem, addHouseItem, removeHouseItem, adaptNextSession, doctorReport, formeAgenda, createInvite, revokeInvite, uidFromFormeToken, getProgram, programOverview, getFormeProfile,
   type FormeProfile, type BodyPhoto, type Uid,
 } from '../../integrations/forme.js';
 import type { PushSubscription } from 'web-push';
@@ -60,9 +60,9 @@ router.get('/shopping', async (req, res) => {
   try { res.json(await householdShopping(U(req))); } catch (err) { fail(res, err); }
 });
 router.post('/shop', async (req, res) => {
-  const b = req.body as { key?: string; checked?: boolean };
+  const b = req.body as { key?: string; checked?: boolean; home?: boolean };
   if (typeof b.key !== 'string' || !b.key) { fail(res, 'article invalide', 400); return; }
-  try { await checkHouseItem(U(req), b.key.slice(0, 200), !!b.checked); res.json(await householdShopping(U(req))); } catch (err) { fail(res, err); }
+  try { await checkHouseItem(U(req), b.key.slice(0, 200), !!b.checked, !!b.home); res.json(await householdShopping(U(req))); } catch (err) { fail(res, err); }
 });
 
 // POST /api/forme/shop-add { name, qty?, store? } — article ajouté à la main ; POST /api/forme/shop-del { key }
@@ -97,10 +97,19 @@ router.post('/program', async (req, res) => {
   try { await getProgram(U(req), true); res.json(await programOverview(U(req))); } catch (err) { fail(res, err); }
 });
 
+// GET /api/forme/agenda — les 7 prochains jours (sport, repas, injection, rappels, repos)
+router.get('/agenda', async (req, res) => {
+  try { res.json({ days: await formeAgenda(U(req)) }); } catch (err) { fail(res, err); }
+});
+
+// GET /api/forme/doctor — bilan texte pour le médecin
+router.get('/doctor', async (req, res) => {
+  try { res.json({ text: await doctorReport(U(req)) }); } catch (err) { fail(res, err); }
+});
+
 // POST /api/forme/adapt { focus } — « je veux perdre le ventre » (+ ses photos analysées) → prochaine séance sur mesure
 router.post('/adapt', async (req, res) => {
-  const focus = String((req.body as { focus?: string }).focus ?? '').trim();
-  if (!focus) { fail(res, 'dis ce que tu veux perdre ou améliorer', 400); return; }
+  const focus = String((req.body as { focus?: string }).focus ?? '').trim();   // vide = le coach choisit d'après les photos
   try { res.json(await adaptNextSession(U(req), { focus })); } catch (err) { fail(res, err); }
 });
 
@@ -111,12 +120,15 @@ router.post('/meal-photo', async (req, res) => {
 
 // POST /api/forme/body-photo { image, pose } → stockée en privé puis analysée (avant / maintenant)
 router.post('/body-photo', async (req, res) => {
-  const b = req.body as { image?: string; pose?: string };
+  const b = req.body as { image?: string; pose?: string; goal?: string; adapt?: boolean };
   const pose = (['face', 'profil', 'dos'].includes(String(b.pose)) ? b.pose : 'face') as BodyPhoto['pose'];
   try {
     const ph = await addBodyPhoto(U(req), parseImage(String(b.image ?? '')), pose);
-    const analysis = await analyzeBodyPhoto(U(req), ph.id).catch(e => ({ error: e instanceof Error ? e.message : String(e) }));
-    res.json({ photo: ph, analysis });
+    const goal = String(b.goal ?? '').slice(0, 300);
+    const analysis = await analyzeBodyPhoto(U(req), ph.id, goal).catch(e => ({ error: e instanceof Error ? e.message : String(e) }));
+    // « Photo + adapter » : la séance de demain est refaite d'après la photo (et ce qu'il veut perdre)
+    const adapted = b.adapt && !('error' in analysis) ? await adaptNextSession(U(req), { focus: goal, observations: `${analysis.summary} Zones : ${analysis.zones.map(z => `${z.label} (${z.trend})`).join(', ')}.` }).catch(e => ({ date: '', text: e instanceof Error ? e.message : String(e) })) : null;
+    res.json({ photo: ph, analysis, adapted });
   } catch (err) { fail(res, err, 400); }
 });
 
@@ -138,7 +150,8 @@ router.get('/products', async (req, res) => {
 
 // POST /api/forme/ask { question } — le coach répond (resto, envie de sucre, nausée…)
 router.post('/ask', async (req, res) => {
-  try { res.json({ answer: await askFormeCoach(String((req.body as { question?: string }).question ?? ''), U(req)) }); } catch (err) { fail(res, err); }
+  const b = req.body as { question?: string; mode?: string };
+  try { res.json({ answer: await askFormeCoach(String(b.question ?? ''), U(req), ['batch', 'fridge'].includes(String(b.mode)) ? String(b.mode) : '') }); } catch (err) { fail(res, err); }
 });
 
 // POST /api/forme/push — abonnement notifications de l'appli FORME (écran d'accueil)

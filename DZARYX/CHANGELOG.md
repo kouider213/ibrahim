@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-10-25 (soir) — FORME : photo → cercles + séance de demain partout, 20 nouveautés, agenda de sa femme
+
+- Photo du corps : Claude place ses cercles sur une grille graduée (bien plus juste) ; objectif (« le ventre ») ou, sans rien dire, le coach dit lui-même quoi perdre. Dans FORME : « 📸 Photo + adapter ma séance » et « Le coach choisit pour moi ». Sur Telegram : la photo est gardée 30 min (`kouider:forme:tg-photo`), outil `forme` action `body_photo` → photo rangée, analysée, image avant/maintenant entourée renvoyée (@napi-rs/canvas, bucket privé), séance du lendemain refaite (sport-coach + agenda Google).
+- Semaine de repas : TOUS les repas différents (21-28 recettes/semaine, génération en streaming ~1 min, doublons corrigés automatiquement).
+- Notifications : aussi sur Telegram pour Kouider (réglable), bannière « activer » dans l'appli installée, rappels perso.
+- 20 nouveautés : jeûne (Ramadan / lundi-jeudi), frigo vide, batch cooking, bilan pour le médecin, mes rappels, sommeil, pas, IMC & tour de taille, anti-fringale (respiration), portions à la main, agenda 7 jours dans l'app (+ export calendrier iPhone .ics), micro pour parler au coach (FR/AR) et réponses lues, mode cuisine pas à pas (voix + écran allumé), portions famille ×2-×4, recettes favorites ❤️ reprises, défi de la semaine, date estimée d'objectif, « Mes goûts » (re-swipe), « 🏠 déjà à la maison » dans les courses.
+- Sa femme : jours de repos jeudi + dimanche (`restDays`), programme et séance sur mesure jamais ces jours-là, visibles dans son agenda in-app ; tout en arabe (traductions ajoutées). App v179.
+
 ## 2026-10-25 — « La grande course de Fennou » : vrai jeu 3D pour le petit
 
 - `simulator/run/` (→ /ibrahim/run/, tuile « La grande course » en haut de Fennou) : jeu three.js à la Subway Surfers. Fennou (fennec 3D, tenues) court seul sur 3 voies ; l'enfant touche les images. 6 mondes (désert, oasis, ferme, plage d'Oran, ville, étoiles) × 6 niveaux + course libre. Missions cerveau : trouver (animaux + cris, fruits, véhicules), couleurs, formes (portes), grand/petit, compter les étoiles, cache-cache dans les cadeaux (avec échange), musique (Frère Jacques), famille (photos papa/maman de Fennou).

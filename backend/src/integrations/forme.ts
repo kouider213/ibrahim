@@ -51,8 +51,13 @@ export interface FormeProfile {
   budgetWeek: number; likes: string[]; dislikes: string[]; vegetarian: boolean;
   wegovy: { on: boolean; dose: string; day: number; hour: string; start?: string; doses?: Array<{ date: string; dose: string }> };
   photoEveryDays: number; weighDaily: boolean;
-  notif: { meals: boolean; water: boolean; injection: boolean; photo: boolean; weigh: boolean };
+  notif: { meals: boolean; water: boolean; injection: boolean; photo: boolean; weigh: boolean; telegram?: boolean };
   waterGoal: number;
+  fasting: 'off' | 'ramadan' | 'sunna';                // jeûne : Ramadan (s'hour + iftar) ou lundi/jeudi
+  reminders: Array<{ id: string; label: string; time: string; days: number[] }>;   // rappels perso (vitamine D, médicament…)
+  stepsGoal: number;
+  restDays: number[];                                  // jours sans sport (sa femme : jeudi + dimanche)
+  favorites: string[];                                 // recettes adorées (❤️) : reprises de temps en temps
 }
 
 const DEFAULTS: Record<Uid, FormeProfile> = {
@@ -60,13 +65,15 @@ const DEFAULTS: Record<Uid, FormeProfile> = {
     onboarded: false, name: 'Kouider', lang: 'fr', shareWithDzaryx: true, goal: 'recompo', sex: 'h', age: 30, heightCm: 178, weightKg: 90, targetKg: 80,
     sessionsPerWeek: 4, gym: 'Basic-Fit', stores: ['Colruyt', 'Boucherie halal'], mealsPerDay: 3, budgetWeek: 60,
     likes: [], dislikes: [], vegetarian: false, wegovy: { on: false, dose: '', day: 0, hour: '20:00' },
-    photoEveryDays: 7, weighDaily: false, notif: { meals: true, water: true, injection: true, photo: true, weigh: true }, waterGoal: 8,
+    photoEveryDays: 7, weighDaily: false, notif: { meals: true, water: true, injection: true, photo: true, weigh: true, telegram: true }, waterGoal: 8,
+    fasting: 'off', reminders: [], stepsGoal: 8000, restDays: [1, 4], favorites: [],
   },
   femme: {
     onboarded: false, name: '', lang: 'ar', shareWithDzaryx: false, goal: 'perte', sex: 'f', age: 28, heightCm: 165, weightKg: 75, targetKg: 65,
     sessionsPerWeek: 3, gym: 'À la maison', stores: ['Colruyt', 'Boucherie halal'], mealsPerDay: 3, budgetWeek: 50,
     likes: [], dislikes: [], vegetarian: false, wegovy: { on: false, dose: '', day: 0, hour: '20:00' },
     photoEveryDays: 7, weighDaily: false, notif: { meals: true, water: true, injection: true, photo: true, weigh: true }, waterGoal: 8,
+    fasting: 'off', reminders: [], stepsGoal: 7000, restDays: [0, 4], favorites: [],
   },
 };
 
@@ -80,6 +87,7 @@ export interface FormeDay {
   injection?: { at: number; site: string; dose?: string };
   sides?: Array<{ what: string; level: number; at: number }>;
   workout?: WorkoutLog;
+  sleep?: number; steps?: number;
 }
 
 export interface Recipe {
@@ -143,6 +151,11 @@ export async function setFormeProfile(patch: Partial<FormeProfile>, uid: Uid = '
     ...(patch.weighDaily != null ? { weighDaily: !!patch.weighDaily } : {}),
     ...(patch.notif ? { notif: { ...cur.notif, ...patch.notif } } : {}),
     ...(patch.waterGoal != null ? { waterGoal: num(patch.waterGoal, 4, 16, cur.waterGoal) } : {}),
+    ...(patch.fasting && ['off', 'ramadan', 'sunna'].includes(patch.fasting) ? { fasting: patch.fasting } : {}),
+    ...(Array.isArray(patch.reminders) ? { reminders: patch.reminders.slice(0, 12).filter(x => x?.label && /^\d{2}:\d{2}$/.test(String(x.time))).map(x => ({ id: String(x.id || Date.now().toString(36)).slice(0, 20), label: String(x.label).slice(0, 60), time: String(x.time), days: (Array.isArray(x.days) && x.days.length ? x.days : [0, 1, 2, 3, 4, 5, 6]).map(Number).filter(d => d >= 0 && d <= 6) })) } : {}),
+    ...(Array.isArray(patch.restDays) ? { restDays: [...new Set(patch.restDays.map(Number).filter(d => d >= 0 && d <= 6))] } : {}),
+    ...(Array.isArray(patch.favorites) ? { favorites: patch.favorites.map(x => String(x).slice(0, 90)).slice(-40) } : {}),
+    ...(patch.stepsGoal != null ? { stepsGoal: num(patch.stepsGoal, 2000, 30000, cur.stepsGoal) } : {}),
   };
   if (!next.stores.length) next.stores = ['Colruyt'];
   await kvSet(PK(uid), JSON.stringify(next));
@@ -376,7 +389,7 @@ Réponds UNIQUEMENT par un objet JSON valide (aucun texte autour, pas de \`\`\`)
  "recipes":[{"id":"r1","title":"titre appétissant","mealDbId":"id du catalogue si un plat proche existe, sinon null","photoQuery":"2-4 mots EN pour trouver une photo","minutes":25,"kcal":520,"p":45,"c":40,"f":15,"tags":["riche en protéines","doux pour l'estomac"],"ingredients":[{"name":"blanc de poulet halal","qty":"150 g"}],"steps":["étape courte",...],"tip":"astuce Wegovy/prépa (≤ 120 car.)"}],
  "days":[{"date":"AAAA-MM-JJ","meals":[{"slot":"petit-déj|déjeuner|collation|dîner","recipe":"r1","portion":"1 part"}]}],
  "shopping":[{"name":"produit tel qu'en rayon","fr":"nom FRANÇAIS court et générique (ex. skyr nature, blanc de poulet halal)","qty":"600 g","aisle":"Fruits & légumes|Boucherie halal|Crèmerie|Épicerie|Surgelés|Boulangerie|Boissons","store":"un des magasins choisis","price":3.49,"halal":true}]}
-Le champ "slot" et "aisle" restent TOUJOURS en français (valeurs ci-dessus). Contraintes : ${p.wegovy.on ? 'sous Wegovy pas de grosse assiette — ≤ 600 kcal par repas ; si la cible du jour ne rentre pas, ajoute une collation protéinée (skyr, œufs, shake) même si 3 repas sont demandés. ' : ''}6 à 9 recettes différentes max (restes réutilisés), chaque jour = le nombre de repas demandé, macros de la journée proches des cibles (protéines atteintes en priorité), total des courses ≤ budget, prix = prix unitaire estimé en € du paquet acheté. Viande → store "Boucherie halal" si le magasin n'a pas de halal sûr.`;
+Le champ "slot" et "aisle" restent TOUJOURS en français (valeurs ci-dessus). Contraintes : TOUS LES REPAS DIFFÉRENTS (Kouider 25/10) — jamais deux fois la même recette dans la journée NI dans la semaine : une recette = UN seul repas, donc autant de recettes que de repas de la semaine (ex. 7 jours × 3 repas = 21 recettes), chacune référencée UNE seule fois dans "days". Varie les protéines (poulet, bœuf, agneau, poisson, œufs, légumineuses) et les cuisines (algérienne, méditerranéenne, belge, orientale…). Pour rester court : 4 à 8 ingrédients et 3 à 4 étapes courtes par recette. ${p.wegovy.on ? 'Sous Wegovy pas de grosse assiette — ≤ 600 kcal par repas ; si la cible du jour ne rentre pas, ajoute une collation protéinée (elle aussi différente chaque jour). ' : ''}Chaque jour = le nombre de repas demandé, macros de la journée proches des cibles (protéines atteintes en priorité), total des courses ≤ budget, prix = prix unitaire estimé en € du paquet acheté. Viande → store "Boucherie halal" si le magasin n'a pas de halal sûr.`;
 
 export async function generateWeek(uid: Uid = 'kouider', monday = localNow().date, force = false): Promise<WeekPlan> {
   const existing = await readJson<WeekPlan | null>(WEEK_K(uid, monday), null);
@@ -396,12 +409,15 @@ export async function generateWeek(uid: Uid = 'kouider', monday = localNow().dat
     `REPAS PAR JOUR : ${p.mealsPerDay} (${p.mealsPerDay <= 2 ? 'déjeuner + dîner' : p.mealsPerDay === 3 ? 'petit-déj + déjeuner + dîner' : 'petit-déj + déjeuner + collation + dîner'}).`,
     `MAGASINS : ${p.stores.join(', ')} · BUDGET COURSES : ${p.budgetWeek} € / semaine.`,
     p.vegetarian ? 'Végétarien.' : '',
+    p.fasting === 'ramadan' ? 'RAMADAN : jeûne de l\'aube au coucher du soleil → chaque jour = « s\'hour » (avant l\'aube : protéines + fibres + eau, sucres lents) et « iftar » (dattes + eau + soupe/chorba puis plat léger riche en protéines) + éventuellement une collation le soir ; utilise slot « petit-déj » pour le s\'hour et « dîner » pour l\'iftar.' : p.fasting === 'sunna' ? 'Jeûne surérogatoire le LUNDI et le JEUDI : ces jours-là seulement s\'hour (slot petit-déj) + iftar (slot dîner).' : '',
     p.wegovy.on ? `Traitement Wegovy en cours (injection le ${['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'][p.wegovy.day]}) : le lendemain de l'injection, repas encore plus légers et doux.` : '',
     liked.length ? `A AIMÉ (swipe) : ${liked.join(', ')}` : '',
     disliked.length ? `N'AIME PAS : ${disliked.join(', ')}` : '',
+    p.favorites.length ? `RECETTES ADORÉES (❤️) — reprends-en 2 ou 3 cette semaine, pas plus : ${shuffle(p.favorites).slice(0, 8).join(' ; ')}` : '',
     `CATALOGUE PHOTOS (id nom) — choisis mealDbId parmi eux quand le plat ressemble :\n${catalogLines}`,
   ].filter(Boolean).join('\n');
-  const res = await createAnthropic().messages.create({ model: 'claude-sonnet-5-5', max_tokens: 14_000, system: planSystem(p), messages: [{ role: 'user', content: user }] }, QUALITY);
+  // 21 à 28 recettes différentes : longue réponse → en streaming (le SDK refuse sinon)
+  const res = await createAnthropic().messages.stream({ model: 'claude-sonnet-5-5', max_tokens: 32_000, system: planSystem(p), messages: [{ role: 'user', content: user }] }, QUALITY).finalMessage();
   const j = jsonOf<{ note?: string; recipes?: Array<Partial<Recipe> & { photoQuery?: string; mealDbId?: string | null }>; days?: WeekPlan['days']; shopping?: Array<ShopItem & { fr?: string }> }>(textOf(res));
   const recipes: Recipe[] = (j.recipes ?? []).filter(r => r.id && r.title).map(r => {
     const ph = photoFor(cat, { mealDbId: r.mealDbId ?? undefined, photoQuery: r.photoQuery, title: r.title });
@@ -413,6 +429,13 @@ export async function generateWeek(uid: Uid = 'kouider', monday = localNow().dat
   });
   const ids = new Set(recipes.map(r => r.id));
   const days = dates.map(d => ({ date: d, meals: ((j.days ?? []).find(x => x.date === d)?.meals ?? []).filter(m => ids.has(m.recipe)).map(m => ({ slot: String(m.slot), recipe: m.recipe, portion: String(m.portion ?? '1 part') })) }));
+  // Jamais deux fois le même repas : un doublon prend une recette pas encore servie
+  const seen = new Set<string>();
+  const spare = recipes.map(r => r.id).filter(id => !days.some(d => d.meals.some(m => m.recipe === id)));
+  for (const d of days) for (const m of d.meals) {
+    if (seen.has(m.recipe) && spare.length) m.recipe = spare.shift()!;
+    seen.add(m.recipe);
+  }
   // name = nom français (sert à fusionner les deux listes du foyer) ; label = nom affiché dans sa langue
   const shopping: ShopItem[] = (j.shopping ?? []).filter(s => s.name).slice(0, 60).map(s => ({
     name: String(s.fr || s.name).slice(0, 80), label: p.lang === 'ar' ? String(s.name).slice(0, 100) : undefined, qty: String(s.qty ?? ''), aisle: String(s.aisle ?? 'Épicerie'), store: String(s.store ?? p.stores[0]),
@@ -463,9 +486,9 @@ export async function householdShopping(uid: Uid): Promise<{ items: HouseItem[];
   return { items, total: Math.round(items.reduce((a, i) => a + i.price, 0) * 100) / 100, budget, shared: users.length > 1 };
 }
 
-export async function checkHouseItem(uid: Uid, key: string, checked: boolean): Promise<void> {
+export async function checkHouseItem(uid: Uid, key: string, checked: boolean, home = false): Promise<void> {
   const checks = await readJson<Record<string, { by: string; at: number }>>(CHECKS_KEY, {});
-  if (checked) checks[key] = { by: (await getFormeProfile(uid)).name || uid, at: Date.now() }; else delete checks[key];
+  if (checked) checks[key] = { by: home ? '🏠' : (await getFormeProfile(uid)).name || uid, at: Date.now() }; else delete checks[key];
   // On garde 3 semaines de cases (les listes changent chaque semaine)
   const old = Date.now() - 21 * 86_400_000;
   await kvSet(CHECKS_KEY, JSON.stringify(Object.fromEntries(Object.entries(checks).filter(([, v]) => v.at > old))));
@@ -525,18 +548,20 @@ export interface Program { at: number; days: number[]; sessions: ProgSession[] }
 
 export async function getProgram(uid: Uid, force = false): Promise<Program> {
   const cur = await readJson<Program | null>(PROG_K(uid), null);
-  if (cur && !force) return cur;
   const p = await getFormeProfile(uid);
-  const n = Math.max(2, Math.min(5, p.sessionsPerWeek || 3));
+  if (cur && !force && !cur.days.some(d => p.restDays.includes(d))) return cur;   // jours de repos changés → programme refait
+  const allowed = [0, 1, 2, 3, 4, 5, 6].filter(d => !p.restDays.includes(d));
+  const n = Math.max(2, Math.min(5, Math.min(allowed.length, p.sessionsPerWeek || 3)));
   const res = await createAnthropic().messages.create({ model: 'claude-sonnet-5-5', max_tokens: 5000,
     system: `Tu es coach sportif. Tu crées un programme de ${n} séances/semaine pour ${p.sex === 'f' ? 'une femme' : 'un homme'} (${p.age} ans, ${p.weightKg} kg → ${p.targetKg} kg, objectif ${p.goal}, lieu : ${p.gym})${p.wegovy.on ? ', sous Wegovy (garder le muscle : renforcement prioritaire, intensité progressive, bien s\'hydrater)' : ''}.
 Exercices UNIQUEMENT parmi ces identifiants : ${Object.entries(EX_LIB).map(([k, v]) => `${k} (${v})`).join(', ')}.${p.gym === 'À la maison' ? ' À la maison : poids du corps, haltères légers, élastique — pas de machines (Leg_Press, Seated_Leg_Curl, Leg_Extensions, Wide-Grip_Lat_Pulldown, Seated_Cable_Rows, Triceps_Pushdown, Face_Pull, Walking_Treadmill, Elliptical_Trainer, Rowing_Stationary, Bicycling_Stationary interdits).' : ''}
 ${LANG_RULE(p.lang)}
+JOURS DE REPOS (jamais de séance) : ${p.restDays.map(d => ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'][d]).join(', ') || 'aucun'} → choisis les jours parmi ${allowed.join(', ')} (0=dimanche).
 Réponds UNIQUEMENT en JSON : {"days":[jours de la semaine 0=dimanche…],"sessions":[{"label":"nom court","emoji":"🔥","focus":"muscles","warmup":"échauffement court","estMin":40,"exercises":[{"id":"Goblet_Squat","name":"nom affiché","sets":3,"reps":"12","rest":60,"tip":"consigne technique (≤ 100 car.)","alt":["variante"],"timed":false}]}]} — 5 à 7 exercices par séance, jours espacés.` ,
     messages: [{ role: 'user', content: 'Crée le programme.' }] }, QUALITY);
   const j = jsonOf<{ days?: number[]; sessions?: Array<Partial<ProgSession> & { exercises?: Array<Partial<ProgEx>> }> }>(textOf(res));
   const prog: Program = {
-    at: Date.now(), days: (j.days ?? []).map(Number).filter(d => d >= 0 && d <= 6).slice(0, n),
+    at: Date.now(), days: (() => { const d0 = [...new Set((j.days ?? []).map(Number).filter(d => allowed.includes(d)))].slice(0, n); for (const d of [1, 3, 5, 2, 6, 0, 4]) if (d0.length < n && allowed.includes(d) && !d0.includes(d)) d0.push(d); return d0.sort(); })(),
     sessions: (j.sessions ?? []).slice(0, n).map(s => ({
       label: String(s.label ?? 'Séance').slice(0, 40), emoji: String(s.emoji ?? '🔥').slice(0, 4), focus: String(s.focus ?? '').slice(0, 80), warmup: String(s.warmup ?? '').slice(0, 160), estMin: Number(s.estMin) || 40,
       exercises: (s.exercises ?? []).filter(e => e.id && EX_LIB[String(e.id)]).map(e => ({
@@ -571,6 +596,8 @@ export async function adaptNextSession(uid: Uid, o: { focus: string; observation
   const p = await getFormeProfile(uid);
   const photos = await readPhotos(uid);
   const lastA = [...photos].reverse().find(x => x.analysis)?.analysis;
+  // Rien précisé : le coach choisit d'après la dernière analyse photo (zones « à travailler »)
+  if (!o.focus.trim()) o.focus = lastA ? `${lastA.zones.filter(z => z.trend === 'à travailler').map(z => z.label).join(', ') || lastA.focus.join(', ')} (choisi par le coach d'après ses photos)` : 'perte de gras générale + renforcement du tronc (choisi par le coach)';
   const obs = [o.observations, lastA ? `Dernière analyse photo : ${lastA.summary} Zones : ${lastA.zones.map(z => `${z.label} (${z.trend})`).join(', ')}. Priorités : ${lastA.focus.join(', ')}.` : ''].filter(Boolean).join('\n');
   const sc = await import('./sport-coach.js');
   const next = uid === 'kouider' ? await sc.nextSessionDate() : null;
@@ -591,8 +618,61 @@ Réponds UNIQUEMENT en JSON : {"label":"nom court","emoji":"🔥","focus":"zones
   const session: ProgSession = { label: String(j.label ?? 'Séance sur mesure').slice(0, 40), emoji: String(j.emoji ?? '🎯').slice(0, 4), focus: String(j.focus ?? '').slice(0, 80), warmup: String(j.warmup ?? '').slice(0, 160), estMin: 45,
     exercises: (j.exercises ?? []).filter(e => e.id && EX_LIB[String(e.id)]).map(e => ({ id: String(e.id), name: String(e.name ?? e.id).slice(0, 60), muscle: EX_LIB[String(e.id)]!, sets: Number(e.sets) || 3, reps: String(e.reps ?? '12'), rest: Number(e.rest) || 60,
       tip: String(e.tip ?? '').slice(0, 140), alt: (e.alt ?? []).map(String).slice(0, 3), timed: false, demo: [0, 1].map(i => `${EX_BASE}/${String(e.id)}/${i}.jpg`), video: `https://www.youtube.com/results?search_query=${encodeURIComponent(`${String(e.id).replace(/_/g, ' ')} exercise form`)}`, suggestion: { kg: null } })) };
-  await kvSet(CUSTOM_K(uid), JSON.stringify({ session, why, at: Date.now() }));
-  return { date: addDays(localNow().date, 1), text: `${why}\n\n${session.exercises.map((e, i) => `${i + 1}. ${e.name} — ${e.sets} × ${e.reps}`).join('\n')}` };
+  // Sa prochaine séance prévue à partir de demain (jamais un jour de repos)
+  const prog = await getProgram(uid);
+  let date = addDays(localNow().date, 1);
+  for (let i = 1; i <= 7; i++) { const d = addDays(localNow().date, i); if (prog.days.includes(new Date(`${d}T12:00:00Z`).getUTCDay())) { date = d; break; } }
+  await kvSet(CUSTOM_K(uid), JSON.stringify({ session, why, at: Date.now(), date }));
+  return { date, text: `${why}\n\n${session.exercises.map((e, i) => `${i + 1}. ${e.name} — ${e.sets} × ${e.reps}`).join('\n')}` };
+}
+
+// ── AGENDA dans l'app (7 jours) : sport, repas, injection, rappels, repos — sa femme n'a pas Google Agenda ──
+export async function formeAgenda(uid: Uid) {
+  const today = localNow().date;
+  const [p, week, days] = await Promise.all([getFormeProfile(uid), getWeek(uid), readDays(uid)]);
+  const inj = nextInjection(p, days);
+  let sport: Record<string, { label: string; time?: string; custom?: string; done: boolean } | null> = {};
+  if (uid === 'kouider') {
+    const so = await (await import('./sport-coach.js')).sportOverview().catch(() => null);
+    for (const w of so?.week ?? []) if (w.type && !w.skip) sport[w.date] = { label: `${w.emoji ?? '🏋️'} ${w.label}`, time: w.start ? new Date(w.start).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }) : undefined, done: w.status === 'done' };
+    for (const x of [so?.today, so?.next]) if (x && sport[x.date] && (x as { custom?: string }).custom) sport[x.date]!.custom = (x as { custom?: string }).custom;
+  } else {
+    const [prog, custom] = await Promise.all([getProgram(uid), readJson<{ session: ProgSession; why: string; at: number; date?: string } | null>(CUSTOM_K(uid), null)]);
+    const ov = await programOverview(uid);
+    let k = ov.session?.index ?? 0;
+    sport = {};
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(today, i), wd = new Date(`${d}T12:00:00Z`).getUTCDay();
+      if (!prog.days.includes(wd)) continue;
+      const done = !!days[d]?.workout;
+      const isCustom = !!custom && custom.date === d && !done;
+      const s = isCustom ? custom!.session : prog.sessions[k % Math.max(1, prog.sessions.length)];
+      sport[d] = s ? { label: `${s.emoji} ${s.label}`, done, ...(isCustom ? { custom: custom!.why } : {}) } : null;
+      if (!done) k++;
+    }
+  }
+  return Array.from({ length: 7 }, (_, i) => addDays(today, i)).map(d => {
+    const wd = new Date(`${d}T12:00:00Z`).getUTCDay();
+    const meals = (week?.days.find(x => x.date === d)?.meals ?? []).map(m => ({ slot: m.slot, title: week!.recipes.find(r => r.id === m.recipe)?.title ?? '', key: `${m.recipe}:${m.slot}`, eaten: !!days[d]?.meals[`${m.recipe}:${m.slot}`] }));
+    return {
+      date: d, rest: p.restDays.includes(wd) && !sport[d], sport: sport[d] ?? null, meals,
+      injection: p.wegovy.on && inj?.date === d ? { hour: p.wegovy.hour, site: inj.site, done: !!days[d]?.injection } : null,
+      reminders: p.reminders.filter(x => x.days.includes(wd)).map(x => ({ time: x.time, label: x.label })),
+      fasting: p.fasting === 'ramadan' || (p.fasting === 'sunna' && (wd === 1 || wd === 4)),
+    };
+  });
+}
+
+/** Défi de la semaine (change chaque lundi) + progression d'après les 7 derniers jours. */
+function weekChallenge(p: FormeProfile, week7: Array<{ p: number; water: number; steps: number | null; sleep: number | null }>, t: { p: number }) {
+  const all = [
+    { id: 'water', e: '💧', text: `Boire ${p.waterGoal} verres d'eau 5 jours`, goal: 5, got: week7.filter(d => d.water >= p.waterGoal).length },
+    { id: 'protein', e: '🥩', text: `Atteindre ${t.p} g de protéines 4 jours`, goal: 4, got: week7.filter(d => d.p >= t.p).length },
+    { id: 'steps', e: '🚶', text: `${p.stepsGoal.toLocaleString('fr-BE')} pas 4 jours`, goal: 4, got: week7.filter(d => (d.steps ?? 0) >= p.stepsGoal).length },
+    { id: 'sleep', e: '😴', text: 'Dormir 7 h ou plus 4 nuits', goal: 4, got: week7.filter(d => (d.sleep ?? 0) >= 7).length },
+  ];
+  const wk = Math.floor(Date.parse(localNow().date) / 604_800_000);
+  return all[wk % all.length]!;
 }
 
 // ── Vision : photo d'assiette → macros ; photos du corps → évolution entourée ─
@@ -654,20 +734,41 @@ export async function signedPhotoUrls(photos: BodyPhoto[]): Promise<Record<strin
   return out;
 }
 
+/** Photo + grille graduée (0,1 … 0,9) : Claude place ses cercles beaucoup plus juste qu'à l'œil nu. */
+async function gridImage(img: Img): Promise<Img> {
+  try {
+    const { createCanvas, loadImage } = await import('@napi-rs/canvas');
+    const im = await loadImage(Buffer.from(img.data, 'base64'));
+    const s = Math.min(1, 1100 / Math.max(im.width, im.height));
+    const w = Math.round(im.width * s), h = Math.round(im.height * s);
+    const c = createCanvas(w, h); const g = c.getContext('2d');
+    g.drawImage(im, 0, 0, w, h);
+    g.lineWidth = 1; g.font = 'bold 16px sans-serif';
+    for (let i = 1; i < 10; i++) {
+      g.strokeStyle = 'rgba(0,255,255,0.55)';
+      g.beginPath(); g.moveTo(w * i / 10, 0); g.lineTo(w * i / 10, h); g.stroke();
+      g.beginPath(); g.moveTo(0, h * i / 10); g.lineTo(w, h * i / 10); g.stroke();
+      g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(w * i / 10 - 14, 0, 30, 20); g.fillRect(0, h * i / 10 - 10, 30, 20);
+      g.fillStyle = '#0ff'; g.fillText(`.${i}`, w * i / 10 - 10, 15); g.fillText(`.${i}`, 3, h * i / 10 + 6);
+    }
+    return { media: 'image/jpeg', data: c.toBuffer('image/jpeg', 85).toString('base64') };
+  } catch { return img; }
+}
+
 const bodySystem = (p: FormeProfile) => `Tu es le coach physique de ${p.sex === 'h' ? 'Kouider (muscu' : 'cette femme (renforcement'} + perte de gras${p.wegovy.on ? ' sous Wegovy' : ''}). On te donne sa photo AVANT (image 1) et MAINTENANT (image 2), même pose, ou une seule photo de départ.
 Analyse objectivement et avec bienveillance ce qui a changé : épaules, bras, ventre/taille, dos, hanches, jambes, posture. Ne commente jamais le visage. Pas de jugement sur le corps, juste du concret et motivant.
 Réponds UNIQUEMENT en JSON :
 {"summary":"2-3 phrases : ce qui a changé (ou point de départ)","score":0-100 (progression visible, 50 = pareil),
  "zones":[{"label":"Ventre","x":0.5,"y":0.55,"r":0.12,"bx":0.5,"by":0.55,"br":0.13,"trend":"mieux|pareil|à travailler","note":"≤ 90 car."}],
  "advice":["conseil d'entraînement ou d'habitude précis (≤ 120 car.)", "..."],"focus":["muscles à travailler en priorité"]}
-x,y,r = cercle sur la photo MAINTENANT (fractions 0-1 de la largeur/hauteur, r en fraction de la largeur) ; bx,by,br = même zone sur la photo AVANT (omet-les s'il n'y a qu'une photo). 3 à 5 zones, placées précisément sur la zone du corps. Le champ "trend" reste TOUJOURS en français (mieux / pareil / à travailler).${p.sex === 'h' ? ' Conseils compatibles avec un dos à ménager.' : ''}${LANG_RULE(p.lang)}`;
+Les photos portent une GRILLE cyan graduée .1 à .9 (horizontal = x, vertical = y) : sers-t'en pour placer chaque cercle EXACTEMENT sur la partie du corps (ventre = sous la poitrine au niveau du nombril, pas sur le fond ni la tête). x,y = centre du cercle sur la photo MAINTENANT (fractions 0-1 de la largeur/hauteur), r = rayon en fraction de la largeur, PETIT (0,04 à 0,12 : le cercle entoure juste la zone) ; bx,by,br = même zone sur la photo AVANT (omet-les s'il n'y a qu'une photo). 3 à 5 zones qui ne se chevauchent pas, JAMAIS sur le visage ni la tête (épaules = au bord des épaules). Le champ "trend" reste TOUJOURS en français (mieux / pareil / à travailler).${p.sex === 'h' ? ' Conseils compatibles avec un dos à ménager.' : ''}${LANG_RULE(p.lang)}`;
 
-export async function analyzeBodyPhoto(uid: Uid, id: string): Promise<BodyAnalysis> {
+export async function analyzeBodyPhoto(uid: Uid, id: string, goal = ''): Promise<BodyAnalysis> {
   const photos = await readPhotos(uid);
   const cur = photos.find(p => p.id === id);
   if (!cur) throw new Error('photo introuvable');
   const before = photos.filter(p => p.pose === cur.pose && p.date < cur.date)[0] ?? null;
-  const imgs = await Promise.all([before ? photoB64(before.path) : null, photoB64(cur.path)]);
+  const imgs = await Promise.all([before ? photoB64(before.path).then(gridImage) : null, photoB64(cur.path).then(gridImage)]);
   const prof = await getFormeProfile(uid);
   const t = formeTargets(prof);
   const content = [
@@ -675,14 +776,15 @@ export async function analyzeBodyPhoto(uid: Uid, id: string): Promise<BodyAnalys
     { type: 'text' as const, text: before
       ? `AVANT : ${before.date}${before.weight ? `, ${before.weight} kg` : ''}. MAINTENANT : ${cur.date}${cur.weight ? `, ${cur.weight} kg` : ''}. Pose : ${cur.pose}. Cibles : ${t.p} g de protéines/jour.`
       : `Photo de départ (${cur.date}${cur.weight ? `, ${cur.weight} kg` : ''}), pose ${cur.pose}. Pas de photo d'avant : décris le point de départ et les zones à travailler.` },
+    { type: 'text' as const, text: goal.trim() ? `CE QU'IL/ELLE VEUT PERDRE OU AMÉLIORER : ${goal.slice(0, 300)} — entoure surtout ces zones (trend « à travailler » si c'est encore à faire) et donne des conseils précis pour ça.` : 'Il/elle n\'a rien précisé : dis TOI-MÊME, avec tact, ce qu\'il/elle devrait perdre ou travailler en priorité (zones « à travailler » entourées), et pourquoi.' },
   ];
   const res = await createAnthropic().messages.create({ model: 'claude-sonnet-5-5', max_tokens: 1500, system: bodySystem(prof), messages: [{ role: 'user', content }] }, QUALITY);
   const j = jsonOf<Partial<BodyAnalysis>>(textOf(res));
   const f01 = (v: unknown, d: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : d; };
   const a: BodyAnalysis = {
     at: Date.now(), vs: before?.id ?? null, summary: String(j.summary ?? '').slice(0, 500), score: Math.round(f01(Number(j.score) / 100, 0.5) * 100),
-    zones: (j.zones ?? []).slice(0, 6).map(z => ({ label: String(z.label).slice(0, 30), x: f01(z.x, 0.5), y: f01(z.y, 0.5), r: Math.max(0.04, f01(z.r, 0.1)),
-      ...(before && z.bx != null ? { bx: f01(z.bx, 0.5), by: f01(z.by, 0.5), br: Math.max(0.04, f01(z.br, 0.1)) } : {}),
+    zones: (j.zones ?? []).slice(0, 6).map(z => ({ label: String(z.label).slice(0, 30), x: f01(z.x, 0.5), y: f01(z.y, 0.5), r: Math.min(0.15, Math.max(0.04, f01(z.r, 0.1))),
+      ...(before && z.bx != null ? { bx: f01(z.bx, 0.5), by: f01(z.by, 0.5), br: Math.min(0.15, Math.max(0.04, f01(z.br, 0.1))) } : {}),
       trend: (['mieux', 'pareil', 'à travailler'].includes(z.trend as string) ? z.trend : 'pareil') as Zone['trend'], note: String(z.note ?? '').slice(0, 120) })),
     advice: (j.advice ?? []).map(String).slice(0, 5), focus: (j.focus ?? []).map(String).slice(0, 5),
   };
@@ -691,12 +793,110 @@ export async function analyzeBodyPhoto(uid: Uid, id: string): Promise<BodyAnalys
   return a;
 }
 
+// ── Photo entourée (avant | maintenant) pour Telegram ───────────────────────
+export async function annotatePhoto(uid: Uid, id: string): Promise<string | null> {
+  const photos = await readPhotos(uid);
+  const cur = photos.find(p => p.id === id);
+  if (!cur?.analysis) return null;
+  const before = cur.analysis.vs ? photos.find(p => p.id === cur.analysis!.vs) ?? null : null;
+  const { createCanvas, loadImage } = await import('@napi-rs/canvas');
+  const imgs = await Promise.all([before ? photoB64(before.path) : null, photoB64(cur.path)]);
+  const load = async (i: Img | null) => i ? loadImage(Buffer.from(i.data, 'base64')) : null;
+  const [bi, ci] = await Promise.all([load(imgs[0]), load(imgs[1])]);
+  if (!ci) return null;
+  const H = 1000, wOf = (im: { width: number; height: number }) => Math.round(im.width * H / im.height);
+  const cw = wOf(ci), bw = bi ? wOf(bi) : 0, gap = bi ? 16 : 0, top = 90;
+  const c = createCanvas(bw + gap + cw, H + top + 10);
+  const g = c.getContext('2d');
+  g.fillStyle = '#211d1c'; g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = '#ffffff'; g.font = 'bold 46px sans-serif';
+  g.fillText(bi ? 'AVANT' : 'POINT DE DÉPART', 20, 62);
+  if (bi) { g.fillStyle = '#ff7a45'; g.fillText('MAINTENANT', bw + gap + 20, 62); }
+  const COL: Record<string, string> = { 'mieux': '#22c55e', 'pareil': '#f2a516', 'à travailler': '#ff4b2b' };
+  const draw = (im: Awaited<ReturnType<typeof loadImage>>, x0: number, w: number, isBefore: boolean) => {
+    g.drawImage(im, x0, top, w, H);
+    cur.analysis!.zones.forEach((z, i) => {
+      const x = isBefore ? z.bx : z.x, y = isBefore ? z.by : z.y, rr = isBefore ? z.br : z.r;
+      if (x == null || y == null || rr == null) return;
+      const cx = x0 + x * w, cy = top + y * H, rad = rr * w;
+      g.lineWidth = 9; g.strokeStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.arc(cx, cy, rad, 0, Math.PI * 2); g.stroke();
+      g.lineWidth = 6; g.strokeStyle = COL[z.trend] ?? '#ff4b2b'; g.beginPath(); g.arc(cx, cy, rad, 0, Math.PI * 2); g.stroke();
+      g.fillStyle = COL[z.trend] ?? '#ff4b2b'; g.beginPath(); g.arc(cx - rad * 0.72, cy - rad * 0.72, 24, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#fff'; g.font = 'bold 28px sans-serif'; g.fillText(String(i + 1), cx - rad * 0.72 - 8, cy - rad * 0.72 + 10);
+    });
+  };
+  if (bi) draw(bi, 0, bw, true);
+  draw(ci, bw + gap, cw, false);
+  const path = `${uid}/annot-${id}.jpg`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, c.toBuffer('image/jpeg', 85), { contentType: 'image/jpeg', upsert: true });
+  if (error) return null;
+  const { data } = await supabase.storage.from(BUCKET).createSignedUrl(path, 86_400);
+  return data?.signedUrl ?? null;
+}
+
+/** Dernière photo reçue sur Telegram (gardée 30 min, privée) → pour « voilà ma photo, je veux perdre le ventre ». */
+const TG_PHOTO_KEY = 'kouider:forme:tg-photo';
+export async function stashTelegramPhoto(b64: string, mime: string): Promise<void> {
+  if (b64.length > 9_000_000) return;
+  await kvSet(TG_PHOTO_KEY, JSON.stringify({ b64, mime, at: Date.now() }), 1800);
+}
+
+/** Photo de lui envoyée à Dzaryx : stockée, analysée (avant / maintenant), séance de demain refaite partout, photo entourée. */
+export async function bodyFromTelegram(o: { focus?: string; pose?: string; adapt?: boolean }): Promise<string> {
+  const raw = await kvGet(TG_PHOTO_KEY);
+  if (!raw) return '❌ Je n\'ai pas de photo récente (30 min max) : renvoie-moi ta photo.';
+  const { b64, mime } = JSON.parse(raw) as { b64: string; mime: string };
+  const pose = (['face', 'profil', 'dos'].includes(String(o.pose)) ? o.pose : 'face') as BodyPhoto['pose'];
+  const ph = await addBodyPhoto('kouider', { media: (/png|webp/.test(mime) ? mime : 'image/jpeg') as Img['media'], data: b64 }, pose);
+  await kvDel(TG_PHOTO_KEY);
+  const a = await analyzeBodyPhoto('kouider', ph.id, o.focus ?? '');
+  const url = await annotatePhoto('kouider', ph.id).catch(() => null);
+  let session = '';
+  if (o.adapt !== false) {
+    const r = await adaptNextSession('kouider', { focus: o.focus ?? '', observations: `${a.summary} Zones : ${a.zones.map(z => `${z.label} (${z.trend})`).join(', ')}.` }).catch(e => ({ date: '', text: `(séance non modifiée : ${e instanceof Error ? e.message : e})` }));
+    session = r.date ? `\n\n🏋️ SÉANCE DU ${r.date} REFAITE (programme, agenda et app FORME mis à jour) :\n${r.text}` : `\n\n${r.text}`;
+  }
+  return [
+    `📸 Photo enregistrée dans FORME (${pose}) et analysée${a.vs ? ' — comparée à la précédente' : ''}. Score de progression : ${a.score}/100.`,
+    a.summary,
+    `ZONES (numéros sur la photo) :\n${a.zones.map((z, i) => `${i + 1}. ${z.label} — ${z.trend} : ${z.note}`).join('\n')}`,
+    `CONSEILS :\n${a.advice.map(x => `• ${x}`).join('\n')}`,
+    session,
+    url ? `\nRecopie TEL QUEL à la fin de ta réponse (c'est la photo entourée, elle partira en image) : ![Avant / maintenant](${url})` : '',
+  ].filter(Boolean).join('\n');
+}
+
+/** Bilan à montrer au médecin (suivi du traitement) : poids, doses, injections, effets, mensurations. */
+export async function doctorReport(uid: Uid): Promise<string> {
+  const [p, days] = await Promise.all([getFormeProfile(uid), readDays(uid)]);
+  const e = Object.entries(days).sort(([a], [b]) => a.localeCompare(b));
+  const w = e.filter(([, d]) => d.weight);
+  const inj = e.filter(([, d]) => d.injection);
+  const sides = e.flatMap(([date, d]) => (d.sides ?? []).map(s => `${date} : ${s.what} (${['léger', 'moyen', 'fort'][s.level - 1]})`));
+  const m = e.filter(([, d]) => d.measures?.taille);
+  const t = formeTargets(p);
+  const weeks = w.length >= 2 ? (Date.parse(w[w.length - 1]![0]) - Date.parse(w[0]![0])) / 604_800_000 : 0;
+  return [
+    `BILAN DE SUIVI — ${p.name || ''} — ${localNow().date}`,
+    `Taille ${p.heightCm} cm · âge ${p.age} ans · objectif ${p.targetKg} kg`,
+    w.length ? `Poids : ${w[0]![1].weight} kg (${w[0]![0]}) → ${w[w.length - 1]![1].weight} kg (${w[w.length - 1]![0]})${weeks >= 1 ? ` · ${((w[0]![1].weight! - w[w.length - 1]![1].weight!) / weeks).toFixed(2)} kg/semaine` : ''} · IMC ${(w[w.length - 1]![1].weight! / (p.heightCm / 100) ** 2).toFixed(1)}` : 'Poids : pas encore de pesée notée',
+    m.length ? `Tour de taille : ${m[0]![1].measures!.taille} cm → ${m[m.length - 1]![1].measures!.taille} cm` : '',
+    p.wegovy.on ? `Traitement : dose actuelle ${p.wegovy.dose || '?'} ; paliers : ${(p.wegovy.doses ?? []).map(x => `${x.dose} (${x.date})`).join(' → ') || '—'}` : '',
+    p.wegovy.on ? `Injections notées : ${inj.length}${inj.length ? ` (dernière le ${inj[inj.length - 1]![0]})` : ''}` : '',
+    `Effets ressentis (30 derniers) : ${sides.slice(-30).join(' ; ') || 'aucun noté'}`,
+    `Apports visés : ${t.kcal} kcal/j, ${t.p} g de protéines/j · activité : ${p.sessionsPerWeek} séances/semaine`,
+    'Généré par l\'app FORME (données notées par le patient).',
+  ].filter(Boolean).join('\n');
+}
+
 // ── Coach à qui poser une question (resto, fast-food belge, envie de sucre…) ──
-export async function askFormeCoach(question: string, uid: Uid = 'kouider'): Promise<string> {
+export async function askFormeCoach(question: string, uid: Uid = 'kouider', mode = ''): Promise<string> {
   const p = await getFormeProfile(uid);
-  const ctx = await formeText(uid);
+  let ctx = await formeText(uid);
+  if (mode === 'batch') { const w = await getWeek(uid); ctx += w ? `\nRECETTES DE LA SEMAINE :\n${w.recipes.map(r => `- ${r.title} : ${r.ingredients.map(i => `${i.name} ${i.qty}`).join(', ')}`).join('\n')}\nDonne un plan de BATCH COOKING du dimanche (2 h max) : ordre des étapes minuté, ce qui se congèle, boîtes à préparer.` : ''; }
+  if (mode === 'fridge') ctx += '\nIl/elle te donne ce qu\'il y a dans son frigo/placard : propose 2 recettes halal rapides avec SEULEMENT ça (+ basiques : sel, poivre, huile, épices), avec quantités, kcal et protéines estimées.';
   const res = await createAnthropic().messages.create({ model: 'claude-sonnet-5-5', max_tokens: 900,
-    system: `Tu es le coach FORME de ${p.name || 'cette personne'} (nutrition + sport), qui vit à Bruxelles. ${rules(p)}\nRéponds simplement, concret, chaleureux, 8 lignes max, avec des produits/enseignes belges quand c'est utile (Colruyt, Delhaize, Quick, friterie, snack halal…). Questions médicales (dose, effets graves : douleur au ventre forte et persistante, vomissements répétés, malaise) → son médecin ou le 112 en urgence.${p.lang === 'ar' ? ' Réponds en arabe littéraire.' : ' Réponds en français.'}`,
+    system: `Tu es le coach FORME de ${p.name || 'cette personne'} (nutrition + sport), qui vit à Bruxelles. ${rules(p)}\nRéponds simplement, concret, chaleureux, ${mode ? '20' : '8'} lignes max, avec des produits/enseignes belges quand c'est utile (Colruyt, Delhaize, Quick, friterie, snack halal…). Questions médicales (dose, effets graves : douleur au ventre forte et persistante, vomissements répétés, malaise) → son médecin ou le 112 en urgence.${p.lang === 'ar' ? ' Réponds en arabe littéraire.' : ' Réponds en français.'}`,
     messages: [{ role: 'user', content: `${ctx}\n\nQUESTION : ${question.slice(0, 800)}` }] }, QUALITY);
   return textOf(res).trim();
 }
@@ -740,7 +940,7 @@ export async function formeOverview(uid: Uid = 'kouider') {
   const sides = Object.entries(days).flatMap(([date, d]) => (d.sides ?? []).map(s => ({ date, ...s }))).sort((a, b) => b.at - a.at).slice(0, 15);
   let streak = 0;
   for (let i = 0; i < 200; i++) { const d = days[addDays(today, -i)]; if (d && (Object.values(d.meals).some(Boolean) || d.extra.length || d.water)) streak++; else if (i > 0) break; }
-  const week7 = Array.from({ length: 7 }, (_, i) => addDays(today, i - 6)).map(d => ({ date: d, ...dayTotals(days[d], week, d), water: days[d]?.water ?? 0 }));
+  const week7 = Array.from({ length: 7 }, (_, i) => addDays(today, i - 6)).map(d => ({ date: d, ...dayTotals(days[d], week, d), water: days[d]?.water ?? 0, sleep: days[d]?.sleep ?? null, steps: days[d]?.steps ?? null }));
   const shown = photos.slice(-24);
   const urls = await signedPhotoUrls(shown).catch(() => ({} as Record<string, string>));
   const lastPhoto = photos[photos.length - 1];
@@ -765,6 +965,9 @@ export async function formeOverview(uid: Uid = 'kouider') {
     photos: shown.map(ph => ({ ...ph, url: urls[ph.id] ?? null })).reverse(), photoDue,
     weightRate: ratePerWeek != null ? Math.round(ratePerWeek * 10) / 10 : null,
     tooFast: ratePerWeek != null && ratePerWeek > curW * 0.012,
+    challenge: weekChallenge(p, week7, t),
+    // Date estimée pour atteindre le poids visé, au rythme des 3 dernières semaines
+    eta: ratePerWeek && ratePerWeek > 0.05 && curW > p.targetKg ? addDays(today, Math.round((curW - p.targetKg) / ratePerWeek * 7)) : null,
     ...(uid === 'kouider' ? { femme: { active: femmeInvite, name: (await getFormeProfile('femme')).name } } : {}),
   };
 }
@@ -782,6 +985,8 @@ export async function logForme(kind: string, b: Record<string, unknown>, date = 
     else if (kind === 'injection') d.injection = { at: Date.now(), site: String(b.site ?? '').slice(0, 30), ...(b.dose ? { dose: String(b.dose).slice(0, 20) } : {}) };
     else if (kind === 'injection-del') delete d.injection;
     else if (kind === 'side') (d.sides ??= []).push({ what: String(b.what ?? '').slice(0, 40), level: Math.min(3, Math.max(1, n(b.level) || 1)), at: Date.now() });
+    else if (kind === 'sleep' && n(b.hours) > 0) d.sleep = Math.min(14, Math.round(n(b.hours) * 2) / 2);
+    else if (kind === 'steps' && n(b.steps) >= 0) d.steps = Math.min(80000, Math.round(n(b.steps)));
     else if (kind === 'workout') d.workout = { session: n(b.session), label: String(b.label ?? '').slice(0, 40), sets: (Array.isArray(b.sets) ? b.sets as WorkoutLog['sets'] : []).slice(0, 80).map(s => ({ ex: String(s.ex), ...(n(s.kg) > 0 ? { kg: n(s.kg) } : {}), ...(n(s.reps) > 0 ? { reps: n(s.reps) } : {}) })), ...(n(b.durationMin) > 0 ? { durationMin: n(b.durationMin) } : {}), ...(n(b.rpe) > 0 ? { rpe: n(b.rpe) } : {}), at: Date.now() };
   });
   if (kind === 'weight' && n(b.kg) > 30) await setFormeProfile({ weightKg: n(b.kg) }, uid).catch(() => {});
@@ -797,7 +1002,7 @@ export async function formeText(uid: Uid = 'kouider'): Promise<string> {
   const lastDays = Array.from({ length: 7 }, (_, i) => addDays(today, -i)).map(d => {
     const x = days[d]; if (!x) return null;
     const tot = dayTotals(x, week, d);
-    return `- ${d} : ${tot.kcal} kcal, ${tot.p} g prot., eau ${x.water}/${p.waterGoal}${x.weight ? `, ${x.weight} kg` : ''}${x.injection ? `, 💉 injection (${x.injection.site}${x.injection.dose ? `, ${x.injection.dose}` : ''})` : ''}${x.workout ? `, séance ${x.workout.label}` : ''}${x.sides?.length ? `, effets : ${x.sides.map(s => `${s.what} ${s.level}/3`).join(', ')}` : ''}`;
+    return `- ${d} : ${tot.kcal} kcal, ${tot.p} g prot., eau ${x.water}/${p.waterGoal}${x.weight ? `, ${x.weight} kg` : ''}${x.injection ? `, 💉 injection (${x.injection.site}${x.injection.dose ? `, ${x.injection.dose}` : ''})` : ''}${x.workout ? `, séance ${x.workout.label}` : ''}${x.sleep ? `, sommeil ${x.sleep} h` : ''}${x.steps != null ? `, ${x.steps} pas` : ''}${x.sides?.length ? `, effets : ${x.sides.map(s => `${s.what} ${s.level}/3`).join(', ')}` : ''}`;
   }).filter(Boolean);
   const weights = Object.entries(days).filter(([, d]) => d.weight).sort(([a], [b]) => a.localeCompare(b));
   const inj = nextInjection(p, days);
@@ -812,6 +1017,8 @@ export async function formeText(uid: Uid = 'kouider'): Promise<string> {
     todayPlan ? `Menu d'aujourd'hui : ${todayPlan}` : '',
     lastDays.length ? `7 DERNIERS JOURS :\n${lastDays.join('\n')}` : '',
     lastA?.analysis ? `DERNIÈRE ANALYSE PHOTO (${lastA.date}) : ${lastA.analysis.summary} À travailler : ${lastA.analysis.focus.join(', ')}.` : '',
+    p.fasting !== 'off' ? `Jeûne : ${p.fasting === 'ramadan' ? 'Ramadan (s\'hour + iftar)' : 'lundi et jeudi'}.` : '',
+    p.reminders.length ? `Rappels perso : ${p.reminders.map(x => `${x.label} ${x.time}`).join(', ')}.` : '',
     `Photos de suivi : ${photos.length}${photos.length ? `, dernière le ${photos[photos.length - 1]!.date}` : ''} (rappel tous les ${p.photoEveryDays} j).`,
   ];
   let out = lines.filter(Boolean).join('\n');
@@ -827,6 +1034,7 @@ export async function storeFormeSub(sub: PushSubscription, uid: Uid = 'kouider')
 
 const MSG = {
   fr: {
+    custom: ['⏰ Rappel', (t: string) => t],
     inj: ['💉 Wegovy ce soir', (site: string) => `C'est le jour de ton injection. Site conseillé : ${site}. Note-la dans FORME une fois faite.`],
     weigh: ['⚖️ Pesée du matin', () => 'À jeun, après les toilettes : 10 secondes et c\'est noté.'],
     lunch: ['🍽️ Ton déjeuner', (t: string) => `${t} — petites bouchées, arrête-toi dès que tu n'as plus faim.`],
@@ -835,6 +1043,7 @@ const MSG = {
     photo: ['📸 Photo de suivi', () => 'Même endroit, même lumière : face, profil et dos. L\'app te montre ce qui a changé.'],
   },
   ar: {
+    custom: ['⏰ تذكير', (t: string) => t],
     inj: ['💉 موعد حقنة ويغوفي', (site: string) => `اليوم موعد حقنتك. الموضع المقترح: ${site}. سجّليها في التطبيق بعد أخذها.`],
     weigh: ['⚖️ وزن الصباح', () => 'على الريق وبعد دخول الحمّام: عشر ثوانٍ فقط.'],
     lunch: ['🍽️ غداؤك', (t: string) => `${t} — لقيمات صغيرة، وتوقّفي عند الشعور بالشبع.`],
@@ -844,14 +1053,17 @@ const MSG = {
   },
 } as const;
 
-async function notify(uid: Uid, what: keyof typeof MSG.fr, arg: string, date = localNow().date): Promise<boolean> {
-  if (await kvGet(SENT_K(uid, what, date))) return false;
-  await kvSet(SENT_K(uid, what, date), '1', 2 * 86_400);
+async function notify(uid: Uid, what: keyof typeof MSG.fr, arg: string, date = localNow().date, tag = ''): Promise<boolean> {
+  if (await kvGet(SENT_K(uid, what + tag, date))) return false;
+  await kvSet(SENT_K(uid, what + tag, date), '1', 2 * 86_400);
   const lang = (await getFormeProfile(uid)).lang;
   const [title, body] = [MSG[lang][what][0], (MSG[lang][what][1] as (a: string) => string)(arg)];
   const sub = await readJson<PushSubscription | null>(SUB_K(uid), null);
   if (sub) await sendWebPush(sub, title, body, { url: 'https://kouider213.github.io/ibrahim/forme/', type: 'forme' }).catch(() => {});
-  if (uid === 'kouider') emitProactive(`${title} — ${body}`, 'reminder', undefined, 'kouider', 'sport', true);
+  if (uid === 'kouider') {
+    emitProactive(`${title} — ${body}`, 'reminder', undefined, 'kouider', 'sport', true);
+    if ((await getFormeProfile(uid)).notif.telegram !== false) await queueTelegramMessage(`${title}\n${body}`).catch(() => {});
+  }
   return true;
 }
 
@@ -881,6 +1093,9 @@ export async function jobFormeReminders(): Promise<string> {
     const photos = await readPhotos(uid);
     const last = photos[photos.length - 1];
     if (p.notif.photo && at('09:00') && (!last || (Date.parse(date) - Date.parse(last.date)) / 86_400_000 >= p.photoEveryDays) && await notify(uid, 'photo', '')) sent.push('photo');
+    // Rappels perso (vitamine D, médicament…) : à l'heure dite, les jours choisis
+    const wd = new Date(`${date}T12:00:00Z`).getUTCDay();
+    for (const rm of p.reminders) if (rm.days.includes(wd) && at(rm.time) && hhmm < `${String(Math.min(23, Number(rm.time.slice(0, 2)) + 2)).padStart(2, '0')}${rm.time.slice(2)}` && await notify(uid, 'custom', rm.label, date, rm.id)) sent.push(rm.label);
     if (sent.length) out.push(`${uid}: ${sent.join(', ')}`);
   }
   return out.join(' · ') || 'rien';
@@ -938,6 +1153,8 @@ export async function formeTool(input: Record<string, unknown>): Promise<string>
     if (patch.dose) patch.wegovy = { ...(await getFormeProfile()).wegovy, dose: patch.dose };
     await setFormeProfile(patch); return '✅ Profil FORME mis à jour.';
   }
+  if (a === 'body_photo') return await bodyFromTelegram({ focus: input.focus ? String(input.focus) : '', pose: input.pose ? String(input.pose) : undefined, adapt: input.adapt !== false });
+  if (a === 'doctor') return await doctorReport('kouider');
   if (a === 'adapt_tomorrow') {
     const r = await adaptNextSession('kouider', { focus: String(input.focus ?? input.question ?? ''), observations: input.observations ? String(input.observations) : undefined });
     return `✅ Séance du ${r.date} refaite sur mesure (agenda + app FORME mis à jour) :\n${r.text}`;

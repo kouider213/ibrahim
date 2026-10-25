@@ -28,10 +28,10 @@ export default function ShopScreen({ me, toast }: { me: string; toast: (t: strin
   const shown = items.filter(s => filter === 'Tout' || s.store === filter);
   const aisles = [...new Set(shown.map(s => s.aisle))];
   const done = items.filter(s => s.checked).reduce((a, s) => a + s.price, 0);
-  const toggle = async (key: string, checked: boolean) => {
+  const toggle = async (key: string, checked: boolean, home = false) => {
     vibrate(12);
-    setH({ ...h, items: h.items.map(i => i.key === key ? { ...i, checked, by: checked ? me : undefined } : i) });
-    try { setH(await forme.shop(key, checked)); } catch (e) { toast(errText(e)); void load(); }
+    setH({ ...h, items: h.items.map(i => i.key === key ? { ...i, checked, by: checked ? (home ? '🏠' : me) : undefined } : i) });
+    try { setH(await forme.shop(key, checked, home)); } catch (e) { toast(errText(e)); void load(); }
   };
   return (
     <div style={{ padding: '6px 18px 0' }}>
@@ -84,8 +84,9 @@ export default function ShopScreen({ me, toast }: { me: string; toast: (t: strin
                   <div style={{ fontSize: 12, color: F.muted, marginTop: 2 }}>
                     {s.who.length > 1 ? s.who.map(w => `${w.name} ${w.qty}`).join(' + ') : s.who[0]?.qty}{s.brand ? ` · ${s.brand}` : ''}{filter === 'Tout' ? ` · ${s.store}` : ''}
                   </div>
-                  {s.checked && s.by && <div style={{ fontSize: 11.5, color: F.green, fontWeight: 800, marginTop: 2 }}>✓ {s.by}</div>}
+                  {s.checked && s.by && <div style={{ fontSize: 11.5, color: F.green, fontWeight: 800, marginTop: 2 }}>{s.by === '🏠' ? '🏠 Déjà à la maison' : `✓ ${s.by}`}</div>}
                 </div>
+                {!s.checked && <span role="button" aria-label="Déjà à la maison" onClick={e => { e.stopPropagation(); void toggle(s.key, true, true); }} style={{ ...ghostBtn, padding: '4px 8px', fontSize: 14 }}>🏠</span>}
                 {s.key.startsWith('extra|') ? <span role="button" aria-label="Retirer" onClick={async e => { e.stopPropagation(); try { setH(await forme.shopDel(s.key)); } catch (er) { toast(errText(er)); } }} style={{ ...ghostBtn, padding: '4px 9px', fontSize: 12 }}>✕</span>
                   : <div style={{ fontWeight: 800, fontSize: 14, color: s.checked ? F.muted : F.ink }}>{eur(s.price)}</div>}
               </motion.button>

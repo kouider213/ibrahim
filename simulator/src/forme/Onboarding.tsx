@@ -46,7 +46,7 @@ function Wheel({ values, value, onChange, suffix = '' }: { values: number[]; val
 
 const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
 
-function SwipeDeck({ meals, onDone }: { meals: SwipeMeal[]; onDone: (likes: string[], dislikes: string[]) => void }) {
+export function SwipeDeck({ meals, onDone }: { meals: SwipeMeal[]; onDone: (likes: string[], dislikes: string[]) => void }) {
   const [i, setI] = useState(0);
   const likes = useRef<string[]>([]), dislikes = useRef<string[]>([]);
   const x = useMotionValue(0);

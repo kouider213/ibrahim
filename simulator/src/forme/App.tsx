@@ -107,6 +107,9 @@ function Settings({ o, open, onClose, onO, toast }: { o: Overview; open: boolean
       <div style={{ display: 'flex', gap: 6 }}><Chip on={p.lang === 'ar'} onClick={() => void save({ lang: 'ar' })}>العربية</Chip><Chip on={p.lang === 'fr'} onClick={() => void save({ lang: 'fr' })}>Français</Chip></div>
       {o.uid === 'femme' && <div style={{ ...card, padding: '4px 14px', marginTop: 12 }}><Toggle on={p.shareWithDzaryx} onChange={v => void save({ shareWithDzaryx: v })} label="Partager mon suivi avec Dzaryx (l'assistant de Kouider)" /><div style={{ fontSize: 12.5, color: F.muted, padding: '6px 0 10px' }}>Désactivé : ton suivi, tes photos et ton traitement restent rien qu'à toi. Seule la liste de courses est commune.</div></div>}
       {o.uid === 'kouider' && <Invite o={o} toast={toast} />}
+      <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}>🛌 Jours de repos (pas de sport)</div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{[1, 2, 3, 4, 5, 6, 0].map(d => <Chip key={d} on={p.restDays.includes(d)} onClick={() => void save({ restDays: p.restDays.includes(d) ? p.restDays.filter(x => x !== d) : [...p.restDays, d] })}>{DAYS[d]!.slice(0, 3)}</Chip>)}</div>
+      {o.uid === 'kouider' && <div style={{ fontSize: 12.5, color: F.muted, marginTop: 6 }}>Tes séances à la salle restent calées par Dzaryx sur ton agenda Google.</div>}
       <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}>Mes magasins</div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{STORE_LIST.map(s => <Chip key={s} on={p.stores.includes(s)} onClick={() => void save({ stores: p.stores.includes(s) ? p.stores.filter(x => x !== s) : [...p.stores, s] })}>{s}</Chip>)}</div>
       <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}>💉 Wegovy</div>
@@ -125,6 +128,7 @@ function Settings({ o, open, onClose, onO, toast }: { o: Overview; open: boolean
         <Toggle on={p.notif.weigh} onChange={v => void save({ notif: { ...p.notif, weigh: v } })} label="Pesée du lundi" />
         <Toggle on={p.weighDaily} onChange={v => void save({ weighDaily: v })} label="… tous les matins" />
         <Toggle on={p.notif.photo} onChange={v => void save({ notif: { ...p.notif, photo: v } })} label="Photo de suivi" />
+        {o.uid === 'kouider' && <Toggle on={p.notif.telegram !== false} onChange={v => void save({ notif: { ...p.notif, telegram: v } })} label="Aussi sur Telegram (Dzaryx)" />}
       </div>
       {!embedded && <button onClick={async () => { try { toast(await enablePush()); } catch (e) { toast(errText(e)); } }} style={{ ...btn, width: '100%', marginTop: 12 }}>🔔 Activer les notifications sur ce téléphone</button>}
       <div style={{ fontSize: 12.5, color: F.muted, marginTop: 10, lineHeight: 1.45 }}>{embedded ? 'Dans Dzaryx, les rappels arrivent dans les notifications de Dzaryx. ' : ''}Pour avoir FORME comme une vraie app : ouvre kouider213.github.io/ibrahim/forme dans Safari → Partager → « Sur l'écran d'accueil ».</div>
@@ -141,6 +145,8 @@ export default function App() {
   const [tool, setTool] = useState<ToolId | null>(null);
   const [settings, setSettings] = useState(false);
   const [toastText, setToastText] = useState<string | null>(null);
+  const standalone = (() => { try { return matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true; } catch { return false; } })();
+  const [notifState, setNotifState] = useState<string>(() => { try { if (localStorage.getItem('forme:notif-dismissed')) return 'dismissed'; } catch { /* */ } return typeof Notification !== 'undefined' ? Notification.permission : 'default'; });
   const toast = useCallback((t: string) => { setToastText(t); setTimeout(() => setToastText(x => x === t ? null : x), 2600); }, []);
   const load = useCallback(() => forme.overview().then(x => { setO(x); setErr(''); }).catch(e => { const m = errText(e); if (/^API 40[13]|token|auth|Lien expiré/i.test(m)) { if (formeToken()) { try { localStorage.removeItem(FORME_TOKEN); } catch { /* */ } } else setDeviceToken(null); setAuthed(false); setErr(m); } else setErr(m); }), []);
   useEffect(() => { if (authed) void load(); }, [authed, load]);
@@ -160,6 +166,13 @@ export default function App() {
     try { setO(await forme.log(kind, body)); } catch (e) { toast(errText(e)); void load(); }
   }, [load, toast]);
   const onWeek = useCallback((week: NonNullable<Overview['week']>) => setO(cur => cur ? { ...cur, week } : cur), []);
+  // ❤️ recette favorite : reprise de temps en temps dans les semaines suivantes
+  const onFav = useCallback(async (title: string) => {
+    if (!o) return;
+    const f = o.profile.favorites.includes(title) ? o.profile.favorites.filter(x => x !== title) : [...o.profile.favorites, title];
+    setO({ ...o, profile: { ...o.profile, favorites: f } }); vibrate(20);
+    try { await forme.profile({ favorites: f }); toast(f.includes(title) ? '❤️ Ajoutée aux favoris' : 'Retirée des favoris'); } catch (e) { toast(errText(e)); }
+  }, [o, toast]);
 
   useEffect(() => { applyLang(o?.profile.lang ?? (formeToken() ? 'ar' : 'fr')); }, [o?.profile.lang]);
   if (!authed) return <Login onOk={() => setAuthed(true)} />;
@@ -179,10 +192,18 @@ export default function App() {
         <div style={{ background: '#fff', borderRadius: 999, padding: '6px 11px', fontSize: 12.5, fontWeight: 800, boxShadow: '0 2px 8px rgba(120,60,40,0.08)' }}>{o.profile.stores.filter(s => s !== 'Boucherie halal')[0] ?? 'Halal'} · {o.profile.budgetWeek} €/sem</div>
         <button onClick={() => setSettings(true)} aria-label="Profil" style={{ width: 36, height: 36, borderRadius: 18, border: 'none', background: F.dark, color: '#fff', fontWeight: 900, cursor: 'pointer' }}>{(o.profile.name || 'K').slice(0, 1).toUpperCase()}</button>
       </header>
+      {!embedded && notifState !== 'granted' && notifState !== 'dismissed' && (
+        <div style={{ margin: '6px 18px 0', ...card, display: 'flex', gap: 12, alignItems: 'center', background: F.dark, color: '#fff' }}>
+          <span style={{ fontSize: 26 }}>🔔</span>
+          <div style={{ flex: 1, fontSize: 13.5, lineHeight: 1.35 }}>{standalone ? 'Active les notifications : injection, repas, eau, photo, rappels.' : 'Pour les notifications : Partager → « Sur l\'écran d\'accueil », puis ouvre FORME depuis l\'icône.'}</div>
+          {standalone ? <button onClick={async () => { try { toast(await enablePush()); } catch (e) { toast(errText(e)); } setNotifState(typeof Notification !== 'undefined' ? Notification.permission : 'default'); }} style={{ ...btn, padding: '10px 12px', fontSize: 13.5 }}>Activer</button>
+            : <button onClick={() => { setNotifState('dismissed'); try { localStorage.setItem('forme:notif-dismissed', '1'); } catch { /* */ } }} style={{ ...ghostBtn, padding: '8px 10px', background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none' }}>OK</button>}
+        </div>
+      )}
       <AnimatePresence mode="wait">
         <motion.main key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
-          {tab === 'home' && <Home o={o} name={o.profile.name || 'Kouider'} onLog={(k, b) => void onLog(k, b)} onWeek={onWeek} openTool={setTool} go={setTab} />}
-          {tab === 'week' && <WeekScreen o={o} onLog={(k, b) => void onLog(k, b)} onWeek={onWeek} />}
+          {tab === 'home' && <Home onFav={t => void onFav(t)} o={o} name={o.profile.name || 'Kouider'} onLog={(k, b) => void onLog(k, b)} onWeek={onWeek} openTool={setTool} go={setTab} />}
+          {tab === 'week' && <WeekScreen onFav={t => void onFav(t)} o={o} onLog={(k, b) => void onLog(k, b)} onWeek={onWeek} />}
           {tab === 'shop' && <ShopScreen me={o.profile.name || 'Kouider'} toast={toast} />}
           {tab === 'sport' && (o.uid === 'kouider' ? <SportScreen toast={toast} /> : <ProgramSport toast={toast} />)}
           {tab === 'body' && <BodyScreen o={o} onO={setO} toast={toast} />}

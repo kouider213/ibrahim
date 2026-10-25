@@ -3,10 +3,22 @@ import { motion } from 'framer-motion';
 import { forme, errText, compressImage, type Overview, type Barcode, type Product, type Food, DAYS, vibrate } from './api.ts';
 import { F, Title, Section, card, darkCard, btn, ghostBtn, Sheet, Spinner, Img, input, Chip, Ring, Bar } from './ui.tsx';
 import { RestTimer } from './Sport.tsx';
+import MoreTool, { MORE } from './Tools2.tsx';
+import Agenda from './Agenda.tsx';
+import { SwipeDeck } from './Onboarding.tsx';
+import type { SwipeMeal } from './api.ts';
+
+function Tastes({ onDone }: { onDone: (likes: string[], dislikes: string[]) => void }) {
+  const [meals, setMeals] = useState<SwipeMeal[]>([]);
+  useEffect(() => { void forme.swipe().then(r => setMeals(r.meals)).catch(() => {}); }, []);
+  return <div><div style={{ fontSize: 14, color: F.muted, marginBottom: 10 }}>Glisse à droite ce qui te tente, à gauche sinon.</div><SwipeDeck meals={meals} onDone={onDone} /></div>;
+}
 
 // Les OUTILS de FORME (13) : chacun s'ouvre en feuille depuis l'accueil. Tout ce qui est noté part au serveur → Dzaryx le voit.
-export type ToolId = 'wegovy' | 'sides' | 'protein' | 'water' | 'mealphoto' | 'scan' | 'products' | 'resto' | 'tdee' | 'coach' | 'timer' | 'badges' | 'settings';
+export type ToolId = 'wegovy' | 'sides' | 'protein' | 'water' | 'mealphoto' | 'scan' | 'products' | 'resto' | 'tdee' | 'coach' | 'timer' | 'badges' | 'settings'
+  | 'fasting' | 'fridge' | 'batch' | 'doctor' | 'reminders' | 'sleep' | 'steps' | 'bmi' | 'craving' | 'portions' | 'agenda' | 'tastes';
 export const TOOLS: Array<{ id: ToolId; emoji: string; label: string; color: string }> = [
+  { id: 'agenda', emoji: '📅', label: 'Agenda', color: '#ffe9e2' },
   { id: 'wegovy', emoji: '💉', label: 'Wegovy', color: '#e8f0ff' },
   { id: 'mealphoto', emoji: '📷', label: 'Photo repas', color: '#ffe9e2' },
   { id: 'scan', emoji: '🔎', label: 'Scanner', color: '#e9f8ef' },
@@ -19,6 +31,17 @@ export const TOOLS: Array<{ id: ToolId; emoji: string; label: string; color: str
   { id: 'timer', emoji: '⏱️', label: 'Minuteur', color: '#e9f8ef' },
   { id: 'tdee', emoji: '🧮', label: 'Mes besoins', color: '#f1ecff' },
   { id: 'badges', emoji: '🏆', label: 'Badges', color: '#fff1dc' },
+  { id: 'fasting', emoji: '🌙', label: 'Jeûne', color: '#efe9ff' },
+  { id: 'fridge', emoji: '🧊', label: 'Frigo vide', color: '#e3f4ff' },
+  { id: 'batch', emoji: '🥡', label: 'Batch cooking', color: '#fff1dc' },
+  { id: 'doctor', emoji: '🩺', label: 'Bilan médecin', color: '#e9f8ef' },
+  { id: 'reminders', emoji: '⏰', label: 'Mes rappels', color: '#ffe9e2' },
+  { id: 'sleep', emoji: '😴', label: 'Sommeil', color: '#efe9ff' },
+  { id: 'steps', emoji: '🚶', label: 'Pas', color: '#e9f8ef' },
+  { id: 'bmi', emoji: '📐', label: 'IMC & taille', color: '#fff6d6' },
+  { id: 'craving', emoji: '🍫', label: 'Anti-fringale', color: '#ffe9e2' },
+  { id: 'portions', emoji: '✋', label: 'Portions', color: '#e8f0ff' },
+  { id: 'tastes', emoji: '😋', label: 'Mes goûts', color: '#e9f8ef' },
 ];
 
 const SITES = ['ventre gauche', 'ventre droit', 'cuisse gauche', 'cuisse droite', 'bras gauche', 'bras droit'];
@@ -78,14 +101,27 @@ function FoodAdd({ base, onAdd }: { base: { name: string; per100: { kcal: number
   );
 }
 
-function Ask({ preset, placeholder, intro }: { preset: string[]; placeholder: string; intro: ReactNode }) {
+export function Ask({ preset, placeholder, intro, mode = '' }: { preset: string[]; placeholder: string; intro: ReactNode; mode?: string }) {
   const [q, setQ] = useState('');
+  const [listening, setListening] = useState(false);
+  const ar = document.documentElement.lang === 'ar';
+  // Dicter la question (arabe ou français) : reconnaissance vocale de Safari
+  const dictate = () => {
+    const SR = (window as unknown as { webkitSpeechRecognition?: new () => { lang: string; interimResults: boolean; onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void; onend: () => void; start: () => void } }).webkitSpeechRecognition
+      ?? (window as unknown as { SpeechRecognition?: never }).SpeechRecognition;
+    if (!SR) { alert(ar ? 'استعملي ميكروفون لوحة المفاتيح 🎤' : 'Utilise le micro du clavier 🎤'); return; }
+    const rec = new SR(); rec.lang = ar ? 'ar-SA' : 'fr-FR'; rec.interimResults = false;
+    rec.onresult = e => { const t = e.results[0]?.[0]?.transcript ?? ''; if (t) { setQ(t); void ask(t); } };
+    rec.onend = () => setListening(false);
+    setListening(true); rec.start();
+  };
+  const read = (t: string) => { try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t.replace(/[*#_]/g, '')); u.lang = ar ? 'ar-SA' : 'fr-FR'; u.rate = 0.95; speechSynthesis.speak(u); } catch { /* */ } };
   const [a, setA] = useState<Array<{ q: string; a: string }>>([]);
   const [busy, setBusy] = useState(false);
   const ask = async (text: string) => {
     if (!text.trim()) return;
     setBusy(true); setQ('');
-    try { const r = await forme.ask(text); setA(x => [...x, { q: text, a: r.answer }]); } catch (e) { setA(x => [...x, { q: text, a: `❌ ${errText(e)}` }]); } finally { setBusy(false); }
+    try { const r = await forme.ask(text, mode); setA(x => [...x, { q: text, a: r.answer }]); } catch (e) { setA(x => [...x, { q: text, a: `❌ ${errText(e)}` }]); } finally { setBusy(false); }
   };
   return (
     <div>
@@ -94,12 +130,13 @@ function Ask({ preset, placeholder, intro }: { preset: string[]; placeholder: st
       {a.map((x, i) => (
         <div key={i} style={{ marginBottom: 12 }}>
           <div style={{ marginLeft: 'auto', maxWidth: '85%', background: F.dark, color: '#fff', borderRadius: '18px 18px 4px 18px', padding: '10px 14px', fontSize: 14, width: 'fit-content' }}>{x.q}</div>
-          <div style={{ ...card, marginTop: 6, borderRadius: '18px 18px 18px 4px', fontSize: 14.5, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{x.a}</div>
+          <div style={{ ...card, marginTop: 6, borderRadius: '18px 18px 18px 4px', fontSize: 14.5, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{x.a}<div><button onClick={() => read(x.a)} aria-label="Écouter" style={{ ...ghostBtn, padding: '4px 10px', marginTop: 8, fontSize: 13 }}>🔊</button></div></div>
         </div>
       ))}
       {busy && <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: F.muted, margin: '8px 0' }}><Spinner size={16} /> Le coach réfléchit…</div>}
       <div style={{ display: 'flex', gap: 8 }}>
         <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void ask(q); }} placeholder={placeholder} style={input} />
+        <button onClick={dictate} aria-label="Parler" style={{ ...ghostBtn, padding: '0 14px', background: listening ? F.accent : '#fff', color: listening ? '#fff' : F.ink }}>🎤</button>
         <button onClick={() => void ask(q)} style={{ ...btn, padding: '0 16px' }}>↑</button>
       </div>
     </div>
@@ -124,6 +161,9 @@ export default function ToolSheet({ id, o, onO, onClose, toast }: { id: ToolId |
     wegovy: ['Ton', 'Wegovy'], sides: ['Effets', 'secondaires'], protein: ['Compteur', 'protéines'], water: ['Ton', 'eau'], mealphoto: ['Photo', 'de ton assiette'],
     scan: ['Scanner', 'un produit'], products: ['Produits', 'belges'], resto: ['Resto,', 'snack & friterie'], tdee: ['Tes', 'besoins'], coach: ['Ton', 'coach'],
     timer: ['Minuteur', 'de repos'], badges: ['Tes', 'badges'], settings: ['Réglages', 'FORME'],
+    fasting: ['Mode', 'jeûne'], fridge: ['Frigo', 'vide ?'], batch: ['Batch cooking', 'du dimanche'], doctor: ['Bilan', 'pour le médecin'], reminders: ['Mes', 'rappels'],
+    agenda: ['Ton', 'agenda'], tastes: ['Mes', 'goûts'],
+    sleep: ['Ton', 'sommeil'], steps: ['Tes', 'pas'], bmi: ['IMC &', 'tour de taille'], craving: ['Stop', 'fringale'], portions: ['Portions', 'à la main'],
   };
   const eatenP = o.eaten.p;
   return (
@@ -274,6 +314,10 @@ export default function ToolSheet({ id, o, onO, onClose, toast }: { id: ToolId |
         </div>
         <div style={{ fontSize: 13, color: F.muted, marginTop: 10, lineHeight: 1.45 }}>Avec le Wegovy tu auras souvent moins faim que ça : ce n'est pas grave de manger un peu moins, mais garde toujours tes protéines. On ne descend jamais sous 1 500 kcal pour protéger ton muscle et ton énergie.</div>
       </>}
+
+      {id && MORE.includes(id) && <MoreTool id={id} o={o} onO={onO} toast={toast} />}
+      {id === 'agenda' && <Agenda toast={toast} />}
+      {id === 'tastes' && <Tastes onDone={async (likes, dislikes) => { try { await forme.profile({ likes: [...new Set([...o.profile.likes, ...likes])].slice(-40), dislikes: [...new Set([...o.profile.dislikes, ...dislikes])].slice(-40) }); onO(await forme.overview()); toast('😋 Goûts enregistrés : la prochaine semaine en tiendra compte'); onClose(); } catch (e) { toast(errText(e)); } }} />}
 
       {id === 'badges' && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {o.badges.map(b => <div key={b.id} style={{ ...card, textAlign: 'center', padding: 16, opacity: b.ok ? 1 : 0.4, filter: b.ok ? 'none' : 'grayscale(1)' }}><div style={{ fontSize: 40 }}>{b.emoji}</div><div style={{ fontWeight: 800, marginTop: 4 }}>{b.label}</div><div style={{ fontSize: 12, color: b.ok ? F.green : F.muted, fontWeight: 700 }}>{b.ok ? 'débloqué' : 'à débloquer'}</div></div>)}
