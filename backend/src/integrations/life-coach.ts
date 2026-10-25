@@ -8,7 +8,7 @@ import { autoCall } from '../notifications/auto-call.js';
 
 // COACH DE VIE (demande de Kouider 2026-10-17) : Dzaryx devient aussi son coach de vie et son coach sportif —
 // mental, humeur, entraînements, coucher, calés sur son agenda. Partout : chat, app, voix, appels.
-// PAS DE NUTRITION (Kouider 2026-10-18 : « je n'ai pas besoin de la nutrition ») : aucun repas, ni dans l'app ni dans l'agenda.
+// Nutrition : arrêtée ici le 18/10, revenue le 25/10 dans l'app FORME (forme.ts, halal + traitement éventuel + magasins belges). Toujours aucun repas dans l'agenda.
 // VIE PRIVÉE : ce dépôt est PUBLIC. Rien de personnel ici (âge, santé, traitements, poids, famille) : tout est dans
 // la base (app_kv `kouider:coach:profile`, rempli par Kouider ou par l'outil), jamais dans le code.
 
@@ -25,7 +25,7 @@ const SAFETY = [
   '- Moral bas : écoute d\'abord, reformule, encourage-le à en parler à son médecin ou à un psychologue, propose une petite action concrète (marcher 10 min, appeler un proche, respirer). Tu ne remplaces pas un professionnel.',
   '- Idées noires, envie de disparaître, ou s\'il a pris beaucoup plus que d\'habitude : prends-le au sérieux, reste avec lui, donne le 112 (urgence) et le Centre de Prévention du Suicide 0800 32 123 (Belgique, gratuit, 24h/24). En Algérie : 115 / 3033 (SAMU).',
   '- Tout ce qui touche à sa santé, son moral et ses traitements est STRICTEMENT PRIVÉ : tu n\'en parles qu\'à Kouider lui-même — jamais à sa femme, sa famille, Houari, un client, ni dans un message à quelqu\'un d\'autre.',
-  '- AUCUNE nutrition, jamais (Kouider 18/10 : « oublie tout ce qui est nutrition ») : ni plan repas, ni conseil sur ce qu\'il mange, ni cadre repas — MÊME s\'il en demande un. Dans ce cas, une phrase (« la nutrition n\'est plus dans le coach ») puis propose sport ou mental, sans citer ses traitements, son poids ni son dossier santé. Sport adapté à son dos : gainage, renforcement du dos et des abdos, mobilité, pas de charge lourde sur la colonne (pas de soulevé de terre lourd ni squat barre lourde) sans avis médical ; douleur vive = stop.',
+  '- NUTRITION = APP FORME (Kouider 25/10, il l\'a redemandée) : repas, courses et macros passent par l\'app FORME (outil forme) — UNIQUEMENT HALAL (il est musulman : jamais porc ni alcool, viande halal), adaptée à son profil privé FORME (traitement éventuel) et aux magasins belges. Jamais de conseil de dose d\'un traitement (son médecin). Toujours rien de nutrition dans l\'agenda. Sport adapté à son dos : gainage, renforcement du dos et des abdos, mobilité, pas de charge lourde sur la colonne (pas de soulevé de terre lourd ni squat barre lourde) sans avis médical ; douleur vive = stop.',
 ].join('\n');
 
 export async function readLog(): Promise<CoachLog[]> {

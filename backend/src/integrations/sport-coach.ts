@@ -128,7 +128,7 @@ const DEMO: Record<string, string> = {
 const DEMO_BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises';
 export const demoOf = (id: string): string[] => (DEMO[id] ? [0, 1].map(i => `${DEMO_BASE}/${DEMO[id]}/${i}.jpg`) : []);
 export const videoOf = (name: string) => `https://www.youtube.com/results?search_query=${encodeURIComponent(`${name} exercice technique exécution`)}`;
-export const ALL_EXERCISES = (): Exercise[] => Object.values(SESSIONS).flatMap(s => s.exercises);
+export const ALL_EXERCISES = (): Exercise[] => [...Object.values(SESSIONS).flatMap(s => s.exercises), ...Object.values(customMap).flatMap(c => c.exercises)];
 
 // ── PROGRAMME OFFICIEL de Kouider (demande du 20/10) ─────────────────────────────────────────────────────
 // Par défaut le coach suit le programme ci-dessus. Quand Kouider envoie SES séances (texte, photo du programme de son
@@ -248,6 +248,7 @@ async function getState(): Promise<SportState> {
     const s = JSON.parse((await kvGet(STATE_KEY)) ?? '{}') as Partial<SportState>;
     deloadWin = s.deload ?? null;
     formMap = s.form ?? {};
+    customMap = JSON.parse((await kvGet(CUSTOM_KEY).catch(() => null)) ?? '{}') as Record<string, CustomSession>;
     return { ...DEFAULT_STATE, ...s, settings: { ...DEFAULT_STATE.settings, ...s.settings } };
   }
   catch { return { ...DEFAULT_STATE }; }
@@ -279,6 +280,11 @@ let deloadWin: { start: string; end: string } | null = null;     // rafraîchi �
 export const inDeload = (date = localNow().date) => !!deloadWin && date >= deloadWin.start && date <= deloadWin.end;
 // Forme au réveil (1-5) : 1-2 = mauvaise nuit / crevé → séance courte (45 min max) et légère ce jour-là.
 let formMap: Record<string, number> = {};
+// SÉANCE SUR MESURE d'un jour précis (Kouider 25/10) : il envoie sa photo + ce qu'il veut perdre → Dzaryx / FORME
+// refait la séance du lendemain (exercices, séries) pour CE jour seulement ; le programme habituel ne bouge pas.
+const CUSTOM_KEY = 'kouider:sport:custom';
+interface CustomSession { label: string; focus: string; why: string; exercises: Exercise[]; at: number }
+let customMap: Record<string, CustomSession> = {};   // rafraîchi à chaque getState()
 const lowForm = (date = localNow().date) => (formMap[date] ?? 5) <= 2;
 const DELOAD_EVERY_WEEKS = 7;
 
@@ -335,7 +341,8 @@ const exMinutes = (e: Exercise) => {
 export function fitSession(type: SessionType, minutes: number, date?: string): { exercises: Exercise[]; finisher?: string; express: boolean; estMin: number; deload: boolean; low: boolean } {
   const deload = inDeload(date), low = lowForm(date);
   if (low) minutes = Math.min(minutes, 45);
-  const s = deload || low ? { ...SESSIONS[type], exercises: SESSIONS[type].exercises.map(e => ({ ...e, sets: Math.min(e.sets, Math.max(2, Math.round(e.sets * 0.6))) })) } : SESSIONS[type];
+  const base = date && customMap[date] ? { ...SESSIONS[type], exercises: customMap[date]!.exercises } : SESSIONS[type];
+  const s = deload || low ? { ...base, exercises: base.exercises.map(e => ({ ...e, sets: Math.min(e.sets, Math.max(2, Math.round(e.sets * 0.6))) })) } : base;
   const budget = Math.max(20, minutes - 8 - 5);           // échauffement + retour au calme
   const out: Exercise[] = []; let used = 0;
   const core = s.exercises.filter(e => e.muscle === 'abdos').slice(-1);
@@ -642,7 +649,7 @@ export async function sportOverview() {
     const p = st.plan[date];
     if (!p) return null;
     const fit = fitSession(p.type, p.minutes, date);
-    return { date, type: p.type, ...SESSIONS[p.type], deload: fit.deload, low: fit.low, form: st.form[date] ?? null, exercises: fit.exercises.map(e => ({ ...e, suggestion: suggestFor(e, log, date), timed: isTimed(e), demo: demoOf(e.id), video: videoOf(e.name) })),
+    return { date, type: p.type, ...SESSIONS[p.type], ...(customMap[date] ? { label: customMap[date]!.label, focus: customMap[date]!.focus, custom: customMap[date]!.why } : {}), deload: fit.deload, low: fit.low, form: st.form[date] ?? null, exercises: fit.exercises.map(e => ({ ...e, suggestion: suggestFor(e, log, date), timed: isTimed(e), demo: demoOf(e.id), video: videoOf(e.name) })),
       finisher: fit.finisher ?? null, estMin: fit.estMin, start: p.start, end: p.end, minutes: p.minutes, arrived: st.arrived[date] ?? null };
   };
   const nextDate = week.find(w => w.type && w.status !== 'done' && (w.date > today || Date.parse(w.end!) > Date.now()))?.date;
@@ -977,3 +984,29 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
   if (!r.slots.length) return `Aucun créneau sport dans les 7 prochains jours${r.note ? ` (${r.note})` : ''}.`;
   return ['🗓️ Ton programme sport (calé sur ton agenda) :', ...r.slots.map(s => `- ${fmt(s.date)} ${hm(Date.parse(s.start))}–${hm(Date.parse(s.end))} : ${SESSIONS[s.type].emoji} ${SESSIONS[s.type].label} (${SESSIONS[s.type].focus})${s.minutes < 60 ? ` — version ${s.minutes} min` : ''}`)].join('\n');
 }
+
+/** Prochain jour avec une séance prévue à partir de demain (pour « adapte ma séance de demain »). */
+export async function nextSessionDate(from = addDays(localNow().date, 1)): Promise<{ date: string; type: SessionType } | null> {
+  const st = await getState();
+  if (!st.plannedAt || Date.now() - st.plannedAt > 30 * 60_000) await planSportWeek(true).catch(() => null);
+  const plan = (await getState()).plan;
+  const d = Object.keys(plan).filter(x => x >= from).sort()[0];
+  return d ? { date: d, type: plan[d]!.type } : null;
+}
+
+/** Séance sur mesure pour UN jour (photo + objectif) : remplace les exercices de ce jour-là, agenda réécrit. */
+export async function setCustomSession(date: string, p: ProgramSession, why: string): Promise<string> {
+  const st = await getState();
+  const type = st.plan[date]?.type ?? 'core';
+  const sess = toSession(p, type);
+  const all = JSON.parse((await kvGet(CUSTOM_KEY)) ?? '{}') as Record<string, CustomSession>;
+  for (const k of Object.keys(all)) if (k < addDays(localNow().date, -3)) delete all[k];
+  all[date] = { label: sess.label, focus: sess.focus, why: why.slice(0, 200), exercises: sess.exercises, at: Date.now() };
+  await kvSet(CUSTOM_KEY, JSON.stringify(all));
+  customMap = all;
+  await planSportWeek(true).catch(() => null);
+  const log = await readSportLog();
+  return sessionText(type, st.plan[date]?.minutes ?? 75, log, false, date);
+}
+
+export const exerciseLibraryText = () => Object.values(DEFAULT_SESSIONS).flatMap(x => x.exercises).map(e => `${e.name} (${e.muscle})`).filter((v, i, a) => a.indexOf(v) === i).join(', ');

@@ -11,6 +11,7 @@ import { kouiderDossierTool } from './kouider-dossier.js';
 import { lifeCoachTool } from './life-coach.js';
 import { familyCareTool } from './family-care.js';
 import { papaTimeTool } from './papa-time.js';
+import { formeTool } from './forme.js';
 import { supabase } from './supabase.js';
 import { sandboxIntercept, sandboxRecord } from './crash-test-sandbox.js';
 import { convertCurrency, weatherAlerts, footballScores } from './jarvis-tools.js';
@@ -419,6 +420,7 @@ async function _dispatch(
       case 'life_coach':                return await lifeCoachTool(input, sessionId);
       case 'family_care':               return await familyCareTool(input, sessionId);
       case 'papa_time':                 return await papaTimeTool(input, sessionId);
+      case 'forme':                     return await formeTool(input);
       case 'gps_assistant':             return await (await import('./presence.js')).presenceTool(input);
       case 'sport_coach':               return await (await import('./sport-coach.js')).sportCoachTool(input, sessionId);
       case 'get_upcoming_seasons':      return await seasonsReport(Math.min(365, Math.max(7, Number(input['days']) || 120)));

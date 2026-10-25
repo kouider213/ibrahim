@@ -39,6 +39,7 @@ import {
 import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { jobClientSites } from '../integrations/client-sites.js';
 import { jobPapaTime, jobPapaWeekly } from '../integrations/papa-time.js';
+import { jobFormeReminders, jobFormeWeekly } from '../integrations/forme.js';
 import { runDailyOutreach, checkProspectReplies, checkProspectVisits, sendWeeklyReport } from '../integrations/prospect-autopilot.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { flushAutoCalls } from '../notifications/auto-call.js';
@@ -327,6 +328,16 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'forme-reminders',
+    cron:  '*/15 7-22 * * *',       // app FORME : injection Wegovy, pesée, repas, eau, photo de suivi (1 fois/jour chacun)
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'forme-weekly',
+    cron:  '0 19 * * 0',            // dimanche 19h — bilan FORME + semaine de repas suivante composée
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'papa-weekly',
     cron:  '30 18 * * 0',           // dimanche 18h30 — la semaine du petit (jeux Fennou, moments avec papa)
     tz:    'Europe/Brussels',
@@ -555,6 +566,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'life-coach-weekly':       jobLifeCoachWeekly,
   'papa-time':               async () => { console.log(`[papa-time] ${await jobPapaTime()}`); },
   'papa-weekly':             async () => { await jobPapaWeekly(); },
+  'forme-reminders':         async () => { console.log(`[forme] ${await jobFormeReminders()}`); },
+  'forme-weekly':            async () => { await jobFormeWeekly(); },
   'kouider-dossier':         async () => { console.log(`[kouider-dossier] ${await jobKouiderDossier()}`); },
   'season-watch':            async () => { console.log(`[season-watch] ${await jobSeasonWatch()}`); },
   'cloud-watch':             async () => { console.log(`[cloud-watch] ${await jobCloudWatch()}`); },

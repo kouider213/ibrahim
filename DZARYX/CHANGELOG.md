@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-10-25 — FORME : l'appli sport + nutrition halal (remplace COACH), pour Kouider et sa femme
+
+- App : nouvelle appli **FORME** (`simulator/forme/` → kouider213.github.io/ibrahim/forme/, installable seule sur l'écran d'accueil) et page **FORME** dans Dzaryx (remplace COACH). Design repris de MacroSave : questionnaire en 11 étapes (objectif, salle, magasins belges, repas/jour, halal, séances, swipe de plats en vraies photos, âge/taille/poids, budget, traitement + dose), « On compose ta semaine », accueil (anneau kcal + macros, injection, eau, menu du jour), semaine de recettes (photos TheMealDB, étapes, remplacer une recette), courses avec vraies photos de produits belges (Open Food Facts, Boni/Colruyt…), sport (mode séance : démo animée, charges, minuteur de repos), corps (courbe de poids, mensurations, caméra avec l'ancienne photo en transparence + minuteur 10 s, analyse avant/maintenant entourée par Claude, conseils), 12 outils (traitement + sites d'injection, photo d'assiette → kcal, scanner code-barres + verdict halal, protéines, eau, effets, produits belges, resto/snack, coach, minuteur, besoins, badges).
+- Deux profils : Kouider + sa femme (lien d'invitation, jeton valable seulement pour /api/forme, arabe littéraire par défaut avec interface RTL traduite, ou français). Suivis séparés ; **liste de courses commune** (cases partagées, ajout à la main, envoi WhatsApp).
+- « Je veux perdre le ventre » (+ photos) → prochaine séance refaite sur mesure : FORME (bouton) ou Dzaryx (outil `forme` action `adapt_tomorrow` après une photo sur Telegram) ; Kouider : séance du jour dans sport-coach (`kouider:sport:custom`) + agenda.
+- Backend : `integrations/forme.ts`, `/api/forme/*`, outil `forme`, jobs `forme-reminders` (*/15 7-22h) et `forme-weekly` (dimanche 19h), `formeText` dans le dossier de Dzaryx. La nutrition revient (demande de Kouider 25/10) uniquement via FORME, jamais dans l'agenda. Données santé/photos : app_kv + bucket privé `forme-private`.
+
 ## 2026-10-25 — FENNOU : le compagnon de jeu du petit + rappels « temps avec le petit »
 
 - App : page **FENNOU** (menu ⋯ Plus, Kouider) → `public/fennou.html` ouvert par-dessus toute l'app (pas de barre du bas, pas d'accès au business). 5 jeux : Ma famille (où est papa/maman + « attrape-moi », photos gardées sur l'appareil), Cache-cache (mémoire, s'adapte : 2 → 3 buissons → buissons qui bougent), Attrape le lapin, Où est… ?, Les bulles. Coin parents par appui long de 2 s : durée (10 min conseillé), vitesse, photos, **voix de maman** (enregistrements darija dans IndexedDB, joués à la place de la voix française), « Quitter Fennou ». App v176.

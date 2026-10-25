@@ -37,7 +37,7 @@ import CarteScreen from './screens/CarteScreen.tsx';
 import NexusScreen from './screens/NexusScreen.tsx';
 import PhoneCamScreen from './screens/PhoneCamScreen.tsx';
 import GlobeScreen from './screens/GlobeScreen.tsx';
-import CoachScreen from './screens/CoachScreen.tsx';
+import FormeScreen from './screens/FormeScreen.tsx';
 import FennouScreen from './screens/FennouScreen.tsx';
 import { setSimActor, resumeWebPush, business, callApi, loginDevice, logoutDevice, setDeviceToken, getDeviceToken } from '../services/api.ts';
 
@@ -64,7 +64,7 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   // ── Menu "⋯ Plus" (outils) ──
   { id: 'search',        icon: '🔍', label: 'CHERCHER', group: 'tool' },
   { id: 'fennou',        icon: '🦊', label: 'FENNOU',  kouiderOnly: true, group: 'tool' },
-  { id: 'sport',         icon: '🏆', label: 'COACH',   kouiderOnly: true, group: 'tool' },
+  { id: 'sport',         icon: '💪', label: 'FORME',   kouiderOnly: true, group: 'tool' },
   { id: 'carte',         icon: '🗺️', label: 'CARTE LIVE', kouiderOnly: true, group: 'tool' },
   { id: 'nexus',         icon: '🖥️', label: 'MON PC',  kouiderOnly: true, group: 'tool' },
   { id: 'globe',         icon: '🌍', label: 'GLOBE',   kouiderOnly: true, group: 'tool' },
@@ -349,7 +349,7 @@ export default function Phone() {
       case 'studio':        return <StudioScreen />;
       case 'camera':        return <PhoneCamScreen />;
       case 'globe':         return <GlobeScreen />;
-      case 'sport':         return <CoachScreen />;
+      case 'sport':         return <FormeScreen onExit={exitFennou} />;
       case 'fennou':        return <FennouScreen onExit={exitFennou} />;
       case 'carte':         return <CarteScreen actor={actor} startFull={carteLink} onOpen={(p) => setPage(p as Page)} onAsk={(prompt) => { try { localStorage.setItem('dz:ask_prompt', prompt); } catch { /* ignore */ } setPage('text'); }} />;
       case 'plus':          return <ToolsGrid onOpen={setPage} actor={actor} />;

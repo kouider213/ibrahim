@@ -2876,6 +2876,22 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
   {
+    name: 'forme',
+    description: "APP FORME de Kouider (privé, Kouider seulement) : sport + nutrition HALAL + suivi du corps, adaptée à son profil privé (traitement éventuel) et aux magasins belges (Colruyt, Delhaize, Aldi, Lidl…). action='status' : tout son suivi (poids, kcal/protéines des 7 derniers jours, eau, injections, effets, dernière analyse photo). 'log' + kind : water (delta), weight (kg), food (name, kcal, p, c, f), protein (p en g), injection (site, dose), side (what = nausée/fatigue/constipation…, level 1-3), measures ({taille, hanches, poitrine, bras, cuisse} en cm) — « j'ai bu 2 verres », « je pèse 86,4 », « j'ai fait mon injection au ventre ». 'week' : les repas de la semaine ; 'shopping' : la liste de courses par magasin avec prix ; 'regenerate' : refaire la semaine ; 'ask' + question : le coach nutrition répond (resto, fast-food, envie de sucre) ; 'photos' : analyses avant/après de ses photos ; 'profile' + champs (goal, targetKg, stores, budgetWeek…). 'adapt_tomorrow' + focus (ce qu'il veut perdre/améliorer : « le ventre », « les poignées d'amour », « plus de pecs ») + observations (ce que TU vois sur la photo qu'il vient d'envoyer : zones, posture, morphologie) : sa PROCHAINE séance (demain ou le prochain créneau) est refaite exercice par exercice pour cet objectif, dans son programme ET son agenda — utilise-la dès qu'il envoie une photo de lui en disant ce qu'il veut perdre, puis donne-lui la liste exacte des exercices renvoyée. Jamais de conseil de dose d'un traitement → son médecin.",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action: { type: 'string', enum: ['status', 'log', 'week', 'shopping', 'regenerate', 'ask', 'photos', 'profile', 'adapt_tomorrow'] },
+        focus: { type: 'string' }, observations: { type: 'string' },
+        kind: { type: 'string', enum: ['water', 'weight', 'food', 'protein', 'injection', 'side', 'measures'] },
+        delta: { type: 'number' }, kg: { type: 'number' }, name: { type: 'string' }, kcal: { type: 'number' }, p: { type: 'number' }, c: { type: 'number' }, f: { type: 'number' },
+        site: { type: 'string' }, dose: { type: 'string' }, what: { type: 'string' }, level: { type: 'number' }, measures: { type: 'object' },
+        question: { type: 'string' }, goal: { type: 'string', enum: ['perte', 'muscle', 'recompo'] }, targetKg: { type: 'number' }, budgetWeek: { type: 'number' }, stores: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['action'],
+    },
+  },
+  {
     name: 'papa_time',
     description: "TEMPS AVEC SON FILS (privé, Kouider seulement). Son fils a son compagnon de jeu « Fennou » (page FENNOU de l'app) et Dzaryx lui rappelle de passer du temps avec lui. action='log' + minutes + what (ce qu'ils ont fait) + who ('papa' défaut, 'maman') : « j'ai joué avec le petit », « on est allés au parc » ; now=true s'il dit qu'il joue AVEC LUI MAINTENANT → aucun dérangement pendant ce temps. 'status' : la semaine (parties de Fennou, moments notés, ce qu'il aime). 'idea' (+ outside=true pour une sortie) : une idée d'activité sans écran adaptée à son âge. 'profile' + like (« il adore les dinosaures ») / name / born (AAAA-MM) : ce que Fennou sait de lui.",
     input_schema: {

@@ -1,0 +1,18 @@
+{
+  "id": "/ibrahim/forme/",
+  "name": "Forme — sport & nutrition",
+  "short_name": "Forme",
+  "description": "Repas halal, courses en Belgique, séances, suivi Wegovy et photos avant/après — relié à Dzaryx.",
+  "start_url": "/ibrahim/forme/",
+  "scope": "/ibrahim/forme/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fbf1ec",
+  "theme_color": "#fbf1ec",
+  "icons": [
+    { "src": "/ibrahim/icons/forme-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/ibrahim/icons/forme-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/ibrahim/icons/forme-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "lang": "fr"
+}
