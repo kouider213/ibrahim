@@ -1,4 +1,4 @@
-const CACHE = 'dzaryx-v185';
+const CACHE = 'dzaryx-v186';
 const APP_URL = 'https://kouider213.github.io/ibrahim/';
 const STATIC = [
   '/ibrahim/',
@@ -73,14 +73,14 @@ self.addEventListener('push', e => {
   } catch { /* ignore parse error */ }
 
   // Appel de Dzaryx : la notif reste affichée et remplace l'appel précédent
-  const isCall = data && data.type === 'call';
+  const isCall = data && (data.type === 'call' || data.type === 'invite');
   e.waitUntil(
     self.registration.showNotification(title, {
       body,
-      icon:   '/ibrahim/icons/icon-192.png',
+      icon:   data && data.url && String(data.url).includes('/forme/') ? '/ibrahim/icons/forme-192.png' : '/ibrahim/icons/icon-192.png',
       badge:  '/ibrahim/icons/icon-192.png',
       data,
-      tag:    isCall ? 'dzaryx-call' : undefined,
+      tag:    isCall ? (data.type === 'invite' ? 'jeux-invite' : 'dzaryx-call') : undefined,
       renotify: isCall || undefined,
       vibrate: isCall ? [600, 300, 600, 300, 600] : [200, 100, 200],
       requireInteraction: !!isCall,
