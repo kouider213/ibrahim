@@ -162,7 +162,7 @@ export interface SportExercise { id: string; name: string; muscle: string; sets:
 export interface SportSession { date: string; type: SportType; label: string; emoji: string; focus: string; muscles: string[]; warmup: string;
   exercises: SportExercise[]; finisher: string | null; estMin: number; start: string; end: string; minutes: number; arrived: number | null }
 export interface SportOverview {
-  today: SportSession | null; next: SportSession | null;
+  today: SportSession | null; next: SportSession | null; planned?: SportSession[]; objective?: string;
   week: Array<{ date: string; type: SportType | null; label: string | null; emoji: string | null; start: string | null; end: string | null; minutes: number | null; skip: string | null; status: string | null }>;
   recovery: Array<{ muscle: string; pct: number }>;
   stats: { streak: number; monthSessions: number; total: number; weeks: Array<{ from: string; sessions: number; volume: number }>; prs: Array<{ ex: string; kg: number; reps: number | null; date: string }> };

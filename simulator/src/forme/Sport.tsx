@@ -138,30 +138,35 @@ export default function SportScreen({ toast }: { toast: (t: string) => void }) {
   const [err, setErr] = useState('');
   const [play, setPlay] = useState<SportSession | null>(null);
   const [ex, setEx] = useState<SportExercise | null>(null);
+  const [pick, setPick] = useState<string | null>(null);   // jour touché dans la semaine
   const load = useCallback(() => apiFetch<SportOverview>('/api/sport').then(setD).catch(e => setErr(errText(e))), []);
   useEffect(() => { void load(); }, [load]);
   if (err) return <div style={{ padding: 18, color: F.red }}>❌ {err}</div>;
   if (!d) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner /></div>;
-  const s = d.today ?? d.next;
-  const isToday = !!d.today;
+  const today = d.week[0]?.date;
+  const picked = pick ? (d.planned ?? []).find(x => x.date === pick) ?? (pick === d.today?.date ? d.today : pick === d.next?.date ? d.next : null) : null;
+  const s = pick ? picked : d.today ?? d.next;
+  const isToday = !!s && s.date === today;
   return (
     <div style={{ padding: '6px 18px 0' }}>
       <Title a="Ton" b="entraînement" sub={d.stats.streak > 1 ? `🔥 ${d.stats.streak} séances d'affilée · ${d.stats.monthSessions} ce mois-ci` : `${d.stats.monthSessions} séance(s) ce mois-ci`} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
         {d.week.map(w => (
-          <div key={w.date} style={{ ...card, padding: '8px 0', textAlign: 'center', borderRadius: 16, background: w.status === 'done' ? F.green : w.type ? '#fff' : F.bg2, color: w.status === 'done' ? '#fff' : F.ink, boxShadow: 'none', border: `1px solid ${F.line}` }}>
+          <button key={w.date} onClick={() => { vibrate(10); setPick(w.type ? w.date : null); }} style={{ ...card, padding: '8px 0', textAlign: 'center', borderRadius: 16, background: w.status === 'done' ? F.green : w.type ? '#fff' : F.bg2, color: w.status === 'done' ? '#fff' : F.ink, boxShadow: (s?.date === w.date) ? `0 0 0 2.5px ${F.accent}` : 'none', border: `1px solid ${F.line}`, cursor: w.type ? 'pointer' : 'default', fontFamily: F.sans }}>
             <div style={{ fontSize: 10, fontWeight: 800, opacity: 0.7 }}>{SHORT_DAYS[dayOf(w.date)]}</div>
             <div style={{ fontSize: 18, marginTop: 2 }}>{w.skip ? '🛌' : w.status === 'done' ? '✓' : w.emoji ?? '·'}</div>
-          </div>
+            <div style={{ fontSize: 9, fontWeight: 800, opacity: 0.6, marginTop: 1 }}>{w.type ? (w.label ?? '').replace(/ DAY$/, '').slice(0, 7) : 'repos'}</div>
+          </button>
         ))}
       </div>
+      {d.objective && <div style={{ fontSize: 12.5, fontWeight: 700, color: F.muted, marginTop: 10, textAlign: 'center' }}>🎯 {d.objective} · touche un jour pour voir sa séance</div>}
       {s ? (
         <div style={{ ...darkCard, padding: 0, overflow: 'hidden', marginTop: 16 }}>
           <div style={{ position: 'relative', height: 180, background: '#fff' }}>
             {s.exercises[0] && <Demo ex={s.exercises[0]} style={{ width: '100%', height: '100%' }} />}
             <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(transparent 40%, rgba(33,29,28,0.95))' }} />
             <div style={{ position: 'absolute', left: 16, bottom: 12, right: 16 }}>
-              <div style={{ fontSize: 11.5, fontWeight: 800, color: F.accent2, letterSpacing: '0.1em' }}>{isToday ? "AUJOURD'HUI" : `PROCHAINE · ${SHORT_DAYS[dayOf(s.date)]} ${s.date.slice(8)}`} · {new Date(s.start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })}</div>
+              <div style={{ fontSize: 11.5, fontWeight: 800, color: F.accent2, letterSpacing: '0.1em' }}>{isToday ? "AUJOURD'HUI" : `${pick ? '' : 'PROCHAINE · '}${SHORT_DAYS[dayOf(s.date)]} ${s.date.slice(8)}`} · {new Date(s.start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })}</div>
               <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: '-0.02em' }}>{s.emoji} {s.label}</div>
             </div>
           </div>
@@ -169,7 +174,8 @@ export default function SportScreen({ toast }: { toast: (t: string) => void }) {
             {(s as { custom?: string }).custom && <div style={{ fontSize: 13, background: 'rgba(255,122,69,0.18)', color: '#ffd2c2', borderRadius: 12, padding: '8px 10px', marginBottom: 8 }}>🎯 Sur mesure : {(s as { custom?: string }).custom}</div>}
             <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>{s.focus} · ~{s.estMin} min · {s.exercises.length} exercices{(s as SportSession & { deload?: boolean }).deload ? ' · semaine allégée' : ''}</div>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', marginTop: 6 }}>🔥 Échauffement : {s.warmup}</div>
-            <button onClick={() => setPlay(s)} style={{ ...btn, width: '100%', marginTop: 14 }}>▶ Démarrer la séance</button>
+            {(s as { finisher?: string | null }).finisher && <div style={{ fontSize: 13, color: '#ffd2c2', marginTop: 6 }}>🔥 {(s as { finisher?: string | null }).finisher}</div>}
+            <button onClick={() => setPlay(s)} style={{ ...btn, width: '100%', marginTop: 14 }}>{isToday ? '▶ Démarrer la séance' : '▶ Voir / faire cette séance'}</button>
           </div>
         </div>
       ) : <div style={{ ...card, marginTop: 16 }}>Pas de séance prévue cette semaine. Dis à Dzaryx « cale mes séances » 💬</div>}
@@ -183,6 +189,16 @@ export default function SportScreen({ toast }: { toast: (t: string) => void }) {
               <div style={{ fontSize: 15.5, fontWeight: 800 }}>{e.name}</div>
               <div style={{ fontSize: 12.5, color: F.muted }}>{e.sets} × {e.reps}{e.suggestion.kg != null ? ` · ${e.suggestion.kg} kg${e.suggestion.up ? ' 📈' : ''}` : ''}</div>
             </div>
+          </button>
+        ))}
+      </>}
+      {(d.planned?.length ?? 0) > 1 && <>
+        <Section a="Ta" b="semaine" />
+        {d.planned!.map(x => (
+          <button key={x.date} onClick={() => { setPick(x.date); window.scrollTo({ top: 0, behavior: 'smooth' }); }} style={{ ...card, display: 'flex', gap: 12, alignItems: 'center', padding: 12, marginBottom: 8, width: '100%', border: x.date === s?.date ? `2px solid ${F.accent}` : 'none', textAlign: 'left', cursor: 'pointer', fontFamily: F.sans, color: F.ink }}>
+            <div style={{ width: 48, textAlign: 'center' }}><div style={{ fontSize: 11, fontWeight: 800, color: F.muted }}>{SHORT_DAYS[dayOf(x.date)]}</div><div style={{ fontSize: 22 }}>{x.emoji}</div></div>
+            <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 800, fontSize: 15 }}>{x.label}</div><div style={{ fontSize: 12.5, color: F.muted }}>{x.focus} · {x.exercises.length} exercices · ~{x.estMin} min</div><div style={{ fontSize: 12, color: F.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.exercises.map(e => e.name).join(' · ')}</div></div>
+            <div style={{ fontSize: 18, color: F.muted }}>›</div>
           </button>
         ))}
       </>}
@@ -210,7 +226,7 @@ export default function SportScreen({ toast }: { toast: (t: string) => void }) {
         </>}
       </Sheet>
       {play && <Player s={play} onClose={() => setPlay(null)} onFinished={msg => { setPlay(null); toast(msg); void load(); }} save={async (sets, durationMin, rpe) => {
-        const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date: play.date, type: play.type, sets, durationMin, rpe }) });
+        const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date: d.week[0]?.date ?? play.date, type: play.type, sets, durationMin, rpe }) });
         return `💪 Séance enregistrée${r.prs.length ? ` — 🏆 record : ${r.prs.join(', ')}` : ''} · Dzaryx est prévenu`;
       }} />}
     </div>

@@ -174,7 +174,7 @@ function startShow(sd: number, duo: boolean) {
 function startRound() {
   const kind = plan[roundIdx]!; newWorld(); if (round) scene.remove(round.group);
   const n = roster.length; round = buildRound(world, scene, kind, rng(seed + roundIdx * 7919), n); applyTheme(round);
-  quota = kind === 'race' ? Math.max(2, Math.round(n * 0.6)) : kind === 'tiles' ? Math.max(2, Math.round(n * 0.5)) : kind === 'tail' ? Math.floor(n / 2) : 1; qualified = 0;
+  quota = kind === 'race' ? Math.max(2, Math.round(n * 0.6)) : kind === 'tiles' ? Math.max(2, Math.round(n * 0.65)) : kind === 'tail' ? Math.floor(n / 2) : 1; qualified = 0;
   spawnPlayers(roster); roundT = -4.2; mode = 'intro'; $('menu').hidden = true; $('hud').hidden = false; $('ctrl').hidden = spectating; $('wait').hidden = true; sheet('');
   if (spectating) { const m = me$(); if (m) { m.state = 'out'; if (m.body) world.removeRigidBody(m.body); m.body = null; m.bean.root.visible = false; } }
   cam.yaw = 0;
@@ -345,7 +345,7 @@ function botThink(p: P, dt: number): [number, number, boolean, boolean] {
   return [dx, dz, jump, dive];
 }
 const barSpeed = (h: number) => h < 1 ? 0.9 + Math.min(1.6, roundT * 0.025) : (roundT > 15 ? -(0.7 + Math.min(1.3, (roundT - 15) * 0.025)) : 0);
-const TIME_LIMIT: Record<RoundKind, number> = { race: 150, tiles: 120, jump: 150, tail: 75, mountain: 180 };
+const TIME_LIMIT: Record<RoundKind, number> = { race: 150, tiles: 90, jump: 150, tail: 75, mountain: 180 };
 
 let netT = 0; const tmpV = new THREE.Vector3(); const tmp2 = new THREE.Vector3(); const proj = new THREE.Vector3();
 function step(dt: number) {
@@ -360,7 +360,7 @@ function step(dt: number) {
   const r = round;
   for (const m of r.movers) m.update(mode === 'intro' ? -1 : roundT);
   for (const bar of r.bars) { bar.angle += barSpeed(bar.h) * dt * (mode === 'play' ? 1 : 0); const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, bar.angle, 0)); bar.body.setNextKinematicRotation({ x: q.x, y: q.y, z: q.z, w: q.w }); bar.mesh.quaternion.copy(q); bar.mesh.visible = bar.h < 1 || roundT > 13; if (bar.h > 1 && roundT < 15) bar.body.setNextKinematicTranslation({ x: 0, y: 30, z: 0 }); else bar.body.setNextKinematicTranslation({ x: 0, y: bar.h, z: 0 }); }
-  for (const tl of r.tiles) { if (tl.state === 1) { tl.t += dt; (tl.mesh.material as THREE.MeshPhysicalMaterial).emissive.setRGB(tl.t * 1.6, tl.t * 0.3, 0); tl.mesh.position.x += (Math.random() - 0.5) * 0.02; if (tl.t > 0.6) { tl.state = 2; tl.col.setEnabled(false); } } else if (tl.state === 2 && tl.mesh.visible) { tl.mesh.position.y -= dt * 9; tl.mesh.scale.multiplyScalar(1 - dt * 2); if (tl.mesh.scale.x < 0.05) tl.mesh.visible = false; } }
+  for (const tl of r.tiles) { if (tl.state === 1) { tl.t += dt; (tl.mesh.material as THREE.MeshPhysicalMaterial).emissive.setRGB(tl.t * 0.7, tl.t * 0.15, 0); if (tl.t > 0.9) tl.mesh.position.x += (Math.random() - 0.5) * 0.03; if (tl.t > 1.5) { tl.state = 2; tl.col.setEnabled(false); } } else if (tl.state === 2 && tl.mesh.visible) { tl.mesh.position.y -= dt * 9; tl.mesh.scale.multiplyScalar(1 - dt * 2); if (tl.mesh.scale.x < 0.05) tl.mesh.visible = false; } }
   for (const d of r.doors) { if (d.open > 0) { d.open += dt; d.mesh.rotation.x = -Math.min(1.5, d.open * 5); d.mesh.position.y = 1.4 - Math.min(1.3, d.open * 4); continue; } if (!d.real) continue; for (const p of players) { if (p.state !== 'play') continue; const tr = posOf(p); if (Math.abs(tr.x - d.mesh.position.x) < 1.3 && Math.abs(tr.z - d.mesh.position.z) < 0.95) { d.open = 0.01; d.col.setEnabled(false); if (p.human) sfx.crash(); break; } } }
   for (const bl of r.balls) { const tr = bl.body.translation(); if (tr.y < r.killY - 2 || tr.z > 40) { bl.body.setTranslation({ x: bl.home.x + (Math.random() - 0.5) * 4, y: bl.home.y, z: bl.home.z }, true); bl.body.setLinvel({ x: 0, y: 0, z: 0 }, true); } else if (bl.body.linvel().z < 3) bl.body.applyImpulse({ x: 0, y: 0, z: 0.18 }, true); const rot = bl.body.rotation(); bl.mesh.position.set(tr.x, tr.y, tr.z); bl.mesh.quaternion.set(rot.x, rot.y, rot.z, rot.w); }
   for (const bm of r.bumpers) { bm.hit = Math.max(0, bm.hit - dt); bm.mesh.scale.setScalar(1 + bm.hit * 0.6); }

@@ -4,6 +4,7 @@ import { supabase } from './supabase.js';
 import { createAnthropic, QUALITY } from './anthropic-compat.js';
 import { localNow } from './morning-routine.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
+import { env } from '../config/env.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { sendWebPush } from '../notifications/web-push-service.js';
 import type { PushSubscription } from 'web-push';
@@ -38,7 +39,7 @@ const EXTRA_KEY = 'foyer:forme:extra';               // articles ajoutés à la 
 const INVITE_K = (hash: string) => `forme:invite:${hash}`;
 const INVITE_OF = (u: Uid) => `forme:invite-of:${u}`;
 const CATALOG_KEY = 'forme:mealdb:catalog';
-const IMG_KEY = 'forme:off:img2';
+const IMG_KEY = 'forme:off:img3';
 const BUCKET = 'forme-private';
 
 export const STORES = ['Colruyt', 'Delhaize', 'Aldi', 'Lidl', 'Carrefour', 'Albert Heijn', 'Intermarché', 'Boucherie halal'] as const;
@@ -346,17 +347,30 @@ export async function offBarcode(code: string) {
   };
 }
 
+// Photo d'un article : vrai paquet belge (Open Food Facts) pour l'épicerie ; belle photo (Pexels) pour la viande
+// de la boucherie, les fruits/légumes et ce qu'Open Food Facts ne connaît pas. « carottes, oignons, ail » → carottes.
+const imgQuery = (name: string) => (/\(([^)]+)\)/.exec(name)?.[1] ?? name).split(/[,+&]| et /)[0]!.replace(/\b(halal|surgel[ée]s?|frais|fra[iî]che?s?|bio|nature|en conserve|en boîte)\b/gi, '').replace(/\s+/g, ' ').trim();
+async function pexelsImage(q: string): Promise<string | null> {
+  const key = env.PEXELS_API_KEY; if (!key || !q) return null;
+  const u = new URL('https://api.pexels.com/v1/search'); u.searchParams.set('query', q); u.searchParams.set('per_page', '3'); u.searchParams.set('locale', 'fr-FR'); u.searchParams.set('orientation', 'square');
+  const r = await fetch(u, { headers: { Authorization: key }, signal: AbortSignal.timeout(10_000) });
+  if (!r.ok) return null;
+  const j = await r.json() as { photos?: Array<{ src?: { small?: string; tiny?: string } }> };
+  return j.photos?.[0]?.src?.small ?? null;
+}
 async function productImages(items: ShopItem[], stores: string[]): Promise<void> {
   const cache = await readJson<Record<string, { img: string | null; brand: string | null }>>(IMG_KEY, {});
-  const todo = items.filter(i => !/boucherie/i.test(i.store));
+  const todo = items.filter(i => !i.img);
   let i = 0;
   const worker = async () => {
     while (i < todo.length) {
       const it = todo[i++]!;
       const k = `${it.store}|${it.name.toLowerCase()}`;
       if (!cache[k]) {
-        const hit = (await offSearch(it.name, it.store || stores[0], 1).catch(() => []))[0];
-        cache[k] = { img: hit?.img ?? null, brand: hit?.brand ?? null };
+        const q = imgQuery(it.name); const fresh = /boucherie/i.test(it.store) || /fruits|légumes/i.test(it.aisle);
+        const hit = fresh ? null : (await offSearch(q, it.store || stores[0], 1).catch(() => []))[0];
+        const img = hit?.img ?? await pexelsImage(/boucherie/i.test(it.store) ? `${q} viande crue` : q).catch(() => null);
+        cache[k] = { img, brand: hit?.brand ?? null };
       }
       it.img = cache[k]!.img; it.brand = cache[k]!.brand;
     }
@@ -390,7 +404,7 @@ Réponds UNIQUEMENT par un objet JSON valide (aucun texte autour, pas de \`\`\`)
  "recipes":[{"id":"r1","title":"titre appétissant","mealDbId":"id du catalogue si un plat proche existe, sinon null","photoQuery":"2-4 mots EN pour trouver une photo","minutes":25,"kcal":520,"p":45,"c":40,"f":15,"tags":["riche en protéines","doux pour l'estomac"],"ingredients":[{"name":"blanc de poulet halal","qty":"150 g"}],"steps":["étape courte",...],"tip":"astuce Wegovy/prépa (≤ 120 car.)"}],
  "days":[{"date":"AAAA-MM-JJ","meals":[{"slot":"petit-déj|déjeuner|collation|dîner","recipe":"r1","portion":"1 part"}]}],
  "shopping":[{"name":"produit tel qu'en rayon","fr":"nom FRANÇAIS court et générique (ex. skyr nature, blanc de poulet halal)","qty":"600 g","aisle":"Fruits & légumes|Boucherie halal|Crèmerie|Épicerie|Surgelés|Boulangerie|Boissons","store":"un des magasins choisis","price":3.49,"halal":true}]}
-Le champ "slot" et "aisle" restent TOUJOURS en français (valeurs ci-dessus). Contraintes : TOUS LES REPAS DIFFÉRENTS (Kouider 25/10) — jamais deux fois la même recette dans la journée NI dans la semaine : une recette = UN seul repas, donc autant de recettes que de repas de la semaine (ex. 7 jours × 3 repas = 21 recettes), chacune référencée UNE seule fois dans "days". Varie les protéines (poulet, bœuf, agneau, poisson, œufs, légumineuses) et les cuisines (algérienne, méditerranéenne, belge, orientale…). Pour rester court : 4 à 8 ingrédients et 3 à 4 étapes courtes par recette. ${p.wegovy.on ? 'Sous Wegovy pas de grosse assiette — ≤ 600 kcal par repas ; si la cible du jour ne rentre pas, ajoute une collation protéinée (elle aussi différente chaque jour). ' : ''}Chaque jour = le nombre de repas demandé, macros de la journée proches des cibles (protéines atteintes en priorité), total des courses ≤ budget, prix = prix unitaire estimé en € du paquet acheté. Viande → store "Boucherie halal" si le magasin n'a pas de halal sûr.`;
+Le champ "slot" et "aisle" restent TOUJOURS en français (valeurs ci-dessus). Contraintes : TOUS LES REPAS DIFFÉRENTS (Kouider 25/10) — jamais deux fois la même recette dans la journée NI dans la semaine : une recette = UN seul repas, donc autant de recettes que de repas de la semaine (ex. 7 jours × 3 repas = 21 recettes), chacune référencée UNE seule fois dans "days". Varie les protéines (poulet, bœuf, agneau, poisson, œufs, légumineuses) et les cuisines (algérienne, méditerranéenne, belge, orientale…). VIANDE : varie aussi les MORCEAUX — au maximum UNE recette à base de viande hachée (kefta, boulettes, kebab) par semaine ; le reste en morceaux entiers : escalopes/filets de poulet ou de dinde, cuisses et pilons, gigot ou épaule d'agneau en morceaux, côtelettes, brochettes, bœuf en cubes pour tajine, steak. Courses : noms génériques AU SINGULIER (« cuisse de poulet halal », pas « cuisses »), un article par produit (pas de lots « carottes, oignons, ail »). Pour rester court : 4 à 8 ingrédients et 3 à 4 étapes courtes par recette. ${p.wegovy.on ? 'Sous Wegovy pas de grosse assiette — ≤ 600 kcal par repas ; si la cible du jour ne rentre pas, ajoute une collation protéinée (elle aussi différente chaque jour). ' : ''}Chaque jour = le nombre de repas demandé, macros de la journée proches des cibles (protéines atteintes en priorité), total des courses ≤ budget, prix = prix unitaire estimé en € du paquet acheté. Viande → store "Boucherie halal" si le magasin n'a pas de halal sûr.`;
 
 export async function generateWeek(uid: Uid = 'kouider', monday = localNow().date, force = false): Promise<WeekPlan> {
   const existing = await readJson<WeekPlan | null>(WEEK_K(uid, monday), null);
@@ -502,7 +516,23 @@ export async function placeFavorite(uid: Uid, title: string, date: string, slot:
 }
 
 // ── Courses du FOYER : les deux listes fusionnées, cases communes ───────────
-const shopKey = (s: Pick<ShopItem, 'name' | 'store'>) => `${s.store.toLowerCase()}|${s.name.toLowerCase().replace(/œ/g, 'oe').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()}`;
+// Clé de fusion : « cuisses de poulet halal » = « cuisse de poulet halal », « viande hachée de bœuf » = « bœuf haché »,
+// « à braiser » = « à mijoter », « pois chiches en conserve » = « pois chiches » (le magasin n'entre pas en compte).
+const SHOP_STOP = new Set(['de', 'du', 'des', 'la', 'le', 'les', 'a', 'au', 'aux', 'en', 'et', 'd', 'l', 'halal', 'viande']);
+const SHOP_SYN: Record<string, string> = { braiser: 'mijoter', ragout: 'mijoter', tajine: 'mijoter', bourguignon: 'mijoter', hachee: 'hache', blanc: 'filet', escalope: 'filet', aiguillette: 'filet', pilon: 'cuisse', haut: 'cuisse' };
+const SHOP_VARIANT = new Set(['conserve', 'boite', 'nature', 'surgele', 'demi', 'ecreme', 'entier', 'bio', 'sec', 'cuit']);
+const shopStem = (w: string) => w.length > 3 ? w.replace(/(es|s|x)$/, '').replace(/e+$/, '') : w;
+const SHOP_SYN_S = Object.fromEntries(Object.entries(SHOP_SYN).map(([k, v]) => [shopStem(k), shopStem(v)]));
+const SHOP_VARIANT_S = new Set([...SHOP_VARIANT].map(shopStem));
+const shopTokens = (name: string) => (/\(([^)]+)\)/.exec(name)?.[1] ?? name).toLowerCase().replace(/œ/g, 'oe').normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/)
+  .filter(w => w && !SHOP_STOP.has(w)).map(shopStem).map(w => SHOP_SYN_S[w] ?? w);
+const shopKey = (s: Pick<ShopItem, 'name' | 'store'>) => [...new Set(shopTokens(s.name))].sort().join(' ');
+/** Même article à une variante près (« lait » / « lait demi-écrémé ») ? */
+function sameItem(a: string, b: string) {
+  const A = new Set(shopTokens(a).filter(w => !SHOP_VARIANT_S.has(w))), B = new Set(shopTokens(b).filter(w => !SHOP_VARIANT_S.has(w)));
+  if (!A.size || !B.size) return false;
+  return [...A].every(w => B.has(w)) && [...B].every(w => A.has(w));
+}
 export interface HouseItem extends ShopItem { key: string; who: Array<{ uid: Uid; name: string; qty: string }>; by?: string; at?: number }
 
 export async function householdShopping(uid: Uid): Promise<{ items: HouseItem[]; total: number; budget: number; shared: boolean }> {
@@ -515,7 +545,8 @@ export async function householdShopping(uid: Uid): Promise<{ items: HouseItem[];
     if (!w) continue;
     budget += w.budget;
     for (const s of w.shopping) {
-      const key = shopKey(s);
+      let key = shopKey(s);
+      if (!map.has(key)) for (const [k, it] of map) if (sameItem(it.name, s.name)) { key = k; break; }
       const who = { uid: u, name: p.name || (u === 'kouider' ? 'Kouider' : 'Elle'), qty: s.qty };
       const cur = map.get(key);
       if (cur) { cur.who.push(who); cur.price = Math.round((cur.price + s.price) * 100) / 100; if (u === uid && s.label) cur.label = s.label; }
@@ -526,6 +557,9 @@ export async function householdShopping(uid: Uid): Promise<{ items: HouseItem[];
     const key = `extra|${e.at}`;
     map.set(key, { ...e, key, who: [{ uid: 'kouider', name: e.by, qty: e.qty }], aisle: 'Ajouté à la main' });
   }
+  // Photos manquantes (listes déjà générées) : complétées et gardées en cache
+  const missing = [...map.values()].filter(i => !i.img);
+  if (missing.length) await Promise.race([productImages(missing, ['Colruyt']).catch(() => {}), new Promise(r => setTimeout(r, 8000))]);
   const items = [...map.values()].map(i => ({ ...i, checked: !!checks[i.key], by: checks[i.key]?.by, at: checks[i.key]?.at }));
   return { items, total: Math.round(items.reduce((a, i) => a + i.price, 0) * 100) / 100, budget, shared: users.length > 1 };
 }

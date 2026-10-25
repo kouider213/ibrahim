@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-25 (nuit, suite 3) — Courses FORME sans doublons + photos, séances de la semaine visibles, tuiles plus faciles (app v187)
+- `forme.ts` : fusion des courses du foyer par mots (singulier/pluriel, haché = viande hachée, braiser = mijoter, variantes en conserve/demi-écrémé…) → 63 → 56 articles ; photos manquantes complétées (boucherie, fruits & légumes, lots → Pexels ; épicerie → Open Food Facts), cache `forme:off:img3` ; menu : max 1 plat à base de haché par semaine, morceaux variés, noms au singulier.
+- `sport-coach.ts` : `planned` (toutes les séances de la semaine) + objectif ; finisher brûle-graisse à chaque séance muscu (objectif ventre de Kouider).
+- `forme/Sport.tsx` : jours de la semaine cliquables, liste « Ta semaine » avec exercices, finisher affiché, séance faite un autre jour enregistrée à la date du jour.
+- `folie` : Tuiles Fondantes plus faciles (1,5 s avant chute, tuiles plus grandes, étages rapprochés, 65 % qualifiés, 90 s).
+
 ## 2026-10-25 (nuit, suite 2) — Invitation à jouer = notification sur le téléphone de Fatima ; caméra FORME dézoomée (app v186)
 - `couple-games.ts` + `forme.ts pushForme()` : quand Kouider invite, notification push FORME à Fatima (même appli fermée, AR/FR), lien `forme/?jeu=<jeu>` qui ouvre directement le jeu ; si elle n'a pas activé les notifications → Telegram à Kouider pour le dire. `sw.js` : notif d'invitation qui reste affichée + icône FORME.
 - `forme/App.tsx` : bandeau « Activer les notifications » toujours proposé dans l'appli installée + réabonnement automatique à chaque ouverture.

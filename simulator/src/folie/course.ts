@@ -207,9 +207,9 @@ export function buildRound(world: RAPIER.World, scene: THREE.Scene, kind: RoundK
   }
   if (kind === 'tiles') {
     r.name = 'Les Tuiles Fondantes'; r.nameAr = 'البلاط الذائب'; r.goal = 'Ne tombe pas ! Les tuiles disparaissent sous tes pieds'; r.goalAr = 'لا تسقط! البلاط يختفي تحت قدميك';
-    const rad = 7, hr = 1.05, layers = 3;
+    const rad = 7, hr = 1.2, layers = 3;
     for (let l = 0; l < layers; l++) {
-      const y = -l * 7; const col = ['#4fd1ff', '#ffe14d', '#ff6fa5'][l]!;
+      const y = -l * 5; const col = ['#4fd1ff', '#ffe14d', '#ff6fa5'][l]!;
       for (let qx = -rad; qx <= rad; qx++) for (let qr = -rad; qr <= rad; qr++) {
         if (Math.abs(qx + qr) > rad) continue;
         const x = hr * 1.5 * qx * 1.02, z = hr * Math.sqrt(3) * (qr + qx / 2) * 1.02;
@@ -219,7 +219,7 @@ export function buildRound(world: RAPIER.World, scene: THREE.Scene, kind: RoundK
       }
     }
     for (let i = 0; i < players; i++) { const a = (i / players) * Math.PI * 2, d = 3 + (i % 3) * 1.5; r.spawn.push({ x: Math.cos(a) * d, y: 1.5, z: Math.sin(a) * d }); }
-    r.slime = slimePlane(group, -22, 300); r.killY = -20;
+    r.slime = slimePlane(group, -16, 300); r.killY = -14;
   }
   if (kind === 'jump') {
     r.name = 'Le Saute-Barre'; r.nameAr = 'القفز فوق العارضة'; r.goal = 'Saute la barre du bas, plonge sous celle du haut. Le dernier debout gagne la couronne !'; r.goalAr = 'اقفز فوق العارضة السفلى وانخفض تحت العليا. آخر من يبقى يفوز بالتاج!';

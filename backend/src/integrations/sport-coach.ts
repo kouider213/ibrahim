@@ -353,8 +353,10 @@ export function fitSession(type: SessionType, minutes: number, date?: string): {
   }
   if (core[0]) { out.push(core[0]); used += exMinutes(core[0]); }
   const left = budget - used;
-  const finisher = !deload && !low && type !== 'cardio' && type !== 'core' && left >= 12 ? `Cardio zone 2 : ${Math.min(25, Math.floor(left / 5) * 5)} min (vélo, elliptique ou marche inclinée)` : undefined;
-  return { exercises: out, finisher, express: out.length < s.exercises.length, estMin: Math.round(used + 13 + (finisher ? Math.min(25, Math.floor(left / 5) * 5) : 0)), deload, low };
+  // Objectif de Kouider (25/10) : perdre le ventre et du poids en gardant le muscle → finisher brûle-graisse à chaque séance de muscu
+  const finMin = Math.max(10, Math.min(25, Math.floor(left / 5) * 5));
+  const finisher = !deload && !low && type !== 'cardio' && type !== 'core' ? (finMin >= 15 ? `Brûle-graisse : ${finMin} min de cardio zone 2 (vélo, elliptique ou marche inclinée 10 %) — c'est ce qui fait fondre le ventre` : `Brûle-graisse : 10 min de fractionné (30 s fort / 60 s facile au vélo ou rameur)`) : undefined;
+  return { exercises: out, finisher, express: out.length < s.exercises.length, estMin: Math.round(used + 13 + (finisher ? finMin : 0)), deload, low };
 }
 
 export function sessionText(type: SessionType, minutes: number, log: SessionLog[], compact = false, date?: string): string {
@@ -684,6 +686,8 @@ export async function sportOverview() {
   const loc = await getLocation('kouider').catch(() => null);
   return {
     today: sessionOf(today), next: nextDate && nextDate !== today ? sessionOf(nextDate) : null, week,
+    planned: week.filter(w => w.type).map(w => sessionOf(w.date)).filter(Boolean),   // toutes les séances de la semaine, pour les voir à l'avance
+    objective: 'Perdre le ventre et du poids · pecs, dos, bras · tout le corps',
     recovery, stats: { streak, monthSessions: log.filter(l => l.date.startsWith(month)).length, total: log.length, weeks, prs },
     gym: gym ? { ...gym, distanceKm: loc && Date.now() - Date.parse(loc.updated_at) < 30 * 60_000 ? Math.round(km(loc, gym) * 10) / 10 : null } : { address: cfg.addresses.gym },
     settings: st.settings, deload: st.deload ?? null, goal: st.goal ? { ...st.goal, ...goalProgress(st, log) } : null, sessions: Object.fromEntries(ROTATION.map(t => [t, { label: SESSIONS[t].label, emoji: SESSIONS[t].emoji, focus: SESSIONS[t].focus }])),
