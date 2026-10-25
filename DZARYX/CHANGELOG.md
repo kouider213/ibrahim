@@ -5,6 +5,9 @@
 
 ---
 
+## 2026-10-25 (nuit) — FORME de Fatima depuis l'écran d'accueil (app v183)
+- `simulator/src/forme/App.tsx` : sur iPhone l'icône « Sur l'écran d'accueil » ne partage pas la mémoire de Safari → le lien d'invitation était perdu et l'icône ouvrait la connexion pré-remplie « kouider ». Le jeton reste maintenant dans l'adresse + manifeste (start_url) ; champ identifiant vide ; on peut coller le lien d'invitation dans le 1er champ pour entrer.
+
 ## 2026-10-25 (soir) — Dzaryx retrouve ses réflexes
 
 - Appels : START_SENSITIVITY_LOW (c505b7e) n'entendait plus Kouider du tout (appel 17h40 : 0 phrase transcrite) → retour en HIGH ; le filtre anti-bruit (speaks/meaningful) reste. pm2 dzaryx-tg relancé. (oui = outils, conversions, réponses WhatsApp)

@@ -21,22 +21,36 @@ const TABS: Array<{ id: Tab; icon: string; label: string }> = [
   { id: 'home', icon: '🏠', label: 'Accueil' }, { id: 'week', icon: '🍽️', label: 'Semaine' }, { id: 'shop', icon: '🛒', label: 'Courses' },
   { id: 'sport', icon: '🏋️', label: 'Sport' }, { id: 'body', icon: '📸', label: 'Corps' },
 ];
-// Lien d'invitation de sa femme : ?invite=… → jeton FORME gardé sur son téléphone, puis l'adresse est nettoyée
+// Lien d'invitation de sa femme : ?invite=… → jeton FORME gardé sur son téléphone.
+// iPhone : l'icône « Sur l'écran d'accueil » n'a PAS la mémoire de Safari → le jeton reste dans l'adresse
+// et dans le manifeste (start_url), sinon l'icône s'ouvrait sur la connexion de Kouider (25/10).
+function keepInvite(t: string) {
+  const start = `${location.origin}${location.pathname}?invite=${encodeURIComponent(t)}`;
+  if (new URLSearchParams(location.search).get('invite') !== t) history.replaceState(null, '', start);
+  const abs = (u: string) => `${location.origin}${u}`;
+  const m = { id: '/ibrahim/forme/?femme', name: 'Forme', short_name: 'Forme', start_url: start, scope: abs('/ibrahim/forme/'), display: 'standalone', orientation: 'portrait', background_color: '#fbf1ec', theme_color: '#fbf1ec', lang: 'ar', dir: 'rtl',
+    icons: [{ src: abs('/ibrahim/icons/forme-192.png'), sizes: '192x192', type: 'image/png' }, { src: abs('/ibrahim/icons/forme-512.png'), sizes: '512x512', type: 'image/png' }] };
+  const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+  if (link) link.href = `data:application/manifest+json,${encodeURIComponent(JSON.stringify(m))}`;
+}
+const inviteIn = (s: string) => { const m = /invite=([\w-]{20,})/.exec(s); return m ? m[1] : null; };
 try {
-  const inv = new URLSearchParams(location.search).get('invite');
-  if (inv) { localStorage.setItem(FORME_TOKEN, inv); history.replaceState(null, '', location.pathname); }
+  const t = new URLSearchParams(location.search).get('invite') ?? localStorage.getItem(FORME_TOKEN);
+  if (t) { localStorage.setItem(FORME_TOKEN, t); keepInvite(t); }
 } catch { /* */ }
 const embedded = (() => { try { return window.self !== window.top; } catch { return true; } })();
 const STORE_LIST = ['Colruyt', 'Delhaize', 'Aldi', 'Lidl', 'Carrefour', 'Albert Heijn', 'Intermarché', 'Boucherie halal'];
 
 function Login({ onOk }: { onOk: () => void }) {
-  const [u, setU] = useState('kouider'); const [p, setP] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  const [u, setU] = useState('');
+  // Sa femme colle son lien d'invitation dans le 1er champ → entrée directe dans SON appli
+  const paste = (v: string) => { const t = inviteIn(v); if (!t) return setU(v); try { localStorage.setItem(FORME_TOKEN, t); keepInvite(t); } catch { /* */ } onOk(); }; const [p, setP] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
   return (
     <div style={{ minHeight: '100dvh', background: `radial-gradient(140% 60% at 50% 0%, ${F.soft}, ${F.bg})`, padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'center', boxSizing: 'border-box' }}>
       <div style={{ width: 70, height: 70, borderRadius: 22, background: F.accent, color: '#fff', fontSize: 38, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 14px 30px rgba(255,75,43,0.35)' }}>F</div>
       <Title a="Bienvenue sur" b="FORME" sub="Connecte-toi avec ton compte Dzaryx : tes repas, tes séances et ton suivi sont partagés avec lui." />
-      <div style={{ ...card, marginBottom: 14, fontSize: 14, lineHeight: 1.5 }} dir="rtl">مرحبًا! إذا كنتِ زوجة قويدر، افتحي الرابط الذي أرسله لكِ لتدخلي إلى تطبيقكِ مباشرة.</div>
-      <input value={u} onChange={e => setU(e.target.value)} placeholder="Identifiant" style={{ ...input, marginBottom: 8 }} autoCapitalize="none" />
+      <div style={{ ...card, marginBottom: 14, fontSize: 14, lineHeight: 1.5 }} dir="rtl">مرحبًا! إذا كنتِ زوجة قويدر، افتحي الرابط الذي أرسله لكِ، أو الصقي الرابط في الخانة الأولى هنا.</div>
+      <input value={u} onChange={e => paste(e.target.value)} placeholder="Identifiant — ou colle le lien / الصقي الرابط" style={{ ...input, marginBottom: 8 }} autoCapitalize="none" />
       <input value={p} onChange={e => setP(e.target.value)} placeholder="Mot de passe" type="password" style={input} onKeyDown={e => { if (e.key === 'Enter') (document.getElementById('lg') as HTMLButtonElement)?.click(); }} />
       {err && <div style={{ color: F.red, fontWeight: 700, marginTop: 10 }}>{err}</div>}
       <button id="lg" disabled={busy} onClick={async () => { setBusy(true); setErr(''); try { const r = await loginDevice(u.trim(), p); setDeviceToken(r.token); onOk(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } }} style={{ ...btn, marginTop: 14 }}>{busy ? 'Connexion…' : 'Se connecter'}</button>
@@ -152,7 +166,7 @@ export default function App() {
   const standalone = (() => { try { return matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true; } catch { return false; } })();
   const [notifState, setNotifState] = useState<string>(() => { try { if (localStorage.getItem('forme:notif-dismissed')) return 'dismissed'; } catch { /* */ } return typeof Notification !== 'undefined' ? Notification.permission : 'default'; });
   const toast = useCallback((t: string) => { setToastText(t); setTimeout(() => setToastText(x => x === t ? null : x), 2600); }, []);
-  const load = useCallback(() => forme.overview().then(x => { setO(x); setErr(''); }).catch(e => { const m = errText(e); if (/^API 40[13]|token|auth|Lien expiré/i.test(m)) { if (formeToken()) { try { localStorage.removeItem(FORME_TOKEN); } catch { /* */ } } else setDeviceToken(null); setAuthed(false); setErr(m); } else setErr(m); }), []);
+  const load = useCallback(() => forme.overview().then(x => { setO(x); setErr(''); }).catch(e => { const m = errText(e); if (/^API 40[13]|token|auth|Lien expiré/i.test(m)) { if (formeToken()) { try { localStorage.removeItem(FORME_TOKEN); history.replaceState(null, '', location.pathname); } catch { /* */ } } else setDeviceToken(null); setAuthed(false); setErr(m); } else setErr(m); }), []);
   useEffect(() => { if (authed) void load(); }, [authed, load]);
   useEffect(() => { try { localStorage.setItem('forme:tab', tab); } catch { /* */ } window.scrollTo({ top: 0 }); }, [tab]);
   useEffect(() => { const f = () => { if (document.visibilityState === 'visible' && authed) void load(); }; document.addEventListener('visibilitychange', f); return () => document.removeEventListener('visibilitychange', f); }, [authed, load]);
