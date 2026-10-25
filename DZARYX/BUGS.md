@@ -7,6 +7,11 @@
 
 ## Bugs Ouverts 🔴
 
+### B043 — « Rappel trajet » 9h35 (~25 min) faux, horaire du dimanche faux (25/10) ✅ FIXÉ
+- Symptôme : dans l'app, « 📡 Horaire Kouider — Dimanche : réveil 08:30, départ trajet 9h35 (25min) » et « Rappel trajet Bruxelles, départ idéal 9h35 (~25min) » alors que la maison → travail fait quelques minutes et que le vrai planning (réveil 6h40, sport…) est ailleurs.
+- Cause : vieux `conversation/proactive-engine.ts` (pre-work, personal-schedule, calendar-appt) avec horaires écrits en dur d'avant la routine et un trajet fixe `commute_minutes_avg` = 25 min, sans GPS ni trafic.
+- Fix : ces 3 rappels supprimés ; les départs restent dans `departures.ts` (position GPS Telegram + trafic Google réel) et le planning dans `morning-routine.ts`.
+
 ### B042 — Reprise après « ne pas déranger » (son fils aux urgences, 22/10) ✅ FIXÉ
 - Symptôme : à 6h28 Dzaryx réactive tout (vrai pause_calls), puis au message suivant écrit « je ne l'ai pas fait, l'outil n'a jamais été lancé » ; ne demande pas ce qu'avait son fils ; « comme c'est jeudi, ton jour de congé » alors que Kouider bosse depuis 5h ; récap « Pendant ta pause (06h19 → 06h19) » avec des lignes d'agenda déjà passées ; « je te le note » sans outil puis aveu.
 - Cause : l'historique ne gardait que le texte (pas les outils lancés) → le cerveau ne voit aucune preuve et s'accuse ; consigne DND sans volet humain ; dossier « jour de congé » sans exception travail ; récap sans cas même minute.

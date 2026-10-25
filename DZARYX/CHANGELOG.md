@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-25 — Trajet faux de 25 min supprimé, messages de nouveau en direct
+
+- `conversation/proactive-engine.ts` : suppression des vieux rappels « Rappel trajet Bruxelles », « Horaire Kouider » et « Agenda — prochains RDV » (horaires en dur + trajet fixe 25 min) → les départs viennent seulement de `departures.ts` (GPS + trafic réel) (B043).
+- `notifications/digest.ts` : liste « secondaire » vidée (Kouider : « le message direct remet-les ») → tout part tout de suite, seul l'inutile reste filtré. Aucun coût Claude en plus.
+- Cerveau du chat laissé en mode auto (Haiku au quotidien, Sonnet pour réflexion/clients/photos/web) : Kouider ne veut pas tout sur Sonnet.
+
 ## 2026-10-24 — Moins de messages (tri anti-bruit + 2 points par jour), vrais visiteurs, voitures en haut de l'accueil, Houari bof
 
 - `notifications/digest.ts` + hooks `emitProactive` / `queueTelegramMessage` : inutile (« image en cours », « aucune donnée », « journée terminée », prépa RDV vide) → jamais envoyé ; secondaire (agenda, BI, véhicules inactifs, démarchage du jour, opportunités, contenu…) → rangé, envoyé en UN « point » à 12h30 et 19h (jobs `digest`, `digest-evening`) ; le reste part tout de suite. Le bilan de 21h passe directement.

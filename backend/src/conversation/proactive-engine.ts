@@ -1,7 +1,6 @@
 import type { Job } from 'bullmq';
 import { redis } from '../queue/queue.js';
 import { supabase, getUserProfile } from '../integrations/supabase.js';
-import { listUpcomingEvents } from '../integrations/google-calendar.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { getOranWeather } from '../integrations/web-search.js';
 
@@ -10,8 +9,6 @@ export interface TriggerResult {
   status:  'SENT' | 'SKIPPED' | 'ERROR';
   reason?: string;
 }
-
-type CalEvent = Awaited<ReturnType<typeof listUpcomingEvents>>[number];
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -96,31 +93,6 @@ const KOUIDER_SCHEDULE: Record<number, {
   5: { wake: '10:30', travail: { start: '12:00', end: '20:00' }, business: { start: '09:00', end: '11:30' }, famille: 'après 20h'    }, // Vendredi
   6: { wake: '10:30', travail: { start: '12:00', end: '20:00' }, business: { start: '09:00', end: '11:30' }, famille: 'après 20h'    }, // Samedi
 };
-
-// ── Trigger 1: Pre-work commute reminder ─────────────────────────
-async function triggerPreWorkReminder(
-  workDays: number[], workStart: string, commute: number, tz: string, demo: boolean,
-): Promise<TriggerResult> {
-  const { hour, minute, dayOfWeek } = getLocalTime(tz);
-  if (!demo && !workDays.includes(dayOfWeek)) {
-    return { trigger: 'pre-work', status: 'SKIPPED', reason: 'pas un jour de travail' };
-  }
-  const nowMin    = hour * 60 + minute;
-  const departMin = timeToMinutes(workStart) - commute;
-  if (!demo && (nowMin < departMin - 15 || nowMin > departMin + 15)) {
-    const dH = Math.floor(departMin / 60);
-    const dM = String(departMin % 60).padStart(2, '0');
-    return { trigger: 'pre-work', status: 'SKIPPED', reason: `fenêtre ${dH}h${dM} ±15min (actuel ${hour}h${String(minute).padStart(2, '0')})` };
-  }
-  if (!await acquireDailyLock('pre-work')) {
-    return { trigger: 'pre-work', status: 'SKIPPED', reason: 'déjà envoyé aujourd\'hui' };
-  }
-  const dH = Math.floor(departMin / 60);
-  const dM = String(departMin % 60).padStart(2, '0');
-  const p = demo ? '🧪 [DEMO] ' : '';
-  await tg(`${p}🚗 *Rappel trajet Bruxelles*\nDépart idéal : *${dH}h${dM}* (trajet ~${commute}min)\nPrise en charge : ${workStart.slice(0, 5)} ✅`);
-  return { trigger: 'pre-work', status: 'SENT' };
-}
 
 // ── Trigger 2: After-work quick message ──────────────────────────
 async function triggerAfterWorkRest(
@@ -403,106 +375,6 @@ async function triggerBookingTomorrow(demo: boolean): Promise<TriggerResult> {
   return { trigger: 'booking-tomorrow', status: 'SENT' };
 }
 
-// ── Trigger 9: Google Calendar appointment reminder ──────────────
-async function triggerCalendarAppointment(commute: number, tz: string, demo: boolean): Promise<TriggerResult> {
-  const { hour } = getLocalTime(tz);
-  // Morning window 7h–10h
-  if (!demo && (hour < 7 || hour > 10)) {
-    return { trigger: 'calendar-appt', status: 'SKIPPED', reason: 'hors fenêtre 7h–10h' };
-  }
-  if (!await acquireDailyLock('calendar-appt')) {
-    return { trigger: 'calendar-appt', status: 'SKIPPED', reason: 'déjà envoyé aujourd\'hui' };
-  }
-
-  let events: CalEvent[] = [];
-  try {
-    events = await listUpcomingEvents(5);
-  } catch {
-    return { trigger: 'calendar-appt', status: 'SKIPPED', reason: 'Google Calendar non disponible' };
-  }
-
-  if (!events.length) {
-    return { trigger: 'calendar-appt', status: 'SKIPPED', reason: 'aucun événement Google Calendar' };
-  }
-
-  // Only events in the next 24h
-  const in24h = new Date(Date.now() + 24 * 3_600_000).toISOString();
-  const upcoming = events.filter(e => e.start.dateTime && e.start.dateTime <= in24h);
-
-  if (!upcoming.length) {
-    return { trigger: 'calendar-appt', status: 'SKIPPED', reason: `${events.length} événement(s) mais aucun dans 24h` };
-  }
-
-  const p = demo ? '🧪 [DEMO] ' : '';
-  const lines = [`${p}📆 *Agenda — prochains rendez-vous :*`, ``];
-
-  for (const e of upcoming.slice(0, 3)) {
-    const startDt = new Date(e.start.dateTime);
-    const timeStr = startDt.toLocaleTimeString('fr-FR', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
-    const dateStr = startDt.toLocaleDateString('fr-FR', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short' });
-    // Departure reminder = event start - commute minutes
-    const departMs   = startDt.getTime() - commute * 60_000;
-    const departTime = new Date(departMs).toLocaleTimeString('fr-FR', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
-    lines.push(`  📌 *${e.summary}*`);
-    lines.push(`     ${dateStr} à ${timeStr} — départ recommandé : ${departTime}`);
-  }
-
-  await tg(lines.join('\n'));
-  return { trigger: 'calendar-appt', status: 'SENT' };
-}
-
-// ── Trigger 10: Personal schedule morning digest ─────────────────
-async function triggerPersonalSchedule(
-  profile: { wake_time: string; commute_minutes_avg: number; sleep_time: string },
-  tz: string,
-  demo: boolean,
-): Promise<TriggerResult> {
-  const { hour, minute, dayOfWeek } = getLocalTime(tz);
-  const daySchedule = KOUIDER_SCHEDULE[dayOfWeek];
-  const wakeStr     = daySchedule?.wake ?? profile.wake_time;
-  const wakeMin     = timeToMinutes(wakeStr);
-  const nowMin      = hour * 60 + minute;
-
-  // Fire within 45min after wake time (5min grace before)
-  if (!demo && (nowMin < wakeMin - 5 || nowMin > wakeMin + 45)) {
-    return { trigger: 'personal-schedule', status: 'SKIPPED', reason: `hors fenêtre réveil ${wakeStr} (actuel ${hour}h${String(minute).padStart(2, '0')})` };
-  }
-  if (!await acquireDailyLock('personal-schedule')) {
-    return { trigger: 'personal-schedule', status: 'SKIPPED', reason: 'déjà envoyé aujourd\'hui' };
-  }
-
-  const dayNames: Record<number, string> = { 0: 'Dimanche', 1: 'Lundi', 2: 'Mardi', 3: 'Mercredi', 4: 'Jeudi', 5: 'Vendredi', 6: 'Samedi' };
-  const p = demo ? '🧪 [DEMO] ' : '';
-
-  const lines = [
-    `${p}⏰ *Horaire Kouider — ${dayNames[dayOfWeek] ?? ''}*`,
-    ``,
-    `🌅 Réveil : ${wakeStr.slice(0, 5)}`,
-  ];
-
-  if (daySchedule?.travail) {
-    const { start, end } = daySchedule.travail;
-    const departMin = timeToMinutes(start) - profile.commute_minutes_avg;
-    const dH = Math.floor(departMin / 60);
-    const dM = String(departMin % 60).padStart(2, '0');
-    lines.push(`🚗 Départ trajet : ${dH}h${dM} (${profile.commute_minutes_avg}min)`);
-    lines.push(`💼 Travail : ${start} — ${end}`);
-  } else {
-    lines.push(`🏖 Congé Belgique`);
-  }
-
-  if (daySchedule?.business) {
-    const { start, end } = daySchedule.business;
-    lines.push(`🇩🇿 Business Algérie : ${start} — ${end}`);
-  }
-
-  lines.push(`👨‍👩‍👦 Famille : ${daySchedule?.famille ?? 'soir'}`);
-  lines.push(`🌙 Coucher prévu : ${profile.sleep_time.slice(0, 5)}`);
-
-  await tg(lines.join('\n'));
-  return { trigger: 'personal-schedule', status: 'SENT' };
-}
-
 // ── Main orchestrator ─────────────────────────────────────────────
 export async function runProactiveEngine(
   _job?: Job,
@@ -520,12 +392,9 @@ export async function runProactiveEngine(
     return [{ trigger: 'all', status: 'SKIPPED', reason: 'user_profile non disponible' }];
   }
 
-  const workStart = profile.work_start          ?? '09:00';
   const workEnd   = profile.work_end            ?? '17:30';
-  const commute   = profile.commute_minutes_avg ?? 25;
   const tzWork    = profile.timezone_primary    ?? 'Europe/Brussels';
   const sleepTime = profile.sleep_time          ?? '23:30';
-  const wakeTime  = profile.wake_time           ?? '07:00';
   const windDown  = profile.wind_down_minutes   ?? 30;
 
   const wrap = (name: string, fn: Promise<TriggerResult>) =>
@@ -533,12 +402,12 @@ export async function runProactiveEngine(
 
   const { dayOfWeek } = getLocalTime(tzWork);
   const todaySchedule  = KOUIDER_SCHEDULE[dayOfWeek];
-  const todayWorkStart = todaySchedule?.travail?.start ?? workStart;
   const todayWorkEnd   = todaySchedule?.travail?.end   ?? workEnd;
   const todayIsWorkDay = !!todaySchedule?.travail;
 
+  // Trajet travail, horaire du jour et départs RDV : plus ici (vieux horaires en dur + trajet fixe 25 min) →
+  // morning-routine.ts (vrai planning) et departures.ts (position GPS + trafic Google réel).
   const results = await Promise.all([
-    wrap('pre-work',          triggerPreWorkReminder(todayIsWorkDay ? [dayOfWeek] : [], todayWorkStart, commute, tzWork, demo)),
     wrap('after-work',        triggerAfterWorkRest(todayIsWorkDay ? [dayOfWeek] : [], todayWorkEnd, tzWork, demo)),
     wrap('heat-alert',        triggerHeatAlert(demo)),
     wrap('tiktok-reminder',   triggerTikTokReminder(demo)),
@@ -546,8 +415,6 @@ export async function runProactiveEngine(
     wrap('unpaid-reminder',   triggerUnpaidReminder(demo)),
     wrap('late-return',       triggerLateReturn(demo)),
     wrap('booking-tomorrow',  triggerBookingTomorrow(demo)),
-    wrap('calendar-appt',     triggerCalendarAppointment(commute, tzWork, demo)),
-    wrap('personal-schedule', triggerPersonalSchedule({ wake_time: wakeTime, commute_minutes_avg: commute, sleep_time: sleepTime }, tzWork, demo)),
   ]);
 
   for (const r of results) {

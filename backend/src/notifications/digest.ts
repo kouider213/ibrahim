@@ -16,18 +16,8 @@ const DROP: RegExp[] = [
   /^✅ Coûts Claude API aujourd'hui : \$0\.0/,
 ];
 
-const DIGEST: RegExp[] = [
-  /^📚 J'ai retenu/,
-  /^⚠️ \d+ véhicule\(s\) inactifs/,
-  /^📆 Agenda — prochains/,
-  /^📊 Business Intelligence/,
-  /^📤 Démarchage du jour/,
-  /^🌐 Navigateur/,
-  /^✅ Coûts Claude/,
-  /^🎬 /,                                         // idée de contenu réseaux sociaux
-  /^🌐 Site fikconciergerie\.com/,
-  /^📈 Opportunité/,
-];
+// Kouider 25/10 : « le message direct remet-les » → plus rien n'attend 12h30/19h, tout part tout de suite (seul l'inutile reste filtré).
+const DIGEST: RegExp[] = [];
 
 export type Route = 'drop' | 'digest' | 'now';
 
