@@ -62,6 +62,7 @@ export const forme = {
   shop: (key: string, checked: boolean, home = false) => post<House>('/api/forme/shop', { key, checked, home }),
   fav: (recipe: Recipe, on: boolean) => post<{ favs: Array<Recipe & { savedAt: number }> }>('/api/forme/fav', { recipe, on }),
   place: (title: string, date: string, slot: string) => post<{ week: Week }>('/api/forme/place', { title, date, slot }),
+  translate: (texts: string[]) => post<{ map: Record<string, string> }>('/api/forme/translate', { texts }),
   agenda: () => call<{ days: AgendaDay[] }>('/api/forme/agenda'),
   shopAdd: (name: string, qty: string, store: string) => post<House>('/api/forme/shop-add', { name, qty, store }),
   shopDel: (key: string) => post<House>('/api/forme/shop-del', { key }),

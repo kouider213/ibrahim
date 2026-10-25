@@ -227,7 +227,7 @@ export function ProgramSport({ toast }: { toast: (t: string) => void }) {
   const load = useCallback(() => forme.program().then(setD).catch(e => setErr(errText(e))), []);
   useEffect(() => { void load(); }, [load]);
   if (err) return <div style={{ padding: 18, color: F.red }}>❌ {err}</div>;
-  if (!d) return <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: 60, color: F.muted }}><Spinner />Préparation de ton programme…</div>;
+  if (!d || !Array.isArray(d.week)) return <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: 60, color: F.muted }}><Spinner />Préparation de ton programme…</div>;
   const s = d.session;
   return (
     <div style={{ padding: '6px 18px 0' }}>

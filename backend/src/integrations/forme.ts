@@ -933,6 +933,32 @@ export async function doctorReport(uid: Uid): Promise<string> {
   ].filter(Boolean).join('\n');
 }
 
+// ── Traduction à la volée (mode arabe) : tout texte français encore à l'écran → arabe littéraire, mis en cache ──
+const TR_KEY = 'forme:tr:ar';
+let trMem: Record<string, string> | null = null;
+export async function translateAr(texts: string[]): Promise<Record<string, string>> {
+  trMem ??= await readJson<Record<string, string>>(TR_KEY, {});
+  const want = [...new Set(texts.map(t => String(t).trim()).filter(t => t.length >= 2 && t.length <= 600))].slice(0, 80);
+  const out: Record<string, string> = {};
+  const todo = want.filter(t => { const h = trMem![t]; if (h) out[t] = h; return !h; });
+  for (let i = 0; i < todo.length; i += 40) {
+    const part = todo.slice(i, i + 40);
+    try {
+      const res = await createAnthropic().messages.create({ model: 'claude-haiku-5-5', max_tokens: 6000,
+        system: 'Traduis ces textes d\'une application de nutrition et de sport (repas halal, exercices, conseils, courses en Belgique) du français vers l\'ARABE LITTÉRAIRE MODERNE (فصحى), simple et naturel ; l\'utilisatrice est une femme (féminin). Garde tels quels : emojis, nombres, unités (kg, g, kcal, cm, min, €, mg), noms de marques et de magasins (Colruyt, Delhaize, Aldi, Lidl, Boni, Wegovy, Dzaryx, Basic-Fit), les marqueurs comme « · ». On te donne une liste numérotée : réponds UNIQUEMENT par un objet JSON {"ar": ["traduction 1", "traduction 2", …]} avec EXACTEMENT le même nombre d\'éléments, dans le même ordre.',
+        messages: [{ role: 'user', content: JSON.stringify(part) }] });
+      const arr = jsonOf<{ ar?: unknown[] }>(textOf(res)).ar ?? [];
+      if (arr.length === part.length) part.forEach((t, k) => { const v = arr[k]; if (typeof v === 'string' && v.trim()) { out[t] = v; trMem![t] = v; } });
+    } catch { /* on réessaiera au prochain affichage */ }
+  }
+  if (todo.length) {
+    const keys = Object.keys(trMem);
+    if (keys.length > 6000) for (const k of keys.slice(0, keys.length - 6000)) delete trMem[k];
+    await kvSet(TR_KEY, JSON.stringify(trMem)).catch(() => {});
+  }
+  return out;
+}
+
 // ── Coach à qui poser une question (resto, fast-food belge, envie de sucre…) ──
 export async function askFormeCoach(question: string, uid: Uid = 'kouider', mode = ''): Promise<string> {
   const p = await getFormeProfile(uid);

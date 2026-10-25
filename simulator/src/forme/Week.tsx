@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { tr } from './i18n.ts';
 import { motion } from 'framer-motion';
 import { forme, errText, type Overview, type Recipe, SHORT_DAYS, dayOf, fmtLong, vibrate } from './api.ts';
 import { F, Title, Section, card, btn, darkBtn, ghostBtn, Sheet, Img, Spinner, input, Chip } from './ui.tsx';
@@ -35,7 +36,7 @@ function CookMode({ r, onClose }: { r: Recipe; onClose: () => void }) {
     void (navigator as Navigator & { wakeLock?: { request: (t: 'screen') => Promise<{ release: () => Promise<void> }> } }).wakeLock?.request('screen').then(l => { lock = l; }).catch(() => {});
     return () => { void lock?.release().catch(() => {}); try { speechSynthesis.cancel(); } catch { /* */ } };
   }, []);
-  useEffect(() => { read(r.steps[i] ?? ''); }, [i]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { read(tr(r.steps[i] ?? '')); }, [i]);   // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 70, background: F.dark, color: '#fff', display: 'flex', flexDirection: 'column', padding: 'calc(16px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom))' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -46,7 +47,7 @@ function CookMode({ r, onClose }: { r: Recipe; onClose: () => void }) {
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', fontSize: 'clamp(24px, 7vw, 34px)', fontWeight: 800, lineHeight: 1.3 }}>{r.steps[i]}</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
         <button disabled={i === 0} onClick={() => setI(i - 1)} style={{ ...ghostBtn, padding: '18px 0', fontSize: 18, opacity: i ? 1 : 0.4 }}>←</button>
-        <button onClick={() => read(r.steps[i] ?? '')} style={{ ...ghostBtn, padding: '18px 0', fontSize: 18 }}>🔊</button>
+        <button onClick={() => read(tr(r.steps[i] ?? ''))} style={{ ...ghostBtn, padding: '18px 0', fontSize: 18 }}>🔊</button>
         <button onClick={() => i < r.steps.length - 1 ? setI(i + 1) : onClose()} style={{ ...btn, padding: '18px 0', fontSize: 18 }}>{i < r.steps.length - 1 ? '→' : '✓'}</button>
       </div>
     </div>

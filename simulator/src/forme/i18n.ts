@@ -11,6 +11,37 @@ const PATTERNS = Object.keys(DICT).filter(k => /\{\d\}/.test(k) && !k.startsWith
   .sort((a, b) => b.re.source.length - a.re.source.length);
 
 let lang: 'fr' | 'ar' = 'fr';
+
+// TRADUCTION À LA VOLÉE : tout texte encore en français à l'écran (recettes déjà créées, exercices, analyses, textes
+// avec des chiffres…) part au serveur (Claude, mis en cache) et revient en arabe ; gardé aussi sur le téléphone.
+const LIVE_KEY = 'forme:ar-live';
+let LIVE: Record<string, string> = {};
+try { LIVE = JSON.parse(localStorage.getItem(LIVE_KEY) || '{}'); } catch { /* */ }
+let fetcher: ((texts: string[]) => Promise<Record<string, string>>) | null = null;
+export const setTranslator = (f: (texts: string[]) => Promise<Record<string, string>>) => { fetcher = f; };
+const pending = new Set<string>(), asked = new Set<string>();
+let flushT: ReturnType<typeof setTimeout> | null = null;
+const KEEP = /^(Colruyt|Delhaize|Aldi|Lidl|Carrefour|Albert Heijn|Intermarché|Wegovy|Dzaryx|FORME|Boni|Basic-Fit|Jims|Telegram|WhatsApp|iPhone|OK|kcal|kg|g|min|cm|mg|€|K|F|[A-Z])$/i;
+const needs = (t: string) => /[A-Za-zÀ-ÿ]{2}/.test(t) && !/[\u0600-\u06FF]/.test(t) && !KEEP.test(t) && !/^https?:|@|^[\d\s.,:/%+-]+[a-z]{0,4}$/i.test(t);
+function queue(t: string) {
+  if (!fetcher || asked.has(t)) return;
+  pending.add(t);
+  if (!flushT) flushT = setTimeout(flush, 500);
+}
+async function flush() {
+  flushT = null;
+  const list = [...pending].slice(0, 80); list.forEach(t => { pending.delete(t); asked.add(t); });
+  if (!list.length || !fetcher) return;
+  try {
+    const map = await fetcher(list);
+    Object.assign(LIVE, map);
+    const keys = Object.keys(LIVE);
+    if (keys.length > 3000) for (const k of keys.slice(0, keys.length - 3000)) delete LIVE[k];
+    try { localStorage.setItem(LIVE_KEY, JSON.stringify(LIVE)); } catch { /* */ }
+    if (lang === 'ar') walk(document.body);
+  } catch { list.forEach(t => asked.delete(t)); }
+  if (pending.size) flushT = setTimeout(flush, 800);
+}
 export const isAr = () => lang === 'ar';
 
 export function tr(text: string): string {
@@ -23,8 +54,16 @@ export function tr(text: string): string {
   if (hit) return lead + hit + trail;
   for (const p of PATTERNS) {
     const m = p.re.exec(core);
-    if (m) return lead + p.idx.reduce((s, n, i) => s.replace(`{${n}}`, DICT[(m[i + 1] ?? '').trim()] ?? m[i + 1] ?? ''), p.to) + trail;
+    if (m) return lead + p.idx.reduce((s, n, i) => {
+      const part = (m[i + 1] ?? '').trim();
+      const v = DICT[part] ?? LIVE[part];
+      if (!v && needs(part)) queue(part);   // morceau variable encore en français (nom de plat, site…)
+      return s.replace(`{${n}}`, v ?? m[i + 1] ?? '');
+    }, p.to) + trail;
   }
+  const live = LIVE[core];
+  if (live) return lead + live + trail;
+  if (needs(core)) queue(core);
   return text;
 }
 
@@ -32,7 +71,7 @@ export function tr(text: string): string {
 export function trPair(a: string, b?: string): [string, string | undefined] {
   if (lang !== 'ar' || b == null) return [lang === 'ar' ? tr(a) : a, b];
   const hit = DICT[`§${a}|${b}`];
-  if (hit) { const [x, y] = hit.split('|'); return [x ?? '', y]; }
+  if (typeof hit === 'string') { const [x, y] = hit.split('|'); return [x ?? '', y]; }
   // Modèle avec un prénom : « Salut {0}, » + « on mange quoi ? »
   for (const k of Object.keys(DICT)) {
     if (!k.startsWith('§') || !k.includes('{0}')) continue;
@@ -44,14 +83,17 @@ export function trPair(a: string, b?: string): [string, string | undefined] {
 }
 
 const ATTRS = ['placeholder', 'aria-label', 'title'];
-const done = new WeakSet<Node>();
+// Texte d'origine de chaque nœud : on peut le retraduire quand une traduction arrive plus tard
+const orig = new WeakMap<Node, string>(), shown = new WeakMap<Node, string>();
 function walk(root: Node) {
   if (root.nodeType === Node.TEXT_NODE) {
     const p = root.parentElement;
     if (!p || p.closest('[data-notr], script, style, textarea')) return;
-    const t = root.nodeValue ?? '';
-    const n = tr(t);
-    if (n !== t) { root.nodeValue = n; done.add(root); }
+    const cur = root.nodeValue ?? '';
+    const base = shown.get(root) === cur ? orig.get(root) ?? cur : cur;   // changé par React → nouveau texte d'origine
+    const n = tr(base);
+    orig.set(root, base); shown.set(root, n);
+    if (n !== cur) root.nodeValue = n;
     return;
   }
   if (root.nodeType !== Node.ELEMENT_NODE) return;
@@ -80,7 +122,7 @@ export function applyLang(l: 'fr' | 'ar') {
   walk(document.body);
   obs = new MutationObserver(ms => {
     for (const m of ms) {
-      if (m.type === 'characterData') { if (!done.has(m.target)) walk(m.target); done.delete(m.target); }
+      if (m.type === 'characterData') walk(m.target);
       else if (m.type === 'attributes') walk(m.target);
       else m.addedNodes.forEach(walk);
     }

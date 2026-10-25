@@ -3,7 +3,7 @@ import { requireMobileAuth } from '../middleware/auth.js';
 import {
   formeOverview, setFormeProfile, swipeCandidates, generateWeek, getWeek, mondayOf, swapRecipe, logForme,
   parseImage, analyzeMealPhoto, addBodyPhoto, analyzeBodyPhoto, offBarcode, offSearch, askFormeCoach, storeFormeSub, formeTargets,
-  householdShopping, checkHouseItem, addHouseItem, removeHouseItem, adaptNextSession, doctorReport, formeAgenda, toggleFavorite, placeFavorite, type Recipe, createInvite, revokeInvite, uidFromFormeToken, getProgram, programOverview, getFormeProfile,
+  householdShopping, checkHouseItem, addHouseItem, removeHouseItem, adaptNextSession, doctorReport, formeAgenda, toggleFavorite, placeFavorite, translateAr, type Recipe, createInvite, revokeInvite, uidFromFormeToken, getProgram, programOverview, getFormeProfile,
   type FormeProfile, type BodyPhoto, type Uid,
 } from '../../integrations/forme.js';
 import type { PushSubscription } from 'web-push';
@@ -108,6 +108,13 @@ router.post('/place', async (req, res) => {
   const b = req.body as { title?: string; date?: string; slot?: string };
   if (!b.title || !isDate(b.date) || !b.slot) { fail(res, 'jour ou repas manquant', 400); return; }
   try { res.json({ week: await placeFavorite(U(req), b.title, b.date, String(b.slot).slice(0, 20)) }); } catch (err) { fail(res, err, 400); }
+});
+
+// POST /api/forme/translate { texts } — mode arabe : les textes encore en français à l'écran
+router.post('/translate', async (req, res) => {
+  const texts = (req.body as { texts?: unknown[] }).texts;
+  if (!Array.isArray(texts)) { fail(res, 'texts manquant', 400); return; }
+  try { res.json({ map: await translateAr(texts.map(String)) }); } catch (err) { fail(res, err); }
 });
 
 // GET /api/forme/agenda — les 7 prochains jours (sport, repas, injection, rappels, repos)
