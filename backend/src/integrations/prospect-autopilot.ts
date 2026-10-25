@@ -783,7 +783,10 @@ export async function checkProspectReplies(): Promise<number> {
       await updateProspect(p.id, { ...base, replied_at: new Date().toISOString() });
       await optOutEmail(p.email ?? latest.fromEmail, 'A répondu STOP — ne plus jamais écrire');
       if (latest.fromEmail && latest.fromEmail !== p.email) await optOutEmail(latest.fromEmail, 'A répondu STOP — ne plus jamais écrire');
-      emitProactive(`${p.company} a répondu STOP — mis en « Pas intéressé », je ne leur écrirai plus.`, 'info', undefined, 'kouider', 'demarchage');
+      // Kouider veut être prévenu de chaque STOP, pas seulement dans l'app (25/10)
+      const stopMsg = `🛑 ${p.company} (${latest.fromEmail || p.email}) a répondu STOP à ton mail « ${latest.subject || p.last_subject || 'démarchage'} ».\nC'est fait : mis en « Pas intéressé », plus aucun mail ni relance.`;
+      emitProactive(`${p.company} a répondu STOP — mis en « Pas intéressé », je ne leur écrirai plus.`, 'info', stopMsg, 'kouider', 'demarchage');
+      void queueTelegramMessage(stopMsg).catch(() => {});
       continue;
     }
 

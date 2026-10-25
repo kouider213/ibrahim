@@ -247,7 +247,7 @@ const JOBS = [
   },
   {
     name:  'prospect-replies',
-    cron:  '*/30 7-22 * * *',       // toutes les 30 min 7h-22h — réponses des prospects + visites du site via le lien des mails
+    cron:  '*/10 7-22 * * *',       // toutes les 10 min 7h-22h (30 min = STOP vu par Kouider avant Dzaryx, 25/10) — réponses des prospects + visites du site via le lien des mails
     tz:    'Africa/Algiers',
   },
   {

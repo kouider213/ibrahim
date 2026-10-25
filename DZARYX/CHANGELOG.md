@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-10-25 — Réponse STOP : traitée en 10 min max + message Telegram
+
+- `queue/scheduler.ts` : `prospect-replies` toutes les 10 min (au lieu de 30) de 7h à 22h → un STOP est mis en « Pas intéressé » avant que Kouider le voie.
+- `integrations/prospect-autopilot.ts` : chaque STOP envoie aussi un message Telegram à Kouider (société, adresse, objet du mail), plus seulement une notif dans l'app.
+- `integrations/prospects.ts` : `findProspect` tolère les fautes (« hiponne azure » → Agence Hippone Azur : accents, lettres doublées, e/s final).
+- Agence Hippone Azur passée à la main en « Pas intéressé » (STOP du 25/10 11h19).
+
 ## 2026-10-25 — Trajet faux de 25 min supprimé, messages de nouveau en direct
 
 - `conversation/proactive-engine.ts` : suppression des vieux rappels « Rappel trajet Bruxelles », « Horaire Kouider » et « Agenda — prochains RDV » (horaires en dur + trajet fixe 25 min) → les départs viennent seulement de `departures.ts` (GPS + trafic réel) (B043).

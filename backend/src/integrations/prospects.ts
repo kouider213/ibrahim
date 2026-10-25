@@ -183,7 +183,23 @@ export async function findProspect(query: string): Promise<Prospect[]> {
   const byEmail = q.includes('@')
     ? await supabase.from('prospects').select('*').ilike('email', norm(q)).limit(5)
     : await supabase.from('prospects').select('*').ilike('company', `%${q.replace(/[%_]/g, '')}%`).limit(5);
-  return (byEmail.data ?? []) as Prospect[];
+  if (byEmail.data?.length || q.includes('@')) return (byEmail.data ?? []) as Prospect[];
+  // Rien trouvé : nom mal orthographié (« hiponne azure » → Agence Hippone Azur, 25/10) → recherche tolérante
+  const words = fuzzy(q).split(' ').filter(w => w.length >= 3);
+  if (!words.length) return [];
+  const { data } = await supabase.from('prospects').select('id, company, email');
+  const ids = ((data ?? []) as Array<{ id: string; company: string | null; email: string | null }>)
+    .filter(r => { const hay = fuzzy(`${r.company ?? ''} ${r.email ?? ''}`).replace(/ /g, ''); return words.every(w => hay.includes(w)); })
+    .slice(0, 5).map(r => r.id);
+  if (!ids.length) return [];
+  const full = await supabase.from('prospects').select('*').in('id', ids);
+  return (full.data ?? []) as Prospect[];
+}
+
+/** Minuscules, sans accents ni lettres doublées, fin de mot en e/s retirée : « Hiponne Azure » ≈ « Hippone Azur ». */
+function fuzzy(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ')
+    .replace(/(.)\1+/g, '$1').split(' ').map(w => w.length > 4 ? w.replace(/[es]+$/, '') : w).join(' ').trim();
 }
 
 export async function updateProspect(id: string, patch: Partial<Omit<Prospect, 'id' | 'created_at'>>): Promise<void> {
