@@ -1,0 +1,21 @@
+{
+ "id": "/ibrahim/gardiens/",
+ "name": "Les Gardiens",
+ "short_name": "Gardiens",
+ "description": "Défendez votre île à deux",
+ "start_url": "/ibrahim/gardiens/",
+ "scope": "/ibrahim/gardiens/",
+ "display": "fullscreen",
+ "orientation": "portrait",
+ "background_color": "#1c1038",
+ "theme_color": "#1c1038",
+ "icons": [
+  {
+   "src": "/ibrahim/icons/gardiens-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "any"
+  }
+ ],
+ "lang": "fr"
+}

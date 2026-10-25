@@ -8,5 +8,5 @@ export default defineConfig({
   server: { port: 5174 },
   base: process.env['VITE_BASE_PATH'] ?? '/ibrahim/',
   // 3 pages : l'app Dzaryx (index.html), l'appli FORME (forme/ → /ibrahim/forme/) et le jeu de Fennou (run/ → /ibrahim/run/)
-  build: { outDir: 'dist', sourcemap: false, rollupOptions: { input: { main: resolve(__dirname, 'index.html'), forme: resolve(__dirname, 'forme/index.html'), run: resolve(__dirname, 'run/index.html'), rush: resolve(__dirname, 'rush/index.html'), oeil: resolve(__dirname, 'oeil/index.html'), gardiens: resolve(__dirname, 'gardiens/index.html') } } },
+  build: { outDir: 'dist', sourcemap: false, target: 'es2022', rollupOptions: { input: { main: resolve(__dirname, 'index.html'), forme: resolve(__dirname, 'forme/index.html'), run: resolve(__dirname, 'run/index.html'), oeil: resolve(__dirname, 'oeil/index.html'), gardiens: resolve(__dirname, 'gardiens/index.html'), folie: resolve(__dirname, 'folie/index.html'), jeux: resolve(__dirname, 'jeux/index.html') } } },
 });

@@ -1,0 +1,21 @@
+{
+ "id": "/ibrahim/jeux/",
+ "name": "Jeux",
+ "short_name": "Jeux",
+ "description": "Les jeux de Kouider et Fatima",
+ "start_url": "/ibrahim/jeux/",
+ "scope": "/ibrahim/jeux/",
+ "display": "standalone",
+ "orientation": "portrait",
+ "background_color": "#5b5cff",
+ "theme_color": "#5b5cff",
+ "icons": [
+  {
+   "src": "/ibrahim/icons/jeux-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "any"
+  }
+ ],
+ "lang": "fr"
+}

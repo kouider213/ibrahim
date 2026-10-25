@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Stage, ARENA, ENEMY_DEF, BUILD_POS, buildXZ, glowTex, type EnemyKind } from './stage.ts';
 import { makeHero, animateHero, LOOKS, type Hero } from '../rush/hero.ts';
 import { audioUnlock, sfx, music, setMuted, isMuted, duck, setTempo } from '../games/audio.ts';
-import { bootIdentity, games, online, local, otherOf, rng, serverNow, syncClock, vibrate, type BuildingId, type Island, type IslandView, type Room, type Uid } from '../games/net.ts';
+import { exitGame, fromHub, bootIdentity, games, online, local, otherOf, rng, serverNow, syncClock, vibrate, type BuildingId, type Island, type IslandView, type Room, type Uid } from '../games/net.ts';
 import { getDeviceToken } from '../services/api.ts';
 
 // LES GARDIENS — action coopérative. Chaque nuit des vagues de monstres montent sur l'île ; on survit, on gagne
@@ -130,7 +130,7 @@ function sheet(h: string) { $('sheet').innerHTML = h ? `<div class="sheet"><div 
 const on = (id: string, fn: () => void) => { const el = document.getElementById(id); if (el) el.onclick = () => { audioUnlock(); sfx.click(); fn(); }; };
 function renderHub() {
   $('hCry').textContent = island.crystals.toLocaleString('fr-FR'); night = island.night[me] ?? 1; $('hNight').textContent = `🌙 ${night}`;
-  $('playTxt').textContent = `${t('Nuit')} ${night}`; $('bSound').textContent = isMuted() ? '🔇' : '🔊'; $('bExit').hidden = !embedded;
+  $('playTxt').textContent = `${t('Nuit')} ${night}`; $('bSound').textContent = isMuted() ? '🔇' : '🔊'; $('bExit').hidden = !embedded && !fromHub();
   $('hK').classList.toggle('on', S.cls === 'k'); $('hF').classList.toggle('on', S.cls === 'f');
   const lg = $('hLog'); lg.hidden = !island.log.length; lg.innerHTML = island.log.slice(0, 3).map(l => `• ${l.text}`).join('<br>');
 }
@@ -145,7 +145,7 @@ function showHub() {
 on('hK', () => { S.cls = 'k'; persist(); renderHub(); }); on('hF', () => { S.cls = 'f'; persist(); renderHub(); });
 on('bSound', () => { setMuted(!isMuted()); renderHub(); });
 on('bLang', () => { lang = lang === 'ar' ? 'fr' : 'ar'; try { localStorage.setItem('jeux:lang', lang); } catch { /* */ } applyLang(); renderHub(); });
-on('bExit', () => window.parent.postMessage({ type: 'jeux:exit' }, '*'));
+on('bExit', exitGame);
 on('bPlay', () => startNight(Math.floor(Math.random() * 1e9), false));
 on('bBuild', showBuild); on('bDuo', () => void openDuo());
 function showBuild() {

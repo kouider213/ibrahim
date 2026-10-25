@@ -20,6 +20,9 @@ export default function Home({ o, name, onLog, onWeek, openTool, go, onFav }: {
     <div style={{ padding: '6px 18px 0' }}>
       <div style={{ fontSize: 11.5, fontWeight: 700, color: F.muted, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{fmtLong(o.today)} · semaine {weekNo(o.today)}</div>
       <Title a={`Salut ${name},`} b="on mange quoi ?" size={30} />
+      <a href={(() => { try { const ft = localStorage.getItem('forme:token'); return `/ibrahim/jeux/${ft ? `?invite=${encodeURIComponent(ft)}` : ''}`; } catch { return '/ibrahim/jeux/'; } })()} style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none', color: '#fff', background: 'linear-gradient(120deg,#6f8dff,#ff7ab8)', borderRadius: 20, padding: '12px 16px', margin: '4px 0 14px', boxShadow: '0 8px 22px rgba(111,141,255,.35)' }}>
+        <span style={{ fontSize: 30 }}>🎮</span><span style={{ flex: 1 }}><b style={{ display: 'block', fontSize: 16 }}>Nos jeux</b><span style={{ fontSize: 12.5, opacity: 0.9 }}>La Grande Folie, Les Gardiens, L'Œil — seul ou à deux</span></span><span style={{ fontSize: 20 }}>›</span>
+      </a>
 
       <motion.div data-tour="ring" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} style={{ ...darkCard }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>

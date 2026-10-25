@@ -6,8 +6,8 @@ import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 // pour jouer à deux en direct (chacun sur son téléphone, même piste / même image, positions échangées toutes les ~250 ms).
 // La salle vit en mémoire (2 joueurs seulement, rien d'important à garder si le serveur redémarre).
 
-export type GameId = 'rush' | 'oeil:facile' | 'oeil:normal' | 'oeil:difficile' | 'oeil:daily' | 'gardiens' | 'resto';
-const GAMES: GameId[] = ['rush', 'oeil:facile', 'oeil:normal', 'oeil:difficile', 'oeil:daily', 'gardiens', 'resto'];
+export type GameId = 'rush' | 'oeil:facile' | 'oeil:normal' | 'oeil:difficile' | 'oeil:daily' | 'gardiens' | 'resto' | 'folie';
+const GAMES: GameId[] = ['rush', 'oeil:facile', 'oeil:normal', 'oeil:difficile', 'oeil:daily', 'gardiens', 'resto', 'folie'];
 const BOARD_KEY = 'games:board';
 const MAX_SCORE = 50_000_000;
 
@@ -48,7 +48,7 @@ export async function submitScore(uid: Uid, game: string, score: number, date?: 
   await kvSet(BOARD_KEY, JSON.stringify(b));
   if (beat && uid === 'femme') {
     const n = await playerNames();
-    const label = g === 'rush' ? 'RUSH' : g === 'gardiens' ? 'LES GARDIENS' : g === 'resto' ? 'LE RESTO EN FOLIE' : `L'ŒIL (${g.split(':')[1]})`;
+    const label = g === 'rush' ? 'RUSH' : g === 'gardiens' ? 'LES GARDIENS' : g === 'resto' ? 'LE RESTO EN FOLIE' : g === 'folie' ? 'LA GRANDE FOLIE (couronnes)' : `L'ŒIL (${g.split(':')[1]})`;
     await queueTelegramMessage(`🎮 ${n.femme} vient de battre ton record à ${label} : ${s.toLocaleString('fr-FR')} (toi : ${(theirs?.best ?? 0).toLocaleString('fr-FR')}). À toi de jouer 😏`, undefined, 'kouider', undefined, true).catch(() => {});
   }
   return { record, beat, best: mine.best, board: b };
@@ -57,7 +57,7 @@ export async function submitScore(uid: Uid, game: string, score: number, date?: 
 // ── Salle à deux (en direct) ─────────────────────────────────────────────────
 export interface RoomPlayer { ready: boolean; seen: number; state: Record<string, unknown> | null; done: boolean; score: number }
 export interface Room {
-  id: string; game: 'rush' | 'oeil' | 'gardiens' | 'resto'; seed: number; mode: string; host: Uid; createdAt: number;
+  id: string; game: 'rush' | 'oeil' | 'gardiens' | 'resto' | 'folie'; seed: number; mode: string; host: Uid; createdAt: number;
   players: Partial<Record<Uid, RoomPlayer>>; startAt: number | null; claims: Record<string, Uid>; ended: boolean;
   events?: Array<{ from: Uid; at: number; ev: Record<string, unknown> }>;
 }
@@ -80,14 +80,14 @@ export async function roomAction(uid: Uid, body: Record<string, unknown>) {
   const r = alive();
   const p = (u: Uid): RoomPlayer => (r!.players[u] ??= { ready: false, seen: now, state: null, done: false, score: 0 });
   if (action === 'invite') {
-    const game = body.game === 'oeil' ? 'oeil' : body.game === 'gardiens' ? 'gardiens' : body.game === 'resto' ? 'resto' : 'rush';
+    const game = body.game === 'oeil' ? 'oeil' : body.game === 'gardiens' ? 'gardiens' : body.game === 'resto' ? 'resto' : body.game === 'folie' ? 'folie' : 'rush';
     room = {
       id: Math.random().toString(36).slice(2, 8), game, seed: Math.floor(Math.random() * 1e9), mode: String(body.mode ?? 'normal').slice(0, 20),
       host: uid, createdAt: now, players: { [uid]: { ready: false, seen: now, state: null, done: false, score: 0 } }, startAt: null, claims: {}, ended: false,
     };
     const n = await playerNames();
     // Prévenir l'autre : Kouider sur Telegram ; elle verra l'invitation à l'ouverture du jeu
-    if (uid === 'femme') await queueTelegramMessage(`🎮 ${n.femme} t'invite à jouer à ${({ rush: 'RUSH', oeil: "L'ŒIL", gardiens: 'LES GARDIENS', resto: 'LE RESTO EN FOLIE' } as const)[game]} — ouvre JEUX dans l'app !`, undefined, 'kouider', undefined, true).catch(() => {});
+    if (uid === 'femme') await queueTelegramMessage(`🎮 ${n.femme} t'invite à jouer à ${({ rush: 'RUSH', oeil: "L'ŒIL", gardiens: 'LES GARDIENS', resto: 'LE RESTO EN FOLIE', folie: 'LA GRANDE FOLIE' } as const)[game]} — ouvre JEUX dans l'app !`, undefined, 'kouider', undefined, true).catch(() => {});
     return view(uid);
   }
   if (!r) return view(uid);

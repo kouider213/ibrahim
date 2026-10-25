@@ -38,7 +38,7 @@ async function call<T>(path: string, body?: unknown): Promise<T> {
 export interface Best { best: number; at: number; plays: number; last: number; wins: number }
 export interface BoardView { me: Uid; names: Record<Uid, string>; board: Record<string, Partial<Record<Uid, Best>>> & { daily?: { date: string; scores: Partial<Record<Uid, number>> } } }
 export interface RoomPlayer { ready: boolean; seen: number; state: Record<string, unknown> | null; done: boolean; score: number }
-export interface Room { id: string; game: 'rush' | 'oeil' | 'gardiens' | 'resto'; events?: Array<{ from: Uid; at: number; ev: Record<string, unknown> }>; seed: number; mode: string; host: Uid; createdAt: number; players: Partial<Record<Uid, RoomPlayer>>; startAt: number | null; claims: Record<string, Uid>; ended: boolean; me: Uid; otherGone: boolean }
+export interface Room { id: string; game: 'rush' | 'oeil' | 'gardiens' | 'resto' | 'folie'; events?: Array<{ from: Uid; at: number; ev: Record<string, unknown> }>; seed: number; mode: string; host: Uid; createdAt: number; players: Partial<Record<Uid, RoomPlayer>>; startAt: number | null; claims: Record<string, Uid>; ended: boolean; me: Uid; otherGone: boolean }
 export type BuildingId = 'maison' | 'forge' | 'jardin' | 'phare' | 'fontaine' | 'tour';
 export interface Island { crystals: number; b: Record<BuildingId, number>; night: Record<Uid, number>; best: Record<Uid, number>; log: Array<{ uid: Uid; text: string; at: number }> }
 export interface IslandView { island: Island; names: Record<Uid, string>; costs: Record<BuildingId, number[]> }
@@ -82,3 +82,10 @@ export type Rng = ReturnType<typeof rng>;
 
 export const isAr = () => { try { return !!formeToken() && !getDeviceToken() && localStorage.getItem('jeux:lang') !== 'fr' || localStorage.getItem('jeux:lang') === 'ar'; } catch { return false; } };
 export const vibrate = (p: number | number[]) => { try { navigator.vibrate?.(p); } catch { /* */ } };
+
+/** Bouton ✕ des jeux : retour à la page JEUX (si on vient d'elle) ou fermeture dans l'app Dzaryx. */
+export const fromHub = () => new URLSearchParams(location.search).has('hub');
+export function exitGame() {
+  if (fromHub()) { const ft = getDeviceToken() ? null : formeToken(); location.href = `/ibrahim/jeux/${ft ? `?invite=${encodeURIComponent(ft)}` : ''}`; return; }
+  window.parent.postMessage({ type: 'jeux:exit' }, '*');
+}

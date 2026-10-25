@@ -10,6 +10,7 @@
     "deploy": "npm run build && npx gh-pages -d dist"
   },
   "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.14.0",
     "@zxing/browser": "^0.1.5",
     "@zxing/library": "^0.21.3",
     "framer-motion": "^12.38.0",

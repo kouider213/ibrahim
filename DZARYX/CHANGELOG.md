@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-10-25 (nuit) — JEUX du couple : La Grande Folie, Les Gardiens, L'Œil (app v184)
+- Page **JEUX** (app Dzaryx + carte « Nos jeux » dans FORME pour Fatima) → `simulator/jeux/`.
+- **La Grande Folie** (`simulator/folie/`, `src/folie/*`) : jeu de fête façon Fall Guys/Stumble Guys, physique Rapier, 20 haricots (2 humains + bots), 3 manches (course d'obstacles tirée au sort, tuiles fondantes, saute-barre), couronnes, costumes.
+- **Les Gardiens** (`simulator/gardiens/`, `src/gardiens/*`) : action coop (vagues + boss), lien du cœur entre les 2 héros, 13 pouvoirs, île commune à reconstruire (serveur `games:island`).
+- **L'Œil** (`simulator/oeil/`, `src/oeil/*`) : jeu des différences, 10 décors dessinés, 3 modes, zoom, indices, gel, défi du jour, mode photos.
+- Backend `integrations/couple-games.ts` + `/api/forme/games*` : records Kouider/Fatima, salle à deux en direct (positions, revendications, événements), Telegram quand Fatima bat un record ou invite.
+- RUSH (runner) gardé dans le code mais non publié (Kouider : pas un clone de Subway Surfers). Resto en Folie : cuisine 3D commencée (`src/resto/kitchen.ts`), pas encore jouable.
+
 ## 2026-10-25 (nuit) — FORME de Fatima depuis l'écran d'accueil (app v183)
 - `simulator/src/forme/App.tsx` : sur iPhone l'icône « Sur l'écran d'accueil » ne partage pas la mémoire de Safari → le lien d'invitation était perdu et l'icône ouvrait la connexion pré-remplie « kouider ». Le jeton reste maintenant dans l'adresse + manifeste (start_url) ; champ identifiant vide ; on peut coller le lien d'invitation dans le 1er champ pour entrer.
 

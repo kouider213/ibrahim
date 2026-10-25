@@ -1,0 +1,21 @@
+{
+ "id": "/ibrahim/folie/",
+ "name": "La Grande Folie",
+ "short_name": "Folie",
+ "description": "Jeu de fête à la Fall Guys pour Kouider et Fatima",
+ "start_url": "/ibrahim/folie/",
+ "scope": "/ibrahim/folie/",
+ "display": "fullscreen",
+ "orientation": "portrait",
+ "background_color": "#5b8cff",
+ "theme_color": "#5b8cff",
+ "icons": [
+  {
+   "src": "/ibrahim/icons/folie-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "any"
+  }
+ ],
+ "lang": "fr"
+}

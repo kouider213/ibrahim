@@ -1,6 +1,6 @@
 import { makePuzzle, render, photoPuzzle, THEMES, W, H, type Mode, type Diff, type Puzzle } from './scenes.ts';
 import { audioUnlock, sfx, music, setMuted, isMuted, duck } from '../games/audio.ts';
-import { bootIdentity, games, online, local, otherOf, serverNow, syncClock, vibrate, type BoardView, type Room, type Uid } from '../games/net.ts';
+import { exitGame, fromHub, bootIdentity, games, online, local, otherOf, serverNow, syncClock, vibrate, type BoardView, type Room, type Uid } from '../games/net.ts';
 import { getDeviceToken } from '../services/api.ts';
 
 // L'ŒIL — jeu des différences de Kouider et Fatima. 3 modes (facile / normal / difficile), niveaux sans fin
@@ -56,7 +56,7 @@ const on = (id: string, fn: () => void) => { const el = document.getElementById(
 function renderHome() {
   const stars = Object.values(save.stars).reduce((a, b) => a + b, 0);
   $('hStars').textContent = `⭐ ${stars}`; $('hItems').textContent = `💡 ${save.hints} · ❄️ ${save.freezes}`;
-  $('bSound').textContent = isMuted() ? '🔇' : '🔊'; $('bExit').hidden = !embedded;
+  $('bSound').textContent = isMuted() ? '🔇' : '🔊'; $('bExit').hidden = !embedded && !fromHub();
   $('modes').innerHTML = MODES.map(m => `<button class="mode" style="--c1:${m.c1};--c2:${m.c2}" data-mode="${m.id}"><div class="e">${m.e}</div><div class="t"><b>${t(m.id).replace(/^./, c => c.toUpperCase())}</b><span>${m.diffs} ${t('différences')} · ${Math.floor(m.time / 60)}:${String(m.time % 60).padStart(2, '0')}</span></div><div class="lv">${t('Niveau')}<b>${save.level[m.id]}</b></div></button>`).join('');
   document.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach(b => b.onclick = () => { audioUnlock(); sfx.click(); startLevel(b.dataset.mode as Mode); });
   $('dailyTxt').textContent = save.daily.date === today() ? `✓ ${fmt(save.daily.score)}` : (lang === 'ar' ? 'نفس الصورة للجميع' : 'Même image pour vous deux');
@@ -76,7 +76,7 @@ addEventListener('pointermove', e => { const i = document.getElementById('iris')
 
 on('bSound', () => { setMuted(!isMuted()); renderHome(); });
 on('bLang', () => { lang = lang === 'ar' ? 'fr' : 'ar'; try { localStorage.setItem('jeux:lang', lang); } catch { /* */ } applyLang(); renderHome(); });
-on('bExit', () => window.parent.postMessage({ type: 'jeux:exit' }, '*'));
+on('bExit', exitGame);
 on('bDaily', () => startDaily());
 on('bDuo', () => void openDuo());
 on('bPhoto', () => { sheet(`<h2>📸 ${t('Mes photos')}</h2><div class="lead">${t('Ta photo reste sur ton téléphone.')}</div><div class="lead" style="margin-bottom:8px">${t('Choisis la difficulté')}</div><div class="seg">${MODES.map(m => `<button data-pm="${m.id}" class="${m.id === 'normal' ? 'on' : ''}">${m.e} ${t(m.id)}</button>`).join('')}</div><div class="stack"><button class="btn mint" id="pPick">🖼️ ${t('Choisis une photo')}</button><button class="btn ghost" id="pClose">${t('Fermer')}</button></div>`);
