@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-25 — « La grande course de Fennou » : vrai jeu 3D pour le petit
+
+- `simulator/run/` (→ /ibrahim/run/, tuile « La grande course » en haut de Fennou) : jeu three.js à la Subway Surfers. Fennou (fennec 3D, tenues) court seul sur 3 voies ; l'enfant touche les images. 6 mondes (désert, oasis, ferme, plage d'Oran, ville, étoiles) × 6 niveaux + course libre. Missions cerveau : trouver (animaux + cris, fruits, véhicules), couleurs, formes (portes), grand/petit, compter les étoiles, cache-cache dans les cadeaux (avec échange), musique (Frère Jacques), famille (photos papa/maman de Fennou).
+- Apprentissage sans échec (indice qui brille, puis Fennou y va seul en nommant), difficulté adaptative (2 → 3 choix), album d'autocollants, 7 tenues débloquées par les étoiles, fin de session « Fennou fait dodo » (durée des parents), coin parents par appui long 2 s, voix de maman réutilisée (+ nouveaux mots à enregistrer dans Fennou). Progression en localStorage `fennou-run`, parties notées via `fennou:session`. App v178.
+
 ## 2026-10-25 — FORME : l'appli sport + nutrition halal (remplace COACH), pour Kouider et sa femme
 
 - App : nouvelle appli **FORME** (`simulator/forme/` → kouider213.github.io/ibrahim/forme/, installable seule sur l'écran d'accueil) et page **FORME** dans Dzaryx (remplace COACH). Design repris de MacroSave : questionnaire en 11 étapes (objectif, salle, magasins belges, repas/jour, halal, séances, swipe de plats en vraies photos, âge/taille/poids, budget, traitement + dose), « On compose ta semaine », accueil (anneau kcal + macros, injection, eau, menu du jour), semaine de recettes (photos TheMealDB, étapes, remplacer une recette), courses avec vraies photos de produits belges (Open Food Facts, Boni/Colruyt…), sport (mode séance : démo animée, charges, minuteur de repos), corps (courbe de poids, mensurations, caméra avec l'ancienne photo en transparence + minuteur 10 s, analyse avant/maintenant entourée par Claude, conseils), 12 outils (traitement + sites d'injection, photo d'assiette → kcal, scanner code-barres + verdict halal, protéines, eau, effets, produits belges, resto/snack, coach, minuteur, besoins, badges).
