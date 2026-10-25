@@ -80,15 +80,16 @@ function isFastModeEligible(messages: Message[]): boolean {
   // "oui"/"envoie" en réponse à une question de Dzaryx (ex: "Je l'envoie ?") = confirmation
   // d'action → il faut les outils (sinon le mail/WhatsApp validé ne part jamais)
   const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
-  const prevText = typeof lastAssistant?.content === 'string' ? lastAssistant.content : JSON.stringify(lastAssistant?.content ?? '');
-  if (/\?\s*\W*$/.test(prevText.trim()) && /^\W*(oui|ok|okay|ouais|go|vas[- ]y|envoie|envoi|confirme|valide|c'est bon|parfait|yes)\b/i.test(text)) return false;
+  // Kouider 25/10 : « Je te fais la conversion si tu veux. » → « Oui » partait en mode rapide SANS outils (« je n'ai pas d'outil de change »).
+  // Une offre de Dzaryx ne finit pas toujours par « ? » : tout oui/ok qui suit un message de Dzaryx garde les outils.
+  if (lastAssistant && /^\W*(oui|ok|okay|ouais|go|vas[- ]y|envoie|envoi|confirme|valide|c'est bon|parfait|yes|d'accord|wesh|ah oui)\b/i.test(text)) return false;
 
   // Jamais fast mode pour les questions — nécessite contexte business + outils
   if (/^(qui|quel|quoi|comment|combien|où|quand|est-ce|pourquoi|lequel|laquelle|which|who|what|how|when|where|why|كم|من|ما|كيف|متى|أين)/i.test(text)) return false;
 
   // Questions courtes (< 30 chars) sans action business
   if (text.length < 30) {
-    const needsAction = /réserv|booking|modifi|change|crée|créer|créé|génère|générer|généré|génér|bon|bonz|voucher|contrat|supprimer|annuler|rapport|finance|combien|météo|actualité|cherche|search|trouve|image|photo|montre|affiche|liste|list|envoie|rappel|remind|web|internet|info|client|voiture|véhicule|vehicule|bien|biens|immobil|appart|villa|maison|terrain|local|vente|vendre|vendu|louer|loué|location|parc|stock|dispo|doc|passeport|permis|agenda|paiement|facture|revenu|revenus|bénéfice|profit|gagné|gain|argent|chiffre|recette|encaissé|dette|caisse|trésorerie|obsidian|vault|nexus|mail|e-mail|gmail|connect|appel|téléphon|prospect|démarch|demarch|r[ée]pond/i.test(text);
+    const needsAction = /réserv|booking|modifi|change|crée|créer|créé|génère|générer|généré|génér|bon|bonz|voucher|contrat|supprimer|annuler|rapport|finance|combien|météo|actualité|cherche|search|trouve|image|photo|montre|affiche|liste|list|envoie|rappel|remind|web|internet|info|client|voiture|véhicule|vehicule|bien|biens|immobil|appart|villa|maison|terrain|local|vente|vendre|vendu|louer|loué|location|parc|stock|dispo|doc|passeport|permis|agenda|paiement|facture|revenu|revenus|bénéfice|profit|gagné|gain|argent|chiffre|recette|encaissé|dette|caisse|trésorerie|obsidian|vault|nexus|mail|e-mail|gmail|connect|appel|téléphon|prospect|démarch|demarch|r[ée]pond|euro|dinar|\bda\b|dzd|taux|change|devise|million|whats?app|message/i.test(text);
     if (!needsAction) return true;
   }
 
@@ -144,7 +145,7 @@ export function analyzeComplexity(messages: Message[]): { level: ComplexityLevel
 // Réflexion, conseils, textes envoyés à d'autres, photos, recherche web, code → Sonnet 5.5.
 // Interrupteur app_kv « billing:chat_model » : 'auto' (défaut) | 'sonnet' (tout sur Sonnet comme avant).
 // ══════════════════════════════════════════════════════════════════════════════
-const SONNET_RE = /r[ée]fl[ée]chi|analys|ton avis|tu en pense|penses?[- ]tu|pourquoi|compar|conseil|d[ée]cid|id[ée]e|strat[ée]g|optimis|am[ée]lior|rentab|projet|invest|business|n[ée]goci|r[ée]dige|[ée]cri[st]|r[ée]ponds?[- ]lui|r[ée]pond[- ]?(au|à|a)|propos|envo\w* (un|une|le|la|sa|ma) (nouvel |nouveau )?(e-?mail|mail|courrier|message|r[ée]ponse)|lettre|devis|contrat|annonce|post\b|site|document|pdf|pr[ée]sentation|plan\b|dossier|explique|r[ée]sum|claude|sonnet|en d[ée]tail|code|bug|github|deploy|typescript/i;
+const SONNET_RE = /r[ée]fl[ée]chi|analys|ton avis|tu en pense|penses?[- ]tu|pourquoi|compar|conseil|d[ée]cid|id[ée]e|strat[ée]g|optimis|am[ée]lior|rentab|projet|invest|business|n[ée]goci|r[ée]dige|[ée]cri[st]|r[ée]ponds?[- ]lui|r[ée]pond[- ]?(au|à|a)|propos|envo\w* (un|une|le|la|sa|ma) (nouvel |nouveau )?(e-?mail|mail|courrier|message|r[ée]ponse)|lettre|devis|contrat|annonce|post\b|site|document|pdf|pr[ée]sentation|plan\b|dossier|explique|r[ée]sum|claude|sonnet|en d[ée]tail|code|bug|github|deploy|typescript|whats?app/i;
 let chatModeCache: { mode: string; at: number } = { mode: 'auto', at: 0 };
 async function chatMode(): Promise<string> {
   if (Date.now() - chatModeCache.at > 60_000) {
@@ -207,6 +208,12 @@ const TOOL_SEARCH_TOOL: Anthropic.Tool = { type: 'tool_search_tool_bm25_20251119
 const TOOL_SEARCH_HINT =
   "Une partie de tes outils est cachée pour aller plus vite : avant de dire que tu ne peux pas faire quelque chose, " +
   "cherche l'outil adapté avec tool_search_tool_bm25 (requête courte en français, ex. « kilométrage voiture », « contrat signature »).";
+// Kouider 25/10 (« Dzaryx doit redevenir aussi performant que la semaine passée ») : conversion inventée (15 900 €) puis
+// « je n'ai pas d'outil de change », et message WhatsApp lu sans réponse proposée.
+const MONEY_WA_HINT =
+  "ARGENT : toute conversion dinar ↔ euro passe par un outil (gold_watch action change = square du jour, ou convert_currency), jamais un chiffre de tête. "
+  + "En Algérie « 230 millions » = millions de centimes = 2 300 000 DA ; un client qui écrit « budget 2 300 000 » parle en DA. Donne DA + € au square directement, sans demander « tu veux ? ». "
+  + "WHATSAPP : quand tu donnes à Kouider un message client resté sans réponse, ajoute TOUJOURS une réponse proposée (courte, polie, au nom de FIK) et demande « je lui envoie ? ».";
 const CORE_TOOLS = new Set([
   // Locations, flotte, clients, argent
   'list_bookings', 'create_booking', 'update_booking', 'cancel_booking', 'check_car_availability', 'get_fleet_status',
@@ -221,7 +228,7 @@ const CORE_TOOLS = new Set([
   'set_private_mode', 'show_my_memory', 'send_nexus_command', 'nexus_screenshot', 'ping_nexus',
   'web_search', 'assign_task', 'list_team_tasks', 'create_goal', 'save_procedure',
   // Se décrire sans inventer + documents
-  'list_my_capabilities', 'whatsapp_web', 'business_mentor', 'kouider_dossier', 'life_coach', 'family_care', 'papa_time', 'forme', 'run_self_test', 'get_upcoming_seasons', 'cloud_pc', 'watch_page', 'web_routine', 'air_algerie_search', 'air_algerie_watch', 'gold_watch', 'create_google_doc', 'send_doc_pdf', 'business_simulator', 'partners', 'create_google_sheet', 'create_presentation_doc', 'create_demo_site', 'get_demo_site', 'carte_live_demo_link', 'create_client_site', 'manage_client_site', 'fik_site_contract', 'flash_offer', 'billing', 'morning_routine', 'sport_coach', 'gps_assistant', 'travel',
+  'list_my_capabilities', 'whatsapp_web', 'convert_currency', 'business_mentor', 'kouider_dossier', 'life_coach', 'family_care', 'papa_time', 'forme', 'run_self_test', 'get_upcoming_seasons', 'cloud_pc', 'watch_page', 'web_routine', 'air_algerie_search', 'air_algerie_watch', 'gold_watch', 'create_google_doc', 'send_doc_pdf', 'business_simulator', 'partners', 'create_google_sheet', 'create_presentation_doc', 'create_demo_site', 'get_demo_site', 'carte_live_demo_link', 'create_client_site', 'manage_client_site', 'fik_site_contract', 'flash_offer', 'billing', 'morning_routine', 'sport_coach', 'gps_assistant', 'travel',
   // Position live (Telegram) + trajet avec trafic réel
   'get_my_location', 'get_travel_time', 'list_agenda_events', 'update_agenda_event', 'delete_agenda_event',
 ]);
@@ -338,6 +345,7 @@ export async function chatWithTools(
     ? [TOOL_SEARCH_TOOL, ...baseTools.map(t => (CORE_TOOLS.has(t.name) || preferred?.has(t.name) ? t : ({ ...t, defer_loading: true } as Anthropic.Tool)))]
     : baseTools;
   if (useToolSearch) systemBlocks.push({ type: 'text', text: TOOL_SEARCH_HINT });
+  systemBlocks.push({ type: 'text', text: MONEY_WA_HINT });
   const tools: Anthropic.Tool[] = useWebSearch
     ? [...scopedTools, ANTHROPIC_WEB_SEARCH_TOOL]
     : scopedTools;

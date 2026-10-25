@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-25 (soir) — Dzaryx retrouve ses réflexes (oui = outils, conversions, réponses WhatsApp)
+
+- `claude-api.ts` : un « Oui » qui suit une offre de Dzaryx sans « ? » (« je te fais la conversion si tu veux. ») partait en mode rapide SANS outils → « je n'ai pas d'outil de change ». Tout oui/ok après un message de Dzaryx garde les outils ; euro/dinar/taux/WhatsApp ne sont plus jamais en mode rapide.
+- Conversion : `convert_currency` chargé d'office + consigne « jamais un chiffre de tête, DA + € au square directement, 230 millions = centimes » (avant : 2 300 000 DA ≈ 15 900 € inventé).
+- WhatsApp : les demandes WhatsApp passent sur Sonnet (textes pour clients) ; `unread`/`read` donnent la conversion 💱, la réponse déjà proposée et l'ordre « propose une réponse + demande « je lui envoie ? » ».
+
 ## 2026-10-25 (nuit) — Appels plus stables + montants en dinars convertis
 
 - Appels Telegram (tgcall/gemini_live.py) : détection de parole START_SENSITIVITY_LOW (+ 300 ms de marge, 700 ms de silence) — en HIGH, un « allô », un souffle ou l'écho coupait Dzaryx en pleine phrase ; un bruit ne coupe plus (≥ 2 mots ou 6 lettres) ; transcriptions de bruit (« <noise> », chiffres persans) ignorées ; consigne « bruit ≠ demande, jamais d'outil ni de CONFIRMÉ ». pm2 dzaryx-tg relancé.
