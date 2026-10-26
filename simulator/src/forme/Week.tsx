@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { tr } from './i18n.ts';
-import { motion } from 'framer-motion';
+import { motion, useMotionValue, useTransform, animate, type PanInfo } from 'framer-motion';
 import { forme, errText, type Overview, type Recipe, SHORT_DAYS, dayOf, fmtLong, vibrate } from './api.ts';
 import { F, Title, Section, card, btn, darkBtn, ghostBtn, Sheet, Img, Spinner, input, Chip } from './ui.tsx';
 
@@ -107,14 +107,75 @@ export function RecipeSheet({ r, monday, eaten, onToggle, onClose, onWeek, fav, 
   );
 }
 
+/** 🗣️ « Cette semaine j'ai envie de… » → toute la semaine (plats + courses) refaite autour de ses envies. */
+function Wishes({ w, onWeek, toast }: { w: NonNullable<Overview['week']> | null; onWeek: (w: NonNullable<Overview['week']>) => void; toast: (t: string) => void }) {
+  const [text, setText] = useState(w?.wishes ?? '');
+  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(!w);
+  useEffect(() => { setText(w?.wishes ?? ''); }, [w?.wishes]);
+  const go = async () => {
+    if (w && !confirm('Refaire la semaine avec tes envies (nouvelles recettes + nouvelle liste de courses) ?')) return;
+    setBusy(true);
+    try { onWeek((await forme.makeWeek(true, w?.monday, text.trim())).week); vibrate(30); toast('✨ Semaine adaptée à tes envies'); setOpen(false); } catch (e) { toast(errText(e)); } finally { setBusy(false); }
+  };
+  if (!open) return (
+    <button onClick={() => setOpen(true)} style={{ ...card, width: '100%', display: 'flex', gap: 12, alignItems: 'center', marginBottom: 14, border: 'none', cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit', color: F.ink }}>
+      <span style={{ fontSize: 26 }}>🗣️</span>
+      <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 800 }}>Mes envies de la semaine</div><div style={{ fontSize: 12.5, color: F.muted, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w?.wishes ? `« ${w.wishes} »` : 'Dis ce que tu veux manger, la semaine s\'adapte'}</div></div>
+      <span style={{ color: F.accent, fontWeight: 900 }}>›</span>
+    </button>
+  );
+  return (
+    <div style={{ ...card, marginBottom: 14 }}>
+      <div style={{ fontWeight: 800 }}>🗣️ Cette semaine, j'ai envie de…</div>
+      <div style={{ fontSize: 12.5, color: F.muted, margin: '4px 0 10px', lineHeight: 1.4 }}>Plats, ingrédients, jours précis, ce que tu ne veux pas : les repas ET la liste de courses sont refaits autour.</div>
+      <textarea value={text} onChange={e => setText(e.target.value)} rows={3} maxLength={500} placeholder="Ex. couscous vendredi, du poisson 2 fois, chorba, pas de lentilles, des plats rapides le midi" style={{ ...input, resize: 'none', fontFamily: 'inherit', lineHeight: 1.4 }} />
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>{['couscous', 'poisson', 'tajine', 'chorba', 'plats rapides', 'pâtes', 'grillades'].map(x => <Chip key={x} on={text.toLowerCase().includes(x)} onClick={() => setText(t => t.toLowerCase().includes(x) ? t : `${t.trim()}${t.trim() ? ', ' : ''}${x}`)}>{x}</Chip>)}</div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <button disabled={busy || !text.trim()} onClick={go} style={{ ...btn, flex: 1, opacity: text.trim() ? 1 : 0.5, display: 'flex', justifyContent: 'center', gap: 8, alignItems: 'center' }}>{busy ? <><Spinner size={16} /> Claude compose… (~30 s)</> : w ? '✨ Adapter ma semaine' : '✨ Composer ma semaine'}</button>
+        {w && <button onClick={() => setOpen(false)} style={{ ...ghostBtn, padding: '0 16px' }}>✕</button>}
+      </div>
+    </div>
+  );
+}
+
+/** Carte d'un repas : glisser à gauche (ou à droite) → Claude propose un autre plat (mêmes macros, courses mises à jour). */
+function SwipeMeal({ children, onSwap, onOpen, busy }: { children: React.ReactNode; onSwap: () => void; onOpen: () => void; busy: boolean }) {
+  const x = useMotionValue(0);
+  const hint = useTransform(x, [-140, -40, 0, 40, 140], [1, 0.4, 0, 0.4, 1]);
+  const dragged = useRef(false);
+  const end = (_: unknown, i: PanInfo) => {
+    if (Math.abs(i.offset.x) > 110 || Math.abs(i.velocity.x) > 600) { vibrate(25); void animate(x, i.offset.x < 0 ? -500 : 500, { duration: 0.2 }).then(() => { onSwap(); x.set(0); }); }
+    else void animate(x, 0, { type: 'spring', stiffness: 400, damping: 30 });
+    setTimeout(() => { dragged.current = false; }, 50);
+  };
+  return (
+    <div style={{ position: 'relative', marginBottom: 14 }}>
+      <motion.div style={{ opacity: hint, position: 'absolute', inset: 0, borderRadius: 22, background: F.dark, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 22px', fontWeight: 800, fontSize: 14 }}><span>🔄 Autre plat</span><span>Autre plat 🔄</span></motion.div>
+      <motion.div drag={busy ? false : 'x'} dragDirectionLock dragConstraints={{ left: 0, right: 0 }} dragElastic={0.9} style={{ x, position: 'relative', touchAction: 'pan-y' }}
+        onDragStart={() => { dragged.current = true; }} onDragEnd={end} onClick={() => { if (!dragged.current && !busy) onOpen(); }}>
+        {children}
+        {busy && <div style={{ position: 'absolute', inset: 0, borderRadius: 22, background: 'rgba(251,241,236,0.85)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, fontWeight: 800 }}><Spinner /> Claude cherche un autre plat…</div>}
+      </motion.div>
+    </div>
+  );
+}
+
 export default function WeekScreen({ o, onLog, onWeek, onFav, onO, toast }: { o: Overview; onLog: (kind: string, body: Record<string, unknown>) => void; onWeek: (w: NonNullable<Overview['week']>) => void; onFav: (r: Recipe) => void; onO: (o: Overview) => void; toast: (t: string) => void }) {
   const w = o.week;
   const [sel, setSel] = useState(() => w?.days.find(d => d.date === o.today)?.date ?? w?.days[0]?.date ?? o.today);
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [swapping, setSwapping] = useState<string | null>(null);
+  const swapMeal = async (id: string) => {
+    if (!w || swapping) return;
+    setSwapping(id);
+    try { onWeek((await forme.swap(w.monday, id)).week); toast('🔄 Nouveau plat — courses mises à jour'); } catch (e) { toast(errText(e)); } finally { setSwapping(null); }
+  };
   if (!w) return (
     <div style={{ padding: 18 }}>
       <Title a="Ta" b="semaine" sub="Aucune semaine composée pour l'instant." />
+      <Wishes w={null} onWeek={onWeek} toast={toast} />
       <button disabled={busy} onClick={async () => { setBusy(true); try { onWeek((await forme.makeWeek(true)).week); } catch (e) { alert(errText(e)); } finally { setBusy(false); } }} style={{ ...btn, width: '100%' }}>{busy ? 'Composition… (~30 s)' : 'Composer ma semaine'}</button>
     </div>
   );
@@ -127,6 +188,7 @@ export default function WeekScreen({ o, onLog, onWeek, onFav, onO, toast }: { o:
     <div style={{ padding: '6px 18px 0' }}>
       <div style={{ fontSize: 11.5, fontWeight: 700, color: F.muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{w.recipes.length} recettes · {w.days.reduce((a, d) => a + d.meals.length, 0)} repas · {w.note}</div>
       <Title a="Ta" b="semaine" />
+      <Wishes w={w} onWeek={onWeek} toast={toast} />
       {o.favs.length > 0 && <FavStrip o={o} onO={onO} onWeek={onWeek} onFav={onFav} toast={toast} />}
       <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, margin: '0 -18px', padding: '0 18px 4px' }}>
         {w.days.map(d => {
@@ -144,11 +206,13 @@ export default function WeekScreen({ o, onLog, onWeek, onFav, onO, toast }: { o:
         <div style={{ fontSize: 22, fontWeight: 800 }}><span style={{ textTransform: 'capitalize' }}>{fmtLong(sel).split(' ')[0]}</span> <span style={{ fontFamily: F.serif, fontStyle: 'italic', fontWeight: 400, color: F.accent }}>{sel === o.today ? "aujourd'hui" : fmtLong(sel).split(' ').slice(1).join(' ')}</span></div>
         <div style={{ fontSize: 12.5, color: F.muted, fontWeight: 700 }}>{tot.kcal} kcal · {tot.p} g prot.</div>
       </div>
+      {(day?.meals.length ?? 0) > 0 && <div style={{ fontSize: 12.5, color: F.muted, margin: '-4px 2px 10px' }}>👆 Un plat ne te plaît pas ? Glisse-le sur le côté pour en avoir un autre.</div>}
       {(day?.meals ?? []).map((m, i) => {
         const r = recipe(m.recipe); if (!r) return null;
         const key = `${m.recipe}:${m.slot}`;
         return (
-          <motion.div key={key + i} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }} onClick={() => setOpen(key)} style={{ ...card, padding: 0, overflow: 'hidden', marginBottom: 14, cursor: 'pointer' }}>
+          <SwipeMeal key={key + i} busy={swapping === m.recipe} onSwap={() => void swapMeal(m.recipe)} onOpen={() => setOpen(key)}>
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }} style={{ ...card, padding: 0, overflow: 'hidden', cursor: 'pointer' }}>
             <div style={{ position: 'relative', height: 190 }}>
               <Img src={r.photo} style={{ width: '100%', height: '100%' }} />
               <span style={{ position: 'absolute', top: 12, left: 12, background: '#fff', borderRadius: 999, padding: '5px 11px', fontSize: 11.5, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', color: SLOT_COLOR[m.slot] ?? F.accent }}>{m.slot}</span>
@@ -161,6 +225,7 @@ export default function WeekScreen({ o, onLog, onWeek, onFav, onO, toast }: { o:
               </div>
             </div>
           </motion.div>
+          </SwipeMeal>
         );
       })}
       <button disabled={busy} onClick={async () => { if (!confirm('Refaire toute la semaine (nouvelles recettes + nouvelle liste de courses) ?')) return; setBusy(true); try { onWeek((await forme.makeWeek(true)).week); } catch (e) { alert(errText(e)); } finally { setBusy(false); } }} style={{ ...ghostBtn, width: '100%', marginTop: 4, display: 'flex', justifyContent: 'center', gap: 8 }}>{busy ? <><Spinner size={16} /> Nouvelle semaine… (~30 s)</> : '🔄 Nouvelle semaine de repas'}</button>

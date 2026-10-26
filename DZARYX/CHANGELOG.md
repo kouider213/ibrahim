@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-10-26 — FORME : Fatima ne doit plus se reconnecter, envies de la semaine, glisser un plat (app v188)
+- `forme.ts` / `routes/forme.ts` : une erreur Supabase en lisant le lien de Fatima renvoie 503 (réessaie) au lieu de 401 « Lien expiré » ; 1 nouvel essai après 400 ms.
+- `forme/App.tsx` : le lien de Fatima n'est effacé du téléphone QUE sur un vrai 401 « Lien expiré » (avant : tout message contenant token/auth, ou une panne serveur, effaçait le lien → reconnexion).
+- `generateWeek(…, wishes)` : « Mes envies de la semaine » (texte libre, gardé sur la semaine) passe en priorité dans le menu + les courses ; outil Dzaryx `forme` action `regenerate` + `wishes` (à l'oral / Telegram).
+- `swapRecipe` : la liste de courses suit le changement de plat (ajoute ce qui manque, retire ce qui ne servait qu'à l'ancien plat, total recalculé).
+- `forme/Week.tsx` : carte « Mes envies de la semaine » + chaque plat se glisse à gauche/droite → Claude propose un autre plat (mêmes macros) ; images non déplaçables (`ui.tsx`).
+
 ## 2026-10-25 (nuit, suite 3) — Courses FORME sans doublons + photos, séances de la semaine visibles, tuiles plus faciles (app v187)
 - `forme.ts` : fusion des courses du foyer par mots (singulier/pluriel, haché = viande hachée, braiser = mijoter, variantes en conserve/demi-écrémé…) → 63 → 56 articles ; photos manquantes complétées (boucherie, fruits & légumes, lots → Pexels ; épicerie → Open Food Facts), cache `forme:off:img3` ; menu : max 1 plat à base de haché par semaine, morceaux variés, noms au singulier.
 - `sport-coach.ts` : `planned` (toutes les séances de la semaine) + objectif ; finisher brûle-graisse à chaque séance muscu (objectif ventre de Kouider).

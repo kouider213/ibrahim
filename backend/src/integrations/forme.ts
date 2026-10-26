@@ -98,7 +98,7 @@ export interface Recipe {
 }
 export interface ShopItem { name: string; qty: string; aisle: string; store: string; price: number; halal?: boolean; img?: string | null; brand?: string | null; checked?: boolean; label?: string }
 export interface WeekPlan {
-  monday: string; at: number; note: string; budget: number; total: number;
+  monday: string; at: number; note: string; budget: number; total: number; wishes?: string;
   recipes: Recipe[];
   days: Array<{ date: string; meals: Array<{ slot: string; recipe: string; portion: string }> }>;
   shopping: ShopItem[];
@@ -200,8 +200,14 @@ export async function revokeInvite(uid: Uid): Promise<void> {
 export async function inviteActive(uid: Uid): Promise<boolean> { return !!await kvGet(INVITE_OF(uid)); }
 export async function uidFromFormeToken(token: string): Promise<Uid | null> {
   if (!token || token.length < 20) return null;
-  const u = await kvGet(INVITE_K(sha(token)));
-  return u === 'femme' ? 'femme' : null;
+  // Erreur base ≠ lien inconnu : on lève (→ 503) au lieu de renvoyer null (→ 401), sinon l'appli de sa femme
+  // effaçait son lien au moindre hoquet Supabase et elle devait se reconnecter (26/10).
+  for (let i = 0; ; i++) {
+    const { data, error } = await supabase.from('app_kv').select('value').eq('key', INVITE_K(sha(token))).maybeSingle();
+    if (!error) return (data as { value: string } | null)?.value === 'femme' ? 'femme' : null;
+    if (i >= 1) throw new Error(`forme token: ${error.message}`);
+    await new Promise(r => setTimeout(r, 400));
+  }
 }
 
 // ── Besoins (Mifflin-St Jeor) adaptés au Wegovy ──────────────────────────────
@@ -406,9 +412,11 @@ Réponds UNIQUEMENT par un objet JSON valide (aucun texte autour, pas de \`\`\`)
  "shopping":[{"name":"produit tel qu'en rayon","fr":"nom FRANÇAIS court et générique (ex. skyr nature, blanc de poulet halal)","qty":"600 g","aisle":"Fruits & légumes|Boucherie halal|Crèmerie|Épicerie|Surgelés|Boulangerie|Boissons","store":"un des magasins choisis","price":3.49,"halal":true}]}
 Le champ "slot" et "aisle" restent TOUJOURS en français (valeurs ci-dessus). Contraintes : TOUS LES REPAS DIFFÉRENTS (Kouider 25/10) — jamais deux fois la même recette dans la journée NI dans la semaine : une recette = UN seul repas, donc autant de recettes que de repas de la semaine (ex. 7 jours × 3 repas = 21 recettes), chacune référencée UNE seule fois dans "days". Varie les protéines (poulet, bœuf, agneau, poisson, œufs, légumineuses) et les cuisines (algérienne, méditerranéenne, belge, orientale…). VIANDE : varie aussi les MORCEAUX — au maximum UNE recette à base de viande hachée (kefta, boulettes, kebab) par semaine ; le reste en morceaux entiers : escalopes/filets de poulet ou de dinde, cuisses et pilons, gigot ou épaule d'agneau en morceaux, côtelettes, brochettes, bœuf en cubes pour tajine, steak. Courses : noms génériques AU SINGULIER (« cuisse de poulet halal », pas « cuisses »), un article par produit (pas de lots « carottes, oignons, ail »). Pour rester court : 4 à 8 ingrédients et 3 à 4 étapes courtes par recette. ${p.wegovy.on ? 'Sous Wegovy pas de grosse assiette — ≤ 600 kcal par repas ; si la cible du jour ne rentre pas, ajoute une collation protéinée (elle aussi différente chaque jour). ' : ''}Chaque jour = le nombre de repas demandé, macros de la journée proches des cibles (protéines atteintes en priorité), total des courses ≤ budget, prix = prix unitaire estimé en € du paquet acheté. Viande → store "Boucherie halal" si le magasin n'a pas de halal sûr.`;
 
-export async function generateWeek(uid: Uid = 'kouider', monday = localNow().date, force = false): Promise<WeekPlan> {
+export async function generateWeek(uid: Uid = 'kouider', monday = localNow().date, force = false, wishes?: string): Promise<WeekPlan> {
   const existing = await readJson<WeekPlan | null>(WEEK_K(uid, monday), null);
   if (existing && !force) return existing;
+  // « Cette semaine j'ai envie de… » : gardé sur la semaine (undefined = on reprend les envies déjà dites)
+  const wish = (wishes ?? existing?.wishes ?? '').trim().slice(0, 500);
   const p = await getFormeProfile(uid);
   const cat = await mealCatalog(p.lang);
   const t = formeTargets(p);
@@ -428,6 +436,7 @@ export async function generateWeek(uid: Uid = 'kouider', monday = localNow().dat
     p.wegovy.on ? `Traitement Wegovy en cours (injection le ${['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'][p.wegovy.day]}) : le lendemain de l'injection, repas encore plus légers et doux.` : '',
     liked.length ? `A AIMÉ (swipe) : ${liked.join(', ')}` : '',
     disliked.length ? `N'AIME PAS : ${disliked.join(', ')}` : '',
+    wish ? `ENVIES DE LA SEMAINE (dites par ${p.name || 'la personne'}, PRIORITÉ sur tout le reste sauf halal/santé) : « ${wish} » — place ces plats/ingrédients dans la semaine (jours précis s'ils sont donnés) et adapte les courses en conséquence.` : '',
     p.favorites.length ? `RECETTES ADORÉES (❤️) — reprends-en 2 ou 3 cette semaine, pas plus : ${shuffle(p.favorites).slice(0, 8).join(' ; ')}` : '',
     `CATALOGUE PHOTOS (id nom) — choisis mealDbId parmi eux quand le plat ressemble :\n${catalogLines}`,
   ].filter(Boolean).join('\n');
@@ -474,7 +483,7 @@ export async function generateWeek(uid: Uid = 'kouider', monday = localNow().dat
     price: Math.round((Number(s.price) || 0) * 100) / 100, halal: !!s.halal,
   }));
   await productImages(shopping, p.stores).catch(() => {});
-  const plan: WeekPlan = { monday, at: Date.now(), note: String(j.note ?? '').slice(0, 160), budget: p.budgetWeek,
+  const plan: WeekPlan = { monday, at: Date.now(), note: String(j.note ?? '').slice(0, 160), budget: p.budgetWeek, ...(wish ? { wishes: wish } : {}),
     total: Math.round(shopping.reduce((a, s) => a + s.price, 0) * 100) / 100, recipes, days, shopping };
   await kvSet(WEEK_K(uid, monday), JSON.stringify(plan), 60 * 86_400);
   // Un plan refait au milieu d'un autre le remplace à partir de sa date de début
@@ -596,15 +605,35 @@ export async function swapRecipe(uid: Uid, monday: string, recipeId: string, wis
   if (!w || !old) return w;
   const p = await getFormeProfile(uid);
   const cat = await mealCatalog(p.lang);
-  const res = await createAnthropic().messages.create({ model: 'claude-sonnet-5-5', max_tokens: 1500,
-    system: `Tu remplaces UNE recette par une autre aux macros proches (±10 %). ${rules(p)}\nRéponds UNIQUEMENT par le JSON d'UNE recette : {"title","mealDbId","photoQuery","minutes","kcal","p","c","f","tags":[],"ingredients":[{"name","qty"}],"steps":[],"tip"}`,
-    messages: [{ role: 'user', content: `À remplacer : ${old.title} (${old.kcal} kcal, P${old.p} C${old.c} L${old.f}).${wish ? ` Envie : ${wish}.` : ''} Déjà dans la semaine : ${w.recipes.map(r => r.title).join(' ; ')}.\nCatalogue photos : ${shuffle(cat).slice(0, 60).map(m => `${m.id} ${m.name}`).join(' | ')}` }] }, QUALITY);
-  const r = jsonOf<Partial<Recipe> & { photoQuery?: string; mealDbId?: string }>(textOf(res));
+  // La liste de courses suit (Kouider 26/10) : on ajoute ce qui manque pour la nouvelle recette et on retire ce qui ne servait qu'à l'ancienne
+  const others = w.recipes.filter(r => r.id !== old.id).map(r => r.ingredients.map(x => x.name).join(', ')).join(' | ');
+  const res = await createAnthropic().messages.create({ model: 'claude-sonnet-5-5', max_tokens: 2500,
+    system: `Tu remplaces UNE recette par une autre aux macros proches (±10 %). ${rules(p)}
+Réponds UNIQUEMENT en JSON : {"recipe":{"title","mealDbId","photoQuery","minutes","kcal","p","c","f","tags":[],"ingredients":[{"name","qty"}],"steps":[],"tip"},
+"add":[{"name":"produit tel qu'en rayon","fr":"nom FRANÇAIS court générique au singulier","qty":"…","aisle":"Fruits & légumes|Boucherie halal|Crèmerie|Épicerie|Surgelés|Boulangerie|Boissons","store":"un de : ${p.stores.join(', ')}","price":2.5,"halal":true}],
+"remove":["nom EXACT d'un article de la liste qui ne sert plus à AUCUNE autre recette de la semaine"]}
+"add" = seulement les ingrédients de la nouvelle recette absents de la liste actuelle ; "remove" = seulement ce qui ne servait qu'à l'ancienne recette.`,
+    messages: [{ role: 'user', content: `À remplacer : ${old.title} (${old.kcal} kcal, P${old.p} C${old.c} L${old.f}) — ingrédients : ${old.ingredients.map(x => x.name).join(', ')}.${wish ? ` Envie : ${wish}.` : ''}${w.wishes ? ` Envies de la semaine : ${w.wishes}.` : ''}
+Déjà dans la semaine (ne pas refaire) : ${w.recipes.map(r => r.title).join(' ; ')}.
+Ingrédients des AUTRES recettes : ${others}
+Liste de courses actuelle : ${w.shopping.map(x => x.name).join(' ; ')}
+Catalogue photos : ${shuffle(cat).slice(0, 60).map(m => `${m.id} ${m.name}`).join(' | ')}` }] }, QUALITY);
+  const out = jsonOf<{ recipe?: Partial<Recipe> & { photoQuery?: string; mealDbId?: string }; add?: Array<ShopItem & { fr?: string }>; remove?: string[] } & Partial<Recipe>>(textOf(res));
+  const r = out.recipe ?? (out as Partial<Recipe> & { photoQuery?: string; mealDbId?: string });
+  if (!r.title) throw new Error('pas de nouvelle recette, réessaie');
   const ph = photoFor(cat, { mealDbId: r.mealDbId, photoQuery: r.photoQuery, title: r.title });
   const n = (v: unknown) => Math.max(0, Math.round(Number(v) || 0));
   Object.assign(old, { title: String(r.title ?? old.title).slice(0, 90), photo: ph.photo, mealDbId: ph.id, minutes: n(r.minutes) || old.minutes,
     kcal: n(r.kcal) || old.kcal, p: n(r.p), c: n(r.c), f: n(r.f), tags: (r.tags ?? []).map(String).slice(0, 4),
     ingredients: (r.ingredients ?? []).slice(0, 16).map(x => ({ name: String(x.name), qty: String(x.qty ?? '') })), steps: (r.steps ?? []).map(String).slice(0, 8), tip: String(r.tip ?? '').slice(0, 160) });
+  const drop = new Set((out.remove ?? []).map(x => String(x).toLowerCase()));
+  w.shopping = w.shopping.filter(x => !drop.has(x.name.toLowerCase()));
+  const add: ShopItem[] = (out.add ?? []).filter(x => x.name && !w.shopping.some(y => sameItem(y.name, String(x.fr || x.name)))).slice(0, 10).map(x => ({
+    name: String(x.fr || x.name).slice(0, 80), label: p.lang === 'ar' ? String(x.name).slice(0, 100) : undefined, qty: String(x.qty ?? ''), aisle: String(x.aisle ?? 'Épicerie'),
+    store: String(x.store ?? p.stores[0]), price: Math.round((Number(x.price) || 0) * 100) / 100, halal: !!x.halal }));
+  await productImages(add, p.stores).catch(() => {});
+  w.shopping.push(...add);
+  w.total = Math.round(w.shopping.reduce((a, x) => a + x.price, 0) * 100) / 100;
   await saveWeek(uid, w);
   return w;
 }
@@ -1259,7 +1288,7 @@ export async function formeTool(input: Record<string, unknown>): Promise<string>
     for (const s of h.items) by.set(s.store, [...(by.get(s.store) ?? []), s]);
     return [...by].map(([st, items]) => `🛒 ${st}\n${items.map(i => `${i.checked ? `✅ (${i.by})` : '▫️'} ${i.name} ${i.who.map(w => w.qty).join(' + ')} ≈ ${i.price.toFixed(2)} €`).join('\n')}`).join('\n\n') + `\nTotal ≈ ${h.total.toFixed(2)} € (budget ${h.budget} €)${h.shared ? ' — liste commune avec sa femme' : ''}`;
   }
-  if (a === 'regenerate') { const w = await generateWeek('kouider', localNow().date, true); return `✅ Nouvelle semaine : ${w.recipes.length} recettes, courses ≈ ${w.total} €. ${w.note}`; }
+  if (a === 'regenerate') { const w = await generateWeek('kouider', localNow().date, true, typeof input['wishes'] === 'string' ? input['wishes'] : undefined); return `✅ Nouvelle semaine : ${w.recipes.length} recettes, courses ≈ ${w.total} €. ${w.note}`; }
   if (a === 'ask') return await askFormeCoach(String(input.question ?? ''));
   if (a === 'profile') {
     const patch = input as Partial<FormeProfile> & { dose?: string };

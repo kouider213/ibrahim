@@ -18,7 +18,8 @@ const uidOf = new WeakMap<Request, Uid>();
 router.use(async (req: Request, res: Response, next: NextFunction) => {
   const ft = req.headers['x-forme-token'];
   if (typeof ft === 'string' && ft) {
-    const uid = await uidFromFormeToken(ft).catch(() => null);
+    let uid: Uid | null;
+    try { uid = await uidFromFormeToken(ft); } catch { res.status(503).json({ error: 'Serveur occupé, réessaie dans un instant' }); return; }
     if (!uid) { res.status(401).json({ error: 'Lien expiré — demande un nouveau lien à Kouider' }); return; }
     uidOf.set(req, uid); next(); return;
   }
@@ -52,8 +53,8 @@ router.get('/week', async (req, res) => {
   try { res.json({ week: await getWeek(U(req), isDate(req.query.monday) ? req.query.monday : undefined) }); } catch (err) { fail(res, err); }
 });
 router.post('/week', async (req, res) => {
-  const b = req.body as { monday?: string; force?: boolean };
-  try { res.json({ week: await generateWeek(U(req), isDate(b.monday) ? b.monday : mondayOf(), !!b.force) }); } catch (err) { fail(res, err); }
+  const b = req.body as { monday?: string; force?: boolean; wishes?: string };
+  try { res.json({ week: await generateWeek(U(req), isDate(b.monday) ? b.monday : mondayOf(), !!b.force, typeof b.wishes === 'string' ? b.wishes.slice(0, 500) : undefined) }); } catch (err) { fail(res, err); }
 });
 
 // GET /api/forme/shopping — la liste du FOYER (les deux semaines fusionnées) ; POST /api/forme/shop { key, checked }

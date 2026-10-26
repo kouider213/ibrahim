@@ -15,7 +15,7 @@ export interface Food { name: string; kcal: number; p: number; c: number; f: num
 export interface Day { sleep?: number; steps?: number; meals: Record<string, boolean>; extra: Food[]; water: number; weight?: number; measures?: Record<string, number>; injection?: { at: number; site: string; dose?: string }; sides?: Array<{ what: string; level: number; at: number }> }
 export interface Recipe { id: string; title: string; photo: string; minutes: number; kcal: number; p: number; c: number; f: number; tags: string[]; ingredients: Array<{ name: string; qty: string }>; steps: string[]; tip: string }
 export interface ShopItem { label?: string; name: string; qty: string; aisle: string; store: string; price: number; halal?: boolean; img?: string | null; brand?: string | null; checked?: boolean }
-export interface Week { monday: string; at: number; note: string; budget: number; total: number; recipes: Recipe[]; days: Array<{ date: string; meals: Array<{ slot: string; recipe: string; portion: string }> }>; shopping: ShopItem[] }
+export interface Week { monday: string; at: number; note: string; wishes?: string; budget: number; total: number; recipes: Recipe[]; days: Array<{ date: string; meals: Array<{ slot: string; recipe: string; portion: string }> }>; shopping: ShopItem[] }
 export interface Zone { label: string; x: number; y: number; r: number; bx?: number; by?: number; br?: number; trend: 'mieux' | 'pareil' | 'à travailler'; note: string }
 export interface Analysis { at: number; vs: string | null; summary: string; zones: Zone[]; advice: string[]; focus: string[]; score: number }
 export interface Photo { id: string; date: string; pose: 'face' | 'profil' | 'dos'; weight?: number; analysis?: Analysis; url: string | null }
@@ -57,7 +57,7 @@ export const forme = {
   overview: () => call<Overview>('/api/forme'),
   profile: (p: Partial<Profile>) => post<{ profile: Profile; targets: Targets }>('/api/forme/profile', p),
   swipe: () => call<{ meals: SwipeMeal[] }>('/api/forme/swipe'),
-  makeWeek: (force = false, monday?: string) => post<{ week: Week }>('/api/forme/week', { force, monday }),
+  makeWeek: (force = false, monday?: string, wishes?: string) => post<{ week: Week }>('/api/forme/week', { force, monday, wishes }),
   shopping: () => call<House>('/api/forme/shopping'),
   shop: (key: string, checked: boolean, home = false) => post<House>('/api/forme/shop', { key, checked, home }),
   fav: (recipe: Recipe, on: boolean) => post<{ favs: Array<Recipe & { savedAt: number }> }>('/api/forme/fav', { recipe, on }),

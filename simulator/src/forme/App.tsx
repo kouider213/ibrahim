@@ -171,7 +171,9 @@ export default function App() {
   const standalone = (() => { try { return matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true; } catch { return false; } })();
   const [notifState, setNotifState] = useState<string>(() => { try { if (localStorage.getItem('forme:notif-dismissed')) return 'dismissed'; } catch { /* */ } return typeof Notification !== 'undefined' ? Notification.permission : 'default'; });
   const toast = useCallback((t: string) => { setToastText(t); setTimeout(() => setToastText(x => x === t ? null : x), 2600); }, []);
-  const load = useCallback(() => forme.overview().then(x => { setO(x); setErr(''); }).catch(e => { const m = errText(e); if (/^API 40[13]|token|auth|Lien expiré/i.test(m)) { if (formeToken()) { try { localStorage.removeItem(FORME_TOKEN); history.replaceState(null, '', location.pathname); } catch { /* */ } } else setDeviceToken(null); setAuthed(false); setErr(m); } else setErr(m); }), []);
+  const load = useCallback(() => forme.overview().then(x => { setO(x); setErr(''); }).catch(e => { const raw = e instanceof Error ? e.message : ''; const m = errText(e);
+    // On n'efface le lien de sa femme QUE si le serveur dit vraiment « Lien expiré » (401) — jamais sur une panne réseau/serveur
+    if (formeToken() ? /^API 401/.test(raw) && /Lien expiré/.test(m) : /^API 40[13]/.test(raw)) { if (formeToken()) { try { localStorage.removeItem(FORME_TOKEN); history.replaceState(null, '', location.pathname); } catch { /* */ } } else setDeviceToken(null); setAuthed(false); setErr(m); } else setErr(m); }), []);
   useEffect(() => { if (authed) void load(); }, [authed, load]);
   // Abonnement aux notifications ré-envoyé à chaque ouverture depuis l'icône (le serveur garde toujours le bon)
   useEffect(() => { if (!o || embedded || !standalone) return; try { if (typeof Notification !== 'undefined' && Notification.permission === 'granted') void enablePush().catch(() => {}); } catch { /* */ } }, [o?.uid]); // eslint-disable-line react-hooks/exhaustive-deps

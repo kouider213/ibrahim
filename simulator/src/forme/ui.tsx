@@ -115,7 +115,7 @@ export function Toast({ text }: { text: string | null }) {
 export function Img({ src, style, alt = '' }: { src?: string | null; style?: CSSProperties; alt?: string }) {
   const [bad, setBad] = useState(false);
   useEffect(() => setBad(false), [src]);
-  return src && !bad ? <img src={src} alt={alt} loading="lazy" onError={() => setBad(true)} style={{ objectFit: 'cover', display: 'block', background: F.bg2, ...style }} />
+  return src && !bad ? <img src={src} alt={alt} loading="lazy" draggable={false} onError={() => setBad(true)} style={{ objectFit: 'cover', display: 'block', background: F.bg2, ...style }} />
     : <div style={{ background: `linear-gradient(135deg, ${F.soft}, ${F.bg2})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, ...style }}>🛒</div>;
 }
 
