@@ -73,7 +73,7 @@ export function Chip({ on, children, onClick, color = F.accent }: { on?: boolean
   return <button onClick={onClick} style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 999, border: `1px solid ${on ? color : F.line}`, background: on ? color : '#fff', color: on ? '#fff' : F.ink, fontWeight: 700, fontSize: 13.5, fontFamily: F.sans, cursor: 'pointer', whiteSpace: 'nowrap' }}>{children}</button>;
 }
 
-export function Sheet({ open, onClose, children, title }: { open: boolean; onClose: () => void; children: ReactNode; title?: ReactNode }) {
+export function Sheet({ open, onClose, children, title, z = 50 }: { open: boolean; onClose: () => void; children: ReactNode; title?: ReactNode; z?: number }) {
   useEffect(() => {
     if (!open) return;
     const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -84,7 +84,7 @@ export function Sheet({ open, onClose, children, title }: { open: boolean; onClo
     <AnimatePresence>
       {open && (
         <motion.div key="bg" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(30,15,10,0.45)', zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          style={{ position: 'fixed', inset: 0, background: 'rgba(30,15,10,0.45)', zIndex: z, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 30, stiffness: 300 }}
             onClick={e => e.stopPropagation()}
             style={{ width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', background: F.bg, borderRadius: '28px 28px 0 0', padding: '10px 18px calc(28px + env(safe-area-inset-bottom))', fontFamily: F.sans, color: F.ink, boxSizing: 'border-box' }}>

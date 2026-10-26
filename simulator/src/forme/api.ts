@@ -34,6 +34,8 @@ export interface Overview {
   favs: Array<Recipe & { savedAt: number }>;
 }
 export interface AgendaDay { date: string; rest: boolean; sport: { label: string; time?: string; custom?: string; done: boolean } | null; meals: Array<{ slot: string; title: string; key: string; eaten: boolean }>; injection: { hour: string; site: string; done: boolean } | null; reminders: Array<{ time: string; label: string }>; fasting: boolean }
+export interface LibItem { id: string; name: string; fr: string; p: string[]; s: string[]; eq: string; level: string; cat: string; img: string[] }
+export interface LibDetail extends LibItem { steps: string[]; mistakes: string[]; breathing: string }
 export interface SwipeMeal { id: string; name: string; cat: string; area: string; photo: string }
 export interface Product { code: string; name: string; brand: string | null; img: string | null; stores: string[]; kcal: number | null; p: number | null }
 export interface Barcode { code: string; name: string; brand: string | null; img: string | null; quantity: string | null; serving: string | null; per100: { kcal: number | null; p: number | null; c: number | null; f: number | null; sugar: number | null; fiber: number | null }; halal: string; haram: boolean }

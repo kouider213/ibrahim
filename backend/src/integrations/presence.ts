@@ -353,6 +353,14 @@ export function onLocationUpdate(): void {
   void jobPresenceWatch().catch(err => console.error('[presence]', err instanceof Error ? err.message : err));
 }
 
+/** Position GPS récente (≤ 30 min) hors de la maison ? → il est debout (contrôle de réveil évité, Kouider 26/10). */
+export async function kouiderOutSince(from: number): Promise<string | null> {
+  const loc = await getLocation('kouider').catch(() => null);
+  if (!loc || Date.parse(loc.updated_at) < Math.max(from, Date.now() - 30 * 60_000)) return null;
+  const place = classify(loc, await places(), (await getState()).place);
+  return place === 'home' ? null : place === 'gym' ? 'à la salle' : place === 'work' ? 'au travail' : 'sur la route';
+}
+
 export async function jobPresenceWatch(): Promise<void> {
   if (running) return;
   running = true; lastTick = Date.now();

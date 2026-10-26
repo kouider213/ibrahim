@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch, type SportOverview, type SportSession, type SportExercise } from '../services/api.ts';
 import { errText, SHORT_DAYS, dayOf, vibrate, forme, type ProgramView } from './api.ts';
-import { F, Title, Section, card, darkCard, btn, ghostBtn, Img, Ring, Bar, Spinner, Sheet } from './ui.tsx';
+import { F, Title, Section, card, darkCard, btn, ghostBtn, Img, Ring, Bar, Spinner } from './ui.tsx';
+import { ExerciseSheet, ExerciseLibrary } from './Exercises.tsx';
 
 // Onglet SPORT : les séances que Dzaryx cale déjà sur l'agenda (sport-coach.ts), avec un vrai mode séance :
 // démo animée de chaque exercice, charges conseillées, minuteur de repos, records. Fin de séance → Dzaryx est prévenu.
@@ -13,6 +14,19 @@ export function Demo({ ex, style }: { ex: { demo: string[]; name: string }; styl
   const [f, setF] = useState(0);
   useEffect(() => { if (ex.demo.length < 2) return; const t = setInterval(() => setF(x => 1 - x), 900); return () => clearInterval(t); }, [ex.demo.length]);
   return <Img src={ex.demo[f] ?? ex.demo[0]} alt={ex.name} style={{ background: '#fff', objectFit: 'contain', ...style }} />;
+}
+
+/** 📚 Bouton « Tous les exercices » (bibliothèque avec muscles et fiches). */
+function LibButton() {
+  const [open, setOpen] = useState(false);
+  return <>
+    <button onClick={() => setOpen(true)} style={{ ...card, width: '100%', display: 'flex', gap: 12, alignItems: 'center', marginTop: 14, border: 'none', cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit', color: F.ink }}>
+      <span style={{ fontSize: 26 }}>📚</span>
+      <div style={{ flex: 1 }}><div style={{ fontWeight: 800 }}>Tous les exercices</div><div style={{ fontSize: 12.5, color: F.muted, marginTop: 2 }}>800 exercices : comment les faire et les muscles qu'ils travaillent</div></div>
+      <span style={{ color: F.accent, fontWeight: 900 }}>›</span>
+    </button>
+    <ExerciseLibrary open={open} onClose={() => setOpen(false)} />
+  </>;
 }
 
 export function beep() {
@@ -58,6 +72,7 @@ type SetRow = { kg: string; reps: string; done: boolean };
 type SaveFn = (sets: Array<{ ex: string; kg?: number; reps?: number }>, durationMin: number, rpe: number) => Promise<string>;
 function Player({ s, onClose, onFinished, save: saveFn }: { s: SportSession; onClose: () => void; onFinished: (msg: string) => void; save: SaveFn }) {
   const [i, setI] = useState(0);
+  const [how, setHow] = useState(false);
   const [rows, setRows] = useState<Record<string, SetRow[]>>(() => Object.fromEntries(s.exercises.map(e => [e.id, Array.from({ length: e.sets }, () => ({ kg: e.suggestion.kg ? String(e.suggestion.kg) : '', reps: String(parseInt(e.reps) || ''), done: false }))])));
   const [rest, setRest] = useState<number | null>(null);
   const [finish, setFinish] = useState(false);
@@ -106,11 +121,15 @@ function Player({ s, onClose, onFinished, save: saveFn }: { s: SportSession; onC
                 <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', marginTop: 2 }}>{ex.name}</div>
                 <div style={{ fontSize: 14, color: F.muted, marginTop: 6, lineHeight: 1.4 }}>💡 {ex.tip}</div>
                 {ex.suggestion.kg != null && <div style={{ fontSize: 13.5, fontWeight: 700, marginTop: 8, color: ex.suggestion.up ? F.green : F.ink }}>{ex.suggestion.up ? '📈 On monte : ' : 'Charge conseillée : '}{ex.suggestion.kg} kg{ex.suggestion.last ? ` (dernière fois ${ex.suggestion.last})` : ''}</div>}
-                <a href={ex.video} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 8, fontSize: 13, fontWeight: 700, color: F.blue }}>▶ Voir la technique en vidéo</a>
+                <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+                  <button onClick={() => setHow(true)} style={{ background: 'none', border: 'none', padding: 0, fontSize: 13.5, fontWeight: 800, color: F.accent, cursor: 'pointer', fontFamily: 'inherit' }}>ⓘ Comment faire · muscles</button>
+                  <a href={ex.video} target="_blank" rel="noreferrer" style={{ fontSize: 13, fontWeight: 700, color: F.blue }}>▶ Vidéo</a>
+                </div>
               </div>
             </div>
           </motion.div>
         </AnimatePresence>
+        <ExerciseSheet session={how ? ex : null} onClose={() => setHow(false)} z={70} />
         {rest != null && <div style={{ marginTop: 12 }}><RestTimer key={`${i}-${totalDone}`} seconds={rest} onDone={endRest} onSkip={endRest} /></div>}
         <div style={{ ...card, marginTop: 12, padding: '6px 12px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 1fr 52px', gap: 8, fontSize: 11.5, fontWeight: 800, color: F.muted, padding: '6px 0' }}><div>SÉRIE</div><div>KG</div><div>{ex.timed ? 'SEC' : 'REPS'}</div><div /></div>
@@ -218,13 +237,8 @@ export default function SportScreen({ toast }: { toast: (t: string) => void }) {
           {d.stats.prs.slice(0, 6).map(p => <div key={p.ex} style={{ ...card, padding: 12 }}><div style={{ fontSize: 22, fontWeight: 900, color: F.accent }}>{p.kg} kg</div><div style={{ fontSize: 13, fontWeight: 700 }}>{p.ex}</div><div style={{ fontSize: 11.5, color: F.muted }}>{p.reps ? `${p.reps} reps · ` : ''}{p.date.slice(8)}/{p.date.slice(5, 7)}</div></div>)}
         </div>
       </>}
-      <Sheet open={!!ex} onClose={() => setEx(null)} title={ex?.name}>
-        {ex && <>
-          <div style={{ ...card, padding: 0, overflow: 'hidden' }}><Demo ex={ex} style={{ width: '100%', height: 260 }} /></div>
-          <div style={{ ...card, marginTop: 12, fontSize: 14.5, lineHeight: 1.5 }}><b>{ex.sets} × {ex.reps}</b> · repos {ex.rest} s<br />💡 {ex.tip}{ex.alt.length ? <><br />🔁 Variantes : {ex.alt.join(', ')}</> : null}</div>
-          <a href={ex.video} target="_blank" rel="noreferrer" style={{ ...ghostBtn, display: 'block', textAlign: 'center', marginTop: 12, textDecoration: 'none' }}>▶ Vidéos de la technique</a>
-        </>}
-      </Sheet>
+      <ExerciseSheet session={ex} onClose={() => setEx(null)} />
+      <LibButton />
       {play && <Player s={play} onClose={() => setPlay(null)} onFinished={msg => { setPlay(null); toast(msg); void load(); }} save={async (sets, durationMin, rpe) => {
         const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date: d.week[0]?.date ?? play.date, type: play.type, sets, durationMin, rpe }) });
         return `💪 Séance enregistrée${r.prs.length ? ` — 🏆 record : ${r.prs.join(', ')}` : ''} · Dzaryx est prévenu`;
@@ -290,13 +304,8 @@ export function ProgramSport({ toast }: { toast: (t: string) => void }) {
       <Section a="Toutes" b="les séances" />
       <div style={{ ...card, padding: '4px 14px' }}>{d.sessions.map((x, i) => <div key={i} style={{ padding: '10px 0', borderBottom: i < d.sessions.length - 1 ? `1px solid ${F.line}` : 'none', fontSize: 14.5 }}>{x.emoji} <b>{x.label}</b> <span style={{ color: F.muted }}>· {x.focus}</span></div>)}</div>
       <button disabled={busy} onClick={async () => { if (!confirm('Refaire un nouveau programme ?')) return; setBusy(true); try { setD(await forme.newProgram()); } catch (e) { toast(errText(e)); } finally { setBusy(false); } }} style={{ ...ghostBtn, width: '100%', marginTop: 12, display: 'flex', justifyContent: 'center', gap: 8 }}>{busy ? <><Spinner size={16} /> …</> : '🔄 Nouveau programme'}</button>
-      <Sheet open={!!ex} onClose={() => setEx(null)} title={ex?.name}>
-        {ex && <>
-          <div style={{ ...card, padding: 0, overflow: 'hidden' }}><Demo ex={ex} style={{ width: '100%', height: 260 }} /></div>
-          <div style={{ ...card, marginTop: 12, fontSize: 14.5, lineHeight: 1.5 }}><b>{ex.sets} × {ex.reps}</b> · {ex.rest} s<br />💡 {ex.tip}{ex.alt.length ? <><br />🔁 {ex.alt.join(', ')}</> : null}</div>
-          <a href={ex.video} target="_blank" rel="noreferrer" style={{ ...ghostBtn, display: 'block', textAlign: 'center', marginTop: 12, textDecoration: 'none' }}>▶ Vidéos de la technique</a>
-        </>}
-      </Sheet>
+      <ExerciseSheet session={ex} onClose={() => setEx(null)} />
+      <LibButton />
       {play && s && <Player s={s} onClose={() => setPlay(false)} onFinished={msg => { setPlay(false); toast(msg); void load(); }} save={async (sets, durationMin, rpe) => {
         await forme.log('workout', { session: s.index, label: s.label, sets, durationMin, rpe });
         return '💪 Séance enregistrée';

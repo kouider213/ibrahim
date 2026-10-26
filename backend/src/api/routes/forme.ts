@@ -7,6 +7,7 @@ import {
   type FormeProfile, type BodyPhoto, type Uid,
 } from '../../integrations/forme.js';
 import type { PushSubscription } from 'web-push';
+import { exerciseLibrary, exerciseDetail, matchExercise } from '../../integrations/exercise-lib.js';
 import { gamesBoard, submitScore, roomAction, roomPeek, getIsland, islandAction } from '../../integrations/couple-games.js';
 
 // App « FORME » (sport + nutrition + suivi du corps) : page de l'app Dzaryx et appli à part sur l'écran d'accueil.
@@ -80,6 +81,17 @@ router.post('/shop-del', async (req, res) => {
 });
 
 // POST /api/forme/swap { monday, recipe, wish? } — une autre recette, macros proches
+// Bibliothèque d'exercices : GET /exlib (liste), /exlib/:id (fiche), /exlib-match?name= (exercice d'une séance → fiche)
+router.get('/exlib', async (_req, res) => {
+  try { res.set('Cache-Control', 'private, max-age=3600'); res.json({ items: await exerciseLibrary() }); } catch (err) { fail(res, err); }
+});
+router.get('/exlib-match', async (req, res) => {
+  try { res.json({ ex: await matchExercise(String(req.query.name ?? '').slice(0, 100)) }); } catch (err) { fail(res, err); }
+});
+router.get('/exlib/:id', async (req, res) => {
+  try { const ex = await exerciseDetail(String(req.params.id).slice(0, 100)); if (!ex) { res.status(404).json({ error: 'exercice inconnu' }); return; } res.json({ ex }); } catch (err) { fail(res, err); }
+});
+
 router.post('/swap', async (req, res) => {
   const b = req.body as { monday?: string; recipe?: string; wish?: string };
   try { res.json({ week: await swapRecipe(U(req), isDate(b.monday) ? b.monday : '', String(b.recipe ?? ''), String(b.wish ?? '').slice(0, 120)) }); } catch (err) { fail(res, err); }

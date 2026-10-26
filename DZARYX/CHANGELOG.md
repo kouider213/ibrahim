@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-26 (suite) — FORME : fiches exercices + bibliothèque, réveil sauté si déjà debout (app v189)
+- `exercise-lib.ts` (nouveau) + `/api/forme/exlib`, `/exlib/:id`, `/exlib-match` : ~817 exercices free-exercise-db (domaine public), noms FR (Haiku, `sport:exlib:names:fr`), fiche FR étapes/erreurs/respiration (`sport:exlib:fr:<id>`), exercice de séance → fiche la plus proche (`sport:exlib:match`).
+- `forme/Exercises.tsx` (nouveau) : fiche exercice (démo animée, schéma du corps face/dos muscles principaux rouge / secondaires orange — SVG wger.de CC BY-SA dans `public/muscles/`, étapes, erreurs à éviter) + bibliothèque « 📚 Tous les exercices » filtrée par muscle + recherche ; ouverte depuis la liste des exercices et pendant la séance (« ⓘ Comment faire · muscles »), pour Kouider et Fatima. `Sheet` accepte `z`.
+- `morning-routine.ts` : plus de « tu es réveillé ? » ni d'appel s'il a déjà parlé à Dzaryx depuis 4 h ou si son GPS (≤ 30 min) le place hors de la maison (`presence.kouiderOutSince`) — message de motivation quand même, sans question. `set_day` : séance déplacée → réveil et départ suivent avec les mêmes écarts (26/10 : séance 6h mais réveil resté à 6h40).
+
 ## 2026-10-26 — FORME : Fatima ne doit plus se reconnecter, envies de la semaine, glisser un plat (app v188)
 - `forme.ts` / `routes/forme.ts` : une erreur Supabase en lisant le lien de Fatima renvoie 503 (réessaie) au lieu de 401 « Lien expiré » ; 1 nouvel essai après 400 ms.
 - `forme/App.tsx` : le lien de Fatima n'est effacé du téléphone QUE sur un vrai 401 « Lien expiré » (avant : tout message contenant token/auth, ou une panne serveur, effaçait le lien → reconnexion).

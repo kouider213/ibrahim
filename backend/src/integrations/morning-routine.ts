@@ -223,11 +223,12 @@ export async function motivationLines(cfg: RoutineConfig, plan: DayPlan, date: s
   ].join('\n');
 }
 
-async function sendWakeMessage(cfg: RoutineConfig, plan: DayPlan, date: string, test = false): Promise<string> {
+async function sendWakeMessage(cfg: RoutineConfig, plan: DayPlan, date: string, test = false, up = ''): Promise<string> {
   const { tripNudges } = await import('./trips.js');
   const [motivation, nudges] = await Promise.all([motivationLines(cfg, plan, date), tripNudges().catch(() => '')]);
   const head = test
     ? `☀️ (Test) Message du matin de Dzaryx :`
+    : up ? `☀️ Bonjour Kouider ! Je vois que tu es déjà debout (${up}) 💪 Pas d'appel de réveil aujourd'hui.`
     : plan.kind === 'sport'
       ? `☀️ Bonjour Kouider, il est ${hm(Date.now())}. Tu es réveillé ? Réponds-moi avec ta forme de 1 à 5 (1 = crevé, 5 = au top) : j'adapte ta séance. Sinon je t'appelle dans ${cfg.callAfterMin} min.`
       : `☀️ Bonjour Kouider, il est ${hm(Date.now())}. Tu es réveillé ? Réponds-moi (un mot suffit) — sinon je t'appelle dans ${cfg.callAfterMin} min.`;
@@ -270,6 +271,17 @@ export async function jobMorningRoutine(): Promise<void> {
   const now = toMin(hhmm), wake = toMin(plan.wake);
   if (!st.sentAt) {
     if (now < wake || now > wake + 60) return;
+    // Déjà debout (il m'a parlé depuis 4 h, GPS hors de la maison, séance déjà notée) : pas de « tu es réveillé ? » ni d'appel (Kouider 26/10)
+    const from = localTs(date, '04:00');
+    const up = await lastKouiderActivity() >= from ? 'il a déjà parlé à Dzaryx ce matin'
+      : await (await import('./presence.js')).kouiderOutSince(from).catch(() => null);
+    if (up) {
+      st.sentAt = st.awakeAt = Date.now();
+      await saveState(date, st);
+      await sendWakeMessage(cfg, plan, date, false, up).catch(e => console.error('[routine] message (debout):', e));
+      console.log(`[routine] réveil sauté (${date} ${hhmm}) : déjà debout — ${up}`);
+      return;
+    }
     st.sentAt = Date.now();
     await saveState(date, st);                     // avant l'envoi : jamais deux messages même si l'IA est lente
     await sendWakeMessage(cfg, plan, date);
@@ -437,6 +449,14 @@ export async function morningRoutineTool(input: Record<string, unknown>, session
     if (isHHMM(input['eat'])) p.eat = input['eat'];
     if (typeof input['next'] === 'string') p.next = input['next'];
     if (p.kind === 'sport' && !p.sport) p.sport = ['07:00', '08:00'];
+    // Séance déplacée sans nouveaux réveil/départ : ils suivent avec les mêmes écarts (avant : réveil 6h40 pour une séance à 6h, 26/10)
+    const old = c.days[d]!;
+    if (p.kind === 'sport' && p.sport && old.sport && old.wake && old.leave && p.sport[0] !== old.sport[0] && !isHHMM(input['wake']) && !isHHMM(input['leave'])) {
+      const fmt = (m: number) => `${String(Math.floor(((m % 1440) + 1440) % 1440 / 60)).padStart(2, '0')}:${String(((m % 60) + 60) % 60).padStart(2, '0')}`;
+      const s0 = toMin(p.sport[0]);
+      p.leave = fmt(s0 - (toMin(old.sport[0]) - toMin(old.leave)));
+      p.wake = fmt(toMin(p.leave) - (toMin(old.leave) - toMin(old.wake)));
+    }
     const days = [...c.days]; days[d] = p;
     const next = { ...c, days };
     await saveConfig(next);
