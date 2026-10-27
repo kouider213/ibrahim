@@ -17,6 +17,14 @@ export interface HealthDay { date: string; sleep_h?: number; steps?: number; rhr
 const num = (v: unknown) => { const n = Number(String(v ?? '').replace(',', '.').replace(/[^\d.]/g, '')); return Number.isFinite(n) && n > 0 ? n : undefined; };
 
 export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok: true; note: string }> {
+  // Raccourci fait par « Décrire un raccourci » (Apple) : les valeurs arrivent souvent en texte libre (champ data, résumé…)
+  // → Haiku en tire les chiffres. Les champs déjà numériques restent prioritaires.
+  if (!['sleep_h', 'steps', 'rhr', 'hrv'].some(k => num(body[k]) !== undefined)) {
+    const raw = JSON.stringify(body).slice(0, 6000);
+    const { ai, jsonOf } = await import('./ai-util.js');
+    const o = jsonOf<Record<string, number>>(await ai(`Données de santé d'un iPhone (format libre, français ou anglais) :\n${raw}\n\nExtrais : heures de sommeil de la dernière nuit (total, en heures), nombre de pas d'hier ou du jour, fréquence cardiaque au repos (bpm), variabilité de la fréquence cardiaque (ms). Additionne les échantillons si besoin. Réponds UNIQUEMENT : {"sleep_h":0,"steps":0,"rhr":0,"hrv":0} (0 si absent).`, { max: 200 }).catch(() => '')) ?? {};
+    Object.assign(body, o);
+  }
   const date = String(body['date'] ?? localNow().date).slice(0, 10);
   // Le Raccourci peut envoyer le sommeil en heures ou en minutes
   let sleep = num(body['sleep_h'] ?? body['sleep'] ?? body['sommeil']);

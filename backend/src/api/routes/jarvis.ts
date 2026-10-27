@@ -1,4 +1,4 @@
-import { Router, type Request, type Response, type NextFunction } from 'express';
+import express, { Router, type Request, type Response, type NextFunction } from 'express';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { extractBearerToken, validateToken } from '../../auth/tokens.js';
 import { env } from '../../config/env.js';
@@ -99,8 +99,9 @@ router.post('/copilot/speak', async (req, res) => {
 });
 
 // Jarvis santé : le Raccourci iPhone envoie les données de Santé / Apple Watch
-router.post('/health', async (req, res) => {
-  try { res.json(await import('../../integrations/jarvis-hub.js').then(m => m.receiveHealth((req.body ?? {}) as Record<string, unknown>))); } catch (e) { fail(res, e); }
+router.post('/health', express.text({ type: 'text/*', limit: '1mb' }), async (req, res) => {
+  const body = typeof req.body === 'string' ? { data: req.body } : (req.body ?? {}) as Record<string, unknown>;   // corps en texte simple accepté
+  try { res.json(await import('../../integrations/jarvis-hub.js').then(m => m.receiveHealth(body))); } catch (e) { fail(res, e); }
 });
 router.get('/health', async (_req, res) => {
   try { res.json({ text: await import('../../integrations/jarvis-hub.js').then(m => m.healthText(14)) }); } catch (e) { fail(res, e); }
