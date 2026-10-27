@@ -80,24 +80,27 @@ export function createDzaryxFace() {
     ctx.fillStyle = gb; ctx.fillRect(x0, y0 + h * 0.8, w, h * 0.2 + 2);
   }
 
-  // VRAIES vidéos IA (Kling 3, générées une fois le 27/10 à partir de la même image) : « il écoute » en boucle,
-  // fondu vers « il parle » dès que sa voix joue. Tant qu'elles ne sont pas prêtes : l'image animée ci-dessous.
+  // VRAIES vidéos IA (Kling 3, générées une fois le 27/10 à partir de la même image), en PLANCHES D'IMAGES (pas de
+  // <video> : sur iPhone une vidéo qui joue coupe le micro — Kouider 27/10 « quand je parle il n'écoute pas »).
+  // « il écoute » = aller-retour en boucle ; « il parle » = à chaque pas on choisit l'image dont la bouche est ouverte
+  // comme le VOLUME de sa voix à cet instant (ouverture mesurée image par image) → les lèvres suivent le son.
   const base = ((import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL) ?? '/ibrahim/';
-  const mkVideo = (name: string) => {
-    const v = document.createElement('video');
-    v.src = `${base}${name}`; v.muted = true; v.loop = true; v.playsInline = true; v.autoplay = true; v.preload = 'auto';
-    v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
-    v.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:0;top:0';
-    document.body.appendChild(v);
-    void v.play().catch(() => {});
-    return v;
+  const FW = 240, FH = 373, NF = 60, COLS = 10, F_EYE: [number, number] = [114.3, 191.0], F_DIST = 92.5;
+  const OPEN = [0.03, 0.04, 0.05, 0.08, 0.05, 0.05, 0.06, 0.06, 0.05, 0.06, 0.05, 0.06, 0.05, 0.06, 0.3, 0.44, 0.6, 0.61, 0.63, 0.64,
+    0.71, 0.75, 0.62, 0.68, 0.68, 0.66, 0.73, 0.68, 0.47, 0.02, 0.49, 0.69, 0.92, 1.0, 0.0, 0.0, 0.66, 0.71, 0.95, 1.0, 0.43, 0.6,
+    0.81, 0.88, 0.78, 0.8, 1.0, 0.9, 0.78, 0.52, 0.01, 0.07, 0.54, 0.58, 0.43, 0.36, 0.15, 0.16, 0.13, 0.11];
+  const sheet = (name: string) => { const i = new Image(); i.src = `${base}${name}`; return i; };
+  const shTalk = sheet('dzaryx-talk.jpg'), shListen = sheet('dzaryx-listen.jpg');
+  const frame = document.createElement('canvas'); frame.width = FW; frame.height = FH;
+  let talkMix = 0, lastVoice = 0, lastStep = 0, fTalk = 0, fListen = 0, dirListen = 1, level = 0;
+  const pickTalk = (target: number) => {   // image proche de la courante dont l'ouverture colle au volume
+    let best = fTalk, cost = 9;
+    for (let j = 0; j < NF; j++) {
+      const c = Math.abs(OPEN[j]! - target) + 0.035 * Math.abs(j - (fTalk + 1));
+      if (c < cost) { cost = c; best = j; }
+    }
+    return best;
   };
-  const vListen = mkVideo('dzaryx-listen.mp4'), vTalk = mkVideo('dzaryx-talk.mp4');
-  const kick = () => { void vListen.play().catch(() => {}); void vTalk.play().catch(() => {}); };
-  window.addEventListener('touchstart', kick, { passive: true }); window.addEventListener('click', kick);
-  // Repères dans les vidéos (540×840) : milieu des yeux, écart des yeux → même échelle que l'image
-  const V_EYE: [number, number] = [253.8, 447.1], V_EYE_DIST = 190.5, V_W = 540, V_H = 840;
-  let talkMix = 0, lastVoice = 0;
 
   let mouth = 0, nod = 0, lnod = 0, nextBlink = performance.now() + 2500, blinkT = -1e9;
 
@@ -107,18 +110,30 @@ export function createDzaryxFace() {
     const target = Math.pow(Math.min(1, Math.max(0, o.talk)), 0.75);
     mouth += (target - mouth) * (target > mouth ? 0.5 : 0.3);
     const s = t / 1000;
-    if (vListen.readyState >= 2 && vTalk.readyState >= 2 && glow) {
+    if (shTalk.complete && shListen.complete && shTalk.naturalWidth && shListen.naturalWidth && glow) {
+      level += (Math.min(1, o.talk * 1.7) - level) * 0.6;
       if (o.talk > 0.03) lastVoice = t;
-      talkMix += ((t - lastVoice < 450 ? 1 : 0) - talkMix) * 0.12;
-      if (vListen.paused || vTalk.paused) kick();
-      const kv = 0.85 * (2 * R) / (V_EYE_DIST * (FACE_H / (EYES[1][0] - EYES[0][0])));
-      const w = V_W * kv, h = V_H * kv;
-      const x0 = cx - V_EYE[0] * kv, y0 = cy - (V_EYE[1] + FACE_H * 0.12 * (V_EYE_DIST / (EYES[1][0] - EYES[0][0]))) * kv;
+      talkMix += ((t - lastVoice < 350 ? 1 : 0) - talkMix) * 0.18;
+      if (t - lastStep > 1000 / 14) {
+        lastStep = t;
+        fListen += dirListen;
+        if (fListen >= NF - 1 || fListen <= 0) dirListen = -dirListen;
+        fTalk = pickTalk(t - lastVoice < 350 ? level : 0);
+      }
+      const fc = frame.getContext('2d')!;
+      const blit = (img: HTMLImageElement, f: number, a: number) => {
+        fc.globalAlpha = a;
+        fc.drawImage(img, (f % COLS) * FW, Math.floor(f / COLS) * FH, FW, FH, 0, 0, FW, FH);
+      };
+      if (talkMix < 0.99) blit(shListen, fListen, 1);
+      if (talkMix > 0.01) blit(shTalk, fTalk, talkMix);
+      fc.globalAlpha = 1;
+      const kv = 0.85 * (2 * R) / (F_DIST * (FACE_H / (EYES[1][0] - EYES[0][0])));
+      const w = FW * kv, h = FH * kv;
+      const x0 = cx - F_EYE[0] * kv, y0 = cy - (F_EYE[1] + FACE_H * 0.12 * (F_DIST / (EYES[1][0] - EYES[0][0]))) * kv;
       ctx.save();
-      if (talkMix < 0.99) { ctx.globalAlpha = 1; ctx.drawImage(vListen, x0, y0, w, h); }
-      if (talkMix > 0.01) { ctx.globalAlpha = talkMix; ctx.drawImage(vTalk, x0, y0, w, h); }
-      ctx.globalAlpha = 1;
-      overlay(ctx, talkMix > 0.5 ? vTalk : vListen, x0, y0, w, h, s, kv, Math.max(mouth, talkMix * 0.5), 0.1);
+      ctx.drawImage(frame, x0, y0, w, h);
+      overlay(ctx, frame, x0, y0, w, h, s, kv, Math.max(mouth, talkMix * 0.5), 0.1);
       ctx.restore();
       return;
     }

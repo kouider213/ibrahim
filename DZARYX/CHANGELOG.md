@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-27 (suite 6) — Visage : micro rétabli + lèvres sur le son (app v194)
+- Kouider : en v193 « quand je parle il n'écoute pas » et lèvres pas synchronisées. Cause probable : les 2 `<video>` (même muettes) qui jouent coupent le micro sur iPhone → plus AUCUNE vidéo : planches d'images `public/dzaryx-talk.jpg` / `dzaryx-listen.jpg` (60 images 240×373 chacune, 12 i/s, ~1,1 Mo), mp4 supprimés.
+- Lèvres : ouverture de la bouche mesurée sur chaque image de « il parle » (dents visibles, tgcall/models YuNet) → table OPEN ; toutes les 70 ms l'app prend l'image dont l'ouverture colle au VOLUME réel de sa voix (getVoiceLevel), en restant proche de l'image courante.
+
 ## 2026-10-27 (suite 5) — Visage = VRAIES vidéos IA (Kling 3, ~1,12 $ une fois) dans l'app v193
 - Kouider (enregistrement 14h59) : en v192 la bouche « glisse » (lèvre dédoublée par la déformation d'image).
 - Studio (/api/studio, rendus 31ff1abc « il parle » + d2e41d7f « il écoute », 5 s, depuis public/dzaryx-face.jpg) → `public/dzaryx-talk.mp4` / `dzaryx-listen.mp4` (540×840, boucle aller-retour, sans son, ~1 Mo).
