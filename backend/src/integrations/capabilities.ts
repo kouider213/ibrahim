@@ -9,6 +9,7 @@ import { askJson, startDossierJob, type DocSpec, type Section } from './pro-doc.
 
 // Ordre important : la première catégorie qui correspond gagne.
 const CATEGORIES: Array<[string, RegExp]> = [
+  ['Jarvis : protocoles, mémoire photo, anti-arnaque, réunions', /^protocol$|^photo_memory$|^anti_arnaque$|^meetings$/],
   ['PC à distance (Nexus)', /nexus/],
   ['Code, sites et serveurs', /^github_|demo_site|railway|supabase_execute|netlify|code_task|new_project|site_file|health_check|site_analytics|set_site_hero/],
   ['Immobilier, ventes de véhicules et prospects', /propert|vehicles?_for_sale|vehicle_sale|vehicle_sold|vehicle_details|^list_packs|_pack|lead|prospect/],

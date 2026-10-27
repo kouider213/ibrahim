@@ -39,6 +39,7 @@ import PhoneCamScreen from './screens/PhoneCamScreen.tsx';
 import GlobeScreen from './screens/GlobeScreen.tsx';
 import FormeScreen from './screens/FormeScreen.tsx';
 import FennouScreen from './screens/FennouScreen.tsx';
+import JarvisScreen from './screens/JarvisScreen.tsx';
 import JeuxScreen from './screens/JeuxScreen.tsx';
 import { setSimActor, resumeWebPush, business, callApi, loginDevice, logoutDevice, setDeviceToken, getDeviceToken } from '../services/api.ts';
 
@@ -46,7 +47,7 @@ export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
   | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews' | 'blog' | 'devis' | 'reponse'
-  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'demarchage' | 'sites' | 'partners' | 'paiements' | 'studio' | 'carte' | 'nexus' | 'globe' | 'camera' | 'sport' | 'fennou' | 'jeux' | 'plus';
+  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'demarchage' | 'sites' | 'partners' | 'paiements' | 'studio' | 'carte' | 'nexus' | 'globe' | 'camera' | 'sport' | 'fennou' | 'jeux' | 'jarvis' | 'plus';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -63,6 +64,7 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'clients',       icon: '👥', label: 'CLIENTS' },
   { id: 'settings',      icon: '⚙️', label: 'CONFIG'  },
   // ── Menu "⋯ Plus" (outils) ──
+  { id: 'jarvis',        icon: '🦾', label: 'JARVIS',  kouiderOnly: true, group: 'tool' },
   { id: 'search',        icon: '🔍', label: 'CHERCHER', group: 'tool' },
   { id: 'jeux',          icon: '🎮', label: 'JEUX',    kouiderOnly: true, group: 'tool' },
   { id: 'fennou',        icon: '🦊', label: 'FENNOU',  kouiderOnly: true, group: 'tool' },
@@ -309,7 +311,7 @@ export default function Phone() {
   const actor = loggedActor ?? 'kouider';
 
   const houariOnlyPages: Page[] = [];
-  const kouiderOnlyPages: Page[] = ['jeux', 'fennou', 'documents', 'demarchage', 'sites', 'partners', 'paiements', 'studio', 'carte', 'camera'];
+  const kouiderOnlyPages: Page[] = ['jarvis', 'jeux', 'fennou', 'documents', 'demarchage', 'sites', 'partners', 'paiements', 'studio', 'carte', 'camera'];
 
   const safePage: Page = (() => {
     if (actor === 'houari' && kouiderOnlyPages.includes(page)) return 'voice';
@@ -354,6 +356,7 @@ export default function Phone() {
       case 'sport':         return <FormeScreen onExit={exitFennou} />;
       case 'fennou':        return <FennouScreen onExit={exitFennou} />;
       case 'jeux':          return <JeuxScreen onExit={exitFennou} />;
+      case 'jarvis':        return <JarvisScreen onAsk={(prompt) => { try { localStorage.setItem('dz:ask_prompt', prompt); } catch { /* ignore */ } setPage('text'); }} />;
       case 'carte':         return <CarteScreen actor={actor} startFull={carteLink} onOpen={(p) => setPage(p as Page)} onAsk={(prompt) => { try { localStorage.setItem('dz:ask_prompt', prompt); } catch { /* ignore */ } setPage('text'); }} />;
       case 'plus':          return <ToolsGrid onOpen={setPage} actor={actor} />;
       case 'documents':     return <DocumentsScreen />;

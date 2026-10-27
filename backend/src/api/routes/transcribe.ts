@@ -5,6 +5,25 @@ import { isOut, noteFailure } from '../../integrations/credit-guard.js';
 
 const router = Router();
 
+/** Transcription réutilisable (Souffleur, réunions, vocaux WhatsApp) : Groq → OpenAI → Gemini, langue libre par défaut. */
+export async function transcribeAudio(audio: string, mimeType: string, language?: string, neutral = false): Promise<{ text: string; provider: string }> {
+  // neutral : quelqu'un d'autre que Kouider parle (souffleur, vocal client) → pas de consigne « surtout du français »,
+  // sinon Whisper TRADUIT l'arabe en français au lieu de le transcrire (« dinar » devenait « $ »)
+  const chain: Array<{ key: string; fn: () => Promise<string> }> = [];
+  if (env.GROQ_API_KEY)   chain.push({ key: 'groq',      fn: () => transcribeWithGroq(audio, mimeType, language, neutral) });
+  if (env.OPENAI_API_KEY) chain.push({ key: 'openai-4o', fn: () => transcribeWithOpenAI(audio, mimeType) });
+  if (env.GEMINI_API_KEY) chain.push({ key: 'gemini',    fn: () => transcribeWithGemini(audio, mimeType) });
+  let lastErr = 'no STT provider configured';
+  for (const stt of chain) {
+    if (isOut(stt.key)) continue;
+    try { return { text: cleanTranscript(await stt.fn()), provider: stt.key }; } catch (err) {
+      lastErr = err instanceof Error ? err.message : String(err);
+      noteFailure(stt.key, err);
+    }
+  }
+  throw new Error(lastErr);
+}
+
 // POST /api/transcribe — base64 audio → text
 // provider: 'fast' (Groq d'abord, pour les appels) | 'google' (requires GOOGLE_SERVICE_ACCOUNT_JSON)
 router.post('/', requireMobileAuth, async (req, res) => {
@@ -54,6 +73,7 @@ async function transcribeWithOpenAI(audio: string, mimeType: string): Promise<st
   const ext = mimeType.includes('mp4') || mimeType.includes('m4a') ? 'm4a'
     : mimeType.includes('webm') ? 'webm'
     : mimeType.includes('wav') ? 'wav'
+    : mimeType.includes('ogg') || mimeType.includes('opus') ? 'ogg'
     : mimeType.includes('mpeg') || mimeType.includes('mp3') ? 'mp3'
     : 'm4a';
   const form = new FormData();
@@ -105,7 +125,7 @@ function cleanTranscript(t: string): string {
   return s;
 }
 
-async function transcribeWithGroq(audio: string, mimeType: string, language?: string): Promise<string> {
+async function transcribeWithGroq(audio: string, mimeType: string, language?: string, neutral = false): Promise<string> {
   const groqKey = env.GROQ_API_KEY;
   if (!groqKey) throw new Error('GROQ_API_KEY not configured');
 
@@ -113,6 +133,7 @@ async function transcribeWithGroq(audio: string, mimeType: string, language?: st
   const ext = mimeType.includes('mp4') || mimeType.includes('m4a') ? 'm4a'
     : mimeType.includes('webm') ? 'webm'
     : mimeType.includes('wav') ? 'wav'
+    : mimeType.includes('ogg') || mimeType.includes('opus') ? 'ogg'
     : 'm4a';
 
   const form = new FormData();
@@ -121,7 +142,9 @@ async function transcribeWithGroq(audio: string, mimeType: string, language?: st
   if (language) form.append('language', language);   // appels : français seul → moins d'erreurs
   // Pas de verrou de langue (français + darija oranaise mélangés).
   // Prompt COURT = contexte léger sans forcer des mots (un long lexique biaise Whisper → "comprend de travers").
-  form.append('prompt', 'Kouider parle surtout en français, parfois en arabe algérien. Transcris exactement ce qui est dit.');
+  // neutral = AUCUNE consigne (testé 27/10) : une consigne française fait TRADUIRE l'arabe (« dinar » → « $ »), une consigne
+  // arabe coupe un vocal français qui commence par « salam alaykoum » ; sans consigne, Whisper détecte bien les deux.
+  if (!neutral) form.append('prompt', 'Kouider parle surtout en français, parfois en arabe algérien. Transcris exactement ce qui est dit.');
   form.append('response_format', 'json');
 
   const resp = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {

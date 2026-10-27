@@ -941,6 +941,23 @@ PASSCODE_CMD = re.compile(r'^code secret\s*[:=]?\s*(\S.{1,40})$', re.I)
 
 
 OFFICE_EXT = ('.docx', '.xlsx', '.csv', '.txt')
+EDL_CMD = re.compile(r'[ée]tat|edl|d[ée]part|retour|inspection|lieux|livraison|rendu', re.I)
+
+
+def video_frames(path: str, n: int = 12) -> list[str]:
+    """État des lieux vidéo : n images réparties sur toute la vidéo (1280 px), en base64 JPEG."""
+    out = tempfile.mkdtemp(prefix='dzvid_')
+    try:
+        probe = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', path],
+                               capture_output=True, text=True, timeout=30)
+        dur = max(1.0, float(probe.stdout.strip() or 0))
+        subprocess.run(['ffmpeg', '-v', 'error', '-i', path, '-vf', f'fps={n / dur:.4f},scale=1280:-2', '-frames:v', str(n),
+                        '-q:v', '3', f'{out}/f%02d.jpg'], check=True, timeout=180)
+        return [base64.b64encode(f.read_bytes()).decode() for f in sorted(Path(out).glob('f*.jpg'))]
+    finally:
+        for f in Path(out).glob('*'):
+            f.unlink()
+        os.rmdir(out)
 
 
 def office_text(path: str, name: str) -> str:
@@ -1074,6 +1091,23 @@ async def on_message(_, msg: Message) -> None:
                 os.unlink(mp3); os.unlink(ogg)
             else:
                 await reply_out(msg, out)
+        elif (msg.video or (msg.document and (msg.document.mime_type or '').startswith('video/'))) and actor == speaker.OWNER:
+            # État des lieux en vidéo (27/10) : tour de la voiture + tableau de bord → images → état AVANT / APRÈS
+            caption = msg.caption or ''
+            if caption and not EDL_CMD.search(caption):
+                await msg.reply_text('🎥 Vidéo reçue. Si c\'est un état des lieux, renvoie-la avec un texte comme « départ Clio Benali » ou « retour 208 Karim ».')
+                return
+            await msg.reply_text('🎥 État des lieux vidéo : je regarde la voiture sous tous les angles et le tableau de bord (1 min environ)…')
+            await app.send_chat_action(uid, enums.ChatAction.TYPING)
+            path = await msg.download(file_name=tempfile.mktemp(prefix='dzvid_', suffix='.mp4'))
+            try:
+                frames = await asyncio.to_thread(video_frames, path)
+            finally:
+                os.unlink(path)
+            out = await api('/api/jarvis/inspection-frames', {'frames': [{'base64': f, 'mime': 'image/jpeg'} for f in frames],
+                                                              'caption': caption}, actor, 240)
+            for part in split_text(str(out.get('text') or out.get('error') or 'Analyse impossible.')):
+                await msg.reply_text(part)
         elif msg.photo or (msg.document and (msg.document.mime_type or '').startswith('image/')):
             await app.send_chat_action(uid, enums.ChatAction.TYPING)
             path = await msg.download(file_name=tempfile.mktemp(prefix='dzimg_', suffix='.jpg'))

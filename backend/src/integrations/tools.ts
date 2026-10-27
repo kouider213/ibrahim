@@ -2744,11 +2744,11 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'whatsapp_web',
-    description: "Le WHATSAPP BUSINESS de Kouider (+32 466 31 14 69), connecté au PC cloud : lire les messages des clients et leur RÉPONDRE après son accord. Chaque nouveau message non lu arrive tout seul avec une réponse proposée. action='unread' : non lus + réponses proposées. 'read' + chat : lire une discussion (la marque comme lue) — du plus ancien au plus récent, avec qui a écrit (CLIENT / TOI / RÉPONSE AUTO) et si le client attend encore une réponse. « Le dernier message reçu » = fais read sur la discussion la plus récente et donne le dernier message du CLIENT (jamais la réponse auto). « Le message juste avant » = le précédent dans la MÊME discussion (count plus grand pour remonter). 'photos' + chat (+ count, défaut 6) : RÉCUPÈRE les photos de la discussion (envoyées par le client ou par FIK), les ENVOIE à Kouider sur Telegram et te donne une description de chacune — pour « montre-moi les photos », « qu'est-ce qu'il a envoyé comme photo ? » ; ne dis jamais que tu ne peux pas les montrer. 'drafts' : réponses en attente. 'send' + chat (+ text, sinon la réponse proposée) : 1) SANS confirmed → relecture, demande « je l'envoie ? » ; 2) après son OUI clair seulement → confirmed:true avec le même chat et le même texte. 'send_file' + chat + file (+ text = légende) : envoyer une photo, une vidéo ou un document (contrat, devis PDF…) qui est dans les Téléchargements du PC cloud (voir cloud_pc action files) — même relecture puis confirmed:true. NUMÉRO DICTÉ OU ÉCRIT : « envoie un message / cette photo au 06 50 11 24 04 » → chat = le numéro en CHIFFRES (convertis les mots dictés : « zéro six cinquante… » → 0650…) ; 06/07 sans indicatif = France OU Algérie → l'outil te dit de demander (country='FR' ou 'DZ'). Un premier message à un numéro que KOUIDER te donne lui-même est autorisé (relecture puis oui). « Envoie cette photo à … » = send_file SANS file (ou file='photo') : la dernière photo qu'il t'a envoyée (Telegram 30 min / app 5 min) part, même relecture puis confirmed:true avec le nom de fichier rendu par la relecture. 'documents' + chat (+ count, défaut 3) : TÉLÉCHARGE les PDF / Word du client et les ENVOIE à Kouider sur Telegram (« ouvre le PDF qu'il m'a envoyé », « envoie-moi ses papiers »). 'save_client' + chat (+ name si Kouider le donne) : quand Kouider VALIDE la demande d'un client (« je valide », « c'est bon pour lui », « enregistre ses papiers ») → ses passeport / carte d'identité / permis (photos) et PDF vont dans son DOSSIER CLIENT, et son numéro est ENREGISTRÉ dans WhatsApp à son nom (lu sur la pièce d'identité) — direct, sans relecture. 'save_contact' + chat (numéro) + name : enregistrer un numéro dans les contacts WhatsApp. Jamais d'envoi en masse. 'status' : connecté ? 'connect' : donne un code pour (re)connecter WhatsApp. Pour « j'ai des messages WhatsApp ? », « qu'est-ce que Karim m'a écrit ? », « réponds-lui que… », « envoie la réponse ».",
+    description: "Le WHATSAPP BUSINESS de Kouider (+32 466 31 14 69), connecté au PC cloud : lire les messages des clients et leur RÉPONDRE après son accord. Chaque nouveau message non lu arrive tout seul avec une réponse proposée. action='unread' : non lus + réponses proposées. 'read' + chat : lire une discussion (la marque comme lue) — du plus ancien au plus récent, avec qui a écrit (CLIENT / TOI / RÉPONSE AUTO) et si le client attend encore une réponse. « Le dernier message reçu » = fais read sur la discussion la plus récente et donne le dernier message du CLIENT (jamais la réponse auto). « Le message juste avant » = le précédent dans la MÊME discussion (count plus grand pour remonter). 'photos' + chat (+ count, défaut 6) : RÉCUPÈRE les photos de la discussion (envoyées par le client ou par FIK), les ENVOIE à Kouider sur Telegram et te donne une description de chacune — pour « montre-moi les photos », « qu'est-ce qu'il a envoyé comme photo ? » ; ne dis jamais que tu ne peux pas les montrer. 'drafts' : réponses en attente. 'send' + chat (+ text, sinon la réponse proposée) : 1) SANS confirmed → relecture, demande « je l'envoie ? » ; 2) après son OUI clair seulement → confirmed:true avec le même chat et le même texte. 'send_file' + chat + file (+ text = légende) : envoyer une photo, une vidéo ou un document (contrat, devis PDF…) qui est dans les Téléchargements du PC cloud (voir cloud_pc action files) — même relecture puis confirmed:true. NUMÉRO DICTÉ OU ÉCRIT : « envoie un message / cette photo au 06 50 11 24 04 » → chat = le numéro en CHIFFRES (convertis les mots dictés : « zéro six cinquante… » → 0650…) ; 06/07 sans indicatif = France OU Algérie → l'outil te dit de demander (country='FR' ou 'DZ'). Un premier message à un numéro que KOUIDER te donne lui-même est autorisé (relecture puis oui). « Envoie cette photo à … » = send_file SANS file (ou file='photo') : la dernière photo qu'il t'a envoyée (Telegram 30 min / app 5 min) part, même relecture puis confirmed:true avec le nom de fichier rendu par la relecture. 'documents' + chat (+ count, défaut 3) : TÉLÉCHARGE les PDF / Word du client et les ENVOIE à Kouider sur Telegram (« ouvre le PDF qu'il m'a envoyé », « envoie-moi ses papiers »). 'save_client' + chat (+ name si Kouider le donne) : quand Kouider VALIDE la demande d'un client (« je valide », « c'est bon pour lui », « enregistre ses papiers ») → ses passeport / carte d'identité / permis (photos) et PDF vont dans son DOSSIER CLIENT, et son numéro est ENREGISTRÉ dans WhatsApp à son nom (lu sur la pièce d'identité) — direct, sans relecture. 'save_contact' + chat (numéro) + name : enregistrer un numéro dans les contacts WhatsApp. Jamais d'envoi en masse. 'status' : connecté ? 'connect' : donne un code pour (re)connecter WhatsApp. Pour « j'ai des messages WhatsApp ? », « qu'est-ce que Karim m'a écrit ? », « réponds-lui que… », « envoie la réponse ». MESSAGES VOCAUX : 'voice' + chat (+ count) = écouter les derniers vocaux du client → transcription (toutes langues) puis donne-lui le sens EN FRANÇAIS + une réponse proposée ; les nouveaux vocaux arrivent déjà transcrits. 'send_voice' + chat + text = répondre EN MESSAGE VOCAL (voix de Dzaryx, dans la langue du texte : écris le texte en arabe/darija si le client parle arabe) : relecture d'abord, puis confirmed:true après son oui.",
     input_schema: {
       type: 'object' as const,
       properties: {
-        action: { type: 'string', enum: ['unread', 'read', 'photos', 'documents', 'drafts', 'send', 'send_file', 'save_client', 'save_contact', 'status', 'connect'] },
+        action: { type: 'string', enum: ['unread', 'read', 'photos', 'documents', 'voice', 'send_voice', 'drafts', 'send', 'send_file', 'save_client', 'save_contact', 'status', 'connect'] },
         country: { type: 'string', description: "Pays du numéro s'il n'a pas d'indicatif : FR, DZ, BE, MA, TN…" },
         name: { type: 'string', description: 'Nom du client / du contact (save_client, save_contact)' },
         chat: { type: 'string', description: 'Nom du contact tel que dans WhatsApp, ou numéro' },
@@ -2758,6 +2758,50 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
         confirmed: { type: 'boolean', description: 'true seulement après le oui de Kouider sur la relecture' },
       },
       required: ['action'],
+    },
+  },
+  {
+    name: 'protocol',
+    description: "PROTOCOLES façon Jarvis : une phrase lance toute une suite d'actions. « lance le protocole départ Oran », « protocole panne », « protocole fin de journée » → action run (name, details = ce qu'il a précisé : quelle voiture, quel jour…), puis tu EXÉCUTES les étapes renvoyées avec tes outils (tout ce qui envoie / paie / annule / supprime : préparé puis son oui). 'list' : les protocoles existants. 'show' : les étapes d'un protocole. 'save' : créer ou modifier (« crée un protocole arrivée client : … ») avec name, steps (liste d'étapes claires, avec l'outil à utiliser si tu le sais), trigger (mots qui le déclenchent). 'delete'.",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action: { type: 'string', enum: ['list', 'show', 'run', 'save', 'delete'] },
+        name: { type: 'string' }, details: { type: 'string' }, trigger: { type: 'string' },
+        steps: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['action'],
+    },
+  },
+  {
+    name: 'photo_memory',
+    description: "MÉMOIRE PHOTOGRAPHIQUE : toutes les photos que Kouider t'a envoyées (depuis le 27/10/2026) sont rangées avec ce qu'on y voit, TOUT le texte lisible (plaques, kilométrage, essence, prix, numéros, noms, adresses), la date et l'endroit. Pour « c'était combien le compteur de la 208 la dernière fois ? », « le numéro sur la carte de visite d'hier ? », « où j'ai garé la Clio ? », « retrouve la photo du reçu de Benali », « la photo du garage de la semaine dernière ». query = mots utiles (marque, couleur, lieu, chiffre, type : reçu, carte de visite, tableau de bord…), date_from / date_to (AAAA-MM-JJ) si une période est dite (hier, la semaine dernière). Réponds avec la valeur lue + le lien de la photo + la date/le lieu.",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query: { type: 'string' }, date_from: { type: 'string' }, date_to: { type: 'string' }, limit: { type: 'number' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'anti_arnaque',
+    description: "ANTI-ARNAQUE : à utiliser DÈS que Kouider envoie (ou transfère) une preuve de paiement d'un client (capture BaridiMob, reçu CCP, virement, CIB) ou une pièce d'identité / un permis à vérifier, et quand il demande « c'est un vrai ? », « vérifie ce reçu ». action check (sur la photo qu'il vient d'envoyer) : chiffres retouchés, date impossible, même reçu déjà présenté, logiciel de retouche, papiers expirés ; client, expected_amount (montant attendu, ex. « 24 000 DA ») et phone (numéro du client) si tu les connais. 'report_number' (phone, reason) : signaler un numéro d'arnaqueur ; 'check_number' (phone) ; 'list_numbers'. Toujours rappeler de vérifier l'arrivée de l'argent dans SON appli avant de donner les clés.",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action: { type: 'string', enum: ['check', 'report_number', 'check_number', 'list_numbers'] },
+        client: { type: 'string' }, expected_amount: { type: 'string' }, phone: { type: 'string' }, reason: { type: 'string' },
+      },
+      required: ['action'],
+    },
+  },
+  {
+    name: 'meetings',
+    description: "RÉUNIONS, discussions écoutées en mode Souffleur et ENTRAÎNEMENTS à la négociation (page JARVIS de l'app) : compte rendu, décisions, qui a promis quoi, message de suivi, score de l'entraînement. Pour « c'était quoi la réunion avec Houari ? », « qu'est-ce que le garagiste m'a promis ? », « mon dernier entraînement ? ». query = mots (nom, sujet), vide = les dernières. Pour LANCER une réunion / un souffleur / un entraînement : dis à Kouider d'ouvrir la page JARVIS de l'app (menu Plus).",
+    input_schema: {
+      type: 'object' as const,
+      properties: { query: { type: 'string' }, limit: { type: 'number' } },
     },
   },
   {

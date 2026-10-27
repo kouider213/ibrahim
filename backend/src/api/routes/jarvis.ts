@@ -1,0 +1,69 @@
+import { Router, type Request, type Response, type NextFunction } from 'express';
+import { requireMobileAuth } from '../middleware/auth.js';
+import { extractBearerToken, validateToken } from '../../auth/tokens.js';
+import { env } from '../../config/env.js';
+import { startLive, souffleurTurn, meetingChunk, sparringTurn, endLive, type LiveKind } from '../../integrations/jarvis-live.js';
+
+// Page JARVIS de l'app (Souffleur, Réunion, Entraînement, Protocoles, État des lieux vidéo) + vidéos Telegram (tgcall).
+const router = Router();
+
+// Kouider seulement : app (jeton appareil) ou tgcall (jeton PC)
+function requireOwner(req: Request, res: Response, next: NextFunction): void {
+  const token = extractBearerToken(req);
+  if (token && validateToken(token, 'pc-agent')) {
+    req.mobileActor = { id: 'kouider', displayName: env.OWNER_NAME, ownerKey: 'kouider', role: 'owner' };
+    next(); return;
+  }
+  requireMobileAuth(req, res, () => {
+    if (req.mobileActor?.ownerKey === 'houari') { res.status(403).json({ error: 'réservé à Kouider' }); return; }
+    next();
+  });
+}
+router.use(requireOwner);
+
+const fail = (res: Response, e: unknown) => res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+const KINDS: LiveKind[] = ['souffleur', 'reunion', 'sparring'];
+
+router.post('/live/start', async (req, res) => {
+  const { kind, goal, lang, role } = req.body as { kind?: LiveKind; goal?: string; lang?: string; role?: string };
+  if (!kind || !KINDS.includes(kind)) { res.status(400).json({ error: 'kind = souffleur | reunion | sparring' }); return; }
+  try { res.json(await startLive(kind, { goal, lang, role })); } catch (e) { fail(res, e); }
+});
+
+router.post('/live/:id/audio', async (req, res) => {
+  const { audio, mime = 'audio/webm', kind } = req.body as { audio?: string; mime?: string; kind?: LiveKind };
+  if (!audio) { res.status(400).json({ error: 'audio requis' }); return; }
+  const id = String(req.params['id']);
+  try {
+    res.json(kind === 'souffleur' ? await souffleurTurn(id, audio, mime)
+      : kind === 'sparring' ? await sparringTurn(id, audio, mime)
+      : await meetingChunk(id, audio, mime));
+  } catch (e) { fail(res, e); }
+});
+
+router.post('/live/:id/end', async (req, res) => {
+  try { res.json(await endLive(String(req.params['id']))); } catch (e) { fail(res, e); }
+});
+
+router.get('/meetings', async (_req, res) => {
+  try {
+    const { kvGet } = await import('../../integrations/app-store.js');
+    res.json({ meetings: JSON.parse((await kvGet('meetings')) || '[]') });
+  } catch (e) { fail(res, e); }
+});
+
+router.get('/protocols', async (_req, res) => {
+  try { res.json({ protocols: await import('../../integrations/protocols.js').then(m => m.listProtocols()) }); } catch (e) { fail(res, e); }
+});
+
+// État des lieux vidéo : images déjà tirées de la vidéo (app : <video> + canvas ; Telegram : ffmpeg sur le VPS)
+router.post('/inspection-frames', async (req, res) => {
+  const { frames, caption = '' } = req.body as { frames?: Array<{ base64: string; mime?: string }>; caption?: string };
+  if (!Array.isArray(frames) || !frames.length) { res.status(400).json({ error: 'frames requis' }); return; }
+  try {
+    const { inspectFromFrames } = await import('../../integrations/video-inspection.js');
+    res.json(await inspectFromFrames(frames.slice(0, 16).map(f => ({ base64: f.base64.replace(/^data:[^,]+,/, ''), mime: f.mime ?? 'image/jpeg' })), String(caption)));
+  } catch (e) { fail(res, e); }
+});
+
+export default router;

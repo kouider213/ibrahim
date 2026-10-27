@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { v2 as cloudinary } from 'cloudinary';
 import { env } from '../config/env.js';
 import { createAnthropic, QUALITY } from './anthropic-compat.js';
@@ -47,7 +48,30 @@ export async function uploadInspectionPhoto(
     const up = await cloudinary.uploader.upload(dataUri, { folder });
     return up.secure_url;
   } catch (e) {
-    console.error('[inspection-core] cloudinary upload error:', e);
+    console.error('[inspection-core] cloudinary upload error:', e instanceof Error ? e.message : (e as { message?: string })?.message ?? e);
+    return uploadToSupabase(base64, mime, folder);
+  }
+}
+
+// 27/10/2026 : compte Cloudinary désactivé (« cloud_name is disabled ») → photos rangées dans Supabase Storage
+// (bucket public « media », chemin aléatoire non devinable, comme les liens Cloudinary).
+let bucketReady = false;
+async function uploadToSupabase(base64: string, mime: string, folder: string): Promise<string | null> {
+  try {
+    const { supabase } = await import('./supabase.js');
+    if (!bucketReady) {
+      const { data } = await supabase.storage.getBucket('media');
+      if (!data) await supabase.storage.createBucket('media', { public: true });
+      bucketReady = true;
+    }
+    const raw = base64.replace(/^data:[^,]+,/, '');
+    const ext = mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp' : 'jpg';
+    const path = `${folder}/${new Date().toISOString().slice(0, 10)}/${randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from('media').upload(path, Buffer.from(raw, 'base64'), { contentType: mime, upsert: false });
+    if (error) throw error;
+    return supabase.storage.from('media').getPublicUrl(path).data.publicUrl;
+  } catch (e) {
+    console.error('[inspection-core] supabase upload error:', e instanceof Error ? e.message : e);
     return null;
   }
 }

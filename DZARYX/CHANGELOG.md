@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-10-27 (suite 8) — Mode JARVIS : 8 nouveautés (app v195)
+- Page JARVIS (app, menu Plus, `JarvisScreen.tsx`) + route `/api/jarvis` (`jarvis-live.ts`) :
+  - 🎧 SOUFFLEUR : micro découpé aux pauses → transcription (Groq, langue libre) → Haiku décide quoi souffler (traduction, prix, piège, argument) → voix dans les écouteurs. Testé : vocal arabe « 15 000 DA/jour, caution 100 000 DA » → souffle en 2,3 s.
+  - 📝 RÉUNION : morceaux de 15-28 s → compte rendu Sonnet (décisions, qui a promis quoi, rappels créés via schedule_reminder, message de suivi) → Telegram + kv `meetings`. Outil `meetings` pour le retrouver à la voix.
+  - 🥊 ENTRAÎNEMENT : Dzaryx joue le rôle choisi (client, garagiste…), répond en voix ; fin → débrief noté /10 + phrases à réutiliser.
+  - ⚡ PROTOCOLES (`protocols.ts`, outil `protocol`, kv `protocols`) : départ Oran, panne, fin de journée + création à la voix ; run = étapes exécutées, envois/paiements après son oui.
+  - 🎥 ÉTAT DES LIEUX VIDÉO : l'app tire 12 images de la vidéo (canvas) ou tgcall (ffmpeg, vidéo Telegram avec « départ Clio Benali ») → `/api/jarvis/inspection-frames` (`video-inspection.ts`) : location déduite, plaque/km/essence/voyants lus, vues extérieures → saveBefore/AfterState + recordCarKm.
+- 🧠 MÉMOIRE PHOTOGRAPHIQUE (`photo-memory.ts`, outil `photo_memory`) : chaque photo envoyée par Kouider (pas la caméra live, pas Houari, pas le mode privé, jamais les photos du corps) → description + texte lu + lieu GPS + photo ; kv `photomem:AAAA-MM`.
+- 🛡️ ANTI-ARNAQUE (`anti-fraud.ts`, outil `anti_arnaque`) : reçus BaridiMob/CCP/virement, papiers : analyse Sonnet, reçu déjà présenté (empreinte image + référence, kv `fraud:receipts`), logiciel de retouche, expiration, numéros signalés (kv `fraud:numbers`). Testé sur un faux reçu : date impossible + police du montant différente + doublon détectés.
+- 🎙️ RÉCEPTIONNISTE VOCAL WHATSAPP : `whatsapp_web.py` action `voice_notes` (intercepte play() pour récupérer le blob opus déchiffré — le client voit « écouté ») ; `onWaNew` transcrit les vocaux, traduction FR, réponse proposée ; « vocal » → réponse envoyée en message vocal (TTS, fichier audio) ; outil whatsapp_web actions `voice` / `send_voice`.
+- Transcription : `transcribeAudio()` exportée ; mode `neutral` SANS consigne (consigne FR = l'arabe traduit, consigne arabe = vocal FR coupé après « salam alaykoum »).
+- ⚠️ Cloudinary DÉSACTIVÉ (« cloud_name is disabled ») → `uploadInspectionPhoto` bascule sur Supabase Storage (bucket public `media`, chemins aléatoires) : les photos d'état des lieux remarchent.
+
 ## 2026-10-27 (suite 7) — Cerveau de secours : 3 fournisseurs gratuits de plus + note de passation
 - `agentic-fallback.ts` : Cerebras, NVIDIA (build.nvidia.com), OpenRouter (modèles `:free` avec outils) entre Gemini et Groq. Modèle choisi tout seul dans leur liste (relue toutes les 6 h, préférences : Cerebras gpt-oss-120b/qwen-3-235b ; NVIDIA kimi-k2 / glm-5 / deepseek-v4 ; OpenRouter nemotron-3-ultra / inkling / gemma-4), sautés 15 min sur 429/503/figé. Inactifs tant que `CEREBRAS_API_KEY` / `NVIDIA_API_KEY` / `OPENROUTER_API_KEY` manquent (Railway + VPS .env).
 - `brain-handoff.ts` : NOTE DE PASSATION donnée au secours (objectif récent, dernière question posée, outils déjà réussis à ne pas refaire, réponse WhatsApp en attente de oui) ; RETOUR DE PASSATION donné une fois à Claude quand il revient (ce que le secours a répondu/fait pendant la coupure, kv `brain:handoff:back`).

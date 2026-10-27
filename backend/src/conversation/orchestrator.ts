@@ -259,6 +259,12 @@ export async function processMessage(
   if (imageBase64) {
     redis.set(`session:image:${sessionId}`, JSON.stringify({ base64: imageBase64, mime: imageMime }), 'EX', 300).catch(() => {});
   }
+  // Mémoire photographique : chaque photo envoyée par Kouider (pas la caméra en direct) est rangée et retrouvable
+  if (imageBase64 && actorUserId === 'kouider' && !privateMode && !sandbox
+      && !(sessionId.startsWith('voice_') && !userMessage.includes('[Photo envoyée par écrit sur Telegram'))) {
+    const caption = userMessage.replace(/\[VISAGE[^\]]*\]/g, '').trim();
+    void import('../integrations/photo-memory.js').then(m => m.rememberPhoto(imageBase64, imageMime, caption)).catch(() => {});
+  }
 
   // ── Inspection pre-check (photo + état avant/après keywords) — véhicule OU bien ─
   const INSPECTION_BEFORE_RE = /[eé]tat\s+(v[eé]hicule|voiture|bien|appartement|maison|villa|avant)|inspection\s+(avant|initiale|d[eé]part)|d[eé]part\s+v[eé]hicule|[eé]tat\s+des\s+lieux.*(entr[eé]e|avant)?|entr[eé]e\s+locataire/i;

@@ -89,6 +89,7 @@ import billingRoutes from './api/routes/billing.js';
 import studioRoutes from './api/routes/studio.js';
 import sportRoutes from './api/routes/sport.js';
 import partnersRoutes from './api/routes/partners.js';
+import jarvisRoutes from './api/routes/jarvis.js';
 import coachRoutes from './api/routes/coach.js';
 import kidRoutes from './api/routes/kid.js';
 import formeRoutes from './api/routes/forme.js';
@@ -396,6 +397,7 @@ app.use('/api/billing',    apiLimiter, billingRoutes);
 app.use('/api/studio',     apiLimiter, studioRoutes);
 app.use('/api/sport',      apiLimiter, sportRoutes);
 app.use('/api/partners',   apiLimiter, partnersRoutes);
+app.use('/api/jarvis',     liveLimiter, jarvisRoutes);   // page JARVIS : souffleur, réunion, entraînement, état des lieux vidéo
 app.use('/api/coach',      apiLimiter, coachRoutes);
 app.use('/api/kid',        apiLimiter, kidRoutes);
 app.use('/api/forme',      apiLimiter, formeRoutes);

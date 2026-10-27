@@ -378,6 +378,73 @@ async def photos(chat: str, n: int = 6) -> dict:
     return {'ok': True, 'chat': title or chat, 'photos': out}
 
 
+VOICE_MARK = r"""((n) => {
+  const main = document.querySelector('#main'); if (!main) return [];
+  const R = main.getBoundingClientRect(), mid = R.left + R.width / 2;
+  const RE = /^(T\u00e9l\u00e9charger le message vocal|Lire le message vocal|Download voice message|Play voice message)/i;
+  const rows = [];
+  for (const b of main.querySelectorAll('[aria-label]')) {
+    if (!RE.test(b.getAttribute('aria-label') || '')) continue;
+    const row = b.closest('[data-testid^="conv-msg-"]') || b.closest('[role=row]');
+    if (row && !rows.includes(row) && b.getBoundingClientRect().left < mid) rows.push(row);   // à gauche = envoyé par le client
+  }
+  document.querySelectorAll('[data-dz-voice]').forEach(e => e.removeAttribute('data-dz-voice'));
+  return rows.slice(-n).map((r, i) => { r.setAttribute('data-dz-voice', i);
+    const c = r.querySelector('[data-pre-plain-text]'); const hm = ((r.innerText || '').match(/\b(\d{1,2}:\d{2})\s*$/m) || [])[1] || '';
+    return c ? c.getAttribute('data-pre-plain-text').trim() : hm; });
+})"""
+
+# Le son d'un vocal : WhatsApp le joue avec un élément audio hors de la page ; on intercepte play() pour récupérer
+# le blob déchiffré (son coupé, lecture arrêtée tout de suite). Le client voit le micro bleu « écouté ».
+VOICE_PLAY = r"""((i) => {
+  if (!window.__dzHook) { const o = HTMLMediaElement.prototype.play; window.__dzEls = [];
+    HTMLMediaElement.prototype.play = function () { try { this.muted = true; window.__dzEls.push(this); } catch (e) {} return o.apply(this, arguments); };
+    window.__dzHook = 1; }
+  const row = document.querySelector(`[data-dz-voice="${i}"]`); if (!row) return 'gone';
+  const dl = [...row.querySelectorAll('[aria-label]')].find(b => /^(T\u00e9l\u00e9charger le message vocal|Download voice message)/i.test(b.getAttribute('aria-label')));
+  if (dl) { (dl.closest('button,[role=button]') || dl).click(); return 'downloading'; }
+  const pl = [...row.querySelectorAll('[aria-label]')].find(b => /^(Lire le message vocal|Play voice message)/i.test(b.getAttribute('aria-label')));
+  if (!pl) return 'wait';
+  window.__dzEls = []; (pl.closest('button,[role=button]') || pl).click(); return 'played';
+})"""
+
+VOICE_GRAB = r"""(async () => { const e = (window.__dzEls || []).slice(-1)[0]; if (!e) return null;
+  try { e.pause(); e.currentTime = 0; } catch (x) {}
+  const r = await fetch(e.currentSrc || e.src); const buf = new Uint8Array(await r.arrayBuffer());
+  let s = ''; for (let k = 0; k < buf.length; k += 32768) s += String.fromCharCode.apply(null, buf.subarray(k, k + 32768));
+  return { mime: (r.headers.get('content-type') || 'audio/ogg').split(';')[0], b64: btoa(s) }; })()"""
+
+
+async def voice_notes(chat: str, n: int = 1) -> dict:
+    """Les n derniers messages VOCAUX du client dans la discussion : son (ogg base64) + heure, pour transcription."""
+    n = max(1, min(int(n), 5))
+    async with LOCK:
+        async with await _page() as p:
+            if not await _open_chat(p, chat):
+                return {'ok': False, 'error': f'Discussion « {chat} » introuvable.'}
+            metas = []
+            for _ in range(12):        # les bulles se chargent après l'ouverture
+                await asyncio.sleep(0.6)
+                metas = await p.js(f'({VOICE_MARK})({n})') or []
+                if metas:
+                    break
+            out = []
+            for i, meta in enumerate(metas):
+                got = None
+                for _ in range(20):
+                    st = await p.js(f'({VOICE_PLAY})({i})')
+                    if st == 'played':
+                        await asyncio.sleep(1.2)
+                        got = await p.js(VOICE_GRAB)
+                        break
+                    if st == 'gone':
+                        break
+                    await asyncio.sleep(1)
+                if got and got.get('b64'):
+                    out.append({'meta': meta, **got})
+    return {'ok': True, 'voices': out}
+
+
 MEDIA = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp4', '.mov', '.3gp', '.mkv', '.webm', '.avi'}
 
 
@@ -644,6 +711,8 @@ async def action(d: dict) -> dict:
         return await photos(str(d.get('chat') or ''), int(d.get('n') or 6))
     if a == 'send_file':
         return await send_file(str(d.get('chat') or ''), str(d.get('path') or ''), str(d.get('caption') or ''))
+    if a == 'voice_notes':
+        return await voice_notes(str(d.get('chat') or ''), int(d.get('n') or 1))
     if a == 'documents':
         return await documents(str(d.get('chat') or ''), int(d.get('n') or 3))
     if a == 'save_contact':
