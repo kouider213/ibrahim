@@ -19,6 +19,22 @@ const num = (v: unknown) => { const n = Number(String(v ?? '').replace(',', '.')
 export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok: true; note: string }> {
   // Raccourci fait par « Décrire un raccourci » (Apple) : les valeurs arrivent souvent en texte libre (champ data, résumé…)
   // → Haiku en tire les chiffres. Les champs déjà numériques restent prioritaires.
+  // Format réel du Raccourci (27/10) : {"data":{"steps":"131\n64\n…","heart_rate_variability":"20.1\n27.0…","resting_heart_rate":"71","sleep":"…"}}
+  // → calcul exact : pas = somme, VFC = moyenne, cœur au repos = dernière valeur, sommeil = somme (heures, ou minutes/secondes converties)
+  const d0 = (typeof body['data'] === 'object' && body['data']) ? body['data'] as Record<string, unknown> : body;
+  const nums = (v: unknown) => String(v ?? '').split(/[\n,;]+/).map(x => Number(x.trim().replace(',', '.'))).filter(x => Number.isFinite(x) && x > 0);
+  const pick = (re: RegExp) => Object.entries(d0).find(([k]) => re.test(k))?.[1];
+  const stepsL = nums(pick(/step|pas/i)), hrvL = nums(pick(/variab|hrv|vfc/i)), rhrL = nums(pick(/rest|repos|rhr/i)), sleepL = nums(pick(/sleep|sommeil/i));
+  if (stepsL.length || hrvL.length || rhrL.length || sleepL.length) {
+    let sl = sleepL.reduce((a, b) => a + b, 0);
+    if (sl > 24 * 60) sl /= 3600; else if (sl > 24) sl /= 60;   // secondes ou minutes → heures
+    Object.assign(body, {
+      ...(stepsL.length ? { steps: Math.round(stepsL.reduce((a, b) => a + b, 0)) } : {}),
+      ...(hrvL.length ? { hrv: Math.round(hrvL.reduce((a, b) => a + b, 0) / hrvL.length) } : {}),
+      ...(rhrL.length ? { rhr: Math.round(rhrL[rhrL.length - 1]!) } : {}),
+      ...(sl > 0 ? { sleep_h: Math.round(sl * 10) / 10 } : {}),
+    });
+  }
   if (!['sleep_h', 'steps', 'rhr', 'hrv'].some(k => num(body[k]) !== undefined)) {
     const full = JSON.stringify(body);
     await kvPut('health:lastraw', full.slice(0, 60_000), 3 * 86_400).catch(() => {});   // pour comprendre le format du Raccourci (privé)
@@ -33,7 +49,11 @@ export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok
   let sleep = num(body['sleep_h'] ?? body['sleep'] ?? body['sommeil']);
   if (sleep && sleep > 24) sleep = Math.round((sleep / 60) * 10) / 10;
   const d: HealthDay = { date, sleep_h: sleep, steps: num(body['steps'] ?? body['pas']), rhr: num(body['rhr'] ?? body['resting_hr'] ?? body['coeur_repos']), hrv: num(body['hrv'] ?? body['vfc']), active_kcal: num(body['active_kcal'] ?? body['calories']), weight: num(body['weight'] ?? body['poids']) };
-  const all = (await kvJson<HealthDay[]>('health:daily', [])).filter(x => x.date !== date);
+  const stored = await kvJson<HealthDay[]>('health:daily', []);
+  const same = stored.find(x => x.date === date);
+  // Plusieurs envois le même jour : on complète, on n'efface pas une valeur déjà reçue
+  if (same) for (const k of Object.keys(same) as Array<keyof HealthDay>) if ((d as unknown as Record<string, unknown>)[k] === undefined) (d as unknown as Record<string, unknown>)[k] = same[k];
+  const all = stored.filter(x => x.date !== date);
   all.push(d);
   all.sort((a, b) => a.date.localeCompare(b.date));
   await kvPut('health:daily', all.slice(-120));
