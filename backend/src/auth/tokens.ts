@@ -50,9 +50,11 @@ export function identifyMobileActor(token: string): MobileActor | null {
 }
 
 export function extractBearerToken(req: Request): string | null {
-  const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) return null;
-  return header.slice(7);
+  const header = req.headers.authorization?.trim();
+  // Raccourcis iPhone (27/10) : clé collée avec un crochet, des guillemets, un espace ou un retour à la ligne en trop
+  const m = header ? /^\[?\s*bearer\s+(.+)$/i.exec(header) : null;
+  if (!m) return null;
+  return m[1]!.trim().replace(/^[\[\s"'«“]+|[\]\s"'»”]+$/g, '') || null;
 }
 
 export function signHmac(payload: string): string {
