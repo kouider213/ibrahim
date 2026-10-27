@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-27 (suite 4) — Appels Telegram : vidéo du visage COUPÉE (cause du son muet) ; visage plus naturel (app v192)
+- Appels 13h26 / 13h29 (app fermée) toujours muets dans les deux sens avec la vidéo, même après passage en son seul (« External source not initialized ») ; sans vidéo l'appel de 12h23 marchait → la vidéo externe ntgcalls casse le son en appel privé. `tgcall/cache/no-face` posé : appels en son seul. À creuser avec TG_DEBUG=1 + un appel test.
+- `ui/dzaryxFace.ts` + `avatar_real.py` : mâchoire moins ample (lèvre du bas 1, menton ½ : la barbe ne s'étire plus), ombre douce au lieu de fausses dents, clignement = vraie peau de la paupière étirée, petits hochements quand Kouider parle.
+- App : bouche = VRAI volume de la voix (`getVoiceLevel()`, AnalyserNode dans `services/api.ts`) au lieu d'un rythme inventé. sw v192.
+
 ## 2026-10-27 (suite 3) — Visage RÉALISTE (hologramme choisi par Kouider) + garde-fou appel vidéo muet (app v191)
 - `tgcall/avatar_real.py` (nouveau) + `tgcall/assets/dzaryx_bust.png` (recadré de l'affiche envoyée par Kouider) : mâchoire qui descend avec la voix (cv2.remap + intérieur de bouche), clignements, tête qui respire/hoche, halo + balayage ; ~13 ms/image. Remplace le bonhomme dans `realtime._face_loop` (bonhomme en secours).
 - Bug « en vidéo il ne parle pas et n'entend pas » (13h14/13h15 : volume reçu 0) : cause pas encore prouvée (vidéo envoyée OU app qui garde le micro). `mute_guard` : appel avec visage muet 6 s → passage en son seul SANS raccrocher ; si le son revient → visage coupé (`cache/no-face`) pour les appels suivants.

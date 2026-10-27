@@ -625,6 +625,18 @@ let _audioQueue: ArrayBuffer[] = [];
 let _audioPlaying = false;
 let _pendingChunks: Uint8Array[] = [];
 let _currentSource: AudioBufferSourceNode | null = null;
+// Volume réel de la voix de Dzaryx pendant qu'elle joue → la bouche de son visage (ui/dzaryxFace.ts) suit le son
+let _analyser: AnalyserNode | null = null;
+let _levelBuf: Uint8Array<ArrayBuffer> | null = null;
+
+/** Volume instantané de la voix de Dzaryx (0 = silence, ~1 = fort). */
+export function getVoiceLevel(): number {
+  if (!_analyser || !_levelBuf || !_audioPlaying) return 0;
+  _analyser.getByteTimeDomainData(_levelBuf);
+  let sum = 0;
+  for (let i = 0; i < _levelBuf.length; i++) { const v = (_levelBuf[i]! - 128) / 128; sum += v * v; }
+  return Math.min(1, Math.sqrt(sum / _levelBuf.length) * 4);
+}
 
 export function unlockAudio(): void {
   if (!_audioCtx) { try { _audioCtx = new AudioContext(); } catch { return; } }
@@ -655,7 +667,11 @@ async function drainQueue(): Promise<void> {
         const decoded = await ctx.decodeAudioData(buf);
         const src = ctx.createBufferSource();
         src.buffer = decoded;
-        src.connect(ctx.destination);
+        if (!_analyser || _analyser.context !== ctx) {
+          try { _analyser = ctx.createAnalyser(); _analyser.fftSize = 512; _analyser.connect(ctx.destination); _levelBuf = new Uint8Array(_analyser.fftSize); }
+          catch { _analyser = null; }
+        }
+        src.connect(_analyser ?? ctx.destination);
         _currentSource = src;
         await new Promise<void>(r => { src.onended = () => { _currentSource = null; r(); }; src.start(); });
       } catch { /* skip */ }

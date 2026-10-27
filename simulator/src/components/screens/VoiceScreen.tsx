@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   api, connectSocket, disconnectSocket, getOrCreateSessionId,
-  playBase64Audio, enqueueChunk, flushChunks, unlockAudio, stopAudio, isAudioPlaying,
+  playBase64Audio, enqueueChunk, flushChunks, unlockAudio, stopAudio, isAudioPlaying, getVoiceLevel,
   sendNativeAction, tryParseNativeAction, callApi, speakOnDevice,
   type DzaryxStatus,
 } from '../../services/api.ts';
@@ -981,7 +981,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
 
       // Visage animé de Dzaryx (le même petit bonhomme qu'en appel Telegram) à la place de la sphère — Kouider 27/10
       {
-        const talk = st === 'speaking' ? 0.3 + 0.7 * Math.abs(Math.sin(t * 0.017) * Math.sin(t * 0.029 + 1.3)) : 0;
+        const talk = st === 'speaking' || isAudioPlaying() ? getVoiceLevel() : 0;   // vrai volume de sa voix
         drawFace(ctx, cx, cy - R * 0.1, R * 1.15, t, { talk, listen: st === 'listening' ? amp : 0, thinking: st === 'thinking' });
       }
 

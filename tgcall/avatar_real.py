@@ -43,7 +43,8 @@ class RealAvatar:
         mx, my = self.mc
         wx = np.exp(-((xx - mx) / (self.mw * 2.1)) ** 2)
         chin = my + self.face_h * 0.27
-        wy = np.clip((yy - my) / 3, 0, 1) * np.clip(1 - (yy - chin) / (self.face_h * 0.22), 0, 1)
+        lip = 1 - 0.5 * np.clip((yy - my - self.face_h * 0.04) / (self.face_h * 0.12), 0, 1)   # menton = ½ : barbe pas étirée
+        wy = np.clip((yy - my) / 3, 0, 1) * lip * np.clip(1 - (yy - chin) / (self.face_h * 0.18), 0, 1)
         self.jaw_w = (wx * wy).astype(np.float32)
         # Paupières : couleur de la peau juste au-dessus de chaque œil
         self.lid = []
@@ -63,6 +64,7 @@ class RealAvatar:
         self.mouth = 0.0
         self.next_blink, self.blink_t = self.t0 + 2.5, -1.0
         self.nod = 0.0
+        self.lnod = 0.0
 
     def frame(self, talk: float, listen: float = 0.0) -> np.ndarray:
         cv2 = self.cv2
@@ -73,16 +75,15 @@ class RealAvatar:
         img = self.img
         mx, my = self.mc
         # 1) Mâchoire : tout ce qui est sous les lèvres descend de d pixels
-        d = self.mouth * self.face_h * 0.055
+        d = self.mouth * self.face_h * 0.034
         if d > 0.4:
             img = cv2.remap(img, self.xx, self.yy - d * self.jaw_w, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
             # intérieur de la bouche (sombre) + dents du haut, fondu doux
             mask = np.zeros((H, W), np.uint8)
-            cv2.ellipse(mask, (int(mx), int(my + d * 0.45)), (int(self.mw * 0.8), max(1, int(d * 0.55))), 0, 0, 360, 255, -1, cv2.LINE_AA)
+            cv2.ellipse(mask, (int(mx), int(my + d * 0.5)), (int(self.mw * 0.66), max(1, int(d * 0.6))), 0, 0, 360, 215, -1, cv2.LINE_AA)
             inner = np.zeros_like(img)
-            inner[:] = (40, 18, 22)
-            cv2.ellipse(inner, (int(mx), int(my + 1)), (int(self.mw * 0.6), max(1, int(d * 0.22))), 0, 0, 180, (205, 200, 190), -1, cv2.LINE_AA)
-            m = (cv2.GaussianBlur(mask, (0, 0), 1.2).astype(np.float32) / 255)[..., None]
+            inner[:] = (22, 12, 20)                       # ombre douce entre les lèvres, pas de fausses dents
+            m = (cv2.GaussianBlur(mask, (0, 0), 2.0).astype(np.float32) / 255)[..., None]
             img = (img * (1 - m) + inner * m).astype(np.uint8)
         else:
             img = img.copy()
@@ -92,22 +93,25 @@ class RealAvatar:
         k = (now - self.blink_t) / 0.18
         if 0 <= k <= 1:
             close = math.sin(k * math.pi)
-            for (ex, ey), col in zip(self.eyes, self.lid):
+            for ex, ey in self.eyes:     # vraie paupière : la peau au-dessus de l'œil est étirée vers le bas
                 ew, eh = self.eye_w, self.eye_w * 0.55
-                lm = np.zeros((H, W), np.uint8)
-                cv2.ellipse(lm, (int(ex), int(ey - eh + eh * 1.1 * close)), (int(ew), int(eh * 1.1 * close) + 1), 0, 180, 360, 255, -1, cv2.LINE_AA)
-                cv2.rectangle(lm, (int(ex - ew), int(ey - eh)), (int(ex + ew), int(ey - eh + eh * 1.1 * close)), 255, -1)
+                x0, x1, top = int(ex - ew * 1.1), int(ex + ew * 1.1), int(ey - eh * 1.5)
+                strip = self.img[top:top + max(2, int(eh * 0.7)), x0:x1]
+                hh = int(eh * 0.7 + eh * 2.4 * close)
+                lid = cv2.resize(strip, (x1 - x0, max(2, hh)))
                 em = np.zeros((H, W), np.uint8)
-                cv2.ellipse(em, (int(ex), int(ey)), (int(ew), int(eh)), 0, 0, 360, 255, -1)
-                lm = cv2.bitwise_and(lm, em)
-                m = (cv2.GaussianBlur(lm, (0, 0), 1.5).astype(np.float32) / 255)[..., None]
-                img = (img * (1 - m) + np.array(col, np.float32) * m).astype(np.uint8)
-                if close > 0.85:
-                    cv2.line(img, (int(ex - ew * 0.9), int(ey + 1)), (int(ex + ew * 0.9), int(ey + 1)), (60, 35, 25), 1, cv2.LINE_AA)
+                cv2.ellipse(em, (int(ex), int(ey)), (int(ew * 1.05), int(eh * 1.1)), 0, 0, 360, 255, -1, cv2.LINE_AA)
+                layer = img.copy()
+                y1 = min(H, top + hh)
+                layer[top:y1, x0:x1] = lid[:y1 - top]
+                m = (cv2.GaussianBlur(em, (0, 0), 1.5).astype(np.float32) / 255)[..., None]
+                img = (img * (1 - m) + layer * m).astype(np.uint8)
+
         # 3) Tête : respiration, balancement, petit hochement quand il parle, penche quand il écoute
-        self.nod += ((self.mouth * 1.6 * math.sin(t * 6.5)) - self.nod) * 0.25
+        self.nod += ((self.mouth * 1.2 * math.sin(t * 6.5)) - self.nod) * 0.25
+        self.lnod += ((2.2 * max(0.0, math.sin(t * 2.2)) if listen > 0.08 else 0.0) - self.lnod) * 0.08   # hoche en écoutant
         ang = 1.2 * math.sin(t * 0.5) + 0.6 * math.sin(t * 1.3) + 1.5 * listen
-        dy = 2.5 * math.sin(t * 0.9) + self.nod
+        dy = 2.5 * math.sin(t * 0.9) + self.nod + self.lnod
         sc = 1 + 0.008 * math.sin(t * 0.9)
         M = cv2.getRotationMatrix2D((W / 2, H * 0.85), ang, sc)
         M[1, 2] += dy

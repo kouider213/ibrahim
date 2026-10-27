@@ -24,7 +24,10 @@ export function createDzaryxFace() {
     const id = mc.createImageData(IMG_W, IMG_H);
     const chin = MOUTH[1] + FACE_H * 0.27;
     for (let y = 0; y < IMG_H; y++) {
-      const wy = Math.min(1, Math.max(0, (y - MOUTH[1]) / 3)) * Math.min(1, Math.max(0, 1 - (y - chin) / (FACE_H * 0.22)));
+      // lèvre du bas = 1, menton = 0,5 (la barbe ne s'étire pas), cou = 0
+      const ramp = Math.min(1, Math.max(0, (y - MOUTH[1]) / 3));
+      const lip = 1 - 0.5 * Math.min(1, Math.max(0, (y - MOUTH[1] - FACE_H * 0.04) / (FACE_H * 0.12)));
+      const wy = ramp * lip * Math.min(1, Math.max(0, 1 - (y - chin) / (FACE_H * 0.18)));
       if (!wy) continue;
       for (let x = 0; x < IMG_W; x++) {
         const wx = Math.exp(-(((x - MOUTH[0]) / (MOUTH_HW * 2.1)) ** 2));
@@ -45,7 +48,7 @@ export function createDzaryxFace() {
     } catch { /* image d'un autre domaine : couleur par défaut */ }
   };
 
-  let mouth = 0, nod = 0, nextBlink = performance.now() + 2500, blinkT = -1e9;
+  let mouth = 0, nod = 0, lnod = 0, nextBlink = performance.now() + 2500, blinkT = -1e9;
 
   /** Dessine le visage centré en (cx, cy) ; R = demi-hauteur de la tête (px). t = performance.now(). */
   return function draw(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, t: number, o: FaceInput) {
@@ -59,7 +62,7 @@ export function createDzaryxFace() {
     const x0 = cx - (EYES[0][0] + EYES[1][0]) / 2 * k, y0 = cy - (EYES[0][1] + FACE_H * 0.12) * k;
 
     // Mâchoire décalée de d pixels (calque masqué)
-    const d = mouth * FACE_H * 0.055;
+    const d = mouth * FACE_H * 0.034;
     const jc = jaw.getContext('2d')!;
     jc.globalCompositeOperation = 'source-over';
     jc.clearRect(0, 0, IMG_W, IMG_H);
@@ -68,31 +71,32 @@ export function createDzaryxFace() {
       jc.globalCompositeOperation = 'destination-in';
       jc.drawImage(jawMask, 0, 0);
       jc.globalCompositeOperation = 'source-over';
-      // intérieur de la bouche + dents du haut
-      jc.fillStyle = 'rgb(22,18,40)';
-      jc.beginPath(); jc.ellipse(MOUTH[0], MOUTH[1] + d * 0.45, MOUTH_HW * 0.8, Math.max(1, d * 0.55), 0, 0, Math.PI * 2); jc.fill();
-      jc.fillStyle = 'rgba(190,200,205,0.9)';
-      jc.beginPath(); jc.ellipse(MOUTH[0], MOUTH[1] + 1, MOUTH_HW * 0.6, Math.max(1, d * 0.22), 0, 0, Math.PI); jc.fill();
+      // intérieur de la bouche : ombre douce entre les lèvres (pas de fausses dents)
+      const g = jc.createRadialGradient(MOUTH[0], MOUTH[1] + d * 0.5, 0, MOUTH[0], MOUTH[1] + d * 0.5, MOUTH_HW * 0.7);
+      g.addColorStop(0, 'rgba(18,10,20,0.95)'); g.addColorStop(0.6, 'rgba(35,20,30,0.85)'); g.addColorStop(1, 'rgba(60,35,45,0)');
+      jc.fillStyle = g;
+      jc.beginPath(); jc.ellipse(MOUTH[0], MOUTH[1] + d * 0.5, MOUTH_HW * 0.68, Math.max(1, d * 0.6), 0, 0, Math.PI * 2); jc.fill();
     }
     // Clignement
     if (t > nextBlink) { blinkT = t; nextBlink = t + 2500 + Math.random() * 3000; }
     const bk = (t - blinkT) / 180;
     if (bk >= 0 && bk <= 1) {
+      // vraie paupière : la bande de peau au-dessus de l'œil est étirée vers le bas sur l'œil
       const close = Math.sin(bk * Math.PI);
       for (const [ex, ey] of EYES) {
-        const eh = EYE_W * 0.55;
+        const eh = EYE_W * 0.55, top = ey - eh * 1.5, strip = eh * 0.7;
         jc.save();
-        jc.beginPath(); jc.ellipse(ex, ey, EYE_W, eh, 0, 0, Math.PI * 2); jc.clip();
-        jc.fillStyle = skin;
-        jc.fillRect(ex - EYE_W, ey - eh, EYE_W * 2, eh * 2.2 * close);
+        jc.beginPath(); jc.ellipse(ex, ey, EYE_W * 1.05, eh * 1.1, 0, 0, Math.PI * 2); jc.clip();
+        jc.drawImage(img, ex - EYE_W * 1.1, top, EYE_W * 2.2, strip, ex - EYE_W * 1.1, top, EYE_W * 2.2, strip + (eh * 2.4) * close);
         jc.restore();
       }
     }
 
     // Tête : respiration, balancement, hochement quand il parle, penche quand il écoute
-    nod += (mouth * 1.6 * Math.sin(s * 6.5) - nod) * 0.25;
+    nod += (mouth * 1.2 * Math.sin(s * 6.5) - nod) * 0.25;
+    lnod += ((o.listen > 0.08 ? 2.2 * Math.max(0, Math.sin(s * 2.2)) : 0) - lnod) * 0.08;   // petits hochements quand il écoute
     const ang = (1.2 * Math.sin(s * 0.5) + 0.6 * Math.sin(s * 1.3) + 1.5 * o.listen + (o.thinking ? 1.5 : 0)) * Math.PI / 180;
-    const dy = (2.5 * Math.sin(s * 0.9) + nod) * k * 1.5;
+    const dy = (2.5 * Math.sin(s * 0.9) + nod + lnod) * k * 1.5;
     const pivX = x0 + w / 2, pivY = y0 + h * 0.85;
     ctx.save();
     ctx.translate(pivX, pivY + dy); ctx.rotate(ang); ctx.translate(-pivX, -pivY);
