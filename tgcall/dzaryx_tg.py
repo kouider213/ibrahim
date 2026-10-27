@@ -686,7 +686,7 @@ async def start_realtime(actor: str, user_id: int) -> bool:
     st.greeting = greeting
     try:
         # Le visage animé de Dzaryx passe par la « caméra » (« visage off » sur Telegram pour revenir au son seul)
-        rt.show_face = not NO_FACE.exists()
+        rt.show_face = False   # visage retiré (Kouider 27/10 : « il va nous servir à rien »)
         if rt.show_face:
             from avatar_cute import FPS, H, W
             stream = MediaStream(ExternalMedia.AUDIO | ExternalMedia.VIDEO, AudioParameters(OUT_RATE, 1),

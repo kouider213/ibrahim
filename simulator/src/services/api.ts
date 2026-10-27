@@ -625,7 +625,7 @@ let _audioQueue: ArrayBuffer[] = [];
 let _audioPlaying = false;
 let _pendingChunks: Uint8Array[] = [];
 let _currentSource: AudioBufferSourceNode | null = null;
-// Volume réel de la voix de Dzaryx pendant qu'elle joue → la bouche de son visage (ui/dzaryxFace.ts) suit le son
+// Volume réel de la voix de Dzaryx pendant qu'elle joue (niveau de sa voix)
 let _analyser: AnalyserNode | null = null;
 let _levelBuf: Uint8Array<ArrayBuffer> | null = null;
 
@@ -652,7 +652,8 @@ export function unlockAudio(): void {
 
 async function getAudioCtx(): Promise<AudioContext> {
   if (!_audioCtx || _audioCtx.state === 'closed') _audioCtx = new AudioContext();
-  if (_audioCtx.state === 'suspended') await _audioCtx.resume();
+  // iPhone : resume() peut ne jamais répondre → on n'attend pas plus de 1,5 s
+  if (_audioCtx.state === 'suspended') await Promise.race([_audioCtx.resume(), new Promise(r => setTimeout(r, 1500))]);
   return _audioCtx;
 }
 
@@ -673,7 +674,12 @@ async function drainQueue(): Promise<void> {
         }
         src.connect(_analyser ?? ctx.destination);
         _currentSource = src;
-        await new Promise<void>(r => { src.onended = () => { _currentSource = null; r(); }; src.start(); });
+        // Filet iPhone : si « fin du son » n'arrive jamais, on ne reste pas bloqué en « Dzaryx parle » (le micro restait coupé)
+        await new Promise<void>(r => {
+          const t = window.setTimeout(() => { _currentSource = null; r(); }, decoded.duration * 1000 + 2000);
+          src.onended = () => { window.clearTimeout(t); _currentSource = null; r(); };
+          src.start();
+        });
       } catch { /* skip */ }
     }
   } finally {

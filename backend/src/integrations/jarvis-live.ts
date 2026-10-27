@@ -90,7 +90,9 @@ Réponds UNIQUEMENT avec ce JSON : {"speaker":"kouider|autre|?","fr":"traduction
 export async function souffleurTurn(id: string, audio: string, mime: string): Promise<Record<string, unknown>> {
   const s = await load(id);
   if (!s || s.ended) return { error: 'séance terminée' };
-  const { text } = await transcribeAudio(audio, mime, undefined, true);
+  // Langue indiquée (darija, arabe…) → transcription en arabe (sinon « chhal » devenait « ça goutt-le »)
+  const hint = /arab|darija|dz|عرب|دارج/i.test(s.lang) ? 'ar' : /anglais|english/i.test(s.lang) ? 'en' : undefined;
+  const { text } = await transcribeAudio(audio, mime, hint, true);
   if (!text) return { heard: '' };
   const r = jsonOf<{ speaker?: string; fr?: string; whisper?: string; alert?: string }>(await ask(SOUFFLEUR_SYSTEM(s),
     `Déjà soufflé : ${s.whispers.slice(-6).join(' | ') || 'rien'}\n\nConversation récente :\n${recent(s) || '(début)'}\n\nNOUVEAU passage entendu : « ${text} »`, false, 300).catch(() => '')) ?? {};

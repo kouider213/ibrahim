@@ -35,7 +35,8 @@ const errMsg = (e: unknown) => {
 /** Micro découpé : un morceau part dès une pause (souffleur / entraînement) ou toutes les ~25 s (réunion). */
 type SegState = { stream?: MediaStream; ctx?: AudioContext; timer?: number; rec?: MediaRecorder; recStart: number; lastVoice: number; peak: number; floor: number; t0: number };
 
-function useSegmenter(onSegment: (b64: string, mime: string) => void, mode: 'pause' | 'continuous') {
+// listenWhileSpeaking : souffleur avec écouteurs → on continue d'écouter pendant qu'il souffle (sinon on rate ce que dit l'autre)
+function useSegmenter(onSegment: (b64: string, mime: string) => void, mode: 'pause' | 'continuous', listenWhileSpeaking = false) {
   const st = useRef<SegState | null>(null);
   const [level, setLevel] = useState(0);
   const cb = useRef(onSegment);
@@ -65,6 +66,8 @@ function useSegmenter(onSegment: (b64: string, mime: string) => void, mode: 'pau
     unlockAudio();
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     const ctx = new AudioContext();
+    // iPhone : un AudioContext créé après l'autorisation du micro peut rester « suspendu » → volume toujours à 0, rien n'est enregistré
+    if (ctx.state === 'suspended') await Promise.race([ctx.resume(), new Promise(r => setTimeout(r, 1500))]);
     const an = ctx.createAnalyser(); an.fftSize = 1024;
     ctx.createMediaStreamSource(stream).connect(an);
     const buf = new Float32Array(an.fftSize);
@@ -77,8 +80,10 @@ function useSegmenter(onSegment: (b64: string, mime: string) => void, mode: 'pau
       const rms = Math.sqrt(sum / buf.length);
       setLevel(Math.min(1, rms * 18));
       const now = Date.now();
-      if (now - s.t0 < 800) { s.floor = Math.max(0.0015, Math.min(0.03, (s.floor + rms) / 2)); return; }   // calibrage du bruit ambiant
-      const thr = Math.max(s.floor * 2.4, 0.007);
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      if (now - s.t0 < 800) { s.floor = Math.max(0.0015, Math.min(0.012, (s.floor + rms) / 2)); return; }   // calibrage du bruit ambiant
+      // Plafond : dans une pièce bruyante le seuil montait trop haut et sa voix ne le dépassait plus
+      const thr = Math.min(Math.max(s.floor * 2.4, 0.007), 0.03);
       if (rms > thr) s.lastVoice = now;
       const r = s.rec as (MediaRecorder & { _peak?: { v: number } }) | undefined;
       if (r?._peak) r._peak.v = Math.max(r._peak.v, rms);
@@ -88,12 +93,12 @@ function useSegmenter(onSegment: (b64: string, mime: string) => void, mode: 'pau
         if ((len > 15_000 && now - s.lastVoice > 600) || len > 28_000) { stopRec(s); startRec(s); }
         return;
       }
-      const busy = isAudioPlaying();       // Dzaryx parle : on n'enregistre pas sa propre voix
+      const busy = !listenWhileSpeaking && isAudioPlaying();       // Dzaryx parle (haut-parleur) : on n'enregistre pas sa propre voix
       if (!s.rec && !busy && rms > thr) startRec(s);
       else if (s.rec && (busy || now - s.lastVoice > 900 || now - s.recStart > 14_000)) stopRec(s);
-      if (rms < thr * 0.8 && !s.rec) s.floor = s.floor * 0.995 + rms * 0.005;
+      if (rms < thr * 0.8 && !s.rec) s.floor = Math.min(0.012, s.floor * 0.995 + rms * 0.005);
     }, 60);
-  }, [mode]);
+  }, [mode, listenWhileSpeaking]);
 
   const stop = useCallback(() => {
     const s = st.current;
@@ -151,7 +156,7 @@ function LiveMode({ kind }: { kind: Kind }) {
     finally { setBusy(b => b - 1); }
   }, [kind]);
 
-  const seg = useSegmenter(onSegment, kind === 'reunion' ? 'continuous' : 'pause');
+  const seg = useSegmenter(onSegment, kind === 'reunion' ? 'continuous' : 'pause', kind === 'souffleur');
 
   useEffect(() => { listRef.current?.scrollTo({ top: 1e6, behavior: 'smooth' }); }, [lines]);
   useEffect(() => {
@@ -188,7 +193,7 @@ function LiveMode({ kind }: { kind: Kind }) {
   };
 
   const intro = kind === 'souffleur'
-    ? 'Mets tes écouteurs, pose le téléphone près de la personne. Dzaryx écoute et te souffle seulement ce qui compte : traduction, prix, piège, argument.'
+    ? 'Mets tes écouteurs, lance, et pose le téléphone (micro vers la personne). À chaque pause dans la discussion, Dzaryx envoie ce qu\'il a entendu, l\'écrit ici (avec la traduction) et ne te parle à l\'oreille QUE si c\'est utile : traduction, prix, piège, argument. Sinon il reste silencieux, c\'est normal. Indique la langue de l\'autre (darija…) pour une meilleure écoute.'
     : kind === 'reunion'
       ? 'Pose le téléphone au milieu de la table. À la fin : compte rendu, décisions, qui a promis quoi, rappels créés et message de suivi, aussi sur Telegram.'
       : 'Dzaryx joue l\'autre personne, en vrai et sans te faire de cadeau. Parle-lui comme au téléphone. À la fin : note sur 10 et phrases à réutiliser.';
@@ -239,6 +244,7 @@ function LiveMode({ kind }: { kind: Kind }) {
             <div style={{ fontSize: 14, lineHeight: 1.4 }} dir="auto">{l.text}</div>
             {l.fr && <div style={{ fontSize: 13, color: T.accent, marginTop: 4 }}>🇫🇷 {l.fr}</div>}
             {l.whisper && <div style={{ fontSize: 15, fontWeight: 700, color: T.warn, marginTop: 6 }}>🎧 {l.whisper}</div>}
+            {kind === 'souffleur' && !l.whisper && <div style={{ fontSize: 11, color: T.faint, marginTop: 4 }}>— entendu, rien d'utile à te souffler</div>}
           </div>
         ))}
       </div>

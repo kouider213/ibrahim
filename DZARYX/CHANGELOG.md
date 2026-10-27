@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-27 (suite 10) — Souffleur réparé, gardien = assistant IA + conditions du site, visage retiré (app v197)
+- 🎧 Souffleur : l'essai de Kouider (16h16) n'a envoyé qu'UN passage en 37 s. Causes iPhone : lecture du son restée « en cours » (onended jamais reçu) → micro en pause pour toujours ; AudioContext suspendu ; seuil de voix trop haut en pièce bruyante. Corrigé : filet de fin de lecture (durée + 2 s) et resume() borné dans `api.ts` ; segmenter : resume du contexte, seuil plafonné (0,03), et en souffleur il CONTINUE d'écouter pendant qu'il souffle (écouteurs). Transcription en arabe si la langue indiquée est darija/arabe. L'écran affiche « entendu, rien d'utile à te souffler ».
+- 🌙 Gardien de nuit : se présente comme l'assistant IA de FIK ; TOUTES les conditions (pages Conditions + FAQ de fikconciergerie.com relues toutes les 6 h + fiche widget) ; renvoie vers le site (/reservation, /conditions, /faq, /packs) ; pour tout ce qui est important : « je ne peux pas prendre cette décision, une vraie personne vous répond dans les plus brefs délais ». Darija algérienne. Testé (dispo + remise, « je confirme », immobilier + vente en arabe, 33 ans + livraison hôtel).
+- 🙂 Visage retiré (Kouider : « il va nous servir à rien ») : sphère neuronale de retour sur l'écran vocal ; `dzaryxFace.ts` + images supprimés ; tgcall : show_face toujours False.
+
 ## 2026-10-27 (suite 9) — Jarvis 2 : HUD, copilote, escouade, négociateur, prédictions, rappels de lieu, gardien de nuit (app v196)
 - 🕶️ HUD (JARVIS › HUD, `hud.ts`, `/api/jarvis/hud`) : caméra arrière, une image / 2,5 s → étiquettes posées sur l'image (voiture de la flotte + client/retour, traduction, reçu déjà vu via `fraud:receipts`, valeurs lues, danger). Pas de visages. Plaques apprises par l'état des lieux vidéo (`hud:plates`). Voix sur les nouveautés.
 - 🚗 COPILOTE (JARVIS › Copilote, `copilot.ts`) : mains libres en voiture, micro coupé aux pauses → oui/non/vocal WhatsApp ou Dzaryx complet (consigne « il conduit ») → réponse dite ; nouveaux WhatsApp lus à voix haute (fil `copilot:feed`) ; écran gardé allumé.
