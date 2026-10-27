@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-27 (suite 12) — « Dis Siri, Dzaryx » en conversation suivie (app v199)
+- `jarvis-hub.ts` `siriTurn` : Dzaryx utilise TOUS ses outils comme sur Telegram, retrouve les noms déformés par la dictée Siri, envoie les papiers d'un client (passeport, permis…) sur Telegram, prépare les réponses WhatsApp Business et attend le « oui ».
+- Question posée (réponse finie par « ? ») → champ `listen: true` : le Raccourci se relance tout seul, micro rouvert.
+- App JARVIS › Santé·Siri : étape 6 du guide (« listen » → Exécuter le raccourci « Dzaryx »).
+
 ## 2026-10-27 (suite 11) — Jarvis 3 : 32 nouveautés d'un coup (app v198)
 Outils déclarés dans `jarvis3-tools.ts` (ajoutés à Dzaryx_TOOLS, exécutés avant le switch de tool-executor) ; utilitaires communs `ai-util.ts`.
 - Assistant de vie : 🧠 `memoire_gens` (fiches + fiche envoyée avant un RDV, anniversaires — `people-memory.ts`) ; 🌙 `liste_nuit` (2h → résultats 6h45) ; ⚖️ `avocat_de_poche` + 📬 `courrier_admin` (échéance dans l'agenda, `doc-review.ts`) ; 💸 `economies` ; 🎓 `prof` ; 🏛️ `conseil_sages` (3 voix, 2 tours, vote — `life-helpers.ts`).

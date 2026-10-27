@@ -81,16 +81,23 @@ Si sa demande est une ACTION DE SON IPHONE (appeler quelqu'un, envoyer un SMS, o
 ajoute à la toute fin une ligne seule : PHONE_URL: <lien> — tel:+33…, sms:+33…&body=…, https://waze.com/ul?q=…&navigate=yes, music://music.apple.com/search?term=…, ou le lien de l'app.
 WHATSAPP = TOUJOURS son WhatsApp BUSINESS via l'outil whatsapp_web (PC cloud), JAMAIS de PHONE_URL wa.me (ça ouvre le WhatsApp perso) :
 lire / dernier message / non lus → whatsapp_web (unread ou read) et dis-lui à l'oral qui a écrit et ce qu'il dit ; écrire à quelqu'un → prépare le message avec whatsapp_web et demande son oui avant d'envoyer.
-Numéro d'un contact : cherche-le avec tes outils (clients, partenaires, mémoire des gens). Si tu ne le trouves pas, demande-le.]`;
+Numéro d'un contact : cherche-le avec tes outils (clients, partenaires, mémoire des gens). Si tu ne le trouves pas, demande-le.
+TU AS TOUS TES OUTILS, comme sur Telegram : n'abandonne jamais une demande. La dictée Siri déforme les NOMS (« Mohamed Radar » = peut-être Mohammed Bendaoud, Rahdar…) et coupe parfois la phrase :
+cherche le nom approchant (réservations, dossier client, discussions WhatsApp), et si un seul colle, fais-le en disant lequel.
+PHOTO / PAPIERS d'un client (passeport, permis, carte d'identité, contrat) → get_client_document, puis si rien : whatsapp_web 'photos' ou 'documents' sur sa discussion → ils partent sur son TELEGRAM ; dis « je te l'ai envoyé sur Telegram ».
+RÉPONDRE à un client (« réponds-lui que… », « dis-lui… ») → whatsapp_web 'send' sur la discussion dont vous parliez juste avant (sans confirmed), lis-lui le message et demande « je l'envoie ? » ; à son « oui » → confirmed:true. Ne redemande pas de quelle discussion il s'agit si c'est clair d'après le tour précédent.
+Si tu poses une question, termine ta réponse par « ? » : le micro se rouvre tout seul pour sa réponse.]`;
 
-export async function siriTurn(text: string): Promise<{ say: string; url?: string }> {
+export async function siriTurn(text: string): Promise<{ say: string; url?: string; listen?: boolean }> {
   const { processMessage } = await import('../conversation/orchestrator.js');
   const { stripToolTrace } = await import('./supabase.js');
   const out = await processMessage(`${SIRI}\n${text.slice(0, 1500)}`, 'voice_kouider', true);
   let say = stripToolTrace(out.text ?? '') || 'Pardon, je n\'ai pas compris.';
   const m = /PHONE_URL:\s*(\S+)/i.exec(say);
   say = say.replace(/PHONE_URL:\s*\S+/i, '').replace(/https?:\/\/\S+/g, '').replace(/[*_#`>|]/g, '').trim();
-  return { say: say.slice(0, 600), ...(m ? { url: m[1] } : {}) };
+  say = say.slice(0, 600);
+  // Question posée → le Raccourci se relance (micro rouvert) pour la réponse : conversation suivie comme avec Dzaryx
+  return { say, ...(m ? { url: m[1] } : {}), ...(!m && /\?\s*$/.test(say) ? { listen: true } : {}) };
 }
 
 // ── Salle de commande ────────────────────────────────────────────────────────
