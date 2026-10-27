@@ -6,6 +6,11 @@
 ---
 
 ## 2026-10-27 (suite 5) — Visage = VRAIES vidéos IA (Kling 3, ~1,12 $ une fois) dans l'app v193
+- Kouider (enregistrement 14h59) : en v192 la bouche « glisse » (lèvre dédoublée par la déformation d'image).
+- Studio (/api/studio, rendus 31ff1abc « il parle » + d2e41d7f « il écoute », 5 s, depuis public/dzaryx-face.jpg) → `public/dzaryx-talk.mp4` / `dzaryx-listen.mp4` (540×840, boucle aller-retour, sans son, ~1 Mo).
+- `ui/dzaryxFace.ts` : « il écoute » en boucle, fondu vers « il parle » quand sa voix joue (getVoiceLevel, maintien 450 ms) ; mêmes effets hologramme ; l'image animée reste en secours tant que les vidéos chargent.
+
+## 2026-10-27 (suite 5) — Visage = VRAIES vidéos IA (Kling 3, ~1,12 $ une fois) dans l'app v193
 - Studio (/api/studio, rendus 31ff1abc « il parle » + d2e41d7f « il écoute », 5 s, depuis public/dzaryx-face.jpg) → `public/dzaryx-talk.mp4` / `dzaryx-listen.mp4` (540×840, boucle aller-retour, sans son, ~1 Mo).
 - `ui/dzaryxFace.ts` : « il écoute » en boucle, fondu vers « il parle » quand sa voix joue (getVoiceLevel, maintien 450 ms) ; mêmes effets hologramme ; l'image animée reste en secours tant que les vidéos chargent.
 
