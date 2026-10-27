@@ -119,7 +119,7 @@ function keepSignature(id: string, extra: unknown): void {
 }
 
 /** Corps Anthropic → corps OpenAI chat/completions. */
-function toOpenAI(body: Body, model: string, vision = false): Body {
+function toOpenAI(body: Body, model: string, vision = false, maxTools = 120): Body {
   const msgs: Body[] = [];
   const sys = blockText(body.system);
   if (sys) msgs.push({ role: 'system', content: sys });
@@ -143,7 +143,7 @@ function toOpenAI(body: Body, model: string, vision = false): Body {
   const userText = typeof lastUser?.content === 'string' ? lastUser.content : '';
   const pickText = userText.trim().length < 25 ? msgs.slice(-4).map(m => typeof m.content === 'string' ? m.content.slice(0, 600) : '').join('\n') : userText;
   const allTools = ((body.tools ?? []) as Array<{ name: string; description?: string; input_schema?: unknown }>).filter(t => t.input_schema);
-  const tools = (allTools.length > 120 ? pickFallbackTools(allTools as Anthropic.Tool[], pickText, 120) : allTools)
+  const tools = (allTools.length > maxTools ? pickFallbackTools(allTools as Anthropic.Tool[], pickText, maxTools) : allTools)
     .map(t => ({ type: 'function', function: { name: t.name, description: (t.description ?? '').slice(0, 1024), parameters: t.input_schema } }));
   return { model, messages: msgs, max_tokens: Math.min(Number(body.max_tokens) || 1024, 8000), ...(tools.length ? { tools } : {}) };
 }
@@ -174,11 +174,13 @@ async function freeBrain(body: Body): Promise<Response | null> {
   pickFallbackTools = pick;
   for (const ep of fallbackEndpoints()) {
     try {
-      const oai = toOpenAI(body, ep.model, ep.key !== 'groq');
+      const oai = toOpenAI(body, ep.model, !!ep.vision, ep.toolMax ?? 120);
       // Groq : 8 000 tokens/min → descriptions d'outils raccourcies (61 outils = 8 500 tokens : 2e tour toujours refusé)
       if (ep.key === 'groq') for (const t of (oai.tools ?? []) as Body[]) t.function.description = String(t.function.description ?? '').slice(0, 200);
+      // Cerebras / NVIDIA / OpenRouter : contexte plus petit → descriptions courtes (moins d'outils : toolMax)
+      if (ep.descMax) for (const t of (oai.tools ?? []) as Body[]) t.function.description = String(t.function.description ?? '').slice(0, ep.descMax);
       const post = () => fetch(ep.url, { method: 'POST', headers: { 'content-type': 'application/json', Authorization: `Bearer ${ep.apiKey}` },
-        body: JSON.stringify(oai), signal: AbortSignal.timeout(ep.key === 'gemini' ? 30_000 : 60_000) });
+        body: JSON.stringify(oai), signal: AbortSignal.timeout(ep.key === 'groq' || ep.key === 'openai' ? 60_000 : 30_000) });
       let r = await post();
       const wait = Number(r.headers.get('retry-after') ?? NaN);
       if (ep.key === 'groq' && r.status === 429 && wait <= 30) {   // quota/minute : attendre vaut mieux que planter la tâche
@@ -186,12 +188,12 @@ async function freeBrain(body: Body): Promise<Response | null> {
         r = await post();
       }
       // 23/10 : quota du jour (429), surcharge (503) → modèle sauté 15 min au lieu d'être réessayé à chaque tour
-      if (!r.ok) { if (ep.key === 'gemini' && (r.status === 429 || r.status === 503)) markQuota(ep.model); console.warn(`[claude-secours] ${ep.key}/${ep.model} ${r.status}`, (await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 200)); continue; }
+      if (!r.ok) { if (ep.key !== 'groq' && ep.key !== 'openai' && (r.status === 429 || r.status === 503)) markQuota(ep.model); console.warn(`[claude-secours] ${ep.key}/${ep.model} ${r.status}`, (await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 200)); continue; }
       const out = toAnthropic(await r.json() as Body, ep.model);
       console.warn(`[claude-secours] réponse servie par ${ep.key} (${ep.model})`);
       return new Response(JSON.stringify(out), { status: 200, headers: { 'content-type': 'application/json' } });
     } catch (err) {
-      if (ep.key === 'gemini') markQuota(ep.model);   // figé (gemini-flash-latest ne répondait plus du tout le 23/10)
+      if (ep.key !== 'groq' && ep.key !== 'openai') markQuota(ep.model);   // figé (gemini-flash-latest ne répondait plus du tout le 23/10)
       console.warn(`[claude-secours] ${ep.key}:`, err instanceof Error ? err.message : err);
     }
   }

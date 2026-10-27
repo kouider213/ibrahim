@@ -8,7 +8,9 @@
  *      modèle seul est souvent en 503 (surcharge) ou 429 (quota du jour)
  *   2. Groq openai/gpt-oss-120b (free tier, 8 000 tokens/min → prompt court,
  *      peu d'outils, historique tronqué)
- *   3. OpenAI gpt-4o (payant — dernier recours si crédits restants)
+ *   3. Cerebras, NVIDIA, OpenRouter (free tier, 27/10/2026) — modèle choisi tout seul dans leur liste
+ *      (les noms changent tous les mois), sautés 15 min sur quota/panne
+ *   4. OpenAI gpt-4o (payant — dernier recours si crédits restants)
  */
 import axios from 'axios';
 import type Anthropic from '@anthropic-ai/sdk';
@@ -21,6 +23,9 @@ import { groqSystemPrompt } from './compact-prompt.js';
 const GROQ_KEY   = process.env['GROQ_API_KEY'];
 const GEMINI_KEY = process.env['GEMINI_API_KEY'];
 const OPENAI_KEY = process.env['OPENAI_API_KEY'];
+const CEREBRAS_KEY   = process.env['CEREBRAS_API_KEY'];
+const NVIDIA_KEY     = process.env['NVIDIA_API_KEY'];
+const OPENROUTER_KEY = process.env['OPENROUTER_API_KEY'];
 
 const MAX_TOOL_ROUNDS = 6;
 
@@ -40,29 +45,85 @@ interface OAIMessage {
 }
 
 interface FallbackEndpoint {
-  key:     'groq' | 'gemini' | 'openai';
+  key:     'groq' | 'gemini' | 'openai' | 'cerebras' | 'nvidia' | 'openrouter';
   name:    string;
   url:     string;
   model:   string;
   apiKey:  string;
   /** Petit quota (Groq) : prompt court, peu d'outils, historique et résultats tronqués */
   compact?: boolean;
+  /** Voit les images (image_url) */
+  vision?: boolean;
+  /** Contexte plus petit : moins d'outils, descriptions courtes */
+  toolMax?: number;
+  descMax?: number;
 }
 
 const GEMINI_URL    = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 // gemini-flash-latest en dernier : le 23/10 il restait figé sans répondre (30 s+) pendant que les « lite » répondaient
 const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-3-flash-preview', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
 
-// Modèle Gemini à quota épuisé (429) → on le saute 15 min au lieu de le réessayer à chaque message
+// Modèle à quota épuisé (429), surchargé (503) ou figé → sauté 15 min au lieu d'être réessayé à chaque message
 const quotaUntil = new Map<string, number>();
 export function markQuotaExhausted(model: string): void { quotaUntil.set(model, Date.now() + 15 * 60_000); }
+const usable = (model: string) => (quotaUntil.get(model) ?? 0) < Date.now();
+
+// ── Fournisseurs gratuits ajoutés le 27/10 : le modèle est pris dans leur liste du moment (préférences dans l'ordre),
+// relue toutes les 6 h ; avant la 1re lecture, la 1re préférence connue sert par défaut.
+interface FreeProvider { key: 'cerebras' | 'nvidia' | 'openrouter'; name: string; apiKey?: string; base: string; prefs: RegExp[]; fallback: string; toolMax: number; descMax: number }
+const FREE_PROVIDERS: FreeProvider[] = [
+  { key: 'cerebras',   name: 'Cerebras',   apiKey: CEREBRAS_KEY,   base: 'https://api.cerebras.ai/v1',
+    prefs: [/gpt-oss-120b/, /qwen-3-235b.*instruct/, /glm/, /llama-3\.3-70b/], fallback: 'gpt-oss-120b', toolMax: 40, descMax: 400 },
+  { key: 'nvidia',     name: 'NVIDIA',     apiKey: NVIDIA_KEY,     base: 'https://integrate.api.nvidia.com/v1',
+    prefs: [/^moonshotai\/kimi-k2/, /^z-ai\/glm-5\.\d+$/, /^deepseek-ai\/deepseek-v4/, /^openai\/gpt-oss-120b/, /^mistralai\/mistral-large$/], fallback: 'moonshotai/kimi-k2.6', toolMax: 80, descMax: 600 },
+  { key: 'openrouter', name: 'OpenRouter', apiKey: OPENROUTER_KEY, base: 'https://openrouter.ai/api/v1',
+    prefs: [/^nvidia\/nemotron-3-ultra/, /^deepseek\//, /^qwen\/qwen3/, /^openai\/gpt-oss-120b/, /^thinkingmachines\/inkling:/, /^google\/gemma-4-31b/], fallback: 'nvidia/nemotron-3-ultra-550b-a55b:free', toolMax: 80, descMax: 600 },
+];
+const freeModels = new Map<string, string[]>();   // fournisseur → 2 meilleurs modèles du moment
+
+async function refreshFreeModels(): Promise<void> {
+  for (const p of FREE_PROVIDERS) {
+    if (!p.apiKey) continue;
+    try {
+      const { data } = await axios.get(`${p.base}/models`, { headers: { Authorization: `Bearer ${p.apiKey}` }, timeout: 15_000 });
+      let rows = (data?.data ?? []) as Array<{ id: string; supported_parameters?: string[] }>;
+      // OpenRouter : seulement les modèles gratuits qui savent appeler des outils
+      if (p.key === 'openrouter') rows = rows.filter(m => m.id.endsWith(':free') && (m.supported_parameters ?? []).includes('tools'));
+      const ids = rows.map(m => m.id);
+      const picked = p.prefs.map(re => ids.find(id => re.test(id))).filter((id): id is string => !!id);
+      if (picked.length) freeModels.set(p.key, [...new Set(picked)].slice(0, 2));
+      console.log(`[agentic-fallback] ${p.name} : ${freeModels.get(p.key)?.join(', ') ?? 'aucun modèle reconnu'}`);
+    } catch (e) {
+      console.warn(`[agentic-fallback] ${p.name} liste des modèles :`, e instanceof Error ? e.message : e);
+    }
+  }
+}
+if (FREE_PROVIDERS.some(p => p.apiKey)) {
+  void refreshFreeModels();
+  setInterval(() => void refreshFreeModels(), 6 * 3600_000).unref();
+}
 
 export function fallbackEndpoints(): FallbackEndpoint[] {
   const list: FallbackEndpoint[] = [];
-  if (GEMINI_KEY) for (const model of GEMINI_MODELS) if ((quotaUntil.get(model) ?? 0) < Date.now()) list.push({ key: 'gemini', name: `Gemini ${model}`, url: GEMINI_URL, model, apiKey: GEMINI_KEY });
+  if (GEMINI_KEY) for (const model of GEMINI_MODELS) if (usable(model)) list.push({ key: 'gemini', name: `Gemini ${model}`, url: GEMINI_URL, model, apiKey: GEMINI_KEY, vision: true });
+  for (const p of FREE_PROVIDERS) {
+    if (!p.apiKey) continue;
+    for (const model of freeModels.get(p.key) ?? [p.fallback]) if (usable(model)) {
+      list.push({ key: p.key, name: `${p.name} ${model}`, url: `${p.base}/chat/completions`, model, apiKey: p.apiKey, toolMax: p.toolMax, descMax: p.descMax });
+    }
+  }
   if (GROQ_KEY)   list.push({ key: 'groq',   name: 'Groq GPT-OSS 120B', url: 'https://api.groq.com/openai/v1/chat/completions', model: 'openai/gpt-oss-120b', apiKey: GROQ_KEY, compact: true });
-  if (OPENAI_KEY) list.push({ key: 'openai', name: 'OpenAI GPT-4o',     url: 'https://api.openai.com/v1/chat/completions',     model: 'gpt-4o',              apiKey: OPENAI_KEY });
+  if (OPENAI_KEY) list.push({ key: 'openai', name: 'OpenAI GPT-4o',     url: 'https://api.openai.com/v1/chat/completions',     model: 'gpt-4o',              apiKey: OPENAI_KEY, vision: true });
   return list;
+}
+
+/** Fournisseurs gratuits branchés (page À PAYER / diagnostic). */
+export function freeBrainStatus(): Array<{ provider: string; on: boolean; models: string[] }> {
+  return [
+    { provider: 'gemini', on: !!GEMINI_KEY, models: GEMINI_MODELS.filter(usable) },
+    ...FREE_PROVIDERS.map(p => ({ provider: p.key, on: !!p.apiKey, models: p.apiKey ? (freeModels.get(p.key) ?? [p.fallback]).filter(usable) : [] })),
+    { provider: 'groq', on: !!GROQ_KEY, models: GROQ_KEY ? ['openai/gpt-oss-120b'] : [] },
+  ];
 }
 
 // ── Choix des outils : Groq refuse > 128 outils, et 237 outils = ~50 000 tokens ──
@@ -165,14 +226,20 @@ export async function runAgenticFallback(
     });
   };
   const fullTools    = toOpenAITools(pickFallbackTools(tools, pickText, 120));
+  // Note de passation : le secours sait où on en est (objectif, déjà fait, ce qui attend un oui)
+  const { buildHandoffNote } = await import('./brain-handoff.js');
+  const handoff = await buildHandoffNote(messages).catch(() => '');
+  const handoffMsg: OAIMessage[] = handoff ? [{ role: 'system', content: handoff }] : [];
   const fullHistory: OAIMessage[] = [
     { role: 'system', content: [Dzaryx.SYSTEM_PROMPT as string, systemExtra ?? ''].filter(Boolean).join('\n\n') },
+    ...handoffMsg,
     ...flat,
   ];
   // Groq : ~4 500 tokens par requête pour tenir 2 tours dans les 8 000 tokens/min
   const compactTools   = toOpenAITools(pickFallbackTools(tools, pickText, 8), 300);
   const compactHistory: OAIMessage[] = [
     { role: 'system', content: groqSystemPrompt('', systemExtra ?? '', 1_200) },
+    ...(handoff ? [{ role: 'system' as const, content: handoff.slice(0, 900) }] : []),
     ...flat.slice(-6).map(m => ({ ...m, content: String(m.content ?? '').slice(0, 800) })),
   ];
 
@@ -180,8 +247,8 @@ export async function runAgenticFallback(
 
   for (const ep of eps) {
     const toolsExecuted: ToolExecution[] = [];
-    const history  = withImage(ep.compact ? compactHistory : fullHistory, !ep.compact);
-    const oaiTools = ep.compact ? compactTools : fullTools;
+    const history  = withImage([...(ep.compact ? compactHistory : fullHistory)], !!ep.vision);
+    const oaiTools = ep.compact ? compactTools : ep.toolMax ? toOpenAITools(pickFallbackTools(tools, pickText, ep.toolMax), ep.descMax) : fullTools;
     try {
       for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
         const body = {
@@ -192,7 +259,7 @@ export async function runAgenticFallback(
           max_tokens:  ep.compact ? 1024 : 4096,
           temperature: 0.5,
         };
-        const post = () => axios.post(ep.url, body, { headers: { Authorization: `Bearer ${ep.apiKey}` }, timeout: ep.key === 'gemini' ? 20_000 : 45_000 });   // 23/10 : un Gemini figé faisait attendre 45 s en plein appel
+        const post = () => axios.post(ep.url, body, { headers: { Authorization: `Bearer ${ep.apiKey}` }, timeout: ep.key === 'groq' || ep.key === 'openai' ? 45_000 : 20_000 });   // 23/10 : un Gemini figé faisait attendre 45 s en plein appel
         let data;
         try {
           ({ data } = await post());
@@ -203,7 +270,7 @@ export async function runAgenticFallback(
             // gpt-oss appelle parfois un outil absent de la liste (ex. web_search) → on lui rappelle la liste, un essai
             const names = oaiTools.map(t => (t['function'] as { name: string }).name).join(', ');
             body.messages = [...history, { role: 'system', content: `Outils disponibles UNIQUEMENT : ${names}. N'en appelle aucun autre ; sinon réponds sans outil.` }];
-          } else if (r?.status !== 429 || !(wait <= 20) || ep.key === 'gemini') {
+          } else if (r?.status !== 429 || !(wait <= 20) || ep.key !== 'groq') {
             throw e;
           } else {
             // Groq : quota/minute dépassé → mieux vaut attendre quelques secondes que répondre « indisponible »
@@ -245,7 +312,7 @@ export async function runAgenticFallback(
       lastErr = err;
       // quota (429), surcharge (503) ou figé (timeout) → ce modèle est sauté 15 min au lieu de refaire attendre
       const st = (err as { response?: { status?: number }; code?: string });
-      if (ep.key === 'gemini' && (st.response?.status === 429 || st.response?.status === 503 || st.code === 'ECONNABORTED')) markQuotaExhausted(ep.model);
+      if (ep.key !== 'groq' && ep.key !== 'openai' && (st.response?.status === 429 || st.response?.status === 503 || st.code === 'ECONNABORTED')) markQuotaExhausted(ep.model);
       const res = (err as { response?: { status?: number; data?: unknown } }).response;
       console.warn(`[agentic-fallback] ${ep.key}/${ep.model} FAILED status=${res?.status ?? 'network'} body=${JSON.stringify(res?.data ?? {}).slice(0, 200)} msg="${err instanceof Error ? err.message.slice(0, 120) : String(err)}" → provider suivant`);
       // Des outils ont déjà tourné (ex. mail envoyé) : rejouer ailleurs risquerait un doublon

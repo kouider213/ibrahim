@@ -489,9 +489,12 @@ export async function processMessage(
     // Crédit Claude épuisé (23/10 : « Petit souci technique » à 6h42) : on n'attend plus l'échec de Claude à chaque
     // message, on part tout de suite sur le secours — sinon Telegram abandonnait avant la réponse (> 90 s)
     if ((await import('../integrations/anthropic-compat.js')).claudeKnownDead()) throw new Error('crédit Claude épuisé (connu)');
+    // Claude revient après une coupure → il reçoit une fois ce que le secours a fait entre-temps
+    const handoffMod = await import('../integrations/brain-handoff.js');
+    const backNote = await handoffMod.returnNote();
     response = await chatWithTools(
       ctx.messages,
-      agentSystemExtra,
+      backNote ? `${agentSystemExtra ?? ''}\n\n${backNote}` : agentSystemExtra,
       sessionId,
       onToolStart,
       onToolDone,
@@ -500,6 +503,7 @@ export async function processMessage(
       imageMime,
       agentRoute.agentTools,   // Phase 3: scoped tool subset
     );
+    if (backNote) void handoffMod.clearReturnNote();
   } catch (claudeErr) {
     const _cAxErr = claudeErr as { response?: { status?: number; data?: unknown } };
     console.error(`[PROVIDER_ROUTER] provider=claude FAILED status=${_cAxErr.response?.status ?? 'unknown'} body=${JSON.stringify(_cAxErr.response?.data ?? {}).slice(0, 200)} msg="${claudeErr instanceof Error ? claudeErr.message : String(claudeErr)}" session=${sessionId}`);
@@ -532,6 +536,9 @@ export async function processMessage(
         const agSafe    = oranize(localizeGuardMessage(agChecked, null, guardLang), actor);
         _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: agSafe });
         saveConversationTurn(sessionId, 'assistant', agSafe, { tools: agRes.toolsExecuted.map(t => `${t.name} ${t.success ? '✅' : '❌'}`) }).catch(() => {});
+        // Gardé pour le retour de Claude (note de passation inverse)
+        void import('../integrations/brain-handoff.js').then(h => h.recordFallbackTurn(agRes.provider, userMessage, agSafe,
+          agRes.toolsExecuted.map(t => `${t.name} ${t.success ? '✅' : '❌'}`))).catch(() => {});
         if (!textOnly && agSafe.length > 0) {
           _io?.emit(SOCKET_EVENTS.STATUS, { status: 'speaking', sessionId });
           await streamAudioSentences(agSafe, sessionId);

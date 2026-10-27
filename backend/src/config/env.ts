@@ -78,6 +78,9 @@ const envSchema = z.object({
   GROQ_API_KEY:        z.string().optional(),   // LLaMA 3.3 70B — fast path (gratuit)
   OPENAI_API_KEY:      z.string().optional(),   // GPT-4o — fallback Claude
   GEMINI_API_KEY:      z.string().optional(),   // Gemini 1.5 Flash — long context + fallback
+  CEREBRAS_API_KEY:    z.string().optional(),   // cerveau de secours gratuit (27/10)
+  NVIDIA_API_KEY:      z.string().optional(),   // cerveau de secours gratuit (build.nvidia.com)
+  OPENROUTER_API_KEY:  z.string().optional(),   // cerveau de secours gratuit (modèles :free)
   SAAS_JWT_SECRET:      z.string().min(32).optional(),
   PORT:                 z.coerce.number().int().positive().default(3000),
   NODE_ENV:             z.enum(['development', 'production', 'test']).default('development'),

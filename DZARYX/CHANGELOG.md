@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-27 (suite 7) — Cerveau de secours : 3 fournisseurs gratuits de plus + note de passation
+- `agentic-fallback.ts` : Cerebras, NVIDIA (build.nvidia.com), OpenRouter (modèles `:free` avec outils) entre Gemini et Groq. Modèle choisi tout seul dans leur liste (relue toutes les 6 h, préférences : Cerebras gpt-oss-120b/qwen-3-235b ; NVIDIA kimi-k2 / glm-5 / deepseek-v4 ; OpenRouter nemotron-3-ultra / inkling / gemma-4), sautés 15 min sur 429/503/figé. Inactifs tant que `CEREBRAS_API_KEY` / `NVIDIA_API_KEY` / `OPENROUTER_API_KEY` manquent (Railway + VPS .env).
+- `brain-handoff.ts` : NOTE DE PASSATION donnée au secours (objectif récent, dernière question posée, outils déjà réussis à ne pas refaire, réponse WhatsApp en attente de oui) ; RETOUR DE PASSATION donné une fois à Claude quand il revient (ce que le secours a répondu/fait pendant la coupure, kv `brain:handoff:back`).
+- `anthropic-compat.ts` (tâches de fond) : mêmes fournisseurs, vision seulement pour Gemini/OpenAI.
+
 ## 2026-10-27 (suite 6) — Visage : micro rétabli + lèvres sur le son (app v194)
 - Kouider : en v193 « quand je parle il n'écoute pas » et lèvres pas synchronisées. Cause probable : les 2 `<video>` (même muettes) qui jouent coupent le micro sur iPhone → plus AUCUNE vidéo : planches d'images `public/dzaryx-talk.jpg` / `dzaryx-listen.jpg` (60 images 240×373 chacune, 12 i/s, ~1,1 Mo), mp4 supprimés.
 - Lèvres : ouverture de la bouche mesurée sur chaque image de « il parle » (dents visibles, tgcall/models YuNet) → table OPEN ; toutes les 70 ms l'app prend l'image dont l'ouverture colle au VOLUME réel de sa voix (getVoiceLevel), en restant proche de l'image courante.
