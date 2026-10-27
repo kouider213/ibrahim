@@ -107,9 +107,19 @@ router.get('/health', async (_req, res) => {
   try { res.json({ text: await import('../../integrations/jarvis-hub.js').then(m => m.healthText(14)) }); } catch (e) { fail(res, e); }
 });
 // « Dis Siri, Dzaryx » : le Raccourci envoie la phrase dictée → phrase à dire + action iPhone (lien à ouvrir)
-router.post('/siri', async (req, res) => {
-  const text = String((req.body as { text?: string }).text ?? '').trim();
-  if (!text) { res.json({ say: 'Je t\'écoute.' }); return; }
+router.post('/siri', express.text({ type: 'text/*', limit: '1mb' }), async (req, res) => {
+  // Corps tolérant (Raccourcis) : JSON {text}, autre nom de champ, ou texte simple
+  const b = req.body as unknown;
+  const obj = b && typeof b === 'object' ? b as Record<string, unknown> : {};
+  const pick = (v: unknown): string => typeof v === 'string' ? v : Array.isArray(v) ? v.map(pick).join(' ') : v && typeof v === 'object' ? pick((v as Record<string, unknown>)['text'] ?? Object.values(v as object)[0]) : '';
+  const text = (typeof b === 'string' ? b : pick(obj['text'] ?? obj['Texte dicté'] ?? Object.values(obj).find(v => typeof v === 'string' && v.trim()))).trim();
+  if (!text) {
+    // Diagnostic dit à voix haute : ce que le Raccourci a réellement envoyé (jamais la clé)
+    const keys = Object.keys(obj);
+    const what = typeof b === 'string' ? 'un texte vide' : keys.length ? `les champs ${keys.join(', ')}, mais vides` : `rien (type ${String(req.headers['content-type'] ?? 'inconnu').split(';')[0]})`;
+    res.json({ say: `Je n'ai pas reçu ta phrase. Le raccourci m'a envoyé ${what}. Vérifie que la dictée t'a bien entendu.` });
+    return;
+  }
   try { res.json(await import('../../integrations/jarvis-hub.js').then(m => m.siriTurn(text))); } catch (e) { fail(res, e); }
 });
 // Salle de commande (TV / PC), machine à voir le futur, briefing 3D de la Carte live
