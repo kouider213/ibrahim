@@ -6,6 +6,7 @@ import {
   type DzaryxStatus,
 } from '../../services/api.ts';
 import { OrbIcon } from '../ui/Premium.tsx';
+import { createDzaryxFace } from '../ui/dzaryxFace.ts';
 import DzaryxIcon from '../ui/DzaryxLogo.tsx';
 
 interface Props {
@@ -28,17 +29,6 @@ const STATE_COLOR: Record<DzaryxStatus, string> = {
   thinking:  '#a78bfa',
   speaking:  '#4aa3ff',
 };
-
-// Sphère neuronale : points répartis (Fibonacci) + liaisons vers les voisins proches
-const SPHERE_N = 110;
-const sphereNodes = Array.from({ length: SPHERE_N }, (_, i) => {
-  const y = 1 - (i / (SPHERE_N - 1)) * 2, r = Math.sqrt(1 - y * y), th = i * 2.399963;
-  return { x: Math.cos(th) * r, y, z: Math.sin(th) * r, ph: Math.random() * 6.28 };
-});
-const sphereLinks: [number, number][] = [];
-sphereNodes.forEach((a, i) => sphereNodes.forEach((b, j) => {
-  if (j > i && (a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2 < 0.13) sphereLinks.push([i, j]);
-}));
 
 const STATE_MSG: Record<DzaryxStatus, string> = {
   idle:      'Sur quoi puis-je vous aider ?',
@@ -955,6 +945,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
     }
     fit();
     let smooth = 0;
+    const drawFace = createDzaryxFace();
 
     function frame(t: number) {
       animRef.current = requestAnimationFrame(frame);
@@ -988,34 +979,11 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       }
       ctx.globalAlpha = 1;
 
-      // Sphère : points de Fibonacci en rotation + liaisons
-      const rotY = t * (st === 'thinking' ? 0.0011 : 0.00035), rotX = 0.35 + Math.sin(t * 0.0003) * 0.15;
-      const cyR = Math.cos(rotY), syR = Math.sin(rotY), cxR = Math.cos(rotX), sxR = Math.sin(rotX);
-      const proj: { x: number; y: number; z: number }[] = [];
-      for (const n of sphereNodes) {
-        const wob = 1 + (st === 'listening' || st === 'speaking' ? Math.sin(t * 0.008 + n.ph) * amp * 0.18 : 0);
-        const x1 = n.x * cyR + n.z * syR, z1 = -n.x * syR + n.z * cyR;
-        const y2 = n.y * cxR - z1 * sxR, z2 = n.y * sxR + z1 * cxR;
-        proj.push({ x: cx + x1 * R * wob, y: cy + y2 * R * wob, z: z2 });
+      // Visage animé de Dzaryx (le même petit bonhomme qu'en appel Telegram) à la place de la sphère — Kouider 27/10
+      {
+        const talk = st === 'speaking' ? 0.3 + 0.7 * Math.abs(Math.sin(t * 0.017) * Math.sin(t * 0.029 + 1.3)) : 0;
+        drawFace(ctx, cx, cy - R * 0.15, R * 0.78, t, { talk, listen: st === 'listening' ? amp : 0, thinking: st === 'thinking' });
       }
-      ctx.lineWidth = 0.6;
-      for (const [i, j] of sphereLinks) {
-        const a = proj[i]!, b = proj[j]!;
-        const d = (a.z + b.z) / 2;
-        ctx.strokeStyle = hexToRgba(col, 0.05 + (d + 1) * 0.11);
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-      }
-      for (const p of proj) {
-        const f = (p.z + 1) / 2;
-        ctx.fillStyle = hexToRgba(col, 0.25 + f * 0.7);
-        ctx.beginPath(); ctx.arc(p.x, p.y, 0.7 + f * 1.5, 0, Math.PI * 2); ctx.fill();
-      }
-      // Cœur
-      const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 0.55);
-      core.addColorStop(0, hexToRgba('#ffffff', 0.55 + amp * 0.4));
-      core.addColorStop(0.25, hexToRgba(col, 0.45 + amp * 0.3));
-      core.addColorStop(1, hexToRgba(col, 0));
-      ctx.fillStyle = core; ctx.beginPath(); ctx.arc(cx, cy, R * 0.55, 0, Math.PI * 2); ctx.fill();
 
       // Anneaux HUD (graduations + arcs qui tournent)
       const ring = (rad: number, rot: number, alpha: number, dash: number[]) => {

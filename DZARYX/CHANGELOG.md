@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-27 (suite 2) — Visage animé de Dzaryx (appels Telegram + app v190)
+- `tgcall/avatar_cute.py` (nouveau) : petit bonhomme dessin animé (choisi par Kouider après 2 versions jugées « qui font peur » : hologramme filaire puis visage bleu) — tête ronde, grands yeux qui clignent et regardent, cheveux courts, barbe légère, sourire qui s'ouvre avec la voix ; style 'orb' (bulle) gardé en réserve. ~10 ms/image.
+- `realtime.py` : `_face_loop()` 15 i/s → `send_frame(Device.CAMERA)`, bouche = volume instantané de sa voix (`out_now`), écoute = volume de Kouider (`in_now`).
+- `dzaryx_tg.py` : flux `ExternalMedia.AUDIO | VIDEO` 360×480 ; repli son seul si l'appel vidéo est refusé ; commande « visage on/off ».
+- App : `ui/dzaryxFace.ts` (même bonhomme en canvas) remplace la sphère de `VoiceScreen` ; sw v190.
+
 ## 2026-10-27 (suite) — WhatsApp : numéros dictés, photo à un numéro, documents, validation client ; visage dans l'app
 - `whatsapp-web.ts` : `waNumber()` (« 06… » → +33/+213 avec question si 06/07 sans pays, 04 → BE, 05 → DZ, 00/+ gérés) ; `send_file` sans fichier = dernière photo envoyée (app 5 min / Telegram 30 min, `forme.lastTelegramPhoto`) copiée sur le PC cloud ; `documents` (PDF/Word du client → Telegram) ; `save_contact` ; `save_client` (validation : passeport/CNI/permis repérés par Haiku → `scanIdentity` dossier client, PDF → `client_documents`, contact WhatsApp au nom lu sur la pièce).
 - `cloudpc/whatsapp_web.py` : `documents()` (défilement écran par écran, aperçu → Télécharger, testé sur un vrai PDF) ; `save_contact()` (Nouvelle discussion → Nouveau contact, pays au vrai clic, synchro téléphone cochée ; testé à blanc FR + DZ, jamais enregistré pour de vrai).

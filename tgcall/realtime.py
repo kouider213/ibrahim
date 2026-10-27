@@ -21,7 +21,7 @@ from typing import Awaitable, Callable
 
 import aiohttp
 from pytgcalls import PyTgCalls
-from pytgcalls.types import Device
+from pytgcalls.types import Device, Frame
 
 import face
 import speaker
@@ -149,6 +149,9 @@ class RealtimeCall:
         self.play_until = 0.0             # Dzaryx est audible au téléphone jusqu'à… (écho possible)
         self.open_until = 0.0             # anti-écho ouvert (Kouider parle par-dessus) jusqu'à…
         self.out_env = 0.0                # volume récent de la voix de Dzaryx jouée (pic qui retombe en ~1 s)
+        self.out_now = 0.0                # volume instantané de sa voix (bouche du visage animé)
+        self.in_now = 0.0                 # volume instantané de Kouider (le visage l'écoute)
+        self.show_face = False            # dzaryx_tg : le flux de l'appel a une caméra → on envoie le visage animé
         self.echo_k = ECHO_K0             # écho = echo_k × voix de Dzaryx (appris : écouteurs → presque 0)
         self.voice_lvl = 0.0              # volume habituel de sa voix (pic qui retombe en ~10 s)
         self.reconnects = 0
@@ -215,6 +218,8 @@ class RealtimeCall:
             self.playing = True
             self.tasks.append(asyncio.create_task(self._pacer()))
             self.tasks.append(asyncio.create_task(self._stall_watch()))
+            if self.show_face:
+                self.tasks.append(asyncio.create_task(self._face_loop()))
             if len(wait_pcm) < len(WAIT_LINES):
                 self.tasks.append(asyncio.create_task(self._load_wait_lines()))
 
@@ -299,6 +304,7 @@ class RealtimeCall:
         self.n_in += 1
         rms = audioop.rms(pcm24k, 2)
         self.rms_max = max(self.rms_max, rms)
+        self.in_now = max(rms, self.in_now * 0.8)
         self.voice.extend(pcm24k); self.win.extend(pcm24k)
         # Anti-écho (20/10 : Gemini entendait sa propre voix revenir du téléphone, se coupait et se répondait —
         # « tu t'écoutes ») : pendant que Dzaryx parle, le faible retour du haut-parleur est remplacé par du silence.
@@ -519,6 +525,32 @@ class RealtimeCall:
         await self._send({'type': 'conversation.item.create', 'item': {'type': 'message', 'role': 'user', 'content': [
             {'type': 'input_image', 'image_url': f'data:image/jpeg;base64,{jpg_b64}'}]}})
 
+    # ── Visage animé de Dzaryx → caméra de l'appel (Kouider 27/10 : « il me voit mais moi je le vois pas ») ──
+    async def _face_loop(self) -> None:
+        from avatar_cute import FPS, H, W, CuteAvatar
+        try:
+            av = CuteAvatar('cartoon')
+        except Exception as e:
+            log.warning('visage animé indisponible : %s', e)
+            return
+        info = Frame.Info(width=W, height=H)
+        nxt = time.monotonic()
+        while not self.closed:
+            nxt += 1 / FPS
+            talk = min(1.0, self.out_now / 4000) if self.out else min(1.0, self.out_now / 6000)
+            listen = 0.0 if self.out else min(1.0, self.in_now / 3000)
+            try:
+                data = await asyncio.to_thread(av.i420, talk, listen)
+                await self.calls.send_frame(self.user_id, Device.CAMERA, data, info)
+            except Exception as e:
+                log.warning('visage animé : %s', e)
+                return
+            delay = nxt - time.monotonic()
+            if delay > 0:
+                await asyncio.sleep(delay)
+            else:
+                nxt = time.monotonic()
+
     # ── Voix de Dzaryx → appel (tranches de 10 ms au rythme réel) ────────────
     async def _pacer(self) -> None:
         nxt = time.monotonic()
@@ -527,10 +559,13 @@ class RealtimeCall:
             if len(self.out) >= FRAME_10MS:
                 frame = bytes(self.out[:FRAME_10MS]); del self.out[:FRAME_10MS]
                 self.n_voiced += 1
-                self.out_env = max(audioop.rms(frame, 2), self.out_env * 0.99)
+                r = audioop.rms(frame, 2)
+                self.out_env = max(r, self.out_env * 0.99)
+                self.out_now = max(r, self.out_now * 0.75)
             else:
                 frame = SILENCE
                 self.out_env *= 0.99
+                self.out_now *= 0.75
             try:
                 await self.calls.send_frame(self.user_id, Device.MICROPHONE, frame)
                 self.n_out += 1

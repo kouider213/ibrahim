@@ -27,7 +27,7 @@ import aiohttp
 from pyrogram import Client, enums, filters as pfilters, raw
 from pyrogram.types import Message
 from pytgcalls import PyTgCalls, filters as cfilters
-from pytgcalls.types.raw import AudioParameters
+from pytgcalls.types.raw import AudioParameters, VideoParameters
 from pytgcalls.types import (
     CallConfig, ChatUpdate, Device, Direction, ExternalMedia, MediaStream, RecordStream,
     StreamEnded, StreamFrames,
@@ -67,6 +67,8 @@ REALTIME = os.environ.get('REALTIME', '1') == '1'
 # « appels claude on » (Telegram) : les appels passent par le cerveau Claude (tous les outils, plus intelligent, un peu plus
 # lent et payant) au lieu de la voix gratuite Gemini Live. Sinon Gemini d'abord, et bascule sur Claude s'il bloque (24/10).
 CLAUDE_CALLS = HERE / 'cache' / 'claude-calls'
+NO_FACE = HERE / 'cache' / 'no-face'          # « visage off » : appels sans le visage animé de Dzaryx
+FACE_CALLS_CMD = re.compile(r'^visage\s+(on|off|oui|non)$', re.I)
 CLAUDE_CALLS_CMD = re.compile(r'^appels?\s+claude\s+(on|off|oui|non)$', re.I)
 
 SAMPLE_RATE = 16000
@@ -683,8 +685,23 @@ async def start_realtime(actor: str, user_id: int) -> bool:
     log.info('appel %s (temps réel) → %r', actor, greeting)
     st.greeting = greeting
     try:
-        await calls.play(user_id, MediaStream(ExternalMedia.AUDIO, AudioParameters(OUT_RATE, 1),
-                                              video_flags=MediaStream.Flags.IGNORE), CallConfig(timeout=45))
+        # Le visage animé de Dzaryx passe par la « caméra » (« visage off » sur Telegram pour revenir au son seul)
+        rt.show_face = not NO_FACE.exists()
+        if rt.show_face:
+            from avatar_cute import FPS, H, W
+            stream = MediaStream(ExternalMedia.AUDIO | ExternalMedia.VIDEO, AudioParameters(OUT_RATE, 1),
+                                 VideoParameters(W, H, FPS, False))
+        else:
+            stream = MediaStream(ExternalMedia.AUDIO, AudioParameters(OUT_RATE, 1), video_flags=MediaStream.Flags.IGNORE)
+        try:
+            await calls.play(user_id, stream, CallConfig(timeout=45))
+        except Exception as e:
+            if not rt.show_face:
+                raise
+            log.warning('appel avec visage refusé (%s) → son seul', e)   # jamais d'appel perdu à cause de la vidéo
+            rt.show_face = False
+            await calls.play(user_id, MediaStream(ExternalMedia.AUDIO, AudioParameters(OUT_RATE, 1),
+                                                  video_flags=MediaStream.Flags.IGNORE), CallConfig(timeout=45))
         await calls.record(user_id, RecordStream(True, AudioParameters(IN_RATE, 1), camera=os.environ.get('TG_CAMERA', '1') == '1'))
         rt.start_audio()
         await rt.greet(greeting, st.outgoing)
@@ -1066,6 +1083,12 @@ async def on_message(_, msg: Message) -> None:
             speaker.set_guard(on)
             await app.send_message(uid, '🔐 Vérification de la voix ACTIVÉE : au téléphone je vérifie que c\'est toi avant de parler affaires.'
                                    if on else '🔓 Vérification de la voix désactivée : ton compte Telegram suffit, je te parle direct.')
+        elif msg.text and FACE_CALLS_CMD.match(msg.text.strip()) and actor == speaker.OWNER:
+            on = FACE_CALLS_CMD.match(msg.text.strip()).group(1).lower() in ('on', 'oui')
+            NO_FACE.parent.mkdir(exist_ok=True)
+            NO_FACE.unlink(missing_ok=True) if on else NO_FACE.touch()
+            await app.send_message(uid, '🙂 Visage activé : pendant nos appels tu me vois (petit bonhomme qui parle et t\'écoute).'
+                                   if on else '🔈 Visage désactivé : appels en son seul. « visage on » pour me revoir.')
         elif msg.text and CLAUDE_CALLS_CMD.match(msg.text.strip()) and actor == speaker.OWNER:
             on = CLAUDE_CALLS_CMD.match(msg.text.strip()).group(1).lower() in ('on', 'oui')
             CLAUDE_CALLS.parent.mkdir(exist_ok=True)
