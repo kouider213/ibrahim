@@ -78,7 +78,9 @@ export async function healthText(days = 7): Promise<string> {
 // ── Siri ─────────────────────────────────────────────────────────────────────
 const SIRI = `[SIRI — Kouider te parle via Siri sur son iPhone (mains libres). Réponds en 1 à 2 phrases courtes, à l'oral.
 Si sa demande est une ACTION DE SON IPHONE (appeler quelqu'un, envoyer un SMS, ouvrir WhatsApp avec quelqu'un, itinéraire, musique, ouvrir une app),
-ajoute à la toute fin une ligne seule : PHONE_URL: <lien> — tel:+33…, sms:+33…&body=…, https://wa.me/33…?text=…, https://waze.com/ul?q=…&navigate=yes, music://music.apple.com/search?term=…, ou le lien de l'app.
+ajoute à la toute fin une ligne seule : PHONE_URL: <lien> — tel:+33…, sms:+33…&body=…, https://waze.com/ul?q=…&navigate=yes, music://music.apple.com/search?term=…, ou le lien de l'app.
+WHATSAPP = TOUJOURS son WhatsApp BUSINESS via l'outil whatsapp_web (PC cloud), JAMAIS de PHONE_URL wa.me (ça ouvre le WhatsApp perso) :
+lire / dernier message / non lus → whatsapp_web (unread ou read) et dis-lui à l'oral qui a écrit et ce qu'il dit ; écrire à quelqu'un → prépare le message avec whatsapp_web et demande son oui avant d'envoyer.
 Numéro d'un contact : cherche-le avec tes outils (clients, partenaires, mémoire des gens). Si tu ne le trouves pas, demande-le.]`;
 
 export async function siriTurn(text: string): Promise<{ say: string; url?: string }> {
