@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-27 — Dzaryx reconnaît le visage de Kouider (Telegram photos + appels vidéo)
+- `tgcall/face.py` (nouveau) : OpenCV YuNet (détection) + SFace (empreinte 128 nombres), local au VPS comme `speaker.py` ; `faceprints/` (ignoré par git, repo public) ; modèles dans `tgcall/models/` (opencv_zoo). Seuil 0,40 ; selfie de test 0,96–1,00, autre visage 0,06.
+- `dzaryx_tg.py` : photo + légende « retiens mon visage » → apprend ; toute photo → « [VISAGE : … Kouider …] » ajouté au message pour le cerveau ; photo de Kouider très sûre (≥ 0,50) enrichit l'empreinte.
+- `realtime.py` : 1re image caméra d'un appel vidéo → note système « VISAGE : … » (ne remplace pas la vérification de la voix).
+
 ## 2026-10-26 (suite) — FORME : fiches exercices + bibliothèque, réveil sauté si déjà debout (app v189)
 - `exercise-lib.ts` (nouveau) + `/api/forme/exlib`, `/exlib/:id`, `/exlib-match` : ~817 exercices free-exercise-db (domaine public), noms FR (Haiku, `sport:exlib:names:fr`), fiche FR étapes/erreurs/respiration (`sport:exlib:fr:<id>`), exercice de séance → fiche la plus proche (`sport:exlib:match`).
 - `forme/Exercises.tsx` (nouveau) : fiche exercice (démo animée, schéma du corps face/dos muscles principaux rouge / secondaires orange — SVG wger.de CC BY-SA dans `public/muscles/`, étapes, erreurs à éviter) + bibliothèque « 📚 Tous les exercices » filtrée par muscle + recherche ; ouverte depuis la liste des exercices et pendant la séance (« ⓘ Comment faire · muscles »), pour Kouider et Fatima. `Sheet` accepte `z`.

@@ -10,5 +10,6 @@ outbox/
 .*.tmp
 watchdog.log
 voiceprints/
+faceprints/
 models/
 cache/

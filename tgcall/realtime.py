@@ -23,6 +23,7 @@ import aiohttp
 from pytgcalls import PyTgCalls
 from pytgcalls.types import Device
 
+import face
 import speaker
 from gemini_live import GeminiLiveWS
 
@@ -129,6 +130,7 @@ class RealtimeCall:
         self.playing = False              # l'appel Telegram est établi → on peut envoyer des tranches
         self.video: tuple[bytes, int, int, int, float] | None = None   # dernière image caméra (brute, l, h, rotation, quand)
         self.video_sent = 0.0
+        self.face_seen = ''   # qui a été reconnu à la caméra (une fois par appel)
         self.lines: list[dict] = []       # transcription de l'appel (mémoire des appels, envoyée à la fin)
         self.started = time.monotonic()
         self.interpreter = ''             # langue du client en mode interprète ('' = normal)
@@ -503,6 +505,13 @@ class RealtimeCall:
         self.video_sent = time.monotonic()
         await self._send({'type': 'conversation.item.create', 'item': {'type': 'message', 'role': 'user', 'content': [
             {'type': 'input_image', 'image_url': f'data:image/jpeg;base64,{jpg}'}]}})
+        if not self.face_seen:   # 1re fois qu'on voit un visage : Dzaryx sait qui est devant la caméra
+            seen = await asyncio.to_thread(face.hint, base64.b64decode(jpg), self.actor == face.OWNER)
+            if seen:
+                self.face_seen = seen
+                await self._send({'type': 'conversation.item.create', 'item': {'type': 'message', 'role': 'system', 'content': [
+                    {'type': 'input_text', 'text': f'{seen} (caméra de l\'appel). Si on te demande « tu me reconnais ? », '
+                     'réponds d\'après ça. Ça ne remplace pas la vérification de la voix.'}]}})
         return True
 
     async def show_image(self, jpg_b64: str) -> None:

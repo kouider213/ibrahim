@@ -35,6 +35,7 @@ from pytgcalls.types import (
 
 from ntgcalls import VideoRotation
 from realtime import IN_RATE, OUT_RATE, RealtimeCall, speak
+import face
 import speaker
 
 HERE = Path(__file__).parent
@@ -892,6 +893,7 @@ async def heartbeat() -> None:
 
 # ── Messages privés ──────────────────────────────────────────────────────────
 
+FACE_CMD = re.compile(r'\b(retiens|m[ée]morise|apprends|enregistre)\b.*\b(visage|t[êe]te|face)\b', re.I)
 GUARD_CMD = re.compile(r'^v[ée]rif(?:ication)?\s+(?:de\s+la\s+)?voix\s+(on|off|oui|non)$', re.I)
 PASSCODE_CMD = re.compile(r'^code secret\s*[:=]?\s*(\S.{1,40})$', re.I)
 
@@ -1033,10 +1035,22 @@ async def on_message(_, msg: Message) -> None:
         elif msg.photo or (msg.document and (msg.document.mime_type or '').startswith('image/')):
             await app.send_chat_action(uid, enums.ChatAction.TYPING)
             path = await msg.download(file_name=tempfile.mktemp(prefix='dzimg_', suffix='.jpg'))
-            b64 = base64.b64encode(Path(path).read_bytes()).decode()
+            pic = Path(path).read_bytes()
+            b64 = base64.b64encode(pic).decode()
             os.unlink(path)
             mime = 'image/jpeg' if msg.photo else msg.document.mime_type
-            out = await api('/api/call/turn', {'message': msg.caption or '', 'image': b64, 'imageMime': mime,
+            if actor == speaker.OWNER and FACE_CMD.search(msg.caption or ''):   # « retiens mon visage » + selfie
+                vecs = await asyncio.to_thread(face.embed, pic)
+                if vecs:
+                    n = face.enroll(face.OWNER, vecs[0])
+                    await msg.reply_text(f'🙂 C\'est noté, je retiens ton visage ({n} photo{"s" if n > 1 else ""} de toi). '
+                                         'Quand tu me montres ta tête, je saurai que c\'est toi.')
+                else:
+                    await msg.reply_text('Je ne vois pas bien de visage sur cette photo — renvoie un selfie de face, bien éclairé.')
+                return
+            seen = await asyncio.to_thread(face.hint, pic, actor == speaker.OWNER)
+            out = await api('/api/call/turn', {'message': f'{seen}\n{msg.caption or ""}'.strip() if seen else msg.caption or '',
+                                               'image': b64, 'imageMime': mime,
                                                'textOnly': True, 'channel': 'message'}, actor, 120)
             await reply_out(msg, out)
         elif msg.text and PASSCODE_CMD.match(msg.text.strip()) and actor == speaker.OWNER:
