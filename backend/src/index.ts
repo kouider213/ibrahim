@@ -397,7 +397,17 @@ app.use('/api/billing',    apiLimiter, billingRoutes);
 app.use('/api/studio',     apiLimiter, studioRoutes);
 app.use('/api/sport',      apiLimiter, sportRoutes);
 app.use('/api/partners',   apiLimiter, partnersRoutes);
-app.use('/api/jarvis',     liveLimiter, jarvisRoutes);   // page JARVIS : souffleur, réunion, entraînement, état des lieux vidéo
+app.use('/api/jarvis',     liveLimiter, jarvisRoutes);
+// Atelier de Tony Stark : pages construites par Dzaryx, publiques (aucune donnée privée dedans)
+app.get('/atelier/:slug', async (req, res) => {
+  const slug = String(req.params['slug']).replace(/[^a-z0-9-]/g, '');
+  const { kvGet } = await import('./integrations/app-store.js');
+  const html = slug ? await kvGet(`atelier:page:${slug}`).catch(() => null) : null;
+  if (!html) { res.status(404).send('Page introuvable'); return; }
+  res.removeHeader('Content-Security-Policy');   // helmet bloquerait le JavaScript de la page
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(html);
+});   // page JARVIS : souffleur, réunion, entraînement, état des lieux vidéo
 app.use('/api/coach',      apiLimiter, coachRoutes);
 app.use('/api/kid',        apiLimiter, kidRoutes);
 app.use('/api/forme',      apiLimiter, formeRoutes);

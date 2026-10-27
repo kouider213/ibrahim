@@ -204,6 +204,9 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
   };
 
   // Visite guidée : la caméra fait le tour du business et raconte la journée (voix si 🔊)
+  // Briefing 3D (27/10) : le cerveau ajoute ton agenda, ton prochain vol, l'euro, tes projets et sa prédiction du moment
+  const briefRef = useRef<Record<string, string> | null>(null);
+  useEffect(() => { if (!demo && actor === 'kouider') apiFetch<Record<string, string>>('/api/jarvis/briefing').then(b => { briefRef.current = b; }).catch(() => {}); }, [demo, actor]);
   const startTour = () => {
     const w = todayWorld, n = (st: Status[]) => w.cars.filter(c => st.includes(c.status)).length;
     const pl = (k: number, one: string, many = `${one}s`) => `${k} ${k > 1 ? many : one}`;
@@ -223,6 +226,13 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
     if (w.zones.includes('vente') && w.sales.length) steps.push({ p: { kind: 'zone', zone: 'vente' }, t: `Vente auto : ${pl(w.sales.length, 'véhicule')} à vendre.` });
     if (w.zones.includes('port') && w.imports.length) steps.push({ p: { kind: 'zone', zone: 'port' }, t: `Au port : ${pl(w.imports.length, 'import')} en cours.` });
     if (w.zones.includes('immo') && w.properties.length) steps.push({ p: { kind: 'zone', zone: 'immo' }, t: `Immobilier : ${pl(w.properties.length, 'bien')}.` });
+    const br = briefRef.current;
+    if (br) {
+      if (br['me']) steps.splice(1, 0, { p: { kind: 'me' }, t: br['me'] });
+      if (br['aeroport']) steps.push({ p: w.zones.includes('aeroport') ? { kind: 'zone', zone: 'aeroport' } : { kind: 'me' }, t: br['aeroport'] });
+      if (br['agence']) steps.push({ p: { kind: 'zone', zone: 'agence' }, t: br['agence'] });
+      if (br['futur']) steps.push({ p: null, t: br['futur'] });
+    }
     steps.push({ p: null, t: left ? `Tu as ${pl(left, 'mission')} aujourd'hui. Les flèches dorées te montrent où aller. C'est parti !` : 'Tout est réglé pour aujourd\'hui. Journée parfaite !' });
     setPick(null); setSheet(null); sfx.whoosh();
     setTour({ i: 0, steps });
@@ -456,7 +466,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
             style={{ ...pill, color: Q.done.length === Q.all.length ? '#1c1917' : '#fff', background: Q.done.length === Q.all.length ? 'linear-gradient(90deg,#fbbf24,#f59e0b)' : 'linear-gradient(90deg,#6366f1,#8b5cf6)', boxShadow: '0 4px 14px rgba(99,102,241,.45)' }}>
             {Q.done.length === Q.all.length ? '🏆' : '🎯'} {Q.done.length}/{Q.all.length}
           </button>}
-          <button onClick={() => tour ? stopTour() : startTour()} style={{ ...pill, background: tour ? '#dc2626' : 'rgba(15,23,42,0.86)', color: '#fff' }}>{tour ? '■ Stop' : '▶ Visite'}</button>
+          <button onClick={() => tour ? stopTour() : startTour()} style={{ ...pill, background: tour ? '#dc2626' : 'rgba(15,23,42,0.86)', color: '#fff' }}>{tour ? '■ Stop' : '▶ Briefing 3D'}</button>
           <span style={{ flex: 1 }} />
           <button onClick={() => { const v = !sound; setSound(v); setSnd(v); if (!v) hush(); else sfx.tap(); }} aria-label="Son" style={{ ...pill, background: 'rgba(255,255,255,0.94)', color: '#0f172a', padding: '7px 10px' }}>{sound ? '🔊' : '🔇'}</button>
         </div>

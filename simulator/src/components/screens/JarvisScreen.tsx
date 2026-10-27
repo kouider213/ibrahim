@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { apiFetch, playBase64Audio, isAudioPlaying, unlockAudio, stopAudio } from '../../services/api.ts';
+import { apiFetch, playBase64Audio, isAudioPlaying, unlockAudio, stopAudio, getDeviceToken, PRIMARY_BACKEND } from '../../services/api.ts';
 import { T, tone, PageHeader, Segmented, Card, Btn, Badge, Empty, Field, Screen, inputStyle, SectionTitle } from '../ui/Kit.tsx';
 
 // Page JARVIS (27/10/2026) : Dzaryx écoute en direct.
@@ -10,7 +10,7 @@ import { T, tone, PageHeader, Segmented, Card, Btn, Badge, Empty, Field, Screen,
 // Le micro est découpé aux pauses (petits morceaux envoyés au serveur). Jamais de <video> pendant que le micro tourne
 // (sur iPhone, une vidéo coupe le micro) : l'état des lieux vidéo a son propre onglet, micro éteint.
 
-type Tab = 'hud' | 'copilote' | 'escouade' | 'souffleur' | 'reunion' | 'sparring' | 'protocoles' | 'video';
+type Tab = 'hud' | 'copilote' | 'escouade' | 'salle' | 'sante' | 'souffleur' | 'reunion' | 'sparring' | 'protocoles' | 'video';
 type Kind = 'souffleur' | 'reunion' | 'sparring';
 interface Line { who: string; text: string; fr?: string; whisper?: string; me?: boolean }
 interface Meeting { id: string; kind: Kind; at: string; title: string; summary: string; decisions: string[]; promises: Array<{ who: string; what: string; when?: string }>; followup: string; minutes: number }
@@ -557,6 +557,10 @@ interface FeedItem { id: string; at: string; chat: string; text: string; reply?:
 
 function Copilote() {
   const [on, setOn] = useState(false);
+  // Écoute permanente : il ne répond que si on dit « Dzaryx… » (sauf 25 s après sa question, pour répondre « oui »)
+  const [wake, setWake] = useState(() => { try { return localStorage.getItem('dz:copilot_wake') === '1'; } catch { return false; } });
+  const wakeWordRef = useRef(wake); wakeWordRef.current = wake;
+  const followRef = useRef(0);
   const [heard, setHeard] = useState('');
   const [answer, setAnswer] = useState('');
   const [busy, setBusy] = useState(false);
@@ -568,9 +572,11 @@ function Copilote() {
   const onSegment = useCallback(async (b64: string, mime: string) => {
     setBusy(true);
     try {
-      const r = await apiFetch<{ heard: string; text: string; audio?: string }>('/api/jarvis/copilot/audio', { method: 'POST', body: JSON.stringify({ audio: b64, mime }) });
-      if (!r.heard) return;
+      const needWake = wakeWordRef.current && Date.now() > followRef.current;
+      const r = await apiFetch<{ heard: string; text: string; audio?: string; ignored?: boolean }>('/api/jarvis/copilot/audio', { method: 'POST', body: JSON.stringify({ audio: b64, mime, wake: needWake }) });
+      if (!r.heard || r.ignored) return;
       setHeard(r.heard); setAnswer(r.text);
+      if (/\?\s*$/.test(r.text)) followRef.current = Date.now() + 25_000;   // il pose une question : réponse sans « Dzaryx »
       void play(r.audio);
     } catch (e) { setErr(errMsg(e)); }
     finally { setBusy(false); }
@@ -610,18 +616,211 @@ function Copilote() {
   const lvl = seg.level;
   return (
     <div style={{ display: 'grid', gap: 14, justifyItems: 'center', textAlign: 'center', padding: '6px 0' }}>
+      {!on && (
+        <button onClick={() => { const v = !wake; setWake(v); try { localStorage.setItem('dz:copilot_wake', v ? '1' : '0'); } catch { /* rien */ } }}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: wake ? tone(T.accent, 0.15) : T.surface2, border: `1px solid ${wake ? T.accent : T.line}`, borderRadius: 14, padding: '10px 12px', color: T.text, cursor: 'pointer', textAlign: 'left' }}>
+          <span style={{ fontSize: 22 }}>{wake ? '🗣️' : '🎙️'}</span>
+          <span style={{ flex: 1, fontSize: 13 }}><b>{wake ? 'Réveil par « Dzaryx » : activé' : 'Réveil par « Dzaryx » : désactivé'}</b><br /><span style={{ color: T.muted }}>{wake ? 'Il écoute en permanence et ne répond que quand tu dis « Dzaryx… ». Parfait à la maison ou au bureau.' : 'Il répond à tout ce que tu dis (mode voiture).'}</span></span>
+        </button>
+      )}
       {!on && <Card accent={T.ok}><div style={{ fontSize: 13.5, color: T.muted, lineHeight: 1.5, textAlign: 'left' }}>Pour la voiture : pose le téléphone, lance le copilote et parle sans toucher l'écran. Il te lit tes nouveaux messages WhatsApp, tu dictes tes réponses (« oui », « vocal », « change… »), il gère Waze, la musique, ton agenda et tout le reste. L'écran reste allumé.</div></Card>}
       <button onClick={() => (on ? stop() : void start())} aria-label={on ? 'Arrêter le copilote' : 'Démarrer le copilote'}
         style={{ width: 210, height: 210, borderRadius: '50%', border: `2px solid ${on ? T.ok : T.accent}`, cursor: 'pointer', color: '#fff',
           background: `radial-gradient(circle at 50% 40%, ${tone(on ? T.ok : T.accent, 0.55)}, rgba(4,10,20,0.95) 70%)`,
           boxShadow: `0 0 ${30 + lvl * 70}px ${tone(on ? T.ok : T.accent, 0.45 + lvl * 0.4)}`, transition: 'box-shadow 90ms', fontFamily: 'Orbitron, sans-serif' }}>
         <div style={{ fontSize: 46 }}>{on ? (busy ? '⏳' : isAudioPlaying() ? '🔊' : '🎙️') : '🚗'}</div>
-        <div style={{ fontSize: 12, letterSpacing: '0.18em', marginTop: 6 }}>{on ? 'COPILOTE ACTIF' : 'DÉMARRER'}</div>
+        <div style={{ fontSize: 12, letterSpacing: '0.18em', marginTop: 6 }}>{on ? (wake ? 'DIS « DZARYX »' : 'COPILOTE ACTIF') : 'DÉMARRER'}</div>
       </button>
       {heard && <div style={{ fontSize: 15, color: T.muted, maxWidth: 520 }}>« {heard} »</div>}
       {answer && <div style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.4, maxWidth: 520 }} dir="auto">{answer.replace(/https?:\/\/\S+/g, '').replace(/[*_#]/g, '')}</div>}
       {on && <Btn variant="danger" onClick={stop} style={{ minHeight: 54, width: '100%', fontSize: 16 }}>⏹ Arrêter le copilote</Btn>}
       {err && <div style={{ color: T.bad, fontSize: 13 }}>{err}</div>}
+    </div>
+  );
+}
+
+// ── 🖥️ SALLE DE COMMANDE (TV / PC) + 💰 FORTUNE + 🔭 MACHINE À VOIR LE FUTUR ────────────────────
+interface CC { at: string; fleet: Array<{ name: string; status: string; client: string; until: string; next: string }>; revenue: number; profit: number; due: number; occupancy: number;
+  returnsToday: string[]; departuresToday: string[]; whatsapp: Array<{ chat: string; preview: string }>; alerts: string[]; square: number | null; fortune: number | null;
+  projects: Array<{ goal: string; done: number; total: number; today: string }>; squad: { goal: string; status: string } | null }
+interface Fortune { total: number; lines: Array<{ label: string; eur: number; kind: string }>; rate: number; proj: Record<string, number> }
+const ST_COLOR: Record<string, string> = { libre: T.ok, louée: T.accent, retour: T.warn, atelier: T.bad };
+
+function Tile({ label, value, sub, color = T.accent }: { label: string; value: string; sub?: string; color?: string }) {
+  return (
+    <div style={{ background: 'rgba(6,12,24,0.9)', border: `1px solid ${tone(color, 0.5)}`, borderRadius: 14, padding: '10px 12px', boxShadow: `0 0 18px ${tone(color, 0.15)}`, minWidth: 0 }}>
+      <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 9.5, letterSpacing: '0.16em', color, textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ fontSize: 'clamp(20px, 3.2vw, 34px)', fontWeight: 800, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div>
+      {sub && <div style={{ fontSize: 11.5, color: T.muted, marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function FutureMachine() {
+  const [base, setBase] = useState<{ cars: number; price: number; marginPerDay: number; occupancy: number; monthlyCosts: number } | null>(null);
+  const [extra, setExtra] = useState(2);
+  const [occ, setOcc] = useState(45);
+  const [price, setPrice] = useState(0);
+  useEffect(() => { apiFetch<NonNullable<typeof base>>('/api/jarvis/future').then(b => { setBase(b); setPrice(b.price); setOcc(Math.max(20, Math.min(80, b.occupancy || 40))); }).catch(() => {}); }, []);
+  if (!base) return null;
+  const marginRatio = base.price ? base.marginPerDay / base.price : 0.3;
+  // Bénéfice mensuel = voitures × jours loués × marge/jour − coûts ; montée progressive de la nouvelle flotte sur 3 mois
+  const month = (cars: number, o: number, p: number, i: number) => Math.round(cars * 30 * (o / 100) * p * marginRatio * Math.min(1, 0.5 + i / 6) - base.monthlyCosts);
+  const scen = [
+    { name: 'Si rien ne change', color: T.faint, f: (i: number) => month(base.cars, Math.max(5, base.occupancy), base.price, 6) + i * 0 },
+    { name: 'Prudent', color: T.warn, f: (i: number) => month(base.cars + Math.ceil(extra / 2), Math.max(10, occ - 15), price, i) },
+    { name: 'Ton plan', color: T.ok, f: (i: number) => month(base.cars + extra, occ, price, i) },
+  ];
+  const months = Array.from({ length: 12 }, (_, i) => i);
+  const cum = scen.map(sc => months.map(i => months.slice(0, i + 1).reduce((a, j) => a + sc.f(j), 0)));
+  const max = Math.max(1, ...cum.flat().map(Math.abs));
+  const W = 320, H = 140;
+  const path = (arr: number[]) => arr.map((v, i) => `${i ? 'L' : 'M'}${(i / 11) * W},${H / 2 - (v / max) * (H / 2 - 6)}`).join(' ');
+  return (
+    <Card accent={T.violet}>
+      <div style={{ fontWeight: 800, fontSize: 15 }}>🔭 La machine à voir le futur</div>
+      <div style={{ fontSize: 12, color: T.muted, margin: '2px 0 10px' }}>Bénéfice cumulé sur 12 mois, à partir de tes vrais chiffres ({base.cars} voitures, {base.price} €/j en moyenne, occupation réelle {base.occupancy} %).</div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 160 }} role="img" aria-label="Projection du bénéfice cumulé sur 12 mois">
+        <line x1="0" x2={W} y1={H / 2} y2={H / 2} stroke={T.line} strokeDasharray="3 4" />
+        {cum.map((arr, k) => <path key={k} d={path(arr)} fill="none" stroke={scen[k]!.color} strokeWidth={k === 2 ? 3 : 2} />)}
+      </svg>
+      <div style={{ display: 'grid', gap: 4, fontSize: 12.5 }}>
+        {scen.map((sc, k) => <div key={k} style={{ display: 'flex', gap: 8, alignItems: 'center' }}><span style={{ width: 12, height: 3, background: sc.color, borderRadius: 2 }} /><span style={{ flex: 1 }}>{sc.name}</span><b>{cum[k]![11]!.toLocaleString('fr-FR')} € en 1 an</b></div>)}
+      </div>
+      <div style={{ display: 'grid', gap: 8, marginTop: 12, fontSize: 12.5 }}>
+        <label>🚗 Voitures en plus : <b>{extra}</b><input type="range" min={0} max={15} value={extra} onChange={e => setExtra(Number(e.target.value))} style={{ width: '100%' }} /></label>
+        <label>📈 Occupation visée : <b>{occ} %</b><input type="range" min={10} max={90} value={occ} onChange={e => setOcc(Number(e.target.value))} style={{ width: '100%' }} /></label>
+        <label>💶 Prix moyen : <b>{price} €/j</b><input type="range" min={20} max={90} value={price} onChange={e => setPrice(Number(e.target.value))} style={{ width: '100%' }} /></label>
+      </div>
+      <div style={{ fontSize: 11, color: T.faint, marginTop: 8 }}>Estimation : marge réelle par jour de tes voitures, coûts moyens des 3 derniers mois, nouvelles voitures qui montent en charge sur 3 mois. Pas une promesse.</div>
+    </Card>
+  );
+}
+
+function Salle({ onAsk }: { onAsk: (p: string) => void }) {
+  const [cc, setCc] = useState<CC | null>(null);
+  const [fortune, setFortune] = useState<Fortune | null>(null);
+  const [err, setErr] = useState('');
+  const boxRef = useRef<HTMLDivElement>(null);
+  const load = useCallback(() => {
+    apiFetch<CC>('/api/jarvis/command-center').then(setCc).catch(e => setErr(errMsg(e)));
+    apiFetch<Fortune>('/api/jarvis/fortune').then(setFortune).catch(() => {});
+  }, []);
+  useEffect(() => { load(); const t = window.setInterval(load, 60_000); return () => window.clearInterval(t); }, [load]);
+  const full = () => { const el = boxRef.current as (HTMLDivElement & { webkitRequestFullscreen?: () => void }) | null; (el?.requestFullscreen?.() ?? el?.webkitRequestFullscreen?.()); };
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Btn onClick={full} style={{ flex: 1 }}>⛶ Plein écran (TV / PC)</Btn>
+        <Btn onClick={load}>↻</Btn>
+      </div>
+      {err && <div style={{ color: T.bad, fontSize: 13 }}>{err}</div>}
+      <div ref={boxRef} style={{ display: 'grid', gap: 10, background: '#030814', padding: 10, borderRadius: 16, overflowY: 'auto' }}>
+        {!cc && <div style={{ color: T.faint, fontSize: 13, padding: 20, textAlign: 'center' }}>Chargement de la salle de commande…</div>}
+        {cc && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'Orbitron, sans-serif', fontSize: 11, color: T.accent, letterSpacing: '0.2em' }}>
+              <span>DZARYX · SALLE DE COMMANDE</span><span>{new Date(cc.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
+              <Tile label="CA du mois" value={`${cc.revenue.toLocaleString('fr-FR')} €`} sub={`bénéfice ${cc.profit.toLocaleString('fr-FR')} €`} color={T.ok} />
+              <Tile label="Occupation" value={`${cc.occupancy} %`} sub={`${cc.fleet.filter(f => f.status !== 'libre').length}/${cc.fleet.length} voitures sorties`} />
+              <Tile label="À encaisser" value={`${cc.due.toLocaleString('fr-FR')} €`} color={cc.due ? T.warn : T.ok} />
+              <Tile label="Fortune" value={fortune ? `${fortune.total.toLocaleString('fr-FR')} €` : '—'} sub={cc.square ? `1 € = ${Math.round(cc.square)} DA` : undefined} color={T.violet} />
+            </div>
+            {cc.alerts.length > 0 && <div style={{ background: tone(T.bad, 0.15), border: `1px solid ${T.bad}`, borderRadius: 12, padding: 10, fontSize: 13 }}>⚠️ {cc.alerts.join(' · ')}</div>}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 8 }}>
+              <div style={{ background: 'rgba(6,12,24,0.9)', border: `1px solid ${T.line}`, borderRadius: 14, padding: 10 }}>
+                <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 9.5, letterSpacing: '0.16em', color: T.accent, marginBottom: 6 }}>FLOTTE</div>
+                <div style={{ display: 'grid', gap: 4, maxHeight: 260, overflowY: 'auto' }}>
+                  {cc.fleet.map(f => (
+                    <div key={f.name} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12.5 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 4, background: ST_COLOR[f.status] ?? T.faint, flex: 'none' }} />
+                      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                      <span style={{ color: T.muted, fontSize: 11.5, whiteSpace: 'nowrap' }}>{f.status === 'libre' ? (f.next ? `réservée le ${f.next.slice(8, 10)}/${f.next.slice(5, 7)}` : 'libre') : `${f.client}${f.until ? ` → ${f.until.slice(8, 10)}/${f.until.slice(5, 7)}` : ''}`}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'grid', gap: 8, alignContent: 'start' }}>
+                <div style={{ background: 'rgba(6,12,24,0.9)', border: `1px solid ${T.line}`, borderRadius: 14, padding: 10, fontSize: 12.5 }}>
+                  <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 9.5, letterSpacing: '0.16em', color: T.warn, marginBottom: 6 }}>AUJOURD'HUI</div>
+                  {[...cc.departuresToday.map(d => `🚗 Départ : ${d}`), ...cc.returnsToday.map(r => `🏁 Retour : ${r}`)].map((l, i) => <div key={i}>{l}</div>)}
+                  {!cc.departuresToday.length && !cc.returnsToday.length && <div style={{ color: T.faint }}>Ni départ ni retour.</div>}
+                </div>
+                <div style={{ background: 'rgba(6,12,24,0.9)', border: `1px solid ${T.line}`, borderRadius: 14, padding: 10, fontSize: 12.5 }}>
+                  <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 9.5, letterSpacing: '0.16em', color: T.ok, marginBottom: 6 }}>WHATSAPP EN ATTENTE ({cc.whatsapp.length})</div>
+                  {cc.whatsapp.map((w, i) => <div key={i} onClick={() => onAsk(`Lis WhatsApp ${w.chat}`)} style={{ cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} dir="auto">💬 {w.chat} : {w.preview.replace(/\s+/g, ' ')}</div>)}
+                  {!cc.whatsapp.length && <div style={{ color: T.faint }}>Rien en attente.</div>}
+                </div>
+                {(cc.projects.length > 0 || cc.squad) && (
+                  <div style={{ background: 'rgba(6,12,24,0.9)', border: `1px solid ${T.line}`, borderRadius: 14, padding: 10, fontSize: 12.5 }}>
+                    <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 9.5, letterSpacing: '0.16em', color: T.violet, marginBottom: 6 }}>PROJETS & AGENTS</div>
+                    {cc.projects.map((p, i) => <div key={i}>🎼 {p.goal} — {p.done}/{p.total}{p.today ? ` · ${p.today}` : ''}</div>)}
+                    {cc.squad && <div>🛰️ {cc.squad.goal} — {cc.squad.status}</div>}
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+      {fortune && fortune.lines.length > 0 && (
+        <Card accent={T.violet}>
+          <div style={{ fontWeight: 800, fontSize: 15 }}>💰 Ta fortune : {fortune.total.toLocaleString('fr-FR')} €</div>
+          <div style={{ fontSize: 12.5, color: T.muted, marginTop: 6, display: 'grid', gap: 2 }}>
+            {fortune.lines.map((l, i) => <div key={i} style={{ display: 'flex' }}><span style={{ flex: 1 }}>{l.label}</span><b style={{ color: l.eur < 0 ? T.bad : T.text }}>{l.eur.toLocaleString('fr-FR')} €</b></div>)}
+          </div>
+          <div style={{ fontSize: 12, marginTop: 8 }}>📈 {Object.entries(fortune.proj).map(([k, v]) => `dans ${k} : ${v.toLocaleString('fr-FR')} €`).join(' · ')}</div>
+          <div style={{ fontSize: 11, color: T.faint, marginTop: 4 }}>Ajoute tes biens à la voix : « j'ai 3 000 € sur mon compte », « la Clio vaut 1,2 million de DA ».</div>
+        </Card>
+      )}
+      <FutureMachine />
+    </div>
+  );
+}
+
+// ── 🩺 SANTÉ + 🍏 SIRI (Raccourcis iPhone) ───────────────────────────────────
+function SanteSiri() {
+  const [text, setText] = useState('');
+  const [copied, setCopied] = useState('');
+  useEffect(() => { apiFetch<{ text: string }>('/api/jarvis/health').then(r => setText(r.text)).catch(() => {}); }, []);
+  const token = getDeviceToken();
+  const copy = (label: string, v: string) => { void navigator.clipboard?.writeText(v).then(() => { setCopied(label); setTimeout(() => setCopied(''), 2000); }); };
+  const Copy = ({ label, v }: { label: string; v: string }) => (
+    <button onClick={() => copy(label, v)} style={{ display: 'block', width: '100%', textAlign: 'left', background: T.surface2, border: `1px solid ${T.line}`, borderRadius: 10, padding: '8px 10px', color: T.text, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 11.5, wordBreak: 'break-all', cursor: 'pointer', marginTop: 4 }}>
+      {copied === label ? '✅ copié' : `📋 ${v.length > 60 ? `${v.slice(0, 60)}…` : v}`}
+    </button>
+  );
+  const step = (n: number, t: React.ReactNode) => <div style={{ display: 'flex', gap: 8, fontSize: 13, lineHeight: 1.45 }}><b style={{ color: T.accent, minWidth: 18 }}>{n}.</b><div style={{ flex: 1 }}>{t}</div></div>;
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <Card accent={T.ok}>
+        <div style={{ fontWeight: 800, fontSize: 15 }}>🩺 Jarvis santé</div>
+        <div style={{ fontSize: 12.5, color: T.muted, whiteSpace: 'pre-wrap', marginTop: 6 }}>{text || 'Chargement…'}</div>
+      </Card>
+      <Card>
+        <div style={{ fontWeight: 800, fontSize: 14.5, marginBottom: 8 }}>Installer le Raccourci « Dzaryx Santé » (une seule fois)</div>
+        <div style={{ display: 'grid', gap: 8 }}>
+          {step(1, <>Ouvre l'app <b>Raccourcis</b> › <b>+</b> › nomme-le « Dzaryx Santé ».</>)}
+          {step(2, <>Ajoute <b>Rechercher des échantillons de santé</b> : « Analyse du sommeil », hier soir → aujourd'hui. Puis <b>Calculer les statistiques</b> → somme (en heures).</>)}
+          {step(3, <>Pareil pour <b>Nombre de pas</b> (hier, somme), <b>Fréquence cardiaque au repos</b> (dernière) et <b>Variabilité de la fréquence cardiaque</b> (moyenne).</>)}
+          {step(4, <>Ajoute <b>Obtenir le contenu de l'URL</b> : méthode <b>POST</b>, adresse :<Copy label="url" v={`${PRIMARY_BACKEND}/api/jarvis/health`} /> En-tête <b>Authorization</b> = <Copy label="tok" v={`Bearer ${token}`} /> Corps <b>JSON</b> : <code>sleep_h</code>, <code>steps</code>, <code>rhr</code>, <code>hrv</code> = les 4 résultats.</>)}
+          {step(5, <>Onglet <b>Automatisation</b> › <b>Heure de la journée</b> › 7h00, tous les jours › lancer « Dzaryx Santé » › <b>Exécuter immédiatement</b>.</>)}
+        </div>
+      </Card>
+      <Card accent={T.accent}>
+        <div style={{ fontWeight: 800, fontSize: 14.5, marginBottom: 4 }}>🍏 « Dis Siri, Dzaryx » — ton iPhone à la voix</div>
+        <div style={{ fontSize: 12.5, color: T.muted, marginBottom: 8 }}>Tu dis « Dis Siri, Dzaryx », tu parles, Dzaryx répond à voix haute et peut appeler, envoyer un SMS, ouvrir WhatsApp, Waze, la musique…</div>
+        <div style={{ display: 'grid', gap: 8 }}>
+          {step(1, <>Raccourcis › <b>+</b> › nomme-le exactement <b>Dzaryx</b>.</>)}
+          {step(2, <>Ajoute <b>Dicter le texte</b> (langue : français).</>)}
+          {step(3, <>Ajoute <b>Obtenir le contenu de l'URL</b> : <b>POST</b> sur <Copy label="siri" v={`${PRIMARY_BACKEND}/api/jarvis/siri`} /> En-tête <b>Authorization</b> = <Copy label="tok2" v={`Bearer ${token}`} /> Corps JSON : <code>text</code> = « Texte dicté ».</>)}
+          {step(4, <>Ajoute <b>Obtenir la valeur du dictionnaire</b> « say » → <b>Énoncer le texte</b>.</>)}
+          {step(5, <>Ajoute <b>Obtenir la valeur du dictionnaire</b> « url » → <b>Si</b> elle a une valeur → <b>Ouvrir les URL</b>.</>)}
+        </div>
+        <div style={{ fontSize: 11.5, color: T.faint, marginTop: 8 }}>Ta clé est personnelle : ne la partage avec personne. Si tu te déconnectes de l'app, recopie la nouvelle.</div>
+      </Card>
     </div>
   );
 }
@@ -633,7 +832,7 @@ export default function JarvisScreen({ onAsk }: { onAsk: (prompt: string) => voi
     <Screen header={<>
       <PageHeader eyebrow="Dzaryx · mode Jarvis" title="JARVIS" subtitle="Il voit, il écoute, il conduit avec toi, il agit." />
       <div style={{ padding: '0 12px 8px', overflowX: 'auto' }}>
-        <Segmented<Tab> items={[{ id: 'hud', label: '🕶️ HUD' }, { id: 'copilote', label: '🚗 Copilote' }, { id: 'escouade', label: '🛰️ Escouade' }, { id: 'souffleur', label: '🎧 Souffleur' }, { id: 'reunion', label: '📝 Réunion' }, { id: 'sparring', label: '🥊 Entraîn.' },
+        <Segmented<Tab> items={[{ id: 'hud', label: '🕶️ HUD' }, { id: 'copilote', label: '🚗 Copilote' }, { id: 'escouade', label: '🛰️ Escouade' }, { id: 'salle', label: '🖥️ Salle' }, { id: 'sante', label: '🩺 Santé·Siri' }, { id: 'souffleur', label: '🎧 Souffleur' }, { id: 'reunion', label: '📝 Réunion' }, { id: 'sparring', label: '🥊 Entraîn.' },
           { id: 'protocoles', label: '⚡ Protocoles' }, { id: 'video', label: '🎥 État lieux' }]} value={tab} onChange={pick} />
       </div>
     </>}>
@@ -641,6 +840,8 @@ export default function JarvisScreen({ onAsk }: { onAsk: (prompt: string) => voi
       {tab === 'hud' && <Hud />}
       {tab === 'copilote' && <Copilote />}
       {tab === 'escouade' && <Escouade />}
+      {tab === 'salle' && <Salle onAsk={onAsk} />}
+      {tab === 'sante' && <SanteSiri />}
       {tab === 'souffleur' && <><LiveMode key="s" kind="souffleur" /></>}
       {tab === 'reunion' && <><LiveMode key="r" kind="reunion" /><History kind="reunion" /></>}
       {tab === 'sparring' && <><LiveMode key="p" kind="sparring" /><History kind="sparring" /></>}

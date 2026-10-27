@@ -34,6 +34,7 @@ function nightOf(ts = Date.now(), c: Cfg = DEFAULT): string {
 }
 
 export async function nightGuardActive(): Promise<boolean> {
+  if (await import('./brain-plus.js').then(m => m.vacationActive()).catch(() => false)) return true;   // mode vacances : 24 h/24
   const c = await nightCfg();
   return c.enabled && inWindow(localNow().hhmm, c);
 }

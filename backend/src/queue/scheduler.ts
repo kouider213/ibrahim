@@ -329,6 +329,101 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'people-brief',
+    cron:  '*/15 8-21 * * *',         // mémoire des gens : RDV dans ~45 min avec une personne connue → sa fiche ; anniversaires du jour
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'night-list-run',
+    cron:  '0 2 * * *',               // liste de nuit : les tâches confiées dans la journée sont faites pendant qu'il dort
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'night-list-report',
+    cron:  '45 6 * * *',              // liste de nuit : résultats au réveil
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'savings-monthly',
+    cron:  '0 10 1 * *',              // 1er du mois — chasseur d'économies sur ses contrats
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'tutor',
+    cron:  '*/15 7-23 * * *',         // prof perso : leçon du jour à son heure
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'euro-watch',
+    cron:  '0 10,17 * * *',           // square €→DA : historique + alerte au plus haut
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'opportunities',
+    cron:  '30 8 * * 1',              // lundi 8h30 — nouvelles opportunités (enchères, appels d'offres, salons)
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'projects',
+    cron:  '15 8 * * *',              // projets en pilote automatique : étape du jour, retard replanifié
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'vacation-end',
+    cron:  '5 * * * *',               // mode vacances terminé → résumé du retour
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'mood',
+    cron:  '30 22 * * *',             // humeur du jour d'après ses messages ; 3 jours de stress → mot doux
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'habits-learn',
+    cron:  '0 21 * * 0',              // dimanche — ses demandes récurrentes (il devine)
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'habits-run',
+    cron:  '*/15 6-22 * * *',         // habitude qui arrive → préparée avant qu'il demande
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'self-report',
+    cron:  '0 10 1 * *',              // 1er du mois — le rapport « qui tu es »
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'self-improve',
+    cron:  '0 3 * * *',               // auto-amélioration : relit ses erreurs d'hier
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'self-improve-morning',
+    cron:  '30 7 * * *',              // auto-amélioration : propositions du matin
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'bodyguard',
+    cron:  '0 9 * * *',               // garde du corps numérique
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'radar',
+    cron:  '10 9 * * *',              // radar de la concurrence à Oran
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'car-hunter',
+    cron:  '30 9 * * 3',              // mercredi — voitures à acheter sous le prix du marché
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'commercial',
+    cron:  '0 10 * * *',              // commercial automatique : annonce du jour proposée (publiée après son oui)
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'night-guard-recap',
     cron:  '*/15 * * * *',          // gardien de nuit : fin de la nuit → récap de ce qu'il a répondu seul (1 fois par nuit)
     tz:    'Europe/Brussels',
@@ -587,6 +682,25 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'life-coach-weekly':       jobLifeCoachWeekly,
   'papa-time':               async () => { console.log(`[papa-time] ${await jobPapaTime()}`); },
   'papa-weekly':             async () => { await jobPapaWeekly(); },
+  'people-brief':             async () => { console.log(`[people-brief] ${await (await import('../integrations/people-memory.js')).jobPeopleBrief()}`); },
+  'night-list-run':           async () => { console.log(`[night-list-run] ${await (await import('../integrations/night-list.js')).jobNightListRun()}`); },
+  'night-list-report':        async () => { console.log(`[night-list-report] ${await (await import('../integrations/night-list.js')).jobNightListReport()}`); },
+  'savings-monthly':          async () => { console.log(`[savings-monthly] ${await (await import('../integrations/life-helpers.js')).jobSavingsMonthly()}`); },
+  'tutor':                    async () => { console.log(`[tutor] ${await (await import('../integrations/life-helpers.js')).jobTutor()}`); },
+  'euro-watch':               async () => { console.log(`[euro-watch] ${await (await import('../integrations/world-watch.js')).jobEuroWatch()}`); },
+  'opportunities':            async () => { console.log(`[opportunities] ${await (await import('../integrations/world-watch.js')).jobOpportunities()}`); },
+  'projects':                 async () => { console.log(`[projects] ${await (await import('../integrations/brain-plus.js')).jobProjects()}`); },
+  'vacation-end':             async () => { console.log(`[vacation-end] ${await (await import('../integrations/brain-plus.js')).jobVacationEnd()}`); },
+  'mood':                     async () => { console.log(`[mood] ${await (await import('../integrations/brain-plus.js')).jobMood()}`); },
+  'habits-learn':             async () => { console.log(`[habits-learn] ${await (await import('../integrations/brain-plus.js')).jobHabitsLearn()}`); },
+  'habits-run':               async () => { console.log(`[habits-run] ${await (await import('../integrations/brain-plus.js')).jobHabitsRun()}`); },
+  'self-report':              async () => { console.log(`[self-report] ${await (await import('../integrations/brain-plus.js')).jobSelfReport()}`); },
+  'self-improve':             async () => { console.log(`[self-improve] ${await (await import('../integrations/guardian-ops.js')).jobSelfImprove()}`); },
+  'self-improve-morning':     async () => { console.log(`[self-improve-morning] ${await (await import('../integrations/guardian-ops.js')).jobSelfImproveMorning()}`); },
+  'bodyguard':                async () => { console.log(`[bodyguard] ${await (await import('../integrations/guardian-ops.js')).jobBodyguard()}`); },
+  'radar':                    async () => { console.log(`[radar] ${await (await import('../integrations/market-hunters.js')).jobRadar()}`); },
+  'car-hunter':               async () => { console.log(`[car-hunter] ${await (await import('../integrations/market-hunters.js')).jobCarHunter()}`); },
+  'commercial':               async () => { console.log(`[commercial] ${await (await import('../integrations/builders.js')).jobCommercial()}`); },
   'night-guard-recap':       async () => { await (await import('../integrations/night-guard.js')).jobNightGuardRecap(); },
   'nego-watch':              async () => { await (await import('../integrations/negotiator.js')).jobNegoWatch(); },
   'predictions':             async () => { await (await import('../integrations/predictions.js')).jobPredictions(); },

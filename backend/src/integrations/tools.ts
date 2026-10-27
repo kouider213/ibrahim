@@ -1,4 +1,5 @@
 ﻿import type Anthropic from '@anthropic-ai/sdk';
+import { JARVIS3_TOOLS } from './jarvis3-tools.js';
 
 export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   {
@@ -3245,4 +3246,5 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
       required: ['action'],
     },
   },
+  ...JARVIS3_TOOLS,
 ];

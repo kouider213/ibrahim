@@ -11,6 +11,9 @@ import { askJson, startDossierJob, type DocSpec, type Section } from './pro-doc.
 const CATEGORIES: Array<[string, RegExp]> = [
   ['Jarvis : protocoles, mémoire photo, anti-arnaque, réunions', /^protocol$|^photo_memory$|^anti_arnaque$|^meetings$/],
   ['Jarvis : gardien de nuit, négociateur, prédictions, rappels de lieu, escouade', /^gardien_nuit$|^negociateur$|^predictions$|^rappel_lieu$|^escouade$/],
+  ['Jarvis : mémoire des gens, liste de nuit, avocat de poche, courriers, économies, prof perso, conseil des sages', /^memoire_gens$|^liste_nuit$|^avocat_de_poche$|^courrier_admin$|^economies$|^prof$|^conseil_sages$/],
+  ['Jarvis : satellite, change des euros, opportunités, projets, vacances, rapport sur toi, fortune, santé', /^vue_satellite$|^change_euros$|^opportunites$|^projet$|^mode_vacances$|^rapport_moi$|^fortune$|^sante$/],
+  ['Jarvis : auto-amélioration, radar concurrence, chasseur de voitures, commercial, atelier, usine à business, autonomie', /^auto_amelioration$|^radar_concurrence$|^chasseur_voitures$|^commercial$|^atelier$|^usine_business$|^autonomie$/],
   ['PC à distance (Nexus)', /nexus/],
   ['Code, sites et serveurs', /^github_|demo_site|railway|supabase_execute|netlify|code_task|new_project|site_file|health_check|site_analytics|set_site_hero/],
   ['Immobilier, ventes de véhicules et prospects', /propert|vehicles?_for_sale|vehicle_sale|vehicle_sold|vehicle_details|^list_packs|_pack|lead|prospect/],

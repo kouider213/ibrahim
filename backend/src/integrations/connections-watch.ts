@@ -89,8 +89,10 @@ export async function jobConnectionsWatch(): Promise<string> {
     const first = s.alerts === 0 && s.fails >= (c.need ?? 1);
     const remind = s.alerts > 0 && daytime && Date.now() - (s.lastAlert ?? 0) >= REMIND_MS;
     if (first || remind) {
+      // Il se répare seul quand c'est possible (code WhatsApp, lien Google, relance côté VPS) — Kouider 27/10
+      const fix = first ? await import('./guardian-ops.js').then(m => m.tryAutoRepair(c.id)).catch(() => '') : '';
       await tell(first
-        ? `⚠️ ${c.label} est déconnecté.\n${c.how}`
+        ? `⚠️ ${c.label} est déconnecté.\n${fix || c.how}`
         : `🔔 Rappel : ${c.label} est toujours déconnecté (depuis ${since(s.down)}).\n${c.how}`);
       s.alerts++; s.lastAlert = Date.now();
     }

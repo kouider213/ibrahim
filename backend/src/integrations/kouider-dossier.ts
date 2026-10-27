@@ -72,6 +72,7 @@ export async function kouiderDossierText(): Promise<string> {
   ]);
   const forme = await import('./forme.js').then(m => m.formeText()).catch(() => '');
   const conns = await import('./connections-watch.js').then(m => m.connectionsText()).catch(() => '');
+  const mood = await import('./brain-plus.js').then(m => m.moodText()).catch(() => '');
   return [
     'QUI EST KOUIDER (son dossier — tu tournes autour de lui, tu le connais par cœur) :',
     dossier?.trim() || BASE,
@@ -80,6 +81,7 @@ export async function kouiderDossierText(): Promise<string> {
     ...(notes.length ? ['Notes récentes de Kouider sur lui-même :', ...notes.slice(-10).map(n => `- ${n}`)] : []),
     ...(coach ? [coach] : []),
     ...(conns ? [conns] : []),
+    ...(mood ? [mood] : []),
     ...(forme ? [forme] : []),
   ].join('\n');
 }

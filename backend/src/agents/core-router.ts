@@ -4,6 +4,7 @@
  * Falls back to full tool set if no agent matches.
  */
 import { AGENT_REGISTRY, AGENT_MAP, type AgentDefinition } from './agent-registry.js';
+import { JARVIS3_NAMES } from '../integrations/jarvis3-tools.js';
 import { Dzaryx_TOOLS } from '../integrations/tools.js';
 import type { Message } from '../integrations/claude-api.js';
 
@@ -26,7 +27,7 @@ const ALWAYS_TOOLS = ['search_conversations', 'create_intention', 'list_intentio
   // Mails partout : « envoie-moi le reçu Anthropic » part en Finance (« reçu ») sans le mot « mail » → sinon il passait par le navigateur
   'list_emails', 'read_email', 'read_email_thread', 'read_email_attachment', 'manage_emails', 'draft_email', 'send_email', 'connect_gmail',
   // « fais un document sur toi » part souvent vers l'Agent Clients (mot « document ») : docs + vraie liste partout
-  'list_my_capabilities', 'business_mentor', 'kouider_dossier', 'life_coach', 'family_care', 'papa_time', 'forme', 'whatsapp_web', 'run_self_test', 'get_upcoming_seasons', 'cloud_pc', 'watch_page', 'web_routine', 'air_algerie_search', 'air_algerie_watch', 'gold_watch', 'protocol', 'photo_memory', 'anti_arnaque', 'meetings', 'gardien_nuit', 'negociateur', 'predictions', 'rappel_lieu', 'escouade', 'create_google_doc', 'send_doc_pdf', 'business_simulator', 'partners', 'create_google_sheet', 'create_presentation_doc', 'create_demo_site', 'get_demo_site', 'carte_live_demo_link', 'create_client_site', 'manage_client_site',
+  'list_my_capabilities', 'business_mentor', 'kouider_dossier', 'life_coach', 'family_care', 'papa_time', 'forme', 'whatsapp_web', 'run_self_test', 'get_upcoming_seasons', 'cloud_pc', 'watch_page', 'web_routine', 'air_algerie_search', 'air_algerie_watch', 'gold_watch', 'protocol', 'photo_memory', 'anti_arnaque', 'meetings', 'gardien_nuit', 'negociateur', 'predictions', 'rappel_lieu', 'escouade', ...JARVIS3_NAMES, 'create_google_doc', 'send_doc_pdf', 'business_simulator', 'partners', 'create_google_sheet', 'create_presentation_doc', 'create_demo_site', 'get_demo_site', 'carte_live_demo_link', 'create_client_site', 'manage_client_site',
   // « à quelle heure j'arrive à la salle avec la voiture ? » part vers l'Agent Réservations (mot « voiture ») : position live + trafic partout
   'get_my_location', 'get_travel_time', 'morning_routine', 'sport_coach', 'gps_assistant', 'travel', 'list_agenda_events', 'update_agenda_event'];
 export const withAlways = (names: string[]) => Dzaryx_TOOLS.filter(t => names.includes(t.name) || ALWAYS_TOOLS.includes(t.name));

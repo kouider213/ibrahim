@@ -147,7 +147,21 @@ export async function onWaNew(c: WaChat): Promise<void> {
   const text = `📲 WhatsApp — ${name}${c.unread > 1 ? ` (${c.unread} non lus)` : ''}\n« ${preview} »${money ? `\n${money}` : ''}`
     + (translation ? `\n🇫🇷 Traduction : ${translation}` : '')
     + (reply ? `\n\n✍️ Réponse proposée :\n${reply}\n\nRéponds « oui » pour l'envoyer à ${name}${voiceCount ? ', « vocal » pour la lui envoyer en message vocal' : ''}, « non » pour laisser, ou dis-moi quoi changer.` : '');
-  if (reply) await kvSet(PENDING_KEY, JSON.stringify({ chat: name, draft: reply, voice: voiceCount > 0 }), 12 * 3600);
+  // AUTONOMIE PROGRESSIVE : type activé par Kouider → envoyé seul (jamais dispo / réservation / paiement / plainte)
+  const delicateNow = kind === 'plainte' || kind === 'urgence' || isComplaint(preview) || DELICATE_RE.test(preview);
+  if (reply && !delicateNow && await import('./autonomy.js').then(m => m.canAutoSend(kind, reply)).catch(() => false)) {
+    const sent = await cloudEmit<R>('cloud:wa', { action: 'send', chat: name, text: reply }, 80_000).catch(() => ({ ok: false } as R));
+    if (sent.ok) {
+      const d = await drafts(); delete d[name.toLowerCase()]; await kvSet(DRAFTS_KEY, JSON.stringify(d), 3 * 86_400);
+      const t = `🧠 WhatsApp — ${name} : « ${preview.slice(0, 300)} »
+✅ Répondu SEUL (autonomie activée pour ce type) :
+${reply}`;
+      await queueTelegramMessage(t).catch(() => {});
+      emitProactive(`WhatsApp — ${name} : répondu seul`, 'info', t);
+      return;
+    }
+  }
+  if (reply) await kvSet(PENDING_KEY, JSON.stringify({ chat: name, draft: reply, voice: voiceCount > 0, kind }), 12 * 3600);
   await queueTelegramMessage(text).catch(() => {});
   void import('./copilot.js').then(m => m.copilotPush({ chat: name, text: translation || preview, reply })).catch(() => {});   // page COPILOTE : lu à voix haute
   const delicate = kind === 'plainte' || kind === 'urgence' || isComplaint(preview) || DELICATE_RE.test(preview);
@@ -191,8 +205,10 @@ export async function handleWaYesNo(message: string): Promise<{ reply?: string; 
   await kvSet(PENDING_KEY, '', 60);
   const short = message.trim().length <= 40 && !CHANGE_RE.test(message);
   const yes = short && YES_RE.test(message), no = short && NO_RE.test(message);
-  let p: { chat: string; draft: string; voice?: boolean };
-  try { p = JSON.parse(raw) as { chat: string; draft: string; voice?: boolean }; } catch { return null; }
+  let p: { chat: string; draft: string; voice?: boolean; kind?: string };
+  try { p = JSON.parse(raw) as { chat: string; draft: string; voice?: boolean; kind?: string }; } catch { return null; }
+  // Autonomie progressive : on compte les « oui » sans changement, par type de message
+  if (p.kind) void import('./autonomy.js').then(m => m.noteDecision(p.kind!, yes ? 'yes' : no ? 'no' : 'edit')).catch(() => {});
   if (short && VOICE_RE.test(message)) return { reply: await sendWaVoice(p.chat, p.draft) };
   if (!yes && !no) return { note: `[Contexte : tu viens de lui proposer cette réponse WhatsApp pour ${p.chat} : « ${p.draft} ». S'il demande un changement, réécris-la puis outil whatsapp_web send (relecture, puis confirmed:true après son oui).]` };
   if (no) return { reply: `👍 Je n'envoie rien à ${p.chat}. La réponse reste prête si tu changes d'avis (« envoie la réponse à ${p.chat} »).` };

@@ -300,6 +300,9 @@ async function _dispatch(
   input: Record<string, unknown>,
   sessionId?: string,
 ): Promise<string> {
+  // Outils « Jarvis 3 » (mémoire des gens, liste de nuit, avocat, fortune, atelier…) : jarvis3-tools.ts
+  const j3 = await import('./jarvis3-tools.js').then(m => m.runJarvis3Tool(name, input, sessionId));
+  if (j3 !== null) return j3;
   // Nexus / PC — Kouider uniquement
   const isHouariSession = /houari/i.test(sessionId ?? '');
   if (isHouariSession && (NEXUS_TOOLS.has(name) || PC_TOOLS.has(name) || CLOUD_TOOLS.has(name))) {

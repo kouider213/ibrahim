@@ -28,17 +28,27 @@ Rien à lire à l'écran : s'il faut lui montrer quelque chose, envoie-le sur Te
 Pour un envoi (WhatsApp, mail…), prépare puis demande « je l'envoie ? » : il répondra à la voix.]`;
 
 /** Une phrase dite au volant → réponse texte + voix. */
-export async function copilotTurn(audio: string, mime: string): Promise<{ heard: string; text: string; audio?: string; audioMime?: string }> {
+// Mot de réveil : « Dzaryx » (et ce que Whisper en fait souvent)
+const WAKE = /\b(dzaryx|dzarix|dzariks|zarix|zaryx|d'?zaryx|jarvis|dzaric|dsarix|dzari)\b[,.!:\s]*/i;
+
+export async function copilotTurn(audio: string, mime: string, wake = false): Promise<{ heard: string; text: string; audio?: string; audioMime?: string; ignored?: boolean }> {
   const { transcribeAudio } = await import('../api/routes/transcribe.js');
-  const heard = (await transcribeAudio(audio, mime).catch(() => ({ text: '' }))).text.trim();
+  let heard = (await transcribeAudio(audio, mime).catch(() => ({ text: '' }))).text.trim();
   if (!heard || heard.length < 2) return { heard: '', text: '' };
+  // Écoute permanente : il ne répond que si on l'appelle « Dzaryx… » (le reste de la conversation est ignoré)
+  if (wake) {
+    const m = WAKE.exec(heard);
+    if (!m) return { heard, text: '', ignored: true };
+    heard = heard.slice(m.index + m[0].length).trim() || 'Oui ?';
+  }
   let text = '';
   const wa = await import('./whatsapp-web.js').then(m => m.handleWaYesNo(heard)).catch(() => null);
   if (wa?.reply) text = wa.reply;
   else {
     const { processMessage } = await import('../conversation/orchestrator.js');
     const { stripToolTrace } = await import('./supabase.js');
-    const out = await processMessage(`${DRIVING}\n${wa?.note ? `${wa.note}\n` : ''}${heard}`, 'voice_kouider', true);
+    const note = wake ? '[MAINS LIBRES — Kouider t\'appelle « Dzaryx » à voix haute, l\'app est ouverte près de lui. Réponds à l\'oral, 1 à 3 phrases courtes, sans lien lu.]' : DRIVING;
+    const out = await processMessage(`${note}\n${wa?.note ? `${wa.note}\n` : ''}${heard}`, 'voice_kouider', true);
     text = stripToolTrace(out.text ?? '') || 'Pardon, je n\'ai pas compris.';
   }
   const { synthesizeVoice } = await import('../notifications/dispatcher.js');

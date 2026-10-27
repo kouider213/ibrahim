@@ -1,0 +1,64 @@
+import type Anthropic from '@anthropic-ai/sdk';
+
+// Outils « Jarvis 3 » (27/10/2026) : définitions seules (pas d'import lourd ici, tools.ts les ajoute à Dzaryx_TOOLS).
+// Exécution : runJarvis3Tool, appelé par tool-executor avant son switch.
+const obj = (properties: Record<string, unknown>, required: string[] = []) => ({ type: 'object' as const, properties, required });
+const S = { type: 'string' }, N = { type: 'number' }, B = { type: 'boolean' };
+const act = (...e: string[]) => ({ type: 'string', enum: e });
+
+export const JARVIS3_TOOLS: Anthropic.Tool[] = [
+  { name: 'memoire_gens', description: "MÉMOIRE DES GENS : une fiche par personne que Kouider connaît (client, partenaire, garagiste, famille, ami) — qui c'est, ses proches, ce qu'ils se sont dit, ce qu'il lui a PROMIS, dates (anniversaire…). 'remember' (name, text = ce qu'il dit sur elle : « Karim, son fils s'appelle Yanis, je lui ai promis la Clio à 27 € ») ; 'get' (name) AVANT de parler de quelqu'un ou quand il demande « c'est qui déjà Karim ? » ; 'list' ; 'promise_done' (name, text) ; 'forget'. Avant un RDV de l'agenda qui cite une personne connue, la fiche part toute seule sur Telegram.", input_schema: obj({ action: act('remember', 'get', 'list', 'promise_done', 'forget'), name: S, text: S }, ['action']) },
+  { name: 'liste_nuit', description: "LISTE DE NUIT : « fais ça cette nuit : … » → tâche faite pendant qu'il dort (recherches, comparatifs, idées, brouillons — lecture seule), résultat sur Telegram au réveil (6h45). 'add' (task) ; 'list' ; 'remove' ; 'results' = ce qui a été fait.", input_schema: obj({ action: act('add', 'list', 'remove', 'results'), task: S, id: S }, ['action']) },
+  { name: 'avocat_de_poche', description: "AVOCAT DE POCHE : AVANT de signer un contrat (bail, achat/vente de voiture, partenariat, devis, contrat de travail…) → ce qu'il dit en clair, les PIÈGES clause par clause avec la phrase à faire modifier, ce qui manque, verdict signer / modifier / ne pas signer. Le document = la photo qu'il vient d'envoyer, ou text (ex. texte d'une pièce jointe lue avec read_email_attachment). role = sa position (locataire, acheteur, loueur…).", input_schema: obj({ text: S, role: S }) },
+  { name: 'courrier_admin', description: "SECRÉTAIRE ADMINISTRATIF : photo d'un courrier (impôts, commune, banque, assurance, mutuelle, amende, administration belge ou algérienne, même en néerlandais/arabe) → ce que c'est en français simple, ce qu'il doit faire, l'ÉCHÉANCE (rappel mis dans l'agenda), le montant, le risque s'il ne fait rien, la réponse prête. action 'analyze' (photo envoyée ou text) ; 'list' = courriers en attente ; 'done' (text) = traité.", input_schema: obj({ action: act('analyze', 'list', 'done'), text: S }) },
+  { name: 'economies', description: "CHASSEUR D'ÉCONOMIES PERSO : ses abonnements et contrats (téléphone, internet, assurance, énergie, streaming…). 'add' (name, provider, price, per mois|an, country BE|FR|DZ) ; 'list' ; 'hunt' = cherche moins cher sur le web pour tous (ou name) et calcule le gain par an ; 'letter' (name) = lettre de résiliation ; 'remove'. Revérifié tout seul le 1er du mois.", input_schema: obj({ action: act('add', 'list', 'hunt', 'letter', 'remove'), name: S, provider: S, price: N, per: act('mois', 'an'), country: S, note: S }, ['action']) },
+  { name: 'prof', description: "PROF PERSO : apprendre n'importe quoi 10 min par jour (anglais, arabe écrit, investissement, comptabilité…). 'start' (subject, level, hour « 21h ») ; 'lesson' = leçon maintenant ; 'answer' (answers = ses réponses aux questions de la leçon) → correction + progression ; 'status' ; 'stop'. Quand il répond aux questions d'une leçon, utilise TOUJOURS 'answer'.", input_schema: obj({ action: act('start', 'lesson', 'answer', 'status', 'stop'), subject: S, level: S, hour: S, answers: S }, ['action']) },
+  { name: 'conseil_sages', description: "CONSEIL DES SAGES : avant une grosse décision (« achète une 4e voiture ? », « je lance FIK à Alger ? »), 3 conseillers débattent — le Prudent, l'Audacieux, le Financier — se répondent puis VOTENT, et le conseil donne sa décision + la première action. question ; facts = chiffres ou infos qu'il a donnés. Rends le débat tel quel (en appel : résume les votes et la décision).", input_schema: obj({ question: S, facts: S }, ['question']) },
+  { name: 'vue_satellite', description: "VUE SATELLITE À LA DEMANDE : « montre-moi le parking de l'aéroport d'Oran », « c'est où exactement ce garage ? », « vue satellite de chez moi » → image satellite + vue de la rue (si dispo) envoyées sur Telegram, météo, temps de trajet, lien Maps. place (lieu, adresse, ou « ici ») ; zoom 1 (très près) à 4 (quartier).", input_schema: obj({ place: S, zoom: N }, ['place']) },
+  { name: 'change_euros', description: "MEILLEUR MOMENT POUR CHANGER SES EUROS au square (euro → dinar) : taux du jour, position par rapport aux 3 dernières semaines, conseil changer / attendre ; amount = combien d'euros. Il est aussi prévenu tout seul quand le taux est au plus haut.", input_schema: obj({ amount: N }) },
+  { name: 'opportunites', description: "CHASSEUR D'OPPORTUNITÉS : ventes aux enchères de véhicules (domaines, saisies, douane), appels d'offres de location / transport, salons à Oran, en Algérie et à Bruxelles — concret, daté, avec lien. focus = sujet précis (sinon tout). Chaque lundi les nouvelles arrivent seules.", input_schema: obj({ focus: S }) },
+  { name: 'projet', description: "PROJETS EN PILOTE AUTOMATIQUE : « prépare l'été 2027 avant le 1er mai », « lance le projet ouverture à Alger » → plan en étapes datées ; chaque matin il rappelle l'étape du jour, replanifie le retard, jusqu'à la fin. 'create' (goal, deadline AAAA-MM-JJ) ; 'list' ; 'done_step' (project, step) quand il dit « c'est fait » ; 'stop' (project).", input_schema: obj({ action: act('create', 'list', 'done_step', 'stop'), goal: S, deadline: S, project: S, step: S }, ['action']) },
+  { name: 'mode_vacances', description: "MODE VACANCES : « je pars en vacances jusqu'au 15 » → le gardien répond aux clients 24 h/24 (infos, conditions, prix, site ; jamais de dispo ni de décision), pas de dérangement sauf vraie urgence, résumé complet au retour. 'on' (until AAAA-MM-JJ, from facultatif) ; 'off' ; 'status'.", input_schema: obj({ action: act('on', 'off', 'status'), from: S, until: S }, ['action']) },
+  { name: 'rapport_moi', description: "LE RAPPORT « QUI TU ES » : ce que Dzaryx a remarqué sur Kouider — heures les plus efficaces, humeur et ce qui la fait bouger, sommeil/énergie (montre), argent, 3 réussites, 3 conseils. days (30 par défaut). Envoyé seul le 1er du mois.", input_schema: obj({ days: N }) },
+  { name: 'fortune', description: "TA FORTUNE EN DIRECT : tout ce que Kouider possède (voitures à leur valeur, or, euros, dinars, biens, créances clients, dettes) en un total + projection 1 / 5 / 10 ans. 'show' ; 'set' (label, value, currency EUR|DZD, kind voiture|or|euros|dinars|bien|dette|autre) quand il dit « j'ai 3 000 € sur mon compte », « la Clio vaut 1,2 million de DA » ; 'remove' (label).", input_schema: obj({ action: act('show', 'set', 'remove'), label: S, value: N, currency: S, kind: S }) },
+  { name: 'auto_amelioration', description: "IL S'AMÉLIORE SEUL : chaque nuit Dzaryx relit ses erreurs (moments où Kouider l'a corrigé) et propose des règles de comportement et des bugs à corriger. 'show' = propositions en attente ; 'apply' (numbers = lesquelles, vide = toutes) quand il dit « applique les améliorations » ; 'dev_list' = bugs notés pour la prochaine séance de code.", input_schema: obj({ action: act('show', 'apply', 'dev_list'), numbers: { type: 'array', items: N } }) },
+  { name: 'radar_concurrence', description: "RADAR DE LA CONCURRENCE : prix de location des autres agences à Oran (sites, Facebook, annonces) comparés aux prix FIK, où FIK est cher / bien placé, riposte conseillée. Chaque matin il prévient seul si une agence passe nettement sous FIK.", input_schema: obj({}) },
+  { name: 'chasseur_voitures', description: "CHASSEUR DE VOITURES À ACHETER : voitures d'occasion à vendre en Algérie (Oran d'abord) sous le prix du marché + ce que chacune rapporterait en location FIK et en combien de mois elle est remboursée. models (ex. « Duster, Jogger »), budget_da. Chaque mercredi les bonnes affaires arrivent seules.", input_schema: obj({ models: S, budget_da: N }) },
+  { name: 'commercial', description: "COMMERCIAL AUTOMATIQUE : l'annonce FIK du jour (voitures pas louées, prix, sans caution…) en français + arabe, publiée dans le Chrome du PC cloud sur ses groupes Facebook / Ouedkniss / page FIK. 'prepare' = l'annonce ; 'publish' (confirmed:true SEULEMENT après son oui) ; 'targets' (targets = liens des groupes / pages) pour régler où publier. Chaque matin à 10h l'annonce est proposée sur Telegram.", input_schema: obj({ action: act('prepare', 'publish', 'targets'), targets: { type: 'array', items: S }, confirmed: B }, ['action']) },
+  { name: 'atelier', description: "L'ATELIER DE TONY STARK : « fais-moi un outil / une page / une petite app qui … » (calculateur de devis, check-list de remise des clés, page promo, mini-jeu pour le petit…) → Dzaryx la construit (page web complète) et la met en ligne, lien sur Telegram en 2-3 min. 'build' (request = la description complète) ; 'list'.", input_schema: obj({ action: act('build', 'list'), request: S }) },
+  { name: 'usine_business', description: "USINE À BUSINESS : « lance un business de location de scooters à Oran » → l'escouade fait l'étude complète (marché, concurrents, chiffres, offre, plan de lancement 30 jours) et l'atelier construit la page de présentation. idea.", input_schema: obj({ idea: S }, ['idea']) },
+  { name: 'autonomie', description: "AUTONOMIE PROGRESSIVE : après 5 « oui » d'affilée à ses réponses WhatsApp d'un même type, Dzaryx propose d'y répondre seul. 'status' ; 'on' / 'off' (kind = question | autre) quand Kouider dit « oui, réponds seul aux questions » ; 'off_all' = plus rien seul. Jamais seul : dispo, réservation, paiement, prix spécial, plainte, urgence.", input_schema: obj({ action: act('status', 'on', 'off', 'off_all'), kind: S }, ['action']) },
+  { name: 'sante', description: "JARVIS SANTÉ : sommeil, pas, cœur au repos, VFC envoyés chaque matin par le Raccourci iPhone (Santé / Apple Watch). Pour « j'ai bien dormi ? », « mon sommeil cette semaine ? », « ma santé ? ». days (7 par défaut). Si rien n'arrive : il doit installer le Raccourci (app › JARVIS › Santé).", input_schema: obj({ days: N }) },
+];
+
+export const JARVIS3_NAMES = JARVIS3_TOOLS.map(t => t.name);
+
+export async function runJarvis3Tool(name: string, input: Record<string, unknown>, sessionId?: string): Promise<string | null> {
+  if (!JARVIS3_NAMES.includes(name)) return null;
+  if (/houari/i.test(sessionId ?? '')) return '❌ Réservé à Kouider.';
+  switch (name) {
+    case 'memoire_gens': return (await import('./people-memory.js')).peopleTool(input);
+    case 'liste_nuit': return (await import('./night-list.js')).nightListTool(input);
+    case 'avocat_de_poche': return (await import('./doc-review.js')).lawyerTool(input, sessionId);
+    case 'courrier_admin': return (await import('./doc-review.js')).letterTool(input, sessionId);
+    case 'economies': return (await import('./life-helpers.js')).savingsTool(input);
+    case 'prof': return (await import('./life-helpers.js')).tutorTool(input);
+    case 'conseil_sages': return (await import('./life-helpers.js')).councilTool(input);
+    case 'vue_satellite': return (await import('./world-watch.js')).satelliteTool(input);
+    case 'change_euros': return (await import('./world-watch.js')).euroTool(input);
+    case 'opportunites': return (await import('./world-watch.js')).opportunitiesTool(input);
+    case 'projet': return (await import('./brain-plus.js')).projectTool(input);
+    case 'mode_vacances': return (await import('./brain-plus.js')).vacationTool(input);
+    case 'rapport_moi': return `🪞 ${await (await import('./brain-plus.js')).buildSelfReport(Number(input['days']) || 30)}`;
+    case 'fortune': return (await import('./brain-plus.js')).fortuneTool(input);
+    case 'auto_amelioration': return (await import('./guardian-ops.js')).selfImproveTool(input);
+    case 'radar_concurrence': return (await import('./market-hunters.js')).radarTool();
+    case 'chasseur_voitures': return (await import('./market-hunters.js')).carHunterTool(input);
+    case 'commercial': return (await import('./builders.js')).commercialTool(input, sessionId);
+    case 'atelier': return (await import('./builders.js')).atelierTool(input);
+    case 'usine_business': return (await import('./builders.js')).businessFactoryTool(input);
+    case 'autonomie': return (await import('./autonomy.js')).autonomyTool(input);
+    case 'sante': return (await import('./jarvis-hub.js')).healthText(Number(input['days']) || 7);
+  }
+  return null;
+}

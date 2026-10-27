@@ -85,9 +85,9 @@ router.get('/squad', async (req, res) => {
 
 // Copilote mains libres : une phrase au volant → réponse dite ; fil des nouveaux messages WhatsApp à lire
 router.post('/copilot/audio', async (req, res) => {
-  const { audio, mime = 'audio/webm' } = req.body as { audio?: string; mime?: string };
+  const { audio, mime = 'audio/webm', wake } = req.body as { audio?: string; mime?: string; wake?: boolean };
   if (!audio) { res.status(400).json({ error: 'audio requis' }); return; }
-  try { res.json(await import('../../integrations/copilot.js').then(m => m.copilotTurn(audio, mime))); } catch (e) { fail(res, e); }
+  try { res.json(await import('../../integrations/copilot.js').then(m => m.copilotTurn(audio, mime, !!wake))); } catch (e) { fail(res, e); }
 });
 router.get('/copilot/feed', async (req, res) => {
   try { res.json({ items: await import('../../integrations/copilot.js').then(m => m.copilotFeed(String(req.query['since'] ?? ''))) }); } catch (e) { fail(res, e); }
@@ -96,6 +96,33 @@ router.post('/copilot/speak', async (req, res) => {
   const text = String((req.body as { text?: string }).text ?? '').trim();
   if (!text) { res.status(400).json({ error: 'texte requis' }); return; }
   try { res.json(await import('../../integrations/copilot.js').then(m => m.copilotSpeak(text))); } catch (e) { fail(res, e); }
+});
+
+// Jarvis santé : le Raccourci iPhone envoie les données de Santé / Apple Watch
+router.post('/health', async (req, res) => {
+  try { res.json(await import('../../integrations/jarvis-hub.js').then(m => m.receiveHealth((req.body ?? {}) as Record<string, unknown>))); } catch (e) { fail(res, e); }
+});
+router.get('/health', async (_req, res) => {
+  try { res.json({ text: await import('../../integrations/jarvis-hub.js').then(m => m.healthText(14)) }); } catch (e) { fail(res, e); }
+});
+// « Dis Siri, Dzaryx » : le Raccourci envoie la phrase dictée → phrase à dire + action iPhone (lien à ouvrir)
+router.post('/siri', async (req, res) => {
+  const text = String((req.body as { text?: string }).text ?? '').trim();
+  if (!text) { res.json({ say: 'Je t\'écoute.' }); return; }
+  try { res.json(await import('../../integrations/jarvis-hub.js').then(m => m.siriTurn(text))); } catch (e) { fail(res, e); }
+});
+// Salle de commande (TV / PC), machine à voir le futur, briefing 3D de la Carte live
+router.get('/command-center', async (_req, res) => {
+  try { res.json(await import('../../integrations/jarvis-hub.js').then(m => m.commandCenter())); } catch (e) { fail(res, e); }
+});
+router.get('/future', async (_req, res) => {
+  try { res.json(await import('../../integrations/jarvis-hub.js').then(m => m.futureBase())); } catch (e) { fail(res, e); }
+});
+router.get('/briefing', async (_req, res) => {
+  try { res.json(await import('../../integrations/jarvis-hub.js').then(m => m.briefing3d())); } catch (e) { fail(res, e); }
+});
+router.get('/fortune', async (_req, res) => {
+  try { res.json(await import('../../integrations/brain-plus.js').then(m => m.fortune())); } catch (e) { fail(res, e); }
 });
 
 export default router;

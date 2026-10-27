@@ -7,6 +7,7 @@ const _env = (import.meta as any).env as Record<string, string> ?? {};
 // Backups via VITE_BACKEND_BACKUPS="https://xxx.onrender.com,https://yyy" (build).
 // ES modules = live bindings → les imports de BACKEND_URL voient la bascule.
 const _PRIMARY  = (_env['VITE_BACKEND_URL'] as string) ?? 'https://ibrahim-backend-production.up.railway.app';
+export const PRIMARY_BACKEND = _PRIMARY;   // Raccourcis iPhone (Santé, Siri) : adresse du cerveau
 // Backup Render par défaut (déployé 2026-06-11) — surchargeable via VITE_BACKEND_BACKUPS
 const _BACKUPS  = ((_env['VITE_BACKEND_BACKUPS'] as string) ?? 'https://dzaryx-backend-backup.onrender.com').split(',').map(s => s.trim()).filter(Boolean);
 const _BACKENDS = [_PRIMARY, ..._BACKUPS];
