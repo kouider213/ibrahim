@@ -1,84 +1,130 @@
-// Visage animé de Dzaryx dans l'app : le même petit bonhomme dessin animé que pendant les appels Telegram
-// (tgcall/avatar_cute.py, style 'cartoon') — Kouider 27/10 : il veut voir Dzaryx, un visage AMICAL qui bouge quand il parle.
-// talk 0-1 = Dzaryx parle (bouche), listen 0-1 = Kouider parle (sourcils levés, petite inclinaison).
+// Visage animé de Dzaryx dans l'app : l'hologramme réaliste choisi par Kouider (27/10), le même que pendant les
+// appels Telegram (tgcall/avatar_real.py) — la mâchoire descend quand il parle, il cligne des yeux, la tête respire,
+// effets d'hologramme. talk 0-1 = Dzaryx parle, listen 0-1 = Kouider parle (il penche un peu la tête).
 
 export interface FaceInput { talk: number; listen: number; thinking: boolean }
 
-const SKIN = 'rgb(240,190,150)', SKIN_D = 'rgb(215,160,120)', HAIR = 'rgb(40,40,45)', INK = 'rgb(40,40,50)';
-const SHIRT = 'rgb(40,120,190)', BLUSH = 'rgba(250,150,150,0.75)', MOUTH = 'rgb(110,40,60)', TONGUE = 'rgb(240,120,140)';
-const D = Math.PI / 180;
+// Repères du visage sur public/dzaryx-face.jpg (540×720), trouvés avec YuNet (tgcall/models)
+const IMG_W = 540, IMG_H = 720;
+const EYES: [number, number][] = [[192.8, 344.2], [338.0, 341.4]];
+const MOUTH: [number, number] = [265.8, 512.9];
+const MOUTH_HW = 58.1, EYE_W = 37.8, FACE_H = 431.1;
 
 export function createDzaryxFace() {
-  let mouth = 0, gx = 0, gy = 0, tgx = 0, tgy = 0;
-  let nextBlink = performance.now() + 2500, blinkUntil = 0, nextGaze = performance.now() + 2000;
-
-  const ell = (ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, a0: number, a1: number,
-    fill?: string, stroke?: string, lw = 0, rot = 0) => {
-    ctx.beginPath();
-    if (fill && a1 - a0 < 360) ctx.moveTo(x, y);   // comme OpenCV : arc rempli = part de tarte jusqu'au centre
-    ctx.ellipse(x, y, Math.max(0.5, rx), Math.max(0.5, ry), rot * D, a0 * D, a1 * D);
-    if (fill) { if (a1 - a0 < 360) ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); }
-    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.stroke(); }
+  const img = new Image();
+  img.src = `${((import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL) ?? "/ibrahim/"}dzaryx-face.jpg`;
+  let ready = false;
+  let jawMask: HTMLCanvasElement | null = null, jaw: HTMLCanvasElement | null = null, glow: HTMLCanvasElement | null = null;
+  let skin = 'rgb(150,140,160)';
+  img.onload = () => {
+    ready = true;
+    // Masque de la mâchoire : sous les lèvres, centré sur la bouche, s'éteint vers le cou (comme avatar_real.py)
+    jawMask = document.createElement('canvas'); jawMask.width = IMG_W; jawMask.height = IMG_H;
+    const mc = jawMask.getContext('2d')!;
+    const id = mc.createImageData(IMG_W, IMG_H);
+    const chin = MOUTH[1] + FACE_H * 0.27;
+    for (let y = 0; y < IMG_H; y++) {
+      const wy = Math.min(1, Math.max(0, (y - MOUTH[1]) / 3)) * Math.min(1, Math.max(0, 1 - (y - chin) / (FACE_H * 0.22)));
+      if (!wy) continue;
+      for (let x = 0; x < IMG_W; x++) {
+        const wx = Math.exp(-(((x - MOUTH[0]) / (MOUTH_HW * 2.1)) ** 2));
+        id.data[(y * IMG_W + x) * 4 + 3] = Math.round(255 * wx * wy);
+      }
+    }
+    mc.putImageData(id, 0, 0);
+    jaw = document.createElement('canvas'); jaw.width = IMG_W; jaw.height = IMG_H;
+    glow = document.createElement('canvas'); glow.width = IMG_W / 6; glow.height = IMG_H / 6;
+    try {   // couleur de la peau (joue) pour les paupières
+      const c = document.createElement('canvas'); c.width = 6; c.height = 6;
+      const cx = c.getContext('2d')!;
+      cx.drawImage(img, EYES[0][0] - 3, EYES[0][1] + EYE_W * 0.9, 6, 6, 0, 0, 6, 6);
+      const p = cx.getImageData(0, 0, 6, 6).data;
+      let r = 0, g = 0, b = 0;
+      for (let i = 0; i < p.length; i += 4) { r += p[i]!; g += p[i + 1]!; b += p[i + 2]!; }
+      skin = `rgb(${Math.round(r / 36)},${Math.round(g / 36)},${Math.round(b / 36)})`;
+    } catch { /* image d'un autre domaine : couleur par défaut */ }
   };
 
-  /** Dessine le bonhomme centré en (cx, cy) ; R = rayon de la tête (px). t = performance.now(). */
-  return function draw(ctx: CanvasRenderingContext2D, cx: number, cy0: number, R: number, t: number, o: FaceInput) {
-    const now = t;
-    const target = Math.pow(Math.min(1, Math.max(0, o.talk)), 0.7);
+  let mouth = 0, nod = 0, nextBlink = performance.now() + 2500, blinkT = -1e9;
+
+  /** Dessine le visage centré en (cx, cy) ; R = demi-hauteur de la tête (px). t = performance.now(). */
+  return function draw(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number, t: number, o: FaceInput) {
+    if (!ready || !jaw || !jawMask || !glow) return;
+    const target = Math.pow(Math.min(1, Math.max(0, o.talk)), 0.75);
     mouth += (target - mouth) * (target > mouth ? 0.5 : 0.3);
-    if (now > nextBlink) { blinkUntil = now + 150; nextBlink = now + 2500 + Math.random() * 3000; }
-    const blink = now < blinkUntil;
-    if (now > nextGaze) {
-      tgx = o.thinking ? 0.6 : Math.random() * 2 - 1; tgy = o.thinking ? -0.8 : Math.random() - 0.5;
-      nextGaze = now + 1500 + Math.random() * 2000;
-    }
-    gx += (tgx - gx) * 0.15; gy += (tgy - gy) * 0.15;
     const s = t / 1000;
-    const bob = R * (0.035 * Math.sin(s * 1.5) + 0.03 * mouth * Math.sin(s * 9));
-    const tilt = 3 * Math.sin(s * 0.6) + 4 * o.listen + (o.thinking ? 4 : 0);
-    const cy = cy0 + bob;
+    // Taille : la tête (FACE_H) fait 2R de haut ; le visage est centré sur (cx, cy)
+    const k = (2 * R) / FACE_H;
+    const w = IMG_W * k, h = IMG_H * k;
+    const x0 = cx - (EYES[0][0] + EYES[1][0]) / 2 * k, y0 = cy - (EYES[0][1] + FACE_H * 0.12) * k;
 
-    // Corps : t-shirt + cou (ne bougent pas avec la tête)
-    ell(ctx, cx, cy0 + R * 2.48, R * 1.33, R * 0.98, 180, 360, SHIRT);
-    ctx.fillStyle = SKIN_D; ctx.fillRect(cx - R * 0.24, cy + R * 0.8, R * 0.48, cy0 + R * 1.6 - cy - R * 0.8);
-    ell(ctx, cx, cy0 + R * 1.6, R * 0.28, R * 0.13, 0, 180, SKIN_D);
+    // Mâchoire décalée de d pixels (calque masqué)
+    const d = mouth * FACE_H * 0.055;
+    const jc = jaw.getContext('2d')!;
+    jc.globalCompositeOperation = 'source-over';
+    jc.clearRect(0, 0, IMG_W, IMG_H);
+    if (d > 0.4) {
+      jc.drawImage(img, 0, d);
+      jc.globalCompositeOperation = 'destination-in';
+      jc.drawImage(jawMask, 0, 0);
+      jc.globalCompositeOperation = 'source-over';
+      // intérieur de la bouche + dents du haut
+      jc.fillStyle = 'rgb(22,18,40)';
+      jc.beginPath(); jc.ellipse(MOUTH[0], MOUTH[1] + d * 0.45, MOUTH_HW * 0.8, Math.max(1, d * 0.55), 0, 0, Math.PI * 2); jc.fill();
+      jc.fillStyle = 'rgba(190,200,205,0.9)';
+      jc.beginPath(); jc.ellipse(MOUTH[0], MOUTH[1] + 1, MOUTH_HW * 0.6, Math.max(1, d * 0.22), 0, 0, Math.PI); jc.fill();
+    }
+    // Clignement
+    if (t > nextBlink) { blinkT = t; nextBlink = t + 2500 + Math.random() * 3000; }
+    const bk = (t - blinkT) / 180;
+    if (bk >= 0 && bk <= 1) {
+      const close = Math.sin(bk * Math.PI);
+      for (const [ex, ey] of EYES) {
+        const eh = EYE_W * 0.55;
+        jc.save();
+        jc.beginPath(); jc.ellipse(ex, ey, EYE_W, eh, 0, 0, Math.PI * 2); jc.clip();
+        jc.fillStyle = skin;
+        jc.fillRect(ex - EYE_W, ey - eh, EYE_W * 2, eh * 2.2 * close);
+        jc.restore();
+      }
+    }
 
+    // Tête : respiration, balancement, hochement quand il parle, penche quand il écoute
+    nod += (mouth * 1.6 * Math.sin(s * 6.5) - nod) * 0.25;
+    const ang = (1.2 * Math.sin(s * 0.5) + 0.6 * Math.sin(s * 1.3) + 1.5 * o.listen + (o.thinking ? 1.5 : 0)) * Math.PI / 180;
+    const dy = (2.5 * Math.sin(s * 0.9) + nod) * k * 1.5;
+    const pivX = x0 + w / 2, pivY = y0 + h * 0.85;
     ctx.save();
-    ctx.translate(cx, cy); ctx.rotate(tilt * D); ctx.translate(-cx, -cy);
-    for (const k of [-1, 1]) ell(ctx, cx + k * R * 0.95, cy + R * 0.09, R * 0.16, R * 0.22, 0, 360, SKIN_D);
-    ell(ctx, cx, cy, R, R * 1.08, 0, 360, SKIN);
-    // Barbe courte (ombre sur la mâchoire) puis cheveux courts
-    ell(ctx, cx, cy + R * 0.35, R * 0.92, R * 0.7, 15, 165, SKIN_D);
-    ell(ctx, cx, cy + R * 0.25, R * 0.78, R * 0.6, 15, 165, SKIN);
-    ell(ctx, cx, cy - R * 0.15, R * 1.02, R * 0.98, 190, 350, HAIR);
-    ell(ctx, cx, cy - R * 0.05, R * 0.9, R * 0.62, 200, 340, SKIN);
-    ell(ctx, cx + R * 0.1, cy - R * 0.62, R * 0.55, R * 0.22, 180, 360, HAIR, undefined, 0, -8);
-    // Sourcils doux
-    for (const k of [-1, 1]) ell(ctx, cx + k * R * 0.36, cy - R * (0.3 + 0.05 * o.listen), R * 0.15, R * 0.06, 200, 340, undefined, HAIR, R * 0.04);
-    // Grands yeux brillants
-    for (const k of [-1, 1]) {
-      const x0 = cx + k * R * 0.36, y0 = cy - R * 0.05;
-      if (blink) { ell(ctx, x0, y0, R * 0.13, R * 0.08, 20, 160, undefined, INK, R * 0.035); continue; }
-      ell(ctx, x0, y0, R * 0.15, R * 0.17, 0, 360, '#fff');
-      const px = x0 + gx * R * 0.04, py = y0 + gy * R * 0.03 + R * 0.03;
-      ell(ctx, px, py, R * 0.1, R * 0.1, 0, 360, 'rgb(40,50,70)');
-      ell(ctx, px - R * 0.035, py - R * 0.06, R * 0.035, R * 0.035, 0, 360, '#fff');
-      ell(ctx, px + R * 0.04, py + R * 0.02, R * 0.015, R * 0.015, 0, 360, '#fff');
-    }
-    // Nez + joues
-    ell(ctx, cx, cy + R * 0.18, R * 0.08, R * 0.06, 0, 180, undefined, SKIN_D, R * 0.028);
-    for (const k of [-1, 1]) ell(ctx, cx + k * R * 0.58, cy + R * 0.25, R * 0.12, R * 0.07, 0, 360, BLUSH);
-    // Bouche : sourire, s'ouvre quand il parle (dents + langue)
-    const my = cy + R * 0.42;
-    if (mouth > 0.08) {
-      const hh = R * (0.06 + 0.2 * mouth);
-      ell(ctx, cx, my, R * 0.26, hh, 0, 180, MOUTH);
-      ctx.fillStyle = MOUTH; ctx.fillRect(cx - R * 0.26, my - R * 0.03, R * 0.52, R * 0.045);
-      ctx.fillStyle = '#fff'; ctx.fillRect(cx - R * 0.2, my - R * 0.02, R * 0.4, Math.max(2, hh * 0.25 + R * 0.02));
-      ell(ctx, cx, my + hh * 0.75, R * 0.12, Math.max(2, hh / 4), 180, 360, TONGUE);
-    } else {
-      ell(ctx, cx, my - R * 0.08, R * 0.24, R * 0.14, 15, 165, undefined, INK, R * 0.035);
-    }
+    ctx.translate(pivX, pivY + dy); ctx.rotate(ang); ctx.translate(-pivX, -pivY);
+    ctx.drawImage(img, x0, y0, w, h);
+    ctx.drawImage(jaw, x0, y0, w, h);
+    // Halo d'hologramme qui pulse avec la voix (copie floue en mode « lighter »)
+    const gc = glow.getContext('2d')!;
+    gc.clearRect(0, 0, glow.width, glow.height);
+    gc.drawImage(img, 0, 0, glow.width, glow.height);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.14 + 0.2 * mouth;
+    ctx.drawImage(glow, x0, y0, w, h);
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    // Lignes de balayage + bande lumineuse qui descend
+    ctx.fillStyle = 'rgba(3,6,15,0.16)';
+    for (let y = y0; y < y0 + h; y += 3) ctx.fillRect(x0, y, w, 1);
+    const band = y0 + ((s * 70 * k * 1.5) % (h + 80)) - 40;
+    ctx.fillStyle = 'rgba(120,200,255,0.10)';
+    ctx.fillRect(x0, band, w, 8 * k * 1.5);
+    // Bords fondus dans le fond (cache les éléments de l'affiche d'origine)
+    const fade = (gx0: number, gx1: number) => {
+      const g = ctx.createLinearGradient(gx0, 0, gx1, 0);
+      g.addColorStop(0, 'rgba(3,6,15,1)'); g.addColorStop(0.4, 'rgba(3,6,15,1)'); g.addColorStop(1, 'rgba(3,6,15,0)');
+      ctx.fillStyle = g; ctx.fillRect(Math.min(gx0, gx1), y0 - 2, Math.abs(gx1 - gx0), h + 4);
+    };
+    fade(x0 - 1, x0 + w * 0.2); fade(x0 + w + 1, x0 + w * 0.8);
+    const gt = ctx.createLinearGradient(0, y0 - 1, 0, y0 + h * 0.06);
+    gt.addColorStop(0, 'rgba(3,6,15,1)'); gt.addColorStop(1, 'rgba(3,6,15,0)');
+    ctx.fillStyle = gt; ctx.fillRect(x0 - 1, y0 - 1, w + 2, h * 0.06);
+    const gb = ctx.createLinearGradient(0, y0 + h * 0.8, 0, y0 + h + 1);
+    gb.addColorStop(0, 'rgba(3,6,15,0)'); gb.addColorStop(1, 'rgba(3,6,15,1)');
+    ctx.fillStyle = gb; ctx.fillRect(x0, y0 + h * 0.8, w, h * 0.2 + 2);
     ctx.restore();
   };
 }

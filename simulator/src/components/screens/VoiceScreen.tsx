@@ -982,7 +982,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       // Visage animé de Dzaryx (le même petit bonhomme qu'en appel Telegram) à la place de la sphère — Kouider 27/10
       {
         const talk = st === 'speaking' ? 0.3 + 0.7 * Math.abs(Math.sin(t * 0.017) * Math.sin(t * 0.029 + 1.3)) : 0;
-        drawFace(ctx, cx, cy - R * 0.15, R * 0.78, t, { talk, listen: st === 'listening' ? amp : 0, thinking: st === 'thinking' });
+        drawFace(ctx, cx, cy - R * 0.1, R * 1.15, t, { talk, listen: st === 'listening' ? amp : 0, thinking: st === 'thinking' });
       }
 
       // Anneaux HUD (graduations + arcs qui tournent)

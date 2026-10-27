@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-27 (suite 3) — Visage RÉALISTE (hologramme choisi par Kouider) + garde-fou appel vidéo muet (app v191)
+- `tgcall/avatar_real.py` (nouveau) + `tgcall/assets/dzaryx_bust.png` (recadré de l'affiche envoyée par Kouider) : mâchoire qui descend avec la voix (cv2.remap + intérieur de bouche), clignements, tête qui respire/hoche, halo + balayage ; ~13 ms/image. Remplace le bonhomme dans `realtime._face_loop` (bonhomme en secours).
+- Bug « en vidéo il ne parle pas et n'entend pas » (13h14/13h15 : volume reçu 0) : cause pas encore prouvée (vidéo envoyée OU app qui garde le micro). `mute_guard` : appel avec visage muet 6 s → passage en son seul SANS raccrocher ; si le son revient → visage coupé (`cache/no-face`) pour les appels suivants.
+- App : `ui/dzaryxFace.ts` = même hologramme réaliste en canvas (`public/dzaryx-face.jpg`), sw v191.
+
 ## 2026-10-27 (suite 2) — Visage animé de Dzaryx (appels Telegram + app v190)
 - `tgcall/avatar_cute.py` (nouveau) : petit bonhomme dessin animé (choisi par Kouider après 2 versions jugées « qui font peur » : hologramme filaire puis visage bleu) — tête ronde, grands yeux qui clignent et regardent, cheveux courts, barbe légère, sourire qui s'ouvre avec la voix ; style 'orb' (bulle) gardé en réserve. ~10 ms/image.
 - `realtime.py` : `_face_loop()` 15 i/s → `send_frame(Device.CAMERA)`, bouche = volume instantané de sa voix (`out_now`), écoute = volume de Kouider (`in_now`).

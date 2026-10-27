@@ -529,13 +529,14 @@ class RealtimeCall:
     async def _face_loop(self) -> None:
         from avatar_cute import FPS, H, W, CuteAvatar
         try:
-            av = CuteAvatar('cartoon')
+            from avatar_real import RealAvatar
+            av = RealAvatar()          # hologramme réaliste choisi par Kouider (27/10)
         except Exception as e:
-            log.warning('visage animé indisponible : %s', e)
-            return
+            log.warning('visage réaliste indisponible (%s) → bonhomme', e)
+            av = CuteAvatar('cartoon')
         info = Frame.Info(width=W, height=H)
         nxt = time.monotonic()
-        while not self.closed:
+        while not self.closed and self.show_face:
             nxt += 1 / FPS
             talk = min(1.0, self.out_now / 4000) if self.out else min(1.0, self.out_now / 6000)
             listen = 0.0 if self.out else min(1.0, self.in_now / 3000)

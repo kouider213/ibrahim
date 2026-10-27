@@ -747,7 +747,32 @@ async def mute_guard(actor: str, user_id: int, rt: RealtimeCall, greeting: str, 
     """Appel décroché mais 100 % silence reçu (volume 0 — même un micro au repos capte du bruit) :
     le son est bloqué côté téléphone (19/10). On ne laisse pas Kouider dans un appel muet : on raccroche,
     il reçoit le message par écrit + l'astuce, et un 2e essai (appel sortant)."""
-    await asyncio.sleep(MUTE_CHECK_S)
+    if rt.show_face:
+        # 27/10 : 2 appels muets juste après l'ajout du visage animé → si rien n'arrive en 6 s, on retire la vidéo
+        # SANS raccrocher (même flux, son seul) ; si le son revient, c'était la vidéo : on la coupe pour les appels suivants
+        await asyncio.sleep(6)
+        if rt.closed or active.get(user_id) is None or active[user_id].rt is not rt:
+            return
+        if rt.n_in >= 300 and rt.rms_max == 0:
+            log.warning('appel avec visage MUET après 6 s → je passe en son seul sans raccrocher')
+            rt.show_face = False
+            try:
+                await calls.play(user_id, MediaStream(ExternalMedia.AUDIO, AudioParameters(OUT_RATE, 1),
+                                                      video_flags=MediaStream.Flags.IGNORE))
+            except Exception as e:
+                log.warning('passage en son seul : %s', e)
+            await asyncio.sleep(MUTE_CHECK_S)
+            if rt.closed or active.get(user_id) is None or active[user_id].rt is not rt:
+                return
+            if rt.rms_max > 0:
+                log.warning('le son est revenu sans la vidéo → visage coupé pour les prochains appels (« visage on » pour réessayer)')
+                NO_FACE.parent.mkdir(exist_ok=True)
+                NO_FACE.touch()
+                return
+        else:
+            await asyncio.sleep(max(0.0, MUTE_CHECK_S - 6))
+    else:
+        await asyncio.sleep(MUTE_CHECK_S)
     if rt.closed or active.get(user_id) is None or active[user_id].rt is not rt:
         return
     if rt.n_in < MUTE_CHECK_S * 50 or rt.rms_max > 0:   # 100 tranches/s attendues ; du son → tout va bien
