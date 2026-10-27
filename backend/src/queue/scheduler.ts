@@ -329,6 +329,21 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'night-guard-recap',
+    cron:  '*/15 * * * *',          // gardien de nuit : fin de la nuit → récap de ce qu'il a répondu seul (1 fois par nuit)
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'nego-watch',
+    cron:  '*/30 * * * *',          // négociateur : délai de 48 h dépassé → rapport avec les prix obtenus
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'predictions',
+    cron:  '0 9 * * 1',             // lundi 9h — prédictions des 30 prochains jours (manque de voitures, entretien, clients à risque)
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'connections-watch',
     cron:  '*/15 * * * *',          // WhatsApp, PC cloud, Telegram, Gmail, Agenda : coupure → message tout de suite + rappel toutes les 2 h (8h-22h)
     tz:    'Europe/Brussels',
@@ -572,6 +587,9 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'life-coach-weekly':       jobLifeCoachWeekly,
   'papa-time':               async () => { console.log(`[papa-time] ${await jobPapaTime()}`); },
   'papa-weekly':             async () => { await jobPapaWeekly(); },
+  'night-guard-recap':       async () => { await (await import('../integrations/night-guard.js')).jobNightGuardRecap(); },
+  'nego-watch':              async () => { await (await import('../integrations/negotiator.js')).jobNegoWatch(); },
+  'predictions':             async () => { await (await import('../integrations/predictions.js')).jobPredictions(); },
   'connections-watch':       async () => { console.log(`[connections] ${await jobConnectionsWatch()}`); },
   'forme-reminders':         async () => { console.log(`[forme] ${await jobFormeReminders()}`); },
   'forme-weekly':            async () => { await jobFormeWeekly(); },

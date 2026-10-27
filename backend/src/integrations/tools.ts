@@ -2797,6 +2797,52 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
   {
+    name: 'gardien_nuit',
+    description: "GARDIEN DE NUIT : pendant que Kouider dort (par défaut 23h → 6h30), Dzaryx répond SEUL aux clients WhatsApp avec UNIQUEMENT les infos, conditions, prix et véhicules qu'on possède — JAMAIS de disponibilité, JAMAIS de réservation notée (c'est Kouider qui décide au réveil ; récap sur Telegram à la fin de la nuit). Une situation délicate (accident, panne, police) n'est pas traitée seule : appel normal. 'status' ; 'on' / 'off' (« coupe le gardien de nuit ») ; 'hours' avec from/to (« le gardien de minuit à 7h » → from '00:00', to '07:00') ; 'log' = ce qu'il a répondu.",
+    input_schema: {
+      type: 'object' as const,
+      properties: { action: { type: 'string', enum: ['status', 'on', 'off', 'hours', 'log'] }, from: { type: 'string' }, to: { type: 'string' } },
+      required: ['action'],
+    },
+  },
+  {
+    name: 'negociateur',
+    description: "NÉGOCIATEUR AUTONOME sur WhatsApp : « trouve-moi un garage pour la vidange de la 208, 15 000 DA max », « négocie avec ces 3 carrossiers : … ». Dzaryx écrit lui-même aux pros, négocie SEUL sous un plafond SECRET (jamais dit, jamais dépassé), n'accepte et ne réserve rien, puis rapporte le meilleur prix (48 h max). action 'start' : need (le besoin précis), max_price (nombre), currency (DA par défaut, ou €), contacts (numéros ou noms de contacts WhatsApp ; vide = je cherche les pros sur Google Maps avec query/near), lang ; 1er appel SANS confirmed → montre la liste + le 1er message et DEMANDE « je lance ? » ; après son oui → mêmes paramètres + confirmed:true. 'find' (query, near) = juste chercher des pros avec leur numéro. 'status' = où en est la négociation. 'stop' = arrêter. Le « oui » final chez le gagnant passe par whatsapp_web send (après son oui).",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action: { type: 'string', enum: ['start', 'status', 'stop', 'find'] },
+        need: { type: 'string' }, max_price: { type: 'number' }, currency: { type: 'string' },
+        contacts: { type: 'array', items: { type: 'string' } }, query: { type: 'string' }, near: { type: 'string' },
+        lang: { type: 'string' }, country: { type: 'string' }, confirmed: { type: 'boolean' },
+      },
+      required: ['action'],
+    },
+  },
+  {
+    name: 'predictions',
+    description: "PRÉDICTIONS : ce qui va probablement arriver dans les prochains jours, calculé sur les vraies réservations, voitures et saisons — jours où il va manquer des voitures, vidange / assurance / contrôle technique qui tombent (au rythme réel des km), client à risque (retard, impayé), creux à remplir, prix à monter. Chaque prédiction : pourquoi + l'action à faire. Pour « qu'est-ce qui va se passer ? », « des prédictions ? », « je dois anticiper quoi ? ». days = horizon (30 par défaut). Envoyé aussi tout seul le lundi à 9h.",
+    input_schema: { type: 'object' as const, properties: { days: { type: 'number' } } },
+  },
+  {
+    name: 'rappel_lieu',
+    description: "RAPPEL SELON LE LIEU (GPS) : « quand j'arrive chez le garagiste Benali, rappelle-moi de demander pour la courroie », « en arrivant à l'aéroport, rappelle-moi le parking ». action 'add' : text (le rappel), place (adresse, nom du lieu, « maison », « salle », « travail », ou « ici » = là où il est maintenant), radius_m (200 par défaut), repeat (true = à chaque passage). 'list' ; 'delete' (id ou mot du rappel). Se déclenche quand sa position (partagée) arrive dans la zone → message Telegram + notification. Pour un rappel à une HEURE : schedule_reminder, pas cet outil.",
+    input_schema: {
+      type: 'object' as const,
+      properties: { action: { type: 'string', enum: ['add', 'list', 'delete'] }, text: { type: 'string' }, place: { type: 'string' }, radius_m: { type: 'number' }, repeat: { type: 'boolean' }, id: { type: 'string' } },
+      required: ['action'],
+    },
+  },
+  {
+    name: 'escouade',
+    description: "ESCOUADE D'AGENTS : « lance l'escouade : prépare-moi la saison été 2027 », « escouade : comment doubler FIK Sites ? ». Plusieurs agents Dzaryx travaillent EN MÊME TEMPS (chercheur, analyste, stratège, rédacteur…) avec les vraies données et le web, Kouider les voit avancer en direct dans l'app (JARVIS › Escouade), puis un plan final assemblé arrive sur Telegram (quelques minutes). Lecture seule : ils proposent, ils n'envoient rien. action 'start' (goal) ; 'status'. Pour une grosse question qui demande plusieurs recherches en parallèle ; une question simple → réponds directement.",
+    input_schema: {
+      type: 'object' as const,
+      properties: { action: { type: 'string', enum: ['start', 'status'] }, goal: { type: 'string' } },
+      required: ['action'],
+    },
+  },
+  {
     name: 'meetings',
     description: "RÉUNIONS, discussions écoutées en mode Souffleur et ENTRAÎNEMENTS à la négociation (page JARVIS de l'app) : compte rendu, décisions, qui a promis quoi, message de suivi, score de l'entraînement. Pour « c'était quoi la réunion avec Houari ? », « qu'est-ce que le garagiste m'a promis ? », « mon dernier entraînement ? ». query = mots (nom, sujet), vide = les dernières. Pour LANCER une réunion / un souffleur / un entraînement : dis à Kouider d'ouvrir la page JARVIS de l'app (menu Plus).",
     input_schema: {

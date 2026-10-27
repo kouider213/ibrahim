@@ -5,6 +5,15 @@
 
 ---
 
+## 2026-10-27 (suite 9) — Jarvis 2 : HUD, copilote, escouade, négociateur, prédictions, rappels de lieu, gardien de nuit (app v196)
+- 🕶️ HUD (JARVIS › HUD, `hud.ts`, `/api/jarvis/hud`) : caméra arrière, une image / 2,5 s → étiquettes posées sur l'image (voiture de la flotte + client/retour, traduction, reçu déjà vu via `fraud:receipts`, valeurs lues, danger). Pas de visages. Plaques apprises par l'état des lieux vidéo (`hud:plates`). Voix sur les nouveautés.
+- 🚗 COPILOTE (JARVIS › Copilote, `copilot.ts`) : mains libres en voiture, micro coupé aux pauses → oui/non/vocal WhatsApp ou Dzaryx complet (consigne « il conduit ») → réponse dite ; nouveaux WhatsApp lus à voix haute (fil `copilot:feed`) ; écran gardé allumé.
+- 🛰️ ESCOUADE (JARVIS › Escouade, `squad.ts`, outil `escouade`) : le chef découpe en 2-4 agents lecture seule qui travaillent en parallèle (`runReadOnlyAgent` + `onStep`), fenêtres en direct dans l'app, plan final sur Telegram. Testé : 4 agents, 85 s.
+- 🤝 NÉGOCIATEUR (`negotiator.ts`, outil `negociateur`) : pros donnés ou trouvés (Google Places + téléphone), 1er message validé par Kouider, puis Dzaryx négocie seul sous un plafond secret (jamais dit/dépassé, n'accepte rien, filet sur les montants), 6 échanges/contact, 48 h, rapport + meilleur prix. Branché dans `onWaNew` avant tout.
+- 🔮 PRÉDICTIONS (`predictions.ts`, outil `predictions`, lundi 9h) : jours tendus, délai de réservation, vidange au rythme réel des km, papiers, impayés, saisons → 3-6 prédictions + action.
+- 📍 RAPPELS DE LIEU (`place-reminders.ts`, outil `rappel_lieu`) : maison/salle/travail, « ici », adresse ou lieu Google ; vérifié à chaque position GPS (`presence.ts`).
+- 🌙 GARDIEN DE NUIT (`night-guard.ts`, outil `gardien_nuit`, 23h→6h30 par défaut) : répond seul sur WhatsApp avec infos/conditions/prix/véhicules SEULEMENT (règle Kouider 27/10 : jamais de dispo, aucune réservation notée) ; pas d'outil, flotte sans statut de dispo, filet regex → message sûr ; situation délicate = chemin normal ; 4 réponses max/client/nuit ; récap au réveil. Testé FR/darija/« réservez-moi » : aucune dispo donnée. `WIDGET_BASE_PROMPT` exporté (conditions).
+
 ## 2026-10-27 (suite 8) — Mode JARVIS : 8 nouveautés (app v195)
 - Page JARVIS (app, menu Plus, `JarvisScreen.tsx`) + route `/api/jarvis` (`jarvis-live.ts`) :
   - 🎧 SOUFFLEUR : micro découpé aux pauses → transcription (Groq, langue libre) → Haiku décide quoi souffler (traduction, prix, piège, argument) → voix dans les écouteurs. Testé : vocal arabe « 15 000 DA/jour, caution 100 000 DA » → souffle en 2,3 s.

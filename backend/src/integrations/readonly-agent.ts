@@ -38,6 +38,7 @@ export interface ReadOnlyRun { text: string; toolsUsed: string[] }
 
 export async function runReadOnlyAgent(instruction: string, opts: {
   system?: string; sessionId?: string; maxRounds?: number; maxTokens?: number; quality?: boolean;   // quality : garde Sonnet en mode économie
+  onStep?: (step: { tool: string; input: Record<string, unknown>; thought: string }) => void;   // escouade : progression en direct
 } = {}): Promise<ReadOnlyRun> {
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: instruction }];
   const toolsUsed: string[] = [];
@@ -56,7 +57,9 @@ export async function runReadOnlyAgent(instruction: string, opts: {
       return { text, toolsUsed };
     }
     const results: Anthropic.ToolResultBlockParam[] = [];
+    const thought = res.content.filter((b): b is Anthropic.TextBlock => b.type === 'text').map(b => b.text).join(' ').trim();
     for (const u of uses) {
+      try { opts.onStep?.({ tool: u.name, input: (u.input ?? {}) as Record<string, unknown>, thought }); } catch { /* affichage seulement */ }
       let out: string;
       const key = `${u.name}:${JSON.stringify(u.input ?? {})}`;
       const n = (seen.get(key) ?? 0) + 1;

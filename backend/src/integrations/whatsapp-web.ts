@@ -110,6 +110,20 @@ export async function onWaNew(c: WaChat): Promise<void> {
     emitProactive(`WhatsApp — ${name} : nouveau message`, 'info', text);
     return;
   }
+  // Un pro d'une NÉGOCIATION en cours répond → Dzaryx négocie seul (plafond secret, n'accepte rien)
+  if (fromClient.length && await import('./negotiator.js').then(m => m.onNegoMessage(name, preview, convo)).catch(() => false)) return;
+  // GARDIEN DE NUIT : Kouider dort → réponse seule (infos, conditions, prix, véhicules ; jamais de dispo, jamais de réservation).
+  // Situation délicate (accident, panne, police…) : chemin normal, avec l'appel.
+  if (fromClient.length && !DELICATE_RE.test(preview) && !isComplaint(preview)) {
+    const ng = await import('./night-guard.js').catch(() => null);
+    const t = ng && await ng.nightGuardActive().catch(() => false) ? await ng.nightReply(name, preview, convo).catch(() => null) : null;
+    if (t) {
+      await queueTelegramMessage(t).catch(() => {});
+      emitProactive(`🌙 WhatsApp — ${name} : répondu seul`, 'info', t);
+      void import('./copilot.js').then(m => m.copilotPush({ chat: name, text: preview, note: 'répondu par le gardien de nuit' })).catch(() => {});
+      return;
+    }
+  }
   let summary = preview, reply = '', kind = 'autre', translation = '';
   try {
     const run = await runReadOnlyAgent(`Client WhatsApp « ${name} » (${c.unread} message(s) non lu(s)). Nouveau(x) message(s) du client :\n« ${preview} »`
@@ -135,6 +149,7 @@ export async function onWaNew(c: WaChat): Promise<void> {
     + (reply ? `\n\n✍️ Réponse proposée :\n${reply}\n\nRéponds « oui » pour l'envoyer à ${name}${voiceCount ? ', « vocal » pour la lui envoyer en message vocal' : ''}, « non » pour laisser, ou dis-moi quoi changer.` : '');
   if (reply) await kvSet(PENDING_KEY, JSON.stringify({ chat: name, draft: reply, voice: voiceCount > 0 }), 12 * 3600);
   await queueTelegramMessage(text).catch(() => {});
+  void import('./copilot.js').then(m => m.copilotPush({ chat: name, text: translation || preview, reply })).catch(() => {});   // page COPILOTE : lu à voix haute
   const delicate = kind === 'plainte' || kind === 'urgence' || isComplaint(preview) || DELICATE_RE.test(preview);
   emitProactive(`WhatsApp — ${name} : ${preview.slice(0, 70)}`, delicate ? 'alert' : 'info', text);
   const hour = new Date().toISOString().slice(0, 13);

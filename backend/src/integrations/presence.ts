@@ -376,6 +376,7 @@ export async function jobPresenceWatch(): Promise<void> {
       const place = classify(loc, await places(), st.place);
       const gap = !st.lastFixAt || now - st.lastFixAt > 30 * 60_000;   // partage coupé puis relancé : on se recale sans rien dire
       st.lastFixAt = now;
+      await import('./place-reminders.js').then(m => m.checkPlaceReminders(loc)).catch(() => {});   // « quand j'arrive à … rappelle-moi »
       if (st.place && !gap && place !== st.place && hour >= 5 && hour < 23) {
         if (st.place === 'home' && place === 'away') await onLeftHome(st, now, prefs);
         else if (st.place === 'home') st.lastLeft = now;   // déjà arrivé ailleurs (positions espacées) : pas de « tu vas où ? »

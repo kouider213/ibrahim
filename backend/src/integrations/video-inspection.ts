@@ -43,6 +43,7 @@ export async function inspectFromFrames(frames: Img[], caption: string): Promise
     vision(frames.slice(0, 14), READ_PROMPT(Math.min(frames.length, 14)), { quality: true, maxTokens: 1400 }),
   ]);
   const read = jsonOf<{ frames?: Array<{ i: number; view: string; sharp?: boolean }>; plate?: string; km?: string; fuel?: string; warnings?: string; car_model?: string }>(raw) ?? {};
+  if (read.plate && who.car) void import('./hud.js').then(m => m.learnPlate(read.plate!, who.car)).catch(() => {});   // le HUD reconnaîtra la plaque
   if (!who.type || !who.car || !who.client) {
     return { ok: false, text: `🎥 J'ai bien la vidéo${read.car_model ? ` (${read.car_model}${read.plate ? `, ${read.plate}` : ''})` : ''}, mais je ne sais pas `
       + `${!who.type ? 'si c\'est un DÉPART ou un RETOUR' : ''}${!who.type && (!who.car || !who.client) ? ' ni ' : ''}${!who.car || !who.client ? 'pour quelle location' : ''}.\n`

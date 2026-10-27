@@ -586,6 +586,11 @@ async function _dispatch(
       case 'protocol':                   return await import('./protocols.js').then(m => m.protocolTool(input));
       case 'photo_memory':               return await import('./photo-memory.js').then(m => m.photoMemoryTool(input));
       case 'anti_arnaque':               return await import('./anti-fraud.js').then(m => m.antiFraudTool(input, sessionId));
+      case 'gardien_nuit':               return await import('./night-guard.js').then(m => m.nightGuardTool(input));
+      case 'negociateur':                return await import('./negotiator.js').then(m => m.negotiatorTool(input, sessionId));
+      case 'predictions':                return await import('./predictions.js').then(m => m.predictionsTool(input));
+      case 'rappel_lieu':                return await import('./place-reminders.js').then(m => m.placeReminderTool(input));
+      case 'escouade':                   return await import('./squad.js').then(m => m.squadTool(input));
       case 'meetings':                   return await import('./jarvis-live.js').then(m => m.meetingsTool(input));
       case 'browser_reply':              return await browserReplyTool(input);
       case 'browser_status':             return await browserStatusTool();

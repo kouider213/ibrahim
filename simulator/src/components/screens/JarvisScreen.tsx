@@ -10,7 +10,7 @@ import { T, tone, PageHeader, Segmented, Card, Btn, Badge, Empty, Field, Screen,
 // Le micro est découpé aux pauses (petits morceaux envoyés au serveur). Jamais de <video> pendant que le micro tourne
 // (sur iPhone, une vidéo coupe le micro) : l'état des lieux vidéo a son propre onglet, micro éteint.
 
-type Tab = 'souffleur' | 'reunion' | 'sparring' | 'protocoles' | 'video';
+type Tab = 'hud' | 'copilote' | 'escouade' | 'souffleur' | 'reunion' | 'sparring' | 'protocoles' | 'video';
 type Kind = 'souffleur' | 'reunion' | 'sparring';
 interface Line { who: string; text: string; fr?: string; whisper?: string; me?: boolean }
 interface Meeting { id: string; kind: Kind; at: string; title: string; summary: string; decisions: string[]; promises: Array<{ who: string; what: string; when?: string }>; followup: string; minutes: number }
@@ -374,24 +374,273 @@ function VideoInspection() {
   );
 }
 
+// ── 🕶️ HUD IRON MAN ─────────────────────────────────────────────────────────
+// Caméra arrière + étiquettes posées sur l'image (voiture de la flotte, traduction, reçu déjà vu, valeurs lues).
+// Pas de micro ici (une vidéo coupe le micro sur iPhone) ; une image part toutes les ~2,5 s quand le serveur a fini.
+interface HudLabel { x: number; y: number; w: number; h: number; kind: string; title: string; detail: string; alert?: boolean }
+const HUD_COLOR: Record<string, string> = { fleet: T.ok, car: T.accent, translate: T.violet, receipt: T.warn, document: T.accent2, read: T.accent, warning: T.bad };
+
+function Hud() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const busyRef = useRef(false);
+  const spokenRef = useRef<Set<string>>(new Set());
+  const [on, setOn] = useState(false);
+  const [labels, setLabels] = useState<HudLabel[]>([]);
+  const [scene, setScene] = useState('');
+  const [ratio, setRatio] = useState(3 / 4);
+  const [err, setErr] = useState('');
+  const [voice, setVoice] = useState(true);
+  const voiceRef = useRef(voice); voiceRef.current = voice;
+
+  const stop = useCallback(() => {
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setOn(false); setLabels([]); setScene('');
+  }, []);
+  useEffect(() => stop, [stop]);
+
+  const start = async () => {
+    setErr(''); unlockAudio();
+    try {
+      const st = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 } }, audio: false });
+      streamRef.current = st;
+      const v = videoRef.current!;
+      v.srcObject = st; await v.play().catch(() => {});
+      setOn(true);
+    } catch (e) { setErr(`Caméra indisponible : ${errMsg(e)}`); }
+  };
+
+  useEffect(() => {
+    if (!on) return;
+    const cv = document.createElement('canvas');
+    const tick = async () => {
+      const v = videoRef.current;
+      if (!v || busyRef.current || !v.videoWidth) return;
+      busyRef.current = true;
+      try {
+        setRatio(v.videoWidth / v.videoHeight);
+        const s = Math.min(1, 900 / Math.max(v.videoWidth, v.videoHeight));
+        cv.width = Math.round(v.videoWidth * s); cv.height = Math.round(v.videoHeight * s);
+        cv.getContext('2d')!.drawImage(v, 0, 0, cv.width, cv.height);
+        const image = cv.toDataURL('image/jpeg', 0.72).replace(/^data:[^,]+,/, '');
+        const r = await apiFetch<{ labels: HudLabel[]; scene: string }>('/api/jarvis/hud', { method: 'POST', body: JSON.stringify({ image, mime: 'image/jpeg' }) });
+        if (!streamRef.current) return;
+        setLabels(r.labels ?? []); setScene(r.scene ?? '');
+        // Voix : seulement les nouveautés importantes (voiture de la flotte, alerte, traduction)
+        const fresh = (r.labels ?? []).filter(l => (l.kind === 'fleet' || l.alert || l.kind === 'translate') && !spokenRef.current.has(`${l.kind}:${l.title}`));
+        if (voiceRef.current && fresh.length && !isAudioPlaying()) {
+          fresh.forEach(l => spokenRef.current.add(`${l.kind}:${l.title}`));
+          const say = fresh.map(l => l.kind === 'translate' ? `Traduction : ${l.detail}` : `${l.title}. ${l.detail}`).join('. ');
+          apiFetch<{ audio?: string }>('/api/jarvis/copilot/speak', { method: 'POST', body: JSON.stringify({ text: say }) }).then(a => { if (a.audio) void playBase64Audio(a.audio); }).catch(() => {});
+        }
+      } catch (e) { setErr(errMsg(e)); }
+      finally { busyRef.current = false; }
+    };
+    const t = window.setInterval(() => void tick(), 2500);
+    void tick();
+    return () => window.clearInterval(t);
+  }, [on]);
+
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      {!on && <Card accent={T.accent}><div style={{ fontSize: 13.5, color: T.muted, lineHeight: 1.5 }}>Lève la caméra : Dzaryx pose ses étiquettes sur ce qu'il voit — tes voitures (client, retour), les textes à traduire, les reçus déjà vus, les compteurs, les voyants. Il ne regarde pas les visages des gens.</div></Card>}
+      <div style={{ position: 'relative', width: '100%', aspectRatio: String(ratio), maxHeight: '64vh', borderRadius: 18, overflow: 'hidden', background: '#000', display: on ? 'block' : 'none', border: `1px solid ${tone(T.accent, 0.5)}`, boxShadow: `0 0 30px ${tone(T.accent, 0.25)}` }}>
+        <video ref={videoRef} playsInline muted autoPlay style={{ width: '100%', height: '100%', objectFit: 'fill', display: 'block' }} />
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: `repeating-linear-gradient(0deg, ${tone(T.accent, 0.05)} 0 1px, transparent 1px 4px)` }} />
+        <div style={{ position: 'absolute', left: 0, right: 0, height: 2, background: `linear-gradient(90deg, transparent, ${T.accent}, transparent)`, animation: 'hudscan 2.5s linear infinite', opacity: 0.7 }} />
+        <div style={{ position: 'absolute', left: '50%', top: '50%', width: 46, height: 46, marginLeft: -23, marginTop: -23, border: `1.5px solid ${tone(T.accent, 0.7)}`, borderRadius: '50%', boxShadow: `0 0 12px ${tone(T.accent, 0.5)}` }} />
+        {labels.map((l, i) => {
+          const c = l.alert ? T.bad : HUD_COLOR[l.kind] ?? T.accent;
+          const below = l.y < 0.18;
+          return (
+            <div key={`${l.title}-${i}`} style={{ position: 'absolute', left: `${l.x * 100}%`, top: `${l.y * 100}%`, width: `${l.w * 100}%`, height: `${l.h * 100}%`, border: `1.5px solid ${c}`, borderRadius: 6, boxShadow: `0 0 14px ${tone(c, 0.6)}, inset 0 0 10px ${tone(c, 0.25)}`, transition: 'all 400ms ease' }}>
+              <div style={{ position: 'absolute', [below ? 'top' : 'bottom']: 'calc(100% + 4px)', left: -2, minWidth: 120, maxWidth: 230, background: 'rgba(4,10,20,0.82)', border: `1px solid ${c}`, borderRadius: 8, padding: '4px 7px', backdropFilter: 'blur(4px)' }}>
+                <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 10.5, color: c, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }} dir="auto">{l.alert ? '⚠ ' : ''}{l.title}</div>
+                {l.detail && <div style={{ fontSize: 11.5, color: '#e6f6ff', lineHeight: 1.3 }} dir="auto">{l.detail}</div>}
+              </div>
+            </div>
+          );
+        })}
+        <div style={{ position: 'absolute', left: 10, bottom: 8, right: 10, display: 'flex', justifyContent: 'space-between', fontFamily: 'Orbitron, sans-serif', fontSize: 9.5, color: T.accent, letterSpacing: '0.14em', textShadow: `0 0 6px ${T.accent}` }}>
+          <span>DZARYX · HUD</span><span>{scene.toUpperCase().slice(0, 40)}</span>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Btn variant={on ? 'danger' : 'primary'} onClick={() => (on ? stop() : void start())} style={{ flex: 1, minHeight: 52, fontSize: 15 }}>{on ? '⏹ Couper le HUD' : '🕶️ Activer le HUD'}</Btn>
+        <Btn onClick={() => setVoice(v => !v)} style={{ minHeight: 52 }}>{voice ? '🔊' : '🔇'}</Btn>
+      </div>
+      {err && <div style={{ color: T.bad, fontSize: 13 }}>{err}</div>}
+    </div>
+  );
+}
+
+// ── 🛰️ ESCOUADE ─────────────────────────────────────────────────────────────
+interface SquadAgent { name: string; icon: string; task: string; status: 'waiting' | 'working' | 'done' | 'error'; steps: Array<{ at: string; text: string }>; result?: string }
+interface Squad { id: string; goal: string; started: string; status: 'planning' | 'working' | 'merging' | 'done' | 'error'; agents: SquadAgent[]; final?: string }
+const SQUAD_STATUS: Record<Squad['status'], string> = { planning: 'Le chef découpe la mission…', working: 'Les agents travaillent en même temps', merging: 'Le chef assemble le plan…', done: 'Mission terminée', error: 'Échec' };
+
+function Escouade() {
+  const [goal, setGoal] = useState('');
+  const [squad, setSquad] = useState<Squad | null>(null);
+  const [err, setErr] = useState('');
+  const [open, setOpen] = useState<number | null>(null);
+  const load = useCallback(async () => {
+    try { const r = await apiFetch<{ squad: Squad | null }>('/api/jarvis/squad'); setSquad(r.squad); } catch (e) { setErr(errMsg(e)); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  const running = !!squad && !['done', 'error'].includes(squad.status);
+  useEffect(() => {
+    if (!running) return;
+    const t = window.setInterval(() => void load(), 2000);
+    return () => window.clearInterval(t);
+  }, [running, load]);
+  const launch = async () => {
+    setErr(''); setOpen(null);
+    try { const s = await apiFetch<Squad>('/api/jarvis/squad', { method: 'POST', body: JSON.stringify({ goal }) }); setSquad(s); setGoal(''); } catch (e) { setErr(errMsg(e)); }
+  };
+  const color = (st: SquadAgent['status']) => st === 'done' ? T.ok : st === 'error' ? T.bad : st === 'working' ? T.accent : T.faint;
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      {!running && (
+        <>
+          <Card accent={T.violet}><div style={{ fontSize: 13.5, color: T.muted, lineHeight: 1.5 }}>Une grosse question ? Plusieurs Dzaryx s'y mettent en même temps (chercheur, analyste, stratège…) avec tes vraies données et le web. Tu les regardes travailler ici, puis le plan final arrive aussi sur Telegram. Ils proposent, ils n'envoient rien.</div></Card>
+          <textarea value={goal} onChange={e => setGoal(e.target.value)} rows={2} style={{ ...inputStyle, resize: 'vertical' }} placeholder="ex. « Prépare-moi la saison été 2027 » ou « Comment avoir 5 clients FIK Sites ce mois-ci ? »" />
+          <Btn variant="primary" color={T.violet} disabled={!goal.trim()} onClick={() => void launch()} style={{ minHeight: 52, fontSize: 15 }}>🛰️ Lancer l'escouade</Btn>
+        </>
+      )}
+      {err && <div style={{ color: T.bad, fontSize: 13 }}>{err}</div>}
+      {squad && (
+        <>
+          <Card accent={T.violet}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {running && <div style={{ width: 10, height: 10, borderRadius: 5, background: T.violet, boxShadow: `0 0 10px ${T.violet}`, animation: 'pulse 1.2s infinite' }} />}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 800, fontSize: 14.5 }}>« {squad.goal} »</div>
+                <div style={{ fontSize: 12, color: T.muted }}>{SQUAD_STATUS[squad.status]}</div>
+              </div>
+            </div>
+          </Card>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
+            {squad.agents.map((a, i) => (
+              <div key={i} onClick={() => setOpen(open === i ? null : i)} style={{ background: 'rgba(6,12,24,0.9)', border: `1px solid ${tone(color(a.status), 0.6)}`, borderRadius: 12, padding: 10, boxShadow: a.status === 'working' ? `0 0 16px ${tone(T.accent, 0.3)}` : 'none', cursor: 'pointer', minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                  <span style={{ fontSize: 18 }}>{a.icon}</span>
+                  <span style={{ fontWeight: 800, fontSize: 12.5, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+                  <span style={{ width: 8, height: 8, borderRadius: 4, background: color(a.status), animation: a.status === 'working' ? 'pulse 1s infinite' : undefined }} />
+                </div>
+                <div style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 10.5, color: '#9fe6ff', lineHeight: 1.45, minHeight: 60 }}>
+                  {a.steps.slice(-4).map((s, k) => <div key={k} style={{ opacity: 0.45 + (k + 1) / 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>› {s.text}</div>)}
+                  {!a.steps.length && <div style={{ color: T.faint }}>› en attente…</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+          {open !== null && squad.agents[open]?.result && <Card pad={12}><div style={{ fontSize: 12.5, color: T.muted, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}><b>{squad.agents[open]!.icon} {squad.agents[open]!.name}</b>{'\n'}{squad.agents[open]!.result!.replace(/\*\*/g, '')}</div></Card>}
+          {squad.final && <ResultCard text={squad.final} color={T.violet} />}
+          {!running && <Btn onClick={() => setSquad(null)}>Nouvelle mission</Btn>}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── 🚗 COPILOTE MAINS LIBRES ────────────────────────────────────────────────
+interface FeedItem { id: string; at: string; chat: string; text: string; reply?: string; note?: string }
+
+function Copilote() {
+  const [on, setOn] = useState(false);
+  const [heard, setHeard] = useState('');
+  const [answer, setAnswer] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const sinceRef = useRef('');
+  const wakeRef = useRef<{ release: () => Promise<void> } | null>(null);
+  const play = async (audio?: string) => { if (audio) await playBase64Audio(audio); };
+
+  const onSegment = useCallback(async (b64: string, mime: string) => {
+    setBusy(true);
+    try {
+      const r = await apiFetch<{ heard: string; text: string; audio?: string }>('/api/jarvis/copilot/audio', { method: 'POST', body: JSON.stringify({ audio: b64, mime }) });
+      if (!r.heard) return;
+      setHeard(r.heard); setAnswer(r.text);
+      void play(r.audio);
+    } catch (e) { setErr(errMsg(e)); }
+    finally { setBusy(false); }
+  }, []);
+  const seg = useSegmenter(onSegment, 'pause');
+
+  // Nouveaux messages WhatsApp → lus à voix haute
+  useEffect(() => {
+    if (!on) return;
+    const t = window.setInterval(async () => {
+      try {
+        const r = await apiFetch<{ items: FeedItem[] }>(`/api/jarvis/copilot/feed?since=${encodeURIComponent(sinceRef.current)}`);
+        if (!r.items.length) return;
+        sinceRef.current = r.items[r.items.length - 1]!.at;
+        const it = r.items[r.items.length - 1]!;
+        const say = `Nouveau message WhatsApp de ${it.chat} : ${it.text.slice(0, 220)}.` + (it.note ? ` J'ai déjà ${it.note.replace(/^répondu par le /, 'répondu, en ')}.` : it.reply ? ` Je te propose de répondre : ${it.reply.slice(0, 220)}. Je l'envoie ?` : '');
+        setAnswer(say);
+        const a = await apiFetch<{ audio?: string }>('/api/jarvis/copilot/speak', { method: 'POST', body: JSON.stringify({ text: say }) });
+        void play(a.audio);
+      } catch { /* réseau en voiture : on réessaie */ }
+    }, 8000);
+    return () => window.clearInterval(t);
+  }, [on]);
+
+  const start = async () => {
+    setErr(''); setHeard(''); setAnswer('');
+    sinceRef.current = new Date().toISOString();
+    try {
+      await seg.start();
+      setOn(true);
+      try { wakeRef.current = await (navigator as unknown as { wakeLock?: { request: (t: string) => Promise<{ release: () => Promise<void> }> } }).wakeLock?.request('screen') ?? null; } catch { /* écran : pas grave */ }
+    } catch (e) { setErr(`Micro indisponible : ${errMsg(e)}`); }
+  };
+  const stop = () => { seg.stop(); stopAudio(); setOn(false); void wakeRef.current?.release().catch(() => {}); wakeRef.current = null; };
+  useEffect(() => () => { void wakeRef.current?.release().catch(() => {}); }, []);
+
+  const lvl = seg.level;
+  return (
+    <div style={{ display: 'grid', gap: 14, justifyItems: 'center', textAlign: 'center', padding: '6px 0' }}>
+      {!on && <Card accent={T.ok}><div style={{ fontSize: 13.5, color: T.muted, lineHeight: 1.5, textAlign: 'left' }}>Pour la voiture : pose le téléphone, lance le copilote et parle sans toucher l'écran. Il te lit tes nouveaux messages WhatsApp, tu dictes tes réponses (« oui », « vocal », « change… »), il gère Waze, la musique, ton agenda et tout le reste. L'écran reste allumé.</div></Card>}
+      <button onClick={() => (on ? stop() : void start())} aria-label={on ? 'Arrêter le copilote' : 'Démarrer le copilote'}
+        style={{ width: 210, height: 210, borderRadius: '50%', border: `2px solid ${on ? T.ok : T.accent}`, cursor: 'pointer', color: '#fff',
+          background: `radial-gradient(circle at 50% 40%, ${tone(on ? T.ok : T.accent, 0.55)}, rgba(4,10,20,0.95) 70%)`,
+          boxShadow: `0 0 ${30 + lvl * 70}px ${tone(on ? T.ok : T.accent, 0.45 + lvl * 0.4)}`, transition: 'box-shadow 90ms', fontFamily: 'Orbitron, sans-serif' }}>
+        <div style={{ fontSize: 46 }}>{on ? (busy ? '⏳' : isAudioPlaying() ? '🔊' : '🎙️') : '🚗'}</div>
+        <div style={{ fontSize: 12, letterSpacing: '0.18em', marginTop: 6 }}>{on ? 'COPILOTE ACTIF' : 'DÉMARRER'}</div>
+      </button>
+      {heard && <div style={{ fontSize: 15, color: T.muted, maxWidth: 520 }}>« {heard} »</div>}
+      {answer && <div style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.4, maxWidth: 520 }} dir="auto">{answer.replace(/https?:\/\/\S+/g, '').replace(/[*_#]/g, '')}</div>}
+      {on && <Btn variant="danger" onClick={stop} style={{ minHeight: 54, width: '100%', fontSize: 16 }}>⏹ Arrêter le copilote</Btn>}
+      {err && <div style={{ color: T.bad, fontSize: 13 }}>{err}</div>}
+    </div>
+  );
+}
+
 export default function JarvisScreen({ onAsk }: { onAsk: (prompt: string) => void }) {
-  const [tab, setTab] = useState<Tab>(() => { try { return (localStorage.getItem('dz:jarvis_tab') as Tab) || 'souffleur'; } catch { return 'souffleur'; } });
+  const [tab, setTab] = useState<Tab>(() => { try { return (localStorage.getItem('dz:jarvis_tab') as Tab) || 'hud'; } catch { return 'souffleur'; } });
   const pick = (t: Tab) => { setTab(t); try { localStorage.setItem('dz:jarvis_tab', t); } catch { /* ignore */ } };
   return (
     <Screen header={<>
-      <PageHeader eyebrow="Dzaryx · mode Jarvis" title="JARVIS" subtitle="Il écoute, il souffle, il s'entraîne avec toi, il agit." />
+      <PageHeader eyebrow="Dzaryx · mode Jarvis" title="JARVIS" subtitle="Il voit, il écoute, il conduit avec toi, il agit." />
       <div style={{ padding: '0 12px 8px', overflowX: 'auto' }}>
-        <Segmented<Tab> items={[{ id: 'souffleur', label: '🎧 Souffleur' }, { id: 'reunion', label: '📝 Réunion' }, { id: 'sparring', label: '🥊 Entraîn.' },
+        <Segmented<Tab> items={[{ id: 'hud', label: '🕶️ HUD' }, { id: 'copilote', label: '🚗 Copilote' }, { id: 'escouade', label: '🛰️ Escouade' }, { id: 'souffleur', label: '🎧 Souffleur' }, { id: 'reunion', label: '📝 Réunion' }, { id: 'sparring', label: '🥊 Entraîn.' },
           { id: 'protocoles', label: '⚡ Protocoles' }, { id: 'video', label: '🎥 État lieux' }]} value={tab} onChange={pick} />
       </div>
     </>}>
-      <style>{'@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}'}</style>
+      <style>{'@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}@keyframes hudscan{0%{top:0}100%{top:100%}}'}</style>
+      {tab === 'hud' && <Hud />}
+      {tab === 'copilote' && <Copilote />}
+      {tab === 'escouade' && <Escouade />}
       {tab === 'souffleur' && <><LiveMode key="s" kind="souffleur" /></>}
       {tab === 'reunion' && <><LiveMode key="r" kind="reunion" /><History kind="reunion" /></>}
       {tab === 'sparring' && <><LiveMode key="p" kind="sparring" /><History kind="sparring" /></>}
       {tab === 'protocoles' && <Protocols onAsk={onAsk} />}
       {tab === 'video' && <VideoInspection />}
-      {(tab === 'souffleur' || tab === 'reunion' || tab === 'sparring') && !('MediaRecorder' in window) && <Empty icon="🎙️" title="Micro non pris en charge" text="Mets à jour iOS (14.5 ou plus) pour utiliser le mode Jarvis." />}
+      {(tab === 'souffleur' || tab === 'reunion' || tab === 'sparring' || tab === 'copilote') && !('MediaRecorder' in window) && <Empty icon="🎙️" title="Micro non pris en charge" text="Mets à jour iOS (14.5 ou plus) pour utiliser le mode Jarvis." />}
     </Screen>
   );
 }

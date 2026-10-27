@@ -32,7 +32,7 @@ setInterval(() => {
   }
 }, 300_000);
 
-const WIDGET_BASE_PROMPT = `Tu es l'assistant virtuel PUBLIC de Fik Conciergerie — agence de location de véhicules premium à Oran, Algérie. Tu parles UNIQUEMENT aux clients.
+export const WIDGET_BASE_PROMPT = `Tu es l'assistant virtuel PUBLIC de Fik Conciergerie — agence de location de véhicules premium à Oran, Algérie. Tu parles UNIQUEMENT aux clients.
 
 RÈGLES ABSOLUES (jamais déroger):
 - Réponds TOUJOURS dans la langue du client (français, arabe dialectal algérien, anglais)

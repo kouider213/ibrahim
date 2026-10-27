@@ -66,4 +66,36 @@ router.post('/inspection-frames', async (req, res) => {
   } catch (e) { fail(res, e); }
 });
 
+// HUD Iron Man : une image de la caméra → étiquettes posées sur l'image
+router.post('/hud', async (req, res) => {
+  const { image, mime } = req.body as { image?: string; mime?: string };
+  if (!image) { res.status(400).json({ error: 'image requise' }); return; }
+  try { res.json(await import('../../integrations/hud.js').then(m => m.hudFrame(image.replace(/^data:[^,]+,/, ''), mime ?? 'image/jpeg'))); } catch (e) { fail(res, e); }
+});
+
+// Escouade d'agents : lancer + suivre en direct
+router.post('/squad', async (req, res) => {
+  const goal = String((req.body as { goal?: string }).goal ?? '').trim();
+  if (!goal) { res.status(400).json({ error: 'objectif requis' }); return; }
+  try { res.json(await import('../../integrations/squad.js').then(m => m.startSquad(goal))); } catch (e) { fail(res, e); }
+});
+router.get('/squad', async (req, res) => {
+  try { res.json({ squad: await import('../../integrations/squad.js').then(m => m.getSquad(String(req.query['id'] ?? '') || undefined)) }); } catch (e) { fail(res, e); }
+});
+
+// Copilote mains libres : une phrase au volant → réponse dite ; fil des nouveaux messages WhatsApp à lire
+router.post('/copilot/audio', async (req, res) => {
+  const { audio, mime = 'audio/webm' } = req.body as { audio?: string; mime?: string };
+  if (!audio) { res.status(400).json({ error: 'audio requis' }); return; }
+  try { res.json(await import('../../integrations/copilot.js').then(m => m.copilotTurn(audio, mime))); } catch (e) { fail(res, e); }
+});
+router.get('/copilot/feed', async (req, res) => {
+  try { res.json({ items: await import('../../integrations/copilot.js').then(m => m.copilotFeed(String(req.query['since'] ?? ''))) }); } catch (e) { fail(res, e); }
+});
+router.post('/copilot/speak', async (req, res) => {
+  const text = String((req.body as { text?: string }).text ?? '').trim();
+  if (!text) { res.status(400).json({ error: 'texte requis' }); return; }
+  try { res.json(await import('../../integrations/copilot.js').then(m => m.copilotSpeak(text))); } catch (e) { fail(res, e); }
+});
+
 export default router;
