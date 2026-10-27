@@ -173,6 +173,7 @@ export async function sendWaDirect(number: string, text: string): Promise<void> 
   const d = await drafts(); delete d[`+${number.replace(/\D/g, '')}`]; await kvSet(DRAFTS_KEY, JSON.stringify(d), 3 * 86_400);
 }
 
+interface WaDoc { file: string; label: string; me: boolean; size: number }
 interface WaPhoto { me: boolean; caption: string; time: string; w: number; h: number; b64: string; file?: string }
 
 /** Description courte d'une photo de client (vision gratuite d'abord, OpenAI en secours) — jamais bloquant. */
@@ -185,12 +186,54 @@ async function describePhoto(b64: string, caption: string): Promise<string> {
   return '(description indisponible — la photo est sur Telegram)';
 }
 
+const COUNTRY_CODES: Record<string, string> = { FR: '33', DZ: '213', BE: '32', MA: '212', TN: '216', ES: '34', DE: '49', IT: '39', NL: '31', CH: '41', GB: '44', UK: '44' };
+
+/** Numéro dicté ou écrit (« 06 50 11 24 04 », « +213 552… », « 0033… ») → « +33650112404 ».
+ *  '' = ce n'est pas un numéro (nom de contact) ; 'ASK' = 06/07 sans pays : français ou algérien ? */
+export function waNumber(raw: string, country?: string): string {
+  const s = raw.trim();
+  if (!/^[+\d\s().\/-]+$/.test(s)) return '';
+  let d = s.replace(/\D/g, '');
+  if (d.length < 8) return '';
+  if (s.startsWith('+')) return `+${d}`;
+  if (d.startsWith('00')) return `+${d.slice(2)}`;
+  const cc = country ? (COUNTRY_CODES[country.trim().toUpperCase()] ?? country.replace(/\D/g, '')) : '';
+  if (/^(33\d{9}|213\d{9}|32\d{9}|212\d{9}|216\d{8})$/.test(d)) return `+${d}`;   // déjà avec l'indicatif, sans le +
+  if (d.startsWith('0')) d = d.slice(1);
+  if (cc) return `+${cc}${d}`;
+  if (/^4\d{8}$/.test(d)) return `+32${d}`;            // 04xx xx xx xx = portable belge
+  if (/^5\d{8}$/.test(d)) return `+213${d}`;           // 05xx = portable algérien (Ooredoo)
+  return 'ASK';                                          // 06 / 07 : France ET Algérie → on demande
+}
+
+const ASK_COUNTRY = (raw: string) => `❓ Le numéro ${raw} existe en France (+33) ET en Algérie (+213). DEMANDE À KOUIDER : « c'est un numéro français ou algérien ? », puis rappelle l'outil avec country='FR' ou 'DZ'.`;
+
+/** Type d'une photo de client : passeport, carte d'identité, permis ou autre (Claude Haiku, rapide). */
+async function idKind(b64: string): Promise<'passeport' | 'identite' | 'permis' | 'autre'> {
+  try {
+    const { createAnthropic } = await import('./anthropic-compat.js');
+    const r = await createAnthropic().messages.create({
+      model: 'claude-haiku-5-5', max_tokens: 10,
+      messages: [{ role: 'user', content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
+        { type: 'text', text: 'Cette image est-elle un document officiel ? Réponds UN mot : PASSEPORT, IDENTITE (carte d\'identité), PERMIS (permis de conduire) ou AUTRE.' },
+      ] }],
+    });
+    const t = r.content.map(b => b.type === 'text' ? b.text : '').join('').toUpperCase();
+    return /PASSEPORT|PASSPORT/.test(t) ? 'passeport' : /IDENTIT/.test(t) ? 'identite' : /PERMIS|LICEN/.test(t) ? 'permis' : 'autre';
+  } catch { return 'autre'; }
+}
+
 /** Outil whatsapp_web (Kouider uniquement). */
 export async function whatsappWebTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   if (/houari/i.test(sessionId ?? '')) return '❌ Réservé à Kouider.';
   if (!isCloudPcOnline()) return '❌ Le PC cloud ne répond pas : WhatsApp n\'est pas joignable pour le moment.';
   const action = String(input['action'] ?? 'unread');
-  const chat = String(input['chat'] ?? '').trim();
+  let chat = String(input['chat'] ?? '').trim();
+  // Numéro dicté / écrit → format international (send?phone= l'exige)
+  const num = chat ? waNumber(chat, input['country'] ? String(input['country']) : undefined) : '';
+  if (num === 'ASK' && ['send', 'send_file', 'save_contact', 'read', 'photos', 'documents', 'save_client'].includes(action)) return ASK_COUNTRY(chat);
+  if (num && num !== 'ASK') chat = num;
   try {
     if (action === 'status' || action === 'connect') {
       const s = await cloudEmit<R & { logged_in?: boolean }>('cloud:wa', { action: 'status' }, 30_000);
@@ -275,7 +318,18 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
       return `✅ Envoyé sur WhatsApp à ${r['chat'] || chat}.`;
     }
     if (action === 'send_file') {
-      const file = String(input['file'] ?? '').trim().split(/[\\/]/).pop() ?? '';
+      let file = String(input['file'] ?? '').trim().split(/[\\/]/).pop() ?? '';
+      // « envoie cette photo au 06… » : la photo qu'il vient d'envoyer (app : 5 min, Telegram : 30 min) part sur le PC cloud
+      if (!file || /^(photo|image|cette[_ ]photo|last_photo|derni[eè]re[_ ]photo)$/i.test(file)) {
+        let img: { base64: string; mime?: string } | null = null;
+        if (sessionId) { const { redis } = await import('../queue/queue.js'); const c = await redis.get(`session:image:${sessionId}`).catch(() => null); if (c) img = JSON.parse(c) as { base64: string; mime?: string }; }
+        if (!img) { const t = await import('./forme.js').then(m => m.lastTelegramPhoto()).catch(() => null); if (t) img = { base64: t.b64, mime: t.mime }; }
+        if (!img) return '❌ Je n\'ai pas de photo récente : envoie-moi d\'abord la photo (Telegram ou l\'app), puis dis à qui l\'envoyer. Ou donne le nom d\'un fichier du PC cloud.';
+        const ext = /png/.test(img.mime ?? '') ? 'png' : 'jpg';
+        const up = await cloudEmit<R & { name?: string }>('cloud:file_put', { name: `photo-kouider-${Date.now()}.${ext}`, b64: img.base64 }, 60_000);
+        if (!up.ok || !up['name']) return `❌ Photo pas copiée sur le PC cloud : ${up.error ?? '?'}`;
+        file = String(up['name']);
+      }
       const caption = String(input['text'] ?? '').trim();
       if (!chat) return '❌ À qui ? (nom du contact tel qu\'il apparaît dans WhatsApp, ou numéro)';
       if (!file) return '❌ Quel fichier ? (nom exact dans les Téléchargements du PC cloud — cloud_pc action files)';
@@ -290,7 +344,75 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
       await kvSet(PREVIEW_KEY, '', 60);
       return `✅ Fichier « ${file} » envoyé sur WhatsApp à ${r['chat'] || chat}.`;
     }
-    return '❌ action inconnue (status, connect, unread, read, photos, drafts, send, send_file).';
+    if (action === 'documents') {
+      // « ouvre le PDF qu'il m'a envoyé », « envoie-moi ses papiers » → téléchargés sur le PC cloud puis envoyés sur Telegram
+      if (!chat) return '❌ Quelle discussion ? (nom du contact ou numéro)';
+      const n = Math.min(Math.max(Number(input['count']) || 3, 1), 6);
+      const r = await cloudEmit<R & { chat?: string; documents?: WaDoc[] }>('cloud:wa', { action: 'documents', chat, n }, 310_000);
+      if (!r.ok) return `❌ ${r.error}`;
+      const name = String(r['chat'] || chat);
+      const docs = (r['documents'] as WaDoc[] | undefined) ?? [];
+      if (!docs.length) return `Aucun document (PDF, Word…) trouvé dans la discussion WhatsApp ${name}. Pour les photos : action photos.`;
+      for (const d of docs) await cloudEmit('cloud:file_telegram', { name: d.file, caption: `📄 WhatsApp ${name} — ${d.label} (${d.me ? 'envoyé par FIK' : `envoyé par ${name}`})` }, 120_000).catch(() => {});
+      return `✅ ${docs.length} document(s) de ${name} ENVOYÉS à Kouider sur Telegram :\n${docs.map((d, i) => `${i + 1}. ${d.label} — ${d.me ? 'envoyé par FIK' : 'envoyé par le client'} — fichier ${d.file}`).join('\n')}\nAussi dans les Téléchargements du PC cloud (renvoyables avec send_file).`;
+    }
+    if (action === 'save_contact') {
+      // Enregistrer un numéro dans le carnet WhatsApp (synchronisé sur son téléphone) — il l'a demandé, pas de relecture
+      const name = String(input['name'] ?? '').trim();
+      if (!chat.startsWith('+')) return '❌ Donne-moi le numéro (avec ou sans indicatif) à enregistrer.';
+      if (!name) return '❌ Sous quel nom je l\'enregistre ?';
+      const r = await cloudEmit<R>('cloud:wa', { action: 'save_contact', phone: chat, first: name, last: '' }, 130_000);
+      return r.ok ? `✅ ${chat} enregistré dans les contacts WhatsApp sous « ${name} » (aussi sur ton téléphone).` : `❌ Contact pas enregistré : ${r.error}`;
+    }
+    if (action === 'save_client') {
+      // Kouider valide la demande d'un client : ses papiers (passeport, carte d'identité, permis, PDF) vont dans son dossier
+      // et son numéro est enregistré dans WhatsApp à son nom (Kouider 27/10 : « plus facile pour le retrouver »)
+      if (!chat) return '❌ Quel client ? (nom de la discussion WhatsApp ou numéro)';
+      const sid = sessionId || `wa_client_${Date.now()}`;
+      const out: string[] = [];
+      let fullName = String(input['name'] ?? '').trim();
+      const ph = await cloudEmit<R & { chat?: string; photos?: WaPhoto[] }>('cloud:wa', { action: 'photos', chat, n: 10 }, 170_000);
+      if (!ph.ok) return `❌ ${ph.error}`;
+      const title = String(ph['chat'] || chat);
+      const phone = chat.startsWith('+') ? chat : (waNumber(title) || '').replace(/^ASK$/, '');
+      const { scanIdentity } = await import('./tool-executor.js');
+      const { redis } = await import('../queue/queue.js');
+      let nIds = 0;
+      for (const p of ((ph['photos'] as WaPhoto[] | undefined) ?? []).filter(p => !p.me)) {
+        const kind = await idKind(p.b64);
+        if (kind === 'autre') continue;
+        nIds++;
+        const res = await scanIdentity(Buffer.from(p.b64, 'base64'), 'image/jpeg', kind === 'permis', sid, { clientName: fullName || undefined, clientPhone: phone || undefined });
+        out.push(res.split('\n').slice(0, 5).join('\n'));
+        if (!fullName) {
+          const sc = await redis.get(`session:scanned_client:${sid}`).catch(() => null);
+          const nom = sc ? String((JSON.parse(sc) as { nom?: string }).nom ?? '') : '';
+          if (nom && nom !== 'Inconnu') fullName = nom.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        }
+      }
+      // PDF / documents envoyés par le client → dossier client (lien) + Telegram
+      const dr = await cloudEmit<R & { documents?: WaDoc[] }>('cloud:wa', { action: 'documents', chat, n: 3 }, 310_000).catch(() => ({ ok: false } as R));
+      const docs = ((dr['documents'] as WaDoc[] | undefined) ?? []).filter(d => !d.me);
+      if (docs.length) {
+        const { supabase } = await import('./supabase.js');
+        for (const d of docs) {
+          const l = await cloudEmit<R & { url?: string }>('cloud:file_link', { name: d.file, hours: 24 * 365 }, 60_000).catch(() => ({ ok: false } as R));
+          await supabase.from('client_documents').insert({ client_name: fullName || title, client_phone: phone || null, type: 'document',
+            file_url: String(l['url'] ?? ''), storage_path: `cloudpc/${d.file}`, extracted_data: { source: 'whatsapp', label: d.label } }).then(() => {}, () => {});
+          await cloudEmit('cloud:file_telegram', { name: d.file, caption: `📄 ${fullName || title} — ${d.label} (rangé dans son dossier)` }, 120_000).catch(() => {});
+        }
+        out.push(`📄 ${docs.length} document(s) (${docs.map(d => d.label.split(' · ')[1] || d.label).join(', ')}) rangé(s) dans le dossier de ${fullName || title} et envoyé(s) sur Telegram.`);
+      }
+      if (!nIds && !docs.length) out.push(`⚠️ Aucun passeport, carte d'identité, permis ni PDF trouvé dans la discussion ${title} (10 dernières photos, 3 derniers documents).`);
+      // Contact WhatsApp au nom du client
+      if (phone && fullName) {
+        const c = await cloudEmit<R>('cloud:wa', { action: 'save_contact', phone, first: fullName, last: '' }, 130_000).catch(e => ({ ok: false, error: String(e) } as R));
+        out.push(c.ok ? `📇 Numéro ${phone} enregistré dans WhatsApp (et sur ton téléphone) sous « ${fullName} ».` : `⚠️ Contact WhatsApp pas enregistré : ${c.error}`);
+      } else if (!phone) out.push(`📇 Déjà dans tes contacts WhatsApp sous « ${title} ».`);
+      else out.push(`📇 Nom du client introuvable sur les papiers : DEMANDE À KOUIDER son nom, puis action save_contact (chat=${phone}, name=…).`);
+      return `✅ Client ${fullName || title} validé :\n${out.join('\n')}`;
+    }
+    return '❌ action inconnue (status, connect, unread, read, photos, documents, drafts, send, send_file, save_contact, save_client).';
   } catch (err) {
     return `❌ WhatsApp : ${err instanceof Error ? err.message : String(err)}`;
   }

@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-27 (suite) — WhatsApp : numéros dictés, photo à un numéro, documents, validation client ; visage dans l'app
+- `whatsapp-web.ts` : `waNumber()` (« 06… » → +33/+213 avec question si 06/07 sans pays, 04 → BE, 05 → DZ, 00/+ gérés) ; `send_file` sans fichier = dernière photo envoyée (app 5 min / Telegram 30 min, `forme.lastTelegramPhoto`) copiée sur le PC cloud ; `documents` (PDF/Word du client → Telegram) ; `save_contact` ; `save_client` (validation : passeport/CNI/permis repérés par Haiku → `scanIdentity` dossier client, PDF → `client_documents`, contact WhatsApp au nom lu sur la pièce).
+- `cloudpc/whatsapp_web.py` : `documents()` (défilement écran par écran, aperçu → Télécharger, testé sur un vrai PDF) ; `save_contact()` (Nouvelle discussion → Nouveau contact, pays au vrai clic, synchro téléphone cochée ; testé à blanc FR + DZ, jamais enregistré pour de vrai).
+- `cloudpc/agent.py` : `cloud:face` (tgcall/face.py) ; `orchestrator.ts` `faceHint()` → « [VISAGE : …] » sur les images de l'app (caméra en direct : 1×/5 min).
+
 ## 2026-10-27 — Dzaryx reconnaît le visage de Kouider (Telegram photos + appels vidéo)
 - `tgcall/face.py` (nouveau) : OpenCV YuNet (détection) + SFace (empreinte 128 nombres), local au VPS comme `speaker.py` ; `faceprints/` (ignoré par git, repo public) ; modèles dans `tgcall/models/` (opencv_zoo). Seuil 0,40 ; selfie de test 0,96–1,00, autre visage 0,06.
 - `dzaryx_tg.py` : photo + légende « retiens mon visage » → apprend ; toute photo → « [VISAGE : … Kouider …] » ajouté au message pour le cerveau ; photo de Kouider très sûre (≥ 0,50) enrichit l'empreinte.

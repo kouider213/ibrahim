@@ -143,6 +143,17 @@ export function claudeRechargeAmount(msg: string): number | null {
   return v > 0 && v <= 2000 ? v : null;
 }
 
+/** « [VISAGE : … Kouider …] » si un visage connu est sur l'image (tgcall/face.py, appelé par le PC cloud), sinon ''. */
+async function faceHint(imageBase64: string, sessionId: string): Promise<string> {
+  const { isCloudPcOnline, cloudEmit } = await import('../actions/handlers/cloudpc-relay.js');
+  if (!isCloudPcOnline() || imageBase64.length > 12_000_000) return '';
+  const live = sessionId.startsWith('voice_');
+  if (live && await redis.get(`face:checked:${sessionId}`).catch(() => null)) return '';
+  const r = await cloudEmit<{ ok: boolean; hint?: string }>('cloud:face', { b64: imageBase64 }, 4_000);
+  if (live && r.hint) await redis.set(`face:checked:${sessionId}`, '1', 'EX', 300).catch(() => {});
+  return r.ok ? r.hint ?? '' : '';
+}
+
 export async function processMessage(
   userMessage:  string,
   sessionId:    string,
@@ -158,6 +169,13 @@ export async function processMessage(
   console.log(
     `[orch:${requestId}] source_channel=${source_channel} session=${sessionId} msg="${userMessage.slice(0, 80)}"`,
   );
+
+  // ── Visage : qui est sur la photo ? (empreinte locale au VPS via le PC cloud, Kouider 27/10) ──
+  // Telegram l'ajoute déjà (tgcall) ; caméra en direct : une fois toutes les 5 min, pas à chaque image
+  if (imageBase64 && !userMessage.includes('[VISAGE')) {
+    const hint = await faceHint(imageBase64, sessionId).catch(() => '');
+    if (hint) userMessage = `${hint}\n${userMessage}`.trim();
+  }
 
   // 1. Notifier "thinking" immédiatement
   _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId });

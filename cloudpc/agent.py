@@ -557,7 +557,38 @@ async def on_wa(d):
             except Exception as e:
                 log.warning('photo WhatsApp non enregistrée : %s', e)
         return r
+    if d.get('action') == 'documents':
+        r = await asyncio.wait_for(whatsapp_web.action(d), 300)
+        for doc in r.get('documents') or []:   # rangés dans les Téléchargements par l'outil : pas de notif « nouveau fichier » en double
+            try:
+                _seen[doc['file']] = (FILES / doc['file']).stat().st_size
+            except OSError:
+                pass
+        return r
+    if d.get('action') == 'save_contact':
+        return await asyncio.wait_for(whatsapp_web.action(d), 120)
     return await asyncio.wait_for(whatsapp_web.action(d), 90)
+
+
+_face = None
+
+
+def face_hint(jpg: bytes) -> str:
+    """Visage reconnu ? Même module et mêmes empreintes que le service Telegram (tgcall/face.py)."""
+    global _face
+    if _face is None:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('dzaryx_face', ROOT / 'tgcall' / 'face.py')
+        _face = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_face)
+    return _face.hint(jpg)
+
+
+@sio.on('cloud:face', namespace=NS)
+@safe
+async def on_face(d):
+    """Photo de l'app (chat, caméra) → « [VISAGE : …] » ou '' (aucun visage)."""
+    return {'ok': True, 'hint': await run(face_hint, base64.b64decode(d.get('b64', '')))}
 
 
 async def wa_emit(event: str, data: dict) -> None:

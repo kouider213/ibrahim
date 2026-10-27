@@ -948,6 +948,12 @@ export async function stashTelegramPhoto(b64: string, mime: string): Promise<voi
   await kvSet(TG_PHOTO_KEY, JSON.stringify({ b64, mime, at: Date.now() }), 1800);
 }
 
+/** Dernière photo envoyée à Dzaryx sur Telegram (30 min) — sans la consommer (ex. la transférer sur WhatsApp). */
+export async function lastTelegramPhoto(): Promise<{ b64: string; mime: string } | null> {
+  const raw = await kvGet(TG_PHOTO_KEY).catch(() => null);
+  return raw ? JSON.parse(raw) as { b64: string; mime: string } : null;
+}
+
 /** Photo de lui envoyée à Dzaryx : stockée, analysée (avant / maintenant), séance de demain refaite partout, photo entourée. */
 export async function bodyFromTelegram(o: { focus?: string; pose?: string; adapt?: boolean }): Promise<string> {
   const raw = await kvGet(TG_PHOTO_KEY);

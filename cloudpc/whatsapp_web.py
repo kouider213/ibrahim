@@ -6,7 +6,7 @@ conversations existantes, tapées dans la vraie page comme un humain (limite le 
 
 - `watch()` : toutes les 20 s, liste les discussions NON LUES (sans les ouvrir : elles restent non lues sur le téléphone)
   et prévient le backend (`cloud:wa_new`) pour chaque nouveau message.
-- `action(d)` : status | link_code | unread | read | photos | send | send_file — appelé par l'outil `whatsapp_web` du backend.
+- `action(d)` : status | link_code | unread | read | photos | documents | send | send_file | save_contact — appelé par l'outil `whatsapp_web` du backend.
 """
 import asyncio
 import json
@@ -465,6 +465,168 @@ async def send_file(chat: str, path: str, caption: str = '') -> dict:
                     return {'ok': True, 'chat': title or chat, 'file': f.name}
     return {'ok': False, 'error': "Le fichier n'apparaît pas encore comme envoyé (vérifie sur le téléphone)."}
 
+DOWNLOADS = Path(os.environ.get('CLOUDPC_DATA', '/root/cloudpc-data')) / 'downloads'
+
+
+async def _mouse(p: Page, box: dict) -> None:
+    for t in ('mouseMoved', 'mousePressed', 'mouseReleased'):
+        await p.call('Input.dispatchMouseEvent', {'type': t, 'x': box['x'], 'y': box['y'],
+                                                  'button': 'none' if t == 'mouseMoved' else 'left', 'clickCount': 1})
+
+
+async def documents(chat: str, n: int = 3) -> dict:
+    """Télécharge les n derniers documents (PDF, Word…) de la discussion dans les Téléchargements du PC cloud.
+    WhatsApp ne dessine que les bulles visibles : on remonte la discussion écran par écran depuis le bas.
+    Clic sur la bulle → aperçu WhatsApp → « Télécharger » (ou téléchargement direct pour les non-PDF)."""
+    n = max(1, min(int(n), 6))
+    DOWNLOADS.mkdir(parents=True, exist_ok=True)
+    got: list[dict] = []
+    done: set[str] = set()
+    async with LOCK:
+        async with await _page() as p:
+            if not await _open_chat(p, chat):
+                return {'ok': False, 'error': f'Discussion « {chat} » introuvable.'}
+            title = await p.js("((document.querySelector('#main header span[title], #main header span[dir=\"auto\"]') || {}).innerText || '')")
+            bubbles_js = "document.querySelectorAll('#main [data-testid^=\"conv-msg-\"], #main div.message-in, #main div.message-out').length"
+            last, stable = -1, 0
+            for _ in range(20):       # la discussion se charge petit à petit (send?phone= recharge l'appli) : bulles stables
+                await asyncio.sleep(0.5)
+                cnt = await p.js(bubbles_js) or 0
+                stable = stable + 1 if cnt == last and cnt > 0 else 0
+                last = cnt
+                if stable >= 3:
+                    break
+            scroller = """[...document.querySelectorAll('#main div')].find(d => d.scrollHeight > d.clientHeight + 50 && /(auto|scroll)/.test(getComputedStyle(d).overflowY))"""
+            await p.js(f"(s => s && (s.scrollTop = s.scrollHeight))({scroller})")
+            for _step in range(15):
+                await asyncio.sleep(1.2)
+                docs = await p.js(r"""(() => { const mid = (document.querySelector('#main') || document.body).getBoundingClientRect();
+                  return [...document.querySelectorAll('#main [role=button]')].filter(e => e.querySelector('[data-icon^="document-"]')).map(e => {
+                    const r = e.getBoundingClientRect(), b = e.closest('[data-testid^="conv-msg-"], .message-in, .message-out') || e;
+                    return { key: (b.getAttribute('data-testid') || '') + '|' + (e.innerText || ''), label: (e.innerText || '').split('\n').slice(0, 3).join(' · '),
+                             me: b.classList.contains('message-out') || (r.left + r.width / 2) > (mid.left + mid.width / 2) }; }).reverse(); })()""") or []
+                for d in docs:
+                    if len(got) >= n or d['key'] in done:
+                        continue
+                    done.add(d['key'])
+                    box = await p.js(f"""(() => {{ const e = [...document.querySelectorAll('#main [role=button]')].filter(e => e.querySelector('[data-icon^="document-"]'))
+                      .find(e => ((e.closest('[data-testid^="conv-msg-"], .message-in, .message-out') || e).getAttribute('data-testid') || '') + '|' + (e.innerText || '') === {json.dumps(d['key'])});
+                      if (!e) return null; e.scrollIntoView({{ block: 'center' }}); const r = e.getBoundingClientRect(); return {{ x: r.x + r.width / 2, y: r.y + r.height / 2 }}; }})()""")
+                    if not box:
+                        continue
+                    before = {f.name for f in DOWNLOADS.iterdir()}
+                    await asyncio.sleep(0.6)
+                    await _mouse(p, box)
+                    new = None
+                    for _ in range(30):
+                        await asyncio.sleep(1)
+                        fresh = [f for f in DOWNLOADS.iterdir() if f.name not in before and not f.name.endswith(('.crdownload', '.part', '.tmp'))]
+                        if fresh:
+                            new = fresh[0]
+                            break
+                        dl = await p.js("""(() => { const e = [...document.querySelectorAll('[aria-label="Télécharger"], [aria-label="Download"]')].find(e => e.getBoundingClientRect().width > 0);
+                          if (!e) return null; const b = e.closest('button, [role=button]') || e; const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()""")
+                        if dl:
+                            await _mouse(p, dl)
+                            await asyncio.sleep(1.5)
+                    await _key(p, 'Escape', 'Escape', 27)   # ferme l'aperçu
+                    await asyncio.sleep(0.8)
+                    if new:
+                        for _ in range(20):              # taille stable = téléchargement fini
+                            a = new.stat().st_size
+                            await asyncio.sleep(0.7)
+                            if a and a == new.stat().st_size:
+                                break
+                        got.append({'file': new.name, 'label': d['label'], 'me': bool(d['me']), 'size': new.stat().st_size})
+                if len(got) >= n:
+                    break
+                top = await p.js(f"(s => {{ if (!s) return true; const t = s.scrollTop; s.scrollTop = Math.max(0, t - s.clientHeight * 0.8); return t <= 0; }})({scroller})")
+                if top:
+                    break
+    return {'ok': True, 'chat': title or chat, 'documents': got, 'found': len(done)}
+
+
+# Indicatif → nom du pays dans la liste de WhatsApp Web (français)
+COUNTRIES = {'33': 'France', '213': 'Algérie', '32': 'Belgique', '212': 'Maroc', '216': 'Tunisie', '34': 'Espagne',
+             '44': 'Royaume-Uni', '49': 'Allemagne', '39': 'Italie', '31': 'Pays-Bas', '41': 'Suisse', '1': 'Canada', '971': 'Émirats'}
+
+
+async def save_contact(phone: str, first: str, last: str = '', dry: bool = False) -> dict:
+    """Ajoute un contact au carnet de WhatsApp (synchronisé sur le téléphone) : Nouvelle discussion → Nouveau contact.
+    phone = numéro international (+33…, +213…). dry=True : remplit le formulaire puis annule (test)."""
+    digits = ''.join(ch for ch in phone if ch.isdigit())
+    code = next((c for c in sorted(COUNTRIES, key=len, reverse=True) if digits.startswith(c)), None)
+    if not code or len(digits) < 9:
+        return {'ok': False, 'error': f'Numéro international attendu (+33…, +213…) : {phone}'}
+    national = digits[len(code):]
+    async with LOCK:
+        async with await _page() as p:
+            async def back():
+                await _key(p, 'Escape', 'Escape', 27)
+                for _ in range(2):
+                    await asyncio.sleep(0.8)
+                    await p.js("(document.querySelector('#side [aria-label=\"Retour\"], [aria-label=\"Retour\"]') || {click(){}}).click()")
+            await p.js("""(document.querySelector('[aria-label="Nouvelle discussion"], [aria-label="New chat"]') || {click(){}}).click()""")
+            await asyncio.sleep(1.5)
+            if not await p.js("""(() => { const el = [...document.querySelectorAll('[role=button], [role=listitem], div[tabindex]')]
+                .find(e => /^(Nouveau contact|New contact)$/.test((e.innerText || '').trim().split('\\n')[0])); if (el) el.click(); return !!el; })()"""):
+                await back()
+                return {'ok': False, 'error': 'Bouton « Nouveau contact » introuvable (page WhatsApp changée ?).'}
+            await asyncio.sleep(2)
+            # Pays : clic sur « BE +32 », recherche du pays, clic sur la ligne « France +33 »
+            await p.js("""(() => { const b = [...document.querySelectorAll('button, [role=button]')].find(b => /^[A-Z]{2} \\+\\d+$/.test((b.innerText || '').trim())); if (b) b.click(); })()""")
+            await asyncio.sleep(1.2)
+            # la recherche de pays (zone de texte) a déjà le focus à l'ouverture de la liste
+            await p.call('Input.insertText', {'text': COUNTRIES[code]})
+            await asyncio.sleep(1.5)
+            box = await p.js(f"""(() => {{ const end = {json.dumps('+' + code)};
+              const el = [...document.querySelectorAll('[role=listbox] div[tabindex]')].filter(e => e.getBoundingClientRect().width > 0)
+                .find(e => (e.innerText || '').trim().replace(/\\s+/g, ' ').endsWith(end));
+              if (!el) return null; el.scrollIntoView({{ block: 'center' }}); const r = el.getBoundingClientRect();
+              return {{ x: r.x + r.width / 2, y: r.y + r.height / 2 }}; }})()""")
+            picked = bool(box)
+            if box:   # vrai clic de souris (un clic JS ne choisit pas le pays)
+                for t in ('mouseMoved', 'mousePressed', 'mouseReleased'):
+                    await p.call('Input.dispatchMouseEvent', {'type': t, 'x': box['x'], 'y': box['y'],
+                                                              'button': 'none' if t == 'mouseMoved' else 'left', 'clickCount': 1})
+            await asyncio.sleep(1)
+            country = await p.js("""(([...document.querySelectorAll('button, [role=button]')].find(b => /^[A-Z]{2} \\+\\d+$/.test((b.innerText || '').trim())) || {}).innerText || '').trim()""")
+            if not picked or not country.endswith('+' + code):
+                await back()
+                return {'ok': False, 'error': f'Pays +{code} pas sélectionné (affiché : {country or "?"}).'}
+            for label, text in (('Prénom', first), ('Nom', last), ):
+                if text.strip():
+                    await p.js(f"document.querySelector('[aria-label={json.dumps(label)}]').focus()")
+                    await p.call('Input.insertText', {'text': text.strip()})
+            await p.js("document.querySelector('input[aria-label=\"Numéro de téléphone\"]').focus()")
+            await p.call('Input.insertText', {'text': national})
+            await asyncio.sleep(2.5)
+            await p.js("""(() => { const c = document.querySelector('input[type=checkbox][aria-label*="Synchroniser"]'); if (c && !c.checked) c.click(); })()""")
+            await asyncio.sleep(0.8)
+            state = await p.js("""(() => ({
+              sync: !!(document.querySelector('input[type=checkbox][aria-label*="Synchroniser"]') || {}).checked,
+              notes: document.body.innerText.split('\\n').filter(t => /valide|déjà|already|n.est pas sur WhatsApp|not on WhatsApp|est sur WhatsApp|is on WhatsApp/i.test(t)).slice(0, 4),
+              save: [...document.querySelectorAll('button, [role=button]')].filter(b => b.getBoundingClientRect().width > 0)
+                .map(b => ((b.getAttribute('aria-label') || '') + ' ' + (b.innerText || '')).trim()).filter(t => /enregistrer|save/i.test(t)),
+            }))()""")
+            if dry:
+                await back()
+                return {'ok': True, 'dry': True, 'country': country, 'national': national, **state}
+            clicked = await p.js("""(() => { const b = [...document.querySelectorAll('button, [role=button]')].filter(b => b.getBoundingClientRect().width > 0)
+                .find(b => [b.getAttribute('aria-label') || '', b.innerText || ''].some(t => /^(enregistrer( le contact)?|save( contact)?)$/i.test(t.trim())));
+              if (!b || b.disabled || b.getAttribute('aria-disabled') === 'true') return false; b.click(); return true; })()""")
+            if not clicked:
+                await back()
+                return {'ok': False, 'error': 'Bouton Enregistrer indisponible : ' + ' / '.join(state.get('notes') or ['numéro refusé ?'])}
+            await asyncio.sleep(3)
+            still = await p.js("!!document.querySelector('input[aria-label=\"Numéro de téléphone\"]')")
+            if still:
+                notes = await p.js("document.body.innerText.split('\\n').filter(t => /valide|déjà|already|erreur|error/i.test(t)).slice(0, 3)")
+                await back()
+                return {'ok': False, 'error': 'Contact pas enregistré : ' + (' / '.join(notes or []) or 'raison inconnue')}
+            await back()
+            return {'ok': True, 'name': f'{first} {last}'.strip(), 'phone': '+' + digits, 'synced': state.get('sync')}
+
 
 async def action(d: dict) -> dict:
     a = str(d.get('action') or 'status')
@@ -482,6 +644,10 @@ async def action(d: dict) -> dict:
         return await photos(str(d.get('chat') or ''), int(d.get('n') or 6))
     if a == 'send_file':
         return await send_file(str(d.get('chat') or ''), str(d.get('path') or ''), str(d.get('caption') or ''))
+    if a == 'documents':
+        return await documents(str(d.get('chat') or ''), int(d.get('n') or 3))
+    if a == 'save_contact':
+        return await save_contact(str(d.get('phone') or ''), str(d.get('first') or ''), str(d.get('last') or ''), bool(d.get('dry')))
     return {'ok': False, 'error': f'action inconnue : {a}'}
 
 
