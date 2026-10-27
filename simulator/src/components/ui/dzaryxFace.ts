@@ -48,6 +48,57 @@ export function createDzaryxFace() {
     } catch { /* image d'un autre domaine : couleur par défaut */ }
   };
 
+  // Halo, lignes de balayage, bords fondus — communs à la vidéo et à l'image animée
+  function overlay(ctx: CanvasRenderingContext2D, src: CanvasImageSource, x0: number, y0: number, w: number, h: number, s: number, k: number, mouth: number, side = 0.2) {
+    if (!glow) return;
+    // Halo d'hologramme qui pulse avec la voix (copie floue en mode « lighter »)
+    const gc = glow.getContext('2d')!;
+    gc.clearRect(0, 0, glow.width, glow.height);
+    gc.drawImage(src, 0, 0, glow.width, glow.height);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.14 + 0.2 * mouth;
+    ctx.drawImage(glow, x0, y0, w, h);
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    // Lignes de balayage + bande lumineuse qui descend
+    ctx.fillStyle = 'rgba(3,6,15,0.16)';
+    for (let y = y0; y < y0 + h; y += 3) ctx.fillRect(x0, y, w, 1);
+    const band = y0 + ((s * 70 * k * 1.5) % (h + 80)) - 40;
+    ctx.fillStyle = 'rgba(120,200,255,0.10)';
+    ctx.fillRect(x0, band, w, 8 * k * 1.5);
+    // Bords fondus dans le fond (cache les éléments de l'affiche d'origine)
+    const fade = (gx0: number, gx1: number) => {
+      const g = ctx.createLinearGradient(gx0, 0, gx1, 0);
+      g.addColorStop(0, 'rgba(3,6,15,1)'); g.addColorStop(0.4, 'rgba(3,6,15,1)'); g.addColorStop(1, 'rgba(3,6,15,0)');
+      ctx.fillStyle = g; ctx.fillRect(Math.min(gx0, gx1), y0 - 2, Math.abs(gx1 - gx0), h + 4);
+    };
+    fade(x0 - 1, x0 + w * side); fade(x0 + w + 1, x0 + w * (1 - side));
+    const gt = ctx.createLinearGradient(0, y0 - 1, 0, y0 + h * 0.06);
+    gt.addColorStop(0, 'rgba(3,6,15,1)'); gt.addColorStop(1, 'rgba(3,6,15,0)');
+    ctx.fillStyle = gt; ctx.fillRect(x0 - 1, y0 - 1, w + 2, h * 0.06);
+    const gb = ctx.createLinearGradient(0, y0 + h * 0.8, 0, y0 + h + 1);
+    gb.addColorStop(0, 'rgba(3,6,15,0)'); gb.addColorStop(1, 'rgba(3,6,15,1)');
+    ctx.fillStyle = gb; ctx.fillRect(x0, y0 + h * 0.8, w, h * 0.2 + 2);
+  }
+
+  // VRAIES vidéos IA (Kling 3, générées une fois le 27/10 à partir de la même image) : « il écoute » en boucle,
+  // fondu vers « il parle » dès que sa voix joue. Tant qu'elles ne sont pas prêtes : l'image animée ci-dessous.
+  const base = ((import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL) ?? '/ibrahim/';
+  const mkVideo = (name: string) => {
+    const v = document.createElement('video');
+    v.src = `${base}${name}`; v.muted = true; v.loop = true; v.playsInline = true; v.autoplay = true; v.preload = 'auto';
+    v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
+    v.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:0;top:0';
+    document.body.appendChild(v);
+    void v.play().catch(() => {});
+    return v;
+  };
+  const vListen = mkVideo('dzaryx-listen.mp4'), vTalk = mkVideo('dzaryx-talk.mp4');
+  const kick = () => { void vListen.play().catch(() => {}); void vTalk.play().catch(() => {}); };
+  window.addEventListener('touchstart', kick, { passive: true }); window.addEventListener('click', kick);
+  // Repères dans les vidéos (540×840) : milieu des yeux, écart des yeux → même échelle que l'image
+  const V_EYE: [number, number] = [253.8, 447.1], V_EYE_DIST = 190.5, V_W = 540, V_H = 840;
+  let talkMix = 0, lastVoice = 0;
+
   let mouth = 0, nod = 0, lnod = 0, nextBlink = performance.now() + 2500, blinkT = -1e9;
 
   /** Dessine le visage centré en (cx, cy) ; R = demi-hauteur de la tête (px). t = performance.now(). */
@@ -56,6 +107,21 @@ export function createDzaryxFace() {
     const target = Math.pow(Math.min(1, Math.max(0, o.talk)), 0.75);
     mouth += (target - mouth) * (target > mouth ? 0.5 : 0.3);
     const s = t / 1000;
+    if (vListen.readyState >= 2 && vTalk.readyState >= 2 && glow) {
+      if (o.talk > 0.03) lastVoice = t;
+      talkMix += ((t - lastVoice < 450 ? 1 : 0) - talkMix) * 0.12;
+      if (vListen.paused || vTalk.paused) kick();
+      const kv = 0.85 * (2 * R) / (V_EYE_DIST * (FACE_H / (EYES[1][0] - EYES[0][0])));
+      const w = V_W * kv, h = V_H * kv;
+      const x0 = cx - V_EYE[0] * kv, y0 = cy - (V_EYE[1] + FACE_H * 0.12 * (V_EYE_DIST / (EYES[1][0] - EYES[0][0]))) * kv;
+      ctx.save();
+      if (talkMix < 0.99) { ctx.globalAlpha = 1; ctx.drawImage(vListen, x0, y0, w, h); }
+      if (talkMix > 0.01) { ctx.globalAlpha = talkMix; ctx.drawImage(vTalk, x0, y0, w, h); }
+      ctx.globalAlpha = 1;
+      overlay(ctx, talkMix > 0.5 ? vTalk : vListen, x0, y0, w, h, s, kv, Math.max(mouth, talkMix * 0.5), 0.1);
+      ctx.restore();
+      return;
+    }
     // Taille : la tête (FACE_H) fait 2R de haut ; le visage est centré sur (cx, cy)
     const k = (2 * R) / FACE_H;
     const w = IMG_W * k, h = IMG_H * k;
@@ -102,33 +168,7 @@ export function createDzaryxFace() {
     ctx.translate(pivX, pivY + dy); ctx.rotate(ang); ctx.translate(-pivX, -pivY);
     ctx.drawImage(img, x0, y0, w, h);
     ctx.drawImage(jaw, x0, y0, w, h);
-    // Halo d'hologramme qui pulse avec la voix (copie floue en mode « lighter »)
-    const gc = glow.getContext('2d')!;
-    gc.clearRect(0, 0, glow.width, glow.height);
-    gc.drawImage(img, 0, 0, glow.width, glow.height);
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = 0.14 + 0.2 * mouth;
-    ctx.drawImage(glow, x0, y0, w, h);
-    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
-    // Lignes de balayage + bande lumineuse qui descend
-    ctx.fillStyle = 'rgba(3,6,15,0.16)';
-    for (let y = y0; y < y0 + h; y += 3) ctx.fillRect(x0, y, w, 1);
-    const band = y0 + ((s * 70 * k * 1.5) % (h + 80)) - 40;
-    ctx.fillStyle = 'rgba(120,200,255,0.10)';
-    ctx.fillRect(x0, band, w, 8 * k * 1.5);
-    // Bords fondus dans le fond (cache les éléments de l'affiche d'origine)
-    const fade = (gx0: number, gx1: number) => {
-      const g = ctx.createLinearGradient(gx0, 0, gx1, 0);
-      g.addColorStop(0, 'rgba(3,6,15,1)'); g.addColorStop(0.4, 'rgba(3,6,15,1)'); g.addColorStop(1, 'rgba(3,6,15,0)');
-      ctx.fillStyle = g; ctx.fillRect(Math.min(gx0, gx1), y0 - 2, Math.abs(gx1 - gx0), h + 4);
-    };
-    fade(x0 - 1, x0 + w * 0.2); fade(x0 + w + 1, x0 + w * 0.8);
-    const gt = ctx.createLinearGradient(0, y0 - 1, 0, y0 + h * 0.06);
-    gt.addColorStop(0, 'rgba(3,6,15,1)'); gt.addColorStop(1, 'rgba(3,6,15,0)');
-    ctx.fillStyle = gt; ctx.fillRect(x0 - 1, y0 - 1, w + 2, h * 0.06);
-    const gb = ctx.createLinearGradient(0, y0 + h * 0.8, 0, y0 + h + 1);
-    gb.addColorStop(0, 'rgba(3,6,15,0)'); gb.addColorStop(1, 'rgba(3,6,15,1)');
-    ctx.fillStyle = gb; ctx.fillRect(x0, y0 + h * 0.8, w, h * 0.2 + 2);
+    overlay(ctx, img, x0, y0, w, h, s, k, mouth);
     ctx.restore();
   };
 }

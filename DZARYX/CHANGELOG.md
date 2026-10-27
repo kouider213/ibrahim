@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-27 (suite 5) — Visage = VRAIES vidéos IA (Kling 3, ~1,12 $ une fois) dans l'app v193
+- Studio (/api/studio, rendus 31ff1abc « il parle » + d2e41d7f « il écoute », 5 s, depuis public/dzaryx-face.jpg) → `public/dzaryx-talk.mp4` / `dzaryx-listen.mp4` (540×840, boucle aller-retour, sans son, ~1 Mo).
+- `ui/dzaryxFace.ts` : « il écoute » en boucle, fondu vers « il parle » quand sa voix joue (getVoiceLevel, maintien 450 ms) ; mêmes effets hologramme ; l'image animée reste en secours tant que les vidéos chargent.
+
 ## 2026-10-27 (suite 4) — Appels Telegram : vidéo du visage COUPÉE (cause du son muet) ; visage plus naturel (app v192)
 - Appels 13h26 / 13h29 (app fermée) toujours muets dans les deux sens avec la vidéo, même après passage en son seul (« External source not initialized ») ; sans vidéo l'appel de 12h23 marchait → la vidéo externe ntgcalls casse le son en appel privé. `tgcall/cache/no-face` posé : appels en son seul. À creuser avec TG_DEBUG=1 + un appel test.
 - `ui/dzaryxFace.ts` + `avatar_real.py` : mâchoire moins ample (lèvre du bas 1, menton ½ : la barbe ne s'étire plus), ombre douce au lieu de fausses dents, clignement = vraie peau de la paupière étirée, petits hochements quand Kouider parle.
