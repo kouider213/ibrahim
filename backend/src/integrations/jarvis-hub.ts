@@ -20,9 +20,12 @@ export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok
   // Raccourci fait par « Décrire un raccourci » (Apple) : les valeurs arrivent souvent en texte libre (champ data, résumé…)
   // → Haiku en tire les chiffres. Les champs déjà numériques restent prioritaires.
   if (!['sleep_h', 'steps', 'rhr', 'hrv'].some(k => num(body[k]) !== undefined)) {
-    const raw = JSON.stringify(body).slice(0, 6000);
+    const full = JSON.stringify(body);
+    await kvPut('health:lastraw', full.slice(0, 60_000), 3 * 86_400).catch(() => {});   // pour comprendre le format du Raccourci (privé)
+    // Beaucoup de petits échantillons (pas, phases de sommeil) : on additionne les nombres nous-mêmes quand c'est une liste
+    const raw = full.slice(0, 40_000);
     const { ai, jsonOf } = await import('./ai-util.js');
-    const o = jsonOf<Record<string, number>>(await ai(`Données de santé d'un iPhone (format libre, français ou anglais) :\n${raw}\n\nExtrais : heures de sommeil de la dernière nuit (total, en heures), nombre de pas d'hier ou du jour, fréquence cardiaque au repos (bpm), variabilité de la fréquence cardiaque (ms). Additionne les échantillons si besoin. Réponds UNIQUEMENT : {"sleep_h":0,"steps":0,"rhr":0,"hrv":0} (0 si absent).`, { max: 200 }).catch(() => '')) ?? {};
+    const o = jsonOf<Record<string, number>>(await ai(`Données de santé d'un iPhone (format libre, français ou anglais) :\n${raw}\n\nExtrais : heures de sommeil de la dernière nuit (total, en heures), nombre de pas d'hier ou du jour, fréquence cardiaque au repos (bpm), variabilité de la fréquence cardiaque (ms). Pour les pas : ADDITIONNE tous les échantillons de pas. Pour le sommeil : additionne les durées « endormi / core / deep / REM » (pas « au lit » ni « éveillé »). Réponds UNIQUEMENT : {"sleep_h":0,"steps":0,"rhr":0,"hrv":0} (0 si absent).`, { max: 200, quality: true }).catch(() => '')) ?? {};
     Object.assign(body, o);
   }
   const date = String(body['date'] ?? localNow().date).slice(0, 10);
