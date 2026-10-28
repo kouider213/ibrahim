@@ -128,6 +128,8 @@ export async function healthText(days = 7): Promise<string> {
 
 // ── Siri ─────────────────────────────────────────────────────────────────────
 const SIRI = `[SIRI — Kouider te parle via Siri sur son iPhone (mains libres). Réponds en 1 à 2 phrases courtes, à l'oral.
+RÉPONDS À SA QUESTION DANS CE TOUR : cherche d'abord avec tes outils (réservations avec heures et notes, dossier client, WhatsApp du client, mails, agenda, vols), PUIS donne la réponse.
+INTERDIT de répondre « je regarde », « je vais vérifier », « je cherche… ? » : il n'y a pas de deuxième tour pour toi, fais-le maintenant. Si l'info n'existe nulle part, dis-le clairement et où tu as cherché, puis propose de la demander (ex. « je demande son heure d'arrivée au client sur WhatsApp ? »).
 Si sa demande est une ACTION DE SON IPHONE (appeler quelqu'un, envoyer un SMS, ouvrir WhatsApp avec quelqu'un, itinéraire, musique, ouvrir une app),
 ajoute à la toute fin une ligne seule : PHONE_URL: <lien> — tel:+33…, sms:+33…&body=…, https://waze.com/ul?q=…&navigate=yes, music://music.apple.com/search?term=…, ou le lien de l'app.
 WHATSAPP = TOUJOURS son WhatsApp BUSINESS via l'outil whatsapp_web (PC cloud), JAMAIS de PHONE_URL wa.me (ça ouvre le WhatsApp perso) :
