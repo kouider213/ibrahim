@@ -57,12 +57,12 @@ const CACHED_SYSTEM: Anthropic.TextBlockParam[] = [
   },
 ];
 
-/** Ce que Kouider a VRAIMENT dit : sans les consignes « [APPEL TÉLÉPHONIQUE EN COURS …] » / « [Contexte : …] » ajoutées
+/** Ce que Kouider a VRAIMENT dit : sans les consignes « [APPEL TÉLÉPHONIQUE EN COURS …] » / « [SIRI …] » / « [Contexte : …] » ajoutées
  *  devant (elles contiennent « aujourd'hui », « réponse »… et déclenchaient à tort recherche web, réflexion ou Sonnet). */
 function spokenText(content: unknown): string {
   let t = typeof content === 'string' ? content : '';
   for (let i = 0; i < 3; i++) {
-    const m = t.match(/^\s*\[(?:APPEL T[ÉE]L[ÉE]PHONIQUE|Contexte)[\s\S]*?\]\s*/);
+    const m = t.match(/^\s*\[(?:APPEL T[ÉE]L[ÉE]PHONIQUE|SIRI|Contexte|via Siri|au téléphone)[\s\S]*?\]\s*/);
     if (!m) break;
     t = t.slice(m[0].length);
   }

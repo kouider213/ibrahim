@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-28 (suite 10) — Siri plus rapide, plus jamais coupé (B046)
+- `context-builder.ts` shortPreamble() : consignes [SIRI…] / [APPEL TÉLÉPHONIQUE…] raccourcies dans l'historique → plus de compaction à chaque tour.
+- `claude-api.ts` spokenText() : retire aussi [SIRI…] avant le routage (recherche web / Sonnet à tort).
+- `jarvis-hub.ts` siriTurn() : budget 25 s puis réponse sur Telegram, coupe propre en fin de phrase + suite sur Telegram, relance si « je regarde… ».
+
 ## 2026-10-28 (suite 9) — GPS de vie : objectifs de Kouider
 - `foresight.ts` : objectif « poids » lit le poids du profil FORME quand Santé n'envoie pas de pesée.
 - Objectifs ajoutés (app_kv lifegps) : quitter la Belgique fin 2028 (% prêt, manuel), recompo 80→75 kg (30/06/2027), CA FIK 3000 €/mois (30/06/2028).

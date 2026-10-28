@@ -7,6 +7,10 @@
 
 ## Bugs Ouverts 🔴
 
+### B046 — Siri lent, coupé, « je regarde… » sans réponse (28/10) ✅ FIXÉ
+Consigne SIRI (~3 000 caractères) gardée dans chaque vieux message → historique au-dessus du seuil → résumé de compaction relancé à CHAQUE tour (+5 s), réponses de 20 à 48 s, le Raccourci abandonnait (Kouider redemandait 3 fois l'actualité). Réponse coupée net à 600 caractères. La consigne SIRI n'était pas retirée avant le choix du modèle (spokenText).
+Fix : context-builder shortPreamble() remplace les consignes Siri/appel des anciens messages par « [via Siri] » / « [au téléphone] » (≈5 300 → 1 500 tokens) ; spokenText() retire aussi [SIRI…] ; siriTurn : 25 s max puis « je t'envoie la réponse sur Telegram », coupe en fin de phrase + réponse complète sur Telegram, « je regarde… » relancé une fois.
+
 ### B045 — « Ange gardien contact Fatima +32… » ignoré, réponse sur l'ancienne question Halfi + permis du client envoyé sur Telegram (28/10) ✅ FIXÉ
 13h45 : contact jamais enregistré ; le cerveau a « vérifié » sa réponse précédente (10 h inventé à 13h16) via list_bookings + get_client_document, qui a envoyé permis + passeport sur Telegram, puis a écrit « je ne les ai pas envoyés ».
 Fix : orchestrator.ts angelContactCommand() enregistre le contact sans dépendre du modèle ; relances anti-hallu/fantôme citent le DERNIER message et interdisent l'ancien sujet ; get_client_document send:false = lecture seule, et le résultat dit quand la photo est partie sur Telegram.

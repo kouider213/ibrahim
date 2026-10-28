@@ -63,6 +63,13 @@ export interface ConversationContext {
   actor:                     OrgMember;
 }
 
+// Consignes Siri / appel (2 à 3 000 caractères) répétées dans chaque vieux message : l'historique dépassait le seuil
+// et relançait un résumé à CHAQUE tour (+5 s, Siri coupé, 28/10). Le message courant garde sa consigne complète.
+const PREAMBLE_RE = /^\s*\[(SIRI|APPEL T[ÉE]L[ÉE]PHONIQUE)[\s\S]*?\]\s*/;
+function shortPreamble(content: string): string {
+  return content.replace(PREAMBLE_RE, (_m, k: string) => k === 'SIRI' ? '[via Siri] ' : '[au téléphone] ');
+}
+
 // ── Intent detection: action requests need minimal history (avoids echoing old confirmations) ──
 const ACTION_INTENT_PATTERNS: RegExp[] = [
   /résumé (du jour|de la journée|journée)/i,
@@ -152,7 +159,7 @@ export async function buildContext(
   const isKouider = actor.ownerKey === 'kouider';
 
   const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary, clientIntel, recentEpisodes, smartReminders, vipClients, learnedRules, clientBrain, actorBrainCtx, personalCalendarEvents, callsMemText, dossierText] = await Promise.all([
-    getConversationHistory(sessionId, historyLimit).then(h => h.map(m => ({ role: m.role, content: withToolTrace(m) }))).catch(() => []),
+    getConversationHistory(sessionId, historyLimit).then(h => h.map(m => ({ role: m.role, content: m.role === 'user' ? shortPreamble(m.content) : withToolTrace(m) }))).catch(() => []),
     crossChannelSessionId
       ? supabase
           .from('conversations')
@@ -547,7 +554,7 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
   const KEEP_RECENT = 3;
   // Message resté sans réponse (panne, redéploiement) : sans cette note, le cerveau répondait à CETTE vieille question
   // au lieu du nouveau message (28/10 : « ange gardien contact Fatima » → réponse sur le permis de Halfi demandé avant la coupure).
-  if (history.at(-1)?.role === 'user' && String(history.at(-1)?.content).trim() === userMessage.trim()) history.pop();
+  if (history.at(-1)?.role === 'user' && String(history.at(-1)?.content).trim() === shortPreamble(userMessage).trim()) history.pop();
   for (let i = 0; i < history.length; i++) {
     const next = history[i + 1];
     if (history[i]!.role === 'user' && (!next || next.role === 'user'))

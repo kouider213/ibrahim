@@ -149,6 +149,9 @@ const CALL_ME_RE = /\b(appelle[- ]?moi|rappelle[- ]?moi maintenant|on (se )?parl
 // Fin de conversation : le micro ne se rouvre plus
 const BYE_RE = /^(merci|c'?est (bon|tout|parfait|ok)|ok merci|stop|arr[eê]te|à plus|a plus|bye|ciao|bonne (nuit|journée|soirée)|rien|non merci|ça ira|ca ira|laisse tomber)\b/i;
 
+const STALL_RE = /^(je (regarde|vais (regarder|vérifier|chercher)|cherche|vérifie|check)|laisse-moi (regarder|vérifier)|un instant)/i;
+const SIRI_BUDGET_MS = 25_000;
+
 export async function siriTurn(text: string): Promise<{ say: string; url?: string; listen?: boolean }> {
   if (CALL_ME_RE.test(text) && text.length < 120) {
     const { callOwner } = await import('../notifications/voice-call.js');
@@ -158,11 +161,31 @@ export async function siriTurn(text: string): Promise<{ say: string; url?: strin
   if (BYE_RE.test(text.trim()) && text.trim().length < 40) return { say: 'Avec plaisir, je reste là si tu as besoin.' };
   const { processMessage } = await import('../conversation/orchestrator.js');
   const { stripToolTrace } = await import('./supabase.js');
-  const out = await processMessage(`${SIRI}\n${text.slice(0, 1500)}`, 'voice_kouider', true);
-  let say = stripToolTrace(out.text ?? '') || 'Pardon, je n\'ai pas compris.';
+  const run = async (): Promise<string> => {
+    let t = stripToolTrace((await processMessage(`${SIRI}\n${text.slice(0, 1500)}`, 'voice_kouider', true)).text ?? '');
+    // « Je regarde… ? » = promesse sans réponse (28/10 11h52) : il n'y a pas de 2e tour sous Siri → on relance une fois
+    if (STALL_RE.test(t) && t.length < 220)
+      t = stripToolTrace((await processMessage(`${SIRI}\nFais-le MAINTENANT avec tes outils et donne-moi directement la réponse : ${text.slice(0, 1500)}`, 'voice_kouider', true)).text ?? '') || t;
+    return t;
+  };
+  // Le Raccourci abandonne au-delà de ~30 s (28/10 : il redemandait la même chose) → réponse écrite sur Telegram
+  const job = run();
+  const raw = await Promise.race([job, new Promise<null>(r => setTimeout(() => r(null), SIRI_BUDGET_MS))]);
+  if (raw === null) {
+    void job.then(t => tg(`🎙️ Réponse à ta question Siri « ${text.slice(0, 80)} » :\n\n${t.replace(/PHONE_URL:\s*\S+/i, '').trim()}`)).catch(() => {});
+    return { say: 'Ça me prend un peu plus de temps, je t\'envoie la réponse sur Telegram.' };
+  }
+  let say = raw || 'Pardon, je n\'ai pas compris.';
   const m = /PHONE_URL:\s*(\S+)/i.exec(say);
   say = say.replace(/PHONE_URL:\s*\S+/i, '').replace(/https?:\/\/\S+/g, '').replace(/[*_#`>|]/g, '').trim();
-  say = say.slice(0, 600);
+  // Couper à la fin d'une phrase, jamais au milieu d'un mot (Siri « coupé », 28/10)
+  if (say.length > 600) {
+    const cut = say.slice(0, 600);
+    const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('? '), cut.lastIndexOf('! '));
+    say = end > 200 ? cut.slice(0, end + 1) : `${cut.slice(0, cut.lastIndexOf(' '))}…`;
+    void tg(`🎙️ Réponse complète (Siri) :\n\n${raw.replace(/PHONE_URL:\s*\S+/i, '').trim()}`);
+    say += ' La suite est sur ton Telegram.';
+  }
   // Conversation suivie : le micro se rouvre après CHAQUE réponse (pas seulement après une question) tant qu'il ne dit pas
   // « merci / c'est bon / stop » ou qu'il se tait — Kouider 28/10 : « il doit pouvoir écouter, répondre, reprendre »
   return { say, ...(m ? { url: m[1] } : { listen: true }) };
