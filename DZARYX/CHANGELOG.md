@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-28 soir | vidéos + séance dictée | sport-coach.ts, video-understand.ts, jarvis.ts, jarvis-hub.ts, tools.ts, jarvis3-tools.ts, tgcall/dzaryx_tg.py
+- Toute vidéo Telegram (sport, appli à coder, site, voiture…) : 16 images + voix transcrite → description → cerveau normal avec la consigne (texte avec la vidéo ou dans les 15 s). Voiture sans consigne / « départ … » = état des lieux comme avant.
+- sport_coach `plan_day` : séance dictée pour un jour (cardio avant/après + exercices de la vidéo), créneau agenda créé ou ajusté, séance exacte (pas de coupe ni de finisher).
+- Raccourci Santé : comparaison bloc par bloc (tapis / muscu / elliptique) avec la séance dictée.
+- se_coder : la description complète de la vidéo part dans la tâche de l'atelier.
+
 ## 2026-10-28 21h30 — Siri : tout à l'oral, Telegram seulement sur demande
 - jarvis-hub siriTurn : réponse > 8 s gardée et DITE au tour suivant (« alors ») au lieu d'aller sur Telegram ; réponse > 600 car. → « Tu veux la suite ? » ; nouvelle question pendant l'attente → l'ancienne réponse d'abord. Telegram seulement s'il dit « envoie-moi / sur Telegram / par écrit ».
 - Consigne SIRI « mains prises » : mails/WhatsApp lus à l'oral, rien sur Telegram sans demande (19h07 : mails partis sur Telegram, 11,6 s).

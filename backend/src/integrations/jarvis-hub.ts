@@ -85,6 +85,10 @@ export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok
   if (workouts.length) {
     const r = await import('./sport-coach.js').then(m => m.markWatchWorkout(date, woMin, workouts.slice(0, 2).join(' + '))).catch(() => null);
     if (r) notes.push(r);
+    // Séance dictée (tapis / muscu / elliptique…) : bloc par bloc, avec la durée de chaque entraînement si le Raccourci la donne
+    const per = woDurL.length === workouts.length ? woDurL.map(x => woDurL.reduce((a, b) => a + b, 0) > 600 ? x / 60 : x) : [];
+    const cmp = await import('./sport-coach.js').then(m => m.compareWithWatch(date, workouts.map((n, i) => ({ name: n, min: per[i] ?? 0 })))).catch(() => null);
+    if (cmp) notes.push(cmp);
   }
   // FORME : pas, poids, calories actives du jour
   await import('./forme.js').then(async f => {

@@ -853,6 +853,7 @@ def split_text(text: str, limit: int = 4000) -> list[str]:
     return parts or ['…']
 
 
+VIDEO_TEXT_WAIT_S = 15                     # vidéo : sa consigne arrive souvent juste après (ou pendant l'envoi)
 PHOTO_TEXT_WAIT_S = 8                       # délai pour qu'un texte envoyé juste après une photo parte avec elle
 photo_wait: dict[int, asyncio.Future] = {}   # uid → légende attendue pour la photo en cours
 
@@ -966,7 +967,22 @@ PASSCODE_CMD = re.compile(r'^code secret\s*[:=]?\s*(\S.{1,40})$', re.I)
 
 
 OFFICE_EXT = ('.docx', '.xlsx', '.csv', '.txt')
+SPORT_CODE_CMD = re.compile(r'sport|s[ée]ance|muscu|salle|tapis|elliptique|programme|code|coder|appli|site|bug', re.I)
 EDL_CMD = re.compile(r'[ée]tat|edl|d[ée]part|retour|inspection|lieux|livraison|rendu', re.I)
+
+
+def video_audio(path: str) -> str | None:
+    """Voix de la vidéo (2 min max, mp3 mono) en base64 — None si la vidéo est muette."""
+    out = tempfile.mktemp(prefix='dzvid_', suffix='.mp3')
+    try:
+        r = subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', path, '-vn', '-ac', '1', '-ar', '16000', '-b:a', '48k', '-t', '120', out],
+                           capture_output=True, timeout=120)
+        if r.returncode != 0 or not os.path.exists(out) or os.path.getsize(out) < 4000:
+            return None
+        return base64.b64encode(Path(out).read_bytes()).decode()
+    finally:
+        if os.path.exists(out):
+            os.unlink(out)
 
 
 def video_frames(path: str, n: int = 12) -> list[str]:
@@ -1117,11 +1133,48 @@ async def on_message(_, msg: Message) -> None:
             else:
                 await reply_out(msg, out)
         elif (msg.video or (msg.document and (msg.document.mime_type or '').startswith('video/'))) and actor == speaker.OWNER:
-            # État des lieux en vidéo (27/10) : tour de la voiture + tableau de bord → images → état AVANT / APRÈS
+            # 28/10 : N'IMPORTE QUELLE vidéo (séance de sport, bug d'appli à coder, site à copier…) → images + voix transcrite
+            # → description, puis le cerveau normal agit avec ta consigne (texte avec la vidéo ou envoyé juste après).
+            # État des lieux (27/10) : légende « départ Clio Benali », ou vidéo de voiture sans consigne.
             caption = msg.caption or ''
-            if caption and not EDL_CMD.search(caption):
-                await msg.reply_text('🎥 Vidéo reçue. Si c\'est un état des lieux, renvoie-la avec un texte comme « départ Clio Benali » ou « retour 208 Karim ».')
+            caption_wait, t_vid = None, time.monotonic()
+            if not caption and uid not in photo_wait:
+                caption_wait = asyncio.get_running_loop().create_future()
+                photo_wait[uid] = caption_wait
+            if not (caption and EDL_CMD.search(caption) and not SPORT_CODE_CMD.search(caption)):
+                await app.send_chat_action(uid, enums.ChatAction.TYPING)
+                path = await msg.download(file_name=tempfile.mktemp(prefix='dzvid_', suffix='.mp4'))
+                try:
+                    frames = await asyncio.to_thread(video_frames, path, 16)
+                    audio = await asyncio.to_thread(video_audio, path)
+                finally:
+                    os.unlink(path)
+                if caption_wait is not None:
+                    try:
+                        caption = await asyncio.wait_for(asyncio.shield(caption_wait), max(0.5, VIDEO_TEXT_WAIT_S - (time.monotonic() - t_vid)))
+                    except asyncio.TimeoutError:
+                        caption = ''
+                    finally:
+                        if photo_wait.get(uid) is caption_wait:
+                            del photo_wait[uid]
+                seen = await api('/api/jarvis/video-read', {'frames': [{'base64': f, 'mime': 'image/jpeg'} for f in frames], 'caption': caption,
+                                                            **({'audio': audio, 'audioMime': 'audio/mpeg'} if audio else {})}, actor, 240)
+                if seen.get('kind') == 'car' and (not caption or EDL_CMD.search(caption)):
+                    await msg.reply_text('🎥 État des lieux vidéo : je regarde la voiture sous tous les angles et le tableau de bord (1 min environ)…')
+                    out = await api('/api/jarvis/inspection-frames', {'frames': [{'base64': f, 'mime': 'image/jpeg'} for f in frames[:14]],
+                                                                      'caption': caption}, actor, 240)
+                    for part in split_text(str(out.get('text') or out.get('error') or 'Analyse impossible.')):
+                        await msg.reply_text(part)
+                    return
+                speech = f"\nVoix dans la vidéo : « {seen.get('speech')[:1500]} »" if seen.get('speech') else ''
+                note = (f"[🎥 Kouider t'a envoyé une VIDÉO ({seen.get('title') or seen.get('kind')}). Ce qu'on y voit : {seen.get('description', '')}{speech}]\n"
+                        + (f'Sa consigne : {caption}' if caption else 'Pas de consigne : résume ce que tu vois en 2 lignes et demande-lui ce qu\'il veut en faire.'))
+                out = await api('/api/call/turn', {'message': note, 'image': frames[len(frames) // 2] if frames else None, 'imageMime': 'image/jpeg',
+                                                   'textOnly': True, 'channel': 'message'}, actor, 240)
+                await reply_out(msg, out)
                 return
+            if caption_wait is not None and photo_wait.get(uid) is caption_wait:
+                del photo_wait[uid]
             await msg.reply_text('🎥 État des lieux vidéo : je regarde la voiture sous tous les angles et le tableau de bord (1 min environ)…')
             await app.send_chat_action(uid, enums.ChatAction.TYPING)
             path = await msg.download(file_name=tempfile.mktemp(prefix='dzvid_', suffix='.mp4'))

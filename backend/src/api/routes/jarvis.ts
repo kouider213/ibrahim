@@ -66,6 +66,17 @@ router.post('/inspection-frames', async (req, res) => {
   } catch (e) { fail(res, e); }
 });
 
+// Vidéo quelconque (Telegram) → description + voix transcrite ; le cerveau décide ensuite (sport, code, état des lieux…)
+router.post('/video-read', async (req, res) => {
+  const { frames, caption = '', audio, audioMime } = req.body as { frames?: Array<{ base64: string; mime?: string }>; caption?: string; audio?: string; audioMime?: string };
+  if (!Array.isArray(frames) || !frames.length) { res.status(400).json({ error: 'frames requis' }); return; }
+  try {
+    const { understandVideo } = await import('../../integrations/video-understand.js');
+    res.json(await understandVideo(frames.slice(0, 16).map(f => ({ base64: f.base64.replace(/^data:[^,]+,/, ''), mime: f.mime ?? 'image/jpeg' })), String(caption),
+      audio ? { base64: audio, mime: audioMime ?? 'audio/mpeg' } : undefined));
+  } catch (e) { fail(res, e); }
+});
+
 // HUD Iron Man : une image de la caméra → étiquettes posées sur l'image
 router.post('/hud', async (req, res) => {
   const { image, mime } = req.body as { image?: string; mime?: string };
