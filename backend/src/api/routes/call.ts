@@ -52,6 +52,19 @@ function callActor(req: Request): CallActor {
 }
 
 // POST /api/call/pending — appel de Dzaryx en train de sonner ? (POST : jamais servi par le cache hors-ligne de l'app)
+// TA VOIX : tgcall envoie ses derniers vocaux (les siens) ; lien public à jeton aléatoire pour les audios générés
+router.post('/voice-sample', requireCallerAuth, async (req, res) => {
+  if (callActor(req) !== 'kouider') { res.status(403).json({ error: 'Réservé à Kouider' }); return; }
+  const { audio, seconds } = req.body as { audio?: string; seconds?: number };
+  const r = await import('../../integrations/my-voice.js').then(m => m.saveVoiceSample(String(audio ?? ''), Number(seconds) || 0)).catch(e => String(e));
+  res.json({ ok: true, r });
+});
+router.get('/voice-file/:t.mp3', async (req, res) => {
+  const buf = await import('../../integrations/my-voice.js').then(m => m.voiceFile(String(req.params['t']))).catch(() => null);
+  if (!buf) { res.status(404).end(); return; }
+  res.setHeader('Content-Type', 'audio/mpeg'); res.setHeader('Cache-Control', 'no-store'); res.send(buf);
+});
+
 router.post('/pending', requireMobileAuth, async (req, res) => {
   const call = await getPendingCall(callActor(req));
   const messages = await takeTelegramMessages(callActor(req)).catch(() => []);

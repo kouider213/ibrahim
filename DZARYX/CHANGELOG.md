@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-28 23h30 | TA VOIX | my-voice.ts (nouveau), call.ts, jarvis3-tools.ts, whatsapp-web.ts, tools.ts, tgcall/dzaryx_tg.py
+- Ses propres vocaux Telegram (pas transférés) → tgcall les garde (tgcall/voice-samples, hors dépôt, ~2 min 30 max) et envoie l'échantillon → clonage MiniMax (Replicate, sinon fal) dès 20 s, réappris quand il y a 2× plus de voix.
+- Outil ma_voix : dire (traduit + parle avec SA voix dans n'importe quelle langue → mp3 Telegram), histoire (histoire du soir pour Ibrahim avec la voix de papa, FR ou darija), status, clone. whatsapp_web send_voice + ma_voix:true.
+- Lien audio public à jeton aléatoire /api/call/voice-file/<32 hex>.mp3 (app_kv, 2 j).
+
 ## 2026-10-28 23h | effet wow | wow.ts (nouveau), gps-life.ts, jarvis3-tools.ts, scheduler.ts
 - Retard prédit (wow-watch */5) : RDV avec lieu dans < 100 min, GPS + trafic → arrivée ≥ 5 min après l'heure → boutons « prévenir sur WhatsApp avec l'heure » / « décaler le RDV » / rien.
 - Parcmètre malin (outil parcmetre) : voiture = position au paiement, alerte quand il faut repartir selon le temps À PIED depuis où il est.

@@ -7,3 +7,4 @@ mobile/.env.local
 **/__pycache__/
 **/*.pyc
 nexus/.deps_ok
+tgcall/voice-samples/

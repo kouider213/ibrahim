@@ -2751,6 +2751,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     input_schema: {
       type: 'object' as const,
       properties: {
+        ma_voix: { type: 'boolean', description: 'send_voice : true = le vocal part avec la VRAIE voix de Kouider (outil ma_voix), sinon voix de Dzaryx' },
         action: { type: 'string', enum: ['unread', 'read', 'look', 'photos', 'documents', 'voice', 'send_voice', 'drafts', 'send', 'send_file', 'save_client', 'save_contact', 'status', 'connect'] },
         country: { type: 'string', description: "Pays du numéro s'il n'a pas d'indicatif : FR, DZ, BE, MA, TN…" },
         name: { type: 'string', description: 'Nom du client / du contact (save_client, save_contact)' },

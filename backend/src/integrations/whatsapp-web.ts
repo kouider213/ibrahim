@@ -192,10 +192,11 @@ const CHANGE_RE = /mais|change|modifi|plut[oô]t|sauf|ajoute|enl[eè]ve|corrige/
 const VOICE_RE = /^\s*(oui\s*,?\s*)?(en\s+)?(vocal|audio|voix|message vocal)\s*[.!]?\s*$/i;
 
 /** Réponse envoyée en MESSAGE VOCAL (voix de Dzaryx, langue de la réponse) : fichier audio sur le PC cloud puis envoi. */
-export async function sendWaVoice(chat: string, text: string): Promise<string> {
+export async function sendWaVoice(chat: string, text: string, own = false): Promise<string> {
   if (!isCloudPcOnline()) return '❌ Le PC cloud ne répond pas : WhatsApp injoignable, rien n\'est parti.';
   const { synthesizeVoice } = await import('../notifications/dispatcher.js');
-  const audio = await synthesizeVoice(text).catch(() => null);
+  // own : avec la VRAIE voix de Kouider (my-voice.ts), sinon la voix de Dzaryx
+  const audio = own ? await import('./my-voice.js').then(m => m.speakAsKouider(text)).catch(() => null) : await synthesizeVoice(text).catch(() => null);
   if (!audio?.length) return '❌ Voix indisponible pour le moment : envoie plutôt la réponse écrite (« oui »).';
   const wav = audio.subarray(0, 4).toString('ascii') === 'RIFF';
   const up = await cloudEmit<R & { name?: string }>('cloud:file_put', { name: `Message vocal FIK.${wav ? 'wav' : 'mp3'}`, b64: audio.toString('base64') }, 60_000);
@@ -478,10 +479,10 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
       const shown = await kvGet(PREVIEW_KEY).catch(() => null);
       if (input['confirmed'] !== true || shown !== sig) {
         await kvSet(PREVIEW_KEY, sig, 20 * 60);
-        return `🎙️ Message VOCAL à envoyer à ${chat} (voix de Dzaryx) :\n« ${text} »\n\nDEMANDE À KOUIDER : « Je l'envoie en vocal ? ». Après son oui → même outil, même chat, même texte, confirmed:true.`;
+        return `🎙️ Message VOCAL à envoyer à ${chat} (${input['ma_voix'] === true || input['ma_voix'] === 'true' ? 'avec TA voix' : 'voix de Dzaryx'}) :\n« ${text} »\n\nDEMANDE À KOUIDER : « Je l'envoie en vocal ? ». Après son oui → même outil, même chat, même texte, confirmed:true.`;
       }
       await kvSet(PREVIEW_KEY, '', 60);
-      return sendWaVoice(chat, text);
+      return sendWaVoice(chat, text, input['ma_voix'] === true || input['ma_voix'] === 'true');
     }
     if (action === 'send') {
       if (!chat) return '❌ À qui ? (nom du contact tel qu\'il apparaît dans WhatsApp, ou numéro)';

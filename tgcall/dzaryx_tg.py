@@ -1027,6 +1027,52 @@ def office_text(path: str, name: str) -> str:
         return '\n'.join(out)
 
 
+VOICE_DIR = HERE / 'voice-samples'   # ses propres vocaux (privé, hors dépôt) → « TA VOIX » (backend my-voice.ts)
+VOICE_KEEP_S = 150.0
+
+
+def build_voice_sample(path: str) -> tuple[str, float] | None:
+    """Ajoute ce vocal à ses échantillons, garde les plus récents (~2 min 30), renvoie (mp3 base64, secondes)."""
+    VOICE_DIR.mkdir(exist_ok=True)
+    dst = VOICE_DIR / f'{int(time.time() * 1000)}.mp3'
+    subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', path, '-ac', '1', '-ar', '44100', '-b:a', '128k', str(dst)], check=True)
+    dur = lambda f: float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', str(f)],
+                                         capture_output=True, text=True).stdout.strip() or 0)
+    keep, total = [], 0.0
+    for f in sorted(VOICE_DIR.glob('*.mp3'), reverse=True):
+        if total >= VOICE_KEEP_S:
+            f.unlink(missing_ok=True)
+            continue
+        d = dur(f)
+        if d < 2:      # vocal vide / trop court : inutile pour la voix
+            f.unlink(missing_ok=True)
+            continue
+        keep.append(f); total += d
+    if not keep:
+        return None
+    lst = VOICE_DIR / 'list.txt'
+    lst.write_text(''.join(f"file '{f}'\n" for f in reversed(keep)))
+    out = Path(tempfile.mktemp(prefix='voice_', suffix='.mp3'))
+    subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', str(lst), '-c', 'copy', str(out)], check=True)
+    b64 = base64.b64encode(out.read_bytes()).decode()
+    out.unlink(missing_ok=True)
+    return b64, total
+
+
+async def push_voice_sample(path: str) -> None:
+    try:
+        built = await asyncio.to_thread(build_voice_sample, path)
+        if built:   # envoi en arrière-plan : l'apprentissage (~1 min) ne retarde pas la réponse au vocal
+            async def send() -> None:
+                try:
+                    await api('/api/call/voice-sample', {'audio': built[0], 'seconds': built[1]}, speaker.OWNER, 240)
+                except Exception as e:
+                    log.warning('échantillon de voix (envoi): %s', e)
+            asyncio.create_task(send())
+    except Exception as e:
+        log.warning('échantillon de voix: %s', e)
+
+
 def learn_owner_voice(path: str) -> None:
     """Vocal Telegram de Kouider → sa voix s'apprend (reconnaissance au téléphone)."""
     if not speaker.available():
@@ -1106,6 +1152,7 @@ async def on_message(_, msg: Message) -> None:
                     await asyncio.to_thread(learn_owner_voice, path)
                 except Exception as e:
                     log.warning('voix du vocal: %s', e)
+                await push_voice_sample(path)   # « TA VOIX » : Dzaryx apprend à parler avec sa voix
             os.unlink(path)
             tr = await api('/api/transcribe', {'audio': b64, 'mimeType': 'audio/ogg'}, actor, 40)
             text = (tr.get('text') or '').strip()
