@@ -58,7 +58,7 @@ const pageText = (html: string) => html.replace(/<script[\s\S]*?<\/script>|<styl
 const between = (t: string, from: string, to: string) => { const a = t.indexOf(from); const z = t.indexOf(to, a + from.length); return a < 0 ? '' : t.slice(a, z > a ? z : a + 4000); };
 
 /** TOUTES les conditions FIK : celles du site (pages Conditions + FAQ, relues toutes les 6 h) + la fiche du widget. */
-async function publicInfo(): Promise<string> {
+export async function publicInfo(): Promise<string> {
   let site = (await kvGet('nightguard:site').catch(() => null)) ?? '';
   if (!site) {
     const [cond, faq] = await Promise.all(['conditions', 'faq'].map(p => fetch(`${SITE}/${p}`, { signal: AbortSignal.timeout(10_000) }).then(r => r.text()).then(pageText).catch(() => '')));

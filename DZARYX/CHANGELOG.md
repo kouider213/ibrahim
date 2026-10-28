@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-28 18h — Dzaryx connaît les conditions du site
+- Outil conditions_fik (toujours chargé, aussi pour les réponses WhatsApp) : texte exact des pages Conditions + FAQ de fikconciergerie.com + fiche agence (publicInfo du gardien de nuit, cache 6 h).
+- Consigne : jamais « je n'ai pas de fiche de conditions ».
+
 ## 2026-10-28 17h30 — Photos WhatsApp hors écran + Siri 8 s
 - cloudpc whatsapp_web.py JS_PHOTOS : fait défiler chaque miniature floue à l'écran et capture au fur et à mesure, puis revient en bas (le billet de Djillali à 20h54 n'était jamais lu).
 - Siri : erreur même à 13 s → budget 8 s puis réponse sur Telegram.

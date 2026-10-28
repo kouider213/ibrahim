@@ -19,7 +19,7 @@ export const READ_TOOLS = new Set([
   'get_daily_report', 'get_client_history', 'obsidian_read_client', 'obsidian_list_clients', 'obsidian_read_note',
   'health_check_all', 'get_site_analytics', 'list_reviews', 'get_travel_time', 'calculate_delivery_fee',
   'get_vehicle_states', 'get_property_states', 'list_learned_rules', 'suggest_smart_pricing', 'get_car_papers',
-  'check_client', 'get_expenses', 'get_vehicle_maintenance',
+  'check_client', 'get_expenses', 'get_vehicle_maintenance', 'conditions_fik',
 ]);
 
 export const READ_TOOL_DEFS: Anthropic.Tool[] = Dzaryx_TOOLS.filter(t => READ_TOOLS.has(t.name));

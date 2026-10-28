@@ -26,6 +26,7 @@ export const JARVIS4_TOOLS: Anthropic.Tool[] = [
   { name: 'usine_outils', description: "USINE À OUTILS : Kouider dicte une idée (« surveille le prix du ciment à Oran », « préviens-moi si un appart à Oran passe sous 2 M DA ») → l'outil est écrit, testé en lecture seule, puis mis en ligne APRÈS son oui. 'create' (idea) ; 'confirm' (id) après son oui ; 'list' ; 'run' (name) ; 'remove' (name).", input_schema: obj({ action: act('create', 'confirm', 'list', 'run', 'remove'), idea: S, id: S, name: S }, ['action']) },
   { name: 'ecran', description: "CONTINUITÉ D'ÉCRAN : « continue sur la télé », « mets ça sur le PC » → affiche la suite de la discussion (plan, chiffres, document, liste) sur l'écran choisi. target tv|pc|app ; title ; content = TOUT le contenu à afficher (markdown), reformulé pour un grand écran.", input_schema: obj({ target: act('tv', 'pc', 'app'), title: S, content: S }, ['content']) },
   { name: 'debrief', description: "DÉBRIEF VOCAL : il raconte en vrac (« j'ai vu Houari, la Duster fait un bruit, rappeler le garage, Karim veut juillet ») → fiches des gens et promesses mises à jour seules, puis tâches / rendez-vous / messages à faire avec tes outils. text = tout ce qu'il a dit.", input_schema: obj({ text: S }, ['text']) },
+  { name: 'conditions_fik', description: "CONDITIONS FIK — TEXTE EXACT DU SITE fikconciergerie.com (pages Conditions + FAQ) + fiche agence : location de voiture (âge, acompte, caution, papiers, kilométrage, assurance, zone), livraison aéroport, adresse Hay Badr, horaires, vente, immobilier, packs, propriétaires. À appeler AVANT de donner ou d'écrire nos conditions à un client (« donne-lui nos conditions », « c'est quoi nos conditions ? », réponse WhatsApp) — ne dis jamais que tu ne les connais pas.", input_schema: obj({}) },
   { name: 'repetition', description: "RÉPÉTITION AVANT UN APPEL DIFFICILE : Dzaryx joue l'autre personne (garagiste, client qui conteste, administration, banquier…), coriace, par écrit ou en appel ; à la fin note /10 + phrases à changer. 'start' (role = qui jouer + contexte, goal = ce que Kouider veut obtenir) ; 'end' quand il dit « fin de la répétition ».", input_schema: obj({ action: act('start', 'end'), role: S, goal: S }, ['action']) },
 ];
 
@@ -33,6 +34,7 @@ export const JARVIS4_NAMES = JARVIS4_TOOLS.map(t => t.name);
 
 export async function runJarvis4Tool(name: string, input: Record<string, unknown>, sessionId?: string): Promise<string | null> {
   if (!JARVIS4_NAMES.includes(name)) return null;
+  if (name === 'conditions_fik') return (await import('./night-guard.js')).publicInfo();
   if (/houari/i.test(sessionId ?? '')) return '❌ Réservé à Kouider.';
   switch (name) {
     case 'conscience': return (await import('./conscience.js')).conscienceTool(input);

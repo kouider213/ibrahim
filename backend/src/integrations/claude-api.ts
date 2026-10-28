@@ -226,6 +226,7 @@ const MONEY_WA_HINT =
   "ARGENT : toute conversion dinar ↔ euro passe par un outil (gold_watch action change = square du jour, ou convert_currency), jamais un chiffre de tête. "
   + "En Algérie « 230 millions » = millions de centimes = 2 300 000 DA ; un client qui écrit « budget 2 300 000 » parle en DA. Donne DA + € au square directement, sans demander « tu veux ? ». "
   + "WHATSAPP : quand tu donnes à Kouider un message client resté sans réponse, ajoute TOUJOURS une réponse proposée (courte, polie, au nom de FIK) et demande « je lui envoie ? ». "
+  + "NOS CONDITIONS (location, acompte, caution, papiers, livraison, adresse, vente, immobilier, packs) : outil conditions_fik = texte exact du site, à appeler avant de les donner ou de les écrire à un client ; jamais « je n'ai pas de fiche de conditions ». "
   + "Après son oui : lance whatsapp_web send TOUT DE SUITE. Ne dis jamais « pas connecté » ou « je ne peux pas » sans qu'un outil l'ait répondu à CE tour.";
 const CORE_TOOLS = new Set([
   // Locations, flotte, clients, argent
@@ -241,7 +242,7 @@ const CORE_TOOLS = new Set([
   'set_private_mode', 'show_my_memory', 'send_nexus_command', 'nexus_screenshot', 'ping_nexus',
   'web_search', 'assign_task', 'list_team_tasks', 'create_goal', 'save_procedure',
   // Se décrire sans inventer + documents
-  'list_my_capabilities', 'whatsapp_web', 'convert_currency', 'business_mentor', 'kouider_dossier', 'life_coach', 'family_care', 'papa_time', 'forme', 'run_self_test', 'get_upcoming_seasons', 'cloud_pc', 'watch_page', 'web_routine', 'air_algerie_search', 'air_algerie_watch', 'gold_watch', 'protocol', 'photo_memory', 'anti_arnaque', 'meetings', 'gardien_nuit', 'negociateur', 'predictions', 'rappel_lieu', 'escouade', ...JARVIS3_NAMES, 'create_google_doc', 'send_doc_pdf', 'business_simulator', 'partners', 'create_google_sheet', 'create_presentation_doc', 'create_demo_site', 'get_demo_site', 'carte_live_demo_link', 'create_client_site', 'manage_client_site', 'fik_site_contract', 'flash_offer', 'billing', 'morning_routine', 'sport_coach', 'gps_assistant', 'travel',
+  'list_my_capabilities', 'whatsapp_web', 'conditions_fik', 'convert_currency', 'business_mentor', 'kouider_dossier', 'life_coach', 'family_care', 'papa_time', 'forme', 'run_self_test', 'get_upcoming_seasons', 'cloud_pc', 'watch_page', 'web_routine', 'air_algerie_search', 'air_algerie_watch', 'gold_watch', 'protocol', 'photo_memory', 'anti_arnaque', 'meetings', 'gardien_nuit', 'negociateur', 'predictions', 'rappel_lieu', 'escouade', ...JARVIS3_NAMES, 'create_google_doc', 'send_doc_pdf', 'business_simulator', 'partners', 'create_google_sheet', 'create_presentation_doc', 'create_demo_site', 'get_demo_site', 'carte_live_demo_link', 'create_client_site', 'manage_client_site', 'fik_site_contract', 'flash_offer', 'billing', 'morning_routine', 'sport_coach', 'gps_assistant', 'travel',
   // Position live (Telegram) + trajet avec trafic réel
   'get_my_location', 'get_travel_time', 'list_agenda_events', 'update_agenda_event', 'delete_agenda_event',
 ]);
