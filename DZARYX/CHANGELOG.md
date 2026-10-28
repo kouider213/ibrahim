@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-28 (suite 8) — B045 suite : test réel de 14h01 raté
+- `orchestrator.ts` : « ange gardien contact » répond directement, sans passer par le cerveau ; « vérifie… » sans « envoie/montre » → setDocReadOnly (aucun papier envoyé).
+- `context-builder.ts` : un message resté sans réponse (panne/redéploiement) est marqué pour que le cerveau n'y réponde plus au tour suivant.
+- `tool-executor.ts` : get_client_document forcé en send:false pour ces tours.
+
 ## 2026-10-28 (suite 7) — B045 ange gardien ignoré + permis envoyé par erreur
 - `orchestrator.ts` : « ange gardien contact <nom> <numéro> » enregistré directement (angelTool) ; les 2 relances de garde ne traitent que le dernier message.
 - `tools.ts` / `tool-executor.ts` : get_client_document `send:false` (vérification sans envoi) ; résultat honnête « envoyé sur Telegram ».

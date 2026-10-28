@@ -329,7 +329,7 @@ async function _dispatch(
       case 'delete_booking':        return await deleteBooking(input);
       case 'get_financial_report':  return await financialReport(input);
       case 'store_document':        return await storeDocument(input);
-      case 'get_client_document':   return await getClientDocument({ ...input, ...(/houari/i.test(sessionId ?? '') ? { _houari: true } : {}) });
+      case 'get_client_document':   return await getClientDocument({ ...input, ...(/houari/i.test(sessionId ?? '') ? { _houari: true } : {}), ...(sessionId && docReadOnly.has(sessionId) ? { send: false } : {}) });
       case 'read_site_file':        return await readSiteFile(input);
       case 'update_site_file':      return await updateSiteFile(input);
       case 'learn_rule':            return await learnRuleTool(input);
@@ -1690,6 +1690,10 @@ async function githubSearchCode(input: Record<string, unknown>): Promise<string>
   if (!query) return 'Query requise';
   return searchCode(repo, query);
 }
+
+/** Sessions dont le tour en cours est une simple vérification (« vérifie si X a son permis ») : aucun papier n'est envoyé. */
+const docReadOnly = new Set<string>();
+export function setDocReadOnly(sessionId: string, on: boolean): void { if (on) docReadOnly.add(sessionId); else docReadOnly.delete(sessionId); }
 
 async function getClientDocument(input: Record<string, unknown>): Promise<string> {
   // Build REST API URL directly (bypass supabase JS type issues)

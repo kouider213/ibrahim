@@ -545,6 +545,14 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
   // Always keep the last 3 messages intact (immediate context); strip confirmation-only assistant
   // messages from older history so Claude doesn't echo them in new unrelated responses.
   const KEEP_RECENT = 3;
+  // Message resté sans réponse (panne, redéploiement) : sans cette note, le cerveau répondait à CETTE vieille question
+  // au lieu du nouveau message (28/10 : « ange gardien contact Fatima » → réponse sur le permis de Halfi demandé avant la coupure).
+  if (history.at(-1)?.role === 'user' && String(history.at(-1)?.content).trim() === userMessage.trim()) history.pop();
+  for (let i = 0; i < history.length; i++) {
+    const next = history[i + 1];
+    if (history[i]!.role === 'user' && (!next || next.role === 'user'))
+      history[i] = { ...history[i]!, content: `[Message resté SANS réponse (panne technique). N'y réponds PAS, sauf si son nouveau message le redemande.]\n${history[i]!.content}` };
+  }
   const recentHistory = history.slice(-KEEP_RECENT);
   const olderHistory  = history
     .slice(0, Math.max(0, history.length - KEEP_RECENT))

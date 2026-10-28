@@ -233,8 +233,16 @@ export async function processMessage(
   if (angel) {
     const { angelTool } = await import('../integrations/gps-life.js');
     const done = await angelTool({ action: 'contact', name: angel.name, number: angel.number }).catch(e => `❌ échec : ${e instanceof Error ? e.message : e}`);
-    ctx.systemExtra = `[Système : commande « ange gardien » traitée, résultat RÉEL : ${done}\nRéponds UNIQUEMENT à ça, en une ou deux phrases (redis le nom et le numéro). Ne reparle d'aucun sujet précédent.]\n\n${ctx.systemExtra ?? ''}`.trim();
+    // Réponse directe, sans le cerveau : même avec la consigne, il repartait sur une vieille question et envoyait des papiers clients
+    _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: done });
+    saveConversationTurn(sessionId, 'assistant', done).catch(() => {});
+    _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+    return { text: done, status: 'done' };
   }
+  // « vérifie si Halfi a bien son permis » = lecture seule : get_client_document n'envoie rien (le modèle oubliait send:false)
+  const { setDocReadOnly } = await import('../integrations/tool-executor.js');
+  setDocReadOnly(sessionId, /v[ée]rifi|regarde|est-ce qu|a bien|existe|il y a|c'est quand|quelle heure|valide|expir/i.test(userMessage)
+    && !/envoi|envoy|montre|transf|partage|donne|fais.?voir|photo/i.test(userMessage));
   if (v2ContextAddition) {
     ctx.systemExtra = `${v2ContextAddition}\n\n${ctx.systemExtra ?? ''}`.trim();
   }

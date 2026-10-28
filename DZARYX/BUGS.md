@@ -10,6 +10,7 @@
 ### B045 — « Ange gardien contact Fatima +32… » ignoré, réponse sur l'ancienne question Halfi + permis du client envoyé sur Telegram (28/10) ✅ FIXÉ
 13h45 : contact jamais enregistré ; le cerveau a « vérifié » sa réponse précédente (10 h inventé à 13h16) via list_bookings + get_client_document, qui a envoyé permis + passeport sur Telegram, puis a écrit « je ne les ai pas envoyés ».
 Fix : orchestrator.ts angelContactCommand() enregistre le contact sans dépendre du modèle ; relances anti-hallu/fantôme citent le DERNIER message et interdisent l'ancien sujet ; get_client_document send:false = lecture seule, et le résultat dit quand la photo est partie sur Telegram.
+Suite 14h01 : réponse ange gardien directe (sans cerveau) ; message resté sans réponse après une panne marqué « n'y réponds pas » (context-builder) ; « vérifie / a bien / valide… » sans « envoie / montre » = get_client_document forcé en lecture seule par le code (setDocReadOnly).
 
 ### B044 — Résa WhatsApp enregistrée « Client (+numéro) », papiers pas dans le dossier, contact pas enregistré (27/10) ✅ FIXÉ
 Crédit Claude à 0 → secours Gemini : passeport/permis jamais lus (lecture = Claude Haiku seul), save_client jamais appelé, PDF de papiers pas lu, prix proprio absent (profit 0).
