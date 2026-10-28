@@ -59,6 +59,12 @@ router.post('/voice-sample', requireCallerAuth, async (req, res) => {
   const r = await import('../../integrations/my-voice.js').then(m => m.saveVoiceSample(String(audio ?? ''), Number(seconds) || 0)).catch(e => String(e));
   res.json({ ok: true, r });
 });
+// L'ŒIL : image de la caméra d'un appel vidéo (tgcall, ~toutes les 8 s) → mémoire visuelle + phrase spontanée éventuelle
+router.post('/eye', requireCallerAuth, async (req, res) => {
+  if (callActor(req) !== 'kouider') { res.json({}); return; }
+  const r = await import('../../integrations/eye.js').then(m => m.eyeFrame(String((req.body as { image?: string }).image ?? ''))).catch(e => { console.warn('[eye]', e instanceof Error ? e.message : e); return {}; });
+  res.json(r);
+});
 router.get('/media/:t.:ext', async (req, res) => {
   const f = await import('../../integrations/my-voice.js').then(m => m.mediaFile(String(req.params['t']))).catch(() => null);
   if (!f) { res.status(404).end(); return; }

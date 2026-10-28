@@ -139,6 +139,41 @@ class CallState:
         self.silence_s = 0.0
         self.in_rate = SAMPLE_RATE    # 24 kHz si l'appel a commencé en voix temps réel puis basculé (enregistrement déjà lancé)
         self.rc_state = None
+        self.eye_task: asyncio.Task | None = None   # L'ŒIL : regard continu pendant un appel vidéo
+
+
+EYE_EVERY_S = float(os.environ.get('EYE_EVERY_S', '8'))
+EYE_NOTE = ("L'ŒIL est actif : tu vois sa caméra en continu et tu te souviens de tout ce que tu as vu (outil memoire_visuelle "
+            "pour « où j'ai posé… », « c'était combien… »). S'il te demande de guetter quelque chose (« préviens-moi si tu vois … »), "
+            "utilise memoire_visuelle action=watch.")
+
+
+async def eye_loop(user_id: int) -> None:
+    """L'ŒIL : caméra allumée pendant l'appel → une image toutes les ~8 s au backend (mémoire visuelle). S'il remarque
+    quelque chose d'utile (texte étranger, courrier, danger, chose à guetter), Dzaryx le dit de lui-même — seulement
+    quand personne ne parle, et seulement à Kouider."""
+    noted = False
+    while True:
+        st = active.get(user_id)
+        if not st or not st.rt or st.rt.closed or st.actor != speaker.OWNER:
+            return
+        rt = st.rt
+        jpg = await asyncio.to_thread(rt.snapshot) if rt.who == speaker.OWNER else None
+        if jpg:
+            try:
+                if not noted:
+                    noted = True
+                    await rt._send({'type': 'conversation.item.create', 'item': {'type': 'message', 'role': 'system',
+                                    'content': [{'type': 'input_text', 'text': EYE_NOTE}]}})
+                res = await api('/api/call/eye', {'image': jpg}, st.actor, 30)
+                say = (res or {}).get('say')
+                if say and not rt.responding and not rt.out and not rt.closed:
+                    log.info('œil → %s', say[:120])
+                    await rt._send({'type': 'response.create', 'response': {'instructions':
+                                    f'Tu viens de remarquer ça à sa caméra : dis-le-lui spontanément, en une phrase naturelle et courte : « {say} »'}})
+            except Exception as e:
+                log.warning('œil: %s', str(e)[:160])
+        await asyncio.sleep(EYE_EVERY_S)
 
 
 active: dict[int, CallState] = {}
@@ -363,6 +398,8 @@ async def on_frames(_, update: StreamFrames) -> None:
         if st is not None and st.rt is not None and update.frames:
             fr = update.frames[-1]
             st.rt.feed_video(fr.frame, fr.info.width, fr.info.height, ROTATION.get(fr.info.rotation, 0))
+            if st.eye_task is None and st.actor == speaker.OWNER:
+                st.eye_task = asyncio.create_task(eye_loop(update.chat_id))
         return
     if update.device == Device.SCREEN:
         return

@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-29 00h | L'ŒIL + double vidéo | eye.ts (nouveau), my-voice.ts, call.ts, jarvis3-tools.ts, tgcall/dzaryx_tg.py
+- L'ŒIL : appel vidéo Telegram → image toutes les 8 s → Gemini Flash Lite → mémoire visuelle 7 j (lieu, objets + où ils sont, textes/plaques/prix, GPS) ; phrase spontanée (texte étranger traduit, courrier, danger, chose guettée) dite par la voix de l'appel quand personne ne parle. Outil memoire_visuelle (ask, watch/unwatch, status, on/off, clear).
+- Double vidéo (ma_voix photo/video/histoire_video, Replicate bytedance/omni-human testé OK) — Kouider : « ça ne servira à rien », laissé en place sans le mettre en avant.
+
 ## 2026-10-28 23h30 | TA VOIX | my-voice.ts (nouveau), call.ts, jarvis3-tools.ts, whatsapp-web.ts, tools.ts, tgcall/dzaryx_tg.py
 - Ses propres vocaux Telegram (pas transférés) → tgcall les garde (tgcall/voice-samples, hors dépôt, ~2 min 30 max) et envoie l'échantillon → clonage MiniMax (Replicate, sinon fal) dès 20 s, réappris quand il y a 2× plus de voix.
 - Outil ma_voix : dire (traduit + parle avec SA voix dans n'importe quelle langue → mp3 Telegram), histoire (histoire du soir pour Ibrahim avec la voix de papa, FR ou darija), status, clone. whatsapp_web send_voice + ma_voix:true.
