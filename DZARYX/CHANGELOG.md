@@ -5,6 +5,9 @@
 
 ---
 
+## 2026-10-28 (suite 4) — Siri : « vérifie » = lecture seule
+- `jarvis-hub.ts` (prompt Siri) + `tools.ts` (whatsapp_web) : « regarde / vérifie / c'est quand / à quelle heure » → list_bookings, dossier, whatsapp_web 'read' ; plus jamais 'photos' / 'documents' / get_client_document / air_algerie_* pour une simple vérification (Siri envoyait les photos du client sur Telegram au lieu de répondre). Photos et papiers seulement sur « envoie-moi / montre-moi ».
+
 ## 2026-10-28 (suite 3) — JARVIS 4 : la Conscience + 30 fonctions (app v203)
 - `conscience.ts` : LA CONSCIENCE (job */10) regarde lieu, route, agenda, locations, vols, WhatsApp, promesses, santé, humeur, énergie, modes → parle seulement si utile (max 6/j, nuit/bouclier = urgence seule, pas de redite via `tg:sentlog`, apprend des réactions `conscience:scores`). Décisions à boutons (réponse « 1/2/3 » sur Telegram interceptée dans /api/call/turn, boutons dans l'app, menu Raccourci). Bouclier famille (maison le soir → DND + gardien), relais quand il est tendu (humeur en direct), énergie prévue (profil hebdo + énergie du jour), `jarvis4Context` injecté dans le prompt.
 - `gps-life.ts` : trace + visites nommées, ange gardien (arrêt net / nuit inhabituelle → message → appel → contact WhatsApp d'urgence), fatigue au volant, parking, mode Oran auto (Houari prévenu), check-list au départ, prospects sans site autour (FR/DZ), banque du temps (dim 20h).
