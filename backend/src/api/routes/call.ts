@@ -184,6 +184,7 @@ router.post('/location', requireCallerAuth, async (req, res) => {
       await redis.setex(`location:${who}`, 86_400, JSON.stringify({ ...prev, lat, lng, updated_at: new Date().toISOString() }));
     } else await storeLocation(who, lat, lng);
     if (who === 'kouider') void import('../../integrations/presence.js').then(m => m.onLocationUpdate()).catch(() => {});   // assistant GPS
+    if (who === 'kouider') void import('../../integrations/gps-life.js').then(m => m.onLocationPoint(lat, lng)).catch(() => {});   // ange gardien, parking, mode Oran…
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
@@ -211,6 +212,10 @@ router.post('/turn', requireCallerAuth, async (req, res) => {
     const gps = who === 'kouider' && channel === 'message' && !image && message
       ? await import('../../integrations/presence.js').then(m => m.handlePresenceReply(message)).catch(() => null) : null;
     if (gps?.reply) { res.json({ text: gps.reply, audio: null }); return; }
+    // « 1 », « 2 », « 3 » juste après une notification à boutons (Jarvis 4) → exécuté directement
+    const dec = !gps && who === 'kouider' && channel === 'message' && !image && message
+      ? await import('../../integrations/conscience.js').then(m => m.handleDecisionReply(message)).catch(() => null) : null;
+    if (dec?.reply) { res.json({ text: dec.reply, audio: null }); return; }
     const wa = !gps && who === 'kouider' && channel === 'message' && !image && message
       ? await import('../../integrations/whatsapp-web.js').then(m => m.handleWaYesNo(message)).catch(() => null) : null;
     if (wa?.reply) { res.json({ text: wa.reply, audio: null }); return; }

@@ -10,7 +10,7 @@ import { T, tone, PageHeader, Segmented, Card, Btn, Badge, Empty, Field, Screen,
 // Le micro est découpé aux pauses (petits morceaux envoyés au serveur). Jamais de <video> pendant que le micro tourne
 // (sur iPhone, une vidéo coupe le micro) : l'état des lieux vidéo a son propre onglet, micro éteint.
 
-type Tab = 'hud' | 'copilote' | 'escouade' | 'salle' | 'sante' | 'souffleur' | 'reunion' | 'sparring' | 'protocoles' | 'video';
+type Tab = 'cerveau' | 'hud' | 'copilote' | 'escouade' | 'salle' | 'sante' | 'souffleur' | 'reunion' | 'sparring' | 'protocoles' | 'video';
 type Kind = 'souffleur' | 'reunion' | 'sparring';
 interface Line { who: string; text: string; fr?: string; whisper?: string; me?: boolean }
 interface Meeting { id: string; kind: Kind; at: string; title: string; summary: string; decisions: string[]; promises: Array<{ who: string; what: string; when?: string }>; followup: string; minutes: number }
@@ -780,6 +780,95 @@ function Salle({ onAsk }: { onAsk: (p: string) => void }) {
   );
 }
 
+// ── 🧠 CERVEAU (Jarvis 4, 28/10) : décisions à boutons, salle de crise, écran partagé (télé / PC), widget ────────
+interface Decision { id: string; at: number; title: string; options: Array<{ label: string }> }
+interface Crisis { title: string; at: number; steps: Array<{ text: string; who?: string; done?: boolean; message?: string }>; log: string[] }
+interface ScreenNow { title: string; content: string; at: number }
+interface Widget { money: number; month: number | null; waiting: number; sport: string; energy: number | null; next: string; weather: string; weatherText: string; at: string }
+
+function Cerveau({ onAsk }: { onAsk: (p: string) => void }) {
+  const [dec, setDec] = useState<Decision[]>([]);
+  const [crisis, setCrisis] = useState<Crisis | null>(null);
+  const [screen, setScreen] = useState<ScreenNow | null>(null);
+  const [w, setW] = useState<Widget | null>(null);
+  const [msg, setMsg] = useState('');
+  const screenRef = useRef<HTMLDivElement>(null);
+  const load = useCallback(() => {
+    apiFetch<{ decisions: Decision[] }>('/api/jarvis/decisions').then(r => setDec(r.decisions)).catch(() => {});
+    apiFetch<{ crisis: Crisis | null }>('/api/jarvis/crisis').then(r => setCrisis(r.crisis)).catch(() => {});
+    apiFetch<{ screen: ScreenNow | null }>('/api/jarvis/screen').then(r => setScreen(r.screen)).catch(() => {});
+    apiFetch<Widget>('/api/jarvis/widget').then(setW).catch(() => {});
+  }, []);
+  useEffect(() => { load(); const t = window.setInterval(load, 15_000); return () => window.clearInterval(t); }, [load]);
+  const choose = async (id: string, n: number) => {
+    setMsg('…');
+    try { setMsg((await apiFetch<{ text: string }>(`/api/jarvis/decisions/${id}`, { method: 'POST', body: JSON.stringify({ choice: n }) })).text); load(); } catch (e) { setMsg(errMsg(e)); }
+  };
+  const full = () => { const el = screenRef.current as (HTMLDivElement & { webkitRequestFullscreen?: () => void }) | null; (el?.requestFullscreen?.() ?? el?.webkitRequestFullscreen?.()); };
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      {w && (
+        <Card accent={T.accent}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <b style={{ fontSize: 15 }}>{w.weather} {w.weatherText}</b><span style={{ fontSize: 11, color: T.faint }}>{w.at}</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 8, marginTop: 8 }}>
+            <Tile label="Aujourd'hui" value={`${w.money.toLocaleString('fr-FR')} €`} sub={w.month != null ? `mois ${w.month.toLocaleString('fr-FR')} €` : undefined} color={T.ok} />
+            <Tile label="Clients qui attendent" value={String(w.waiting)} color={w.waiting ? T.warn : T.ok} />
+            <Tile label="Séance" value={w.sport} />
+            <Tile label="Énergie" value={w.energy != null ? `${w.energy}/10` : '—'} color={T.violet} />
+          </div>
+          <div style={{ fontSize: 12.5, marginTop: 8 }}>➡️ Prochaine étape : {w.next}</div>
+          <div style={{ fontSize: 11, color: T.faint, marginTop: 4 }}>C'est aussi le widget de ton écran d'accueil (app Scriptable).</div>
+        </Card>
+      )}
+      <SectionTitle>🔘 Décisions en attente</SectionTitle>
+      {!dec.length && <div style={{ color: T.faint, fontSize: 13 }}>Rien à décider. Quand Dzaryx a besoin de toi, les boutons arrivent ici et sur Telegram (réponds juste 1, 2 ou 3).</div>}
+      {dec.map(d => (
+        <Card key={d.id}>
+          <div style={{ fontSize: 13.5, whiteSpace: 'pre-wrap' }} dir="auto">{d.title}</div>
+          <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+            {d.options.map((o, i) => <Btn key={i} onClick={() => void choose(d.id, i + 1)}>{i + 1}. {o.label}</Btn>)}
+          </div>
+        </Card>
+      ))}
+      {msg && <div style={{ fontSize: 12.5, whiteSpace: 'pre-wrap', color: T.muted }}>{msg}</div>}
+      {crisis && (
+        <>
+          <SectionTitle>🚨 Salle de crise</SectionTitle>
+          <Card accent={T.bad}>
+            <div style={{ fontWeight: 800, fontSize: 15 }}>{crisis.title}</div>
+            <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+              {crisis.steps.map((st, i) => (
+                <div key={i} style={{ fontSize: 13, opacity: st.done ? 0.55 : 1 }}>
+                  {st.done ? '✅' : '⬜'} {i + 1}. {st.text}{st.who ? <span style={{ color: T.muted }}> — {st.who}</span> : null}
+                  {!st.done && <span onClick={() => onAsk(`Salle de crise : étape ${i + 1} faite`)} style={{ marginLeft: 8, color: T.accent, cursor: 'pointer', fontSize: 12 }}>marquer fait</span>}
+                  {st.message && <div style={{ fontSize: 12, color: T.faint, marginLeft: 22 }} dir="auto">✉️ {st.message}</div>}
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 11.5, color: T.faint, marginTop: 8 }}>{crisis.log.slice(-4).join(' · ')}</div>
+            <Btn onClick={() => onAsk('Ferme la salle de crise, c\'est réglé')} style={{ marginTop: 8 }}>🟢 C'est réglé</Btn>
+          </Card>
+        </>
+      )}
+      <SectionTitle>📺 Écran partagé</SectionTitle>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Btn onClick={full} style={{ flex: 1 }}>⛶ Plein écran (télé / PC)</Btn>
+        <Btn onClick={load}>↻</Btn>
+      </div>
+      <div ref={screenRef} style={{ background: '#030814', borderRadius: 16, padding: 18, minHeight: 160, overflowY: 'auto' }}>
+        {screen ? (
+          <>
+            <div style={{ fontFamily: 'Orbitron, sans-serif', fontSize: 12, color: T.accent, letterSpacing: '0.18em', marginBottom: 10 }}>{screen.title.toUpperCase()}</div>
+            <div style={{ fontSize: 17, lineHeight: 1.5, whiteSpace: 'pre-wrap' }} dir="auto">{screen.content.replace(/\*\*/g, '')}</div>
+          </>
+        ) : <div style={{ color: T.faint, fontSize: 13, textAlign: 'center', paddingTop: 50 }}>Dis à Dzaryx « continue sur la télé » et la suite s'affiche ici.</div>}
+      </div>
+    </div>
+  );
+}
+
 // ── 🩺 SANTÉ + 🍏 SIRI (Raccourcis iPhone) ───────────────────────────────────
 function SanteSiri() {
   const [text, setText] = useState('');
@@ -834,11 +923,12 @@ export default function JarvisScreen({ onAsk }: { onAsk: (prompt: string) => voi
     <Screen header={<>
       <PageHeader eyebrow="Dzaryx · mode Jarvis" title="JARVIS" subtitle="Il voit, il écoute, il conduit avec toi, il agit." />
       <div style={{ padding: '0 12px 8px', overflowX: 'auto' }}>
-        <Segmented<Tab> items={[{ id: 'hud', label: '🕶️ HUD' }, { id: 'copilote', label: '🚗 Copilote' }, { id: 'escouade', label: '🛰️ Escouade' }, { id: 'salle', label: '🖥️ Salle' }, { id: 'sante', label: '🩺 Santé·Siri' }, { id: 'souffleur', label: '🎧 Souffleur' }, { id: 'reunion', label: '📝 Réunion' }, { id: 'sparring', label: '🥊 Entraîn.' },
+        <Segmented<Tab> items={[{ id: 'cerveau', label: '🧠 Cerveau' }, { id: 'hud', label: '🕶️ HUD' }, { id: 'copilote', label: '🚗 Copilote' }, { id: 'escouade', label: '🛰️ Escouade' }, { id: 'salle', label: '🖥️ Salle' }, { id: 'sante', label: '🩺 Santé·Siri' }, { id: 'souffleur', label: '🎧 Souffleur' }, { id: 'reunion', label: '📝 Réunion' }, { id: 'sparring', label: '🥊 Entraîn.' },
           { id: 'protocoles', label: '⚡ Protocoles' }, { id: 'video', label: '🎥 État lieux' }]} value={tab} onChange={pick} />
       </div>
     </>}>
       <style>{'@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}@keyframes hudscan{0%{top:0}100%{top:100%}}'}</style>
+      {tab === 'cerveau' && <Cerveau onAsk={onAsk} />}
       {tab === 'hud' && <Hud />}
       {tab === 'copilote' && <Copilote />}
       {tab === 'escouade' && <Escouade />}

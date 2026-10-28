@@ -35,6 +35,7 @@ function nightOf(ts = Date.now(), c: Cfg = DEFAULT): string {
 
 export async function nightGuardActive(): Promise<boolean> {
   if (await import('./brain-plus.js').then(m => m.vacationActive()).catch(() => false)) return true;   // mode vacances : 24 h/24
+  if (await import('./conscience.js').then(m => m.guardOnDuty()).catch(() => false)) return true;     // bouclier famille / relais (Jarvis 4)
   const c = await nightCfg();
   return c.enabled && inWindow(localNow().hhmm, c);
 }

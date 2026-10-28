@@ -433,6 +433,8 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     : '\n(Aucun client VIP enregistré pour le moment)';
 
   const isHouari = actor.ownerKey === 'houari';
+  // Jarvis 4 : modes du moment (Oran, bouclier famille, relais, répétition, énergie, humeur)
+  const jarvis4Text = isHouari ? '' : await import('../integrations/conscience.js').then(m => m.jarvis4Context()).catch(() => '');
 
   let langDetection = detectLanguage(userMessage);
   // Actor preferred language override
@@ -515,6 +517,7 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     chartHint,
     dateInfo,
     moodText,
+    jarvis4Text,
     weatherText,
     fleetText,
     bookingsText,

@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-10-28 (suite 3) — JARVIS 4 : la Conscience + 30 fonctions (app v203)
+- `conscience.ts` : LA CONSCIENCE (job */10) regarde lieu, route, agenda, locations, vols, WhatsApp, promesses, santé, humeur, énergie, modes → parle seulement si utile (max 6/j, nuit/bouclier = urgence seule, pas de redite via `tg:sentlog`, apprend des réactions `conscience:scores`). Décisions à boutons (réponse « 1/2/3 » sur Telegram interceptée dans /api/call/turn, boutons dans l'app, menu Raccourci). Bouclier famille (maison le soir → DND + gardien), relais quand il est tendu (humeur en direct), énergie prévue (profil hebdo + énergie du jour), `jarvis4Context` injecté dans le prompt.
+- `gps-life.ts` : trace + visites nommées, ange gardien (arrêt net / nuit inhabituelle → message → appel → contact WhatsApp d'urgence), fatigue au volant, parking, mode Oran auto (Houari prévenu), check-list au départ, prospects sans site autour (FR/DZ), banque du temps (dim 20h).
+- `foresight.ts` : simulation de demain (21h, prières, trajets), gardien des promesses (toutes les 2 h, bouton « je le fais »), GPS de vie (dim 19h), plan B des locations (8h/18h), chances de réservation par client, leçons de vente (dim 18h30), anti-regret (version calme avant envoi WhatsApp, prix sous plancher après create_booking).
+- `jarvis4.ts` : /api/jarvis/event (CarPlay on/off, chargeur le soir, décisions), /widget (Scriptable), Total Recall, salle de crise, usine à outils (testée en lecture seule, en ligne après oui, job horaire), écran partagé, débrief vocal, répétition d'appel difficile.
+- 20 outils (`jarvis4-tools.ts`), 9 jobs, app : onglet JARVIS › 🧠 Cerveau (widget, décisions, crise, écran plein écran).
+
 ## 2026-10-28 (suite 2) — Santé montre, Siri en conversation, papiers WhatsApp analysés seuls (app v201-v202)
 - Santé (Raccourci du soir 21h30, pas de sommeil : pas de montre la nuit) : séance Apple Watch cochée (coach + FORME), cœur au repos haut / VFC basse → séance de demain allégée (si pas de note de forme), pas/poids/calories actives dans FORME (cible +½ du surplus > 400 kcal, max +300), ligne santé dans le bilan du dimanche (`healthWeekLine`).
 - Siri : micro rouvert après CHAQUE réponse (fin = « merci / c'est bon / stop » ou silence) ; « appelle-moi » → appel Telegram immédiat (vraie conversation). Guide app étapes 2, 6, 7.

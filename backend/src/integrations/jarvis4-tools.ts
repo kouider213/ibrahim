@@ -1,0 +1,69 @@
+import type Anthropic from '@anthropic-ai/sdk';
+
+// Outils « Jarvis 4 » (28/10/2026) : définitions seules (tools.ts les ajoute à Dzaryx_TOOLS).
+// Exécution : runJarvis4Tool, appelé par tool-executor avant son switch (comme Jarvis 3).
+const obj = (properties: Record<string, unknown>, required: string[] = []) => ({ type: 'object' as const, properties, required });
+const S = { type: 'string' }, N = { type: 'number' };
+const act = (...e: string[]) => ({ type: 'string', enum: e });
+
+export const JARVIS4_TOOLS: Anthropic.Tool[] = [
+  { name: 'conscience', description: "LA CONSCIENCE : le cerveau qui regarde tout toutes les 10 min et parle seul quand ça vaut la peine. 'status' = ce qu'il a dit / appris ; 'useful' quand Kouider dit « bon conseil / merci c'était utile » ; 'useless' quand il dit « ça sert à rien / arrête avec ça » ; 'pause' (hours) « tais-toi 4 h » ; 'resume'.", input_schema: obj({ action: act('status', 'useful', 'useless', 'pause', 'resume'), hours: N }, ['action']) },
+  { name: 'decision', description: "NOTIFICATION À BOUTONS : propose à Kouider un choix qu'il règle en répondant juste « 1 », « 2 » ou « 3 » (ou en touchant le bouton dans l'app / le Raccourci). title = la situation ; options = [{label, tool?, input?}] (2-4 ; tool = outil Dzaryx exécuté s'il choisit cette option). Ex. client qui demande une voiture : [Accepter 40 €/j → whatsapp_web send], [Contre-offre 45 €], [Refuser poliment]. 'choose' (n) = exécuter son choix si tu l'as compris autrement.", input_schema: obj({ action: act('create', 'list', 'choose'), title: S, options: { type: 'array', items: { type: 'object', properties: { label: S, tool: S, input: { type: 'object' } }, required: ['label'] } }, n: N }, ['action']) },
+  { name: 'relais', description: "RELAIS : Kouider est à bout / occupé → Dzaryx répond seul aux clients WhatsApp (infos, prix, conditions — jamais de dispo ni de décision) et ne remonte que l'urgent. hours (3 par défaut) ; off:true pour arrêter.", input_schema: obj({ hours: N, off: { type: 'boolean' } }) },
+  { name: 'bouclier_famille', description: "BOUCLIER FAMILLE : se lève seul quand il est chez lui le soir (urgences seulement, gardien pour les clients, résumé après). 'on' (hours) ; 'off' (« coupe le bouclier ») ; 'disable' / 'enable' l'automatique ; 'status'.", input_schema: obj({ action: act('on', 'off', 'disable', 'enable', 'status'), hours: N }, ['action']) },
+  { name: 'energie', description: "ÉNERGIE PRÉVUE : son énergie du jour (sommeil, montre, humeur) et ses heures fortes / creux. Pour « je suis en forme ? », « quand caler la négo ? », et AVANT de proposer une heure pour une chose difficile.", input_schema: obj({}) },
+  { name: 'demain', description: "SIMULATION DE DEMAIN : déroule sa journée de demain minute par minute (agenda, séance, trajets réels, locations, vols, prières, énergie) et repère les collisions + plan B. Envoyée seule à 21h s'il y a un problème.", input_schema: obj({}) },
+  { name: 'promesses', description: "GARDIEN DES PROMESSES : tout ce que Kouider promet (Telegram, appels, WhatsApp) est repéré seul et rappelé avant l'échéance. 'list' ; 'add' (to, what, due AAAA-MM-JJTHH:MM) ; 'done' (id ou to) quand c'est fait ; 'snooze' (id).", input_schema: obj({ action: act('list', 'add', 'done', 'snooze'), id: S, to: S, what: S, due: S }, ['action']) },
+  { name: 'gps_vie', description: "GPS DE VIE : ses grands objectifs chiffrés (fortune, poids, CA du mois, ou manuel) → chaque dimanche sur la route ou pas, en % de chances, + le levier qui ferait monter. 'add' (name, target, unit, deadline AAAA-MM-JJ, metric fortune|poids|ca_mois|manuel, current) ; 'update' (name, current) ; 'check' ; 'decision' (question) = cette grosse décision me rapproche ou m'éloigne de mes objectifs ? ; 'remove' (name).", input_schema: obj({ action: act('add', 'update', 'check', 'decision', 'remove'), name: S, target: N, unit: S, deadline: S, metric: S, current: N, question: S }, ['action']) },
+  { name: 'plan_b', description: "PLAN B PERMANENT : pour chaque location des 14 prochains jours, la voiture de secours libre aux mêmes dates, et les problèmes (voiture à l'atelier, réservée deux fois). Vérifié seul matin et soir avec message client prêt.", input_schema: obj({}) },
+  { name: 'chances_clients', description: "CHANCES DE RÉSERVATION : chaque client WhatsApp de ces 4 jours noté (« 80 % dates précises », « 15 % touriste du prix »), du plus chaud au plus froid → à qui répondre en premier, qui relancer.", input_schema: obj({}) },
+  { name: 'lecons_vente', description: "IL APPREND À MIEUX VENDRE : compare les discussions WhatsApp qui finissent en réservation et les autres (ton, prix, délai de réponse, offres) → leçons chiffrées. Envoyé seul le dimanche.", input_schema: obj({}) },
+  { name: 'ange_gardien', description: "ANGE GARDIEN SUR LA ROUTE (GPS) : arrêt net après une route rapide, immobile la nuit dans un lieu inconnu, longue route = fatigue. 'status' ; 'contact' (name, number, country) = qui prévenir s'il ne répond ni au message ni à l'appel ; 'on' / 'off' ; 'ok' quand il dit « ça va, tout va bien » après une alerte.", input_schema: obj({ action: act('status', 'contact', 'on', 'off', 'ok'), name: S, number: S, country: S }, ['action']) },
+  { name: 'parking', description: "OÙ JE SUIS GARÉ ? : position de sa voiture (notée quand il coupe CarPlay, sinon déduite du GPS) → point envoyé sur Telegram + itinéraire à pied.", input_schema: obj({}) },
+  { name: 'banque_temps', description: "BANQUE DU TEMPS : où passe son temps (maison, travail, salle, route, bouchons) d'après le GPS + 2 conseils pour récupérer des heures. days (7). Envoyé seul le dimanche.", input_schema: obj({ days: N }) },
+  { name: 'total_recall', description: "TOTAL RECALL — SA VIE CONSULTABLE : « c'était quand la dernière fois que j'ai vu Karim ? il m'avait dit quoi ? », « où j'étais le 14 juin ? », « combien de fois je suis allé chez le garagiste ce mois ? » → croise GPS, conversations, agenda, mails, WhatsApp, fiches des gens. question.", input_schema: obj({ question: S }, ['question']) },
+  { name: 'salle_crise', description: "SALLE DE CRISE : vrai problème (accident, panne, client introuvable à l'aéroport, voiture pas rendue…) → plan d'action, Houari prévenu, messages WhatsApp prêts pour chacun, écran de suivi. 'open' (situation) ; 'status' ; 'done' (step = numéro, note) ; 'close'.", input_schema: obj({ action: act('open', 'status', 'done', 'close'), situation: S, step: N, note: S }, ['action']) },
+  { name: 'usine_outils', description: "USINE À OUTILS : Kouider dicte une idée (« surveille le prix du ciment à Oran », « préviens-moi si un appart à Oran passe sous 2 M DA ») → l'outil est écrit, testé en lecture seule, puis mis en ligne APRÈS son oui. 'create' (idea) ; 'confirm' (id) après son oui ; 'list' ; 'run' (name) ; 'remove' (name).", input_schema: obj({ action: act('create', 'confirm', 'list', 'run', 'remove'), idea: S, id: S, name: S }, ['action']) },
+  { name: 'ecran', description: "CONTINUITÉ D'ÉCRAN : « continue sur la télé », « mets ça sur le PC » → affiche la suite de la discussion (plan, chiffres, document, liste) sur l'écran choisi. target tv|pc|app ; title ; content = TOUT le contenu à afficher (markdown), reformulé pour un grand écran.", input_schema: obj({ target: act('tv', 'pc', 'app'), title: S, content: S }, ['content']) },
+  { name: 'debrief', description: "DÉBRIEF VOCAL : il raconte en vrac (« j'ai vu Houari, la Duster fait un bruit, rappeler le garage, Karim veut juillet ») → fiches des gens et promesses mises à jour seules, puis tâches / rendez-vous / messages à faire avec tes outils. text = tout ce qu'il a dit.", input_schema: obj({ text: S }, ['text']) },
+  { name: 'repetition', description: "RÉPÉTITION AVANT UN APPEL DIFFICILE : Dzaryx joue l'autre personne (garagiste, client qui conteste, administration, banquier…), coriace, par écrit ou en appel ; à la fin note /10 + phrases à changer. 'start' (role = qui jouer + contexte, goal = ce que Kouider veut obtenir) ; 'end' quand il dit « fin de la répétition ».", input_schema: obj({ action: act('start', 'end'), role: S, goal: S }, ['action']) },
+];
+
+export const JARVIS4_NAMES = JARVIS4_TOOLS.map(t => t.name);
+
+export async function runJarvis4Tool(name: string, input: Record<string, unknown>, sessionId?: string): Promise<string | null> {
+  if (!JARVIS4_NAMES.includes(name)) return null;
+  if (/houari/i.test(sessionId ?? '')) return '❌ Réservé à Kouider.';
+  switch (name) {
+    case 'conscience': return (await import('./conscience.js')).conscienceTool(input);
+    case 'decision': {
+      const c = await import('./conscience.js');
+      const a = String(input['action'] ?? 'create');
+      if (a === 'choose') return c.chooseDecision(null, Number(input['n']) || 1);
+      if (a === 'list') { const l = await c.pendingDecisions(); return l.length ? l.map(d => `• ${d.title}\n${d.options.map((o, i) => `  ${i + 1}. ${o.label}`).join('\n')}`).join('\n') : 'Aucune décision en attente.'; }
+      const opts = Array.isArray(input['options']) ? input['options'] as Array<{ label: string; tool?: string; input?: Record<string, unknown> }> : [];
+      if (!input['title'] || opts.length < 2) return '❌ Il faut title et au moins 2 options.';
+      await c.createDecision(String(input['title']), opts);
+      return '🔘 Choix envoyé sur son Telegram (il répond juste le chiffre). Dis-lui simplement de répondre 1, 2 ou 3.';
+    }
+    case 'relais': return (await import('./conscience.js')).reliefTool(input);
+    case 'bouclier_famille': return (await import('./conscience.js')).shieldTool(input);
+    case 'energie': return (await import('./conscience.js')).energyTool();
+    case 'demain': return (await import('./foresight.js')).simulateTomorrow(false);
+    case 'promesses': return (await import('./foresight.js')).promisesTool(input);
+    case 'gps_vie': return (await import('./foresight.js')).lifeGpsTool(input);
+    case 'plan_b': return (await import('./foresight.js')).planBTool();
+    case 'chances_clients': return (await import('./foresight.js')).chancesTool();
+    case 'lecons_vente': return (await import('./foresight.js')).salesLessons(false);
+    case 'ange_gardien': return (await import('./gps-life.js')).angelTool(input);
+    case 'parking': return (await import('./gps-life.js')).parkingText();
+    case 'banque_temps': return (await import('./gps-life.js')).timeBank(Number(input['days']) || 7);
+    case 'total_recall': return (await import('./jarvis4.js')).totalRecall(String(input['question'] ?? ''));
+    case 'salle_crise': return (await import('./jarvis4.js')).crisisTool(input);
+    case 'usine_outils': return (await import('./jarvis4.js')).factoryTool(input);
+    case 'ecran': return (await import('./jarvis4.js')).screenTool(input);
+    case 'debrief': return (await import('./jarvis4.js')).debriefTool(input);
+    case 'repetition': return (await import('./jarvis4.js')).rehearsalTool(input);
+  }
+  return null;
+}

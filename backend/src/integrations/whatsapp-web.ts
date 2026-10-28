@@ -102,6 +102,11 @@ export async function onWaNew(c: WaChat): Promise<void> {
   // Le client envoie une photo / un document → analysé tout seul : passeport, carte d'identité, permis → dossier client
   // (nom, n°, dates, âge), résa renommée et contact WhatsApp enregistré à son nom (Kouider 28/10)
   if (fromClient.some(m => /^\[(photo|document)\]/.test(m.text))) autoScanClientPapers(name);
+  // Jarvis 4 : journal (chances de réservation, leçons de vente, promesses) + note du client
+  if (fromClient.length) void import('./foresight.js').then(async f => {
+    for (const m of fromClient) await f.logWa(name, 'in', m.text);
+    await f.scoreChat(name, msgs.map(m => `${m.me ? 'FIK' : 'Client'} : ${m.text}`).join('\n'));
+  }).catch(() => {});
   if (fromClient.length) {
     preview = fromClient.map(m => m.text).join('\n').slice(0, 1200);
     convo = msgs.map(m => `${!m.me ? 'Client' : isAuto(m) ? 'FIK (accueil automatique)' : 'FIK'} : ${m.text}`).join('\n').slice(-2500);
@@ -221,6 +226,7 @@ export async function handleWaYesNo(message: string): Promise<{ reply?: string; 
   const r = await cloudEmit<R & { chat?: string }>('cloud:wa', { action: 'send', chat: p.chat, text: p.draft }, 80_000)
     .catch(err => ({ ok: false, error: err instanceof Error ? err.message : String(err) } as R));
   if (!r.ok) return { reply: `❌ Pas envoyé à ${p.chat} : ${r.error ?? 'erreur'}` };
+  void import('./foresight.js').then(m => m.logWa(p.chat, 'out', p.draft)).catch(() => {});
   const d = await drafts(); delete d[p.chat.toLowerCase()]; await kvSet(DRAFTS_KEY, JSON.stringify(d), 3 * 86_400);
   return { reply: `✅ Envoyé sur WhatsApp à ${r['chat'] || p.chat}.` };
 }
@@ -436,12 +442,16 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
       const shown = await kvGet(PREVIEW_KEY).catch(() => null);
       if (input['confirmed'] !== true || shown !== sig) {
         await kvSet(PREVIEW_KEY, sig, 20 * 60);
+        // Anti-regret (Jarvis 4) : message écrit sous l'énervement → version calme proposée, il choisit
+        const calm = await import('./foresight.js').then(m => m.calmVersion(text)).catch(() => null);
+        if (calm) return `📝 À envoyer sur WhatsApp à ${chat} :\n« ${text} »\n\n🧯 ANTI-REGRET : ce message risque de braquer. Version calme, même fond :\n« ${calm} »\n\nDEMANDE À KOUIDER : « J'envoie la tienne ou la version calme ? ». Envoie celle qu'il choisit (même outil, même chat, le texte choisi ; montre-le s'il change, puis confirmed:true après son oui). Ne bloque jamais.`;
         return `📝 À envoyer sur WhatsApp à ${chat} :\n« ${text} »\n\nDEMANDE À KOUIDER : « Je l'envoie ? ». Seulement après son oui clair → même outil, même chat, même texte, confirmed:true.`;
       }
       const r = await cloudEmit<R & { chat?: string }>('cloud:wa', { action: 'send', chat, text }, 80_000);
       if (!r.ok) return `❌ Pas envoyé : ${r.error}`;
       await kvSet(PREVIEW_KEY, '', 60);
       const d = await drafts(); delete d[chat.toLowerCase()]; await kvSet(DRAFTS_KEY, JSON.stringify(d), 3 * 86_400);
+      void import('./foresight.js').then(m => m.logWa(String(r['chat'] || chat), 'out', text)).catch(() => {});
       return `✅ Envoyé sur WhatsApp à ${r['chat'] || chat}.`;
     }
     if (action === 'send_file') {

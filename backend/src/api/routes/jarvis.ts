@@ -134,6 +134,28 @@ router.get('/future', async (_req, res) => {
 router.get('/briefing', async (_req, res) => {
   try { res.json(await import('../../integrations/jarvis-hub.js').then(m => m.briefing3d())); } catch (e) { fail(res, e); }
 });
+// Jarvis 4 : automatisations iPhone (CarPlay, chargeur, décisions), widget Scriptable, crise, écran
+router.post('/event', express.text({ type: 'text/*', limit: '256kb' }), async (req, res) => {
+  const b = (typeof req.body === 'string' ? { type: req.body } : req.body ?? {}) as Record<string, unknown>;
+  const type = String(b['type'] ?? req.query['type'] ?? '').trim().toLowerCase();
+  if (!type) { res.status(400).json({ error: 'type requis (carplay_on, carplay_off, charger, decisions, decide)' }); return; }
+  try { res.json(await import('../../integrations/jarvis4.js').then(m => m.iphoneEvent(type, b))); } catch (e) { fail(res, e); }
+});
+router.get('/widget', async (_req, res) => {
+  try { res.json(await import('../../integrations/jarvis4.js').then(m => m.widgetData())); } catch (e) { fail(res, e); }
+});
+router.get('/decisions', async (_req, res) => {
+  try { res.json({ decisions: await import('../../integrations/conscience.js').then(m => m.pendingDecisions()) }); } catch (e) { fail(res, e); }
+});
+router.post('/decisions/:id', async (req, res) => {
+  try { res.json({ text: await import('../../integrations/conscience.js').then(m => m.chooseDecision(String(req.params['id']), Number((req.body as { choice?: number }).choice) || 1)) }); } catch (e) { fail(res, e); }
+});
+router.get('/crisis', async (_req, res) => {
+  try { const { kvGet } = await import('../../integrations/app-store.js'); res.json({ crisis: JSON.parse((await kvGet('crisis')) || 'null') }); } catch (e) { fail(res, e); }
+});
+router.get('/screen', async (_req, res) => {
+  try { const { kvGet } = await import('../../integrations/app-store.js'); res.json({ screen: JSON.parse((await kvGet('screen:now')) || 'null') }); } catch (e) { fail(res, e); }
+});
 router.get('/fortune', async (_req, res) => {
   try { res.json(await import('../../integrations/brain-plus.js').then(m => m.fortune())); } catch (e) { fail(res, e); }
 });

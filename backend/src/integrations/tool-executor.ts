@@ -303,6 +303,9 @@ async function _dispatch(
   // Outils « Jarvis 3 » (mémoire des gens, liste de nuit, avocat, fortune, atelier…) : jarvis3-tools.ts
   const j3 = await import('./jarvis3-tools.js').then(m => m.runJarvis3Tool(name, input, sessionId));
   if (j3 !== null) return j3;
+  // Outils « Jarvis 4 » (conscience, promesses, ange gardien, salle de crise, usine à outils…) : jarvis4-tools.ts
+  const j4 = await import('./jarvis4-tools.js').then(m => m.runJarvis4Tool(name, input, sessionId));
+  if (j4 !== null) return j4;
   // Nexus / PC — Kouider uniquement
   const isHouariSession = /houari/i.test(sessionId ?? '');
   if (isHouariSession && (NEXUS_TOOLS.has(name) || PC_TOOLS.has(name) || CLOUD_TOOLS.has(name))) {
@@ -316,7 +319,9 @@ async function _dispatch(
       case 'create_booking': {
         const risk = await clientRisk(String(input['client_name'] ?? ''), input['client_phone'] as string | undefined).catch(() => null);
         const res = await createBooking(input, sessionId);
-        return risk?.text && res.startsWith('✅') ? `${res}\n\n${risk.text}` : res;
+        // Anti-regret : prix sous son plancher → rappel (jamais bloquant)
+        const floor = res.startsWith('✅') ? await import('./foresight.js').then(m => m.priceFloorNote(input)).catch(() => '') : '';
+        return (risk?.text && res.startsWith('✅') ? `${res}\n\n${risk.text}` : res) + floor;
       }
       case 'flash_offer':           return (await flashOffers()).text;
       case 'check_client':          return (await clientRisk(String(input['client_name'] ?? ''), input['client_phone'] as string | undefined)).text || '❌ Nom du client requis.';

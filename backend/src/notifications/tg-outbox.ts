@@ -34,6 +34,15 @@ async function push(actor: string, m: TgOutMessage): Promise<void> {
   const list = await read(actor);
   list.push(m);
   await kvSet(key(actor), JSON.stringify(list.slice(-10)), 24 * 3600);
+  if (actor === 'kouider' && m.text) await logSent(m.text).catch(() => {});
+}
+
+/** Journal des 3 dernières heures envoyées à Kouider : la Conscience s'en sert pour ne pas répéter. */
+async function logSent(text: string): Promise<void> {
+  let l: Array<{ at: number; text: string }> = [];
+  try { l = JSON.parse((await kvGet('tg:sentlog')) ?? '[]') as Array<{ at: number; text: string }>; } catch { /* vide */ }
+  l.push({ at: Date.now(), text: text.slice(0, 240) });
+  await kvSet('tg:sentlog', JSON.stringify(l.filter(x => Date.now() - x.at < 3 * 3600_000).slice(-40)), 4 * 3600);
 }
 
 export async function queueTelegramMessage(text: string, image?: string, actor = 'kouider', file?: TgOutMessage['file'], bypassDigest = false): Promise<void> {

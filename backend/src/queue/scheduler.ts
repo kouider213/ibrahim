@@ -419,6 +419,51 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'conscience',
+    cron:  '*/10 * * * *',          // LA CONSCIENCE : regarde tout, parle si ça vaut la peine (Jarvis 4)
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'tomorrow-sim',
+    cron:  '0 21 * * *',            // simulation de demain (collisions + plan B)
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'promises',
+    cron:  '15 8-22/2 * * *',       // gardien des promesses
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'life-gps',
+    cron:  '0 19 * * 0',            // dimanche — GPS de vie
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'plan-b',
+    cron:  '0 8,18 * * *',          // plan B des locations des 3 prochains jours
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'sales-lessons',
+    cron:  '30 18 * * 0',           // dimanche — il apprend à mieux vendre
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'time-bank',
+    cron:  '0 20 * * 0',            // dimanche — banque du temps
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'energy-profile',
+    cron:  '0 4 * * 1',             // lundi — profil d'énergie (heures fortes / creux)
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'factory',
+    cron:  '5 * * * *',             // usine à outils : outils maison en ligne
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'commercial',
     cron:  '0 10 * * *',              // commercial automatique : annonce du jour proposée (publiée après son oui)
     tz:    'Europe/Brussels',
@@ -700,6 +745,15 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'bodyguard':                async () => { console.log(`[bodyguard] ${await (await import('../integrations/guardian-ops.js')).jobBodyguard()}`); },
   'radar':                    async () => { console.log(`[radar] ${await (await import('../integrations/market-hunters.js')).jobRadar()}`); },
   'car-hunter':               async () => { console.log(`[car-hunter] ${await (await import('../integrations/market-hunters.js')).jobCarHunter()}`); },
+  'conscience':                async () => { console.log(`[conscience] ${await (await import('../integrations/conscience.js')).jobConscience()}`); },
+  'tomorrow-sim':              async () => { console.log(`[tomorrow-sim] ${await (await import('../integrations/foresight.js')).jobTomorrowSim()}`); },
+  'promises':                  async () => { console.log(`[promises] ${await (await import('../integrations/foresight.js')).jobPromises()}`); },
+  'life-gps':                  async () => { console.log(`[life-gps] ${await (await import('../integrations/foresight.js')).jobLifeGps()}`); },
+  'plan-b':                    async () => { console.log(`[plan-b] ${await (await import('../integrations/foresight.js')).jobPlanB()}`); },
+  'sales-lessons':             async () => { console.log(`[sales-lessons] ${await (await import('../integrations/foresight.js')).jobSalesLessons()}`); },
+  'time-bank':                 async () => { console.log(`[time-bank] ${await (await import('../integrations/gps-life.js')).jobTimeBank()}`); },
+  'energy-profile':            async () => { console.log(`[energy-profile] ${await (await import('../integrations/conscience.js')).jobEnergyProfile()}`); },
+  'factory':                   async () => { console.log(`[factory] ${await (await import('../integrations/jarvis4.js')).jobFactory()}`); },
   'commercial':               async () => { console.log(`[commercial] ${await (await import('../integrations/builders.js')).jobCommercial()}`); },
   'night-guard-recap':       async () => { await (await import('../integrations/night-guard.js')).jobNightGuardRecap(); },
   'nego-watch':              async () => { await (await import('../integrations/negotiator.js')).jobNegoWatch(); },
