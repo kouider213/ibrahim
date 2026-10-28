@@ -853,6 +853,9 @@ def split_text(text: str, limit: int = 4000) -> list[str]:
     return parts or ['…']
 
 
+PHOTO_TEXT_WAIT_S = 8                       # délai pour qu'un texte envoyé juste après une photo parte avec elle
+photo_wait: dict[int, asyncio.Future] = {}   # uid → légende attendue pour la photo en cours
+
 MD_IMAGE = re.compile(r'!\[([^\]]*)\]\((https?://[^)\s]+)\)')
 
 
@@ -1132,6 +1135,12 @@ async def on_message(_, msg: Message) -> None:
                 await msg.reply_text(part)
         elif msg.photo or (msg.document and (msg.document.mime_type or '').startswith('image/')):
             await app.send_chat_action(uid, enums.ChatAction.TYPING)
+            # Photo sans légende : le texte qui suit dans les secondes d'après en fait partie
+            # (27/10 22h06 : photo puis « c'était comment j'étais avant » traités séparément → texte sans la photo)
+            caption_wait, t_photo = None, time.monotonic()
+            if not msg.caption and uid not in photo_wait:
+                caption_wait = asyncio.get_running_loop().create_future()
+                photo_wait[uid] = caption_wait
             path = await msg.download(file_name=tempfile.mktemp(prefix='dzimg_', suffix='.jpg'))
             pic = Path(path).read_bytes()
             b64 = base64.b64encode(pic).decode()
@@ -1147,7 +1156,16 @@ async def on_message(_, msg: Message) -> None:
                     await msg.reply_text('Je ne vois pas bien de visage sur cette photo — renvoie un selfie de face, bien éclairé.')
                 return
             seen = await asyncio.to_thread(face.hint, pic, actor == speaker.OWNER)
-            out = await api('/api/call/turn', {'message': f'{seen}\n{msg.caption or ""}'.strip() if seen else msg.caption or '',
+            caption = msg.caption or ''
+            if caption_wait is not None:
+                try:
+                    caption = await asyncio.wait_for(asyncio.shield(caption_wait), max(0.5, PHOTO_TEXT_WAIT_S - (time.monotonic() - t_photo)))
+                except asyncio.TimeoutError:
+                    caption = ''
+                finally:
+                    if photo_wait.get(uid) is caption_wait:
+                        del photo_wait[uid]
+            out = await api('/api/call/turn', {'message': f'{seen}\n{caption}'.strip() if seen else caption,
                                                'image': b64, 'imageMime': mime,
                                                'textOnly': True, 'channel': 'message'}, actor, 120)
             await reply_out(msg, out)
@@ -1181,6 +1199,10 @@ async def on_message(_, msg: Message) -> None:
         elif msg.text and VOICE_CMD.match(msg.text.strip()):
             await voice_command(msg, actor, VOICE_CMD.match(msg.text.strip()).group(1))
         elif msg.text:
+            waiting = photo_wait.get(uid)
+            if waiting is not None and not waiting.done():   # légende de la photo qui vient d'arriver : partira avec elle
+                waiting.set_result(msg.text)
+                return
             await app.send_chat_action(uid, enums.ChatAction.TYPING)
             # 180 s : sans crédit Claude, le cerveau de secours peut dépasser 90 s (23/10 6h42 : 2 × « souci technique »)
             out = await api('/api/call/turn', {'message': msg.text, 'textOnly': True, 'channel': 'message'}, actor, 180)
