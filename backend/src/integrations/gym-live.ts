@@ -24,7 +24,7 @@ interface Live {
   idx: number; done: Record<string, DoneSet[]>; skipped: string[];
   homeBy?: string; leaveBy?: number; road?: number; traffic?: string;
   liftsAt?: number; lastSetAt?: number; lastNudge?: number; nudges: number;
-  sent: string[]; health?: string; endedAt?: number;
+  sent: string[]; health?: string; endedAt?: number; timer?: boolean; warmedUp?: string[];
 }
 
 const say = (ts: number) => hm(ts).replace('h', ' h ');
@@ -100,16 +100,46 @@ function timeline(l: Live, now = Date.now()): { liftMin: number; afterMin: numbe
 }
 
 /** Conseil quand il est en retard sur le planning. */
+// ── Bonus (Kouider 28/10 « des options auxquelles je n'aurais pas pensé ») ──
+// Disques à mettre de chaque côté (barre olympique 20 kg, barre EZ / Larry Scott ~10 kg) — pas pour les poulies.
+const BARBELL = /(couch|barre|skull|larry)/i;
+function platesLine(name: string, kg: number | null): string {
+  if (!kg || !BARBELL.test(name) || /poulie|barre droite/i.test(name)) return '';
+  const bar = /curl|skull|larry|ez/i.test(name) ? 10 : 20;
+  let side = (kg - bar) / 2;
+  if (side <= 0) return `   🔩 Barre seule (${bar} kg)`;
+  const out: number[] = [];
+  for (const d of [20, 15, 10, 5, 2.5, 1.25]) while (side >= d - 0.01) { out.push(d); side -= d; }
+  return `   🔩 ${kg} kg = barre ${bar} kg + de chaque côté : ${out.join(' + ')} kg`;
+}
+/** Montée en charge avant la 1re série lourde d'un muscle : évite la blessure, prépare le système nerveux. */
+const warmupLine = (kg: number | null) => kg && kg >= 10 ? `   🔥 Séries d'approche : 1 × 10 à ${Math.round(kg * 0.5 * 2) / 2} kg, puis 1 × 5 à ${Math.round(kg * 0.75 * 2) / 2} kg (repos 45 s), ensuite tes séries.` : '';
+/** Force max estimée (formule d'Epley) : comparable même si les reps changent d'une séance à l'autre. */
+export const e1rm = (kg: number, reps: number) => Math.round(kg * (1 + Math.min(reps, 15) / 30) * 2) / 2;
+/** 1er exercice de ce muscle aujourd'hui → séries d'approche. */
+const needWarm = (l: Live, e: Exercise) => !l.exercises.some(x => x.muscle === e.muscle && (l.done[x.id]?.length ?? 0) > 0);
+const isBiceps = (n: string) => /curl/i.test(n);
+const isTriceps = (n: string) => /triceps|extension|skull|poulie haute|barre droite/i.test(n) && !/curl/i.test(n);
+/** En retard : biceps + triceps enchaînés sans repos (muscles opposés → aucune perte de force). */
+function supersetAdvice(l: Live): string {
+  const rest = remaining(l);
+  const b = rest.find(e => isBiceps(e.name)), t = rest.find(e => isTriceps(e.name));
+  if (!b || !t) return '';
+  const gain = Math.round((Math.min(setsLeft(l, b), setsLeft(l, t)) * Math.min(b.rest, t.rest)) / 60);
+  return ` Ou fais ${t.name} + ${b.name} en SUPERSET (l'un puis l'autre sans repos, repos après la paire) : ~${gain} min gagnées sans couper de série.`;
+}
+
 function lateAdvice(l: Live, margin: number | null): string {
   if (margin == null || margin >= 0) return '';
   const rest = remaining(l);
   const cut = rest.filter(e => setsLeft(l, e) >= 3).slice(-Math.ceil(-margin / 3));
-  return `⚠️ Tu as ~${-margin} min de retard sur le planning : ${cut.length ? `fais 2 séries au lieu de 3 sur ${cut.map(e => e.name).join(', ')}` : 'raccourcis les repos à 60 s'} pour garder du temps au cardio de fin.`;
+  return `⚠️ Tu as ~${-margin} min de retard sur le planning : ${cut.length ? `fais 2 séries au lieu de 3 sur ${cut.map(e => e.name).join(', ')}` : 'raccourcis les repos à 60 s'} pour garder du temps au cardio de fin.${supersetAdvice(l)}`;
 }
 
-function exLine(e: Exercise, sug: { kg: number | null; last?: string; up?: boolean }): string {
+function exLine(e: Exercise, sug: { kg: number | null; last?: string; up?: boolean }, warm = false): string {
   const kg = sug.kg != null ? ` — charge conseillée ${sug.kg} kg${sug.up ? ' ⬆️ (tu as tout réussi la dernière fois)' : ''}` : ' — 1re fois : prends une charge où tu fais 12 reps propres en gardant 2 reps en réserve';
-  return `▶️ ${e.name} : ${e.sets} × ${e.reps}, repos ${e.rest} s${kg}${sug.last ? `\n   Dernière fois : ${sug.last}` : ''}\n   💡 ${e.tip}`;
+  return [`▶️ ${e.name} : ${e.sets} × ${e.reps}, repos ${e.rest} s${kg}`, sug.last ? `   Dernière fois : ${sug.last}` : '', `   💡 ${e.tip}`,
+    warm ? warmupLine(sug.kg) : '', platesLine(e.name, sug.kg)].filter(Boolean).join('\n');
 }
 
 async function healthLine(): Promise<string> {
@@ -146,7 +176,7 @@ export async function startLive(date = localNow().date, at = Date.now()): Promis
     `${l.before.length ? '2️⃣' : '1️⃣'} Muscu : ${l.exercises.map(e => `${e.name} ${e.sets}×${e.reps}`).join(' · ')} (~${t.liftMin} min)`,
     l.after.length ? `${l.before.length ? '3️⃣' : '2️⃣'} ${l.after.map(b => `${b.name} ${b.flex ? `le temps qui reste (~${Math.max(0, t.afterMin)} min)` : `${b.min} min`}`).join(' + ')}` : '',
     lateAdvice(l, t.margin), l.health ?? '',
-    first ? `\n${l.before.length ? 'Après le cardio, on commence par :' : 'On commence par :'}\n${exLine(first, suggestFor(first, log, date))}` : '',
+    first ? `\n${l.before.length ? 'Après le cardio, on commence par :' : 'On commence par :'}\n${exLine(first, suggestFor(first, log, date), needWarm(l, first))}` : '',
     '\n📝 Après CHAQUE série, dis-moi le poids et les reps (ex. « 60 kg 12 » ou « 12 reps à 60 ») : je note, je te dis si tu montes, gardes ou baisses.',
   ].filter(Boolean).join('\n');
   return plan;
@@ -200,6 +230,13 @@ async function logSet(l: Live, o: { exercise?: string; kg?: number; reps?: numbe
   if (o.rpe && o.rpe >= 9.5 && k < e.sets) advice.push('Tu es allé à l\'échec : garde 1-2 reps en réserve sur la suivante, c\'est là que ça progresse sans se blesser.');
   if (sug.kg && o.kg) advice.push(o.kg > sug.kg ? `+${Math.round((o.kg - sug.kg) * 10) / 10} kg par rapport à la dernière fois 💪` : o.kg < sug.kg ? `(${sug.kg} kg étaient prévus${sug.last ? ` — dernière fois ${sug.last}` : ''})` : '');
   if (r.prs.length) advice.push(`🏆 NOUVEAU RECORD : ${r.prs.join(', ')} !`);
+  // 👻 Fantôme : la même série à la dernière séance de cet exercice — il court contre lui-même
+  const prevDay = [...log].reverse().find(x => x.date !== l.date && x.sets.some(z => z.ex === e.id));
+  const ghost = prevDay?.sets.filter(z => z.ex === e.id)[k - 1];
+  if (ghost?.kg && ghost.reps && o.kg && o.reps) {
+    const d = e1rm(o.kg, o.reps) - e1rm(ghost.kg, ghost.reps);
+    advice.push(`👻 Ton fantôme du ${prevDay!.date.slice(8)}/${prevDay!.date.slice(5, 7)} : ${ghost.kg}×${ghost.reps} → ${d > 0 ? `tu le bats (+${Math.round(d)} kg de force estimée)` : d < 0 ? `il te devance de ${Math.round(-d)} kg, reprends-le à la suivante` : 'égalité parfaite'}.`);
+  }
   let next = '';
   if (k >= e.sets) {
     const all = arr.filter(s => s.reps != null);
@@ -207,12 +244,40 @@ async function logSet(l: Live, o: { exercise?: string; kg?: number; reps?: numbe
     advice.push(`✅ ${e.name} terminé (${arr.map(s => `${s.kg ?? '?'}×${s.reps ?? '?'}`).join(', ')}).${allTop && o.kg ? ` Toutes les séries à ${hi} → prochaine séance ${o.kg + step} kg.` : ''}`);
     l.idx = Math.max(l.idx, l.exercises.indexOf(e) + 1);
     const nx = remaining(l)[0];
-    next = nx ? `\n\n${exLine(nx, suggestFor(nx, log.filter(x => x.date !== l.date), l.date))}` : `\n\n🏁 Muscu terminée ! ${l.after.length ? `Passe à ${l.after.map(b => b.name).join(' + ')}${l.leaveBy ? ` jusqu'à ${hm(l.leaveBy - 2 * 60_000)}` : ''}.` : 'Étirements 5 min.'}`;
+    next = nx ? `\n\n${exLine(nx, suggestFor(nx, log.filter(x => x.date !== l.date), l.date), needWarm(l, nx))}` : `\n\n🏁 Muscu terminée ! ${l.after.length ? `Passe à ${l.after.map(b => b.name).join(' + ')}${l.leaveBy ? ` jusqu'à ${hm(l.leaveBy - 2 * 60_000)}` : ''}.` : 'Étirements 5 min.'}`;
     if (!nx) l.sent.push('after');
-  } else next = `\nSérie ${k + 1}/${e.sets} : repos ${e.rest} s puis dis-moi kg × reps.`;
+  } else next = `\nSérie ${k + 1}/${e.sets} : repos ${e.rest} s${l.timer !== false ? ' — je te préviens quand c\'est fini' : ''}, puis dis-moi kg × reps.`;
   await saveLive(l);
+  if (l.timer !== false) restTimer(l.date, now, k >= e.sets ? 90 : e.rest, k >= e.sets ? remaining(l)[0]?.name ?? null : `${e.name} série ${k + 1}/${e.sets}${o.kg ? ` à ${o.kg} kg` : ''}`, k);
   const t = timeline(l, now);
   return `📝 ${e.name} série ${k}/${e.sets} : ${o.kg ?? '?'} kg × ${o.reps ?? '?'}. ${advice.filter(Boolean).join(' ')}${next}\n${l.leaveBy ? `⏱️ ${minLeft(l.leaveBy, now)} min avant de partir.` : ''} ${lateAdvice(l, t.margin)}`.trim();
+}
+
+/** ⏱️ Minuteur de repos : notification (montre / iPhone) + Telegram quand le repos est fini, s'il n'a rien dit entre-temps.
+ *  Tous les 3 repos, rappel de boire. Minuteur en mémoire : perdu si le serveur redémarre (sans gravité). */
+function restTimer(date: string, setAt: number, sec: number, what: string | null, n: number): void {
+  if (!what || sec < 20) return;
+  setTimeout(() => { void (async () => {
+    const l = await getLive();
+    if (!l || l.endedAt || l.date !== date || l.lastSetAt !== setAt) return;      // il a déjà annoncé une autre série
+    const t = `⏱️ Repos fini → ${what}${n % 3 === 0 ? ' · 💧 bois une gorgée' : ''}`;
+    emitProactive(t, 'reminder', undefined, 'kouider', 'sport');
+    await queueTelegramMessage(t);
+  })().catch(() => {}); }, sec * 1000);
+}
+
+/** Séries par muscle sur 7 jours (la cible pour progresser : 10 à 20 par muscle et par semaine). */
+async function weekVolumeLine(): Promise<string> {
+  const { findExercise } = await import('./sport-coach.js');
+  const from = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
+  const count: Record<string, number> = {};
+  for (const d of (await readSportLog()).filter(x => x.date >= from)) for (const z of d.sets) {
+    const m = findExercise(z.ex)?.muscle;
+    if (m && m !== 'cardio' && m !== 'jambes') count[m] = (count[m] ?? 0) + 1;
+  }
+  const NAME: Record<string, string> = { pecs: 'pecs', dos: 'dos', epaules: 'épaules', bras: 'bras', abdos: 'abdos' };
+  const parts = ['pecs', 'dos', 'epaules', 'bras'].map(m => `${NAME[m]} ${count[m] ?? 0}${(count[m] ?? 0) < 10 ? ' ⬇️' : (count[m] ?? 0) > 20 ? ' ⚠️' : ' ✅'}`);
+  return `📊 Séries sur 7 jours (cible 10-20 par muscle) : ${parts.join(' · ')}`;
 }
 
 /** Bilan de fin de séance : volume, records, points à améliorer. */
@@ -227,7 +292,10 @@ async function endLive(l: Live, why: string): Promise<string> {
     if (!arr.length) { improve.push(`${e.name} pas fait${l.skipped.includes(e.id) ? ' (passé)' : ''}`); continue; }
     volume += arr.reduce((a, s) => a + (s.kg ?? 0) * (s.reps ?? 0), 0);
     const { lo, hi } = range(e.reps);
-    lines.push(`• ${e.name} : ${arr.map(s => `${s.kg ?? '?'}×${s.reps ?? '?'}`).join(', ')}`);
+    const best = Math.max(0, ...arr.filter(z => z.kg && z.reps).map(z => e1rm(z.kg!, z.reps!)));
+    const before = Math.max(0, ...(await readSportLog()).filter(d => d.date !== l.date).flatMap(d => d.sets).filter(z => z.ex === e.id && z.kg && z.reps).map(z => e1rm(z.kg!, z.reps!)));
+    const trend = best && before ? ` → force max estimée ${best} kg (${best >= before ? '+' : ''}${Math.round((best / before - 1) * 100)} %)` : best ? ` → force max estimée ${best} kg` : '';
+    lines.push(`• ${e.name} : ${arr.map(s => `${s.kg ?? '?'}×${s.reps ?? '?'}`).join(', ')}${trend}`);
     const reps = arr.map(s => s.reps ?? 0).filter(Boolean);
     if (reps.length && reps.every(x => x >= hi)) improve.push(`${e.name} : tout à ${hi}+ → monte la charge la prochaine fois`);
     else if (reps.length && Math.max(...reps) - Math.min(...reps) >= 4) improve.push(`${e.name} : grosse baisse de reps entre séries → plus de repos ou −5 %`);
@@ -236,7 +304,7 @@ async function endLive(l: Live, why: string): Promise<string> {
   }
   const min = Math.round((l.endedAt - l.startedAt) / 60_000);
   const late = l.leaveBy && l.endedAt > l.leaveBy + 3 * 60_000 ? `⚠️ Parti ${minLeft(l.endedAt, l.leaveBy) * -1} min après l'heure prévue.` : '';
-  return [`🏁 Bilan ${l.label} (${min} min, ${why})`, ...lines, volume ? `📦 Volume soulevé : ${Math.round(volume)} kg` : '',
+  return [`🏁 Bilan ${l.label} (${min} min, ${why})`, ...lines, volume ? `📦 Volume soulevé : ${Math.round(volume)} kg` : '', await weekVolumeLine().catch(() => ''),
     improve.length ? `🎯 À améliorer :\n- ${improve.slice(0, 6).join('\n- ')}` : '🎯 Séance propre, tout dans la cible. Continue comme ça.', late,
     l.after.length ? `⌚ Je vérifie ${l.after.map(b => b.name).join(' + ')} avec Santé quand la montre l'envoie.` : ''].filter(Boolean).join('\n');
 }
@@ -261,9 +329,10 @@ export async function liveTool(input: Record<string, unknown>): Promise<string> 
     if (!l.liftsAt) l.liftsAt = Date.now();
     await saveLive(l);
     const nx = remaining(l)[0];
-    return `${op === 'skip' ? `⏭️ ${e.name} passé${e.alt.length ? ` (alternative si la machine est prise : ${e.alt.join(' ou ')})` : ''}.` : `✅ ${e.name} terminé.`}\n${nx ? exLine(nx, suggestFor(nx, await readSportLog(), l.date)) : '🏁 Muscu terminée, place au cardio de fin.'}\n${timeline(l).line}`;
+    return `${op === 'skip' ? `⏭️ ${e.name} passé${e.alt.length ? ` (alternative si la machine est prise : ${e.alt.join(' ou ')})` : ''}.` : `✅ ${e.name} terminé.`}\n${nx ? exLine(nx, suggestFor(nx, await readSportLog(), l.date), needWarm(l, nx)) : '🏁 Muscu terminée, place au cardio de fin.'}\n${timeline(l).line}`;
   }
-  if (op === 'cardio_done') { l.liftsAt ??= Date.now(); await saveLive(l); const nx = remaining(l)[0]; return `✅ Cardio fait. ${nx ? `\n${exLine(nx, suggestFor(nx, await readSportLog(), l.date))}` : ''}\n${timeline(l).line}`; }
+  if (op === 'timer') { l.timer = !(input['on'] === false || input['on'] === 'false' || /off|non|stop/i.test(String(input['on'] ?? ''))); await saveLive(l); return `⏱️ Minuteur de repos ${l.timer ? 'activé' : 'coupé'}.`; }
+  if (op === 'cardio_done') { l.liftsAt ??= Date.now(); await saveLive(l); const nx = remaining(l)[0]; return `✅ Cardio fait. ${nx ? `\n${exLine(nx, suggestFor(nx, await readSportLog(), l.date), needWarm(l, nx))}` : ''}\n${timeline(l).line}`; }
   if (op === 'stop') { const t = await endLive(l, 'terminée'); return `${t}\n\n[Félicite-le en une phrase et donne LE point principal à améliorer.]`; }
   return statusText(l);
 }
@@ -273,7 +342,7 @@ export async function liveNote(): Promise<string | null> {
   const l = await getLive().catch(() => null);
   if (!l || l.endedAt) return null;
   const e = remaining(l)[0];
-  return `[SÉANCE EN COURS À LA SALLE (${l.label}) : ${phase(l) === 'avant' ? `cardio d'échauffement jusqu'à ${hm(l.startedAt + beforeMin(l) * 60_000)}` : e ? `exercice actuel ${e.name} série ${(l.done[e.id]?.length ?? 0) + 1}/${e.sets}` : 'muscu finie, cardio de fin'}${l.leaveBy ? `, départ à ${hm(l.leaveBy)}` : ''}. S'il donne un poids / des reps (« 60 kg 12 », « 12 à 40 ») → sport_coach action=live op=set (exercise si ce n'est pas l'exercice actuel). « Tapis fini » → op=cardio_done. « J'ai fini l'exercice / je passe » → op=next ; machine prise → op=skip ; « il me reste quoi » → op=status ; « j'ai fini la séance » → op=stop. Réponds COURT.]`;
+  return `[SÉANCE EN COURS À LA SALLE (${l.label}) : ${phase(l) === 'avant' ? `cardio d'échauffement jusqu'à ${hm(l.startedAt + beforeMin(l) * 60_000)}` : e ? `exercice actuel ${e.name} série ${(l.done[e.id]?.length ?? 0) + 1}/${e.sets}` : 'muscu finie, cardio de fin'}${l.leaveBy ? `, départ à ${hm(l.leaveBy)}` : ''}. S'il donne un poids / des reps (« 60 kg 12 », « 12 à 40 ») → sport_coach action=live op=set (exercise si ce n'est pas l'exercice actuel). « Tapis fini » → op=cardio_done. « J'ai fini l'exercice / je passe » → op=next ; machine prise → op=skip ; « il me reste quoi » → op=status ; « j'ai fini la séance » → op=stop ; « coupe le minuteur » → op=timer on=false. VIDÉO d'une série → analyse sa TECHNIQUE sur cet exercice (amplitude, tempo, dos, coudes, élan, triche) en 3 points max + note /10, et propose la correction. PHOTO d'une machine ou de la salle → dis quelle machine c'est, le réglage (siège, poignées, charge de départ) et, si elle est prise, l'alternative avec le matériel visible. Réponds COURT.]`;
 }
 
 async function notify(text: string, title: string): Promise<void> {
@@ -300,7 +369,7 @@ export async function liveTick(): Promise<void> {
   if (ph === 'muscu' && !l.liftsAt && once('lifts')) {
     l.liftsAt = now;
     const e = remaining(l)[0];
-    if (e) await notify(`✅ ${l.before.map(b => b.name).join(' + ')} terminé ! Place à la muscu.\n${exLine(e, suggestFor(e, await readSportLog(), l.date))}\n\nDis-moi kg × reps après chaque série.\n${timeline(l, now).line}`, `▶️ ${e.name}`);
+    if (e) await notify(`✅ ${l.before.map(b => b.name).join(' + ')} terminé ! Place à la muscu.\n${exLine(e, suggestFor(e, await readSportLog(), l.date), needWarm(l, e))}\n\nDis-moi kg × reps après chaque série.\n${timeline(l, now).line}`, `▶️ ${e.name}`);
   } else if (ph === 'muscu' && now - (l.lastSetAt ?? l.liftsAt ?? now) > NUDGE_AFTER && now - (l.lastNudge ?? 0) > NUDGE_AFTER && l.nudges < 4) {
     const e = remaining(l)[0]!;
     l.lastNudge = now; l.nudges++;

@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-28 22h30 | bonus coach salle | gym-live.ts, tools.ts
+- Minuteur de repos (notif + Telegram quand le repos est fini, 💧 tous les 3 repos ; op timer on/off), fantôme (même série à la dernière séance, force estimée), séries d'approche au 1er exercice d'un muscle, calcul des disques pour les exercices à la barre, superset biceps/triceps proposé si retard, force max estimée (Epley) et séries/muscle sur 7 jours dans le bilan, vidéo d'une série = analyse technique /10, photo de machine = réglages + alternative.
+- Programme officiel 4 séances sans jambes (Pecs/Tri, Dos/Bi, Épaules, Bras) ; vendredi = Épaules, maison 7h20 (ba53a87 : override = rotation suivante → avance).
+
 ## 2026-10-28 22h | coach en direct à la salle | gym-live.ts (nouveau), sport-coach.ts, tools.ts, api/routes/call.ts
 - « À la maison à 7h20 » (`home_by`) : départ de la salle recalculé avec le trafic toutes les 5 min, rappel 10 min avant, APPEL « pars maintenant » + Waze maison.
 - sport_coach `live` : à l'arrivée (GPS ou « je suis à la salle ») plan minuté tapis → muscu → elliptique « le temps qui reste » ; chaque série « 60 kg 12 » notée avec conseil (monter / garder / baisser / repos), exercice suivant + charge conseillée, retard → séries coupées ; relance si rien depuis 8 min ; bilan + points à améliorer au départ. Santé du matin (sommeil, cœur, VFC) prise en compte.
