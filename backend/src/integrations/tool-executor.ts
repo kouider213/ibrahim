@@ -638,7 +638,7 @@ async function _dispatch(
 async function listBookings(input: Record<string, unknown>): Promise<string> {
   let query = supabase
     .from('bookings')
-    .select('id, client_name, client_phone, start_date, end_date, final_price, currency, status, payment_status, paid_amount, rented_by, cars(name)')
+    .select('id, client_name, client_phone, start_date, end_date, final_price, currency, status, payment_status, paid_amount, rented_by, notes, cars(name)')
     .order('start_date', { ascending: false })
     .limit(Number(input['limit'] ?? 20));
 
@@ -670,7 +670,9 @@ async function listBookings(input: Record<string, unknown>): Promise<string> {
       ? ` | 💰 ${b.payment_status} (payé: ${paidStr})`
       : '';
     const who = b.rented_by ? ` | 👤 ${b.rented_by}` : '';
-    return `- [${b.id}] ${b.client_name} | ${b.cars?.name ?? '?'} | ${b.start_date} → ${b.end_date} | ${priceStr} | ${b.status}${who}${payInfo}`;
+    // Notes (horaires du vol, adresse de livraison…) — pas les fiches passeport en JSON
+    const note = b.notes && !String(b.notes).trim().startsWith('{') ? ` | 📝 ${String(b.notes).replace(/\s+/g, ' ').slice(0, 300)}` : '';
+    return `- [${b.id}] ${b.client_name} | ${b.cars?.name ?? '?'} | ${b.start_date} → ${b.end_date} | ${priceStr} | ${b.status}${who}${payInfo}${note}`;
   });
 
   return `${data.length} réservation(s):\n${rows.join('\n')}`;
