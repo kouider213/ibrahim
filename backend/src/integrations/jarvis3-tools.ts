@@ -29,6 +29,8 @@ export const JARVIS3_TOOLS: Anthropic.Tool[] = [
   { name: 'atelier', description: "L'ATELIER DE TONY STARK : « fais-moi un outil / une page / une petite app qui … » (calculateur de devis, check-list de remise des clés, page promo, mini-jeu pour le petit…) → Dzaryx la construit (page web complète) et la met en ligne, lien sur Telegram en 2-3 min. 'build' (request = la description complète) ; 'list'.", input_schema: obj({ action: act('build', 'list'), request: S }) },
   { name: 'usine_business', description: "USINE À BUSINESS : « lance un business de location de scooters à Oran » → l'escouade fait l'étude complète (marché, concurrents, chiffres, offre, plan de lancement 30 jours) et l'atelier construit la page de présentation. idea.", input_schema: obj({ idea: S }, ['idea']) },
   { name: 'autonomie', description: "AUTONOMIE PROGRESSIVE : après 5 « oui » d'affilée à ses réponses WhatsApp d'un même type, Dzaryx propose d'y répondre seul. 'status' ; 'on' / 'off' (kind = question | autre) quand Kouider dit « oui, réponds seul aux questions » ; 'off_all' = plus rien seul. Jamais seul : dispo, réservation, paiement, prix spécial, plainte, urgence.", input_schema: obj({ action: act('status', 'on', 'off', 'off_all'), kind: S }, ['action']) },
+  { name: 'parcmetre', description: "PARCMÈTRE MALIN : « j'ai payé 2 h », « parking jusqu'à 15h30 », « rajoute 1 h au parcmètre » → il retient où est la voiture (position actuelle) et, où que Kouider soit ensuite, calcule le temps À PIED pour y revenir et le prévient pile quand il faut repartir (lien itinéraire à pied). 'set' (minutes OU until HH:MM ; « rajoute 1 h » = set avec l'heure de fin actuelle + 1 h, lis d'abord 'status') ; 'status' ; 'cancel'.", input_schema: obj({ action: act('set', 'status', 'cancel'), minutes: N, until: S }) },
+  { name: 'carte_journee', description: "CARTE DE TA JOURNÉE : son trajet du jour dessiné sur une carte (image Telegram) + km, temps au volant, lieux visités avec heures, pas. Envoyée seule à 21h45 ; à la demande : « montre-moi ma journée », « j'ai fait combien de km aujourd'hui ? ».", input_schema: obj({}) },
   { name: 'sante', description: "JARVIS SANTÉ : sommeil, pas, cœur au repos, VFC envoyés chaque matin par le Raccourci iPhone (Santé / Apple Watch). Pour « j'ai bien dormi ? », « mon sommeil cette semaine ? », « ma santé ? ». days (7 par défaut). Si rien n'arrive : il doit installer le Raccourci (app › JARVIS › Santé).", input_schema: obj({ days: N }) },
 ];
 
@@ -60,6 +62,8 @@ export async function runJarvis3Tool(name: string, input: Record<string, unknown
     case 'atelier': return (await import('./builders.js')).atelierTool(input);
     case 'usine_business': return (await import('./builders.js')).businessFactoryTool(input);
     case 'autonomie': return (await import('./autonomy.js')).autonomyTool(input);
+    case 'parcmetre': return (await import('./wow.js')).parkmeterTool(input);
+    case 'carte_journee': return (await import('./wow.js')).dayMap(true);
     case 'sante': return (await import('./jarvis-hub.js')).healthText(Number(input['days']) || 7);
   }
   return null;

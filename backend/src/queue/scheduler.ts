@@ -314,6 +314,16 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'wow-watch',
+    cron:  '*/5 6-23 * * *',        // retard prédit à un RDV (GPS + trafic → prévenir / décaler) + parcmètre malin (temps à pied)
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'day-map',
+    cron:  '45 21 * * *',           // carte de la journée (trajet dessiné + km, volant, lieux, pas)
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'sport-watch',
     cron:  '*/5 4-23 * * *',        // toutes les 5 min — arrivé à la salle → séance sur Telegram ; séance commencée et GPS loin → appel « tu as oublié ? »
     tz:    'Europe/Brussels',
@@ -727,6 +737,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'dzaryx-weekly':           async () => { await (await import('../integrations/dzaryx-weekly.js')).jobDzaryxWeekly(); },
   'sport-weekly':            async () => { await (await import('../integrations/sport-coach.js')).jobSportWeekly(); },
   'presence-watch':          async () => { await (await import('../integrations/presence.js')).jobPresenceWatch(); },
+  'wow-watch':               async () => { await (await import('../integrations/wow.js')).jobWowWatch(); },
+  'day-map':                 async () => { await (await import('../integrations/wow.js')).dayMap(true); },
   'sport-watch':             async () => { await (await import('../integrations/sport-coach.js')).jobSportWatch(); await (await import('../integrations/life-coach.js')).ensureCoachDays(); },
   'life-coach-evening':      jobLifeCoachEvening,
   'life-coach-weekly':       jobLifeCoachWeekly,

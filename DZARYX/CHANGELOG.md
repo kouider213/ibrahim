@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-28 23h | effet wow | wow.ts (nouveau), gps-life.ts, jarvis3-tools.ts, scheduler.ts
+- Retard prédit (wow-watch */5) : RDV avec lieu dans < 100 min, GPS + trafic → arrivée ≥ 5 min après l'heure → boutons « prévenir sur WhatsApp avec l'heure » / « décaler le RDV » / rien.
+- Parcmètre malin (outil parcmetre) : voiture = position au paiement, alerte quand il faut repartir selon le temps À PIED depuis où il est.
+- Déjà-vu : arrêt dans un lieu déjà visité (< 6 fois) → quand, combien de temps, RDV de l'agenda ce jour-là.
+- Carte de la journée (day-map 21h45 + outil carte_journee) : trajet dessiné (Static Maps) + km, volant, lieux, pas.
+
 ## 2026-10-28 22h30 | bonus coach salle | gym-live.ts, tools.ts
 - Minuteur de repos (notif + Telegram quand le repos est fini, 💧 tous les 3 repos ; op timer on/off), fantôme (même série à la dernière séance, force estimée), séries d'approche au 1er exercice d'un muscle, calcul des disques pour les exercices à la barre, superset biceps/triceps proposé si retard, force max estimée (Epley) et séries/muscle sur 7 jours dans le bilan, vidéo d'une série = analyse technique /10, photo de machine = réglages + alternative.
 - Programme officiel 4 séances sans jambes (Pecs/Tri, Dos/Bi, Épaules, Bras) ; vendredi = Épaules, maison 7h20 (ba53a87 : override = rotation suivante → avance).

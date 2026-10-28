@@ -24,6 +24,7 @@ interface GpsState {
   nightSaid?: string;                // date de la nuit déjà vérifiée
   wasHome?: boolean; homeSince?: number; checklistDate?: string;
   prospectsDay?: string; prospectsN?: number;
+  dejaFor?: number;                  // arrêt (stay.t) déjà vérifié pour le déjà-vu
 }
 const STATE = 'gps:state', TRACK = 'gps:track', VISITS = 'gps:visits', PARKING = 'gps:parking', ORAN = 'mode:oran', ANGEL_CFG = 'angel:cfg';
 const STAY_M = 0.15;
@@ -84,6 +85,12 @@ async function handle(p: Pt): Promise<void> {
   } else if (st.drive && p.t - st.drive.lastMove > 12 * 60_000) {
     if (st.drive.maxKmh >= 25 && !here) await kvPut(PARKING, { lat: st.stay.lat, lng: st.stay.lng, at: st.stay.t, how: 'gps' });
     st.drive = undefined;
+  }
+
+  // ── Déjà-vu : arrêt de 4 min dans un endroit déjà visité (hors maison / salle / travail) ──
+  if (!here && stayMin >= 4 && st.dejaFor !== st.stay.t && !st.drive) {
+    st.dejaFor = st.stay.t;
+    void import('./wow.js').then(m => m.dejaVu(st.stay!)).catch(() => {});
   }
 
   // ── Ange gardien ──
