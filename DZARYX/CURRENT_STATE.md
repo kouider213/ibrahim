@@ -6,6 +6,11 @@
 
 ---
 
+## ⚡ Session 2026-10-28 (soir) — Dzaryx se code lui-même + WhatsApp direct en appel (2f61a4e)
+- Appel : outil whatsapp_send (envoi direct WA Business après relecture + oui) ; boîte « j'ai N choses pour toi » sans alertes périmées ni doublons.
+- Atelier de code : outil se_coder → app_kv dev:queue → crontab VPS */5 `backend/scripts/night-dev.mjs` (Claude Code mode auto, nuit 0h30-4h45, « maintenant » tout de suite, rapport Telegram 5h, logs /root/dzaryx-dev-logs). Auto-critique 0h15 → ses bugs partent seuls à l'atelier. Veille hebdo nuit sam→dim.
+- ⏳ 2f61a4e QUEUED sur Railway (incident Railway « builds not progressing ») → prod pas encore à jour. 1er vrai chantier de l'atelier jamais testé. À chaque séance : `git stash list` (atelier-*) + runner.log.
+
 ## ⚡ Session 2026-10-28 (après-midi) — Siri réparé + test Jarvis 4
 - Siri (B046) : consignes raccourcies dans l'historique (plus de résumé à chaque tour), 25 s max puis réponse sur Telegram, coupe en fin de phrase, « je regarde… » relancé.
 - GPS de vie : « mets à jour mon poids » marche en appel / Siri.
