@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-28 21h30 — Siri : tout à l'oral, Telegram seulement sur demande
+- jarvis-hub siriTurn : réponse > 8 s gardée et DITE au tour suivant (« alors ») au lieu d'aller sur Telegram ; réponse > 600 car. → « Tu veux la suite ? » ; nouvelle question pendant l'attente → l'ancienne réponse d'abord. Telegram seulement s'il dit « envoie-moi / sur Telegram / par écrit ».
+- Consigne SIRI « mains prises » : mails/WhatsApp lus à l'oral, rien sur Telegram sans demande (19h07 : mails partis sur Telegram, 11,6 s).
+
 ## 2026-10-28 21h — Économies Claude (cache) + atelier : annuler, se vérifier, carnet d'idées, grand ménage
 - claude-api : outils de base toujours dans le même ordre, en premier, point de cache 1 h ; outils de l'agent du moment + web_search après. Testé : changement de sujet = 23k jetons RELUS au lieu de ~29k réécrits (chat-voice = 97 % de la facture).
 - se_coder undo (« annule ce que tu as codé cette nuit » / un chantier) : l'atelier note from_sha/to_sha, revert + remise en ligne.

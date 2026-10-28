@@ -142,6 +142,7 @@ HEURE D'ARRIVÉE / DE DÉPART / VOL d'un client : regarde la note de sa réserva
 PHOTO / PAPIERS d'un client SEULEMENT s'il dit « envoie-moi », « montre-moi », « la photo de » (passeport, permis, carte d'identité, contrat) → get_client_document, puis si rien : whatsapp_web 'photos' ou 'documents' sur sa discussion → ils partent sur son TELEGRAM ; dis « je te l'ai envoyé sur Telegram ».
 RÉPONDRE à un client (« réponds-lui que… », « dis-lui… ») → whatsapp_web 'send' sur la discussion dont vous parliez juste avant (sans confirmed), lis-lui le message et demande « je l'envoie ? » ; à son « oui » → confirmed:true. Ne redemande pas de quelle discussion il s'agit si c'est clair d'après le tour précédent.
 Le micro se rouvre après ta réponse : c'est une conversation suivie, reprends le fil du tour précédent (« et lui ? », « envoie-le », « non l'autre » se rapportent à ce dont vous parliez).
+MAINS PRISES : sous Siri il ne peut PAS lire, tout se DIT. Mails, WhatsApp, documents → lis-lui l'essentiel à l'oral (qui, quoi, ce qu'il faut faire), un mail important presque en entier. N'envoie RIEN sur Telegram (send_telegram_message, send_doc_pdf, PDF, résumé écrit) sauf s'il dit « envoie-moi », « sur Telegram », « par écrit ».
 S'il veut discuter longuement ou en continu → rappelle-lui qu'il peut dire « appelle-moi » : Dzaryx l'appelle sur Telegram (conversation libre, il peut te couper la parole).]`;
 
 // « Dis Siri, Dzaryx » + « appelle-moi / on parle » : une VRAIE conversation = appel Telegram (écoute en continu, il peut
@@ -153,11 +154,45 @@ const BYE_RE = /^(merci|c'?est (bon|tout|parfait|ok)|ok merci|stop|arr[eê]te|à
 const STALL_RE = /^(je (regarde|vais (regarder|vérifier|chercher)|cherche|vérifie|check)|laisse-moi (regarder|vérifier)|un instant)/i;
 const SIRI_BUDGET_MS = 8_000;   // Siri affiche « Une erreur s'est produite » même à 13 s (log Railway 28/10 : 499 à 17 s, erreur à 13 s) → « Une erreur s'est produite »
 
+// Kouider 28/10 : « Siri c'est quand j'ai les mains prises → il doit me le DIRE, pas l'envoyer sur Telegram sauf si je le demande ».
+// Réponse trop lente (> budget) ou trop longue : gardée ici et DITE au tour suivant (« alors ? », « la suite »), jamais écrite.
+let siriPending: { question: string; job?: Promise<string>; text?: string; at: number } | null = null;
+const FOLLOW_RE = /^\W*(alors|et alors|vas[- ]?y|oui|ouais|ok|la suite|suite|continue|et donc|tu as trouv[ée]|c'?est bon \?|j'?écoute|dis[- ]moi)\b/i;
+const WRITTEN_RE = /\b(sur |par |en )?(telegram|par (é|e)crit|envoie[- ]?(le|la|les|moi)|écris[- ]?(le|moi))\b/i;
+
+/** Texte prêt à être dit par Siri : sans lien ni markdown, coupé en fin de phrase ; le reste est gardé pour « la suite ». */
+function speakable(raw: string, _question: string): { say: string; url?: string; rest?: string } {
+  let say = raw || 'Pardon, je n\'ai pas compris.';
+  const m = /PHONE_URL:\s*(\S+)/i.exec(say);
+  say = say.replace(/PHONE_URL:\s*\S+/i, '').replace(/https?:\/\/\S+/g, '').replace(/[*_#`>|]/g, '').trim();
+  if (say.length <= 600) return { say, ...(m ? { url: m[1] } : {}) };
+  const cut = say.slice(0, 600);
+  const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('? '), cut.lastIndexOf('! '));
+  const at = end > 200 ? end + 1 : cut.lastIndexOf(' ');
+  return { say: say.slice(0, at).trim(), rest: say.slice(at).trim(), ...(m ? { url: m[1] } : {}) };
+}
+
 export async function siriTurn(text: string): Promise<{ say: string; url?: string; listen?: boolean }> {
   if (CALL_ME_RE.test(text) && text.length < 120) {
     const { callOwner } = await import('../notifications/voice-call.js');
     await callOwner('Tu m\'as demandé de parler depuis Siri. Je t\'écoute, on reprend où on en était.', 'kouider', { force: true });
     return { say: 'Je t\'appelle sur Telegram, décroche et on parle.' };
+  }
+  // Une réponse l'attend (recherche longue ou « la suite ») : il la reçoit À L'ORAL d'abord
+  const pend = siriPending && Date.now() - siriPending.at < 10 * 60_000 ? siriPending : null;
+  if (!pend) siriPending = null;
+  const followUp = !!pend && FOLLOW_RE.test(text.trim()) && text.trim().length < 40;
+  if (pend && (followUp || !BYE_RE.test(text.trim()))) {
+    const ready = pend.text ?? (pend.job ? await Promise.race([pend.job, new Promise<null>(r => setTimeout(() => r(null), SIRI_BUDGET_MS))]) : null);
+    if (ready === null) return { say: 'Je cherche encore, redis-moi « alors » dans quelques secondes.', listen: true };
+    siriPending = null;
+    const out = speakable(ready, pend.question);
+    if (out.rest) siriPending = { question: pend.question, text: out.rest, at: Date.now() };
+    const tail = out.rest ? ' Tu veux la suite ?' : '';
+    if (followUp) return { say: `${out.say}${tail}`, ...(out.url ? { url: out.url } : { listen: true }) };
+    // Nouvelle question alors que l'ancienne réponse attendait : il dit l'ancienne, puis enchaîne
+    const next = await siriTurn(text);
+    return { ...next, say: `D'abord, pour ta question d'avant : ${out.say} Maintenant : ${next.say}` };
   }
   if (BYE_RE.test(text.trim()) && text.trim().length < 40) return { say: 'Avec plaisir, je reste là si tu as besoin.' };
   const { processMessage } = await import('../conversation/orchestrator.js');
@@ -169,27 +204,27 @@ export async function siriTurn(text: string): Promise<{ say: string; url?: strin
       t = stripToolTrace((await processMessage(`${SIRI}\nFais-le MAINTENANT avec tes outils et donne-moi directement la réponse : ${text.slice(0, 1500)}`, 'voice_kouider', true)).text ?? '') || t;
     return t;
   };
-  // Le Raccourci abandonne au-delà de ~30 s (28/10 : il redemandait la même chose) → réponse écrite sur Telegram
   const job = run();
   const raw = await Promise.race([job, new Promise<null>(r => setTimeout(() => r(null), SIRI_BUDGET_MS))]);
   if (raw === null) {
-    void job.then(t => tg(`🎙️ Réponse à ta question Siri « ${text.slice(0, 80)} » :\n\n${t.replace(/PHONE_URL:\s*\S+/i, '').trim()}`)).catch(() => {});
-    return { say: 'Ça me prend un peu plus de temps, je t\'envoie la réponse sur Telegram.' };
+    // Le Raccourci abandonne vers 13 s : on garde la réponse pour le tour suivant (à l'oral) ; Telegram seulement s'il l'a demandé
+    if (WRITTEN_RE.test(text)) {
+      void job.then(t => tg(`🎙️ Réponse à ta question Siri « ${text.slice(0, 80)} » :\n\n${t.replace(/PHONE_URL:\s*\S+/i, '').trim()}`)).catch(() => {});
+      return { say: 'Ça me prend un peu plus de temps, je t\'envoie la réponse sur Telegram.' };
+    }
+    siriPending = { question: text, job: job.catch(() => 'Pardon, je n\'ai pas réussi à trouver.'), at: Date.now() };
+    void siriPending.job!.then(t => { if (siriPending && siriPending.question === text) siriPending.text = t; });
+    return { say: 'Je regarde, ça me prend quelques secondes. Dis-moi « alors » et je te réponds.', listen: true };
   }
-  let say = raw || 'Pardon, je n\'ai pas compris.';
-  const m = /PHONE_URL:\s*(\S+)/i.exec(say);
-  say = say.replace(/PHONE_URL:\s*\S+/i, '').replace(/https?:\/\/\S+/g, '').replace(/[*_#`>|]/g, '').trim();
-  // Couper à la fin d'une phrase, jamais au milieu d'un mot (Siri « coupé », 28/10)
-  if (say.length > 600) {
-    const cut = say.slice(0, 600);
-    const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('? '), cut.lastIndexOf('! '));
-    say = end > 200 ? cut.slice(0, end + 1) : `${cut.slice(0, cut.lastIndexOf(' '))}…`;
-    void tg(`🎙️ Réponse complète (Siri) :\n\n${raw.replace(/PHONE_URL:\s*\S+/i, '').trim()}`);
-    say += ' La suite est sur ton Telegram.';
+  const out = speakable(raw, text);
+  if (out.rest) {
+    if (WRITTEN_RE.test(text)) { void tg(`🎙️ Réponse complète (Siri) :\n\n${raw.replace(/PHONE_URL:\s*\S+/i, '').trim()}`); return { say: `${out.say} La suite est sur ton Telegram.`, listen: true }; }
+    siriPending = { question: text, text: out.rest, at: Date.now() };
+    return { say: `${out.say} Tu veux la suite ?`, listen: true };
   }
   // Conversation suivie : le micro se rouvre après CHAQUE réponse (pas seulement après une question) tant qu'il ne dit pas
   // « merci / c'est bon / stop » ou qu'il se tait — Kouider 28/10 : « il doit pouvoir écouter, répondre, reprendre »
-  return { say, ...(m ? { url: m[1] } : { listen: true }) };
+  return { say: out.say, ...(out.url ? { url: out.url } : { listen: true }) };
 }
 
 // ── Salle de commande ────────────────────────────────────────────────────────
