@@ -2,9 +2,15 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : **2026-10-15**.
+> Dernière mise à jour : **2026-10-28**.
 
 ---
+
+## ⚡ Session 2026-10-28 (après-midi) — Siri réparé + test Jarvis 4
+- Siri (B046) : consignes raccourcies dans l'historique (plus de résumé à chaque tour), 25 s max puis réponse sur Telegram, coupe en fin de phrase, « je regarde… » relancé.
+- GPS de vie : « mets à jour mon poids » marche en appel / Siri.
+- Test des 16 outils Jarvis 4 (bac à sable) : 0 crash. B047 : get_client_brain envoyait les papiers clients → lecture seule. Décisions 3 h, promesses « déjà fait » ignorées, brouillons WA > 24 h ignorés.
+- Widget Scriptable abandonné par Kouider. ⏳ De son côté : raccourci CarPlay → parking, montre. Promesse « Houari dépose le véhicule » à clore. RAILWAY_TOKEN toujours refusé (déploiements non vérifiables).
 
 ## ⚡ Session 2026-10-15 (soir) — Routine du matin, trajets avec trafic, voyages + check-lists
 - Réveil + motivation chaque matin, appel si pas de réponse (`morning-routine.ts`, outil `morning_routine`, pause vacances).
