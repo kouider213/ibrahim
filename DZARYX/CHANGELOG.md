@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-28 (suite 9) — GPS de vie : objectifs de Kouider
+- `foresight.ts` : objectif « poids » lit le poids du profil FORME quand Santé n'envoie pas de pesée.
+- Objectifs ajoutés (app_kv lifegps) : quitter la Belgique fin 2028 (% prêt, manuel), recompo 80→75 kg (30/06/2027), CA FIK 3000 €/mois (30/06/2028).
+- Guide Jarvis : CarPlay coupé, chargeur, montre abandonnés par Kouider ; mot de réveil OnePlus abandonné.
+
 ## 2026-10-28 (suite 8) — B045 suite : test réel de 14h01 raté
 - `orchestrator.ts` : « ange gardien contact » répond directement, sans passer par le cerveau ; « vérifie… » sans « envoie/montre » → setDocReadOnly (aucun papier envoyé).
 - `context-builder.ts` : un message resté sans réponse (panne/redéploiement) est marqué pour que le cerveau n'y réponde plus au tour suivant.

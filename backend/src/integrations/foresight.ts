@@ -137,7 +137,12 @@ interface LifeGoal { id: string; name: string; target: number; unit: string; dea
 
 async function metricValue(g: LifeGoal): Promise<number | null> {
   if (g.metric === 'fortune') return import('./brain-plus.js').then(m => m.fortune()).then(f => f.total).catch(() => null);
-  if (g.metric === 'poids') { const h = (await kvJson<Array<{ weight?: number }>>('health:daily', [])).filter(x => x.weight); return h.length ? h[h.length - 1]!.weight! : null; }
+  if (g.metric === 'poids') {
+    const h = (await kvJson<Array<{ weight?: number }>>('health:daily', [])).filter(x => x.weight);
+    if (h.length) return h[h.length - 1]!.weight!;
+    // Pas de pesée Santé : le poids qu'il tient à jour dans FORME
+    return (await kvJson<{ weightKg?: number }>('kouider:forme:profile', {})).weightKg ?? null;
+  }
   if (g.metric === 'ca_mois') return import('./jarvis-hub.js').then(m => m.commandCenter()).then(c => Number(c['revenue'] ?? 0)).catch(() => null);
   return g.history.length ? g.history[g.history.length - 1]!.value : null;
 }
