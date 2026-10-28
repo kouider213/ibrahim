@@ -5,6 +5,9 @@
 
 ---
 
+## 2026-10-28 (suite 5) — La Conscience : fin du faux « RDV » répété
+- `conscience.ts` : le créneau de travail (« Belgique — travail ») n'est plus vu comme un RDV ; événement déjà commencé marqué ; ce que Kouider a dit ces 2 h (`kouider_a_dit_2h`) prime sur l'agenda ; même sujet jamais redit en 3 h, même en urgence 3 ; appel d'urgence max 1 / 6 h. (Le 28/10 : 4 alertes « retard-rdv » + appels entre 12h50 et 13h20 alors qu'il était au travail.)
+
 ## 2026-10-28 (suite 4) — Siri : « vérifie » = lecture seule
 - `jarvis-hub.ts` (prompt Siri) + `tools.ts` (whatsapp_web) : « regarde / vérifie / c'est quand / à quelle heure » → list_bookings, dossier, whatsapp_web 'read' ; plus jamais 'photos' / 'documents' / get_client_document / air_algerie_* pour une simple vérification (Siri envoyait les photos du client sur Telegram au lieu de répondre). Photos et papiers seulement sur « envoie-moi / montre-moi ».
 

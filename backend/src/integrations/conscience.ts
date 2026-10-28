@@ -268,12 +268,17 @@ export async function snapshot(): Promise<Record<string, unknown>> {
     kvJson<{ title: string; steps: Array<{ text: string; done?: boolean }> } | null>('crisis', null),
   ]);
   const gps = await kvJson<{ last?: { kmh: number } }>('gps:state', {});
+  // Ce que Kouider a dit ces 2 h : ses corrections (« je n'ai pas de RDV », « je suis au travail ») priment sur l'agenda
+  const { data: said } = await supabase.from('conversations').select('content, created_at').eq('session_id', 'voice_kouider').eq('role', 'user').gte('created_at', new Date(Date.now() - 2 * 3600_000).toISOString()).order('created_at').limit(15);
   const health = (await kvJson<Array<Record<string, unknown>>>('health:daily', [])).find(h => h['date'] === date);
   return {
     heure: localNow().hhmm, jour: ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'][localNow().weekday],
     lieu: where ? `${where.where} depuis ${Math.round((Date.now() - where.since) / 60_000)} min` : 'inconnu', vitesse_kmh: Math.round(gps.last?.kmh ?? 0),
     mode_oran: !!oran, bouclier_famille: await shieldActive(),
-    agenda_4h: ((agenda ?? []) as Array<{ summary?: string; start?: { dateTime?: string }; location?: string }>).map(e => `${e.start?.dateTime?.slice(11, 16) ?? ''} ${e.summary ?? ''}${e.location ? ` @${e.location}` : ''}`),
+    // Son créneau de TRAVAIL n'est pas un rendez-vous ; un événement déjà commencé est marqué comme tel
+    agenda_4h: ((agenda ?? []) as Array<{ summary?: string; start?: { dateTime?: string }; location?: string }>)
+      .filter(e => !/travail|boulot|\btaf\b|shift|poste/i.test(e.summary ?? ''))
+      .map(e => `${e.start?.dateTime?.slice(11, 16) ?? ''} ${e.summary ?? ''}${e.location ? ` @${e.location}` : ''}${e.start?.dateTime && Date.parse(e.start.dateTime) < Date.now() ? ' (déjà commencé)' : ''}`),
     locations_aujourdhui_demain: (books as Array<Record<string, unknown>>).filter(b => !/REJECT|CANCEL/i.test(String(b['status']))).map(b => `${(b['cars'] as { name?: string } | null)?.name ?? ''} ${b['client_name']} ${String(b['start_date']).slice(0, 16)}→${String(b['end_date']).slice(0, 16)}`),
     vols_24h: trips.filter(t => t.departAt > Date.now() && t.departAt - Date.now() < 86_400_000).map(t => `${t.who} ${t.title} ${new Date(t.departAt).toISOString().slice(0, 16)}`),
     whatsapp_en_attente: (drafts as Array<{ chat: string }>).map(d => d.chat).slice(0, 6),
@@ -283,6 +288,7 @@ export async function snapshot(): Promise<Record<string, unknown>> {
     humeur: await kvJson<MoodNow | null>('mood:now', null),
     decisions_en_attente: decisions.map(d => d.title.slice(0, 80)),
     salle_de_crise: crisis ? `${crisis.title} — ${crisis.steps.filter(s => !s.done).length} étape(s) restante(s)` : null,
+    kouider_a_dit_2h: ((said ?? []) as Array<{ content: string; created_at: string }>).map(t => `${localNow(Date.parse(t.created_at)).hhmm} ${String(t.content).replace(/^\[[^\]]{20,}\]\s*/s, '').slice(0, 200)}`),
     deja_envoye_3h: sent.filter(s => Date.now() - s.at < 3 * 3600_000).map(s => s.text.slice(0, 140)),
   };
 }
@@ -308,12 +314,15 @@ export async function jobConscience(): Promise<string> {
     + `Goûts appris (type de conseil → score, négatif = il ignore, positif = il apprécie) : ${JSON.stringify(scores)}\n`
     + `Déjà ${todayN}/${MAX_PER_DAY} conseils aujourd'hui.${night ? ' C\'est la NUIT : seulement urgence 3.' : ''}${snap['bouclier_famille'] ? ' Bouclier famille : seulement urgence 3.' : ''}\n\n`
     + `Cherche UNE chose qui vaut VRAIMENT la peine d'être dite maintenant, en CROISANT les infos (ex. client qui atterrit + Houari loin ; rendez-vous dans 40 min + 35 min de route ; promesse due aujourd'hui ; décision qui attend depuis longtemps ; santé mauvaise + grosse journée ; il roule vers un lieu alors qu'un truc l'attend ailleurs). `
+    + `Ce que Kouider a dit (kouider_a_dit_2h) PRIME sur l'agenda : s'il a dit qu'il n'a pas de RDV, qu'il est au travail ou que c'est réglé, n'en reparle plus. Son travail n'est jamais un « RDV ». `
     + `Pas de redite de ce qui a déjà été envoyé ces 3 h. Pas de banalité, pas de motivation creuse, pas de « bonne journée ». Si rien d'utile → speak:false (c'est le cas le plus fréquent).\n`
     + `Réponds UNIQUEMENT en JSON : {"speak":true|false,"kind":"type court (ex. retard-rdv, client-aeroport, promesse, sante, argent, famille, decision)","urgency":1|2|3,"text":"ce que tu lui dis, 1 à 3 phrases, tutoiement, concret","options":[{"label":"bouton court","tool":"outil Dzaryx facultatif","input":{}}]} (options facultatives, 2-3 max, seulement si un simple choix permet d'agir).`,
     { max: 500 }));
   if (!o?.speak || !o.text) return 'silence';
   const urgency = Math.max(1, Math.min(3, Number(o.urgency) || 1));
   const kind = String(o.kind ?? 'autre').slice(0, 30);
+  // Jamais deux fois le même sujet en 3 h, même « urgent » (le 28/10 : 4 alertes + appels pour un faux RDV)
+  if (log.some(n => n.kind === kind && Date.now() - n.at < 3 * 3600_000)) return `tu (${kind} déjà dit)`;
   if (urgency < 3 && (night || snap['bouclier_famille'] || todayN >= MAX_PER_DAY)) return 'tu (limite)';
   if (urgency < 2 && (scores[kind] ?? 0) <= -3) return `tu (${kind} ignoré d'habitude)`;
   if (urgency < 3 && await consciencePaused()) return 'tu (pause)';
@@ -321,7 +330,7 @@ export async function jobConscience(): Promise<string> {
   await kvPut(LOG, log.slice(-200));
   if (o.options?.length) await createDecision(`🧠 ${o.text}`, o.options.map(x => ({ label: x.label, tool: x.tool, input: x.input })));
   else await tg(`🧠 ${o.text}`);
-  if (urgency === 3) {
+  if (urgency === 3 && !log.slice(0, -1).some(n => n.urgency === 3 && Date.now() - n.at < 6 * 3600_000)) {
     const { callOwner } = await import('../notifications/voice-call.js');
     await callOwner(o.text, 'kouider').catch(() => {});
   }
