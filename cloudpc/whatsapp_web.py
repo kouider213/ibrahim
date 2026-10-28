@@ -326,22 +326,37 @@ async def send(chat: str, text: str) -> dict:
 # Photos reçues dans une discussion (2026-10-22, Kouider : « montre-moi les photos ») : WhatsApp garde déjà l'image
 # pleine taille (blob 1500×2000…) dans la bulle, albums compris → on la redessine en JPEG sur un canvas (même origine).
 JS_PHOTOS = r"""(async (max) => {
-  const seen = new Set();
-  const imgs = [...document.querySelectorAll('#main img[src^="blob:"]')].filter(i => i.naturalWidth >= 200 && !seen.has(i.src) && seen.add(i.src)).slice(-max);
-  const out = [];
-  for (const img of imgs) {
-    const m = img.closest('[data-testid^="conv-msg-"], div.message-in, div.message-out') || img.parentElement;
-    const R = m.getBoundingClientRect(), r = img.getBoundingClientRect();
-    const me = m.classList.contains('message-out') || !!m.querySelector('.message-out') || (!m.querySelector('.message-in') && (R.right - r.right) < (r.left - R.left));
-    const cap = [...m.querySelectorAll('span.selectable-text')].filter(s => !s.parentElement.closest('span.selectable-text')).map(s => s.innerText).join(' ').trim();
-    const time = ((m.innerText || '').match(/\b(\d{1,2}:\d{2})\s*$/m) || [])[1] || '';
-    const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
-    const c = document.createElement('canvas');
-    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
-    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-    out.push({ me, caption: cap.slice(0, 300), time, w: c.width, h: c.height, b64: c.toDataURL('image/jpeg', 0.82).split(',')[1] });
+  // 28/10 : WhatsApp ne charge l'image (blob) que quand la bulle passe à l'écran ; hors écran il n'y a qu'une miniature
+  // floue (data:, 72 px) → on fait défiler chaque miniature à l'écran (du plus récent au plus ancien) et on capture au fur et à mesure
+  const sc = [...document.querySelectorAll('#main div')].find(d => d.scrollHeight > d.clientHeight + 50 && /(auto|scroll)/.test(getComputedStyle(d).overflowY));
+  const bottom = async () => { if (sc) { sc.scrollTop = sc.scrollHeight; await new Promise(r => setTimeout(r, 1200)); } };
+  await bottom();
+  const got = new Map();
+  const grab = () => {
+    for (const img of [...document.querySelectorAll('#main img[src^="blob:"]')].reverse()) {
+      if (img.naturalWidth < 200 || got.has(img.src)) continue;
+      const m = img.closest('[data-testid^="conv-msg-"], div.message-in, div.message-out') || img.parentElement;
+      const R = m.getBoundingClientRect(), r = img.getBoundingClientRect();
+      const me = m.classList.contains('message-out') || !!m.querySelector('.message-out') || (!m.querySelector('.message-in') && (R.right - r.right) < (r.left - R.left));
+      const cap = [...m.querySelectorAll('span.selectable-text')].filter(s => !s.parentElement.closest('span.selectable-text')).map(s => s.innerText).join(' ').trim();
+      const time = ((m.innerText || '').match(/\b(\d{1,2}:\d{2})\s*$/m) || [])[1] || '';
+      const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      got.set(img.src, { me, caption: cap.slice(0, 300), time, w: c.width, h: c.height, b64: c.toDataURL('image/jpeg', 0.82).split(',')[1] });
+    }
+  };
+  grab();
+  const thumbs = [...document.querySelectorAll('#main img[src^="data:image/jpeg"]')].filter(i => i.getBoundingClientRect().width >= 150).reverse();
+  for (const t of thumbs) {
+    if (got.size >= max) break;
+    if (!t.isConnected) continue;
+    t.scrollIntoView({ block: 'center' });
+    for (let i = 0; i < 6; i++) { await new Promise(r => setTimeout(r, 300)); const n = got.size; grab(); if (got.size > n) break; }
   }
-  return out;
+  await bottom();   // la discussion reste en bas (lecture des nouveaux messages)
+  return [...got.values()].reverse().slice(-max);   // du plus ancien au plus récent
 })"""
 
 COUNT_PHOTOS = "document.querySelectorAll('#main img[src^=\"blob:\"]').length"

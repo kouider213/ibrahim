@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-28 17h30 — Photos WhatsApp hors écran + Siri 8 s
+- cloudpc whatsapp_web.py JS_PHOTOS : fait défiler chaque miniature floue à l'écran et capture au fur et à mesure, puis revient en bas (le billet de Djillali à 20h54 n'était jamais lu).
+- Siri : erreur même à 13 s → budget 8 s puis réponse sur Telegram.
+
 ## 2026-10-28 17h — Horaires des clients lus sur leurs photos WhatsApp
 - whatsapp_web look (lecture seule) : lit billets / cartes d'embarquement / captures d'horaires, rien envoyé sur Telegram.
 - Photo de billet reçue → horaires notés dans la réservation + message Telegram tout seul.
