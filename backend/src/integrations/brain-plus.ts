@@ -216,7 +216,7 @@ export async function fortune(): Promise<{ total: number; lines: Array<{ label: 
   const rate = g?.eurDzd ?? 260;
   const lines: Array<{ label: string; kind: string; eur: number }> = assets.map(a => ({ label: a.label, kind: a.kind, eur: (a.kind === 'dette' ? -1 : 1) * (a.currency === 'DZD' ? a.value / rate : a.value) }));
   // Ce qu'on doit à FIK (restes à payer des clients)
-  const { data } = await supabase.from('bookings').select('amount_remaining').gt('amount_remaining', 0).not('status', 'in', '(REJECTED,CANCELLED,cancelled)');
+  const { data } = await supabase.from('bookings').select('amount_remaining').gt('amount_remaining', 0).not('status', 'in', '(REJECTED,CANCELLED,cancelled)').neq('payment_status', 'PAID');   // payées : amount_remaining jamais remis à 0 (28/10 : 3 850 € fantômes)
   const due = ((data ?? []) as Array<{ amount_remaining: number }>).reduce((s, b) => s + Number(b.amount_remaining || 0), 0);
   if (due > 0) lines.push({ label: 'Ce que les clients doivent encore à FIK', kind: 'créance', eur: due });
   const total = lines.reduce((s, l) => s + l.eur, 0);

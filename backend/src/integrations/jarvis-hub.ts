@@ -174,7 +174,7 @@ export async function commandCenter(): Promise<Record<string, unknown>> {
   const monthStart = `${today.slice(0, 7)}-01`;
   const [{ data: cars }, { data: books }] = await Promise.all([
     supabase.from('cars').select('id, name, available'),
-    supabase.from('bookings').select('car_id, client_name, start_date, end_date, status, final_price, total_price, amount_remaining, profit, created_at').gte('end_date', `${today.slice(0, 7)}-01`).order('start_date'),
+    supabase.from('bookings').select('car_id, client_name, start_date, end_date, status, final_price, total_price, amount_remaining, payment_status, profit, created_at').gte('end_date', `${today.slice(0, 7)}-01`).order('start_date'),
   ]);
   const B = ((books ?? []) as Array<Record<string, unknown>>).filter(b => !/REJECT|CANCEL/i.test(String(b['status'])));
   const C = (cars ?? []) as Array<{ id: string; name: string; available?: boolean }>;
@@ -186,7 +186,7 @@ export async function commandCenter(): Promise<Record<string, unknown>> {
   const month = B.filter(b => String(b['start_date']).slice(0, 10) >= monthStart);
   const revenue = month.reduce((s, b) => s + Number(b['final_price'] ?? b['total_price'] ?? 0), 0);
   const profit = month.reduce((s, b) => s + Number(b['profit'] ?? 0), 0);
-  const due = B.reduce((s, b) => s + Number(b['amount_remaining'] ?? 0), 0);
+  const due = B.filter(b => b['payment_status'] !== 'PAID').reduce((s, b) => s + Number(b['amount_remaining'] ?? 0), 0);
   const [drafts, conn, square, fortune, projects, squad] = await Promise.all([
     import('./whatsapp-web.js').then(m => m.waPendingDrafts()).catch(() => []),
     import('./connections-watch.js').then(m => m.connectionsText()).catch(() => ''),

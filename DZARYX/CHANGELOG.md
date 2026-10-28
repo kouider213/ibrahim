@@ -6,6 +6,8 @@
 ## 2026-10-28 (suite 9) — GPS de vie : objectifs de Kouider
 - `foresight.ts` : objectif « poids » lit le poids du profil FORME quand Santé n'envoie pas de pesée.
 - Objectifs ajoutés (app_kv lifegps) : quitter la Belgique fin 2028 (% prêt, manuel), recompo 80→75 kg (30/06/2027), CA FIK 3000 €/mois (30/06/2028).
+- `brain-plus.ts` fortune() + `jarvis-hub.ts` commandCenter() : « ce que les clients doivent » ignore les résas payment_status PAID (amount_remaining jamais remis à 0 → 3 850 € fantômes).
+- Objectif épargne globale 15 000 → 50 000 € (31/12/2028, manuel).
 - Guide Jarvis : CarPlay coupé, chargeur, montre abandonnés par Kouider ; mot de réveil OnePlus abandonné.
 
 ## 2026-10-28 (suite 8) — B045 suite : test réel de 14h01 raté
