@@ -94,6 +94,12 @@ router.get('/squad', async (req, res) => {
   try { res.json({ squad: await import('../../integrations/squad.js').then(m => m.getSquad(String(req.query['id'] ?? '') || undefined)) }); } catch (e) { fail(res, e); }
 });
 
+// ROUTE : dashcam intelligente (panneaux, vitesse, dangers, plaques, boîte noire)
+router.post('/road', async (req, res) => {
+  const b = req.body as { image?: string; lat?: number; lng?: number; kmh?: number };
+  try { res.json(await import('../../integrations/road.js').then(m => m.roadFrame({ image: String(b.image ?? ''), ...(typeof b.lat === 'number' ? { lat: b.lat, lng: b.lng } : {}), ...(typeof b.kmh === 'number' ? { kmh: b.kmh } : {}) }))); } catch (e) { fail(res, e); }
+});
+
 // Copilote mains libres : une phrase au volant → réponse dite ; fil des nouveaux messages WhatsApp à lire
 router.post('/copilot/audio', async (req, res) => {
   const { audio, mime = 'audio/webm', wake } = req.body as { audio?: string; mime?: string; wake?: boolean };

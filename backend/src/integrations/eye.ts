@@ -18,7 +18,7 @@ interface EyeState { lastSay?: number; said: Array<{ t: number; text: string }>;
 const LOG = 'eye:log', WATCH = 'eye:watch', STATE = 'eye:state';
 const SAY_GAP = 45_000;
 
-async function gemini(prompt: string, jpg: string): Promise<string> {
+export async function gemini(prompt: string, jpg: string): Promise<string> {
   const key = process.env['GEMINI_API_KEY'];
   if (!key) throw new Error('GEMINI_API_KEY manquant');
   const body = { contents: [{ role: 'user', parts: [{ inline_data: { mime_type: 'image/jpeg', data: jpg } }, { text: prompt }] }],

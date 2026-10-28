@@ -36,6 +36,7 @@ import StudioScreen from './screens/StudioScreen.tsx';
 import CarteScreen from './screens/CarteScreen.tsx';
 import NexusScreen from './screens/NexusScreen.tsx';
 import PhoneCamScreen from './screens/PhoneCamScreen.tsx';
+import RouteScreen from './screens/RouteScreen.tsx';
 import GlobeScreen from './screens/GlobeScreen.tsx';
 import FormeScreen from './screens/FormeScreen.tsx';
 import FennouScreen from './screens/FennouScreen.tsx';
@@ -47,7 +48,7 @@ export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
   | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews' | 'blog' | 'devis' | 'reponse'
-  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'demarchage' | 'sites' | 'partners' | 'paiements' | 'studio' | 'carte' | 'nexus' | 'globe' | 'camera' | 'sport' | 'fennou' | 'jeux' | 'jarvis' | 'plus';
+  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'demarchage' | 'sites' | 'partners' | 'paiements' | 'studio' | 'carte' | 'nexus' | 'globe' | 'camera' | 'route' | 'sport' | 'fennou' | 'jeux' | 'jarvis' | 'plus';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -72,6 +73,7 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'carte',         icon: '🗺️', label: 'CARTE LIVE', kouiderOnly: true, group: 'tool' },
   { id: 'nexus',         icon: '🖥️', label: 'MON PC',  kouiderOnly: true, group: 'tool' },
   { id: 'globe',         icon: '🌍', label: 'GLOBE',   kouiderOnly: true, group: 'tool' },
+  { id: 'route',         icon: '🚗', label: 'ROUTE',   kouiderOnly: true, group: 'tool' },
   { id: 'camera',        icon: '👁️', label: 'CAMÉRA → PC', kouiderOnly: true, group: 'tool' },
   { id: 'demarchage',    icon: '📤', label: 'DÉMARCHAGE', kouiderOnly: true, group: 'tool' },
   { id: 'partners',      icon: '🤝', label: 'PARTENAIRES', kouiderOnly: true, group: 'tool' },
@@ -311,7 +313,7 @@ export default function Phone() {
   const actor = loggedActor ?? 'kouider';
 
   const houariOnlyPages: Page[] = [];
-  const kouiderOnlyPages: Page[] = ['jarvis', 'jeux', 'fennou', 'documents', 'demarchage', 'sites', 'partners', 'paiements', 'studio', 'carte', 'camera'];
+  const kouiderOnlyPages: Page[] = ['jarvis', 'jeux', 'fennou', 'documents', 'demarchage', 'sites', 'partners', 'paiements', 'studio', 'carte', 'camera', 'route'];
 
   const safePage: Page = (() => {
     if (actor === 'houari' && kouiderOnlyPages.includes(page)) return 'voice';
@@ -352,6 +354,7 @@ export default function Phone() {
       case 'paiements':     return <PaiementsScreen />;
       case 'studio':        return <StudioScreen />;
       case 'camera':        return <PhoneCamScreen />;
+      case 'route':         return <RouteScreen />;
       case 'globe':         return <GlobeScreen />;
       case 'sport':         return <FormeScreen onExit={exitFennou} />;
       case 'fennou':        return <FennouScreen onExit={exitFennou} />;
