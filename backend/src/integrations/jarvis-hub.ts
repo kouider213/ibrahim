@@ -150,7 +150,7 @@ const CALL_ME_RE = /\b(appelle[- ]?moi|rappelle[- ]?moi maintenant|on (se )?parl
 const BYE_RE = /^(merci|c'?est (bon|tout|parfait|ok)|ok merci|stop|arr[eê]te|à plus|a plus|bye|ciao|bonne (nuit|journée|soirée)|rien|non merci|ça ira|ca ira|laisse tomber)\b/i;
 
 const STALL_RE = /^(je (regarde|vais (regarder|vérifier|chercher)|cherche|vérifie|check)|laisse-moi (regarder|vérifier)|un instant)/i;
-const SIRI_BUDGET_MS = 25_000;
+const SIRI_BUDGET_MS = 13_000;   // le Raccourci coupe vers 17 s (log Railway 28/10 : 499 à 17 s) → « Une erreur s'est produite »
 
 export async function siriTurn(text: string): Promise<{ say: string; url?: string; listen?: boolean }> {
   if (CALL_ME_RE.test(text) && text.length < 120) {

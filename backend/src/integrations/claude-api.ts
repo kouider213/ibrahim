@@ -314,7 +314,13 @@ export async function chatWithTools(
   // COMPACTION: Si historique trop long, résumer avant d'envoyer à Claude
   // ══════════════════════════════════════════════════════════════════════════
   let processedMessages = messages;
-  if (needsCompaction(messages)) {
+  if (sid.startsWith('voice_') && needsCompaction(messages)) {
+    // Voix / Siri : pas de résumé par IA (+4 s à chaque tour, le Raccourci Siri abandonne vers 17 s — 28/10) → 10 derniers messages
+    let i = Math.max(0, messages.length - 10);
+    while (i < messages.length - 1 && (messages[i].role !== 'user' || typeof messages[i].content !== 'string')) i++;
+    processedMessages = messages.slice(i);
+    console.log(`[compaction] voix : historique coupé ${messages.length} → ${processedMessages.length} messages (sans résumé)`);
+  } else if (needsCompaction(messages)) {
     console.log(`[compaction] Historique trop long (${messages.length} msgs) — compaction en cours…`);
     processedMessages = await compactIfNeeded(messages, sid);
     console.log(`[compaction] Réduit à ${processedMessages.length} messages`);

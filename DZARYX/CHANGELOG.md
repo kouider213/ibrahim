@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-28 16h30 — Siri « Une erreur s'est produite »
+- Log Railway : le Raccourci coupe vers 17 s (HTTP 499), Dzaryx répondait en 23 s (dont 4 s de résumé d'historique à chaque tour).
+- Voix/Siri : historique coupé aux 10 derniers messages sans résumé IA ; budget Siri 25 s → 13 s puis réponse sur Telegram.
+
 ## 2026-10-28 16h — Fiche vol courte
 - Telegram/app : fiche Air Algérie réduite à aller, retour, prix total, lien (shortFiche) ; fiche complète gardée dans le job.
 - Railway : échecs 020d836→541cff2 = registry Railway (image non tirée, incident), pas le code.
