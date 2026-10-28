@@ -138,6 +138,7 @@ export async function myVoiceTool(input: Record<string, unknown>, sessionId?: st
       return c ? `🎙️ Ta voix est apprise (${Math.round(c.seconds)} s de vocaux, ${new Date(c.at).toLocaleDateString('fr-FR')}). Plus tu m'envoies de vocaux, plus elle te ressemble.`
         : `🎙️ Pas encore apprise : j'ai ${Math.round(s?.seconds ?? 0)} s de ta voix, il m'en faut 20. Envoie-moi un vocal Telegram de 30 s où tu parles normalement (pas un vocal transféré).`;
     }
+    if (action === 'test') { const b = await speakAsKouider(String(input['text'] ?? 'Test.'), String(input['langue'] ?? '')); return `✅ test voix : ${b.length} octets (rien envoyé)`; }   // contrôle technique
     if (action === 'clone') { const c = await cloneMyVoice(); return `✅ Voix (ré)apprise à partir de ${Math.round(c.seconds)} s de tes vocaux.`; }
     if (action === 'dire') {
       let text = String(input['text'] ?? '').trim();
