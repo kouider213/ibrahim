@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { kvGet, kvSet } from './app-store.js';
 import { runReadOnlyAgent } from './readonly-agent.js';
 import { isBookingRequest, isComplaint } from './whatsapp.js';
@@ -16,6 +17,7 @@ import { callGroqVision, callOpenAIVision } from './llm-router.js';
 const DEFAULT_PHONE = '+32466311469';     // WhatsApp Business FIK (site, widget)
 const DRAFTS_KEY = 'wa:drafts';
 const PREVIEW_KEY = 'wa:send:preview';
+const PAPERS_SEEN_KEY = 'wa:papers:seen';    // photos / PDF de clients déjà analysés (empreinte)
 const PENDING_KEY = 'wa:pending';          // dernière réponse proposée : le PROCHAIN message de Kouider (oui / non) décide
 const DELICATE_RE = /accident|accroch|panne|crev[ée]|police|gendarm|vol[ée]e?\b|amende|fourri[èe]re|bless|urgence|urgent|حادث|عطب|شرطة|سرقة/i;
 
@@ -97,6 +99,9 @@ export async function onWaNew(c: WaChat): Promise<void> {
     let k = said.length - voiceCount;
     for (const m of fromClient) if (m.text.startsWith('[message vocal')) { const t = said[k++]; if (t) m.text = t; }
   }
+  // Le client envoie une photo / un document → analysé tout seul : passeport, carte d'identité, permis → dossier client
+  // (nom, n°, dates, âge), résa renommée et contact WhatsApp enregistré à son nom (Kouider 28/10)
+  if (fromClient.some(m => /^\[(photo|document)\]/.test(m.text))) autoScanClientPapers(name);
   if (fromClient.length) {
     preview = fromClient.map(m => m.text).join('\n').slice(0, 1200);
     convo = msgs.map(m => `${!m.me ? 'Client' : isAuto(m) ? 'FIK (accueil automatique)' : 'FIK'} : ${m.text}`).join('\n').slice(-2500);
@@ -307,6 +312,16 @@ async function renameClientEverywhere(phone: string, fullName: string): Promise<
   return ids.length;
 }
 
+/** Photo / document reçu d'un client : analyse en arrière-plan (après la lecture du message), Telegram seulement si une pièce d'identité est trouvée. */
+function autoScanClientPapers(chat: string): void {
+  setTimeout(() => {
+    void (async () => {
+      const res = await whatsappWebTool({ action: 'save_client', chat, auto: true, force: true }, `wa_papers_${Date.now()}`).catch(() => '');
+      if (res && res.startsWith('✅')) await queueTelegramMessage(`🪪 Papiers reçus sur WhatsApp, rangés tout seuls :\n${res}`).catch(() => {});
+    })();
+  }, 20_000);   // laisse le PC cloud finir la lecture + la réponse proposée
+}
+
 /** Validation d'une résa (create_booking) : papiers WhatsApp → dossier, vrai nom, contact WhatsApp — en arrière-plan,
  *  résultat envoyé sur Telegram. Kouider 28/10 : « quand je valide une réservation Dzaryx doit enregistrer le numéro avec le bon nom ». */
 export function autoSaveClientAfterBooking(phone: string, name: string | undefined, sessionId?: string): void {
@@ -494,9 +509,17 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
       const { scanIdentity, titleName } = await import('./tool-executor.js');
       const { redis } = await import('../queue/queue.js');
       let nIds = 0;
+      // Fichiers déjà analysés (analyse auto à chaque photo reçue) : jamais deux fois le même → pas de doublon au dossier
+      const seen = new Set<string>(JSON.parse((await kvGet(PAPERS_SEEN_KEY).catch(() => null)) ?? '[]') as string[]);
+      const markSeen = async (k: string) => { seen.add(k); await kvSet(PAPERS_SEEN_KEY, JSON.stringify([...seen].slice(-400))).catch(() => {}); };
+      let fresh = 0;
       for (const p of ((ph['photos'] as WaPhoto[] | undefined) ?? []).filter(p => !p.me)) {
+        const key = `${title}|${createHash('sha1').update(p.b64).digest('hex').slice(0, 16)}`;
+        if (seen.has(key)) continue;
         const kind = await idKind(p.b64);
+        await markSeen(key);
         if (kind === 'autre') continue;
+        fresh++;
         nIds++;
         const res = await scanIdentity(Buffer.from(p.b64, 'base64'), 'image/jpeg', kind === 'permis', sid, { clientName: fullName || undefined, clientPhone: phone || undefined });
         out.push(res.split('\n').slice(0, 5).join('\n'));
@@ -508,7 +531,11 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
       }
       // PDF / documents envoyés par le client → dossier client (lien) + Telegram
       const dr = await cloudEmit<R & { documents?: WaDoc[] }>('cloud:wa', { action: 'documents', chat, n: 3 }, 310_000).catch(() => ({ ok: false } as R));
-      const docs = ((dr['documents'] as WaDoc[] | undefined) ?? []).filter(d => !d.me);
+      const docs = ((dr['documents'] as WaDoc[] | undefined) ?? []).filter(d => !d.me && !seen.has(`${title}|doc|${d.file}|${d.size}`));
+      for (const d of docs) await markSeen(`${title}|doc|${d.file}|${d.size}`);
+      fresh += docs.length;
+      // Analyse automatique (photo / document reçu) : rien de nouveau d'officiel → on ne dérange pas Kouider
+      if (input['auto'] === true && !fresh) return '';
       if (docs.length) {
         const { supabase } = await import('./supabase.js');
         for (const d of docs) {
@@ -538,6 +565,7 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
         }
         out.push(`📄 ${docs.length} document(s) (${docs.map(d => d.label.split(' · ')[1] || d.label).join(', ')}) rangé(s) dans le dossier de ${fullName || title} et envoyé(s) sur Telegram.`);
       }
+      if (input['auto'] === true && !nIds) return '';   // auto : PDF/photos sans pièce d'identité → silence
       if (!nIds && !docs.length) out.push(`⚠️ Aucun passeport, carte d'identité, permis ni PDF trouvé dans la discussion ${title} (10 dernières photos, 3 derniers documents).`);
       // Résa / profil enregistrés « Client (+33…) » → vrai nom
       if (phone && fullName) {

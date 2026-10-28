@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-10-28 (suite 2) — Santé montre, Siri en conversation, papiers WhatsApp analysés seuls (app v201-v202)
+- Santé (Raccourci du soir 21h30, pas de sommeil : pas de montre la nuit) : séance Apple Watch cochée (coach + FORME), cœur au repos haut / VFC basse → séance de demain allégée (si pas de note de forme), pas/poids/calories actives dans FORME (cible +½ du surplus > 400 kcal, max +300), ligne santé dans le bilan du dimanche (`healthWeekLine`).
+- Siri : micro rouvert après CHAQUE réponse (fin = « merci / c'est bon / stop » ou silence) ; « appelle-moi » → appel Telegram immédiat (vraie conversation). Guide app étapes 2, 6, 7.
+- get_client_document : nom approximatif (un mot suffit), photo du document envoyée sur Telegram ; décrit comme outil à appeler EN PREMIER (Siri envoyait une capture bancaire de FIK au lieu du passeport).
+- WhatsApp : toute photo / tout document d'un client est analysé seul (20 s après) → pièce d'identité au dossier, résa renommée, contact enregistré ; empreintes `wa:papers:seen` = jamais deux fois le même fichier ; Telegram seulement si une pièce est trouvée.
+- Telegram : texte envoyé ≤ 8 s après une photo sans légende = sa légende.
+
 ## 2026-10-28 (suite) — Rappels « véhicule prêt » + secours honnête
 - Rappel 9h « vérifie que le véhicule est prêt » : sauté si la résa porte « ✅ Véhicule prêt » (update_booking notes, consigne dans l'outil : jamais « noté » sans outil).
 - update_booking : la note s'AJOUTE à l'existante (adresse de livraison…) au lieu de l'écraser.

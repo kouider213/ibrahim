@@ -117,6 +117,8 @@ router.post('/siri', express.text({ type: 'text/*', limit: '1mb' }), async (req,
     // Diagnostic dit à voix haute : ce que le Raccourci a réellement envoyé (jamais la clé)
     const keys = Object.keys(obj);
     const what = typeof b === 'string' ? 'un texte vide' : keys.length ? `les champs ${keys.join(', ')}, mais vides` : `rien (type ${String(req.headers['content-type'] ?? 'inconnu').split(';')[0]})`;
+    // Silence pendant une conversation suivie = il a fini : on s'arrête sans bruit (listen absent → la boucle se termine)
+    if (typeof b !== 'string' && keys.length) { res.json({ say: 'Je reste là.' }); return; }
     res.json({ say: `Je n'ai pas reçu ta phrase. Le raccourci m'a envoyé ${what}. Vérifie que la dictée t'a bien entendu.` });
     return;
   }

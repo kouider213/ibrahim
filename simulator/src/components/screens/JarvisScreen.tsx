@@ -814,11 +814,12 @@ function SanteSiri() {
         <div style={{ fontSize: 12.5, color: T.muted, marginBottom: 8 }}>Tu dis « Dis Siri, Dzaryx », tu parles, Dzaryx répond à voix haute et utilise tous ses outils (clients, WhatsApp Business, papiers des clients → Telegram), appelle, envoie un SMS, ouvre Waze, la musique… et te répond en conversation suivie.</div>
         <div style={{ display: 'grid', gap: 8 }}>
           {step(1, <>Raccourcis › <b>+</b> › nomme-le exactement <b>Dzaryx</b>.</>)}
-          {step(2, <>Ajoute <b>Dicter le texte</b> (langue : français).</>)}
+          {step(2, <>Ajoute <b>Dicter le texte</b> (langue : français, <b>Arrêter l'écoute : après une pause</b>).</>)}
           {step(3, <>Ajoute <b>Obtenir le contenu de l'URL</b> : <b>POST</b> sur <Copy label="siri" v={`${PRIMARY_BACKEND}/api/jarvis/siri`} /> En-tête <b>Authorization</b> = <Copy label="tok2" v={`Bearer ${token}`} /> Corps JSON : <code>text</code> = « Texte dicté ».</>)}
           {step(4, <>Ajoute <b>Obtenir la valeur du dictionnaire</b> « say » → <b>Énoncer le texte</b>.</>)}
           {step(5, <>Ajoute <b>Obtenir la valeur du dictionnaire</b> « url » → <b>Si</b> elle a une valeur → <b>Ouvrir les URL</b>.</>)}
-          {step(6, <>Ajoute <b>Obtenir la valeur du dictionnaire</b> « listen » → <b>Si</b> elle a une valeur → <b>Exécuter le raccourci</b> « Dzaryx » : quand Dzaryx te pose une question, le micro se rouvre tout seul pour ta réponse (« oui », « envoie »…).</>)}
+          {step(6, <>⚠️ <b>Indispensable pour discuter</b> : ajoute <b>Obtenir la valeur du dictionnaire</b> « listen » → <b>Si</b> elle a une valeur → <b>Exécuter le raccourci</b> « Dzaryx ». Le micro se rouvre après CHAQUE réponse : tu enchaînes comme sur Telegram. Pour finir : « merci », « c'est bon » ou tu ne dis rien.</>)}
+          {step(7, <>💬 Pour une <b>vraie conversation libre</b> (tu lui coupes la parole, il t'écoute en continu) : « Dis Siri, Dzaryx » puis <b>« appelle-moi »</b> → il t'appelle sur Telegram dans la seconde, avec tous ses outils et la suite de ce que vous disiez.</>)}
         </div>
         <div style={{ fontSize: 11.5, color: T.faint, marginTop: 8 }}>Ta clé est personnelle : ne la partage avec personne. Si tu te déconnectes de l'app, recopie la nouvelle.</div>
       </Card>

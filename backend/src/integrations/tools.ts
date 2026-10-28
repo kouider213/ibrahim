@@ -172,7 +172,7 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'get_client_document',
-    description: 'Récupérer documents client (passeport, permis, contrat). Retourne les données extraites. Le document est automatiquement envoyé dans l\'app (Socket.IO + push notification) — ne pas appeler send_telegram_message. Utiliser quand Kouider/Houari demande à voir un document client.',
+    description: 'Récupérer documents client (passeport, permis, contrat). Retourne les données extraites. Le document est automatiquement envoyé dans l\'app ET en photo sur le Telegram de Kouider — ne pas appeler send_telegram_message. Utiliser EN PREMIER quand Kouider/Houari demande à voir un document client (passeport, permis…), avant de chercher dans WhatsApp. Nom approximatif accepté (dictée).',
     input_schema: {
       type: 'object' as const,
       properties: {

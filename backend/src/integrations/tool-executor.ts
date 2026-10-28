@@ -324,7 +324,7 @@ async function _dispatch(
       case 'delete_booking':        return await deleteBooking(input);
       case 'get_financial_report':  return await financialReport(input);
       case 'store_document':        return await storeDocument(input);
-      case 'get_client_document':   return await getClientDocument(input);
+      case 'get_client_document':   return await getClientDocument({ ...input, ...(/houari/i.test(sessionId ?? '') ? { _houari: true } : {}) });
       case 'read_site_file':        return await readSiteFile(input);
       case 'update_site_file':      return await updateSiteFile(input);
       case 'learn_rule':            return await learnRuleTool(input);
@@ -1716,6 +1716,14 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
       timeout: 10_000,
     });
     docs = data ?? [];
+    // Nom déformé par la dictée (« Hafid de Djillali » pour Halfi Djillali, 28/10) : un des mots suffit
+    const words = (clientName ?? '').split(/\s+/).map(w => w.replace(/[^\p{L}-]/gu, '')).filter(w => w.length >= 4);
+    if (!docs.length && words.length > 1) {
+      const or = `&or=(${words.map(w => `client_name.ilike.*${w}*`).join(',')})${docType ? `&type=eq.${docType}` : ''}`;
+      const { data: d2 } = await axiosModule.get<DocRow[]>(`${SUPA_URL}/rest/v1/client_documents?select=${select}&order=created_at.desc&limit=5${or}`,
+        { headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` }, timeout: 10_000 }).catch(() => ({ data: [] as DocRow[] }));
+      docs = d2 ?? [];
+    }
     console.log(`[get_client_document] found ${docs.length} row(s)`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -1790,6 +1798,16 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
         signedUrlMap.set(d.id, docUrl);
         emitDocProactive(`Document — ${d.client_name}`, 'info', `${caption}\n${docUrl}`);
         sentUrls.push(d.storage_path ?? d.file_url ?? d.id);
+        // Aussi sur son Telegram (Siri, appel, Telegram) : la PHOTO elle-même, pas un lien (28/10 : il recevait un autre papier)
+        if (!input['_houari']) {
+          const { queueTelegramMessage } = await import('../notifications/tg-outbox.js');
+          const isImg = /\.(jpe?g|png|webp)(\?|$)/i.test(d.storage_path || d.file_url || '');
+          const label = d.type === 'passport' ? 'Passeport' : d.type === 'license' ? 'Permis' : d.type === 'contract' ? 'Contrat' : 'Document';
+          if (isImg) {
+            const img = await axiosModule.get<ArrayBuffer>(docUrl, { responseType: 'arraybuffer', timeout: 20_000 }).then(r => Buffer.from(r.data).toString('base64')).catch(() => '');
+            await queueTelegramMessage(`📄 ${label} — ${d.client_name}`, img || undefined).catch(() => {});
+          } else await queueTelegramMessage(`📄 ${label} — ${d.client_name}\n${docUrl}`).catch(() => {});
+        }
       }
 
       // OCR backfill in background — doesn't block doc delivery

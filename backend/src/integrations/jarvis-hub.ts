@@ -137,9 +137,22 @@ TU AS TOUS TES OUTILS, comme sur Telegram : n'abandonne jamais une demande. La d
 cherche le nom approchant (réservations, dossier client, discussions WhatsApp), et si un seul colle, fais-le en disant lequel.
 PHOTO / PAPIERS d'un client (passeport, permis, carte d'identité, contrat) → get_client_document, puis si rien : whatsapp_web 'photos' ou 'documents' sur sa discussion → ils partent sur son TELEGRAM ; dis « je te l'ai envoyé sur Telegram ».
 RÉPONDRE à un client (« réponds-lui que… », « dis-lui… ») → whatsapp_web 'send' sur la discussion dont vous parliez juste avant (sans confirmed), lis-lui le message et demande « je l'envoie ? » ; à son « oui » → confirmed:true. Ne redemande pas de quelle discussion il s'agit si c'est clair d'après le tour précédent.
-Si tu poses une question, termine ta réponse par « ? » : le micro se rouvre tout seul pour sa réponse.]`;
+Le micro se rouvre après ta réponse : c'est une conversation suivie, reprends le fil du tour précédent (« et lui ? », « envoie-le », « non l'autre » se rapportent à ce dont vous parliez).
+S'il veut discuter longuement ou en continu → rappelle-lui qu'il peut dire « appelle-moi » : Dzaryx l'appelle sur Telegram (conversation libre, il peut te couper la parole).]`;
+
+// « Dis Siri, Dzaryx » + « appelle-moi / on parle » : une VRAIE conversation = appel Telegram (écoute en continu, il peut
+// couper la parole, reprendre, tous les outils) — le Raccourci Siri, lui, ne fait qu'un aller-retour à la fois (28/10)
+const CALL_ME_RE = /\b(appelle[- ]?moi|rappelle[- ]?moi maintenant|on (se )?parle|parle[- ]?moi|discut(e|er|ons)|conversation|mode (appel|conversation)|en vocal)\b/i;
+// Fin de conversation : le micro ne se rouvre plus
+const BYE_RE = /^(merci|c'?est (bon|tout|parfait|ok)|ok merci|stop|arr[eê]te|à plus|a plus|bye|ciao|bonne (nuit|journée|soirée)|rien|non merci|ça ira|ca ira|laisse tomber)\b/i;
 
 export async function siriTurn(text: string): Promise<{ say: string; url?: string; listen?: boolean }> {
+  if (CALL_ME_RE.test(text) && text.length < 120) {
+    const { callOwner } = await import('../notifications/voice-call.js');
+    await callOwner('Tu m\'as demandé de parler depuis Siri. Je t\'écoute, on reprend où on en était.', 'kouider', { force: true });
+    return { say: 'Je t\'appelle sur Telegram, décroche et on parle.' };
+  }
+  if (BYE_RE.test(text.trim()) && text.trim().length < 40) return { say: 'Avec plaisir, je reste là si tu as besoin.' };
   const { processMessage } = await import('../conversation/orchestrator.js');
   const { stripToolTrace } = await import('./supabase.js');
   const out = await processMessage(`${SIRI}\n${text.slice(0, 1500)}`, 'voice_kouider', true);
@@ -147,8 +160,9 @@ export async function siriTurn(text: string): Promise<{ say: string; url?: strin
   const m = /PHONE_URL:\s*(\S+)/i.exec(say);
   say = say.replace(/PHONE_URL:\s*\S+/i, '').replace(/https?:\/\/\S+/g, '').replace(/[*_#`>|]/g, '').trim();
   say = say.slice(0, 600);
-  // Question posée → le Raccourci se relance (micro rouvert) pour la réponse : conversation suivie comme avec Dzaryx
-  return { say, ...(m ? { url: m[1] } : {}), ...(!m && /\?\s*$/.test(say) ? { listen: true } : {}) };
+  // Conversation suivie : le micro se rouvre après CHAQUE réponse (pas seulement après une question) tant qu'il ne dit pas
+  // « merci / c'est bon / stop » ou qu'il se tait — Kouider 28/10 : « il doit pouvoir écouter, répondre, reprendre »
+  return { say, ...(m ? { url: m[1] } : { listen: true }) };
 }
 
 // ── Salle de commande ────────────────────────────────────────────────────────
