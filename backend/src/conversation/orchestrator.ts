@@ -140,6 +140,17 @@ export function angelContactCommand(msg: string): { name: string; number: string
   return m ? { name: m[1]!.trim(), number: m[2]!.trim() } : null;
 }
 
+/** « j'ai épargné 17 000 », « épargne 17k », « j'ai 17 000 € de côté » → total (pas « économisé » : « 300 € sur les courses ») ; « j'ai mis 500 de côté » → ajout. Sinon null. */
+export function savingsCommand(msg: string): { amount: number; add: boolean } | null {
+  if (!/[ée]parg|de c[ôo]t[ée]/i.test(msg) || /\?\s*$|combien|o[ùu] j.en suis|heure|minute|\bmin\b|\bkm\b|calorie|\bkg\b/i.test(msg)) return null;
+  const m = msg.match(/(\d{1,3}(?:[\s.\u202f]\d{3})+|\d+(?:[.,]\d+)?)\s*(k\b)?/i);
+  if (!m) return null;
+  let v = parseFloat(m[1]!.replace(/[\s.\u202f](?=\d{3}\b)/g, '').replace(',', '.'));
+  if (m[2]) v *= 1000;
+  if (!(v >= 10 && v <= 10_000_000)) return null;
+  return { amount: Math.round(v), add: /\b(mis|remis|rajout|ajout|ajoute|plus)\b|\+/i.test(msg) };
+}
+
 /** « j'ai rechargé Claude de 50 $ », « 14$ je rajoute sur Claude », « mis 20 dollars sur claude » → montant, sinon null. */
 export function claudeRechargeAmount(msg: string): number | null {
   if (!/claude|anthropic/i.test(msg) || !/recharg|rajout|ajout|remis|mis |mettre|crédit|credit|pay[ée]/i.test(msg)) return null;
@@ -234,6 +245,18 @@ export async function processMessage(
     const { angelTool } = await import('../integrations/gps-life.js');
     const done = await angelTool({ action: 'contact', name: angel.name, number: angel.number }).catch(e => `❌ échec : ${e instanceof Error ? e.message : e}`);
     // Réponse directe, sans le cerveau : même avec la consigne, il repartait sur une vieille question et envoyait des papiers clients
+    _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: done });
+    saveConversationTurn(sessionId, 'assistant', done).catch(() => {});
+    _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+    return { text: done, status: 'done' };
+  }
+  // « j'ai épargné 17 000 » → GPS de vie (objectif épargne) mis à jour pour de vrai, réponse directe
+  const saving = actorUserId === 'kouider' && !sandbox ? savingsCommand(userMessage) : null;
+  if (saving) {
+    const { lifeGpsTool, lifeGoalValue } = await import('../integrations/foresight.js');
+    const prev = await lifeGoalValue('pargne');
+    const total = saving.add && prev !== null ? prev + saving.amount : saving.amount;
+    const done = await lifeGpsTool({ action: 'update', name: 'pargne', current: total }).catch(e => `❌ échec : ${e instanceof Error ? e.message : e}`);
     _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: done });
     saveConversationTurn(sessionId, 'assistant', done).catch(() => {});
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });

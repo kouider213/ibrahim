@@ -8,6 +8,7 @@
 - Objectifs ajoutés (app_kv lifegps) : quitter la Belgique fin 2028 (% prêt, manuel), recompo 80→75 kg (30/06/2027), CA FIK 3000 €/mois (30/06/2028).
 - `brain-plus.ts` fortune() + `jarvis-hub.ts` commandCenter() : « ce que les clients doivent » ignore les résas payment_status PAID (amount_remaining jamais remis à 0 → 3 850 € fantômes).
 - Objectif épargne globale 15 000 → 50 000 € (31/12/2028, manuel).
+- `orchestrator.ts` savingsCommand() : « j'ai épargné 17 000 » / « épargne 17k » / « 17 000 de côté » = total, « j'ai mis 500 de côté » = ajout → objectif Épargne mis à jour, réponse directe (pas « économisé » : faux positifs courses).
 - Guide Jarvis : CarPlay coupé, chargeur, montre abandonnés par Kouider ; mot de réveil OnePlus abandonné.
 
 ## 2026-10-28 (suite 8) — B045 suite : test réel de 14h01 raté

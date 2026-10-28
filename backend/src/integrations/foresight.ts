@@ -189,6 +189,11 @@ export async function lifeGpsTool(input: Record<string, unknown>): Promise<strin
   const lever = await ai(`Objectifs de Kouider et où il en est :\n${lines.join('\n')}\nPour l'objectif le plus en retard, donne LA chose concrète cette semaine qui ferait le plus monter ses chances (chiffre l'effet : « passe à ~85 % »). 2 phrases.`, { max: 250 });
   return `🧭 GPS de vie\n${lines.join('\n')}\n\n${lever}`;
 }
+/** Dernière valeur notée d'un objectif (nom partiel), null s'il n'existe pas. */
+export async function lifeGoalValue(name: string): Promise<number | null> {
+  const g = (await kvJson<LifeGoal[]>('lifegps', [])).find(x => x.name.toLowerCase().includes(name.toLowerCase()));
+  return g ? g.history.at(-1)?.value ?? g.start : null;
+}
 export async function jobLifeGps(): Promise<string> {
   if (!(await kvJson<LifeGoal[]>('lifegps', [])).length) return 'aucun objectif';
   await tg(await lifeGpsTool({ action: 'check' }));
