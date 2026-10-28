@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-29 00h30 | ROUTE (copilote avec des yeux) | road.ts (nouveau), jarvis.ts, eye.ts, simulator RouteScreen.tsx + Phone.tsx, sw v204
+- Page ROUTE (app v204) : caméra arrière + vitesse GPS → /api/jarvis/road toutes les 4 s → Gemini Lite : limite lue (gardée 3 km / 15 min), alerte vitesse > limite+4, dangers, panneaux (radar, école, sens interdit), plaques (road:plates + eye:log), boîte noire (chute ≥ 25 km/h en 6 s → 15 images en album Telegram, liens 30 j). Testé prod : panneau 50, 48 → rien, 63 → alerte.
+- Message du réveil 29/10 05:16 programmé (crontab VPS, /root/dzaryx-morning-msg → tgcall/outbox).
+
 ## 2026-10-29 00h | L'ŒIL + double vidéo | eye.ts (nouveau), my-voice.ts, call.ts, jarvis3-tools.ts, tgcall/dzaryx_tg.py
 - L'ŒIL : appel vidéo Telegram → image toutes les 8 s → Gemini Flash Lite → mémoire visuelle 7 j (lieu, objets + où ils sont, textes/plaques/prix, GPS) ; phrase spontanée (texte étranger traduit, courrier, danger, chose guettée) dite par la voix de l'appel quand personne ne parle. Outil memoire_visuelle (ask, watch/unwatch, status, on/off, clear).
 - Double vidéo (ma_voix photo/video/histoire_video, Replicate bytedance/omni-human testé OK) — Kouider : « ça ne servira à rien », laissé en place sans le mettre en avant.
