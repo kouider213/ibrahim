@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-28 22h | coach en direct à la salle | gym-live.ts (nouveau), sport-coach.ts, tools.ts, api/routes/call.ts
+- « À la maison à 7h20 » (`home_by`) : départ de la salle recalculé avec le trafic toutes les 5 min, rappel 10 min avant, APPEL « pars maintenant » + Waze maison.
+- sport_coach `live` : à l'arrivée (GPS ou « je suis à la salle ») plan minuté tapis → muscu → elliptique « le temps qui reste » ; chaque série « 60 kg 12 » notée avec conseil (monter / garder / baisser / repos), exercice suivant + charge conseillée, retard → séries coupées ; relance si rien depuis 8 min ; bilan + points à améliorer au départ. Santé du matin (sommeil, cœur, VFC) prise en compte.
+- Vendredi 30/10 programmé : tapis 20 min → Jour 3 Jambes (photo) → elliptique jusqu'au départ, maison 7h20.
+
 ## 2026-10-28 soir | vidéos + séance dictée | sport-coach.ts, video-understand.ts, jarvis.ts, jarvis-hub.ts, tools.ts, jarvis3-tools.ts, tgcall/dzaryx_tg.py
 - Toute vidéo Telegram (sport, appli à coder, site, voiture…) : 16 images + voix transcrite → description → cerveau normal avec la consigne (texte avec la vidéo ou dans les 15 s). Voiture sans consigne / « départ … » = état des lieux comme avant.
 - sport_coach `plan_day` : séance dictée pour un jour (cardio avant/après + exercices de la vidéo), créneau agenda créé ou ajusté, séance exacte (pas de coupe ni de finisher).

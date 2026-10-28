@@ -286,7 +286,7 @@ const CUSTOM_KEY = 'kouider:sport:custom';
 // exact (28/10) : séance dictée par Kouider (vidéo + consignes) → tous ses exercices dans SON ordre, pas de coupe ni de finisher ;
 // blocks = cardio prévu (tapis 20 min…) comparé ensuite aux entraînements que Santé / la montre a vus.
 interface CustomSession { label: string; focus: string; why: string; exercises: Exercise[]; at: number; exact?: boolean; warmup?: string; emoji?: string; blocks?: CardioBlock[] }
-export interface CardioBlock { name: string; min: number; when: 'avant' | 'apres' }
+export interface CardioBlock { name: string; min: number; when: 'avant' | 'apres'; flex?: boolean }   // flex : « le temps qui reste » avant de partir
 let customMap: Record<string, CustomSession> = {};   // rafraîchi à chaque getState()
 const lowForm = (date = localNow().date) => (formMap[date] ?? 5) <= 2;
 const DELOAD_EVERY_WEEKS = 7;
@@ -502,6 +502,7 @@ export async function sportDepartureNotice(o: { start: number; leaveBy: number; 
 
 /** Toutes les 5 min : arrivé à la salle → séance sur Telegram ; séance commencée et GPS loin → appel « tu as oublié ? ». */
 export async function jobSportWatch(): Promise<void> {
+  await import('./gym-live.js').then(m => m.liveTick()).catch(e => console.warn('[gym-live]', e instanceof Error ? e.message : e));
   let st = await getState();
   if (!st.plannedAt || Date.now() - st.plannedAt > 3 * 3600_000) { await planSportWeek(true).catch(() => null); st = await getState(); }
   if (!st.settings.gymCheck) return;
@@ -520,7 +521,8 @@ export async function jobSportWatch(): Promise<void> {
   if (fresh && km(fresh, gym) < GYM_RADIUS_KM) {
     st.arrived[date] = now;
     await saveState(st);
-    const text = `💪 Bien arrivé à la salle ! C'est parti pour ${s.label}.\n\n${sessionText(p.type, p.minutes, await readSportLog(), false, date)}`;
+    const live = await import('./gym-live.js').then(m => m.startLive(date, now)).catch(() => '');
+    const text = `💪 Bien arrivé à la salle ! C'est parti pour ${s.label}.\n\n${sessionText(p.type, p.minutes, await readSportLog(), false, date)}${live ? `\n\n${live}` : ''}`;
     await queueTelegramMessage(text);
     await sendSportPlaylist(date).catch(() => null);
     emitProactive(`💪 ${s.label} — ta séance est prête`, 'reminder', text, 'kouider', 'sport');
@@ -575,8 +577,9 @@ export async function confirmGymArrival(at = Date.now()): Promise<{ text: string
   }
   await saveState(st);
   const s = p ? SESSIONS[p.type] : null;
+  const live = p ? await import('./gym-live.js').then(m => m.startLive(date, at)).catch(() => '') : '';
   const text = p && s
-    ? `💪 ${s.label} — validée à ${hm(at)}.\n\n${sessionText(p.type, p.minutes, await readSportLog(), false, date)}`
+    ? `💪 ${s.label} — validée à ${hm(at)}.\n\n${sessionText(p.type, p.minutes, await readSportLog(), false, date)}${live ? `\n\n${live}` : ''}`
     : `💪 Séance hors programme notée à ${hm(at)}. Dis-moi ce que tu fais (ex. « 4×10 squat à 40 kg ») et je le note.`;
   return { text, shifted };
 }
@@ -981,11 +984,20 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
       o.goal ? `🎯 Objectif de la semaine : ${o.goal.text} — ${o.goal.reached ? '✅ atteint' : o.goal.kind === 'sessions' ? `${o.goal.done}/${o.goal.target}` : `meilleur ${o.goal.done} kg`}` : '',
     ].join('\n');
   }
+  if (action === 'live') return (await import('./gym-live.js')).liveTool(input);
+  if (action === 'home_by') {
+    const { setHomeBy } = await import('./gym-live.js');
+    const h = String(input['home_by'] ?? '');
+    if (/^(non|off|aucune?)$/i.test(h)) { await setHomeBy(date, null); return `✅ Plus d'heure de retour imposée le ${fmt(date)}.`; }
+    if (!/^\d{1,2}[:h]\d{2}$/.test(h)) return '❌ Donne l\'heure où il doit être à la maison (HH:MM).';
+    await setHomeBy(date, h.replace('h', ':').padStart(5, '0'));
+    return `✅ ${fmt(date)} : à la maison à ${h.replace(':', 'h')}. À la salle je calcule le départ avec le trafic, je l'appelle pour partir et le cardio de fin prend le temps qui reste.`;
+  }
   if (action === 'sync') { const r = await planSportWeek(true); return `✅ ${r.slots.length} séance(s) planifiées, ${r.note}.`; }
   if (action === 'program') { await getState(); return sportProgramText(); }
   if (action === 'plan_day') {
     const arr = <T,>(v: unknown): T[] => { if (typeof v === 'string') { try { v = JSON.parse(v); } catch { return []; } } return Array.isArray(v) ? v as T[] : []; };
-    return planCustomDay({ date, ...(input['start'] ? { start: String(input['start']) } : {}), ...(input['label'] ? { label: String(input['label']) } : {}),
+    return planCustomDay({ date, ...(input['start'] ? { start: String(input['start']) } : {}), ...(input['home_by'] ? { homeBy: String(input['home_by']) } : {}), ...(input['label'] ? { label: String(input['label']) } : {}),
       exercises: arr<ProgramExercise>(input['exercises']), before: arr(input['before']), after: arr(input['after']), ...(input['source'] ? { source: String(input['source']) } : {}) });
   }
   if (action === 'set_program' || action === 'edit_session' || action === 'reset_program') {
@@ -1035,11 +1047,13 @@ const cardioKind = (n: string) => CARDIO_KIND.find(([, re]) => re.test(n))?.[0] 
 const LIFT_RE = /strength|renfo|muscu|force|functional|fonctionnel|halt[ée]ro|weight|poids/i;
 
 /** Programme une séance précise un jour donné (agenda créé ou mis à jour, app, Telegram) + cardio avant / après à vérifier avec Santé. */
-export async function planCustomDay(o: { date: string; start?: string; label?: string; exercises: ProgramExercise[]; before?: Array<{ name: string; min: number }>; after?: Array<{ name: string; min: number }>; source?: string }): Promise<string> {
+export async function planCustomDay(o: { date: string; start?: string; label?: string; exercises: ProgramExercise[]; before?: Array<{ name: string; min: number; flex?: boolean }>; after?: Array<{ name: string; min: number; flex?: boolean }>; source?: string; homeBy?: string }): Promise<string> {
   const { date } = o;
   if (date < localNow().date) return '❌ Cette date est passée.';
-  const blk = (l: Array<{ name: string; min: number }> | undefined, when: CardioBlock['when']): CardioBlock[] =>
-    (l ?? []).filter(b => b?.name).map(b => ({ name: String(b.name).slice(0, 40), min: Math.max(1, Math.min(120, Math.round(Number(b.min) || 20))), when }));
+  const homeBy = /^\d{1,2}[:h]\d{2}$/.test(o.homeBy ?? '') ? o.homeBy!.replace('h', ':').padStart(5, '0') : null;
+  // min 0 / flex = « le temps qui me reste » : calé en direct sur l'heure où il doit partir (gym-live.ts)
+  const blk = (l: Array<{ name: string; min: number; flex?: boolean }> | undefined, when: CardioBlock['when']): CardioBlock[] =>
+    (l ?? []).filter(b => b?.name).map(b => { const flex = !!b.flex || Number(b.min) === 0; return { name: String(b.name).slice(0, 40), min: flex ? 15 : Math.max(1, Math.min(120, Math.round(Number(b.min) || 20))), when, ...(flex ? { flex } : {}) }; });
   const blocks = [...blk(o.before, 'avant'), ...blk(o.after, 'apres')];
   const cardioEx = (b: CardioBlock): ProgramExercise => ({ name: b.name, sets: 1, reps: `${b.min} min`, rest: 0, muscle: 'cardio', tip: b.when === 'avant' ? 'Échauffement : allure régulière, tu dois pouvoir parler.' : 'Zone 2 : allure où tu peux parler en phrases courtes — c\'est ce qui fait fondre le ventre.' });
   const lifts = (o.exercises ?? []).filter(e => e?.name).slice(0, 12);
@@ -1064,7 +1078,16 @@ export async function planCustomDay(o: { date: string; start?: string; label?: s
   const dow = new Date(localTs(date, '12:00')).getUTCDay();
   const hhmm = /^\d{1,2}[:h]\d{2}$/.test(o.start ?? '') ? o.start!.replace('h', ':').padStart(5, '0') : null;
   const startMs = hhmm ? localTs(date, hhmm) : slot?.start.dateTime ? Date.parse(slot.start.dateTime) : localTs(date, cfg.days[dow]?.sport?.[0] ?? '06:00');
-  const endMs = startMs + total * 60_000;
+  let endMs = startMs + total * 60_000;
+  let homeNote = '';
+  if (homeBy) {
+    const { setHomeBy, gymToHomeMin } = await import('./gym-live.js');
+    await setHomeBy(date, homeBy);
+    const road = await gymToHomeMin().catch(() => 20);
+    const leave = localTs(date, homeBy) - (road + 3) * 60_000;
+    if (leave > startMs + 20 * 60_000) endMs = leave;
+    homeNote = `\n\n🏠 À la maison à ${homeBy.replace(':', 'h')} : départ de la salle vers ${hm(leave)} (≈ ${road} min de route, recalculé avec le trafic le jour même). À la salle je te suis en direct : je te dis ce qu'il reste, je te demande tes charges à chaque série et je t'appelle quand il faut partir.`;
+  }
   let agenda: string;
   if (slot?.id) {
     const ok = await updateAgendaEvent(slot.id, { start: new Date(startMs).toISOString(), end: new Date(Math.max(endMs, hhmm ? 0 : Date.parse(slot.end.dateTime!))).toISOString() }).catch(() => false);
@@ -1076,8 +1099,18 @@ export async function planCustomDay(o: { date: string; start?: string; label?: s
   }
   const text = await setCustomSession(date, p, o.source ?? 'séance dictée par Kouider', { exact: true, blocks });
   const fmt = new Date(startMs).toLocaleDateString('fr-FR', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long' });
-  const check = [...blocks.map(b => `${b.name} ${b.min} min`), ...(lifts.length ? ['la muscu'] : [])].join(', ');
-  return `✅ ${fmt}, ${hm(startMs)}–${hm(endMs)} (${total} min) : ${agenda}, séance aussi dans l'app et dans ton appel du matin.\n\n${text}\n\n⌚ Je vérifierai avec Santé / Forme de l'iPhone : ${check}. Lance un entraînement par partie sur ta montre (Tapis / Muscu / Elliptique) pour que je voie chaque bloc.`;
+  const check = [...blocks.map(b => `${b.name} ${b.flex ? 'le temps qui reste' : `${b.min} min`}`), ...(lifts.length ? ['la muscu'] : [])].join(', ');
+  return `✅ ${fmt}, ${hm(startMs)}–${hm(endMs)} (${Math.round((endMs - startMs) / 60_000)} min) : ${agenda}, séance aussi dans l'app et dans ton appel du matin.\n\n${text}${homeNote}\n\n⌚ Je vérifierai avec Santé / Forme de l'iPhone : ${check}. Lance un entraînement par partie sur ta montre (Tapis / Muscu / Elliptique) pour que je voie chaque bloc.`;
+}
+
+/** Séance du jour découpée pour le coach en direct (gym-live.ts) : cardio avant, muscu, cardio après. */
+export async function liveSessionPlan(date: string): Promise<{ type: SessionType; label: string; exercises: Exercise[]; before: CardioBlock[]; after: CardioBlock[] }> {
+  const st = await getState();
+  const p = st.plan[date], c = customMap[date];
+  const type = st.overrides[date] ?? p?.type ?? ROTATION[st.next]!;
+  const blocks = c?.blocks ?? [];
+  const exercises = fitSession(type, p?.minutes ?? 75, date).exercises.filter(e => !(e.muscle === 'cardio' && blocks.some(b => b.name === e.name)));
+  return { type, label: c?.label ?? SESSIONS[type].label, exercises, before: blocks.filter(b => b.when === 'avant'), after: blocks.filter(b => b.when === 'apres') };
 }
 
 /** Ce que Santé a vu ce jour-là comparé à la séance dictée (bloc par bloc). null si rien de dicté ou déjà dit. */

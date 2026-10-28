@@ -219,7 +219,9 @@ router.post('/turn', requireCallerAuth, async (req, res) => {
     const wa = !gps && who === 'kouider' && channel === 'message' && !image && message
       ? await import('../../integrations/whatsapp-web.js').then(m => m.handleWaYesNo(message)).catch(() => null) : null;
     if (wa?.reply) { res.json({ text: wa.reply, audio: null }); return; }
-    const said = `${dndNote ? `${dndNote}\n` : ''}${wakeNote ? `${wakeNote}\n` : ''}${gps?.note ? `${gps.note}\n` : ''}${wa?.note ? `${wa.note}\n` : ''}${(message?.trim() || 'Voici une photo.').slice(0, 2000)}`;
+    // Séance en cours à la salle : chaque « 60 kg 12 » est noté et commenté par le coach en direct
+    const gymNote = who === 'kouider' ? await import('../../integrations/gym-live.js').then(m => m.liveNote()).catch(() => null) : null;
+    const said = `${dndNote ? `${dndNote}\n` : ''}${wakeNote ? `${wakeNote}\n` : ''}${gymNote ? `${gymNote}\n` : ''}${gps?.note ? `${gps.note}\n` : ''}${wa?.note ? `${wa.note}\n` : ''}${(message?.trim() || 'Voici une photo.').slice(0, 2000)}`;
     // Message Telegram écrit (texte/photo) : pas de consigne « appel en cours »
     // Photo écrite (capture d'un billet, d'un document…) : boucle complète avec outils, pas la vision rapide de l'appel vidéo
     // Photo de Kouider : gardée 30 min pour l'outil forme (body_photo) s'il s'agit de son corps
