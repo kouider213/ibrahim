@@ -21,7 +21,7 @@ export async function iphoneEvent(type: string, body: Record<string, unknown>): 
   const hasPos = Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0;
   if (hasPos) void import('./gps-life.js').then(m => m.onLocationPoint(lat, lng)).catch(() => {});
   switch (type) {
-    case 'carplay_on': case 'carplay': return { say: await carBrief() };
+    case 'carplay_on': case 'carplay': return { say: await carBrief(hasPos ? { lat, lng } : {}) };
     case 'carplay_off': case 'parked': {
       if (hasPos) await import('./gps-life.js').then(m => m.setParking(lat, lng));
       return { say: hasPos ? 'Voiture garée, je retiens l\'endroit.' : 'Garé. Ajoute « Obtenir l\'emplacement actuel » au raccourci pour que je retienne l\'endroit.' };
@@ -29,7 +29,7 @@ export async function iphoneEvent(type: string, body: Record<string, unknown>): 
     case 'charger': case 'charge': {
       const h = localNow().hhmm;
       if (h < '20:00' && h > '05:00') return { say: '' };
-      return { say: await eveningBrief(), focus: true };
+      return { say: speakable(await eveningBrief()), focus: true };
     }
     case 'decisions': {
       const { pendingDecisions } = await import('./conscience.js');
@@ -45,26 +45,63 @@ export async function iphoneEvent(type: string, body: Record<string, unknown>): 
   }
 }
 
-async function carBrief(): Promise<string> {
+/** Texte pour la voix de l'iPhone : sans emoji ni symbole (« Énoncer » coupe la phrase dessus), tirets → virgules. */
+export function speakable(t: string): string {
+  return t.replace(/[\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0F\u200D*_#`>|]/gu, '').replace(/\s*[—–]\s*/g, ', ').replace(/\s{2,}/g, ' ').trim();
+}
+
+/** Point vocal de 20 s quand CarPlay se branche : trajet jusqu'à la prochaine étape, ce que veulent les clients, locations
+ *  du jour, promesse, décision. Les faits sont rassemblés ici ; l'IA n'en fait qu'une phrase naturelle (rien d'inventé). */
+async function carBrief(body: Record<string, unknown> = {}): Promise<string> {
   const now = new Date();
-  const in6h = new Date(Date.now() + 6 * 3600_000);
-  const [evs, drafts, dec] = await Promise.all([
-    import('./google-calendar.js').then(m => m.listAgendaRange(now.toISOString(), in6h.toISOString())).catch(() => null),
+  const { date } = localNow();
+  const [evs, drafts, dec, promises, scores, books, loc] = await Promise.all([
+    import('./google-calendar.js').then(m => m.listAgendaRange(now.toISOString(), new Date(Date.now() + 8 * 3600_000).toISOString())).catch(() => null),
     import('./whatsapp-web.js').then(m => m.waPendingDrafts()).catch(() => []),
     import('./conscience.js').then(m => m.pendingDecisions()).catch(() => []),
+    import('./foresight.js').then(m => m.promisesDue()).catch(() => []),
+    kvJson<Record<string, { pct: number; why: string }>>('wa:scores', {}),
+    supabase.from('bookings').select('client_name, start_date, end_date, status, cars(name)').or(`start_date.like.${date}%,end_date.like.${date}%`).limit(10).then(r => r.data ?? []),
+    import('./location.js').then(m => m.getLocation('kouider')).catch(() => null),
   ]);
   // Créneaux « 🟢 Libre — RDV possibles » de l'agenda = pas une étape ; déjà commencés = ignorés
-  const next = ((evs ?? []) as Array<{ summary?: string; start?: { dateTime?: string } }>)
+  const next = ((evs ?? []) as Array<{ summary?: string; location?: string; start?: { dateTime?: string } }>)
     .find(e => !/libre|rdv possibles|disponible/i.test(e.summary ?? '') && (!e.start?.dateTime || Date.parse(e.start.dateTime) > Date.now()));
-  const parts: string[] = [];
-  if (next) parts.push(`Prochaine étape : ${(next.summary ?? 'un rendez-vous').replace(/[\p{Extended_Pictographic}\uFE0F]/gu, '').trim()} à ${next.start?.dateTime ? localNow(Date.parse(next.start.dateTime)).hhmm.replace(':', 'h') : 'bientôt'}.`);
-  // À l'oral : les noms seulement (jamais un numéro de téléphone récité)
-  const names = (drafts as Array<{ chat: string }>).map(d => d.chat).filter(c => !/^[+\d\s().-]+$/.test(c)).slice(0, 3);
-  if (drafts.length) parts.push(`${drafts.length} client${drafts.length > 1 ? 's attendent' : ' attend'} sur WhatsApp${names.length ? `, dont ${names.join(', ')}` : ''}.`);
-  if (dec.length) parts.push(`Une décision t'attend : ${dec[0]!.title.replace(/[🔘🧠🤝🚨]/gu, '').slice(0, 120)}`);
-  const promises = await import('./foresight.js').then(m => m.promisesDue()).catch(() => []);
-  if (promises.length) parts.push(`Promesse à tenir : ${promises[0]}.`);
-  return parts.length ? `En route. ${parts.join(' ')}` : 'En route, rien d\'urgent. Bonne route.';
+  // Trajet réel depuis sa position (Raccourci ou Telegram) jusqu'au lieu du rendez-vous
+  let trip = '';
+  const lat = Number(body['lat']), lng = Number(body['lng']);
+  const here = Number.isFinite(lat) && lat ? { lat, lng } : loc && Date.now() - Date.parse(loc.updated_at) < 2 * 3600_000 ? { lat: loc.lat, lng: loc.lng } : null;
+  if (next && here) {
+    const { geocode, drive } = await import('./departures.js');
+    const { getRoutineConfig } = await import('./morning-routine.js');
+    const a = (await getRoutineConfig()).addresses;
+    const where = next.location || (/travail|boulot|belgique/i.test(next.summary ?? '') ? a.work : /salle|sport/i.test(next.summary ?? '') ? a.gym : '');
+    const dest = where ? await geocode(where).catch(() => null) : null;
+    const d = dest ? await drive(here, dest).catch(() => null) : null;
+    if (d && next.start?.dateTime) {
+      const margin = Math.round((Date.parse(next.start.dateTime) - Date.now()) / 60_000) - d.min;
+      trip = `${d.min} min de route${d.min - d.normal >= 5 ? ` (${d.min - d.normal} min de bouchons)` : ''}, ${margin >= 0 ? `marge ${margin} min` : `RETARD probable de ${-margin} min`}`;
+    }
+  }
+  const clients = (drafts as Array<{ chat: string; preview: string }>).map(d => {
+    const sc = scores[d.chat.toLowerCase()];
+    return { who: /^[+\d\s().-]+$/.test(d.chat) ? 'un numéro inconnu' : d.chat, wants: d.preview.replace(/\s+/g, ' ').slice(0, 120), pct: sc?.pct ?? null };
+  }).sort((x, y) => (y.pct ?? 0) - (x.pct ?? 0));
+  const facts = {
+    heure: localNow().hhmm,
+    prochaine_etape: next ? { quoi: next.summary, heure: next.start?.dateTime ? localNow(Date.parse(next.start.dateTime)).hhmm : null, trajet: trip || null } : null,
+    clients_whatsapp_en_attente: { nombre: clients.length, les_plus_chauds: clients.slice(0, 2) },
+    locations_du_jour: (books as Array<Record<string, unknown>>).filter(b => !/REJECT|CANCEL/i.test(String(b['status']))).map(b => `${(b['cars'] as { name?: string } | null)?.name ?? ''} ${b['client_name']} ${String(b['start_date']).startsWith(date) ? 'départ' : 'retour'}`),
+    promesse: promises[0] ?? null,
+    decision: dec[0]?.title.slice(0, 140) ?? null,
+  };
+  const said = await ai(`Kouider vient de monter en voiture (CarPlay). Fais-lui son point en 3 à 5 phrases courtes à l'ORAL (20 secondes), tutoiement, naturel, comme Jarvis :
+d'abord sa prochaine étape avec le temps de route et la marge (ou le retard), puis ce que veulent les 1-2 clients les plus chauds sur WhatsApp et combien attendent en tout, puis la location, la promesse ou la décision du jour s'il y en a.
+Uniquement ces faits, n'invente rien. Ce qui est vide ou null : n'en parle PAS du tout (jamais « pas de… »). Pas de « salut », pas de numéro de téléphone, pas d'emoji, pas de liste. Termine par « Bonne route. »
+Faits : ${JSON.stringify(facts)}`, { max: 300 }).catch(() => '');
+  if (said) return speakable(said);
+  const parts = [next ? `Prochaine étape : ${next.summary} à ${facts.prochaine_etape?.heure?.replace(':', 'h') ?? 'bientôt'}${trip ? `, ${trip}` : ''}.` : '', clients.length ? `${clients.length} clients attendent sur WhatsApp.` : '', promises[0] ? `Promesse à tenir : ${promises[0]}.` : ''].filter(Boolean);
+  return speakable(parts.length ? `En route. ${parts.join(' ')} Bonne route.` : 'En route, rien d\'urgent. Bonne route.');
 }
 
 async function eveningBrief(): Promise<string> {
