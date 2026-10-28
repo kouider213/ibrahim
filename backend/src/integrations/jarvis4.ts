@@ -57,7 +57,7 @@ async function carBrief(): Promise<string> {
   const next = ((evs ?? []) as Array<{ summary?: string; start?: { dateTime?: string } }>)
     .find(e => !/libre|rdv possibles|disponible/i.test(e.summary ?? '') && (!e.start?.dateTime || Date.parse(e.start.dateTime) > Date.now()));
   const parts: string[] = [];
-  if (next) parts.push(`Prochaine étape : ${(next.summary ?? 'un rendez-vous').replace(/[\p{Extended_Pictographic}]/gu, '').trim()} à ${next.start?.dateTime ? localNow(Date.parse(next.start.dateTime)).hhmm.replace(':', 'h') : 'bientôt'}.`);
+  if (next) parts.push(`Prochaine étape : ${(next.summary ?? 'un rendez-vous').replace(/[\p{Extended_Pictographic}\uFE0F]/gu, '').trim()} à ${next.start?.dateTime ? localNow(Date.parse(next.start.dateTime)).hhmm.replace(':', 'h') : 'bientôt'}.`);
   // À l'oral : les noms seulement (jamais un numéro de téléphone récité)
   const names = (drafts as Array<{ chat: string }>).map(d => d.chat).filter(c => !/^[+\d\s().-]+$/.test(c)).slice(0, 3);
   if (drafts.length) parts.push(`${drafts.length} client${drafts.length > 1 ? 's attendent' : ' attend'} sur WhatsApp${names.length ? `, dont ${names.join(', ')}` : ''}.`);
