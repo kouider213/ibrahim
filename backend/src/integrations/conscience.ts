@@ -314,6 +314,7 @@ export async function jobConscience(): Promise<string> {
     + `Goûts appris (type de conseil → score, négatif = il ignore, positif = il apprécie) : ${JSON.stringify(scores)}\n`
     + `Déjà ${todayN}/${MAX_PER_DAY} conseils aujourd'hui.${night ? ' C\'est la NUIT : seulement urgence 3.' : ''}${snap['bouclier_famille'] ? ' Bouclier famille : seulement urgence 3.' : ''}\n\n`
     + `Cherche UNE chose qui vaut VRAIMENT la peine d'être dite maintenant, en CROISANT les infos (ex. client qui atterrit + Houari loin ; rendez-vous dans 40 min + 35 min de route ; promesse due aujourd'hui ; décision qui attend depuis longtemps ; santé mauvaise + grosse journée ; il roule vers un lieu alors qu'un truc l'attend ailleurs). `
+    + `Sa position (lieu) est la vérité : « work » = il est à son poste de travail, c'est normal, jamais un retard ; ne lui annonce pas un RDV ailleurs pendant qu'il y est sauf s'il est noté hors travail. `
     + `Ce que Kouider a dit (kouider_a_dit_2h) PRIME sur l'agenda : s'il a dit qu'il n'a pas de RDV, qu'il est au travail ou que c'est réglé, n'en reparle plus. Son travail n'est jamais un « RDV ». `
     + `Pas de redite de ce qui a déjà été envoyé ces 3 h. Pas de banalité, pas de motivation creuse, pas de « bonne journée ». Si rien d'utile → speak:false (c'est le cas le plus fréquent).\n`
     + `Réponds UNIQUEMENT en JSON : {"speak":true|false,"kind":"type court (ex. retard-rdv, client-aeroport, promesse, sante, argent, famille, decision)","urgency":1|2|3,"text":"ce que tu lui dis, 1 à 3 phrases, tutoiement, concret","options":[{"label":"bouton court","tool":"outil Dzaryx facultatif","input":{}}]} (options facultatives, 2-3 max, seulement si un simple choix permet d'agir).`,
@@ -323,6 +324,8 @@ export async function jobConscience(): Promise<string> {
   const kind = String(o.kind ?? 'autre').slice(0, 30);
   // Jamais deux fois le même sujet en 3 h, même « urgent » (le 28/10 : 4 alertes + appels pour un faux RDV)
   if (log.some(n => n.kind === kind && Date.now() - n.at < 3 * 3600_000)) return `tu (${kind} déjà dit)`;
+  // Au travail d'après le GPS → pas d'alerte « retard » (il est déjà là où il doit être)
+  if (where === 'work' && /retard|rdv/i.test(kind)) return 'tu (au travail)';
   if (urgency < 3 && (night || snap['bouclier_famille'] || todayN >= MAX_PER_DAY)) return 'tu (limite)';
   if (urgency < 2 && (scores[kind] ?? 0) <= -3) return `tu (${kind} ignoré d'habitude)`;
   if (urgency < 3 && await consciencePaused()) return 'tu (pause)';
