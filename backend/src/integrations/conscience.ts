@@ -36,7 +36,8 @@ export async function createDecision(title: string, options: DecisionOption[], s
 }
 
 export async function pendingDecisions(): Promise<Decision[]> {
-  return (await kvJson<Decision[]>(DEC_KEY, [])).filter(d => !d.done && Date.now() - d.at < 12 * 3600_000);
+  // 3 h comme chooseDecision : au-delà, « RDV à 13h » périmé ressortait encore dans le brief CarPlay à 15h30 (28/10)
+  return (await kvJson<Decision[]>(DEC_KEY, [])).filter(d => !d.done && Date.now() - d.at < 3 * 3600_000);
 }
 
 export async function chooseDecision(id: string | null, n: number): Promise<string> {

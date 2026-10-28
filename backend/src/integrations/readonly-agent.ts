@@ -8,7 +8,7 @@ import { createAnthropic, QUALITY } from './anthropic-compat.js';
 // même si le modèle en demande un. Les actions restent proposées à Kouider, qui décide.
 
 export const READ_TOOLS = new Set([
-  'run_self_test', 'get_upcoming_seasons', 'list_bookings', 'get_financial_report', 'get_client_profile', 'get_client_brain', 'read_site_file',
+  'run_self_test', 'search_conversations', 'get_upcoming_seasons', 'list_bookings', 'get_financial_report', 'get_client_profile', 'get_client_brain', 'read_site_file',
   'recall_memory', 'get_weather', 'convert_currency', 'get_weather_alerts', 'get_football', 'get_news',
   'github_read_file', 'github_list_files', 'github_search_code', 'get_payment_status',
   'get_revenue_report', 'get_late_returns', 'get_unpaid_bookings', 'get_finance_dashboard', 'check_anomalies',

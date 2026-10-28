@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-28 (suite 11) — Test Jarvis 4 (16 outils, 0 crash) + corrections (B047)
+- `tool-executor.ts` get_client_brain : plus d'envoi de papiers (lecture seule).
+- `conscience.ts` pendingDecisions : 3 h max. `foresight.ts` promesses : ignore « Dzaryx » / « déjà fait ».
+- `whatsapp-web.ts` waPendingDrafts : brouillons < 24 h seulement. `readonly-agent.ts` : search_conversations en lecture (Total Recall).
+
 ## 2026-10-28 (suite 10) — Siri plus rapide, plus jamais coupé (B046)
 - `context-builder.ts` shortPreamble() : consignes [SIRI…] / [APPEL TÉLÉPHONIQUE…] raccourcies dans l'historique → plus de compaction à chaque tour.
 - `claude-api.ts` spokenText() : retire aussi [SIRI…] avant le routage (recherche web / Sonnet à tort).

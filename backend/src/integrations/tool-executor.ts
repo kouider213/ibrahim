@@ -6529,10 +6529,9 @@ async function getClientBrainTool(nameOrPhone: string, sessionId?: string): Prom
   if (!result.found) {
     return `❌ Aucun client trouvé pour "${nameOrPhone}". Vérifie le nom ou le numéro.`;
   }
-  // Envoie aussi la/les photo(s) de pièce(s) — "toutes les infos" doit inclure la photo, pas juste le texte.
-  const isPhone = /[0-9]{5,}/.test(nameOrPhone);
-  try { await getClientDocument(isPhone ? { client_phone: nameOrPhone } : { client_name: nameOrPhone }); } catch { /* photo best-effort */ }
-  return result.context;
+  // Lecture seule : les papiers ne partent plus d'ici. Cet outil sert aussi aux agents internes (Total Recall, Conscience…)
+  // et envoyait permis + passeport sur Telegram sans qu'il ait rien demandé (28/10 15h30). Pour les envoyer : get_client_document.
+  return `${result.context}\n\n(Papiers non envoyés. S'il demande la photo du permis / passeport : get_client_document.)`;
 }
 
 async function addClientNoteTool(nameOrPhone: string, note: string, sessionId?: string): Promise<string> {

@@ -7,6 +7,10 @@
 
 ## Bugs Ouverts 🔴
 
+### B047 — Permis + passeport de Halfi envoyés sur Telegram sans demande (28/10 15h30) ✅ FIXÉ
+get_client_brain (outil de LECTURE, utilisé aussi par Total Recall, Conscience, agents internes) appelait get_client_document qui envoie les papiers. Déclenché par le test Jarvis 4 de Claude (total_recall « Halfi »).
+Fix : get_client_brain n'envoie plus rien (indice « get_client_document » dans le résultat). Même passe : décisions à boutons périmées après 3 h (au lieu de 12 h, « RDV 13h » ressortait dans le brief CarPlay), promesses « Dzaryx / déjà fait » ignorées, brouillons WhatsApp > 24 h plus comptés comme « clients en attente », Total Recall a search_conversations.
+
 ### B046 — Siri lent, coupé, « je regarde… » sans réponse (28/10) ✅ FIXÉ
 Consigne SIRI (~3 000 caractères) gardée dans chaque vieux message → historique au-dessus du seuil → résumé de compaction relancé à CHAQUE tour (+5 s), réponses de 20 à 48 s, le Raccourci abandonnait (Kouider redemandait 3 fois l'actualité). Réponse coupée net à 600 caractères. La consigne SIRI n'était pas retirée avant le choix du modèle (spokenText).
 Fix : context-builder shortPreamble() remplace les consignes Siri/appel des anciens messages par « [via Siri] » / « [au téléphone] » (≈5 300 → 1 500 tokens) ; spokenText() retire aussi [SIRI…] ; siriTurn : 25 s max puis « je t'envoie la réponse sur Telegram », coupe en fin de phrase + réponse complète sur Telegram, « je regarde… » relancé une fois.

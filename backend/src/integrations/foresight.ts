@@ -85,12 +85,13 @@ export async function jobPromises(): Promise<string> {
   const now = new Date().toISOString().slice(0, 16);
   const o = jsonOf<{ promises?: Array<{ to: string; what: string; due: string; draft?: string; chat?: string }> }>(await ai(
     `Maintenant : ${now} (heure de Bruxelles). Voici des messages de Kouider et des messages WhatsApp envoyés en son nom :\n${[...turns, ...wa].join('\n').slice(-12000)}\n\n`
-    + `Trouve les PROMESSES / ENGAGEMENTS de Kouider envers quelqu'un (« je vous rappelle demain », « je vous envoie le contrat », « je passe jeudi », « je lui ai promis la Clio à 27 € », « je dois rembourser Karim samedi »). Ignore les demandes faites à Dzaryx lui-même.\n`
+    + `Trouve les PROMESSES / ENGAGEMENTS de Kouider envers quelqu'un (« je vous rappelle demain », « je vous envoie le contrat », « je passe jeudi », « je lui ai promis la Clio à 27 € », « je dois rembourser Karim samedi »). Ignore les demandes faites à Dzaryx lui-même et ce qui est DÉJÀ FAIT.\n`
     + `Réponds UNIQUEMENT : {"promises":[{"to":"qui","what":"quoi, court","due":"AAAA-MM-JJTHH:MM (échéance probable ; « demain » = demain 10:00 ; sans date = dans 24 h)","chat":"nom WhatsApp si promis sur WhatsApp","draft":"message prêt à envoyer pour tenir la promesse, si c'est un message"}]}`, { max: 1200 })) ?? {};
   const list = await kvJson<Promise_[]>('promises', []);
   let n = 0;
   for (const p of o.promises ?? []) {
-    if (!p.to || !p.what || list.some(x => !x.done && x.to.toLowerCase() === p.to.toLowerCase() && x.what.slice(0, 20).toLowerCase() === p.what.slice(0, 20).toLowerCase())) continue;
+    // « Dzaryx : confirme que… (déjà fait selon Kouider) » était noté comme promesse de Kouider (28/10)
+    if (!p.to || !p.what || /dzaryx|kouider/i.test(p.to) || /d[ée]j[aà] fait|c.est fait/i.test(p.what) || list.some(x => !x.done && x.to.toLowerCase() === p.to.toLowerCase() && x.what.slice(0, 20).toLowerCase() === p.what.slice(0, 20).toLowerCase())) continue;
     list.push({ id: uid(), to: p.to, what: p.what, due: p.due || new Date(Date.now() + 86_400_000).toISOString().slice(0, 16), source: p.chat ? 'whatsapp' : 'telegram', draft: p.draft, chat: p.chat });
     n++;
   }
