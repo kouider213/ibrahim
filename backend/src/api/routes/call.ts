@@ -59,6 +59,11 @@ router.post('/voice-sample', requireCallerAuth, async (req, res) => {
   const r = await import('../../integrations/my-voice.js').then(m => m.saveVoiceSample(String(audio ?? ''), Number(seconds) || 0)).catch(e => String(e));
   res.json({ ok: true, r });
 });
+router.get('/media/:t.:ext', async (req, res) => {
+  const f = await import('../../integrations/my-voice.js').then(m => m.mediaFile(String(req.params['t']))).catch(() => null);
+  if (!f) { res.status(404).end(); return; }
+  res.setHeader('Content-Type', f.mime); res.setHeader('Cache-Control', 'no-store'); res.send(f.buf);
+});
 router.get('/voice-file/:t.mp3', async (req, res) => {
   const buf = await import('../../integrations/my-voice.js').then(m => m.voiceFile(String(req.params['t']))).catch(() => null);
   if (!buf) { res.status(404).end(); return; }
