@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-28 19h30 — Dzaryx se code lui-même + WhatsApp direct en appel
+- Appel : nouvel outil whatsapp_send = envoi DIRECT depuis WA Business (relecture puis oui) ; whatsapp_link seulement si Kouider demande le lien. Avant, « envoie un message au 04 91… » donnait un lien Telegram et « via WhatsApp directement » était mal compris.
+- Appel : la boîte « j'ai N choses pour toi » jette les alertes périmées (« ton RDV est à 13h… il est 13h10 » lu à 19h) et les doublons du même sujet.
+- Outil se_coder (file app_kv dev:queue) + atelier VPS backend/scripts/night-dev.mjs (crontab */5) : Claude Code en mode auto code, teste, met en ligne ; nuit 0h30-4h45 (4 tâches max), « maintenant » tout de suite ; rapport Telegram à 5h. Bugs de l'auto-critique (déplacée à 0h15) partent seuls à l'atelier. Veille hebdo nuit de samedi à dimanche (Anthropic, GitHub, Hermes Agent…).
+
 ## 2026-10-28 18h — Dzaryx connaît les conditions du site
 - Outil conditions_fik (toujours chargé, aussi pour les réponses WhatsApp) : texte exact des pages Conditions + FAQ de fikconciergerie.com + fiche agence (publicInfo du gardien de nuit, cache 6 h).
 - Consigne : jamais « je n'ai pas de fiche de conditions ».

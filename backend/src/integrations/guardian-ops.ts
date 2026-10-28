@@ -2,7 +2,7 @@
  * DZARYX VEILLE SUR LUI-MÊME ET SUR KOUIDER (27/10/2026) :
  *  - s'améliore seul : chaque nuit (3h), il relit les échanges de la veille où Kouider l'a corrigé / s'est agacé, et en
  *    tire des améliorations : des RÈGLES de comportement (appliquées après le oui de Kouider via save_learned_rule) et des
- *    BUGS de code (gardés dans app_kv `improve:dev` pour la prochaine séance de développement avec Claude Code — il
+ *    BUGS de code (depuis le 28/10 : envoyés à l'atelier de nuit self-dev.ts / scripts/night-dev.mjs qui les corrige seul ; avant :
  *    ne touche jamais seul à son code en production). Matin 7h30 : « j'ai trouvé 3 choses, je les applique ? ».
  *  - se répare seul : à la 1re coupure détectée, il lance lui-même la réparation possible (code WhatsApp envoyé, lien
  *    Google renvoyé) ; le VPS relance seul le service Telegram / le PC cloud bloqués (scripts/self-heal-vps.ts).
@@ -31,7 +31,11 @@ export async function jobSelfImprove(): Promise<string> {
   const o = jsonOf<{ proposals?: Proposal[] }>(await ai(`Tu es Dzaryx et tu fais ton auto-critique. Voici les moments d'hier où Kouider t'a corrigé ou s'est agacé :\n\n${moments.slice(0, 25).join('\n\n———\n\n')}\n\n`
     + 'Pour chaque VRAIE erreur de ta part (pas quand c\'était juste une conversation), propose UNE amélioration : soit "rule" = une règle de comportement claire que tu suivras désormais (formulée « Toujours… » / « Ne jamais… »), soit "bug" = un problème technique (outil qui échoue, info fausse renvoyée par un outil, fonction qui manque) à corriger dans ton code. Maximum 5, les plus utiles. Pas de doublon.\n'
     + 'Réponds UNIQUEMENT : {"proposals":[{"kind":"rule|bug","text":"la règle ou le bug, précis","why":"le moment qui le montre, en 1 phrase","category":"business|client|pricing|communication|operations|reminder"}]}', { quality: true, max: 1500 })) ?? {};
-  const ps = (o.proposals ?? []).filter(p => p.text).slice(0, 5);
+  const all = (o.proposals ?? []).filter(p => p.text).slice(0, 5);
+  // Bugs de code → l'atelier de nuit les corrige seul (se_coder) ; les règles restent proposées le matin
+  const { addDevTask } = await import('./self-dev.js');
+  for (const b of all.filter(p => p.kind === 'bug')) await addDevTask(`BUG trouvé par l'auto-critique : ${b.text} (moment : ${b.why})`, 'auto');
+  const ps = all.filter(p => p.kind === 'rule');
   await kvPut('improve:pending', ps, 3 * 86_400);
   return `${ps.length} proposition(s)`;
 }
@@ -61,7 +65,8 @@ export async function selfImproveTool(input: Record<string, unknown>): Promise<s
       out.push(`📏 ${/❌/.test(r) ? `pas enregistrée (${r.slice(0, 80)})` : 'appliquée tout de suite'} : ${p.text}`);
     } else {
       dev.push({ ...p, at: new Date().toISOString() });
-      out.push(`🐞 noté pour la prochaine séance de code (je ne modifie jamais mon code seul en production) : ${p.text}`);
+      await (await import('./self-dev.js')).addDevTask(`BUG : ${p.text} (moment : ${p.why})`, 'auto');
+      out.push(`🐞 envoyé à l'atelier de code : corrigé seul cette nuit, rapport au réveil : ${p.text}`);
     }
   }
   await kvPut('improve:dev', dev.slice(-60));

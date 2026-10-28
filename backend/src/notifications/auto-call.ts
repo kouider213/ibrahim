@@ -77,10 +77,27 @@ export async function removeFromCallInbox(text: string): Promise<void> {
  * Kouider appelle Dzaryx : tout ce qui l'attend (boîte + file d'appels pas encore passés), dans l'ordre,
  * puis vidé — c'est dit dans cet appel, la file ne fera donc plus sonner pour ça.
  */
+// Alerte liée à une heure (« ton RDV est à 13h00… il est 13h10 ») : périmée 1 h après, ou 3 h après sa mise en boîte
+function staleTimed(text: string, at?: number): boolean {
+  const m = text.match(/il est (\d{1,2})h(\d{2})?/i);
+  if (m) {
+    const { hour } = localNow();
+    const minute = Number(new Intl.DateTimeFormat('fr-BE', { timeZone: TZ, minute: '2-digit' }).format(new Date()));
+    if (hour * 60 + minute - (Number(m[1]) * 60 + Number(m[2] ?? 0)) > 60) return true;
+  }
+  return !!at && Date.now() - at > 3 * 3_600_000 && /\b(rdv|rendez-vous|retard|départ dans)\b|\b\d{1,2}h\d{2}\b/i.test(text);
+}
+// Même alerte répétée (« ton RDV en Belgique est à 13h00… » ×3) → une seule fois
+const sameTopic = (a: string, b: string) => sameInfo(a, b) || a.trim().toLowerCase().slice(0, 32) === b.trim().toLowerCase().slice(0, 32);
+
 export async function takeCallInbox(): Promise<string[]> {
   const [inbox, queue, held] = await Promise.all([readInbox(), readQueue(), readList(HELD_KEY)]);
   const all: string[] = [];
-  for (const t of [...inbox.map(i => i.text), ...queue, ...held]) if (!all.some(a => sameInfo(a, t))) all.push(t);
+  const fresh = [...inbox.filter(i => !staleTimed(i.text, i.at)).map(i => i.text), ...[...queue, ...held].filter(t => !staleTimed(t))];
+  for (const t of fresh) {
+    const dup = all.findIndex(a => sameTopic(a, t));
+    if (dup >= 0) all[dup] = t; else all.push(t);   // garde la version la plus récente
+  }
   if (inbox.length) await kvSet(INBOX_KEY, '[]', 60);
   if (queue.length) await kvSet(QUEUE_KEY, '[]', 60);
   if (held.length)  await kvSet(HELD_KEY, '[]', 60);

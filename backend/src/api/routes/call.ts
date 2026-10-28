@@ -397,8 +397,15 @@ const CALL_TOOLS = [
   { type: 'function', name: 'look',
     description: 'Regarder MAINTENANT la caméra de Kouider (appel vidéo) : « regarde », « tu vois ça ? », « et là ? ». Renvoie une image fraîche. Si la caméra est coupée, dis-lui de l\'allumer (bouton vidéo de Telegram).',
     parameters: { type: 'object', properties: {} } },
+  { type: 'function', name: 'whatsapp_send',
+    description: 'ENVOYER DIRECTEMENT un message WhatsApp depuis le WhatsApp Business de FIK (« envoie un message WhatsApp au 04 91 11 51 45 en disant bonjour », « dis à Karim sur WhatsApp que… ») : à un numéro dicté (en CHIFFRES) ou à un nom de contact. 1) SANS confirmed → l\'outil renvoie la relecture : lis-lui le message et le destinataire, demande « je l\'envoie ? ». 2) Après son OUI clair → même outil, même chat, même text, confirmed:true. Si l\'outil demande le pays (06/07 sans indicatif), pose-lui la question puis rappelle avec country.',
+    parameters: { type: 'object', properties: {
+      chat: { type: 'string', description: 'Numéro en chiffres (« zéro quatre quatre-vingt-onze… » → 0491…) ou nom du contact WhatsApp' },
+      text: { type: 'string', description: 'Le message exact à envoyer' },
+      country: { type: 'string', description: 'FR, DZ, BE… seulement si l\'outil le demande' },
+      confirmed: CONFIRMED_PARAM }, required: ['chat', 'text'] } },
   { type: 'function', name: 'whatsapp_link',
-    description: 'Préparer un message WhatsApp pour un CLIENT (« envoie à Karim que la voiture est prête à 14h ») : Dzaryx retrouve son numéro et envoie à Kouider sur Telegram le lien WhatsApp avec le message déjà écrit ; Kouider n\'a plus qu\'à appuyer. Rien ne part au client sans lui. Écris le message complet, poli, au nom de FIK Conciergerie, dans la langue du client.',
+    description: 'SEULEMENT s\'il demande « envoie-moi le lien » : préparer un message WhatsApp pour un CLIENT (« envoie à Karim que la voiture est prête à 14h ») : Dzaryx retrouve son numéro et envoie à Kouider sur Telegram le lien WhatsApp avec le message déjà écrit ; Kouider n\'a plus qu\'à appuyer. Rien ne part au client sans lui. Écris le message complet, poli, au nom de FIK Conciergerie, dans la langue du client.',
     parameters: { type: 'object', properties: {
       client: { type: 'string', description: 'Nom du client tel que Kouider le dit' },
       message: { type: 'string', description: 'Le message exact pour le client' },
@@ -486,13 +493,13 @@ function realtimeInstructions(who: CallActor, calls: string, dossier = '', famil
     `RAPIDE : pour juste LIRE des réservations, la flotte, une dispo, les impayés, les finances, les mails, si un client est fiable (« Karim c'est un bon client ? » → check_client), les dépenses ou le bénéfice réel d'une voiture (get_expenses) ou l'entretien / la vidange (get_vehicle_maintenance), utilise directement l'outil correspondant : c'est instantané. ask_dzaryx pour tout le reste (agenda, rappels, prospects, web, mails envoyés…) et pour toute autre action.`,
     `DICTÉE RAPIDE : dépense (« 3000 DA d'essence sur la Sandero » → record_expense), kilométrage (« la Clio est à 85 000 » → record_car_km), vidange faite (« vidange faite sur le Jogger à 80 000 » → update_vehicle_maintenance avec car_name, last_service_km et last_service_date d'aujourd'hui). Relis en UNE phrase (« 3000 dinars d'essence sur la Sandero, je note ? »), puis après son oui appelle l'outil avec confirmed:true. Sans devise dite, c'est des dinars. Si l'outil demande quelle voiture, pose-lui la question puis rappelle l'outil (son oui reste valable).`,
     `RÉSERVATION / PAIEMENT dictés : « réserve la … pour … du … au … » → quick_booking ; « X m'a payé … » → quick_payment. D'abord SANS confirmed : l'outil renvoie la relecture, lis-la simplement (voiture, client, dates, prix, bénéfice, et l'alerte si client à risque) et demande « je crée ? » / « je note ? ». Après son oui → même outil avec confirmed:true. Convertis « du 3 au 8 novembre » en dates YYYY-MM-DD (année en cours ou suivante si passée).`,
-    `DEVIS : « combien pour… », « qu'est-ce qui est libre… » → quick_quote. S'il veut l'envoyer au client → whatsapp_link avec le texte du devis (ou send_text_to_me s'il veut juste le texte).`,
+    `DEVIS : « combien pour… », « qu'est-ce qui est libre… » → quick_quote. S'il veut l'envoyer au client → whatsapp_send avec le texte du devis (ou send_text_to_me s'il veut juste le texte).`,
     `MODIFIER / ANNULER une réservation (« décale Karim au 10 », « annule Sonia ») → quick_modify_booking : d'abord SANS confirmed, lis la relecture (ancien → nouveau, prix, bénéfice, ce qu'il a déjà payé) et demande « je modifie ? » / « j'annule ? ». Après son oui → confirmed:true.`,
     `MAIL : « réponds à Mohammed que… » → quick_email_reply avec un texte poli rédigé par toi. D'abord SANS confirmed : lis-lui le mail EN ENTIER et demande « je l'envoie ? ». Après son oui → confirmed:true. « Qu'est-ce qu'il m'a écrit ? » → quick_email_reply sans body.`,
     `CONTRAT : « envoie le contrat à Karim », « fais-le signer » → send_contract (pas besoin de oui : il reçoit le lien et l'envoie lui-même).`,
     `PAPIERS DES VOITURES : « l'assurance de la Sandero expire le 15 mars » → relis, puis après son oui set_car_papers avec confirmed:true. « Les papiers sont à jour ? » → get_car_papers.`,
     `AGENDA : « qu'est-ce que j'ai demain / vendredi ? » → quick_agenda. RAPPEL pour lui (« rappelle-moi d'appeler le garage à 15h ») → redis l'heure, puis après son oui schedule_reminder avec confirmed:true (heure de Bruxelles). Un rappel PAR APPEL → call_me.`,
-    `WHATSAPP CLIENT : « envoie à Karim que… », « dis au client que… », « préviens-le sur WhatsApp » → TOUJOURS l'outil whatsapp_link, JAMAIS ask_dzaryx (rien ne part sans lui, il appuie lui-même). Rédige un message court et poli, dis-lui en une phrase ce que tu vas écrire, puis outil whatsapp_link : il reçoit le lien sur Telegram et l'envoie lui-même en un clic. Dis « je t'ai envoyé le lien, tu n'as plus qu'à appuyer ».`,
+    `WHATSAPP : « envoie un message WhatsApp au 04 91… », « envoie à Karim que… », « dis au client que… » → outil whatsapp_send : c'est TOI qui envoies directement depuis le WhatsApp Business de FIK. D'abord SANS confirmed (relecture), lis-lui le message et le destinataire, « je l'envoie ? », puis après son oui confirmed:true. Dis « c'est envoyé » SEULEMENT si l'outil le confirme. JAMAIS « je ne sais pas faire » pour WhatsApp. whatsapp_link (lien sur Telegram) uniquement s'il demande le lien.`,
     `PC (Nexus) : tout ce qui concerne son ordinateur (« ouvre Spotify sur le PC », « volume 30 », « verrouille le PC », « éteins le PC ») → pc_command, c'est direct. « Mon PC est allumé ? » → pc_status ; « allume / réveille le PC » → pc_wake ; « envoie-moi l'écran » → pc_screen_to_telegram ; « qu'est-ce qu'il y a sur mon écran ? », « regarde mon PC » → pc_look (tu reçois l'image de l'écran et tu la décris). Éteindre, redémarrer, veille, supprimer : relis et attends son oui (confirmed:true).`,
     `INTERPRÈTE : « traduis », « sois mon interprète », « il parle anglais » → outil interpreter (on:true, langue) puis suis les règles qu'il te renvoie, jusqu'à « stop traduction » (interpreter on:false).`,
     `IMPORTANT : tu ne connais RIEN de ses affaires par toi-même. Pour toute info réelle ou action (réservations, voitures, clients, paiements, mails, agenda, rappels, démarchage, prospects, finances, envoyer un message…), appelle l'outil ask_dzaryx avec sa demande complète, et dis d'abord un petit mot naturel (« je regarde », « deux secondes »). Ne jamais inventer un chiffre, un nom ou un mail.`,
@@ -501,7 +508,7 @@ function realtimeInstructions(who: CallActor, calls: string, dossier = '', famil
     `DÉMO DE SITE (« je t'envoie un lien, fais-moi une démo de site pour ce client ») → ask_dzaryx avec la demande ; dis-lui d'envoyer le lien Google Maps du commerce par message Telegram (bouton « Partager » dans Google Maps). La démo est prête en 1 à 2 minutes et le lien arrive tout seul sur Telegram.`,
     `Même si la question ressemble à une précédente (« j'ai déjà répondu ? », « il y a du nouveau ? », « c'est sûr ? »), RAPPELLE ask_dzaryx : ne réponds JAMAIS oui/non sur un fait de mémoire. Si tu n'as pas vérifié, dis « je vérifie » et appelle l'outil.`,
     `Quand l'outil répond, redis l'essentiel à l'oral, simplement (montants en euros ou dinars en toutes lettres si besoin). Ne lis jamais d'identifiant technique (db_id, job_id, UUID, fuseau, utc_offset), et n'ajoute rien que l'outil n'a pas dit.`,
-    `AUTRES ACTIONS (nouveau mail, relancer quelqu'un…) : TOUJOURS en deux temps via ask_dzaryx. Outils directs (eux aussi après relecture + oui) : quick_booking, quick_payment, quick_modify_booking, quick_email_reply, dictée rapide (dépense, km, vidange, papiers), schedule_reminder ; whatsapp_link et send_contract pour un client.`,
+    `AUTRES ACTIONS (nouveau mail, relancer quelqu'un…) : TOUJOURS en deux temps via ask_dzaryx. Outils directs (eux aussi après relecture + oui) : quick_booking, quick_payment, quick_modify_booking, quick_email_reply, dictée rapide (dépense, km, vidange, papiers), schedule_reminder ; whatsapp_send et send_contract pour un client.`,
     `1) Prépare : si un texte est à envoyer, demande à ask_dzaryx de le rédiger SANS l'envoyer. Puis relis-lui à l'oral précisément ce que tu vas faire (à qui, quoi, quand) et demande « Je le fais ? ».`,
     `2) Seulement après un oui clair de sa part (« oui », « vas-y », « envoie »), appelle ask_dzaryx avec une demande qui commence par « CONFIRMÉ AU TÉLÉPHONE : » suivie de l'action complète (destinataire, texte exact, date…). S'il hésite ou change quelque chose, corrige et relis à nouveau. Puis dis-lui que c'est fait seulement si l'outil le confirme.`,
     `INFO À RETENIR sur lui ou sa famille (« retiens que… », « le deuxième prénom d'Ibrahim c'est… », un goût, une date) : ce n'est que de la mémoire, pas un envoi → ask_dzaryx tout de suite avec « CONFIRMÉ AU TÉLÉPHONE : retiens que … », sans redemander. Dis « c'est noté » SEULEMENT si l'outil confirme ; s'il pose une question (« Je l'enregistre ? »), pose-la-lui au lieu de dire que c'est fait.`,
@@ -654,7 +661,7 @@ router.post('/tool', requireCallerAuth, async (req, res) => {
   const later = name === 'call_me' && !!(input?.['delay_minutes'] || input?.['at_time'] || input?.['at_date']);
   const write = (QUICK_WRITE_TOOLS as readonly string[]).includes(name ?? '');
   const own = name && Object.hasOwn(CALL_QUICK, name) ? CALL_QUICK[name as keyof typeof CALL_QUICK] : null;
-  if (!name || (!(QUICK_TOOLS as readonly string[]).includes(name) && !later && !write && !own && !['whatsapp_link', 'send_contract', 'send_text_to_me'].includes(name))) {
+  if (!name || (!(QUICK_TOOLS as readonly string[]).includes(name) && !later && !write && !own && !['whatsapp_send', 'whatsapp_link', 'send_contract', 'send_text_to_me'].includes(name))) {
     res.status(400).json({ error: 'tool not allowed' }); return;
   }
   try {
@@ -666,6 +673,13 @@ router.post('/tool', requireCallerAuth, async (req, res) => {
     }
     if (name === 'send_contract') {
       res.json(callActor(req) === 'kouider' ? await quickContract(input ?? {}) : { ok: false, text: 'Contrats réservés à Kouider.' }); return;
+    }
+    if (name === 'whatsapp_send') {   // envoi direct depuis WA Business (cloud PC) : relecture, puis confirmed:true après son oui
+      if (callActor(req) !== 'kouider') { res.json({ text: 'WhatsApp réservé à Kouider.' }); return; }
+      const chat = String(input?.['chat'] ?? '').trim(), text = String(input?.['text'] ?? '').trim();
+      if (!chat || !text) { res.json({ text: 'Il me faut le numéro (ou le contact) et le message.' }); return; }
+      const out = await executeTool('whatsapp_web', { action: 'send', chat, text, country: input?.['country'], confirmed: input?.['confirmed'] === true }, `voice_${callActor(req)}`);
+      res.json({ text: out.slice(0, 3000) }); return;
     }
     if (name === 'whatsapp_link') {
       const r = await clientWhatsappLink(String(input?.['client'] ?? ''), String(input?.['message'] ?? ''), input?.['phone'] as string | undefined);

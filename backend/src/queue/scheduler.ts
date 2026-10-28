@@ -395,7 +395,7 @@ const JOBS = [
   },
   {
     name:  'self-improve',
-    cron:  '0 3 * * *',               // auto-amélioration : relit ses erreurs d'hier
+    cron:  '15 0 * * *',              // auto-amélioration : relit ses erreurs du jour (avant l'atelier de code de nuit 0h30)
     tz:    'Europe/Brussels',
   },
   {
