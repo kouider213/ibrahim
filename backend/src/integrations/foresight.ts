@@ -201,7 +201,12 @@ export type LifeGoalCommand = { kind: 'epargne'; value: number; add: boolean } |
 /** « j'ai épargné 17 000 » / « épargne 17k » / « 17 000 de côté » (total), « j'ai mis 500 de côté » (ajout) ; « je pèse 78,5 » ;
  *  « départ 20 % » / « prêt à 30 % pour quitter la Belgique » ; « où j'en suis de mes objectifs / GPS de vie ? ». Sinon null.
  *  Pas « économisé » : « 300 € sur les courses » écrasait l'épargne. */
-export function parseLifeGoalCommand(msg: string): LifeGoalCommand | null {
+export function parseLifeGoalCommand(raw: string): LifeGoalCommand | null {
+  // Siri / appel : la consigne [SIRI …] / [APPEL …] devant contient des chiffres et « combien » → on ne lit que ce qu'il a dit
+  // (28/10 9h52 : « CONFIRMÉ AU TÉLÉPHONE : mets à jour le poids à 80 kg » n'avait rien fait)
+  let msg = raw;
+  for (let i = 0; i < 3; i++) { const m = msg.match(/^\s*\[[\s\S]*?\]\s*/); if (!m) break; msg = msg.slice(m[0].length); }
+  msg = msg.replace(/^CONFIRM[ÉE] AU T[ÉE]L[ÉE]PHONE\s*:\s*/i, '');
   const num = (re: RegExp): number | null => {
     const m = msg.match(re); if (!m) return null;
     let v = parseFloat(m[1]!.replace(/[\s.\u202f](?=\d{3}\b)/g, '').replace(',', '.'));

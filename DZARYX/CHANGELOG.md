@@ -7,6 +7,7 @@
 - `context-builder.ts` shortPreamble() : consignes [SIRI…] / [APPEL TÉLÉPHONIQUE…] raccourcies dans l'historique → plus de compaction à chaque tour.
 - `claude-api.ts` spokenText() : retire aussi [SIRI…] avant le routage (recherche web / Sonnet à tort).
 - `jarvis-hub.ts` siriTurn() : budget 25 s puis réponse sur Telegram, coupe propre en fin de phrase + suite sur Telegram, relance si « je regarde… ».
+- `foresight.ts` parseLifeGoalCommand() : lit seulement ce que Kouider a dit (sans [SIRI…]/[APPEL…]/« CONFIRMÉ AU TÉLÉPHONE ») → « mets à jour mon poids à 80 kg » en appel marche (9h52 rien n'avait été fait).
 
 ## 2026-10-28 (suite 9) — GPS de vie : objectifs de Kouider
 - `foresight.ts` : objectif « poids » lit le poids du profil FORME quand Santé n'envoie pas de pesée.
