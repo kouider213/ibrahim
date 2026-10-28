@@ -227,6 +227,7 @@ const MONEY_WA_HINT =
   + "En Algérie « 230 millions » = millions de centimes = 2 300 000 DA ; un client qui écrit « budget 2 300 000 » parle en DA. Donne DA + € au square directement, sans demander « tu veux ? ». "
   + "WHATSAPP : quand tu donnes à Kouider un message client resté sans réponse, ajoute TOUJOURS une réponse proposée (courte, polie, au nom de FIK) et demande « je lui envoie ? ». "
   + "NOS CONDITIONS (location, acompte, caution, papiers, livraison, adresse, vente, immobilier, packs) : outil conditions_fik = texte exact du site, à appeler avant de les donner ou de les écrire à un client ; jamais « je n'ai pas de fiche de conditions ». "
+  + "IDÉES : quand Kouider lâche une envie en passant (« ce serait bien que… », « j'aimerais qu'un jour tu… », « il faudrait que… », « dommage que tu ne… ») sur ce que tu pourrais faire, termine ta réponse par « Je me le code cette nuit ? » ; à son oui → se_coder add avec son idée complète. "
   + "Après son oui : lance whatsapp_web send TOUT DE SUITE. Ne dis jamais « pas connecté » ou « je ne peux pas » sans qu'un outil l'ait répondu à CE tour.";
 const CORE_TOOLS = new Set([
   // Locations, flotte, clients, argent
@@ -246,6 +247,8 @@ const CORE_TOOLS = new Set([
   // Position live (Telegram) + trajet avec trafic réel
   'get_my_location', 'get_travel_time', 'list_agenda_events', 'update_agenda_event', 'delete_agenda_event',
 ]);
+
+export const CORE_TOOL_NAMES = [...CORE_TOOLS];   // grand ménage du mois (self-dev.ts)
 
 // ── Extraction des citations depuis la réponse ────────────────────────────────
 function extractCitations(content: Anthropic.ContentBlock[]): CitationInfo[] {
@@ -361,8 +364,17 @@ export async function chatWithTools(
   // seuls les outils courants restent chargés ; les autres sont trouvés à la demande par le modèle.
   // ~35 000 tokens d'outils en moins par message, et moins de confusion entre outils voisins.
   const useToolSearch = baseTools.length > DEFER_THRESHOLD;
+  // Ordre pensé pour le cache (28/10) : outils → consignes → historique forment UN préfixe. Avant, les outils de l'agent du
+  // moment (Réservations, Finance…) et le retrait de web_search étaient mélangés aux outils de base → chaque changement de
+  // sujet réécrivait tout le cache (outils + 35k de consignes, ~95 % de la facture). Maintenant : les outils de base, toujours
+  // dans le même ordre, d'abord (point de cache 1 h sur le dernier), puis ce qui varie. Mêmes outils chargés qu'avant.
+  const stableCore = Dzaryx_TOOLS.filter(t => CORE_TOOLS.has(t.name) && t.name !== 'web_search');
+  const coreNames  = new Set(stableCore.map(t => t.name));
   const scopedTools: Anthropic.Tool[] = useToolSearch
-    ? [TOOL_SEARCH_TOOL, ...baseTools.map(t => (CORE_TOOLS.has(t.name) || preferred?.has(t.name) ? t : ({ ...t, defer_loading: true } as Anthropic.Tool)))]
+    ? [TOOL_SEARCH_TOOL,
+       ...stableCore.map((t, i) => (i === stableCore.length - 1 ? ({ ...t, cache_control: { type: 'ephemeral', ttl: '1h' } } as Anthropic.Tool) : t)),
+       ...baseTools.filter(t => !coreNames.has(t.name) && (t.name === 'web_search' || preferred?.has(t.name))),
+       ...baseTools.filter(t => !coreNames.has(t.name) && t.name !== 'web_search' && !preferred?.has(t.name)).map(t => ({ ...t, defer_loading: true } as Anthropic.Tool))]
     : baseTools;
   if (useToolSearch) systemBlocks.push({ type: 'text', text: TOOL_SEARCH_HINT });
   systemBlocks.push({ type: 'text', text: MONEY_WA_HINT });

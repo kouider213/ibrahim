@@ -3,6 +3,13 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-28 21h — Économies Claude (cache) + atelier : annuler, se vérifier, carnet d'idées, grand ménage
+- claude-api : outils de base toujours dans le même ordre, en premier, point de cache 1 h ; outils de l'agent du moment + web_search après. Testé : changement de sujet = 23k jetons RELUS au lieu de ~29k réécrits (chat-voice = 97 % de la facture).
+- se_coder undo (« annule ce que tu as codé cette nuit » / un chantier) : l'atelier note from_sha/to_sha, revert + remise en ligne.
+- Atelier : auto-test après mise en ligne (Railway, /health, bac à sable) + annulation automatique si le serveur de secours ne répond plus ; rapports de nuit gardés pour 5h.
+- Carnet d'idées : « ce serait bien que… » → « je me le code cette nuit ? » (chat + appel).
+- Job tools-cleanup le 1er du mois 10h : outils toujours chargés jamais utilisés en 30 jours → proposés au rangement (« fais le ménage »).
+
 ## 2026-10-28 19h30 — Dzaryx se code lui-même + WhatsApp direct en appel
 - Appel : nouvel outil whatsapp_send = envoi DIRECT depuis WA Business (relecture puis oui) ; whatsapp_link seulement si Kouider demande le lien. Avant, « envoie un message au 04 91… » donnait un lien Telegram et « via WhatsApp directement » était mal compris.
 - Appel : la boîte « j'ai N choses pour toi » jette les alertes périmées (« ton RDV est à 13h… il est 13h10 » lu à 19h) et les doublons du même sujet.

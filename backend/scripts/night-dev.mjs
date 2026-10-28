@@ -50,6 +50,18 @@ function telegram(text) {
 const git = (...args) => execFileSync('git', ['-C', REPO, ...args], { encoding: 'utf8' }).trim();
 const dirty = () => git('status', '--porcelain', '--untracked-files=no') !== '';
 
+function undoPrompt(task) {
+  return [
+    `Tu es l'atelier de code autonome de Dzaryx. Kouider n'est pas là : décide seul.`,
+    `TÂCHE n° ${task.id} : ${task.text}.`,
+    `Dans ${REPO} : annule les commits ${task.from_sha}..${task.to_sha} (git revert --no-edit, du plus récent au plus ancien ; résous proprement un conflit éventuel en gardant le code d'avant le chantier ET les changements faits depuis par d'autres).`,
+    `cd backend && npx tsc --noEmit = 0 erreur, puis mets en ligne selon le skill dzaryx-livraison (Railway, app gh-pages si simulator/ a changé, pm2 VPS si tgcall/ ou cloudpc/ a changé) et vérifie le déploiement.`,
+    `TERMINE EXACTEMENT par :`,
+    `STATUT: OK   (ou STATUT: ÉCHEC)`,
+    `RAPPORT KOUIDER: <1 à 3 phrases simples : ce qui a été retiré, que tout est revenu comme avant>`,
+  ].join('\n');
+}
+
 function prompt(task) {
   return [
     `Tu es l'atelier de code autonome de Dzaryx (l'assistant IA de Kouider). Kouider n'est PAS là (il dort ou travaille) : personne ne répondra à tes questions, décide seul comme un bon développeur senior et va jusqu'au bout.`,
@@ -66,6 +78,7 @@ function prompt(task) {
     `- Le repo est PUBLIC : aucun secret, aucune donnée de santé ou perso dans le code.`,
     `- Ne touche pas aux données réelles (clients, réservations, paiements) et n'envoie rien à un client : seulement du code.`,
     `- Commit (git add de fichiers précis), puis mets en ligne en suivant le skill dzaryx-livraison (push Railway, app gh-pages si l'app change, redémarrage pm2 VPS si besoin) et vérifie que c'est bien déployé.`,
+    `- APRÈS la mise en ligne, vérifie-toi comme un testeur : déploiement Railway SUCCESS, /health de Railway et du VPS, puis essaie TA nouveauté en vrai dans le bac à sable (scripts/crash-test.ts avec un filtre, ou un petit src/tests/_x.ts) et 2-3 questions de base (réservations de demain, WhatsApp non lus) pour être sûr que rien d'autre n'est cassé. Si quelque chose ne va plus : git revert de tes commits, remets en ligne, et STATUT: ÉCHEC avec l'explication.`,
     `- Mets à jour ta mémoire si c'est une nouveauté importante.`,
     `- Si la tâche est impossible ou dangereuse, ne force pas : explique pourquoi.`,
     ``,
@@ -77,7 +90,7 @@ function prompt(task) {
 
 function runClaude(task) {
   mkdirSync(LOGS, { recursive: true });
-  const r = spawnSync('claude', ['-p', prompt(task), '--permission-mode', 'auto', '--output-format', 'json'], {
+  const r = spawnSync('claude', ['-p', task.kind === 'undo' ? undoPrompt(task) : prompt(task), '--permission-mode', 'auto', '--output-format', 'json'], {
     cwd: '/root', encoding: 'utf8', timeout: TASK_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024,
   });
   writeFileSync(`${LOGS}/${task.id}-${Date.now()}.json`, `${r.stdout ?? ''}\n--- stderr ---\n${r.stderr ?? ''}`);
@@ -87,6 +100,14 @@ function runClaude(task) {
   const ok = /STATUT:\s*OK/i.test(text);
   const report = (text.split(/RAPPORT KOUIDER:\s*/i)[1] ?? text.slice(-600)).trim().slice(0, 1500);
   return { ok, report };
+}
+
+async function healthy() {
+  for (let i = 0; i < 6; i++) {   // tsx watch recharge en quelques secondes
+    try { const r = await fetch('http://localhost:3000/health', { signal: AbortSignal.timeout(8000) }); if (r.ok) return true; } catch { /* */ }
+    await new Promise(r => setTimeout(r, 10_000));
+  }
+  return false;
 }
 
 async function main() {
@@ -131,16 +152,29 @@ async function main() {
 
   log('tâche', task.id, task.text.slice(0, 100));
   await updateTask(task.id, { status: 'running', started_at: new Date().toISOString() });
-  if (task.now) telegram(`🛠️ Je me mets au code : « ${task.text.slice(0, 120)} ». Rapport dès que c'est en ligne.`);
+  if (task.now && task.source === 'kouider') telegram(`🛠️ Je me mets au code : « ${task.text.slice(0, 120)} ». Rapport dès que c'est en ligne.`);
   try { git('pull', '--rebase', '--autostash', 'origin', 'main'); } catch (e) { log('pull', e.message); }
 
-  const { ok, report } = runClaude(task);
+  const before = git('rev-parse', 'HEAD');
+  let { ok, report } = runClaude(task);
   if (dirty()) {   // travail laissé à moitié : rangé, jamais perdu, et l'arbre redevient libre
     try { git('stash', 'push', '-m', `atelier-${task.id}`); } catch (e) { log('stash', e.message); }
   }
-  await updateTask(task.id, { status: ok ? 'done' : 'failed', done_at: new Date().toISOString(), summary: report.slice(0, 600) });
-  const line = `${ok ? '✅' : '❌'} ${task.source === 'veille' ? '🔭 Veille' : task.source === 'auto' ? '🐞 Bug repéré seul' : '👤 Ta demande'} : ${task.text.slice(0, 120)}\n${report}`;
-  if (task.now || !night) telegram(`🛠️ ${line}`);
+  // Commits du chantier (les siens seulement : poussés entre avant et après) → permet « annule ce que tu as codé »
+  let after = before;
+  try { git('fetch', '-q', 'origin', 'main'); after = git('rev-parse', 'origin/main'); } catch (e) { log('fetch', e.message); }
+  const shas = after !== before && task.kind !== 'undo' ? { from_sha: before, to_sha: after } : {};
+  // Filet de sécurité : le serveur de secours doit répondre après le chantier, sinon annulation automatique
+  if (task.kind !== 'undo' && shas.from_sha && !(await healthy())) {
+    ok = false;
+    report += '\n⚠️ Après ce chantier le serveur ne répondait plus : je l\'annule tout seul et je remets la version d\'avant.';
+    const q2 = await kvGet('dev:queue', []);
+    q2.push({ id: Math.random().toString(36).slice(2, 7), text: `ANNULER le chantier n° ${task.id} (serveur KO après mise en ligne)`, source: 'auto', now: true, status: 'todo', at: new Date().toISOString(), kind: 'undo', ...shas });
+    await kvSet('dev:queue', q2);
+  }
+  await updateTask(task.id, { status: ok ? 'done' : 'failed', done_at: new Date().toISOString(), summary: report.slice(0, 600), ...shas });
+  const line = `${ok ? '✅' : '❌'} ${task.kind === 'undo' ? '↩️ Annulation' : task.source === 'veille' ? '🔭 Veille' : task.source === 'auto' ? '🐞 Bug repéré seul' : '👤 Ta demande'} : ${task.text.slice(0, 120)}\n${report}${shas.from_sha ? `\n(n° ${task.id} — « annule le chantier ${task.id} » pour revenir en arrière)` : ''}`;
+  if (!night || (task.now && task.source === 'kouider')) telegram(`🛠️ ${line}`);   // la nuit, rien ne le réveille : rapport à 5h
   else await kvSet('dev:report_pending', [...await kvGet('dev:report_pending', []), line]);
   log('fin', task.id, ok ? 'OK' : 'ÉCHEC');
 }

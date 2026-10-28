@@ -399,6 +399,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'tools-cleanup',
+    cron:  '0 10 1 * *',              // grand ménage : outils toujours chargés jamais utilisés en 30 jours
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'self-improve-morning',
     cron:  '30 7 * * *',              // auto-amélioration : propositions du matin
     tz:    'Europe/Brussels',
@@ -741,6 +746,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'habits-run':               async () => { console.log(`[habits-run] ${await (await import('../integrations/brain-plus.js')).jobHabitsRun()}`); },
   'self-report':              async () => { console.log(`[self-report] ${await (await import('../integrations/brain-plus.js')).jobSelfReport()}`); },
   'self-improve':             async () => { console.log(`[self-improve] ${await (await import('../integrations/guardian-ops.js')).jobSelfImprove()}`); },
+  'tools-cleanup':            async () => { console.log(`[tools-cleanup] ${await (await import('../integrations/self-dev.js')).jobToolCleanup()}`); },
   'self-improve-morning':     async () => { console.log(`[self-improve-morning] ${await (await import('../integrations/guardian-ops.js')).jobSelfImproveMorning()}`); },
   'bodyguard':                async () => { console.log(`[bodyguard] ${await (await import('../integrations/guardian-ops.js')).jobBodyguard()}`); },
   'radar':                    async () => { console.log(`[radar] ${await (await import('../integrations/market-hunters.js')).jobRadar()}`); },
