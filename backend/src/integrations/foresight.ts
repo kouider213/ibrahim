@@ -116,7 +116,7 @@ export async function promisesDue(): Promise<string[]> {
 export async function promisesTool(input: Record<string, unknown>): Promise<string> {
   const a = String(input['action'] ?? 'list');
   const list = await kvJson<Promise_[]>('promises', []);
-  const find = () => list.find(p => p.id === input['id']) ?? list.find(p => !p.done && input['to'] && p.to.toLowerCase().includes(String(input['to']).toLowerCase()));
+  const find = () => list.find(p => p.id === input['id']) ?? list.find(p => !p.done && input['to'] && `${p.to} ${p.what}`.toLowerCase().includes(String(input['to']).toLowerCase()));
   if (a === 'add') {
     list.push({ id: uid(), to: String(input['to'] ?? '?'), what: String(input['what'] ?? ''), due: String(input['due'] ?? new Date(Date.now() + 86_400_000).toISOString().slice(0, 16)), source: 'manuel' });
     await kvPut('promises', list);

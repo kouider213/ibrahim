@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-28 (suite 12) — Vols : plus de surveillance en double, promesses par nom
+- `air-algerie.ts` startWatch : une surveillance lancée dans le quart d'heure par la même session est remplacée (Siri 15h43 : 20/02→09/03 puis 03/03→17/03 = 2 surveillances).
+- `foresight.ts` promisesTool done : le nom est cherché aussi dans le texte (« la promesse pour Houari est faite »). `jarvis4-tools.ts` : description promesses → pas memoire_gens.
+- ⚠️ Railway n'a déployé aucun push depuis 663b38e (13:41 UTC) : 3849dd1, 3be8722, 020d836, cb09122 en attente.
+
 ## 2026-10-28 (suite 11) — Test Jarvis 4 (16 outils, 0 crash) + corrections (B047)
 - `tool-executor.ts` get_client_brain : plus d'envoi de papiers (lecture seule).
 - `conscience.ts` pendingDecisions : 3 h max. `foresight.ts` promesses : ignore « Dzaryx » / « déjà fait ».

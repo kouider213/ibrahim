@@ -268,6 +268,9 @@ async function startWatch(input: Record<string, unknown>, sessionId: string | un
   // Fréquence par défaut : toutes les 2 h sur une journée, 6 h sur une semaine, 12 h au-delà (chaque recherche coûte des crédits Claude)
   const every = Math.max(1, Math.round(Number(input['every_hours'] ?? 0)) || (hours <= 24 ? 2 : hours <= 24 * 7 ? 6 : 12));
   const list = await loadWatches();
+  // Il redemande / corrige les dates dans le quart d'heure (Siri 28/10 15h43 : 2 surveillances pour la même demande)
+  // → la nouvelle REMPLACE la précédente au lieu de s'ajouter
+  for (const w of list) if (w.status === 'active' && w.sessionId === sessionId && Date.now() - Date.parse(w.created_at) < 15 * 60_000) w.status = 'stopped';
   if (list.filter(w => w.status === 'active').length >= 3) return '❌ Déjà 3 surveillances de vols en cours : arrête-en une d\'abord (air_algerie_watch stop).';
   const now = new Date();
   const { watch_hours: _h, every_hours: _e, call_below: _c, ...search } = input;
