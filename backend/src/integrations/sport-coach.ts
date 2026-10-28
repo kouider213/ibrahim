@@ -416,7 +416,7 @@ export async function planSportWeek(write = true): Promise<{ slots: Array<PlanSl
     if ((await routinePausedReason(date).catch(() => null))) continue;
     const doneLog = log.find(l => l.date === date);
     const type: SessionType = doneLog?.type ?? st.overrides[date] ?? ROTATION[idx % ROTATION.length]!;
-    if (!doneLog && !st.overrides[date]) idx++;
+    if (!doneLog && (!st.overrides[date] || st.overrides[date] === ROTATION[idx % ROTATION.length])) idx++;   // séance choisie = celle qui venait → la rotation avance
     const minutes = freeMinutes(e, evs);
     const suffix = (e.summary ?? '').includes(' — ') ? (e.summary ?? '').split(' — ').slice(1).join(' — ') : 'salle';
     const title = `🏋️ ${customMap[date]?.label ?? SESSIONS[type].label}${inDeload(date) ? ' (allégée)' : lowForm(date) ? ' (courte)' : ''} — ${suffix}`;
@@ -443,7 +443,7 @@ async function closePastDays(st: SportState): Promise<string[]> {
   for (const [date, p] of Object.entries(st.plan).sort()) {
     if (st.history[date] || date > today || Date.parse(p.end) > now) continue;
     if (st.skips[date]) st.history[date] = 'skip';
-    else if (log.some(l => l.date === date) || st.arrived[date]) { st.history[date] = 'done'; if (!st.overrides[date]) st.next = (st.next + 1) % ROTATION.length; }
+    else if (log.some(l => l.date === date) || st.arrived[date]) { st.history[date] = 'done'; if (!st.overrides[date] || st.overrides[date] === ROTATION[st.next]) st.next = (st.next + 1) % ROTATION.length; }
     else { st.history[date] = 'missed'; missed.push(`${SESSIONS[p.type].label} du ${date.slice(8)}/${date.slice(5, 7)}`); }
   }
   return missed;
@@ -1010,7 +1010,7 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
   // week
   const r = await planSportWeek(action === 'sync_week');
   if (!r.slots.length) return `Aucun créneau sport dans les 7 prochains jours${r.note ? ` (${r.note})` : ''}.`;
-  return ['🗓️ Ton programme sport (calé sur ton agenda) :', ...r.slots.map(s => `- ${fmt(s.date)} ${hm(Date.parse(s.start))}–${hm(Date.parse(s.end))} : ${SESSIONS[s.type].emoji} ${SESSIONS[s.type].label} (${SESSIONS[s.type].focus})${s.minutes < 60 ? ` — version ${s.minutes} min` : ''}`)].join('\n');
+  return ['🗓️ Ton programme sport (calé sur ton agenda) :', ...r.slots.map(s => `- ${fmt(s.date)} ${hm(Date.parse(s.start))}–${hm(Date.parse(s.end))} : ${customMap[s.date] ? `${customMap[s.date]!.emoji ?? '🎯'} ${customMap[s.date]!.label} (${customMap[s.date]!.focus})` : `${SESSIONS[s.type].emoji} ${SESSIONS[s.type].label} (${SESSIONS[s.type].focus})`}${s.minutes < 60 ? ` — version ${s.minutes} min` : ''}`)].join('\n');
 }
 
 /** Prochain jour avec une séance prévue à partir de demain (pour « adapte ma séance de demain »). */
@@ -1063,8 +1063,10 @@ export async function planCustomDay(o: { date: string; start?: string; label?: s
   // Type de la journée (pour la rotation et les stats) d'après les muscles dominants — le jour garde SES exercices
   const ms = lifts.map(e => guessMuscle(e.name, e.muscle));
   const has = (m: Muscle) => ms.filter(x => x === m).length;
-  const type: SessionType = !lifts.length ? 'cardio' : has('jambes') > lifts.length / 2 ? 'legs' : has('dos') && (has('pecs') || has('epaules')) ? 'upper'
-    : has('dos') ? 'pull' : has('pecs') || has('epaules') ? 'push' : has('abdos') > lifts.length / 2 ? 'core' : 'upper';
+  // Programme officiel : la séance du même nom (« Épaules ») garde SA case de rotation, sinon on devine par les muscles
+  const named = o.label ? ROTATION.find(t => slug(SESSIONS[t].label) === slug(o.label!)) : undefined;
+  const type: SessionType = named ?? (!lifts.length ? 'cardio' : has('jambes') > lifts.length / 2 ? 'legs' : has('dos') && (has('pecs') || has('epaules')) ? 'upper'
+    : has('dos') ? 'pull' : has('pecs') || has('epaules') ? 'push' : has('abdos') > lifts.length / 2 ? 'core' : 'upper');
   const st2 = await getState(); st2.overrides[date] = type; await saveState(st2);
   const label = (o.label || (lifts.length ? [...new Set(ms.filter(m => m !== 'cardio'))].map(m => ({ pecs: 'Pecs', dos: 'Dos', epaules: 'Épaules', bras: 'Bras', jambes: 'Jambes', abdos: 'Abdos', cardio: 'Cardio' })[m]).join(' + ') : 'Cardio')).slice(0, 40);
   const p: ProgramSession = { label, emoji: '🎯', ...(blocks.some(b => b.when === 'avant') ? { warmup: `${blocks.filter(b => b.when === 'avant').map(b => `${b.min} min ${b.name}`).join(' + ')} (fait l'échauffement) + 1 série légère au 1er exercice` } : {}),
