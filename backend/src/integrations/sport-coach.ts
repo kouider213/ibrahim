@@ -823,12 +823,14 @@ export async function sportWeeklyReport(send = false): Promise<string> {
   }
   if (send) { const fresh = await getState(); fresh.goal = goal; await saveState(fresh); }   // planSportWeek vient de réécrire le plan
   const game = await (await import('./coach-game.js')).computeGame().catch(() => null);
+  const health = await import('./jarvis-hub.js').then(m => m.healthWeekLine()).catch(() => '');
   const text = [
     `📊 Bilan sport de la semaine`,
     `✅ Séances : ${done.length}/${planned || done.length}${missed.length ? ` (ratée : ${missed.map(fmtD).join(', ')})` : ''}`,
     vol ? `🏋️ Volume soulevé : ${vol.toLocaleString('fr-FR')} kg${prevVol ? ` (${vol >= prevVol ? '+' : ''}${Math.round((vol - prevVol) / prevVol * 100)} % vs semaine d'avant)` : ''}` : '',
     prs.length ? `🏆 Records battus : ${prs.join(' · ')}` : '',
     goalLine,
+    health,
     '',
     next.length ? `🗓️ Semaine prochaine${inDeload(nextMon) ? ' — 🪶 SEMAINE ALLÉGÉE' : ''} :\n${next.map(x => `- ${fmtD(x.date)} ${hm(Date.parse(x.start))} : ${SESSIONS[x.type].emoji} ${SESSIONS[x.type].label}${x.minutes < 60 ? ` (${x.minutes} min)` : ''}`).join('\n')}` : '🗓️ Pas de séance calée la semaine prochaine.',
     `🎯 Nouvel objectif : ${goal.text}`,
@@ -1014,3 +1016,24 @@ export async function setCustomSession(date: string, p: ProgramSession, why: str
 }
 
 export const exerciseLibraryText = () => Object.values(DEFAULT_SESSIONS).flatMap(x => x.exercises).map(e => `${e.name} (${e.muscle})`).filter((v, i, a) => a.indexOf(v) === i).join(', ');
+
+// ── Apple Watch (Raccourci Santé, 28/10) ─────────────────────────────────────
+/** Note de forme donnée par la montre (cœur / VFC) — seulement s'il ne l'a pas donnée lui-même ce matin. */
+export async function setFormFromWatch(date: string, score: number): Promise<string | null> {
+  const st = await getState();
+  if (st.form[date] != null) return null;
+  return setMorningForm(date, score);
+}
+
+/** Entraînement enregistré par la montre → séance cochée (journal + FORME), sans qu'il ait à le dire. */
+export async function markWatchWorkout(date: string, minutes: number, name: string): Promise<string | null> {
+  const log = await readSportLog();
+  if (log.some(l => l.date === date)) return null;            // déjà notée (par lui ou un envoi précédent)
+  const st = await getState();
+  const type: SessionType = st.overrides[date] ?? st.plan[date]?.type ?? (/cardio|course|run|marche|walk|vélo|cycl|elliptique|rameur|row/i.test(name) ? 'cardio' : ROTATION[st.next] ?? 'push');
+  await logSportSession({ date, type, ...(minutes > 0 ? { durationMin: Math.round(minutes) } : {}), note: `Apple Watch : ${name}`.slice(0, 80), sets: [] });
+  await import('./forme.js').then(f => f.updateDay('kouider', date, d => {
+    if (!d.workout) d.workout = { session: 0, label: SESSIONS[type].label, sets: [], ...(minutes > 0 ? { durationMin: Math.round(minutes) } : {}), at: Date.now() };
+  })).catch(() => {});
+  return `🏋️ Séance${minutes > 0 ? ` de ${Math.round(minutes)} min` : ''} (${name}) vue par ta montre → ${SESSIONS[type].label} cochée dans ton coach.`;
+}

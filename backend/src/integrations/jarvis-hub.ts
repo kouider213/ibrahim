@@ -24,7 +24,15 @@ export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok
   const d0 = (typeof body['data'] === 'object' && body['data']) ? body['data'] as Record<string, unknown> : body;
   const nums = (v: unknown) => String(v ?? '').split(/[\n,;]+/).map(x => Number(x.trim().replace(',', '.'))).filter(x => Number.isFinite(x) && x > 0);
   const pick = (re: RegExp) => Object.entries(d0).find(([k]) => re.test(k))?.[1];
-  const stepsL = nums(pick(/step|pas/i)), hrvL = nums(pick(/variab|hrv|vfc/i)), rhrL = nums(pick(/rest|repos|rhr/i)), sleepL = nums(pick(/sleep|sommeil/i));
+  const stepsL = nums(pick(/step|^pas/i)), hrvL = nums(pick(/variab|hrv|vfc/i)), rhrL = nums(pick(/rest\w*_?(heart|hr|card)|repos|rhr/i)), sleepL = nums(pick(/sleep|sommeil/i));
+  // 28/10 : montre = calories actives, poids (balance), entraînements (noms + durées) — Kouider ne dort pas avec sa montre
+  const kcalL = nums(pick(/active|actif|calor|kcal/i)), weightL = nums(pick(/weight|poids|body_?mass|masse/i));
+  const woRaw = pick(/^(?!.*(dur|time|temps)).*(workout|entra[iî]n|s[ée]ance)/i), woDurL = nums(pick(/dur[ée]e|duration/i));
+  if (kcalL.length && body['active_kcal'] == null) body['active_kcal'] = Math.round(kcalL.reduce((a, b) => a + b, 0));
+  if (weightL.length && body['weight'] == null) body['weight'] = weightL[weightL.length - 1];
+  const workouts = String(woRaw ?? '').split(/\n+/).map(x => x.trim()).filter(x => x && !/^[\d.,\s]+$/.test(x));
+  let woMin = woDurL.reduce((a, b) => a + b, 0);
+  if (woMin > 600) woMin /= 60;                          // secondes → minutes
   if (stepsL.length || hrvL.length || rhrL.length || sleepL.length) {
     let sl = sleepL.reduce((a, b) => a + b, 0);
     if (sl > 24 * 60) sl /= 3600; else if (sl > 24) sl /= 60;   // secondes ou minutes → heures
@@ -65,8 +73,51 @@ export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok
   if (d.rhr && rhr && d.rhr >= rhr + 8) notes.push(`❤️ Cœur au repos à ${d.rhr} (d'habitude ${Math.round(rhr)}) : fatigue, stress ou début de maladie possible. Bois, lève le pied, et consulte si ça dure.`);
   const hrv = avg('hrv');
   if (d.hrv && hrv && d.hrv < hrv * 0.75) notes.push(`📉 VFC basse (${d.hrv} contre ${Math.round(hrv)} d'habitude) : ton corps récupère mal, séance de sport légère aujourd'hui.`);
+  // Cœur fatigué → la séance du jour passe en version légère toute seule (s'il n'a pas déjà donné sa forme)
+  if (notes.some(n => n.startsWith('❤️') || n.startsWith('📉'))) {
+    // Envoi du soir (21h30, sans montre la nuit) → c'est la séance de DEMAIN qui s'allège
+    const evening = localNow().hhmm >= '18:00';
+    const target = evening ? new Date(Date.parse(`${date}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10) : date;
+    const r = await import('./sport-coach.js').then(m => m.setFormFromWatch(target, 2)).catch(() => null);
+    if (r && !/pas de séance/i.test(r)) notes.push(`🪶 Ta séance ${evening ? 'de demain' : 'du jour'} passe en version courte et légère (−10 % sur les charges). Dis « forme 4 » si tu te sens bien.`);
+  }
+  // Séance vue par la montre → cochée dans le coach + FORME
+  if (workouts.length) {
+    const r = await import('./sport-coach.js').then(m => m.markWatchWorkout(date, woMin, workouts.slice(0, 2).join(' + '))).catch(() => null);
+    if (r) notes.push(r);
+  }
+  // FORME : pas, poids, calories actives du jour
+  await import('./forme.js').then(async f => {
+    await f.updateDay('kouider', date, x => {
+      if (d.steps) x.steps = Math.min(80000, d.steps);
+      if (d.weight && d.weight > 30) x.weight = Math.round(d.weight * 10) / 10;
+      if (d.active_kcal) x.activeKcal = Math.round(d.active_kcal);
+    });
+    if (d.weight && d.weight > 30) await f.setFormeProfile({ weightKg: Math.round(d.weight * 10) / 10 }, 'kouider');
+  }).catch(() => {});
+  if (d.active_kcal && d.active_kcal > 500) notes.push(`🔥 ${Math.round(d.active_kcal)} kcal brûlées : ta cible du jour dans FORME monte un peu (plus de glucides pour récupérer).`);
   if (notes.length) await tg(`🩺 Jarvis santé — ${date}\n${notes.join('\n')}`);
   return { ok: true, note: notes.join(' ') || 'Données reçues, tout va bien.' };
+}
+
+/** Bilan du dimanche : la semaine santé (moyennes + évolution vs semaine d'avant). '' si pas de données. */
+export async function healthWeekLine(): Promise<string> {
+  const all = await kvJson<HealthDay[]>('health:daily', []);
+  const today = localNow().date;
+  const back = (n: number) => new Date(Date.parse(`${today}T12:00:00Z`) - n * 86_400_000).toISOString().slice(0, 10);
+  const w = all.filter(x => x.date > back(7)), p = all.filter(x => x.date > back(14) && x.date <= back(7));
+  if (!w.length) return '';
+  const avg = (l: HealthDay[], k: keyof HealthDay) => { const v = l.map(x => Number(x[k] ?? 0)).filter(x => x > 0); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; };
+  const cmp = (k: keyof HealthDay, unit: string, round = 0, higherBetter = true) => {
+    const a = avg(w, k), b = avg(p, k);
+    if (!a) return '';
+    const diff = b ? a - b : 0, good = higherBetter ? diff >= 0 : diff <= 0;
+    return `${a.toFixed(round).replace('.', ',')}${unit}${b && Math.abs(diff) >= (round ? 0.1 : 1) ? ` (${diff > 0 ? '+' : ''}${diff.toFixed(round).replace('.', ',')} ${good ? '✅' : '⚠️'})` : ''}`;
+  };
+  const parts = [cmp('steps', ' pas/j'), cmp('rhr', ' bpm au repos', 0, false), cmp('hrv', ' ms de VFC'), cmp('active_kcal', ' kcal actives/j')].filter(Boolean);
+  const ws = w.filter(x => x.weight).map(x => x.weight!);
+  if (ws.length >= 2) parts.push(`poids ${ws[0]} → ${ws[ws.length - 1]} kg`);
+  return parts.length ? `🩺 Santé (montre) : ${parts.join(' · ')}` : '';
 }
 
 export async function healthText(days = 7): Promise<string> {

@@ -90,6 +90,7 @@ export interface FormeDay {
   sides?: Array<{ what: string; level: number; at: number }>;
   workout?: WorkoutLog;
   sleep?: number; steps?: number;
+  activeKcal?: number;                  // calories actives de la montre (Raccourci Santé)
 }
 
 export interface Recipe {
@@ -1071,8 +1072,12 @@ export function nextInjection(p: FormeProfile, days: Record<string, FormeDay>) {
 export async function formeOverview(uid: Uid = 'kouider') {
   const today = localNow().date;
   const [p, days, week, photos, femmeInvite] = await Promise.all([getFormeProfile(uid), readDays(uid), getWeek(uid), readPhotos(uid), uid === 'kouider' ? inviteActive('femme') : Promise.resolve(false)]);
-  const t = formeTargets(p);
   const day = days[today] ?? emptyDay();
+  // Journée très active (montre) : la cible de base compte déjà une activité normale (~400 kcal) → on rend la moitié
+  // du surplus, plafonné à +300 kcal, en glucides (énergie pour la séance)
+  const t0 = formeTargets(p);
+  const bonusKcal = Math.min(300, Math.max(0, Math.round(((day.activeKcal ?? 0) - 400) * 0.5 / 10) * 10));
+  const t = bonusKcal ? { ...t0, kcal: t0.kcal + bonusKcal, c: t0.c + Math.round(bonusKcal / 4), bonusKcal, activeKcal: day.activeKcal } : t0;
   const weights = Object.entries(days).filter(([, d]) => d.weight).map(([date, d]) => ({ date, kg: d.weight! })).sort((a, b) => a.date.localeCompare(b.date));
   const measures = Object.entries(days).filter(([, d]) => d.measures && Object.keys(d.measures).length).map(([date, d]) => ({ date, ...d.measures })).sort((a, b) => a.date.localeCompare(b.date));
   const injections = Object.entries(days).filter(([, d]) => d.injection).map(([date, d]) => ({ date, ...d.injection! })).sort((a, b) => a.date.localeCompare(b.date)).slice(-12);

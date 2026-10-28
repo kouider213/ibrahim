@@ -803,10 +803,10 @@ function SanteSiri() {
         <div style={{ fontWeight: 800, fontSize: 14.5, marginBottom: 8 }}>Installer le Raccourci « Dzaryx Santé » (une seule fois)</div>
         <div style={{ display: 'grid', gap: 8 }}>
           {step(1, <>Ouvre l'app <b>Raccourcis</b> › <b>+</b> › nomme-le « Dzaryx Santé ».</>)}
-          {step(2, <>Ajoute <b>Rechercher des échantillons de santé</b> : « Analyse du sommeil », hier soir → aujourd'hui. Puis <b>Calculer les statistiques</b> → somme (en heures).</>)}
-          {step(3, <>Pareil pour <b>Nombre de pas</b> (hier, somme), <b>Fréquence cardiaque au repos</b> (dernière) et <b>Variabilité de la fréquence cardiaque</b> (moyenne).</>)}
-          {step(4, <>Ajoute <b>Obtenir le contenu de l'URL</b> : méthode <b>POST</b>, adresse :<Copy label="url" v={`${PRIMARY_BACKEND}/api/jarvis/health`} /> En-tête <b>Authorization</b> = <Copy label="tok" v={`Bearer ${token}`} /> Corps <b>JSON</b> : <code>sleep_h</code>, <code>steps</code>, <code>rhr</code>, <code>hrv</code> = les 4 résultats.</>)}
-          {step(5, <>Onglet <b>Automatisation</b> › <b>Heure de la journée</b> › 7h00, tous les jours › lancer « Dzaryx Santé » › <b>Exécuter immédiatement</b>.</>)}
+          {step(2, <>Ajoute <b>Rechercher des échantillons de santé</b> pour chacun, filtre <b>Date de début : aujourd'hui</b> : <b>Nombre de pas</b>, <b>Énergie active</b>, <b>Fréquence cardiaque au repos</b>, <b>Variabilité de la fréquence cardiaque</b>, <b>Poids</b> (si tu as une balance connectée).</>)}
+          {step(3, <>Ajoute <b>Rechercher des entraînements</b> (date : aujourd'hui) : leur <b>Type</b> et leur <b>Durée</b>. Pas de sommeil : tu ne dors pas avec la montre.</>)}
+          {step(4, <>Ajoute <b>Obtenir le contenu de l'URL</b> : méthode <b>POST</b>, adresse :<Copy label="url" v={`${PRIMARY_BACKEND}/api/jarvis/health`} /> En-tête <b>Authorization</b> = <Copy label="tok" v={`Bearer ${token}`} /> Corps <b>JSON</b> : <code>steps</code>, <code>active_kcal</code>, <code>resting_heart_rate</code>, <code>hrv</code>, <code>weight</code>, <code>workouts</code>, <code>workout_duration</code> = les résultats.</>)}
+          {step(5, <>Onglet <b>Automatisation</b> › <b>Heure de la journée</b> › <b>21h30</b>, tous les jours › lancer « Dzaryx Santé » › <b>Exécuter immédiatement</b>. Dzaryx coche ta séance, ajuste FORME et allège la séance de demain si ton cœur est fatigué.</>)}
         </div>
       </Card>
       <Card accent={T.accent}>
