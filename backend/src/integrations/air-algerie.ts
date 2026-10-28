@@ -325,14 +325,29 @@ export async function jobFlightWatch(): Promise<void> {
   if (changed) await saveWatches(list);
 }
 
+/** Fiche courte pour Kouider (28/10 « je veux juste date et prix ») : aller, retour, prix total, lien. Fiche complète gardée dans le job. */
+export function shortFiche(text: string): string {
+  const price = fichePrice(text);
+  if (!price) return text;
+  const leg = (icon: string, name: string) => {
+    const l = text.split('\n').find(x => x.trim().startsWith(icon));
+    const m = l && /(\d{2}\/\d{2}\/\d{4})\D+(\d{1,2}:\d{2})\s*→\s*(\d{1,2}:\d{2})/.exec(l);
+    return m ? `${icon} ${name} : ${m[1]}, ${m[2]} → ${m[3]}` : '';
+  };
+  const link = /https?:\/\/\S+/.exec(text.split('\n').find(x => x.includes('🔗')) ?? '')?.[0];
+  return [leg('🛫', 'Aller'), leg('🛬', 'Retour'), `💶 ${euro(price)} (total, bagages compris)`, link ? `🔗 ${link}` : '']
+    .filter(Boolean).join('\n');
+}
+
 /** Fin d'une recherche (appelé par browser-relay) → décide si on prévient Kouider, et avec quel texte. */
-export async function flightSearchDone(task: string, text: string): Promise<{ notify: boolean; text: string }> {
+export async function flightSearchDone(task: string, full: string): Promise<{ notify: boolean; text: string }> {
+  const text = shortFiche(full);
   const id = /\[SURVEILLANCE (\w+)\]/.exec(task)?.[1];
   if (!id) return { notify: true, text };
   const list = await loadWatches();
   const w = list.find(x => x.id === id);
   if (!w) return { notify: true, text };
-  const price = fichePrice(text);
+  const price = fichePrice(full);
   let final = w.status === 'active' && w.next_at >= w.until;
   const prevBest = w.best?.price;
   if (price) { w.last_price = price; w.first_price ??= price; if (!prevBest || price < prevBest) w.best = { price, at: new Date().toISOString() }; }
@@ -362,7 +377,7 @@ export async function flightSearchDone(task: string, text: string): Promise<{ no
     head = `🏁 Fin de la surveillance Air Algérie (${w.runs} recherche${w.runs > 1 ? 's' : ''}) — ` +
       (w.best ? `meilleur prix vu : ${euro(w.best.price)} (${whenFr(w.best.at)})` : 'aucun prix trouvé') + `.\nDernier relevé :\n`;
   } else if (price && !prevBest) {
-    head = `👀 Surveillance Air Algérie — 1er prix. Je te repréviens seulement s'il baisse (jusqu'au ${whenFr(w.until)}, toutes les ${w.every_h} h).\n`;
+    head = `👀 Surveillance vol — 1er prix (je te repréviens s'il baisse, jusqu'au ${whenFr(w.until)}).\n`;
   } else if (price && prevBest && price < prevBest) {
     head = `📉 PRIX EN BAISSE : ${euro(price)} au lieu de ${euro(prevBest)} (−${euro(prevBest - price)}) !\n`;
   }

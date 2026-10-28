@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-28 16h — Fiche vol courte
+- Telegram/app : fiche Air Algérie réduite à aller, retour, prix total, lien (shortFiche) ; fiche complète gardée dans le job.
+- Railway : échecs 020d836→541cff2 = registry Railway (image non tirée, incident), pas le code.
+
 ## 2026-10-28 (suite 12) — Vols : plus de surveillance en double, promesses par nom
 - `air-algerie.ts` startWatch : une surveillance lancée dans le quart d'heure par la même session est remplacée (Siri 15h43 : 20/02→09/03 puis 03/03→17/03 = 2 surveillances).
 - `foresight.ts` promisesTool done : le nom est cherché aussi dans le texte (« la promesse pour Houari est faite »). `jarvis4-tools.ts` : description promesses → pas memoire_gens.
