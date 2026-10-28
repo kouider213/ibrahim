@@ -147,6 +147,12 @@ async function metricValue(g: LifeGoal): Promise<number | null> {
   return g.history.length ? g.history[g.history.length - 1]!.value : null;
 }
 
+/** « 62 % de chances », ou « trop tôt pour juger » les 2 premières semaines (28/10 : « 3 % de chances » le jour même de l'ajout). */
+function chances(g: LifeGoal, now: number): string {
+  if (Date.now() - Date.parse(g.startDate) < 14 * 86_400_000) return `trop tôt pour juger, premier vrai bilan le ${new Date(Date.parse(g.startDate) + 14 * 86_400_000).toISOString().slice(8, 10)}/${new Date(Date.parse(g.startDate) + 14 * 86_400_000).toISOString().slice(5, 7)}`;
+  return `${probability(g, now)} % de chances`;
+}
+
 function probability(g: LifeGoal, now: number): number {
   const total = Date.parse(g.deadline) - Date.parse(g.startDate), spent = Date.now() - Date.parse(g.startDate);
   if (total <= 0 || g.target === g.start) return 50;
@@ -172,7 +178,7 @@ export async function lifeGpsTool(input: Record<string, unknown>): Promise<strin
     const g = list.find(x => x.name.toLowerCase().includes(String(input['name'] ?? '').toLowerCase()));
     if (!g) return '❌ Objectif introuvable.';
     g.history.push({ date: localNow().date, value: Number(input['current']) }); await kvPut('lifegps', list);
-    return `🧭 ${g.name} : ${input['current']} ${g.unit} noté (${probability(g, Number(input['current']))} % de chances).`;
+    return `🧭 ${g.name} : ${input['current']} ${g.unit} noté (${chances(g, Number(input['current']))}).`;
   }
   if (a === 'remove') { await kvPut('lifegps', list.filter(x => !x.name.toLowerCase().includes(String(input['name'] ?? '').toLowerCase()))); return 'Objectif retiré.'; }
   if (!list.length) return '🧭 Aucun grand objectif. Dis par ex. « objectif : 50 000 € de fortune avant le 31/12/2027 » ou « 80 kg avant l\'été ».';
@@ -183,12 +189,55 @@ export async function lifeGpsTool(input: Record<string, unknown>): Promise<strin
   for (const g of list) {
     const v = await metricValue(g) ?? g.start;
     if (g.metric !== 'manuel') { g.history.push({ date: localNow().date, value: v }); g.history = g.history.slice(-60); }
-    lines.push(`• ${g.name} : ${Math.round(v * 10) / 10}/${g.target} ${g.unit} (échéance ${g.deadline}) → ${probability(g, v)} % de chances`);
+    lines.push(`• ${g.name} : ${Math.round(v * 10) / 10}/${g.target} ${g.unit} (échéance ${g.deadline}) → ${chances(g, v)}`);
   }
   await kvPut('lifegps', list);
   const lever = await ai(`Objectifs de Kouider et où il en est :\n${lines.join('\n')}\nPour l'objectif le plus en retard, donne LA chose concrète cette semaine qui ferait le plus monter ses chances (chiffre l'effet : « passe à ~85 % »). 2 phrases.`, { max: 250 });
   return `🧭 GPS de vie\n${lines.join('\n')}\n\n${lever}`;
 }
+// ── GPS de vie en phrases normales ──
+export type LifeGoalCommand = { kind: 'epargne'; value: number; add: boolean } | { kind: 'poids'; value: number } | { kind: 'depart'; value: number } | { kind: 'check' };
+
+/** « j'ai épargné 17 000 » / « épargne 17k » / « 17 000 de côté » (total), « j'ai mis 500 de côté » (ajout) ; « je pèse 78,5 » ;
+ *  « départ 20 % » / « prêt à 30 % pour quitter la Belgique » ; « où j'en suis de mes objectifs / GPS de vie ? ». Sinon null.
+ *  Pas « économisé » : « 300 € sur les courses » écrasait l'épargne. */
+export function parseLifeGoalCommand(msg: string): LifeGoalCommand | null {
+  const num = (re: RegExp): number | null => {
+    const m = msg.match(re); if (!m) return null;
+    let v = parseFloat(m[1]!.replace(/[\s.\u202f](?=\d{3}\b)/g, '').replace(',', '.'));
+    if (m[2]) v *= 1000;
+    return Number.isFinite(v) ? v : null;
+  };
+  const question = /\?\s*$|combien|o[ùu] j.en suis|bilan|point sur/i.test(msg);
+  if (!question && /[ée]parg|de c[ôo]t[ée]/i.test(msg) && !/heure|minute|\bmin\b|\bkm\b|calorie|\bkg\b/i.test(msg)) {
+    const v = num(/(\d{1,3}(?:[\s.\u202f]\d{3})+|\d+(?:[.,]\d+)?)\s*(k\b)?/i);
+    if (v !== null && v >= 10 && v <= 10_000_000) return { kind: 'epargne', value: Math.round(v), add: /\b(mis|remis|rajout|ajout|ajoute|plus)\b|\+/i.test(msg) };
+  }
+  if (!question && /je p[eè]se|\bpoids\b|pes[ée]e?\b/i.test(msg)) {
+    const v = num(/(\d{2,3}(?:[.,]\d{1,2})?)\s*()(?:kg|kilos?)?/i);
+    if (v !== null && v >= 40 && v <= 200) return { kind: 'poids', value: v };
+  }
+  if (!question && /\bd[ée]part\b|pr[eê]t.{0,25}partir|quitter la belgique/i.test(msg) && !/remise|r[ée]duc|promo|acompte|client|commission|tva/i.test(msg)) {
+    const v = num(/(\d{1,3})\s*()%/);
+    if (v !== null && v <= 100) return { kind: 'depart', value: v };
+  }
+  if (/gps de vie|mes (grands )?objectifs/i.test(msg) && question) return { kind: 'check' };
+  return null;
+}
+
+export async function runLifeGoalCommand(c: LifeGoalCommand): Promise<string> {
+  if (c.kind === 'check') return lifeGpsTool({ action: 'check' });
+  if (c.kind === 'poids') {
+    // Le poids de l'objectif vient du profil FORME : on le met à jour là, comme ça l'app FORME suit aussi
+    const prof = await kvJson<Record<string, unknown>>('kouider:forme:profile', {});
+    if (prof['onboarded']) await kvPut('kouider:forme:profile', { ...prof, weightKg: c.value });
+    return lifeGpsTool({ action: 'update', name: 'kg', current: c.value });
+  }
+  if (c.kind === 'depart') return lifeGpsTool({ action: 'update', name: 'quitter', current: c.value });
+  const prev = await lifeGoalValue('pargne');
+  return lifeGpsTool({ action: 'update', name: 'pargne', current: c.add && prev !== null ? prev + c.value : c.value });
+}
+
 /** Dernière valeur notée d'un objectif (nom partiel), null s'il n'existe pas. */
 export async function lifeGoalValue(name: string): Promise<number | null> {
   const g = (await kvJson<LifeGoal[]>('lifegps', [])).find(x => x.name.toLowerCase().includes(name.toLowerCase()));

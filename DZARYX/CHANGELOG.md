@@ -9,6 +9,7 @@
 - `brain-plus.ts` fortune() + `jarvis-hub.ts` commandCenter() : « ce que les clients doivent » ignore les résas payment_status PAID (amount_remaining jamais remis à 0 → 3 850 € fantômes).
 - Objectif épargne globale 15 000 → 50 000 € (31/12/2028, manuel).
 - `orchestrator.ts` savingsCommand() : « j'ai épargné 17 000 » / « épargne 17k » / « 17 000 de côté » = total, « j'ai mis 500 de côté » = ajout → objectif Épargne mis à jour, réponse directe (pas « économisé » : faux positifs courses).
+- `foresight.ts` parseLifeGoalCommand/runLifeGoalCommand (remplace savingsCommand) : épargne, « je pèse 78 » (met aussi à jour le profil FORME), « départ 20 % », « où j'en suis de mes objectifs ? » → réponse directe ; « trop tôt pour juger » les 14 premiers jours au lieu de « 3 % de chances ».
 - Guide Jarvis : CarPlay coupé, chargeur, montre abandonnés par Kouider ; mot de réveil OnePlus abandonné.
 
 ## 2026-10-28 (suite 8) — B045 suite : test réel de 14h01 raté
