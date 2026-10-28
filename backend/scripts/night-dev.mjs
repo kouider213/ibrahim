@@ -59,6 +59,8 @@ function prompt(task) {
     `Méthode :`,
     `- Le projet est dans ${REPO} (lis CLAUDE.md et l'état dans DZARYX/). Ta mémoire (MEMORY.md) contient les décisions de Kouider : respecte-les (idées refusées, règles).`,
     `- Si c'est un bug vécu : retrouve le vrai échange (table conversations, logs pm2) pour comprendre la cause avant de corriger.`,
+    `- Si la demande est vague (« une nouveauté », « une amélioration », « surprends-moi ») : c'est à toi de choisir. Relis ses derniers jours (conversations, ce qui l'a agacé, ce qu'il fait souvent à la main, app_kv improve:dev, DZARYX/BUGS.md), choisis LA chose qui lui fera gagner le plus de temps ou d'argent (jamais une idée déjà refusée dans la mémoire), et fais-la à fond.`,
+    `- Si la demande est dictée à la voix, elle peut contenir des mots mal compris : retrouve le sens le plus probable.`,
     `- Fais-le complètement et proprement, dans le style du code existant. Ajoute ce qui rend la fonction vraiment utile (et ce à quoi Kouider n'aurait pas pensé) tant que ça reste dans le sujet.`,
     `- cd backend && npx tsc --noEmit = 0 erreur ; lance les tests utiles (crash-test sandboxé si ça touche les conversations). Ne démarre JAMAIS un 2e backend local.`,
     `- Le repo est PUBLIC : aucun secret, aucune donnée de santé ou perso dans le code.`,

@@ -404,6 +404,11 @@ const CALL_TOOLS = [
       text: { type: 'string', description: 'Le message exact à envoyer' },
       country: { type: 'string', description: 'FR, DZ, BE… seulement si l\'outil le demande' },
       confirmed: CONFIRMED_PARAM }, required: ['chat', 'text'] } },
+  { type: 'function', name: 'se_coder',
+    description: 'DZARYX SE CODE LUI-MÊME : « code-toi… », « code-toi une nouveauté / une amélioration », « ajoute-toi… », « apprends à… », « corrige ce bug », « améliore-toi », ou quand tu ne sais pas faire ce qu\'il demande (propose « je me le code ? »). Direct, sans relecture : ce n\'est qu\'une demande à l\'atelier, qui code, teste, met en ligne et envoie le rapport sur Telegram. request = sa demande COMPLÈTE avec le contexte de l\'appel (même vague : « une nouveauté » suffit, l\'atelier choisit). now:true s\'il dit « maintenant / tout de suite », sinon c\'est fait cette nuit. Redis en une phrase ce qui va se passer.',
+    parameters: { type: 'object', properties: {
+      request: { type: 'string', description: 'La demande complète, avec ce qui a bugué ou ce qu\'il veut' },
+      now: { type: 'boolean', description: 'true seulement s\'il veut que ce soit fait tout de suite' } }, required: ['request'] } },
   { type: 'function', name: 'whatsapp_link',
     description: 'SEULEMENT s\'il demande « envoie-moi le lien » : préparer un message WhatsApp pour un CLIENT (« envoie à Karim que la voiture est prête à 14h ») : Dzaryx retrouve son numéro et envoie à Kouider sur Telegram le lien WhatsApp avec le message déjà écrit ; Kouider n\'a plus qu\'à appuyer. Rien ne part au client sans lui. Écris le message complet, poli, au nom de FIK Conciergerie, dans la langue du client.',
     parameters: { type: 'object', properties: {
@@ -503,6 +508,7 @@ function realtimeInstructions(who: CallActor, calls: string, dossier = '', famil
     `PC (Nexus) : tout ce qui concerne son ordinateur (« ouvre Spotify sur le PC », « volume 30 », « verrouille le PC », « éteins le PC ») → pc_command, c'est direct. « Mon PC est allumé ? » → pc_status ; « allume / réveille le PC » → pc_wake ; « envoie-moi l'écran » → pc_screen_to_telegram ; « qu'est-ce qu'il y a sur mon écran ? », « regarde mon PC » → pc_look (tu reçois l'image de l'écran et tu la décris). Éteindre, redémarrer, veille, supprimer : relis et attends son oui (confirmed:true).`,
     `INTERPRÈTE : « traduis », « sois mon interprète », « il parle anglais » → outil interpreter (on:true, langue) puis suis les règles qu'il te renvoie, jusqu'à « stop traduction » (interpreter on:false).`,
     `IMPORTANT : tu ne connais RIEN de ses affaires par toi-même. Pour toute info réelle ou action (réservations, voitures, clients, paiements, mails, agenda, rappels, démarchage, prospects, finances, envoyer un message…), appelle l'outil ask_dzaryx avec sa demande complète, et dis d'abord un petit mot naturel (« je regarde », « deux secondes »). Ne jamais inventer un chiffre, un nom ou un mail.`,
+    `SE CODER : toute demande de changer, améliorer ou étendre Dzaryx (« code-toi… », « une nouveauté », « une amélioration », « apprends à… », « corrige ça ») → outil se_coder tout de suite. Et si une demande dépasse ce que tu sais faire, au lieu de « je ne peux pas » propose « je me le code cette nuit ? » puis se_coder après son oui.`,
     `JAMAIS « je ne peux pas » de toi-même : le cerveau de Dzaryx (ask_dzaryx) a plus de 200 outils — Google Docs, Google Sheets, export Excel, contrats, sites et applis (code + mise en ligne), images, vidéos, publications réseaux, mails, agenda, prospects… Toute demande que tes outils directs ne couvrent pas → ask_dzaryx avec la demande complète. Dis « je ne peux pas » SEULEMENT si ask_dzaryx l'a répondu.`,
     `DOCUMENT / TABLEAU (« crée un Google Doc avec… », « fais un tableau… », « un document avec toutes tes capacités ») → ask_dzaryx avec la demande complète, Si la réponse contient un lien (https://…), envoie-le par écrit avec send_text_to_me, sans jamais le lire à l'oral. Si elle dit que le dossier est « en préparation », dis-lui simplement qu'il le recevra sur Telegram dans une ou deux minutes.`,
     `DÉMO DE SITE (« je t'envoie un lien, fais-moi une démo de site pour ce client ») → ask_dzaryx avec la demande ; dis-lui d'envoyer le lien Google Maps du commerce par message Telegram (bouton « Partager » dans Google Maps). La démo est prête en 1 à 2 minutes et le lien arrive tout seul sur Telegram.`,
@@ -661,7 +667,7 @@ router.post('/tool', requireCallerAuth, async (req, res) => {
   const later = name === 'call_me' && !!(input?.['delay_minutes'] || input?.['at_time'] || input?.['at_date']);
   const write = (QUICK_WRITE_TOOLS as readonly string[]).includes(name ?? '');
   const own = name && Object.hasOwn(CALL_QUICK, name) ? CALL_QUICK[name as keyof typeof CALL_QUICK] : null;
-  if (!name || (!(QUICK_TOOLS as readonly string[]).includes(name) && !later && !write && !own && !['whatsapp_send', 'whatsapp_link', 'send_contract', 'send_text_to_me'].includes(name))) {
+  if (!name || (!(QUICK_TOOLS as readonly string[]).includes(name) && !later && !write && !own && !['se_coder', 'whatsapp_send', 'whatsapp_link', 'send_contract', 'send_text_to_me'].includes(name))) {
     res.status(400).json({ error: 'tool not allowed' }); return;
   }
   try {
@@ -680,6 +686,11 @@ router.post('/tool', requireCallerAuth, async (req, res) => {
       if (!chat || !text) { res.json({ text: 'Il me faut le numéro (ou le contact) et le message.' }); return; }
       const out = await executeTool('whatsapp_web', { action: 'send', chat, text, country: input?.['country'], confirmed: input?.['confirmed'] === true }, `voice_${callActor(req)}`);
       res.json({ text: out.slice(0, 3000) }); return;
+    }
+    if (name === 'se_coder') {
+      if (callActor(req) !== 'kouider') { res.json({ text: 'Réservé à Kouider.' }); return; }
+      const { selfDevTool } = await import('../../integrations/self-dev.js');
+      res.json({ text: await selfDevTool({ action: 'add', request: input?.['request'], now: input?.['now'] === true }) }); return;
     }
     if (name === 'whatsapp_link') {
       const r = await clientWhatsappLink(String(input?.['client'] ?? ''), String(input?.['message'] ?? ''), input?.['phone'] as string | undefined);
