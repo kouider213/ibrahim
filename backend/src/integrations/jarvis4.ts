@@ -53,10 +53,14 @@ async function carBrief(): Promise<string> {
     import('./whatsapp-web.js').then(m => m.waPendingDrafts()).catch(() => []),
     import('./conscience.js').then(m => m.pendingDecisions()).catch(() => []),
   ]);
-  const next = ((evs ?? []) as Array<{ summary?: string; start?: { dateTime?: string } }>)[0];
+  // Créneaux « 🟢 Libre — RDV possibles » de l'agenda = pas une étape ; déjà commencés = ignorés
+  const next = ((evs ?? []) as Array<{ summary?: string; start?: { dateTime?: string } }>)
+    .find(e => !/libre|rdv possibles|disponible/i.test(e.summary ?? '') && (!e.start?.dateTime || Date.parse(e.start.dateTime) > Date.now()));
   const parts: string[] = [];
-  if (next) parts.push(`Prochaine étape : ${next.summary ?? 'un rendez-vous'} à ${next.start?.dateTime?.slice(11, 16).replace(':', 'h') ?? 'bientôt'}.`);
-  if (drafts.length) parts.push(`${drafts.length} client${drafts.length > 1 ? 's attendent' : ' attend'} sur WhatsApp : ${(drafts as Array<{ chat: string }>).slice(0, 3).map(d => d.chat).join(', ')}.`);
+  if (next) parts.push(`Prochaine étape : ${(next.summary ?? 'un rendez-vous').replace(/[\p{Extended_Pictographic}]/gu, '').trim()} à ${next.start?.dateTime ? localNow(Date.parse(next.start.dateTime)).hhmm.replace(':', 'h') : 'bientôt'}.`);
+  // À l'oral : les noms seulement (jamais un numéro de téléphone récité)
+  const names = (drafts as Array<{ chat: string }>).map(d => d.chat).filter(c => !/^[+\d\s().-]+$/.test(c)).slice(0, 3);
+  if (drafts.length) parts.push(`${drafts.length} client${drafts.length > 1 ? 's attendent' : ' attend'} sur WhatsApp${names.length ? `, dont ${names.join(', ')}` : ''}.`);
   if (dec.length) parts.push(`Une décision t'attend : ${dec[0]!.title.replace(/[🔘🧠🤝🚨]/gu, '').slice(0, 120)}`);
   const promises = await import('./foresight.js').then(m => m.promisesDue()).catch(() => []);
   if (promises.length) parts.push(`Promesse à tenir : ${promises[0]}.`);
