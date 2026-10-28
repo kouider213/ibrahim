@@ -693,7 +693,13 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
   if (input['rented_by'])    fields['rented_by']    = input['rented_by'];
   if (input['client_passport']) fields['client_passport'] = input['client_passport'];
   if (input['passport_expiry']) fields['passport_expiry'] = input['passport_expiry'];
-  if (input['notes'])        fields['notes']        = input['notes'];
+  if (input['notes']) {
+    // On AJOUTE à la note existante (ex. adresse de livraison du client) au lieu de l'écraser
+    const { data: cn } = await supabase.from('bookings').select('notes').eq('id', input['id'] as string).single();
+    const prev = String((cn as { notes?: string | null } | null)?.notes ?? '').trim();
+    const add = String(input['notes']).trim();
+    fields['notes'] = prev && !prev.includes(add) && !add.includes(prev) ? `${prev}\n${add}` : add;
+  }
 
   // Si on met à jour l'acompte sans préciser le statut, le déduire auto.
   if (input['paid_amount'] !== undefined && !input['payment_status']) {

@@ -34,7 +34,7 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
         rented_by:      { type: 'string', enum: ['Kouider','Houari'] },
         client_passport:{ type: 'string', description: 'N° de passeport/pièce d\'identité du client (si donné dans le message)' },
         passport_expiry:{ type: 'string', description: 'Date d\'expiration du passeport YYYY-MM-DD (optionnel)' },
-        notes:          { type: 'string' },
+        notes:          { type: 'string', description: 'Note libre. Quand Kouider dit que la voiture est prête / préparée / lavée pour ce client → notes « ✅ Véhicule prêt » (les rappels de préparation s\'arrêtent). Ne dis jamais « noté » sans avoir appelé cet outil.' },
       },
       required: ['id'],
     },

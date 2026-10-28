@@ -580,7 +580,12 @@ export async function processMessage(
         const guarded1     = guardResponse(fallbackText, userMessage, requestId);
         // Fallback providers = aucun outil → phantom + fast-path business data guard
         const phantom1     = phantomGuard(guarded1, [], userMessage, requestId);
-        const safeText     = oranize(localizeGuardMessage(fastPathGuard(phantom1, userMessage, requestId), null, guardLang), actor);
+        let safeText       = oranize(localizeGuardMessage(fastPathGuard(phantom1, userMessage, requestId), null, guardLang), actor);
+        // Dernier secours = AUCUN outil : sur une question métier il répondait de tête (28/10 7h32 : « le passeport n'est pas
+        // encore enregistré » alors qu'il l'était) → Kouider doit savoir que ce n'est pas vérifié
+        if (route.reason === 'tools required' && safeText !== FAST_PATH_REFUSAL && !safeText.startsWith('⚠️')) {
+          safeText = `⚠️ Réponse de secours NON vérifiée (je n'ai pas accès à tes données là, le cerveau principal est hors service) :\n${safeText}`;
+        }
         _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });
         saveConversationTurn(sessionId, 'assistant', safeText).catch(() => {});
         if (!textOnly && safeText.length > 0) {

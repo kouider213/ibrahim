@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-28 (suite) — Rappels « véhicule prêt » + secours honnête
+- Rappel 9h « vérifie que le véhicule est prêt » : sauté si la résa porte « ✅ Véhicule prêt » (update_booking notes, consigne dans l'outil : jamais « noté » sans outil).
+- update_booking : la note s'AJOUTE à l'existante (adresse de livraison…) au lieu de l'écraser.
+- Dernier secours sans outils (Groq texte) : sur une question métier, réponse préfixée « ⚠️ Réponse de secours NON vérifiée » (7h32 il affirmait à tort que le passeport n'était pas enregistré).
+
 ## 2026-10-28 — B044 : résa WhatsApp sans nom / papiers / contact (app v200)
 - backend : llm-router `readDocVision`, tool-executor (OCR avec secours + PDF, nom provisoire remplacé, prix proprio par défaut, save_client auto après create_booking), whatsapp-web (save_client lit les PDF, renomme, anti-doublon), orchestrator (2e essai du secours avec outils).
 - tgcall : images markdown envoyées en photo, texte brut si markdown refusé.

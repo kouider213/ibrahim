@@ -1595,21 +1595,23 @@ export async function jobHouariArrivalAlert(_job: Job): Promise<void> {
 
     const { data: bookings } = await supabase
       .from('bookings')
-      .select('id, client_name, start_date, end_date, cars(name)')
+      .select('id, client_name, start_date, end_date, notes, cars(name)')
       .in('status', ['CONFIRMED', 'ACTIVE'])
       .eq('start_date', tomorrowStr)
       .order('start_date', { ascending: true });
 
-    if (!bookings?.length) {
+    // Kouider 28/10 : « je l'ai déjà préparé, ça sert à rien de me le rappeler » → voiture marquée prête = pas de rappel
+    const toCheck = (bookings ?? []).filter(b => !/v[ée]hicule pr[êe]t|voiture pr[êe]te/i.test(String((b as { notes?: string | null }).notes ?? '')));
+    if (!toCheck.length) {
       console.log('[job:houari-arrival] Aucune arrivée demain');
       return;
     }
 
     const lines: string[] = [
-      `🚗 Arrivées demain (${tomorrowStr}) — ${bookings.length} client(s):\n`,
+      `🚗 Arrivées demain (${tomorrowStr}) — ${toCheck.length} client(s):\n`,
     ];
 
-    for (const b of bookings as unknown as Array<{ client_name: string; start_date: string; end_date: string; cars?: { name: string } }>) {
+    for (const b of toCheck as unknown as Array<{ client_name: string; start_date: string; end_date: string; cars?: { name: string } }>) {
       const carName = b.cars?.name ?? 'Véhicule';
       lines.push(`• ${b.client_name} — ${carName} (jusqu'au ${b.end_date})`);
       lines.push(`  ✅ Vérifie que le véhicule est propre et prêt`);
@@ -1617,12 +1619,12 @@ export async function jobHouariArrivalAlert(_job: Job): Promise<void> {
 
     const msg = lines.join('\n');
     emitProactive(
-      `${bookings.length} arrivée(s) demain — vérifie les véhicules`,
+      `${toCheck.length} arrivée(s) demain — vérifie les véhicules`,
       'reminder',
       msg,
       'houari',
     );
-    console.log(`[job:houari-arrival] ✅ ${bookings.length} arrivée(s) notifiées à Houari`);
+    console.log(`[job:houari-arrival] ✅ ${toCheck.length} arrivée(s) notifiées à Houari`);
   } catch (err) {
     console.error('[job:houari-arrival] ❌', err instanceof Error ? err.message : String(err));
   }
