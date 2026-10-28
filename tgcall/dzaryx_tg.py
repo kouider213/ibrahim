@@ -828,7 +828,12 @@ async def send_outbox_message(uid: int, m: dict) -> None:
             photo = io.BytesIO(base64.b64decode(m['image'])); photo.name = 'pc.jpg'
             await app.send_photo(uid, photo, caption=text[:1000] or None)
         elif text:
-            await app.send_message(uid, text, disable_web_page_preview=True)
+            for t, u in MD_IMAGE.findall(text):
+                try:
+                    await app.send_photo(uid, u, caption=t[:1000] or None)
+                except Exception as e:
+                    log.warning('image → Telegram: %s', e)
+            await send_text_safe(uid, MD_IMAGE.sub('', text).strip() or '📷')
     except Exception as e:
         log.error('message backend → Telegram: %s', e)
 
@@ -848,14 +853,31 @@ def split_text(text: str, limit: int = 4000) -> list[str]:
     return parts or ['…']
 
 
+MD_IMAGE = re.compile(r'!\[([^\]]*)\]\((https?://[^)\s]+)\)')
+
+
+async def send_text_safe(chat_id: int, text: str, reply_to: Message | None = None) -> None:
+    """Texte → Telegram ; si le markdown casse (lien bizarre…), on renvoie en texte brut au lieu de « souci technique »."""
+    try:
+        if reply_to:
+            await reply_to.reply_text(text, disable_web_page_preview=True)
+        else:
+            await app.send_message(chat_id, text, disable_web_page_preview=True)
+    except Exception as e:
+        log.warning('texte → Telegram (markdown refusé, envoi brut): %s', e)
+        await app.send_message(chat_id, text, disable_web_page_preview=True, parse_mode=enums.ParseMode.DISABLED)
+
+
 async def reply_out(msg: Message, out: dict) -> None:
     """Réponse du cerveau → Telegram : texte (coupé si long) puis les graphiques en images."""
-    for i, part in enumerate(split_text((out.get('text') or '…').strip())):
-        if i == 0:
-            await msg.reply_text(part, disable_web_page_preview=True)
-        else:
-            await app.send_message(msg.chat.id, part, disable_web_page_preview=True)
-    for img in out.get('images') or []:
+    text = (out.get('text') or '…').strip()
+    # « ![Avant / maintenant](https://…) » dans le texte : Pyrogram le prend pour un emoji perso et plante (int(url), 27/10)
+    # → l'image part en photo, le texte sans elle
+    images = [{'title': t, 'url': u} for t, u in MD_IMAGE.findall(text)] + list(out.get('images') or [])
+    text = MD_IMAGE.sub('', text).strip() or ('📷' if images else '…')
+    for i, part in enumerate(split_text(text)):
+        await send_text_safe(msg.chat.id, part, msg if i == 0 else None)
+    for img in images:
         try:
             await app.send_photo(msg.chat.id, img['url'], caption=(img.get('title') or '')[:1000] or None)
         except Exception as e:

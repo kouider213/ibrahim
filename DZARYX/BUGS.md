@@ -7,6 +7,10 @@
 
 ## Bugs Ouverts 🔴
 
+### B044 — Résa WhatsApp enregistrée « Client (+numéro) », papiers pas dans le dossier, contact pas enregistré (27/10) ✅ FIXÉ
+Crédit Claude à 0 → secours Gemini : passeport/permis jamais lus (lecture = Claude Haiku seul), save_client jamais appelé, PDF de papiers pas lu, prix proprio absent (profit 0).
+Fix : readDocVision (Claude → Gemini → Groq → OpenAI, PDF via Gemini) pour OCR + type de pièce ; save_client lit les PDF, renomme résas/profil, anti-doublon 30 min ; create_booking lance save_client tout seul (résultat Telegram) et prend cars.base_price comme prix proprio ; secours agentique relancé avec outils obligatoires au lieu de « pas accès aux données en temps réel » ; bot Telegram : image markdown ![](url) ne plante plus (« Petit souci technique ») ; fiche client app : négociation/fiabilité en menus FR.
+
 ### B043 — « Rappel trajet » 9h35 (~25 min) faux, horaire du dimanche faux (25/10) ✅ FIXÉ
 - Symptôme : dans l'app, « 📡 Horaire Kouider — Dimanche : réveil 08:30, départ trajet 9h35 (25min) » et « Rappel trajet Bruxelles, départ idéal 9h35 (~25min) » alors que la maison → travail fait quelques minutes et que le vrai planning (réveil 6h40, sport…) est ailleurs.
 - Cause : vieux `conversation/proactive-engine.ts` (pre-work, personal-schedule, calendar-appt) avec horaires écrits en dur d'avant la routine et un trajet fixe `commute_minutes_avg` = 25 min, sans GPS ni trafic.

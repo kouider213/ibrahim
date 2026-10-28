@@ -307,3 +307,52 @@ export function isGroqAvailable():   boolean { return !!GROQ_KEY; }
 export function isOpenAIAvailable(): boolean { return !!OPENAI_KEY; }
 export function isGeminiAvailable(): boolean { return !!GEMINI_KEY; }
 export function isClaudeAvailable(): boolean { return !!ANTHROPIC_KEY; }
+
+// ── Lecture d'un document (photo ou PDF) sans persona : Claude d'abord, puis les cerveaux gratuits ──
+// 27/10 : crédit Claude à 0 → passeport/permis du client jamais lus (résa enregistrée « Client (+33…) »)
+export async function readDocVision(prompt: string, base64: string, mime = 'image/jpeg', maxTokens = 600): Promise<string> {
+  const isPdf = /pdf/i.test(mime);
+  const tries: Array<[string, () => Promise<string>]> = [];
+  tries.push(['claude', async () => {
+    const { createAnthropic, claudeKnownDead } = await import('./anthropic-compat.js');
+    if (claudeKnownDead()) throw new Error('claude: crédit épuisé (connu)');
+    const r = await createAnthropic().messages.create({
+      model: 'claude-haiku-5-5', max_tokens: maxTokens,
+      messages: [{ role: 'user', content: [
+        isPdf
+          ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
+          : { type: 'image', source: { type: 'base64', media_type: mime as 'image/jpeg', data: base64 } },
+        { type: 'text', text: prompt },
+      ] }],
+    } as never);
+    const rr = r as { model?: string; content: Array<{ type: string; text?: string }> };
+    // Sans crédit, createAnthropic rejoue sur un cerveau de secours qui ne voit pas forcément la pièce jointe → on passe à Gemini
+    if (String(rr.model ?? '').startsWith('fallback:')) throw new Error('claude: crédit épuisé');
+    const t = rr.content.map(b => b.type === 'text' ? b.text ?? '' : '').join('');
+    if (!t.trim()) throw new Error('claude: réponse vide');
+    return t;
+  }]);
+  if (GEMINI_KEY) tries.push(['gemini', async () => {
+    const { default: axios } = await import('axios');
+    const body = { contents: [{ role: 'user', parts: [{ inline_data: { mime_type: isPdf ? 'application/pdf' : mime, data: base64 } }, { text: prompt }] }] };
+    let last = '';
+    for (const model of ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-3.5-flash-lite', 'gemini-flash-lite-latest']) {
+      try {
+        const { data } = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`, body, { timeout: 60_000 });
+        const t = ((data.candidates?.[0]?.content?.parts ?? []) as Array<{ text?: string }>).map(p => p.text ?? '').join('');
+        if (t.trim()) return t;
+        last = `${model} vide`;
+      } catch (e) { last = e instanceof Error ? e.message : String(e); }
+    }
+    throw new Error(`gemini: ${last}`);
+  }]);
+  if (!isPdf) {
+    if (GROQ_KEY)   tries.push(['groq',   () => callGroqVision(prompt, '', base64, mime, true)]);
+    if (OPENAI_KEY) tries.push(['openai', () => callOpenAIVision(prompt, 'Tu lis des documents. Réponds exactement au format demandé.', base64, mime)]);
+  }
+  let lastErr = '';
+  for (const [name, fn] of tries) {
+    try { return await fn(); } catch (e) { lastErr = `${name}: ${e instanceof Error ? e.message.slice(0, 120) : String(e)}`; console.warn(`[doc-vision] ${lastErr}`); }
+  }
+  throw new Error(`lecture du document impossible (${lastErr})`);
+}

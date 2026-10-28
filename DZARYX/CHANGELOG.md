@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-28 — B044 : résa WhatsApp sans nom / papiers / contact (app v200)
+- backend : llm-router `readDocVision`, tool-executor (OCR avec secours + PDF, nom provisoire remplacé, prix proprio par défaut, save_client auto après create_booking), whatsapp-web (save_client lit les PDF, renomme, anti-doublon), orchestrator (2e essai du secours avec outils).
+- tgcall : images markdown envoyées en photo, texte brut si markdown refusé.
+- app : ClientsScreen négociation / fiabilité en français (menus).
+- Données : la résa concernée corrigée à la main en base (nom, papiers au dossier, prix proprio, profit).
+
 ## 2026-10-27 (suite 12) — « Dis Siri, Dzaryx » en conversation suivie (app v199)
 - `jarvis-hub.ts` `siriTurn` : Dzaryx utilise TOUS ses outils comme sur Telegram, retrouve les noms déformés par la dictée Siri, envoie les papiers d'un client (passeport, permis…) sur Telegram, prépare les réponses WhatsApp Business et attend le « oui ».
 - Question posée (réponse finie par « ? ») → champ `listen: true` : le Raccourci se relance tout seul, micro rouvert.

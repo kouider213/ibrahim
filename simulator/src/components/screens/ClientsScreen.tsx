@@ -4,7 +4,13 @@ import { SkeletonCards, SearchPill } from '../ui/Premium.tsx';
 import { T, PageHeader, Kpi, KpiGrid } from '../ui/Kit.tsx';
 
 // Libellés français des statuts (les valeurs envoyées au serveur restent en anglais)
-const FR: Record<string, string> = { CONFIRMED: 'Confirmée', PENDING: 'En attente', ACTIVE: 'En cours', COMPLETED: 'Terminée', REJECTED: 'Refusée', CANCELLED: 'Annulée', UNPAID: 'À payer', PARTIAL: 'Acompte', PAID: 'Payé' };
+const FR: Record<string, string> = { CONFIRMED: 'Confirmée', PENDING: 'En attente', ACTIVE: 'En cours', COMPLETED: 'Terminée', REJECTED: 'Refusée', CANCELLED: 'Annulée', UNPAID: 'À payer', PARTIAL: 'Acompte', PAID: 'Payé',
+  // Profil client (valeurs stockées en anglais par le backend)
+  '': '—',
+  normal: 'Normal', never_negotiates: 'Ne négocie jamais', light_negotiation: 'Négocie un peu', heavy_negotiation: 'Négocie beaucoup',
+  always_on_time: 'Paie à l\'heure', sometimes_late: 'Parfois en retard', often_late: 'Souvent en retard', unknown: 'Pas encore connu' };
+const NEGO_OPTS = ['', 'never_negotiates', 'light_negotiation', 'heavy_negotiation', 'normal'];
+const PAY_OPTS  = ['', 'unknown', 'always_on_time', 'sometimes_late', 'often_late'];
 const dfr = (x?: string | null) => x ? new Date(String(x).slice(0, 10)).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
 
 // ── Palette premium (cartes sur obsidian + accent émeraude) ─────
@@ -342,8 +348,8 @@ export default function ClientsScreen() {
                     {intelEdit === c.name ? (
                       <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
                         <EditField label="Durée typique (jours)" value={intelForm.typical_duration_days} onChange={v => setIntelForm(f => ({ ...f, typical_duration_days: v }))} type="number" />
-                        <EditField label="Négociation" value={intelForm.negotiation_style} onChange={v => setIntelForm(f => ({ ...f, negotiation_style: v }))} placeholder="ex: négocie souvent / jamais" />
-                        <EditField label="Fiabilité paiement" value={intelForm.payment_reliability} onChange={v => setIntelForm(f => ({ ...f, payment_reliability: v }))} placeholder="ex: fiable / à surveiller" />
+                        <EditSelect label="Négociation" value={intelForm.negotiation_style} onChange={v => setIntelForm(f => ({ ...f, negotiation_style: v }))} options={NEGO_OPTS.includes(intelForm.negotiation_style) ? NEGO_OPTS : [...NEGO_OPTS, intelForm.negotiation_style]} />
+                        <EditSelect label="Fiabilité paiement" value={intelForm.payment_reliability} onChange={v => setIntelForm(f => ({ ...f, payment_reliability: v }))} options={PAY_OPTS.includes(intelForm.payment_reliability) ? PAY_OPTS : [...PAY_OPTS, intelForm.payment_reliability]} />
                         <EditField label="Notes" value={intelForm.notes} onChange={v => setIntelForm(f => ({ ...f, notes: v }))} placeholder="Notes libres" />
                         <div style={{ display: 'flex', gap: 8 }}>
                           <button disabled={saving} onClick={() => void saveIntel(c.name)} style={miniBtn(C.accent)}>{saving ? '…' : '✓ Enregistrer'}</button>
@@ -352,8 +358,8 @@ export default function ClientsScreen() {
                       </div>
                     ) : (<>
                       <Row label="Durée typique" val={ci.typical_duration_days ? `${ci.typical_duration_days} j` : '—'} />
-                      <Row label="Négociation" val={ci.negotiation_style ?? '—'} />
-                      <Row label="Fiabilité paiement" val={ci.payment_reliability ?? '—'} />
+                      <Row label="Négociation" val={ci.negotiation_style ? FR[ci.negotiation_style] ?? ci.negotiation_style : '—'} />
+                      <Row label="Fiabilité paiement" val={ci.payment_reliability ? FR[ci.payment_reliability] ?? ci.payment_reliability : '—'} />
                       <Row label="Dépenses total" val={fmt(ci.total_spent)} col={C.gold} />
                       {ci.notes && <div style={{ marginTop: 10, padding: '10px 12px', background: `${C.accent}10`, borderRadius: 12, border: `1px solid ${C.accent}22`, fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>{ci.notes}</div>}
                       <button onClick={() => startIntelEdit(c.name, ci)} style={{ ...miniBtn(C.blue), marginTop: 10 }}>✏️ Modifier le profil</button>

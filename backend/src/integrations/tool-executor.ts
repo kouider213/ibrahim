@@ -796,7 +796,13 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
   } catch { /* si pricing indispo, on continue sans bloquer */ }
 
   const client_ppd = input['client_price_per_day'] != null ? Number(input['client_price_per_day']) : null;
-  const owner_ppd  = input['owner_price_per_day']  != null ? Number(input['owner_price_per_day'])  : null;
+  let owner_ppd    = input['owner_price_per_day']  != null ? Number(input['owner_price_per_day'])  : null;
+  // Prix payé à Houari non donné : c'est le prix de la voiture (cars.base_price, mis à jour par Kouider) — 27/10 Fiat 500 X sans profit
+  if (owner_ppd == null) {
+    const { data: cp } = await supabase.from('cars').select('base_price').eq('id', carId).single();
+    const bp = (cp as { base_price?: number | null } | null)?.base_price;
+    if (bp != null && Number(bp) > 0) owner_ppd = Number(bp);
+  }
 
   // Acompte + statut paiement : on RESPECTE l'acompte donné (était ignoré avant → bug).
   // Le statut se déduit de paid_amount vs final_price si non fourni explicitement.
@@ -921,7 +927,18 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
     }).catch(() => {});
   }
 
-  return `✅ Réservation créée! ID: ${booking.id} | ${input['client_name']} | ${input['start_date']} → ${input['end_date']} | ${input['final_price']}€${calendarNote}${owner_ppd === null ? ' | ⚠️ Prix proprio manquant' : ''}${fridayWarning}${ramadanNote}`;
+  // Papiers WhatsApp → dossier + vrai nom + contact WhatsApp, sans attendre que Dzaryx y pense (28/10)
+  let papersNote = '';
+  if (input['client_phone'] && rentedBy === 'Kouider') {
+    const { autoSaveClientAfterBooking, waNumber } = await import('./whatsapp-web.js');
+    const ph = waNumber(String(input['client_phone']));
+    if (ph && ph !== 'ASK') {
+      autoSaveClientAfterBooking(ph, isPlaceholderClientName(String(input['client_name'])) ? undefined : String(input['client_name']), sessionId);
+      papersNote = ' | 🗂️ Je range ses papiers WhatsApp, je mets son vrai nom et je l\'enregistre dans WhatsApp (résultat sur Telegram dans 1-2 min — ne rappelle pas save_client)';
+    }
+  }
+
+  return `✅ Réservation créée! ID: ${booking.id} | ${input['client_name']} | ${input['start_date']} → ${input['end_date']} | ${input['final_price']}€${calendarNote}${owner_ppd === null ? ' | ⚠️ Prix proprio manquant' : ''}${papersNote}${fridayWarning}${ramadanNote}`;
 }
 
 async function cancelBooking(input: Record<string, unknown>): Promise<string> {
@@ -972,33 +989,28 @@ async function financialReport(input: Record<string, unknown>): Promise<string> 
 const OCR_DOC_TYPES = /passeport|passport|permis|license|licence|cin|carte.identit/i;
 const IMAGE_EXTS    = /\.(jpg|jpeg|png|webp|bmp)(\?|$)/i;
 
+/** Nom vide ou provisoire (« Client (+33 6…) », numéro seul) = pas encore le vrai nom du client. */
+export function isPlaceholderClientName(n?: string | null): boolean {
+  const t = String(n ?? '').trim();
+  return !t || /^client\b/i.test(t) || /^[+\d\s().-]{6,}$/.test(t) || /inconnu/i.test(t);
+}
+export const titleName = (n: string) => n.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+
 async function ocrDocumentBuffer(buffer: Buffer, docType: string, hint?: string): Promise<Record<string, string> | null> {
   try {
-    const client = createAnthropic();
-
-    const base64    = buffer.toString('base64');
-    const mediaType: 'image/jpeg' | 'image/png' = hint?.includes('.png') ? 'image/png' : 'image/jpeg';
-
+    const mediaType = /\.pdf/i.test(hint ?? '') ? 'application/pdf' : hint?.includes('.png') ? 'image/png' : 'image/jpeg';
     const isPermis = /permis|license|licence/i.test(docType);
     const fields   = isPermis
       ? 'nom, prénom, numéro_permis, date_naissance, date_expiration, catégories, pays_délivrance'
       : 'nom, prénom, numéro_document, date_naissance, date_expiration, nationalité, sexe, pays_délivrance';
-
-    const { content } = await client.messages.create({
-      model:      'claude-haiku-5-5',
-      max_tokens: 400,
-      messages: [{
-        role:    'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-          { type: 'text',  text: `Extrais ces champs du document: ${fields}. JSON strict uniquement, sans markdown. Si un champ illisible, mets null.` },
-        ],
-      }],
-    });
-
-    const text = (content as Array<{ type: string; text?: string }>).filter(b => b.type === 'text').map(b => b.text ?? '').join('');
+    // PDF de plusieurs pages (passeport + permis ensemble) : on dit quelle pièce lire
+    const which = mediaType === 'application/pdf' ? ` Lis uniquement ${isPermis ? 'le PERMIS DE CONDUIRE' : 'le PASSEPORT (ou à défaut la carte d\'identité)'} contenu dans ce PDF ; s'il n'y en a pas, réponds {}.` : '';
+    // Claude d'abord, puis Gemini / Groq / OpenAI (crédit Claude à 0 le 27/10 → papiers jamais lus)
+    const { readDocVision } = await import('./llm-router.js');
+    const text = await readDocVision(`Extrais ces champs du document: ${fields}.${which} JSON strict uniquement, sans markdown. Si un champ illisible, mets null.`, buffer.toString('base64'), mediaType, 400);
     const json = text.match(/\{[\s\S]*?\}/)?.[0];
-    return json ? JSON.parse(json) as Record<string, string> : null;
+    const data = json ? JSON.parse(json) as Record<string, string> : null;
+    return data && (data['nom'] || data['numéro_document'] || data['numéro_permis']) ? data : null;
   } catch {
     return null;
   }
@@ -1043,7 +1055,8 @@ export async function scanIdentity(
   opts: { clientName?: string; clientPhone?: string } = {},
 ): Promise<string> {
   const docType = isPermis ? 'permis' : 'passeport';
-  const data = await ocrDocumentBuffer(buffer, docType, mimeHint.includes('png') ? '.png' : '.jpg');
+  const isPdf = /pdf/i.test(mimeHint);
+  const data = await ocrDocumentBuffer(buffer, docType, isPdf ? '.pdf' : mimeHint.includes('png') ? '.png' : '.jpg');
   if (!data) return '❌ Lecture du document impossible — reprends la photo bien nette, à plat, sans reflet.';
 
   const nom    = [data['prénom'] ?? data['prenom'], data['nom']].filter(Boolean).join(' ').trim() || (data['nom'] ?? 'Inconnu');
@@ -1064,7 +1077,7 @@ export async function scanIdentity(
   let fileUrl = '';
   let storagePath = '';
   try {
-    const ext  = mimeHint.includes('png') ? 'png' : 'jpg';
+    const ext  = isPdf ? 'pdf' : mimeHint.includes('png') ? 'png' : 'jpg';
     const path = `ids/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
     storagePath = path; // storage_path est NOT NULL en base
     await supabase.storage.createBucket('client-documents', { public: true }).catch(() => {});
@@ -1107,11 +1120,16 @@ export async function scanIdentity(
       }
       const { data: matches } = await q.order('start_date', { ascending: false }).limit(1);
       {
-        const bkId = (matches as { id: string }[] | null)?.[0]?.id;
+        const bk = (matches as { id: string; client_name?: string }[] | null)?.[0];
+        const bkId = bk?.id;
         if (bkId) {
+          const upd: Record<string, unknown> = { client_passport: permisNo, passport_expiry: expIso };
+          // Résa créée sans nom (« Client (+33…) ») : le vrai nom vient du passeport
+          if (nom !== 'Inconnu' && isPlaceholderClientName(bk?.client_name)) upd['client_name'] = titleName(nom);
+          if (age != null) upd['client_age'] = age;
           const { error: upErr } = await supabase
             .from('bookings')
-            .update({ client_passport: permisNo, passport_expiry: expIso })
+            .update(upd)
             .eq('id', bkId);
           if (!upErr) linkedToBooking = true;
         }

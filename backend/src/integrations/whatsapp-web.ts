@@ -284,17 +284,37 @@ const ASK_COUNTRY = (raw: string) => `❓ Le numéro ${raw} existe en France (+3
 /** Type d'une photo de client : passeport, carte d'identité, permis ou autre (Claude Haiku, rapide). */
 async function idKind(b64: string): Promise<'passeport' | 'identite' | 'permis' | 'autre'> {
   try {
-    const { createAnthropic } = await import('./anthropic-compat.js');
-    const r = await createAnthropic().messages.create({
-      model: 'claude-haiku-5-5', max_tokens: 10,
-      messages: [{ role: 'user', content: [
-        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
-        { type: 'text', text: 'Cette image est-elle un document officiel ? Réponds UN mot : PASSEPORT, IDENTITE (carte d\'identité), PERMIS (permis de conduire) ou AUTRE.' },
-      ] }],
-    });
-    const t = r.content.map(b => b.type === 'text' ? b.text : '').join('').toUpperCase();
+    // Claude puis Gemini/Groq/OpenAI : sans crédit Claude (27/10) toutes les photos sortaient « autre »
+    const { readDocVision } = await import('./llm-router.js');
+    const t = (await readDocVision('Cette image est-elle un document officiel ? Réponds UN mot : PASSEPORT, IDENTITE (carte d\'identité), PERMIS (permis de conduire) ou AUTRE.', b64, 'image/jpeg', 10)).toUpperCase();
     return /PASSEPORT|PASSPORT/.test(t) ? 'passeport' : /IDENTIT/.test(t) ? 'identite' : /PERMIS|LICEN/.test(t) ? 'permis' : 'autre';
   } catch { return 'autre'; }
+}
+
+/** Le client a maintenant un vrai nom : réservations et profil « Client (+33…) » renommés. */
+async function renameClientEverywhere(phone: string, fullName: string): Promise<number> {
+  const { supabase } = await import('./supabase.js');
+  const { isPlaceholderClientName } = await import('./tool-executor.js');
+  const digits = phone.replace(/\D/g, '').slice(-9);
+  const { data } = await supabase.from('bookings').select('id, client_name, client_phone').ilike('client_phone', `%${digits}`);
+  const ids = ((data ?? []) as Array<{ id: string; client_name: string | null }>).filter(b => isPlaceholderClientName(b.client_name)).map(b => b.id);
+  const olds = [...new Set(((data ?? []) as Array<{ client_name: string | null }>).map(b => b.client_name).filter((n): n is string => !!n && isPlaceholderClientName(n)))];
+  if (ids.length) await supabase.from('bookings').update({ client_name: fullName }).in('id', ids).then(() => {}, () => {});
+  for (const o of olds) {
+    await supabase.from('client_intelligence').update({ client_name: fullName }).eq('client_name', o).then(() => {}, () => {});
+    await supabase.from('client_documents').update({ client_name: fullName }).eq('client_name', o).then(() => {}, () => {});
+  }
+  return ids.length;
+}
+
+/** Validation d'une résa (create_booking) : papiers WhatsApp → dossier, vrai nom, contact WhatsApp — en arrière-plan,
+ *  résultat envoyé sur Telegram. Kouider 28/10 : « quand je valide une réservation Dzaryx doit enregistrer le numéro avec le bon nom ». */
+export function autoSaveClientAfterBooking(phone: string, name: string | undefined, sessionId?: string): void {
+  if (!isCloudPcOnline()) return;
+  void (async () => {
+    const res = await whatsappWebTool({ action: 'save_client', chat: phone, ...(name ? { name } : {}) }, sessionId).catch(e => `❌ ${e instanceof Error ? e.message : String(e)}`);
+    await queueTelegramMessage(`🗂️ Après la réservation :\n${res}`).catch(() => {});
+  })();
 }
 
 /** Outil whatsapp_web (Kouider uniquement). */
@@ -460,6 +480,10 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
       // Kouider valide la demande d'un client : ses papiers (passeport, carte d'identité, permis, PDF) vont dans son dossier
       // et son numéro est enregistré dans WhatsApp à son nom (Kouider 27/10 : « plus facile pour le retrouver »)
       if (!chat) return '❌ Quel client ? (nom de la discussion WhatsApp ou numéro)';
+      // Déjà fait il y a moins de 30 min (outil appelé par Dzaryx ET automatiquement par create_booking) : pas de doublons dans le dossier
+      const doneKey = `wa:save_client:${chat.replace(/\D/g, '') || chat.toLowerCase()}`;
+      const done = await kvGet(doneKey).catch(() => null);
+      if (done && input['force'] !== true) return done;
       const sid = sessionId || `wa_client_${Date.now()}`;
       const out: string[] = [];
       let fullName = String(input['name'] ?? '').trim();
@@ -467,7 +491,7 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
       if (!ph.ok) return `❌ ${ph.error}`;
       const title = String(ph['chat'] || chat);
       const phone = chat.startsWith('+') ? chat : (waNumber(title) || '').replace(/^ASK$/, '');
-      const { scanIdentity } = await import('./tool-executor.js');
+      const { scanIdentity, titleName } = await import('./tool-executor.js');
       const { redis } = await import('../queue/queue.js');
       let nIds = 0;
       for (const p of ((ph['photos'] as WaPhoto[] | undefined) ?? []).filter(p => !p.me)) {
@@ -479,7 +503,7 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
         if (!fullName) {
           const sc = await redis.get(`session:scanned_client:${sid}`).catch(() => null);
           const nom = sc ? String((JSON.parse(sc) as { nom?: string }).nom ?? '') : '';
-          if (nom && nom !== 'Inconnu') fullName = nom.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+          if (nom && nom !== 'Inconnu') fullName = titleName(nom);
         }
       }
       // PDF / documents envoyés par le client → dossier client (lien) + Telegram
@@ -489,20 +513,46 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
         const { supabase } = await import('./supabase.js');
         for (const d of docs) {
           const l = await cloudEmit<R & { url?: string }>('cloud:file_link', { name: d.file, hours: 24 * 365 }, 60_000).catch(() => ({ ok: false } as R));
-          await supabase.from('client_documents').insert({ client_name: fullName || title, client_phone: phone || null, type: 'document',
+          // PDF « Papiers » (passeport + permis scannés ensemble, 27/10) : on le LIT aussi → nom, n° passeport, âge
+          let scanned = false;
+          if (/\.pdf$/i.test(d.file) && l['url']) {
+            try {
+              const { default: axios } = await import('axios');
+              const buf = Buffer.from((await axios.get<ArrayBuffer>(String(l['url']), { responseType: 'arraybuffer', timeout: 60_000 })).data);
+              for (const permis of [false, true]) {
+                const res = await scanIdentity(buf, 'application/pdf', permis, sid, { clientName: fullName || undefined, clientPhone: phone || undefined });
+                if (res.startsWith('❌')) continue;
+                scanned = true; nIds++;
+                out.push(res.split('\n').slice(0, 5).join('\n'));
+                if (!fullName) {
+                  const sc = await redis.get(`session:scanned_client:${sid}`).catch(() => null);
+                  const nom = sc ? String((JSON.parse(sc) as { nom?: string }).nom ?? '') : '';
+                  if (nom && nom !== 'Inconnu') fullName = titleName(nom);
+                }
+              }
+            } catch (e) { console.warn('[save_client] lecture PDF:', e instanceof Error ? e.message : e); }
+          }
+          if (!scanned) await supabase.from('client_documents').insert({ client_name: fullName || title, client_phone: phone || null, type: 'document',
             file_url: String(l['url'] ?? ''), storage_path: `cloudpc/${d.file}`, extracted_data: { source: 'whatsapp', label: d.label } }).then(() => {}, () => {});
           await cloudEmit('cloud:file_telegram', { name: d.file, caption: `📄 ${fullName || title} — ${d.label} (rangé dans son dossier)` }, 120_000).catch(() => {});
         }
         out.push(`📄 ${docs.length} document(s) (${docs.map(d => d.label.split(' · ')[1] || d.label).join(', ')}) rangé(s) dans le dossier de ${fullName || title} et envoyé(s) sur Telegram.`);
       }
       if (!nIds && !docs.length) out.push(`⚠️ Aucun passeport, carte d'identité, permis ni PDF trouvé dans la discussion ${title} (10 dernières photos, 3 derniers documents).`);
+      // Résa / profil enregistrés « Client (+33…) » → vrai nom
+      if (phone && fullName) {
+        const n = await renameClientEverywhere(phone, fullName).catch(() => 0);
+        if (n) out.push(`✏️ ${n} réservation(s) renommée(s) au nom de ${fullName}.`);
+      }
       // Contact WhatsApp au nom du client
       if (phone && fullName) {
         const c = await cloudEmit<R>('cloud:wa', { action: 'save_contact', phone, first: fullName, last: '' }, 130_000).catch(e => ({ ok: false, error: String(e) } as R));
         out.push(c.ok ? `📇 Numéro ${phone} enregistré dans WhatsApp (et sur ton téléphone) sous « ${fullName} ».` : `⚠️ Contact WhatsApp pas enregistré : ${c.error}`);
       } else if (!phone) out.push(`📇 Déjà dans tes contacts WhatsApp sous « ${title} ».`);
       else out.push(`📇 Nom du client introuvable sur les papiers : DEMANDE À KOUIDER son nom, puis action save_contact (chat=${phone}, name=…).`);
-      return `✅ Client ${fullName || title} validé :\n${out.join('\n')}`;
+      const summary = `✅ Client ${fullName || title} validé :\n${out.join('\n')}`;
+      await kvSet(doneKey, summary, 30 * 60).catch(() => {});
+      return summary;
     }
     return '❌ action inconnue (status, connect, unread, read, photos, documents, voice, send_voice, drafts, send, send_file, save_contact, save_client).';
   } catch (err) {
