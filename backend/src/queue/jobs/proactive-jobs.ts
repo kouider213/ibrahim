@@ -1055,7 +1055,17 @@ export async function jobBIReminders(_job: Job): Promise<void> {
   try {
     const { getSmartReminders } = await import('../../bi/smart-reminders.js');
     const reminders = await getSmartReminders();
-    const highPri   = reminders.filter(r => r.priority === 'HIGH');
+    // Chaque rappel ne part QU'UNE FOIS (avant : la même alerte toutes les 30 min, même après « tout est prêt »)
+    const { redis } = await import('../queue.js');
+    const shown = new Set([
+      ...await redis.smembers('reminders:pushed:kouider').catch(() => [] as string[]),
+      ...await redis.smembers('reminders:dismissed:kouider').catch(() => [] as string[]),
+    ]);
+    const highPri   = reminders.filter(r => r.priority === 'HIGH' && !shown.has(r.id));
+    if (highPri.length) {
+      for (const r of highPri) await redis.sadd('reminders:pushed:kouider', r.id).catch(() => {});
+      await redis.expire('reminders:pushed:kouider', 4 * 86_400).catch(() => {});
+    }
     if (!highPri.length) {
       console.log('[job:bi-reminders] ℹ️ Aucune alerte haute priorité');
       return;

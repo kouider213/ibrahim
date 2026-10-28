@@ -5,6 +5,9 @@
 
 ---
 
+## 2026-10-28 (suite 6) — Rappels « prend X demain » : une seule fois
+- `proactive-jobs.ts` (jobBIReminders, */30) : chaque rappel HIGH (arrivée demain, préparer le véhicule…) ne part plus qu'une fois (`reminders:pushed:kouider`, 4 j) et respecte les rappels écartés dans l'app. Avant : la même alerte toutes les 30 min (Halfi / Fiat 500 X le 28/10).
+
 ## 2026-10-28 (suite 5) — La Conscience : fin du faux « RDV » répété
 - `conscience.ts` : le créneau de travail (« Belgique — travail ») n'est plus vu comme un RDV ; événement déjà commencé marqué ; ce que Kouider a dit ces 2 h (`kouider_a_dit_2h`) prime sur l'agenda ; même sujet jamais redit en 3 h, même en urgence 3 ; appel d'urgence max 1 / 6 h. (Le 28/10 : 4 alertes « retard-rdv » + appels entre 12h50 et 13h20 alors qu'il était au travail.)
 
