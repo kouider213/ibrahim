@@ -134,6 +134,12 @@ function getToolLabel(toolName: string): string {
 }
 
 // ── Processeur principal ──────────────────────────────────────────────────────
+/** « ange gardien contact Fatima +32 491 58 82 40 si je réponds plus » → { name, number }, sinon null. */
+export function angelContactCommand(msg: string): { name: string; number: string } | null {
+  const m = msg.match(/ange\s+gardien\b[^+\d]*?contact\s+(?:d['’]urgence\s+)?(?:c['’]est\s+|:\s*)?([\p{L}][\p{L}' -]{0,30}?)\s*:?\s*((?:\+|00)?\d[\d\s.()\/-]{7,20}\d)/iu);
+  return m ? { name: m[1]!.trim(), number: m[2]!.trim() } : null;
+}
+
 /** « j'ai rechargé Claude de 50 $ », « 14$ je rajoute sur Claude », « mis 20 dollars sur claude » → montant, sinon null. */
 export function claudeRechargeAmount(msg: string): number | null {
   if (!/claude|anthropic/i.test(msg) || !/recharg|rajout|ajout|remis|mis |mettre|crédit|credit|pay[ée]/i.test(msg)) return null;
@@ -220,6 +226,14 @@ export async function processMessage(
     const { updateBilling } = await import('../integrations/billing.js');
     const done = await updateBilling('anthropic', { balance: recharge }).catch(e => `échec : ${e instanceof Error ? e.message : e}`);
     ctx.systemExtra = `[Système : recharge Claude de ${recharge} $ ENREGISTRÉE dans la page À PAYER (${done}). Confirme-le en une phrase ; je préviendrai Kouider quand il restera moins de 3 $.]\n\n${ctx.systemExtra ?? ''}`.trim();
+  }
+  // « Ange gardien contact Fatima +32… » (28/10) : le cerveau ignorait la phrase et repartait sur la question d'avant
+  // (heure d'arrivée d'un client) → contact jamais enregistré. Enregistré ici pour de vrai, sans dépendre du modèle.
+  const angel = actorUserId === 'kouider' && !sandbox ? angelContactCommand(userMessage) : null;
+  if (angel) {
+    const { angelTool } = await import('../integrations/gps-life.js');
+    const done = await angelTool({ action: 'contact', name: angel.name, number: angel.number }).catch(e => `❌ échec : ${e instanceof Error ? e.message : e}`);
+    ctx.systemExtra = `[Système : commande « ange gardien » traitée, résultat RÉEL : ${done}\nRéponds UNIQUEMENT à ça, en une ou deux phrases (redis le nom et le numéro). Ne reparle d'aucun sujet précédent.]\n\n${ctx.systemExtra ?? ''}`.trim();
   }
   if (v2ContextAddition) {
     ctx.systemExtra = `${v2ContextAddition}\n\n${ctx.systemExtra ?? ''}`.trim();
@@ -655,7 +669,8 @@ export async function processMessage(
     if (forceTool) {
       console.log(`[orch:${requestId}] anti-hallu retry → forcing tool: ${forceTool} (reason=${halluCheck.reason})`);
       _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId, toolLabel: '🔍 Vérification base de données…' });
-      const retrySystem = `${agentSystemExtra}\n\n⚠️ OBLIGATION ABSOLUE: pour répondre à ce message tu DOIS d'abord appeler l'outil ${forceTool}. N'affirme AUCUN chiffre, disponibilité, statut de paiement ni état système sans avoir exécuté cet outil et obtenu un résultat réel. Appelle l'outil MAINTENANT, puis réponds avec les vraies données.`;
+      const retrySystem = `${agentSystemExtra}\n\n⚠️ OBLIGATION ABSOLUE: pour répondre à ce message tu DOIS d'abord appeler l'outil ${forceTool}. N'affirme AUCUN chiffre, disponibilité, statut de paiement ni état système sans avoir exécuté cet outil et obtenu un résultat réel. Appelle l'outil MAINTENANT, puis réponds avec les vraies données. `
+        + `Ne traite QUE le DERNIER message de Kouider (« ${userMessage.slice(-300)} ») : ne reprends pas un sujet des messages précédents.`;
       try {
         const retry = await chatWithTools(
           ctx.messages, retrySystem, sessionId,
@@ -685,7 +700,7 @@ export async function processMessage(
     console.log(`[orch:${requestId}] phantom retry → forcing real tool call`);
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId, toolLabel: '🔁 Je le fais vraiment…' });
     const retrySystem = `${agentSystemExtra}\n\n⚠️ Ton brouillon de réponse au DERNIER message de Kouider affirmait une action (envoyé, créé, modifié, programmé…) SANS avoir appelé l'outil. `
-      + `Ne traite QUE ce dernier message : les actions des messages précédents sont déjà faites, ne les refais pas et n'en reparle pas. `
+      + `Son DERNIER message : « ${userMessage.slice(-300)} ». Ne traite QUE ce dernier message : les actions des messages précédents sont déjà faites, ne les refais pas et n'en reparle pas. `
       + `Cette fois : appelle RÉELLEMENT l'outil qui fait l'action demandée (cherche-le avec la recherche d'outils si besoin : mails/pièces jointes, WhatsApp, agenda, Telegram, rappels…), `
       + `puis confirme seulement ce que le résultat de l'outil confirme. Si aucun outil ne permet de le faire, dis-le simplement et propose l'alternative la plus proche, sans prétendre l'avoir fait.`;
     try {

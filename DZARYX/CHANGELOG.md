@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-28 (suite 7) — B045 ange gardien ignoré + permis envoyé par erreur
+- `orchestrator.ts` : « ange gardien contact <nom> <numéro> » enregistré directement (angelTool) ; les 2 relances de garde ne traitent que le dernier message.
+- `tools.ts` / `tool-executor.ts` : get_client_document `send:false` (vérification sans envoi) ; résultat honnête « envoyé sur Telegram ».
+- Contact d'urgence de l'ange gardien enregistré à la main (app_kv angel:cfg).
+
 ---
 
 ## 2026-10-28 (suite 6) — Rappels « prend X demain » : une seule fois

@@ -7,6 +7,10 @@
 
 ## Bugs Ouverts 🔴
 
+### B045 — « Ange gardien contact Fatima +32… » ignoré, réponse sur l'ancienne question Halfi + permis du client envoyé sur Telegram (28/10) ✅ FIXÉ
+13h45 : contact jamais enregistré ; le cerveau a « vérifié » sa réponse précédente (10 h inventé à 13h16) via list_bookings + get_client_document, qui a envoyé permis + passeport sur Telegram, puis a écrit « je ne les ai pas envoyés ».
+Fix : orchestrator.ts angelContactCommand() enregistre le contact sans dépendre du modèle ; relances anti-hallu/fantôme citent le DERNIER message et interdisent l'ancien sujet ; get_client_document send:false = lecture seule, et le résultat dit quand la photo est partie sur Telegram.
+
 ### B044 — Résa WhatsApp enregistrée « Client (+numéro) », papiers pas dans le dossier, contact pas enregistré (27/10) ✅ FIXÉ
 Crédit Claude à 0 → secours Gemini : passeport/permis jamais lus (lecture = Claude Haiku seul), save_client jamais appelé, PDF de papiers pas lu, prix proprio absent (profit 0).
 Fix : readDocVision (Claude → Gemini → Groq → OpenAI, PDF via Gemini) pour OCR + type de pièce ; save_client lit les PDF, renomme résas/profil, anti-doublon 30 min ; create_booking lance save_client tout seul (résultat Telegram) et prend cars.base_price comme prix proprio ; secours agentique relancé avec outils obligatoires au lieu de « pas accès aux données en temps réel » ; bot Telegram : image markdown ![](url) ne plante plus (« Petit souci technique ») ; fiche client app : négociation/fiabilité en menus FR.

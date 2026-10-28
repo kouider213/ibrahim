@@ -173,7 +173,7 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'get_client_document',
-    description: 'Récupérer documents client (passeport, permis, contrat). Retourne les données extraites. Le document est automatiquement envoyé dans l\'app ET en photo sur le Telegram de Kouider — ne pas appeler send_telegram_message. Utiliser EN PREMIER quand Kouider/Houari demande à voir un document client (passeport, permis…), avant de chercher dans WhatsApp. Nom approximatif accepté (dictée).',
+    description: 'Récupérer documents client (passeport, permis, contrat). Retourne les données extraites. Le document est automatiquement envoyé dans l\'app ET en photo sur le Telegram de Kouider — ne pas appeler send_telegram_message. Utiliser EN PREMIER quand Kouider/Houari demande à voir un document client (passeport, permis…), avant de chercher dans WhatsApp. Nom approximatif accepté (dictée). Pour une simple VÉRIFICATION (« il a bien son permis ? », « ses papiers sont dans l\'app ? », heure d\'arrivée…) → send:false : rien n\'est envoyé.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -182,6 +182,7 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
         booking_id:   { type: 'string', description: 'UUID réservation' },
         type:         { type: 'string', enum: ['passport','license','contract','other'], description: 'Filtrer par type de document' },
         field:        { type: 'string', description: 'Champ spécifique à retourner depuis extracted_data: passport_number, full_name, dob, nationality, expiry_date, etc. Si absent, retourne tout.' },
+        send:         { type: 'boolean', description: "false = lecture seule (vérifier qu'un papier existe, lire ses infos) : rien ne part dans l'app ni sur Telegram. Par défaut true = envoyé." },
       },
     },
   },

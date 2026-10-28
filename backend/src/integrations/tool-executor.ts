@@ -1781,6 +1781,9 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
   const { emitProactive: emitDocProactive } = await import('../notifications/mobile-push.js');
   const sentUrls: string[] = [];
   const signedUrlMap = new Map<string, string>(); // doc_id → accessible URL (for tool result)
+  // send:false = simple vérification (28/10 : « vérifie » envoyait le permis du client sur Telegram)
+  const deliver = input['send'] !== false;
+  let tgSent = 0;
   for (const d of docs) {
     if (!d.storage_path && !d.file_url) continue;
     const caption = `📄 ${d.client_name} — ${d.type}`;
@@ -1799,8 +1802,8 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
       // Fallback: use file_url as-is (public bucket or already signed)
       if (!docUrl) docUrl = d.file_url ?? '';
 
-      if (docUrl) {
-        signedUrlMap.set(d.id, docUrl);
+      if (docUrl) signedUrlMap.set(d.id, docUrl);
+      if (docUrl && deliver) {
         emitDocProactive(`Document — ${d.client_name}`, 'info', `${caption}\n${docUrl}`);
         sentUrls.push(d.storage_path ?? d.file_url ?? d.id);
         // Aussi sur son Telegram (Siri, appel, Telegram) : la PHOTO elle-même, pas un lien (28/10 : il recevait un autre papier)
@@ -1812,6 +1815,7 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
             const img = await axiosModule.get<ArrayBuffer>(docUrl, { responseType: 'arraybuffer', timeout: 20_000 }).then(r => Buffer.from(r.data).toString('base64')).catch(() => '');
             await queueTelegramMessage(`📄 ${label} — ${d.client_name}`, img || undefined).catch(() => {});
           } else await queueTelegramMessage(`📄 ${label} — ${d.client_name}\n${docUrl}`).catch(() => {});
+          tgSent++;
         }
       }
 
@@ -1855,7 +1859,9 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
     return `📄 ${d.client_name} (${d.client_phone ?? '—'}) — ${d.type}\nDate: ${d.created_at.slice(0, 10)}${mediaLine}${extStr}${d.notes ? `\nNote: ${d.notes}` : ''}`;
   });
 
-  const appStatus = sentUrls.length > 0 ? `\n✅ ${sentUrls.length} doc(s) envoyé(s) dans l'app` : '';
+  // Dire au cerveau ce qui est VRAIMENT parti (28/10 : il disait « je ne les ai pas envoyés » alors que le permis venait d'arriver sur Telegram)
+  const appStatus = !deliver ? `\n(lecture seule : rien n'a été envoyé)`
+    : sentUrls.length > 0 ? `\n✅ ${sentUrls.length} doc(s) envoyé(s) dans l'app${tgSent ? ` ET en photo sur le Telegram de Kouider (${tgSent}) — dis-lui « je te l'ai envoyé sur Telegram »` : ''}` : '';
   return results.join('\n\n') + appStatus;
 }
 
