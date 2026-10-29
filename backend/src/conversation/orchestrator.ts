@@ -822,15 +822,14 @@ async function streamAudioSentences(text: string, sessionId: string): Promise<vo
 // marocaines courantes. Garde le mélange français/oranais naturel.
 // Pour tout le monde depuis 2026-10-29 (Kouider : « il parle marocain, il doit parler algérien »).
 const MOROCCAN_AR: Array<[string, string]> = [
-  ['ديال', 'تاع'], ['ديالي', 'تاعي'], ['ديالك', 'تاعك'], ['دابا', 'درك'], ['واخا', 'واه'], ['غادي', 'رايح'],
-  ['مزيان', 'مليح'], ['مزيانة', 'مليحة'], ['شنو', 'واش'], ['فين', 'وين'], ['علاش', 'علاه'], ['خاصك', 'لازمك'],
+  ['ديال', 'تاع'], ['ديالي', 'تاعي'], ['ديالك', 'تاعك'], ['دابا', 'درك'], ['واخا', 'واه'],
+  ['مزيان', 'مليح'], ['مزيانة', 'مليحة'], ['شنو', 'واش'], ['خاصك', 'لازمك'],
 ];
 function oranize(text: string, _actor?: { ownerKey?: string }): string {
   if (!text) return text;
   let out = text
     .replace(/\bdima\b/gi, 'toujours')
     .replace(/\bda[iï]men\b/gi, 'toujours')
-    .replace(/\bghadi\b/gi, 'rayah')
     .replace(/\bdaba\b/gi, 'derk')
     .replace(/\bkhassek\b/gi, 'lazmek')
     .replace(/\bdyal\b/gi, 'ta3')

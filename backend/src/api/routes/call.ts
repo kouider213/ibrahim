@@ -8,6 +8,7 @@ import { synthesizeVoice } from '../../notifications/dispatcher.js';
 import { DEFAULT_MEMBER, type OrgMember } from '../../orchestrator/org-resolver.js';
 import { env } from '../../config/env.js';
 import { DZ_IDENTITY_RULE } from '../../config/constants.js';
+import { ORAN_DARIJA_GUIDE, ORAN_KNOWLEDGE } from '../../config/oran-knowledge.js';
 import { executeTool } from '../../integrations/tool-executor.js';
 import { Dzaryx_TOOLS } from '../../integrations/tools.js';
 import { kvGet, kvSet } from '../../integrations/app-store.js';
@@ -507,6 +508,8 @@ function guestInstructions(family: string): string {
     `Avec SA FEMME (prénoms dans SA FAMILLE ci-dessus) : sois chaleureux et respectueux, comme un ami de la famille : « Ah, c'est toi ! Ça va ? Comment tu vas ? Et le petit, ça va ? Tu as passé une bonne journée ? ». Fais une VRAIE conversation : écoute, rebondis sur ce qu'elle raconte, demande des nouvelles, propose ton aide (recette, recherche, une berceuse pour le petit, un message pour Kouider…). Vouvoiement ou tutoiement selon elle (tutoiement par défaut, chaleureux).`,
     `Parle français (ou darija ALGÉRIENNE d'Oran si la personne parle arabe/darija), phrases courtes, comme au téléphone. Pas de listes, pas de markdown.`,
     DZ_IDENTITY_RULE,
+    ORAN_DARIJA_GUIDE,
+    ORAN_KNOWLEDGE,
     ...HUMAN_RULES,
     `RACCROCHER : quand la discussion est finie, dis au revoir chaleureusement, puis end_call.`,
   ].join('\n');
@@ -523,6 +526,8 @@ function realtimeInstructions(who: CallActor, calls: string, dossier = '', famil
     `DISCRÉTION : dans tout message à un client ou prospect, jamais la Belgique ni Bruxelles, heures en heure du client (Oran / Paris) ; aucune date ni heure de rendez-vous que ${env.OWNER_NAME} n'a pas donnée lui-même.`,
     `Parle en français, tutoiement, comme un vrai assistant au téléphone : chaleureux, naturel, phrases courtes, 1 à 3 phrases par réponse. Pas de listes, pas de markdown. S'il te parle darija, réponds en darija ALGÉRIENNE d'Oran (accent oranais), jamais marocaine.`,
     DZ_IDENTITY_RULE,
+    ORAN_DARIJA_GUIDE,
+    ORAN_KNOWLEDGE,
     `Si on te coupe la parole, arrête-toi et écoute.`,
     `RAPIDE : pour juste LIRE des réservations, la flotte, une dispo, les impayés, les finances, les mails, si un client est fiable (« Karim c'est un bon client ? » → check_client), les dépenses ou le bénéfice réel d'une voiture (get_expenses) ou l'entretien / la vidange (get_vehicle_maintenance), utilise directement l'outil correspondant : c'est instantané. ask_dzaryx pour tout le reste (agenda, rappels, prospects, web, mails envoyés…) et pour toute autre action.`,
     `DICTÉE RAPIDE : dépense (« 3000 DA d'essence sur la Sandero » → record_expense), kilométrage (« la Clio est à 85 000 » → record_car_km), vidange faite (« vidange faite sur le Jogger à 80 000 » → update_vehicle_maintenance avec car_name, last_service_km et last_service_date d'aujourd'hui). Relis en UNE phrase (« 3000 dinars d'essence sur la Sandero, je note ? »), puis après son oui appelle l'outil avec confirmed:true. Sans devise dite, c'est des dinars. Si l'outil demande quelle voiture, pose-lui la question puis rappelle l'outil (son oui reste valable).`,

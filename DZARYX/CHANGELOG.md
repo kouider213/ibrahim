@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-29 | Dzaryx 100 % oranais : guide darija + connaissance Oran/Algérie | config/oran-knowledge.ts (nouveau), context-builder.ts, call.ts, constants.ts, orchestrator.ts, compact-prompt.ts
+- ORAN_DARIJA_GUIDE (grammaire راني/تاع/ما...ش, questions شوالا/كي راك, vocabulaire oranais + mots espagnols, argent en centimes « مليون », prononciation, mots marocains/tunisiens/orientaux interdits) + ORAN_KNOWLEDGE (histoire, monuments, quartiers, côte, transport, MCO/ASMO, raï, cuisine, Algérie).
+- Texte : guide chargé quand on parle darija, connaissance chargée si darija ou sujet Oran/Algérie (ORAN_TOPIC_RE). Appels (Kouider + invités) : les deux toujours.
+- Sources : Guerrero (Arabic of Oran), Wikipédia arabe oranais, memoblog, et 5 vidéos YouTube regardées par Gemini via l'URL (yt-dlp bloqué « not a bot » sur le VPS).
+- Correction d'après les sources : غادي (futur) et نبغي/بغى SONT oranais → retirés des interdits partout (constants, context-builder, compact, oranize) ; فين/علاش aussi autorisés.
+
 ## 2026-10-29 | Darija : exemples réels de Kouider | constants.ts, orchestrator.ts
 - Vidéo envoyée par Kouider (40 s, transcrite via Groq Whisper, Gemini 429) → EXEMPLES RÉELS ajoutés à DZ_IDENTITY_RULE (حنا، خطرة جاية، عفسة، ماشي مليحة، الفريرو، الفاميليا، زعما…).
 - Correction : نبغي/تبغي est ORANAIS (« 58 ولاية تبغيني ») → retiré des mots interdits et du remplacement automatique ; seul le préfixe marocain ك (كنبغي) reste interdit.
