@@ -512,6 +512,8 @@ const once = async (what: string, ttl = 2 * 86_400) => {
 export async function jobLiberte(): Promise<void> {
   const s = await getLib();
   if (!s?.active) return;
+  // Étapes pas encore dans l'agenda (plan lancé d'un endroit sans accès Google) : rattrapage, nouvel essai toutes les 6 h
+  if (!s.finishedAt && !s.eventIds.length && await once('agenda-sync', 6 * 3600)) await syncAgenda(s).catch(err => console.error('[liberte] agenda:', err instanceof Error ? err.message : err));
   const o = await libOverview();
   const { today, hhmm } = o;
   const now = toMin(hhmm);
