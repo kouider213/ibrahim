@@ -3,6 +3,13 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-29 | Dzaryx à 0 € : mode gratuit par défaut | anthropic-compat.ts, agentic-fallback.ts, llm-router.ts, fallback-probe.ts, billing.ts, tools.ts
+- Kouider : « Dzaryx gratuit sauf Railway, jamais en panne, aussi puissant qu'avec Claude ». MODE GRATUIT (défaut, app_kv brain:free, env FREE_BRAIN=0 pour couper) : claudeKnownDead() vrai → chat = agentic fallback ; compatFetch n'appelle JAMAIS api.anthropic.com : non-streamé → freeBrain, streamé (forme, pro-doc…) → réponse rejouée en SSE (toSSE), count_tokens estimé. callClaudeVision et la sonde Claude coupés.
+- Chaîne gratuite : Gemini → NVIDIA → Mistral (nouveau, MISTRAL_API_KEY) → Cerebras → OpenRouter → Groq. OpenAI (payant) retiré en mode gratuit.
+- Gemini : reasoning_effort « minimal » (2 s au lieu de 10 s ; avec « low » la réflexion mangeait max_tokens → réponses coupées « Select 3 well-known »).
+- billing free_on / free_off (« remets Claude » seulement si Kouider le demande). Testé en local : texte, tool_use, stream OK via gemini-3.5-flash.
+- Clés NVIDIA / Mistral / Cerebras / OpenRouter : à créer par Kouider (gratuites) puis à mettre sur Railway.
+
 ## 2026-10-29 | Dzaryx 100 % oranais : guide darija + connaissance Oran/Algérie | config/oran-knowledge.ts (nouveau), context-builder.ts, call.ts, constants.ts, orchestrator.ts, compact-prompt.ts
 - ORAN_DARIJA_GUIDE (grammaire راني/تاع/ما...ش, questions شوالا/كي راك, vocabulaire oranais + mots espagnols, argent en centimes « مليون », prononciation, mots marocains/tunisiens/orientaux interdits) + ORAN_KNOWLEDGE (histoire, monuments, quartiers, côte, transport, MCO/ASMO, raï, cuisine, Algérie).
 - Texte : guide chargé quand on parle darija, connaissance chargée si darija ou sujet Oran/Algérie (ORAN_TOPIC_RE). Appels (Kouider + invités) : les deux toujours.

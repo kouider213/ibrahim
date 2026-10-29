@@ -266,6 +266,7 @@ export async function callClaudeVision(
   skipBasePrompt  = false,   // true for structured JSON calls — skip Dzaryx persona
 ): Promise<string> {
   if (!ANTHROPIC_KEY) throw new Error('ANTHROPIC_API_KEY not configured');
+  if ((await import('./anthropic-compat.js')).claudeKnownDead()) throw new Error('claude coupé (mode gratuit / crédit)');
 
   const systemPrompt = skipBasePrompt
     ? (systemExtra ?? '')

@@ -83,8 +83,42 @@ function mergeBetas(headers: Headers, betas: string[]): void {
 // Anthropic : le code appelant ne voit pas la différence. Le chat (streamé) a déjà son propre repli (orchestrator).
 const DEAD_RE = /credit balance|billing|purchase credits|insufficient|quota/i;
 let claudeDeadUntil = 0;
-/** Crédit Claude connu comme épuisé (revérifié toutes les 10 min) : le chat saute direct au cerveau de secours. */
-export const claudeKnownDead = (): boolean => Date.now() < claudeDeadUntil;
+// ── Dzaryx à 0 € (Kouider 2026-10-29 : « Dzaryx gratuit sauf Railway, aussi puissant qu'avec Claude ») ──
+// Mode gratuit (défaut) : Claude n'est PLUS JAMAIS appelé. Chaque requête /v1/messages part sur la chaîne de
+// cerveaux gratuits (agentic-fallback.ts : Gemini, NVIDIA, Mistral, Cerebras, OpenRouter, Groq), même les requêtes
+// streamées (réponse rejouée en SSE). Interrupteur : app_kv « brain:free » ('0' = Claude payant), outil billing.
+let freeCache = { on: process.env['FREE_BRAIN'] !== '0', at: 0 };
+function refreshFree(): void {
+  if (Date.now() - freeCache.at < 60_000) return;
+  freeCache.at = Date.now();
+  void import('./app-store.js').then(m => m.kvGet('brain:free'))
+    .then(v => { if (v === '0' || v === '1') freeCache.on = v === '1'; }).catch(() => {});
+}
+export function freeModeOn(): boolean { refreshFree(); return freeCache.on; }
+export function setFreeCache(on: boolean): void { freeCache = { on, at: Date.now() }; }
+
+/** Claude à ne pas appeler (mode gratuit, ou crédit épuisé revérifié toutes les 10 min) : on part direct sur le gratuit. */
+export const claudeKnownDead = (): boolean => freeModeOn() || Date.now() < claudeDeadUntil;
+
+/** Message Anthropic (JSON) → flux SSE identique à celui de l'API, pour les appels .stream() en mode gratuit. */
+function toSSE(msg: Body): Response {
+  const ev = (type: string, data: Body) => `event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`;
+  const blocks = (msg.content ?? []) as Body[];
+  let out = ev('message_start', { message: { ...msg, content: [], stop_reason: null, usage: { input_tokens: msg.usage?.input_tokens ?? 0, output_tokens: 0 } } });
+  blocks.forEach((b, index) => {
+    if (b.type === 'tool_use') {
+      out += ev('content_block_start', { index, content_block: { type: 'tool_use', id: b.id, name: b.name, input: {} } });
+      out += ev('content_block_delta', { index, delta: { type: 'input_json_delta', partial_json: JSON.stringify(b.input ?? {}) } });
+    } else {
+      out += ev('content_block_start', { index, content_block: { type: 'text', text: '' } });
+      out += ev('content_block_delta', { index, delta: { type: 'text_delta', text: String(b.text ?? '') } });
+    }
+    out += ev('content_block_stop', { index });
+  });
+  out += ev('message_delta', { delta: { stop_reason: msg.stop_reason ?? 'end_turn', stop_sequence: null }, usage: { output_tokens: msg.usage?.output_tokens ?? 0 } });
+  out += ev('message_stop', {});
+  return new Response(out, { status: 200, headers: { 'content-type': 'text/event-stream' } });
+}
 
 function isClaudeDead(status: number, text: string): boolean {
   if (status === 401 || status === 402) return true;
@@ -145,7 +179,10 @@ function toOpenAI(body: Body, model: string, vision = false, maxTools = 120): Bo
   const allTools = ((body.tools ?? []) as Array<{ name: string; description?: string; input_schema?: unknown }>).filter(t => t.input_schema);
   const tools = (allTools.length > maxTools ? pickFallbackTools(allTools as Anthropic.Tool[], pickText, maxTools) : allTools)
     .map(t => ({ type: 'function', function: { name: t.name, description: (t.description ?? '').slice(0, 1024), parameters: t.input_schema } }));
-  return { model, messages: msgs, max_tokens: Math.min(Number(body.max_tokens) || 1024, 8000), ...(tools.length ? { tools } : {}) };
+  // Gemini 3 : réflexion « minimal » (2 s au lieu de 10 s ; avec « low » la réflexion mangeait max_tokens → réponse coupée, 29/10)
+  const gemini = /^gemini/.test(model);
+  return { model, messages: msgs, max_tokens: Math.min(Math.max(Number(body.max_tokens) || 1024, gemini ? 1024 : 0), 8000),
+    ...(gemini ? { reasoning_effort: 'minimal' } : {}), ...(tools.length ? { tools } : {}) };
 }
 
 /** Réponse OpenAI → message Anthropic. */
@@ -254,6 +291,14 @@ export const compatFetch: typeof fetch = async (input, init) => {
       mergeBetas(headers, betas);
       init = { ...init, body: JSON.stringify(body), headers };
     } catch { /* corps non JSON : envoyé tel quel */ }
+  }
+  // Mode gratuit : jamais Claude. count_tokens estimé, le reste sur la chaîne gratuite.
+  if (freeModeOn() && /\/v1\/messages/.test(url)) {
+    const json = (status: number, data: Body) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
+    if (url.includes('count_tokens')) return json(200, { input_tokens: Math.ceil(String(init?.body ?? '').length / 3.5) });
+    const r = parsed ? await freeBrain(parsed) : null;
+    if (r) return parsed!.stream ? toSSE(await r.json() as Body) : r;
+    return json(503, { type: 'error', error: { type: 'overloaded_error', message: 'mode gratuit : aucun cerveau gratuit disponible pour le moment' } });
   }
   const canRescue = !!parsed && !parsed.stream;
   // Claude déjà connu comme coupé : on ne perd pas de temps, on revérifie toutes les 10 min

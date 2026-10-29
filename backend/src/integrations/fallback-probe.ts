@@ -44,7 +44,7 @@ export async function probeProviders(force = false): Promise<Record<string, Prob
   const jobs: Array<Promise<void>> = [];
 
   const anthropicKey = process.env['ANTHROPIC_API_KEY'];
-  if (anthropicKey) {
+  if (anthropicKey && !(await import('./anthropic-compat.js')).freeModeOn()) {
     const req = adaptRawRequest(
       { model: CLAUDE_PROBE_MODEL, max_tokens: 1, messages: [{ role: 'user', content: 'OK' }] },
       { 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },

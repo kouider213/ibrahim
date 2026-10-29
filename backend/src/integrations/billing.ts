@@ -304,6 +304,16 @@ export async function billingTool(input: Record<string, unknown>): Promise<strin
       ? '✅ Cerveau selon la demande : le quotidien passe sur Haiku (~20× moins cher), la réflexion, les conseils, les textes pour les clients, les photos et la recherche web restent sur Sonnet.'
       : '✅ Tout repasse sur Sonnet (comme avant, plus cher).';
   }
+  if (action === 'free_on' || action === 'free_off') {
+    const on = action === 'free_on';
+    const { kvSet } = await import('./app-store.js');
+    await kvSet('brain:free', on ? '1' : '0');
+    (await import('./anthropic-compat.js')).setFreeCache(on);
+    const { freeBrainStatus } = await import('./agentic-fallback.js');
+    const live = freeBrainStatus().filter(p => p.on).map(p => p.provider);
+    return on ? `✅ Mode gratuit : Claude n'est plus jamais appelé (0 €). Cerveaux gratuits branchés : ${live.join(', ') || 'aucun'}.`
+      : '⚠️ Mode payant : Dzaryx repasse sur Claude (crédit Claude consommé).';
+  }
   if (action === 'eco_on' || action === 'eco_off') {
     await setEco(action === 'eco_on');
     return action === 'eco_on' ? '✅ Mode économie activé : les tâches de fond passent sur le modèle léger (Haiku), le chat et les mails importants gardent Sonnet.' : '✅ Mode économie coupé : tout repasse sur Sonnet (plus cher).';
@@ -318,5 +328,5 @@ export async function billingTool(input: Record<string, unknown>): Promise<strin
     ...(input['balance'] !== undefined ? { balance: Number(input['balance']) } : {}),
     ...(input['note'] !== undefined ? { note: String(input['note']) } : {}),
   });
-  return '❌ action : list, claude_usage, paid, set, eco_on, eco_off, chat_auto, chat_sonnet';
+  return '❌ action : list, claude_usage, paid, set, free_on, free_off, eco_on, eco_off, chat_auto, chat_sonnet';
 }

@@ -8,7 +8,7 @@
  *      modèle seul est souvent en 503 (surcharge) ou 429 (quota du jour)
  *   2. Groq openai/gpt-oss-120b (free tier, 8 000 tokens/min → prompt court,
  *      peu d'outils, historique tronqué)
- *   3. Cerebras, NVIDIA, OpenRouter (free tier, 27/10/2026) — modèle choisi tout seul dans leur liste
+ *   3. NVIDIA, Mistral, Cerebras, OpenRouter (free tier, 27-29/10/2026) — modèle choisi tout seul dans leur liste
  *      (les noms changent tous les mois), sautés 15 min sur quota/panne
  *   4. OpenAI gpt-4o (payant — dernier recours si crédits restants)
  */
@@ -19,6 +19,7 @@ import { Dzaryx_TOOLS } from './tools.js';
 import { executeTool } from './tool-executor.js';
 import type { Message, ToolExecution, ToolStartCallback, ToolDoneCallback } from './claude-api.js';
 import { groqSystemPrompt } from './compact-prompt.js';
+import { freeModeOn } from './anthropic-compat.js';
 
 const GROQ_KEY   = process.env['GROQ_API_KEY'];
 const GEMINI_KEY = process.env['GEMINI_API_KEY'];
@@ -26,6 +27,7 @@ const OPENAI_KEY = process.env['OPENAI_API_KEY'];
 const CEREBRAS_KEY   = process.env['CEREBRAS_API_KEY'];
 const NVIDIA_KEY     = process.env['NVIDIA_API_KEY'];
 const OPENROUTER_KEY = process.env['OPENROUTER_API_KEY'];
+const MISTRAL_KEY    = process.env['MISTRAL_API_KEY'];
 
 const MAX_TOOL_ROUNDS = 6;
 
@@ -45,7 +47,7 @@ interface OAIMessage {
 }
 
 interface FallbackEndpoint {
-  key:     'groq' | 'gemini' | 'openai' | 'cerebras' | 'nvidia' | 'openrouter';
+  key:     'groq' | 'gemini' | 'openai' | 'cerebras' | 'nvidia' | 'openrouter' | 'mistral';
   name:    string;
   url:     string;
   model:   string;
@@ -70,12 +72,14 @@ const usable = (model: string) => (quotaUntil.get(model) ?? 0) < Date.now();
 
 // ── Fournisseurs gratuits ajoutés le 27/10 : le modèle est pris dans leur liste du moment (préférences dans l'ordre),
 // relue toutes les 6 h ; avant la 1re lecture, la 1re préférence connue sert par défaut.
-interface FreeProvider { key: 'cerebras' | 'nvidia' | 'openrouter'; name: string; apiKey?: string; base: string; prefs: RegExp[]; fallback: string; toolMax: number; descMax: number }
+interface FreeProvider { key: 'cerebras' | 'nvidia' | 'openrouter' | 'mistral'; name: string; apiKey?: string; base: string; prefs: RegExp[]; fallback: string; toolMax: number; descMax: number }
 const FREE_PROVIDERS: FreeProvider[] = [
-  { key: 'cerebras',   name: 'Cerebras',   apiKey: CEREBRAS_KEY,   base: 'https://api.cerebras.ai/v1',
-    prefs: [/gpt-oss-120b/, /qwen-3-235b.*instruct/, /glm/, /llama-3\.3-70b/], fallback: 'gpt-oss-120b', toolMax: 40, descMax: 400 },
   { key: 'nvidia',     name: 'NVIDIA',     apiKey: NVIDIA_KEY,     base: 'https://integrate.api.nvidia.com/v1',
     prefs: [/^moonshotai\/kimi-k2/, /^z-ai\/glm-5\.\d+$/, /^deepseek-ai\/deepseek-v4/, /^openai\/gpt-oss-120b/, /^mistralai\/mistral-large$/], fallback: 'moonshotai/kimi-k2.6', toolMax: 80, descMax: 600 },
+  { key: 'mistral',    name: 'Mistral',    apiKey: MISTRAL_KEY,    base: 'https://api.mistral.ai/v1',
+    prefs: [/^mistral-large-latest$/, /^mistral-medium-latest$/, /^magistral-medium-latest$/], fallback: 'mistral-large-latest', toolMax: 80, descMax: 600 },
+  { key: 'cerebras',   name: 'Cerebras',   apiKey: CEREBRAS_KEY,   base: 'https://api.cerebras.ai/v1',
+    prefs: [/gpt-oss-120b/, /qwen-3-235b.*instruct/, /glm/, /llama-3\.3-70b/], fallback: 'gpt-oss-120b', toolMax: 40, descMax: 400 },
   { key: 'openrouter', name: 'OpenRouter', apiKey: OPENROUTER_KEY, base: 'https://openrouter.ai/api/v1',
     prefs: [/^nvidia\/nemotron-3-ultra/, /^deepseek\//, /^qwen\/qwen3/, /^openai\/gpt-oss-120b/, /^thinkingmachines\/inkling:/, /^google\/gemma-4-31b/], fallback: 'nvidia/nemotron-3-ultra-550b-a55b:free', toolMax: 80, descMax: 600 },
 ];
@@ -113,7 +117,8 @@ export function fallbackEndpoints(): FallbackEndpoint[] {
     }
   }
   if (GROQ_KEY)   list.push({ key: 'groq',   name: 'Groq GPT-OSS 120B', url: 'https://api.groq.com/openai/v1/chat/completions', model: 'openai/gpt-oss-120b', apiKey: GROQ_KEY, compact: true });
-  if (OPENAI_KEY) list.push({ key: 'openai', name: 'OpenAI GPT-4o',     url: 'https://api.openai.com/v1/chat/completions',     model: 'gpt-4o',              apiKey: OPENAI_KEY, vision: true });
+  // OpenAI = payant → jamais en mode gratuit (Dzaryx à 0 €, 29/10)
+  if (OPENAI_KEY && !freeModeOn()) list.push({ key: 'openai', name: 'OpenAI GPT-4o',     url: 'https://api.openai.com/v1/chat/completions',     model: 'gpt-4o',              apiKey: OPENAI_KEY, vision: true });
   return list;
 }
 
@@ -257,6 +262,8 @@ export async function runAgenticFallback(
           tools:       oaiTools,
           tool_choice: 'auto',
           max_tokens:  ep.compact ? 1024 : 4096,
+          // Gemini 3 : réflexion « minimal » → 2 s au lieu de 10 s, et la réflexion ne mange plus la réponse (29/10)
+          ...(ep.key === 'gemini' ? { reasoning_effort: 'minimal' } : {}),
           temperature: 0.5,
         };
         const post = () => axios.post(ep.url, body, { headers: { Authorization: `Bearer ${ep.apiKey}` }, timeout: ep.key === 'groq' || ep.key === 'openai' ? 45_000 : 20_000 });   // 23/10 : un Gemini figé faisait attendre 45 s en plein appel
