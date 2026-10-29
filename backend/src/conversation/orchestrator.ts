@@ -556,17 +556,21 @@ export async function processMessage(
     try {
       const { isAgenticFallbackAvailable, runAgenticFallback } = await import('../integrations/agentic-fallback.js');
       if (isAgenticFallbackAvailable()) {
-        const runAg = (extra?: string) => runAgenticFallback(
+        const runAg = (extra?: string, skip?: string[]) => runAgenticFallback(
           ctx.messages, extra ?? agentSystemExtra, sessionId,
           agentRoute.agentTools, onToolStart, onToolDone,
-          imageBase64 ? { base64: imageBase64, mime: imageMime ?? 'image/jpeg' } : undefined,
+          imageBase64 ? { base64: imageBase64, mime: imageMime ?? 'image/jpeg' } : undefined, skip,
         );
         let agRes = await runAg();
         // Le secours a répondu « de tête » sur une donnée métier → la garde l'aurait remplacé par « je n'ai pas accès aux
         // données en temps réel » (27/10 : « je vois pas qu'il a été envoyé ? »). On lui redonne UNE chance, outils obligatoires.
-        if (!agRes.toolsExecuted.length && fastPathGuard(agRes.text, userMessage, requestId) === FAST_PATH_REFUSAL) {
-          const again = await runAg(`${agentSystemExtra ?? ''}\n\n[OBLIGATOIRE À CE TOUR : ta réponse précédente donnait des faits sans avoir appelé d'outil. Appelle d'abord l'outil qui vérifie (ex. whatsapp_web read pour voir si un message est parti, list_bookings pour une résa, forme pour une photo de lui), puis réponds avec ce que l'outil a renvoyé.]`).catch(() => null);
-          if (again && again.toolsExecuted.length) agRes = again;
+        // 29/10 : jusqu'à 2 relances, chacune sur un AUTRE cerveau (le même modèle faible réinventait pareil → « pas accès aux données »)
+        const skip: string[] = [];
+        for (let retry = 0; retry < 2 && !agRes.toolsExecuted.length && fastPathGuard(agRes.text, userMessage, requestId) === FAST_PATH_REFUSAL; retry++) {
+          if (agRes.model) skip.push(agRes.model);
+          const again = await runAg(`${agentSystemExtra ?? ''}\n\n[OBLIGATOIRE À CE TOUR : ta réponse précédente donnait des faits sans avoir appelé d'outil. Appelle d'abord l'outil qui vérifie (ex. whatsapp_web read pour voir si un message est parti, list_bookings pour une résa, get_revenue_report pour l'argent gagné, forme pour une photo de lui), puis réponds avec ce que l'outil a renvoyé.]`, [...skip]).catch(() => null);
+          if (!again) break;
+          agRes = again;
         }
         redis.incr(`provider:calls:${today}:agentic-${agRes.provider}`).catch(() => {});
         redis.incr(`provider:fallback:${today}:agentic-${agRes.provider}:success`).catch(() => {});

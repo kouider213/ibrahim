@@ -3,6 +3,14 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 29/10 — Cerveaux gratuits boostés (« aussi puissant qu'avant »)
+- Chaîne classée par PUISSANCE : gros Gemini → Nemotron Ultra (NVIDIA, OpenRouter) → Gemini lite → Groq (lite inventait : « Marseille », faux envoi à Houari).
+- Course relais : cerveau lent (> 8-14 s) ou en panne doublé par le suivant, le 1er qui répond gagne (hedgedRace).
+- Garde anti-invention : jusqu'à 2 relances, chacune sur un AUTRE cerveau (avant : même modèle faible → « pas accès aux données »).
+- Réflexion Gemini « medium » sur les demandes de fond (analyse, calcul, rédaction) et tâches QUALITY ; 10 tours d'outils au lieu de 6.
+- Photos : cerveaux qui voient en premier (OpenRouter nemotron-3.5-super-vl). Appels d'outils écrits en texte (Nemotron) convertis en vrais appels.
+- GEMINI_API_KEYS : plusieurs clés Gemini gratuites (autres projets) = quota multiplié. Modèle 404/410 sauté 24 h. Tâches de fond sans outils sur Gemini lite (garde le quota des gros pour Kouider).
+
 ## 29/10 — NVIDIA : nemotron-3-ultra en 1er
 - Compte NVIDIA de Kouider : seul nemotron-3-ultra répond → 1re préférence (agentic-fallback.ts).
 

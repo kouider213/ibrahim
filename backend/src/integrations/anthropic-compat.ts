@@ -153,7 +153,7 @@ function keepSignature(id: string, extra: unknown): void {
 }
 
 /** Corps Anthropic → corps OpenAI chat/completions. */
-function toOpenAI(body: Body, model: string, vision = false, maxTools = 120): Body {
+function toOpenAI(body: Body, model: string, vision = false, maxTools = 120, deep = false): Body {
   const msgs: Body[] = [];
   const sys = blockText(body.system);
   if (sys) msgs.push({ role: 'system', content: sys });
@@ -179,15 +179,21 @@ function toOpenAI(body: Body, model: string, vision = false, maxTools = 120): Bo
   const allTools = ((body.tools ?? []) as Array<{ name: string; description?: string; input_schema?: unknown }>).filter(t => t.input_schema);
   const tools = (allTools.length > maxTools ? pickFallbackTools(allTools as Anthropic.Tool[], pickText, maxTools) : allTools)
     .map(t => ({ type: 'function', function: { name: t.name, description: (t.description ?? '').slice(0, 1024), parameters: t.input_schema } }));
-  // Gemini 3 : réflexion « minimal » (2 s au lieu de 10 s ; avec « low » la réflexion mangeait max_tokens → réponse coupée, 29/10)
+  // Gemini 3 : réflexion « minimal » (2 s au lieu de 10 s ; avec « low » la réflexion mangeait max_tokens → réponse coupée, 29/10).
+  // Tâche importante (QUALITY) ou demande de fond : « medium » avec 8 000 tokens de marge, pour la qualité Claude.
   const gemini = /^gemini/.test(model);
-  return { model, messages: msgs, max_tokens: Math.min(Math.max(Number(body.max_tokens) || 1024, gemini ? 1024 : 0), 8000),
-    ...(gemini ? { reasoning_effort: 'minimal' } : {}), ...(tools.length ? { tools } : {}) };
+  return { model, messages: msgs, max_tokens: deep ? 8192 : Math.min(Math.max(Number(body.max_tokens) || 1024, gemini ? 1024 : 0), 8000),
+    ...(gemini ? { reasoning_effort: deep ? 'medium' : 'minimal' } : {}), ...(tools.length ? { tools } : {}) };
 }
 
 /** Réponse OpenAI → message Anthropic. */
-function toAnthropic(data: Body, model: string): Body {
+function toAnthropic(data: Body, model: string, allowed: Set<string> = new Set()): Body {
   const msg = data?.choices?.[0]?.message ?? {};
+  // Nemotron : appels d'outils écrits en texte → vrais appels (29/10)
+  if (!(msg.tool_calls ?? []).length && allowed.size) {
+    const calls = textToolCalls(msg.content, allowed);
+    if (calls.length) { msg.tool_calls = calls; msg.content = null; }
+  }
   const content: Body[] = [];
   if (msg.content) content.push({ type: 'text', text: String(msg.content) });
   for (const c of (msg.tool_calls ?? []) as Array<{ id: string; function: { name: string; arguments: string }; extra_content?: unknown }>) {
@@ -205,19 +211,32 @@ function toAnthropic(data: Body, model: string): Body {
 }
 
 let pickFallbackTools: typeof import('./agentic-fallback.js').pickFallbackTools = t => t;
+let textToolCalls: typeof import('./agentic-fallback.js').textToolCalls = () => [];
 
-async function freeBrain(body: Body): Promise<Response | null> {
-  const { fallbackEndpoints, pickFallbackTools: pick, markQuotaExhausted: markQuota } = await import('./agentic-fallback.js');
+async function freeBrain(body: Body, quality = false): Promise<Response | null> {
+  const { fallbackEndpoints, pickFallbackTools: pick, markFailure, hedgedRace, visionFirst, needsDeepThought, textToolCalls: ttc } = await import('./agentic-fallback.js');
   pickFallbackTools = pick;
-  for (const ep of fallbackEndpoints()) {
+  textToolCalls = ttc;
+  const msgs = (body.messages ?? []) as Array<{ role: string; content: unknown }>;
+  const hasImage = msgs.some(m => Array.isArray(m.content) && (m.content as Block[]).some(b => b.type === 'image'));
+  const lastUser = blockText([...msgs].reverse().find(m => m.role === 'user')?.content);
+  const deep = quality || needsDeepThought(lastUser);
+  // Course relais (29/10) : un cerveau lent ou en panne est doublé par le suivant, le 1er qui répond gagne
+  // Tâche de fond simple sans outils (résumé, tri, classement) : Gemini « lite » d'abord → les gros Gemini gardent
+  // leur quota du jour pour les conversations avec Kouider (29/10 : quota vide dès 8 h)
+  const all = fallbackEndpoints();
+  const light = !deep && !hasImage && !((body.tools ?? []) as unknown[]).length;
+  const eps = light ? [...all.filter(e => /lite/.test(e.model)), ...all.filter(e => !/lite/.test(e.model))] : visionFirst(all, hasImage);
+  const race = await hedgedRace(eps, async (ep, signal) => {
     try {
-      const oai = toOpenAI(body, ep.model, !!ep.vision, ep.toolMax ?? 120);
+      const oai = toOpenAI(body, ep.model, !!ep.vision, ep.toolMax ?? 120, deep);
       // Groq : 8 000 tokens/min → descriptions d'outils raccourcies (61 outils = 8 500 tokens : 2e tour toujours refusé)
       if (ep.key === 'groq') for (const t of (oai.tools ?? []) as Body[]) t.function.description = String(t.function.description ?? '').slice(0, 200);
-      // Cerebras / NVIDIA / OpenRouter : contexte plus petit → descriptions courtes (moins d'outils : toolMax)
+      // NVIDIA / OpenRouter : descriptions plafonnées (descMax)
       if (ep.descMax) for (const t of (oai.tools ?? []) as Body[]) t.function.description = String(t.function.description ?? '').slice(0, ep.descMax);
+      const timeout = ep.key === 'groq' || ep.key === 'openai' ? 60_000 : ep.key === 'gemini' && !deep ? 30_000 : 60_000;
       const post = () => fetch(ep.url, { method: 'POST', headers: { 'content-type': 'application/json', Authorization: `Bearer ${ep.apiKey}` },
-        body: JSON.stringify(oai), signal: AbortSignal.timeout(ep.key === 'groq' || ep.key === 'openai' ? 60_000 : 30_000) });
+        body: JSON.stringify(oai), signal: AbortSignal.any([signal, AbortSignal.timeout(timeout)]) });
       let r = await post();
       const wait = Number(r.headers.get('retry-after') ?? NaN);
       if (ep.key === 'groq' && r.status === 429 && wait <= 30) {   // quota/minute : attendre vaut mieux que planter la tâche
@@ -225,16 +244,23 @@ async function freeBrain(body: Body): Promise<Response | null> {
         r = await post();
       }
       // 23/10 : quota du jour (429), surcharge (503) → modèle sauté 15 min au lieu d'être réessayé à chaque tour
-      if (!r.ok) { if (ep.key !== 'groq' && ep.key !== 'openai' && (r.status === 429 || r.status === 503)) markQuota(ep.model); console.warn(`[claude-secours] ${ep.key}/${ep.model} ${r.status}`, (await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 200)); continue; }
-      const out = toAnthropic(await r.json() as Body, ep.model);
-      console.warn(`[claude-secours] réponse servie par ${ep.key} (${ep.model})`);
-      return new Response(JSON.stringify(out), { status: 200, headers: { 'content-type': 'application/json' } });
+      if (!r.ok) {
+        if (ep.key !== 'groq' && ep.key !== 'openai' && [429, 503, 404, 410].includes(r.status)) markFailure(ep.qid ?? ep.model, r.status);
+        throw new Error(`${r.status} ${(await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 200)}`);
+      }
+      const out = toAnthropic(await r.json() as Body, ep.model, new Set(((oai.tools ?? []) as Body[]).map(t => String(t.function.name))));
+      console.warn(`[claude-secours] réponse servie par ${ep.key} (${ep.model})${deep ? ' — réflexion' : ''}`);
+      return out;
     } catch (err) {
-      if (ep.key !== 'groq' && ep.key !== 'openai') markQuota(ep.model);   // figé (gemini-flash-latest ne répondait plus du tout le 23/10)
-      console.warn(`[claude-secours] ${ep.key}:`, err instanceof Error ? err.message : err);
+      if (!signal.aborted) {
+        if (ep.key !== 'groq' && ep.key !== 'openai' && !(err instanceof Error && /^\d{3} /.test(err.message))) markFailure(ep.qid ?? ep.model);   // figé (gemini-flash-latest ne répondait plus du tout le 23/10)
+        console.warn(`[claude-secours] ${ep.key}/${ep.model}:`, err instanceof Error ? err.message : err);
+      }
+      throw err;
     }
-  }
-  return null;
+  }, ep => ep.key === 'gemini' ? (deep ? 15_000 : 8_000) : 14_000);
+  if ('error' in race) return null;
+  return new Response(JSON.stringify(race.value), { status: 200, headers: { 'content-type': 'application/json' } });
 }
 
 // ── Mode économie (15/10/2026, Kouider : « le moins de frais possible ») ──
@@ -274,11 +300,12 @@ function callerSource(body: Body): string {
 export const compatFetch: typeof fetch = async (input, init) => {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
   let parsed: Body | null = null;
+  let quality = false;
   if (init?.body && typeof init.body === 'string' && /\/v1\/messages(\/count_tokens)?(\?|$)/.test(url)) {
     try {
       const body = JSON.parse(init.body) as Body;
       const headers = new Headers(init.headers);
-      const quality = headers.get('x-dz-quality') === 'high';
+      quality = headers.get('x-dz-quality') === 'high';
       headers.delete('x-dz-quality');
       if (!url.includes('count_tokens') && !body.stream && !quality && typeof body.model === 'string'
           && (MODEL_MAP[body.model] ?? body.model) === CLAUDE_MAIN && ecoSafe(body) && await ecoOn()) {
@@ -296,7 +323,7 @@ export const compatFetch: typeof fetch = async (input, init) => {
   if (freeModeOn() && /\/v1\/messages/.test(url)) {
     const json = (status: number, data: Body) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
     if (url.includes('count_tokens')) return json(200, { input_tokens: Math.ceil(String(init?.body ?? '').length / 3.5) });
-    const r = parsed ? await freeBrain(parsed) : null;
+    const r = parsed ? await freeBrain(parsed, quality) : null;
     if (r) return parsed!.stream ? toSSE(await r.json() as Body) : r;
     return json(503, { type: 'error', error: { type: 'overloaded_error', message: 'mode gratuit : aucun cerveau gratuit disponible pour le moment' } });
   }
