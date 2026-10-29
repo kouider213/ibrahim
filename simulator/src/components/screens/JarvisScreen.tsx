@@ -192,6 +192,16 @@ function LiveMode({ kind }: { kind: Kind }) {
     finally { setEnding(false); setId(null); }
   };
 
+  // App en arrière-plan / écran verrouillé : on rend le micro tout de suite (sinon l'iPhone reste muet dans les appels Telegram)
+  const endRef = useRef(end);
+  endRef.current = end;
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === 'hidden' && idRef.current) void endRef.current(); };
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', onHide);
+    return () => { document.removeEventListener('visibilitychange', onHide); window.removeEventListener('pagehide', onHide); };
+  }, []);
+
   const intro = kind === 'souffleur'
     ? 'Mets tes écouteurs, lance, et pose le téléphone (micro vers la personne). À chaque pause dans la discussion, Dzaryx envoie ce qu\'il a entendu, l\'écrit ici (avec la traduction) et ne te parle à l\'oreille QUE si c\'est utile : traduction, prix, piège, argument. Sinon il reste silencieux, c\'est normal. Indique la langue de l\'autre (darija…) pour une meilleure écoute.'
     : kind === 'reunion'
