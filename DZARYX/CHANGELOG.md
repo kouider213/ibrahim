@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 29/10 — Fix « ⚠️ Réponse de secours NON vérifiée » (11h42)
+- Cause : Gemini lançait un outil puis prenait un 429 (quota) au tour suivant → tout le secours agentique abandonnait et Groq répondait sans données ni historique.
+- agentic-fallback.ts : le cerveau suivant (autre Gemini → NVIDIA → OpenRouter → Groq) REPREND le tour avec les résultats d'outils déjà obtenus, sans les relancer (pas de doublon). Testé en simulation : 4 × 429 → NVIDIA finit avec l'outil.
+- orchestrator.ts : l'étiquette ⚠️ « non vérifiée » seulement sur une vraie question de données (résa, client, argent, mails…), plus sur un message perso.
+
 ## 29/10 — Cerveaux gratuits boostés (« aussi puissant qu'avant »)
 - Chaîne classée par PUISSANCE : gros Gemini → Nemotron Ultra (NVIDIA, OpenRouter) → Gemini lite → Groq (lite inventait : « Marseille », faux envoi à Houari).
 - Course relais : cerveau lent (> 8-14 s) ou en panne doublé par le suivant, le 1er qui répond gagne (hedgedRace).

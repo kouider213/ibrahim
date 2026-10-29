@@ -373,12 +373,13 @@ export async function runAgenticFallback(
 
   // 1er tour en course relais : un cerveau lent (> 8-14 s) ou en panne est doublé par le suivant, le 1er qui répond
   // garde la main pour la suite (les outils ne tournent qu'une fois). Échec plus tard → nouvelle course sur les restants.
+  const toolsFor = (ep: FallbackEndpoint) => ep.compact ? compactTools : ep.toolMax ? toOpenAITools(pickFallbackTools(tools, pickText, ep.toolMax), ep.descMax) : fullTools;
   let lastErr: unknown = null;
   let rest = visionFirst(eps, !!image);
   while (rest.length) {
     const race = await hedgedRace(rest, async (ep, signal) => {
       const history  = withImage([...(ep.compact ? compactHistory : fullHistory)], !!ep.vision);
-      const oaiTools = ep.compact ? compactTools : ep.toolMax ? toOpenAITools(pickFallbackTools(tools, pickText, ep.toolMax), ep.descMax) : fullTools;
+      const oaiTools = toolsFor(ep);
       try {
         const data = await call(ep, history, oaiTools, signal);
         if (!data?.choices?.[0]?.message) throw new Error(`${ep.name} empty choice`);
@@ -391,12 +392,30 @@ export async function runAgenticFallback(
     rest = rest.slice(race.next);
     if ('error' in race) { lastErr = race.error; break; }
 
-    const { ep, value: { history, oaiTools } } = race;
+    let { ep, value: { history, oaiTools } } = race;
     let data = race.value.data;
     const toolsExecuted: ToolExecution[] = [];
+    // 29/10 11h42 : Gemini lance un outil puis prend un 429 au tour suivant → tout le secours abandonnait et Groq
+    // répondait sans données (« ⚠️ Réponse de secours NON vérifiée »). Désormais le cerveau suivant REPREND le tour
+    // avec les résultats d'outils déjà obtenus (rien n'est relancé, donc pas de doublon).
+    const takeOver = async (): Promise<void> => {
+      for (;;) {
+        try { data = await call(ep, history, oaiTools); return; } catch (err) {
+          noteFailure(ep, err);
+          const to = rest.shift();
+          if (!to) throw err;
+          const done = toolsExecuted.map(t => `• ${t.name} → ${t.result.slice(0, to.compact ? 600 : 4_000)}`).join('\n');
+          console.warn(`[agentic-fallback] reprise du tour par ${to.key}/${to.model} (${toolsExecuted.length} outils déjà faits)`);
+          ep = to;
+          oaiTools = toolsFor(to);
+          history = [...withImage([...(to.compact ? compactHistory : fullHistory)], !!to.vision),
+            { role: 'system', content: `[REPRISE : un autre cerveau a déjà exécuté ces outils à ce tour. NE LES RELANCE PAS, réponds avec leurs résultats (ou appelle un AUTRE outil si vraiment nécessaire) :]\n${done}` }];
+        }
+      }
+    };
     try {
       for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-        if (round > 0) data = await call(ep, history, oaiTools);
+        if (round > 0) await takeOver();
         const msg = data.choices?.[0]?.message as OAIMessage | undefined;
         if (!msg) throw new Error(`${ep.name} empty choice`);
 
