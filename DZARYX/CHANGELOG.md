@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-29 | Darija : exemples réels de Kouider | constants.ts, orchestrator.ts
+- Vidéo envoyée par Kouider (40 s, transcrite via Groq Whisper, Gemini 429) → EXEMPLES RÉELS ajoutés à DZ_IDENTITY_RULE (حنا، خطرة جاية، عفسة، ماشي مليحة، الفريرو، الفاميليا، زعما…).
+- Correction : نبغي/تبغي est ORANAIS (« 58 ولاية تبغيني ») → retiré des mots interdits et du remplacement automatique ; seul le préfixe marocain ك (كنبغي) reste interdit.
+
 ## 2026-10-29 | Dzaryx 100 % algérien | constants.ts, call.ts, compact-prompt.ts, orchestrator.ts
 - Kouider : Dzaryx se disait « algérien marocain » et parlait darija marocaine. Nouvelle règle DZ_IDENTITY_RULE (constants.ts) : 100 % algérien d'Oran, créé par Kouider ; darija oranaise (wesh, kifach, derk, bezzaf, ta3…) et liste des mots marocains interdits (dyal, daba, ghadi, bghit, wakha, chnou…). Injectée dans le prompt principal, le prompt court (Groq), les appels Telegram/app (Kouider + invités).
 - oranize() appliqué à TOUT le monde (avant : Houari seul) + remplacement des mots marocains en lettres arabes (ديال→تاع، دابا→درك، واخا→واه، فين→وين…).

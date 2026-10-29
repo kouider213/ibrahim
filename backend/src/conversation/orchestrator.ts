@@ -823,7 +823,7 @@ async function streamAudioSentences(text: string, sessionId: string): Promise<vo
 // Pour tout le monde depuis 2026-10-29 (Kouider : « il parle marocain, il doit parler algérien »).
 const MOROCCAN_AR: Array<[string, string]> = [
   ['ديال', 'تاع'], ['ديالي', 'تاعي'], ['ديالك', 'تاعك'], ['دابا', 'درك'], ['واخا', 'واه'], ['غادي', 'رايح'],
-  ['بغيت', 'حبيت'], ['مزيان', 'مليح'], ['مزيانة', 'مليحة'], ['شنو', 'واش'], ['فين', 'وين'], ['علاش', 'علاه'], ['خاصك', 'لازمك'],
+  ['مزيان', 'مليح'], ['مزيانة', 'مليحة'], ['شنو', 'واش'], ['فين', 'وين'], ['علاش', 'علاه'], ['خاصك', 'لازمك'],
 ];
 function oranize(text: string, _actor?: { ownerKey?: string }): string {
   if (!text) return text;
