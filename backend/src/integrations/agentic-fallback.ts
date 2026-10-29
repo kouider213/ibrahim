@@ -74,8 +74,9 @@ const usable = (model: string) => (quotaUntil.get(model) ?? 0) < Date.now();
 // relue toutes les 6 h ; avant la 1re lecture, la 1re préférence connue sert par défaut.
 interface FreeProvider { key: 'cerebras' | 'nvidia' | 'openrouter' | 'mistral'; name: string; apiKey?: string; base: string; prefs: RegExp[]; fallback: string; toolMax: number; descMax: number }
 const FREE_PROVIDERS: FreeProvider[] = [
+  // 29/10 : sur le compte de Kouider seul nemotron-3-ultra répond (Kimi/Mistral = 404, GLM/DeepSeek figés)
   { key: 'nvidia',     name: 'NVIDIA',     apiKey: NVIDIA_KEY,     base: 'https://integrate.api.nvidia.com/v1',
-    prefs: [/^moonshotai\/kimi-k2/, /^z-ai\/glm-5\.\d+$/, /^deepseek-ai\/deepseek-v4/, /^openai\/gpt-oss-120b/, /^mistralai\/mistral-large$/], fallback: 'moonshotai/kimi-k2.6', toolMax: 80, descMax: 600 },
+    prefs: [/^nvidia\/nemotron-3-ultra/, /^moonshotai\/kimi-k2/, /^z-ai\/glm-5/, /^deepseek-ai\/deepseek-v4/], fallback: 'nvidia/nemotron-3-ultra-550b-a55b', toolMax: 80, descMax: 600 },
   { key: 'mistral',    name: 'Mistral',    apiKey: MISTRAL_KEY,    base: 'https://api.mistral.ai/v1',
     prefs: [/^mistral-large-latest$/, /^mistral-medium-latest$/, /^magistral-medium-latest$/], fallback: 'mistral-large-latest', toolMax: 80, descMax: 600 },
   { key: 'cerebras',   name: 'Cerebras',   apiKey: CEREBRAS_KEY,   base: 'https://api.cerebras.ai/v1',

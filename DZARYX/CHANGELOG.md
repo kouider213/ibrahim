@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 29/10 — NVIDIA : nemotron-3-ultra en 1er
+- Compte NVIDIA de Kouider : seul nemotron-3-ultra répond → 1re préférence (agentic-fallback.ts).
+
 ## 2026-10-29 | Dzaryx à 0 € : mode gratuit par défaut | anthropic-compat.ts, agentic-fallback.ts, llm-router.ts, fallback-probe.ts, billing.ts, tools.ts
 - Kouider : « Dzaryx gratuit sauf Railway, jamais en panne, aussi puissant qu'avec Claude ». MODE GRATUIT (défaut, app_kv brain:free, env FREE_BRAIN=0 pour couper) : claudeKnownDead() vrai → chat = agentic fallback ; compatFetch n'appelle JAMAIS api.anthropic.com : non-streamé → freeBrain, streamé (forme, pro-doc…) → réponse rejouée en SSE (toSSE), count_tokens estimé. callClaudeVision et la sonde Claude coupés.
 - Chaîne gratuite : Gemini → NVIDIA → Mistral (nouveau, MISTRAL_API_KEY) → Cerebras → OpenRouter → Groq. OpenAI (payant) retiré en mode gratuit.
