@@ -91,6 +91,7 @@ import sportRoutes from './api/routes/sport.js';
 import partnersRoutes from './api/routes/partners.js';
 import jarvisRoutes from './api/routes/jarvis.js';
 import coachRoutes from './api/routes/coach.js';
+import liberteRoutes from './api/routes/liberte.js';
 import kidRoutes from './api/routes/kid.js';
 import formeRoutes from './api/routes/forme.js';
 import rdvRoutes from './api/routes/rdv.js';
@@ -409,6 +410,7 @@ app.get('/atelier/:slug', async (req, res) => {
   res.send(html);
 });   // page JARVIS : souffleur, réunion, entraînement, état des lieux vidéo
 app.use('/api/coach',      apiLimiter, coachRoutes);
+app.use('/api/liberte',    apiLimiter, liberteRoutes);   // page LIBERTÉ (Kouider, privé)
 app.use('/api/kid',        apiLimiter, kidRoutes);
 app.use('/api/forme',      apiLimiter, formeRoutes);
 app.use('/contrat',        apiLimiter, contratRoutes);     // page publique « contrat FIK Sites » à signer

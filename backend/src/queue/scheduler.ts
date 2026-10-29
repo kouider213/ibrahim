@@ -334,6 +334,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'liberte',
+    cron:  '*/5 5-23 * * *',        // LIBERTÉ : prises autorisées (boutons), envie → « c'est passé ? », soir 21h15, silence 2 j → appel, bilan dimanche
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'papa-time',
     cron:  '30 9,18 * * *',         // 9h30 jour off : idée de sortie avec le petit ; 18h30 : rien depuis 2 jours → petit rappel
     tz:    'Europe/Brussels',
@@ -742,6 +747,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'sport-watch':             async () => { await (await import('../integrations/sport-coach.js')).jobSportWatch(); await (await import('../integrations/life-coach.js')).ensureCoachDays(); },
   'life-coach-evening':      jobLifeCoachEvening,
   'life-coach-weekly':       jobLifeCoachWeekly,
+  'liberte':                 async () => { await (await import('../integrations/liberte.js')).jobLiberte(); },
   'papa-time':               async () => { console.log(`[papa-time] ${await jobPapaTime()}`); },
   'papa-weekly':             async () => { await jobPapaWeekly(); },
   'people-brief':             async () => { console.log(`[people-brief] ${await (await import('../integrations/people-memory.js')).jobPeopleBrief()}`); },

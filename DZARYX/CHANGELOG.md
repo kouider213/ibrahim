@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 29/10 soir — LIBERTÉ : programme d'accompagnement privé (app v205)
+- Nouvelle page LIBERTÉ (menu Plus) + outil `liberte` (cerveau, appels, Siri) + tâche `liberte` (*/5) : paliers qui descendent jusqu'à zéro, prises à heure fixe avec boutons, SOS envie 10 min (respiration guidée + ses raisons), manque et moral, médecin, bilan du dimanche, agenda (titres discrets), GPS.
+- Ne remonte jamais : manque fort 2 jours ou dépassement → palier allongé ; dépassement → appel. Fin seulement quand Kouider le dit, puis vigilance 60 jours.
+- Données uniquement en base (app_kv `kouider:liberte:*`), rien de personnel dans le code (dépôt public).
+
 ## 29/10 — Fiabilité : quota Gemini, mémoire par le sens, voitures, agenda
 - Quota Gemini gratuit = 20 requêtes/jour/modèle : un modèle épuisé est sauté jusqu'à l'heure donnée par Google (« retry in 20h ») au lieu de 15 min → plus une requête perdue à chaque message.
 - gemini-flash-latest refusait la réflexion « minimal » (400 à chaque appel) → « low ».

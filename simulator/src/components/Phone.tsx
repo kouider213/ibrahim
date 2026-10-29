@@ -40,6 +40,7 @@ import RouteScreen from './screens/RouteScreen.tsx';
 import GlobeScreen from './screens/GlobeScreen.tsx';
 import FormeScreen from './screens/FormeScreen.tsx';
 import FennouScreen from './screens/FennouScreen.tsx';
+import LiberteScreen from './screens/LiberteScreen.tsx';
 import JarvisScreen from './screens/JarvisScreen.tsx';
 import JeuxScreen from './screens/JeuxScreen.tsx';
 import { setSimActor, resumeWebPush, business, callApi, loginDevice, logoutDevice, setDeviceToken, getDeviceToken } from '../services/api.ts';
@@ -48,7 +49,7 @@ export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
   | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews' | 'blog' | 'devis' | 'reponse'
-  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'demarchage' | 'sites' | 'partners' | 'paiements' | 'studio' | 'carte' | 'nexus' | 'globe' | 'camera' | 'route' | 'sport' | 'fennou' | 'jeux' | 'jarvis' | 'plus';
+  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'demarchage' | 'sites' | 'partners' | 'paiements' | 'studio' | 'carte' | 'nexus' | 'globe' | 'camera' | 'route' | 'sport' | 'fennou' | 'liberte' | 'jeux' | 'jarvis' | 'plus';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -70,6 +71,7 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'jeux',          icon: '🎮', label: 'JEUX',    kouiderOnly: true, group: 'tool' },
   { id: 'fennou',        icon: '🦊', label: 'FENNOU',  kouiderOnly: true, group: 'tool' },
   { id: 'sport',         icon: '💪', label: 'FORME',   kouiderOnly: true, group: 'tool' },
+  { id: 'liberte',       icon: '🕊️', label: 'LIBERTÉ', kouiderOnly: true, group: 'tool' },
   { id: 'carte',         icon: '🗺️', label: 'CARTE LIVE', kouiderOnly: true, group: 'tool' },
   { id: 'nexus',         icon: '🖥️', label: 'MON PC',  kouiderOnly: true, group: 'tool' },
   { id: 'globe',         icon: '🌍', label: 'GLOBE',   kouiderOnly: true, group: 'tool' },
@@ -313,7 +315,7 @@ export default function Phone() {
   const actor = loggedActor ?? 'kouider';
 
   const houariOnlyPages: Page[] = [];
-  const kouiderOnlyPages: Page[] = ['jarvis', 'jeux', 'fennou', 'documents', 'demarchage', 'sites', 'partners', 'paiements', 'studio', 'carte', 'camera', 'route'];
+  const kouiderOnlyPages: Page[] = ['jarvis', 'jeux', 'fennou', 'liberte', 'documents', 'demarchage', 'sites', 'partners', 'paiements', 'studio', 'carte', 'camera', 'route'];
 
   const safePage: Page = (() => {
     if (actor === 'houari' && kouiderOnlyPages.includes(page)) return 'voice';
@@ -358,6 +360,7 @@ export default function Phone() {
       case 'globe':         return <GlobeScreen />;
       case 'sport':         return <FormeScreen onExit={exitFennou} />;
       case 'fennou':        return <FennouScreen onExit={exitFennou} />;
+      case 'liberte':       return <LiberteScreen />;
       case 'jeux':          return <JeuxScreen onExit={exitFennou} />;
       case 'jarvis':        return <JarvisScreen onAsk={(prompt) => { try { localStorage.setItem('dz:ask_prompt', prompt); } catch { /* ignore */ } setPage('text'); }} />;
       case 'carte':         return <CarteScreen actor={actor} startFull={carteLink} onOpen={(p) => setPage(p as Page)} onAsk={(prompt) => { try { localStorage.setItem('dz:ask_prompt', prompt); } catch { /* ignore */ } setPage('text'); }} />;
