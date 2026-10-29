@@ -160,7 +160,7 @@ export async function saveVoiceSample(b64: string, seconds: number): Promise<str
   return had ? 'ok' : 'premier échantillon';
 }
 
-async function sendAudio(buf: Buffer, caption: string, name: string): Promise<void> {
+export async function sendAudio(buf: Buffer, caption: string, name: string): Promise<void> {
   await queueTelegramMessage(caption, undefined, 'kouider', { url: await publish(buf.toString('base64')), name }, true);
 }
 

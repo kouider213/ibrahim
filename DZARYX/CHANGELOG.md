@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 29/10 nuit — LIBERTÉ v2 : 13 aides en plus (app v206)
+- Cagnotte « gestion des contingences » (gain qui monte chaque jour validé, remis à 2 € après un écart, récompenses choisies), heures à risque apprises + message 15 min avant, plans « si… alors… », lettre à soi-même (relue au jour zéro / après un écart), vocal avec SA propre voix à chaque envie, « ce qui revient » (énergie, désir, joie, clarté chaque semaine), dépistage PHQ-2, rapport médecin (la veille du RDV + bouton), appel les jours de marche, jour zéro = rapporter les boîtes à la pharmacie, alerte montre (sommeil / cœur au repos), rituel du réveil, guidage respiration à voix haute en appel.
+
 ## 29/10 soir — LIBERTÉ : programme d'accompagnement privé (app v205)
 - Nouvelle page LIBERTÉ (menu Plus) + outil `liberte` (cerveau, appels, Siri) + tâche `liberte` (*/5) : paliers qui descendent jusqu'à zéro, prises à heure fixe avec boutons, SOS envie 10 min (respiration guidée + ses raisons), manque et moral, médecin, bilan du dimanche, agenda (titres discrets), GPS.
 - Ne remonte jamais : manque fort 2 jours ou dépassement → palier allongé ; dépassement → appel. Fin seulement quand Kouider le dit, puis vigilance 60 jours.

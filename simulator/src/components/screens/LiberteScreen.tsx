@@ -12,6 +12,7 @@ interface Overview {
   state: null | {
     active: boolean; med: string; baseline: number; start: string; steps: Step[]; times: string[]; holdDays: number; doctorPlan?: boolean;
     doctor: { status: 'a_appeler' | 'rdv_pris' | 'vu'; date?: string; note?: string }; why: string[]; consequence?: string; finishedAt?: string;
+    ifThen?: string[]; rewards?: Array<{ name: string; cost: number; at?: string }>; letter?: string;
   };
   today: string; hhmm: string; day: number; totalDays: number;
   allowed: number; taken: number; left: number; byNow: number;
@@ -22,7 +23,12 @@ interface Overview {
   lastSymptoms: Log | null; triggers: Array<{ trigger: string; n: number }>;
   week: Array<{ date: string; taken: number; allowed: number }>;
   recent: Log[]; sos: string[];
+  bank: { earned: number; spent: number; balance: number; rate: number; days: Array<{ date: string; gain: number }> } | null;
+  riskHours: number[];
+  comeback: Array<{ week: number; energie?: number; desir?: number; joie?: number; clarte?: number }>;
+  phq2: number | null;
 }
+const eur = (n: number) => `${n.toFixed(1).replace('.', ',').replace(',0', '')} €`;
 
 const DOVE = '#7dd3fc';
 const fmt = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
@@ -35,7 +41,7 @@ export default function LiberteScreen() {
   const [err, setErr] = useState('');
   const [toast, setToast] = useState('');
   const [busy, setBusy] = useState(false);
-  const [sheet, setSheet] = useState<null | 'sos' | 'sym' | 'doc' | 'why' | 'plan'>(null);
+  const [sheet, setSheet] = useState<null | 'sos' | 'sym' | 'doc' | 'why' | 'plan' | 'bank' | 'back'>(null);
 
   const load = useCallback(async () => {
     try { setO(await apiFetch<Overview>('/api/liberte')); setErr(''); } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); }
@@ -112,6 +118,41 @@ export default function LiberteScreen() {
         <Kpi value={`${o.cravings.resisted}/${o.cravings.total}`} label="envies tenues" color={T.violet} />
       </KpiGrid>
 
+      {/* Cagnotte (gestion des contingences) */}
+      {o.bank && (
+        <Card accent={T.warn} style={{ margin: '12px 0' }} onClick={() => setSheet('bank')}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ fontSize: 30 }}>💰</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: T.muted }}>Ta cagnotte Liberté</div>
+              <div style={{ fontSize: 22, fontWeight: 800 }}>{eur(o.bank.balance)}</div>
+              <div style={{ fontSize: 12.5, color: T.muted }}>Demain, jour validé = +{eur(o.bank.rate)} · ça monte chaque jour</div>
+            </div>
+            <div style={{ fontSize: 12, color: T.accent }}>Récompenses ›</div>
+          </div>
+          {(() => { const next = s.rewards?.find(r => !r.at); return next ? (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 12.5, color: T.muted, marginBottom: 4 }}>🎁 {next.name} — {eur(Math.min(o.bank.balance, next.cost))} / {next.cost} €</div>
+              <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.06)' }}><div style={{ width: `${Math.min(100, (o.bank.balance / next.cost) * 100)}%`, height: '100%', borderRadius: 3, background: T.warn }} /></div>
+            </div>) : null; })()}
+        </Card>
+      )}
+
+      {/* Ce qui revient */}
+      <Card style={{ marginBottom: 12 }} onClick={() => setSheet('back')}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>✨ Ce qui revient</div>
+        {o.comeback.length ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+            {(['energie', 'desir', 'joie', 'clarte'] as const).map(k => { const a = o.comeback[0]![k], b = o.comeback[o.comeback.length - 1]![k]; return (
+              <div key={k} style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: b != null && a != null && b > a ? T.ok : T.text }}>{b ?? '—'}</div>
+                <div style={{ fontSize: 11, color: T.muted }}>{{ energie: 'énergie', desir: 'désir', joie: 'joie', clarte: 'clarté' }[k]}</div>
+                {a != null && b != null && o.comeback.length > 1 && <div style={{ fontSize: 11, color: b >= a ? T.ok : T.bad }}>{b >= a ? '+' : ''}{Math.round((b - a) * 10) / 10}</div>}
+              </div>); })}
+          </div>
+        ) : <div style={{ fontSize: 13, color: T.muted }}>Note chaque semaine ton énergie, ton désir, ta joie, ton esprit clair : tu verras ce que tu récupères. Touche ici.</div>}
+      </Card>
+
       {/* Le chemin */}
       <SectionTitle right={<button onClick={() => setSheet('plan')} style={{ background: 'none', border: 'none', color: T.accent, fontSize: 13, cursor: 'pointer' }}>Détails</button>}>Le chemin</SectionTitle>
       <Card style={{ marginBottom: 12 }}>
@@ -142,6 +183,12 @@ export default function LiberteScreen() {
         </Card>
       </>}
 
+      {o.riskHours.length > 0 && (
+        <Card accent={T.warn} style={{ marginBottom: 12 }}>
+          <div style={{ fontWeight: 700 }}>⏰ Tes heures à risque : {o.riskHours.map(h => `${h}h`).join(', ')}</div>
+          <div style={{ fontSize: 12.5, color: T.muted, marginTop: 4 }}>Dzaryx te prévient 15 min avant, avec tes plans « si… alors… ».</div>
+        </Card>
+      )}
       {o.triggers.length > 0 && (
         <Card style={{ marginBottom: 12 }}>
           <div style={{ fontWeight: 700, marginBottom: 8 }}>🎯 Ce qui déclenche tes envies</div>
@@ -162,12 +209,15 @@ export default function LiberteScreen() {
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
         {!s.finishedAt && o.allowed === 0 && <Btn color={T.ok} onClick={() => { if (confirm('Tu confirmes : c\'est bon, tu as arrêté complètement ?')) void act({ action: 'finish', confirm: true }, '🕊️ Bravo. Dzaryx reste en vigilance.'); }}>🏁 C'est bon, j'ai arrêté</Btn>}
         <Btn onClick={() => setSheet('plan')}>⚙️ Heures de prise</Btn>
+        <Btn onClick={() => setSheet('doc')}>🩺 Médecin</Btn>
       </div>
 
       {sheet === 'sos' && <SosSheet why={s.why} busy={busy} onClose={() => setSheet(null)} onAct={async b => { await act(b, b['action'] === 'resiste' ? '💪 Tenue ! Chaque envie tenue rend la suivante plus faible.' : '✅ Noté'); }} />}
       {sheet === 'sym' && <SymSheet onClose={() => setSheet(null)} onSave={async b => { await act(b); setSheet(null); }} />}
-      {sheet === 'doc' && <DocSheet status={s.doctor.status} onClose={() => setSheet(null)} onSave={async b => { await act({ action: 'medecin', ...b }); setSheet(null); }} />}
-      {sheet === 'why' && <WhySheet why={s.why} consequence={s.consequence} onClose={() => setSheet(null)} onAdd={async w => { await act({ action: 'pourquoi', why: w }, '❤️ Gardé. Dzaryx te le rappellera.'); }} onConsequence={async t => { await act({ action: 'consequence', text: t }); }} />}
+      {sheet === 'doc' && <DocSheet status={s.doctor.status} onReport={() => void act({ action: 'rapport_medecin' }, '📋 Rapport envoyé sur Telegram')} onClose={() => setSheet(null)} onSave={async b => { await act({ action: 'medecin', ...b }); setSheet(null); }} />}
+      {sheet === 'why' && <WhySheet why={s.why} consequence={s.consequence} ifThen={s.ifThen ?? []} letter={s.letter ?? ''} onIfThen={async t => { await act({ action: 'si_alors', text: t }, '✅ Plan gardé'); }} onLetter={async t => { await act({ action: 'lettre', text: t }, '✉️ Lettre gardée'); }} onClose={() => setSheet(null)} onAdd={async w => { await act({ action: 'pourquoi', why: w }, '❤️ Gardé. Dzaryx te le rappellera.'); }} onConsequence={async t => { await act({ action: 'consequence', text: t }); }} />}
+      {sheet === 'bank' && <BankSheet o={o} onClose={() => setSheet(null)} onAct={async b => { await act({ action: 'recompense', ...b }); }} />}
+      {sheet === 'back' && <BackSheet onClose={() => setSheet(null)} onSave={async b => { await act({ action: 'retour', ...b }, '✨ Noté. On compare chaque semaine.'); setSheet(null); }} />}
       {sheet === 'plan' && <PlanSheet o={o} onClose={() => setSheet(null)} onTimes={async t => { await act({ action: 'times', times: t }, '✅ Heures enregistrées'); }} />}
     </Screen>
   );
@@ -279,6 +329,7 @@ function SosSheet({ why, onClose, onAct, busy }: { why: string[]; onClose: () =>
           </div>
           <div style={{ fontSize: 17, fontWeight: 700, marginTop: 14 }}>{label}</div>
         </div>
+        <Btn style={{ width: '100%', marginBottom: 8 }} disabled={busy} onClick={() => onAct({ action: 'ma_voix' })}>🎙️ Écouter ma propre voix (Telegram)</Btn>
         {['💧 Un grand verre d\'eau froide, lentement', '🚶 Marche 10 minutes, dehors si tu peux', '🔁 Change de pièce, mets ta musique', '📞 Dis à Dzaryx « appelle-moi »'].map(x => <div key={x} style={{ fontSize: 14, padding: '6px 0' }}>{x}</div>)}
         {why.length > 0 && <Card accent={DOVE} style={{ marginTop: 12 }}>
           <div style={{ fontSize: 12, color: T.muted, marginBottom: 4 }}>Pourquoi tu fais ça</div>
@@ -305,7 +356,7 @@ function SymSheet({ onClose, onSave }: { onClose: () => void; onSave: (b: Record
   );
 }
 
-function DocSheet({ status, onClose, onSave }: { status: string; onClose: () => void; onSave: (b: Record<string, unknown>) => Promise<void> }) {
+function DocSheet({ status, onClose, onSave, onReport }: { status: string; onClose: () => void; onSave: (b: Record<string, unknown>) => Promise<void>; onReport: () => void }) {
   const [date, setDate] = useState('');
   const [note, setNote] = useState('');
   return (
@@ -318,21 +369,31 @@ function DocSheet({ status, onClose, onSave }: { status: string; onClose: () => 
         <Btn variant="primary" color={DOVE} style={{ width: '100%', marginBottom: 14 }} disabled={!date} onClick={() => onSave({ status: 'rdv_pris', date })}>📅 J'ai pris RDV</Btn>
       </>}
       <Field label="Ce qu'il a dit (après la consultation)"><textarea style={{ ...inputStyle, minHeight: 70, padding: 12 }} value={note} onChange={e => setNote(e.target.value)} /></Field>
-      <Btn color={T.ok} style={{ width: '100%' }} onClick={() => onSave({ status: 'vu', note })}>✅ Je l'ai vu</Btn>
+      <Btn color={T.ok} style={{ width: '100%', marginBottom: 8 }} onClick={() => onSave({ status: 'vu', note })}>✅ Je l'ai vu</Btn>
+      <Btn style={{ width: '100%' }} onClick={() => onReport()}>📋 Mon rapport pour le médecin (Telegram)</Btn>
     </Sheet>
   );
 }
 
-function WhySheet({ why, consequence, onClose, onAdd, onConsequence }: { why: string[]; consequence?: string; onClose: () => void; onAdd: (w: string) => Promise<void>; onConsequence: (t: string) => Promise<void> }) {
+function WhySheet({ why, consequence, ifThen, letter, onClose, onAdd, onConsequence, onIfThen, onLetter }: { why: string[]; consequence?: string; ifThen: string[]; letter: string; onClose: () => void; onAdd: (w: string) => Promise<void>; onConsequence: (t: string) => Promise<void>; onIfThen: (t: string) => Promise<void>; onLetter: (t: string) => Promise<void> }) {
   const [w, setW] = useState('');
   const [c, setC] = useState(consequence ?? '');
+  const [si, setSi] = useState('');
+  const [l, setL] = useState(letter);
   return (
     <Sheet title="❤️ Mes raisons" subtitle="Ce que tu veux retrouver" onClose={onClose} fixed z={90}>
       {why.map(x => <Card key={x} accent={DOVE} pad={10} style={{ marginBottom: 6 }}>{x}</Card>)}
       <Field label="Ajouter une raison"><input style={inputStyle} value={w} onChange={e => setW(e.target.value)} placeholder="Jouer avec mon fils sans être crevé…" /></Field>
       <Btn variant="primary" color={DOVE} disabled={!w.trim()} style={{ width: '100%', marginBottom: 18 }} onClick={async () => { await onAdd(w.trim()); setW(''); }}>Ajouter</Btn>
       <Field label="Mon engagement si je dépasse" hint="Choisi par toi, Dzaryx te le rappellera (ex. 20 € à une association, pas de téléphone ce soir…)"><input style={inputStyle} value={c} onChange={e => setC(e.target.value)} /></Field>
-      <Btn onClick={() => onConsequence(c.trim())} style={{ width: '100%' }}>Enregistrer l'engagement</Btn>
+      <Btn onClick={() => onConsequence(c.trim())} style={{ width: '100%', marginBottom: 18 }}>Enregistrer l'engagement</Btn>
+      <SectionTitle>Mes plans « si… alors… »</SectionTitle>
+      {ifThen.map(x => <Card key={x} pad={10} style={{ marginBottom: 6, fontSize: 13.5 }}>{x}</Card>)}
+      <Field label="Nouveau plan" hint="Prouvé : décider à l'avance quoi faire double les chances de tenir."><input style={inputStyle} value={si} onChange={e => setSi(e.target.value)} placeholder="Si je me réveille avec l'envie, alors je bois 2 verres d'eau et je fais 20 pompes" /></Field>
+      <Btn disabled={!si.trim()} style={{ width: '100%', marginBottom: 18 }} onClick={async () => { await onIfThen(si.trim()); setSi(''); }}>Ajouter le plan</Btn>
+      <SectionTitle>Ma lettre à moi-même</SectionTitle>
+      <Field label="Pour les moments durs" hint="Dzaryx te la relira au jour zéro et si tu craques."><textarea style={{ ...inputStyle, minHeight: 110, padding: 12 }} value={l} onChange={e => setL(e.target.value)} placeholder="Kouider, si tu lis ça…" /></Field>
+      <Btn disabled={!l.trim()} style={{ width: '100%' }} onClick={() => onLetter(l.trim())}>Garder ma lettre</Btn>
     </Sheet>
   );
 }
@@ -354,6 +415,44 @@ function PlanSheet({ o, onClose, onTimes }: { o: Overview; onClose: () => void; 
       </div>
       <Btn variant="primary" color={DOVE} style={{ width: '100%' }} onClick={() => onTimes(times.filter(Boolean))}>Enregistrer les heures</Btn>
       <div style={{ fontSize: 12.5, color: T.muted, marginTop: 12, lineHeight: 1.45 }}>Le médecin te donne un autre rythme ? Dis-le à Dzaryx (« mon médecin dit… ») : il remplace le plan.</div>
+    </Sheet>
+  );
+}
+
+function BankSheet({ o, onClose, onAct }: { o: Overview; onClose: () => void; onAct: (b: Record<string, unknown>) => Promise<void> }) {
+  const [name, setName] = useState('');
+  const [cost, setCost] = useState('');
+  const b = o.bank!, rewards = o.state?.rewards ?? [];
+  return (
+    <Sheet title="💰 Ta cagnotte" subtitle={`${eur(b.balance)} · ${eur(b.earned)} gagnés`} onClose={onClose} fixed z={90} accent={T.warn}>
+      <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.5, marginBottom: 12 }}>
+        Chaque jour où tu notes ta vérité ET restes dans le plan rapporte plus que la veille (2 € → 10 €). Un écart remet le gain à 2 € ; 3 jours validés et tu retrouves ton niveau. C'est la méthode la plus prouvée pour arrêter. Mets ces euros de côté pour de vrai (c'est l'argent que tu ne mets plus dans les boîtes) et dépense-les pour toi et ta famille.
+      </div>
+      <div style={{ display: 'flex', gap: 3, alignItems: 'flex-end', height: 50, marginBottom: 14 }}>
+        {b.days.map(d => <div key={d.date} title={`${d.date} +${d.gain}`} style={{ flex: 1, height: `${Math.max(4, d.gain * 4.5)}px`, borderRadius: 3, background: d.gain ? T.warn : T.bad }} />)}
+      </div>
+      {rewards.map(r => (
+        <Card key={r.name} pad={10} style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ flex: 1, fontSize: 14 }}>{r.at ? '✅' : '🎁'} {r.name} <span style={{ color: T.muted }}>· {r.cost} €</span></div>
+          {!r.at && <Btn color={T.ok} disabled={b.balance < r.cost} onClick={() => onAct({ claim: true, text: r.name })}>{b.balance >= r.cost ? 'Je la prends' : `${Math.ceil(r.cost - b.balance)} € encore`}</Btn>}
+        </Card>
+      ))}
+      <Field label="Nouvelle récompense"><input style={inputStyle} value={name} onChange={e => setName(e.target.value)} placeholder="Resto avec ma femme" /></Field>
+      <Field label="Prix (€)"><input style={inputStyle} inputMode="numeric" value={cost} onChange={e => setCost(e.target.value.replace(/[^\d]/g, ''))} /></Field>
+      <Btn variant="primary" disabled={!name.trim() || !Number(cost)} style={{ width: '100%' }} onClick={async () => { await onAct({ text: name.trim(), cost: Number(cost) }); setName(''); setCost(''); }}>Ajouter</Btn>
+    </Sheet>
+  );
+}
+
+function BackSheet({ onClose, onSave }: { onClose: () => void; onSave: (b: Record<string, unknown>) => Promise<void> }) {
+  const [v, setV] = useState({ energie: 5, desir: 5, joie: 5, clarte: 5 });
+  const labels = { energie: '⚡ Énergie', desir: '❤️‍🔥 Désir', joie: '😄 Joie', clarte: '🧠 Esprit clair' } as const;
+  return (
+    <Sheet title="✨ Ce qui revient" subtitle="Cette semaine, de 1 à 10" onClose={onClose} fixed z={90} footer={<Btn variant="primary" style={{ flex: 1 }} onClick={() => onSave(v)}>Enregistrer</Btn>}>
+      {(Object.keys(labels) as Array<keyof typeof labels>).map(k => (
+        <Field key={k} label={`${labels[k]} : ${v[k]}/10`}><input type="range" min={1} max={10} value={v[k]} onChange={e => setV(x => ({ ...x, [k]: Number(e.target.value) }))} style={{ width: '100%' }} /></Field>
+      ))}
+      <div style={{ fontSize: 12.5, color: T.muted }}>Ce que ce produit éteint revient en général sur plusieurs semaines. Ces notes te montreront la preuve.</div>
     </Sheet>
   );
 }

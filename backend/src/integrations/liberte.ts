@@ -32,11 +32,14 @@ export interface LibState {
   why: string[];               // ses raisons à lui
   consequence?: string;        // ce qu'il a choisi lui-même s'il dépasse
   finishedAt?: string;         // il a dit « c'est bon, j'ai arrêté » → vigilance 60 jours
+  ifThen?: string[];           // ses plans « si… alors… » (intentions de mise en œuvre)
+  rewards?: Array<{ name: string; cost: number; at?: string }>;   // récompenses payées par la cagnotte
+  letter?: string;             // sa lettre à lui-même, relue aux moments durs
   eventIds: string[];
   createdAt: string;
 }
-export type LibKind = 'prise' | 'envie' | 'resiste' | 'craque' | 'symptomes' | 'humeur' | 'note' | 'depassement' | 'palier';
-export interface LibLog { at: string; kind: LibKind; n?: number; score?: number; trigger?: string; symptoms?: string[]; note?: string }
+export type LibKind = 'prise' | 'envie' | 'resiste' | 'craque' | 'symptomes' | 'humeur' | 'note' | 'depassement' | 'palier' | 'retour' | 'phq2';
+export interface LibLog { at: string; kind: LibKind; n?: number; score?: number; trigger?: string; symptoms?: string[]; note?: string; scores?: Record<string, number> }
 
 const DEFAULT_TIMES = ['07:30', '11:30', '15:30', '19:30'];
 export const SOS_NUMBERS = [
@@ -143,6 +146,84 @@ function avoided(s: LibState, log: LibLog[]): number {
   return n;
 }
 
+// ── CAGNOTTE (« gestion des contingences », la méthode la plus prouvée en addictologie — cœur de reSET-O) ──
+// Jour validé = il a noté sa vérité ET il est resté dans le plan → gain qui MONTE chaque jour (2 € +0,5 €/jour, max 10 €).
+// Écart → le gain repart à 2 € ; 3 jours validés d'affilée → il retrouve son niveau d'avant. Il la dépense en récompenses qu'il a choisies.
+export function bank(s: LibState, log: LibLog[]): { earned: number; spent: number; balance: number; rate: number; days: Array<{ date: string; gain: number }> } {
+  const today = localNow().date;
+  const logged = new Set(log.map(l => dayOf(l.at)));
+  let rate = 2, prev = 2, run = 0, earned = 0;
+  const days: Array<{ date: string; gain: number }> = [];
+  for (let d = s.start; d < today; d = addDays(d, 1)) {
+    const ok = logged.has(d) && takenOn(log, d) <= allowedOn(s, d);
+    if (ok) {
+      earned += rate; days.push({ date: d, gain: rate });
+      run++; if (run === 3 && prev > rate) rate = prev;
+      rate = Math.min(10, rate + 0.5);
+    } else {
+      if (rate > 2) prev = rate;
+      rate = 2; run = 0; days.push({ date: d, gain: 0 });
+    }
+  }
+  const spent = (s.rewards ?? []).filter(r => r.at).reduce((a, r) => a + r.cost, 0);
+  return { earned, spent, balance: earned - spent, rate, days: days.slice(-14) };
+}
+
+/** Heures où les envies (et les écarts) reviennent : ≥ 2 fois sur 14 jours → heure à risque. */
+export function riskHours(log: LibLog[]): number[] {
+  const since = Date.now() - 14 * 86_400_000, h = new Map<number, number>();
+  for (const l of log) if ((l.kind === 'envie' || l.kind === 'depassement') && Date.parse(l.at) > since) {
+    const hr = Number(localNow(Date.parse(l.at)).hhmm.slice(0, 2));
+    h.set(hr, (h.get(hr) ?? 0) + 1);
+  }
+  return [...h.entries()].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([hr]) => hr).sort((a, b) => a - b);
+}
+
+type Comeback = { week: number; energie?: number; desir?: number; joie?: number; clarte?: number };
+/** Ce qui revient (énergie, désir, joie, clarté) — moyenne par semaine depuis le début. */
+function comeback(log: LibLog[], start: string): Comeback[] {
+  const by = new Map<number, Record<string, number[]>>();
+  for (const l of log) if (l.kind === 'retour' && l.scores) {
+    const w = Math.max(0, Math.floor(daysBetween(start, dayOf(l.at)) / 7));
+    const cur = by.get(w) ?? {};
+    for (const [k, v] of Object.entries(l.scores)) (cur[k] ??= []).push(v);
+    by.set(w, cur);
+  }
+  return [...by.entries()].sort((a, b) => a[0] - b[0]).map(([week, r]) => ({ week, ...Object.fromEntries(Object.entries(r).map(([k, v]) => [k, Math.round(v.reduce((a, b) => a + b, 0) / v.length * 10) / 10])) }));
+}
+
+/** Rapport d'une page pour le médecin (envoyé sur Telegram la veille du RDV, ou à la demande). */
+async function doctorReport(s: LibState, log: LibLog[]): Promise<string> {
+  const today = localNow().date;
+  const days = Array.from({ length: Math.min(21, daysBetween(s.start, today) + 1) }, (_, i) => addDays(today, -i)).filter(d => d >= s.start).reverse();
+  const sym = log.filter(l => l.kind === 'symptomes').slice(-8);
+  const phq = [...log].reverse().find(l => l.kind === 'phq2');
+  const health = await import('./jarvis-hub.js').then(m => m.healthWeekLine()).catch(() => '');
+  return [
+    '🩺 RAPPORT POUR MON MÉDECIN',
+    `Traitement que je veux arrêter : ${s.med}. Depuis des années, tous les jours. Dose au départ : environ ${s.baseline} demi-comprimés/jour (${String(s.baseline / 2).replace('.', ',')} comprimés).`,
+    `Plan de baisse commencé le ${fmtDate(s.start)} : ${s.steps.map(st => `${fmtDate(st.from)} → ${st.max}`).join(' · ')} (demis/jour).${s.holdDays ? ` Paliers allongés de ${s.holdDays} j.` : ''}`,
+    days.length ? `Prises réelles (demis/jour) :\n${days.map(d => `${fmtDate(d)} : ${takenOn(log, d)}/${allowedOn(s, d)}`).join('\n')}` : '',
+    `Envies : ${log.filter(l => l.kind === 'envie').length} (${log.filter(l => l.kind === 'resiste').length} tenues). Dépassements : ${log.filter(l => l.kind === 'depassement').length}.`,
+    sym.length ? `Manque (0-10) : ${sym.map(l => `${fmtDate(dayOf(l.at))} ${l.score}${l.symptoms?.length ? ` (${l.symptoms.join(', ')})` : ''}`).join(' ; ')}` : '',
+    phq ? `Dépistage PHQ-2 (moral) : ${phq.score}/6${(phq.score ?? 0) >= 3 ? ' — positif' : ''}.` : '',
+    health,
+    'Plaintes : fatigue permanente, moral bas, libido en baisse. Mes questions : valider ou adapter le plan ; aide pour le manque ; soutien moral / psychologue ; prise de sang (testostérone, fer, vitamine D, thyroïde).',
+  ].filter(Boolean).join('\n\n');
+}
+
+/** Vocal avec SA propre voix (clone) qui lui rappelle ses raisons — fabriqué une fois, renvoyé à chaque envie. */
+async function sendMyVoice(s: LibState): Promise<boolean> {
+  const mv = await import('./my-voice.js');
+  if (!(await mv.hasMyVoice().catch(() => false))) return false;
+  const text = `Kouider, c'est toi. Écoute-moi. Cette envie va passer dans quelques minutes. Rappelle-toi pourquoi tu fais ça : ${(s.why.length ? s.why : ["l'esprit clair, l'énergie, ta femme, ton fils"]).join('. ')}. Bois de l'eau, sors marcher. Tu es plus fort que ça. On ne lâche rien.`.slice(0, 600);
+  const k = sentKey('myvoice'), cached = parse<{ text: string; b64: string } | null>(await kvGet(k).catch(() => null), null);
+  let b64 = cached?.text === text ? cached.b64 : '';
+  if (!b64) { b64 = (await mv.speakAsKouider(text, 'français')).toString('base64'); await kvSet(k, JSON.stringify({ text, b64 })); }
+  await mv.sendAudio(Buffer.from(b64, 'base64'), '🎙️ Un message de toi… pour toi.', 'toi-a-toi.mp3');
+  return true;
+}
+
 /** Après un manque fort ou un dépassement : le palier actuel dure plus longtemps (tous les paliers à venir reculent). */
 async function holdSteps(s: LibState, days: number, why: string): Promise<string> {
   const today = localNow().date;
@@ -209,6 +290,10 @@ export interface LibOverview {
   week: Array<{ date: string; taken: number; allowed: number }>;
   recent: LibLog[];
   sos: string[];
+  bank: ReturnType<typeof bank> | null;
+  riskHours: number[];
+  comeback: Comeback[];
+  phq2: number | null;
 }
 
 export async function libOverview(): Promise<LibOverview> {
@@ -239,6 +324,10 @@ export async function libOverview(): Promise<LibOverview> {
     week: s ? Array.from({ length: 7 }, (_, i) => addDays(today, i - 6)).filter(d => d >= s.start).map(d => ({ date: d, taken: takenOn(log, d), allowed: allowedOn(s, d) })) : [],
     recent: log.slice(-30).reverse(),
     sos: SOS_NUMBERS,
+    bank: s ? bank(s, log) : null,
+    riskHours: riskHours(log),
+    comeback: s ? comeback(log, s.start) : [],
+    phq2: [...log].reverse().find(l => l.kind === 'phq2')?.score ?? null,
   };
 }
 
@@ -257,8 +346,13 @@ function statusText(o: LibOverview): string {
     `Médecin : ${s.doctor.status === 'a_appeler' ? 'PAS ENCORE APPELÉ — à pousser gentiment chaque jour' : s.doctor.status === 'rdv_pris' ? `RDV ${s.doctor.date ?? 'pris'}` : `vu${s.doctor.note ? ` (${s.doctor.note})` : ''}`}.`,
     s.why.length ? `Ses raisons : ${s.why.join(' · ')}.` : '',
     o.triggers.length ? `Ses déclencheurs : ${o.triggers.map(t => `${t.trigger} (${t.n})`).join(', ')}.` : '',
+    o.riskHours.length ? `Ses heures à risque : ${o.riskHours.map(h => `${h}h`).join(', ')}.` : '',
+    s.ifThen?.length ? `Ses plans si-alors : ${s.ifThen.join(' · ')}.` : '',
+    o.bank ? `Cagnotte : ${eur(o.bank.balance)} (gain du prochain jour validé : ${eur(o.bank.rate)})${s.rewards?.some(r => !r.at) ? ` · récompenses visées : ${s.rewards.filter(r => !r.at).map(r => `${r.name} (${r.cost} €)`).join(', ')}` : ''}.` : '',
+    o.phq2 != null && o.phq2 >= 3 ? `⚠️ Dépistage moral PHQ-2 positif (${o.phq2}/6) : médecin à pousser fermement.` : '',
   ].filter(Boolean).join('\n');
 }
+const eur = (n: number) => `${n.toFixed(1).replace('.', ',').replace(',0', '')} €`;
 
 /** Ajouté au dossier de Kouider (chat, appels, Siri, message du matin) : où il en est + comment se comporter. */
 export async function liberteText(): Promise<string> {
@@ -276,6 +370,9 @@ export async function liberteText(): Promise<string> {
     '- Le médecin d\'abord : tant que le statut est « pas encore appelé », pousse-le (une fois par jour, pas plus) à appeler son médecin traitant : valider le plan, l\'aider pour le manque, soigner la fatigue et le moral. Psychologue de 1re ligne remboursé (11 €, 1re séance gratuite).',
     '- Utilise tout : agenda (ses étapes y sont), sport (marcher / séance légère les jours durs : sport_coach), sommeil (outil sante), son moral (life_coach), FORME, sa famille comme raison (« ton fils, ta femme »), ses raisons à lui ci-dessus.',
     '- C\'est fini seulement quand LUI dit « c\'est bon, j\'ai arrêté » (action finish). D\'ici là tu ne lâches rien. Rechute = normal, jamais un échec : on note, on reprend.',
+    '- EN APPEL / SIRI / VOCAL : s\'il a une envie pendant un appel, guide-le À VOIX HAUTE (« inspire… 2… 3… 4… bloque… souffle… »), phrases courtes, reste en ligne 10 minutes. Propose « je t\'envoie ta propre voix » (liberte action ma_voix).',
+    '- Il te donne énergie / désir / joie / clarté sur 10 (« 5 4 6 5 ») → liberte action retour. Ses réponses aux 2 questions du moral (« 1 2 », 0-3 chacune) → action phq2.',
+    '- Cagnotte : chaque jour validé rapporte plus que le précédent ; un écart la remet à 2 €. Parle-lui de ses récompenses (action recompense) pour lui donner envie. Il peut écrire ses plans si-alors (action si_alors) et une lettre à lui-même (action lettre).',
     '- STRICTEMENT PRIVÉ : jamais un mot à sa femme, sa famille, Houari ou un client.',
   ].join('\n');
 }
@@ -337,7 +434,7 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
         await autoCall(`liberte-over-${today}`, s.finishedAt
           ? 'Kouider, c\'est Dzaryx. Tu as repris un comprimé. Ce n\'est pas grave, ça arrive à presque tout le monde, et je suis là. Parle-moi : qu\'est-ce qui s\'est passé ?'
           : 'Kouider, c\'est Dzaryx. Tu as dépassé ton maximum du jour. Je ne te juge pas, je suis là. Dis-moi ce qui s\'est passé, et on trouve ensemble comment tenir jusqu\'à demain.');
-        return `⚠️ Noté : ${halvesShort(taken)} aujourd'hui pour un maximum de ${halvesShort(allowed)} (${over} de trop).${s.finishedAt ? ' Il avait arrêté : rechute à accueillir sans honte, demande ce qui s\'est passé, propose le médecin. S\'il veut, liberte start pour un nouveau plan court.' : ''} ${hold} Je l'appelle. Réponds sans juger : qu'est-ce qui l'a poussé (note-le avec action envie trigger si besoin) ? Plus rien jusqu'à demain, propose le SOS.${s.consequence ? ` Il avait choisi lui-même : « ${s.consequence} » — rappelle-le-lui doucement.` : ''} Prise beaucoup plus forte que d'habitude, malaise, somnolence forte → 112.`;
+        return `⚠️ Noté : ${halvesShort(taken)} aujourd'hui pour un maximum de ${halvesShort(allowed)} (${over} de trop).${s.finishedAt ? ' Il avait arrêté : rechute à accueillir sans honte, demande ce qui s\'est passé, propose le médecin. S\'il veut, liberte start pour un nouveau plan court.' : ''} ${hold} Je l'appelle. Réponds sans juger : qu'est-ce qui l'a poussé (note-le avec action envie trigger si besoin) ? Plus rien jusqu'à demain, propose le SOS.${s.consequence ? ` Il avait choisi lui-même : « ${s.consequence} » — rappelle-le-lui doucement.` : ''} ${s.letter ? ` Sa lettre à lui-même : « ${s.letter.slice(0, 400)} » — lis-la-lui.` : ''} Prise beaucoup plus forte que d'habitude, malaise, somnolence forte → 112.`;
       }
       const next = nextSlot(plan, hhmm, taken);
       return `✅ Noté : ${halvesShort(n)} (${taken}/${allowed} aujourd'hui).${taken > byNow ? ` ⚠️ En avance sur ses heures : ${next ? `la prochaine (${next.time}) est à décaler d'autant` : 'plus rien ensuite'}.` : ''} ${taken >= allowed ? 'C\'était la dernière de la journée : plus rien jusqu\'à demain.' : next ? `Prochaine : ${next.time}.` : ''} Félicite-le d'avoir noté.`;
@@ -348,6 +445,7 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
       const score = Number(input['intensity']);
       await addLog({ kind: 'envie', trigger, score: score >= 0 && score <= 10 ? Math.round(score) : undefined, note: String(input['note'] ?? '').slice(0, 200) || undefined });
       await kvSet(sentKey('sos-check'), String(Date.now() + 15 * 60_000), 3600);
+      const voice = await once(`voice:${today}:${hhmm.slice(0, 2)}`, 3 * 3600) ? await sendMyVoice(s).catch(() => false) : false;
       const o = await libOverview();
       const allowedNow = o.next == null && o.left > 0 && o.taken < o.byNow;
       return [
@@ -355,6 +453,8 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
         'Accompagne-le MAINTENANT avec ça (à ta façon, chaleureux) :',
         ...SOS_STEPS,
         s.why.length ? `Rappelle-lui SES raisons : ${s.why.join(' · ')}.` : 'Rappelle-lui pourquoi il le fait (sa femme, son fils, retrouver son énergie et l\'envie).',
+        s.ifThen?.length ? `Ses plans à lui pour ce moment : ${s.ifThen.join(' · ')}.` : '',
+        voice ? '🎙️ Un vocal avec SA PROPRE VOIX qui lui rappelle ses raisons vient de partir sur Telegram : dis-lui de l\'écouter.' : '',
         'Je lui écris dans 15 min pour savoir si c\'est passé. S\'il veut, appelle-le (call_me).',
       ].join('\n');
     }
@@ -448,6 +548,67 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
 
     case 'bilan': return await weeklyBilan(false);
 
+    case 'si_alors': {
+      const t = String(input['text'] ?? '').trim();
+      if (input['remove'] === true) { s.ifThen = (s.ifThen ?? []).filter(x => !x.toLowerCase().includes(t.toLowerCase())); await saveLib(s); return '✅ Plan retiré.'; }
+      if (!t) return s.ifThen?.length ? `Ses plans : ${s.ifThen.join(' · ')}` : 'Aucun plan si-alors : aide-le à en écrire 2-3 (« si je me réveille avec l\'envie, alors je bois 2 verres d\'eau et je fais 20 pompes »).';
+      s.ifThen = [...(s.ifThen ?? []), t.slice(0, 160)].slice(-8);
+      await saveLib(s);
+      return `✅ Plan gardé : « ${t} ». Je le lui rappellerai juste avant ses heures à risque.`;
+    }
+
+    case 'recompense': {
+      s.rewards ??= [];
+      const name = String(input['text'] ?? '').trim(), cost = Number(input['cost']);
+      const b = bank(s, await readLibLog());
+      if (input['claim'] === true) {
+        const r = s.rewards.find(x => !x.at && (!name || x.name.toLowerCase().includes(name.toLowerCase())));
+        if (!r) return '❌ Quelle récompense ?';
+        if (b.balance < r.cost) return `Pas encore : cagnotte ${eur(b.balance)} / ${r.cost} €. Encore ${Math.ceil((r.cost - b.balance) / Math.max(2, b.rate))} jour(s) validés environ.`;
+        r.at = new Date().toISOString(); await saveLib(s);
+        await queueTelegramMessage(`🎁 Récompense débloquée : ${r.name} ! Tu l'as gagnée, jour après jour. Profite.`);
+        return `🎁 ${r.name} débloquée (${r.cost} €). Félicite-le, qu'il en profite vraiment (en famille si c'est prévu).`;
+      }
+      if (input['remove'] === true) { s.rewards = s.rewards.filter(r => r.at || !r.name.toLowerCase().includes(name.toLowerCase())); await saveLib(s); return '✅ Récompense retirée.'; }
+      if (!name || !(cost > 0)) return `Cagnotte ${eur(b.balance)}. Récompenses : ${s.rewards.map(r => `${r.name} ${r.cost} €${r.at ? ' ✅' : ''}`).join(' · ') || 'aucune — aide-le à en choisir (resto avec sa femme, sortie avec son fils, un vêtement, un soin…).'}`;
+      s.rewards.push({ name: name.slice(0, 80), cost: Math.round(cost) });
+      await saveLib(s);
+      return `✅ Récompense « ${name} » à ${Math.round(cost)} €. Cagnotte actuelle : ${eur(b.balance)}.`;
+    }
+
+    case 'lettre': {
+      const t = String(input['text'] ?? '').trim();
+      if (!t) return s.letter ? `Sa lettre : « ${s.letter} »` : 'Pas encore de lettre : propose-lui d\'écrire (ou dicter) une lettre à lui-même pour les moments durs — ce qu\'il ressent aujourd\'hui, ce qu\'il veut retrouver.';
+      s.letter = t.slice(0, 1500); await saveLib(s);
+      return '✅ Lettre gardée. Je la lui relirai au jour zéro et s\'il craque un jour.';
+    }
+
+    case 'retour': {
+      const scores: Record<string, number> = {};
+      for (const k of ['energie', 'desir', 'joie', 'clarte']) { const v = Number(input[k]); if (v >= 1 && v <= 10) scores[k] = Math.round(v); }
+      if (!Object.keys(scores).length) return '❌ energie, desir, joie, clarte de 1 à 10.';
+      await addLog({ kind: 'retour', scores });
+      const cb = comeback(await readLibLog(), s.start);
+      const first = cb[0], last = cb.at(-1);
+      const diff = first && last && last !== first ? (Object.keys(scores) as Array<keyof Comeback>).map(k => first[k] != null && last[k] != null ? `${k} ${first[k]}→${last[k]}` : '').filter(Boolean).join(', ') : '';
+      return `✅ Noté (${Object.entries(scores).map(([k, v]) => `${k} ${v}/10`).join(', ')}).${diff ? ` Depuis le début : ${diff}. Montre-lui ce qui revient.` : ' Premier relevé : on comparera chaque semaine.'}`;
+    }
+
+    case 'phq2': {
+      const a = Number(input['q1']), b2 = Number(input['q2']);
+      if (!(a >= 0 && a <= 3 && b2 >= 0 && b2 <= 3) || input['q1'] == null || input['q2'] == null) return 'Pose-lui les 2 questions (ces 2 dernières semaines, 0 = jamais, 1 = plusieurs jours, 2 = plus de la moitié des jours, 3 = presque tous les jours) : 1) peu d\'intérêt ou de plaisir à faire les choses ? 2) triste, déprimé ou sans espoir ? Puis phq2 q1 q2.';
+      await addLog({ kind: 'phq2', score: a + b2 });
+      return a + b2 >= 3 ? `PHQ-2 = ${a + b2}/6 → dépistage POSITIF : ce n'est pas un diagnostic, mais il faut en parler à son médecin cette semaine (la dépression se soigne très bien). Dis-le avec douceur, propose de préparer le RDV. Idées noires → 0800 32 123.` : `PHQ-2 = ${a + b2}/6 : pas de signal fort. On refait dans 2 semaines.`;
+    }
+
+    case 'rapport_medecin': {
+      const r = await doctorReport(s, await readLibLog());
+      await queueTelegramMessage(r);
+      return '✅ Rapport médecin envoyé sur Telegram (à montrer au médecin).';
+    }
+
+    case 'ma_voix': return await sendMyVoice(s) ? '🎙️ Vocal avec sa propre voix envoyé sur Telegram.' : '❌ Sa voix n\'est pas encore apprise (ma_voix status) : qu\'il envoie un vocal Telegram de 30 s.';
+
     case 'stop': {
       if (input['confirm'] !== true) return 'Il veut ARRÊTER LE PROGRAMME (pas le médicament) ? Il t\'a demandé de ne pas lâcher tant qu\'il n\'a pas arrêté le produit. Rappelle-le-lui, propose plutôt un palier plus long (action palier) ou d\'en parler au médecin. Seulement s\'il insiste clairement : stop confirm:true.';
       s.active = false;
@@ -455,7 +616,7 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
       return 'Programme mis en pause à sa demande. Reste à l\'écoute, propose de reprendre dans quelques jours.';
     }
   }
-  return '❌ Action inconnue (status, start, prise, envie, resiste, symptomes, humeur, palier, medecin, set_plan, times, pourquoi, consequence, bilan, finish, stop).';
+  return '❌ Action inconnue (status, start, prise, envie, resiste, symptomes, humeur, palier, medecin, set_plan, times, pourquoi, consequence, si_alors, recompense, lettre, retour, phq2, rapport_medecin, ma_voix, bilan, finish, stop).';
 }
 
 // ── Bilans ───────────────────────────────────────────────────────────────────
@@ -480,7 +641,12 @@ async function weeklyBilan(send: boolean): Promise<string> {
     health,
     `${o.avoided} demis évités depuis le début · ${o.streak} jour(s) d'affilée dans le plan.`,
     o.nextDrop ? `Cette semaine : baisse le ${fmtDate(o.nextDrop.from)} → ${halvesShort(o.nextDrop.max)}/jour.` : 'Tu es au palier zéro. Chaque jour compte.',
+    o.bank ? `💰 Cagnotte : ${eur(o.bank.balance)} — gain du prochain jour validé : ${eur(o.bank.rate)}` : '',
+    o.comeback.length > 1 ? `✨ Ce qui revient : ${(['energie', 'desir', 'joie', 'clarte'] as const).map(k => { const a = o.comeback[0]![k], b = o.comeback.at(-1)![k]; return a != null && b != null ? `${k} ${a}→${b}` : ''; }).filter(Boolean).join(' · ')}` : '',
     s.doctor.status === 'a_appeler' ? '🩺 Le médecin n\'est toujours pas appelé : c\'est LA chose de la semaine.' : '',
+    '',
+    '❓ Cette semaine, de 1 à 10 : ton ÉNERGIE, ton DÉSIR, ta JOIE, ton esprit CLAIR ? (réponds par exemple « 5 4 6 5 »)',
+    daysBetween(s.start, localNow().date) % 14 < 7 ? '❓ Et ces 2 dernières semaines (0 jamais → 3 presque tous les jours) : peu de plaisir à faire les choses ? triste ou sans espoir ? (réponds par exemple « 1 2 »)' : '',
   ].filter(Boolean).join('\n');
   if (send) { await queueTelegramMessage(text); emitProactive('🕊️ Ton bilan Liberté de la semaine', 'info', text, 'kouider'); }
   return text;
@@ -496,7 +662,8 @@ export async function liberteMorningLine(): Promise<string> {
   const drop = s.steps.find(st => st.from === o.today);
   return [
     `🕊️ Liberté — jour ${o.day}/${o.totalDays}${drop ? ` · NOUVELLE ÉTAPE : ${drop.max === 0 ? 'JOUR ZÉRO, plus rien 💪' : `${halvesShort(drop.max)} max`}` : ''}`,
-    o.allowed ? `Aujourd'hui : ${plan}. Rien au réveil : eau, douche, sport d'abord.` : `Aujourd'hui : rien. Chaque envie → dis-moi « envie », je suis là.`,
+    o.allowed ? `Aujourd'hui : ${plan}.` : `Aujourd'hui : rien. Chaque envie → dis-moi « envie », je suis là.`,
+    '🌅 Rituel du réveil, à la place du comprimé : 2 grands verres d\'eau → 20 pompes → 30 s d\'eau froide en fin de douche → lumière du jour.',
   ].join('\n');
 }
 
@@ -582,6 +749,38 @@ export async function jobLiberte(): Promise<void> {
       tomorrow.length ? `\n💊 Prépare ton pilulier de demain MAINTENANT : ${tomorrow.map(p => `${p.time} → ${halvesShort(p.n)}`).join(' · ')} (${halves(o.tomorrow)} au total). Le reste de la boîte : rangé loin de la table de nuit et de la voiture.` : '',
       s.doctor.status === 'a_appeler' ? '\n🩺 Demain 9h : appelle ton médecin. C\'est le pas qui rend tout le reste plus facile.' : '',
     ].filter(Boolean).join('\n'));
+  }
+
+  // Heures à risque (apprises de ses envies) : 15 min avant, on prévient avec SES plans si-alors
+  for (const h of o.riskHours) {
+    const t = h * 60 - 15;
+    if (now >= t && now < t + 10 && !dnd && await once(`risk:${today}:${h}`))
+      await queueTelegramMessage(`🕊️ Dans 15 min, c'est ${h}h — l'heure où l'envie revient souvent. On la prend de vitesse :\n${s.ifThen?.length ? s.ifThen.map(x => `• ${x}`).join('\n') : '• un grand verre d\'eau maintenant\n• 10 minutes de marche dès que tu peux\n• et si ça monte : dis-moi « envie »'}`);
+  }
+
+  // Jour de marche (le palier baisse aujourd'hui) : appel à 12h30 pour voir comment il tient
+  const drop = s.steps.find(st => st.from === today);
+  if (drop && hhmm >= '12:30' && hhmm < '18:00')
+    await autoCall(`liberte-drop-${today}`, drop.max === 0
+      ? 'Kouider, c\'est Dzaryx. Jour zéro aujourd\'hui. Je voulais juste entendre ta voix. Comment tu tiens ?'
+      : `Salut Kouider, c'est Dzaryx. Aujourd'hui tu es descendu à ${drop.max} demis. Comment tu te sens ? Le manque, ça va ?`);
+
+  // Jour zéro, le matin : sa lettre + rapporter les boîtes restantes à la pharmacie (elles reprennent les médicaments non utilisés)
+  if (drop?.max === 0 && hhmm >= '08:00' && !dnd && await once(`zero:${today}`))
+    await queueTelegramMessage(`🕊️ JOUR ZÉRO.\n${s.letter ? `\nTa lettre, écrite au début :\n« ${s.letter} »\n` : ''}\n🧹 Geste fort aujourd'hui : rapporte TOUTES les boîtes qui restent à la pharmacie (elles reprennent les médicaments non utilisés). Plus rien à la maison, plus rien dans la voiture.\n\nChaque envie → « envie ». Je suis là toute la journée.`);
+
+  // Veille du RDV médecin, 20h : le rapport d'une page à lui montrer
+  if (s.doctor.status === 'rdv_pris' && s.doctor.date?.slice(0, 10) === addDays(today, 1) && hhmm >= '20:00' && await once(`report:${today}`))
+    await queueTelegramMessage(`📋 Demain, ton médecin. Montre-lui ça (tout est vrai, c'est toi qui l'as noté) :\n\n${await doctorReport(s, await readLibLog())}`);
+
+  // Montre / Santé : nuit très courte ou cœur au repos bien plus haut que d'habitude → journée allégée proposée (une fois)
+  if (hhmm >= '09:00' && hhmm < '12:00') {
+    const hd = await import('./ai-util.js').then(m => m.kvJson<Array<{ date: string; sleep_h?: number; rhr?: number }>>('health:daily', [])).catch(() => []);
+    const t = hd.find(x => x.date === today), past = hd.filter(x => x.date < today && x.rhr).slice(-14);
+    const avgRhr = past.length >= 5 ? past.reduce((a, x) => a + x.rhr!, 0) / past.length : 0;
+    const why = t?.sleep_h && t.sleep_h < 5 ? `${String(t.sleep_h).replace('.', ',')} h de sommeil` : t?.rhr && avgRhr && t.rhr >= avgRhr + 8 ? `cœur au repos à ${t.rhr} (d'habitude ${Math.round(avgRhr)})` : '';
+    if (why && !dnd && await once(`body:${today}`))
+      await queueTelegramMessage(`🩺 Ta montre dit : ${why}. C'est souvent le corps qui travaille pendant la baisse — normal, et ça passe. Aujourd'hui : séance légère ou marche, beaucoup d'eau, coucher tôt. Je te la cale plus légère si tu veux (dis « séance légère »).`);
   }
 
   // Silence : rien noté depuis 2 jours alors qu'il en prend encore → appel
