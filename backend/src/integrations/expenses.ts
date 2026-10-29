@@ -22,12 +22,19 @@ export function ensureExpenseColumns(): Promise<boolean> {
   return carColumn;
 }
 
+/** « Fiat 500X » = « Fiat 500 X » = « fiat-500x » : sans espaces, tirets ni accents (29/10 : résa refusée pour un espace). */
+export const squashCarName = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
 export async function findCar(name: string): Promise<Car | Car[] | null> {
-  const { data } = await supabase.from('cars').select('id, name').ilike('name', `%${name.trim()}%`).limit(5);
-  const cars = (data ?? []) as Car[];
+  const q = squashCarName(name);
+  if (!q) return null;
+  const { data } = await supabase.from('cars').select('id, name');
+  const all = (data ?? []) as Car[];
+  const exact = all.filter(c => squashCarName(c.name) === q);
+  if (exact.length === 1) return exact[0]!;
+  const cars = exact.length ? exact : all.filter(c => squashCarName(c.name).includes(q) || (q.length >= 5 && q.includes(squashCarName(c.name))));
   if (!cars.length) return null;
-  const exact = cars.find(c => c.name.toLowerCase() === name.trim().toLowerCase());
-  return exact ?? (cars.length === 1 ? cars[0]! : cars);
+  return cars.length === 1 ? cars[0]! : cars.slice(0, 5);
 }
 
 const fmt = (n: number, cur: string) => `${Math.round(n).toLocaleString('fr-FR')} ${cur === 'EUR' ? '€' : 'DA'}`;

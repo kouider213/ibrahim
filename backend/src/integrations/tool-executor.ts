@@ -2239,7 +2239,21 @@ async function createAgendaEventTool(input: Record<string, unknown>): Promise<st
 
   const eventId = await createAgendaEvent(title, startDatetime, endDatetime, description, allDay, input['location'] as string | undefined);
   if (!eventId) { const acc = await agendaAccess(); return `❌ Impossible d'ajouter le RDV à l'agenda FIK${acc.ok ? '' : ` : ${acc.reason}`}.`; }
+  await redis.set('agenda:last_created', eventId, 'EX', 7 * 86_400).catch(() => {});
   return `✅ RDV ajouté dans l'agenda FIK !\n📅 ${title}\n🗓️ ${startDatetime} → ${endDatetime}${description ? `\n📝 ${description}` : ''}\n🔗 Event ID: ${eventId}`;
+}
+
+/**
+ * 29/10 7h42 : le cerveau a envoyé l'id « last_created_event_id » (un nom de variable, pas un vrai id) → « introuvable ».
+ * Faux id évident → modification : dernier RDV créé (jamais pour une suppression) ; sinon on renvoie la liste des RDV avec leurs vrais id.
+ */
+async function resolveAgendaId(raw: string, allowLast = true): Promise<{ id: string } | { error: string }> {
+  const id = raw.trim();
+  const fake = !id || /last|dernier|created|event_?id|^id$|[<>{}\s]/i.test(id);
+  if (!fake) return { id };
+  const last = await redis.get('agenda:last_created').catch(() => null);
+  if (allowLast && last && /last|dernier|created/i.test(id)) return { id: last };
+  return { error: `❌ « ${id} » n'est pas un vrai id d'événement. Voici les RDV avec leurs id, reprends le bon :\n${await listAgendaEventsTool({ days: 30 })}` };
 }
 
 async function listAgendaEventsTool(input: Record<string, unknown>): Promise<string> {
@@ -2262,8 +2276,9 @@ async function listAgendaEventsTool(input: Record<string, unknown>): Promise<str
 }
 
 async function updateAgendaEventTool(input: Record<string, unknown>): Promise<string> {
-  const id = String(input['google_event_id'] ?? '').trim();
-  if (!id) return '❌ google_event_id requis — appelle list_agenda_events (il donne les id).';
+  const r = await resolveAgendaId(String(input['google_event_id'] ?? ''));
+  if ('error' in r) return r.error;
+  const id = r.id;
   const s = (k: string) => (typeof input[k] === 'string' && (input[k] as string).trim() ? (input[k] as string).trim() : undefined);
   const hh = (v?: string) => v?.match(/T(\d{2}:\d{2})/)?.[1] ?? v?.match(/^(\d{2}:\d{2})$/)?.[1];
   const ok = input['whole_series'] === true
@@ -2723,8 +2738,9 @@ async function updateProspectTool(input: Record<string, unknown>): Promise<strin
 }
 
 async function deleteAgendaEventTool(input: Record<string, unknown>): Promise<string> {
-  const googleEventId = input['google_event_id'] as string | undefined;
-  if (!googleEventId) return '❌ google_event_id requis — appelle list_agenda_events pour obtenir l\'id';
+  const r = await resolveAgendaId(String(input['google_event_id'] ?? ''), false)  // suppression : jamais deviner;
+  if ('error' in r) return r.error;
+  const googleEventId = r.id;
   if (!(await deleteAgendaEvent(googleEventId))) {
     const acc = await agendaAccess();
     return acc.ok ? '❌ Événement introuvable (déjà supprimé ?) — revérifie avec list_agenda_events.' : `❌ Pas d'accès à l'agenda FIK : ${acc.reason}`;

@@ -3,6 +3,13 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 29/10 — Fiabilité : quota Gemini, mémoire par le sens, voitures, agenda
+- Quota Gemini gratuit = 20 requêtes/jour/modèle : un modèle épuisé est sauté jusqu'à l'heure donnée par Google (« retry in 20h ») au lieu de 15 min → plus une requête perdue à chaque message.
+- gemini-flash-latest refusait la réflexion « minimal » (400 à chaque appel) → « low ».
+- Mémoire par le sens : 100 % Gemini (gratuit, toutes les clés), index neuf emb:*:g1. Avant : crédit OpenAI à 0 → questions Gemini comparées à des souvenirs OpenAI = résultats au hasard. Index gardé paquet par paquet.
+- Voitures : « Fiat 500X » = « Fiat 500 X » (espaces/tirets/accents ignorés) — résa refusée le 29/10 7h43.
+- Agenda : faux id (« last_created_event_id ») → modification sur le dernier RDV créé ; suppression → jamais deviné, liste des RDV renvoyée.
+
 ## 29/10 — Fix « ⚠️ Réponse de secours NON vérifiée » (11h42)
 - Cause : Gemini lançait un outil puis prenait un 429 (quota) au tour suivant → tout le secours agentique abandonnait et Groq répondait sans données ni historique.
 - agentic-fallback.ts : le cerveau suivant (autre Gemini → NVIDIA → OpenRouter → Groq) REPREND le tour avec les résultats d'outils déjà obtenus, sans les relancer (pas de doublon). Testé en simulation : 4 × 429 → NVIDIA finit avec l'outil.

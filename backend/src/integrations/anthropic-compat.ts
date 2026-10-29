@@ -181,9 +181,11 @@ function toOpenAI(body: Body, model: string, vision = false, maxTools = 120, dee
     .map(t => ({ type: 'function', function: { name: t.name, description: (t.description ?? '').slice(0, 1024), parameters: t.input_schema } }));
   // Gemini 3 : réflexion « minimal » (2 s au lieu de 10 s ; avec « low » la réflexion mangeait max_tokens → réponse coupée, 29/10).
   // Tâche importante (QUALITY) ou demande de fond : « medium » avec 8 000 tokens de marge, pour la qualité Claude.
+  // gemini-flash-latest refuse « minimal » (400 à chaque appel, 29/10) → « low » avec plus de marge
   const gemini = /^gemini/.test(model);
-  return { model, messages: msgs, max_tokens: deep ? 8192 : Math.min(Math.max(Number(body.max_tokens) || 1024, gemini ? 1024 : 0), 8000),
-    ...(gemini ? { reasoning_effort: deep ? 'medium' : 'minimal' } : {}), ...(tools.length ? { tools } : {}) };
+  const noMinimal = /^gemini-flash-latest$/.test(model);
+  return { model, messages: msgs, max_tokens: deep ? 8192 : Math.min(Math.max(Number(body.max_tokens) || 1024, gemini ? (noMinimal ? 4096 : 1024) : 0), 8000),
+    ...(gemini ? { reasoning_effort: deep ? 'medium' : noMinimal ? 'low' : 'minimal' } : {}), ...(tools.length ? { tools } : {}) };
 }
 
 /** Réponse OpenAI → message Anthropic. */
@@ -245,8 +247,9 @@ async function freeBrain(body: Body, quality = false): Promise<Response | null> 
       }
       // 23/10 : quota du jour (429), surcharge (503) → modèle sauté 15 min au lieu d'être réessayé à chaque tour
       if (!r.ok) {
-        if (ep.key !== 'groq' && ep.key !== 'openai' && [429, 503, 404, 410].includes(r.status)) markFailure(ep.qid ?? ep.model, r.status);
-        throw new Error(`${r.status} ${(await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 200)}`);
+        const detail = await r.text().catch(() => '');
+        if (ep.key !== 'groq' && ep.key !== 'openai' && [429, 503, 404, 410].includes(r.status)) markFailure(ep.qid ?? ep.model, r.status, detail);
+        throw new Error(`${r.status} ${detail.replace(/\s+/g, ' ').slice(0, 200)}`);
       }
       const out = toAnthropic(await r.json() as Body, ep.model, new Set(((oai.tools ?? []) as Body[]).map(t => String(t.function.name))));
       console.warn(`[claude-secours] réponse servie par ${ep.key} (${ep.model})${deep ? ' — réflexion' : ''}`);

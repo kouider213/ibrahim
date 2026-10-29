@@ -74,10 +74,18 @@ const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-3-flash-preview', 'gemini-3.6
 const quotaUntil = new Map<string, number>();
 export function markQuotaExhausted(model: string, ms = 15 * 60_000): void { quotaUntil.set(model, Date.now() + ms); }
 /** Modèle absent du compte (404) ou retiré (410) : sauté 24 h au lieu de coûter un appel à chaque message (Kimi, 29/10). */
-export function markFailure(qid: string, status?: number): void {
-  if (status === 404 || status === 410) markQuotaExhausted(qid, 24 * 3600_000);
-  else markQuotaExhausted(qid);
+// 29/10 : quota gratuit Gemini = 20 requêtes/jour/modèle, Google dit quand il revient (« Please retry in 20h3m43s »).
+// Avant : sauté 15 min puis réessayé à chaque message toute la journée (une requête perdue par message).
+export function markFailure(qid: string, status?: number, detail?: string): void {
+  if (status === 404 || status === 410) return markQuotaExhausted(qid, 24 * 3600_000);
+  const m = detail?.match(/retry in (?:(\d+)h)?(?:(\d+)m)?(?:([\d.]+)s)?/i);
+  const ms = m ? ((+(m[1] ?? 0)) * 3600 + (+(m[2] ?? 0)) * 60 + (+(m[3] ?? 0))) * 1000 : 0;
+  if (status === 429 && /PerDay/i.test(detail ?? '')) return markQuotaExhausted(qid, Math.min(Math.max(ms, 3600_000), 24 * 3600_000));
+  markQuotaExhausted(qid, Math.min(Math.max(ms, 15 * 60_000), 24 * 3600_000));
 }
+/** Gemini : « minimal » = rapide, mais gemini-flash-latest le refuse (400 « Thinking level MINIMAL is not supported »). */
+const NO_MINIMAL = /^gemini-flash-latest$/;
+export const geminiEffort = (model: string, deep: boolean) => deep ? 'medium' : NO_MINIMAL.test(model) ? 'low' : 'minimal';
 const usable = (model: string) => (quotaUntil.get(model) ?? 0) < Date.now();
 
 // ── Fournisseurs gratuits ajoutés le 27/10 : le modèle est pris dans leur liste du moment (préférences dans l'ordre),
@@ -337,7 +345,7 @@ export async function runAgenticFallback(
       tool_choice: 'auto',   // 29/10 : 'required' testé → Nemotron appelait update_car pour une question de dispo : jamais
       max_tokens:  ep.compact ? 1024 : deep ? 8192 : 4096,
       // Gemini 3 : réflexion « minimal » → 2 s au lieu de 10 s, et la réflexion ne mange plus la réponse (29/10)
-      ...(ep.key === 'gemini' ? { reasoning_effort: deep ? 'medium' : 'minimal' } : {}),
+      ...(ep.key === 'gemini' ? { reasoning_effort: geminiEffort(ep.model, deep) } : {}),
       temperature: 0.5,
     };
     // 23/10 : un Gemini figé faisait attendre 45 s en plein appel ; Nemotron réfléchit avant de répondre → 45 s
@@ -366,8 +374,8 @@ export async function runAgenticFallback(
     // quota (429), surcharge (503) ou figé (timeout) → ce modèle est sauté 15 min au lieu de refaire attendre
     const st = (err as { response?: { status?: number }; code?: string });
     const code = st.response?.status;
-    if (ep.key !== 'groq' && ep.key !== 'openai' && (code === 429 || code === 503 || code === 404 || code === 410 || st.code === 'ECONNABORTED')) markFailure(ep.qid ?? ep.model, code);
     const res = (err as { response?: { status?: number; data?: unknown } }).response;
+    if (ep.key !== 'groq' && ep.key !== 'openai' && (code === 429 || code === 503 || code === 404 || code === 410 || st.code === 'ECONNABORTED')) markFailure(ep.qid ?? ep.model, code, JSON.stringify(res?.data ?? ''));
     console.warn(`[agentic-fallback] ${ep.key}/${ep.model} FAILED status=${res?.status ?? 'network'} body=${JSON.stringify(res?.data ?? {}).slice(0, 200)} msg="${err instanceof Error ? err.message.slice(0, 120) : String(err)}" → provider suivant`);
   };
 
