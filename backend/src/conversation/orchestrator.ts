@@ -818,15 +818,23 @@ async function streamAudioSentences(text: string, sessionId: string): Promise<vo
   }
 }
 
-// Oranise le texte pour Houari : corrige les mots non-oranais (dima → toujours)
-// et les tournures marocaines courantes. Garde le mélange français/oranais naturel.
-function oranize(text: string, actor?: { ownerKey?: string }): string {
-  if (!text || actor?.ownerKey !== 'houari') return text;
-  return text
+// Oranise le texte : corrige les mots non-oranais (dima → toujours) et les tournures
+// marocaines courantes. Garde le mélange français/oranais naturel.
+// Pour tout le monde depuis 2026-10-29 (Kouider : « il parle marocain, il doit parler algérien »).
+const MOROCCAN_AR: Array<[string, string]> = [
+  ['ديال', 'تاع'], ['ديالي', 'تاعي'], ['ديالك', 'تاعك'], ['دابا', 'درك'], ['واخا', 'واه'], ['غادي', 'رايح'],
+  ['بغيت', 'حبيت'], ['مزيان', 'مليح'], ['مزيانة', 'مليحة'], ['شنو', 'واش'], ['فين', 'وين'], ['علاش', 'علاه'], ['خاصك', 'لازمك'],
+];
+function oranize(text: string, _actor?: { ownerKey?: string }): string {
+  if (!text) return text;
+  let out = text
     .replace(/\bdima\b/gi, 'toujours')
     .replace(/\bda[iï]men\b/gi, 'toujours')
     .replace(/\bghadi\b/gi, 'rayah')
     .replace(/\bdaba\b/gi, 'derk')
     .replace(/\bkhassek\b/gi, 'lazmek')
+    .replace(/\bdyal\b/gi, 'ta3')
     .replace(/\bwakha\b/gi, 'yesah');
+  for (const [ma, dz] of MOROCCAN_AR) out = out.replace(new RegExp(`(^|[^\\u0600-\\u06FF])${ma}(?![\\u0600-\\u06FF])`, 'g'), `$1${dz}`);
+  return out;
 }

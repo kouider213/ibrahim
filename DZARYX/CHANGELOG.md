@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-29 | Dzaryx 100 % algérien | constants.ts, call.ts, compact-prompt.ts, orchestrator.ts
+- Kouider : Dzaryx se disait « algérien marocain » et parlait darija marocaine. Nouvelle règle DZ_IDENTITY_RULE (constants.ts) : 100 % algérien d'Oran, créé par Kouider ; darija oranaise (wesh, kifach, derk, bezzaf, ta3…) et liste des mots marocains interdits (dyal, daba, ghadi, bghit, wakha, chnou…). Injectée dans le prompt principal, le prompt court (Groq), les appels Telegram/app (Kouider + invités).
+- oranize() appliqué à TOUT le monde (avant : Houari seul) + remplacement des mots marocains en lettres arabes (ديال→تاع، دابا→درك، واخا→واه، فين→وين…).
+
 ## 2026-10-29 00h30 | ROUTE (copilote avec des yeux) | road.ts (nouveau), jarvis.ts, eye.ts, simulator RouteScreen.tsx + Phone.tsx, sw v204
 - Page ROUTE (app v204) : caméra arrière + vitesse GPS → /api/jarvis/road toutes les 4 s → Gemini Lite : limite lue (gardée 3 km / 15 min), alerte vitesse > limite+4, dangers, panneaux (radar, école, sens interdit), plaques (road:plates + eye:log), boîte noire (chute ≥ 25 km/h en 6 s → 15 images en album Telegram, liens 30 j). Testé prod : panneau 50, 48 → rien, 63 → alerte.
 - Message du réveil 29/10 05:16 programmé (crontab VPS, /root/dzaryx-morning-msg → tgcall/outbox).
