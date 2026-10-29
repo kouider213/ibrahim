@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 29/10 nuit — LIBERTÉ v3 : quantité exacte + 10 aides (app v207)
+- Quantité EXACTE : « 1 comprimé et demi », « 3 demis », un quart ; « en tout aujourd'hui / hier j'en ai pris X » (total corrigé) ; annuler une erreur. Sélecteur précis dans l'app.
+- Mission anti-zombie du jour (+1 € cagnotte), victoires du jour (rappelées les jours durs), cohérence cardiaque 5 min, allié choisi par lui (jamais contacté par Dzaryx), « j'allège ta journée ? » les jours de marche, rappels d'eau les jours de manque, coucher protégé, musique + parc le plus proche pendant une envie, anniversaires 1/3/6/12 mois + appel, point désir/énergie 3 semaines après le zéro (prise de sang si besoin).
+
 ## 29/10 nuit — LIBERTÉ v2 : 13 aides en plus (app v206)
 - Cagnotte « gestion des contingences » (gain qui monte chaque jour validé, remis à 2 € après un écart, récompenses choisies), heures à risque apprises + message 15 min avant, plans « si… alors… », lettre à soi-même (relue au jour zéro / après un écart), vocal avec SA propre voix à chaque envie, « ce qui revient » (énergie, désir, joie, clarté chaque semaine), dépistage PHQ-2, rapport médecin (la veille du RDV + bouton), appel les jours de marche, jour zéro = rapporter les boîtes à la pharmacie, alerte montre (sommeil / cœur au repos), rituel du réveil, guidage respiration à voix haute en appel.
 

@@ -12,7 +12,7 @@ interface Overview {
   state: null | {
     active: boolean; med: string; baseline: number; start: string; steps: Step[]; times: string[]; holdDays: number; doctorPlan?: boolean;
     doctor: { status: 'a_appeler' | 'rdv_pris' | 'vu'; date?: string; note?: string }; why: string[]; consequence?: string; finishedAt?: string;
-    ifThen?: string[]; rewards?: Array<{ name: string; cost: number; at?: string }>; letter?: string;
+    ifThen?: string[]; rewards?: Array<{ name: string; cost: number; at?: string }>; letter?: string; ally?: { name: string; phone?: string };
   };
   today: string; hhmm: string; day: number; totalDays: number;
   allowed: number; taken: number; left: number; byNow: number;
@@ -27,12 +27,15 @@ interface Overview {
   riskHours: number[];
   comeback: Array<{ week: number; energie?: number; desir?: number; joie?: number; clarte?: number }>;
   phq2: number | null;
+  mission: { text: string; done: boolean } | null;
+  victories: Array<{ at: string; text: string }>;
+  calm: number;
 }
 const eur = (n: number) => `${n.toFixed(1).replace('.', ',').replace(',0', '')} €`;
 
 const DOVE = '#7dd3fc';
 const fmt = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
-const demis = (n: number) => `${n} demi${n > 1 ? 's' : ''}`;
+const demis = (n: number) => `${String(n).replace('.', ',')} demi${n > 1 ? 's' : ''}`;
 const TRIGGERS = ['réveil', 'stress', 'travail', 'fatigue', 'ennui', 'tristesse', 'douleur', 'dispute', 'habitude'];
 const SYMPTOMS = ['fatigue', 'anxiété', 'insomnie', 'frissons', 'sueurs', 'diarrhée', 'nez qui coule', 'jambes agitées', 'douleurs', 'irritable', 'moral bas', 'fourmillements'];
 
@@ -41,7 +44,7 @@ export default function LiberteScreen() {
   const [err, setErr] = useState('');
   const [toast, setToast] = useState('');
   const [busy, setBusy] = useState(false);
-  const [sheet, setSheet] = useState<null | 'sos' | 'sym' | 'doc' | 'why' | 'plan' | 'bank' | 'back'>(null);
+  const [sheet, setSheet] = useState<null | 'sos' | 'sym' | 'doc' | 'why' | 'plan' | 'bank' | 'back' | 'take' | 'calm'>(null);
 
   const load = useCallback(async () => {
     try { setO(await apiFetch<Overview>('/api/liberte')); setErr(''); } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); }
@@ -94,12 +97,26 @@ export default function LiberteScreen() {
         )}
         <div className="lib-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14 }}>
           <style>{'.lib-grid button{white-space:normal;padding:0 8px;line-height:1.2;width:100%;min-width:0}'}</style>
-          <Btn variant="primary" color={DOVE} disabled={busy} onClick={() => act({ action: 'prise', n: 1 }, '✅ Noté. Merci de dire la vérité.')}>💊 J'ai pris ½</Btn>
+          <Btn variant="primary" color={DOVE} disabled={busy} onClick={() => setSheet('take')}>💊 J'ai pris…</Btn>
           <Btn variant="danger" onClick={() => setSheet('sos')}>🔥 J'ai une envie</Btn>
           <Btn onClick={() => setSheet('sym')}>🤒 Mon état du jour</Btn>
           <Btn onClick={() => setSheet('why')}>❤️ Mes raisons</Btn>
+          <Btn color={T.violet} onClick={() => setSheet('calm')}>🌬️ Calme 5 min</Btn>
+          <Btn color={T.ok} onClick={() => { const v = prompt('Ta victoire du jour (même petite) ?'); if (v?.trim()) void act({ action: 'victoire', text: v.trim() }, '🏆 Victoire gardée'); }}>🏆 Une victoire</Btn>
         </div>
       </Card>
+
+      {o.mission && (
+        <Card accent={o.mission.done ? T.ok : T.violet} style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, color: T.muted }}>🎯 Mission anti-zombie du jour · +1 €</div>
+              <div style={{ fontSize: 14.5, fontWeight: 700, marginTop: 3, lineHeight: 1.35 }}>{o.mission.text}</div>
+            </div>
+            {o.mission.done ? <Badge color={T.ok}>✓ faite</Badge> : <Btn color={T.ok} disabled={busy} onClick={() => act({ action: 'mission' }, '🎯 Mission faite : +1 €')}>Fait</Btn>}
+          </div>
+        </Card>
+      )}
 
       {/* Médecin */}
       {s.doctor.status !== 'vu' && (
@@ -189,6 +206,12 @@ export default function LiberteScreen() {
           <div style={{ fontSize: 12.5, color: T.muted, marginTop: 4 }}>Dzaryx te prévient 15 min avant, avec tes plans « si… alors… ».</div>
         </Card>
       )}
+      {o.victories.length > 0 && (
+        <Card style={{ marginBottom: 12 }}>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>🏆 Tes victoires</div>
+          {o.victories.slice(0, 5).map(v => <div key={v.at} style={{ fontSize: 13.5, padding: '4px 0', color: T.text }}>• {v.text} <span style={{ color: T.faint, fontSize: 12 }}>{fmt(v.at.slice(0, 10))}</span></div>)}
+        </Card>
+      )}
       {o.triggers.length > 0 && (
         <Card style={{ marginBottom: 12 }}>
           <div style={{ fontWeight: 700, marginBottom: 8 }}>🎯 Ce qui déclenche tes envies</div>
@@ -215,9 +238,11 @@ export default function LiberteScreen() {
       {sheet === 'sos' && <SosSheet why={s.why} busy={busy} onClose={() => setSheet(null)} onAct={async b => { await act(b, b['action'] === 'resiste' ? '💪 Tenue ! Chaque envie tenue rend la suivante plus faible.' : '✅ Noté'); }} />}
       {sheet === 'sym' && <SymSheet onClose={() => setSheet(null)} onSave={async b => { await act(b); setSheet(null); }} />}
       {sheet === 'doc' && <DocSheet status={s.doctor.status} onReport={() => void act({ action: 'rapport_medecin' }, '📋 Rapport envoyé sur Telegram')} onClose={() => setSheet(null)} onSave={async b => { await act({ action: 'medecin', ...b }); setSheet(null); }} />}
-      {sheet === 'why' && <WhySheet why={s.why} consequence={s.consequence} ifThen={s.ifThen ?? []} letter={s.letter ?? ''} onIfThen={async t => { await act({ action: 'si_alors', text: t }, '✅ Plan gardé'); }} onLetter={async t => { await act({ action: 'lettre', text: t }, '✉️ Lettre gardée'); }} onClose={() => setSheet(null)} onAdd={async w => { await act({ action: 'pourquoi', why: w }, '❤️ Gardé. Dzaryx te le rappellera.'); }} onConsequence={async t => { await act({ action: 'consequence', text: t }); }} />}
+      {sheet === 'why' && <WhySheet ally={s.ally} onAlly={async (n, ph) => { await act({ action: 'allie', text: n, phone: ph }, '🤝 Allié enregistré'); }} why={s.why} consequence={s.consequence} ifThen={s.ifThen ?? []} letter={s.letter ?? ''} onIfThen={async t => { await act({ action: 'si_alors', text: t }, '✅ Plan gardé'); }} onLetter={async t => { await act({ action: 'lettre', text: t }, '✉️ Lettre gardée'); }} onClose={() => setSheet(null)} onAdd={async w => { await act({ action: 'pourquoi', why: w }, '❤️ Gardé. Dzaryx te le rappellera.'); }} onConsequence={async t => { await act({ action: 'consequence', text: t }); }} />}
       {sheet === 'bank' && <BankSheet o={o} onClose={() => setSheet(null)} onAct={async b => { await act({ action: 'recompense', ...b }); }} />}
       {sheet === 'back' && <BackSheet onClose={() => setSheet(null)} onSave={async b => { await act({ action: 'retour', ...b }, '✨ Noté. On compare chaque semaine.'); setSheet(null); }} />}
+      {sheet === 'take' && <TakeSheet o={o} busy={busy} onClose={() => setSheet(null)} onAct={async (b, ok) => { await act(b, ok); setSheet(null); }} />}
+      {sheet === 'calm' && <CalmSheet onClose={() => setSheet(null)} onDone={() => void act({ action: 'calme', n: 5 }, '🌬️ 5 minutes de calme. Bien joué.')} />}
       {sheet === 'plan' && <PlanSheet o={o} onClose={() => setSheet(null)} onTimes={async t => { await act({ action: 'times', times: t }, '✅ Heures enregistrées'); }} />}
     </Screen>
   );
@@ -375,11 +400,13 @@ function DocSheet({ status, onClose, onSave, onReport }: { status: string; onClo
   );
 }
 
-function WhySheet({ why, consequence, ifThen, letter, onClose, onAdd, onConsequence, onIfThen, onLetter }: { why: string[]; consequence?: string; ifThen: string[]; letter: string; onClose: () => void; onAdd: (w: string) => Promise<void>; onConsequence: (t: string) => Promise<void>; onIfThen: (t: string) => Promise<void>; onLetter: (t: string) => Promise<void> }) {
+function WhySheet({ ally, onAlly, why, consequence, ifThen, letter, onClose, onAdd, onConsequence, onIfThen, onLetter }: { ally?: { name: string; phone?: string }; onAlly: (n: string, ph: string) => Promise<void>; why: string[]; consequence?: string; ifThen: string[]; letter: string; onClose: () => void; onAdd: (w: string) => Promise<void>; onConsequence: (t: string) => Promise<void>; onIfThen: (t: string) => Promise<void>; onLetter: (t: string) => Promise<void> }) {
   const [w, setW] = useState('');
   const [c, setC] = useState(consequence ?? '');
   const [si, setSi] = useState('');
   const [l, setL] = useState(letter);
+  const [an, setAn] = useState(ally?.name ?? '');
+  const [ap, setAp] = useState(ally?.phone ?? '');
   return (
     <Sheet title="❤️ Mes raisons" subtitle="Ce que tu veux retrouver" onClose={onClose} fixed z={90}>
       {why.map(x => <Card key={x} accent={DOVE} pad={10} style={{ marginBottom: 6 }}>{x}</Card>)}
@@ -393,7 +420,12 @@ function WhySheet({ why, consequence, ifThen, letter, onClose, onAdd, onConseque
       <Btn disabled={!si.trim()} style={{ width: '100%', marginBottom: 18 }} onClick={async () => { await onIfThen(si.trim()); setSi(''); }}>Ajouter le plan</Btn>
       <SectionTitle>Ma lettre à moi-même</SectionTitle>
       <Field label="Pour les moments durs" hint="Dzaryx te la relira au jour zéro et si tu craques."><textarea style={{ ...inputStyle, minHeight: 110, padding: 12 }} value={l} onChange={e => setL(e.target.value)} placeholder="Kouider, si tu lis ça…" /></Field>
-      <Btn disabled={!l.trim()} style={{ width: '100%' }} onClick={() => onLetter(l.trim())}>Garder ma lettre</Btn>
+      <Btn disabled={!l.trim()} style={{ width: '100%', marginBottom: 18 }} onClick={() => onLetter(l.trim())}>Garder ma lettre</Btn>
+      <SectionTitle>Mon allié (facultatif)</SectionTitle>
+      <div style={{ fontSize: 12.5, color: T.muted, marginBottom: 8, lineHeight: 1.45 }}>Une personne de confiance que TU pourrais appeler dans un moment dur. Dzaryx te proposera de l'appeler — il ne la contactera jamais lui-même.</div>
+      <Field label="Prénom"><input style={inputStyle} value={an} onChange={e => setAn(e.target.value)} /></Field>
+      <Field label="Numéro"><input style={inputStyle} inputMode="tel" value={ap} onChange={e => setAp(e.target.value)} /></Field>
+      <Btn disabled={!an.trim()} style={{ width: '100%' }} onClick={() => onAlly(an.trim(), ap.trim())}>Enregistrer mon allié</Btn>
     </Sheet>
   );
 }
@@ -453,6 +485,56 @@ function BackSheet({ onClose, onSave }: { onClose: () => void; onSave: (b: Recor
         <Field key={k} label={`${labels[k]} : ${v[k]}/10`}><input type="range" min={1} max={10} value={v[k]} onChange={e => setV(x => ({ ...x, [k]: Number(e.target.value) }))} style={{ width: '100%' }} /></Field>
       ))}
       <div style={{ fontSize: 12.5, color: T.muted }}>Ce que ce produit éteint revient en général sur plusieurs semaines. Ces notes te montreront la preuve.</div>
+    </Sheet>
+  );
+}
+
+function TakeSheet({ o, busy, onClose, onAct }: { o: Overview; busy: boolean; onClose: () => void; onAct: (b: Record<string, unknown>, ok: string) => Promise<void> }) {
+  const [halves, setHalves] = useState(1);
+  const [mode, setMode] = useState<'now' | 'today' | 'hier'>('now');
+  const cp = (h: number) => `${String(h / 2).replace('.', ',')} comprimé${h > 2 ? 's' : ''}`;
+  const after = mode === 'now' ? o.taken + halves : halves;
+  return (
+    <Sheet title="💊 Combien exactement ?" subtitle="La vérité, même si c'est plus. Pas de jugement." onClose={onClose} fixed z={90}
+      footer={<Btn variant="primary" style={{ flex: 1 }} disabled={busy} onClick={() => onAct(mode === 'now' ? { action: 'prise', n: halves } : { action: 'total', n: halves, date: mode === 'hier' ? 'hier' : undefined }, '✅ Noté. Merci de dire la vérité.')}>
+        {mode === 'now' ? `Noter ${demis(halves)} (${cp(halves)})` : `Total ${mode === 'hier' ? "d'hier" : "d'aujourd'hui"} = ${demis(halves)}`}</Btn>}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+        {([['now', 'Je viens de prendre'], ['today', "Total d'aujourd'hui"], ['hier', "Total d'hier"]] as const).map(([k, l]) =>
+          <Btn key={k} variant={mode === k ? 'primary' : 'soft'} style={{ flex: 1, padding: '0 6px', whiteSpace: 'normal', fontSize: 12.5 }} onClick={() => { setMode(k); setHalves(k === 'now' ? 1 : o.taken || 1); }}>{l}</Btn>)}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+        {[0.5, 1, 2, 3, 4, 5, 6].map(h => <Btn key={h} variant={halves === h ? 'primary' : 'soft'} onClick={() => setHalves(h)}>{h === 0.5 ? '¼' : h % 2 ? `${(h - 1) / 2 || ''}½` : `${h / 2}`}</Btn>)}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 10 }}>
+        <Btn onClick={() => setHalves(h => Math.max(mode === 'now' ? 0.5 : 0, h - 0.5))}>−</Btn>
+        <div style={{ textAlign: 'center', minWidth: 120 }}>
+          <div style={{ fontSize: 30, fontWeight: 800 }}>{String(halves / 2).replace('.', ',')}</div>
+          <div style={{ fontSize: 12.5, color: T.muted }}>comprimé{halves > 2 ? 's' : ''} = {demis(halves)}</div>
+        </div>
+        <Btn onClick={() => setHalves(h => Math.min(30, h + 0.5))}>+</Btn>
+      </div>
+      {mode !== 'hier' && <div style={{ textAlign: 'center', fontSize: 13, color: after > o.allowed ? T.bad : T.muted }}>Aujourd'hui ça fera {demis(after)} sur {demis(o.allowed)} autorisés{after > o.allowed ? ' — au-dessus du plan, mais note-le quand même.' : '.'}</div>}
+      {o.taken > 0 && <Btn variant="ghost" style={{ width: '100%', marginTop: 14 }} onClick={() => onAct({ action: 'annuler' }, '↩️ Dernière prise annulée')}>↩️ Annuler la dernière prise notée (erreur)</Btn>}
+    </Sheet>
+  );
+}
+
+function CalmSheet({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  // Cohérence cardiaque : 6 respirations par minute (5 s inspire, 5 s expire) pendant 5 minutes — calme le stress et l'envie
+  const [t, setT] = useState(0);
+  const sent = useRef(false);
+  useEffect(() => { const id = setInterval(() => setT(x => x + 1), 1000); return () => clearInterval(id); }, []);
+  useEffect(() => { if (t >= 300 && !sent.current) { sent.current = true; onDone(); } }, [t, onDone]);
+  const inhale = t % 10 < 5, left = Math.max(0, 300 - t);
+  return (
+    <Sheet title="🌬️ Calme — 5 minutes" subtitle="Suis le cercle : il grandit, tu inspires ; il rétrécit, tu souffles." onClose={onClose} fixed z={90} accent={T.violet}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 0 20px' }}>
+        <div style={{ width: 180, height: 180, borderRadius: '50%', background: `radial-gradient(circle, ${tone(T.violet, 0.55)}, ${tone(T.violet, 0.06)})`, transform: `scale(${inhale ? 1 : 0.55})`, transition: 'transform 5s ease-in-out', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ fontSize: 24, fontWeight: 800 }}>{left ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : '✓'}</div>
+        </div>
+        <div style={{ fontSize: 19, fontWeight: 700, marginTop: 18 }}>{left ? (inhale ? 'Inspire par le nez…' : 'Souffle doucement…') : 'Bravo. Ton corps est plus calme.'}</div>
+        <div style={{ fontSize: 12.5, color: T.muted, marginTop: 10, textAlign: 'center', lineHeight: 1.45 }}>La cohérence cardiaque (6 respirations par minute) fait baisser le stress en quelques minutes. Trois fois par jour, c'est encore mieux.</div>
+      </div>
     </Sheet>
   );
 }
