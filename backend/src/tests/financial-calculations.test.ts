@@ -210,9 +210,10 @@ section('9. rentalDays (tranches de 24 h)');
 try {
   assert.equal(rentalDays('2026-11-03', '2026-11-07'), 4,        '03/11→07/11 = 4 j (règle de Kouider 18/10)');
   assert.equal(rentalDays('2026-11-03', '2026-11-07', null, '10:00', '10:00'), 4, '10h→10h = 4 j');
-  assert.equal(rentalDays('2026-11-03', '2026-11-07', null, '10h', '14h'), 5,     'retour 14h après départ 10h = 5 j');
+  assert.equal(rentalDays('2026-11-03', '2026-11-07', null, '10h', '14h'), 4,     'jour du retour jamais compté, même à 14h = 4 j');
+  assert.equal(rentalDays('2026-10-29', '2026-11-09'), 11,       '29/10→09/11 = 11 j (Djillali)');
   assert.equal(rentalDays('2026-11-03', '2026-11-07', null, '10:00', '09:30'), 4, 'retour plus tôt = 4 j');
-  assert.equal(rentalDays('2026-11-03T10:00', '2026-11-07T14:00'), 5,             'heures dans les dates ISO');
+  assert.equal(rentalDays('2026-11-03T10:00', '2026-11-07T14:00'), 4,             'heures dans les dates ISO, retour jamais compté');
   assert.equal(rentalDays('2026-11-03', '2026-11-07', null, null, '14:00'), 4,    'une seule heure connue → pas de jour en plus');
   assert.equal(rentalDays('2026-07-24', '2026-08-08'), 15,       '24/07→08/08 = 15 j');
   assert.equal(rentalDays('2026-05-01', '2026-05-01'), 1,        'même jour = 1 j minimum');

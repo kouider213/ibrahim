@@ -68,24 +68,16 @@ export async function seedPricingTable(): Promise<void> {
 //
 /**
  * Nombre de jours facturés d'une location = tranches de 24 h (Kouider 2026-10-18) : 03/11 → 07/11 = 4 j.
- * Si la voiture revient PLUS TARD que l'heure de départ (03/11 10h → 07/11 14h), le jour entamé compte : 5 j.
- * Sans heures connues → on compte en jours pleins (4 j). nb_days enregistré sur la réservation prioritaire.
+ * Le jour où le client rend la voiture ne compte JAMAIS, même s'il la rend plus tard que l'heure de départ
+ * (Kouider 2026-10-30 : 29/10 → 09/11 = 11 j × 40 € = 440 €). nb_days enregistré sur la réservation prioritaire.
  * Seule règle de calcul à utiliser partout (contrat, Houari, CA, dispo, devis).
  */
 export function rentalDays(startDate: string, endDate: string, nbDays?: number | null, startTime?: string | null, endTime?: string | null): number {
   if (nbDays != null && nbDays > 0) return nbDays;
   const diff = Math.round((Date.parse(String(endDate ?? '').slice(0, 10)) - Date.parse(String(startDate ?? '').slice(0, 10))) / 86_400_000);
   if (!Number.isFinite(diff)) return 1;
-  const from = minutesOf(startTime ?? timeOf(startDate)), to = minutesOf(endTime ?? timeOf(endDate));
-  const late = from >= 0 && to > from ? 1 : 0;
-  return Math.max(1, diff + late);
-}
-
-// « 10h », « 10:30 », « 14h15 » ou l'heure d'un ISO « 2026-11-03T10:00 » → minutes ; inconnue → -1 (il faut les 2 heures pour compter un jour en plus)
-function timeOf(d: string): string | null { const m = /T(\d{1,2}:\d{2})/.exec(String(d ?? '')); return m ? m[1]! : null; }
-function minutesOf(t: string | null | undefined): number {
-  const m = /^\s*(\d{1,2})\s*(?:h|:)\s*(\d{2})?/i.exec(String(t ?? ''));
-  return m ? Number(m[1]) * 60 + Number(m[2] ?? 0) : -1;
+  void startTime; void endTime; // heures gardées dans la signature : le jour du retour n'est plus jamais facturé
+  return Math.max(1, diff);
 }
 
 export function computeBookingFinancials(b: {

@@ -787,7 +787,7 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
     ? '\n📅 RAMADAN: Dates en période de Ramadan — tarifs spéciaux Ramadan peuvent s\'appliquer. Vérifie si une remise Ramadan a été accordée au client.'
     : '';
 
-  // nb_days = tranches de 24 h ; retour plus tard que l'heure de départ → +1 jour (rentalDays)
+  // nb_days = nombre de nuits : le jour du retour ne compte jamais (rentalDays, Kouider 30/10)
   const nb_days = rentalDays(input['start_date'] as string, input['end_date'] as string, null,
     input['start_time'] as string | undefined, input['end_time'] as string | undefined);
 
