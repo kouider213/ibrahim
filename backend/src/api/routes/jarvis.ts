@@ -125,6 +125,17 @@ router.post('/workout', express.text({ type: 'text/*', limit: '1mb' }), async (r
   const body = typeof req.body === 'string' ? { data: req.body } : (req.body ?? {}) as Record<string, unknown>;
   try { res.json(await import('../../integrations/workout-live.js').then(m => m.receiveWorkout(body))); } catch (e) { fail(res, e); }
 });
+// COACH DE VIE+ : identités, votes, intentions, décisions, couple, eau, prières (onglet JARVIS › Vie)
+router.get('/life', async (_req, res) => {
+  try { res.json(await import('../../integrations/life-plus.js').then(m => m.lifeOverview())); } catch (e) { fail(res, e); }
+});
+router.post('/life/action', async (req, res) => {
+  try {
+    const m = await import('../../integrations/life-plus.js');
+    const message = await m.lifeTool((req.body ?? {}) as Record<string, unknown>);
+    res.json({ message, overview: await m.lifeOverview() });
+  } catch (e) { fail(res, e); }
+});
 router.get('/health', async (_req, res) => {
   try { res.json({ text: [await import('../../integrations/jarvis-hub.js').then(m => m.healthText(14)), await import('../../integrations/workout-live.js').then(m => m.workoutsText(7)).catch(() => '')].filter(Boolean).join('\n\n') }); } catch (e) { fail(res, e); }
 });

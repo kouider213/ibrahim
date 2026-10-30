@@ -10,7 +10,7 @@ import { T, tone, PageHeader, Segmented, Card, Btn, Badge, Empty, Field, Screen,
 // Le micro est découpé aux pauses (petits morceaux envoyés au serveur). Jamais de <video> pendant que le micro tourne
 // (sur iPhone, une vidéo coupe le micro) : l'état des lieux vidéo a son propre onglet, micro éteint.
 
-type Tab = 'cerveau' | 'hud' | 'copilote' | 'escouade' | 'salle' | 'sante' | 'souffleur' | 'reunion' | 'sparring' | 'protocoles' | 'video';
+type Tab = 'vie' | 'cerveau' | 'hud' | 'copilote' | 'escouade' | 'salle' | 'sante' | 'souffleur' | 'reunion' | 'sparring' | 'protocoles' | 'video';
 type Kind = 'souffleur' | 'reunion' | 'sparring';
 interface Line { who: string; text: string; fr?: string; whisper?: string; me?: boolean }
 interface Meeting { id: string; kind: Kind; at: string; title: string; summary: string; decisions: string[]; promises: Array<{ who: string; what: string; when?: string }>; followup: string; minutes: number }
@@ -879,6 +879,76 @@ function Cerveau({ onAsk }: { onAsk: (p: string) => void }) {
   );
 }
 
+// ── 🧭 VIE : identités et votes, intentions, décisions, couple, récupération, eau, prières ──
+interface LifeOverview {
+  identities: Array<{ name: string; kind: string; image?: string; today: string[]; week: number }>;
+  intentions: Array<{ text: string; done?: boolean }>;
+  decisions: Array<{ id: string; text: string; followAt: string; verdict?: string }>;
+  couple: { date: string; time: string; place: string } | null;
+  prayer: string; water: string; readiness: string; curve: string;
+}
+function Vie({ onAsk }: { onAsk: (prompt: string) => void }) {
+  const [o, setO] = useState<LifeOverview | null>(null);
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { apiFetch<LifeOverview>('/api/jarvis/life').then(setO).catch(() => setMsg('Impossible de charger.')); }, []);
+  const act = async (body: Record<string, unknown>) => {
+    setBusy(true);
+    try { const r = await apiFetch<{ message: string; overview: LifeOverview }>('/api/jarvis/life/action', { method: 'POST', body: JSON.stringify(body) }); setO(r.overview); setMsg(r.message); }
+    catch { setMsg('Échec, réessaie.'); } finally { setBusy(false); }
+  };
+  if (!o) return <Empty icon="🧭" title={msg || 'Chargement…'} />;
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      {o.readiness && <Card accent={T.ok}><div style={{ fontSize: 13.5, lineHeight: 1.45 }}>{o.readiness}</div>{o.curve && <div style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12, color: T.muted, whiteSpace: 'pre-wrap', marginTop: 8 }}>{o.curve}</div>}</Card>}
+      <SectionTitle>🗳️ Qui je deviens</SectionTitle>
+      <div style={{ display: 'grid', gap: 10 }}>
+        {o.identities.map(i => (
+          <Card key={i.name} style={{ padding: 0, overflow: 'hidden' }}>
+            {i.image && <img src={i.image} alt="" loading="lazy" style={{ width: '100%', height: 120, objectFit: 'cover', display: 'block' }} />}
+            <div style={{ padding: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <b style={{ fontSize: 14.5 }}>{i.name}</b><Badge>{i.week} cette semaine</Badge>
+              </div>
+              <div style={{ fontSize: 12.5, color: i.today.length ? T.text : T.faint, marginTop: 4 }}>{i.today.length ? `✅ ${i.today.join(' · ')}` : 'Pas encore de vote aujourd\'hui'}</div>
+            </div>
+          </Card>
+        ))}
+      </div>
+      <Btn onClick={() => onAsk('Je veux changer mes identités « qui je veux devenir »')}>✏️ Changer mes identités</Btn>
+      <SectionTitle>🧭 Mes intentions de la semaine</SectionTitle>
+      <Card>
+        {o.intentions.length ? o.intentions.map((t, k) => (
+          <div key={k} onClick={() => !t.done && act({ action: 'intention_faite', n: k + 1 })} style={{ fontSize: 13.5, padding: '6px 0', cursor: t.done ? 'default' : 'pointer', opacity: t.done ? 0.55 : 1 }}>{t.done ? '✅' : '⬜'} {t.text}</div>
+        )) : <div style={{ fontSize: 13, color: T.faint }}>Choisies dimanche à la revue de vie (19h).</div>}
+        <Btn disabled={busy} onClick={() => act({ action: 'revue' })} style={{ marginTop: 8 }}>🧭 Lancer ma revue de vie maintenant</Btn>
+      </Card>
+      <SectionTitle>💑 Soirée à deux</SectionTitle>
+      <Card>
+        <div style={{ fontSize: 13.5 }}>{o.couple ? `Prochaine : ${o.couple.place} — ${o.couple.date.slice(8)}/${o.couple.date.slice(5, 7)} à ${o.couple.time.replace(':', 'h')}` : 'Je te propose une idée tous les 15 jours (mercredi midi).'}</div>
+        <Btn disabled={busy} onClick={() => act({ action: 'couple', op: 'propose' })} style={{ marginTop: 8 }}>💡 Une idée maintenant</Btn>
+      </Card>
+      <SectionTitle>🛑 Décisions</SectionTitle>
+      <Card>
+        {o.decisions.length ? o.decisions.map(d => <div key={d.id} style={{ fontSize: 13, padding: '4px 0' }}>• {d.text}<span style={{ color: T.faint }}>{d.verdict ? ` → ${d.verdict}` : ` (bilan le ${d.followAt.slice(8)}/${d.followAt.slice(5, 7)})`}</span></div>)
+          : <div style={{ fontSize: 13, color: T.faint }}>Dis « je veux acheter / investir / m'associer… » : je te fais le conseil avant de décider.</div>}
+        <Btn onClick={() => onAsk('J\'ai une grosse décision à prendre : ')} style={{ marginTop: 8 }}>🛑 J'ai une décision à prendre</Btn>
+      </Card>
+      <Card>
+        <div style={{ fontSize: 13, lineHeight: 1.5 }}>{o.water}</div>
+        {o.prayer && <div style={{ fontSize: 13, lineHeight: 1.5, marginTop: 6 }}>{o.prayer}</div>}
+        <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+          <Btn disabled={busy} onClick={() => act({ action: 'priere', op: 'rappels_on' })}>🔔 Rappels prière</Btn>
+          <Btn disabled={busy} onClick={() => act({ action: 'priere', op: 'rappels_off' })}>🔕 Sans rappel</Btn>
+          <Btn disabled={busy} onClick={() => act({ action: 'rapport' })}>📄 Rapport santé PDF</Btn>
+          <Btn disabled={busy} onClick={() => act({ action: 'correlations' })}>🔬 Mes bons jours</Btn>
+        </div>
+      </Card>
+      {msg && <Card accent={T.accent}><div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{msg}</div></Card>}
+    </div>
+  );
+}
+
 // ── 🩺 SANTÉ + 🍏 SIRI (Raccourcis iPhone) ───────────────────────────────────
 function SanteSiri() {
   const [text, setText] = useState('');
@@ -916,7 +986,8 @@ function SanteSiri() {
           {step(2, <>Action <b>Obtenir le contenu de l'URL</b> : <b>POST</b> sur <Copy label="wo" v={`${PRIMARY_BACKEND}/api/jarvis/workout`} /> En-tête <b>Authorization</b> = <Copy label="tok3" v={`Bearer ${token}`} /> Corps JSON : <code>event</code> = <b>start</b>, <code>type</code> = <b>tapis</b>.</>)}
           {step(3, <>Même chose avec <b>Se termine</b> (mêmes types). Avant l'URL, ajoute <b>Rechercher des échantillons de santé</b> × 2, filtre <b>Date de début : dans les dernières 60 minutes</b> : <b>Fréquence cardiaque</b> et <b>Énergie active</b>. Corps JSON : <code>event</code> = <b>end</b>, <code>type</code> = <b>tapis</b>, <code>heart_rate</code> et <code>active_kcal</code> = les résultats.</>)}
           {step(4, <>Refais les étapes 1 à 3 pour <b>Musculation traditionnelle</b> et <b>Renforcement fonctionnel</b>, avec <code>type</code> = <b>muscu</b> (2 automatisations : commence + se termine).</>)}
-          {step(5, <>À la salle, lance simplement l'entraînement sur ta montre. Si tu veux, dis un poids (« 60 kg 12 ») : il le note, sinon il suit au chrono.</>)}
+          {step(5, <>❤️ <b>« Dis Siri, Dzaryx cœur »</b> (sur le tapis) : nouveau raccourci nommé <b>Dzaryx cœur</b> → <b>Rechercher des échantillons de santé</b> Fréquence cardiaque, <b>dernières 2 minutes</b>, trier par date, limite 1 → <b>Obtenir le contenu de l'URL</b> POST sur la même adresse, corps JSON <code>event</code> = <b>pulse</b>, <code>heart_rate</code> = le résultat → <b>Obtenir la valeur du dictionnaire</b> « say » → <b>Énoncer le texte</b>. Il te dit ta zone et s'il faut accélérer ou ralentir.</>)}
+          {step(6, <>À la salle, lance simplement l'entraînement sur ta montre. Si tu veux, dis un poids (« 60 kg 12 ») : il le note, sinon il suit au chrono.</>)}
         </div>
       </Card>
       <Card accent={T.accent}>
@@ -944,7 +1015,7 @@ export default function JarvisScreen({ onAsk }: { onAsk: (prompt: string) => voi
     <Screen header={<>
       <PageHeader eyebrow="Dzaryx · mode Jarvis" title="JARVIS" subtitle="Il voit, il écoute, il conduit avec toi, il agit." />
       <div style={{ padding: '0 12px 8px', overflowX: 'auto' }}>
-        <Segmented<Tab> items={[{ id: 'cerveau', label: '🧠 Cerveau' }, { id: 'hud', label: '🕶️ HUD' }, { id: 'copilote', label: '🚗 Copilote' }, { id: 'escouade', label: '🛰️ Escouade' }, { id: 'salle', label: '🖥️ Salle' }, { id: 'sante', label: '🩺 Santé·Siri' }, { id: 'souffleur', label: '🎧 Souffleur' }, { id: 'reunion', label: '📝 Réunion' }, { id: 'sparring', label: '🥊 Entraîn.' },
+        <Segmented<Tab> items={[{ id: 'vie', label: '🧭 Vie' }, { id: 'cerveau', label: '🧠 Cerveau' }, { id: 'hud', label: '🕶️ HUD' }, { id: 'copilote', label: '🚗 Copilote' }, { id: 'escouade', label: '🛰️ Escouade' }, { id: 'salle', label: '🖥️ Salle' }, { id: 'sante', label: '🩺 Santé·Siri' }, { id: 'souffleur', label: '🎧 Souffleur' }, { id: 'reunion', label: '📝 Réunion' }, { id: 'sparring', label: '🥊 Entraîn.' },
           { id: 'protocoles', label: '⚡ Protocoles' }, { id: 'video', label: '🎥 État lieux' }]} value={tab} onChange={pick} />
       </div>
     </>}>
@@ -954,6 +1025,7 @@ export default function JarvisScreen({ onAsk }: { onAsk: (prompt: string) => voi
       {tab === 'copilote' && <Copilote />}
       {tab === 'escouade' && <Escouade />}
       {tab === 'salle' && <Salle onAsk={onAsk} />}
+      {tab === 'vie' && <Vie onAsk={onAsk} />}
       {tab === 'sante' && <SanteSiri />}
       {tab === 'souffleur' && <><LiveMode key="s" kind="souffleur" /></>}
       {tab === 'reunion' && <><LiveMode key="r" kind="reunion" /><History kind="reunion" /></>}

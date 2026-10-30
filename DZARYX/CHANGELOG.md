@@ -3,6 +3,14 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 30/10 — Coach de vie+ : identités et votes, revue de vie, couple, décisions, eau, prières, rapport santé (app v209)
+- Nouveau `life-plus.ts` + outil `vie` + tâche `life-plus` (*/15) + onglet app JARVIS › 🧭 Vie.
+- Identités « qui je veux devenir » (4 par défaut) : votes trouvés seuls chaque soir à 21h (GPS maison le soir, séances, pas, réservations, prospects, Liberté, moments avec son fils) + micro-action pour demain ; images de vision.
+- Revue de vie dimanche 19h : message (faits de la semaine + courbe récupération/charge + corrélations) + appel → 3 intentions dans l'agenda (mardi/jeudi 8h), relance 20h30 si pas notées.
+- Couple : idée de soirée à deux (resto halal / activité + météo) un mercredi sur deux, boutons, réservation agenda, rappel garde J-2, Waze le jour même ; jamais de contact avec sa femme.
+- Conseil avant grosse décision (chiffres, risques, « dors dessus » si fatigué / tard) + suivi à 30 jours.
+- Corrélations (sport, zone 2, pas → récupération / moral le lendemain, dès 14 jours), eau du jour (poids + sport + chaleur), rapport santé du mois en PDF (le 1er), surentraînement → semaine allégée auto, heures de prière au réveil (+ rappels sur demande), énergie + récupération au réveil, « Dzaryx cœur » (zone et consigne sur le tapis).
+
 ## 30/10 — Coach sport : il suit, il ne demande plus + séance en direct avec la montre (app v208)
 - Plus jamais « dis-moi kg × reps » : Kouider donne un poids s'il veut ; sinon le coach suit la séance au chrono (exercice suivant envoyé tout seul quand le temps prévu est passé).
 - Nouveau `workout-live.ts` + POST /api/jarvis/workout : automatisations Raccourcis « Entraînement Apple Watch » commence / se termine → coach lancé tout seul, tapis fini → muscu, fin → durée, kcal, cœur moyen/max, minutes par zone (FC max Tanaka), comparaison avec la fois d'avant, bilan.

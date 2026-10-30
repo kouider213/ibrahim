@@ -65,12 +65,12 @@ export async function loadLine(): Promise<string> {
   return `📈 Charge 7 jours : ${Math.round(week)} — ${ratio.toFixed(2).replace('.', ',')} × ta moyenne ${ratio > 1.5 ? '⚠️ trop d\'un coup : risque de blessure, allège 2-3 jours' : ratio > 1.3 ? '🟠 grosse semaine, dors bien' : ratio < 0.8 ? '🔵 semaine légère : tu peux pousser' : '✅ zone idéale'}.`;
 }
 
-/** Score de récupération 0-100 (façon Whoop / Athlytic) : VFC et cœur au repos vs ses 14 derniers jours, + sommeil s'il est connu. */
-export async function readiness(): Promise<{ score: number; line: string } | null> {
-  const all = await readJson<Array<{ date: string; sleep_h?: number; rhr?: number; hrv?: number }>>('health:daily', []);
-  const d = all.at(-1);
+type HDay = { date: string; sleep_h?: number; rhr?: number; hrv?: number };
+/** Score de récupération 0-100 d'un jour (index i de health:daily) : VFC et cœur au repos vs les 14 jours d'avant, + sommeil s'il est connu. */
+export function scoreDay(all: HDay[], i: number): { score: number; hAvg: number; rAvg: number } | null {
+  const d = all[i];
   if (!d || (!d.hrv && !d.rhr)) return null;
-  const prev = all.slice(-15, -1);
+  const prev = all.slice(Math.max(0, i - 14), i);
   const avg = (k: 'rhr' | 'hrv') => { const v = prev.map(x => Number(x[k] ?? 0)).filter(x => x > 0); return v.length >= 3 ? v.reduce((a, b) => a + b, 0) / v.length : 0; };
   const clamp = (x: number) => Math.max(-1, Math.min(1, x));
   let s = 60;
@@ -78,9 +78,23 @@ export async function readiness(): Promise<{ score: number; line: string } | nul
   if (d.hrv && h) s += 30 * clamp((d.hrv / h - 1) / 0.25);
   if (d.rhr && r) s -= 20 * clamp((d.rhr - r) / 6);
   if (d.sleep_h) s += 8 * clamp((d.sleep_h - 7) / 1.5);
-  const score = Math.max(0, Math.min(100, Math.round(s)));
-  const base = !h && !r ? ' (encore peu de jours pour comparer)' : '';
-  return { score, line: `🔋 Récupération ${score}/100${base} — ${score >= 67 ? 'feu vert, journée pour pousser' : score >= 34 ? 'normal : charges habituelles' : 'corps fatigué : séance légère, technique, et coucher tôt'} (VFC ${d.hrv ?? '?'}${h ? ` / ${Math.round(h)} d'habitude` : ''}, cœur au repos ${d.rhr ?? '?'}${r ? ` / ${Math.round(r)}` : ''}).` };
+  return { score: Math.max(0, Math.min(100, Math.round(s))), hAvg: h, rAvg: r };
+}
+
+/** Récupération du dernier jour reçu (façon Whoop / Athlytic). */
+export async function readiness(): Promise<{ score: number; line: string } | null> {
+  const all = await readJson<HDay[]>('health:daily', []);
+  const r = scoreDay(all, all.length - 1);
+  if (!r) return null;
+  const d = all.at(-1)!, { score, hAvg: h, rAvg: rr } = r;
+  const base = !h && !rr ? ' (encore peu de jours pour comparer)' : '';
+  return { score, line: `🔋 Récupération ${score}/100${base} — ${score >= 67 ? 'feu vert, journée pour pousser' : score >= 34 ? 'normal : charges habituelles' : 'corps fatigué : séance légère, technique, et coucher tôt'} (VFC ${d.hrv ?? '?'}${h ? ` / ${Math.round(h)} d'habitude` : ''}, cœur au repos ${d.rhr ?? '?'}${rr ? ` / ${Math.round(rr)}` : ''}).` };
+}
+
+/** Récupération jour par jour (courbe du dimanche, surentraînement, corrélations). */
+export async function readinessSeries(): Promise<Array<{ date: string; score: number }>> {
+  const all = await readJson<HDay[]>('health:daily', []);
+  return all.map((d, i) => ({ date: d.date, r: scoreDay(all, i) })).filter(x => x.r).map(x => ({ date: x.date, score: x.r!.score }));
 }
 
 /** POST /api/jarvis/workout — corps tolérant (Raccourcis) : { event: start|end|pulse, type, hr, kcal, duration, distance }. */
@@ -108,7 +122,13 @@ export async function receiveWorkout(body: Record<string, unknown>): Promise<{ o
     const hr = nums(pick(/heart|cardi|hr|bpm|pouls|fc/i)).at(-1);
     if (!hr) return { ok: true, say: 'Pas de battements reçus.' };
     const max = await hrMaxOf(), p = hr / max;
-    return { ok: true, say: `${Math.round(hr)} battements, ${Math.round(p * 100)} % de ton max : ${p >= 0.9 ? 'zone rouge, ralentis 1 minute' : p >= 0.8 ? 'zone 4, intense' : p >= 0.7 ? 'zone 3, tempo' : p >= 0.6 ? 'zone 2, parfait pour brûler les graisses' : 'zone 1, récupération'}.` };
+    const zone = p >= 0.9 ? 'zone 5, zone rouge' : p >= 0.8 ? 'zone 4, intense' : p >= 0.7 ? 'zone 3, tempo' : p >= 0.6 ? 'zone 2' : 'zone 1, récupération';
+    // Sur le tapis / le cardio : la cible est la zone 2 (60-70 % du max) → il dit quoi faire
+    const cardio = cur ? kindOf(cur.type) === 'cardio' : true;
+    const lo = Math.round(max * 0.6), hi = Math.round(max * 0.7);
+    const todo = !cardio ? (p >= 0.9 ? ' Respire, repos un peu plus long.' : '')
+      : p > 0.72 ? ` Ralentis un peu ou baisse l'inclinaison : vise ${lo} à ${hi}.` : p < 0.58 ? ` Accélère un peu ou monte l'inclinaison : vise ${lo} à ${hi}.` : ' Parfait, garde ce rythme.';
+    return { ok: true, say: `${Math.round(hr)} battements, ${zone}.${todo}` };
   }
 
   // Fin (ou envoi sans événement = fin)
@@ -139,7 +159,8 @@ export async function receiveWorkout(body: Record<string, unknown>): Promise<{ o
   // La séance du coach avance toute seule : cardio fini → muscu ; muscu finie → bilan
   const gym = await import('./gym-live.js');
   const coach = await gym.watchEnded(rec).catch(() => '');
-  const msg = `⌚ ${t} terminé : ${min} min${rec.kcal ? ` · 🔥 ${rec.kcal} kcal${cmp}` : ''}${rec.distanceKm ? ` · ${rec.distanceKm} km` : ''}${zLine}${advice}${coach ? `\n${coach}` : ''}\n${await loadLine().catch(() => '')}`.trim();
+  const water = await import('./life-plus.js').then(m => m.waterLine()).catch(() => '');
+  const msg = `⌚ ${t} terminé : ${min} min${rec.kcal ? ` · 🔥 ${rec.kcal} kcal${cmp}` : ''}${rec.distanceKm ? ` · ${rec.distanceKm} km` : ''}${zLine}${advice}${coach ? `\n${coach}` : ''}\n${await loadLine().catch(() => '')}${water ? `\n${water}` : ''}`.trim();
   await queueTelegramMessage(msg);
   // FORME + journal sport (comme le Raccourci Santé du soir)
   await import('./sport-coach.js').then(m => m.markWatchWorkout(localNow().date, min, t)).catch(() => null);

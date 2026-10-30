@@ -218,6 +218,9 @@ export async function energyToday(): Promise<{ score: number; line: string }> {
   if (t?.sleep_h) score += t.sleep_h >= 7 ? 1 : t.sleep_h < 5.5 ? -2 : 0;
   if (t?.hrv && hrvAvg) score += t.hrv > hrvAvg * 1.1 ? 1 : t.hrv < hrvAvg * 0.85 ? -1 : 0;
   if (mood && Date.now() - mood.at < 4 * 3600_000) score += mood.energy >= 7 ? 1 : mood.energy <= 3 ? -2 : 0;
+  // Récupération de la montre (workout-live.ts) : très basse / très haute
+  const rec = await import('./workout-live.js').then(m => m.readiness()).catch(() => null);
+  if (rec) score += rec.score >= 75 ? 1 : rec.score < 34 ? -2 : 0;
   score = Math.max(1, Math.min(10, score));
   return { score, line: `⚡ Énergie ${score}/10${p ? ` · tes heures fortes : ${p.peak.join(', ')} · creux : ${p.low.join(', ')}` : ''}${t?.sleep_h ? ` · nuit ${t.sleep_h} h` : ''}` };
 }
