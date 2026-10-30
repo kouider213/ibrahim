@@ -106,9 +106,11 @@ export async function jobDepartureWatch(): Promise<void> {
 
     const t = await drive(origin, dest);
     if (!t) continue;
+    // Garé à côté (≤ 4 min, < 1,5 km) avec un GPS frais = déjà arrivé (30/10 : appel « pars pour Belgique, 3 min de route » alors qu'il était au travail)
+    if (routineTrip && fresh && t.min <= 4 && far < 1.5) { await kvSet(key, JSON.stringify({ ...st, done: true }), 86_400); continue; }
     const airport = /^🧳/u.test(title);
     const leaveBy = start - (t.min + (airport ? 0 : 5)) * 60_000;
-    const name = title.replace(/^[^\p{L}\d]+/u, '').split(' — ')[0]!.trim();
+    const name = /^✈️ Belgique/u.test(title) ? 'le travail' : title.replace(/^[^\p{L}\d]+/u, '').split(' — ')[0]!.trim();
     const traffic = t.min - t.normal >= 5 ? ` 🔴 trafic chargé (+${t.min - t.normal} min)` : t.min - t.normal >= 2 ? ' 🟡 un peu de trafic' : ' 🟢 fluide';
     const maps = `🧭 Waze : https://waze.com/ul?ll=${dest.lat},${dest.lng}&navigate=yes`;   // Waze seulement (Kouider 20/10)
 

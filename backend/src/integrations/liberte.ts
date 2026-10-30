@@ -803,7 +803,7 @@ export async function liberteMorningLine(): Promise<string> {
   if (!o || !s?.active || s.finishedAt) return '';
   await kvSet(sentKey(`morning:${o.today}`), '1', 2 * 86_400);
   const plan = o.plan.filter(p => p.n).map(p => `${p.time} → ${halvesShort(p.n)}`).join(' · ');
-  const drop = s.steps.find(st => st.from === o.today);
+  const drop = s.steps.find((st, i) => i > 0 && st.from === o.today);   // le 1er palier = dose de départ, pas une baisse (30/10)
   return [
     `🕊️ Liberté — jour ${o.day}/${o.totalDays}${drop ? ` · NOUVELLE ÉTAPE : ${drop.max === 0 ? 'JOUR ZÉRO, plus rien 💪' : `${halvesShort(drop.max)} max`}` : ''}`,
     o.allowed ? `Aujourd'hui : ${plan}.` : `Aujourd'hui : rien. Chaque envie → dis-moi « envie », je suis là.`,
@@ -894,7 +894,7 @@ export async function jobLiberte(): Promise<void> {
   // Soir 21h15 : la vérité du jour + manque + moral + pilulier de demain
   if (hhmm >= '21:15' && hhmm < '22:30' && !dnd && await once(`evening:${today}`)) {
     const tomorrow = slotPlan(o.tomorrow, s.times, s.wakeDose).filter(p => p.n);
-    const drop = s.steps.find(st => st.from === addDays(today, 1));
+    const drop = s.steps.find((st, i) => i > 0 && st.from === addDays(today, 1));
     await queueTelegramMessage([
       `🌙 Liberté — ta journée : ${o.taken ? `${halvesShort(o.taken)} noté${o.taken > 1 ? 's' : ''} sur ${o.allowed} autorisé${o.allowed > 1 ? 's' : ''}` : o.allowed ? 'rien de noté aujourd\'hui. Tu en as pris combien vraiment ? La vérité, sans jugement.' : 'jour sans rien 🕊️'}${o.taken > o.allowed ? ' — demain on repart.' : o.taken ? ' ✅' : ''}`,
       '❓ Ton manque de 0 à 10 ? Ton moral de 1 à 10 ? Et ta VICTOIRE du jour, même petite ?',
@@ -913,7 +913,7 @@ export async function jobLiberte(): Promise<void> {
   }
 
   // Jour de marche (le palier baisse aujourd'hui) : appel à 12h30 pour voir comment il tient
-  const drop = s.steps.find(st => st.from === today);
+  const drop = s.steps.find((st, i) => i > 0 && st.from === today);
   if (drop && hhmm >= '12:30' && hhmm < '18:00')
     await autoCall(`liberte-drop-${today}`, drop.max === 0
       ? 'Kouider, c\'est Dzaryx. Jour zéro aujourd\'hui. Je voulais juste entendre ta voix. Comment tu tiens ?'

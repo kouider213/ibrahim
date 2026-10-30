@@ -3,6 +3,14 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 30/10 — Bugs de l'échange du jour
+- Thinkdiag 2 : « Oui fais-le » → usine_business a bien tourné (étude + page) mais le garde-fou anti-invention l'a pris pour une fausse action et a répondu EN ARABE. Outils Jarvis qui lancent un vrai travail ajoutés aux actions reconnues ; langue des messages de garde détectée sur SES mots seulement (sans les consignes [Contexte…]) et, pour Kouider, darija seulement s'il écrit en lettres arabes.
+- Atelier : la page Thinkdiag citait Bruxelles 4 fois → règle de discrétion clients dans le prompt de l'atelier ; page corrigée (« importé d'Europe »).
+- GPS : flashé par un radar à Simonis en route vers la salle → « je te vois au travail, tout va bien ? ». L'arrivée au travail attend maintenant 4 min sur place.
+- Fin de séance : le modèle inventait « Épaules jeudi » (jour de repos) → op=stop renvoie la vraie prochaine séance du planning.
+- Liberté : appel 12h30 « tu es descendu à 6 demis » alors qu'aujourd'hui = dose de départ → le 1er palier n'est plus compté comme une baisse (appel, message du matin, veille, « j'allège ? »).
+- Départs : appel « pars pour Belgique, 3 min de route » alors qu'il était déjà au travail → trajet travail/salle à ≤ 4 min et < 1,5 km avec GPS frais = déjà arrivé ; « ✈️ Belgique » se dit « le travail ».
+
 ## 30/10 — Conscience : plus de « hier » pris pour « aujourd'hui »
 - 09h20 : « Djillali t'a envoyé un message… sa location a démarré à 09h00 » alors que tout datait de la veille. La Conscience recevait des dates brutes sans la date du jour : maintenant date_du_jour + dates relatives (aujourd'hui / hier / demain), état de chaque location (EN COURS / DÉPART / RETOUR AUJOURD'HUI), heure de réception des messages WhatsApp, brouillons WhatsApp de plus de 12 h ignorés.
 

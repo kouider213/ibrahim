@@ -381,10 +381,12 @@ export async function jobPresenceWatch(): Promise<void> {
         if (st.place === 'home' && place === 'away') await onLeftHome(st, now, prefs);
         else if (st.place === 'home') st.lastLeft = now;   // déjà arrivé ailleurs (positions espacées) : pas de « tu vas où ? »
         if (place === 'gym') await onGym(st, now);
-        else if (place === 'work') await onWork(st, now);
         else if (place === 'home') await onHomeEvening(st, now);
       }
       if (place !== st.place) { st.place = place; st.since = now; }
+      // Travail : seulement après 4 min sur place (30/10 : flashé par un radar à Simonis en route vers la salle
+      // → « je te vois au travail, tout va bien ? » alors qu'il ne faisait que passer).
+      else if (place === 'work' && !gap && st.since && now - st.since >= 4 * 60_000 && hour >= 5 && hour < 23) await onWork(st, now);
     }
 
     // Brief : 10 min avant le travail s'il n'a pas eu lieu ; sans réponse 25 min plus tard → écrit

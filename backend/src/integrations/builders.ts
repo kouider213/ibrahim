@@ -86,8 +86,9 @@ interface Build { id: string; slug: string; title: string; ask: string; url: str
 const PUBLIC_BASE = process.env['PUBLIC_BACKEND_URL'] ?? 'https://ibrahim-backend-production.up.railway.app';
 
 export async function buildPage(ask: string, kind = 'outil'): Promise<Build> {
-  const html = await ai(`Construis ${kind === 'business' ? 'la page de présentation (landing page) de ce business' : 'cet outil / cette page web'} pour Kouider (FIK Conciergerie, Oran / Bruxelles) :
+  const html = await ai(`Construis ${kind === 'business' ? 'la page de présentation (landing page) de ce business' : 'cet outil / cette page web'} pour Kouider (FIK Conciergerie, Oran) :
 « ${ask} »
+⛔ Discrétion clients : la page est vue par des clients d'Oran → n'écris JAMAIS Bruxelles, Belgique, Belgium ni d'où vient la marchandise / où vit Kouider (dis « importé d'Europe » au besoin). Aucune date de RDV inventée.
 Si la page parle de FIK, utilise UNIQUEMENT ces vraies règles (n'invente aucun frais ni service) : sans caution ; acompte = 3 jours de location, déduit du total ; livraison GRATUITE à l'aéroport d'Oran (Es-Sénia) seulement, sinon retrait à l'agence Hay Badr ; kilométrage illimité ; assurance incluse ; toute l'Algérie ; 35 ans minimum ; passeport + permis ; WhatsApp +32 466 31 14 69 ; site fikconciergerie.com. 1 jour de location = un bloc de 24 h.
 Contraintes : UN SEUL fichier HTML complet (CSS et JavaScript dedans, aucun serveur, aucune clé d'API). Si des données doivent être gardées, utilise localStorage (avec try/catch). Mobile d'abord (iPhone), beau, moderne, thème sombre bleu néon façon Dzaryx, en français. Fonctionnel pour de vrai, pas une maquette. Pas de librairie externe sauf si indispensable (alors cdnjs.cloudflare.com avec une version exacte).
 Réponds UNIQUEMENT avec le code HTML, en commençant par <!doctype html>.`, { quality: true, max: 12000 });

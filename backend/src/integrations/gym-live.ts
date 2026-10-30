@@ -335,7 +335,16 @@ export async function liveTool(input: Record<string, unknown>): Promise<string> 
   }
   if (op === 'timer') { l.timer = !(input['on'] === false || input['on'] === 'false' || /off|non|stop/i.test(String(input['on'] ?? ''))); await saveLive(l); return `⏱️ Minuteur de repos ${l.timer ? 'activé' : 'coupé'}.`; }
   if (op === 'cardio_done') { l.liftsAt ??= Date.now(); await saveLive(l); const nx = remaining(l)[0]; return `✅ Cardio fait. ${nx ? `\n${exLine(nx, suggestFor(nx, await readSportLog(), l.date), needWarm(l, nx))}` : ''}\n${timeline(l).line}`; }
-  if (op === 'stop') { const t = await endLive(l, 'terminée'); return `${t}\n\n[Félicite-le en une phrase et donne LE point principal à améliorer.]`; }
+  if (op === 'stop') {
+    const t = await endLive(l, 'terminée');
+    // Prochaine séance VRAIE (30/10 : le modèle avait inventé « Épaules jeudi », jour de repos)
+    const sc = await import('./sport-coach.js');
+    const n = await sc.nextSessionDate().catch(() => null);
+    const first = n ? (await sc.sportSessionFor(n.date).catch(() => null))?.split('\n')[0] : null;
+    const day = n ? new Date(localTs(n.date, '12:00')).toLocaleDateString('fr-FR', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric' }) : '';
+    const nextLine = n && first ? `\nProchaine séance : ${day} — ${first}` : '';
+    return `${t}${nextLine}\n\n[Félicite-le en une phrase et donne LE point principal à améliorer.${nextLine ? ' Pour la prochaine séance, redis la ligne « Prochaine séance » TELLE QUELLE (jour et type), n\'en invente jamais une autre.' : ' Ne cite aucune prochaine séance (jour/type) : tu ne la connais pas.'}]`;
+  }
   return statusText(l);
 }
 
