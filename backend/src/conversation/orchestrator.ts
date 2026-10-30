@@ -465,6 +465,12 @@ export async function processMessage(
         if (imageBase64) {
           console.log(`[VISION_RUNTIME] ${fp.key}_status=success chars=${safeText.length}`);
         }
+        // Garde bloquée = le cerveau rapide a parlé de données sans outil → le cerveau avec outils reprend le tour
+        // (29/10 : « La promesse a été tenue » → « ⚠️ Je n'ai pas accès aux données en temps réel… » envoyé tel quel)
+        if (!imageBase64 && safeText.startsWith('⚠️')) {
+          console.warn(`[MOBILE_RUNTIME] fast_path=${fp.key} guard blocked → agentic loop session=${sessionId}`);
+          break;
+        }
         console.log(`[MOBILE_RUNTIME] channel=${source_channel} session=${sessionId} provider=${fp.key} fast_path=true router_used=true legacy=false`);
         _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });
         saveConversationTurn(sessionId, 'assistant', safeText).catch(() => {});

@@ -74,6 +74,7 @@ class GeminiLiveWS:
         self.closing = False
         self.barged = False                    # « il parle » déjà signalé pour cette phrase
         self.heard_at = 0.0                    # dernier morceau de sa phrase transcrit
+        self.relanced = False                  # relance déjà faite pour cette phrase
         self.close_reason = ''
         self.reader = asyncio.create_task(self._read())
         self.watchdog = asyncio.create_task(self._watch())
@@ -214,6 +215,7 @@ class GeminiLiveWS:
                         if data:
                             if not self.responding:
                                 self._flush_input()
+                                self.relanced = False
                                 self.responding = True
                                 self._put({'type': 'response.created'})
                             self._put({'type': 'response.output_audio.delta', 'delta': data})   # PCM 24 kHz comme OpenAI
@@ -248,8 +250,13 @@ class GeminiLiveWS:
             await asyncio.sleep(0.5)
             if (self.in_text.strip() and not self.responding and not self.pending_tools and not self.tool_names
                     and time.monotonic() - self.heard_at > STALL_S):
+                if self.relanced:   # 29/10 19h16 : relancé, toujours muet, Kouider a raccroché après 15 s de vide
+                    log.warning('Gemini muet même après la relance → bascule sur le cerveau Dzaryx')
+                    self._put({'type': 'dzaryx.stall'})
+                    return
                 log.warning('Gemini ne répond pas à %r → relance', self.in_text.strip()[:80])
-                self.heard_at = time.monotonic() + 6   # une relance, pas une rafale
+                self.relanced = True
+                self.heard_at = time.monotonic() + 1   # 5 s pour répondre à la relance, sinon bascule
                 await self._text(NOTE + 'Il a fini de parler : réponds-lui maintenant.', True)
 
     def _end_turn(self) -> None:

@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 30/10 — Appels qui coupent + LIBERTÉ prise du réveil
+- Appels : Gemini Live (Google) coupait 2× par appel (1011 « Internal error », 1008) → « pardon, petite coupure » en boucle, Kouider ne se sentait pas compris. Maintenant la reconnexion prend un AUTRE modèle voix (celui qui a coupé est écarté 1 h, « -latest » en dernier) et une 2e coupure en moins d'une minute passe l'appel sur le cerveau Dzaryx (l'appel continue).
+- Gemini muet même après la relance → bascule sur le cerveau Dzaryx (fini les 15 s de vide).
+- LIBERTÉ : une même prise dont il reparle n'est plus comptée 2× (5 demis notés à 5h25 puis 6h05 → faux dépassement, palier repoussé, appel de 8h). Nouvelle action `reveil` : sa prise du réveil (5 demis) reste groupée, le reste se répartit ; corriger le total / annuler efface le faux dépassement et remet le palier à sa date.
+- Repris du 29/10 : garde « ⚠️ pas accès aux données » → le cerveau avec outils reprend le tour ; « comment tu vas » demandé une seule fois par silence ; heure de retour du sport calculée (ligne 🏠 RETOUR) ; nettoyage <think>/caractères chinois des cerveaux gratuits.
+
 ## 29/10 nuit — LIBERTÉ v3 : quantité exacte + 10 aides (app v207)
 - Quantité EXACTE : « 1 comprimé et demi », « 3 demis », un quart ; « en tout aujourd'hui / hier j'en ai pris X » (total corrigé) ; annuler une erreur. Sélecteur précis dans l'app.
 - Mission anti-zombie du jour (+1 € cagnotte), victoires du jour (rappelées les jours durs), cohérence cardiaque 5 min, allié choisi par lui (jamais contacté par Dzaryx), « j'allège ta journée ? » les jours de marche, rappels d'eau les jours de manque, coucher protégé, musique + parc le plus proche pendant une envie, anniversaires 1/3/6/12 mois + appel, point désir/énergie 3 semaines après le zéro (prise de sang si besoin).

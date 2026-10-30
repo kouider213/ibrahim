@@ -47,7 +47,7 @@ export async function setHomeBy(date: string, hhmm: string | null): Promise<void
   const l = await getLive();
   if (l && l.date === date) { if (hhmm) l.homeBy = hhmm; else delete l.homeBy; await saveLive(l); }
 }
-async function getHomeBy(date: string): Promise<string | null> {
+export async function getHomeBy(date: string): Promise<string | null> {
   try { return (JSON.parse((await kvGet(HOMEBY_KEY)) ?? '{}') as Record<string, string>)[date] ?? null; } catch { return null; }
 }
 

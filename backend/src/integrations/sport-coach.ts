@@ -893,7 +893,7 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
 
   if (action === 'session' || action === 'today') {
     const t = await sportSessionFor(date);
-    return t ? `🏋️ ${fmt(date)} — ${t}` : `Pas de créneau sport à l'agenda le ${fmt(date)}.`;
+    return t ? `🏋️ ${fmt(date)} — ${t}${await homeLine(date)}` : `Pas de créneau sport à l'agenda le ${fmt(date)}.`;
   }
   if (action === 'swap') {
     const type = parseType(input['type']);
@@ -1013,6 +1013,22 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
   return ['🗓️ Ton programme sport (calé sur ton agenda) :', ...r.slots.map(s => `- ${fmt(s.date)} ${hm(Date.parse(s.start))}–${hm(Date.parse(s.end))} : ${customMap[s.date] ? `${customMap[s.date]!.emoji ?? '🎯'} ${customMap[s.date]!.label} (${customMap[s.date]!.focus})` : `${SESSIONS[s.type].emoji} ${SESSIONS[s.type].label} (${SESSIONS[s.type].focus})`}${s.minutes < 60 ? ` — version ${s.minutes} min` : ''}`)].join('\n');
 }
 
+/** Heure de retour à la maison calculée (jamais devinée par le cerveau) : « à quelle heure je rentre après le sport ? ». */
+async function homeLine(date: string): Promise<string> {
+  try {
+    const p = (await getState()).plan[date];
+    if (!p) return '';
+    const { getHomeBy, gymToHomeMin } = await import('./gym-live.js');
+    const [homeBy, road] = await Promise.all([getHomeBy(date), gymToHomeMin().catch(() => 20)]);
+    const end = Date.parse(p.end);
+    if (homeBy) {
+      const leave = localTs(date, homeBy) - (road + 3) * 60_000;
+      return `\n\n🏠 RETOUR (calculé, à redire tel quel) : il doit être à la maison à ${homeBy.replace(':', 'h')} → départ de la salle à ${hm(leave)} (≈ ${road} min de route + 3 min, trafic revérifié le jour même).${end > leave ? ` La séance prévue finit à ${hm(end)} : je l'appelle à ${hm(leave)} pour partir, le reste est raccourci.` : ''}`;
+    }
+    return `\n\n🏠 RETOUR (calculé, à redire tel quel) : fin de séance ${hm(end)} + ≈ ${road} min de route → à la maison vers ${hm(end + road * 60_000)}.`;
+  } catch { return ''; }
+}
+
 /** Prochain jour avec une séance prévue à partir de demain (pour « adapte ma séance de demain »). */
 export async function nextSessionDate(from = addDays(localNow().date, 1)): Promise<{ date: string; type: SessionType } | null> {
   const st = await getState();
@@ -1050,7 +1066,8 @@ const LIFT_RE = /strength|renfo|muscu|force|functional|fonctionnel|halt[ée]ro|w
 export async function planCustomDay(o: { date: string; start?: string; label?: string; exercises: ProgramExercise[]; before?: Array<{ name: string; min: number; flex?: boolean }>; after?: Array<{ name: string; min: number; flex?: boolean }>; source?: string; homeBy?: string }): Promise<string> {
   const { date } = o;
   if (date < localNow().date) return '❌ Cette date est passée.';
-  const homeBy = /^\d{1,2}[:h]\d{2}$/.test(o.homeBy ?? '') ? o.homeBy!.replace('h', ':').padStart(5, '0') : null;
+  // Pas d'heure donnée → on garde celle déjà demandée pour ce jour (une séance changée ne fait pas oublier « maison à 7h20 »)
+  const homeBy = /^\d{1,2}[:h]\d{2}$/.test(o.homeBy ?? '') ? o.homeBy!.replace('h', ':').padStart(5, '0') : await (await import('./gym-live.js')).getHomeBy(date);
   // min 0 / flex = « le temps qui me reste » : calé en direct sur l'heure où il doit partir (gym-live.ts)
   const blk = (l: Array<{ name: string; min: number; flex?: boolean }> | undefined, when: CardioBlock['when']): CardioBlock[] =>
     (l ?? []).filter(b => b?.name).map(b => { const flex = !!b.flex || Number(b.min) === 0; return { name: String(b.name).slice(0, 40), min: flex ? 15 : Math.max(1, Math.min(120, Math.round(Number(b.min) || 20))), when, ...(flex ? { flex } : {}) }; });

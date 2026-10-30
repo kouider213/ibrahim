@@ -599,16 +599,35 @@ function geminiSchema(x: unknown): unknown {
 
 // Modèle Gemini Live (voix native) : choisi dans la liste de Google, gardé 6 h
 let geminiLiveModel: { name: string; at: number } | null = null;
-async function pickGeminiLiveModel(key: string): Promise<string> {
-  if (geminiLiveModel && Date.now() - geminiLiveModel.at < 6 * 3600_000) return geminiLiveModel.name;
+// Modèle qui a planté en plein appel (1011 « Internal error », 1008 « entity not found ») : écarté 1 h
+// (30/10 : native-audio-latest coupé 2× par appel, 3 appels de suite → « il me comprend pas au téléphone »)
+const liveAvoid = new Map<string, number>();
+const liveList: string[] = [];
+async function pickGeminiLiveModel(key: string, avoid?: string): Promise<string> {
+  if (avoid && avoid.startsWith('models/')) {
+    liveAvoid.set(avoid, Date.now() + 3600_000);
+    if (geminiLiveModel?.name === avoid) geminiLiveModel = null;
+  }
+  const ok = (n: string) => (liveAvoid.get(n) ?? 0) < Date.now();
+  if (geminiLiveModel && ok(geminiLiveModel.name) && Date.now() - geminiLiveModel.at < 6 * 3600_000) return geminiLiveModel.name;
+  if (liveList.length && liveList.some(ok) && geminiLiveModel) {   // liste déjà connue : le suivant non écarté
+    const name = liveList.find(ok)!;
+    console.log(`[call] Gemini Live : ${avoid ?? '?'} écarté → ${name}`);
+    geminiLiveModel = { name, at: Date.now() };
+    return name;
+  }
   let name = 'models/gemini-2.5-flash-native-audio-preview-09-2025';
   try {
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=${key}`);
     const { models = [] } = await r.json() as { models?: Array<{ name: string; supportedGenerationMethods?: string[] }> };
     const live = models.filter(m => m.supportedGenerationMethods?.includes('bidiGenerateContent')).map(m => m.name);
     const rank = (n: string) => (n.includes('native-audio') ? 0 : 10) + (n.includes('preview') ? 1 : 0) + (n.includes('lite') ? 2 : 0);
-    live.sort((a, b) => rank(a) - rank(b) || b.localeCompare(a));
-    if (live[0]) name = live[0];
+    // que les modèles voix natives (pas transcribe / translate / robotics) ; « -latest » en dernier recours (alias mouvant, a planté 30/10)
+    const voice = live.filter(n => n.includes('native-audio'));
+    voice.sort((a, b) => (a.includes('latest') ? 1 : 0) - (b.includes('latest') ? 1 : 0) || rank(a) - rank(b) || b.localeCompare(a));
+    liveList.splice(0, liveList.length, ...voice);
+    const pick = voice.find(ok) ?? live.find(ok);
+    if (pick) name = pick;
     console.log('[call] Gemini Live modèles:', live.slice(0, 6).join(', '));
   } catch (err) {
     console.warn('[call] liste modèles Gemini:', err instanceof Error ? err.message : String(err));
@@ -685,7 +704,7 @@ router.post('/realtime-gemini', requireCallerAuth, async (req, res) => {
     const tools = realtimeTools(pcMode).map(t => ({
       name: t['name'], description: String(t['description'] ?? '').slice(0, 1000), parameters: geminiSchema(t['parameters'] ?? { type: 'object', properties: {} }),
     }));
-    res.json({ provider: 'gemini', key: env.GEMINI_API_KEY, model: await pickGeminiLiveModel(env.GEMINI_API_KEY),
+    res.json({ provider: 'gemini', key: env.GEMINI_API_KEY, model: await pickGeminiLiveModel(env.GEMINI_API_KEY, (req.body as { avoid?: string } | undefined)?.avoid),
       voice: 'Charon', instructions: pcMode ? pcInstructions(base) : base, tools,
       guestInstructions: who === 'kouider' && !pcMode ? guestInstructions(family) : undefined });
   } catch (err) {

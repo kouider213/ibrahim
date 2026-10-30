@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { cleanModelText } from '../utils/clean-text.js';
 import { kvGet, kvSet, kvDel } from '../integrations/app-store.js';
 import { supabase, saveConversationTurn } from '../integrations/supabase.js';
 import { env } from '../config/env.js';
@@ -32,7 +33,7 @@ function firstName(actor: CallActor): string {
  *  « Ne pas déranger » (dnd.ts) : rien ne sonne, même programmé — l'info attend son prochain appel.
  *  force = c'est lui qui vient de demander « appelle-moi ». */
 export async function callOwner(reason: string, actor: CallActor = 'kouider', opts: { force?: boolean } = {}): Promise<{ id: string; held?: boolean }> {
-  const clean = reason.trim().replace(/\s+/g, " ").slice(0, 1200);   // 1200 : place pour le travail préparé (call-tasks)
+  const clean = cleanModelText(reason).replace(/\s+/g, " ").slice(0, 1200);   // 1200 : place pour le travail préparé (call-tasks)
   if (actor === 'kouider' && !opts.force && (await getDnd() || await restDayReason())) {
     const { addToCallInbox } = await import('./auto-call.js');
     await addToCallInbox(clean.replace(/^\[TÂCHE:[^\]]+\]\s*/, '')).catch(() => {});

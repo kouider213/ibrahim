@@ -26,6 +26,7 @@ export interface LibState {
   start: string;               // AAAA-MM-JJ
   steps: LibStep[];            // paliers décroissants, le dernier = 0
   times: string[];             // heures de prise ['07:30', …]
+  wakeDose?: number;           // demis pris d'un coup au réveil (1re heure) — 30/10 : « 2 comprimés et demi déjà au réveil, donc 5 demis »
   holdDays: number;            // jours ajoutés par les paliers (manque fort, dépassement)
   doctorPlan?: boolean;        // plan donné par le médecin : Dzaryx ne l'accélère jamais
   doctor: { status: 'a_appeler' | 'rdv_pris' | 'vu'; date?: string; note?: string };
@@ -130,10 +131,15 @@ export function allowedOn(s: LibState, date: string): number {
 }
 const zeroDay = (s: LibState) => s.steps.find(st => st.max === 0)?.from ?? s.steps.at(-1)?.from ?? s.start;
 
-/** Répartition des demis autorisés sur les heures de prise (le surplus va aux premières ; s'il y en a moins que d'heures, on espace). */
-export function slotPlan(max: number, times: string[]): Array<{ time: string; n: number }> {
+/** Répartition des demis autorisés sur les heures de prise (le surplus va aux premières ; s'il y en a moins que d'heures, on espace).
+ *  wake = sa prise du réveil (1re heure) : gardée telle quelle, le reste se répartit sur les autres heures — les baisses se font d'abord l'après-midi. */
+export function slotPlan(max: number, times: string[], wake = 0): Array<{ time: string; n: number }> {
   const t = times.length ? times : DEFAULT_TIMES;
   if (max <= 0) return t.map(time => ({ time, n: 0 }));
+  if (wake > 0 && t.length > 1) {
+    const first = Math.min(wake, max), rest = max - first;
+    return [{ time: t[0]!, n: first }, ...(rest > 0 ? slotPlan(rest, t.slice(1)) : t.slice(1).map(time => ({ time, n: 0 })))];
+  }
   if (max >= t.length) return t.map((time, i) => ({ time, n: Math.floor(max / t.length) + (i < max % t.length ? 1 : 0) }));
   const pick = new Set(Array.from({ length: max }, (_, i) => Math.round(i * (t.length - 1) / Math.max(1, max - 1 || 1))));
   if (max === 1) { pick.clear(); pick.add(Math.min(1, t.length - 1)); }   // une seule : en fin de matinée, pas au réveil
@@ -293,7 +299,7 @@ async function syncAgenda(s: LibState): Promise<void> {
   for (const [i, st] of s.steps.entries()) {
     const end = s.steps[i + 1]?.from ?? addDays(st.from, 1);
     if (end <= today) continue;
-    const plan = slotPlan(st.max, s.times).filter(p => p.n).map(p => `${p.time} → ${p.n} demi${p.n > 1 ? 's' : ''}`).join(', ');
+    const plan = slotPlan(st.max, s.times, s.wakeDose).filter(p => p.n).map(p => `${p.time} → ${p.n} demi${p.n > 1 ? 's' : ''}`).join(', ');
     const title = st.max === 0 ? '🕊️ Liberté — JOUR ZÉRO' : `🕊️ Liberté — étape ${i + 1}/${n}`;
     const desc = st.max === 0 ? 'Plus rien. Dzaryx est là à chaque envie. Dis-lui « j\'ai une envie ».' : `Maximum ${st.max} demi(s) par jour. Prises : ${plan}. Rien en dehors.`;
     const id = await createAgendaEvent(title, `${st.from}T00:00:00`, `${st.max === 0 ? addDays(st.from, 1) : end}T00:00:00`, desc, true, undefined, { transparent: true }).catch(() => null);
@@ -346,7 +352,7 @@ export async function libOverview(): Promise<LibOverview> {
   const [s, log] = await Promise.all([getLib(), readLibLog()]);
   const { date: today, hhmm } = localNow();
   const allowed = s ? allowedOn(s, today) : 0;
-  const plan = s ? slotPlan(allowed, s.times) : [];
+  const plan = s ? slotPlan(allowed, s.times, s.wakeDose) : [];
   const taken = takenOn(log, today);
   const cr = log.filter(l => l.kind === 'envie');
   const weekAgo = Date.now() - 7 * 86_400_000;
@@ -440,6 +446,22 @@ const SOS_STEPS = [
   '⏱️ Une envie monte, atteint un pic et redescend en 10 à 20 minutes. Tu n\'as qu\'à tenir ce temps-là.',
 ];
 
+/** Le dépassement d'un jour était une erreur de saisie (total corrigé, prise annulée) : on l'efface et on rend les jours de palier ajoutés pour lui. */
+async function undoOverrun(s: LibState, date: string): Promise<string> {
+  const log = await readLibLog();
+  const days = log.filter(l => l.kind === 'palier' && l.note === 'dépassement' && dayOf(l.at) === date).reduce((a, l) => a + (l.n ?? 0), 0);
+  const kept = log.filter(l => !(dayOf(l.at) === date && (l.kind === 'depassement' || (l.kind === 'palier' && l.note === 'dépassement'))));
+  if (kept.length === log.length) return '';
+  await kvSet(LOG_KEY, JSON.stringify(kept));
+  if (days > 0) {
+    for (const st of s.steps) if (st.from > date) st.from = addDays(st.from, -days);
+    s.holdDays = Math.max(0, s.holdDays - days);
+    await saveLib(s);
+    await syncAgenda(s).catch(() => {});
+  }
+  return `↩️ Dépassement du ${fmtDate(date)} effacé${days ? ` et palier remis à sa date (prochaine baisse le ${fmtDate(s.steps.find(st => st.from > date)?.from ?? date)})` : ''}. `;
+}
+
 export async function liberteTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   if (/houari/i.test(sessionId ?? '')) return '❌ Réservé à Kouider.';
   const action = String(input['action'] ?? 'status');
@@ -477,9 +499,13 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
 
     case 'prise': {
       const n = qty(input) || 1;
+      // Même quantité déjà notée il y a moins de 2 h = il en reparle, ce n'est pas une 2e prise
+      // (30/10 : ses 5 demis du réveil notés à 5h25 puis encore à 6h05 → 10 comptés, faux dépassement, palier repoussé, appel)
+      const dup = input['nouvelle'] !== true && (await readLibLog()).filter(l => l.kind === 'prise' && l.n === n && Date.now() - Date.parse(l.at) < 2 * 3_600_000).at(-1);
+      if (dup) return `ℹ️ Déjà noté : ${halvesShort(n)} à ${localNow(Date.parse(dup.at)).hhmm} — PAS ajouté une 2e fois (aujourd'hui : ${halvesShort(takenOn(await readLibLog(), today))}). Si c'est vraiment une NOUVELLE prise en plus, demande-lui de confirmer puis rappelle liberte prise avec nouvelle:true.`;
       const log = await addLog({ kind: 'prise', n, note: String(input['note'] ?? '').slice(0, 200) || undefined });
       const allowed = allowedOn(s, today), taken = takenOn(log, today);
-      const plan = slotPlan(allowed, s.times), byNow = allowedByNow(plan, hhmm);
+      const plan = slotPlan(allowed, s.times, s.wakeDose), byNow = allowedByNow(plan, hhmm);
       if (s.finishedAt || taken > allowed) {
         const over = taken - allowed;
         await addLog({ kind: 'depassement', n: over });
@@ -675,7 +701,8 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
       await kvSet(LOG_KEY, JSON.stringify(log.slice(-1500)));
       const allowed = allowedOn(s, d);
       if (n > allowed && d >= s.start && !log.some(l => l.kind === 'depassement' && dayOf(l.at) === d)) await addLog({ kind: 'depassement', n: n - allowed, note: `total du ${d}` });
-      return `✅ ${d === today ? 'Aujourd\'hui' : `Le ${fmtDate(d)}`} : ${halvesShort(n)} au total (${String(n / 2).replace('.', ',')} comprimé${n > 2 ? 's' : ''}) pour ${halvesShort(allowed)} autorisés.${n > allowed ? ' Au-dessus du plan : sans jugement, demande ce qui s\'est passé, on repart.' : ' Dans le plan ✅.'} Merci pour la vérité.`;
+      const undone = n <= allowed ? await undoOverrun(s, d) : '';
+      return `${undone}✅ ${d === today ? 'Aujourd\'hui' : `Le ${fmtDate(d)}`} : ${halvesShort(n)} au total (${String(n / 2).replace('.', ',')} comprimé${n > 2 ? 's' : ''}) pour ${halvesShort(allowed)} autorisés.${n > allowed ? ' Au-dessus du plan : sans jugement, demande ce qui s\'est passé, on repart.' : ' Dans le plan ✅.'} Merci pour la vérité.`;
     }
 
     case 'annuler': {
@@ -684,7 +711,19 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
       if (i < 0 || Date.now() - Date.parse(log[i]!.at) > 6 * 3_600_000) return '❌ Pas de prise récente à annuler (corrige plutôt le total du jour : action total).';
       const [gone] = log.splice(i, 1);
       await kvSet(LOG_KEY, JSON.stringify(log));
-      return `↩️ Prise annulée (${halvesShort(gone!.n ?? 1)} notée à ${localNow(Date.parse(gone!.at)).hhmm}). Aujourd'hui : ${halvesShort(takenOn(log, today))}.`;
+      const undone = takenOn(log, today) <= allowedOn(s, today) ? await undoOverrun(s, today) : '';
+      return `↩️ Prise annulée (${halvesShort(gone!.n ?? 1)} notée à ${localNow(Date.parse(gone!.at)).hhmm}). Aujourd'hui : ${halvesShort(takenOn(log, today))}.${undone ? ` ${undone}` : ''}`;
+    }
+
+    case 'reveil': {
+      // « au réveil je prends 2 comprimés et demi » → sa 1re prise reste groupée, le reste est réparti sur les autres heures
+      const n = qty(input, null);
+      if (n == null) return '❌ Combien au réveil ? (n = demis, ou comprimes, ex. 2.5)';
+      s.wakeDose = n || undefined;
+      await saveLib(s);
+      await syncAgenda(s).catch(() => {});
+      const plan = slotPlan(allowedOn(s, today), s.times, s.wakeDose).filter(p => p.n).map(p => `${p.time} → ${halvesShort(p.n)}`).join(', ');
+      return `✅ Prise du réveil : ${n ? halvesShort(n) : 'plus de prise groupée'}. Aujourd'hui (max ${halvesShort(allowedOn(s, today))}) : ${plan || 'rien'}.`;
     }
 
     case 'mission': {
@@ -721,7 +760,7 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
       return 'Programme mis en pause à sa demande. Reste à l\'écoute, propose de reprendre dans quelques jours.';
     }
   }
-  return '❌ Action inconnue (status, start, prise, envie, resiste, symptomes, humeur, palier, medecin, set_plan, times, pourquoi, consequence, si_alors, recompense, lettre, retour, phq2, rapport_medecin, ma_voix, total, annuler, mission, victoire, calme, allie, bilan, finish, stop).';
+  return '❌ Action inconnue (status, start, prise, envie, resiste, symptomes, humeur, palier, medecin, set_plan, times, pourquoi, consequence, si_alors, recompense, lettre, retour, phq2, rapport_medecin, ma_voix, total, annuler, reveil, mission, victoire, calme, allie, bilan, finish, stop).';
 }
 
 // ── Bilans ───────────────────────────────────────────────────────────────────
@@ -831,7 +870,7 @@ export async function jobLiberte(): Promise<void> {
   }
 
   // Un créneau qui disparaît aujourd'hui (palier) : prévenir 15 min avant l'ancienne heure
-  const yesterday = slotPlan(allowedOn(s, addDays(today, -1)), s.times);
+  const yesterday = slotPlan(allowedOn(s, addDays(today, -1)), s.times, s.wakeDose);
   for (const [i, p] of o.plan.entries()) {
     if (p.n || !yesterday[i]?.n) continue;
     const t = toMin(p.time);
@@ -854,7 +893,7 @@ export async function jobLiberte(): Promise<void> {
 
   // Soir 21h15 : la vérité du jour + manque + moral + pilulier de demain
   if (hhmm >= '21:15' && hhmm < '22:30' && !dnd && await once(`evening:${today}`)) {
-    const tomorrow = slotPlan(o.tomorrow, s.times).filter(p => p.n);
+    const tomorrow = slotPlan(o.tomorrow, s.times, s.wakeDose).filter(p => p.n);
     const drop = s.steps.find(st => st.from === addDays(today, 1));
     await queueTelegramMessage([
       `🌙 Liberté — ta journée : ${o.taken ? `${halvesShort(o.taken)} noté${o.taken > 1 ? 's' : ''} sur ${o.allowed} autorisé${o.allowed > 1 ? 's' : ''}` : o.allowed ? 'rien de noté aujourd\'hui. Tu en as pris combien vraiment ? La vérité, sans jugement.' : 'jour sans rien 🕊️'}${o.taken > o.allowed ? ' — demain on repart.' : o.taken ? ' ✅' : ''}`,

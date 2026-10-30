@@ -155,6 +155,8 @@ class RealtimeCall:
         self.echo_k = ECHO_K0             # écho = echo_k × voix de Dzaryx (appris : écouteurs → presque 0)
         self.voice_lvl = 0.0              # volume habituel de sa voix (pic qui retombe en ~10 s)
         self.reconnects = 0
+        self.live_model = ''              # modèle Gemini Live en cours (écarté s'il coupe)
+        self.drop_at = 0.0                # dernière coupure Gemini Live
         self.on_stall = None              # async (why) → l'appel passe sur l'ancienne chaîne (cerveau Claude)
         self.loud_s = 0.0                 # secondes de sa voix depuis la dernière réaction de Dzaryx
         self.last_loud = 0.0
@@ -185,6 +187,7 @@ class RealtimeCall:
             if time.monotonic() < gemini_out_until:
                 raise RuntimeError('limite Gemini atteinte, nouvel essai plus tard')
             res = await self.api('/api/call/realtime-gemini', {}, self.actor, 20)
+            self.live_model = res.get('model', '')
             self.ws = await GeminiLiveWS.connect(self.http, res)
             await self.ws.receive(timeout=8)   # session.created
             self.provider = 'gemini'
@@ -589,6 +592,12 @@ class RealtimeCall:
             await self._read_ws()
             if self.closed or self.provider != 'gemini' or self.reconnects >= RECONNECTS:
                 break
+            # 30/10 : 1011/1008 deux fois par appel → « pardon, petite coupure » en boucle, il ne se sentait pas compris.
+            # 2e coupure en moins d'une minute → on arrête Gemini Live, l'appel continue sur le cerveau Dzaryx.
+            if self.drop_at and time.monotonic() - self.drop_at < 60:
+                log.warning('Gemini Live recoupé en moins d\'1 min → cerveau Dzaryx')
+                break
+            self.drop_at = time.monotonic()
             self.reconnects += 1
             try:
                 await self._reconnect()
@@ -601,7 +610,9 @@ class RealtimeCall:
 
     async def _reconnect(self) -> None:
         """Gemini Live a coupé en plein appel : nouvelle session avec la conversation jusqu'ici, Dzaryx reprend."""
-        res = await self.api('/api/call/realtime-gemini', {}, self.actor, 20)
+        # autre modèle que celui qui vient de couper (le backend l'écarte 1 h)
+        res = await self.api('/api/call/realtime-gemini', {'avoid': self.live_model}, self.actor, 20)
+        self.live_model = res.get('model', '')
         guest = self.guarded and self.who != 'kouider'
         if guest:
             res = {**res, 'instructions': self.guest_instr}
@@ -657,6 +668,8 @@ class RealtimeCall:
             elif t == 'response.function_call_arguments.done':
                 self._reacted()
                 asyncio.create_task(self._tool(ev))
+            elif t == 'dzaryx.stall':   # Gemini relancé et toujours muet
+                self._stall('muette après relance')
             elif t == 'error':
                 log.error('realtime: %s', ev.get('error'))
 

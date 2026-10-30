@@ -107,10 +107,15 @@ export async function dndOnKouiderMessage(): Promise<string | null> {
   const s = await getDnd();
   if (!s) return null;
   // Silence pour un souci perso (enfant malade, hôpital…) : Kouider 22/10 « tu m'as même pas demandé ce qu'il avait » (son fils)
-  const care = PERSONAL_RE.test(s.why)
+  // Une seule fois par silence (29/10 : « Comment tu vas ? » redemandé à chaque message de la soirée)
+  const careKey = `dnd:care-asked:${s.since}`;
+  const care = PERSONAL_RE.test(s.why) && !(await kvGet(careKey).catch(() => null))
     ? ` Ce silence était pour une raison perso (${s.why}) : AVANT tout le reste, demande des nouvelles (ce qu'il avait, comment il va maintenant, comment va Kouider lui-même), avec chaleur, sans liste d'actions. Retiens ce qu'il te répond avec remember_info (santé de la famille) pour reprendre des nouvelles plus tard dans la journée.`
     : '';
-  if (care) await kvSet(FOLLOWUP_KEY, JSON.stringify({ why: s.why, at: Date.now() }), 2 * 86_400).catch(() => {});
+  if (care) {
+    await kvSet(FOLLOWUP_KEY, JSON.stringify({ why: s.why, at: Date.now() }), 2 * 86_400).catch(() => {});
+    await kvSet(careKey, '1', 86_400).catch(() => {});
+  }
   const work = ' S\'il dit qu\'il est au travail, ne parle pas de jour de congé : il travaille aujourd\'hui.';
   if (s.untilReply || /^appel (pas décroché|refusé)$/.test(s.why)) {   // appel manqué : il réécrit = il est de retour
     await setDnd({ until: Date.now() + REPLY_GRACE_MS, why: s.why });

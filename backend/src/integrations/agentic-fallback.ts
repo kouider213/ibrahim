@@ -12,6 +12,7 @@
  *      (les noms changent tous les mois), sautés 15 min sur quota/panne
  *   4. OpenAI gpt-4o (payant — dernier recours si crédits restants)
  */
+import { cleanModelText } from '../utils/clean-text.js';
 import axios from 'axios';
 import type Anthropic from '@anthropic-ai/sdk';
 import { Dzaryx } from '../config/constants.js';
@@ -433,7 +434,7 @@ export async function runAgenticFallback(
           if (toolCalls.length) msg.content = null;
         }
         if (toolCalls.length === 0 || round === MAX_TOOL_ROUNDS) {
-          const text = String(msg.content ?? '').trim();
+          const text = cleanModelText(String(msg.content ?? ''));
           if (!text) throw new Error(`${ep.name} empty final response`);
           console.log(`[agentic-fallback] ✅ ${ep.key}/${ep.model} — ${toolsExecuted.length} outils, ${text.length} chars${deep ? ' (réflexion)' : ''}`);
           return { text, toolsExecuted, provider: ep.key, model: ep.model };
