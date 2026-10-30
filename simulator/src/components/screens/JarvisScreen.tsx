@@ -908,6 +908,17 @@ function SanteSiri() {
           {step(5, <>Onglet <b>Automatisation</b> › <b>Heure de la journée</b> › <b>21h30</b>, tous les jours › lancer « Dzaryx Santé » › <b>Exécuter immédiatement</b>. Dzaryx coche ta séance, ajuste FORME et allège la séance de demain si ton cœur est fatigué.</>)}
         </div>
       </Card>
+      <Card accent={T.warn}>
+        <div style={{ fontWeight: 800, fontSize: 14.5, marginBottom: 4 }}>⌚ Séance en direct avec la montre</div>
+        <div style={{ fontSize: 12.5, color: T.muted, marginBottom: 8 }}>Dès que tu lances un entraînement sur l'Apple Watch, Dzaryx le sait : tapis fini → il t'envoie la muscu ; fin → durée, calories, cœur moyen / max, minutes par zone, comparaison avec la dernière fois et bilan. Tu n'as rien à lui dire.</div>
+        <div style={{ display: 'grid', gap: 8 }}>
+          {step(1, <>Raccourcis › <b>Automatisation</b> › <b>+</b> › <b>Entraînement Apple Watch</b> › <b>Commence</b> › choisis <b>Course en salle, Marche en salle, Elliptique, Vélo en salle</b> › <b>Exécuter immédiatement</b>.</>)}
+          {step(2, <>Action <b>Obtenir le contenu de l'URL</b> : <b>POST</b> sur <Copy label="wo" v={`${PRIMARY_BACKEND}/api/jarvis/workout`} /> En-tête <b>Authorization</b> = <Copy label="tok3" v={`Bearer ${token}`} /> Corps JSON : <code>event</code> = <b>start</b>, <code>type</code> = <b>tapis</b>.</>)}
+          {step(3, <>Même chose avec <b>Se termine</b> (mêmes types). Avant l'URL, ajoute <b>Rechercher des échantillons de santé</b> × 2, filtre <b>Date de début : dans les dernières 60 minutes</b> : <b>Fréquence cardiaque</b> et <b>Énergie active</b>. Corps JSON : <code>event</code> = <b>end</b>, <code>type</code> = <b>tapis</b>, <code>heart_rate</code> et <code>active_kcal</code> = les résultats.</>)}
+          {step(4, <>Refais les étapes 1 à 3 pour <b>Musculation traditionnelle</b> et <b>Renforcement fonctionnel</b>, avec <code>type</code> = <b>muscu</b> (2 automatisations : commence + se termine).</>)}
+          {step(5, <>À la salle, lance simplement l'entraînement sur ta montre. Si tu veux, dis un poids (« 60 kg 12 ») : il le note, sinon il suit au chrono.</>)}
+        </div>
+      </Card>
       <Card accent={T.accent}>
         <div style={{ fontWeight: 800, fontSize: 14.5, marginBottom: 4 }}>🍏 « Dis Siri, Dzaryx » — ton iPhone à la voix</div>
         <div style={{ fontSize: 12.5, color: T.muted, marginBottom: 8 }}>Tu dis « Dis Siri, Dzaryx », tu parles, Dzaryx répond à voix haute et utilise tous ses outils (clients, WhatsApp Business, papiers des clients → Telegram), appelle, envoie un SMS, ouvre Waze, la musique… et te répond en conversation suivie.</div>

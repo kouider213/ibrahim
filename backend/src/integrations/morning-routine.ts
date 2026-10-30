@@ -225,15 +225,16 @@ export async function motivationLines(cfg: RoutineConfig, plan: DayPlan, date: s
 
 async function sendWakeMessage(cfg: RoutineConfig, plan: DayPlan, date: string, test = false, up = ''): Promise<string> {
   const { tripNudges } = await import('./trips.js');
-  const [motivation, nudges, liberte] = await Promise.all([motivationLines(cfg, plan, date), tripNudges().catch(() => ''),
-    test ? '' : import('./liberte.js').then(m => m.liberteMorningLine()).catch(() => '')]);
+  const [motivation, nudges, liberte, ready] = await Promise.all([motivationLines(cfg, plan, date), tripNudges().catch(() => ''),
+    test ? '' : import('./liberte.js').then(m => m.liberteMorningLine()).catch(() => ''),
+    import('./workout-live.js').then(m => m.readiness()).then(r => r?.line ?? '').catch(() => '')]);
   const head = test
     ? `☀️ (Test) Message du matin de Dzaryx :`
     : up ? `☀️ Bonjour Kouider ! Je vois que tu es déjà debout (${up}) 💪 Pas d'appel de réveil aujourd'hui.`
     : plan.kind === 'sport'
       ? `☀️ Bonjour Kouider, il est ${hm(Date.now())}. Tu es réveillé ? Réponds-moi avec ta forme de 1 à 5 (1 = crevé, 5 = au top) : j'adapte ta séance. Sinon je t'appelle dans ${cfg.callAfterMin} min.`
       : `☀️ Bonjour Kouider, il est ${hm(Date.now())}. Tu es réveillé ? Réponds-moi (un mot suffit) — sinon je t'appelle dans ${cfg.callAfterMin} min.`;
-  const text = [head, '', motivation, '', planLine(plan, cfg.addresses), liberte ? `\n${liberte}` : '', nudges ? `\n${nudges}` : ''].join('\n').trim();
+  const text = [head, '', motivation, '', planLine(plan, cfg.addresses), ready ? `\n${ready}` : '', liberte ? `\n${liberte}` : '', nudges ? `\n${nudges}` : ''].join('\n').trim();
   await queueTelegramMessage(text);
   emitProactive(text.split('\n')[0]!, 'reminder', text);
   return text;

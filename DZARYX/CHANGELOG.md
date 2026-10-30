@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 30/10 — Coach sport : il suit, il ne demande plus + séance en direct avec la montre (app v208)
+- Plus jamais « dis-moi kg × reps » : Kouider donne un poids s'il veut ; sinon le coach suit la séance au chrono (exercice suivant envoyé tout seul quand le temps prévu est passé).
+- Nouveau `workout-live.ts` + POST /api/jarvis/workout : automatisations Raccourcis « Entraînement Apple Watch » commence / se termine → coach lancé tout seul, tapis fini → muscu, fin → durée, kcal, cœur moyen/max, minutes par zone (FC max Tanaka), comparaison avec la fois d'avant, bilan.
+- Score de RÉCUPÉRATION 0-100 (VFC + cœur au repos vs ses 14 jours, façon Whoop) dans le message du réveil et au début de la séance ; CHARGE d'entraînement 7 jours (ratio aigu/chronique) ; outil `sante` lit séances + récupération.
+- App JARVIS › Santé·Siri : guide des automatisations montre + séances affichées.
+
 ## 30/10 — Appels qui coupent + LIBERTÉ prise du réveil
 - Appels : Gemini Live (Google) coupait 2× par appel (1011 « Internal error », 1008) → « pardon, petite coupure » en boucle, Kouider ne se sentait pas compris. Maintenant la reconnexion prend un AUTRE modèle voix (celui qui a coupé est écarté 1 h, « -latest » en dernier) et une 2e coupure en moins d'une minute passe l'appel sur le cerveau Dzaryx (l'appel continue).
 - Gemini muet même après la relance → bascule sur le cerveau Dzaryx (fini les 15 s de vide).

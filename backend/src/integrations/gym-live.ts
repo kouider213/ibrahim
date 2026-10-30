@@ -10,12 +10,12 @@ import { liveSessionPlan, logSportSession, readSportLog, suggestFor, type Exerci
 // COACH EN DIRECT À LA SALLE (Kouider 28/10) : « je dois être à la maison à 7h20 » → départ de la salle recalculé avec le
 // trafic à chaque passage (toutes les 5 min), rappel 10 min avant puis APPEL « pars maintenant ». Pendant la séance Dzaryx
 // suit l'ordre : cardio avant → muscu → cardio après (« le temps qui reste » = jusqu'au départ). À chaque série il demande
-// kg × reps, les note (journal + records), et conseille : monter la charge, garder, baisser, rajouter du repos, couper une
-// série si on est en retard. Fin de séance (départ GPS ou « fini ») → bilan : volume, records, ce qu'il faut améliorer.
+// kg × reps SEULEMENT s'il les donne (30/10 : « je veux pas qu'il me le demande, c'est moi qui lui indique ») : il note (journal
+// + records) et conseille ; sinon il suit la séance au chrono et avec la montre (workout-live.ts) : exercice suivant tout seul,
+// couper une série si on est en retard. Fin de séance (départ GPS ou « fini ») → bilan : volume, records, ce qu'il faut améliorer.
 
 const LIVE_KEY = 'kouider:sport:live';
 const HOMEBY_KEY = 'kouider:sport:homeby';
-const NUDGE_AFTER = 8 * 60_000;
 
 interface DoneSet { kg?: number; reps?: number; rpe?: number }
 interface Live {
@@ -23,7 +23,7 @@ interface Live {
   exercises: Exercise[]; before: CardioBlock[]; after: CardioBlock[];
   idx: number; done: Record<string, DoneSet[]>; skipped: string[];
   homeBy?: string; leaveBy?: number; road?: number; traffic?: string;
-  liftsAt?: number; lastSetAt?: number; lastNudge?: number; nudges: number;
+  liftsAt?: number; lastSetAt?: number; lastNudge?: number; nudges: number; exAt?: number;
   sent: string[]; health?: string; endedAt?: number; timer?: boolean; warmedUp?: string[];
 }
 
@@ -164,7 +164,7 @@ export async function startLive(date = localNow().date, at = Date.now()): Promis
     idx: 0, done: {}, skipped: [], nudges: 0, sent: [], ...(await getHomeBy(date).then(h => h ? { homeBy: h } : {})) };
   if (!l.before.length) l.liftsAt = at;                     // pas de cardio avant : la muscu commence tout de suite
   await refreshLeave(l);
-  l.health = await healthLine();
+  l.health = [await healthLine(), await import('./workout-live.js').then(m => m.readiness()).then(r => r?.line ?? '').catch(() => '')].filter(Boolean).join('\n');
   await saveLive(l);
   const log = await readSportLog();
   const t = timeline(l, at);
@@ -177,7 +177,7 @@ export async function startLive(date = localNow().date, at = Date.now()): Promis
     l.after.length ? `${l.before.length ? '3️⃣' : '2️⃣'} ${l.after.map(b => `${b.name} ${b.flex ? `le temps qui reste (~${Math.max(0, t.afterMin)} min)` : `${b.min} min`}`).join(' + ')}` : '',
     lateAdvice(l, t.margin), l.health ?? '',
     first ? `\n${l.before.length ? 'Après le cardio, on commence par :' : 'On commence par :'}\n${exLine(first, suggestFor(first, log, date), needWarm(l, first))}` : '',
-    '\n📝 Après CHAQUE série, dis-moi le poids et les reps (ex. « 60 kg 12 » ou « 12 reps à 60 ») : je note, je te dis si tu montes, gardes ou baisses.',
+    '\n⌚ Je suis ta séance au chrono et avec ta montre : je t\'envoie l\'exercice suivant tout seul. Tu n\'as rien à me dire — si tu veux, donne un poids (« 60 kg 12 ») et je te dis si tu montes.',
   ].filter(Boolean).join('\n');
   return plan;
 }
@@ -221,7 +221,7 @@ async function logSet(l: Live, o: { exercise?: string; kg?: number; reps?: numbe
   const r = await logSportSession({ date: l.date, type: l.type, sets: Array.from({ length: n }, () => ({ ex: e.id, ...(o.kg ? { kg: o.kg } : {}), ...(o.reps ? { reps: o.reps } : {}) })) });
   const k = arr.length, { lo, hi } = range(e.reps), step = Math.abs(e.step ?? 2.5);
   const advice: string[] = [];
-  if (isTimed(e) || !o.reps) advice.push(o.reps ? '' : 'Dis-moi aussi le nombre de reps pour que je règle la charge.');
+  if (isTimed(e) || !o.reps) advice.push('');
   else if (o.reps >= hi + 3) advice.push(`Trop facile : monte à ${o.kg ? `${o.kg + step} kg` : `+${step} kg`} dès la prochaine série.`);
   else if (o.reps >= hi) advice.push(k < e.sets ? `Haut de la fourchette 👌 garde ${o.kg ?? 'la charge'}${o.kg ? ' kg' : ''} ; si la dernière passe encore à ${hi}, on monte la prochaine fois.` : '');
   else if (o.reps < lo - 2) advice.push(`Trop lourd : baisse à ~${o.kg ? Math.round(o.kg * 0.9 * 2) / 2 : '−10 %'}${o.kg ? ' kg' : ''} pour rester dans ${e.reps} avec une technique propre.`);
@@ -243,10 +243,11 @@ async function logSet(l: Live, o: { exercise?: string; kg?: number; reps?: numbe
     const allTop = all.length >= e.sets && all.every(s => (s.reps ?? 0) >= hi);
     advice.push(`✅ ${e.name} terminé (${arr.map(s => `${s.kg ?? '?'}×${s.reps ?? '?'}`).join(', ')}).${allTop && o.kg ? ` Toutes les séries à ${hi} → prochaine séance ${o.kg + step} kg.` : ''}`);
     l.idx = Math.max(l.idx, l.exercises.indexOf(e) + 1);
+    l.exAt = now;
     const nx = remaining(l)[0];
     next = nx ? `\n\n${exLine(nx, suggestFor(nx, log.filter(x => x.date !== l.date), l.date), needWarm(l, nx))}` : `\n\n🏁 Muscu terminée ! ${l.after.length ? `Passe à ${l.after.map(b => b.name).join(' + ')}${l.leaveBy ? ` jusqu'à ${hm(l.leaveBy - 2 * 60_000)}` : ''}.` : 'Étirements 5 min.'}`;
     if (!nx) l.sent.push('after');
-  } else next = `\nSérie ${k + 1}/${e.sets} : repos ${e.rest} s${l.timer !== false ? ' — je te préviens quand c\'est fini' : ''}, puis dis-moi kg × reps.`;
+  } else next = `\nSérie ${k + 1}/${e.sets} : repos ${e.rest} s${l.timer !== false ? ' — je te préviens quand c\'est fini' : ''}.`;
   await saveLive(l);
   if (l.timer !== false) restTimer(l.date, now, k >= e.sets ? 90 : e.rest, k >= e.sets ? remaining(l)[0]?.name ?? null : `${e.name} série ${k + 1}/${e.sets}${o.kg ? ` à ${o.kg} kg` : ''}`, k);
   const t = timeline(l, now);
@@ -315,17 +316,18 @@ export async function liveTool(input: Record<string, unknown>): Promise<string> 
   let l = await getLive();
   if (op === 'start' || (!l && op === 'set')) {
     const txt = await startLive();
-    if (op === 'start') return `${txt}\n\n[Il est à la salle : réponds court et motivant, demande-lui de te dire kg × reps après chaque série.]`;
+    if (op === 'start') return `${txt}\n\n[Il est à la salle : réponds court et motivant. Ne lui demande JAMAIS ses poids ni ses reps : c'est lui qui les donne s'il veut ; tu suis la séance au chrono et avec sa montre.]`;
     l = await getLive();
   }
   if (!l) return 'Pas de séance en cours.';
   if (l.endedAt && op !== 'start') return 'La séance d\'aujourd\'hui est terminée (bilan déjà fait).';
   const num = (k: string) => Number(input[k]) > 0 ? Number(input[k]) : undefined;
-  if (op === 'set') return `${await logSet(l, { ...(input['exercise'] ? { exercise: String(input['exercise']) } : {}), kg: num('kg'), reps: num('reps'), rpe: num('rpe'), sets: num('sets') })}\n\n[Réponds court (il est entre deux séries) : le conseil + ce qu'il fait ensuite, puis redemande kg × reps.]`;
+  if (op === 'set') return `${await logSet(l, { ...(input['exercise'] ? { exercise: String(input['exercise']) } : {}), kg: num('kg'), reps: num('reps'), rpe: num('rpe'), sets: num('sets') })}\n\n[Réponds court (il est entre deux séries) : le conseil + ce qu'il fait ensuite. Ne redemande pas de poids ni de reps.]`;
   if (op === 'next' || op === 'skip') {
     const e = (input['exercise'] ? findIn(l, String(input['exercise'])) : null) ?? remaining(l)[0];
     if (!e) return statusText(l);
     if (op === 'skip') l.skipped.push(e.id); else l.idx = Math.max(l.idx, l.exercises.indexOf(e) + 1);
+    l.exAt = Date.now();
     if (!l.liftsAt) l.liftsAt = Date.now();
     await saveLive(l);
     const nx = remaining(l)[0];
@@ -342,7 +344,7 @@ export async function liveNote(): Promise<string | null> {
   const l = await getLive().catch(() => null);
   if (!l || l.endedAt) return null;
   const e = remaining(l)[0];
-  return `[SÉANCE EN COURS À LA SALLE (${l.label}) : ${phase(l) === 'avant' ? `cardio d'échauffement jusqu'à ${hm(l.startedAt + beforeMin(l) * 60_000)}` : e ? `exercice actuel ${e.name} série ${(l.done[e.id]?.length ?? 0) + 1}/${e.sets}` : 'muscu finie, cardio de fin'}${l.leaveBy ? `, départ à ${hm(l.leaveBy)}` : ''}. S'il donne un poids / des reps (« 60 kg 12 », « 12 à 40 ») → sport_coach action=live op=set (exercise si ce n'est pas l'exercice actuel). « Tapis fini » → op=cardio_done. « J'ai fini l'exercice / je passe » → op=next ; machine prise → op=skip ; « il me reste quoi » → op=status ; « j'ai fini la séance » → op=stop ; « coupe le minuteur » → op=timer on=false. VIDÉO d'une série → analyse sa TECHNIQUE sur cet exercice (amplitude, tempo, dos, coudes, élan, triche) en 3 points max + note /10, et propose la correction. PHOTO d'une machine ou de la salle → dis quelle machine c'est, le réglage (siège, poignées, charge de départ) et, si elle est prise, l'alternative avec le matériel visible. Réponds COURT.]`;
+  return `[SÉANCE EN COURS À LA SALLE (${l.label}) : ${phase(l) === 'avant' ? `cardio d'échauffement jusqu'à ${hm(l.startedAt + beforeMin(l) * 60_000)}` : e ? `exercice actuel ${e.name} série ${(l.done[e.id]?.length ?? 0) + 1}/${e.sets}` : 'muscu finie, cardio de fin'}${l.leaveBy ? `, départ à ${hm(l.leaveBy)}` : ''}. S'il donne un poids / des reps (« 60 kg 12 », « 12 à 40 ») → sport_coach action=live op=set (exercise si ce n'est pas l'exercice actuel). « Tapis fini » → op=cardio_done. « J'ai fini l'exercice / je passe » → op=next ; machine prise → op=skip ; « il me reste quoi » → op=status ; « j'ai fini la séance » → op=stop ; « coupe le minuteur » → op=timer on=false. NE LUI DEMANDE JAMAIS son poids ni ses reps (il les donne s'il veut) : tu suis la séance au chrono et avec sa montre (Santé). VIDÉO d'une série → analyse sa TECHNIQUE sur cet exercice (amplitude, tempo, dos, coudes, élan, triche) en 3 points max + note /10, et propose la correction. PHOTO d'une machine ou de la salle → dis quelle machine c'est, le réglage (siège, poignées, charge de départ) et, si elle est prise, l'alternative avec le matériel visible. Réponds COURT.]`;
 }
 
 async function notify(text: string, title: string): Promise<void> {
@@ -367,13 +369,22 @@ export async function liveTick(): Promise<void> {
   }
   const ph = phase(l, now);
   if (ph === 'muscu' && !l.liftsAt && once('lifts')) {
-    l.liftsAt = now;
+    l.liftsAt = now; l.exAt = now;
     const e = remaining(l)[0];
-    if (e) await notify(`✅ ${l.before.map(b => b.name).join(' + ')} terminé ! Place à la muscu.\n${exLine(e, suggestFor(e, await readSportLog(), l.date), needWarm(l, e))}\n\nDis-moi kg × reps après chaque série.\n${timeline(l, now).line}`, `▶️ ${e.name}`);
-  } else if (ph === 'muscu' && now - (l.lastSetAt ?? l.liftsAt ?? now) > NUDGE_AFTER && now - (l.lastNudge ?? 0) > NUDGE_AFTER && l.nudges < 4) {
+    if (e) await notify(`✅ ${l.before.map(b => b.name).join(' + ')} terminé ! Place à la muscu.\n${exLine(e, suggestFor(e, await readSportLog(), l.date), needWarm(l, e))}\n${timeline(l, now).line}`, `▶️ ${e.name}`);
+  } else if (ph === 'muscu') {
+    // Suivi au chrono : le temps prévu de l'exercice est passé (+2 min) → exercice suivant, sans rien lui demander
     const e = remaining(l)[0]!;
-    l.lastNudge = now; l.nudges++;
-    await notify(`⏱️ Tu en es où sur ${e.name} (série ${(l.done[e.id]?.length ?? 0) + 1}/${e.sets}) ? Dis-moi le poids et les reps.\n${l.leaveBy ? `Il te reste ${minLeft(l.leaveBy, now)} min avant de partir.` : ''} ${lateAdvice(l, timeline(l, now).margin)}`.trim(), `⏱️ ${e.name} : combien ?`);
+    const since = l.exAt ?? l.liftsAt ?? now;
+    const talking = l.lastSetAt && now - l.lastSetAt < (e.rest / 60 + 4) * 60_000;   // il donne ses séries : c'est lui qui mène
+    if (!talking && now - since > (exMin(e) + 2) * 60_000) {
+      l.idx = Math.max(l.idx, l.exercises.indexOf(e) + 1);
+      l.exAt = now;
+      const nx = remaining(l)[0];
+      await notify(nx ? `⏭️ Normalement ${e.name} est fini → ${exLine(nx, suggestFor(nx, await readSportLog(), l.date), needWarm(l, nx))}\n${timeline(l, now).line} ${lateAdvice(l, timeline(l, now).margin)}`.trim()
+        : `🏁 Muscu terminée au chrono ! ${l.after.length ? `Passe à ${l.after.map(b => b.name).join(' + ')}.` : 'Étirements 5 min.'}`, nx ? `▶️ ${nx.name}` : '🏁 Muscu terminée');
+      if (!nx) l.sent.push('after');
+    }
   } else if (ph === 'apres' && once('after')) {
     await notify(`🏁 Muscu terminée ! ${l.after.length ? `Passe à ${l.after.map(b => b.name).join(' + ')}${l.leaveBy ? ` jusqu'à ${hm(l.leaveBy - 2 * 60_000)} (${Math.max(0, minLeft(l.leaveBy - 2 * 60_000, now))} min)` : ''}. Zone 2 : tu dois pouvoir parler.` : 'Étirements 5 min.'}`, '🏁 Muscu terminée');
   }
@@ -391,4 +402,41 @@ export async function liveTick(): Promise<void> {
     }
   }
   await saveLive(l);
+}
+
+// ── Montre (workout-live.ts) ─────────────────────────────────────────────────
+export async function liveActive(): Promise<boolean> { const l = await getLive(); return !!l && !l.endedAt; }
+
+/** La montre dit « musculation commencée » → fin du cardio d'échauffement, 1er exercice au chrono. */
+export async function watchLifting(at: number): Promise<void> {
+  const l = await getLive();
+  if (!l || l.endedAt || l.liftsAt) return;
+  l.liftsAt = at; l.exAt = at; l.sent.push('lifts');
+  await saveLive(l);
+}
+
+/** La montre dit « entraînement fini » : cardio d'avant → place à la muscu ; muscu → bilan ; cardio de fin → bilan. Renvoie la ligne pour le message. */
+export async function watchEnded(w: { kind: 'cardio' | 'muscu' | 'autre'; type: string; min: number; kcal?: number; hrAvg?: number }): Promise<string> {
+  const l = await getLive();
+  if (!l || l.endedAt) return '';
+  const now = Date.now();
+  const watch = `⌚ ${w.type} ${w.min} min${w.kcal ? `, ${w.kcal} kcal` : ''}${w.hrAvg ? `, cœur moyen ${w.hrAvg}` : ''}`;
+  l.health = `${l.health ?? ''}\n${watch}`.trim();
+  // cardio d'échauffement fini (la muscu n'est pas commencée ou vient juste de l'être) → place à la muscu
+  if (w.kind === 'cardio' && remaining(l).length && Object.keys(l.done).length === 0 && l.idx === 0) {
+    if (!l.liftsAt) l.sent.push('lifts');
+    l.liftsAt = now; l.exAt = now;
+    await saveLive(l);
+    const e = remaining(l)[0]!;
+    return `✅ Cardio fait. Place à la muscu :\n${exLine(e, suggestFor(e, await readSportLog(), l.date), needWarm(l, e))}`;
+  }
+  // muscu finie et un cardio de fin prévu → on attend la fin de ce cardio pour le bilan
+  if (w.kind !== 'cardio' && l.after.length) {
+    l.idx = l.exercises.length; l.exAt = now;
+    if (!l.sent.includes('after')) l.sent.push('after');
+    await saveLive(l);
+    return `🏁 Muscu terminée ! Passe à ${l.after.map(b => b.name).join(' + ')}${l.leaveBy ? ` jusqu'à ${hm(l.leaveBy - 2 * 60_000)}` : ''}. Zone 2 : tu dois pouvoir parler.`;
+  }
+  // sinon (cardio de fin, ou muscu sans cardio après) → bilan de la séance
+  return endLive(l, `montre : ${w.type} fini`).then(t => `\n${t}`);
 }

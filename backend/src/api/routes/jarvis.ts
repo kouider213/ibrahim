@@ -120,8 +120,13 @@ router.post('/health', express.text({ type: 'text/*', limit: '1mb' }), async (re
   const body = typeof req.body === 'string' ? { data: req.body } : (req.body ?? {}) as Record<string, unknown>;   // corps en texte simple accepté
   try { res.json(await import('../../integrations/jarvis-hub.js').then(m => m.receiveHealth(body))); } catch (e) { fail(res, e); }
 });
+// Montre : automatisations Raccourcis « Entraînement Apple Watch » commence / se termine (+ relevé de pouls ponctuel)
+router.post('/workout', express.text({ type: 'text/*', limit: '1mb' }), async (req, res) => {
+  const body = typeof req.body === 'string' ? { data: req.body } : (req.body ?? {}) as Record<string, unknown>;
+  try { res.json(await import('../../integrations/workout-live.js').then(m => m.receiveWorkout(body))); } catch (e) { fail(res, e); }
+});
 router.get('/health', async (_req, res) => {
-  try { res.json({ text: await import('../../integrations/jarvis-hub.js').then(m => m.healthText(14)) }); } catch (e) { fail(res, e); }
+  try { res.json({ text: [await import('../../integrations/jarvis-hub.js').then(m => m.healthText(14)), await import('../../integrations/workout-live.js').then(m => m.workoutsText(7)).catch(() => '')].filter(Boolean).join('\n\n') }); } catch (e) { fail(res, e); }
 });
 // « Dis Siri, Dzaryx » : le Raccourci envoie la phrase dictée → phrase à dire + action iPhone (lien à ouvrir)
 router.post('/siri', express.text({ type: 'text/*', limit: '1mb' }), async (req, res) => {
