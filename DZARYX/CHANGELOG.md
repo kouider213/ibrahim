@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 30/10 — Location 11 j, radars, appel après étude, retard salle
+- Location : le jour du retour ne compte JAMAIS (29/10 → 09/11 = 11 j × 40 € = 440 €), même rendue l'après-midi (rentalDays + prompt + tests).
+- RADARS (flashé à Simonis) : speed-cameras.ts — alerte Telegram + notif avant chaque radar fixe devant lui (OpenStreetMap, miroirs + pause 10 min si saturé ; + endroits où il a été flashé) ; outil `radars` flash/amende/paye/list/on/off ; job 10h rappels de paiement 7 j / 2 j / jour J et « courrier reçu ? » après 21 j.
+- Usine à business : étude finie → appel avec prix, marge, premier test (8h-22h, respecte ne pas déranger).
+- Salle : le retard se calcule aussi au chrono (séries dictées en retard ≠ retard réel), alerte une seule fois et seulement au-delà de 5 min.
+
 ## 30/10 — Bugs de l'échange du jour
 - Thinkdiag 2 : « Oui fais-le » → usine_business a bien tourné (étude + page) mais le garde-fou anti-invention l'a pris pour une fausse action et a répondu EN ARABE. Outils Jarvis qui lancent un vrai travail ajoutés aux actions reconnues ; langue des messages de garde détectée sur SES mots seulement (sans les consignes [Contexte…]) et, pour Kouider, darija seulement s'il écrit en lettres arabes.
 - Atelier : la page Thinkdiag citait Bruxelles 4 fois → règle de discrétion clients dans le prompt de l'atelier ; page corrigée (« importé d'Europe »).

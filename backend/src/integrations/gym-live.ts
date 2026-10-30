@@ -82,11 +82,20 @@ function phase(l: Live, now = Date.now()): 'avant' | 'muscu' | 'apres' {
   return 'muscu';
 }
 
+/** Muscu restante : ce qu'il a dicté OU ce que le chrono dit qu'il a fait, le plus avancé des deux.
+ *  30/10 : il dictait ses séries avec 20 min de décalage → « 48 min de retard » alors qu'il s'entraînait normalement. */
+function liftLeft(l: Live, now = Date.now()): number {
+  const logged = remaining(l).reduce((a, e) => a + exMin(e, setsLeft(l, e)), 0);
+  if (!l.liftsAt) return Math.round(logged);
+  const total = l.exercises.filter(e => !l.skipped.includes(e.id)).reduce((a, e) => a + exMin(e), 0);
+  return Math.round(Math.min(logged, Math.max(0, total - (now - l.liftsAt) / 60_000)));
+}
+
 /** Temps : ce qu'il reste, la marge avant le départ et le cardio de fin qui en découle. */
 function timeline(l: Live, now = Date.now()): { liftMin: number; afterMin: number; margin: number | null; line: string } {
   const ph = phase(l, now);
   const beforeLeft = ph === 'avant' ? Math.max(0, minLeft(l.startedAt + beforeMin(l) * 60_000, now)) : 0;
-  const liftMin = Math.round(remaining(l).reduce((a, e) => a + exMin(e, setsLeft(l, e)), 0));
+  const liftMin = liftLeft(l, now);
   const fixedAfter = l.after.filter(b => !b.flex).reduce((a, b) => a + b.min, 0);
   if (!l.leaveBy) {
     const afterMin = l.after.reduce((a, b) => a + b.min, 0);
@@ -129,11 +138,13 @@ function supersetAdvice(l: Live): string {
   return ` Ou fais ${t.name} + ${b.name} en SUPERSET (l'un puis l'autre sans repos, repos après la paire) : ~${gain} min gagnées sans couper de série.`;
 }
 
-function lateAdvice(l: Live, margin: number | null): string {
-  if (margin == null || margin >= 0) return '';
+/** Planning trop long pour l'heure de départ. once = l'alerte ne sort qu'une fois pendant la séance (pas à chaque série). */
+function lateAdvice(l: Live, margin: number | null, once = false): string {
+  if (margin == null || margin > -5) return '';
+  if (once) { if (l.sent.includes('late')) return ''; l.sent.push('late'); }
   const rest = remaining(l);
   const cut = rest.filter(e => setsLeft(l, e) >= 3).slice(-Math.ceil(-margin / 3));
-  return `⚠️ Tu as ~${-margin} min de retard sur le planning : ${cut.length ? `fais 2 séries au lieu de 3 sur ${cut.map(e => e.name).join(', ')}` : 'raccourcis les repos à 60 s'} pour garder du temps au cardio de fin.${supersetAdvice(l)}`;
+  return `⚠️ Le programme dépasse ton heure de départ d'environ ${-margin} min : ${cut.length ? `fais 2 séries au lieu de 3 sur ${cut.map(e => e.name).join(', ')}` : 'raccourcis les repos à 60 s'} pour garder du temps au cardio de fin.${supersetAdvice(l)}`;
 }
 
 function exLine(e: Exercise, sug: { kg: number | null; last?: string; up?: boolean }, warm = false): string {
@@ -251,7 +262,9 @@ async function logSet(l: Live, o: { exercise?: string; kg?: number; reps?: numbe
   await saveLive(l);
   if (l.timer !== false) restTimer(l.date, now, k >= e.sets ? 90 : e.rest, k >= e.sets ? remaining(l)[0]?.name ?? null : `${e.name} série ${k + 1}/${e.sets}${o.kg ? ` à ${o.kg} kg` : ''}`, k);
   const t = timeline(l, now);
-  return `📝 ${e.name} série ${k}/${e.sets} : ${o.kg ?? '?'} kg × ${o.reps ?? '?'}. ${advice.filter(Boolean).join(' ')}${next}\n${l.leaveBy ? `⏱️ ${minLeft(l.leaveBy, now)} min avant de partir.` : ''} ${lateAdvice(l, t.margin)}`.trim();
+  const late = lateAdvice(l, t.margin, true);
+  if (late) await saveLive(l);
+  return `📝 ${e.name} série ${k}/${e.sets} : ${o.kg ?? '?'} kg × ${o.reps ?? '?'}. ${advice.filter(Boolean).join(' ')}${next}\n${l.leaveBy ? `⏱️ ${minLeft(l.leaveBy, now)} min avant de partir.` : ''} ${late}`.trim();
 }
 
 /** ⏱️ Minuteur de repos : notification (montre / iPhone) + Telegram quand le repos est fini, s'il n'a rien dit entre-temps.
@@ -390,7 +403,7 @@ export async function liveTick(): Promise<void> {
       l.idx = Math.max(l.idx, l.exercises.indexOf(e) + 1);
       l.exAt = now;
       const nx = remaining(l)[0];
-      await notify(nx ? `⏭️ Normalement ${e.name} est fini → ${exLine(nx, suggestFor(nx, await readSportLog(), l.date), needWarm(l, nx))}\n${timeline(l, now).line} ${lateAdvice(l, timeline(l, now).margin)}`.trim()
+      await notify(nx ? `⏭️ Normalement ${e.name} est fini → ${exLine(nx, suggestFor(nx, await readSportLog(), l.date), needWarm(l, nx))}\n${timeline(l, now).line} ${lateAdvice(l, timeline(l, now).margin, true)}`.trim()
         : `🏁 Muscu terminée au chrono ! ${l.after.length ? `Passe à ${l.after.map(b => b.name).join(' + ')}.` : 'Étirements 5 min.'}`, nx ? `▶️ ${nx.name}` : '🏁 Muscu terminée');
       if (!nx) l.sent.push('after');
     }

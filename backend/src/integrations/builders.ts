@@ -118,11 +118,26 @@ export async function atelierTool(input: Record<string, unknown>): Promise<strin
 }
 
 // ── Usine à business ─────────────────────────────────────────────────────────
+/** Étude finie → Dzaryx l'appelle avec 3 phrases (prix, marge, premier test) au lieu de laisser le plan sur Telegram (Kouider 30/10).
+ *  Ne pas déranger / jour de repos : callOwner garde l'appel dans la boîte. La nuit (22h-8h) : rien de plus, le plan est sur Telegram. */
+async function callBackStudy(idea: string, final: string): Promise<void> {
+  const { localNow } = await import('./morning-routine.js');
+  const h = Number(localNow().hhmm.slice(0, 2));
+  if (h < 8 || h >= 22) return;
+  const sum = (await ai(`Plan d'étude du business « ${idea} » :\n\n${final.slice(0, 6000)}\n\n`
+    + 'Résume pour un appel téléphonique, en 3 phrases courtes en français, sans markdown ni émoji : 1) le prix de vente conseillé, 2) la marge ou le bénéfice par mois estimé, 3) le premier test pas cher à faire cette semaine. Uniquement des chiffres présents dans le plan ; si un chiffre manque, dis-le.', { max: 300 }))
+    .replace(/[*#_`]/g, '').replace(/\s+/g, ' ').trim();
+  if (!sum) return;
+  const { callOwner } = await import('../notifications/voice-call.js');
+  await callOwner(`L'étude de ton business « ${idea.slice(0, 80)} » est finie. ${sum} Le plan complet est sur Telegram.`);
+}
+
 export async function businessFactoryTool(input: Record<string, unknown>): Promise<string> {
   const idea = String(input['idea'] ?? '').trim();
   if (!idea) return '❌ Quel business ?';
   const { startSquad } = await import('./squad.js');
-  const s = await startSquad(`USINE À BUSINESS — étude complète pour lancer : « ${idea} » (Kouider, Oran / Bruxelles, petit budget). Il faut : le marché et la demande réelle, les concurrents et leurs prix, les chiffres (investissement de départ, coûts mensuels, prix, marge, point mort en clients par mois), l'offre irrésistible, le plan de lancement en 30 jours avec un premier test pas cher.`);
+  const s = await startSquad(`USINE À BUSINESS — étude complète pour lancer : « ${idea} » (Kouider, Oran / Bruxelles, petit budget). Il faut : le marché et la demande réelle, les concurrents et leurs prix, les chiffres (investissement de départ, coûts mensuels, prix, marge, point mort en clients par mois), l'offre irrésistible, le plan de lancement en 30 jours avec un premier test pas cher.`,
+    final => callBackStudy(idea, final));
   void buildPage(`Landing page pour lancer le business « ${idea} » à Oran : promesse claire, offre, prix de lancement, avantages, FAQ, bouton WhatsApp +32 466 31 14 69, formulaire de liste d'attente (localStorage).`, 'business')
     .then(b => tg(`🏭 Usine à business — la page de « ${idea} » est en ligne : ${b.url}`)).catch(() => {});
   return `🏭 Usine à business lancée pour « ${idea} » :\n• l'escouade fait l'étude (marché, concurrents, chiffres, offre, plan 30 jours) — visible en direct dans JARVIS › Escouade (id ${s.id}) ;\n• l'atelier construit la page de présentation.\nTout arrive sur Telegram dans quelques minutes.`;

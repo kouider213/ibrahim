@@ -50,7 +50,7 @@ Réponds UNIQUEMENT : {"agents":[{"name":"nom court","icon":"un emoji","task":"m
   return (j?.agents ?? []).slice(0, 4).filter(a => a.task);
 }
 
-async function run(s: Squad): Promise<void> {
+async function run(s: Squad, onDone?: (final: string) => Promise<void>): Promise<void> {
   try {
     const p = await plan(s.goal);
     if (!p.length) throw new Error('découpage impossible');
@@ -85,16 +85,18 @@ async function run(s: Squad): Promise<void> {
     if (inSandbox()) return;   // crash-test : rien chez Kouider
     await queueTelegramMessage(`🛰️ Escouade terminée — « ${s.goal} »\n\n${s.final.replace(/\*\*/g, '')}`).catch(() => {});
     emitProactive(`🛰️ Escouade terminée : ${s.goal.slice(0, 60)}`, 'info', s.final.slice(0, 1500));
+    if (onDone) await onDone(s.final).catch(err => console.warn('[squad] onDone:', err instanceof Error ? err.message : err));
   } catch (err) {
     s.status = 'error'; s.final = `❌ ${err instanceof Error ? err.message : String(err)}`;
     await save(s);
   }
 }
 
-export async function startSquad(goal: string): Promise<Squad> {
+/** onDone : appelé avec le plan final (pas en crash-test), ex. l'usine à business rappelle Kouider avec le résumé. */
+export async function startSquad(goal: string, onDone?: (final: string) => Promise<void>): Promise<Squad> {
   const s: Squad = { id: randomUUID().slice(0, 8), goal: goal.slice(0, 400), started: new Date().toISOString(), status: 'planning', agents: [] };
   await save(s);
-  void run(s);
+  void run(s, onDone);
   return s;
 }
 

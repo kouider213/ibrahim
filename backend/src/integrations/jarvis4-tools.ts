@@ -19,6 +19,7 @@ export const JARVIS4_TOOLS: Anthropic.Tool[] = [
   { name: 'chances_clients', description: "CHANCES DE RÉSERVATION : chaque client WhatsApp de ces 4 jours noté (« 80 % dates précises », « 15 % touriste du prix »), du plus chaud au plus froid → à qui répondre en premier, qui relancer.", input_schema: obj({}) },
   { name: 'lecons_vente', description: "IL APPREND À MIEUX VENDRE : compare les discussions WhatsApp qui finissent en réservation et les autres (ton, prix, délai de réponse, offres) → leçons chiffrées. Envoyé seul le dimanche.", input_schema: obj({}) },
   { name: 'ange_gardien', description: "ANGE GARDIEN SUR LA ROUTE (GPS) : arrêt net après une route rapide, immobile la nuit dans un lieu inconnu, longue route = fatigue. 'status' ; 'contact' (name, number, country) = qui prévenir s'il ne répond ni au message ni à l'appel ; 'on' / 'off' ; 'ok' quand il dit « ça va, tout va bien » après une alerte.", input_schema: obj({ action: act('status', 'contact', 'on', 'off', 'ok'), name: S, number: S, country: S }, ['action']) },
+  { name: 'radars', description: "RADARS ET AMENDES : sur la route, il est prévenu seul avant chaque radar fixe (position en direct). « je me suis fait flasher » → 'flash' (where si ce n'est pas l'endroit actuel, date AAAA-MM-JJ si pas aujourd'hui, speed) ; courrier reçu → 'amende' (amount en €, due AAAA-MM-JJ) → rappels avant la date ; « amende payée » → 'paye' ; 'list' ; 'off' / 'on' les alertes.", input_schema: obj({ action: act('flash', 'amende', 'paye', 'list', 'on', 'off'), where: S, date: S, speed: N, amount: N, due: S, id: S }, ['action']) },
   { name: 'parking', description: "OÙ JE SUIS GARÉ ? : position de sa voiture (notée quand il coupe CarPlay, sinon déduite du GPS) → point envoyé sur Telegram + itinéraire à pied.", input_schema: obj({}) },
   { name: 'banque_temps', description: "BANQUE DU TEMPS : où passe son temps (maison, travail, salle, route, bouchons) d'après le GPS + 2 conseils pour récupérer des heures. days (7). Envoyé seul le dimanche.", input_schema: obj({ days: N }) },
   { name: 'total_recall', description: "TOTAL RECALL — SA VIE CONSULTABLE : « c'était quand la dernière fois que j'ai vu Karim ? il m'avait dit quoi ? », « où j'étais le 14 juin ? », « combien de fois je suis allé chez le garagiste ce mois ? » → croise GPS, conversations, agenda, mails, WhatsApp, fiches des gens. question.", input_schema: obj({ question: S }, ['question']) },
@@ -62,6 +63,7 @@ export async function runJarvis4Tool(name: string, input: Record<string, unknown
     case 'chances_clients': return (await import('./foresight.js')).chancesTool();
     case 'lecons_vente': return (await import('./foresight.js')).salesLessons(false);
     case 'ange_gardien': return (await import('./gps-life.js')).angelTool(input);
+    case 'radars': return (await import('./speed-cameras.js')).radarsTool(input);
     case 'parking': return (await import('./gps-life.js')).parkingText();
     case 'banque_temps': return (await import('./gps-life.js')).timeBank(Number(input['days']) || 7);
     case 'total_recall': return (await import('./jarvis4.js')).totalRecall(String(input['question'] ?? ''));

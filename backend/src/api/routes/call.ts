@@ -210,6 +210,7 @@ router.post('/location', requireCallerAuth, async (req, res) => {
       await redis.setex(`location:${who}`, 86_400, JSON.stringify({ ...prev, lat, lng, updated_at: new Date().toISOString() }));
     } else await storeLocation(who, lat, lng);
     if (who === 'kouider') void import('../../integrations/presence.js').then(m => m.onLocationUpdate()).catch(() => {});   // assistant GPS
+    if (who === 'kouider') void import('../../integrations/speed-cameras.js').then(m => m.onRadarPoint(lat, lng)).catch(() => {});   // radars devant lui
     if (who === 'kouider') void import('../../integrations/gps-life.js').then(m => m.onLocationPoint(lat, lng)).catch(() => {});   // ange gardien, parking, mode Oran…
     res.json({ ok: true });
   } catch (err) {

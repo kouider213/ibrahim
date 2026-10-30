@@ -339,6 +339,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'radars',
+    cron:  '0 10 * * *',            // RADARS : amende à payer (7 j, 2 j, jour J) + « tu as reçu le courrier ? » 21 j après un flash
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'liberte',
     cron:  '*/5 5-23 * * *',        // LIBERTÉ : prises autorisées (boutons), envie → « c'est passé ? », soir 21h15, silence 2 j → appel, bilan dimanche
     tz:    'Europe/Brussels',
@@ -753,6 +758,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'life-coach-evening':      jobLifeCoachEvening,
   'life-coach-weekly':       jobLifeCoachWeekly,
   'life-plus':               async () => { await (await import('../integrations/life-plus.js')).jobLifePlus(); },
+  'radars':                  async () => { await (await import('../integrations/speed-cameras.js')).jobRadars(); },
   'liberte':                 async () => { await (await import('../integrations/liberte.js')).jobLiberte(); },
   'papa-time':               async () => { console.log(`[papa-time] ${await jobPapaTime()}`); },
   'papa-weekly':             async () => { await jobPapaWeekly(); },
