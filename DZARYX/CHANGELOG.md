@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 30/10 — Conscience : plus de « hier » pris pour « aujourd'hui »
+- 09h20 : « Djillali t'a envoyé un message… sa location a démarré à 09h00 » alors que tout datait de la veille. La Conscience recevait des dates brutes sans la date du jour : maintenant date_du_jour + dates relatives (aujourd'hui / hier / demain), état de chaque location (EN COURS / DÉPART / RETOUR AUJOURD'HUI), heure de réception des messages WhatsApp, brouillons WhatsApp de plus de 12 h ignorés.
+
 ## 30/10 — Coach de vie+ : identités et votes, revue de vie, couple, décisions, eau, prières, rapport santé (app v209)
 - Nouveau `life-plus.ts` + outil `vie` + tâche `life-plus` (*/15) + onglet app JARVIS › 🧭 Vie.
 - Identités « qui je veux devenir » (4 par défaut) : votes trouvés seuls chaque soir à 21h (GPS maison le soir, séances, pas, réservations, prospects, Liberté, moments avec son fils) + micro-action pour demain ; images de vision.

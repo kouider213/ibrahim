@@ -262,7 +262,7 @@ export async function snapshot(): Promise<Record<string, unknown>> {
   const [agenda, books, drafts, promises, where, trips, oran, sent, decisions, crisis] = await Promise.all([
     import('./google-calendar.js').then(m => m.listAgendaRange(now.toISOString(), in4h.toISOString())).catch(() => null),
     supabase.from('bookings').select('client_name, start_date, end_date, status, cars(name)').or(`start_date.gte.${date},end_date.gte.${date}`).lte('start_date', `${tomorrow}T23:59`).limit(15).then(r => r.data ?? []),
-    import('./whatsapp-web.js').then(m => m.waPendingDrafts()).catch(() => []),
+    import('./whatsapp-web.js').then(m => m.waPendingDrafts(12)).catch(() => []),   // 30/10 : brouillon de la veille annoncé comme « nouveau message »
     import('./foresight.js').then(m => m.promisesDue()).catch(() => []),
     kvJson<{ where: string; since: number } | null>('conscience:where', null),
     kvJson<Array<{ who: string; kind: string; title: string; departAt: number }>>('trips:v1', []),
@@ -275,17 +275,29 @@ export async function snapshot(): Promise<Record<string, unknown>> {
   // Ce que Kouider a dit ces 2 h : ses corrections (« je n'ai pas de RDV », « je suis au travail ») priment sur l'agenda
   const { data: said } = await supabase.from('conversations').select('content, created_at').eq('session_id', 'voice_kouider').eq('role', 'user').gte('created_at', new Date(Date.now() - 2 * 3600_000).toISOString()).order('created_at').limit(15);
   const health = (await kvJson<Array<Record<string, unknown>>>('health:daily', [])).find(h => h['date'] === date);
+  // Dates RELATIVES (30/10 : « sa location a démarré à 09h00 » alors que c'était la veille — il n'avait que « 2026-10-29T09:00 »)
+  const rel = (iso: string) => {
+    const t = Date.parse(iso.length <= 10 ? `${iso}T12:00:00` : iso);
+    if (!Number.isFinite(t)) return iso;
+    const d = localNow(t), diff = Math.round((Date.parse(`${d.date}T12:00:00Z`) - Date.parse(`${date}T12:00:00Z`)) / 86_400_000);
+    const day = diff === 0 ? "aujourd'hui" : diff === -1 ? 'hier' : diff === 1 ? 'demain' : `${diff < 0 ? 'il y a' : 'dans'} ${Math.abs(diff)} jours (${d.date.slice(8)}/${d.date.slice(5, 7)})`;
+    return iso.length > 10 && iso.slice(11, 16) !== '00:00' ? `${day} ${d.hhmm}` : day;
+  };
   return {
-    heure: localNow().hhmm, jour: ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'][localNow().weekday],
+    date_du_jour: date, heure: localNow().hhmm, jour: ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'][localNow().weekday],
     lieu: where ? `${where.where} depuis ${Math.round((Date.now() - where.since) / 60_000)} min` : 'inconnu', vitesse_kmh: Math.round(gps.last?.kmh ?? 0),
     mode_oran: !!oran, bouclier_famille: await shieldActive(),
     // Son créneau de TRAVAIL n'est pas un rendez-vous ; un événement déjà commencé est marqué comme tel
     agenda_4h: ((agenda ?? []) as Array<{ summary?: string; start?: { dateTime?: string }; location?: string }>)
       .filter(e => !/travail|boulot|\btaf\b|shift|poste/i.test(e.summary ?? ''))
       .map(e => `${e.start?.dateTime?.slice(11, 16) ?? ''} ${e.summary ?? ''}${e.location ? ` @${e.location}` : ''}${e.start?.dateTime && Date.parse(e.start.dateTime) < Date.now() ? ' (déjà commencé)' : ''}`),
-    locations_aujourdhui_demain: (books as Array<Record<string, unknown>>).filter(b => !/REJECT|CANCEL/i.test(String(b['status']))).map(b => `${(b['cars'] as { name?: string } | null)?.name ?? ''} ${b['client_name']} ${String(b['start_date']).slice(0, 16)}→${String(b['end_date']).slice(0, 16)}`),
-    vols_24h: trips.filter(t => t.departAt > Date.now() && t.departAt - Date.now() < 86_400_000).map(t => `${t.who} ${t.title} ${new Date(t.departAt).toISOString().slice(0, 16)}`),
-    whatsapp_en_attente: (drafts as Array<{ chat: string }>).map(d => d.chat).slice(0, 6),
+    locations_aujourdhui_demain: (books as Array<Record<string, unknown>>).filter(b => !/REJECT|CANCEL/i.test(String(b['status']))).map(b => {
+      const st = String(b['start_date']), en = String(b['end_date']);
+      const state = st.slice(0, 10) < date ? (en.slice(0, 10) > date ? 'EN COURS (déjà partie, rien à faire au départ)' : en.slice(0, 10) === date ? 'RETOUR AUJOURD\'HUI' : 'finie') : st.slice(0, 10) === date ? 'DÉPART AUJOURD\'HUI' : 'départ demain';
+      return `${(b['cars'] as { name?: string } | null)?.name ?? ''} ${b['client_name']} : départ ${rel(st)} → retour ${rel(en)} — ${state}`;
+    }),
+    vols_24h: trips.filter(t => t.departAt > Date.now() && t.departAt - Date.now() < 86_400_000).map(t => `${t.who} ${t.title} ${rel(new Date(t.departAt).toISOString())}`),
+    whatsapp_en_attente: (drafts as Array<{ chat: string; at: string }>).map(d => `${d.chat} (message reçu ${rel(d.at)})`).slice(0, 6),
     promesses_dues: promises.slice(0, 5),
     sante_du_jour: health ?? null,
     energie: (await energyToday()).line,
@@ -319,6 +331,7 @@ export async function jobConscience(): Promise<string> {
     + `Déjà ${todayN}/${MAX_PER_DAY} conseils aujourd'hui.${night ? ' C\'est la NUIT : seulement urgence 3.' : ''}${snap['bouclier_famille'] ? ' Bouclier famille : seulement urgence 3.' : ''}\n\n`
     + `Cherche UNE chose qui vaut VRAIMENT la peine d'être dite maintenant, en CROISANT les infos (ex. client qui atterrit + Houari loin ; rendez-vous dans 40 min + 35 min de route ; promesse due aujourd'hui ; décision qui attend depuis longtemps ; santé mauvaise + grosse journée ; il roule vers un lieu alors qu'un truc l'attend ailleurs). `
     + `Sa position (lieu) est la vérité : « work » = il est à son poste de travail, c'est normal, jamais un retard ; ne lui annonce pas un RDV ailleurs pendant qu'il y est sauf s'il est noté hors travail. `
+    + `Les dates sont déjà écrites en relatif (aujourd'hui / hier / demain) : ne dis JAMAIS qu'une chose se passe aujourd'hui si elle est notée « hier ». Une location « EN COURS » est déjà partie : ne parle pas de son départ. Un message WhatsApp reçu hier n'est pas « nouveau ». `
     + `Ce que Kouider a dit (kouider_a_dit_2h) PRIME sur l'agenda : s'il a dit qu'il n'a pas de RDV, qu'il est au travail ou que c'est réglé, n'en reparle plus. Son travail n'est jamais un « RDV ». `
     + `Pas de redite de ce qui a déjà été envoyé ces 3 h. Pas de banalité, pas de motivation creuse, pas de « bonne journée ». Si rien d'utile → speak:false (c'est le cas le plus fréquent).\n`
     + `Réponds UNIQUEMENT en JSON : {"speak":true|false,"kind":"type court (ex. retard-rdv, client-aeroport, promesse, sante, argent, famille, decision)","urgency":1|2|3,"text":"ce que tu lui dis, 1 à 3 phrases, tutoiement, concret","options":[{"label":"bouton court","tool":"outil Dzaryx facultatif","input":{}}]} (options facultatives, 2-3 max, seulement si un simple choix permet d'agir).`,
