@@ -98,6 +98,8 @@ export interface StudioJob {
   id: string; planId: string; title: string; model: ModelId; status: 'queued' | 'shots' | 'audio' | 'montage' | 'done' | 'error';
   step: string; progress: number; estimateUsd: number; costUsd: number; url?: string; caption?: string; error?: string;
   shotsDone: number; shotsTotal: number; createdAt: string; updatedAt: string; actor: string;
+  /** Vidéo automatique de la semaine : à valider par Kouider (« Oke ») avant publication. */
+  approval?: { car_name: string; car_id: string; label: string };
 }
 
 const PLAN_KEY = (id: string) => `studio:plan:${id}`;
@@ -539,14 +541,14 @@ async function addSpent(usd: number): Promise<void> {
 
 const running = new Set<string>();
 
-export async function startStudioRender(plan: StudioPlan, opts: RenderOptions, actor = 'kouider'): Promise<StudioJob> {
+export async function startStudioRender(plan: StudioPlan, opts: RenderOptions, actor = 'kouider', approval?: StudioJob['approval']): Promise<StudioJob> {
   if (!isFree(opts.model) && !env.FAL_KEY) throw new Error('FAL_KEY absente dans Railway — impossible de générer.');
   if (!STUDIO_MODELS[opts.model]) throw new Error(`modèle inconnu : ${opts.model}`);
   if (running.size >= 2) throw new Error('Déjà 2 vidéos en cours de rendu — attends qu\'une se termine.');
   const now = new Date().toISOString();
   const job: StudioJob = {
     id: randomUUID().slice(0, 8), planId: plan.id, title: plan.title, model: opts.model, status: 'queued', step: 'En file…', progress: 2,
-    estimateUsd: estimateCost(plan.shots, opts), costUsd: 0, shotsDone: 0, shotsTotal: plan.shots.length, createdAt: now, updatedAt: now, actor,
+    estimateUsd: estimateCost(plan.shots, opts), costUsd: 0, shotsDone: 0, shotsTotal: plan.shots.length, createdAt: now, updatedAt: now, actor, ...(approval ? { approval } : {}),
   };
   await saveJob(job);
   const ids = JSON.parse((await kvGet(JOBS_INDEX).catch(() => null)) ?? '[]') as string[];
@@ -641,10 +643,17 @@ async function renderJob(job: StudioJob, plan: StudioPlan, opts: RenderOptions):
     await addSpent(job.costUsd);
     Object.assign(job, { status: 'done', step: 'Terminé ✅', progress: 100, url, caption: plan.post_caption });
     await saveJob(job);
+    if (job.approval) {
+      const { savePendingVideo } = await import('./approval-store.js');
+      const tags = (plan.post_caption.match(/#[\p{L}\d_]+/gu) ?? []).slice(0, 8);
+      await savePendingVideo({ video_url: url, caption: plan.post_caption.replace(/#[\p{L}\d_]+/gu, '').trim(), hashtags: tags,
+        car_name: job.approval.car_name, car_id: job.approval.car_id, script: plan.voiceover }).catch(e => console.error('[studio] pending', e));
+    }
     const missed = plan.shots.length - ok.length;
     const msg = `🎬 Studio vidéo — « ${plan.title} » est prête (${Math.round(total)} s, ${STUDIO_MODELS[opts.model].label}, ${free ? '0 €' : `coût ≈ ${job.costUsd.toFixed(2)} $`})` +
       (missed ? `\n⚠️ ${missed} plan(s) n'ont pas pu être générés, montage fait sans eux.` : '') +
-      (plan.post_caption ? `\n\nLégende à poster :\n${plan.post_caption}` : '');
+      (plan.post_caption ? `\n\nLégende à poster :\n${plan.post_caption}` : '') +
+      (job.approval ? `\n\n${job.approval.label} — ✅ Réponds Oke pour publier` : '');
     await queueTelegramMessage(msg, undefined, job.actor, { url, name: `${plan.title.replace(/[^\w\- ]+/g, '').slice(0, 50) || 'video'}.mp4` }).catch(() => {});
     emitProactive(`🎬 Vidéo « ${plan.title} » prête dans STUDIO VIDÉO`, 'info', msg, job.actor === 'houari' ? 'houari' : 'kouider');
   } catch (e) {
@@ -658,6 +667,15 @@ async function renderJob(job: StudioJob, plan: StudioPlan, opts: RenderOptions):
   } finally {
     await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+// ─── Vidéos automatiques de la semaine (mercredi, vendredi, idée TikTok) ───
+
+/** Les tâches planifiées passent par le moteur MONTAGE gratuit : scénario → rendu → Telegram, publication après « Oke ». */
+export async function autoStudioVideo(o: { idea: string; template: string; car: { id: string; name: string; image_url: string | null }; label: string }): Promise<StudioJob> {
+  const plan = await createStudioPlan({ idea: o.idea, template: o.template, lang: 'fr', seconds: 20, imageUrl: o.car.image_url, carName: o.car.name });
+  return startStudioRender(plan, { model: FREE_MODEL, nativeAudio: false, voice: !!plan.voiceover, music: false, subtitles: true, outro: true }, 'kouider',
+    { car_name: o.car.name, car_id: o.car.id, label: o.label });
 }
 
 // ─── Outil Dzaryx (Telegram / appel / chat) ───────────────────

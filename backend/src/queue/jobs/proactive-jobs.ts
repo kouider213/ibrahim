@@ -20,8 +20,6 @@ import { chat } from '../../integrations/claude-api.js';
 import axios from 'axios';
 import { runTikTokMarketResearch } from '../../marketing/market-research.js';
 import { generateOpportunities } from '../../integrations/opportunities.js';
-import { createMarketingVideo } from '../../marketing/video-creator.js';
-import { savePendingVideo } from '../../marketing/approval-store.js';
 import type { Car } from '../../integrations/supabase.js';
 import { rentalDays } from '../../integrations/finance.js';
 
@@ -396,53 +394,15 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
     return;
   }
 
-  // 5. Create the video
-  console.log(`[job:tiktok] Creating video for car: ${targetCar.name}`);
-  const videoResult = await createMarketingVideo(targetCar, bestIdea).catch(err => {
-    console.error('[job:tiktok] video creation failed:', err);
-    return null;
-  });
-
-  if (!videoResult) {
-    emitProactive(`Idée TikTok — ${bestIdea.title} — ${targetCar.name}. Script prêt.`, 'info',
-      `🎬 Idée TikTok — ${bestIdea.title}\n🚗 ${targetCar.name}\n📝 ${bestIdea.voiceover_script ?? ''}\n\n📱 Légende: ${bestIdea.caption}`, 'kouider');
-    return;
-  }
-
-  // 6. Save as pending (waiting for "Oke" approval)
-  //    BUG FIX: createMarketingVideo retourne un BUFFER vidéo mais ne l'uploadait
-  //    jamais → on affichait l'image de la voiture dans un <video> = boîte noire.
-  //    On uploade la vraie vidéo vers Supabase Storage et on utilise son URL.
-  let realVideoUrl = targetCar.image_url; // fallback si upload échoue
+  // 5. Vidéo via le moteur MONTAGE gratuit (images IA + vraie photo, voix, sous-titres, signature FIK) — arrive sur Telegram, « Oke » pour publier
   try {
-    const filename = `tiktok/${targetCar.id}-${Date.now()}.mp4`;
-    const { error: upErr } = await supabase.storage
-      .from('videos')
-      .upload(filename, videoResult.buffer, { contentType: 'video/mp4', upsert: true, cacheControl: '3600' });
-    if (!upErr) {
-      realVideoUrl = supabase.storage.from('videos').getPublicUrl(filename).data.publicUrl;
-      console.log(`[job:tiktok] Vidéo uploadée: ${realVideoUrl}`);
-    } else {
-      console.error('[job:tiktok] Upload vidéo échoué:', upErr.message);
-    }
-  } catch (e) {
-    console.error('[job:tiktok] Upload vidéo exception:', e);
+    const { autoStudioVideo } = await import('../../marketing/video-studio.js');
+    await autoStudioVideo({ idea: `${bestIdea.title} — ${bestIdea.concept}${bestIdea.voiceover_script ? `\nIdée de texte : ${bestIdea.voiceover_script}` : ''}`,
+      template: 'voiture', car: targetCar, label: `🎬 Vidéo TikTok — ${bestIdea.title}` });
+  } catch (err) {
+    console.error('[job:tiktok] montage failed:', err);
+    emitProactive(`Vidéo TikTok « ${bestIdea.title} » : création échouée.`, 'alert', undefined, 'kouider');
   }
-  const pendingId = await savePendingVideo({
-    video_url: realVideoUrl,
-    caption:   videoResult.caption,
-    hashtags:  videoResult.hashtags,
-    car_name:  videoResult.car_name,
-    car_id:    targetCar.id,
-    script:    videoResult.script,
-  });
-
-  console.log(`[job:tiktok] Pending video saved: ${pendingId}`);
-
-  // 7. Notification app (Socket.IO + push) avec URL vidéo
-  const tiktokMediaLine = realVideoUrl ? `\n📹 ${realVideoUrl}` : '';
-  emitProactive(`Vidéo TikTok — ${bestIdea.title} — ${targetCar.name}. Réponds Oke pour publier.`, 'info',
-    `🎬 Vidéo TikTok créée — ${bestIdea.title}\n🚗 ${targetCar.name}\n📝 ${videoResult.script.slice(0, 200)}\n\n✅ Réponds Oke pour publier sur TikTok${tiktokMediaLine}`, 'kouider');
   console.log('[job:tiktok] Weekly marketing job complete');
 }
 
@@ -459,23 +419,18 @@ async function createWeeklyVideo(style: 'lifestyle' | 'prix' | 'temoignage', lab
 
   const car = cars[Math.floor(Math.random() * cars.length)];
 
-  const { executeCreateMarketingVideo } = await import('../../marketing/create-marketing-video.js');
-  let result: Awaited<ReturnType<typeof executeCreateMarketingVideo>> | null = null;
-
+  const ideas: Record<typeof style, string> = {
+    lifestyle: `Vidéo lifestyle : une journée de liberté à Oran au volant de la ${car.name} (corniche, plage, terrasse, coucher de soleil). Donne envie de louer.`,
+    prix: `Vidéo prix choc : la ${car.name} à louer à Oran à un prix imbattable, réservation en 2 minutes sur WhatsApp. Urgence, places limitées.`,
+    temoignage: `Témoignage : un client de la diaspora raconte sa location de la ${car.name} à Oran, simple et sans surprise.`,
+  };
   try {
-    result = await executeCreateMarketingVideo(
-      { car_name: car.name, style },
-      '',
-    );
+    const { autoStudioVideo } = await import('../../marketing/video-studio.js');
+    await autoStudioVideo({ idea: ideas[style], template: style === 'temoignage' ? 'temoignage' : 'voiture', car, label });
   } catch (err) {
     console.error(`[job:${style}] video failed:`, err);
     emitProactive(`${label} : création vidéo échouée pour ${car.name}.`, 'alert', `⚠️ ${label} : création vidéo échouée pour ${car.name}. Réessaie manuellement.`, 'kouider');
-    return;
   }
-
-  const mediaLine = result.public_url ? `\n📹 ${result.public_url}` : '';
-  emitProactive(`${label} — ${result.car_name}. Réponds Oke pour publier.`, 'info',
-    `🎬 ${label} — ${result.car_name}\n📝 ${result.script.slice(0, 200)}\n🏷️ ${result.hashtags.slice(0, 4).join(' ')}\n\n✅ Réponds Oke pour publier${mediaLine}`, 'kouider');
 }
 
 export async function jobWednesdayContent(_job: Job): Promise<void> {
