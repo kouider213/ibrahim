@@ -1,9 +1,9 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { requireMobileAuth } from '../middleware/auth.js';
 import {
-  formeOverview, setFormeProfile, swipeCandidates, generateWeek, getWeek, mondayOf, swapRecipe, logForme,
-  parseImage, analyzeMealPhoto, addBodyPhoto, analyzeBodyPhoto, offBarcode, offSearch, askFormeCoach, storeFormeSub, formeTargets,
-  householdShopping, checkHouseItem, addHouseItem, removeHouseItem, adaptNextSession, doctorReport, formeAgenda, toggleFavorite, placeFavorite, translateAr, type Recipe, createInvite, revokeInvite, uidFromFormeToken, getProgram, programOverview, getFormeProfile,
+  formeOverview, setFormeProfile, logForme,
+  parseImage, addBodyPhoto, analyzeBodyPhoto, askFormeCoach, storeFormeSub, formeTargets,
+  adaptNextSession, doctorReport, translateAr, createInvite, revokeInvite, uidFromFormeToken, getProgram, programOverview,
   type FormeProfile, type BodyPhoto, type Uid,
   scanMachine, machineHistory, deleteMachine, exFavs, toggleExFav, exHistory, addExSet, delExSet,
 } from '../../integrations/forme.js';
@@ -45,42 +45,6 @@ router.post('/profile', async (req, res) => {
   try { const p = await setFormeProfile(req.body as Partial<FormeProfile>, U(req)); res.json({ profile: p, targets: formeTargets(p) }); } catch (err) { fail(res, err); }
 });
 
-// GET /api/forme/swipe — plats à swiper (vraies photos, halal), dans la langue du profil
-router.get('/swipe', async (req, res) => {
-  try { res.json({ meals: await swipeCandidates(14, (await getFormeProfile(U(req))).lang) }); } catch (err) { fail(res, err); }
-});
-
-// GET /api/forme/week?monday= — POST /api/forme/week { monday?, force? } → (re)compose la semaine + courses
-router.get('/week', async (req, res) => {
-  try { res.json({ week: await getWeek(U(req), isDate(req.query.monday) ? req.query.monday : undefined) }); } catch (err) { fail(res, err); }
-});
-router.post('/week', async (req, res) => {
-  const b = req.body as { monday?: string; force?: boolean; wishes?: string };
-  try { res.json({ week: await generateWeek(U(req), isDate(b.monday) ? b.monday : mondayOf(), !!b.force, typeof b.wishes === 'string' ? b.wishes.slice(0, 500) : undefined) }); } catch (err) { fail(res, err); }
-});
-
-// GET /api/forme/shopping — la liste du FOYER (les deux semaines fusionnées) ; POST /api/forme/shop { key, checked }
-router.get('/shopping', async (req, res) => {
-  try { res.json(await householdShopping(U(req))); } catch (err) { fail(res, err); }
-});
-router.post('/shop', async (req, res) => {
-  const b = req.body as { key?: string; checked?: boolean; home?: boolean };
-  if (typeof b.key !== 'string' || !b.key) { fail(res, 'article invalide', 400); return; }
-  try { await checkHouseItem(U(req), b.key.slice(0, 200), !!b.checked, !!b.home); res.json(await householdShopping(U(req))); } catch (err) { fail(res, err); }
-});
-
-// POST /api/forme/shop-add { name, qty?, store? } — article ajouté à la main ; POST /api/forme/shop-del { key }
-router.post('/shop-add', async (req, res) => {
-  const b = req.body as { name?: string; qty?: string; store?: string };
-  if (!b.name?.trim()) { fail(res, 'nom manquant', 400); return; }
-  try { await addHouseItem(U(req), { name: b.name.trim(), qty: b.qty, store: b.store }); res.json(await householdShopping(U(req))); } catch (err) { fail(res, err); }
-});
-router.post('/shop-del', async (req, res) => {
-  const key = String((req.body as { key?: string }).key ?? '');
-  if (!key.startsWith('extra|')) { fail(res, 'article invalide', 400); return; }
-  try { await removeHouseItem(key); res.json(await householdShopping(U(req))); } catch (err) { fail(res, err); }
-});
-
 // POST /api/forme/swap { monday, recipe, wish? } — une autre recette, macros proches
 // Bibliothèque d'exercices : GET /exlib (liste), /exlib/:id (fiche), /exlib-match?name= (exercice d'une séance → fiche)
 router.get('/exlib', async (_req, res) => {
@@ -114,11 +78,6 @@ router.post('/exlog', async (req, res) => {
   try { res.json({ sets: b.del ? await delExSet(U(req), id, Number(b.del)) : await addExSet(U(req), id, Number(b.kg) || undefined, Number(b.reps) || undefined) }); } catch (err) { fail(res, err); }
 });
 
-router.post('/swap', async (req, res) => {
-  const b = req.body as { monday?: string; recipe?: string; wish?: string };
-  try { res.json({ week: await swapRecipe(U(req), isDate(b.monday) ? b.monday : '', String(b.recipe ?? ''), String(b.wish ?? '').slice(0, 120)) }); } catch (err) { fail(res, err); }
-});
-
 // POST /api/forme/log { kind, date?, … } — eau, poids, repas coché, aliment, protéines, mensurations, injection, effet, séance
 router.post('/log', async (req, res) => {
   const b = req.body as Record<string, unknown>;
@@ -131,19 +90,6 @@ router.get('/program', async (req, res) => {
 });
 router.post('/program', async (req, res) => {
   try { await getProgram(U(req), true); res.json(await programOverview(U(req))); } catch (err) { fail(res, err); }
-});
-
-// POST /api/forme/fav { recipe, on } — ❤️ garder / retirer une recette complète
-router.post('/fav', async (req, res) => {
-  const b = req.body as { recipe?: Recipe; on?: boolean };
-  if (!b.recipe?.title) { fail(res, 'recette invalide', 400); return; }
-  try { res.json({ favs: await toggleFavorite(U(req), b.recipe, !!b.on) }); } catch (err) { fail(res, err); }
-});
-// POST /api/forme/place { title, date, slot } — remettre un favori dans la semaine
-router.post('/place', async (req, res) => {
-  const b = req.body as { title?: string; date?: string; slot?: string };
-  if (!b.title || !isDate(b.date) || !b.slot) { fail(res, 'jour ou repas manquant', 400); return; }
-  try { res.json({ week: await placeFavorite(U(req), b.title, b.date, String(b.slot).slice(0, 20)) }); } catch (err) { fail(res, err, 400); }
 });
 
 // POST /api/forme/translate { texts } — mode arabe : les textes encore en français à l'écran
@@ -168,11 +114,6 @@ router.post('/games/room', async (req, res) => {
   try { res.json(await roomAction(U(req), (req.body ?? {}) as Record<string, unknown>)); } catch (err) { fail(res, err); }
 });
 
-// GET /api/forme/agenda — les 7 prochains jours (sport, repas, injection, rappels, repos)
-router.get('/agenda', async (req, res) => {
-  try { res.json({ days: await formeAgenda(U(req)) }); } catch (err) { fail(res, err); }
-});
-
 // GET /api/forme/doctor — bilan texte pour le médecin
 router.get('/doctor', async (req, res) => {
   try { res.json({ text: await doctorReport(U(req)) }); } catch (err) { fail(res, err); }
@@ -182,11 +123,6 @@ router.get('/doctor', async (req, res) => {
 router.post('/adapt', async (req, res) => {
   const focus = String((req.body as { focus?: string }).focus ?? '').trim();   // vide = le coach choisit d'après les photos
   try { res.json(await adaptNextSession(U(req), { focus })); } catch (err) { fail(res, err); }
-});
-
-// POST /api/forme/meal-photo { image: dataURL } → estimation kcal/macros (pas encore notée)
-router.post('/meal-photo', async (req, res) => {
-  try { res.json(await analyzeMealPhoto(parseImage(String((req.body as { image?: string }).image ?? '')), U(req))); } catch (err) { fail(res, err, 400); }
 });
 
 // POST /api/forme/body-photo { image, pose } → stockée en privé puis analysée (avant / maintenant)
@@ -206,17 +142,6 @@ router.post('/body-photo', async (req, res) => {
 // POST /api/forme/analyze { id } — refaire l'analyse d'une photo
 router.post('/analyze', async (req, res) => {
   try { res.json({ analysis: await analyzeBodyPhoto(U(req), String((req.body as { id?: string }).id ?? '')) }); } catch (err) { fail(res, err); }
-});
-
-// GET /api/forme/barcode/:code — produit Open Food Facts + verdict halal
-router.get('/barcode/:code', async (req, res) => {
-  if (!/^\d{6,14}$/.test(req.params.code)) { fail(res, 'code-barres invalide', 400); return; }
-  try { const p = await offBarcode(req.params.code); if (!p) { fail(res, 'produit inconnu', 404); return; } res.json(p); } catch (err) { fail(res, err); }
-});
-
-// GET /api/forme/products?q=&store= — vrais produits vendus en Belgique
-router.get('/products', async (req, res) => {
-  try { res.json({ products: await offSearch(String(req.query.q ?? '').slice(0, 60), req.query.store ? String(req.query.store) : undefined, 12) }); } catch (err) { fail(res, err); }
 });
 
 // POST /api/forme/ask { question } — le coach répond (resto, envie de sucre, nausée…)

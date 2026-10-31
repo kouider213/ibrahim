@@ -4,19 +4,15 @@ import { supabase } from './supabase.js';
 import { createAnthropic, QUALITY } from './anthropic-compat.js';
 import { localNow } from './morning-routine.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
-import { env } from '../config/env.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { sendWebPush } from '../notifications/web-push-service.js';
 import type { PushSubscription } from 'web-push';
 
-// FORME (Kouider 25/10, sur le modèle de l'app MacroSave qu'il a montrée) : app sport + nutrition + suivi du corps.
-// Toujours : HALAL uniquement (jamais de porc, d'alcool, de gélatine de porc ; viande halal), magasins BELGES
-// (Colruyt, Delhaize, Aldi, Lidl…), et — si le profil l'active — adaptation à un traitement GLP-1 (rappel d'injection,
-// dose notée, portions adaptées ; jamais de conseil de dose).
-// DEUX PROFILS : Kouider et sa femme, chacun ses repas, son suivi, ses photos. Elle utilise l'app en arabe littéraire
-// (langue principale) ou en français. Seule la LISTE DE COURSES est commune au foyer : ce que l'un coche est coché chez
-// l'autre (on n'achète pas 2 fois). Aucun des deux ne voit le suivi de l'autre ; Dzaryx suit Kouider (formeText → dossier)
-// et ne lit le suivi de sa femme que si ELLE l'a autorisé dans ses réglages.
+// FORME (Kouider 25/10) = depuis le 31/10 son app SPORT uniquement : séances, bibliothèque d'exercices, scanner de machines,
+// photos du corps, poids, et — si le profil l'active — rappel d'un traitement GLP-1 (jamais de conseil de dose).
+// Nutrition, repas et LISTE DE COURSES retirés définitivement le 31/10 (« je n'ai pas besoin de ça »).
+// DEUX PROFILS : Kouider et sa femme (arabe littéraire ou français), chacun son suivi.
+// Dzaryx suit Kouider (formeText → dossier) et ne lit le suivi de sa femme que si ELLE l'a autorisé.
 // Sa femme se connecte avec un lien d'invitation : jeton valable UNIQUEMENT pour /api/forme, aucun accès au business.
 // VIE PRIVÉE : dépôt PUBLIC → prénoms, poids, traitements, photos uniquement dans app_kv + bucket privé, jamais ici.
 
@@ -29,17 +25,11 @@ const DK = (u: Uid) => `${u}:forme:days`;
 const PHK = (u: Uid) => `${u}:forme:photos`;
 const PROG_K = (u: Uid) => `${u}:forme:program`;
 const CUSTOM_K = (u: Uid) => `${u}:forme:custom`;
-const FAV_K = (u: Uid) => `${u}:forme:favrecipes`;   // recettes favorites COMPLÈTES (à refaire quand on veut)    // prochaine séance refaite sur mesure (photo + objectif)
 const SUB_K = (u: Uid) => `mobile:web_push_sub:${u}:forme`;
-const WEEK_K = (u: Uid, start: string) => `${u}:forme:week:${start}`;
 const WEEKS_K = (u: Uid) => `${u}:forme:weeks`;   // dates de début des plans (7 jours chacun)
 const SENT_K = (u: Uid, what: string, date: string) => `${u}:forme:sent:${what}:${date}`;
-const CHECKS_KEY = 'foyer:forme:checks';             // courses cochées, communes au foyer
-const EXTRA_KEY = 'foyer:forme:extra';               // articles ajoutés à la main (lait du petit, lessive…)
 const INVITE_K = (hash: string) => `forme:invite:${hash}`;
 const INVITE_OF = (u: Uid) => `forme:invite-of:${u}`;
-const CATALOG_KEY = 'forme:mealdb:catalog';
-const IMG_KEY = 'forme:off:img3';
 const BUCKET = 'forme-private';
 
 export const STORES = ['Colruyt', 'Delhaize', 'Aldi', 'Lidl', 'Carrefour', 'Albert Heijn', 'Intermarché', 'Boucherie halal'] as const;
@@ -225,169 +215,7 @@ export function formeTargets(p: FormeProfile) {
   return { kcal, p: p_, c, f, tdee: Math.round(tdee), bmr: Math.round(bmr), fiber: p.sex === 'h' ? 30 : 25, waterL: Math.round(p.waterGoal * 0.25 * 10) / 10 };
 }
 
-// ── Catalogue de vraies photos de plats (TheMealDB, gratuit) — filtré halal ──
-interface MealDb { id: string; name: string; fr?: string; ar?: string; cat: string; area: string; thumb: string; ing: string[] }
-const CAT_FR: Record<string, string> = { Beef: 'Bœuf', Breakfast: 'Petit-déj', Chicken: 'Poulet', Dessert: 'Dessert', Goat: 'Chèvre', Lamb: 'Agneau', Miscellaneous: 'Divers', Pasta: 'Pâtes', Seafood: 'Poisson', Side: 'Accompagnement', Starter: 'Entrée', Vegan: 'Vegan', Vegetarian: 'Végétarien' };
-const CAT_AR: Record<string, string> = { Beef: 'لحم بقر', Breakfast: 'فطور', Chicken: 'دجاج', Dessert: 'حلوى', Goat: 'ماعز', Lamb: 'لحم ضأن', Miscellaneous: 'متنوع', Pasta: 'معكرونة', Seafood: 'سمك', Side: 'طبق جانبي', Starter: 'مقبلات', Vegan: 'نباتي صرف', Vegetarian: 'نباتي' };
-const AREA_FR: Record<string, string> = { American: 'américain', British: 'anglais', Canadian: 'canadien', Chinese: 'chinois', Croatian: 'croate', Dutch: 'néerlandais', Egyptian: 'égyptien', Filipino: 'philippin', French: 'français', Greek: 'grec', Indian: 'indien', Irish: 'irlandais', Italian: 'italien', Jamaican: 'jamaïcain', Japanese: 'japonais', Kenyan: 'kényan', Malaysian: 'malaisien', Mexican: 'mexicain', Moroccan: 'marocain', Polish: 'polonais', Portuguese: 'portugais', Russian: 'russe', Spanish: 'espagnol', Thai: 'thaï', Tunisian: 'tunisien', Turkish: 'turc', Ukrainian: 'ukrainien', Vietnamese: 'vietnamien', Algerian: 'algérien', Syrian: 'syrien', Saudi: 'saoudien', Norwegian: 'norvégien', Venezulan: 'vénézuélien', Argentinian: 'argentin', Australian: 'australien', Belgian: 'belge' };
-
-/** Noms des plats traduits (une fois, Claude Haiku), gardés dans le catalogue. */
-async function translateNames(meals: MealDb[], lang: Lang): Promise<boolean> {
-  const todo = meals.filter(m => !m[lang]);
-  let changed = false;
-  for (let i = 0; i < todo.length; i += 120) {
-    const part = todo.slice(i, i + 120);
-    try {
-      const res = await createAnthropic().messages.create({ model: 'claude-haiku-5-5', max_tokens: 8000,
-        system: `Traduis ces noms de plats en ${lang === 'ar' ? 'arabe littéraire (فصحى)' : 'français'} naturel et appétissant (comme sur une carte de restaurant), courts. Réponds UNIQUEMENT par un objet JSON {"id":"nom traduit"}.`,
-        messages: [{ role: 'user', content: JSON.stringify(Object.fromEntries(part.map(m => [m.id, m.name]))) }] });
-      const j = jsonOf<Record<string, string>>(textOf(res));
-      for (const m of part) if (j[m.id]) { m[lang] = String(j[m.id]).slice(0, 80); changed = true; }
-    } catch { /* on garde l'anglais pour ce lot */ }
-  }
-  return changed;
-}
-const HARAM = /\b(pork|bacon|ham|lard|prosciutto|pancetta|chorizo|salami|pepperoni|gammon|wine|beer|brandy|rum|sherry|cider|vodka|whisk(e)?y|bourbon|gelatin|marsala|kirsch|cognac|liqueur|sake|mirin|stout|ale|port|madeira|grand marnier|amaretto|tequila|gin|black pudding|sausage)s?\b/i;
-
-export async function mealCatalog(lang: Lang = 'fr'): Promise<MealDb[]> {
-  const cached = await readJson<{ at: number; meals: MealDb[] } | null>(CATALOG_KEY, null);
-  if (cached && Date.now() - cached.at < 30 * 86_400_000 && cached.meals.length > 50) {
-    if (!cached.meals.some(m => m[lang]) && await translateNames(cached.meals, lang)) await kvSet(CATALOG_KEY, JSON.stringify(cached));
-    return cached.meals;
-  }
-  const out: MealDb[] = [];
-  for (const l of 'abcdefghijklmnopqrstuvwyz') {
-    try {
-      const r = await fetch(`https://www.themealdb.com/api/json/v1/1/search.php?f=${l}`, { signal: AbortSignal.timeout(10_000) });
-      const j = await r.json() as { meals: Array<Record<string, string | null>> | null };
-      for (const m of j.meals ?? []) {
-        const ing = Array.from({ length: 20 }, (_, i) => (m[`strIngredient${i + 1}`] ?? '').trim()).filter(Boolean);
-        if (m.strCategory === 'Pork' || ing.some(x => HARAM.test(x)) || HARAM.test(m.strMeal ?? '')) continue;
-        out.push({ id: m.idMeal!, name: m.strMeal!, cat: m.strCategory ?? '', area: m.strArea ?? '', thumb: m.strMealThumb!, ing });
-      }
-    } catch { /* lettre suivante */ }
-  }
-  if (out.length > 50) {
-    const old = new Map((cached?.meals ?? []).map(m => [m.id, m]));
-    for (const m of out) { m.fr = old.get(m.id)?.fr; m.ar = old.get(m.id)?.ar; }
-    await translateNames(out, lang);
-    await kvSet(CATALOG_KEY, JSON.stringify({ at: Date.now(), meals: out }));
-  }
-  return out.length ? out : cached?.meals ?? [];
-}
-
-const shuffle = <T,>(a: T[]): T[] => { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j]!, b[i]!]; } return b; };
-
-/** Plats à « swiper » (onboarding « ça te tente ? ») — vraies photos, déjà halal. */
-export async function swipeCandidates(n = 14, lang: Lang = 'fr'): Promise<Array<{ id: string; name: string; cat: string; area: string; photo: string }>> {
-  const cat = (await mealCatalog(lang)).filter(m => !['Dessert', 'Goat', 'Miscellaneous'].includes(m.cat));
-  const byCat = new Map<string, MealDb[]>();
-  for (const m of shuffle(cat)) byCat.set(m.cat, [...(byCat.get(m.cat) ?? []), m]);
-  const pick: MealDb[] = [];
-  while (pick.length < n && [...byCat.values()].some(v => v.length)) for (const v of byCat.values()) { const m = v.shift(); if (m && pick.length < n) pick.push(m); }
-  return pick.map(m => ({ id: m.id, name: m[lang] ?? m.fr ?? m.name, cat: (lang === 'ar' ? CAT_AR : CAT_FR)[m.cat] ?? m.cat, area: lang === 'ar' ? '' : AREA_FR[m.area] ?? m.area, photo: `${m.thumb}/medium` }));
-}
-
-function photoFor(cat: MealDb[], q: { mealDbId?: string; photoQuery?: string; title?: string }): { photo: string; id?: string } {
-  const byId = q.mealDbId ? cat.find(m => m.id === String(q.mealDbId)) : undefined;
-  if (byId) return { photo: byId.thumb, id: byId.id };
-  const words = `${q.photoQuery ?? ''} ${q.title ?? ''}`.toLowerCase().split(/[^a-zà-ÿ]+/).filter(w => w.length > 3);
-  let best: MealDb | undefined; let score = 0;
-  for (const m of cat) {
-    const hay = `${m.name} ${m.cat} ${m.ing.join(' ')}`.toLowerCase();
-    const s = words.reduce((a, w) => a + (m.name.toLowerCase().includes(w) ? 3 : hay.includes(w) ? 1 : 0), 0);
-    if (s > score) { score = s; best = m; }
-  }
-  const m = best ?? cat[Math.floor(Math.random() * cat.length)];
-  return { photo: m?.thumb ?? '', id: m?.id };
-}
-
-// ── Vraies photos de produits belges (Open Food Facts) ──────────────────────
-const STORE_BRANDS: Record<string, RegExp> = {
-  Colruyt: /boni|everyday|colruyt/i, Delhaize: /delhaize|365/i, Aldi: /aldi|milsani|lacura|cucina|golden seed/i,
-  Lidl: /lidl|milbona|pilos|vitasia|deluxe|chef select/i, Carrefour: /carrefour/i, 'Albert Heijn': /\bah\b|albert heijn/i,
-};
-
-export async function offSearch(q: string, store?: string, n = 8): Promise<Array<{ code: string; name: string; brand: string | null; img: string | null; stores: string[]; kcal: number | null; p: number | null }>> {
-  // Article bilingue « اسم (nom français) » → on cherche la partie française
-  q = /\(([^)]+)\)/.exec(q)?.[1] ?? q;
-  const u = new URL('https://search.openfoodfacts.org/search');
-  u.searchParams.set('q', `${q} countries_tags:"en:belgium"`);
-  u.searchParams.set('langs', 'fr');
-  u.searchParams.set('page_size', '24');
-  u.searchParams.set('fields', 'code,product_name,brands,image_front_small_url,stores,nutriments');
-  const r = await fetch(u, { signal: AbortSignal.timeout(12_000), headers: { 'User-Agent': 'Dzaryx-Forme/1.0' } });
-  const j = await r.json() as { hits?: Array<{ code: string; product_name?: string; brands?: string[] | string; image_front_small_url?: string; stores?: string[] | string; nutriments?: Record<string, number> }> };
-  const rows = (j.hits ?? []).filter(h => h.product_name).map(h => {
-    const brands = Array.isArray(h.brands) ? h.brands : h.brands ? [h.brands] : [];
-    const stores = Array.isArray(h.stores) ? h.stores : h.stores ? [h.stores] : [];
-    return { code: h.code, name: h.product_name!, brand: brands[0]?.trim() ?? null, img: h.image_front_small_url ?? null, stores,
-      kcal: h.nutriments?.['energy-kcal_100g'] ?? null, p: h.nutriments?.['proteins_100g'] ?? null };
-  }).filter(x => !HARAM.test(`${x.name}`) && !/porc|jambon|lardon|bière|vin |peperoni|salami|chorizo|saucisson|bacon/i.test(x.name));
-  // Pertinence : le mot principal cherché (« pâtes », « lentilles »…) doit être dans le nom — mieux vaut pas de photo qu'une fausse
-  const norm = (t: string) => t.toLowerCase().replace(/œ/g, 'oe').normalize('NFD').replace(/[̀-ͯ]/g, '');
-  const words = norm(q).split(/[^a-z]+/).filter(w => w.length > 3 && !/^(boni|everyday|selection|delhaize|milbona|nature|naturel|boite|boites|pack|halal|maigre|demi|frais|fraiche|surgele|surgeles)$/.test(w));
-  const stem = (w: string) => w.replace(/(es|s|x)$/, '').slice(0, 6);
-  const score = (name: string) => { const nn = norm(name); return words.reduce((a, w, i) => a + (nn.includes(stem(w)) ? (i === 0 ? 3 : 1) : 0), 0); };
-  if (words.length) {
-    const ok = rows.filter(x => score(x.name) >= 3).sort((a, b) => score(b.name) - score(a.name));
-    rows.splice(0, rows.length, ...ok);
-  }
-  const rx = store ? STORE_BRANDS[store] : undefined;
-  const inStore = (x: typeof rows[number]) => !!store && (x.stores.some(s => s.toLowerCase().includes(store.toLowerCase())) || (!!rx && !!x.brand && rx.test(x.brand)));
-  return [...rows.filter(inStore), ...rows.filter(x => !inStore(x))].filter(x => x.img).slice(0, n);
-}
-
-export async function offBarcode(code: string) {
-  const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}?fields=product_name,brands,image_front_small_url,nutriments,ingredients_text_fr,ingredients_text,labels_tags,quantity,serving_size`, { signal: AbortSignal.timeout(12_000), headers: { 'User-Agent': 'Dzaryx-Forme/1.0' } });
-  const j = await r.json() as { status?: number; product?: { product_name?: string; brands?: string; image_front_small_url?: string; nutriments?: Record<string, number>; ingredients_text_fr?: string; ingredients_text?: string; labels_tags?: string[]; quantity?: string; serving_size?: string } };
-  if (!j.product?.product_name) return null;
-  const p = j.product, n0 = p.nutriments ?? {};
-  const n = new Proxy(n0, { get: (o, k: string) => o[k] ?? o[k.replace('_100g', '_prepared_100g')] }) as Record<string, number>;
-  const ingr = `${p.ingredients_text_fr ?? p.ingredients_text ?? ''}`;
-  const haram = /porc|lard|jambon|gélatine(?! (de bœuf|de poisson|bovine|halal))|alcool|vin\b|bière|rhum|e120|carmin|e441|e542/i.test(`${ingr} ${p.product_name}`);
-  return {
-    code, name: p.product_name, brand: p.brands ?? null, img: p.image_front_small_url ?? null, quantity: p.quantity ?? null, serving: p.serving_size ?? null,
-    per100: { kcal: n['energy-kcal_100g'] ?? null, p: n['proteins_100g'] ?? null, c: n['carbohydrates_100g'] ?? null, f: n['fat_100g'] ?? null, sugar: n['sugars_100g'] ?? null, fiber: n['fiber_100g'] ?? null },
-    halal: (p.labels_tags ?? []).some(l => /halal/.test(l)) ? 'certifié halal' : haram ? 'NON halal (ingrédient interdit détecté)' : 'pas d\'ingrédient interdit détecté — vérifie le logo halal pour la viande',
-    haram,
-  };
-}
-
-// Photo d'un article : vrai paquet belge (Open Food Facts) pour l'épicerie ; belle photo (Pexels) pour la viande
-// de la boucherie, les fruits/légumes et ce qu'Open Food Facts ne connaît pas. « carottes, oignons, ail » → carottes.
-const imgQuery = (name: string) => (/\(([^)]+)\)/.exec(name)?.[1] ?? name).split(/[,+&]| et /)[0]!.replace(/\b(halal|surgel[ée]s?|frais|fra[iî]che?s?|bio|nature|en conserve|en boîte)\b/gi, '').replace(/\s+/g, ' ').trim();
-async function pexelsImage(q: string): Promise<string | null> {
-  const key = env.PEXELS_API_KEY; if (!key || !q) return null;
-  const u = new URL('https://api.pexels.com/v1/search'); u.searchParams.set('query', q); u.searchParams.set('per_page', '3'); u.searchParams.set('locale', 'fr-FR'); u.searchParams.set('orientation', 'square');
-  const r = await fetch(u, { headers: { Authorization: key }, signal: AbortSignal.timeout(10_000) });
-  if (!r.ok) return null;
-  const j = await r.json() as { photos?: Array<{ src?: { small?: string; tiny?: string } }> };
-  return j.photos?.[0]?.src?.small ?? null;
-}
-async function productImages(items: ShopItem[], stores: string[]): Promise<void> {
-  const cache = await readJson<Record<string, { img: string | null; brand: string | null }>>(IMG_KEY, {});
-  const todo = items.filter(i => !i.img);
-  let i = 0;
-  const worker = async () => {
-    while (i < todo.length) {
-      const it = todo[i++]!;
-      const k = `${it.store}|${it.name.toLowerCase()}`;
-      if (!cache[k]) {
-        const q = imgQuery(it.name); const fresh = /boucherie/i.test(it.store) || /fruits|légumes/i.test(it.aisle);
-        const hit = fresh ? null : (await offSearch(q, it.store || stores[0], 1).catch(() => []))[0];
-        const img = hit?.img ?? await pexelsImage(/boucherie/i.test(it.store) ? `${q} viande crue` : q).catch(() => null);
-        cache[k] = { img, brand: hit?.brand ?? null };
-      }
-      it.img = cache[k]!.img; it.brand = cache[k]!.brand;
-    }
-  };
-  await Promise.all([worker(), worker(), worker(), worker()]);
-  const keys = Object.keys(cache);
-  await kvSet(IMG_KEY, JSON.stringify(Object.fromEntries(keys.slice(-800).map(k => [k, cache[k]])))).catch(() => {});
-}
-
-// ── Plan de la semaine (Claude) ──────────────────────────────────────────────
+// ── Dates ──────────────────────────────────────────────
 const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 // Un plan = 7 jours à partir du jour où il est fait, puis chaque dimanche soir le suivant démarre le lendemain.
 // « mondayOf » garde son nom dans l'API : c'est la date de début du plan.
@@ -397,246 +225,6 @@ export async function currentStart(uid: Uid, date = localNow().date): Promise<st
   const starts = (await planStarts(uid)).sort();
   const cover = starts.filter(s => s <= date && date < addDays(s, 7)).pop();
   return cover ?? starts.find(s => s > date) ?? null;
-}
-
-const rules = (p: FormeProfile) => `RÈGLES ABSOLUES :
-- HALAL STRICT (musulman·e) : jamais de porc ni dérivés (lardons, jambon, chorizo, gélatine de porc), jamais d'alcool (même en cuisson : pas de vin, bière, mirin). Toute viande/volaille = « halal » dans le nom (ex. « blanc de poulet halal ») et achetée à la boucherie halal ou au rayon halal. Poisson, œufs, légumineuses OK.
-${p.wegovy.on ? '- WEGOVY (sémaglutide, GLP-1) : appétit réduit et risque de nausées → petites portions denses en protéines, repas pas trop gras ni frits, peu de sucres rapides, beaucoup d\'eau, des fibres (légumes, légumineuses) contre la constipation, manger lentement, s\'arrêter dès qu\'il n\'y a plus faim. Jamais sauter les protéines (garder le muscle). Tu ne parles JAMAIS de dose ni de changer le traitement (c\'est le médecin).\n' : ''}- BELGIQUE : produits et rayons des magasins belges choisis, prix réalistes en euros en Belgique (2026), marques distributeur quand c'est moins cher (Boni chez Colruyt, 365 chez Delhaize, Milbona chez Lidl…).
-- ${p.sex === 'h' ? 'Il fait de la muscu avec un dos à ménager.' : 'Elle fait du sport (renforcement + cardio).'} Cuisine simple, 30 min max en semaine, batch cooking bienvenu.${LANG_RULE(p.lang)}`;
-
-const planSystem = (p: FormeProfile) => `Tu es le nutritionniste personnel de ${p.name || (p.sex === 'h' ? 'Kouider' : 'sa femme')} (Bruxelles). Tu composes SA semaine de repas et SA liste de courses.
-${rules(p)}
-Réponds UNIQUEMENT par un objet JSON valide (aucun texte autour, pas de \`\`\`) :
-{"note":"une phrase motivante sur la semaine (≤ 140 car.)",
- "recipes":[{"id":"r1","title":"titre appétissant","mealDbId":"id du catalogue si un plat proche existe, sinon null","photoQuery":"2-4 mots EN pour trouver une photo","minutes":25,"kcal":520,"p":45,"c":40,"f":15,"tags":["riche en protéines","doux pour l'estomac"],"ingredients":[{"name":"blanc de poulet halal","qty":"150 g"}],"steps":["étape courte",...],"tip":"astuce Wegovy/prépa (≤ 120 car.)"}],
- "days":[{"date":"AAAA-MM-JJ","meals":[{"slot":"petit-déj|déjeuner|collation|dîner","recipe":"r1","portion":"1 part"}]}],
- "shopping":[{"name":"produit tel qu'en rayon","fr":"nom FRANÇAIS court et générique (ex. skyr nature, blanc de poulet halal)","qty":"600 g","aisle":"Fruits & légumes|Boucherie halal|Crèmerie|Épicerie|Surgelés|Boulangerie|Boissons","store":"un des magasins choisis","price":3.49,"halal":true}]}
-Le champ "slot" et "aisle" restent TOUJOURS en français (valeurs ci-dessus). Contraintes : TOUS LES REPAS DIFFÉRENTS (Kouider 25/10) — jamais deux fois la même recette dans la journée NI dans la semaine : une recette = UN seul repas, donc autant de recettes que de repas de la semaine (ex. 7 jours × 3 repas = 21 recettes), chacune référencée UNE seule fois dans "days". Varie les protéines (poulet, bœuf, agneau, poisson, œufs, légumineuses) et les cuisines (algérienne, méditerranéenne, belge, orientale…). VIANDE : varie aussi les MORCEAUX — au maximum UNE recette à base de viande hachée (kefta, boulettes, kebab) par semaine ; le reste en morceaux entiers : escalopes/filets de poulet ou de dinde, cuisses et pilons, gigot ou épaule d'agneau en morceaux, côtelettes, brochettes, bœuf en cubes pour tajine, steak. Courses : noms génériques AU SINGULIER (« cuisse de poulet halal », pas « cuisses »), un article par produit (pas de lots « carottes, oignons, ail »). Pour rester court : 4 à 8 ingrédients et 3 à 4 étapes courtes par recette. ${p.wegovy.on ? 'Sous Wegovy pas de grosse assiette — ≤ 600 kcal par repas ; si la cible du jour ne rentre pas, ajoute une collation protéinée (elle aussi différente chaque jour). ' : ''}Chaque jour = le nombre de repas demandé, macros de la journée proches des cibles (protéines atteintes en priorité), total des courses ≤ budget, prix = prix unitaire estimé en € du paquet acheté. Viande → store "Boucherie halal" si le magasin n'a pas de halal sûr.`;
-
-export async function generateWeek(uid: Uid = 'kouider', monday = localNow().date, force = false, wishes?: string): Promise<WeekPlan> {
-  const existing = await readJson<WeekPlan | null>(WEEK_K(uid, monday), null);
-  if (existing && !force) return existing;
-  // « Cette semaine j'ai envie de… » : gardé sur la semaine (undefined = on reprend les envies déjà dites)
-  const wish = (wishes ?? existing?.wishes ?? '').trim().slice(0, 500);
-  const p = await getFormeProfile(uid);
-  const cat = await mealCatalog(p.lang);
-  const t = formeTargets(p);
-  const nm = (m: MealDb) => m.fr ?? m.name;
-  const liked = cat.filter(m => p.likes.includes(m.id)).map(nm);
-  const disliked = cat.filter(m => p.dislikes.includes(m.id)).map(nm);
-  const catalogLines = shuffle(cat).slice(0, 140).map(m => `${m.id} ${m.name} (${m.cat}, ${m.area})`).join('\n');
-  const dates = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
-  const user = [
-    `SEMAINE : ${dates.join(', ')}`,
-    `OBJECTIF : ${p.goal === 'perte' ? 'perdre du poids en gardant le muscle' : p.goal === 'muscle' ? 'prendre du muscle' : 'perdre du gras et se muscler (recomposition)'} — ${p.sex === 'h' ? 'homme' : 'femme'}, ${p.weightKg} kg → ${p.targetKg} kg, ${p.age} ans, ${p.heightCm} cm, ${p.sessionsPerWeek} séances/semaine.`,
-    `CIBLES PAR JOUR : ${t.kcal} kcal · protéines ${t.p} g · glucides ${t.c} g · lipides ${t.f} g · fibres ${t.fiber} g.`,
-    `REPAS PAR JOUR : ${p.mealsPerDay} (${p.mealsPerDay <= 2 ? 'déjeuner + dîner' : p.mealsPerDay === 3 ? 'petit-déj + déjeuner + dîner' : 'petit-déj + déjeuner + collation + dîner'}).`,
-    `MAGASINS : ${p.stores.join(', ')} · BUDGET COURSES : ${p.budgetWeek} € / semaine.`,
-    p.vegetarian ? 'Végétarien.' : '',
-    p.fasting === 'ramadan' ? 'RAMADAN : jeûne de l\'aube au coucher du soleil → chaque jour = « s\'hour » (avant l\'aube : protéines + fibres + eau, sucres lents) et « iftar » (dattes + eau + soupe/chorba puis plat léger riche en protéines) + éventuellement une collation le soir ; utilise slot « petit-déj » pour le s\'hour et « dîner » pour l\'iftar.' : p.fasting === 'sunna' ? 'Jeûne surérogatoire le LUNDI et le JEUDI : ces jours-là seulement s\'hour (slot petit-déj) + iftar (slot dîner).' : '',
-    p.wegovy.on ? `Traitement Wegovy en cours (injection le ${['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'][p.wegovy.day]}) : le lendemain de l'injection, repas encore plus légers et doux.` : '',
-    liked.length ? `A AIMÉ (swipe) : ${liked.join(', ')}` : '',
-    disliked.length ? `N'AIME PAS : ${disliked.join(', ')}` : '',
-    wish ? `ENVIES DE LA SEMAINE (dites par ${p.name || 'la personne'}, PRIORITÉ sur tout le reste sauf halal/santé) : « ${wish} » — place ces plats/ingrédients dans la semaine (jours précis s'ils sont donnés) et adapte les courses en conséquence.` : '',
-    p.favorites.length ? `RECETTES ADORÉES (❤️) — reprends-en 2 ou 3 cette semaine, pas plus : ${shuffle(p.favorites).slice(0, 8).join(' ; ')}` : '',
-    `CATALOGUE PHOTOS (id nom) — choisis mealDbId parmi eux quand le plat ressemble :\n${catalogLines}`,
-  ].filter(Boolean).join('\n');
-  // 21 à 28 recettes différentes : longue réponse → en streaming (le SDK refuse sinon)
-  const res = await createAnthropic().messages.stream({ model: 'claude-sonnet-5-5', max_tokens: 32_000, system: planSystem(p), messages: [{ role: 'user', content: user }] }, QUALITY).finalMessage();
-  const j = jsonOf<{ note?: string; recipes?: Array<Partial<Recipe> & { photoQuery?: string; mealDbId?: string | null }>; days?: WeekPlan['days']; shopping?: Array<ShopItem & { fr?: string }> }>(textOf(res));
-  const recipes: Recipe[] = (j.recipes ?? []).filter(r => r.id && r.title).map(r => {
-    const ph = photoFor(cat, { mealDbId: r.mealDbId ?? undefined, photoQuery: r.photoQuery, title: r.title });
-    const n = (v: unknown) => Math.max(0, Math.round(Number(v) || 0));
-    return { id: String(r.id), title: String(r.title).slice(0, 90), photo: ph.photo, mealDbId: ph.id, minutes: n(r.minutes) || 20,
-      kcal: n(r.kcal), p: n(r.p), c: n(r.c), f: n(r.f), tags: (r.tags ?? []).map(String).slice(0, 4),
-      ingredients: (r.ingredients ?? []).slice(0, 16).map(x => ({ name: String(x.name), qty: String(x.qty ?? '') })),
-      steps: (r.steps ?? []).map(String).slice(0, 8), tip: String(r.tip ?? '').slice(0, 160) };
-  });
-  const ids = new Set(recipes.map(r => r.id));
-  const days = dates.map(d => ({ date: d, meals: ((j.days ?? []).find(x => x.date === d)?.meals ?? []).filter(m => ids.has(m.recipe)).map(m => ({ slot: String(m.slot), recipe: m.recipe, portion: String(m.portion ?? '1 part') })) }));
-  // Jamais deux fois le même repas : un doublon prend une recette pas encore servie
-  const seen = new Set<string>();
-  const spare = recipes.map(r => r.id).filter(id => !days.some(d => d.meals.some(m => m.recipe === id)));
-  const dupSlots: Array<{ date: string; slot: string; m: { recipe: string } }> = [];
-  for (const d of days) for (const m of d.meals) {
-    if (seen.has(m.recipe)) { if (spare.length) m.recipe = spare.shift()!; else dupSlots.push({ date: d.date, slot: m.slot, m }); }
-    seen.add(m.recipe);
-  }
-  // Pas assez de recettes : on en redemande juste pour les repas en double (jamais 2 fois le même plat)
-  if (dupSlots.length) {
-    const more = await createAnthropic().messages.stream({ model: 'claude-sonnet-5-5', max_tokens: 16_000,
-      system: `Tu complètes une semaine de repas. ${rules(p)}\nCrée EXACTEMENT ${dupSlots.length} recettes NOUVELLES, toutes différentes entre elles et de celles déjà prévues. Réponds UNIQUEMENT en JSON : {"recipes":[{"slot":"…","title","photoQuery","minutes","kcal","p","c","f","tags":[],"ingredients":[{"name","qty"}],"steps":[],"tip"}]} dans l'ordre des repas demandés (4 à 8 ingrédients, 3 à 4 étapes).`,
-      messages: [{ role: 'user', content: `Repas à remplir : ${dupSlots.map(x => `${x.date} ${x.slot}`).join(' ; ')}.\nDéjà prévues (interdit de les refaire) : ${recipes.map(r => r.title).join(' ; ')}.\nCibles/jour : ${t.kcal} kcal, ${t.p} g protéines.` }] }, QUALITY).finalMessage();
-    const extra = jsonOf<{ recipes?: Array<Partial<Recipe> & { photoQuery?: string }> }>(textOf(more)).recipes ?? [];
-    const n = (v: unknown) => Math.max(0, Math.round(Number(v) || 0));
-    dupSlots.forEach((slot, i) => {
-      const r = extra[i]; if (!r?.title) return;
-      const ph = photoFor(cat, { photoQuery: r.photoQuery, title: r.title });
-      const id = `x${i + 1}`;
-      recipes.push({ id, title: String(r.title).slice(0, 90), photo: ph.photo, mealDbId: ph.id, minutes: n(r.minutes) || 20, kcal: n(r.kcal), p: n(r.p), c: n(r.c), f: n(r.f),
-        tags: (r.tags ?? []).map(String).slice(0, 4), ingredients: (r.ingredients ?? []).slice(0, 16).map(x => ({ name: String(x.name), qty: String(x.qty ?? '') })), steps: (r.steps ?? []).map(String).slice(0, 8), tip: String(r.tip ?? '').slice(0, 160) });
-      slot.m.recipe = id;
-    });
-  }
-  // name = nom français (sert à fusionner les deux listes du foyer) ; label = nom affiché dans sa langue
-  const shopping: ShopItem[] = (j.shopping ?? []).filter(s => s.name).slice(0, 60).map(s => ({
-    name: String(s.fr || s.name).slice(0, 80), label: p.lang === 'ar' ? String(s.name).slice(0, 100) : undefined, qty: String(s.qty ?? ''), aisle: String(s.aisle ?? 'Épicerie'), store: String(s.store ?? p.stores[0]),
-    price: Math.round((Number(s.price) || 0) * 100) / 100, halal: !!s.halal,
-  }));
-  await productImages(shopping, p.stores).catch(() => {});
-  const plan: WeekPlan = { monday, at: Date.now(), note: String(j.note ?? '').slice(0, 160), budget: p.budgetWeek, ...(wish ? { wishes: wish } : {}),
-    total: Math.round(shopping.reduce((a, s) => a + s.price, 0) * 100) / 100, recipes, days, shopping };
-  await kvSet(WEEK_K(uid, monday), JSON.stringify(plan), 60 * 86_400);
-  // Un plan refait au milieu d'un autre le remplace à partir de sa date de début
-  const starts = (await planStarts(uid)).filter(s => s < addDays(monday, -6) || s > monday || s === monday);
-  await kvSet(WEEKS_K(uid), JSON.stringify([...new Set([...starts.filter(s => s >= addDays(monday, -60)), monday])].sort()));
-  return plan;
-}
-
-export async function getWeek(uid: Uid = 'kouider', start?: string): Promise<WeekPlan | null> {
-  const s = start || await currentStart(uid);
-  return s ? readJson<WeekPlan | null>(WEEK_K(uid, s), null) : null;
-}
-async function saveWeek(uid: Uid, w: WeekPlan) { await kvSet(WEEK_K(uid, w.monday), JSON.stringify(w), 60 * 86_400); }
-
-// ── Favoris ❤️ : la recette entière est gardée (photo, ingrédients, étapes, macros) ──
-export interface FavRecipe extends Recipe { savedAt: number }
-export async function favRecipes(uid: Uid): Promise<FavRecipe[]> { return readJson<FavRecipe[]>(FAV_K(uid), []); }
-export async function toggleFavorite(uid: Uid, recipe: Recipe, on: boolean): Promise<FavRecipe[]> {
-  const list = (await favRecipes(uid)).filter(f => f.title !== recipe.title);
-  if (on) list.unshift({ ...recipe, id: `fav-${Date.now().toString(36)}`, savedAt: Date.now() });
-  await kvSet(FAV_K(uid), JSON.stringify(list.slice(0, 80)));
-  const p = await getFormeProfile(uid);
-  await setFormeProfile({ favorites: on ? [...new Set([...p.favorites, recipe.title])] : p.favorites.filter(t => t !== recipe.title) }, uid);
-  return list;
-}
-/** Remettre un favori dans la semaine (jour + repas choisis) : il remplace le plat prévu, le reste ne bouge pas. */
-export async function placeFavorite(uid: Uid, title: string, date: string, slot: string): Promise<WeekPlan | null> {
-  const w = await getWeek(uid);
-  const fav = (await favRecipes(uid)).find(f => f.title === title);
-  if (!w || !fav) return w;
-  const day = w.days.find(d => d.date === date);
-  if (!day) throw new Error('ce jour n\'est pas dans la semaine en cours');
-  const id = `f${Date.now().toString(36)}`;
-  w.recipes.push({ ...fav, id });
-  const m = day.meals.find(x => x.slot === slot);
-  if (m) m.recipe = id; else day.meals.push({ slot, recipe: id, portion: '1 part' });
-  await saveWeek(uid, w);
-  return w;
-}
-
-// ── Courses du FOYER : les deux listes fusionnées, cases communes ───────────
-// Clé de fusion : « cuisses de poulet halal » = « cuisse de poulet halal », « viande hachée de bœuf » = « bœuf haché »,
-// « à braiser » = « à mijoter », « pois chiches en conserve » = « pois chiches » (le magasin n'entre pas en compte).
-const SHOP_STOP = new Set(['de', 'du', 'des', 'la', 'le', 'les', 'a', 'au', 'aux', 'en', 'et', 'd', 'l', 'halal', 'viande']);
-const SHOP_SYN: Record<string, string> = { braiser: 'mijoter', ragout: 'mijoter', tajine: 'mijoter', bourguignon: 'mijoter', hachee: 'hache', blanc: 'filet', escalope: 'filet', aiguillette: 'filet', pilon: 'cuisse', haut: 'cuisse' };
-const SHOP_VARIANT = new Set(['conserve', 'boite', 'nature', 'surgele', 'demi', 'ecreme', 'entier', 'bio', 'sec', 'cuit']);
-const shopStem = (w: string) => w.length > 3 ? w.replace(/(es|s|x)$/, '').replace(/e+$/, '') : w;
-const SHOP_SYN_S = Object.fromEntries(Object.entries(SHOP_SYN).map(([k, v]) => [shopStem(k), shopStem(v)]));
-const SHOP_VARIANT_S = new Set([...SHOP_VARIANT].map(shopStem));
-const shopTokens = (name: string) => (/\(([^)]+)\)/.exec(name)?.[1] ?? name).toLowerCase().replace(/œ/g, 'oe').normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/)
-  .filter(w => w && !SHOP_STOP.has(w)).map(shopStem).map(w => SHOP_SYN_S[w] ?? w);
-const shopKey = (s: Pick<ShopItem, 'name' | 'store'>) => [...new Set(shopTokens(s.name))].sort().join(' ');
-/** Même article à une variante près (« lait » / « lait demi-écrémé ») ? */
-function sameItem(a: string, b: string) {
-  const A = new Set(shopTokens(a).filter(w => !SHOP_VARIANT_S.has(w))), B = new Set(shopTokens(b).filter(w => !SHOP_VARIANT_S.has(w)));
-  if (!A.size || !B.size) return false;
-  return [...A].every(w => B.has(w)) && [...B].every(w => A.has(w));
-}
-export interface HouseItem extends ShopItem { key: string; who: Array<{ uid: Uid; name: string; qty: string }>; by?: string; at?: number }
-
-export async function householdShopping(uid: Uid): Promise<{ items: HouseItem[]; total: number; budget: number; shared: boolean }> {
-  const [checks, femmeOn] = await Promise.all([readJson<Record<string, { by: string; at: number }>>(CHECKS_KEY, {}), inviteActive('femme')]);
-  const users: Uid[] = femmeOn || uid === 'femme' ? ['kouider', 'femme'] : ['kouider'];
-  const map = new Map<string, HouseItem>();
-  let budget = 0;
-  for (const u of users) {
-    const [w, p] = await Promise.all([getWeek(u), getFormeProfile(u)]);
-    if (!w) continue;
-    budget += w.budget;
-    for (const s of w.shopping) {
-      let key = shopKey(s);
-      if (!map.has(key)) for (const [k, it] of map) if (sameItem(it.name, s.name)) { key = k; break; }
-      const who = { uid: u, name: p.name || (u === 'kouider' ? 'Kouider' : 'Elle'), qty: s.qty };
-      const cur = map.get(key);
-      if (cur) { cur.who.push(who); cur.price = Math.round((cur.price + s.price) * 100) / 100; if (u === uid && s.label) cur.label = s.label; }
-      else map.set(key, { ...s, label: u === uid ? s.label : undefined, key, who: [who] });
-    }
-  }
-  for (const e of await readJson<Array<ShopItem & { by: string; at: number }>>(EXTRA_KEY, [])) {
-    const key = `extra|${e.at}`;
-    map.set(key, { ...e, key, who: [{ uid: 'kouider', name: e.by, qty: e.qty }], aisle: 'Ajouté à la main' });
-  }
-  // Photos manquantes (listes déjà générées) : complétées et gardées en cache
-  const missing = [...map.values()].filter(i => !i.img);
-  if (missing.length) await Promise.race([productImages(missing, ['Colruyt']).catch(() => {}), new Promise(r => setTimeout(r, 8000))]);
-  const items = [...map.values()].map(i => ({ ...i, checked: !!checks[i.key], by: checks[i.key]?.by, at: checks[i.key]?.at }));
-  return { items, total: Math.round(items.reduce((a, i) => a + i.price, 0) * 100) / 100, budget, shared: users.length > 1 };
-}
-
-export async function checkHouseItem(uid: Uid, key: string, checked: boolean, home = false): Promise<void> {
-  const checks = await readJson<Record<string, { by: string; at: number }>>(CHECKS_KEY, {});
-  if (checked) checks[key] = { by: home ? '🏠' : (await getFormeProfile(uid)).name || uid, at: Date.now() }; else delete checks[key];
-  // On garde 3 semaines de cases (les listes changent chaque semaine)
-  const old = Date.now() - 21 * 86_400_000;
-  await kvSet(CHECKS_KEY, JSON.stringify(Object.fromEntries(Object.entries(checks).filter(([, v]) => v.at > old))));
-}
-export async function addHouseItem(uid: Uid, o: { name: string; qty?: string; store?: string }): Promise<void> {
-  const list = await readJson<Array<ShopItem & { by: string; at: number }>>(EXTRA_KEY, []);
-  list.push({ name: o.name.slice(0, 80), qty: String(o.qty ?? '').slice(0, 30), store: String(o.store || 'Colruyt').slice(0, 30), aisle: 'Ajouté à la main', price: 0, by: (await getFormeProfile(uid)).name || uid, at: Date.now() });
-  await kvSet(EXTRA_KEY, JSON.stringify(list.slice(-60)));
-}
-export async function removeHouseItem(key: string): Promise<void> {
-  const at = Number(key.split('|')[1]);
-  await kvSet(EXTRA_KEY, JSON.stringify((await readJson<Array<{ at: number }>>(EXTRA_KEY, [])).filter(e => e.at !== at)));
-}
-
-/** Nouvelle semaine de courses : on décoche ce qui avait été coché avant aujourd'hui. */
-export async function resetChecksBefore(ts: number) {
-  const checks = await readJson<Record<string, { by: string; at: number }>>(CHECKS_KEY, {});
-  await kvSet(CHECKS_KEY, JSON.stringify(Object.fromEntries(Object.entries(checks).filter(([, v]) => v.at >= ts))));
-  const extra = await readJson<Array<{ at: number }>>(EXTRA_KEY, []);
-  await kvSet(EXTRA_KEY, JSON.stringify(extra.filter(e => !checks[`extra|${e.at}`])));   // articles à la main déjà achetés → retirés
-}
-
-/** Remplace une recette de la semaine par une autre aux macros proches (Claude). */
-export async function swapRecipe(uid: Uid, monday: string, recipeId: string, wish = ''): Promise<WeekPlan | null> {
-  const w = await getWeek(uid, monday || undefined);
-  const old = w?.recipes.find(r => r.id === recipeId);
-  if (!w || !old) return w;
-  const p = await getFormeProfile(uid);
-  const cat = await mealCatalog(p.lang);
-  // La liste de courses suit (Kouider 26/10) : on ajoute ce qui manque pour la nouvelle recette et on retire ce qui ne servait qu'à l'ancienne
-  const others = w.recipes.filter(r => r.id !== old.id).map(r => r.ingredients.map(x => x.name).join(', ')).join(' | ');
-  const res = await createAnthropic().messages.create({ model: 'claude-sonnet-5-5', max_tokens: 2500,
-    system: `Tu remplaces UNE recette par une autre aux macros proches (±10 %). ${rules(p)}
-Réponds UNIQUEMENT en JSON : {"recipe":{"title","mealDbId","photoQuery","minutes","kcal","p","c","f","tags":[],"ingredients":[{"name","qty"}],"steps":[],"tip"},
-"add":[{"name":"produit tel qu'en rayon","fr":"nom FRANÇAIS court générique au singulier","qty":"…","aisle":"Fruits & légumes|Boucherie halal|Crèmerie|Épicerie|Surgelés|Boulangerie|Boissons","store":"un de : ${p.stores.join(', ')}","price":2.5,"halal":true}],
-"remove":["nom EXACT d'un article de la liste qui ne sert plus à AUCUNE autre recette de la semaine"]}
-"add" = seulement les ingrédients de la nouvelle recette absents de la liste actuelle ; "remove" = seulement ce qui ne servait qu'à l'ancienne recette.`,
-    messages: [{ role: 'user', content: `À remplacer : ${old.title} (${old.kcal} kcal, P${old.p} C${old.c} L${old.f}) — ingrédients : ${old.ingredients.map(x => x.name).join(', ')}.${wish ? ` Envie : ${wish}.` : ''}${w.wishes ? ` Envies de la semaine : ${w.wishes}.` : ''}
-Déjà dans la semaine (ne pas refaire) : ${w.recipes.map(r => r.title).join(' ; ')}.
-Ingrédients des AUTRES recettes : ${others}
-Liste de courses actuelle : ${w.shopping.map(x => x.name).join(' ; ')}
-Catalogue photos : ${shuffle(cat).slice(0, 60).map(m => `${m.id} ${m.name}`).join(' | ')}` }] }, QUALITY);
-  const out = jsonOf<{ recipe?: Partial<Recipe> & { photoQuery?: string; mealDbId?: string }; add?: Array<ShopItem & { fr?: string }>; remove?: string[] } & Partial<Recipe>>(textOf(res));
-  const r = out.recipe ?? (out as Partial<Recipe> & { photoQuery?: string; mealDbId?: string });
-  if (!r.title) throw new Error('pas de nouvelle recette, réessaie');
-  const ph = photoFor(cat, { mealDbId: r.mealDbId, photoQuery: r.photoQuery, title: r.title });
-  const n = (v: unknown) => Math.max(0, Math.round(Number(v) || 0));
-  Object.assign(old, { title: String(r.title ?? old.title).slice(0, 90), photo: ph.photo, mealDbId: ph.id, minutes: n(r.minutes) || old.minutes,
-    kcal: n(r.kcal) || old.kcal, p: n(r.p), c: n(r.c), f: n(r.f), tags: (r.tags ?? []).map(String).slice(0, 4),
-    ingredients: (r.ingredients ?? []).slice(0, 16).map(x => ({ name: String(x.name), qty: String(x.qty ?? '') })), steps: (r.steps ?? []).map(String).slice(0, 8), tip: String(r.tip ?? '').slice(0, 160) });
-  const drop = new Set((out.remove ?? []).map(x => String(x).toLowerCase()));
-  w.shopping = w.shopping.filter(x => !drop.has(x.name.toLowerCase()));
-  const add: ShopItem[] = (out.add ?? []).filter(x => x.name && !w.shopping.some(y => sameItem(y.name, String(x.fr || x.name)))).slice(0, 10).map(x => ({
-    name: String(x.fr || x.name).slice(0, 80), label: p.lang === 'ar' ? String(x.name).slice(0, 100) : undefined, qty: String(x.qty ?? ''), aisle: String(x.aisle ?? 'Épicerie'),
-    store: String(x.store ?? p.stores[0]), price: Math.round((Number(x.price) || 0) * 100) / 100, halal: !!x.halal }));
-  await productImages(add, p.stores).catch(() => {});
-  w.shopping.push(...add);
-  w.total = Math.round(w.shopping.reduce((a, x) => a + x.price, 0) * 100) / 100;
-  await saveWeek(uid, w);
-  return w;
 }
 
 // ── Séances de sa femme (Kouider a déjà son coach : sport-coach.ts, calé sur son agenda) ──
@@ -734,56 +322,7 @@ Réponds UNIQUEMENT en JSON : {"label":"nom court","emoji":"🔥","focus":"zones
   return { date, text: `${why}\n\n${session.exercises.map((e, i) => `${i + 1}. ${e.name} — ${e.sets} × ${e.reps}`).join('\n')}` };
 }
 
-// ── AGENDA dans l'app (7 jours) : sport, repas, injection, rappels, repos — sa femme n'a pas Google Agenda ──
-export async function formeAgenda(uid: Uid) {
-  const today = localNow().date;
-  const [p, week, days] = await Promise.all([getFormeProfile(uid), getWeek(uid), readDays(uid)]);
-  const inj = nextInjection(p, days);
-  let sport: Record<string, { label: string; time?: string; custom?: string; done: boolean } | null> = {};
-  if (uid === 'kouider') {
-    const so = await (await import('./sport-coach.js')).sportOverview().catch(() => null);
-    for (const w of so?.week ?? []) if (w.type && !w.skip) sport[w.date] = { label: `${w.emoji ?? '🏋️'} ${w.label}`, time: w.start ? new Date(w.start).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }) : undefined, done: w.status === 'done' };
-    for (const x of [so?.today, so?.next]) if (x && sport[x.date] && (x as { custom?: string }).custom) sport[x.date]!.custom = (x as { custom?: string }).custom;
-  } else {
-    const [prog, custom] = await Promise.all([getProgram(uid), readJson<{ session: ProgSession; why: string; at: number; date?: string } | null>(CUSTOM_K(uid), null)]);
-    const ov = await programOverview(uid);
-    let k = ov.session?.index ?? 0;
-    sport = {};
-    for (let i = 0; i < 7; i++) {
-      const d = addDays(today, i), wd = new Date(`${d}T12:00:00Z`).getUTCDay();
-      if (!prog.days.includes(wd)) continue;
-      const done = !!days[d]?.workout;
-      const isCustom = !!custom && custom.date === d && !done;
-      const s = isCustom ? custom!.session : prog.sessions[k % Math.max(1, prog.sessions.length)];
-      sport[d] = s ? { label: `${s.emoji} ${s.label}`, done, ...(isCustom ? { custom: custom!.why } : {}) } : null;
-      if (!done) k++;
-    }
-  }
-  return Array.from({ length: 7 }, (_, i) => addDays(today, i)).map(d => {
-    const wd = new Date(`${d}T12:00:00Z`).getUTCDay();
-    const meals = (week?.days.find(x => x.date === d)?.meals ?? []).map(m => ({ slot: m.slot, title: week!.recipes.find(r => r.id === m.recipe)?.title ?? '', key: `${m.recipe}:${m.slot}`, eaten: !!days[d]?.meals[`${m.recipe}:${m.slot}`] }));
-    return {
-      date: d, rest: p.restDays.includes(wd) && !sport[d], sport: sport[d] ?? null, meals,
-      injection: p.wegovy.on && inj?.date === d ? { hour: p.wegovy.hour, site: inj.site, done: !!days[d]?.injection } : null,
-      reminders: p.reminders.filter(x => x.days.includes(wd)).map(x => ({ time: x.time, label: x.label })),
-      fasting: p.fasting === 'ramadan' || (p.fasting === 'sunna' && (wd === 1 || wd === 4)),
-    };
-  });
-}
-
-/** Défi de la semaine (change chaque lundi) + progression d'après les 7 derniers jours. */
-function weekChallenge(p: FormeProfile, week7: Array<{ p: number; water: number; steps: number | null; sleep: number | null }>, t: { p: number }) {
-  const all = [
-    { id: 'water', e: '💧', text: `Boire ${p.waterGoal} verres d'eau 5 jours`, goal: 5, got: week7.filter(d => d.water >= p.waterGoal).length },
-    { id: 'protein', e: '🥩', text: `Atteindre ${t.p} g de protéines 4 jours`, goal: 4, got: week7.filter(d => d.p >= t.p).length },
-    { id: 'steps', e: '🚶', text: `${p.stepsGoal.toLocaleString('fr-BE')} pas 4 jours`, goal: 4, got: week7.filter(d => (d.steps ?? 0) >= p.stepsGoal).length },
-    { id: 'sleep', e: '😴', text: 'Dormir 7 h ou plus 4 nuits', goal: 4, got: week7.filter(d => (d.sleep ?? 0) >= 7).length },
-  ];
-  const wk = Math.floor(Date.parse(localNow().date) / 604_800_000);
-  return all[wk % all.length]!;
-}
-
-// ── Vision : photo d'assiette → macros ; photos du corps → évolution entourée ─
+// ── Vision : photos du corps → évolution entourée ─
 type Img = { media: 'image/jpeg' | 'image/png' | 'image/webp'; data: string };
 export function parseImage(dataUrl: string): Img {
   const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(dataUrl ?? '');
@@ -792,16 +331,6 @@ export function parseImage(dataUrl: string): Img {
   return { media: m[1] as Img['media'], data: m[2]! };
 }
 const imgBlock = (i: Img) => ({ type: 'image' as const, source: { type: 'base64' as const, media_type: i.media, data: i.data } });
-
-export async function analyzeMealPhoto(img: Img, uid: Uid = 'kouider'): Promise<FoodItem & { items: string[]; advice: string; halalNote: string }> {
-  const p = await getFormeProfile(uid);
-  const res = await createAnthropic().messages.create({ model: 'claude-sonnet-5-5', max_tokens: 700,
-    system: `Tu estimes les calories et macros d'une assiette en photo (personne ${p.wegovy.on ? 'sous Wegovy, ' : ''}halal, sport). Réponds UNIQUEMENT en JSON : {"name":"nom court","items":["aliment + grammes estimés"],"kcal":0,"p":0,"c":0,"f":0,"advice":"1 conseil court (≤ 140 car.)","halalNote":"vide, ou un doute halal visible (ex. charcuterie, sauce au vin)"}${LANG_RULE(p.lang)}`,
-    messages: [{ role: 'user', content: [imgBlock(img), { type: 'text', text: 'Estime cette assiette.' }] }] }, QUALITY);
-  const j = jsonOf<Record<string, unknown>>(textOf(res));
-  const n = (v: unknown) => Math.max(0, Math.round(Number(v) || 0));
-  return { name: String(j.name ?? 'Repas').slice(0, 60), kcal: n(j.kcal), p: n(j.p), c: n(j.c), f: n(j.f), items: (j.items as string[] ?? []).map(String).slice(0, 8), advice: String(j.advice ?? '').slice(0, 200), halalNote: String(j.halalNote ?? '').slice(0, 160), src: 'photo' };
-}
 
 export interface Zone { label: string; x: number; y: number; r: number; bx?: number; by?: number; br?: number; trend: 'mieux' | 'pareil' | 'à travailler'; note: string }
 export interface BodyAnalysis { at: number; vs: string | null; summary: string; zones: Zone[]; advice: string[]; focus: string[]; score: number }
@@ -1015,7 +544,7 @@ export async function translateAr(texts: string[]): Promise<Record<string, strin
     const part = todo.slice(i, i + 40);
     try {
       const res = await createAnthropic().messages.create({ model: 'claude-haiku-5-5', max_tokens: 6000,
-        system: 'Traduis ces textes d\'une application de nutrition et de sport (repas halal, exercices, conseils, courses en Belgique) du français vers l\'ARABE LITTÉRAIRE MODERNE (فصحى), simple et naturel ; l\'utilisatrice est une femme (féminin). Garde tels quels : emojis, nombres, unités (kg, g, kcal, cm, min, €, mg), noms de marques et de magasins (Colruyt, Delhaize, Aldi, Lidl, Boni, Wegovy, Dzaryx, Basic-Fit), les marqueurs comme « · ». On te donne une liste numérotée : réponds UNIQUEMENT par un objet JSON {"ar": ["traduction 1", "traduction 2", …]} avec EXACTEMENT le même nombre d\'éléments, dans le même ordre.',
+        system: 'Traduis ces textes d\'une application de sport (séances, exercices, machines de salle, suivi du corps) du français vers l\'ARABE LITTÉRAIRE MODERNE (فصحى), simple et naturel ; l\'utilisatrice est une femme (féminin). Garde tels quels : emojis, nombres, unités (kg, g, kcal, cm, min, €, mg), noms de marques et de magasins (Colruyt, Delhaize, Aldi, Lidl, Boni, Wegovy, Dzaryx, Basic-Fit), les marqueurs comme « · ». On te donne une liste numérotée : réponds UNIQUEMENT par un objet JSON {"ar": ["traduction 1", "traduction 2", …]} avec EXACTEMENT le même nombre d\'éléments, dans le même ordre.',
         messages: [{ role: 'user', content: JSON.stringify(part) }] });
       const arr = jsonOf<{ ar?: unknown[] }>(textOf(res)).ar ?? [];
       if (arr.length === part.length) part.forEach((t, k) => { const v = arr[k]; if (typeof v === 'string' && v.trim()) { out[t] = v; trMem![t] = v; } });
@@ -1029,12 +558,10 @@ export async function translateAr(texts: string[]): Promise<Record<string, strin
   return out;
 }
 
-// ── Coach à qui poser une question (resto, fast-food belge, envie de sucre…) ──
+// ── Coach sport à qui poser une question (technique, machine, douleur, récup) ──
 export async function askFormeCoach(question: string, uid: Uid = 'kouider', mode = ''): Promise<string> {
   const p = await getFormeProfile(uid);
   let ctx = await formeText(uid);
-  if (mode === 'batch') { const w = await getWeek(uid); ctx += w ? `\nRECETTES DE LA SEMAINE :\n${w.recipes.map(r => `- ${r.title} : ${r.ingredients.map(i => `${i.name} ${i.qty}`).join(', ')}`).join('\n')}\nDonne un plan de BATCH COOKING du dimanche (2 h max) : ordre des étapes minuté, ce qui se congèle, boîtes à préparer.` : ''; }
-  if (mode === 'fridge') ctx += '\nIl/elle te donne ce qu\'il y a dans son frigo/placard : propose 2 recettes halal rapides avec SEULEMENT ça (+ basiques : sel, poivre, huile, épices), avec quantités, kcal et protéines estimées.';
   const res = await createAnthropic().messages.create({ model: 'claude-sonnet-5-5', max_tokens: 900,
     system: `Tu es le coach SPORT FORME de ${p.name || 'cette personne'} (musculation, cardio, technique, récupération, salle), qui vit à Bruxelles. Tu ne donnes AUCUN conseil de nourriture / régime / recettes (retiré de FORME le 31/10) : si on t'en demande, dis gentiment que FORME s'occupe du sport.\nRéponds simplement, concret, chaleureux, ${mode ? '20' : '8'} lignes max. Questions médicales (dose, effets graves : douleur au ventre forte et persistante, vomissements répétés, malaise) → son médecin ou le 112 en urgence.${p.lang === 'ar' ? ' Réponds en arabe littéraire.' : ' Réponds en français.'}`,
     messages: [{ role: 'user', content: `${ctx}\n\nQUESTION : ${question.slice(0, 800)}` }] }, QUALITY);
@@ -1043,19 +570,6 @@ export async function askFormeCoach(question: string, uid: Uid = 'kouider', mode
 
 // ── Vue d'ensemble pour l'app ────────────────────────────────────────────────
 const SITES = ['ventre gauche', 'ventre droit', 'cuisse gauche', 'cuisse droite', 'bras gauche', 'bras droit'];
-
-function dayTotals(day: FormeDay | undefined, week: WeekPlan | null, date: string) {
-  const tot = { kcal: 0, p: 0, c: 0, f: 0 };
-  if (!day) return tot;
-  const plan = week?.days.find(d => d.date === date);
-  for (const m of plan?.meals ?? []) {
-    if (!day.meals[`${m.recipe}:${m.slot}`]) continue;
-    const r = week!.recipes.find(x => x.id === m.recipe);
-    if (r) { tot.kcal += r.kcal; tot.p += r.p; tot.c += r.c; tot.f += r.f; }
-  }
-  for (const e of day.extra) { tot.kcal += e.kcal; tot.p += e.p; tot.c += e.c; tot.f += e.f; }
-  return tot;
-}
 
 export function nextInjection(p: FormeProfile, days: Record<string, FormeDay>) {
   if (!p.wegovy.on) return null;
@@ -1071,7 +585,7 @@ export function nextInjection(p: FormeProfile, days: Record<string, FormeDay>) {
 
 export async function formeOverview(uid: Uid = 'kouider') {
   const today = localNow().date;
-  const [p, days, week, photos, femmeInvite] = await Promise.all([getFormeProfile(uid), readDays(uid), getWeek(uid), readPhotos(uid), uid === 'kouider' ? inviteActive('femme') : Promise.resolve(false)]);
+  const [p, days, photos, femmeInvite] = await Promise.all([getFormeProfile(uid), readDays(uid), readPhotos(uid), uid === 'kouider' ? inviteActive('femme') : Promise.resolve(false)]);
   const day = days[today] ?? emptyDay();
   // Journée très active (montre) : la cible de base compte déjà une activité normale (~400 kcal) → on rend la moitié
   // du surplus, plafonné à +300 kcal, en glucides (énergie pour la séance)
@@ -1082,9 +596,10 @@ export async function formeOverview(uid: Uid = 'kouider') {
   const measures = Object.entries(days).filter(([, d]) => d.measures && Object.keys(d.measures).length).map(([date, d]) => ({ date, ...d.measures })).sort((a, b) => a.date.localeCompare(b.date));
   const injections = Object.entries(days).filter(([, d]) => d.injection).map(([date, d]) => ({ date, ...d.injection! })).sort((a, b) => a.date.localeCompare(b.date)).slice(-12);
   const sides = Object.entries(days).flatMap(([date, d]) => (d.sides ?? []).map(s => ({ date, ...s }))).sort((a, b) => b.at - a.at).slice(0, 15);
+  // Série = jours de suivi d'affilée (poids, séance, pas, photo) — plus de repas depuis le 31/10
   let streak = 0;
-  for (let i = 0; i < 200; i++) { const d = days[addDays(today, -i)]; if (d && (Object.values(d.meals).some(Boolean) || d.extra.length || d.water)) streak++; else if (i > 0) break; }
-  const week7 = Array.from({ length: 7 }, (_, i) => addDays(today, i - 6)).map(d => ({ date: d, ...dayTotals(days[d], week, d), water: days[d]?.water ?? 0, sleep: days[d]?.sleep ?? null, steps: days[d]?.steps ?? null }));
+  for (let i = 0; i < 200; i++) { const d = days[addDays(today, -i)]; if (d && (d.weight || d.workout || d.steps || d.injection)) streak++; else if (i > 0) break; }
+  const week7 = Array.from({ length: 7 }, (_, i) => addDays(today, i - 6)).map(d => ({ date: d, sleep: days[d]?.sleep ?? null, steps: days[d]?.steps ?? null, workout: !!days[d]?.workout }));
   const shown = photos.slice(-24);
   const urls = await signedPhotoUrls(shown).catch(() => ({} as Record<string, string>));
   const lastPhoto = photos[photos.length - 1];
@@ -1096,21 +611,18 @@ export async function formeOverview(uid: Uid = 'kouider') {
   const badges = [
     { id: 'start', label: 'Premier pas', emoji: '🚀', ok: p.onboarded },
     { id: 'streak7', label: '7 jours de suivi', emoji: '🔥', ok: streak >= 7 },
-    { id: 'protein', label: 'Protéines atteintes', emoji: '🥩', ok: week7.some(d => d.p >= t.p) },
-    { id: 'water', label: 'Hydraté', emoji: '💧', ok: week7.some(d => d.water >= p.waterGoal) },
+    { id: 'workout', label: 'Séance de la semaine', emoji: '🏋️', ok: week7.some(d => d.workout) },
     { id: 'photo', label: 'Avant / après', emoji: '📸', ok: photos.length >= 2 },
     { id: 'kg2', label: '−2 kg', emoji: '⚖️', ok: weights.length > 0 && weights[0]!.kg - curW >= 2 },
     { id: 'kg5', label: '−5 kg', emoji: '🏅', ok: weights.length > 0 && weights[0]!.kg - curW >= 5 },
     { id: 'inj4', label: '4 injections notées', emoji: '💉', ok: injections.length >= 4 },
   ];
   return {
-    favs: await favRecipes(uid),
-    uid, today, profile: p, targets: t, day, eaten: dayTotals(day, week, today), week, week7, streak, badges,
+    uid, today, profile: p, targets: t, day, week7, streak, badges,
     weights, measures, injections, sides, nextInjection: nextInjection(p, days), doses: WEGOVY_DOSES,
     photos: shown.map(ph => ({ ...ph, url: urls[ph.id] ?? null })).reverse(), photoDue,
     weightRate: ratePerWeek != null ? Math.round(ratePerWeek * 10) / 10 : null,
     tooFast: ratePerWeek != null && ratePerWeek > curW * 0.012,
-    challenge: weekChallenge(p, week7, t),
     // Date estimée pour atteindre le poids visé, au rythme des 3 dernières semaines
     eta: ratePerWeek && ratePerWeek > 0.05 && curW > p.targetKg ? addDays(today, Math.round((curW - p.targetKg) / ratePerWeek * 7)) : null,
     ...(uid === 'kouider' ? { femme: { active: femmeInvite, name: (await getFormeProfile('femme')).name } } : {}),
