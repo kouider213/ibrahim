@@ -62,7 +62,17 @@ export interface ExSet { at: number; date: string; kg?: number; reps?: number; f
 export interface RoutineEx { id: string; name: string; img: string[]; sets: number; reps: string; rest: number }
 export interface Routine { id: string; name: string; at: number; exercises: RoutineEx[] }
 
+export type MealSlot = 'matin' | 'midi' | 'collation' | 'soir';
+export interface FoodPart { name: string; grams: number; kcal: number; p: number; c: number; f: number }
+export interface MealLog { id: string; at: number; date: string; time: string; slot: MealSlot; title: string; items: FoodPart[]; kcal: number; p: number; c: number; f: number; confidence: 'haute' | 'moyenne' | 'basse'; note?: string; thumb?: string; src: 'photo' | 'texte'; coach?: string }
+export interface FoodBudget { date: string; bmr: number; active: number; activeSource: 'montre' | 'moyenne' | 'estimation'; burn: number; deficit: number; target: number; floor: number; eaten: { kcal: number; p: number; c: number; f: number }; left: number; proteinGoal: number; proteinLeft: number; pct: number; meals: MealLog[] }
+export interface FoodCfg { on: boolean; deficit: number; telegram: boolean }
 export const forme = {
+  food: (date?: string) => call<{ budget: FoodBudget; cfg: FoodCfg }>(`/api/forme/food${date ? `?date=${date}` : ''}`),
+  foodPhoto: (image: string, thumb?: string, note?: string) => post<{ meal: MealLog; budget: FoodBudget; message: string }>('/api/forme/food/photo', { image, thumb, note }),
+  foodText: (text: string) => post<{ meal: MealLog; budget: FoodBudget; message: string }>('/api/forme/food/text', { text }),
+  foodEdit: (b: { date: string; id: string; items?: FoodPart[]; scale?: number; slot?: MealSlot; del?: boolean }) => post<{ budget: FoodBudget }>('/api/forme/food/edit', b),
+  foodCfg: (c: Partial<FoodCfg>) => post<{ cfg: FoodCfg; budget: FoodBudget }>('/api/forme/food/cfg', c),
   routines: () => call<{ routines: Routine[] }>('/api/forme/routines'),
   saveRoutine: (r: { id?: string; name: string; exercises: RoutineEx[] }) => post<{ routines: Routine[] }>('/api/forme/routines', r),
   delRoutine: (id: string) => call<{ routines: Routine[] }>(`/api/forme/routines/${encodeURIComponent(id)}`, { method: 'DELETE' }),

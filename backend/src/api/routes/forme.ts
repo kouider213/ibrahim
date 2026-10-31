@@ -96,6 +96,38 @@ router.post('/routines', async (req, res) => {
 });
 router.delete('/routines/:id', async (req, res) => { try { res.json({ routines: await deleteRoutine(U(req), String(req.params.id)) }); } catch (err) { fail(res, err); } });
 
+// 🍽️ CALORIES (31/10, style Cal AI) : photo du plat → aliments + kcal/protéines ; budget = dépense montre − déficit
+const food = () => import('../../integrations/forme-food.js');
+router.get('/food', async (req, res) => {
+  try { const f = await food(); const date = isDate(req.query.date) ? req.query.date : undefined; res.json({ budget: await f.foodBudget(U(req), date), cfg: await f.foodCfg(U(req)) }); } catch (err) { fail(res, err); }
+});
+router.post('/food/photo', async (req, res) => {
+  const b = req.body as { image?: string; thumb?: string; note?: string; slot?: string };
+  try {
+    const img = parseImage(String(b.image ?? ''));
+    const f = await food();
+    const r = await f.analyzeMealPhoto(U(req), { base64: img.data, mime: img.media }, { note: typeof b.note === 'string' ? b.note.slice(0, 200) : undefined, thumb: typeof b.thumb === 'string' ? b.thumb : undefined, slot: b.slot && b.slot in f.SLOT_LABEL ? b.slot as never : undefined });
+    res.json(r);
+  } catch (err) { fail(res, err, 400); }
+});
+router.post('/food/text', async (req, res) => {
+  const b = req.body as { text?: string; slot?: string };
+  if (!b.text?.trim()) { fail(res, 'texte manquant', 400); return; }
+  try { const f = await food(); res.json(await f.logMealText(U(req), b.text.slice(0, 300), b.slot && b.slot in f.SLOT_LABEL ? b.slot as never : undefined)); } catch (err) { fail(res, err, 400); }
+});
+router.post('/food/edit', async (req, res) => {
+  const b = req.body as { date?: string; id?: string; items?: never; title?: string; slot?: never; scale?: number; del?: boolean };
+  if (!isDate(b.date) || !b.id) { fail(res, 'date et id requis', 400); return; }
+  try {
+    const f = await food();
+    if (b.del) await f.deleteMeal(U(req), b.date, b.id); else await f.editMeal(U(req), b.date, b.id, { items: b.items, title: b.title, slot: b.slot, scale: Number(b.scale) || undefined });
+    res.json({ budget: await f.foodBudget(U(req), b.date) });
+  } catch (err) { fail(res, err, 400); }
+});
+router.post('/food/cfg', async (req, res) => {
+  try { const f = await food(); const cfg = await f.setFoodCfg(req.body as never, U(req)); res.json({ cfg, budget: await f.foodBudget(U(req)) }); } catch (err) { fail(res, err); }
+});
+
 // ⌚ FORME DU JOUR (façon Whoop / Fitbit) : ce que la montre envoie via l'iPhone (raccourci Santé → /api/jarvis/health)
 // + score de récupération Dzaryx. Kouider seulement (la montre est la sienne).
 router.get('/watch', async (req, res) => {

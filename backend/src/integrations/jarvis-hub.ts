@@ -113,8 +113,12 @@ export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok
     });
     if (d.weight && d.weight > 30) await f.setFormeProfile({ weightKg: Math.round(d.weight * 10) / 10 }, 'kouider');
   }).catch(() => {});
-  if (d.active_kcal && d.active_kcal > 500) notes.push(`🔥 ${Math.round(d.active_kcal)} kcal brûlées : ta cible du jour dans FORME monte un peu (plus de glucides pour récupérer).`);
+  if (d.active_kcal && d.active_kcal > 500) notes.push(`🔥 ${Math.round(d.active_kcal)} kcal brûlées : ton budget calories du jour dans FORME en tient compte.`);
   if (notes.length) await tg(`🩺 Jarvis santé — ${date}\n${notes.join('\n')}`);
+  // Envoi du matin avec la nuit (automatisation « réveil arrêté ») → message du réveil tout de suite (sommeil → journée + calories)
+  if (d.sleep_h && localNow().hhmm >= '04:00' && localNow().hhmm < '11:00') {
+    await import('./forme-food.js').then(async f => { const m = await f.morningSleepMessage(); if (m) await tg(m); }).catch(() => {});
+  }
   return { ok: true, note: notes.join(' ') || 'Données reçues, tout va bien.' };
 }
 

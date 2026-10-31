@@ -534,6 +534,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'forme-food',
+    cron:  '*/15 4-22 * * *',       // compteur calories : réveil (nuit montre), collations, rappel midi, « ce soir il te reste », avant de dormir
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'forme-weekly',
     cron:  '0 19 * * 0',            // dimanche 19h — bilan FORME + semaine de repas suivante composée
     tz:    'Europe/Brussels',
@@ -809,6 +814,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'connections-watch':       async () => { console.log(`[connections] ${await jobConnectionsWatch()}`); },
   'forme-reminders':         async () => { console.log(`[forme] ${await jobFormeReminders()}`); },
   'forme-weekly':            async () => { await jobFormeWeekly(); },
+  'forme-food':              async () => { console.log(`[forme-food] ${await (await import('../integrations/forme-food.js')).jobFoodCoach()}`); },
   'kouider-dossier':         async () => { console.log(`[kouider-dossier] ${await jobKouiderDossier()}`); },
   'season-watch':            async () => { console.log(`[season-watch] ${await jobSeasonWatch()}`); },
   'cloud-watch':             async () => { console.log(`[cloud-watch] ${await jobCloudWatch()}`); },

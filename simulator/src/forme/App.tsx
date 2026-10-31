@@ -8,14 +8,16 @@ import { F, Title, card, btn, ghostBtn, input, Sheet, Spinner, Toast, Chip } fro
 import SportScreen, { ProgramSport } from './Sport.tsx';
 import BodyScreen from './Body.tsx';
 import ScanScreen from './Scan.tsx';
+import FoodScreen from './Food.tsx';
 import { LibraryScreen } from './Exercises.tsx';
 
 // FORME — l'app SPORT de Kouider (31/10 : refaite au style de l'appli « Library » de sa vidéo, nourriture retirée).
 // Marche seule (écran d'accueil : /ibrahim/forme/) ou dans l'app Dzaryx (page FORME, en iframe : même session).
 // Onglets : Séance (programme du jour) · Exercices (bibliothèque) · Scanner (photo d'une machine) · Progrès (poids, photos).
-type Tab = 'sport' | 'library' | 'scan' | 'body';
+type Tab = 'sport' | 'food' | 'library' | 'scan' | 'body';
 const TABS: Array<{ id: Tab; label: string; icon: (on: boolean) => JSX.Element }> = [
   { id: 'sport', label: 'Séance', icon: on => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={on ? 2.4 : 1.9} strokeLinecap="round"><path d="M6.5 7v10M3.5 9.5v5M17.5 7v10M20.5 9.5v5M6.5 12h11" /></svg> },
+  { id: 'food', label: 'Repas', icon: on => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={on ? 2.4 : 1.9} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="13" r="7" /><circle cx="12" cy="13" r="3.5" /><path d="M3 3v5M5 3v5M4 8v13M20 3c-1.5 1-2 3-2 5h2v13" /></svg> },
   { id: 'library', label: 'Exercices', icon: on => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={on ? 2.4 : 1.9} strokeLinejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.5" /></svg> },
   { id: 'scan', label: 'Scanner', icon: on => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={on ? 2.4 : 1.9} strokeLinecap="round"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16" /><circle cx="12" cy="12" r="3.2" /></svg> },
   { id: 'body', label: 'Progrès', icon: on => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={on ? 2.4 : 1.9} strokeLinecap="round" strokeLinejoin="round"><path d="M4 19h16M6 15l4-4 3 3 5-6" /></svg> },
@@ -228,6 +230,7 @@ export default function App() {
       <AnimatePresence mode="wait">
         <motion.main key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.16 }}>
           {tab === 'sport' && (o.uid === 'kouider' ? <SportScreen toast={toast} go={setTab} /> : <ProgramSport toast={toast} go={setTab} />)}
+          {tab === 'food' && <FoodScreen toast={toast} />}
           {tab === 'library' && <LibraryScreen />}
           {tab === 'scan' && <ScanScreen toast={toast} />}
           {tab === 'body' && <BodyScreen o={o} onO={setO} toast={toast} />}

@@ -667,7 +667,7 @@ export async function formeText(uid: Uid = 'kouider'): Promise<string> {
   const lastA = [...photos].reverse().find(ph => ph.analysis);
   const lines = [
     uid === 'kouider'
-      ? 'APP FORME (son app SPORT : séances, bibliothèque d\'exercices, scan des machines de la salle, photos du corps — page FORME de l\'app Dzaryx et appli à part). AUCUNE nutrition : ne parle jamais de repas, kcal ou courses à cause de FORME. Outil `forme` pour lire/noter.'
+      ? 'APP FORME (son app SPORT : séances, bibliothèque d\'exercices, scan des machines de la salle, photos du corps — page FORME de l\'app Dzaryx et appli à part). Pas de plans de repas ni de courses ; MAIS depuis le 31/10 soir il y a le COMPTEUR CALORIES (onglet Repas : photo du plat → kcal/protéines, objectif déficit selon sa montre). Outil `forme` pour lire/noter.'
       : `SUIVI FORME DE ${who.toUpperCase()} (elle a accepté de le partager avec Dzaryx ; reste discret et bienveillant, n'en parle qu'à Kouider ou à elle) :`,
     `Objectif : ${p.goal} · ${weights.length ? `${weights[0]![1].weight} kg au départ → ${weights[weights.length - 1]![1].weight} kg aujourd'hui` : `${p.weightKg} kg`} → visé ${p.targetKg} kg.`,
     p.wegovy.on ? `TRAITEMENT WEGOVY (privé ; jamais de conseil de dose → médecin) : ${p.wegovy.dose ? `dose actuelle ${p.wegovy.dose}, ` : ''}injection le ${['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'][p.wegovy.day]} ${p.wegovy.hour}${inj ? `, prochaine ${inj.inDays === 0 ? "AUJOURD'HUI" : `dans ${inj.inDays} j`} (site conseillé : ${inj.site})` : ''}.` : '',
@@ -678,6 +678,7 @@ export async function formeText(uid: Uid = 'kouider'): Promise<string> {
     `Photos de suivi : ${photos.length}${photos.length ? `, dernière le ${photos[photos.length - 1]!.date}` : ''} (rappel tous les ${p.photoEveryDays} j).`,
   ];
   let out = lines.filter(Boolean).join('\n');
+  if (uid === 'kouider') out += `\n${await import('./forme-food.js').then(m => m.foodText()).catch(() => '')}`;
   if (uid === 'kouider') {
     const fp = await getFormeProfile('femme');
     if (fp.onboarded && fp.shareWithDzaryx) out += `\n${await formeText('femme')}`;
@@ -886,6 +887,16 @@ export async function formeTool(input: Record<string, unknown>): Promise<string>
     return h.length ? h.slice(0, 10).map(m => `${m.date} · ${m.machine} : ${m.exercises.map(e => e.name).join(', ')}`).join('\n') : 'Aucune machine scannée pour l\'instant (FORME → Scanner).';
   }
   if (a === 'ask') return await askFormeCoach(String(input.question ?? ''));
+  // 🍽️ Compteur calories (31/10)
+  if (a.startsWith('food') || a.startsWith('meal')) {
+    const f = await import('./forme-food.js');
+    if (a === 'meal_photo') return await f.mealFromTelegram(String(input.note ?? input.question ?? ''));
+    if (a === 'meal_text') { const r = await f.logMealText('kouider', String(input.text ?? input.question ?? '')); return `${r.message}\n\n(enregistré dans FORME et déjà envoyé sur son Telegram)`; }
+    if (a === 'food_check') return await f.checkFood(String(input.text ?? input.question ?? ''));
+    if (a === 'food_today') return `${await f.foodText()}\n${f.budgetFacts(await f.foodBudget('kouider', typeof input.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? input.date : undefined))}`;
+    if (a === 'food_settings') { const c = await f.setFoodCfg({ ...(input.deficit != null ? { deficit: Number(input.deficit) } : {}), ...(input.on != null ? { on: !!input.on } : {}), ...(input.telegram != null ? { telegram: !!input.telegram } : {}) }); return `✅ Calories : ${c.on ? 'actif' : 'coupé'}, déficit visé ${c.deficit} kcal/j, messages Telegram ${c.telegram ? 'oui' : 'non'}.`; }
+    if (a === 'food_morning') return (await f.morningSleepMessage(true)) ?? 'Pas de message (cerveau indisponible).';
+  }
   if (a === 'profile') {
     const patch = input as Partial<FormeProfile> & { dose?: string };
     if (patch.dose) patch.wegovy = { ...(await getFormeProfile()).wegovy, dose: patch.dose };

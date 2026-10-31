@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-31 23h — FORME : compteur calories photo (style Cal AI) + coach déficit/sommeil sur Telegram (app v224)
+- forme-food.ts : photo du plat → aliments, grammes, kcal, protéines/glucides/lipides (vision gratuite, cuisine algérienne/halal) ; budget = métabolisme de base + calories actives de la montre − déficit (500 par défaut, 0-750, plancher 1500) ; correction des grammes ; « j'ai mangé… » en texte ; « si je mange ça ? » (marche/pompes pour compenser).
+- Routes /api/forme/food (+ /photo, /text, /edit, /cfg) ; onglet Repas dans FORME ; outil forme meal_photo / meal_text / food_check / food_today / food_settings / food_morning ; photo de plat sur Telegram → analysée.
+- Job forme-food */15 4-22h : message du réveil (nuit de la montre → sport/business/moral + budget, séance allégée si < 6 h), collations 10h/16h, rappel photo du midi, « ce soir il te reste X », avant de dormir (bilan + heure de coucher + montre). Envoi Santé du matin avec le sommeil → message du réveil tout de suite.
+- Règles « jamais de nutrition » assouplies : pas de plans repas/courses, mais compteur calories autorisé (life-coach, tools, constants, formeText).
+
 ## 2026-10-31 21h — FORME : stats pro (10 grosses applis) + reprise de séance + page COACH réparée (app v223)
 - forme-insights.ts + GET /api/forme/insights : objectif semaine (anneau) + semaines tenues, séries par muscle 7 j vs zone 10-20, calendrier 12 semaines, badges, tendances montre 30 j (VFC, cœur, pas, sommeil) — onglet Progrès + anneau en tête de Séance. sport-coach exerciseMuscles().
 - Séance en cours gardée sur le téléphone (forme:live) → bandeau « Reprendre » ; note par exercice gardée (forme:exnote:*).
