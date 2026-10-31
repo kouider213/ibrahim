@@ -642,9 +642,12 @@ async function pickGeminiLiveModel(key: string, avoid?: string): Promise<string>
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=${key}`);
     const { models = [] } = await r.json() as { models?: Array<{ name: string; supportedGenerationMethods?: string[] }> };
     const live = models.filter(m => m.supportedGenerationMethods?.includes('bidiGenerateContent')).map(m => m.name);
-    const rank = (n: string) => (n.includes('native-audio') ? 0 : 10) + (n.includes('preview') ? 1 : 0) + (n.includes('lite') ? 2 : 0);
-    // que les modèles voix natives (pas transcribe / translate / robotics) ; « -latest » en dernier recours (alias mouvant, a planté 30/10)
-    const voice = live.filter(n => n.includes('native-audio'));
+    // 31/10 : les 2.5 native-audio coupent (1011) presque à chaque appel + 1-2,7 s de latence → « il bug, il m'entend pas ».
+    // Testé le même jour avec la vraie config (consignes + 44 outils) : gemini-3.8-live et 3.1-flash-live = 0 coupure, ~0,9 s.
+    const gen = (n: string) => n.includes('3.8-live') ? 0 : n.includes('3.1-flash-live') ? 1 : n.includes('native-audio') ? 5 : 9;
+    const rank = (n: string) => gen(n) * 10 + (n.includes('preview') ? 1 : 0) + (n.includes('lite') ? 2 : 0);
+    // que les modèles conversation voix (pas transcribe / translate / robotics / extended-thinking trop lent) ; « -latest » en dernier
+    const voice = live.filter(n => gen(n) < 9 && !/transcribe|translate|robotics|thinking/.test(n));
     voice.sort((a, b) => (a.includes('latest') ? 1 : 0) - (b.includes('latest') ? 1 : 0) || rank(a) - rank(b) || b.localeCompare(a));
     liveList.splice(0, liveList.length, ...voice);
     const pick = voice.find(ok) ?? live.find(ok);

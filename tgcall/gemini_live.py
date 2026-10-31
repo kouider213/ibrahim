@@ -45,7 +45,9 @@ class _Msg:
 NOISE_RULE = ("\n\nAPPEL TÉLÉPHONIQUE — BRUITS : un bruit, un souffle, des mots sans sens ou dans une autre langue que le "
               "français ou l'arabe (ex. persan, chiffres isolés) ne sont PAS une demande de Kouider : ignore-les, ne lance "
               "aucun outil, n'écris jamais « CONFIRMÉ » pour ça. S'il y a un doute, demande simplement « tu peux répéter ? ». "
-              "Quand il dit juste « allô » au décroché, continue ta phrase sans recommencer.")
+              "Quand il dit juste « allô » au décroché, continue ta phrase sans recommencer. Ne réponds JAMAIS « allô ? », "
+              "« ça va ? » ou « je t'entends plus » à un bruit ou un silence : soit tu continues le sujet, soit tu attends. "
+              "Ne redis pas une phrase que tu viens déjà de dire.")
 
 
 def clean_heard(t: str) -> str:
