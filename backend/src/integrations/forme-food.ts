@@ -65,14 +65,18 @@ const sumOf = (items: Array<{ kcal: number; p: number; c: number; f: number }>) 
 interface HDay { date: string; active_kcal?: number; steps?: number; sleep_h?: number; rhr?: number; hrv?: number }
 async function activeFor(date: string): Promise<{ kcal: number; source: Budget['activeSource'] }> {
   const all = await readJson<HDay[]>('health:daily', []);
-  const today = all.find(x => x.date === date)?.active_kcal;
-  if (today && today > 50) return { kcal: r0(today), source: 'montre' };
+  const today = all.find(x => x.date === date)?.active_kcal ?? 0;
   // Séances vues par la montre aujourd'hui (début/fin envoyés en direct) → au moins ça + la vie de tous les jours
   const wo = await import('./workout-live.js').then(m => m.readWorkouts()).catch(() => []);
   const woK = wo.filter(w => String(w.at).slice(0, 10) === date).reduce((a, w) => a + (w.kcal ?? 0), 0);
   const past = all.filter(x => x.date < date && x.date >= addDays(date, -14) && (x.active_kcal ?? 0) > 50).map(x => x.active_kcal!).sort((a, b) => a - b);
-  if (past.length >= 3) { const med = past[Math.floor(past.length / 2)]!; return { kcal: r0(Math.max(med, woK + 200)), source: 'moyenne' }; }
-  return { kcal: r0(Math.max(350, woK + 250)), source: 'estimation' };
+  const med = past.length >= 3 ? past[Math.floor(past.length / 2)]! : 0;
+  // Valeur de la montre = journée complète seulement le soir (envoi 22h) ou un jour passé ; un envoi du matin
+  // (réveil) ne compte que quelques kcal → on garde la moyenne tant que la journée n'est pas finie.
+  const dayDone = date < localNow().date || localNow().hhmm >= '20:00';
+  if (today > 50 && (dayDone || today >= med)) return { kcal: r0(today), source: 'montre' };
+  if (med) return { kcal: r0(Math.max(med, woK + 200, today)), source: 'moyenne' };
+  return { kcal: r0(Math.max(350, woK + 250, today)), source: 'estimation' };
 }
 
 export async function foodBudget(uid: Uid = 'kouider', date = localNow().date): Promise<Budget> {
