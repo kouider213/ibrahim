@@ -76,6 +76,7 @@ export async function kouiderDossierText(): Promise<string> {
   const liberte = await import('./liberte.js').then(m => m.liberteText()).catch(() => '');   // programme d'arrêt (privé)
   const vie = await import('./life-plus.js').then(m => m.lifeText()).catch(() => '');
   const gcoach = await import('./grand-coach.js').then(m => m.grandCoachText()).catch(() => '');
+  const fin = await import('./perso-finances.js').then(m => m.financesText()).catch(() => '');
   return [
     'QUI EST KOUIDER (son dossier — tu tournes autour de lui, tu le connais par cœur) :',
     dossier?.trim() || BASE,
@@ -88,6 +89,7 @@ export async function kouiderDossierText(): Promise<string> {
     ...(liberte ? [liberte] : []),
     ...(vie ? [vie] : []),
     ...(gcoach ? [gcoach] : []),
+    ...(fin ? [fin] : []),
     ...(forme ? [forme] : []),
   ].join('\n');
 }

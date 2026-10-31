@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 31/10 — FINANCES PERSO : outil mes_finances
+- `integrations/perso-finances.ts` : emploi salarié, salaire, charges fixes (avec date de fin), épargne mensuelle, revenu d'appoint, épargne — données PRIVÉES dans app_kv `perso:finances` (rien dans le dépôt public). Injecté dans le dossier Kouider (privé, jamais dans un document pour un tiers), compté dans « ma fortune » (épargne + crédits restants en dette) et dans le Miroir du futur (épargne mensuelle, crédit déduit).
+
 ## 31/10 — B048 : mentor business planté (signature Gemini) corrigé
 - Appels d'outils venus d'un autre cerveau → signature « skip_thought_signature_validator » pour Gemini 3 ; mentor relancé 45 min plus tard si tout est saturé.
 
