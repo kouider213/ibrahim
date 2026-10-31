@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 31/10 — MONTAGE gratuit (vidéos IA à 0 €)
+- Page STUDIO VIDÉO → MONTAGE (app v210). Nouveau modèle par défaut « gratuit » : une image IA par plan (Pollinations, sans clé, 1 image / 45 s, réessais + réutilisation d'image si saturé) animée au montage façon caméra (drone, approche, travelling, zoom…), voix gratuite (Gemini TTS puis Google), sous-titres, accroche, CTA. ≈ 1 min par plan, 0 €.
+- Outil video_studio : gratuit par défaut, Dzaryx enchaîne plan → rendu sans demander ; Kling/Veo/Seedance (fal.ai) seulement si Kouider les demande. Musique IA coupée en gratuit.
+- Testé hors ligne : 2 plans + voix + montage = 8 s en 2 min. Pas encore de vrai mouvement vidéo (attend GPU : PC de Kouider ou Kaggle).
+
 ## 30/10 — Location 11 j, radars, appel après étude, retard salle
 - Location : le jour du retour ne compte JAMAIS (29/10 → 09/11 = 11 j × 40 € = 440 €), même rendue l'après-midi (rentalDays + prompt + tests).
 - RADARS (flashé à Simonis) : speed-cameras.ts — alerte Telegram + notif avant chaque radar fixe devant lui (OpenStreetMap, miroirs + pause 10 min si saturé ; + endroits où il a été flashé) ; outil `radars` flash/amende/paye/list/on/off ; job 10h rappels de paiement 7 j / 2 j / jour J et « courrier reçu ? » après 21 j.

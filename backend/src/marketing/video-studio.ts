@@ -21,13 +21,13 @@ import { env } from '../config/env.js';
 import { supabase } from '../integrations/supabase.js';
 import { kvGet, kvSet } from '../integrations/app-store.js';
 import { askJson } from '../integrations/pro-doc.js';
-import { synthesizeVoice, synthesizeVoiceGemini } from '../notifications/dispatcher.js';
+import { synthesizeVoice, synthesizeVoiceGemini, synthesizeVoiceFree } from '../notifications/dispatcher.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 
 // ─── Catalogue ────────────────────────────────────────────────
 
-export type ModelId = 'kling3' | 'veo31fast' | 'veo31' | 'seedance2';
+export type ModelId = 'gratuit' | 'kling3' | 'veo31fast' | 'veo31' | 'seedance2';
 
 interface ModelDef {
   label: string; t2v: string; i2v: string;
@@ -36,6 +36,8 @@ interface ModelDef {
 }
 
 export const STUDIO_MODELS: Record<ModelId, ModelDef> = {
+  gratuit:   { label: 'Gratuit (images IA animées)', t2v: '', i2v: '', perSec: 0, perSecAudio: 0, durations: [3, 4, 5, 6, 7, 8],
+               note: '0 €. Une image IA par plan, animée au montage (zoom, travelling). Plus lent (≈ 1 min par plan), pas de vrai mouvement.' },
   kling3:    { label: 'Kling 3.0 Pro', t2v: 'fal-ai/kling-video/v3/pro/text-to-video', i2v: 'fal-ai/kling-video/v3/pro/image-to-video',
                perSec: 0.112, perSecAudio: 0.168, durations: [3, 4, 5, 6, 7, 8, 9, 10], note: 'Le meilleur rapport qualité/prix. Mouvements très réalistes.' },
   veo31fast: { label: 'Veo 3.1 Fast', t2v: 'fal-ai/veo3.1/fast', i2v: 'fal-ai/veo3.1/fast/image-to-video',
@@ -79,6 +81,9 @@ export const STUDIO_LANGS: Record<string, string> = {
 
 const MUSIC_MODEL = 'CassetteAI/music-generator';
 const MUSIC_COST = 0.02;
+/** Règle 31/10 : Dzaryx 100 % gratuit — les modèles payants seulement si Kouider les demande lui-même. */
+export const FREE_MODEL: ModelId = 'gratuit';
+const isFree = (m: ModelId) => m === 'gratuit';
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -112,7 +117,7 @@ export function estimateCost(shots: StudioShot[], o: Pick<RenderOptions, 'model'
   const m = STUDIO_MODELS[o.model];
   const rate = o.nativeAudio ? m.perSecAudio : m.perSec;
   const video = shots.reduce((s, sh) => s + snapDuration(o.model, sh.duration) * rate, 0);
-  return Math.round((video + (o.music ? MUSIC_COST : 0)) * 100) / 100;
+  return Math.round((video + (o.music && !isFree(o.model) ? MUSIC_COST : 0)) * 100) / 100;
 }
 
 // ─── Plan viral (Claude) ──────────────────────────────────────
@@ -245,6 +250,70 @@ function shotInput(model: ModelId, shot: StudioShot, imageUrl: string | null, na
     return { endpoint: img ? m.i2v : m.t2v, input: { prompt, duration: String(d), aspect_ratio: '9:16', resolution: '720p', generate_audio: nativeAudio, ...(img ? { image_url: img } : {}) } };
   }
   return { endpoint: img ? m.i2v : m.t2v, input: { prompt, duration: `${d}s`, aspect_ratio: '9:16', resolution: '720p', generate_audio: nativeAudio, negative_prompt: negative, ...(img ? { image_url: img } : {}) } };
+}
+
+// ─── Mode gratuit : image IA (Pollinations, sans clé) + animation ffmpeg ───
+
+let lastImageAt = 0;
+/** Pollinations gratuit = 1 image / 45 s par IP : on espace les appels et on réessaie quand il dit d'attendre. */
+async function freeImage(prompt: string, seed: number): Promise<Buffer> {
+  const full = `${prompt}, ultra realistic photo, cinematic light, vertical composition, no text, no watermark`;
+  let lastErr = '';
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const wait = lastImageAt + 50_000 - Date.now();
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    lastImageAt = Date.now();
+    const r = await axios.get<ArrayBuffer>(`https://image.pollinations.ai/prompt/${encodeURIComponent(full.slice(0, 900))}`, {
+      params: { width: 1080, height: 1920, nologo: true, model: 'flux', seed }, responseType: 'arraybuffer', timeout: 120_000, validateStatus: () => true,
+    }).catch(e => ({ status: 0, data: Buffer.from(String(e?.message ?? e)) }));
+    const buf = Buffer.from(r.data as ArrayBuffer);
+    if (r.status === 200 && buf[0] === 0xff && buf[1] === 0xd8 || (r.status === 200 && buf.subarray(1, 4).toString() === 'PNG')) return buf;
+    lastErr = `${r.status} ${buf.toString().slice(0, 160)}`;
+    const after = Number(/Retry after (\d+)s/i.exec(buf.toString())?.[1] ?? 0);
+    if (after) lastImageAt = Date.now() + (after + 2) * 1000 - 50_000;
+  }
+  throw new Error(`image gratuite impossible (Pollinations) : ${lastErr}`);
+}
+
+/** Mouvement de caméra simulé sur une image fixe (effet Ken Burns), 1080×1920 30 i/s. */
+async function kenBurns(img: string, camera: string, seconds: number, out: string, k: number): Promise<void> {
+  const n = Math.round(seconds * 30);
+  const c = 'iw/2-(iw/zoom/2)', m = 'ih/2-(ih/zoom/2)';
+  const moves: Record<string, [string, string, string]> = {
+    dolly_in:   [`1+0.15*on/${n}`, c, m],
+    crash_zoom: [`1+0.45*pow(on/${n},2)`, c, m],
+    slowmo:     [`1+0.06*on/${n}`, c, m],
+    drone:      [`1.25-0.2*on/${n}`, c, `(ih-ih/zoom)*(1-on/${n})`],
+    fpv:        [`1+0.3*on/${n}`, `${c}+sin(on/9)*20`, m],
+    travelling: ['1.2', `(iw-iw/zoom)*on/${n}`, m],
+    orbit:      [`1.2+0.05*sin(on/${n}*3.14)`, `(iw-iw/zoom)*(1-on/${n})`, m],
+    low_angle:  [`1.15+0.05*on/${n}`, c, `(ih-ih/zoom)*(1-on/${n})`],
+    handheld:   ['1.12', `${c}+sin(on/7)*12`, `${m}+cos(on/9)*12`],
+  };
+  const auto = [moves['dolly_in']!, moves['travelling']!, moves['drone']!, moves['handheld']!][k % 4]!;
+  const [z, x, y] = moves[camera] ?? auto;
+  await run(['-i', img, '-filter_complex',
+    `[0:v]scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,zoompan=z='${z}':x='${x}':y='${y}':d=${n}:s=1080x1920:fps=30,format=yuv420p[v]`,
+    '-map', '[v]', '-frames:v', String(n), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', out]);
+}
+
+export async function freeShot(shot: StudioShot, imageUrl: string | null, dir: string, i: number, seed: number): Promise<string> {
+  const img = path.join(dir, `img${i}.jpg`);
+  if (shot.use_image && imageUrl) {
+    await fs.writeFile(img, Buffer.from((await axios.get<ArrayBuffer>(imageUrl, { responseType: 'arraybuffer', timeout: 60_000 })).data));
+  } else {
+    try { await fs.writeFile(img, await freeImage(shot.prompt, seed + i)); }
+    catch (e) {
+      // Service gratuit saturé : on réutilise une image déjà faite avec un autre mouvement plutôt que de perdre le plan
+      const prev = (await fs.readdir(dir)).filter(f => /^img\d+\.jpg$/.test(f) && f !== `img${i}.jpg`).sort().pop();
+      if (!prev) throw e;
+      console.warn(`[studio] plan ${i + 1} : image gratuite indisponible, réutilise ${prev}`);
+      await fs.copyFile(path.join(dir, prev), img);
+    }
+  }
+  const out = path.join(dir, `raw${i}.mp4`);
+  await kenBurns(img, shot.camera, shot.duration, out, i);
+  return out;
 }
 
 // ─── ffmpeg ───────────────────────────────────────────────────
@@ -446,7 +515,7 @@ async function addSpent(usd: number): Promise<void> {
 const running = new Set<string>();
 
 export async function startStudioRender(plan: StudioPlan, opts: RenderOptions, actor = 'kouider'): Promise<StudioJob> {
-  if (!env.FAL_KEY) throw new Error('FAL_KEY absente dans Railway — impossible de générer.');
+  if (!isFree(opts.model) && !env.FAL_KEY) throw new Error('FAL_KEY absente dans Railway — impossible de générer.');
   if (!STUDIO_MODELS[opts.model]) throw new Error(`modèle inconnu : ${opts.model}`);
   if (running.size >= 2) throw new Error('Déjà 2 vidéos en cours de rendu — attends qu\'une se termine.');
   const now = new Date().toISOString();
@@ -467,7 +536,9 @@ async function renderJob(job: StudioJob, plan: StudioPlan, opts: RenderOptions):
   const rate = opts.nativeAudio ? STUDIO_MODELS[opts.model].perSecAudio : STUDIO_MODELS[opts.model].perSec;
   try {
     // ── 1. Plans IA (2 en parallèle) + voix + musique pendant ce temps ──
-    job.status = 'shots'; job.step = `Génération des plans IA (${STUDIO_MODELS[opts.model].label})…`; job.progress = 5; await saveJob(job);
+    const free = isFree(opts.model);
+    job.status = 'shots'; job.step = free ? 'Images IA gratuites (≈ 1 min par plan)…' : `Génération des plans IA (${STUDIO_MODELS[opts.model].label})…`; job.progress = 5; await saveJob(job);
+    const seed = Math.floor(Math.random() * 1e6);
     const clips: Array<string | null> = new Array(plan.shots.length).fill(null);
     let cursor = 0;
     const worker = async () => {
@@ -476,6 +547,7 @@ async function renderJob(job: StudioJob, plan: StudioPlan, opts: RenderOptions):
         const shot = plan.shots[i]!;
         for (let attempt = 0; attempt < 2 && !clips[i]; attempt++) {
           try {
+            if (free) { clips[i] = await freeShot(shot, plan.image_url ?? null, dir, i, seed); break; }
             const { endpoint, input } = shotInput(opts.model, shot, plan.image_url ?? null, opts.nativeAudio);
             const res = await falRun(endpoint, input);
             const url = (res['video'] as { url?: string } | undefined)?.url;
@@ -495,16 +567,18 @@ async function renderJob(job: StudioJob, plan: StudioPlan, opts: RenderOptions):
       }
     };
     const voiceP = opts.voice && plan.voiceover
-      ? (async () => (await synthesizeVoice(plan.voiceover)) ?? (await synthesizeVoiceGemini(plan.voiceover)))().catch(() => null)
+      ? (free
+        ? (async () => (await synthesizeVoiceGemini(plan.voiceover)) ?? (await synthesizeVoiceFree(plan.voiceover)))()
+        : (async () => (await synthesizeVoice(plan.voiceover)) ?? (await synthesizeVoiceGemini(plan.voiceover)))()).catch(() => null)
       : Promise.resolve(null);
-    const musicP = opts.music && plan.music_prompt
+    const musicP = opts.music && plan.music_prompt && !free
       ? falRun(MUSIC_MODEL, { prompt: plan.music_prompt, duration: Math.min(90, plan.shots.reduce((s, x) => s + x.duration, 0) + 8) }, 240_000)
         .then(r => (r['audio_file'] as { url?: string } | undefined)?.url ?? null).catch(e => { console.warn('[studio] musique:', e.message); return null; })
       : Promise.resolve(null);
-    await Promise.all([worker(), worker()]);
+    await Promise.all(free ? [worker()] : [worker(), worker()]);
 
     const ok = clips.map((c, i) => ({ c, i })).filter((x): x is { c: string; i: number } => !!x.c);
-    if (!ok.length) throw new Error('aucun plan IA n\'a pu être généré (voir crédit fal.ai)');
+    if (!ok.length) throw new Error(free ? 'aucune image gratuite n\'a pu être générée (Pollinations indisponible, réessaie plus tard)' : 'aucun plan IA n\'a pu être généré (voir crédit fal.ai)');
 
     // ── 2. Audio ──
     job.status = 'audio'; job.step = 'Voix off et musique…'; job.progress = 74; await saveJob(job);
@@ -538,7 +612,7 @@ async function renderJob(job: StudioJob, plan: StudioPlan, opts: RenderOptions):
     Object.assign(job, { status: 'done', step: 'Terminé ✅', progress: 100, url, caption: plan.post_caption });
     await saveJob(job);
     const missed = plan.shots.length - ok.length;
-    const msg = `🎬 Studio vidéo — « ${plan.title} » est prête (${Math.round(total)} s, ${STUDIO_MODELS[opts.model].label}, coût ≈ ${job.costUsd.toFixed(2)} $)` +
+    const msg = `🎬 Studio vidéo — « ${plan.title} » est prête (${Math.round(total)} s, ${STUDIO_MODELS[opts.model].label}, ${free ? '0 €' : `coût ≈ ${job.costUsd.toFixed(2)} $`})` +
       (missed ? `\n⚠️ ${missed} plan(s) n'ont pas pu être générés, montage fait sans eux.` : '') +
       (plan.post_caption ? `\n\nLégende à poster :\n${plan.post_caption}` : '');
     await queueTelegramMessage(msg, undefined, job.actor, { url, name: `${plan.title.replace(/[^\w\- ]+/g, '').slice(0, 50) || 'video'}.mp4` }).catch(() => {});
@@ -572,14 +646,16 @@ export async function videoStudioTool(input: Record<string, unknown>, actor = 'k
     return `Studio vidéo (dépensé au total ≈ ${spentUsd.toFixed(2)} $) :\n` + jobs.slice(0, 5).map(j =>
       `• ${j.title} — ${j.status === 'done' ? `✅ ${j.url}` : j.status === 'error' ? `❌ ${j.error}` : `⏳ ${j.step} (${j.progress} %)`}`).join('\n');
   }
-  const model = (STUDIO_MODELS[String(input['model']) as ModelId] ? String(input['model']) : 'kling3') as ModelId;
+  const model = (STUDIO_MODELS[String(input['model']) as ModelId] ? String(input['model']) : FREE_MODEL) as ModelId;
   const opts: RenderOptions = { model, nativeAudio: !!input['native_audio'], voice: input['voice'] !== false, music: input['music'] !== false, subtitles: true };
   if (action === 'render') {
     const plan = await getStudioPlan(String(input['plan_id'] ?? ''));
     if (!plan) return '❌ Plan introuvable — refais d\'abord action="plan".';
     if (!plan.voiceover) { opts.voice = false; opts.music = !!input['music']; }
     const job = await startStudioRender(plan, opts, actor);
-    return `🎬 Rendu lancé (${STUDIO_MODELS[model].label}, ≈ ${job.estimateUsd.toFixed(2)} $). Compter 5 à 15 minutes ; la vidéo arrivera sur Telegram et dans l'app (page STUDIO VIDÉO).`;
+    return isFree(model)
+      ? `🎬 Rendu gratuit lancé (0 €, ${plan.shots.length} plans ≈ ${plan.shots.length + 2} min). La vidéo arrivera sur Telegram et dans l'app (page MONTAGE).`
+      : `🎬 Rendu lancé (${STUDIO_MODELS[model].label}, ≈ ${job.estimateUsd.toFixed(2)} $). Compter 5 à 15 minutes ; la vidéo arrivera sur Telegram et dans l'app (page MONTAGE).`;
   }
   // plan
   const carName = input['car_name'] ? String(input['car_name']) : null;
@@ -594,6 +670,6 @@ export async function videoStudioTool(input: Record<string, unknown>, actor = 'k
 Accroche : ${plan.hook || '—'}
 ${plan.shots.map((s, i) => `${i + 1}. [${STUDIO_CAMERAS[s.camera]?.label ?? s.camera}, ${s.duration} s] ${s.prompt.slice(0, 140)}`).join('\n')}
 Voix off : ${plan.voiceover.slice(0, 300) || '—'}
-Coût estimé : ${costs}
-→ Montre ce plan à Kouider et demande-lui de confirmer (et le modèle) AVANT d'appeler action="render" avec ce plan_id : chaque rendu coûte du crédit fal.ai.`;
+Mode par défaut : GRATUIT (0 €) — tu peux lancer tout de suite action="render" avec ce plan_id (sans model), pas besoin d'accord.
+Modèles payants (seulement si Kouider demande lui-même Kling/Veo/Seedance, et après son accord sur le prix) : ${costs.split(' · ').filter(x => !x.startsWith('Gratuit')).join(' · ')}`;
 }

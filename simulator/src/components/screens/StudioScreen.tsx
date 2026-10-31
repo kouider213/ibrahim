@@ -49,7 +49,7 @@ export default function StudioScreen() {
 
   // Plan + rendu
   const [plan, setPlan] = useState<StudioPlan | null>(null);
-  const [model, setModel] = useState('kling3');
+  const [model, setModel] = useState('gratuit');
   const [nativeAudio, setNativeAudio] = useState(false);
   const [voice, setVoice] = useState(true);
   const [music, setMusic] = useState(true);
@@ -87,17 +87,17 @@ export default function StudioScreen() {
     const md = opts?.models.find(x => x.id === id);
     if (!md || !plan) return 0;
     const rate = nativeAudio ? md.perSecAudio : md.perSec;
-    return plan.shots.reduce((s, sh) => s + snap(md.durations, sh.duration) * rate, 0) + (music ? 0.02 : 0);
+    return plan.shots.reduce((s, sh) => s + snap(md.durations, sh.duration) * rate, 0) + (music && id !== 'gratuit' ? 0.02 : 0);
   };
   const cost = costOf(model);
 
   const render = async () => {
     if (!plan) return;
-    if (!window.confirm(`Lancer le rendu avec ${m?.label ?? model} ?\nCoût estimé ≈ ${cost.toFixed(2)} $ sur ton crédit fal.ai.`)) return;
+    if (model !== 'gratuit' && !window.confirm(`Lancer le rendu PAYANT avec ${m?.label ?? model} ?\nCoût estimé ≈ ${cost.toFixed(2)} $ sur ton crédit fal.ai.`)) return;
     setBusy(true);
     try {
-      await business.studioRender(plan, { model, nativeAudio, voice, music, subtitles });
-      say('🎬 Rendu lancé : 5 à 15 min. La vidéo arrivera ici et sur Telegram.');
+      await business.studioRender(plan, { model, nativeAudio, voice, music: model === 'gratuit' ? false : music, subtitles });
+      say(model === 'gratuit' ? `🎬 Rendu gratuit lancé : ≈ ${plan.shots.length + 2} min. La vidéo arrivera ici et sur Telegram.` : '🎬 Rendu lancé : 5 à 15 min. La vidéo arrivera ici et sur Telegram.');
       setPlan(null); setIdea('');
       await loadJobs();
     } catch (e) { say(`❌ ${errText(e)}`); }
@@ -109,7 +109,7 @@ export default function StudioScreen() {
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch', background: '#050a16', color: C.text, fontFamily: C.font, paddingBottom: 110 }}>
-      <Hero eyebrow="Dzaryx · Vidéo IA" title="Studio vidéo" subtitle="Vidéos virales réalistes : Kling 3.0, Veo 3.1, Seedance 2.0" accent={C.accent} />
+      <Hero eyebrow="Dzaryx · Vidéo IA" title="Montage" subtitle="Dis ce que tu veux, Dzaryx fait la vidéo — gratuit par défaut" accent={C.accent} />
       <div style={{ padding: '0 14px' }}>
         {!opts ? <SkeletonCards /> : (<>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 7, marginBottom: 14 }}>
@@ -220,22 +220,22 @@ export default function StudioScreen() {
                   style={{ display: 'block', width: '100%', textAlign: 'left', background: model === md.id ? 'rgba(244,114,182,0.12)' : 'rgba(255,255,255,0.03)',
                     border: `1px solid ${model === md.id ? C.accent : C.border}`, borderRadius: 10, padding: 10, marginBottom: 6, color: C.text, cursor: 'pointer', fontFamily: C.font }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 13 }}>
-                    <span>{model === md.id ? '◉' : '○'} {md.label}</span><span style={{ color: C.gold }}>≈ {costOf(md.id).toFixed(2)} $</span>
+                    <span>{model === md.id ? '◉' : '○'} {md.label}</span><span style={{ color: md.id === 'gratuit' ? C.green : C.gold }}>{md.id === 'gratuit' ? '0 €' : `≈ ${costOf(md.id).toFixed(2)} $`}</span>
                   </div>
                   <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>{md.note}</div>
                 </button>
               ))}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
                 {plan.voiceover && <button style={chip(voice)} onClick={() => setVoice(!voice)}>🎙 Voix off</button>}
-                <button style={chip(music)} onClick={() => setMusic(!music)}>🎵 Musique IA</button>
+                {model !== 'gratuit' && <button style={chip(music)} onClick={() => setMusic(!music)}>🎵 Musique IA</button>}
                 {plan.voiceover && <button style={chip(subtitles)} onClick={() => setSubtitles(!subtitles)}>💬 Sous-titres</button>}
-                <button style={chip(nativeAudio)} onClick={() => setNativeAudio(!nativeAudio)}>🔊 Son natif du modèle</button>
+                {model !== 'gratuit' && <button style={chip(nativeAudio)} onClick={() => setNativeAudio(!nativeAudio)}>🔊 Son natif du modèle</button>}
               </div>
               <button style={{ ...btn(C.accent, '#050a16'), width: '100%', marginTop: 12, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void render()}>
-                🎬 Lancer le rendu · ≈ {cost.toFixed(2)} $
+                🎬 Lancer le rendu · {model === 'gratuit' ? '0 €' : `≈ ${cost.toFixed(2)} $`}
               </button>
               <div style={{ fontSize: 11, color: C.muted, marginTop: 6, lineHeight: 1.4 }}>
-                Le coût est prélevé sur ton crédit fal.ai (prix publics de fal.ai, peuvent bouger). Rendu : 5 à 15 min, la vidéo arrive ici et sur Telegram.
+                {model === 'gratuit' ? 'Gratuit : une image IA par plan, animée au montage. Rendu ≈ 1 min par plan, la vidéo arrive ici et sur Telegram.' : 'Payant : le coût est prélevé sur ton crédit fal.ai (prix publics, peuvent bouger). Rendu : 5 à 15 min.'}
               </div>
             </div>
           </>)}

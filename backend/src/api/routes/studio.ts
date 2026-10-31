@@ -48,7 +48,7 @@ router.post('/render', async (req, res) => {
   if (!b.plan?.shots?.length) { res.status(400).json({ error: 'Plan vide' }); return; }
   const o = b.options ?? {};
   const opts: RenderOptions = {
-    model: (STUDIO_MODELS[o.model as ModelId] ? o.model : 'kling3') as ModelId,
+    model: (STUDIO_MODELS[o.model as ModelId] ? o.model : 'gratuit') as ModelId,
     nativeAudio: !!o.nativeAudio, voice: o.voice !== false && !!b.plan.voiceover, music: !!o.music, subtitles: o.subtitles !== false,
   };
   const plan: StudioPlan = {
