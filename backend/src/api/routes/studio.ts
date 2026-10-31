@@ -49,7 +49,7 @@ router.post('/render', async (req, res) => {
   const o = b.options ?? {};
   const opts: RenderOptions = {
     model: (STUDIO_MODELS[o.model as ModelId] ? o.model : 'gratuit') as ModelId,
-    nativeAudio: !!o.nativeAudio, voice: o.voice !== false && !!b.plan.voiceover, music: !!o.music, subtitles: o.subtitles !== false,
+    nativeAudio: !!o.nativeAudio, voice: o.voice !== false && !!b.plan.voiceover, music: !!o.music, subtitles: o.subtitles !== false, outro: o.outro !== false,
   };
   const plan: StudioPlan = {
     ...b.plan,

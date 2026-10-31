@@ -93,7 +93,7 @@ export interface StudioPlan {
   post_caption: string; brand: string; lang: string; template: string; image_url?: string | null;
   shots: StudioShot[]; createdAt: string;
 }
-export interface RenderOptions { model: ModelId; nativeAudio: boolean; voice: boolean; music: boolean; subtitles: boolean }
+export interface RenderOptions { model: ModelId; nativeAudio: boolean; voice: boolean; music: boolean; subtitles: boolean; outro?: boolean }
 export interface StudioJob {
   id: string; planId: string; title: string; model: ModelId; status: 'queued' | 'shots' | 'audio' | 'montage' | 'done' | 'error';
   step: string; progress: number; estimateUsd: number; costUsd: number; url?: string; caption?: string; error?: string;
@@ -152,7 +152,9 @@ Règles des plans (3 à 6 plans, somme des durées ≈ ${seconds} s, chaque dur�
 - Un seul mouvement clair par plan. Pas de texte ni de logo dans l'image (les textes sont ajoutés au montage).
 - Décors cohérents avec Oran / l'Algérie quand c'est le sujet (corniche, Santa Cruz, front de mer, ruelles blanches, soleil méditerranéen).
 - Personnes : apparence maghrébine/méditerranéenne réaliste, vêtements modernes.
-- Le plan 1 doit accrocher immédiatement (mouvement fort ou image surprenante).`;
+- Le plan 1 doit accrocher immédiatement (mouvement fort ou image surprenante).
+- RÉALISME AVANT TOUT (on ne doit pas voir que c'est de l'IA) : écris chaque prompt comme une vraie photo/vidéo prise sur le vif (« candid », « shot on iPhone / Sony A7 », lumière naturelle, imperfections réelles). Évite les visages en gros plan, les mains et le texte (ce qui trahit l'IA) : préfère voitures, routes, paysages, détails, personnes de dos ou de loin.
+- Ne mets PAS de logo de fin : la signature vidéo FIK (clé dorée) est ajoutée automatiquement après le dernier plan.`;
 
   const raw = await askJson<Partial<StudioPlan> & { shots?: Partial<StudioShot>[] }>(system, user, 2500);
   const shots = (raw.shots ?? []).slice(0, 6).map(s => ({
@@ -276,7 +278,7 @@ async function freeImage(prompt: string, seed: number): Promise<Buffer> {
 }
 
 /** Mouvement de caméra simulé sur une image fixe (effet Ken Burns), 1080×1920 30 i/s. */
-async function kenBurns(img: string, camera: string, seconds: number, out: string, k: number): Promise<void> {
+export async function kenBurns(img: string, camera: string, seconds: number, out: string, k: number): Promise<void> {
   const n = Math.round(seconds * 30);
   const c = 'iw/2-(iw/zoom/2)', m = 'ih/2-(ih/zoom/2)';
   const moves: Record<string, [string, string, string]> = {
@@ -293,7 +295,9 @@ async function kenBurns(img: string, camera: string, seconds: number, out: strin
   const auto = [moves['dolly_in']!, moves['travelling']!, moves['drone']!, moves['handheld']!][k % 4]!;
   const [z, x, y] = moves[camera] ?? auto;
   await run(['-i', img, '-filter_complex',
-    `[0:v]scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,zoompan=z='${z}':x='${x}':y='${y}':d=${n}:s=1080x1920:fps=30,format=yuv420p[v]`,
+    // bas de l'image coupé (filigrane du service gratuit), puis grain + vignette légère : rendu « vraie caméra »
+    `[0:v]crop=iw:ih*0.93:0:0,scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,zoompan=z='${z}':x='${x}':y='${y}':d=${n}:s=1080x1920:fps=30,` +
+    `eq=contrast=1.04:saturation=0.96,vignette=angle=PI/6,noise=alls=4:allf=t,format=yuv420p[v]`,
     '-map', '[v]', '-frames:v', String(n), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', out]);
 }
 
@@ -483,6 +487,27 @@ export async function montage(o: {
   return { final, total };
 }
 
+// ─── Signature FIK (clé dorée) en fin de vidéo ────────────────
+
+/** Logo animé FIK nettoyé (sans filigrane, 1080×1920, fin de son en fondu) — remplaçable via app_kv studio:outro_url. */
+const OUTRO_URL = 'https://febrrgqpyqqrewcohomx.supabase.co/storage/v1/object/public/videos/brand/fik-outro.mp4';
+
+export async function appendOutro(dir: string, main: string, mainDur: number): Promise<{ final: string; total: number }> {
+  const url = (await kvGet('studio:outro_url').catch(() => null)) || OUTRO_URL;
+  const outro = path.join(dir, 'outro.mp4');
+  await fs.writeFile(outro, Buffer.from((await axios.get<ArrayBuffer>(url, { responseType: 'arraybuffer', timeout: 60_000 })).data));
+  const od = (await probe(outro)).duration || 4.3;
+  const fx = 0.45, off = Math.max(0.5, mainDur - fx);
+  const out = path.join(dir, 'final_sig.mp4');
+  await run(['-i', main, '-i', outro, '-filter_complex',
+    `[0:v]fps=30,format=yuv420p,setsar=1[v0];[1:v]fps=30,format=yuv420p,setsar=1[v1];` +
+    `[v0][v1]xfade=transition=fadeblack:duration=${fx}:offset=${off.toFixed(2)}[v];` +
+    `[0:a]aresample=44100[a0];[1:a]aresample=44100,volume=0.9[a1];[a0][a1]acrossfade=d=${fx}[a]`,
+    '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-pix_fmt', 'yuv420p',
+    '-c:a', 'aac', '-b:a', '192k', '-ar', '44100', '-movflags', '+faststart', out]);
+  return { final: out, total: off + od };
+}
+
 // ─── Jobs ─────────────────────────────────────────────────────
 
 async function saveJob(job: StudioJob): Promise<void> {
@@ -597,7 +622,12 @@ async function renderJob(job: StudioJob, plan: StudioPlan, opts: RenderOptions):
     }
 
     job.status = 'montage'; job.step = 'Montage : recadrage 9:16, transitions, sous-titres…'; job.progress = 80; await saveJob(job);
-    const { final, total } = await montage({ dir, clips: ok.map(x => ({ file: x.c, duration: plan.shots[x.i]!.duration })), voiceFile, voiceDur, musicFile, plan, opts });
+    let { final, total } = await montage({ dir, clips: ok.map(x => ({ file: x.c, duration: plan.shots[x.i]!.duration })), voiceFile, voiceDur, musicFile, plan, opts });
+    if (opts.outro !== false) {
+      job.step = 'Signature FIK en fin de vidéo…'; job.progress = 93; await saveJob(job);
+      try { ({ final, total } = await appendOutro(dir, final, total)); }
+      catch (e) { console.warn('[studio] signature FIK non ajoutée :', e instanceof Error ? e.message : e); }
+    }
 
     // ── 6. Upload + livraison ──
     job.step = 'Envoi…'; job.progress = 96; await saveJob(job);
@@ -647,7 +677,7 @@ export async function videoStudioTool(input: Record<string, unknown>, actor = 'k
       `• ${j.title} — ${j.status === 'done' ? `✅ ${j.url}` : j.status === 'error' ? `❌ ${j.error}` : `⏳ ${j.step} (${j.progress} %)`}`).join('\n');
   }
   const model = (STUDIO_MODELS[String(input['model']) as ModelId] ? String(input['model']) : FREE_MODEL) as ModelId;
-  const opts: RenderOptions = { model, nativeAudio: !!input['native_audio'], voice: input['voice'] !== false, music: input['music'] !== false, subtitles: true };
+  const opts: RenderOptions = { model, nativeAudio: !!input['native_audio'], voice: input['voice'] !== false, music: input['music'] !== false, subtitles: true, outro: input['outro'] !== false };
   if (action === 'render') {
     const plan = await getStudioPlan(String(input['plan_id'] ?? ''));
     if (!plan) return '❌ Plan introuvable — refais d\'abord action="plan".';
