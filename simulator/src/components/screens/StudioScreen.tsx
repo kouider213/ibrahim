@@ -70,7 +70,7 @@ export default function StudioScreen() {
     try { const r = await business.studioJobs(); setJobs(r.jobs); setSpent(r.spentUsd); } catch { /* garde l'affichage */ }
   }, []);
   useEffect(() => {
-    business.studioOptions().then(o => { setOpts(o); setSpent(o.spentUsd); }).catch(e => say(`❌ ${errText(e)}`));
+    business.studioOptions().then(o => { setOpts(o); setSpent(o.spentUsd); if (o.defaultModel) setModel(o.defaultModel); }).catch(e => say(`❌ ${errText(e)}`));
     void loadJobs();
   }, [loadJobs]);
   const anyRunning = jobs.some(j => RUNNING.includes(j.status));
@@ -99,8 +99,8 @@ export default function StudioScreen() {
     try {
       say('✍️ Dzaryx écrit ta pub…');
       const p = await business.studioPlan({ idea, template, lang, seconds, ...(startImage ? { imageUrl: startImage } : {}), ...(car && !imageUrl.trim() ? { carName: car.name } : {}) });
-      await business.studioRender(p, { model: 'gratuit', nativeAudio: false, voice: true, music: false, subtitles: true });
-      say(`🎬 C'est parti : « ${p.title} » avec voix off et signature FIK. ≈ ${p.shots.length + 2} min, la vidéo arrive ici et sur Telegram.`);
+      await business.studioRender(p, { model, nativeAudio: false, voice: true, music: model !== 'gratuit', subtitles: true });
+      say(`🎬 C'est parti (${model === 'gratuit' ? 'Hugging Face gratuit' : 'Kling, puis gratuit si plus de crédit'}) : « ${p.title} » avec voix off et signature FIK. La vidéo arrive ici et sur Telegram.`);
       setIdea('');
       await loadJobs();
     } catch (e) { say(`❌ ${errText(e)}`); }
@@ -118,7 +118,7 @@ export default function StudioScreen() {
 
   const render = async () => {
     if (!plan) return;
-    if (model !== 'gratuit' && !window.confirm(`Lancer le rendu PAYANT avec ${m?.label ?? model} ?\nCoût estimé ≈ ${cost.toFixed(2)} $ sur ton crédit fal.ai.`)) return;
+    if ((model === 'veo31' || model === 'seedance2') && !window.confirm(`Lancer le rendu PAYANT avec ${m?.label ?? model} ?\nCoût estimé ≈ ${cost.toFixed(2)} $ sur ton crédit fal.ai.`)) return;
     setBusy(true);
     try {
       await business.studioRender(plan, { model, nativeAudio, voice, music: model === 'gratuit' ? false : music, subtitles });
@@ -206,10 +206,10 @@ export default function StudioScreen() {
 
               {mode === 'viral' ? (<>
                 <button style={{ ...btn(C.accent, '#050a16'), width: '100%', marginTop: 12, padding: '14px 13px', fontSize: 15, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void quickCreate()}>
-                  {busy ? '✍️ Dzaryx prépare…' : '🎬 Créer ma pub (1 clic, gratuit)'}
+                  {busy ? '✍️ Dzaryx prépare…' : `🎬 Créer ma pub (1 clic${model === 'gratuit' ? ', gratuit' : ''})`}
                 </button>
                 <div style={{ fontSize: 11.5, color: C.muted, marginTop: 6, lineHeight: 1.4, textAlign: 'center' }}>
-                  Voix off, sous-titres et ta signature FIK à la fin — automatiquement. Pas d'idée ? Laisse vide, Dzaryx choisit.
+                  {model === 'gratuit' ? 'Mode gratuit (Hugging Face) : le crédit Kling est épuisé ou absent.' : 'Kling 3.0 en premier ; si le crédit fal.ai est épuisé, Dzaryx passe tout seul en gratuit (Hugging Face).'} Voix off, sous-titres et signature FIK automatiques. Pas d'idée ? Laisse vide.
                 </div>
                 <button style={{ ...btn('rgba(255,255,255,0.06)', C.text), width: '100%', marginTop: 8, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void makePlan()}>
                   ✏️ Voir et modifier le scénario avant

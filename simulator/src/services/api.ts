@@ -1028,7 +1028,7 @@ export interface StudioPlan {
 export interface StudioModel { id: string; label: string; perSec: number; perSecAudio: number; durations: number[]; note: string }
 export interface StudioOptions {
   models: StudioModel[]; cameras: Array<{ id: string; label: string }>; templates: Array<{ id: string; label: string }>;
-  langs: string[]; cars: Array<{ id: string; name: string; image_url: string }>; spentUsd: number;
+  langs: string[]; cars: Array<{ id: string; name: string; image_url: string }>; spentUsd: number; defaultModel?: string;
 }
 export interface StudioJob {
   id: string; planId: string; title: string; model: string; status: 'queued' | 'shots' | 'audio' | 'montage' | 'done' | 'error';

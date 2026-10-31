@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { supabase } from '../../integrations/supabase.js';
-import {
+import { bestModel,
   STUDIO_MODELS, STUDIO_CAMERAS, STUDIO_TEMPLATES, STUDIO_LANGS, estimateCost, createStudioPlan, manualPlan,
   startStudioRender, listStudioJobs, getStudioJob, type StudioPlan, type ModelId, type RenderOptions,
 } from '../../marketing/video-studio.js';
@@ -28,6 +28,7 @@ router.get('/options', async (_req, res) => {
       langs: Object.keys(STUDIO_LANGS),
       cars: (data ?? []) as Array<{ id: string; name: string; image_url: string }>,
       spentUsd,
+      defaultModel: await bestModel(),
     });
   } catch (err) { fail(res, err); }
 });
@@ -50,7 +51,7 @@ router.post('/render', async (req, res) => {
   if (!b.plan?.shots?.length) { res.status(400).json({ error: 'Plan vide' }); return; }
   const o = b.options ?? {};
   const opts: RenderOptions = {
-    model: (STUDIO_MODELS[o.model as ModelId] ? o.model : 'gratuit') as ModelId,
+    model: (STUDIO_MODELS[o.model as ModelId] ? o.model : await bestModel()) as ModelId,
     nativeAudio: !!o.nativeAudio, voice: o.voice !== false && !!b.plan.voiceover, music: !!o.music, subtitles: o.subtitles !== false, outro: o.outro !== false,
   };
   const plan: StudioPlan = {

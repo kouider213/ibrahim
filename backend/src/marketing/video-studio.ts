@@ -83,6 +83,17 @@ const MUSIC_MODEL = 'CassetteAI/music-generator';
 const MUSIC_COST = 0.02;
 /** Règle 31/10 : Dzaryx 100 % gratuit — les modèles payants seulement si Kouider les demande lui-même. */
 export const FREE_MODEL: ModelId = 'gratuit';
+export const PAID_DEFAULT: ModelId = 'kling3';
+const FAL_EMPTY_KEY = 'studio:fal_empty_until';
+const isCreditError = (m: string) => /crédit|refusé|balance|exhausted|locked|402|403/i.test(m);
+/** Kouider 31/10 : d'abord Kling (fal.ai) ; quand le crédit fal est épuisé → Hugging Face gratuit, tout seul. */
+export async function bestModel(): Promise<ModelId> {
+  if (!env.FAL_KEY) return FREE_MODEL;
+  return Number((await kvGet(FAL_EMPTY_KEY).catch(() => null)) ?? 0) > Date.now() ? FREE_MODEL : PAID_DEFAULT;
+}
+async function markFalEmpty(): Promise<void> {
+  await kvSet(FAL_EMPTY_KEY, String(Date.now() + 6 * 3600_000), 7 * 3600).catch(() => {});
+}
 const isFree = (m: ModelId) => m === 'gratuit';
 
 // ─── Types ────────────────────────────────────────────────────
@@ -644,12 +655,18 @@ async function renderJob(job: StudioJob, plan: StudioPlan, opts: RenderOptions):
     job.status = 'shots'; job.step = free ? 'Vraies vidéos IA gratuites (≈ 1 à 2 min par plan)…' : `Génération des plans IA (${STUDIO_MODELS[opts.model].label})…`; job.progress = 5; await saveJob(job);
     const seed = Math.floor(Math.random() * 1e6);
     const clips: Array<string | null> = new Array(plan.shots.length).fill(null);
+    let falEmpty = !free && Number((await kvGet(FAL_EMPTY_KEY).catch(() => null)) ?? 0) > Date.now();
+    let freeUsed = 0;
+    const fallbackFree = async (i: number) => {
+      try { clips[i] = await freeShot(plan.shots[i]!, plan.image_url ?? null, dir, i, seed); freeUsed++; }
+      catch (e) { console.error(`[studio] plan ${i + 1} secours gratuit :`, e instanceof Error ? e.message : e); }
+    };
     let cursor = 0;
     const worker = async () => {
       while (cursor < plan.shots.length) {
         const i = cursor++;
         const shot = plan.shots[i]!;
-        for (let attempt = 0; attempt < 2 && !clips[i]; attempt++) {
+        for (let attempt = 0; attempt < 2 && !clips[i] && !falEmpty; attempt++) {
           try {
             if (free) { clips[i] = await freeShot(shot, plan.image_url ?? null, dir, i, seed); break; }
             const { endpoint, input } = shotInput(opts.model, shot, plan.image_url ?? null, opts.nativeAudio);
@@ -663,9 +680,14 @@ async function renderJob(job: StudioJob, plan: StudioPlan, opts: RenderOptions):
             job.costUsd += snapDuration(opts.model, shot.duration) * rate;
           } catch (e) {
             console.error(`[studio] plan ${i + 1} essai ${attempt + 1}:`, e instanceof Error ? e.message : e);
-            if (e instanceof Error && /crédit|refusé/.test(e.message)) throw e;
+            if (!free && e instanceof Error && isCreditError(e.message)) {
+              falEmpty = true; await markFalEmpty();
+              job.step = 'Crédit Kling épuisé → je continue avec Hugging Face (gratuit)…'; await saveJob(job);
+            }
           }
         }
+        // Plus de crédit fal.ai (ou plan raté) → vraie vidéo IA gratuite Hugging Face pour ce plan
+        if (!free && !clips[i]) await fallbackFree(i);
         job.shotsDone++; job.progress = 5 + Math.round((job.shotsDone / job.shotsTotal) * 65);
         job.step = `Plans IA : ${job.shotsDone}/${job.shotsTotal}`; await saveJob(job);
       }
@@ -729,6 +751,7 @@ async function renderJob(job: StudioJob, plan: StudioPlan, opts: RenderOptions):
     const missed = plan.shots.length - ok.length;
     const msg = `🎬 Studio vidéo — « ${plan.title} » est prête (${Math.round(total)} s, ${STUDIO_MODELS[opts.model].label}, ${free ? '0 €' : `coût ≈ ${job.costUsd.toFixed(2)} $`})` +
       (missed ? `\n⚠️ ${missed} plan(s) n'ont pas pu être générés, montage fait sans eux.` : '') +
+      (freeUsed ? `\nℹ️ ${freeUsed} plan(s) faits avec Hugging Face (gratuit)${falEmpty ? ' : crédit fal.ai épuisé — recharge sur https://fal.ai/dashboard/billing' : ''}.` : '') +
       (plan.post_caption ? `\n\nLégende à poster :\n${plan.post_caption}` : '') +
       (job.approval ? `\n\n${job.approval.label} — ✅ Réponds Oke pour publier` : '');
     await queueTelegramMessage(msg, undefined, job.actor, { url, name: `${plan.title.replace(/[^\w\- ]+/g, '').slice(0, 50) || 'video'}.mp4` }).catch(() => {});
@@ -751,7 +774,8 @@ async function renderJob(job: StudioJob, plan: StudioPlan, opts: RenderOptions):
 /** Les tâches planifiées passent par le moteur MONTAGE gratuit : scénario → rendu → Telegram, publication après « Oke ». */
 export async function autoStudioVideo(o: { idea: string; template: string; car: { id: string; name: string; image_url: string | null }; label: string }): Promise<StudioJob> {
   const plan = await createStudioPlan({ idea: o.idea, template: o.template, lang: 'fr', seconds: 20, imageUrl: o.car.image_url, carName: o.car.name });
-  return startStudioRender(plan, { model: FREE_MODEL, nativeAudio: false, voice: !!plan.voiceover, music: false, subtitles: true, outro: true }, 'kouider',
+  const model = await bestModel();
+  return startStudioRender(plan, { model, nativeAudio: false, voice: !!plan.voiceover, music: !isFree(model), subtitles: true, outro: true }, 'kouider',
     { car_name: o.car.name, car_id: o.car.id, label: o.label });
 }
 
@@ -783,7 +807,7 @@ export async function videoStudioTool(input: Record<string, unknown>, actor = 'k
     return `Studio vidéo (dépensé au total ≈ ${spentUsd.toFixed(2)} $) :\n` + jobs.slice(0, 5).map(j =>
       `• ${j.title} — ${j.status === 'done' ? `✅ ${j.url}` : j.status === 'error' ? `❌ ${j.error}` : `⏳ ${j.step} (${j.progress} %)`}`).join('\n');
   }
-  const model = (STUDIO_MODELS[String(input['model']) as ModelId] ? String(input['model']) : FREE_MODEL) as ModelId;
+  const model = (STUDIO_MODELS[String(input['model']) as ModelId] ? String(input['model']) : await bestModel()) as ModelId;
   const opts: RenderOptions = { model, nativeAudio: !!input['native_audio'], voice: input['voice'] !== false, music: input['music'] !== false, subtitles: true, outro: input['outro'] !== false };
   if (action === 'render') {
     const plan = await getStudioPlan(String(input['plan_id'] ?? ''));
