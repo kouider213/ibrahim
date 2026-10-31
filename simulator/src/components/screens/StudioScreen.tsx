@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business, type StudioOptions, type StudioPlan, type StudioJob, type StudioShot } from '../../services/api.ts';
 import { Hero, StatCard, SkeletonCards } from '../ui/Premium.tsx';
-import MontageEditor from './MontageEditor.tsx';
+import MontageEditor, { uploadFile } from './MontageEditor.tsx';
 
 // « STUDIO VIDÉO » : vidéos virales 9:16 niveau Higgsfield. Dzaryx écrit le scénario, génère les plans IA
 // (Kling 3.0, Veo 3.1, Seedance 2.0 via fal.ai) et fait le montage (voix off, sous-titres, musique, CTA).
@@ -48,6 +48,14 @@ export default function StudioScreen() {
   const [single, setSingle] = useState(5);
   const [car, setCar] = useState<{ name: string; image_url: string } | null>(null);
   const [imageUrl, setImageUrl] = useState('');
+  const [upPct, setUpPct] = useState<number | null>(null);
+  const pickPhoto = async (f: File | undefined) => {
+    if (!f) return;
+    setUpPct(0);
+    try { const u = await uploadFile(f, setUpPct); setImageUrl(u); setCar(null); say('📸 Photo prête'); }
+    catch (e) { say(`❌ ${errText(e)}`); }
+    finally { setUpPct(null); }
+  };
 
   // Plan + rendu
   const [plan, setPlan] = useState<StudioPlan | null>(null);
@@ -78,7 +86,7 @@ export default function StudioScreen() {
     try {
       const p = mode === 'viral'
         ? await business.studioPlan({ idea, template, lang, seconds, ...(startImage ? { imageUrl: startImage } : {}), ...(car && !imageUrl.trim() ? { carName: car.name } : {}) })
-        : await business.studioPlan({ manual: { prompt: idea, camera, duration: single, ...(startImage ? { imageUrl: startImage } : {}) } });
+        : await business.studioPlan({ manual: { prompt: idea.trim() || 'Bring this photo to life: the car drives away smoothly on a sunny street, cinematic, people walking nearby', camera, duration: single, ...(startImage ? { imageUrl: startImage } : {}) } });
       setPlan(p); setVoice(!!p.voiceover); setMusic(!!p.voiceover);
     } catch (e) { say(`❌ ${errText(e)}`); }
     finally { setBusy(false); }
@@ -144,17 +152,17 @@ export default function StudioScreen() {
             <div style={card}>
               <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
                 <button style={chip(mode === 'viral')} onClick={() => setMode('viral')}>🔥 Vidéo virale complète</button>
-                <button style={chip(mode === 'single')} onClick={() => setMode('single')}>🎥 Plan unique</button>
+                <button style={chip(mode === 'single')} onClick={() => setMode('single')}>📸 Photo → vidéo IA</button>
               </div>
               <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.45 }}>
                 {mode === 'viral'
                   ? 'Dzaryx écrit le scénario, génère 3 à 6 plans IA et fait le montage : voix off, sous-titres animés, musique, accroche et appel à l\'action.'
-                  : 'Un seul plan IA façon Higgsfield (5 à 10 s) avec un mouvement de caméra. Idéal pour animer une photo de voiture.'}
+                  : 'Façon Higgsfield : une simple photo (ou juste un texte) devient une vraie vidéo IA — la voiture roule, des gens, un lieu, la caméra bouge. Décris ce que tu veux voir.'}
               </div>
 
               <div style={label}>{mode === 'viral' ? 'Ton idée (facultatif)' : 'Ce que tu veux voir'}</div>
               <textarea style={input} rows={3} value={idea} onChange={e => setIdea(e.target.value)}
-                placeholder={mode === 'viral' ? 'Ex. 3 raisons de louer chez FIK Conciergerie cet été, pour la diaspora qui arrive à Oran' : 'Ex. la Clio blanche qui roule sur la corniche d\'Oran au coucher du soleil'} />
+                placeholder={mode === 'viral' ? 'Ex. 3 raisons de louer chez FIK Conciergerie cet été, pour la diaspora qui arrive à Oran' : 'Ex. la voiture sort du parking et roule sur la corniche d\'Oran au coucher du soleil, des gens marchent'} />
 
               {mode === 'viral' ? (<>
                 <div style={label}>Type de vidéo</div>
@@ -190,7 +198,11 @@ export default function StudioScreen() {
                   </button>
                 ))}
               </div>
-              <input style={{ ...input, marginTop: 6 }} value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="…ou colle le lien d'une photo" />
+              <label style={{ ...btn('rgba(56,216,245,0.12)', C.green), display: 'block', textAlign: 'center', marginTop: 8, opacity: upPct !== null ? 0.6 : 1 }}>
+                {upPct !== null ? `📤 Envoi… ${upPct} %` : imageUrl ? '✅ Ta photo est prête — changer' : '📸 Envoyer une photo de mon téléphone'}
+                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => void pickPhoto(e.target.files?.[0])} />
+              </label>
+              {imageUrl && <img src={imageUrl} alt="" style={{ width: 90, borderRadius: 8, marginTop: 6, display: 'block' }} />}
 
               {mode === 'viral' ? (<>
                 <button style={{ ...btn(C.accent, '#050a16'), width: '100%', marginTop: 12, padding: '14px 13px', fontSize: 15, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void quickCreate()}>
@@ -203,8 +215,8 @@ export default function StudioScreen() {
                   ✏️ Voir et modifier le scénario avant
                 </button>
               </>) : (
-                <button style={{ ...btn(C.accent, '#050a16'), width: '100%', marginTop: 12, opacity: busy || !idea.trim() ? 0.5 : 1 }} disabled={busy || !idea.trim()} onClick={() => void makePlan()}>
-                  {busy ? '✍️ Dzaryx prépare…' : '✍️ Préparer le plan (gratuit)'}
+                <button style={{ ...btn(C.accent, '#050a16'), width: '100%', marginTop: 12, opacity: busy || (!idea.trim() && !startImage) ? 0.5 : 1 }} disabled={busy || (!idea.trim() && !startImage)} onClick={() => void makePlan()}>
+                  {busy ? '✍️ Dzaryx prépare…' : '✍️ Préparer la vidéo IA (gratuit)'}
                 </button>
               )}
             </div>

@@ -37,7 +37,7 @@ interface Clip {
 const fmt = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}.${Math.floor((t % 1) * 10)}`;
 const uid = () => Math.random().toString(36).slice(2, 9);
 
-function uploadFile(file: File, onProgress: (p: number) => void): Promise<string> {
+export function uploadFile(file: File, onProgress: (p: number) => void): Promise<string> {
   return business.studioUploadUrl(file.name).then(({ uploadUrl, publicUrl }) => new Promise<string>((resolve, reject) => {
     const x = new XMLHttpRequest();
     x.open('PUT', uploadUrl);

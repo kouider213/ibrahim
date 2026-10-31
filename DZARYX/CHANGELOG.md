@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 31/10 — Photo → vidéo IA façon Higgsfield (app v213)
+- Onglet Pub IA : mode « 📸 Photo → vidéo IA » (ex-« Plan unique ») + bouton « Envoyer une photo de mon téléphone » ; texte facultatif si photo.
+- Testé sur le VPS : photo Clio 4 → Wan 2.2 = la voiture sort et tourne (92 s, gratuit). Sur Railway il faut HF_TOKEN dans les Variables, sinon quota anonyme minuscule → animation simple.
+
 ## 31/10 — Pub IA en 1 clic (app v212)
 - Onglet 🤖 Pub IA : gros bouton « 🎬 Créer ma pub (1 clic, gratuit) » = scénario + rendu direct, toujours voix off + sous-titres + signature FIK. Idée facultative (vide = Dzaryx choisit). « ✏️ Voir et modifier le scénario avant » garde l'ancien parcours.
 - Textes Autolux → FIK Conciergerie dans les types de pub.
