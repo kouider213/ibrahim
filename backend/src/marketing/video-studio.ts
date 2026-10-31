@@ -37,7 +37,7 @@ interface ModelDef {
 
 export const STUDIO_MODELS: Record<ModelId, ModelDef> = {
   gratuit:   { label: 'Gratuit (images IA animées)', t2v: '', i2v: '', perSec: 0, perSecAudio: 0, durations: [3, 4, 5, 6, 7, 8],
-               note: '0 €. Une image IA par plan, animée au montage (zoom, travelling). Plus lent (≈ 1 min par plan), pas de vrai mouvement.' },
+               note: '0 €. Photo réaliste (FLUX) ou vraie photo de la voiture, animée en VRAIE vidéo IA (Wan 2.2) tant que le quota gratuit du jour le permet, sinon animée au montage. ≈ 1 à 2 min par plan.' },
   kling3:    { label: 'Kling 3.0 Pro', t2v: 'fal-ai/kling-video/v3/pro/text-to-video', i2v: 'fal-ai/kling-video/v3/pro/image-to-video',
                perSec: 0.112, perSecAudio: 0.168, durations: [3, 4, 5, 6, 7, 8, 9, 10], note: 'Le meilleur rapport qualité/prix. Mouvements très réalistes.' },
   veo31fast: { label: 'Veo 3.1 Fast', t2v: 'fal-ai/veo3.1/fast', i2v: 'fal-ai/veo3.1/fast/image-to-video',
@@ -303,11 +303,78 @@ export async function kenBurns(img: string, camera: string, seconds: number, out
     '-map', '[v]', '-frames:v', String(n), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', out]);
 }
 
+// ─── Hugging Face ZeroGPU (gratuit avec le compte de Kouider) : FLUX = vraies photos, Wan 2.2 = vraie vidéo ───
+
+const HF_FLUX = 'https://black-forest-labs-flux-1-schnell.hf.space/gradio_api';
+const HF_WAN = 'https://zerogpu-aoti-wan2-2-fp8da-aoti-faster.hf.space/gradio_api';
+const HF_PAUSE_KEY = 'studio:hf_pause_until';
+
+/** Appel d'un Space Gradio (file d'attente + flux SSE) → tableau de sorties. */
+async function hfGradio(base: string, endpoint: string, data: unknown[], timeoutMs: number): Promise<unknown[]> {
+  const token = process.env['HF_TOKEN'];
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+  const start = await axios.post(`${base}/call/${endpoint}`, { data }, { headers, timeout: 30_000 });
+  const id = (start.data as { event_id?: string }).event_id;
+  if (!id) throw new Error('Hugging Face : pas de file d\'attente');
+  const r = await axios.get<string>(`${base}/call/${endpoint}/${id}`, { headers, timeout: timeoutMs, responseType: 'text' });
+  const body = String(r.data);
+  const m = /event:\s*complete\s*\ndata:\s*(.+)/.exec(body);
+  if (m) return JSON.parse(m[1]!) as unknown[];
+  const err = /event:\s*error\s*\ndata:\s*(.+)/.exec(body)?.[1] ?? body.slice(-300);
+  throw new Error(`Hugging Face : ${err}`);
+}
+
+async function hfPaused(): Promise<boolean> {
+  return Number((await kvGet(HF_PAUSE_KEY).catch(() => null)) ?? 0) > Date.now();
+}
+async function hfFail(e: unknown): Promise<void> {
+  const m = e instanceof Error ? e.message : String(e);
+  console.warn('[studio] Hugging Face :', m.slice(0, 200));
+  // Quota GPU gratuit du jour épuisé → on n'insiste pas pendant 3 h (retour automatique à l'animation simple)
+  if (/quota|exceeded|limit|429|ZeroGPU|GPU task/i.test(m)) await kvSet(HF_PAUSE_KEY, String(Date.now() + 3 * 3600_000), 4 * 3600).catch(() => {});
+}
+
+/** Photo réaliste FLUX.1 schnell (vertical). Renvoie l'URL publique du fichier sur le Space. */
+async function hfImage(prompt: string, seed: number): Promise<string | null> {
+  if (await hfPaused()) return null;
+  try {
+    const out = await hfGradio(HF_FLUX, 'infer', [`${prompt}, candid real photo, natural light, true-to-life colors, no text`, seed, false, 768, 1344, 4], 180_000);
+    return (out[0] as { url?: string } | undefined)?.url ?? null;
+  } catch (e) { await hfFail(e); return null; }
+}
+
+/** Vraie vidéo Wan 2.2 (image → vidéo, ≈ 3,5 s 480p, ≈ 1 min). */
+async function hfVideo(imageUrl: string, prompt: string, seconds: number): Promise<string | null> {
+  if (await hfPaused()) return null;
+  try {
+    const out = await hfGradio(HF_WAN, 'generate_video', [{ path: imageUrl, meta: { _type: 'gradio.FileData' } },
+      `${prompt}. Realistic handheld phone video, natural motion, real physics`, 6, '', Math.min(5, Math.max(2, seconds)), 1, 1, 42, true], 420_000);
+    return (out[0] as { url?: string } | undefined)?.url ?? null;
+  } catch (e) { await hfFail(e); return null; }
+}
+
 export async function freeShot(shot: StudioShot, imageUrl: string | null, dir: string, i: number, seed: number): Promise<string> {
   const img = path.join(dir, `img${i}.jpg`);
-  if (shot.use_image && imageUrl) {
-    await fs.writeFile(img, Buffer.from((await axios.get<ArrayBuffer>(imageUrl, { responseType: 'arraybuffer', timeout: 60_000 })).data));
-  } else {
+  const cam = STUDIO_CAMERAS[shot.camera]?.prompt;
+  const motion = cam ? `${shot.prompt}. Camera: ${cam}` : shot.prompt;
+  // 1) Image de départ : vraie photo de la voiture, sinon photo IA réaliste (FLUX), sinon Pollinations
+  let srcUrl: string | null = shot.use_image && imageUrl ? imageUrl : await hfImage(shot.prompt, seed + i);
+  // 2) Vraie vidéo IA à partir de cette image (Wan 2.2) ; sinon animation au montage
+  if (srcUrl) {
+    const vurl = await hfVideo(srcUrl, motion, shot.duration);
+    if (vurl) {
+      const out = path.join(dir, `raw${i}.mp4`);
+      await fs.writeFile(out, Buffer.from((await axios.get<ArrayBuffer>(vurl, { responseType: 'arraybuffer', timeout: 120_000 })).data));
+      // 16 i/s → 30 i/s avec images intermédiaires, net en 1080p
+      const smooth = path.join(dir, `rawS${i}.mp4`);
+      await run(['-i', out, '-vf', 'minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1,scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,unsharp=5:5:0.4',
+        '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '19', smooth]).catch(async () => { await fs.copyFile(out, smooth); });
+      return smooth;
+    }
+    try { await fs.writeFile(img, Buffer.from((await axios.get<ArrayBuffer>(srcUrl, { responseType: 'arraybuffer', timeout: 60_000 })).data)); }
+    catch { srcUrl = null; }
+  }
+  if (!srcUrl) {
     try { await fs.writeFile(img, await freeImage(shot.prompt, seed + i)); }
     catch (e) {
       // Service gratuit saturé : on réutilise une image déjà faite avec un autre mouvement plutôt que de perdre le plan
@@ -574,7 +641,7 @@ async function renderJob(job: StudioJob, plan: StudioPlan, opts: RenderOptions):
   try {
     // ── 1. Plans IA (2 en parallèle) + voix + musique pendant ce temps ──
     const free = isFree(opts.model);
-    job.status = 'shots'; job.step = free ? 'Images IA gratuites (≈ 1 min par plan)…' : `Génération des plans IA (${STUDIO_MODELS[opts.model].label})…`; job.progress = 5; await saveJob(job);
+    job.status = 'shots'; job.step = free ? 'Vraies vidéos IA gratuites (≈ 1 à 2 min par plan)…' : `Génération des plans IA (${STUDIO_MODELS[opts.model].label})…`; job.progress = 5; await saveJob(job);
     const seed = Math.floor(Math.random() * 1e6);
     const clips: Array<string | null> = new Array(plan.shots.length).fill(null);
     let cursor = 0;
