@@ -889,6 +889,13 @@ const COACH_BIZ: Array<[string, Record<string, unknown>]> = [
   ['📞 Anciens clients', { action: 'anciens_clients' }], ['💰 Répartir mon argent', { action: 'repartition' }], ['⏱️ Quoi déléguer', { action: 'deleguer' }],
   ['🏛️ Mon statut en Algérie', { action: 'statut' }], ['🗂️ Revue du patron', { action: 'revue' }], ['🏦 Trésorerie 30 j', { action: 'tresorerie' }],
 ];
+const COACH_PLUS: Array<[string, Record<string, unknown>]> = [
+  ['🎧 Mon coach en audio', { action: 'vocal' }], ['⏳ Compte à rebours', { action: 'compte_a_rebours' }], ['✉️ Lettre de moi en 2036', { action: 'lettre_2036' }],
+  ['🔮 Pré-mortem', { action: 'premortem' }], ['🫙 Bocal des victoires', { action: 'victoires' }], ['⏰ Ce que je repousse', { action: 'procrastination' }],
+  ['🤝 Ma parole (score)', { action: 'parole' }], ['🥊 Négo / objection du jour', { action: 'negociation' }], ['📖 Les Principes de Kouider', { action: 'principes' }],
+  ['✉️ Lettres à Ibrahim', { action: 'livre_ibrahim' }], ['👑 Mentor du mois', { action: 'mentor' }], ['🪞 Moi vs il y a 30 j', { action: 'versus' }],
+  ['🛑 J\'arrête de…', { action: 'stop' }], ['🐷 Épargne 52 semaines', { action: 'epargne' }], ['🤲 Baraka', { action: 'baraka' }], ['💌 Geste pour ma femme', { action: 'geste' }],
+];
 const COACH_VIE: Array<[string, Record<string, unknown>]> = [
   ['📚 Livre du mois', { action: 'livre' }], ['🔥 Défi de la semaine', { action: 'defi' }], ['🤝 Cercle d\'or', { action: 'cercle' }],
   ['🧭 Ma vision', { action: 'vision' }], ['⚖️ Équilibre 4 piliers', { action: 'equilibre' }],
@@ -938,6 +945,12 @@ function Coach({ onAsk }: { onAsk: (prompt: string) => void }) {
         <Btn onClick={() => onAsk('Grand coach, mode tempête : ')}>⛈️ Ça va pas (tempête)</Btn>
         <Btn onClick={() => onAsk('Examen du soir : 1) ce que j\'ai fait de bien : … 2) à faire mieux demain : … 3) j\'ai été là pour : …')}>📝 Examen du soir</Btn>
       </div>
+      <SectionTitle>🚀 Coach + (il t'accompagne toute la journée)</SectionTitle>
+      <div style={grid}>
+        {COACH_PLUS.map(([l, b]) => <Btn key={l} disabled={busy} onClick={() => act(b)}>{l}</Btn>)}
+        <Btn onClick={() => onAsk('Victoire : ')}>🏆 J'ai gagné…</Btn>
+        <Btn onClick={() => onAsk('Lettre à Ibrahim, ma réponse : ')}>✍️ Répondre à Ibrahim</Btn>
+      </div>
       <SectionTitle>👑 Que ferait un grand à ma place ?</SectionTitle>
       <Card>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -945,7 +958,7 @@ function Coach({ onAsk }: { onAsk: (prompt: string) => void }) {
         </div>
         <Btn disabled={!sage} onClick={() => onAsk(`Grand coach : que ferait ${sage} à ma place ? Ma question : `)} style={{ marginTop: 8 }}>👑 Poser ma question{sage ? ` à ${sage}` : ''}</Btn>
       </Card>
-      <div style={{ fontSize: 11.5, color: T.faint, textAlign: 'center' }}>Statut en Algérie : {o.statut.done}/{o.statut.total} démarches · le coach te suit seul : 7h15, 12h30, 18h30, vendredi 17h, samedi 10h.</div>
+      <div style={{ fontSize: 11.5, color: T.faint, textAlign: 'center' }}>Statut en Algérie : {o.statut.done}/{o.statut.total} démarches · le coach te suit seul : 7h15 (+ audio), arrivée au travail, 12h30, 16h, 18h30, sas avant la maison · il se tait quand tu conduis.</div>
     </div>
   );
 }

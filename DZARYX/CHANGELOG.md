@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 31/10 — GRAND COACH + : 20 capacités pour l'accompagner toute la journée (app v216)
+- `integrations/grand-coach-plus.ts` : vocal du coach (Gemini TTS) après le texte de 7h15, compte à rebours avant le départ de Belgique, GPS arrivée au travail → mission de la pause, sas de décompression avant la maison (GPS, 15h30-22h30), lettre du Kouider de 2036 (1er du mois), pré-mortem du mardi, bocal des victoires (auto 21h30 + « victoire : »), anti-procrastination 16h + report au lendemain (max 2 fois), score de parole (samedi), technique de négo / gym du vendeur notée /10 (12h30, un jour sur deux), Principes de Kouider (réservation annulée/refusée → règle), lettres à Ibrahim (dimanche 10h), mentor du mois, toi vs il y a 30 j, liste « j'arrête de… » (mercredi), défi épargne 52 semaines, baraka du vendredi, geste pour sa femme (mardi/samedi).
+- Le coach sait se taire : fenêtres souples de 90 min, attend s'il conduit (gps:state) ou en « ne me dérange pas », budget 7 messages/jour hors messages principaux. Sections ajoutées aux messages existants plutôt que des messages en plus.
+- Hook dans gps-life.ts (onGps). Testé sur le VPS (compte à rebours, pré-mortem, objection notée, toi vs 30 j, lettre 2036, geste, baraka).
+
 ## 31/10 — LE GRAND COACH : 10 options business + 10 options coach de vie (app v215)
 - Recherche : Rebrab (Cevital), Yassir, Dangote, statut auto-entrepreneur ANAE (0,5 %), label startup (LF 2026) + classiques (Buffett, Munger, Bezos, Jobs, Hormozi, Dalio, Kroc, Walton, Ibn Khaldoun…) → `integrations/grand-coach-sages.ts` (23 grands, 12 livres, 10 démarches statut Algérie).
 - `integrations/grand-coach.ts`, outil `grand_coach`, job `grand-coach` */15 6-22h, contexte dans kouider-dossier, routes GET /api/jarvis/coach + POST /coach/action, app JARVIS › 🏆 Coach.

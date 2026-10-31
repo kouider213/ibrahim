@@ -105,6 +105,9 @@ async function handle(p: Pt): Promise<void> {
   }
   st.wasHome = home;
 
+  // ── Grand Coach : arrivée au travail, sas de décompression avant la maison ──
+  void import('./grand-coach-plus.js').then(m => m.onGps(here, p, known, !!st.drive)).catch(() => {});
+
   // ── Mode Oran ──
   await oranSwitch(p);
 

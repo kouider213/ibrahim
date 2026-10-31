@@ -28,17 +28,12 @@ const K = {
   big3: (d: string) => `gc:big3:${d}`, streak: 'gc:streak', used: 'gc:used', defi: 'gc:defi', cercle: 'gc:cercle', examen: 'gc:examen',
   vision: 'gc:vision', statut: 'gc:statut', split: 'gc:split', settings: 'gc:settings', book: 'gc:book', text: (d: string) => `gc:text:${d}`,
 };
-interface Big3 { date: string; items: Array<{ text: string; done?: boolean }> }
+interface Big3 { date: string; items: Array<{ text: string; done?: boolean; carried?: number }> }
 interface Defi { week: string; text: string; days: Record<string, boolean> }
 interface Person { name: string; role: string; why?: string; last?: string; every: number }
 interface Settings { on: boolean; hoursWeek: number; monthTarget?: number }
 
 async function settings(): Promise<Settings> { return { on: true, hoursWeek: 15, ...(await kvJson<Partial<Settings>>(K.settings, {})) }; }
-async function once(k: string, ttl = 2 * 86_400): Promise<boolean> {
-  if (await kvJson<string | null>(`gc:sent:${k}`, null)) return false;
-  await kvPut(`gc:sent:${k}`, '1', ttl);
-  return true;
-}
 async function dayOff(): Promise<boolean> { return import('./kouider-dossier.js').then(m => m.isDayOff()).catch(() => false); }
 
 // ── Données réelles ──────────────────────────────────────────────────────────
@@ -129,7 +124,12 @@ async function makeBig3(): Promise<Big3> {
   const r = r0.split('\n').filter(l => !/dis «/.test(l)).join('\n');
   const txt = await ai(`Tu es le coach business de Kouider (FIK Conciergerie : location de voitures à Oran pour la diaspora et les Algériens + FIK Sites : sites pour petits commerces ; il travaille encore en Belgique). Voici ses vrais chiffres :\n${t}\n${r}\n\nDonne EXACTEMENT 3 actions pour aujourd'hui qui font rentrer de l'argent ou en protègent (relancer, vendre, encaisser, publier, prospecter), chacune faisable en moins de 20 min depuis son téléphone. Une par ligne, sans numéro, sans intro, verbe à l'impératif, max 14 mots. N'invente aucun nom de client.`, { max: 200 }).catch(() => '');
   const items = txt.split('\n').map(l => l.replace(/^[\s\-•*\d.)]+/, '').trim()).filter(l => l.length > 12 && !/objectif du mois|dis «|^\d+\s*€/i.test(l)).slice(0, 3);
-  const b: Big3 = { date, items: (items.length === 3 ? items : ['Relance un client qui n\'a pas encore payé', 'Publie la voiture libre demain en statut WhatsApp avec le prix', 'Envoie 5 messages de prospection FIK Sites']).map(text => ({ text })) };
+  let list = items.length === 3 ? items : ['Relance un client qui n\'a pas encore payé', 'Publie la voiture libre demain en statut WhatsApp avec le prix', 'Envoie 5 messages de prospection FIK Sites'];
+  // Report : une action pas faite hier revient en tête (une seule), avec son compteur
+  const y = await kvJson<{ items: Array<{ text: string; done?: boolean; carried?: number }> } | null>(K.big3(addDays(date, -1)), null);
+  const left = y?.items.find(i => !i.done && (i.carried ?? 0) < 2);
+  if (left) list = [left.text, ...list.filter(t => t !== left.text)].slice(0, 3);
+  const b: Big3 = { date, items: list.map(text => (left && text === left.text ? { text, carried: (left.carried ?? 0) + 1 } : { text })) };
   await kvPut(K.big3(date), b, 3 * 86_400);
   return b;
 }
@@ -295,6 +295,8 @@ async function morningMessage(): Promise<string> {
   } else parts.push('', '👨‍👩‍👦 Jour de congé : téléphone loin, ta femme et Ibrahim d\'abord. Dzaryx garde la boutique.');
   if (defi) parts.push('', `🔥 Défi de la semaine : ${defi.text}`);
   if (book) parts.push('', book);
+  const plus = await import('./grand-coach-plus.js').then(m => m.morningSections(localNow().weekday)).catch(() => [] as string[]);
+  for (const x of plus) parts.push('', x);
   return parts.join('\n');
 }
 
@@ -303,7 +305,7 @@ async function middayCheck(): Promise<string> {
   const b = await makeBig3();
   const left = b.items.filter(i => !i.done);
   const weekday = localNow().weekday;
-  const cercle = weekday === 2 ? await cercleSuggestion().catch(() => '') : '';
+  const cercle = [weekday === 2 ? await cercleSuggestion().catch(() => '') : '', ...(await import('./grand-coach-plus.js').then(m => m.middaySections(weekday)).catch(() => [] as string[]))].filter(Boolean).join('\n\n');
   if (!left.length) return `🕛 Point de midi : tes 3 actions sont déjà faites 🏆 Profite de l'après-midi pour une action bonus ou pour ta famille.${cercle ? `\n\n${cercle}` : ''}`;
   return `🕛 Point de midi — il te reste ${left.length} action(s) :\n${big3Line(b)}\nLa plus petite d'abord, maintenant, 10 minutes. Réponds « fait 2 » quand c'est fait.${cercle ? `\n\n${cercle}` : ''}`;
 }
@@ -396,7 +398,9 @@ export async function equilibre(): Promise<string> {
 // L9 — Mode tempête
 export async function tempete(text: string): Promise<string> {
   const storms = SAGES.filter(s => s.storm).sort(() => Math.random() - 0.5).slice(0, 3);
-  return ai(`Kouider traverse un moment dur : « ${text || 'journée difficile'} ».\nHistoires vraies :\n${storms.map(s => `- ${s.name} : ${s.storm}`).join('\n')}\n\nRéponds en 8-10 lignes : reconnais ce qu'il vit (sans dramatiser), raconte UNE de ces histoires en 2 phrases, puis 3 étapes concrètes pour les prochaines 24 h (la 1re faisable dans l'heure). Termine par une phrase de force. Si c'est grave (santé, idées noires), dis-lui d'appeler un proche ou le 112 / 0800 32 123.`, { system: COACH_SYS, max: 500 });
+  const wins = await import('./grand-coach-plus.js').then(m => m.winsPick(3)).catch(() => '');
+  const out = await ai(`Kouider traverse un moment dur : « ${text || 'journée difficile'} ».\nHistoires vraies :\n${storms.map(s => `- ${s.name} : ${s.storm}`).join('\n')}\n\nRéponds en 8-10 lignes : reconnais ce qu'il vit (sans dramatiser), raconte UNE de ces histoires en 2 phrases, puis 3 étapes concrètes pour les prochaines 24 h (la 1re faisable dans l'heure). Termine par une phrase de force. Si c'est grave (santé, idées noires), dis-lui d'appeler un proche ou le 112 / 0800 32 123.`, { system: COACH_SYS, max: 500 });
+  return wins ? `${out}\n\n${wins}` : out;
 }
 
 // ── Job planifié (*/15) ──────────────────────────────────────────────────────
@@ -404,21 +408,37 @@ export async function tempete(text: string): Promise<string> {
 export async function jobGrandCoach(): Promise<void> {
   const s = await settings();
   if (!s.on) return;
+  const plus = await import('./grand-coach-plus.js');
   const { date, hhmm, weekday } = localNow();
-  const at = (h: string) => hhmm >= h && hhmm < `${h.slice(0, 3)}${String(+h.slice(3) + 15).padStart(2, '0')}`;
-  const run = async (k: string, f: () => Promise<string | void>) => {
-    if (!(await once(`${k}:${date}`))) return;
-    try { const t = await f(); if (t) await tg(t); } catch (e) { console.error(`[grand-coach] ${k}:`, e instanceof Error ? e.message : e); }
+  const toMin = (h: string) => +h.slice(0, 2) * 60 + +h.slice(3, 5);
+  // Fenêtre souple de 90 min : s'il conduit ou a dit « ne me dérange pas », on réessaie au quart d'heure suivant (20 : le coach sait se taire)
+  const at = (h: string, span = 90) => { const d = toMin(hhmm) - toMin(h); return d >= 0 && d < span; };
+  const run = async (k: string, f: () => Promise<string | void>, o: { important?: boolean; silent?: boolean; voice?: boolean } = {}) => {
+    if (await kvJson<string | null>(`gc:sent:${k}:${date}`, null)) return;
+    if (!o.silent && !(await plus.canSpeak(o.important))) return;
+    await kvPut(`gc:sent:${k}:${date}`, '1', 2 * 86_400);
+    try {
+      const t = await f();
+      if (t && !o.silent) { await tg(t); await plus.spoke(); if (o.voice) await plus.sendVoice(await texteDuJour()).catch(() => false); }
+    } catch (e) { console.error(`[grand-coach] ${k}:`, e instanceof Error ? e.message : e); }
   };
-  if (weekday === 1 && at('07:00')) await run('defi', async () => { await newDefi(); });
-  if (at('07:15')) await run('matin', morningMessage);
+  if (weekday === 1 && at('07:00')) await run('defi', async () => { await newDefi(); }, { silent: true });
+  if (at('07:15')) await run('matin', morningMessage, { important: true, voice: true });
   const off = await dayOff();
-  if (!off && at('12:30')) await run('midi', middayCheck);
-  if (!off && at('18:30')) await run('soir', eveningCheck);
+  if (at('10:00', 600)) await run('principes', plus.failuresToLearn);
+  if (!off && at('12:30')) await run('midi', middayCheck, { important: true });
+  if (!off && at('16:00', 60)) await run('procrast', plus.antiProcrastination);
+  if (!off && at('18:30')) await run('soir', eveningCheck, { important: true });
+  if (at('21:30', 60)) await run('victoires', async () => { await plus.collectWins(); }, { silent: true });
   if (weekday === 5 && at('17:00')) await run('revue', revue);
-  if (weekday === 6 && at('10:00')) await run('equilibre', equilibre);
+  if (weekday === 6 && at('10:00')) await run('equilibre', async () => `${await equilibre()}\n\n${await plus.wordScore()}`);
+  if (weekday === 0 && at('10:00')) await run('ibrahim', plus.ibrahimQuestion);
   if (weekday === 2 && at('10:00')) await run('anciens', async () => { const t = await anciensClients(); return t.startsWith('😴') ? '' : t; });
-  if (date.endsWith('-01') && at('09:00')) await run('mois', async () => [await voitures(), '', await statut(), '', '🧭 Nouveau mois : relis ta vision (« ma vision ») et donne-moi ton objectif du mois.'].join('\n'));
+  if (date.endsWith('-01') && at('09:00')) await run('mois', async () => {
+    const m = plus.mentorOfMonth(date);
+    return [`✉️ LETTRE DU KOUIDER DE 2036\n\n${await plus.letter2036()}`, '', await plus.versus30(), '', `👑 Ton mentor du mois : ${m.name} — ${m.principles[0]}. Tout ce mois-ci, demande-toi : « que ferait ${m.name} ? »`,
+      '', await voitures(), '', await statut(), '', await plus.principles(), '', '🧭 Nouveau mois : relis ta vision (« ma vision ») et donne-moi ton objectif du mois.'].join('\n');
+  });
 }
 
 // ── Contexte pour le cerveau ─────────────────────────────────────────────────
@@ -430,6 +450,7 @@ export async function grandCoachText(): Promise<string> {
     b ? `GRAND COACH — ses 3 actions du jour : ${b.items.map((i, k) => `${k + 1}. ${i.text}${i.done ? ' (fait)' : ''}`).join(' ; ')}. Quand il dit « fait 1/2/3 » ou qu'il a fait l'une d'elles → outil grand_coach action fait n=… .` : '',
     d ? `Défi de la semaine : ${d.text}.` : '',
     'Après le bilan de 18h30, sa réponse aux 3 questions du soir → grand_coach action examen text=… .',
+    'Réponses au coach → grand_coach : réponse à la « gym du vendeur » → action objection text ; règle tirée d\'un échec → principe ; réponse à la « lettre à Ibrahim » → ibrahim text ; « victoire : … » / il raconte une réussite → victoire ; ce qu\'il arrête (liste du mercredi) → stop text ; « j\'ai mis de côté » (défi épargne) → epargne op paid.',
   ].filter(Boolean).join('\n');
 }
 
@@ -503,6 +524,26 @@ export async function grandCoachTool(input: Row): Promise<string> {
     }
     case 'tempete': return tempete(text);
     case 'equilibre': return equilibre();
+    case 'vocal': { const ok = await (await import('./grand-coach-plus.js')).sendVoice(await texteDuJour()); return ok ? '🎧 Vocal du coach envoyé sur Telegram.' : '❌ Voix indisponible pour l\'instant.'; }
+    case 'compte_a_rebours': return (await import('./grand-coach-plus.js')).countdown();
+    case 'lettre_2036': return (await import('./grand-coach-plus.js')).letter2036();
+    case 'premortem': return (await import('./grand-coach-plus.js')).premortem();
+    case 'victoire': return text ? (await import('./grand-coach-plus.js')).addWin(text) : '❌ text = la victoire.';
+    case 'victoires': return (await (await import('./grand-coach-plus.js')).winsPick(8)) || '🫙 Bocal vide pour l\'instant : dis « victoire : … » à chaque réussite.';
+    case 'procrastination': return (await (await import('./grand-coach-plus.js')).antiProcrastination()) || '✅ Rien en retard aujourd\'hui.';
+    case 'parole': return (await import('./grand-coach-plus.js')).wordScore();
+    case 'negociation': return (await import('./grand-coach-plus.js')).negociation();
+    case 'objection': return text ? (await import('./grand-coach-plus.js')).gradeObjection(text) : '❌ text = sa réponse à l\'objection.';
+    case 'principe': return text ? (await import('./grand-coach-plus.js')).addPrinciple(text) : '❌ text = la règle qu\'il retient.';
+    case 'principes': return (await import('./grand-coach-plus.js')).principles();
+    case 'ibrahim': return text ? (await import('./grand-coach-plus.js')).ibrahimAnswer(text) : (await import('./grand-coach-plus.js')).ibrahimQuestion();
+    case 'livre_ibrahim': return (await import('./grand-coach-plus.js')).ibrahimBook();
+    case 'mentor': { const m = (await import('./grand-coach-plus.js')).mentorOfMonth(); return `👑 Mentor du mois : ${m.name} (${m.from})\n${m.story}\n• ${m.principles.join('\n• ')}\n➡️ ${m.fik}`; }
+    case 'versus': return (await import('./grand-coach-plus.js')).versus30();
+    case 'stop': return (await import('./grand-coach-plus.js')).stopDoing(text || undefined);
+    case 'epargne': return (await import('./grand-coach-plus.js')).saving(input);
+    case 'baraka': return (await import('./grand-coach-plus.js')).baraka();
+    case 'geste': return (await import('./grand-coach-plus.js')).geste();
     case 'on': case 'off': { await kvPut(K.settings, { ...(await settings()), on: a === 'on' }); return a === 'on' ? '✅ Grand Coach activé.' : '⏸️ Grand Coach en pause (plus de messages planifiés).'; }
   }
   return '❌ action inconnue.';
