@@ -5,6 +5,7 @@ import {
   STUDIO_MODELS, STUDIO_CAMERAS, STUDIO_TEMPLATES, STUDIO_LANGS, estimateCost, createStudioPlan, manualPlan,
   startStudioRender, listStudioJobs, getStudioJob, type StudioPlan, type ModelId, type RenderOptions,
 } from '../../marketing/video-studio.js';
+import { EDIT_FORMATS, EDIT_LOOKS, EDIT_CAPTIONS, startEdit, uploadUrl, type EditRequest } from '../../marketing/montage-pro.js';
 
 // Page « STUDIO VIDÉO » de l'app (Kouider) : vidéos IA réalistes (Kling 3, Veo 3.1, Seedance 2) montées en 9:16.
 const router = Router();
@@ -60,6 +61,24 @@ router.post('/render', async (req, res) => {
   };
   try { res.json({ job: await startStudioRender(plan, opts, 'kouider'), estimateUsd: estimateCost(plan.shots, opts) }); }
   catch (err) { fail(res, err, 400); }
+});
+
+// ── MONTAGE PRO (façon CapCut, gratuit) : rushes du téléphone → montage auto par Dzaryx ou éditeur manuel ──
+router.get('/edit/options', (_req, res) => {
+  res.json({
+    formats: Object.keys(EDIT_FORMATS), looks: Object.entries(EDIT_LOOKS).map(([id, l]) => ({ id, label: l.label })),
+    captions: Object.entries(EDIT_CAPTIONS).map(([id, c]) => ({ id, label: c.label })),
+  });
+});
+
+// POST /api/studio/upload-url { name } → lien d'envoi direct vers le stockage FIK (gros fichiers)
+router.post('/upload-url', async (req, res) => {
+  try { res.json(await uploadUrl(String((req.body as { name?: string }).name ?? 'rush.mp4'))); } catch (err) { fail(res, err); }
+});
+
+// POST /api/studio/edit EditRequest — media[] (auto) ou timeline[] (éditeur)
+router.post('/edit', async (req, res) => {
+  try { res.json({ job: await startEdit(req.body as EditRequest, 'kouider') }); } catch (err) { fail(res, err, 400); }
 });
 
 router.get('/jobs', async (_req, res) => {

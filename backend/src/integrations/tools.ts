@@ -1391,7 +1391,12 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     input_schema: {
       type: 'object' as const,
       properties: {
-        action:        { type: 'string', enum: ['plan', 'render', 'status'], description: 'plan (scénario), render (gratuit par défaut ; payant seulement après accord), status.' },
+        action:        { type: 'string', enum: ['plan', 'render', 'edit', 'status'], description: 'plan (scénario IA), render (gratuit par défaut ; payant seulement après accord), edit (MONTAGE de vraies vidéos/photos de Kouider façon CapCut : media_urls + idea), status.' },
+        media_urls:    { type: 'array', items: { type: 'string' }, description: 'edit : liens des rushes (vidéos/photos) à monter.' },
+        format:        { type: 'string', enum: ['9:16', '1:1', '16:9'], description: 'edit : format (défaut 9:16).' },
+        look:          { type: 'string', enum: ['naturel', 'cinema', 'chaud', 'froid', 'vif', 'noir_blanc'], description: 'edit : filtre couleur.' },
+        captions:      { type: 'string', enum: ['tiktok', 'karaoke', 'minimal', 'aucun'], description: 'edit : style des sous-titres.' },
+        music_url:     { type: 'string', description: 'edit : musique à mettre (lien), baissée automatiquement quand on parle.' },
         idea:          { type: 'string', description: 'plan : idée de la vidéo en clair (ex. « 3 raisons de louer chez Autolux cet été »).' },
         template:      { type: 'string', enum: ['autolux', 'voiture', 'fik_sites', 'temoignage', 'avant_apres', 'libre'], description: 'plan : type de vidéo.' },
         lang:          { type: 'string', enum: ['fr', 'darija', 'ar', 'en'], description: 'plan : langue de la voix off. Défaut fr.' },

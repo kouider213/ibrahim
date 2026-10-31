@@ -3,6 +3,13 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 31/10 — MONTAGE pro : éditeur façon CapCut + montage auto + signature FIK
+- Méthode Replica (vidéo TikTok) appliquée à CapCut/Higgsfield : fonctions recensées + avis (CapCut : options devenues payantes, filigrane, export bloqué ; Higgsfield : crédits qui fondent, prélèvements surprises) → tout gratuit, sans filigrane, sans limite.
+- App v211, page MONTAGE : onglet ✂️ Éditeur (import vidéos/photos direct vers le stockage, aperçu, timeline, couper/couper ici/déplacer/dupliquer/supprimer, vitesse ×0,25→×3, volume, textes, musique avec ducking, 6 filtres, sous-titres auto 4 styles, formats 9:16/1:1/16:9, signature on/off) + « 🪄 Dzaryx monte tout ». Onglet 🤖 Pub IA = studio existant.
+- Backend montage-pro.ts : Whisper Groq mot à mot, jump cuts, zooms punch-in, fond flouté si format différent, accroche/CTA/légende écrits par Dzaryx, voix off si rushes muets. Routes /api/studio/edit, /upload-url, /edit/options ; outil video_studio action=edit.
+- Signature vidéo FIK (clé dorée, filigrane CapCut retiré) ajoutée à la fin de chaque vidéo ; vidéos auto mercredi/vendredi/TikTok passent par MONTAGE gratuit.
+- Testé hors ligne (auto 9:16 + manuel 1:1). Pas encore testé en vrai sur Railway ni avec un gros fichier (limite Supabase 50 Mo).
+
 ## 31/10 — MONTAGE gratuit (vidéos IA à 0 €)
 - Page STUDIO VIDÉO → MONTAGE (app v210). Nouveau modèle par défaut « gratuit » : une image IA par plan (Pollinations, sans clé, 1 image / 45 s, réessais + réutilisation d'image si saturé) animée au montage façon caméra (drone, approche, travelling, zoom…), voix gratuite (Gemini TTS puis Google), sous-titres, accroche, CTA. ≈ 1 min par plan, 0 €.
 - Outil video_studio : gratuit par défaut, Dzaryx enchaîne plan → rendu sans demander ; Kling/Veo/Seedance (fal.ai) seulement si Kouider les demande. Musique IA coupée en gratuit.

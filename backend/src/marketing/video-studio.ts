@@ -332,7 +332,7 @@ async function getFfmpeg(): Promise<string> {
   return ffmpegBin;
 }
 
-function run(args: string[], timeoutMs = 600_000): Promise<string> {
+export function run(args: string[], timeoutMs = 600_000): Promise<string> {
   return getFfmpeg().then(bin => new Promise((resolve, reject) => {
     const p = spawn(bin, ['-hide_banner', '-y', ...args], { stdio: 'pipe' });
     let err = '';
@@ -343,14 +343,14 @@ function run(args: string[], timeoutMs = 600_000): Promise<string> {
   }));
 }
 
-async function probe(file: string): Promise<{ duration: number; audio: boolean }> {
+export async function probe(file: string): Promise<{ duration: number; audio: boolean }> {
   const out = await run(['-i', file, '-f', 'null', '-t', '0.01', '-']).catch(e => String(e));
   const m = /Duration:\s*(\d+):(\d+):(\d+\.?\d*)/.exec(out);
   return { duration: m ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) : 0, audio: /Stream #.*Audio:/.test(out) };
 }
 
-const FONT_DIR = path.join(os.tmpdir(), 'dzaryx-studio-fonts');
-async function ensureFonts(): Promise<void> {
+export const FONT_DIR = path.join(os.tmpdir(), 'dzaryx-studio-fonts');
+export async function ensureFonts(): Promise<void> {
   await fs.mkdir(FONT_DIR, { recursive: true });
   const fonts: Array<[string, string]> = [
     ['Montserrat-Black.ttf', 'https://raw.githubusercontent.com/JulietaUla/Montserrat/master/fonts/ttf/Montserrat-Black.ttf'],
@@ -369,11 +369,11 @@ async function ensureFonts(): Promise<void> {
 // ─── Sous-titres ASS (mot par mot, style CapCut/Hormozi) ──────
 
 const ARABIC = /[؀-ۿ]/;
-function assTime(t: number): string {
+export function assTime(t: number): string {
   const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
   return `${h}:${String(m).padStart(2, '0')}:${s.toFixed(2).padStart(5, '0')}`;
 }
-const assText = (t: string) => t.replace(/[{}]/g, '').replace(/\\/g, '').replace(/\n/g, ' ');
+export const assText = (t: string) => t.replace(/[{}]/g, '').replace(/\\/g, '').replace(/\n/g, ' ');
 
 function buildAss(o: { voiceover: string; voiceStart: number; voiceDur: number; hook: string; cta: string; brand: string; total: number; subtitles: boolean }): string {
   const arabic = ARABIC.test(o.voiceover + o.hook + o.cta);
@@ -512,7 +512,7 @@ export async function appendOutro(dir: string, main: string, mainDur: number): P
 
 // ─── Jobs ─────────────────────────────────────────────────────
 
-async function saveJob(job: StudioJob): Promise<void> {
+export async function saveJob(job: StudioJob): Promise<void> {
   job.updatedAt = new Date().toISOString();
   await kvSet(JOB_KEY(job.id), JSON.stringify(job), KEEP).catch(e => console.error('[studio] save job', e));
 }
@@ -540,6 +540,16 @@ async function addSpent(usd: number): Promise<void> {
 }
 
 const running = new Set<string>();
+
+/** Enregistre un rendu (studio ou montage de rushes) dans la liste de la page MONTAGE et le lance en tâche de fond. */
+export async function launchJob(job: StudioJob, work: () => Promise<void>): Promise<void> {
+  if (running.size >= 2) throw new Error('Déjà 2 vidéos en cours de rendu — attends qu\'une se termine.');
+  await saveJob(job);
+  const ids = JSON.parse((await kvGet(JOBS_INDEX).catch(() => null)) ?? '[]') as string[];
+  await kvSet(JOBS_INDEX, JSON.stringify([job.id, ...ids].slice(0, 30)));
+  running.add(job.id);
+  void work().finally(() => running.delete(job.id));
+}
 
 export async function startStudioRender(plan: StudioPlan, opts: RenderOptions, actor = 'kouider', approval?: StudioJob['approval']): Promise<StudioJob> {
   if (!isFree(opts.model) && !env.FAL_KEY) throw new Error('FAL_KEY absente dans Railway — impossible de générer.');
@@ -688,6 +698,18 @@ async function fleetPhoto(carName: string): Promise<{ name: string; url: string 
 
 export async function videoStudioTool(input: Record<string, unknown>, actor = 'kouider'): Promise<string> {
   const action = String(input['action'] ?? 'plan');
+  if (action === 'edit') {
+    const { startEdit } = await import('./montage-pro.js');
+    const urls = (Array.isArray(input['media_urls']) ? input['media_urls'] : String(input['media_urls'] ?? '').split(/[\s,]+/)).map(String).filter(u => /^https?:\/\//.test(u));
+    if (!urls.length) return '❌ Donne les liens des vidéos/photos à monter (ou dis à Kouider de les ajouter dans l\'app, page MONTAGE → Mes rushes).';
+    const job = await startEdit({
+      media: urls.map(u => ({ url: u, type: /\.(jpe?g|png|webp|heic)(\?|$)/i.test(u) ? 'image' as const : 'video' as const })),
+      brief: String(input['idea'] ?? ''), format: String(input['format'] ?? '9:16') as '9:16', look: String(input['look'] ?? 'naturel'),
+      captions: String(input['captions'] ?? 'tiktok'), maxSeconds: Number(input['seconds']) || 45, lang: String(input['lang'] ?? 'fr'),
+      outro: input['outro'] !== false, musicUrl: input['music_url'] ? String(input['music_url']) : null,
+    }, actor);
+    return `✂️ Montage lancé (0 €, ${urls.length} rush(es)) : silences coupés, sous-titres, accroche, signature FIK. Il arrive sur Telegram et dans la page MONTAGE (job ${job.id}).`;
+  }
   if (action === 'status') {
     const { jobs, spentUsd } = await listStudioJobs();
     if (!jobs.length) return 'Aucune vidéo studio pour l\'instant.';

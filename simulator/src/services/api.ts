@@ -1035,7 +1035,15 @@ export interface StudioJob {
   step: string; progress: number; estimateUsd: number; costUsd: number; url?: string; caption?: string; error?: string;
   shotsDone: number; shotsTotal: number; createdAt: string; updatedAt: string;
 }
-export interface StudioRenderOptions { model: string; nativeAudio: boolean; voice: boolean; music: boolean; subtitles: boolean }
+export interface StudioRenderOptions { model: string; nativeAudio: boolean; voice: boolean; music: boolean; subtitles: boolean; outro?: boolean }
+export interface EditOptions { formats: string[]; looks: Array<{ id: string; label: string }>; captions: Array<{ id: string; label: string }> }
+export interface EditTimelineClip { url: string; type: 'video' | 'image'; start: number; end: number; speed?: number; volume?: number }
+export interface EditTimelineText { text: string; start: number; end: number; pos?: 'haut' | 'milieu' | 'bas'; style?: 'titre' | 'bandeau' | 'simple' }
+export interface EditBody {
+  media?: Array<{ url: string; type: 'video' | 'image' }>; timeline?: EditTimelineClip[]; texts?: EditTimelineText[]; brief?: string;
+  format?: string; look?: string; captions?: string; cutSilences?: boolean; maxSeconds?: number; voiceover?: boolean;
+  musicUrl?: string | null; musicVolume?: number; outro?: boolean; lang?: string;
+}
 
 export const business = {
   fetchBookings: (q?: string, rentedBy?: string) => {
@@ -1178,6 +1186,9 @@ export const business = {
   studioRender: (plan: StudioPlan, options: StudioRenderOptions) =>
     apiFetch<{ job: StudioJob; estimateUsd: number }>('/api/studio/render', { method: 'POST', body: JSON.stringify({ plan, options }) }),
   studioJobs: () => apiFetch<{ jobs: StudioJob[]; spentUsd: number }>('/api/studio/jobs'),
+  studioEditOptions: () => apiFetch<EditOptions>('/api/studio/edit/options'),
+  studioUploadUrl: (name: string) => apiFetch<{ uploadUrl: string; publicUrl: string; type: 'video' | 'image' | 'audio' }>('/api/studio/upload-url', { method: 'POST', body: JSON.stringify({ name }) }),
+  studioEdit: (body: EditBody) => apiFetch<{ job: StudioJob }>('/api/studio/edit', { method: 'POST', body: JSON.stringify(body) }),
   billingEco: (on: boolean) => apiFetch<{ ok: boolean; message: string }>('/api/billing/eco', { method: 'POST', body: JSON.stringify({ on }) }),
   billingUpdate: (id: string, patch: { due?: string; amount?: string; balance?: number; note?: string; paid?: boolean }) =>
     apiFetch<{ ok: boolean; message: string }>(`/api/billing/${id}`, { method: 'POST', body: JSON.stringify(patch) }),
