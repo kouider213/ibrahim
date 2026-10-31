@@ -22,7 +22,17 @@ export const READ_TOOLS = new Set([
   'check_client', 'get_expenses', 'get_vehicle_maintenance', 'conditions_fik',
 ]);
 
-export const READ_TOOL_DEFS: Anthropic.Tool[] = Dzaryx_TOOLS.filter(t => READ_TOOLS.has(t.name));
+// WhatsApp en LECTURE SEULE (31/10 : le message 🔮 disait « pas d'outil pour lire WhatsApp ») : seulement les actions
+// sans effet (non lus, réponses proposées, statut) — pas 'read' qui marque la discussion comme lue, jamais d'envoi.
+const WA_READ = 'whatsapp_lecture';
+const WA_READ_ACTIONS = new Set(['unread', 'drafts', 'status']);
+const WA_READ_DEF: Anthropic.Tool = {
+  name: WA_READ,
+  description: "WhatsApp Business de Kouider (PC cloud), LECTURE SEULE : action='unread' = messages non lus des clients + réponses proposées + dernières discussions ; 'drafts' = réponses en attente ; 'status' = connecté ? Rien n'est envoyé ni marqué comme lu. Pour répondre à un client : écris la PROPOSITION pour Kouider.",
+  input_schema: { type: 'object' as const, properties: { action: { type: 'string', enum: [...WA_READ_ACTIONS] } }, required: ['action'] },
+};
+
+export const READ_TOOL_DEFS: Anthropic.Tool[] = [...Dzaryx_TOOLS.filter(t => READ_TOOLS.has(t.name)), WA_READ_DEF];
 
 const MODEL = process.env['READONLY_AGENT_MODEL'] ?? 'claude-sonnet-5-5';
 const anthropic = createAnthropic();
@@ -64,7 +74,16 @@ export async function runReadOnlyAgent(instruction: string, opts: {
       const key = `${u.name}:${JSON.stringify(u.input ?? {})}`;
       const n = (seen.get(key) ?? 0) + 1;
       seen.set(key, n);
-      if (!READ_TOOLS.has(u.name)) out = '❌ Outil interdit ici (lecture seule). Propose l\'action à Kouider à la place.';
+      if (u.name === WA_READ) {
+        const action = String((u.input as Record<string, unknown> | undefined)?.['action'] ?? 'unread');
+        if (!WA_READ_ACTIONS.has(action)) out = '❌ Lecture seule : unread, drafts ou status.';
+        else {
+          try { out = (await executeTool('whatsapp_web', { action }, sid)).slice(0, 8000); }
+          catch (err) { out = `❌ ${err instanceof Error ? err.message : String(err)}`; }
+          toolsUsed.push(WA_READ);
+        }
+      }
+      else if (!READ_TOOLS.has(u.name)) out = '❌ Outil interdit ici (lecture seule). Propose l\'action à Kouider à la place.';
       else if (n >= 3) out = '❌ Déjà appelé avec exactement ces arguments : utilise le résultat précédent ou change d\'approche.';
       else {
         try { out = (await executeTool(u.name, (u.input ?? {}) as Record<string, unknown>, sid)).slice(0, 8000); }

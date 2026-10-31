@@ -7,6 +7,12 @@
 
 ## Bugs Ouverts 🔴
 
+### B050 — Surveillance Air Algérie finie sur « credit balance is too low » (31/10 13h13) ✅ FIXÉ
+Le navigateur (nexus/modules/browser_agent.py, pm2 dzaryx-browser) appelait Claude directement → crédit 0 = erreur. Fix : nexus/modules/free_llm.py, Gemini gratuit (clés tournantes) d'abord, Claude seulement en secours.
+
+### B049 — Message 🔮 « WhatsApp : je n'ai pas d'accès » (31/10 13h00) ✅ FIXÉ
+L'agent lecture seule (readonly-agent.ts, utilisé par les habitudes 🔮) n'avait aucun outil WhatsApp. Fix : outil whatsapp_lecture (unread / drafts / status seulement, rien envoyé ni marqué lu).
+
 ### B047 — Permis + passeport de Halfi envoyés sur Telegram sans demande (28/10 15h30) ✅ FIXÉ
 get_client_brain (outil de LECTURE, utilisé aussi par Total Recall, Conscience, agents internes) appelait get_client_document qui envoie les papiers. Déclenché par le test Jarvis 4 de Claude (total_recall « Halfi »).
 Fix : get_client_brain n'envoie plus rien (indice « get_client_document » dans le résultat). Même passe : décisions à boutons périmées après 3 h (au lieu de 12 h, « RDV 13h » ressortait dans le brief CarPlay), promesses « Dzaryx / déjà fait » ignorées, brouillons WhatsApp > 24 h plus comptés comme « clients en attente », Total Recall a search_conversations.

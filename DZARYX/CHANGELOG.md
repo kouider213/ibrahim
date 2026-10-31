@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 31/10 — B049 + B050
+- `integrations/readonly-agent.ts` : outil whatsapp_lecture (unread/drafts/status) → les messages 🔮 « préparé avant que tu demandes » lisent enfin WhatsApp.
+- `nexus/modules/free_llm.py` + `browser_agent.py` : navigateur (Air Algérie, browser_task) sur Gemini gratuit d'abord, Claude en secours (NEXUS_BROWSER_PROVIDER=claude pour forcer).
+
 ## 31/10 — COACH ARGENT + PROJETS BUSINESS
 - `integrations/argent-coach.ts` (outil mes_finances, nouvelles actions) : caisse du jour (vente cash/carte, commande de stock, dépense + garde-fou 80/100 % du budget), bilans semaine (dimanche 18h) et mois (le 1er : vrai revenu total + compteur Oran), compteur départ Oran, crédit (remboursement anticipé, indemnité belge), valeur de l'heure, fonds d'urgence, zakat (nissab or, rappel 3 j avant), cagnottes. Job `argent` */15 9-22h : « combien aujourd'hui ? » à 20h30 + rappel de stock. Données privées app_kv perso:journal / perso:argent.
 - `integrations/projets-business.ts` (outil projet_business) : projet + associé + partage, offres (prix client DA/€, coût technicien), coûts (invest / mensuel / par client) → chiffres exacts au taux square (marge par client, part de chacun, rentabilisation, scénarios 5-40 clients), étude de marché + business plan PDF (recherche web + ses finances) sur Telegram. Données app_kv projets.

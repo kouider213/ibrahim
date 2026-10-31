@@ -116,7 +116,11 @@ _MARK_JS = r"""
 class BrowserAgent:
     def __init__(self) -> None:
         api_key = os.environ.get('ANTHROPIC_API_KEY', '')
-        self.client = anthropic.Anthropic(api_key=api_key) if api_key else None
+        claude = anthropic.Anthropic(api_key=api_key) if api_key else None
+        # 31/10 « Dzaryx à 0 € » : Gemini gratuit d'abord (crédit Claude à 0 → la surveillance Air Algérie plantait)
+        from modules.free_llm import FallbackClient, FreeClient, gemini_keys
+        free = FreeClient() if gemini_keys() and os.getenv('NEXUS_BROWSER_PROVIDER', 'free') != 'claude' else None
+        self.client = FallbackClient(free, claude) if (free or claude) else None
         # Playwright (API synchrone) doit toujours tourner dans le MÊME thread
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='nexus-browser')
         self._pw = None
@@ -299,7 +303,7 @@ class BrowserAgent:
     # ── Boucle agent ─────────────────────────────────────────────────────────
     def _run_sync(self, instruction: str) -> str:
         if not self.client:
-            return 'ANTHROPIC_API_KEY manquant — pilote de navigateur indisponible.'
+            return 'Aucune clé (GEMINI_API_KEY ou ANTHROPIC_API_KEY) — pilote de navigateur indisponible.'
         try:
             import playwright  # noqa: F401
         except ImportError:
