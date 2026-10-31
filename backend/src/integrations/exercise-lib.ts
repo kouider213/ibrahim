@@ -74,8 +74,8 @@ export async function exerciseDetail(id: string): Promise<LibDetail | null> {
   return { ...base, ...d };
 }
 
-/** Exercice d'une séance (nom libre, ex. « Développé incliné haltères ») → fiche de la bibliothèque la plus proche. */
-export async function matchExercise(name: string): Promise<LibDetail | null> {
+/** Nom libre d'exercice (« Élévations frontales alternées ») → identifiant de la bibliothèque le plus proche (cache app_kv). */
+export async function matchExerciseId(name: string): Promise<string | null> {
   const key = name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 80);
   if (!key) return null;
   let map: Record<string, string> = {};
@@ -83,11 +83,40 @@ export async function matchExercise(name: string): Promise<LibDetail | null> {
   if (!(key in map)) {
     const list = await rawDb();
     const res = await createAnthropic().messages.create({ model: HAIKU, max_tokens: 60,
-      system: 'On te donne un exercice de musculation (souvent en français) et une liste d\'identifiants d\'exercices. Réponds UNIQUEMENT par l\'identifiant EXACT le plus proche (même mouvement, même matériel si possible), ou "none" si rien ne correspond.',
+      system: 'On te donne un exercice de musculation (souvent en français) et une liste d\'identifiants d\'exercices. Réponds UNIQUEMENT par l\'identifiant EXACT le plus proche (même mouvement, même matériel si possible ; sinon le même mouvement avec un autre matériel), ou "none" si rien ne correspond.',
       messages: [{ role: 'user', content: `Exercice : ${name}\nListe : ${list.map(e => e.id).join(' ')}` }] }).catch(() => null);
     const got = res ? textOf(res).trim().split(/\s+/)[0]!.replace(/["'`.]/g, '') : '';
+    if (!res) return null;   // panne : on réessaiera, sans mémoriser « rien »
     map[key] = list.some(e => e.id === got) ? got : '';
-    if (res) await kvSet(MATCH_K, JSON.stringify(map)).catch(() => {});
+    try { const cur = JSON.parse((await kvGet(MATCH_K)) ?? '{}') as Record<string, string>; map = { ...cur, [key]: map[key]! }; } catch { /* */ }
+    await kvSet(MATCH_K, JSON.stringify(map)).catch(() => {});
   }
-  return map[key] ? exerciseDetail(map[key]!) : null;
+  return map[key] || null;
+}
+
+/** Photos (2 images = mouvement) de la bibliothèque pour un exercice nommé librement — [] si introuvable. */
+export async function demoForName(name: string): Promise<string[]> {
+  const id = await matchExerciseId(name);
+  if (!id) return [];
+  const e = (await rawDb()).find(x => x.id === id);
+  return e ? e.images.slice(0, 2).map(i => `${IMG_BASE}/${i}`) : [];
+}
+
+/** Exercice d'une séance (nom libre, ex. « Développé incliné haltères ») → fiche de la bibliothèque la plus proche. */
+export async function matchExercise(name: string): Promise<LibDetail | null> {
+  const id = await matchExerciseId(name);
+  return id ? exerciseDetail(id) : null;
+}
+
+/** Remplit les images manquantes (exercices sur mesure sans photo) — en parallèle, plafonné à ~9 s pour ne pas bloquer l'écran.
+ *  Ce qui n'est pas trouvé à temps sera prêt (cache) à la prochaine ouverture. */
+export async function fillDemos(exs: Array<{ name: string; demo: string[] }>): Promise<void> {
+  const todo = exs.filter(e => !e.demo?.length && e.name);
+  if (!todo.length) return;
+  const byName = new Map<string, Array<{ name: string; demo: string[] }>>();
+  for (const e of todo) byName.set(e.name, [...(byName.get(e.name) ?? []), e]);
+  await Promise.race([
+    Promise.all([...byName].map(async ([name, list]) => { const d = await demoForName(name).catch(() => []); if (d.length) for (const e of list) e.demo = d; })),
+    new Promise(r => setTimeout(r, 9000)),
+  ]);
 }

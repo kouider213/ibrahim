@@ -21,7 +21,14 @@ const isType = (v: unknown): v is SessionType => ROTATION.includes(v as SessionT
 
 // GET /api/sport — tout l'écran
 router.get('/', async (_req, res) => {
-  try { res.json(await sportOverview()); } catch (err) { fail(res, err); }
+  try {
+    const o = await sportOverview();
+    // Exercices sur mesure sans photo → photo de l'exercice le plus proche de la bibliothèque (Kouider 31/10 : « des endroits sans image »)
+    const { fillDemos } = await import('../../integrations/exercise-lib.js');
+    const sessions = [o.today, o.next, ...(o.planned ?? [])].filter(Boolean) as Array<{ exercises: Array<{ name: string; demo: string[] }> }>;
+    await fillDemos(sessions.flatMap(x => x.exercises)).catch(() => {});
+    res.json(o);
+  } catch (err) { fail(res, err); }
 });
 
 // POST /api/sport/log { date?, type, sets: [{ ex, kg?, reps? }], durationMin?, rpe?, note? } — fin de séance

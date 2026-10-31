@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch, type SportOverview, type SportSession, type SportExercise } from '../services/api.ts';
-import { errText, SHORT_DAYS, dayOf, vibrate, forme, type ProgramView } from './api.ts';
-import { F, card, btn, ghostBtn, Spinner } from './ui.tsx';
-import { ExerciseSheet, Anim, RecoveryMap } from './Exercises.tsx';
+import { errText, SHORT_DAYS, dayOf, vibrate, forme, type ProgramView, type LibItem, type Routine, type RoutineEx, type ExSet } from './api.ts';
+import { F, card, btn, ghostBtn, input, Sheet, Spinner } from './ui.tsx';
+import { ExerciseSheet, Anim, RecoveryMap, LibraryPicker, COACH_TO_GROUP } from './Exercises.tsx';
 
 // Onglet SÉANCE — 31/10 refait façon applis pro de muscu (Hevy / Strong / Fitbod) : semaine en pastilles, carte du jour
 // avec les exercices en images, carte de récupération du corps, stats, records, historique ; mode séance en direct
@@ -74,9 +74,18 @@ function SessionCard({ s, kicker, onStart, onEx, start }: { s: SportSession; kic
   );
 }
 
-// ── Mode séance en direct ─────────────────────────────────────────────────────
-type SetRow = { kg: string; reps: string; done: boolean };
-type SaveFn = (sets: Array<{ ex: string; kg?: number; reps?: number }>, durationMin: number, rpe: number) => Promise<string>;
+// ── Mode séance en direct (Hevy + Strong + Fitbod réunis) ───────────────────────
+// Types de série (W échauffement, D dégressive, F échec), échauffement auto, calculateur de disques, remplacer / ajouter
+// un exercice depuis la bibliothèque, record battu en direct, précédent, repos en bas, résumé de fin.
+type SetT = 'n' | 'w' | 'd' | 'f';
+type SetRow = { kg: string; reps: string; done: boolean; t: SetT };
+type PEx = SportExercise & { libId?: string | null };
+type SaveFn = (sets: Array<{ ex: string; kg?: number; reps?: number }>, durationMin: number, rpe: number, exs: PEx[], rows: Record<string, SetRow[]>) => Promise<string>;
+const T_NEXT: Record<SetT, SetT> = { n: 'w', w: 'd', d: 'f', f: 'n' };
+const T_LOOK: Record<Exclude<SetT, 'n'>, { l: string; c: string; name: string }> = { w: { l: 'W', c: '#e08a00', name: 'Échauffement' }, d: { l: 'D', c: '#7b5cf0', name: 'Dégressive' }, f: { l: 'F', c: '#e5322d', name: 'Échec' } };
+const libIdOf = (e: PEx) => e.libId ?? (/\/exercises\/([^/]+)\/\d\.jpg/.exec(e.demo?.[0] ?? '')?.[1] ?? null);
+const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+const r25 = (x: number) => Math.round(x / 2.5) * 2.5;
 
 /** « 3×10/10/8 à 40 kg (28/10) » → précédent de la série k : « 40 × 10 ». */
 function prevOf(last: string | undefined, k: number): string {
@@ -114,48 +123,109 @@ function RestBar({ seconds, onDone }: { seconds: number; onDone: () => void }) {
   );
 }
 
-function Player({ s, onClose, onFinished, save: saveFn }: { s: SportSession; onClose: () => void; onFinished: (msg: string) => void; save: SaveFn }) {
+/** Calculateur de disques (Strong) : quoi mettre de CHAQUE côté de la barre. */
+const PLATES: Array<{ kg: number; c: string; h: number }> = [{ kg: 25, c: '#d93a2b', h: 86 }, { kg: 20, c: '#2f6fe0', h: 86 }, { kg: 15, c: '#e2b007', h: 78 }, { kg: 10, c: '#2a9d55', h: 70 }, { kg: 5, c: '#eeeeee', h: 56 }, { kg: 2.5, c: '#444', h: 46 }, { kg: 1.25, c: '#999', h: 38 }];
+function PlateCalc({ open, onClose, kg0 }: { open: boolean; onClose: () => void; kg0: number }) {
+  const [kg, setKg] = useState(String(kg0 || 60)); const [bar, setBar] = useState(20);
+  useEffect(() => { if (open) setKg(String(kg0 || 60)); }, [open, kg0]);
+  let side = Math.max(0, (Number(kg.replace(',', '.')) - bar) / 2); const out: typeof PLATES = [];
+  for (const p of PLATES) while (side >= p.kg - 1e-9 && out.length < 14) { out.push(p); side = Math.round((side - p.kg) * 100) / 100; }
+  return (
+    <Sheet open={open} onClose={onClose} z={75} title={<div style={{ fontSize: 20, fontWeight: 700, paddingTop: 6 }}>Calculateur de disques</div>}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input inputMode="decimal" value={kg} onChange={e => setKg(e.target.value)} style={{ ...cellBig, flex: 1 }} /><span style={{ fontWeight: 600 }}>kg au total</span>
+      </div>
+      <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>{[20, 15, 10, 0].map(b => <button key={b} onClick={() => setBar(b)} style={{ ...ghostBtn, padding: '8px 12px', background: bar === b ? F.ink : '#fff', color: bar === b ? '#fff' : F.ink }}>{b ? `Barre ${b} kg` : 'Sans barre'}</button>)}</div>
+      <div style={{ ...card, marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, gap: 3 }}>
+        <div style={{ width: 70, height: 10, background: '#b9b9c2', borderRadius: 3 }} />
+        {out.map((p, i) => <div key={i} style={{ width: 13, height: p.h, background: p.c, borderRadius: 3, border: '1px solid rgba(0,0,0,0.15)' }} />)}
+        <div style={{ width: 22, height: 10, background: '#b9b9c2', borderRadius: 3 }} />
+      </div>
+      <div style={{ textAlign: 'center', marginTop: 10, fontSize: 15 }}>{out.length ? <>De <b>chaque côté</b> : {out.map(p => p.kg).join(' + ')} kg</> : 'Juste la barre'}{side > 0 ? <div style={{ color: F.red, fontSize: 13 }}>Reste {side} kg impossible à charger</div> : null}</div>
+    </Sheet>
+  );
+}
+const cellBig: CSSProperties = { background: '#fff', border: `1px solid ${F.line}`, borderRadius: 12, padding: 12, fontSize: 20, fontWeight: 700, textAlign: 'center', fontFamily: F.sans, color: F.ink, boxSizing: 'border-box' };
+
+const fromLib = (x: LibItem, k: number): PEx => ({ id: `${x.id}~${Date.now().toString(36)}${k}`, libId: x.id, name: x.fr, muscle: '', sets: 3, reps: '10', rest: 90, tip: '', alt: [], timed: false, demo: x.img, video: `https://www.youtube.com/results?search_query=${encodeURIComponent(`${x.name} technique musculation`)}`, suggestion: { kg: null } });
+
+function Player({ s, onClose, onFinished, save: saveFn, prs = {} }: { s: SportSession; onClose: () => void; onFinished: (msg: string) => void; save: SaveFn; prs?: Record<string, number> }) {
+  const mkRows = (e: PEx): SetRow[] => Array.from({ length: e.sets }, () => ({ kg: e.suggestion.kg ? String(e.suggestion.kg) : '', reps: String(parseInt(e.reps) || ''), done: false, t: 'n' as SetT }));
+  const [exs, setExs] = useState<PEx[]>(() => s.exercises.map(e => ({ ...e })));
   const [i, setI] = useState(0);
   const [how, setHow] = useState(false);
-  const [rows, setRows] = useState<Record<string, SetRow[]>>(() => Object.fromEntries(s.exercises.map(e => [e.id, Array.from({ length: e.sets }, () => ({ kg: e.suggestion.kg ? String(e.suggestion.kg) : '', reps: String(parseInt(e.reps) || ''), done: false }))])));
+  const [rows, setRows] = useState<Record<string, SetRow[]>>(() => Object.fromEntries(s.exercises.map(e => [e.id, mkRows(e)])));
   const [rest, setRest] = useState<{ n: number; key: number } | null>(null);
   const [finish, setFinish] = useState(false);
   const [rpe, setRpe] = useState(7);
   const [busy, setBusy] = useState(false);
+  const [picker, setPicker] = useState<'add' | 'swap' | null>(null);
+  const [plates, setPlates] = useState(false);
+  const [flash, setFlash] = useState<string | null>(null);
+  const [newPrs, setNewPrs] = useState<string[]>([]);
   const start = useRef(Date.now());
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
-  const ex = s.exercises[i]!;
-  const sets = rows[ex.id]!;
-  const upd = (k: number, patch: Partial<SetRow>) => setRows(r => ({ ...r, [ex.id]: r[ex.id]!.map((x, j) => j === k ? { ...x, ...patch } : x) }));
+  const ex = exs[Math.min(i, exs.length - 1)];
+  const sets = ex ? rows[ex.id] ?? [] : [];
+  const upd = (k: number, patch: Partial<SetRow>) => ex && setRows(r => ({ ...r, [ex.id]: r[ex.id]!.map((x, j) => j === k ? { ...x, ...patch } : x) }));
   const endRest = useCallback(() => setRest(null), []);
+  const best = (e: PEx) => prs[norm(e.name)] ?? 0;
   const validate = (k: number) => {
+    if (!ex) return;
     vibrate(25);
-    setRows(r => ({ ...r, [ex.id]: r[ex.id]!.map((x, j) => j === k ? { ...x, done: true } : j === k + 1 && !x.done ? { ...x, kg: x.kg || r[ex.id]![k]!.kg } : x) }));
+    const r0 = rows[ex.id]![k]!;
+    const kg = Number(r0.kg.replace(',', '.')) || 0;
+    if (r0.t !== 'w' && kg > 0 && best(ex) > 0 && kg > best(ex) && !newPrs.includes(ex.name)) { setNewPrs(p => [...p, ex.name]); setFlash(`🏆 Nouveau record : ${kg} kg !`); vibrate(300); setTimeout(() => setFlash(null), 3500); }
+    setRows(r => ({ ...r, [ex.id]: r[ex.id]!.map((x, j) => j === k ? { ...x, done: true } : j === k + 1 && !x.done ? { ...x, kg: x.kg || r0.kg } : x) }));
     const last = sets.every((x, j) => j === k || x.done);
-    if (last && i < s.exercises.length - 1) setTimeout(() => setI(i + 1), 450);
-    if (!(last && i === s.exercises.length - 1)) setRest({ n: ex.rest, key: Date.now() });
+    if (last && i < exs.length - 1) setTimeout(() => setI(i + 1), 450);
+    if (!(last && i === exs.length - 1)) setRest({ n: r0.t === 'w' ? Math.min(60, ex.rest) : ex.rest, key: Date.now() });
   };
-  const all = Object.values(rows).flat();
-  const doneSets = all.filter(r => r.done);
-  const volume = s.exercises.reduce((a, e) => a + rows[e.id]!.filter(r => r.done).reduce((b, r) => b + (Number(r.kg) || 0) * (Number(r.reps) || 0), 0), 0);
+  const warmup = () => {
+    if (!ex) return;
+    const top = Number(sets.find(r => r.t !== 'w')?.kg.replace(',', '.')) || 0;
+    if (!top) { setFlash('Mets d\'abord ta charge de travail (kg)'); setTimeout(() => setFlash(null), 2500); return; }
+    const w: SetRow[] = [[0.5, 10], [0.7, 5], [0.85, 3]].map(([p, r]) => ({ kg: String(Math.max(0, r25(top * p!))), reps: String(r), done: false, t: 'w' as SetT }));
+    setRows(rr => ({ ...rr, [ex.id]: [...w, ...rr[ex.id]!.filter(x => x.t !== 'w')] }));
+  };
+  const addExs = (items: LibItem[]) => {
+    const add = items.map((x, k) => fromLib(x, k));
+    setExs(e => [...e, ...add]); setRows(r => ({ ...r, ...Object.fromEntries(add.map(e => [e.id, mkRows(e)])) }));
+    setI(exs.length);
+  };
+  const swap = (items: LibItem[]) => {
+    const x = items[0]; if (!x || !ex) return;
+    const ne = { ...fromLib(x, 0), sets: ex.sets, reps: ex.reps, rest: ex.rest, muscle: ex.muscle };
+    setExs(e => e.map((y, j) => j === i ? ne : y)); setRows(r => ({ ...r, [ne.id]: mkRows(ne) }));
+  };
+  const allRows = exs.flatMap(e => rows[e.id] ?? []);
+  const work = allRows.filter(r => r.t !== 'w');
+  const doneSets = work.filter(r => r.done);
+  const volume = exs.reduce((a, e) => a + (rows[e.id] ?? []).filter(r => r.done && r.t !== 'w').reduce((b, r) => b + (Number(r.kg.replace(',', '.')) || 0) * (Number(r.reps) || 0), 0), 0);
   const elapsed = Math.round((now - start.current) / 1000);
   const save = async () => {
     setBusy(true);
     try {
-      const out = s.exercises.flatMap(e => rows[e.id]!.filter(r => r.done).map(r => ({ ex: e.id, kg: Number(r.kg) || undefined, reps: Number(r.reps) || undefined })));
-      onFinished(await saveFn(out, Math.round(elapsed / 60), rpe));
+      const out = exs.flatMap(e => (rows[e.id] ?? []).filter(r => r.done && r.t !== 'w').map(r => ({ ex: e.id, kg: Number(r.kg.replace(',', '.')) || undefined, reps: Number(r.reps) || undefined })));
+      const msg = await saveFn(out, Math.round(elapsed / 60), rpe, exs, rows);
+      // Historique de chaque exercice de la bibliothèque (fiche → Historique / Progrès)
+      const lib = exs.flatMap(e => { const id = libIdOf(e); return id ? (rows[e.id] ?? []).filter(r => r.done && r.t !== 'w').map(r => ({ id, kg: Number(r.kg.replace(',', '.')) || undefined, reps: Number(r.reps) || undefined })) : []; });
+      if (lib.length) await forme.exBatch(lib).catch(() => {});
+      onFinished(newPrs.length ? `${msg} · 🏆 ${newPrs.join(', ')}` : msg);
     } catch (e) { alert(errText(e)); } finally { setBusy(false); }
   };
   const cell: CSSProperties = { background: F.bg, border: 'none', borderRadius: 9, padding: '9px 4px', fontSize: 16, fontWeight: 600, width: '100%', boxSizing: 'border-box', fontFamily: F.sans, textAlign: 'center', color: F.ink };
   const cols = '34px 1fr 64px 56px 42px';
+  const tool: CSSProperties = { flex: 1, border: 'none', background: F.bg, borderRadius: 10, padding: '9px 4px', fontWeight: 600, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit', color: F.ink, whiteSpace: 'nowrap' };
+  let nNum = 0;
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: F.bg, overflowY: 'auto', fontFamily: F.sans, color: F.ink, paddingBottom: 'calc(110px + env(safe-area-inset-bottom))' }}>
       <div style={{ position: 'sticky', top: 0, zIndex: 3, background: 'rgba(245,242,250,0.94)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', padding: 'calc(8px + env(safe-area-inset-top)) 14px 10px', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button onClick={() => { if (finish) setFinish(false); else if (confirm('Quitter la séance ? (rien n\'est enregistré)')) onClose(); }} aria-label="Fermer" style={{ width: 36, height: 36, border: 'none', background: 'none', fontSize: 22, cursor: 'pointer', color: F.ink }}>{finish ? '‹' : '✕'}</button>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>{s.label}</div>
-          <div style={{ fontSize: 12.5, color: F.muted, fontVariantNumeric: 'tabular-nums' }}>⏱ {fmtTime(elapsed)} · {doneSets.length}/{all.length} séries · {Math.round(volume)} kg</div>
+        <button onClick={() => { if (finish) setFinish(false); else if (!allRows.some(r => r.done) || confirm('Quitter la séance ? (rien n\'est enregistré)')) onClose(); }} aria-label="Fermer" style={{ width: 36, height: 36, border: 'none', background: 'none', fontSize: 22, cursor: 'pointer', color: F.ink }}>{finish ? '‹' : '✕'}</button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.label}</div>
+          <div style={{ fontSize: 12.5, color: F.muted, fontVariantNumeric: 'tabular-nums' }}>⏱ {fmtTime(elapsed)} · {doneSets.length}/{work.length} séries · {Math.round(volume)} kg</div>
         </div>
         {!finish && <button onClick={() => { setRest(null); setFinish(true); }} style={{ ...btn, padding: '9px 16px', fontSize: 14, boxShadow: 'none' }}>Terminer</button>}
       </div>
@@ -166,6 +236,11 @@ function Player({ s, onClose, onFinished, save: saveFn }: { s: SportSession; onC
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 18 }}>
             {[[fmtTime(elapsed), 'Durée'], [`${Math.round(volume)} kg`, 'Volume'], [String(doneSets.length), 'Séries']].map(([v, l]) => <div key={l} style={{ ...card, padding: 12 }}><div style={{ fontSize: 19, fontWeight: 700 }}>{v}</div><div style={{ fontSize: 12, color: F.muted }}>{l}</div></div>)}
           </div>
+          {newPrs.length > 0 && <div style={{ ...card, marginTop: 10, background: '#fff6df', fontWeight: 600 }}>🏆 Record{newPrs.length > 1 ? 's' : ''} battu{newPrs.length > 1 ? 's' : ''} : {newPrs.join(', ')}</div>}
+          <div style={{ ...card, marginTop: 10, textAlign: 'start', padding: '4px 14px' }}>
+            {exs.filter(e => (rows[e.id] ?? []).some(r => r.done && r.t !== 'w')).map((e, k, arr) => { const d = rows[e.id]!.filter(r => r.done && r.t !== 'w'); const top = d.reduce((a, r) => (Number(r.kg) || 0) > (Number(a.kg) || 0) ? r : a, d[0]!); return (
+              <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '10px 0', borderBottom: k < arr.length - 1 ? `1px solid ${F.line}` : 'none', fontSize: 14 }}><span style={{ fontWeight: 600 }}>{d.length} × {e.name}</span><span style={{ color: F.muted, whiteSpace: 'nowrap' }}>{top.kg ? `${top.kg} kg × ${top.reps}` : `${top.reps} reps`}</span></div>); })}
+          </div>
           <div style={{ fontWeight: 600, marginTop: 22 }}>C'était dur comment ?</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, marginTop: 10 }}>{[5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => setRpe(n)} style={{ ...ghostBtn, borderRadius: 12, padding: '13px 0', background: rpe === n ? F.accent : '#fff', color: rpe === n ? '#fff' : F.ink }}>{n}</button>)}</div>
           <div style={{ fontSize: 12.5, color: F.muted, marginTop: 6 }}>5 = facile · 9 = à fond</div>
@@ -173,52 +248,155 @@ function Player({ s, onClose, onFinished, save: saveFn }: { s: SportSession; onC
         </div>
       ) : <>
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '2px 14px 8px', scrollbarWidth: 'none' }}>
-          {s.exercises.map((e, j) => { const ok = rows[e.id]!.every(r => r.done); return (
+          {exs.map((e, j) => { const ok = (rows[e.id] ?? []).length > 0 && rows[e.id]!.every(r => r.done); return (
             <button key={e.id} onClick={() => setI(j)} style={{ flexShrink: 0, border: j === i ? `2px solid ${F.accent}` : '2px solid transparent', borderRadius: 14, background: ok ? '#dff3e7' : F.tile, width: 54, height: 54, padding: 3, cursor: 'pointer', position: 'relative' }}>
               {e.demo.length ? <Anim img={e.demo} alt="" h={44} /> : '🏋️'}
               {ok && <span style={{ position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: 9, background: F.green, color: '#fff', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>}
             </button>); })}
+          <button onClick={() => setPicker('add')} aria-label="Ajouter un exercice" style={{ flexShrink: 0, borderRadius: 14, border: `2px dashed ${F.line}`, background: 'transparent', width: 54, height: 54, fontSize: 22, color: F.muted, cursor: 'pointer' }}>＋</button>
         </div>
+        {!ex ? (
+          <div style={{ padding: '30px 20px', textAlign: 'center' }}>
+            <div style={{ fontSize: 44 }}>🏋️</div>
+            <div style={{ fontSize: 18, fontWeight: 700, marginTop: 8 }}>Séance libre</div>
+            <div style={{ color: F.muted, fontSize: 14, marginTop: 4 }}>Ajoute les exercices que tu fais, au fur et à mesure.</div>
+            <button onClick={() => setPicker('add')} style={{ ...btn, marginTop: 16 }}>＋ Ajouter un exercice</button>
+          </div>
+        ) : (
         <AnimatePresence mode="wait">
           <motion.div key={ex.id} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} style={{ padding: '0 14px' }}>
-            <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
-              <div style={{ background: F.tile, height: 210, display: 'flex', alignItems: 'center', padding: 8, boxSizing: 'border-box' }}>{ex.demo.length ? <Anim img={ex.demo} alt={ex.name} h={194} /> : <div style={{ margin: 'auto', fontSize: 50 }}>🏋️</div>}</div>
+            <div style={{ ...card, padding: 0, overflow: 'hidden', position: 'relative' }}>
+              <AnimatePresence>{flash && <motion.div initial={{ y: -40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 2, background: F.dark, color: '#fff', borderRadius: 12, padding: '10px 12px', fontWeight: 600, textAlign: 'center' }}>{flash}</motion.div>}</AnimatePresence>
+              <div style={{ background: F.tile, height: 200, display: 'flex', alignItems: 'center', padding: 8, boxSizing: 'border-box' }}>{ex.demo.length ? <Anim img={ex.demo} alt={ex.name} h={184} /> : <div style={{ margin: 'auto', fontSize: 50 }}>🏋️</div>}</div>
               <div style={{ padding: '12px 14px 4px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: F.accent }}>{i + 1}/{s.exercises.length} · {MUSCLE[ex.muscle] ?? ex.muscle} · repos {ex.rest}s</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: F.accent }}>{i + 1}/{exs.length}{ex.muscle ? ` · ${MUSCLE[ex.muscle] ?? ex.muscle}` : ''} · repos {ex.rest}s{best(ex) ? ` · record ${best(ex)} kg` : ''}</div>
                     <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em', marginTop: 2 }}>{ex.name}</div>
                   </div>
                   <button onClick={() => setHow(true)} aria-label="Comment faire" style={{ width: 34, height: 34, borderRadius: 17, border: `1px solid ${F.line}`, background: '#fff', cursor: 'pointer', fontWeight: 700, color: F.accent, flexShrink: 0 }}>i</button>
                 </div>
                 {ex.tip && <div style={{ fontSize: 13.5, color: F.muted, marginTop: 6, lineHeight: 1.4 }}>💡 {ex.tip}</div>}
                 {ex.suggestion.up && <div style={{ fontSize: 13, fontWeight: 600, marginTop: 6, color: F.green }}>↑ On monte à {ex.suggestion.kg} kg aujourd'hui</div>}
+                <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                  <button onClick={warmup} style={tool}>🔥 Échauffement</button>
+                  <button onClick={() => setPlates(true)} style={tool}>🧮 Disques</button>
+                  <button onClick={() => setPicker('swap')} style={tool}>🔁 Remplacer</button>
+                </div>
               </div>
               <div style={{ padding: '6px 10px 10px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 6, fontSize: 11, fontWeight: 600, color: F.muted, padding: '6px 4px', textAlign: 'center' }}><div>SÉRIE</div><div>PRÉCÉDENT</div><div>KG</div><div>{ex.timed ? 'SEC' : 'REPS'}</div><div>✓</div></div>
-                {sets.map((r, k) => (
+                {sets.map((r, k) => { const look = r.t !== 'n' ? T_LOOK[r.t] : null; if (r.t === 'n') nNum++; const num = nNum; return (
                   <div key={k} style={{ display: 'grid', gridTemplateColumns: cols, gap: 6, alignItems: 'center', padding: '4px', borderRadius: 10, background: r.done ? '#dff3e7' : 'transparent', transition: 'background .2s' }}>
-                    <div style={{ fontWeight: 700, textAlign: 'center' }}>{k + 1}</div>
-                    <div style={{ fontSize: 13, color: F.muted, textAlign: 'center' }}>{prevOf(ex.suggestion.last, k)}</div>
+                    <button onClick={() => upd(k, { t: T_NEXT[r.t] })} title={look?.name ?? 'Série normale — touche pour changer le type'} style={{ fontWeight: 700, textAlign: 'center', border: 'none', background: 'none', cursor: 'pointer', fontSize: 15, color: look?.c ?? F.ink, fontFamily: 'inherit' }}>{look?.l ?? num}</button>
+                    <div style={{ fontSize: 13, color: F.muted, textAlign: 'center' }}>{r.t === 'w' ? '—' : prevOf(ex.suggestion.last, num - 1)}</div>
                     <input inputMode="decimal" value={r.kg} onChange={e => upd(k, { kg: e.target.value })} placeholder="—" style={{ ...cell, background: r.done ? 'transparent' : F.bg }} />
                     <input inputMode="numeric" value={r.reps} onChange={e => upd(k, { reps: e.target.value })} placeholder="—" style={{ ...cell, background: r.done ? 'transparent' : F.bg }} />
                     <button onClick={() => r.done ? upd(k, { done: false }) : validate(k)} aria-label="Série faite" style={{ width: 38, height: 36, borderRadius: 10, border: 'none', background: r.done ? F.green : F.bg2, color: r.done ? '#fff' : F.muted, fontSize: 17, fontWeight: 700, cursor: 'pointer' }}>✓</button>
-                  </div>
-                ))}
-                <button onClick={() => setRows(rr => ({ ...rr, [ex.id]: [...rr[ex.id]!, { kg: rr[ex.id]![rr[ex.id]!.length - 1]?.kg ?? '', reps: rr[ex.id]![rr[ex.id]!.length - 1]?.reps ?? '', done: false }] }))} style={{ width: '100%', marginTop: 8, border: 'none', background: F.bg, borderRadius: 10, padding: 10, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', color: F.ink }}>+ Ajouter une série</button>
+                  </div>); })}
+                <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                  <button onClick={() => setRows(rr => { const l = rr[ex.id]!; const last = [...l].reverse().find(x => x.t !== 'w'); return { ...rr, [ex.id]: [...l, { kg: last?.kg ?? '', reps: last?.reps ?? '', done: false, t: 'n' }] }; })} style={{ ...tool, fontSize: 14, padding: 10 }}>+ Ajouter une série</button>
+                  {sets.length > 1 && <button onClick={() => setRows(rr => ({ ...rr, [ex.id]: rr[ex.id]!.slice(0, -1) }))} style={{ ...tool, flex: '0 0 auto', padding: '10px 14px', fontSize: 14 }}>−</button>}
+                </div>
+                <div style={{ fontSize: 11.5, color: F.muted, textAlign: 'center', marginTop: 6 }}>Touche le n° de série : W échauffement · D dégressive · F échec</div>
               </div>
             </div>
             {ex.alt.length > 0 && <div style={{ fontSize: 13, color: F.muted, margin: '10px 4px 0' }}>Machine prise ? Remplace par : {ex.alt.join(' · ')}</div>}
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
               <button disabled={i === 0} onClick={() => setI(i - 1)} style={{ ...ghostBtn, flex: 1, opacity: i ? 1 : 0.4 }}>‹ Précédent</button>
-              <button onClick={() => i < s.exercises.length - 1 ? setI(i + 1) : setFinish(true)} style={{ ...ghostBtn, flex: 1 }}>{i < s.exercises.length - 1 ? 'Suivant ›' : 'Terminer'}</button>
+              <button onClick={() => i < exs.length - 1 ? setI(i + 1) : setFinish(true)} style={{ ...ghostBtn, flex: 1 }}>{i < exs.length - 1 ? 'Suivant ›' : 'Terminer'}</button>
             </div>
           </motion.div>
-        </AnimatePresence>
-        <ExerciseSheet session={how ? ex : null} onClose={() => setHow(false)} z={70} />
+        </AnimatePresence>)}
+        <ExerciseSheet session={how && ex ? ex : null} onClose={() => setHow(false)} z={70} />
       </>}
+      <LibraryPicker open={!!picker} onClose={() => setPicker(null)} multi={picker === 'add'} title={picker === 'swap' ? 'Remplacer par…' : 'Ajouter des exercices'} group={picker === 'swap' && ex ? COACH_TO_GROUP[ex.muscle] ?? null : null} likeId={picker === 'swap' && ex ? libIdOf(ex) : null} onPick={items => picker === 'swap' ? swap(items) : addExs(items)} />
+      <PlateCalc open={plates} onClose={() => setPlates(false)} kg0={Number(sets.find(r => r.t !== 'w')?.kg.replace(',', '.')) || 0} />
       <AnimatePresence>{rest && !finish && <RestBar key={rest.key} seconds={rest.n} onDone={endRest} />}</AnimatePresence>
     </div>
+  );
+}
+
+// ── MES ROUTINES + SÉANCE LIBRE (Hevy) ─────────────────────────────────────────
+function RoutineEditor({ open, init, onClose, onSaved }: { open: boolean; init: Routine | null; onClose: () => void; onSaved: (l: Routine[]) => void }) {
+  const [name, setName] = useState(''); const [exs, setExs] = useState<RoutineEx[]>([]); const [pick, setPick] = useState(false); const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  useEffect(() => { if (open) { setName(init?.name ?? ''); setExs(init?.exercises ?? []); setErr(''); } }, [open, init]);
+  const add = (items: LibItem[]) => setExs(e => [...e, ...items.map(x => ({ id: x.id, name: x.fr, img: x.img, sets: 3, reps: '10', rest: 90 }))]);
+  const mv = (k: number, d: number) => setExs(e => { const n = [...e]; const [x] = n.splice(k, 1); n.splice(Math.max(0, Math.min(n.length, k + d)), 0, x!); return n; });
+  const small: CSSProperties = { ...input, width: 52, padding: '7px 4px', textAlign: 'center', fontSize: 15, fontWeight: 600 };
+  return (
+    <Sheet open={open} onClose={onClose} title={<div style={{ fontSize: 20, fontWeight: 700, paddingTop: 6 }}>{init ? 'Modifier la routine' : 'Nouvelle routine'}</div>}>
+      <input value={name} onChange={e => setName(e.target.value)} placeholder="Nom (ex. Pecs lourd, Jambes maison…)" style={{ ...input, marginBottom: 12 }} />
+      {exs.map((e, k) => (
+        <div key={`${e.id}-${k}`} style={{ ...card, padding: 10, marginBottom: 8, display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div style={{ ...thumb, width: 52, height: 52 }}>{e.img.length ? <Anim img={e.img} alt="" h={44} /> : '🏋️'}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{e.name}</div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6, fontSize: 12.5, color: F.muted }}>
+              <input inputMode="numeric" value={e.sets} onChange={v => setExs(l => l.map((y, j) => j === k ? { ...y, sets: Number(v.target.value) || 1 } : y))} style={small} />séries ×
+              <input value={e.reps} onChange={v => setExs(l => l.map((y, j) => j === k ? { ...y, reps: v.target.value } : y))} style={small} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <button onClick={() => mv(k, -1)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: F.muted }}>▲</button>
+            <button onClick={() => mv(k, 1)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: F.muted }}>▼</button>
+          </div>
+          <button onClick={() => setExs(l => l.filter((_, j) => j !== k))} style={{ border: 'none', background: 'none', cursor: 'pointer', color: F.red, fontSize: 16 }}>✕</button>
+        </div>
+      ))}
+      <button onClick={() => setPick(true)} style={{ ...ghostBtn, width: '100%', borderStyle: 'dashed' }}>＋ Ajouter des exercices</button>
+      {err && <div style={{ color: F.red, marginTop: 8 }}>{err}</div>}
+      <button disabled={busy} onClick={async () => { if (!name.trim() || !exs.length) { setErr('Donne un nom et ajoute au moins un exercice.'); return; } setBusy(true); try { onSaved((await forme.saveRoutine({ id: init?.id, name: name.trim(), exercises: exs })).routines); onClose(); } catch (x) { setErr(errText(x)); } finally { setBusy(false); } }} style={{ ...btn, width: '100%', marginTop: 12 }}>{busy ? 'Enregistrement…' : 'Enregistrer la routine'}</button>
+      <LibraryPicker open={pick} onClose={() => setPick(false)} multi onPick={add} />
+    </Sheet>
+  );
+}
+
+/** Routine (ou séance libre) → séance jouable : « précédent » et charge reprises de l'historique de chaque exercice. */
+async function routineSession(r: Routine | null): Promise<SportSession> {
+  const exs = r?.exercises ?? [];
+  const last: Record<string, ExSet[]> = exs.length ? (await forme.exLast(exs.map(e => e.id)).catch(() => ({ last: {} as Record<string, ExSet[]> }))).last : {};
+  const today = new Date().toISOString().slice(0, 10);
+  return { date: today, type: 'push', label: r?.name ?? 'Séance libre', emoji: '⭐', focus: '', muscles: [], warmup: '', finisher: null, estMin: exs.length * 8, start: new Date().toISOString(), end: '', minutes: 0, arrived: null,
+    exercises: exs.map((e, k) => {
+      const l = (last[e.id] ?? []).filter(x => x.kg || x.reps); const top = l.reduce((a, x) => Math.max(a, x.kg ?? 0), 0);
+      return { id: `${e.id}~${k}`, libId: e.id, name: e.name, muscle: '', sets: e.sets, reps: e.reps, rest: e.rest, tip: '', alt: [], timed: false, demo: e.img,
+        video: `https://www.youtube.com/results?search_query=${encodeURIComponent(`${e.name} technique musculation`)}`,
+        suggestion: { kg: top || null, ...(l.length ? { last: `${l.length}×${l.map(x => x.reps ?? '?').join('/')} à ${top} kg (${l[0]!.date.slice(8)}/${l[0]!.date.slice(5, 7)})` } : {}) } } as PEx;
+    }) } as unknown as SportSession;
+}
+
+function Routines({ toast, prs, onDone }: { toast: (t: string) => void; prs: Record<string, number>; onDone?: () => void }) {
+  const [list, setList] = useState<Routine[] | null>(null);
+  const [edit, setEdit] = useState<Routine | null | 'new'>(null);
+  const [play, setPlay] = useState<SportSession | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  useEffect(() => { forme.routines().then(r => setList(r.routines)).catch(() => setList([])); }, []);
+  const go = async (r: Routine | null) => { setBusy(r?.id ?? 'free'); try { setPlay(await routineSession(r)); } finally { setBusy(null); } };
+  return (
+    <>
+      <H2 right={<button onClick={() => setEdit('new')} style={{ border: 'none', background: 'none', color: F.accent, fontWeight: 600, fontSize: 14.5, cursor: 'pointer', fontFamily: 'inherit' }}>＋ Nouvelle</button>}>Mes routines</H2>
+      <button onClick={() => void go(null)} style={{ ...card, width: '100%', border: 'none', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', fontFamily: 'inherit', color: F.ink, textAlign: 'start' }}>
+        <div style={{ width: 44, height: 44, borderRadius: 22, background: F.soft, color: F.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{busy === 'free' ? <Spinner size={18} /> : '＋'}</div>
+        <div style={{ flex: 1 }}><div style={{ fontWeight: 700 }}>Séance libre</div><div style={{ fontSize: 12.5, color: F.muted }}>Commence vide, ajoute tes exercices au fur et à mesure</div></div>
+      </button>
+      {list?.map(r => (
+        <div key={r.id} style={{ ...card, marginTop: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, fontSize: 16 }}>{r.name}</div><div style={{ fontSize: 12.5, color: F.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.exercises.map(e => e.name).join(', ')}</div></div>
+            <button onClick={() => setEdit(r)} aria-label="Modifier" style={{ border: 'none', background: F.bg, borderRadius: 10, width: 34, height: 34, cursor: 'pointer' }}>✎</button>
+            <button onClick={async () => { if (confirm(`Supprimer « ${r.name} » ?`)) setList((await forme.delRoutine(r.id)).routines); }} aria-label="Supprimer" style={{ border: 'none', background: F.bg, borderRadius: 10, width: 34, height: 34, cursor: 'pointer', color: F.red }}>✕</button>
+          </div>
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', margin: '10px 0', scrollbarWidth: 'none' }}>{r.exercises.map((e, k) => <div key={k} style={{ ...thumb, width: 54, height: 54 }}>{e.img.length ? <Anim img={e.img} alt="" h={46} /> : '🏋️'}</div>)}</div>
+          <button onClick={() => void go(r)} style={{ ...btn, width: '100%', padding: '11px 16px', fontSize: 14.5 }}>{busy === r.id ? '…' : '▶ Démarrer la routine'}</button>
+        </div>
+      ))}
+      <RoutineEditor open={!!edit} init={edit && edit !== 'new' ? edit : null} onClose={() => setEdit(null)} onSaved={setList} />
+      {play && <Player s={play} prs={prs} onClose={() => setPlay(null)} onFinished={msg => { setPlay(null); toast(msg); onDone?.(); }} save={async (sets, durationMin, rpe) => {
+        await forme.log('workout', { session: 0, label: play.label, sets, durationMin, rpe });
+        return `💪 ${play.label} enregistrée`;
+      }} />}
+    </>
   );
 }
 
@@ -256,6 +434,7 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
   const s = pick ? picked : d.today ?? d.next;
   const isToday = !!s && s.date === today;
   const weekVol = d.stats.weeks[d.stats.weeks.length - 1]?.volume ?? 0;
+  const prs = Object.fromEntries(d.stats.prs.map(p => [norm(p.ex), p.kg]));
   const dateLong = new Date().toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' });
   return (
     <div style={{ padding: '0 14px' }}>
@@ -285,6 +464,7 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
         <H2 right={<span style={{ fontSize: 13, color: F.muted }}>{s.exercises.length}</span>}>Exercices</H2>
         <div style={{ ...card, padding: '4px 14px' }}>{s.exercises.map((e, k) => <div key={e.id} style={{ borderBottom: k < s.exercises.length - 1 ? `1px solid ${F.line}` : 'none' }}><ExRow e={e} onClick={() => setEx(e)} /></div>)}</div>
       </>}
+      <Routines toast={toast} prs={prs} onDone={() => void load()} />
       <Shortcuts go={go} />
       <H2>Récupération</H2>
       <div style={{ ...card }}>
@@ -323,7 +503,7 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
         </div>
       </>}
       <ExerciseSheet session={ex} onClose={() => setEx(null)} />
-      {play && <Player s={play} onClose={() => setPlay(null)} onFinished={msg => { setPlay(null); toast(msg); void load(); }} save={async (sets, durationMin, rpe) => {
+      {play && <Player s={play} prs={prs} onClose={() => setPlay(null)} onFinished={msg => { setPlay(null); toast(msg); void load(); }} save={async (sets, durationMin, rpe) => {
         const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date: d.week[0]?.date ?? play.date, type: play.type, sets, durationMin, rpe }) });
         return `💪 Séance enregistrée${r.prs.length ? ` — 🏆 record : ${r.prs.join(', ')}` : ''} · Dzaryx est prévenu`;
       }} />}
@@ -360,6 +540,7 @@ export function ProgramSport({ toast, go }: { toast: (t: string) => void; go?: (
         <H2>Exercices</H2>
         <div style={{ ...card, padding: '4px 14px' }}>{s.exercises.map((e, k) => <div key={e.id} style={{ borderBottom: k < s.exercises.length - 1 ? `1px solid ${F.line}` : 'none' }}><ExRow e={e} onClick={() => setEx(e)} /></div>)}</div>
       </>}
+      <Routines toast={toast} prs={{}} onDone={() => void load()} />
       <Shortcuts go={go} />
       <H2>Toutes les séances</H2>
       <div style={{ ...card, padding: '4px 14px' }}>{d.sessions.map((x, i) => <div key={i} style={{ padding: '11px 0', borderBottom: i < d.sessions.length - 1 ? `1px solid ${F.line}` : 'none', fontSize: 14.5 }}>{x.emoji} <b>{x.label}</b> <span style={{ color: F.muted }}>· {x.focus}</span></div>)}</div>

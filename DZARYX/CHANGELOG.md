@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-31 19h — FORME façon Hevy + Strong + Fitbod réunis (app v221)
+- Images manquantes : exercices sur mesure sans photo → photo de l'exercice le plus proche (matchExerciseId/fillDemos, cache sport:exlib:match) dans GET /api/sport.
+- Mes routines (créer/modifier/supprimer, kv <uid>:forme:routines) + Séance libre ; « Précédent » repris de l'historique (GET /api/forme/exlast).
+- Mode séance : types de série W/D/F, échauffement auto (50/70/85 %), calculateur de disques, Remplacer (même muscle) / ＋ Ajouter un exercice, record battu en direct, résumé par exercice ; toutes les séries vont aussi dans l'historique des fiches (POST /api/forme/exlog-batch).
+
 ## 2026-10-31 18h — FORME : courses supprimées partout + Séance « pro » façon Hevy/Fitbod (app v220)
 - Serveur : routes et code repas/semaine/liste de courses du foyer/Open Food Facts supprimés (5873ec2) ; consigne du coach de vie : jamais repas ni courses.
 - Onglet Séance refait : pastilles de la semaine, carte du jour avec exercices en images, carte de RÉCUPÉRATION du corps (vert/orange/rouge), stats + graphe séances/semaine, records, historique.

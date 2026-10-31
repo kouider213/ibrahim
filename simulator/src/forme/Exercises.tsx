@@ -364,3 +364,44 @@ export function RecoveryMap({ rec, h = 190 }: { rec: Array<{ muscle: string; pct
   );
   return <div style={{ display: 'flex', justifyContent: 'center', gap: 20, direction: 'ltr' }}>{fig('f')}{fig('b')}</div>;
 }
+
+// ── Sélecteur d'exercices (routines, « + Exercice » et « Remplacer » pendant la séance) ──
+let libCache: LibItem[] | null = null;
+export async function loadLib(): Promise<LibItem[]> { if (!libCache) libCache = (await get<{ items: LibItem[] }>('/api/forme/exlib')).items; return libCache; }
+export const COACH_TO_GROUP: Record<string, string> = { pecs: 'chest', dos: 'back', epaules: 'shoulders', bras: 'biceps', jambes: 'legs', abdos: 'abs' };
+export function LibraryPicker({ open, onClose, onPick, multi = false, group: g0 = null, likeId = null, title = 'Ajouter des exercices', z = 75 }: { open: boolean; onClose: () => void; onPick: (items: LibItem[]) => void; multi?: boolean; group?: string | null; likeId?: string | null; title?: string; z?: number }) {
+  const [items, setItems] = useState<LibItem[] | null>(libCache);
+  const [group, setGroup] = useState<string | null>(g0);
+  const [q, setQ] = useState('');
+  const [sel, setSel] = useState<LibItem[]>([]);
+  const [n, setN] = useState(30);
+  const groupOf = (lib: LibItem[] | null) => { const it = likeId && lib ? lib.find(x => x.id === likeId) : null; return it ? GROUPS.find(gr => it.p.some(m => gr.m.includes(m)))?.id ?? g0 : g0; };
+  useEffect(() => { if (open) { setSel([]); setQ(''); setGroup(groupOf(items)); setN(30); if (!items) void loadLib().then(l => { setItems(l); setGroup(groupOf(l)); }).catch(() => {}); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  const list = useMemo(() => {
+    if (!items) return [];
+    const t = q.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const gg = GROUPS.find(x => x.id === group);
+    const rank = (x: LibItem) => (x.cat === 'strength' ? 0 : 1) + (['dumbbell', 'barbell', 'cable', 'machine'].includes(x.eq) ? 0 : 1);
+    return items.filter(x => (!t || `${x.fr} ${x.name}`.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes(t)) && (!gg || x.p.some(m => gg.m.includes(m)))).sort((a, b) => rank(a) - rank(b));
+  }, [items, group, q]);
+  const pick = (x: LibItem) => { vibrate(10); if (!multi) { onPick([x]); onClose(); return; } setSel(s => s.some(y => y.id === x.id) ? s.filter(y => y.id !== x.id) : [...s, x]); };
+  return (
+    <Sheet open={open} onClose={onClose} z={z} title={<div style={{ fontSize: 20, fontWeight: 700, paddingTop: 6 }}>{title}</div>}>
+      <input value={q} onChange={e => setQ(e.target.value)} placeholder="Chercher un exercice" style={{ ...input, borderRadius: 12, background: F.tile, border: 'none', marginBottom: 8 }} />
+      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8, scrollbarWidth: 'none' }}>
+        {GROUPS.map(x => <button key={x.id} onClick={() => setGroup(group === x.id ? null : x.id)} style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 999, border: 'none', background: group === x.id ? F.ink : F.tile, color: group === x.id ? '#fff' : F.ink, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>{x.label}</button>)}
+      </div>
+      {!items && <div style={{ display: 'flex', justifyContent: 'center', padding: 30 }}><Spinner /></div>}
+      <div style={{ display: 'grid', gap: 2 }}>
+        {list.slice(0, n).map(x => { const on = sel.some(y => y.id === x.id); return (
+          <button key={x.id} onClick={() => pick(x)} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '7px 6px', borderRadius: 12, border: 'none', background: on ? F.soft : 'transparent', cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit', color: F.ink }}>
+            <div style={{ width: 54, height: 54, borderRadius: 12, background: F.tile, flexShrink: 0, padding: 3, boxSizing: 'border-box', display: 'flex', alignItems: 'center' }}><Img src={x.img[0]} style={{ width: '100%', height: 46, objectFit: 'contain', background: 'transparent', mixBlendMode: 'multiply' }} /></div>
+            <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14.5 }}>{x.fr}</div><div style={{ fontSize: 12, color: F.muted }}>{x.p.map(m => MUSCLE_FR[m] ?? m).join(', ')} · {EQ_FR[x.eq] ?? x.eq}</div></div>
+            {multi && <div style={{ width: 24, height: 24, borderRadius: 12, border: on ? 'none' : `2px solid ${F.line}`, background: on ? F.accent : 'transparent', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>{on ? '✓' : ''}</div>}
+          </button>); })}
+      </div>
+      {list.length > n && <button onClick={() => setN(n + 30)} style={{ ...ghostBtn, width: '100%', marginTop: 8 }}>Voir plus</button>}
+      {multi && <div style={{ position: 'sticky', bottom: 0, paddingTop: 10, background: F.bg }}><button disabled={!sel.length} onClick={() => { onPick(sel); onClose(); }} style={{ ...btn, width: '100%', opacity: sel.length ? 1 : 0.5 }}>Ajouter {sel.length ? `(${sel.length})` : ''}</button></div>}
+    </Sheet>
+  );
+}

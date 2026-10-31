@@ -747,6 +747,44 @@ export async function delExSet(uid: Uid, id: string, at: number): Promise<ExSet[
   return all[id]!;
 }
 
+/** Plusieurs séries d'un coup (fin de séance) → historique de chaque exercice de la bibliothèque. */
+export async function addExSets(uid: Uid, sets: Array<{ id: string; kg?: number; reps?: number }>): Promise<number> {
+  const all = await readExLog(uid);
+  const date = localNow().date; let n = 0; const t = Date.now();
+  for (const x of sets.slice(0, 120)) {
+    if (!x.id) continue;
+    const row: ExSet = { at: t + n, date, ...(x.kg && x.kg > 0 ? { kg: Math.round(x.kg * 10) / 10 } : {}), ...(x.reps && x.reps > 0 ? { reps: Math.round(x.reps) } : {}) };
+    all[x.id] = [...(all[x.id] ?? []), row].slice(-300); n++;
+  }
+  await kvSet(EXLOG_K(uid), JSON.stringify(all));
+  return n;
+}
+/** Dernière séance notée pour chaque exercice (colonne « Précédent » des routines). */
+export async function exLast(uid: Uid, ids: string[]): Promise<Record<string, ExSet[]>> {
+  const all = await readExLog(uid); const out: Record<string, ExSet[]> = {};
+  for (const id of ids) { const l = all[id] ?? []; const d = l[l.length - 1]?.date; if (d) out[id] = l.filter(x => x.date === d); }
+  return out;
+}
+
+// ── MES ROUTINES (façon Hevy) : séances perso composées depuis la bibliothèque ──
+export interface RoutineEx { id: string; name: string; img: string[]; sets: number; reps: string; rest: number }
+export interface Routine { id: string; name: string; at: number; exercises: RoutineEx[] }
+const ROUT_K = (uid: Uid) => `${uid}:forme:routines`;
+export async function routines(uid: Uid): Promise<Routine[]> { return readJson<Routine[]>(ROUT_K(uid), []); }
+export async function saveRoutine(uid: Uid, r: Partial<Routine> & { name: string; exercises: RoutineEx[] }): Promise<Routine[]> {
+  const list = await routines(uid);
+  const clean: Routine = { id: r.id && /^[\w-]{4,20}$/.test(r.id) ? r.id : Math.random().toString(36).slice(2, 10), name: String(r.name).slice(0, 60), at: Date.now(),
+    exercises: r.exercises.slice(0, 20).map(e => ({ id: String(e.id).slice(0, 100), name: String(e.name).slice(0, 80), img: (e.img ?? []).slice(0, 2).map(String), sets: Math.min(10, Math.max(1, Number(e.sets) || 3)), reps: String(e.reps || '10').slice(0, 10), rest: Math.min(600, Math.max(15, Number(e.rest) || 90)) })) };
+  const next = [clean, ...list.filter(x => x.id !== clean.id)].slice(0, 30);
+  await kvSet(ROUT_K(uid), JSON.stringify(next));
+  return next;
+}
+export async function deleteRoutine(uid: Uid, id: string): Promise<Routine[]> {
+  const next = (await routines(uid)).filter(x => x.id !== id);
+  await kvSet(ROUT_K(uid), JSON.stringify(next));
+  return next;
+}
+
 // ── Exercices favoris (le petit marque-page de la vidéo) ──
 const EXFAV_K = (uid: Uid) => `${uid}:forme:exfav`;
 export async function exFavs(uid: Uid): Promise<string[]> { return readJson<string[]>(EXFAV_K(uid), []); }

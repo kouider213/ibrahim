@@ -5,7 +5,7 @@ import {
   parseImage, addBodyPhoto, analyzeBodyPhoto, askFormeCoach, storeFormeSub, formeTargets,
   adaptNextSession, doctorReport, translateAr, createInvite, revokeInvite, uidFromFormeToken, getProgram, programOverview,
   type FormeProfile, type BodyPhoto, type Uid,
-  scanMachine, machineHistory, deleteMachine, exFavs, toggleExFav, exHistory, addExSet, delExSet,
+  scanMachine, machineHistory, deleteMachine, exFavs, toggleExFav, exHistory, addExSet, delExSet, addExSets, exLast, routines, saveRoutine, deleteRoutine, type RoutineEx,
 } from '../../integrations/forme.js';
 import type { PushSubscription } from 'web-push';
 import { exerciseLibrary, exerciseDetail, matchExercise } from '../../integrations/exercise-lib.js';
@@ -79,6 +79,23 @@ router.post('/exlog', async (req, res) => {
 });
 
 // POST /api/forme/log { kind, date?, … } — eau, poids, repas coché, aliment, protéines, mensurations, injection, effet, séance
+// Fin de séance : toutes les séries → historique des exercices ; dernières séries de plusieurs exercices (colonne « Précédent »)
+router.post('/exlog-batch', async (req, res) => {
+  const sets = Array.isArray((req.body as { sets?: unknown }).sets) ? (req.body as { sets: Array<{ id: string; kg?: number; reps?: number }> }).sets : [];
+  try { res.json({ n: await addExSets(U(req), sets.map(x => ({ id: String(x.id ?? '').slice(0, 100), kg: Number(x.kg) || undefined, reps: Number(x.reps) || undefined }))) }); } catch (err) { fail(res, err); }
+});
+router.get('/exlast', async (req, res) => {
+  try { res.json({ last: await exLast(U(req), String(req.query.ids ?? '').split(',').filter(Boolean).slice(0, 30)) }); } catch (err) { fail(res, err); }
+});
+// Mes routines (séances perso)
+router.get('/routines', async (req, res) => { try { res.json({ routines: await routines(U(req)) }); } catch (err) { fail(res, err); } });
+router.post('/routines', async (req, res) => {
+  const b = req.body as { id?: string; name?: string; exercises?: RoutineEx[] };
+  if (!b.name || !Array.isArray(b.exercises) || !b.exercises.length) { fail(res, 'nom et exercices requis', 400); return; }
+  try { res.json({ routines: await saveRoutine(U(req), { id: b.id, name: b.name, exercises: b.exercises }) }); } catch (err) { fail(res, err); }
+});
+router.delete('/routines/:id', async (req, res) => { try { res.json({ routines: await deleteRoutine(U(req), String(req.params.id)) }); } catch (err) { fail(res, err); } });
+
 router.post('/log', async (req, res) => {
   const b = req.body as Record<string, unknown>;
   try { await logForme(String(b.kind ?? ''), b, isDate(b.date) ? b.date : undefined, U(req)); res.json(await formeOverview(U(req))); } catch (err) { fail(res, err); }
