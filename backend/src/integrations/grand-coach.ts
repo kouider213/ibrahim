@@ -386,6 +386,7 @@ async function piliers(): Promise<Record<string, number>> {
   const c = (x: number) => Math.max(0, Math.min(10, Math.round(x)));
   return { Business: c(total ? done / total * 10 : count('business') * 2), Santé: c(count('forme') * 1.5), Famille: c(count('pere') * 1.5), Amis: c((cercle + friends) * 2.5) };
 }
+export async function piliersNow(): Promise<Record<string, number>> { return piliers(); }
 export async function equilibre(): Promise<string> {
   const p = await piliers();
   if (Object.values(p).reduce((x, y) => x + y, 0) <= 2) return '⚖️ Équilibre de ta semaine : pas encore assez de données (tout commence aujourd\'hui). Coche tes 3 actions (« fait 1 »), réponds à l\'examen du soir et dis-moi quand tu vois un proche : samedi prochain tu auras ton vrai score sur 10 pour le business, la santé, la famille et les amis.';
@@ -431,7 +432,9 @@ export async function jobGrandCoach(): Promise<void> {
   if (!off && at('18:30')) await run('soir', eveningCheck, { important: true });
   if (at('21:30', 60)) await run('victoires', async () => { await plus.collectWins(); }, { silent: true });
   if (weekday === 5 && at('17:00')) await run('revue', revue);
-  if (weekday === 6 && at('10:00')) await run('equilibre', async () => `${await equilibre()}\n\n${await plus.wordScore()}`);
+  if (weekday === 6 && at('10:00')) await run('equilibre', async () => `${await equilibre()}\n\n${await plus.wordScore()}\n\n${await import('./grand-coach-futur.js').then(m => m.evolution()).catch(() => '')}`);
+  if (weekday === 0 && at('22:00', 120)) await run('snapshot', async () => { await import('./grand-coach-futur.js').then(m => m.snapshot()); }, { silent: true });
+  if (date.endsWith('-15') && at('09:00')) await run('futur', async () => import('./grand-coach-futur.js').then(m => m.futur()));
   if (weekday === 0 && at('10:00')) await run('ibrahim', plus.ibrahimQuestion);
   if (weekday === 2 && at('10:00')) await run('anciens', async () => { const t = await anciensClients(); return t.startsWith('😴') ? '' : t; });
   if (date.endsWith('-01') && at('09:00')) await run('mois', async () => {
@@ -544,6 +547,8 @@ export async function grandCoachTool(input: Row): Promise<string> {
     case 'epargne': return (await import('./grand-coach-plus.js')).saving(input);
     case 'baraka': return (await import('./grand-coach-plus.js')).baraka();
     case 'geste': return (await import('./grand-coach-plus.js')).geste();
+    case 'futur': return (await import('./grand-coach-futur.js')).futur();
+    case 'evolution': { const f = await import('./grand-coach-futur.js'); if (!(await kvJson<unknown[]>('gc:evo', [])).length) await f.snapshot(); return f.evolution(); }
     case 'on': case 'off': { await kvPut(K.settings, { ...(await settings()), on: a === 'on' }); return a === 'on' ? '✅ Grand Coach activé.' : '⏸️ Grand Coach en pause (plus de messages planifiés).'; }
   }
   return '❌ action inconnue.';

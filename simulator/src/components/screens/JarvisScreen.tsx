@@ -945,6 +945,11 @@ function Coach({ onAsk }: { onAsk: (prompt: string) => void }) {
         <Btn onClick={() => onAsk('Grand coach, mode tempête : ')}>⛈️ Ça va pas (tempête)</Btn>
         <Btn onClick={() => onAsk('Examen du soir : 1) ce que j\'ai fait de bien : … 2) à faire mieux demain : … 3) j\'ai été là pour : …')}>📝 Examen du soir</Btn>
       </div>
+      <SectionTitle>🔭 Mon évolution & mon futur</SectionTitle>
+      <div style={grid}>
+        <Btn disabled={busy} onClick={() => act({ action: 'futur' })}>🔭 Je serai quoi dans 1, 2, 5, 10 ans ?</Btn>
+        <Btn disabled={busy} onClick={() => act({ action: 'evolution' })}>📈 Mon score d'évolution</Btn>
+      </div>
       <SectionTitle>🚀 Coach + (il t'accompagne toute la journée)</SectionTitle>
       <div style={grid}>
         {COACH_PLUS.map(([l, b]) => <Btn key={l} disabled={busy} onClick={() => act(b)}>{l}</Btn>)}

@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 31/10 — MIROIR DU FUTUR : « si je continue comme ça, je serai quoi dans 1, 2, 5, 10 ans ? » (app v217)
+- `integrations/grand-coach-futur.ts` : CA/bénéfice 12 mois réels → projection 1/2/3/5/10 ans « comme ça » vs « meilleure version » (croissance nécessaire pour l'objectif CA du GPS de vie, plafonnée à l'objectif puis +15 %/an), épargne = part « répartition », fiabilité selon les mois de données, portrait IA (entrepreneur + personne) + 3 changements. Ton : lucide sans humilier, pas de verdict famille/santé avant 3 semaines de mesures, patrimoine « non renseigné » plutôt que 0.
+- Score d'évolution /100 (4 piliers) : photo chaque dimanche 22h → courbe ; envoyé le samedi avec l'équilibre ; projection complète le 15 de chaque mois. Actions grand_coach futur / evolution ; app JARVIS › Coach › 🔭.
+
 ## 31/10 — GRAND COACH + : 20 capacités pour l'accompagner toute la journée (app v216)
 - `integrations/grand-coach-plus.ts` : vocal du coach (Gemini TTS) après le texte de 7h15, compte à rebours avant le départ de Belgique, GPS arrivée au travail → mission de la pause, sas de décompression avant la maison (GPS, 15h30-22h30), lettre du Kouider de 2036 (1er du mois), pré-mortem du mardi, bocal des victoires (auto 21h30 + « victoire : »), anti-procrastination 16h + report au lendemain (max 2 fois), score de parole (samedi), technique de négo / gym du vendeur notée /10 (12h30, un jour sur deux), Principes de Kouider (réservation annulée/refusée → règle), lettres à Ibrahim (dimanche 10h), mentor du mois, toi vs il y a 30 j, liste « j'arrête de… » (mercredi), défi épargne 52 semaines, baraka du vendredi, geste pour sa femme (mardi/samedi).
 - Le coach sait se taire : fenêtres souples de 90 min, attend s'il conduit (gps:state) ou en « ne me dérange pas », budget 7 messages/jour hors messages principaux. Sections ajoutées aux messages existants plutôt que des messages en plus.
