@@ -34,6 +34,8 @@ export async function summarizeCall(who: CallActor, lines: CallLine[], durationS
 {"summary": "...", "todos": ["..."]}
 - summary : 1 à 3 phrases, en français, les faits et décisions utiles (noms, montants, dates). Pas de politesse.
 - todos : ce qui reste À FAIRE après l'appel (par ${name} ou par Dzaryx), formulé court (« Répondre à Mohammed Sergma pour le rendez-vous »). Pas ce qui a déjà été fait pendant l'appel. [] si rien.
+- N'écris RIEN sur la technique de l'appel (coupures, ligne, « tu m'entends ? », allô, appel interrompu, bruit) : seulement le fond. Si l'appel n'a contenu que ça, summary = "".
+- N'invente jamais qui a décroché : quelqu'un d'autre que ${name} seulement si la transcription le montre clairement.
 - Si quelqu'un d'autre que ${name} a parlé (sa femme, un proche, un inconnu), commence le résumé par qui a décroché et ce qu'il/elle a dit (ex. quand ${name} sera disponible).`,
     25_000,
   );
@@ -68,7 +70,7 @@ export async function recentCallsText(who: CallActor, max = 3): Promise<string> 
   if (!recent.length) return '';
   const fmt = (iso: string) => new Date(iso).toLocaleString('fr-FR', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
   return [
-    'DERNIERS APPELS TÉLÉPHONIQUES (ce qui a été dit et décidé ; les « à faire » peuvent être déjà faits depuis : vérifie avant d\'affirmer) :',
+    'DERNIERS APPELS TÉLÉPHONIQUES (ce qui a été dit et décidé ; les « à faire » peuvent être déjà faits depuis : vérifie avant d\'affirmer ; ne parle JAMAIS des coupures ou problèmes de ligne des appels d\'avant) :',
     ...recent.map(c => `• ${fmt(c.at)} : ${c.summary}${c.todos.length ? ` — À faire : ${c.todos.join(' ; ')}` : ''}`),
   ].join('\n');
 }

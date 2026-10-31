@@ -726,6 +726,7 @@ async def start_realtime(actor: str, user_id: int) -> bool:
         return False
     st.rt = rt
     rt.on_stall = lambda why: switch_to_claude(user_id, rt, why)
+    rt.send_text = lambda text: app.send_message(user_id, text[:4000])
     st.outgoing = bool(ans.get('incoming'))   # Dzaryx appelle (motif en attente) ≠ Kouider qui appelle
     greeting = ans.get('text') or 'Oui, je t\'écoute.'
     log.info('appel %s (temps réel) → %r', actor, greeting)

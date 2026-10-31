@@ -117,6 +117,22 @@ def _ask_key(request: str) -> str:
     return re.sub(r'[^a-z0-9]+', ' ', (request or '').lower().replace('confirmé au téléphone', '')).strip()
 
 
+
+# 31/10 : en test, Gemini a mis confirmed:true sur un rappel sans jamais demander « je le fais ? ».
+# Une action confirmée ne part que si SA dernière phrase est un oui (ou un ordre clair).
+YES_RE = re.compile(r"\b(oui|ouais|ouai|ok|okay|d'?accord|dac|vas[- ]?y|fais[- ]?(le|la|ça)|go|confirme|confirmé|parfait|"
+                    r"exactement|c'?est bon|valide|valid[ée]|wah|iyeh|yes|bien s[uû]r|carr[ée]ment|envoie|lance|enregistre|"
+                    r"note|programme|r[ée]serve|nickel|top|impec|sah|3afak)\b|واه|إيه|ايه|نعم", re.I)
+
+
+def said_yes(lines: list[dict]) -> bool:
+    last = next((l['text'] for l in reversed(lines) if l['role'] == 'user'), '')
+    t = last.strip().lower()
+    if not t or (re.match(r"^non\b", t) and not re.search(r"\bnon,? (vas|fais|c'est bon)", t)):
+        return False
+    return bool(YES_RE.search(t))
+
+
 class RealtimeCall:
     def __init__(self, calls: PyTgCalls, http: aiohttp.ClientSession, api: ApiFn, user_id: int, actor: str,
                  local_tools: dict[str, LocalTool] | None = None):
@@ -162,6 +178,7 @@ class RealtimeCall:
         self.reconnects = 0
         self.live_model = ''              # modèle Gemini Live en cours (écarté s'il coupe)
         self.drop_at = 0.0                # dernière coupure Gemini Live
+        self.send_text = None             # async (texte) → message Telegram à Kouider (tâche de fond finie après l'appel)
         self.on_stall = None              # async (why) → l'appel passe sur l'ancienne chaîne (cerveau Claude)
         self.loud_s = 0.0                 # secondes de sa voix depuis la dernière réaction de Dzaryx
         self.last_loud = 0.0
@@ -687,6 +704,34 @@ class RealtimeCall:
         age = time.monotonic() - hit[0]   # encore en cours (< 2 min) ou finie il y a moins de 30 s
         return hit[1] if (age < 120 and not hit[1].done()) or age < 30 else None
 
+    async def _background(self, req: str, fut: asyncio.Future) -> None:
+        """Tâche longue (document, étude, site…) : le cerveau travaille pendant que l'appel continue (31/10 : 45-70 s d'attente)."""
+        t0 = time.monotonic()
+        try:
+            out = await self.api('/api/call/turn', {'message': req, 'textOnly': True}, self.actor, 300)
+            result = out.get('text') or 'Pas de réponse.'
+        except Exception as e:
+            result = f'Erreur technique : {e}'
+        if not fut.done():
+            fut.set_result(result)
+        log.info('tâche de fond (%.0fs) %r → %r', time.monotonic() - t0, req[:80], result[:120])
+        if not self.closed and not (self.guarded and self.who != 'kouider'):
+            end = time.monotonic() + 30
+            while (self.responding or self.out) and time.monotonic() < end and not self.closed:
+                await asyncio.sleep(0.3)
+            if not self.closed:
+                await self._send({'type': 'conversation.item.create', 'item': {'type': 'message', 'role': 'system', 'content': [
+                    {'type': 'input_text', 'text': f'La tâche lancée en fond est finie : « {req[:300]} ». Résultat : « {result[:1500]} ». '
+                     'Si le résultat contient un lien, envoie-le avec send_text_to_me sans le lire.'}]}})
+                await self._send({'type': 'response.create', 'response': {'instructions':
+                    'Enchaîne naturellement (« au fait, c\'est prêt : … ») en une ou deux phrases, puis reviens au sujet.'}})
+                return
+        if self.send_text:
+            try:
+                await self.send_text(f'✅ Fini : {result}')
+            except Exception as e:
+                log.warning('tâche de fond → Telegram: %s', e)
+
     async def _tool(self, ev: dict) -> None:
         self.tools_running += 1   # un outil qui cherche 20 s n'est pas une voix bloquée
         try:
@@ -713,6 +758,18 @@ class RealtimeCall:
             log.warning('outil %s refusé : ce n\'est pas Kouider (%s)', name, self.who)
             result = ('BLOQUÉ : ce n\'est pas Kouider au téléphone (voix pas reconnue). Ne donne AUCUNE information '
                       'sur ses affaires. Reste naturel et discret.')
+        elif ((args.get('confirmed') is True or (name == 'ask_dzaryx' and 'CONFIRM' in (args.get('request') or '')[:30].upper()))
+              and not said_yes(self.lines)):
+            log.warning('outil %s refusé : pas de oui de %s', name, self.actor)
+            result = ('PAS FAIT : il n\'a pas encore dit oui. Relis-lui en une phrase ce que tu vas faire et demande « je le fais ? ». '
+                      'Relance cet outil seulement après son oui.')
+        elif name == 'ask_dzaryx' and args.get('background') and self._same_ask(args.get('request', '')) is None:
+            req = args.get('request', '')
+            fut = asyncio.get_running_loop().create_future()
+            self.asking[_ask_key(req)] = (time.monotonic(), fut)
+            asyncio.create_task(self._background(req, fut))
+            result = ('LANCÉ EN FOND (le cerveau y travaille 1 à 2 min). Dis-lui en une phrase que c\'est lancé et que tu le '
+                      'préviens dès que c\'est prêt, puis continue la conversation. N\'attends pas le résultat.')
         elif name in self.local_tools:
             try:
                 result, follow_up = await self.local_tools[name](args)
