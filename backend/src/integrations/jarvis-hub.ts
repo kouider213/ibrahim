@@ -22,9 +22,24 @@ export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok
   // Format réel du Raccourci (27/10) : {"data":{"steps":"131\n64\n…","heart_rate_variability":"20.1\n27.0…","resting_heart_rate":"71","sleep":"…"}}
   // → calcul exact : pas = somme, VFC = moyenne, cœur au repos = dernière valeur, sommeil = somme (heures, ou minutes/secondes converties)
   const d0 = (typeof body['data'] === 'object' && body['data']) ? body['data'] as Record<string, unknown> : body;
+  await kvPut('health:lastraw:any', JSON.stringify(body).slice(0, 60_000), 7 * 86_400).catch(() => {});   // dernier envoi brut (vérifier le format du sommeil)
   const nums = (v: unknown) => String(v ?? '').split(/[\n,;]+/).map(x => Number(x.trim().replace(',', '.'))).filter(x => Number.isFinite(x) && x > 0);
   const pick = (re: RegExp) => Object.entries(d0).find(([k]) => re.test(k))?.[1];
-  const stepsL = nums(pick(/step|^pas/i)), hrvL = nums(pick(/variab|hrv|vfc/i)), rhrL = nums(pick(/rest\w*_?(heart|hr|card)|repos|rhr/i)), sleepL = nums(pick(/sleep|sommeil/i));
+  // Sommeil (31/10) : chaque ligne peut être « 25200 » (s), « 420 » (min), « 7,2 » (h), « 7 h 12 min », « 1:35:00 » ou « 2 hr 5 min »
+  // → tout est converti en HEURES ligne par ligne (les lignes « Au lit » / « Éveillé » sont ignorées si le Raccourci les envoie en texte).
+  const durH = (line: string): number => {
+    const t = line.trim().toLowerCase().replace(',', '.');
+    if (!t || /au lit|in ?bed|éveill|eveill|awake/.test(t)) return 0;
+    const hms = /^(\d+):(\d{1,2})(?::(\d{1,2}))?$/.exec(t);
+    if (hms) return Number(hms[1]) + Number(hms[2]) / 60 + Number(hms[3] ?? 0) / 3600;
+    const h = /([\d.]+)\s*(h|hr|hrs|heure|heures|hour|hours)\b/.exec(t), m = /([\d.]+)\s*(min|mn|minute|minutes|m)\b/.exec(t), sec = /([\d.]+)\s*(s|sec|seconde|secondes|second|seconds)\b/.exec(t);
+    if (h || m || sec) return Number(h?.[1] ?? 0) + Number(m?.[1] ?? 0) / 60 + Number(sec?.[1] ?? 0) / 3600;
+    const n = Number(t.replace(/[^\d.]/g, ''));
+    return Number.isFinite(n) && n > 0 ? (n > 24 * 60 ? n / 3600 : n > 24 ? n / 60 : n) : 0;   // nombre seul : secondes / minutes / heures
+  };
+  const sleepRaw = pick(/sleep|sommeil/i);
+  const sleepHL = String(sleepRaw ?? '').split(/[\n;]+/).map(durH).filter(x => x > 0 && x < 24);
+  const stepsL = nums(pick(/step|^pas/i)), hrvL = nums(pick(/variab|hrv|vfc/i)), rhrL = nums(pick(/rest\w*_?(heart|hr|card)|repos|rhr/i)), sleepL = sleepHL;
   // 28/10 : montre = calories actives, poids (balance), entraînements (noms + durées) — Kouider ne dort pas avec sa montre
   const kcalL = nums(pick(/active|actif|calor|kcal/i)), weightL = nums(pick(/weight|poids|body_?mass|masse/i));
   const woRaw = pick(/^(?!.*(dur|time|temps)).*(workout|entra[iî]n|s[ée]ance)/i), woDurL = nums(pick(/dur[ée]e|duration/i));
@@ -34,8 +49,7 @@ export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok
   let woMin = woDurL.reduce((a, b) => a + b, 0);
   if (woMin > 600) woMin /= 60;                          // secondes → minutes
   if (stepsL.length || hrvL.length || rhrL.length || sleepL.length) {
-    let sl = sleepL.reduce((a, b) => a + b, 0);
-    if (sl > 24 * 60) sl /= 3600; else if (sl > 24) sl /= 60;   // secondes ou minutes → heures
+    const sl = Math.min(16, sleepL.reduce((a, b) => a + b, 0));   // déjà en heures (durH) ; plafond anti-doublons
     Object.assign(body, {
       ...(stepsL.length ? { steps: Math.round(stepsL.reduce((a, b) => a + b, 0)) } : {}),
       ...(hrvL.length ? { hrv: Math.round(hrvL.reduce((a, b) => a + b, 0) / hrvL.length) } : {}),

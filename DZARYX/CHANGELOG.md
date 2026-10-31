@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-31 20h30 — Sommeil de la montre : lecture robuste
+- jarvis-hub receiveHealth : durées de sommeil lues ligne par ligne en heures (« 25200 », « 420 », « 7 h 12 min », « 1:35:00 »…), lignes « Au lit » / « Éveillé » ignorées, plafond 16 h ; dernier envoi brut gardé 7 j (kv health:lastraw:any) pour vérifier le format. Kouider dort avec sa montre la nuit du 31/10 pour tester.
+
 ## 2026-10-31 20h — FORME + montre (gratuit) : idées de Whoop, Strava, Nike Training Club, Freeletics, Apple Fitness (app v222)
 - ⌚ Forme du jour (Whoop/Fitbit) en haut de Séance : anneau de récupération (readiness), VFC / cœur au repos vs habitudes, pas, sommeil, tendance 14 j — données de l'Apple Watch via le raccourci Santé (GET /api/forme/watch). Guide « Dzaryx depuis ma montre » (Siri « Dzaryx » sur la Watch).
 - 🔊 Coach vocal (NTC) : annonce exercice / charge, « encore 10 secondes », « c'est reparti ».
