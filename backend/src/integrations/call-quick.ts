@@ -308,10 +308,6 @@ export async function quickModifyBooking(input: Record<string, unknown>, session
   };
   const { error } = await supabase.from('bookings').update(fields).eq('id', b.id);
   if (error) return `❌ Modification pas enregistrée : ${error.message}`;
-  if (car) {
-    await supabase.from('cars').update({ available: true }).eq('id', b.car_id).then(() => {}, () => {});
-    await supabase.from('cars').update({ available: false }).eq('id', car.id).then(() => {}, () => {});
-  }
   let cal = '';
   if (eventId) {
     const ok = await updateCalendarEvent(eventId, { startDate: newStart, endDate: newEnd, ...(car ? { summary: `🚗 ${b.client_name} — ${car.name}` } : {}) }).catch(() => false);

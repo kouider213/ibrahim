@@ -716,19 +716,9 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
     fields['payment_status'] = pa <= 0 ? 'UNPAID' : (fp > 0 && pa >= fp ? 'PAID' : 'PARTIAL');
   }
 
-  // Fetch car_id before update if we need to free the car
-  let carIdToFree: string | null = null;
-  if (input['status'] && ['COMPLETED', 'REJECTED'].includes(input['status'] as string)) {
-    const { data: bk } = await supabase.from('bookings').select('car_id').eq('id', id).single();
-    carIdToFree = bk ? (bk as any).car_id : null;
-  }
-
   const { error } = await supabase.from('bookings').update(fields).eq('id', id);
   if (error) return `Erreur mise à jour: ${error.message}`;
 
-  if (carIdToFree) {
-    try { await supabase.from('cars').update({ available: true }).eq('id', carIdToFree); } catch { /* non-bloquant */ }
-  }
 
   return `✅ Réservation ${id} mise à jour: ${JSON.stringify(fields)}`;
 }
@@ -872,10 +862,8 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
     return `Erreur création: ${error.message}`;
   }
 
-  // Auto-mark car unavailable when booking is active/confirmed
-  if (!['REJECTED', 'COMPLETED'].includes(status)) {
-    try { await supabase.from('cars').update({ available: false }).eq('id', carId); } catch { /* non-bloquant */ }
-  }
+  // cars.available = atelier / retirée du parc, PAS « louée » : les dates prises viennent des bookings
+  // (sinon le site masque la voiture et le client ne peut plus réserver d'autres dates)
 
   const booking = data as any;
   let calendarNote = '';
@@ -956,12 +944,8 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
 
 async function cancelBooking(input: Record<string, unknown>): Promise<string> {
   const id = input['id'] as string;
-  const { data: bk } = await supabase.from('bookings').select('car_id').eq('id', id).single();
   const { error } = await supabase.from('bookings').update({ status: 'REJECTED' }).eq('id', id);
   if (error) return `Erreur annulation: ${error.message}`;
-  if (bk && (bk as any).car_id) {
-    try { await supabase.from('cars').update({ available: true }).eq('id', (bk as any).car_id); } catch { /* non-bloquant */ }
-  }
   return `✅ Réservation ${id} annulée (REJECTED)`;
 }
 
