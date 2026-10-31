@@ -136,6 +136,17 @@ router.post('/life/action', async (req, res) => {
     res.json({ message, overview: await m.lifeOverview() });
   } catch (e) { fail(res, e); }
 });
+// GRAND COACH : texte du jour, 3 actions, défi, piliers + toutes ses options (onglet JARVIS › Coach)
+router.get('/coach', async (_req, res) => {
+  try { res.json(await import('../../integrations/grand-coach.js').then(m => m.grandCoachOverview())); } catch (e) { fail(res, e); }
+});
+router.post('/coach/action', async (req, res) => {
+  try {
+    const m = await import('../../integrations/grand-coach.js');
+    const message = await m.grandCoachTool((req.body ?? {}) as Record<string, unknown>);
+    res.json({ message, overview: await m.grandCoachOverview() });
+  } catch (e) { fail(res, e); }
+});
 router.get('/health', async (_req, res) => {
   try { res.json({ text: [await import('../../integrations/jarvis-hub.js').then(m => m.healthText(14)), await import('../../integrations/workout-live.js').then(m => m.workoutsText(7)).catch(() => '')].filter(Boolean).join('\n\n') }); } catch (e) { fail(res, e); }
 });

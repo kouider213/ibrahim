@@ -5,6 +5,10 @@
 
 ---
 
+## Grand Coach (✅ 31/10/2026)
+- ✅ 10 options business quotidiennes + 10 options coach de vie (outil grand_coach, JARVIS › 🏆 Coach, app v215)
+- 🔵 À valider en vrai : messages planifiés 7h15/12h30/18h30, vendredi, samedi
+
 ## Phase 10 — Site Admin WOW + Multi-Photos + Gallery Dzaryx (✅ Terminé — 2026-06-01)
 
 ### 10.1 — Admin UI Redesign Premium ✅

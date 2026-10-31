@@ -75,6 +75,7 @@ export async function kouiderDossierText(): Promise<string> {
   const mood = await import('./brain-plus.js').then(m => m.moodText()).catch(() => '');
   const liberte = await import('./liberte.js').then(m => m.liberteText()).catch(() => '');   // programme d'arrêt (privé)
   const vie = await import('./life-plus.js').then(m => m.lifeText()).catch(() => '');
+  const gcoach = await import('./grand-coach.js').then(m => m.grandCoachText()).catch(() => '');
   return [
     'QUI EST KOUIDER (son dossier — tu tournes autour de lui, tu le connais par cœur) :',
     dossier?.trim() || BASE,
@@ -86,6 +87,7 @@ export async function kouiderDossierText(): Promise<string> {
     ...(mood ? [mood] : []),
     ...(liberte ? [liberte] : []),
     ...(vie ? [vie] : []),
+    ...(gcoach ? [gcoach] : []),
     ...(forme ? [forme] : []),
   ].join('\n');
 }

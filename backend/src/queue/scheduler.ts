@@ -334,6 +334,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'grand-coach',
+    cron:  '*/15 6-22 * * *',       // GRAND COACH : texte 7h15 + 3 actions, midi, bilan 18h30, revue vendredi, équilibre samedi, anciens clients mardi
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'life-plus',
     cron:  '*/15 5-23 * * *',       // COACH DE VIE+ : votes 21h, revue de vie dimanche 19h, couple, décisions à 30 j, eau, surentraînement, prières, rapport du mois
     tz:    'Europe/Brussels',
@@ -757,6 +762,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'sport-watch':             async () => { await (await import('../integrations/sport-coach.js')).jobSportWatch(); await (await import('../integrations/life-coach.js')).ensureCoachDays(); },
   'life-coach-evening':      jobLifeCoachEvening,
   'life-coach-weekly':       jobLifeCoachWeekly,
+  'grand-coach':             async () => { await (await import('../integrations/grand-coach.js')).jobGrandCoach(); },
   'life-plus':               async () => { await (await import('../integrations/life-plus.js')).jobLifePlus(); },
   'radars':                  async () => { await (await import('../integrations/speed-cameras.js')).jobRadars(); },
   'liberte':                 async () => { await (await import('../integrations/liberte.js')).jobLiberte(); },

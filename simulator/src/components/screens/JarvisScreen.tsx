@@ -10,7 +10,7 @@ import { T, tone, PageHeader, Segmented, Card, Btn, Badge, Empty, Field, Screen,
 // Le micro est découpé aux pauses (petits morceaux envoyés au serveur). Jamais de <video> pendant que le micro tourne
 // (sur iPhone, une vidéo coupe le micro) : l'état des lieux vidéo a son propre onglet, micro éteint.
 
-type Tab = 'vie' | 'cerveau' | 'hud' | 'copilote' | 'escouade' | 'salle' | 'sante' | 'souffleur' | 'reunion' | 'sparring' | 'protocoles' | 'video';
+type Tab = 'coach' | 'vie' | 'cerveau' | 'hud' | 'copilote' | 'escouade' | 'salle' | 'sante' | 'souffleur' | 'reunion' | 'sparring' | 'protocoles' | 'video';
 type Kind = 'souffleur' | 'reunion' | 'sparring';
 interface Line { who: string; text: string; fr?: string; whisper?: string; me?: boolean }
 interface Meeting { id: string; kind: Kind; at: string; title: string; summary: string; decisions: string[]; promises: Array<{ who: string; what: string; when?: string }>; followup: string; minutes: number }
@@ -879,6 +879,77 @@ function Cerveau({ onAsk }: { onAsk: (p: string) => void }) {
   );
 }
 
+// ── 🏆 GRAND COACH : texte du jour, 3 actions qui rapportent, défi, piliers + 20 options (business + vie) ──
+interface CoachOverview {
+  text: string | null; big3: Array<{ text: string; done?: boolean }>; streak: number; defi: { text: string; days: Record<string, boolean> } | null;
+  vision: Record<string, string> | null; statut: { done: number; total: number }; piliers: Record<string, number> | null; sages: string[];
+}
+const COACH_BIZ: Array<[string, Record<string, unknown>]> = [
+  ['📊 Tableau du patron', { action: 'tableau' }], ['🎯 Rythme du mois', { action: 'rythme' }], ['🚗 Rentabilité voitures', { action: 'voitures' }],
+  ['📞 Anciens clients', { action: 'anciens_clients' }], ['💰 Répartir mon argent', { action: 'repartition' }], ['⏱️ Quoi déléguer', { action: 'deleguer' }],
+  ['🏛️ Mon statut en Algérie', { action: 'statut' }], ['🗂️ Revue du patron', { action: 'revue' }], ['🏦 Trésorerie 30 j', { action: 'tresorerie' }],
+];
+const COACH_VIE: Array<[string, Record<string, unknown>]> = [
+  ['📚 Livre du mois', { action: 'livre' }], ['🔥 Défi de la semaine', { action: 'defi' }], ['🤝 Cercle d\'or', { action: 'cercle' }],
+  ['🧭 Ma vision', { action: 'vision' }], ['⚖️ Équilibre 4 piliers', { action: 'equilibre' }],
+];
+function Coach({ onAsk }: { onAsk: (prompt: string) => void }) {
+  const [o, setO] = useState<CoachOverview | null>(null);
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [sage, setSage] = useState('');
+  useEffect(() => { apiFetch<CoachOverview>('/api/jarvis/coach').then(setO).catch(() => setMsg('Impossible de charger.')); }, []);
+  const act = async (body: Record<string, unknown>) => {
+    setBusy(true); setMsg('⏳ Le coach réfléchit…');
+    try { const r = await apiFetch<{ message: string; overview: CoachOverview }>('/api/jarvis/coach/action', { method: 'POST', body: JSON.stringify(body) }); setO(r.overview); setMsg(r.message); }
+    catch { setMsg('Échec, réessaie.'); } finally { setBusy(false); }
+  };
+  if (!o) return <Empty icon="🏆" title={msg || 'Chargement…'} />;
+  const grid = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 } as const;
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      {msg && <Card accent={T.accent}><div style={{ fontSize: 13.5, lineHeight: 1.5, whiteSpace: 'pre-wrap' }} dir="auto">{msg.replace(/\*\*/g, '')}</div></Card>}
+      <SectionTitle>☀️ Texte du jour</SectionTitle>
+      <Card>
+        <div style={{ fontSize: 14, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{o.text ?? 'Ton texte arrive chaque matin à 7h15 (Telegram + ici).'}</div>
+        {!o.text && <Btn disabled={busy} onClick={() => act({ action: 'texte' })} style={{ marginTop: 8 }}>☀️ Mon texte maintenant</Btn>}
+      </Card>
+      <SectionTitle>💼 Mes 3 actions qui rapportent {o.streak ? `· série ${o.streak} j 🔥` : ''}</SectionTitle>
+      <Card>
+        {o.big3.length ? o.big3.map((t, k) => (
+          <div key={k} onClick={() => !t.done && !busy && act({ action: 'fait', n: k + 1 })} style={{ fontSize: 13.5, padding: '7px 0', cursor: t.done ? 'default' : 'pointer', opacity: t.done ? 0.55 : 1 }}>{t.done ? '✅' : '⬜'} {t.text}</div>
+        )) : <Btn disabled={busy} onClick={() => act({ action: 'actions' })}>🎯 Tirer mes 3 actions du jour</Btn>}
+        {o.defi && <div style={{ fontSize: 12.5, color: T.muted, marginTop: 8 }}>🔥 Défi : {o.defi.text} <span onClick={() => !busy && act({ action: 'defi_fait' })} style={{ color: T.accent, cursor: 'pointer' }}>· ✅ fait aujourd'hui</span></div>}
+      </Card>
+      {o.piliers && <Card>
+        {Object.entries(o.piliers).map(([k, v]) => (
+          <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, padding: '3px 0' }}>
+            <span style={{ width: 70 }}>{k}</span>
+            <div style={{ flex: 1, height: 7, background: T.surface2, borderRadius: 4, overflow: 'hidden' }}><div style={{ width: `${v * 10}%`, height: '100%', background: T.accent }} /></div>
+            <span style={{ width: 34, textAlign: 'right', color: T.muted }}>{v}/10</span>
+          </div>
+        ))}
+      </Card>}
+      <SectionTitle>💼 Business — tous les jours</SectionTitle>
+      <div style={grid}>{COACH_BIZ.map(([l, b]) => <Btn key={l} disabled={busy} onClick={() => act(b)}>{l}</Btn>)}</div>
+      <SectionTitle>🧠 Coach de vie</SectionTitle>
+      <div style={grid}>
+        {COACH_VIE.map(([l, b]) => <Btn key={l} disabled={busy} onClick={() => act(b)}>{l}</Btn>)}
+        <Btn onClick={() => onAsk('Grand coach, mode tempête : ')}>⛈️ Ça va pas (tempête)</Btn>
+        <Btn onClick={() => onAsk('Examen du soir : 1) ce que j\'ai fait de bien : … 2) à faire mieux demain : … 3) j\'ai été là pour : …')}>📝 Examen du soir</Btn>
+      </div>
+      <SectionTitle>👑 Que ferait un grand à ma place ?</SectionTitle>
+      <Card>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {o.sages.map(n => <span key={n} onClick={() => setSage(n)} style={{ fontSize: 12, padding: '5px 9px', borderRadius: 999, cursor: 'pointer', background: sage === n ? T.accent : T.surface2, color: sage === n ? '#050a16' : T.text, border: `1px solid ${T.line}` }}>{n}</span>)}
+        </div>
+        <Btn disabled={!sage} onClick={() => onAsk(`Grand coach : que ferait ${sage} à ma place ? Ma question : `)} style={{ marginTop: 8 }}>👑 Poser ma question{sage ? ` à ${sage}` : ''}</Btn>
+      </Card>
+      <div style={{ fontSize: 11.5, color: T.faint, textAlign: 'center' }}>Statut en Algérie : {o.statut.done}/{o.statut.total} démarches · le coach te suit seul : 7h15, 12h30, 18h30, vendredi 17h, samedi 10h.</div>
+    </div>
+  );
+}
+
 // ── 🧭 VIE : identités et votes, intentions, décisions, couple, récupération, eau, prières ──
 interface LifeOverview {
   identities: Array<{ name: string; kind: string; image?: string; today: string[]; week: number }>;
@@ -1015,7 +1086,7 @@ export default function JarvisScreen({ onAsk }: { onAsk: (prompt: string) => voi
     <Screen header={<>
       <PageHeader eyebrow="Dzaryx · mode Jarvis" title="JARVIS" subtitle="Il voit, il écoute, il conduit avec toi, il agit." />
       <div style={{ padding: '0 12px 8px', overflowX: 'auto' }}>
-        <Segmented<Tab> items={[{ id: 'vie', label: '🧭 Vie' }, { id: 'cerveau', label: '🧠 Cerveau' }, { id: 'hud', label: '🕶️ HUD' }, { id: 'copilote', label: '🚗 Copilote' }, { id: 'escouade', label: '🛰️ Escouade' }, { id: 'salle', label: '🖥️ Salle' }, { id: 'sante', label: '🩺 Santé·Siri' }, { id: 'souffleur', label: '🎧 Souffleur' }, { id: 'reunion', label: '📝 Réunion' }, { id: 'sparring', label: '🥊 Entraîn.' },
+        <Segmented<Tab> items={[{ id: 'coach', label: '🏆 Coach' }, { id: 'vie', label: '🧭 Vie' }, { id: 'cerveau', label: '🧠 Cerveau' }, { id: 'hud', label: '🕶️ HUD' }, { id: 'copilote', label: '🚗 Copilote' }, { id: 'escouade', label: '🛰️ Escouade' }, { id: 'salle', label: '🖥️ Salle' }, { id: 'sante', label: '🩺 Santé·Siri' }, { id: 'souffleur', label: '🎧 Souffleur' }, { id: 'reunion', label: '📝 Réunion' }, { id: 'sparring', label: '🥊 Entraîn.' },
           { id: 'protocoles', label: '⚡ Protocoles' }, { id: 'video', label: '🎥 État lieux' }]} value={tab} onChange={pick} />
       </div>
     </>}>
@@ -1025,6 +1096,7 @@ export default function JarvisScreen({ onAsk }: { onAsk: (prompt: string) => voi
       {tab === 'copilote' && <Copilote />}
       {tab === 'escouade' && <Escouade />}
       {tab === 'salle' && <Salle onAsk={onAsk} />}
+      {tab === 'coach' && <Coach onAsk={onAsk} />}
       {tab === 'vie' && <Vie onAsk={onAsk} />}
       {tab === 'sante' && <SanteSiri />}
       {tab === 'souffleur' && <><LiveMode key="s" kind="souffleur" /></>}

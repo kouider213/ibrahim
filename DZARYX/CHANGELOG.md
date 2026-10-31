@@ -3,6 +3,13 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 31/10 — LE GRAND COACH : 10 options business + 10 options coach de vie (app v215)
+- Recherche : Rebrab (Cevital), Yassir, Dangote, statut auto-entrepreneur ANAE (0,5 %), label startup (LF 2026) + classiques (Buffett, Munger, Bezos, Jobs, Hormozi, Dalio, Kroc, Walton, Ibn Khaldoun…) → `integrations/grand-coach-sages.ts` (23 grands, 12 livres, 10 démarches statut Algérie).
+- `integrations/grand-coach.ts`, outil `grand_coach`, job `grand-coach` */15 6-22h, contexte dans kouider-dossier, routes GET /api/jarvis/coach + POST /coach/action, app JARVIS › 🏆 Coach.
+- BUSINESS : tableau du patron, rythme du mois (objectif auto +20 % ou « objectif du mois X € »), rentabilité par voiture 90 j, 3 actions qui rapportent (« fait 1 » + série), réveil des anciens clients (messages prêts), répartition de l'argent encaissé 50/30/20, délégation (ton heure vaut…), statut & indépendance en Algérie (10 étapes), revue du patron vendredi 17h, trésorerie 30 j.
+- VIE : texte du matin 7h15 (histoire vraie d'un grand + leçon du jour), suivi 12h30 + bilan 18h30, « que ferait X à ma place ? », livre du mois, défi de la semaine (lundi), cercle d'or (réseau Algérie, mardi), examen du soir (Franklin), vision 10 ans/1 an/mois, mode tempête, équilibre des 4 piliers (samedi 10h). Jours de congé : pas de business.
+- Testé sur le VPS avec les vraies données (tableau, rythme, voitures, anciens clients, trésorerie, statut, texte, grand, livre, tempête) ; pas encore vu tourner en planifié sur Railway.
+
 ## 31/10 — Vidéos IA : Kling d'abord, Hugging Face gratuit quand plus de crédit (app v214)
 - Choix de Kouider : modèle par défaut = Kling 3.0 Pro (fal.ai) partout (app, outil video_studio, vidéos auto de la semaine). Erreur de crédit fal → app_kv studio:fal_empty_until 6 h + plans restants faits en Hugging Face (FLUX → Wan 2.2), message Telegram le signale. /api/studio/options renvoie defaultModel.
 
