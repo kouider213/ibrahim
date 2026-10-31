@@ -84,6 +84,21 @@ export default function StudioScreen() {
     finally { setBusy(false); }
   };
 
+  // Création en 1 clic : Dzaryx écrit le scénario puis lance tout de suite le rendu gratuit,
+  // toujours avec voix off + sous-titres + signature FIK à la fin.
+  const quickCreate = async () => {
+    setBusy(true);
+    try {
+      say('✍️ Dzaryx écrit ta pub…');
+      const p = await business.studioPlan({ idea, template, lang, seconds, ...(startImage ? { imageUrl: startImage } : {}), ...(car && !imageUrl.trim() ? { carName: car.name } : {}) });
+      await business.studioRender(p, { model: 'gratuit', nativeAudio: false, voice: true, music: false, subtitles: true });
+      say(`🎬 C'est parti : « ${p.title} » avec voix off et signature FIK. ≈ ${p.shots.length + 2} min, la vidéo arrive ici et sur Telegram.`);
+      setIdea('');
+      await loadJobs();
+    } catch (e) { say(`❌ ${errText(e)}`); }
+    finally { setBusy(false); }
+  };
+
   const m = opts?.models.find(x => x.id === model);
   const costOf = (id: string) => {
     const md = opts?.models.find(x => x.id === id);
@@ -137,9 +152,9 @@ export default function StudioScreen() {
                   : 'Un seul plan IA façon Higgsfield (5 à 10 s) avec un mouvement de caméra. Idéal pour animer une photo de voiture.'}
               </div>
 
-              <div style={label}>{mode === 'viral' ? 'Ton idée' : 'Ce que tu veux voir'}</div>
+              <div style={label}>{mode === 'viral' ? 'Ton idée (facultatif)' : 'Ce que tu veux voir'}</div>
               <textarea style={input} rows={3} value={idea} onChange={e => setIdea(e.target.value)}
-                placeholder={mode === 'viral' ? 'Ex. 3 raisons de louer chez Autolux cet été, pour la diaspora qui arrive à Oran' : 'Ex. la Clio blanche qui roule sur la corniche d\'Oran au coucher du soleil'} />
+                placeholder={mode === 'viral' ? 'Ex. 3 raisons de louer chez FIK Conciergerie cet été, pour la diaspora qui arrive à Oran' : 'Ex. la Clio blanche qui roule sur la corniche d\'Oran au coucher du soleil'} />
 
               {mode === 'viral' ? (<>
                 <div style={label}>Type de vidéo</div>
@@ -177,9 +192,21 @@ export default function StudioScreen() {
               </div>
               <input style={{ ...input, marginTop: 6 }} value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="…ou colle le lien d'une photo" />
 
-              <button style={{ ...btn(C.accent, '#050a16'), width: '100%', marginTop: 12, opacity: busy || !idea.trim() ? 0.5 : 1 }} disabled={busy || !idea.trim()} onClick={() => void makePlan()}>
-                {busy ? '✍️ Dzaryx prépare…' : mode === 'viral' ? '✍️ Écrire le scénario (gratuit)' : '✍️ Préparer le plan (gratuit)'}
-              </button>
+              {mode === 'viral' ? (<>
+                <button style={{ ...btn(C.accent, '#050a16'), width: '100%', marginTop: 12, padding: '14px 13px', fontSize: 15, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void quickCreate()}>
+                  {busy ? '✍️ Dzaryx prépare…' : '🎬 Créer ma pub (1 clic, gratuit)'}
+                </button>
+                <div style={{ fontSize: 11.5, color: C.muted, marginTop: 6, lineHeight: 1.4, textAlign: 'center' }}>
+                  Voix off, sous-titres et ta signature FIK à la fin — automatiquement. Pas d'idée ? Laisse vide, Dzaryx choisit.
+                </div>
+                <button style={{ ...btn('rgba(255,255,255,0.06)', C.text), width: '100%', marginTop: 8, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void makePlan()}>
+                  ✏️ Voir et modifier le scénario avant
+                </button>
+              </>) : (
+                <button style={{ ...btn(C.accent, '#050a16'), width: '100%', marginTop: 12, opacity: busy || !idea.trim() ? 0.5 : 1 }} disabled={busy || !idea.trim()} onClick={() => void makePlan()}>
+                  {busy ? '✍️ Dzaryx prépare…' : '✍️ Préparer le plan (gratuit)'}
+                </button>
+              )}
             </div>
           )}
 

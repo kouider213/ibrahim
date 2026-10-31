@@ -38,8 +38,9 @@ router.post('/plan', async (req, res) => {
     manual?: { prompt?: string; camera?: string; duration?: number; imageUrl?: string } };
   try {
     if (b.manual?.prompt) { res.json(await manualPlan({ prompt: b.manual.prompt, camera: b.manual.camera, duration: b.manual.duration, imageUrl: b.manual.imageUrl ?? null })); return; }
-    if (!b.idea?.trim()) { res.status(400).json({ error: 'Écris une idée' }); return; }
-    res.json(await createStudioPlan({ idea: b.idea, template: b.template, lang: b.lang, seconds: b.seconds, imageUrl: b.imageUrl ?? null, carName: b.carName ?? null }));
+    // Idée vide = Dzaryx choisit lui-même la meilleure idée de pub pour ce type de vidéo (création en 1 clic).
+    const idea = b.idea?.trim() || 'Aucune idée imposée : choisis toi-même l\'idée de pub la plus virale et la plus vendeuse pour ce type de vidéo.';
+    res.json(await createStudioPlan({ idea, template: b.template, lang: b.lang, seconds: b.seconds, imageUrl: b.imageUrl ?? null, carName: b.carName ?? null }));
   } catch (err) { fail(res, err); }
 });
 

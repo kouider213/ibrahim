@@ -62,14 +62,14 @@ export const STUDIO_CAMERAS: Record<string, { label: string; prompt: string }> =
 };
 
 export const STUDIO_TEMPLATES: Record<string, { label: string; brand: string; brief: string }> = {
-  autolux:    { label: 'Pub location Autolux', brand: 'AUTOLUX · ORAN',
-                brief: 'Publicité virale pour Autolux, location de voitures à Oran (Algérie) : liberté, corniche, soleil, prix clairs, réservation facile sur WhatsApp. Public : diaspora et Algériens.' },
-  voiture:    { label: 'Voiture vedette', brand: 'AUTOLUX · ORAN',
-                brief: 'Présentation cinéma d\'une voiture précise de la flotte Autolux à Oran, comme une pub constructeur : détails, route, lumière dorée.' },
+  autolux:    { label: 'Pub location FIK Conciergerie', brand: 'FIK CONCIERGERIE · ORAN',
+                brief: 'Publicité virale pour FIK Conciergerie (ne jamais dire « Autolux »), location de voitures à Oran (Algérie) : liberté, corniche, soleil, prix clairs, réservation facile sur WhatsApp. Public : diaspora et Algériens.' },
+  voiture:    { label: 'Voiture vedette', brand: 'FIK CONCIERGERIE · ORAN',
+                brief: 'Présentation cinéma d\'une voiture précise de la flotte FIK Conciergerie à Oran, comme une pub constructeur : détails, route, lumière dorée.' },
   fik_sites:  { label: 'Pub FIK Sites', brand: 'FIK SITES',
                 brief: 'Publicité pour FIK Sites : on crée le site internet des petits commerces (France et Algérie) en quelques jours, sans prise de tête. Montrer un commerçant débordé puis serein avec son site qui ramène des clients.' },
-  temoignage: { label: 'Témoignage client', brand: 'AUTOLUX · ORAN',
-                brief: 'Faux-vrai témoignage style UGC : un client raconte face caméra son expérience. Ton naturel, crédible, pas de promesse exagérée.' },
+  temoignage: { label: 'Témoignage client', brand: 'FIK CONCIERGERIE · ORAN',
+                brief: 'Faux-vrai témoignage style UGC : un client raconte face caméra son expérience de location chez FIK Conciergerie à Oran. Ton naturel, crédible, pas de promesse exagérée.' },
   avant_apres:{ label: 'Avant / Après', brand: '',
                 brief: 'Format avant/après très viral : situation galère au début, transformation spectaculaire à la fin.' },
   libre:      { label: 'Idée libre', brand: '', brief: '' },

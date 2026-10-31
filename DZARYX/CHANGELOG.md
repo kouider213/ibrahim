@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 31/10 — Pub IA en 1 clic (app v212)
+- Onglet 🤖 Pub IA : gros bouton « 🎬 Créer ma pub (1 clic, gratuit) » = scénario + rendu direct, toujours voix off + sous-titres + signature FIK. Idée facultative (vide = Dzaryx choisit). « ✏️ Voir et modifier le scénario avant » garde l'ancien parcours.
+- Textes Autolux → FIK Conciergerie dans les types de pub.
+- Vérifié en prod : montage auto de 5 photos (e93dd858) = 19 s, voix off, sous-titres, clé dorée à la fin.
+
 ## 31/10 — MONTAGE pro : éditeur façon CapCut + montage auto + signature FIK
 - Méthode Replica (vidéo TikTok) appliquée à CapCut/Higgsfield : fonctions recensées + avis (CapCut : options devenues payantes, filigrane, export bloqué ; Higgsfield : crédits qui fondent, prélèvements surprises) → tout gratuit, sans filigrane, sans limite.
 - App v211, page MONTAGE : onglet ✂️ Éditeur (import vidéos/photos direct vers le stockage, aperçu, timeline, couper/couper ici/déplacer/dupliquer/supprimer, vitesse ×0,25→×3, volume, textes, musique avec ducking, 6 filtres, sous-titres auto 4 styles, formats 9:16/1:1/16:9, signature on/off) + « 🪄 Dzaryx monte tout ». Onglet 🤖 Pub IA = studio existant.
