@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 31/10 — B048 : mentor business planté (signature Gemini) corrigé
+- Appels d'outils venus d'un autre cerveau → signature « skip_thought_signature_validator » pour Gemini 3 ; mentor relancé 45 min plus tard si tout est saturé.
+
 ## 31/10 — MIROIR DU FUTUR : « si je continue comme ça, je serai quoi dans 1, 2, 5, 10 ans ? » (app v217)
 - `integrations/grand-coach-futur.ts` : CA/bénéfice 12 mois réels → projection 1/2/3/5/10 ans « comme ça » vs « meilleure version » (croissance nécessaire pour l'objectif CA du GPS de vie, plafonnée à l'objectif puis +15 %/an), épargne = part « répartition », fiabilité selon les mois de données, portrait IA (entrepreneur + personne) + 3 changements. Ton : lucide sans humilier, pas de verdict famille/santé avant 3 semaines de mesures, patrimoine « non renseigné » plutôt que 0.
 - Score d'évolution /100 (4 piliers) : photo chaque dimanche 22h → courbe ; envoyé le samedi avec l'équilibre ; projection complète le 15 de chaque mois. Actions grand_coach futur / evolution ; app JARVIS › Coach › 🔭.

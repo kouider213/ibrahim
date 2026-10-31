@@ -748,7 +748,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'billing-watch':           jobBillingWatch,
   'client-sites-monthly':    async () => { console.log(`[client-sites-monthly] ${await (await import('../integrations/client-site-stats.js')).jobClientSitesMonthly()}`); },
   'self-test':               async () => { console.log(`[self-test] ${await jobSelfTest()}`); },
-  'business-mentor':         jobBusinessMentor,
+  'business-mentor':         async () => { await jobBusinessMentor(); },
   'mentor-news':             jobMentorNewsWatch,
   'gold-watch':              jobGoldWatch,
   'sport-plan':              async () => { await (await import('../integrations/sport-coach.js')).jobSportPlan(); },

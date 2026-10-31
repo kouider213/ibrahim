@@ -153,6 +153,18 @@ export function fallbackEndpoints(): FallbackEndpoint[] {
 }
 
 /** Photo jointe : les cerveaux qui voient passent devant (Gemini à quota épuisé → super-vl plutôt qu'un modèle aveugle). */
+/**
+ * Gemini 3 refuse (400 « Function call is missing a thought_signature ») un historique où un appel d'outil n'a pas sa
+ * signature — c'est le cas quand le tour précédent a été servi par un AUTRE cerveau (Nemotron, Groq…). Google prévoit
+ * la valeur « skip_thought_signature_validator » pour ces appels venus d'ailleurs (31/10 : mentor business planté).
+ */
+export const GEMINI_SKIP_SIGNATURE = { google: { thought_signature: 'skip_thought_signature_validator' } };
+export function withGeminiSignatures<M extends { tool_calls?: Array<Record<string, unknown>> }>(msgs: M[]): M[] {
+  return msgs.map(m => (m.tool_calls?.length
+    ? { ...m, tool_calls: m.tool_calls.map(c => (c['extra_content'] ? c : { ...c, extra_content: GEMINI_SKIP_SIGNATURE })) }
+    : m));
+}
+
 export function visionFirst<E extends { vision?: boolean }>(eps: E[], hasImage: boolean): E[] {
   return hasImage ? [...eps.filter(e => e.vision), ...eps.filter(e => !e.vision)] : eps;
 }
@@ -341,7 +353,7 @@ export async function runAgenticFallback(
   const call = async (ep: FallbackEndpoint, history: OAIMessage[], oaiTools: Array<Record<string, unknown>>, signal?: AbortSignal) => {
     const body = {
       model:       ep.model,
-      messages:    history,
+      messages:    ep.key === 'gemini' ? withGeminiSignatures(history as unknown as Array<{ tool_calls?: Array<Record<string, unknown>> }>) as unknown as OAIMessage[] : history,
       tools:       oaiTools,
       tool_choice: 'auto',   // 29/10 : 'required' testé → Nemotron appelait update_car pour une question de dispo : jamais
       max_tokens:  ep.compact ? 1024 : deep ? 8192 : 4096,

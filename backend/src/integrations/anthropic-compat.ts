@@ -162,7 +162,8 @@ function toOpenAI(body: Body, model: string, vision = false, maxTools = 120, dee
     const blocks = (m.content ?? []) as Block[];
     if (m.role === 'assistant') {
       const calls = blocks.filter(b => b.type === 'tool_use').map(b => ({ id: b.id, type: 'function', function: { name: b.name, arguments: JSON.stringify(b.input ?? {}) },
-        ...(toolSignatures.has(b.id ?? '') ? { extra_content: toolSignatures.get(b.id ?? '') } : {}) }));
+        // Signature Gemini gardée ; appel venu d'un autre cerveau → valeur prévue par Google pour sauter la vérification
+        ...(toolSignatures.has(b.id ?? '') ? { extra_content: toolSignatures.get(b.id ?? '') } : /^gemini/i.test(model) ? { extra_content: { google: { thought_signature: 'skip_thought_signature_validator' } } } : {}) }));
       msgs.push({ role: 'assistant', content: blockText(blocks) || null, ...(calls.length ? { tool_calls: calls } : {}) });
     } else {
       for (const b of blocks.filter(x => x.type === 'tool_result')) msgs.push({ role: 'tool', tool_call_id: b.tool_use_id, content: blockText(b.content) || 'ok' });

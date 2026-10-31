@@ -145,9 +145,20 @@ async function deliver(idea: MentorIdea, callKey: string): Promise<void> {
 }
 
 /** Tâche quotidienne (11h Bruxelles) : l'appel « conseiller » du jour. Pas les jours de congé. */
-export async function jobBusinessMentor(): Promise<void> {
+export async function jobBusinessMentor(attempt = 1): Promise<void> {
   if (await isDayOff()) { console.log('[mentor] jour de congé — pas de conseil business aujourd\'hui'); return; }
-  const idea = await generateMentorIdea();
+  let idea: Awaited<ReturnType<typeof generateMentorIdea>>;
+  try { idea = await generateMentorIdea(); }
+  catch (e) {
+    // 31/10 : tous les cerveaux gratuits saturés au moment d'écrire → on réessaie plus tard au lieu de planter (et d'alerter Kouider)
+    const m = e instanceof Error ? e.message : String(e);
+    if (attempt < 3 && /overloaded|gratuit|503|429|quota|timeout/i.test(m)) {
+      console.warn(`[mentor] cerveaux saturés (essai ${attempt}/3) — nouvel essai dans 45 min : ${m.slice(0, 120)}`);
+      setTimeout(() => { void jobBusinessMentor(attempt + 1).catch(err => console.error('[mentor] relance :', err instanceof Error ? err.message : err)); }, 45 * 60_000);
+      return;
+    }
+    throw e;
+  }
   if (!idea) { console.warn('[mentor] aucune proposition exploitable'); return; }
   await deliver(idea, `mentor:${today()}`);
   console.log(`[mentor] ${idea.kind} — ${idea.title}`);

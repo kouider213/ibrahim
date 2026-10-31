@@ -240,6 +240,12 @@ Fix : readDocVision (Claude → Gemini → Groq → OpenAI, PDF via Gemini) pour
 
 ## Bugs Fixés ✅
 
+### B048 — Mentor business planté (31/10 11h30) : « aucun cerveau gratuit disponible »
+- **Statut** : ✅ FIXÉ — 2026-10-31
+- **Fichiers** : `backend/src/integrations/anthropic-compat.ts`, `agentic-fallback.ts`, `business-mentor.ts`, `queue/scheduler.ts`
+- **Cause** : les recherches du mentor (outils) étaient servies en partie par Nemotron ; ces appels d'outils n'avaient pas de « thought_signature » Gemini → chaque Gemini 3 répondait 400 « Function call is missing a thought_signature », réessais jusqu'au quota (429), Nemotron OpenRouter déjà à sa limite du jour → 503 → tâche plantée + alerte.
+- **Fix** : appel d'outil sans signature envoyé à Gemini → `extra_content.google.thought_signature = "skip_thought_signature_validator"` (valeur prévue par Google pour les historiques venus d'un autre modèle), dans les deux chemins (compat Anthropic + boucle agentique). Mentor : si cerveaux saturés, nouvel essai dans 45 min (3 essais) au lieu de planter. Vérifié contre l'API Gemini : 400 sans, réponse normale avec.
+
 ### B004 — `create_marketing_video` inaccessible (agent routing cassé)
 - **Statut** : ✅ FIXÉ — 2026-05-14
 - **Fichier** : `backend/src/agents/agent-registry.ts`
