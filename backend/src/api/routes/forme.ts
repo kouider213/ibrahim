@@ -5,12 +5,13 @@ import {
   parseImage, analyzeMealPhoto, addBodyPhoto, analyzeBodyPhoto, offBarcode, offSearch, askFormeCoach, storeFormeSub, formeTargets,
   householdShopping, checkHouseItem, addHouseItem, removeHouseItem, adaptNextSession, doctorReport, formeAgenda, toggleFavorite, placeFavorite, translateAr, type Recipe, createInvite, revokeInvite, uidFromFormeToken, getProgram, programOverview, getFormeProfile,
   type FormeProfile, type BodyPhoto, type Uid,
+  scanMachine, machineHistory, deleteMachine, exFavs, toggleExFav, exHistory, addExSet, delExSet,
 } from '../../integrations/forme.js';
 import type { PushSubscription } from 'web-push';
 import { exerciseLibrary, exerciseDetail, matchExercise } from '../../integrations/exercise-lib.js';
 import { gamesBoard, submitScore, roomAction, roomPeek, getIsland, islandAction } from '../../integrations/couple-games.js';
 
-// App « FORME » (sport + nutrition + suivi du corps) : page de l'app Dzaryx et appli à part sur l'écran d'accueil.
+// App « FORME » (sport + suivi du corps ; nutrition retirée le 31/10) : page de l'app Dzaryx et appli à part sur l'écran d'accueil.
 // Deux profils : Kouider (session Dzaryx) et sa femme (lien d'invitation → en-tête x-forme-token, valable ICI seulement).
 // Santé / photos : base privée et bucket privé, jamais dans le code (dépôt public).
 const router = Router();
@@ -90,6 +91,27 @@ router.get('/exlib-match', async (req, res) => {
 });
 router.get('/exlib/:id', async (req, res) => {
   try { const ex = await exerciseDetail(String(req.params.id).slice(0, 100)); if (!ex) { res.status(404).json({ error: 'exercice inconnu' }); return; } res.json({ ex }); } catch (err) { fail(res, err); }
+});
+
+// 📷 Scan d'une machine : POST /machine { image: dataURL, thumb?: petite dataURL } → appareil + exercices (images, vidéo)
+router.post('/machine', async (req, res) => {
+  const b = req.body as { image?: string; thumb?: string };
+  try { res.json({ scan: await scanMachine(U(req), parseImage(String(b.image ?? '')), typeof b.thumb === 'string' ? b.thumb : undefined) }); } catch (err) { fail(res, err, 400); }
+});
+router.get('/machines', async (req, res) => { try { res.json({ machines: await machineHistory(U(req)) }); } catch (err) { fail(res, err); } });
+router.delete('/machines/:id', async (req, res) => { try { res.json({ machines: await deleteMachine(U(req), String(req.params.id)) }); } catch (err) { fail(res, err); } });
+// Marque-pages + historique par exercice (fiche : À propos / Historique / Progrès)
+router.get('/exfav', async (req, res) => { try { res.json({ ids: await exFavs(U(req)) }); } catch (err) { fail(res, err); } });
+router.post('/exfav', async (req, res) => {
+  const b = req.body as { id?: string; on?: boolean };
+  try { res.json({ ids: await toggleExFav(U(req), String(b.id ?? '').slice(0, 100), !!b.on) }); } catch (err) { fail(res, err); }
+});
+router.get('/exlog/:id', async (req, res) => { try { res.json({ sets: await exHistory(U(req), String(req.params.id).slice(0, 100)) }); } catch (err) { fail(res, err); } });
+router.post('/exlog', async (req, res) => {
+  const b = req.body as { id?: string; kg?: number; reps?: number; del?: number };
+  const id = String(b.id ?? '').slice(0, 100);
+  if (!id) { fail(res, 'id manquant', 400); return; }
+  try { res.json({ sets: b.del ? await delExSet(U(req), id, Number(b.del)) : await addExSet(U(req), id, Number(b.kg) || undefined, Number(b.reps) || undefined) }); } catch (err) { fail(res, err); }
 });
 
 router.post('/swap', async (req, res) => {

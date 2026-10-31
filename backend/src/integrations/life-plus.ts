@@ -439,7 +439,7 @@ export async function lifeTool(input: Record<string, unknown>): Promise<string> 
       await kvPut(ID_KEY, ids);
       const { queueTelegramAlbum } = await import('../notifications/tg-outbox.js');
       await queueTelegramAlbum(`🗳️ Tes identités : ${names.join(' · ')}`, ids.map(i => i.image!)).catch(() => {});
-      return `✅ Identités enregistrées : ${names.join(', ')}. Chaque soir à 21h je compte tes « votes » trouvés dans tes données (GPS, séances, réservations…). Images de ta vision envoyées sur Telegram et dans l'app (JARVIS › Vie).`;
+      return `✅ Identités enregistrées : ${names.join(', ')}. Chaque soir à 21h je compte tes « votes » trouvés dans tes données (GPS, séances, réservations…). Images de ta vision envoyées sur Telegram et dans l'app (page COACH › Ma vie).`;
     }
     case 'vote': {
       const name = String(input['identity'] ?? ''), what = String(input['text'] ?? '').slice(0, 80);

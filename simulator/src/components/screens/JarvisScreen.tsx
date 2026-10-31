@@ -900,7 +900,7 @@ const COACH_VIE: Array<[string, Record<string, unknown>]> = [
   ['📚 Livre du mois', { action: 'livre' }], ['🔥 Défi de la semaine', { action: 'defi' }], ['🤝 Cercle d\'or', { action: 'cercle' }],
   ['🧭 Ma vision', { action: 'vision' }], ['⚖️ Équilibre 4 piliers', { action: 'equilibre' }],
 ];
-function Coach({ onAsk }: { onAsk: (prompt: string) => void }) {
+export function Coach({ onAsk }: { onAsk: (prompt: string) => void }) {
   const [o, setO] = useState<CoachOverview | null>(null);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
@@ -976,7 +976,7 @@ interface LifeOverview {
   couple: { date: string; time: string; place: string } | null;
   prayer: string; water: string; readiness: string; curve: string;
 }
-function Vie({ onAsk }: { onAsk: (prompt: string) => void }) {
+export function Vie({ onAsk }: { onAsk: (prompt: string) => void }) {
   const [o, setO] = useState<LifeOverview | null>(null);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1098,13 +1098,14 @@ function SanteSiri() {
 }
 
 export default function JarvisScreen({ onAsk }: { onAsk: (prompt: string) => void }) {
-  const [tab, setTab] = useState<Tab>(() => { try { return (localStorage.getItem('dz:jarvis_tab') as Tab) || 'hud'; } catch { return 'souffleur'; } });
+  // 31/10 : 🏆 Coach et 🧭 Vie ont déménagé sur la page COACH (menu Plus)
+  const [tab, setTab] = useState<Tab>(() => { try { const t = localStorage.getItem('dz:jarvis_tab') as Tab | null; return t && t !== 'coach' && t !== 'vie' ? t : 'hud'; } catch { return 'souffleur'; } });
   const pick = (t: Tab) => { setTab(t); try { localStorage.setItem('dz:jarvis_tab', t); } catch { /* ignore */ } };
   return (
     <Screen header={<>
       <PageHeader eyebrow="Dzaryx · mode Jarvis" title="JARVIS" subtitle="Il voit, il écoute, il conduit avec toi, il agit." />
       <div style={{ padding: '0 12px 8px', overflowX: 'auto' }}>
-        <Segmented<Tab> items={[{ id: 'coach', label: '🏆 Coach' }, { id: 'vie', label: '🧭 Vie' }, { id: 'cerveau', label: '🧠 Cerveau' }, { id: 'hud', label: '🕶️ HUD' }, { id: 'copilote', label: '🚗 Copilote' }, { id: 'escouade', label: '🛰️ Escouade' }, { id: 'salle', label: '🖥️ Salle' }, { id: 'sante', label: '🩺 Santé·Siri' }, { id: 'souffleur', label: '🎧 Souffleur' }, { id: 'reunion', label: '📝 Réunion' }, { id: 'sparring', label: '🥊 Entraîn.' },
+        <Segmented<Tab> items={[{ id: 'cerveau', label: '🧠 Cerveau' }, { id: 'hud', label: '🕶️ HUD' }, { id: 'copilote', label: '🚗 Copilote' }, { id: 'escouade', label: '🛰️ Escouade' }, { id: 'salle', label: '🖥️ Salle' }, { id: 'sante', label: '🩺 Santé·Siri' }, { id: 'souffleur', label: '🎧 Souffleur' }, { id: 'reunion', label: '📝 Réunion' }, { id: 'sparring', label: '🥊 Entraîn.' },
           { id: 'protocoles', label: '⚡ Protocoles' }, { id: 'video', label: '🎥 État lieux' }]} value={tab} onChange={pick} />
       </div>
     </>}>
@@ -1114,8 +1115,6 @@ export default function JarvisScreen({ onAsk }: { onAsk: (prompt: string) => voi
       {tab === 'copilote' && <Copilote />}
       {tab === 'escouade' && <Escouade />}
       {tab === 'salle' && <Salle onAsk={onAsk} />}
-      {tab === 'coach' && <Coach onAsk={onAsk} />}
-      {tab === 'vie' && <Vie onAsk={onAsk} />}
       {tab === 'sante' && <SanteSiri />}
       {tab === 'souffleur' && <><LiveMode key="s" kind="souffleur" /></>}
       {tab === 'reunion' && <><LiveMode key="r" kind="reunion" /><History kind="reunion" /></>}

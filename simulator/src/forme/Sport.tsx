@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch, type SportOverview, type SportSession, type SportExercise } from '../services/api.ts';
 import { errText, SHORT_DAYS, dayOf, vibrate, forme, type ProgramView } from './api.ts';
 import { F, Title, Section, card, darkCard, btn, ghostBtn, Img, Ring, Bar, Spinner } from './ui.tsx';
-import { ExerciseSheet, ExerciseLibrary } from './Exercises.tsx';
+import { ExerciseSheet } from './Exercises.tsx';
 
 // Onglet SPORT : les séances que Dzaryx cale déjà sur l'agenda (sport-coach.ts), avec un vrai mode séance :
 // démo animée de chaque exercice, charges conseillées, minuteur de repos, records. Fin de séance → Dzaryx est prévenu.
@@ -16,17 +16,15 @@ export function Demo({ ex, style }: { ex: { demo: string[]; name: string }; styl
   return <Img src={ex.demo[f] ?? ex.demo[0]} alt={ex.name} style={{ background: '#fff', objectFit: 'contain', ...style }} />;
 }
 
-/** 📚 Bouton « Tous les exercices » (bibliothèque avec muscles et fiches). */
-function LibButton() {
-  const [open, setOpen] = useState(false);
-  return <>
-    <button onClick={() => setOpen(true)} style={{ ...card, width: '100%', display: 'flex', gap: 12, alignItems: 'center', marginTop: 14, border: 'none', cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit', color: F.ink }}>
-      <span style={{ fontSize: 26 }}>📚</span>
-      <div style={{ flex: 1 }}><div style={{ fontWeight: 800 }}>Tous les exercices</div><div style={{ fontSize: 12.5, color: F.muted, marginTop: 2 }}>800 exercices : comment les faire et les muscles qu'ils travaillent</div></div>
-      <span style={{ color: F.accent, fontWeight: 900 }}>›</span>
+/** Raccourcis vers la bibliothèque et le scanner (onglets de l'app). */
+function Shortcuts({ go }: { go?: (t: 'library' | 'scan') => void }) {
+  if (!go) return null;
+  const b = (t: 'library' | 'scan', e: string, l: string, sub: string) => (
+    <button onClick={() => go(t)} style={{ ...card, flex: 1, border: 'none', cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit', color: F.ink, padding: 14 }}>
+      <div style={{ fontSize: 24 }}>{e}</div><div style={{ fontWeight: 700, marginTop: 6 }}>{l}</div><div style={{ fontSize: 12, color: F.muted, marginTop: 2 }}>{sub}</div>
     </button>
-    <ExerciseLibrary open={open} onClose={() => setOpen(false)} />
-  </>;
+  );
+  return <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>{b('scan', '📷', 'Scanner une machine', 'Les exercices en images')}{b('library', '📚', 'Bibliothèque', '800 exercices')}</div>;
 }
 
 export function beep() {
@@ -152,7 +150,7 @@ function Player({ s, onClose, onFinished, save: saveFn }: { s: SportSession; onC
   );
 }
 
-export default function SportScreen({ toast }: { toast: (t: string) => void }) {
+export default function SportScreen({ toast, go }: { toast: (t: string) => void; go?: (t: 'library' | 'scan') => void }) {
   const [d, setD] = useState<SportOverview | null>(null);
   const [err, setErr] = useState('');
   const [play, setPlay] = useState<SportSession | null>(null);
@@ -167,7 +165,7 @@ export default function SportScreen({ toast }: { toast: (t: string) => void }) {
   const s = pick ? picked : d.today ?? d.next;
   const isToday = !!s && s.date === today;
   return (
-    <div style={{ padding: '6px 18px 0' }}>
+    <div style={{ padding: '4px 14px 0' }}>
       <Title a="Ton" b="entraînement" sub={d.stats.streak > 1 ? `🔥 ${d.stats.streak} séances d'affilée · ${d.stats.monthSessions} ce mois-ci` : `${d.stats.monthSessions} séance(s) ce mois-ci`} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
         {d.week.map(w => (
@@ -238,7 +236,7 @@ export default function SportScreen({ toast }: { toast: (t: string) => void }) {
         </div>
       </>}
       <ExerciseSheet session={ex} onClose={() => setEx(null)} />
-      <LibButton />
+      <Shortcuts go={go} />
       {play && <Player s={play} onClose={() => setPlay(null)} onFinished={msg => { setPlay(null); toast(msg); void load(); }} save={async (sets, durationMin, rpe) => {
         const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date: d.week[0]?.date ?? play.date, type: play.type, sets, durationMin, rpe }) });
         return `💪 Séance enregistrée${r.prs.length ? ` — 🏆 record : ${r.prs.join(', ')}` : ''} · Dzaryx est prévenu`;
@@ -248,7 +246,7 @@ export default function SportScreen({ toast }: { toast: (t: string) => void }) {
 }
 
 /** Séances de sa femme : son propre programme (fait par Claude selon son objectif et son lieu), même mode séance. */
-export function ProgramSport({ toast }: { toast: (t: string) => void }) {
+export function ProgramSport({ toast, go }: { toast: (t: string) => void; go?: (t: 'library' | 'scan') => void }) {
   const [d, setD] = useState<ProgramView | null>(null);
   const [err, setErr] = useState('');
   const [play, setPlay] = useState(false);
@@ -260,7 +258,7 @@ export function ProgramSport({ toast }: { toast: (t: string) => void }) {
   if (!d || !Array.isArray(d.week)) return <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: 60, color: F.muted }}><Spinner />Préparation de ton programme…</div>;
   const s = d.session;
   return (
-    <div style={{ padding: '6px 18px 0' }}>
+    <div style={{ padding: '4px 14px 0' }}>
       <Title a="Ton" b="entraînement" sub={`${d.total} séance(s) faites · ${d.sessions.length} séances par semaine`} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
         {d.week.map(w => (
@@ -305,7 +303,7 @@ export function ProgramSport({ toast }: { toast: (t: string) => void }) {
       <div style={{ ...card, padding: '4px 14px' }}>{d.sessions.map((x, i) => <div key={i} style={{ padding: '10px 0', borderBottom: i < d.sessions.length - 1 ? `1px solid ${F.line}` : 'none', fontSize: 14.5 }}>{x.emoji} <b>{x.label}</b> <span style={{ color: F.muted }}>· {x.focus}</span></div>)}</div>
       <button disabled={busy} onClick={async () => { if (!confirm('Refaire un nouveau programme ?')) return; setBusy(true); try { setD(await forme.newProgram()); } catch (e) { toast(errText(e)); } finally { setBusy(false); } }} style={{ ...ghostBtn, width: '100%', marginTop: 12, display: 'flex', justifyContent: 'center', gap: 8 }}>{busy ? <><Spinner size={16} /> …</> : '🔄 Nouveau programme'}</button>
       <ExerciseSheet session={ex} onClose={() => setEx(null)} />
-      <LibButton />
+      <Shortcuts go={go} />
       {play && s && <Player s={s} onClose={() => setPlay(false)} onFinished={msg => { setPlay(false); toast(msg); void load(); }} save={async (sets, durationMin, rpe) => {
         await forme.log('workout', { session: s.index, label: s.label, sets, durationMin, rpe });
         return '💪 Séance enregistrée';

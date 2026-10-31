@@ -592,7 +592,7 @@ export async function removeHouseItem(key: string): Promise<void> {
 }
 
 /** Nouvelle semaine de courses : on décoche ce qui avait été coché avant aujourd'hui. */
-async function resetChecksBefore(ts: number) {
+export async function resetChecksBefore(ts: number) {
   const checks = await readJson<Record<string, { by: string; at: number }>>(CHECKS_KEY, {});
   await kvSet(CHECKS_KEY, JSON.stringify(Object.fromEntries(Object.entries(checks).filter(([, v]) => v.at >= ts))));
   const extra = await readJson<Array<{ at: number }>>(EXTRA_KEY, []);
@@ -1036,7 +1036,7 @@ export async function askFormeCoach(question: string, uid: Uid = 'kouider', mode
   if (mode === 'batch') { const w = await getWeek(uid); ctx += w ? `\nRECETTES DE LA SEMAINE :\n${w.recipes.map(r => `- ${r.title} : ${r.ingredients.map(i => `${i.name} ${i.qty}`).join(', ')}`).join('\n')}\nDonne un plan de BATCH COOKING du dimanche (2 h max) : ordre des étapes minuté, ce qui se congèle, boîtes à préparer.` : ''; }
   if (mode === 'fridge') ctx += '\nIl/elle te donne ce qu\'il y a dans son frigo/placard : propose 2 recettes halal rapides avec SEULEMENT ça (+ basiques : sel, poivre, huile, épices), avec quantités, kcal et protéines estimées.';
   const res = await createAnthropic().messages.create({ model: 'claude-sonnet-5-5', max_tokens: 900,
-    system: `Tu es le coach FORME de ${p.name || 'cette personne'} (nutrition + sport), qui vit à Bruxelles. ${rules(p)}\nRéponds simplement, concret, chaleureux, ${mode ? '20' : '8'} lignes max, avec des produits/enseignes belges quand c'est utile (Colruyt, Delhaize, Quick, friterie, snack halal…). Questions médicales (dose, effets graves : douleur au ventre forte et persistante, vomissements répétés, malaise) → son médecin ou le 112 en urgence.${p.lang === 'ar' ? ' Réponds en arabe littéraire.' : ' Réponds en français.'}`,
+    system: `Tu es le coach SPORT FORME de ${p.name || 'cette personne'} (musculation, cardio, technique, récupération, salle), qui vit à Bruxelles. Tu ne donnes AUCUN conseil de nourriture / régime / recettes (retiré de FORME le 31/10) : si on t'en demande, dis gentiment que FORME s'occupe du sport.\nRéponds simplement, concret, chaleureux, ${mode ? '20' : '8'} lignes max. Questions médicales (dose, effets graves : douleur au ventre forte et persistante, vomissements répétés, malaise) → son médecin ou le 112 en urgence.${p.lang === 'ar' ? ' Réponds en arabe littéraire.' : ' Réponds en français.'}`,
     messages: [{ role: 'user', content: `${ctx}\n\nQUESTION : ${question.slice(0, 800)}` }] }, QUALITY);
   return textOf(res).trim();
 }
@@ -1140,29 +1140,28 @@ export async function logForme(kind: string, b: Record<string, unknown>, date = 
 
 // ── Ce que Dzaryx sait (dossier : chat, appels, message du matin) ───────────
 export async function formeText(uid: Uid = 'kouider'): Promise<string> {
-  const [p, days, week, photos] = await Promise.all([getFormeProfile(uid), readDays(uid), getWeek(uid), readPhotos(uid)]);
+  // 31/10 : FORME = SPORT seulement (Kouider : « enlève tout ce qui concerne la nourriture ») → plus de repas, kcal, eau ni courses ici.
+  const [p, days, photos, machines] = await Promise.all([getFormeProfile(uid), readDays(uid), readPhotos(uid), machineHistory(uid)]);
   const who = uid === 'kouider' ? 'Kouider' : p.name || 'sa femme';
-  if (!p.onboarded && !Object.keys(days).length) return uid === 'kouider' ? 'APP FORME (sport + nutrition) : pas encore configurée — propose-lui d\'ouvrir la page FORME de l\'app pour la régler (2 minutes).' : '';
-  const today = localNow().date, t = formeTargets(p);
+  if (!p.onboarded && !Object.keys(days).length) return uid === 'kouider' ? 'APP FORME (sport) : pas encore configurée — propose-lui d\'ouvrir la page FORME de l\'app.' : '';
+  const today = localNow().date;
   const lastDays = Array.from({ length: 7 }, (_, i) => addDays(today, -i)).map(d => {
     const x = days[d]; if (!x) return null;
-    const tot = dayTotals(x, week, d);
-    return `- ${d} : ${tot.kcal} kcal, ${tot.p} g prot., eau ${x.water}/${p.waterGoal}${x.weight ? `, ${x.weight} kg` : ''}${x.injection ? `, 💉 injection (${x.injection.site}${x.injection.dose ? `, ${x.injection.dose}` : ''})` : ''}${x.workout ? `, séance ${x.workout.label}` : ''}${x.sleep ? `, sommeil ${x.sleep} h` : ''}${x.steps != null ? `, ${x.steps} pas` : ''}${x.sides?.length ? `, effets : ${x.sides.map(s => `${s.what} ${s.level}/3`).join(', ')}` : ''}`;
+    const bits = [x.weight ? `${x.weight} kg` : '', x.injection ? `💉 injection (${x.injection.site}${x.injection.dose ? `, ${x.injection.dose}` : ''})` : '', x.workout ? `séance ${x.workout.label}` : '', x.sleep ? `sommeil ${x.sleep} h` : '', x.steps != null ? `${x.steps} pas` : '', x.sides?.length ? `effets : ${x.sides.map(s => `${s.what} ${s.level}/3`).join(', ')}` : ''].filter(Boolean);
+    return bits.length ? `- ${d} : ${bits.join(', ')}` : null;
   }).filter(Boolean);
   const weights = Object.entries(days).filter(([, d]) => d.weight).sort(([a], [b]) => a.localeCompare(b));
   const inj = nextInjection(p, days);
   const lastA = [...photos].reverse().find(ph => ph.analysis);
-  const todayPlan = week?.days.find(d => d.date === today)?.meals.map(m => `${m.slot} : ${week.recipes.find(r => r.id === m.recipe)?.title ?? '?'}${days[today]?.meals[`${m.recipe}:${m.slot}`] ? ' ✅' : ''}`).join(' · ');
   const lines = [
     uid === 'kouider'
-      ? 'APP FORME (son app sport + nutrition, page FORME de l\'app Dzaryx et appli à part sur son écran) — tu suis TOUT ce qu\'elle voit. Outil `forme` pour lire/noter. Il mange UNIQUEMENT HALAL. Il vit en Belgique (courses ' + p.stores.join(', ') + '). Liste de courses commune avec sa femme (ce que l\'un coche est coché chez l\'autre).'
+      ? 'APP FORME (son app SPORT : séances, bibliothèque d\'exercices, scan des machines de la salle, photos du corps — page FORME de l\'app Dzaryx et appli à part). AUCUNE nutrition : ne parle jamais de repas, kcal ou courses à cause de FORME. Outil `forme` pour lire/noter.'
       : `SUIVI FORME DE ${who.toUpperCase()} (elle a accepté de le partager avec Dzaryx ; reste discret et bienveillant, n'en parle qu'à Kouider ou à elle) :`,
-    `Objectif : ${p.goal} · ${weights.length ? `${weights[0]![1].weight} kg au départ → ${weights[weights.length - 1]![1].weight} kg aujourd'hui` : `${p.weightKg} kg`} → visé ${p.targetKg} kg. Cibles/jour : ${t.kcal} kcal, ${t.p} g protéines, ${p.waterGoal} verres d'eau.`,
+    `Objectif : ${p.goal} · ${weights.length ? `${weights[0]![1].weight} kg au départ → ${weights[weights.length - 1]![1].weight} kg aujourd'hui` : `${p.weightKg} kg`} → visé ${p.targetKg} kg.`,
     p.wegovy.on ? `TRAITEMENT WEGOVY (privé ; jamais de conseil de dose → médecin) : ${p.wegovy.dose ? `dose actuelle ${p.wegovy.dose}, ` : ''}injection le ${['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'][p.wegovy.day]} ${p.wegovy.hour}${inj ? `, prochaine ${inj.inDays === 0 ? "AUJOURD'HUI" : `dans ${inj.inDays} j`} (site conseillé : ${inj.site})` : ''}.` : '',
-    todayPlan ? `Menu d'aujourd'hui : ${todayPlan}` : '',
     lastDays.length ? `7 DERNIERS JOURS :\n${lastDays.join('\n')}` : '',
     lastA?.analysis ? `DERNIÈRE ANALYSE PHOTO (${lastA.date}) : ${lastA.analysis.summary} À travailler : ${lastA.analysis.focus.join(', ')}.` : '',
-    p.fasting !== 'off' ? `Jeûne : ${p.fasting === 'ramadan' ? 'Ramadan (s\'hour + iftar)' : 'lundi et jeudi'}.` : '',
+    machines.length ? `Machines scannées récemment : ${machines.slice(0, 5).map(m => `${m.machine} (${m.date})`).join(', ')}.` : '',
     p.reminders.length ? `Rappels perso : ${p.reminders.map(x => `${x.label} ${x.time}`).join(', ')}.` : '',
     `Photos de suivi : ${photos.length}${photos.length ? `, dernière le ${photos[photos.length - 1]!.date}` : ''} (rappel tous les ${p.photoEveryDays} j).`,
   ];
@@ -1172,6 +1171,78 @@ export async function formeText(uid: Uid = 'kouider'): Promise<string> {
     if (fp.onboarded && fp.shareWithDzaryx) out += `\n${await formeText('femme')}`;
   }
   return out;
+}
+
+// ── SCAN DE MACHINE (Kouider 31/10, « je prends une machine en photo → il me dit les exercices en image + un lien vidéo ») ──
+// Une photo (machine, banc, poulie, haltères…) → la vision (gratuite par défaut, cf. anthropic-compat) reconnaît l'appareil et
+// choisit dans la bibliothèque (free-exercise-db : photos + muscles) les exercices faisables dessus. Lien YouTube = recherche.
+export interface MachineEx { id: string | null; name: string; muscles: string[]; tip: string; img: string[]; video: string }
+export interface MachineScan { id: string; at: number; date: string; machine: string; what: string; setup: string; exercises: MachineEx[]; thumb?: string }
+const MACH_K = (uid: Uid) => `${uid}:forme:machines`;
+export async function machineHistory(uid: Uid): Promise<MachineScan[]> { return readJson<MachineScan[]>(MACH_K(uid), []); }
+const ytSearch = (q: string) => `https://www.youtube.com/results?search_query=${encodeURIComponent(`${q} technique musculation`)}`;
+
+export async function scanMachine(uid: Uid, img: Img, thumb?: string): Promise<MachineScan> {
+  const { exerciseLibrary } = await import('./exercise-lib.js');
+  const { vision, jsonOf } = await import('./media-util.js');
+  const lib = await exerciseLibrary();
+  const gym = lib.filter(e => e.cat === 'strength' || e.cat === 'powerlifting' || e.cat === 'stretching' || e.cat === 'cardio');
+  const ids = gym.map(e => e.id).join(' ');
+  const lang = (await getFormeProfile(uid)).lang;
+  const raw = await vision([{ base64: img.data, mime: img.media }], `Voici une photo prise à la salle de sport (une machine, une poulie, un banc, des haltères, une barre, un appareil de cardio…).
+1) Reconnais l'appareil (nom courant en salle${lang === 'ar' ? ', en arabe' : ' en français'}).
+2) Choisis de 4 à 8 exercices qu'on peut faire DESSUS (ou avec), du plus classique au plus avancé. Pour chacun, prends l'identifiant EXACT le plus proche dans cette liste (même mouvement, même matériel), ou null s'il n'y en a pas :
+${ids}
+Tutoie (« règle », « place-toi »). Réponds UNIQUEMENT en JSON : {"machine":"nom de l'appareil","what":"à quoi il sert en 1 phrase","setup":"comment le régler / se placer en 1-2 phrases (siège, coussins, poids, prise)","exercises":[{"id":"Identifiant_Exact ou null","name":"nom ${lang === 'ar' ? 'en arabe' : 'en français'} comme on le dit en salle","muscles":["muscles principaux${lang === 'ar' ? ' en arabe' : ' en français'}"],"tip":"le conseil clé en 1 phrase"}]}
+Si la photo ne montre aucun matériel de sport : {"machine":"","what":"pas de matériel de sport visible","setup":"","exercises":[]}`, { maxTokens: 1500 });
+  const j = jsonOf<{ machine?: string; what?: string; setup?: string; exercises?: Array<{ id?: string | null; name?: string; muscles?: string[]; tip?: string }> }>(raw);
+  if (!j) throw new Error('Je n\'ai pas réussi à lire la photo — réessaie de plus près, avec toute la machine dans le cadre.');
+  const byId = new Map(lib.map(e => [e.id, e]));
+  const exercises: MachineEx[] = (j.exercises ?? []).slice(0, 8).map(x => {
+    const e = x.id ? byId.get(String(x.id)) : undefined;
+    const name = String(x.name || e?.fr || '').slice(0, 80);
+    return { id: e?.id ?? null, name, muscles: (x.muscles ?? []).map(String).slice(0, 4), tip: String(x.tip ?? '').slice(0, 220), img: e?.img ?? [], video: ytSearch(e?.name ?? name) };
+  }).filter(x => x.name);
+  const scan: MachineScan = { id: Math.random().toString(36).slice(2, 10), at: Date.now(), date: localNow().date, machine: String(j.machine ?? '').slice(0, 80), what: String(j.what ?? '').slice(0, 240), setup: String(j.setup ?? '').slice(0, 400), exercises, thumb: thumb && thumb.length < 60_000 ? thumb : undefined };
+  if (scan.machine && exercises.length) {
+    const hist = await machineHistory(uid);
+    await kvSet(MACH_K(uid), JSON.stringify([scan, ...hist.filter(h => h.machine.toLowerCase() !== scan.machine.toLowerCase())].slice(0, 30)));
+  }
+  return scan;
+}
+export async function deleteMachine(uid: Uid, id: string): Promise<MachineScan[]> {
+  const hist = (await machineHistory(uid)).filter(h => h.id !== id);
+  await kvSet(MACH_K(uid), JSON.stringify(hist));
+  return hist;
+}
+
+// ── Historique / progrès par exercice de la bibliothèque (onglets « Historique » et « Progrès » de la fiche) ──
+export interface ExSet { at: number; date: string; kg?: number; reps?: number }
+const EXLOG_K = (uid: Uid) => `${uid}:forme:exlog`;
+async function readExLog(uid: Uid): Promise<Record<string, ExSet[]>> { return readJson<Record<string, ExSet[]>>(EXLOG_K(uid), {}); }
+export async function exHistory(uid: Uid, id: string): Promise<ExSet[]> { return (await readExLog(uid))[id] ?? []; }
+export async function addExSet(uid: Uid, id: string, kg?: number, reps?: number): Promise<ExSet[]> {
+  const all = await readExLog(uid);
+  const row: ExSet = { at: Date.now(), date: localNow().date, ...(kg && kg > 0 ? { kg: Math.round(kg * 10) / 10 } : {}), ...(reps && reps > 0 ? { reps: Math.round(reps) } : {}) };
+  all[id] = [...(all[id] ?? []), row].slice(-300);
+  await kvSet(EXLOG_K(uid), JSON.stringify(all));
+  return all[id]!;
+}
+export async function delExSet(uid: Uid, id: string, at: number): Promise<ExSet[]> {
+  const all = await readExLog(uid);
+  all[id] = (all[id] ?? []).filter(x => x.at !== at);
+  await kvSet(EXLOG_K(uid), JSON.stringify(all));
+  return all[id]!;
+}
+
+// ── Exercices favoris (le petit marque-page de la vidéo) ──
+const EXFAV_K = (uid: Uid) => `${uid}:forme:exfav`;
+export async function exFavs(uid: Uid): Promise<string[]> { return readJson<string[]>(EXFAV_K(uid), []); }
+export async function toggleExFav(uid: Uid, id: string, on: boolean): Promise<string[]> {
+  const cur = (await exFavs(uid)).filter(x => x !== id);
+  const next = on ? [id, ...cur].slice(0, 200) : cur;
+  await kvSet(EXFAV_K(uid), JSON.stringify(next));
+  return next;
 }
 
 // ── Notifications (push de l'appli FORME de chacun ; Kouider : aussi l'app Dzaryx) ──
@@ -1220,7 +1291,7 @@ async function notify(uid: Uid, what: keyof typeof MSG.fr, arg: string, date = l
   return true;
 }
 
-/** Toutes les 15 min, 7h-22h, pour chacun : injection, repas, eau, pesée, photo. Une seule fois par jour pour chaque. */
+/** Toutes les 15 min, 7h-22h, pour chacun : injection, pesée, photo, rappels perso. Une seule fois par jour pour chaque. */
 export async function jobFormeReminders(): Promise<string> {
   const out: string[] = [];
   for (const uid of UIDS) {
@@ -1234,15 +1305,7 @@ export async function jobFormeReminders(): Promise<string> {
     const inj = nextInjection(p, days);
     if (p.notif.injection && inj?.inDays === 0 && !d.injection && at(p.wegovy.hour) && await notify(uid, 'inj', inj.site)) sent.push('injection');
     if (p.notif.weigh && at('07:30') && !at('10:00') && !d.weight && (p.weighDaily || new Date(`${date}T12:00:00Z`).getUTCDay() === 1) && await notify(uid, 'weigh', '')) sent.push('pesée');
-    const week = await getWeek(uid);
-    const plan = week?.days.find(x => x.date === date);
-    if (p.notif.meals && plan) {
-      const lunch = plan.meals.find(m => m.slot === 'déjeuner'), dinner = plan.meals.find(m => m.slot === 'dîner');
-      const title = (id?: string) => week!.recipes.find(r => r.id === id)?.title ?? '';
-      if (lunch && at('12:15') && !at('14:00') && !d.meals[`${lunch.recipe}:déjeuner`] && await notify(uid, 'lunch', title(lunch.recipe))) sent.push('déjeuner');
-      if (dinner && at('19:00') && !at('21:00') && !d.meals[`${dinner.recipe}:dîner`] && await notify(uid, 'dinner', title(dinner.recipe))) sent.push('dîner');
-    }
-    if (p.notif.water && at('15:00') && !at('17:00') && d.water < p.waterGoal / 2 && await notify(uid, 'water', `${d.water}/${p.waterGoal}`)) sent.push('eau');
+    // 31/10 : plus de rappels repas / eau (FORME = sport seulement)
     const photos = await readPhotos(uid);
     const last = photos[photos.length - 1];
     if (p.notif.photo && at('09:00') && (!last || (Date.parse(date) - Date.parse(last.date)) / 86_400_000 >= p.photoEveryDays) && await notify(uid, 'photo', '')) sent.push('photo');
@@ -1254,30 +1317,9 @@ export async function jobFormeReminders(): Promise<string> {
   return out.join(' · ') || 'rien';
 }
 
-/** Dimanche 19h : bilan FORME de Kouider sur Telegram + semaine suivante composée pour chacun. */
-export async function jobFormeWeekly(): Promise<void> {
-  const p = await getFormeProfile('kouider');
-  if (p.onboarded) {
-    const o = await formeOverview('kouider');
-    const avg = (k: 'kcal' | 'p') => Math.round(o.week7.reduce((a, d) => a + d[k], 0) / 7);
-    const w = o.weights.filter(x => x.date >= addDays(o.today, -7));
-    const delta = w.length >= 2 ? Math.round((w[w.length - 1]!.kg - w[0]!.kg) * 10) / 10 : null;
-    await queueTelegramMessage([
-      '📊 Bilan FORME de la semaine',
-      `🍽️ Moyenne ${avg('kcal')} kcal/jour (cible ${o.targets.kcal}) · 🥩 ${avg('p')} g de protéines (cible ${o.targets.p})`,
-      delta != null ? `⚖️ ${delta > 0 ? '+' : ''}${delta} kg cette semaine${o.tooFast ? ' — un peu rapide : on monte les protéines pour garder le muscle' : ''}` : '⚖️ Pense à te peser lundi matin',
-      `💧 ${o.week7.filter(d => d.water >= p.waterGoal).length}/7 jours bien hydraté · 🔥 série ${o.streak} j`,
-      o.photoDue ? '📸 Photo de suivi à faire cette semaine' : '',
-      'Nouvelle semaine de repas et liste de courses (du foyer) prête dans FORME 🛒',
-    ].filter(Boolean).join('\n')).catch(() => {});
-  }
-  const tomorrow = addDays(localNow().date, 1);
-  for (const uid of UIDS) {
-    if (!(await getFormeProfile(uid)).onboarded) continue;
-    await generateWeek(uid, tomorrow, true).catch(err => console.error(`[forme] semaine suivante ${uid} :`, err instanceof Error ? err.message : err));
-  }
-  await resetChecksBefore(Date.now() - 3600_000);
-}
+/** Dimanche 19h : avant, bilan nutrition + semaine de repas. 31/10 : nutrition retirée de FORME → plus rien ici
+ * (le bilan sport du dimanche, c'est sport-weekly à 20h). Gardé pour ne pas casser le planning. */
+export async function jobFormeWeekly(): Promise<void> { /* rien : FORME = sport seulement */ }
 
 // ── Outil Dzaryx `forme` (Kouider seulement : son suivi à lui) ───────────────
 export async function formeTool(input: Record<string, unknown>): Promise<string> {
@@ -1285,21 +1327,14 @@ export async function formeTool(input: Record<string, unknown>): Promise<string>
   if (a === 'status') return await formeText('kouider');
   if (a === 'log') {
     const kind = String(input.kind ?? '');
-    if (!['water', 'weight', 'food', 'protein', 'injection', 'side', 'measures'].includes(kind)) return 'kind invalide (water, weight, food, protein, injection, side, measures)';
+    if (!['weight', 'injection', 'side', 'measures'].includes(kind)) return 'kind invalide (weight, injection, side, measures) — FORME ne suit plus la nourriture';
     await logForme(kind, input);
     return `✅ Noté dans FORME (${kind}).`;
   }
-  if (a === 'week') {
-    const w = await getWeek('kouider') ?? await generateWeek('kouider');
-    return w.days.map(d => `${d.date} : ${d.meals.map(m => `${m.slot} ${w.recipes.find(r => r.id === m.recipe)?.title}`).join(' · ')}`).join('\n');
+  if (a === 'machines') {
+    const h = await machineHistory('kouider');
+    return h.length ? h.slice(0, 10).map(m => `${m.date} · ${m.machine} : ${m.exercises.map(e => e.name).join(', ')}`).join('\n') : 'Aucune machine scannée pour l\'instant (FORME → Scanner).';
   }
-  if (a === 'shopping') {
-    const h = await householdShopping('kouider');
-    const by = new Map<string, HouseItem[]>();
-    for (const s of h.items) by.set(s.store, [...(by.get(s.store) ?? []), s]);
-    return [...by].map(([st, items]) => `🛒 ${st}\n${items.map(i => `${i.checked ? `✅ (${i.by})` : '▫️'} ${i.name} ${i.who.map(w => w.qty).join(' + ')} ≈ ${i.price.toFixed(2)} €`).join('\n')}`).join('\n\n') + `\nTotal ≈ ${h.total.toFixed(2)} € (budget ${h.budget} €)${h.shared ? ' — liste commune avec sa femme' : ''}`;
-  }
-  if (a === 'regenerate') { const w = await generateWeek('kouider', localNow().date, true, typeof input['wishes'] === 'string' ? input['wishes'] : undefined); return `✅ Nouvelle semaine : ${w.recipes.length} recettes, courses ≈ ${w.total} €. ${w.note}`; }
   if (a === 'ask') return await askFormeCoach(String(input.question ?? ''));
   if (a === 'profile') {
     const patch = input as Partial<FormeProfile> & { dose?: string };

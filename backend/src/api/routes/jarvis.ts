@@ -125,7 +125,7 @@ router.post('/workout', express.text({ type: 'text/*', limit: '1mb' }), async (r
   const body = typeof req.body === 'string' ? { data: req.body } : (req.body ?? {}) as Record<string, unknown>;
   try { res.json(await import('../../integrations/workout-live.js').then(m => m.receiveWorkout(body))); } catch (e) { fail(res, e); }
 });
-// COACH DE VIE+ : identités, votes, intentions, décisions, couple, eau, prières (onglet JARVIS › Vie)
+// COACH DE VIE+ : identités, votes, intentions, décisions, couple, eau, prières (page COACH › Ma vie)
 router.get('/life', async (_req, res) => {
   try { res.json(await import('../../integrations/life-plus.js').then(m => m.lifeOverview())); } catch (e) { fail(res, e); }
 });
@@ -136,7 +136,7 @@ router.post('/life/action', async (req, res) => {
     res.json({ message, overview: await m.lifeOverview() });
   } catch (e) { fail(res, e); }
 });
-// GRAND COACH : texte du jour, 3 actions, défi, piliers + toutes ses options (onglet JARVIS › Coach)
+// GRAND COACH : texte du jour, 3 actions, défi, piliers + toutes ses options (page COACH › Grand Coach)
 router.get('/coach', async (_req, res) => {
   try { res.json(await import('../../integrations/grand-coach.js').then(m => m.grandCoachOverview())); } catch (e) { fail(res, e); }
 });

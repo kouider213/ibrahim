@@ -3,26 +3,26 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { trPair } from './i18n.ts';
 
-// Kit visuel FORME — repris de l'app que Kouider a montrée (MacroSave) : fond crème rosé, cartes blanches,
-// accent orange-rouge, cartes sombres pour les chiffres, titres « gras + italique serif ».
+// Kit visuel FORME — 31/10 : refait au style de l'appli « Library » que Kouider a montrée (TikTok physio_tip) :
+// fond clair lavande, tuiles grises-lavande, images d'exercices sur fond clair, muscles en rouge, bouton bleu, police système iPhone.
 export const F = {
-  bg: '#fbf1ec', bg2: '#f6e6de', card: '#ffffff', ink: '#1d1a19', dark: '#211d1c', dark2: '#2d2826',
-  muted: '#8c7f7a', line: 'rgba(60,30,20,0.08)', accent: '#ff4b2b', accent2: '#ff7a45', soft: '#ffe3d8',
-  green: '#22a565', blue: '#2f7cf6', violet: '#7b5cf0', gold: '#f2a516', red: '#e2412b',
-  sans: '"Inter Tight", "Inter", -apple-system, "Segoe UI", Roboto, sans-serif',
-  serif: '"Instrument Serif", "Noto Naskh Arabic", "Times New Roman", serif',
+  bg: '#f5f2fa', bg2: '#ebe6f3', card: '#ffffff', tile: '#ece7f4', ink: '#17151c', dark: '#1d1b26', dark2: '#2c2938',
+  muted: '#7f7a8c', line: 'rgba(40,30,70,0.09)', accent: '#1f63f0', accent2: '#5b8cff', soft: '#e4ebff',
+  green: '#1f9d5c', blue: '#1f63f0', violet: '#7b5cf0', gold: '#e09a12', red: '#e5322d',
+  sans: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif',
+  serif: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Noto Naskh Arabic", sans-serif',
 };
 
-export const card: CSSProperties = { background: F.card, borderRadius: 22, padding: 16, boxShadow: '0 1px 0 rgba(60,30,20,0.04), 0 8px 24px rgba(120,60,40,0.06)' };
-export const darkCard: CSSProperties = { background: `linear-gradient(160deg, ${F.dark2}, ${F.dark})`, color: '#fff', borderRadius: 24, padding: 18, boxShadow: '0 14px 30px rgba(30,15,10,0.22)' };
+export const card: CSSProperties = { background: F.card, borderRadius: 18, padding: 16, boxShadow: '0 1px 2px rgba(40,30,70,0.05), 0 6px 18px rgba(40,30,70,0.05)' };
+export const darkCard: CSSProperties = { background: `linear-gradient(160deg, ${F.dark2}, ${F.dark})`, color: '#fff', borderRadius: 24, padding: 18, boxShadow: '0 12px 28px rgba(30,25,60,0.22)' };
 
 export function Title({ a, b, size = 32, sub }: { a: string; b?: string; size?: number; sub?: string }) {
   [a, b] = trPair(a, b);
   b = b?.replace(/ ([?!:])/g, '\u00a0$1');   // jamais un « ? » seul à la ligne
   return (
     <div style={{ margin: '4px 0 14px' }}>
-      <div style={{ fontSize: size, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.05, color: F.ink }}>
-        {a}{b && <> <span style={{ fontFamily: F.serif, fontStyle: 'italic', fontWeight: 400, color: F.accent, letterSpacing: '-0.01em' }}>{b}</span></>}
+      <div style={{ fontSize: size, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.05, color: F.ink }}>
+        {a}{b && <> <span style={{ color: F.ink }}>{b}</span></>}
       </div>
       {sub && <div style={{ fontSize: 14, color: F.muted, marginTop: 6, lineHeight: 1.4 }}>{sub}</div>}
     </div>
@@ -36,15 +36,15 @@ export function Section({ a, b, right, onRight }: { a: string; b?: string; right
   [a, b] = trPair(a, b);
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', margin: '22px 2px 10px' }}>
-      <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.02em' }}>{a}{b && <> <span style={{ fontFamily: F.serif, fontStyle: 'italic', fontWeight: 400, color: F.accent }}>{b}</span></>}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em' }}>{a}{b && <> <span>{b}</span></>}</div>
       {right && <button onClick={onRight} style={{ ...ghostBtn, padding: '4px 0', color: F.accent, fontSize: 13, fontWeight: 700, background: 'none', border: 'none' }}>{right}</button>}
     </div>
   );
 }
 
-export const btn: CSSProperties = { background: F.accent, color: '#fff', border: 'none', borderRadius: 16, padding: '15px 18px', fontSize: 15.5, fontWeight: 800, fontFamily: F.sans, cursor: 'pointer', boxShadow: '0 8px 20px rgba(255,75,43,0.28)' };
-export const darkBtn: CSSProperties = { ...btn, background: F.dark, boxShadow: '0 8px 18px rgba(30,15,10,0.2)' };
-export const ghostBtn: CSSProperties = { background: '#fff', color: F.ink, border: `1px solid ${F.line}`, borderRadius: 14, padding: '11px 14px', fontSize: 14, fontWeight: 700, fontFamily: F.sans, cursor: 'pointer' };
+export const btn: CSSProperties = { background: F.accent, color: '#fff', border: 'none', borderRadius: 999, padding: '14px 20px', fontSize: 15.5, fontWeight: 700, fontFamily: F.sans, cursor: 'pointer', boxShadow: '0 8px 20px rgba(31,99,240,0.25)' };
+export const darkBtn: CSSProperties = { ...btn, background: F.dark, boxShadow: '0 8px 18px rgba(30,25,60,0.2)' };
+export const ghostBtn: CSSProperties = { background: '#fff', color: F.ink, border: `1px solid ${F.line}`, borderRadius: 999, padding: '11px 16px', fontSize: 14, fontWeight: 600, fontFamily: F.sans, cursor: 'pointer' };
 export const input: CSSProperties = { width: '100%', boxSizing: 'border-box', background: '#fff', border: `1px solid ${F.line}`, borderRadius: 14, padding: '13px 14px', fontSize: 16, fontFamily: F.sans, color: F.ink, outline: 'none' };
 
 export function Ring({ value, max, size = 120, stroke = 11, color = F.accent, track = 'rgba(255,255,255,0.1)', children }: { value: number; max: number; size?: number; stroke?: number; color?: string; track?: string; children?: ReactNode }) {
@@ -84,11 +84,11 @@ export function Sheet({ open, onClose, children, title, z = 50 }: { open: boolea
     <AnimatePresence>
       {open && (
         <motion.div key="bg" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(30,15,10,0.45)', zIndex: z, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          style={{ position: 'fixed', inset: 0, background: 'rgba(20,15,40,0.4)', zIndex: z, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 30, stiffness: 300 }}
             onClick={e => e.stopPropagation()}
             style={{ width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', background: F.bg, borderRadius: '28px 28px 0 0', padding: '10px 18px calc(28px + env(safe-area-inset-bottom))', fontFamily: F.sans, color: F.ink, boxSizing: 'border-box' }}>
-            <div style={{ width: 42, height: 5, borderRadius: 3, background: 'rgba(60,30,20,0.18)', margin: '0 auto 12px' }} />
+            <div style={{ width: 42, height: 5, borderRadius: 3, background: 'rgba(40,30,70,0.18)', margin: '0 auto 12px' }} />
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
               <div style={{ flex: 1 }}>{typeof title === 'string' ? <Title a={title} size={24} /> : title}</div>
               <button onClick={onClose} aria-label="Fermer" style={{ ...ghostBtn, width: 40, height: 40, padding: 0, borderRadius: 20, flexShrink: 0 }}>✕</button>

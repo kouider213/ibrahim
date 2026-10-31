@@ -42,6 +42,7 @@ import FormeScreen from './screens/FormeScreen.tsx';
 import FennouScreen from './screens/FennouScreen.tsx';
 import LiberteScreen from './screens/LiberteScreen.tsx';
 import JarvisScreen from './screens/JarvisScreen.tsx';
+import CoachScreen from './screens/CoachScreen.tsx';
 import JeuxScreen from './screens/JeuxScreen.tsx';
 import { setSimActor, resumeWebPush, business, callApi, loginDevice, logoutDevice, setDeviceToken, getDeviceToken } from '../services/api.ts';
 
@@ -49,7 +50,7 @@ export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
   | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews' | 'blog' | 'devis' | 'reponse'
-  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'demarchage' | 'sites' | 'partners' | 'paiements' | 'studio' | 'carte' | 'nexus' | 'globe' | 'camera' | 'route' | 'sport' | 'fennou' | 'liberte' | 'jeux' | 'jarvis' | 'plus';
+  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'demarchage' | 'sites' | 'partners' | 'paiements' | 'studio' | 'carte' | 'nexus' | 'globe' | 'camera' | 'route' | 'sport' | 'coach' | 'fennou' | 'liberte' | 'jeux' | 'jarvis' | 'plus';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -66,6 +67,7 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'clients',       icon: '👥', label: 'CLIENTS' },
   { id: 'settings',      icon: '⚙️', label: 'CONFIG'  },
   // ── Menu "⋯ Plus" (outils) ── (31/10 : JEUX et CARTE LIVE retirés du menu à la demande de Kouider, jamais utilisés ; code gardé, démo ?demo=carte intacte)
+  { id: 'coach',         icon: '🏆', label: 'COACH',   kouiderOnly: true, group: 'tool' },
   { id: 'jarvis',        icon: '🦾', label: 'JARVIS',  kouiderOnly: true, group: 'tool' },
   { id: 'search',        icon: '🔍', label: 'CHERCHER', group: 'tool' },
   { id: 'fennou',        icon: '🦊', label: 'FENNOU',  kouiderOnly: true, group: 'tool' },
@@ -313,7 +315,7 @@ export default function Phone() {
   const actor = loggedActor ?? 'kouider';
 
   const houariOnlyPages: Page[] = [];
-  const kouiderOnlyPages: Page[] = ['jarvis', 'jeux', 'fennou', 'liberte', 'documents', 'demarchage', 'sites', 'partners', 'paiements', 'studio', 'carte', 'camera', 'route'];
+  const kouiderOnlyPages: Page[] = ['coach', 'jarvis', 'jeux', 'fennou', 'liberte', 'documents', 'demarchage', 'sites', 'partners', 'paiements', 'studio', 'carte', 'camera', 'route'];
 
   const safePage: Page = (() => {
     if (actor === 'houari' && kouiderOnlyPages.includes(page)) return 'voice';
@@ -360,6 +362,7 @@ export default function Phone() {
       case 'fennou':        return <FennouScreen onExit={exitFennou} />;
       case 'liberte':       return <LiberteScreen />;
       case 'jeux':          return <JeuxScreen onExit={exitFennou} />;
+      case 'coach':         return <CoachScreen onAsk={(prompt) => { try { localStorage.setItem('dz:ask_prompt', prompt); } catch { /* ignore */ } setPage('text'); }} />;
       case 'jarvis':        return <JarvisScreen onAsk={(prompt) => { try { localStorage.setItem('dz:ask_prompt', prompt); } catch { /* ignore */ } setPage('text'); }} />;
       case 'carte':         return <CarteScreen actor={actor} startFull={carteLink} onOpen={(p) => setPage(p as Page)} onAsk={(prompt) => { try { localStorage.setItem('dz:ask_prompt', prompt); } catch { /* ignore */ } setPage('text'); }} />;
       case 'plus':          return <ToolsGrid onOpen={setPage} actor={actor} />;
@@ -1035,7 +1038,8 @@ const TOOL_INFO: Partial<Record<Page, { name: string; hint: string; cat: string 
   pricing:       { name: 'Prix conseillés', hint: 'Selon la demande', cat: 'Pilotage' },
   partners:      { name: 'Partenaires',    hint: 'Houari et les autres', cat: 'Pilotage' },
   search:        { name: 'Chercher',       hint: 'Partout dans Dzaryx', cat: 'Perso & PC' },
-  sport:         { name: 'Coach',          hint: 'Sport et mental', cat: 'Perso & PC' },
+  coach:         { name: 'Coach de vie',   hint: 'Business, vie, discipline', cat: 'Perso & PC' },
+  sport:         { name: 'Forme',          hint: 'Salle, exercices, scanner', cat: 'Perso & PC' },
   carte:         { name: 'Carte live',     hint: 'Toute l\'activité en 3D', cat: 'Perso & PC' },
   nexus:         { name: 'Mon PC',         hint: 'Contrôle à distance', cat: 'Perso & PC' },
   camera:        { name: 'Caméra → PC',    hint: 'Montrer à Nexus', cat: 'Perso & PC' },

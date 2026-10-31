@@ -3,6 +3,13 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-31 17h — Page COACH = coach de vie ; FORME refaite (style « Library »), scanner de machines, zéro nourriture (app v219)
+- Page COACH (menu Plus, 🏆) : Grand Coach + Ma vie (sortis de JARVIS). FORME = le sport.
+- FORME refaite au style de la vidéo TikTok de Kouider : fond lavande, onglets Séance / Exercices / Scanner / Progrès, bibliothèque avec bonshommes de muscles, filtre matériel, marque-pages, fiche À propos / Historique / Progrès + YouTube / Partager.
+- 📷 Scanner : photo d'une machine → appareil reconnu, réglage, 4-8 exercices en images (free-exercise-db) + lien vidéo YouTube ; « Mes machines » gardées (kv <uid>:forme:machines). Route POST /api/forme/machine, testé : presse à cuisses reconnue en 18 s.
+- Nourriture retirée : écrans Semaine/Courses/outils nutrition supprimés, plus de rappels repas/eau, plus de semaine de repas le dimanche, formeText et outil `forme` sans nutrition (actions week/shopping/regenerate retirées, + action machines).
+- Les dessins 3D de la vidéo sont la propriété de Gym visual (licence payante) → photos libres free-exercise-db à la place.
+
 ## 2026-10-31 15h20 — Appels : oui obligatoire, tâches de fond, mémoire propre (663fd09)
 - confirmed:true / CONFIRMÉ refusé dans tgcall si sa dernière phrase n'est pas un oui.
 - ask_dzaryx background:true : étude/PDF/site en fond, résultat glissé dans l'appel ou sur Telegram ; questions générales répondues sans le cerveau.

@@ -55,7 +55,19 @@ export interface ProgramView { session: (import('../services/api.ts').SportSessi
 const post = <T,>(path: string, body: unknown) => call<T>(path, { method: 'POST', body: JSON.stringify(body) });
 export const get = <T,>(path: string) => call<T>(path);
 
+export interface MachineEx { id: string | null; name: string; muscles: string[]; tip: string; img: string[]; video: string }
+export interface MachineScan { id: string; at: number; date: string; machine: string; what: string; setup: string; exercises: MachineEx[]; thumb?: string }
+export interface ExSet { at: number; date: string; kg?: number; reps?: number }
+
 export const forme = {
+  machine: (image: string, thumb?: string) => post<{ scan: MachineScan }>('/api/forme/machine', { image, thumb }),
+  machines: () => call<{ machines: MachineScan[] }>('/api/forme/machines'),
+  delMachine: (id: string) => call<{ machines: MachineScan[] }>(`/api/forme/machines/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  exFavs: () => call<{ ids: string[] }>('/api/forme/exfav'),
+  exFav: (id: string, on: boolean) => post<{ ids: string[] }>('/api/forme/exfav', { id, on }),
+  exLog: (id: string) => call<{ sets: ExSet[] }>(`/api/forme/exlog/${encodeURIComponent(id)}`),
+  exAdd: (id: string, kg?: number, reps?: number) => post<{ sets: ExSet[] }>('/api/forme/exlog', { id, kg, reps }),
+  exDel: (id: string, at: number) => post<{ sets: ExSet[] }>('/api/forme/exlog', { id, del: at }),
   overview: () => call<Overview>('/api/forme'),
   profile: (p: Partial<Profile>) => post<{ profile: Profile; targets: Targets }>('/api/forme/profile', p),
   swipe: () => call<{ meals: SwipeMeal[] }>('/api/forme/swipe'),
