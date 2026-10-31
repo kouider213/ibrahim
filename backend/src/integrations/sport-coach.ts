@@ -327,6 +327,11 @@ function suggestRaw(e: Exercise, log: SessionLog[]): Suggestion {
     const atTop = sets.filter(s => s.kg === top);
     const allDone = atTop.length >= e.sets && atTop.every(s => (s.reps ?? 0) >= reps(e.reps));
     const last = `${atTop.length}×${atTop.map(s => s.reps ?? '?').join('/')} à ${top} kg (${log[i]!.date.slice(8)}/${log[i]!.date.slice(5, 7)})`;
+    // Ressenti noté dans FORME (31/10, façon Freeletics) : « Nom : facile » → on monte même si une rep manquait ; « dur » → on redescend d'un cran
+    const feel = new RegExp(`${e.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} : (facile|parfait|dur)`, 'i').exec(log[i]!.note ?? '')?.[1]?.toLowerCase();
+    const step = e.step || 2.5;
+    if (feel === 'facile') return { kg: Math.max(0, Math.round((top + step) * 10) / 10), last, up: true };
+    if (feel === 'dur' && !allDone) return { kg: Math.max(0, Math.round((top - step) * 10) / 10), last };
     return e.step && allDone ? { kg: Math.max(0, Math.round((top + e.step) * 10) / 10), last, up: true } : { kg: top, last };
   }
   return { kg: null };

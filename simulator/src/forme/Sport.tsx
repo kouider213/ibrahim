@@ -4,6 +4,7 @@ import { apiFetch, type SportOverview, type SportSession, type SportExercise } f
 import { errText, SHORT_DAYS, dayOf, vibrate, forme, type ProgramView, type LibItem, type Routine, type RoutineEx, type ExSet } from './api.ts';
 import { F, card, btn, ghostBtn, input, Sheet, Spinner } from './ui.tsx';
 import { ExerciseSheet, Anim, RecoveryMap, LibraryPicker, COACH_TO_GROUP } from './Exercises.tsx';
+import { TodayForm } from './Watch.tsx';
 
 // Onglet SÉANCE — 31/10 refait façon applis pro de muscu (Hevy / Strong / Fitbod) : semaine en pastilles, carte du jour
 // avec les exercices en images, carte de récupération du corps, stats, records, historique ; mode séance en direct
@@ -80,7 +81,7 @@ function SessionCard({ s, kicker, onStart, onEx, start }: { s: SportSession; kic
 type SetT = 'n' | 'w' | 'd' | 'f';
 type SetRow = { kg: string; reps: string; done: boolean; t: SetT };
 type PEx = SportExercise & { libId?: string | null };
-type SaveFn = (sets: Array<{ ex: string; kg?: number; reps?: number }>, durationMin: number, rpe: number, exs: PEx[], rows: Record<string, SetRow[]>) => Promise<string>;
+type SaveFn = (sets: Array<{ ex: string; kg?: number; reps?: number }>, durationMin: number, rpe: number, exs: PEx[], rows: Record<string, SetRow[]>, note: string) => Promise<string>;
 const T_NEXT: Record<SetT, SetT> = { n: 'w', w: 'd', d: 'f', f: 'n' };
 const T_LOOK: Record<Exclude<SetT, 'n'>, { l: string; c: string; name: string }> = { w: { l: 'W', c: '#e08a00', name: 'Échauffement' }, d: { l: 'D', c: '#7b5cf0', name: 'Dégressive' }, f: { l: 'F', c: '#e5322d', name: 'Échec' } };
 const libIdOf = (e: PEx) => e.libId ?? (/\/exercises\/([^/]+)\/\d\.jpg/.exec(e.demo?.[0] ?? '')?.[1] ?? null);
@@ -99,11 +100,13 @@ function RestBar({ seconds, onDone }: { seconds: number; onDone: () => void }) {
   const end = useRef(Date.now() + seconds * 1000);
   const total = useRef(seconds);
   const [left, setLeft] = useState(seconds);
+  const said10 = useRef(false);
   useEffect(() => {
     const t = setInterval(() => {
       const l = Math.max(0, Math.ceil((end.current - Date.now()) / 1000));
       setLeft(l);
       if (l <= 3 && l > 0) vibrate(40);
+      if (l === 10 && !said10.current) { said10.current = true; speak('Encore 10 secondes'); }
       if (l === 0) { clearInterval(t); beep(); vibrate(400); onDone(); }
     }, 250);
     return () => clearInterval(t);
@@ -147,6 +150,32 @@ function PlateCalc({ open, onClose, kg0 }: { open: boolean; onClose: () => void;
 }
 const cellBig: CSSProperties = { background: '#fff', border: `1px solid ${F.line}`, borderRadius: 12, padding: 12, fontSize: 20, fontWeight: 700, textAlign: 'center', fontFamily: F.sans, color: F.ink, boxSizing: 'border-box' };
 
+// Coach vocal (façon Nike Training Club) : annonce l'exercice, la fin du repos, les 10 dernières secondes.
+const VOICE_K = 'forme:voice';
+function speak(t: string) { try { if (localStorage.getItem(VOICE_K) === '0') return; const u = new SpeechSynthesisUtterance(t); u.lang = 'fr-FR'; u.rate = 1.05; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch { /* */ } }
+// Ressenti par exercice (façon Freeletics) : la prochaine fois, la charge s'ajuste toute seule.
+type Feel = 'easy' | 'ok' | 'hard';
+const FEEL: Array<{ id: Feel; e: string; l: string }> = [{ id: 'easy', e: '😌', l: 'Facile' }, { id: 'ok', e: '👍', l: 'Parfait' }, { id: 'hard', e: '🥵', l: 'Dur' }];
+
+/** Carte à partager (façon Strava) : image 1080×1350 de la séance. */
+async function shareCard(o: { title: string; dur: string; volume: number; sets: number; lines: string[]; prs: string[] }) {
+  const c = document.createElement('canvas'); c.width = 1080; c.height = 1350; const g = c.getContext('2d')!;
+  const gr = g.createLinearGradient(0, 0, 1080, 1350); gr.addColorStop(0, '#1f63f0'); gr.addColorStop(1, '#5b3fe0'); g.fillStyle = gr; g.fillRect(0, 0, 1080, 1350);
+  g.fillStyle = 'rgba(255,255,255,0.85)'; g.font = '600 40px -apple-system, Inter, sans-serif'; g.fillText(new Date().toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' }), 80, 130);
+  g.fillStyle = '#fff'; g.font = '800 84px -apple-system, Inter, sans-serif'; g.fillText(o.title.slice(0, 22), 80, 240);
+  const stat = (x: number, v: string, l: string) => { g.font = '800 76px -apple-system, Inter, sans-serif'; g.fillText(v, x, 400); g.font = '500 34px -apple-system, Inter, sans-serif'; g.fillStyle = 'rgba(255,255,255,0.75)'; g.fillText(l, x, 450); g.fillStyle = '#fff'; };
+  stat(80, o.dur, 'Durée'); stat(420, `${Math.round(o.volume)}`, 'kg soulevés'); stat(800, String(o.sets), 'Séries');
+  g.fillStyle = 'rgba(255,255,255,0.14)'; g.fillRect(80, 510, 920, 3); g.fillStyle = '#fff';
+  g.font = '600 42px -apple-system, Inter, sans-serif'; o.lines.slice(0, 8).forEach((t, k) => g.fillText(t.slice(0, 40), 80, 600 + k * 70));
+  if (o.prs.length) { g.font = '700 44px -apple-system, Inter, sans-serif'; g.fillText(`🏆 Record : ${o.prs.join(', ').slice(0, 34)}`, 80, 1180); }
+  g.font = '800 48px -apple-system, Inter, sans-serif'; g.fillText('FORME', 80, 1270); g.font = '500 32px -apple-system, Inter, sans-serif'; g.fillStyle = 'rgba(255,255,255,0.75)'; g.fillText('par Dzaryx', 270, 1270);
+  const blob = await new Promise<Blob | null>(r => c.toBlob(r, 'image/png'));
+  if (!blob) return;
+  const file = new File([blob], 'seance.png', { type: 'image/png' });
+  try { if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: o.title }); return; } } catch { return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'seance.png'; a.click();
+}
+
 const fromLib = (x: LibItem, k: number): PEx => ({ id: `${x.id}~${Date.now().toString(36)}${k}`, libId: x.id, name: x.fr, muscle: '', sets: 3, reps: '10', rest: 90, tip: '', alt: [], timed: false, demo: x.img, video: `https://www.youtube.com/results?search_query=${encodeURIComponent(`${x.name} technique musculation`)}`, suggestion: { kg: null } });
 
 function Player({ s, onClose, onFinished, save: saveFn, prs = {} }: { s: SportSession; onClose: () => void; onFinished: (msg: string) => void; save: SaveFn; prs?: Record<string, number> }) {
@@ -163,13 +192,17 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {} }: { s: SportSe
   const [plates, setPlates] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const [newPrs, setNewPrs] = useState<string[]>([]);
+  const [feel, setFeel] = useState<Record<string, Feel>>({});
+  const [voice, setVoice] = useState(() => { try { return localStorage.getItem(VOICE_K) !== '0'; } catch { return true; } });
+  const toggleVoice = () => { const v = !voice; setVoice(v); try { localStorage.setItem(VOICE_K, v ? '1' : '0'); } catch { /* */ } if (v) speak('Coach vocal activé'); else speechSynthesis.cancel(); };
   const start = useRef(Date.now());
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   const ex = exs[Math.min(i, exs.length - 1)];
+  useEffect(() => { if (ex && !finish) speak(`${i === 0 ? 'On commence' : 'Exercice suivant'} : ${ex.name}. ${ex.sets} séries de ${ex.reps}${ex.suggestion.kg ? `, à ${ex.suggestion.kg} kilos` : ''}.`); }, [ex?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const sets = ex ? rows[ex.id] ?? [] : [];
   const upd = (k: number, patch: Partial<SetRow>) => ex && setRows(r => ({ ...r, [ex.id]: r[ex.id]!.map((x, j) => j === k ? { ...x, ...patch } : x) }));
-  const endRest = useCallback(() => setRest(null), []);
+  const endRest = useCallback(() => { setRest(null); speak('C\'est reparti !'); }, []);
   const best = (e: PEx) => prs[norm(e.name)] ?? 0;
   const validate = (k: number) => {
     if (!ex) return;
@@ -179,7 +212,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {} }: { s: SportSe
     if (r0.t !== 'w' && kg > 0 && best(ex) > 0 && kg > best(ex) && !newPrs.includes(ex.name)) { setNewPrs(p => [...p, ex.name]); setFlash(`🏆 Nouveau record : ${kg} kg !`); vibrate(300); setTimeout(() => setFlash(null), 3500); }
     setRows(r => ({ ...r, [ex.id]: r[ex.id]!.map((x, j) => j === k ? { ...x, done: true } : j === k + 1 && !x.done ? { ...x, kg: x.kg || r0.kg } : x) }));
     const last = sets.every((x, j) => j === k || x.done);
-    if (last && i < exs.length - 1) setTimeout(() => setI(i + 1), 450);
+    // Plus de passage automatique : il donne d'abord son ressenti (qui, lui, passe à l'exercice suivant)
     if (!(last && i === exs.length - 1)) setRest({ n: r0.t === 'w' ? Math.min(60, ex.rest) : ex.rest, key: Date.now() });
   };
   const warmup = () => {
@@ -208,9 +241,10 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {} }: { s: SportSe
     setBusy(true);
     try {
       const out = exs.flatMap(e => (rows[e.id] ?? []).filter(r => r.done && r.t !== 'w').map(r => ({ ex: e.id, kg: Number(r.kg.replace(',', '.')) || undefined, reps: Number(r.reps) || undefined })));
-      const msg = await saveFn(out, Math.round(elapsed / 60), rpe, exs, rows);
+      const fb = exs.filter(e => feel[e.id]).map(e => `${e.name} : ${FEEL.find(f => f.id === feel[e.id])!.l.toLowerCase()}`);
+      const msg = await saveFn(out, Math.round(elapsed / 60), rpe, exs, rows, fb.length ? `Ressenti — ${fb.join(' ; ')}` : '');
       // Historique de chaque exercice de la bibliothèque (fiche → Historique / Progrès)
-      const lib = exs.flatMap(e => { const id = libIdOf(e); return id ? (rows[e.id] ?? []).filter(r => r.done && r.t !== 'w').map(r => ({ id, kg: Number(r.kg.replace(',', '.')) || undefined, reps: Number(r.reps) || undefined })) : []; });
+      const lib = exs.flatMap(e => { const id = libIdOf(e); return id ? (rows[e.id] ?? []).filter(r => r.done && r.t !== 'w').map(r => ({ id, kg: Number(r.kg.replace(',', '.')) || undefined, reps: Number(r.reps) || undefined, ...(feel[e.id] ? { fb: feel[e.id] } : {}) })) : []; });
       if (lib.length) await forme.exBatch(lib).catch(() => {});
       onFinished(newPrs.length ? `${msg} · 🏆 ${newPrs.join(', ')}` : msg);
     } catch (e) { alert(errText(e)); } finally { setBusy(false); }
@@ -227,7 +261,8 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {} }: { s: SportSe
           <div style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.label}</div>
           <div style={{ fontSize: 12.5, color: F.muted, fontVariantNumeric: 'tabular-nums' }}>⏱ {fmtTime(elapsed)} · {doneSets.length}/{work.length} séries · {Math.round(volume)} kg</div>
         </div>
-        {!finish && <button onClick={() => { setRest(null); setFinish(true); }} style={{ ...btn, padding: '9px 16px', fontSize: 14, boxShadow: 'none' }}>Terminer</button>}
+        {!finish && <button onClick={toggleVoice} aria-label="Coach vocal" style={{ width: 36, height: 36, borderRadius: 18, border: 'none', background: voice ? F.soft : F.bg2, cursor: 'pointer', fontSize: 16 }}>{voice ? '🔊' : '🔇'}</button>}
+        {!finish && <button onClick={() => { setRest(null); setFinish(true); speak('Séance terminée. Bravo !'); }} style={{ ...btn, padding: '9px 16px', fontSize: 14, boxShadow: 'none' }}>Terminer</button>}
       </div>
       {finish ? (
         <div style={{ padding: '20px 16px', textAlign: 'center' }}>
@@ -245,6 +280,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {} }: { s: SportSe
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, marginTop: 10 }}>{[5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => setRpe(n)} style={{ ...ghostBtn, borderRadius: 12, padding: '13px 0', background: rpe === n ? F.accent : '#fff', color: rpe === n ? '#fff' : F.ink }}>{n}</button>)}</div>
           <div style={{ fontSize: 12.5, color: F.muted, marginTop: 6 }}>5 = facile · 9 = à fond</div>
           <button disabled={busy || !doneSets.length} onClick={save} style={{ ...btn, width: '100%', marginTop: 22, opacity: doneSets.length ? 1 : 0.5 }}>{busy ? 'Enregistrement…' : doneSets.length ? 'Enregistrer ma séance' : 'Aucune série validée'}</button>
+          {doneSets.length > 0 && <button onClick={() => void shareCard({ title: s.label, dur: fmtTime(elapsed), volume, sets: doneSets.length, prs: newPrs, lines: exs.filter(e => (rows[e.id] ?? []).some(r => r.done && r.t !== 'w')).map(e => { const d = rows[e.id]!.filter(r => r.done && r.t !== 'w'); const top = Math.max(...d.map(r => Number(r.kg.replace(',', '.')) || 0)); return `${d.length} × ${e.name}${top ? ` · ${top} kg` : ''}`; }) })} style={{ ...ghostBtn, width: '100%', marginTop: 10 }}>📤 Partager ma séance (image)</button>}
         </div>
       ) : <>
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '2px 14px 8px', scrollbarWidth: 'none' }}>
@@ -298,6 +334,10 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {} }: { s: SportSe
                   <button onClick={() => setRows(rr => { const l = rr[ex.id]!; const last = [...l].reverse().find(x => x.t !== 'w'); return { ...rr, [ex.id]: [...l, { kg: last?.kg ?? '', reps: last?.reps ?? '', done: false, t: 'n' }] }; })} style={{ ...tool, fontSize: 14, padding: 10 }}>+ Ajouter une série</button>
                   {sets.length > 1 && <button onClick={() => setRows(rr => ({ ...rr, [ex.id]: rr[ex.id]!.slice(0, -1) }))} style={{ ...tool, flex: '0 0 auto', padding: '10px 14px', fontSize: 14 }}>−</button>}
                 </div>
+                {sets.length > 0 && sets.filter(r => r.t !== 'w').every(r => r.done) && <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: F.muted, textAlign: 'center', marginBottom: 6 }}>Ton ressenti ? (la charge s'adapte la prochaine fois)</div>
+                  <div style={{ display: 'flex', gap: 6 }}>{FEEL.map(f => <button key={f.id} onClick={() => { vibrate(15); setFeel(x => ({ ...x, [ex.id]: f.id })); if (i < exs.length - 1) setTimeout(() => setI(i + 1), 500); }} style={{ ...tool, fontSize: 13.5, padding: 10, background: feel[ex.id] === f.id ? F.accent : F.bg, color: feel[ex.id] === f.id ? '#fff' : F.ink }}>{f.e} {f.l}</button>)}</div>
+                </div>}
                 <div style={{ fontSize: 11.5, color: F.muted, textAlign: 'center', marginTop: 6 }}>Touche le n° de série : W échauffement · D dégressive · F échec</div>
               </div>
             </div>
@@ -362,7 +402,7 @@ async function routineSession(r: Routine | null): Promise<SportSession> {
       const l = (last[e.id] ?? []).filter(x => x.kg || x.reps); const top = l.reduce((a, x) => Math.max(a, x.kg ?? 0), 0);
       return { id: `${e.id}~${k}`, libId: e.id, name: e.name, muscle: '', sets: e.sets, reps: e.reps, rest: e.rest, tip: '', alt: [], timed: false, demo: e.img,
         video: `https://www.youtube.com/results?search_query=${encodeURIComponent(`${e.name} technique musculation`)}`,
-        suggestion: { kg: top || null, ...(l.length ? { last: `${l.length}×${l.map(x => x.reps ?? '?').join('/')} à ${top} kg (${l[0]!.date.slice(8)}/${l[0]!.date.slice(5, 7)})` } : {}) } } as PEx;
+        suggestion: { kg: (top ? Math.max(0, top + (l.some(x => x.fb === 'easy') ? 2.5 : l.some(x => x.fb === 'hard') ? -2.5 : 0)) : 0) || null, up: l.some(x => x.fb === 'easy'), ...(l.length ? { last: `${l.length}×${l.map(x => x.reps ?? '?').join('/')} à ${top} kg (${l[0]!.date.slice(8)}/${l[0]!.date.slice(5, 7)})` } : {}) } } as PEx;
     }) } as unknown as SportSession;
 }
 
@@ -458,6 +498,7 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
           );
         })}
       </div>
+      <TodayForm />
       {s ? <SessionCard s={s} kicker={isToday ? "Aujourd'hui" : `${pick ? '' : 'Prochaine · '}${SHORT_DAYS[dayOf(s.date)]} ${s.date.slice(8)} · ${new Date(s.start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })}`} onStart={() => setPlay(s)} onEx={setEx} start={isToday ? 'Démarrer l\'entraînement' : 'Voir / faire cette séance'} />
         : <div style={{ ...card, marginTop: 14 }}>Pas de séance prévue cette semaine. Dis à Dzaryx « cale mes séances » 💬</div>}
       {s && <>
@@ -503,8 +544,8 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
         </div>
       </>}
       <ExerciseSheet session={ex} onClose={() => setEx(null)} />
-      {play && <Player s={play} prs={prs} onClose={() => setPlay(null)} onFinished={msg => { setPlay(null); toast(msg); void load(); }} save={async (sets, durationMin, rpe) => {
-        const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date: d.week[0]?.date ?? play.date, type: play.type, sets, durationMin, rpe }) });
+      {play && <Player s={play} prs={prs} onClose={() => setPlay(null)} onFinished={msg => { setPlay(null); toast(msg); void load(); }} save={async (sets, durationMin, rpe, _exs, _rows, note) => {
+        const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date: d.week[0]?.date ?? play.date, type: play.type, sets, durationMin, rpe, ...(note ? { note } : {}) }) });
         return `💪 Séance enregistrée${r.prs.length ? ` — 🏆 record : ${r.prs.join(', ')}` : ''} · Dzaryx est prévenu`;
       }} />}
     </div>

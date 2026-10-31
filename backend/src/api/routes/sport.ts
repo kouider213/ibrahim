@@ -43,7 +43,7 @@ router.post('/log', async (req, res) => {
     const r = await logSportSession({ date, type: b.type, sets,
       ...(Number(b.durationMin) > 0 ? { durationMin: Math.round(Number(b.durationMin)) } : {}),
       ...(Number(b.rpe) > 0 ? { rpe: Math.min(10, Math.round(Number(b.rpe))) } : {}),
-      ...(b.note ? { note: String(b.note).slice(0, 200) } : {}) });
+      ...(b.note ? { note: String(b.note).slice(0, 700) } : {}) });
     const s = SESSIONS[b.type];
     const after = await computeGame().catch(() => null);
     const gained = before && after ? after.total - before.total : 0;

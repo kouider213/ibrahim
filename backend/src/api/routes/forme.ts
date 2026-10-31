@@ -81,8 +81,8 @@ router.post('/exlog', async (req, res) => {
 // POST /api/forme/log { kind, date?, … } — eau, poids, repas coché, aliment, protéines, mensurations, injection, effet, séance
 // Fin de séance : toutes les séries → historique des exercices ; dernières séries de plusieurs exercices (colonne « Précédent »)
 router.post('/exlog-batch', async (req, res) => {
-  const sets = Array.isArray((req.body as { sets?: unknown }).sets) ? (req.body as { sets: Array<{ id: string; kg?: number; reps?: number }> }).sets : [];
-  try { res.json({ n: await addExSets(U(req), sets.map(x => ({ id: String(x.id ?? '').slice(0, 100), kg: Number(x.kg) || undefined, reps: Number(x.reps) || undefined }))) }); } catch (err) { fail(res, err); }
+  const sets = Array.isArray((req.body as { sets?: unknown }).sets) ? (req.body as { sets: Array<{ id: string; kg?: number; reps?: number; fb?: 'easy' | 'ok' | 'hard' }> }).sets : [];
+  try { res.json({ n: await addExSets(U(req), sets.map(x => ({ id: String(x.id ?? '').slice(0, 100), kg: Number(x.kg) || undefined, reps: Number(x.reps) || undefined, fb: x.fb }))) }); } catch (err) { fail(res, err); }
 });
 router.get('/exlast', async (req, res) => {
   try { res.json({ last: await exLast(U(req), String(req.query.ids ?? '').split(',').filter(Boolean).slice(0, 30)) }); } catch (err) { fail(res, err); }
@@ -95,6 +95,21 @@ router.post('/routines', async (req, res) => {
   try { res.json({ routines: await saveRoutine(U(req), { id: b.id, name: b.name, exercises: b.exercises }) }); } catch (err) { fail(res, err); }
 });
 router.delete('/routines/:id', async (req, res) => { try { res.json({ routines: await deleteRoutine(U(req), String(req.params.id)) }); } catch (err) { fail(res, err); } });
+
+// ⌚ FORME DU JOUR (façon Whoop / Fitbit) : ce que la montre envoie via l'iPhone (raccourci Santé → /api/jarvis/health)
+// + score de récupération Dzaryx. Kouider seulement (la montre est la sienne).
+router.get('/watch', async (req, res) => {
+  if (U(req) !== 'kouider') { res.json({ ok: false }); return; }
+  try {
+    const { kvGet } = await import('../../integrations/app-store.js');
+    const w = await import('../../integrations/workout-live.js');
+    const days = JSON.parse((await kvGet('health:daily')) ?? '[]') as Array<{ date: string; sleep_h?: number; steps?: number; rhr?: number; hrv?: number; active_kcal?: number; weight?: number }>;
+    const prev = days.slice(-15, -1);
+    const avg = (k: 'rhr' | 'hrv' | 'steps' | 'sleep_h') => { const v = prev.map(x => Number(x[k] ?? 0)).filter(x => x > 0); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length * 10) / 10 : null; };
+    res.json({ ok: true, last: days[days.length - 1] ?? null, days: days.slice(-14), usual: { rhr: avg('rhr'), hrv: avg('hrv'), steps: avg('steps'), sleep_h: avg('sleep_h') },
+      readiness: await w.readiness().catch(() => null), series: (await w.readinessSeries().catch(() => [])).slice(-14) });
+  } catch (err) { fail(res, err); }
+});
 
 router.post('/log', async (req, res) => {
   const b = req.body as Record<string, unknown>;

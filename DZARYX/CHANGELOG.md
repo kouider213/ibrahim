@@ -3,6 +3,13 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-31 20h — FORME + montre (gratuit) : idées de Whoop, Strava, Nike Training Club, Freeletics, Apple Fitness (app v222)
+- ⌚ Forme du jour (Whoop/Fitbit) en haut de Séance : anneau de récupération (readiness), VFC / cœur au repos vs habitudes, pas, sommeil, tendance 14 j — données de l'Apple Watch via le raccourci Santé (GET /api/forme/watch). Guide « Dzaryx depuis ma montre » (Siri « Dzaryx » sur la Watch).
+- 🔊 Coach vocal (NTC) : annonce exercice / charge, « encore 10 secondes », « c'est reparti ».
+- 😌👍🥵 Ressenti par exercice (Freeletics) : noté dans la séance → sport-coach suggestRaw +2,5 kg si facile, −2,5 kg si dur ; routines idem (fb dans exlog).
+- 📤 Carte de séance à partager (Strava) : image 1080×1350.
+- Plus de passage automatique à l'exercice suivant (le ressenti le fait).
+
 ## 2026-10-31 19h — FORME façon Hevy + Strong + Fitbod réunis (app v221)
 - Images manquantes : exercices sur mesure sans photo → photo de l'exercice le plus proche (matchExerciseId/fillDemos, cache sport:exlib:match) dans GET /api/sport.
 - Mes routines (créer/modifier/supprimer, kv <uid>:forme:routines) + Séance libre ; « Précédent » repris de l'historique (GET /api/forme/exlast).

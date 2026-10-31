@@ -729,7 +729,7 @@ export async function deleteMachine(uid: Uid, id: string): Promise<MachineScan[]
 }
 
 // ── Historique / progrès par exercice de la bibliothèque (onglets « Historique » et « Progrès » de la fiche) ──
-export interface ExSet { at: number; date: string; kg?: number; reps?: number }
+export interface ExSet { at: number; date: string; kg?: number; reps?: number; fb?: 'easy' | 'ok' | 'hard' }
 const EXLOG_K = (uid: Uid) => `${uid}:forme:exlog`;
 async function readExLog(uid: Uid): Promise<Record<string, ExSet[]>> { return readJson<Record<string, ExSet[]>>(EXLOG_K(uid), {}); }
 export async function exHistory(uid: Uid, id: string): Promise<ExSet[]> { return (await readExLog(uid))[id] ?? []; }
@@ -748,12 +748,12 @@ export async function delExSet(uid: Uid, id: string, at: number): Promise<ExSet[
 }
 
 /** Plusieurs séries d'un coup (fin de séance) → historique de chaque exercice de la bibliothèque. */
-export async function addExSets(uid: Uid, sets: Array<{ id: string; kg?: number; reps?: number }>): Promise<number> {
+export async function addExSets(uid: Uid, sets: Array<{ id: string; kg?: number; reps?: number; fb?: ExSet['fb'] }>): Promise<number> {
   const all = await readExLog(uid);
   const date = localNow().date; let n = 0; const t = Date.now();
   for (const x of sets.slice(0, 120)) {
     if (!x.id) continue;
-    const row: ExSet = { at: t + n, date, ...(x.kg && x.kg > 0 ? { kg: Math.round(x.kg * 10) / 10 } : {}), ...(x.reps && x.reps > 0 ? { reps: Math.round(x.reps) } : {}) };
+    const row: ExSet = { at: t + n, date, ...(x.kg && x.kg > 0 ? { kg: Math.round(x.kg * 10) / 10 } : {}), ...(x.reps && x.reps > 0 ? { reps: Math.round(x.reps) } : {}), ...(x.fb && ['easy', 'ok', 'hard'].includes(x.fb) ? { fb: x.fb } : {}) };
     all[x.id] = [...(all[x.id] ?? []), row].slice(-300); n++;
   }
   await kvSet(EXLOG_K(uid), JSON.stringify(all));

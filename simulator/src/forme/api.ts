@@ -57,7 +57,7 @@ export const get = <T,>(path: string) => call<T>(path);
 
 export interface MachineEx { id: string | null; name: string; muscles: string[]; tip: string; img: string[]; video: string }
 export interface MachineScan { id: string; at: number; date: string; machine: string; what: string; setup: string; exercises: MachineEx[]; thumb?: string }
-export interface ExSet { at: number; date: string; kg?: number; reps?: number }
+export interface ExSet { at: number; date: string; kg?: number; reps?: number; fb?: 'easy' | 'ok' | 'hard' }
 
 export interface RoutineEx { id: string; name: string; img: string[]; sets: number; reps: string; rest: number }
 export interface Routine { id: string; name: string; at: number; exercises: RoutineEx[] }
@@ -66,7 +66,7 @@ export const forme = {
   routines: () => call<{ routines: Routine[] }>('/api/forme/routines'),
   saveRoutine: (r: { id?: string; name: string; exercises: RoutineEx[] }) => post<{ routines: Routine[] }>('/api/forme/routines', r),
   delRoutine: (id: string) => call<{ routines: Routine[] }>(`/api/forme/routines/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  exBatch: (sets: Array<{ id: string; kg?: number; reps?: number }>) => post<{ n: number }>('/api/forme/exlog-batch', { sets }),
+  exBatch: (sets: Array<{ id: string; kg?: number; reps?: number; fb?: 'easy' | 'ok' | 'hard' }>) => post<{ n: number }>('/api/forme/exlog-batch', { sets }),
   exLast: (ids: string[]) => call<{ last: Record<string, ExSet[]> }>(`/api/forme/exlast?ids=${encodeURIComponent(ids.join(','))}`),
   machine: (image: string, thumb?: string) => post<{ scan: MachineScan }>('/api/forme/machine', { image, thumb }),
   machines: () => call<{ machines: MachineScan[] }>('/api/forme/machines'),
