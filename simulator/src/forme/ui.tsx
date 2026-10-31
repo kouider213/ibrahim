@@ -16,7 +16,7 @@ export const F = {
 export const card: CSSProperties = { background: F.card, borderRadius: 18, padding: 16, boxShadow: '0 1px 2px rgba(40,30,70,0.05), 0 6px 18px rgba(40,30,70,0.05)' };
 export const darkCard: CSSProperties = { background: `linear-gradient(160deg, ${F.dark2}, ${F.dark})`, color: '#fff', borderRadius: 24, padding: 18, boxShadow: '0 12px 28px rgba(30,25,60,0.22)' };
 
-export function Title({ a, b, size = 32, sub }: { a: string; b?: string; size?: number; sub?: string }) {
+export function Title({ a, b, size = 28, sub }: { a: string; b?: string; size?: number; sub?: string }) {
   [a, b] = trPair(a, b);
   b = b?.replace(/ ([?!:])/g, '\u00a0$1');   // jamais un « ? » seul à la ligne
   return (

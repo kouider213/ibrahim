@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-31 18h — FORME : courses supprimées partout + Séance « pro » façon Hevy/Fitbod (app v220)
+- Serveur : routes et code repas/semaine/liste de courses du foyer/Open Food Facts supprimés (5873ec2) ; consigne du coach de vie : jamais repas ni courses.
+- Onglet Séance refait : pastilles de la semaine, carte du jour avec exercices en images, carte de RÉCUPÉRATION du corps (vert/orange/rouge), stats + graphe séances/semaine, records, historique.
+- Mode séance en direct : chrono, tableau SÉRIE | PRÉCÉDENT | KG | REPS | ✓ (séries validées en vert, + ajouter une série), barre de repos en bas (−15/+15/Passer), résumé de fin (durée, volume, séries, RPE).
+
 ## 2026-10-31 17h — Page COACH = coach de vie ; FORME refaite (style « Library »), scanner de machines, zéro nourriture (app v219)
 - Page COACH (menu Plus, 🏆) : Grand Coach + Ma vie (sortis de JARVIS). FORME = le sport.
 - FORME refaite au style de la vidéo TikTok de Kouider : fond lavande, onglets Séance / Exercices / Scanner / Progrès, bibliothèque avec bonshommes de muscles, filtre matériel, marque-pages, fiche À propos / Historique / Progrès + YouTube / Partager.

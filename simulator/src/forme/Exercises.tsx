@@ -348,3 +348,19 @@ export function LibraryScreen() {
     </div>
   );
 }
+
+// ── Carte de RÉCUPÉRATION (façon Fitbod) : chaque groupe coloré selon sa récupération ──
+// Groupes du coach (sport-coach.ts) → calques wger. Calque rouge recoloré : vert = prêt, orange = bientôt, rouge = fatigué.
+const REC: Record<string, { f?: number[]; b?: number[] }> = {
+  pecs: { f: [4] }, epaules: { f: [2] }, bras: { f: [1, 13], b: [5] }, dos: { b: [12, 9] }, abdos: { f: [6, 14] }, jambes: { f: [10], b: [11, 8, 7, 15] },
+};
+const recColor = (pct: number) => pct >= 100 ? 'hue-rotate(115deg) saturate(0.9)' : pct >= 60 ? 'hue-rotate(32deg) saturate(1.2)' : 'none';
+export function RecoveryMap({ rec, h = 190 }: { rec: Array<{ muscle: string; pct: number }>; h?: number }) {
+  const fig = (side: 'f' | 'b') => (
+    <div style={{ position: 'relative', height: h, aspectRatio: '200 / 369' }}>
+      <img src={`${BASE}/muscular_system_${side === 'f' ? 'front' : 'back'}.svg`} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
+      {rec.flatMap(r => (REC[r.muscle]?.[side] ?? []).map(n => <img key={`${r.muscle}-${n}`} src={`${BASE}/main/muscle-${n}.svg`} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', filter: recColor(r.pct), opacity: 0.9 }} />))}
+    </div>
+  );
+  return <div style={{ display: 'flex', justifyContent: 'center', gap: 20, direction: 'ltr' }}>{fig('f')}{fig('b')}</div>;
+}

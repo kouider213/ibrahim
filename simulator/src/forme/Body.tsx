@@ -182,7 +182,7 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
       <div style={{ display: 'flex', gap: 8 }}>
         <Stat v={`${cur}`} l="kg aujourd'hui" />
         <Stat v={`${cur - start > 0 ? '+' : ''}${(cur - start).toFixed(1)}`} l="kg depuis le début" color={cur <= start ? F.green : F.accent} />
-        <Stat v={`${Math.max(0, cur - o.profile.targetKg).toFixed(1)}`} l={`kg avant ${o.profile.targetKg}`} color={F.accent} />
+        {o.profile.targetKg ? <Stat v={`${Math.max(0, cur - o.profile.targetKg).toFixed(1)}`} l={`kg avant ${o.profile.targetKg}`} color={F.accent} /> : <Stat v="—" l="objectif à régler (profil)" />}
       </div>
       {o.eta && <div style={{ ...card, marginTop: 10, display: 'flex', gap: 12, alignItems: 'center' }}><span style={{ fontSize: 30 }}>🎯</span><div><b>{o.profile.targetKg} kg vers le {o.eta.slice(8)}/{o.eta.slice(5, 7)}/{o.eta.slice(0, 4)}</b><div style={{ fontSize: 13, color: F.muted }}>à ton rythme actuel ({o.weightRate} kg/semaine) — continue comme ça</div></div></div>}
       {o.tooFast && <div style={{ ...card, marginTop: 10, background: '#fff4e5', fontSize: 13.5, lineHeight: 1.4 }}>⚠️ Tu perds {o.weightRate} kg/semaine : un peu vite. Pour garder ton muscle : atteins tes {o.targets.p} g de protéines chaque jour et ne saute pas la muscu. Parles-en à ton médecin au prochain contrôle.</div>}
