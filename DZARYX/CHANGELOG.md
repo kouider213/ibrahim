@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 31/10 — COACH ARGENT + PROJETS BUSINESS
+- `integrations/argent-coach.ts` (outil mes_finances, nouvelles actions) : caisse du jour (vente cash/carte, commande de stock, dépense + garde-fou 80/100 % du budget), bilans semaine (dimanche 18h) et mois (le 1er : vrai revenu total + compteur Oran), compteur départ Oran, crédit (remboursement anticipé, indemnité belge), valeur de l'heure, fonds d'urgence, zakat (nissab or, rappel 3 j avant), cagnottes. Job `argent` */15 9-22h : « combien aujourd'hui ? » à 20h30 + rappel de stock. Données privées app_kv perso:journal / perso:argent.
+- `integrations/projets-business.ts` (outil projet_business) : projet + associé + partage, offres (prix client DA/€, coût technicien), coûts (invest / mensuel / par client) → chiffres exacts au taux square (marge par client, part de chacun, rentabilisation, scénarios 5-40 clients), étude de marché + business plan PDF (recherche web + ses finances) sur Telegram. Données app_kv projets.
+
 ## 31/10 — FINANCES PERSO : outil mes_finances
 - `integrations/perso-finances.ts` : emploi salarié, salaire, charges fixes (avec date de fin), épargne mensuelle, revenu d'appoint, épargne — données PRIVÉES dans app_kv `perso:finances` (rien dans le dépôt public). Injecté dans le dossier Kouider (privé, jamais dans un document pour un tiers), compté dans « ma fortune » (épargne + crédits restants en dette) et dans le Miroir du futur (épargne mensuelle, crédit déduit).
 

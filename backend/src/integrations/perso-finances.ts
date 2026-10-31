@@ -70,6 +70,8 @@ export async function financesText(): Promise<string> {
     f.savings ? `- Épargne : ${eur(f.savings)}.` : '',
     f.sideCash ? `- Mis de côté grâce à l'appoint : ≈ ${eur(f.sideCash)}.` : '',
     ...(f.notes ?? []).slice(-5).map(n => `- ${n}`),
+    await import('./argent-coach.js').then(m => m.argentText()).catch(() => ''),
+    await import('./projets-business.js').then(m => m.projetsText()).catch(() => ''),
     `- Mis à jour le ${f.updated ?? '?'}. S'il annonce une augmentation, une nouvelle charge, une fin de crédit ou un nouveau montant d'épargne → outil mes_finances (set / charge). Ne lui redemande pas ces chiffres.`,
   ].filter(Boolean).join('\n');
 }
@@ -78,6 +80,8 @@ const num = (v: unknown) => { const n = Number(String(v ?? '').replace(/\s/g, ''
 
 export async function financesTool(input: Record<string, unknown>): Promise<string> {
   const action = String(input['action'] ?? 'show');
+  const other = await import('./argent-coach.js').then(m => m.argentTool(action, input));
+  if (other !== null) return other;
   const f = await loadFinances();
   if (action === 'set') {
     if (input['job']) f.job = String(input['job']);
