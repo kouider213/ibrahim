@@ -912,7 +912,7 @@ export function Coach({ onAsk }: { onAsk: (prompt: string) => void }) {
     catch { setMsg('Échec, réessaie.'); } finally { setBusy(false); }
   };
   if (!o) return <Empty icon="🏆" title={msg || 'Chargement…'} />;
-  const grid = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 } as const;
+  const grid = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 8 } as const;
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       {msg && <Card accent={T.accent}><div style={{ fontSize: 13.5, lineHeight: 1.5, whiteSpace: 'pre-wrap' }} dir="auto">{msg.replace(/\*\*/g, '')}</div></Card>}

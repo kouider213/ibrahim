@@ -1185,3 +1185,9 @@ export async function markWatchWorkout(date: string, minutes: number, name: stri
   })).catch(() => {});
   return `🏋️ Séance${minutes > 0 ? ` de ${Math.round(minutes)} min` : ''} (${name}) vue par ta montre → ${SESSIONS[type].label} cochée dans ton coach.`;
 }
+
+/** id d'exercice du coach → muscle + nom (programme officiel + séances sur mesure), pour les stats de FORME. */
+export async function exerciseMuscles(): Promise<Record<string, { muscle: string; name: string }>> {
+  await getState();
+  return Object.fromEntries(ALL_EXERCISES().map(e => [e.id, { muscle: e.muscle, name: e.name }]));
+}

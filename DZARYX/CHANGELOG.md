@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-31 21h — FORME : stats pro (10 grosses applis) + reprise de séance + page COACH réparée (app v223)
+- forme-insights.ts + GET /api/forme/insights : objectif semaine (anneau) + semaines tenues, séries par muscle 7 j vs zone 10-20, calendrier 12 semaines, badges, tendances montre 30 j (VFC, cœur, pas, sommeil) — onglet Progrès + anneau en tête de Séance. sport-coach exerciseMuscles().
+- Séance en cours gardée sur le téléphone (forme:live) → bandeau « Reprendre » ; note par exercice gardée (forme:exnote:*).
+- Page COACH : les boutons du Grand Coach (texte sur une ligne) élargissaient la page → contenu coupé à gauche sur iPhone ; grille minmax(0,1fr) + texte qui passe à la ligne.
+
 ## 2026-10-31 20h30 — Sommeil de la montre : lecture robuste
 - jarvis-hub receiveHealth : durées de sommeil lues ligne par ligne en heures (« 25200 », « 420 », « 7 h 12 min », « 1:35:00 »…), lignes « Au lit » / « Éveillé » ignorées, plafond 16 h ; dernier envoi brut gardé 7 j (kv health:lastraw:any) pour vérifier le format. Kouider dort avec sa montre la nuit du 31/10 pour tester.
 

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { forme, errText, compressImage, type Overview, type Photo, type Analysis, vibrate } from './api.ts';
 import { F, Title, Section, card, darkCard, btn, darkBtn, ghostBtn, Sheet, Spinner, LineChart, Ring, Stat, input, Chip } from './ui.tsx';
 import { beep } from './Sport.tsx';
+import Insights from './Insights.tsx';
 
 // Onglet CORPS : poids, mensurations et PHOTOS DE SUIVI. Caméra avec la photo d'avant en transparence pour se placer
 // pareil, minuteur 10 s (téléphone posé), puis Claude compare avant / maintenant et entoure ce qui a changé.
@@ -195,6 +196,7 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
         </div>
       </div>
 
+      <Insights />
       <Section a="Photos" b="de suivi" right={o.photoDue ? '📸 à faire' : undefined} />
       <div style={{ ...darkCard }}>
         <div style={{ fontSize: 14.5, lineHeight: 1.45, color: 'rgba(255,255,255,0.8)' }}>Même endroit, même lumière, même heure. Ta photo d'avant s'affiche en transparence pour te placer pareil. L'IA entoure ce qui a changé et te dit quoi travailler.</div>

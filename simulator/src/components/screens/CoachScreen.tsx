@@ -17,8 +17,12 @@ export default function CoachScreen({ onAsk }: { onAsk: (prompt: string) => void
         <Segmented<Tab> items={[{ id: 'coach', label: '🏆 Grand Coach' }, { id: 'vie', label: '🧭 Ma vie' }]} value={tab} onChange={pick} />
       </div>
     </>}>
-      {tab === 'coach' && <Coach onAsk={onAsk} />}
-      {tab === 'vie' && <Vie onAsk={onAsk} />}
+      {/* 31/10 : les boutons (texte sur une ligne) élargissaient la page → tout était décalé/coupé sur iPhone. Ici le texte passe à la ligne. */}
+      <style>{'.coach-fit{min-width:0;overflow-x:hidden}.coach-fit button{white-space:normal!important;line-height:1.25;padding-top:8px!important;padding-bottom:8px!important;min-width:0;text-align:center}.coach-fit *{overflow-wrap:anywhere}'}</style>
+      <div className="coach-fit">
+        {tab === 'coach' && <Coach onAsk={onAsk} />}
+        {tab === 'vie' && <Vie onAsk={onAsk} />}
+      </div>
     </Screen>
   );
 }

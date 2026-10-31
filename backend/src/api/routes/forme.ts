@@ -111,6 +111,11 @@ router.get('/watch', async (req, res) => {
   } catch (err) { fail(res, err); }
 });
 
+// 📊 Stats pro : objectif semaine, séries par muscle, calendrier, badges, tendances montre
+router.get('/insights', async (req, res) => {
+  try { res.json(await import('../../integrations/forme-insights.js').then(m => m.formeInsights(U(req)))); } catch (err) { fail(res, err); }
+});
+
 router.post('/log', async (req, res) => {
   const b = req.body as Record<string, unknown>;
   try { await logForme(String(b.kind ?? ''), b, isDate(b.date) ? b.date : undefined, U(req)); res.json(await formeOverview(U(req))); } catch (err) { fail(res, err); }

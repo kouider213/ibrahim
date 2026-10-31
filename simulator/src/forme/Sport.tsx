@@ -5,6 +5,7 @@ import { errText, SHORT_DAYS, dayOf, vibrate, forme, type ProgramView, type LibI
 import { F, card, btn, ghostBtn, input, Sheet, Spinner } from './ui.tsx';
 import { ExerciseSheet, Anim, RecoveryMap, LibraryPicker, COACH_TO_GROUP } from './Exercises.tsx';
 import { TodayForm } from './Watch.tsx';
+import { WeekGoal } from './Insights.tsx';
 
 // Onglet SÉANCE — 31/10 refait façon applis pro de muscu (Hevy / Strong / Fitbod) : semaine en pastilles, carte du jour
 // avec les exercices en images, carte de récupération du corps, stats, records, historique ; mode séance en direct
@@ -178,12 +179,19 @@ async function shareCard(o: { title: string; dur: string; volume: number; sets: 
 
 const fromLib = (x: LibItem, k: number): PEx => ({ id: `${x.id}~${Date.now().toString(36)}${k}`, libId: x.id, name: x.fr, muscle: '', sets: 3, reps: '10', rest: 90, tip: '', alt: [], timed: false, demo: x.img, video: `https://www.youtube.com/results?search_query=${encodeURIComponent(`${x.name} technique musculation`)}`, suggestion: { kg: null } });
 
-function Player({ s, onClose, onFinished, save: saveFn, prs = {} }: { s: SportSession; onClose: () => void; onFinished: (msg: string) => void; save: SaveFn; prs?: Record<string, number> }) {
+// Séance en cours gardée sur le téléphone (Hevy) : appel, écran verrouillé, appli fermée → on la reprend telle quelle.
+export const LIVE_K = 'forme:live';
+export interface LiveState { kind: 'coach' | 'routine'; s: SportSession; exs: PEx[]; rows: Record<string, SetRow[]>; i: number; start: number; feel: Record<string, Feel>; at: number }
+export function readLive(): LiveState | null { try { const v = JSON.parse(localStorage.getItem(LIVE_K) ?? 'null') as LiveState | null; return v && Date.now() - v.at < 8 * 3600_000 ? v : null; } catch { return null; } }
+const clearLive = () => { try { localStorage.removeItem(LIVE_K); } catch { /* */ } };
+const noteKey = (e: PEx) => `forme:exnote:${libIdOf(e) ?? norm(e.name)}`;
+
+function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach', resume }: { s: SportSession; onClose: () => void; onFinished: (msg: string) => void; save: SaveFn; prs?: Record<string, number>; kind?: 'coach' | 'routine'; resume?: LiveState | null }) {
   const mkRows = (e: PEx): SetRow[] => Array.from({ length: e.sets }, () => ({ kg: e.suggestion.kg ? String(e.suggestion.kg) : '', reps: String(parseInt(e.reps) || ''), done: false, t: 'n' as SetT }));
-  const [exs, setExs] = useState<PEx[]>(() => s.exercises.map(e => ({ ...e })));
-  const [i, setI] = useState(0);
+  const [exs, setExs] = useState<PEx[]>(() => resume?.exs ?? s.exercises.map(e => ({ ...e })));
+  const [i, setI] = useState(resume?.i ?? 0);
   const [how, setHow] = useState(false);
-  const [rows, setRows] = useState<Record<string, SetRow[]>>(() => Object.fromEntries(s.exercises.map(e => [e.id, mkRows(e)])));
+  const [rows, setRows] = useState<Record<string, SetRow[]>>(() => resume?.rows ?? Object.fromEntries(s.exercises.map(e => [e.id, mkRows(e)])));
   const [rest, setRest] = useState<{ n: number; key: number } | null>(null);
   const [finish, setFinish] = useState(false);
   const [rpe, setRpe] = useState(7);
@@ -192,13 +200,16 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {} }: { s: SportSe
   const [plates, setPlates] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const [newPrs, setNewPrs] = useState<string[]>([]);
-  const [feel, setFeel] = useState<Record<string, Feel>>({});
+  const [feel, setFeel] = useState<Record<string, Feel>>(resume?.feel ?? {});
   const [voice, setVoice] = useState(() => { try { return localStorage.getItem(VOICE_K) !== '0'; } catch { return true; } });
   const toggleVoice = () => { const v = !voice; setVoice(v); try { localStorage.setItem(VOICE_K, v ? '1' : '0'); } catch { /* */ } if (v) speak('Coach vocal activé'); else speechSynthesis.cancel(); };
-  const start = useRef(Date.now());
+  const start = useRef(resume?.start ?? Date.now());
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  useEffect(() => { if (Object.values(rows).flat().some(r => r.done)) { try { localStorage.setItem(LIVE_K, JSON.stringify({ kind, s, exs, rows, i, start: start.current, feel, at: Date.now() } satisfies LiveState)); } catch { /* */ } } }, [rows, exs, i, feel]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [note, setNote] = useState('');
   const ex = exs[Math.min(i, exs.length - 1)];
+  useEffect(() => { if (ex) { try { setNote(localStorage.getItem(noteKey(ex)) ?? ''); } catch { setNote(''); } } }, [ex?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ex && !finish) speak(`${i === 0 ? 'On commence' : 'Exercice suivant'} : ${ex.name}. ${ex.sets} séries de ${ex.reps}${ex.suggestion.kg ? `, à ${ex.suggestion.kg} kilos` : ''}.`); }, [ex?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const sets = ex ? rows[ex.id] ?? [] : [];
   const upd = (k: number, patch: Partial<SetRow>) => ex && setRows(r => ({ ...r, [ex.id]: r[ex.id]!.map((x, j) => j === k ? { ...x, ...patch } : x) }));
@@ -246,6 +257,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {} }: { s: SportSe
       // Historique de chaque exercice de la bibliothèque (fiche → Historique / Progrès)
       const lib = exs.flatMap(e => { const id = libIdOf(e); return id ? (rows[e.id] ?? []).filter(r => r.done && r.t !== 'w').map(r => ({ id, kg: Number(r.kg.replace(',', '.')) || undefined, reps: Number(r.reps) || undefined, ...(feel[e.id] ? { fb: feel[e.id] } : {}) })) : []; });
       if (lib.length) await forme.exBatch(lib).catch(() => {});
+      clearLive();
       onFinished(newPrs.length ? `${msg} · 🏆 ${newPrs.join(', ')}` : msg);
     } catch (e) { alert(errText(e)); } finally { setBusy(false); }
   };
@@ -256,7 +268,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {} }: { s: SportSe
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: F.bg, overflowY: 'auto', fontFamily: F.sans, color: F.ink, paddingBottom: 'calc(110px + env(safe-area-inset-bottom))' }}>
       <div style={{ position: 'sticky', top: 0, zIndex: 3, background: 'rgba(245,242,250,0.94)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', padding: 'calc(8px + env(safe-area-inset-top)) 14px 10px', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button onClick={() => { if (finish) setFinish(false); else if (!allRows.some(r => r.done) || confirm('Quitter la séance ? (rien n\'est enregistré)')) onClose(); }} aria-label="Fermer" style={{ width: 36, height: 36, border: 'none', background: 'none', fontSize: 22, cursor: 'pointer', color: F.ink }}>{finish ? '‹' : '✕'}</button>
+        <button onClick={() => { if (finish) setFinish(false); else if (!allRows.some(r => r.done) || confirm('Abandonner la séance ? (rien n\'est enregistré)')) { clearLive(); onClose(); } }} aria-label="Fermer" style={{ width: 36, height: 36, border: 'none', background: 'none', fontSize: 22, cursor: 'pointer', color: F.ink }}>{finish ? '‹' : '✕'}</button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.label}</div>
           <div style={{ fontSize: 12.5, color: F.muted, fontVariantNumeric: 'tabular-nums' }}>⏱ {fmtTime(elapsed)} · {doneSets.length}/{work.length} séries · {Math.round(volume)} kg</div>
@@ -339,6 +351,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {} }: { s: SportSe
                   <div style={{ display: 'flex', gap: 6 }}>{FEEL.map(f => <button key={f.id} onClick={() => { vibrate(15); setFeel(x => ({ ...x, [ex.id]: f.id })); if (i < exs.length - 1) setTimeout(() => setI(i + 1), 500); }} style={{ ...tool, fontSize: 13.5, padding: 10, background: feel[ex.id] === f.id ? F.accent : F.bg, color: feel[ex.id] === f.id ? '#fff' : F.ink }}>{f.e} {f.l}</button>)}</div>
                 </div>}
                 <div style={{ fontSize: 11.5, color: F.muted, textAlign: 'center', marginTop: 6 }}>Touche le n° de série : W échauffement · D dégressive · F échec</div>
+                <input value={note} onChange={e => { setNote(e.target.value); try { localStorage.setItem(noteKey(ex), e.target.value); } catch { /* */ } }} placeholder="📝 Note (ex. siège cran 4, prise serrée…) — gardée pour la prochaine fois" style={{ ...input, marginTop: 10, fontSize: 14, padding: '10px 12px', background: F.bg, border: 'none' }} />
               </div>
             </div>
             {ex.alt.length > 0 && <div style={{ fontSize: 13, color: F.muted, margin: '10px 4px 0' }}>Machine prise ? Remplace par : {ex.alt.join(' · ')}</div>}
@@ -432,9 +445,35 @@ function Routines({ toast, prs, onDone }: { toast: (t: string) => void; prs: Rec
         </div>
       ))}
       <RoutineEditor open={!!edit} init={edit && edit !== 'new' ? edit : null} onClose={() => setEdit(null)} onSaved={setList} />
-      {play && <Player s={play} prs={prs} onClose={() => setPlay(null)} onFinished={msg => { setPlay(null); toast(msg); onDone?.(); }} save={async (sets, durationMin, rpe) => {
+      {play && <Player s={play} prs={prs} kind="routine" onClose={() => setPlay(null)} onFinished={msg => { setPlay(null); toast(msg); onDone?.(); }} save={async (sets, durationMin, rpe) => {
         await forme.log('workout', { session: 0, label: play.label, sets, durationMin, rpe });
         return `💪 ${play.label} enregistrée`;
+      }} />}
+    </>
+  );
+}
+
+/** Séance interrompue (appel, appli fermée…) → bandeau « Reprendre ». */
+function ResumeBanner({ toast, onDone }: { toast: (t: string) => void; onDone?: () => void }) {
+  const [live, setLive] = useState<LiveState | null>(() => readLive());
+  const [play, setPlay] = useState(false);
+  if (!live) return null;
+  const done = Object.values(live.rows).flat().filter(r => r.done).length;
+  return (
+    <>
+      <div style={{ ...card, marginTop: 14, background: F.dark, color: '#fff', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ fontSize: 24 }}>⏱</span>
+        <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700 }}>Séance en cours : {live.s.label}</div><div style={{ fontSize: 12.5, opacity: 0.7 }}>{done} série{done > 1 ? 's' : ''} déjà validée{done > 1 ? 's' : ''}</div></div>
+        <button onClick={() => setPlay(true)} style={{ ...btn, padding: '10px 14px', fontSize: 14 }}>Reprendre</button>
+        <button onClick={() => { if (confirm('Abandonner cette séance ?')) { try { localStorage.removeItem(LIVE_K); } catch { /* */ } setLive(null); } }} aria-label="Abandonner" style={{ border: 'none', background: 'none', color: '#fff', opacity: 0.6, fontSize: 18, cursor: 'pointer' }}>✕</button>
+      </div>
+      {play && <Player s={live.s} resume={live} kind={live.kind} onClose={() => { setPlay(false); setLive(readLive()); }} onFinished={msg => { setPlay(false); setLive(null); toast(msg); onDone?.(); }} save={async (sets, durationMin, rpe, _e, _r, note) => {
+        if (live.kind === 'coach') {
+          const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date: live.s.date, type: live.s.type, sets, durationMin, rpe, ...(note ? { note } : {}) }) });
+          return `💪 Séance enregistrée${r.prs.length ? ` — 🏆 record : ${r.prs.join(', ')}` : ''} · Dzaryx est prévenu`;
+        }
+        await forme.log('workout', { session: (live.s as unknown as { index?: number }).index ?? 0, label: live.s.label, sets, durationMin, rpe });
+        return `💪 ${live.s.label} enregistrée`;
       }} />}
     </>
   );
@@ -481,7 +520,7 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
       <div style={{ fontSize: 13, color: F.muted, fontWeight: 500, margin: '2px 2px 0', textTransform: 'capitalize' }}>{dateLong}</div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 2px' }}>
         <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em' }}>Entraînement</div>
-        {d.stats.streak > 1 && <div style={{ background: '#fff1e0', color: '#c06a00', borderRadius: 999, padding: '6px 11px', fontSize: 13, fontWeight: 700 }}>🔥 {d.stats.streak}</div>}
+        <WeekGoal />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginTop: 12 }}>
         {d.week.map(w => {
@@ -498,6 +537,7 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
           );
         })}
       </div>
+      <ResumeBanner toast={toast} onDone={() => void load()} />
       <TodayForm />
       {s ? <SessionCard s={s} kicker={isToday ? "Aujourd'hui" : `${pick ? '' : 'Prochaine · '}${SHORT_DAYS[dayOf(s.date)]} ${s.date.slice(8)} · ${new Date(s.start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })}`} onStart={() => setPlay(s)} onEx={setEx} start={isToday ? 'Démarrer l\'entraînement' : 'Voir / faire cette séance'} />
         : <div style={{ ...card, marginTop: 14 }}>Pas de séance prévue cette semaine. Dis à Dzaryx « cale mes séances » 💬</div>}
@@ -576,6 +616,7 @@ export function ProgramSport({ toast, go }: { toast: (t: string) => void; go?: (
           </div>
         ))}
       </div>
+      <ResumeBanner toast={toast} onDone={() => void load()} />
       {s && <SessionCard s={s as unknown as SportSession} kicker={d.doneToday ? 'Faite aujourd\'hui ✓ · prochaine' : d.todayPlanned ? "Aujourd'hui" : 'Prochaine séance'} onStart={() => setPlay(true)} onEx={setEx} start="Démarrer l'entraînement" />}
       {s && <>
         <H2>Exercices</H2>
@@ -587,7 +628,7 @@ export function ProgramSport({ toast, go }: { toast: (t: string) => void; go?: (
       <div style={{ ...card, padding: '4px 14px' }}>{d.sessions.map((x, i) => <div key={i} style={{ padding: '11px 0', borderBottom: i < d.sessions.length - 1 ? `1px solid ${F.line}` : 'none', fontSize: 14.5 }}>{x.emoji} <b>{x.label}</b> <span style={{ color: F.muted }}>· {x.focus}</span></div>)}</div>
       <button disabled={busy} onClick={async () => { if (!confirm('Refaire un nouveau programme ?')) return; setBusy(true); try { setD(await forme.newProgram()); } catch (e) { toast(errText(e)); } finally { setBusy(false); } }} style={{ ...ghostBtn, width: '100%', marginTop: 12, display: 'flex', justifyContent: 'center', gap: 8 }}>{busy ? <><Spinner size={16} /> …</> : '🔄 Nouveau programme'}</button>
       <ExerciseSheet session={ex} onClose={() => setEx(null)} />
-      {play && s && <Player s={s as unknown as SportSession} onClose={() => setPlay(false)} onFinished={msg => { setPlay(false); toast(msg); void load(); }} save={async (sets, durationMin, rpe) => {
+      {play && s && <Player s={s as unknown as SportSession} kind="routine" onClose={() => setPlay(false)} onFinished={msg => { setPlay(false); toast(msg); void load(); }} save={async (sets, durationMin, rpe) => {
         await forme.log('workout', { session: s.index, label: s.label, sets, durationMin, rpe });
         return '💪 Séance enregistrée';
       }} />}
