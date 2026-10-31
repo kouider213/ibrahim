@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-31 15h — Appels : Gemini Live 3.8 (46396a1)
+- Appel 13h57 : coupure 1011 + « allô ? » au bruit + motif absurde (« sa femme m'a dit ») hérité du rappel de 12h56.
+- Backend choisit maintenant gemini-3.8-live puis 3.1-flash-live (testés avec vraie config : 0 coupure, ~0,9 s), 2.5 native-audio en secours.
+- NOISE_RULE : plus de « allô ? / je t'entends plus » sur un bruit, pas de phrase répétée.
+
 ## 31/10 — APPELS : il te comprend mieux au téléphone
 - `tgcall/dzaryx_tg.py` : quand c'est Kouider qui appelle, plus de « ta femme a décroché » (call_back_later refusé) ; end_call refusé tant qu'aucune phrase de lui n'a été comprise (12h56 : raccroché sans l'avoir entendu).
 - `tgcall/realtime.py` : reprise après coupure Gemini sans « Pardon, petite coupure » ; même demande ask_dzaryx envoyée 2 fois → faite une seule fois (30/10 17h58 prise Liberté en double) ; modèle Gemini noté dans les logs.
