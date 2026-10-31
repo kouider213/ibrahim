@@ -336,6 +336,17 @@ const CALL_QUICK = {
   // PC de Kouider (Nexus) — réservé à Kouider
   pc_command: (i: Record<string, unknown>, who: CallActor) => who === 'kouider' ? pcCommand(i) : Promise.resolve('Le PC est réservé à Kouider.'),
   pc_status:  (_i: Record<string, unknown>, who: CallActor) => who === 'kouider' ? pcStatus() : Promise.resolve('Le PC est réservé à Kouider.'),
+  // 31/10 : « j'ai pris un demi » passait par ask_dzaryx (44-55 s, envoyé 2 fois) → écriture directe dans Liberté
+  quick_liberte: async (i: Record<string, unknown>, who: CallActor) => {
+    if (who !== 'kouider') return 'Réservé à Kouider.';
+    const { confirmed, ...args } = i;
+    const action = String(args['action'] ?? 'status');
+    if (!['status', 'prise', 'envie', 'resiste', 'annuler', 'humeur', 'victoire', 'calme', 'mission', 'total'].includes(action)) return 'Action inconnue : passe par ask_dzaryx.';
+    const read = action === 'status';
+    if (!read && confirmed !== true) return 'Pas encore noté : redis-lui la quantité exacte (« 1 demi, c\'est ça ? »), attends son oui, puis rappelle avec confirmed:true.';
+    const { liberteTool } = await import('../../integrations/liberte.js');
+    return liberteTool(args, `voice_${who}`);
+  },
   pc_wake:    (_i: Record<string, unknown>, who: CallActor) => who === 'kouider' ? pcWake() : Promise.resolve('Le PC est réservé à Kouider.'),
   pc_screen_to_telegram: (_i: Record<string, unknown>, who: CallActor) => who === 'kouider' ? pcScreenToTelegram(who) : Promise.resolve('Le PC est réservé à Kouider.'),
 } as const;
@@ -362,6 +373,14 @@ const CALL_QUICK_DEFS = [
       start_date: { type: 'string' }, end_date: { type: 'string' }, car_name: { type: 'string' },
       delivery_address: { type: 'string', description: 'Seulement « aéroport » : pas de livraison à une adresse pour les clients (agence Hay Badr ou aéroport d\'Oran)' },
       price_per_day: { type: 'number', description: 'Prix par jour si Kouider en fixe un autre' } }, required: ['start_date', 'end_date'] } },
+  { type: 'function', name: 'quick_liberte',
+    description: 'LIBERTÉ (privé, Kouider seulement, jamais devant quelqu\'un d\'autre) : son programme pour arrêter son médicament. « j\'ai pris un demi » → action prise, n = nombre de DEMIS (1 comprimé = n 2). « où j\'en suis ? » → status. Envie → envie (trigger, intensity 0-10) ; envie passée sans prise → resiste ; erreur → annuler ; « en tout j\'en ai pris X aujourd\'hui » → total (n). Écritures : 1er appel SANS confirmed → relis-lui la quantité ; après son oui → confirmed:true. Une prise dont il reparle n\'est PAS une 2e prise.',
+    parameters: { type: 'object', properties: {
+      action: { type: 'string', enum: ['status', 'prise', 'envie', 'resiste', 'annuler', 'humeur', 'victoire', 'calme', 'mission', 'total'] },
+      n: { type: 'number', description: 'Nombre de DEMI-comprimés' }, trigger: { type: 'string' }, intensity: { type: 'number' },
+      score: { type: 'number' }, text: { type: 'string' }, note: { type: 'string' },
+      nouvelle: { type: 'boolean', description: 'true seulement s\'il confirme que c\'est une prise EN PLUS d\'une déjà notée' },
+      confirmed: CONFIRMED_PARAM }, required: ['action'] } },
   { type: 'function', name: 'quick_agenda',
     description: 'AGENDA D\'UN JOUR (« qu\'est-ce que j\'ai demain ? », « mon programme vendredi ») : départs et retours de voitures, rendez-vous (agenda FIK + perso), rappels prévus. date YYYY-MM-DD (défaut aujourd\'hui). Lecture seule.',
     parameters: { type: 'object', properties: { date: { type: 'string' } } } },
@@ -538,6 +557,7 @@ function realtimeInstructions(who: CallActor, calls: string, dossier = '', famil
     `MAIL : « réponds à Mohammed que… » → quick_email_reply avec un texte poli rédigé par toi. D'abord SANS confirmed : lis-lui le mail EN ENTIER et demande « je l'envoie ? ». Après son oui → confirmed:true. « Qu'est-ce qu'il m'a écrit ? » → quick_email_reply sans body.`,
     `CONTRAT : « envoie le contrat à Karim », « fais-le signer » → send_contract (pas besoin de oui : il reçoit le lien et l'envoie lui-même).`,
     `PAPIERS DES VOITURES : « l'assurance de la Sandero expire le 15 mars » → relis, puis après son oui set_car_papers avec confirmed:true. « Les papiers sont à jour ? » → get_car_papers.`,
+    `LIBERTÉ (son médicament, privé) : « j'ai pris un demi », « où j'en suis », « j'ai envie » → quick_liberte (rapide), JAMAIS ask_dzaryx pour ça. Prise : redis la quantité, après son oui confirmed:true, UN SEUL appel.`,
     `AGENDA : « qu'est-ce que j'ai demain / vendredi ? » → quick_agenda. RAPPEL pour lui (« rappelle-moi d'appeler le garage à 15h ») → redis l'heure, puis après son oui schedule_reminder avec confirmed:true (heure de Bruxelles). Un rappel PAR APPEL → call_me.`,
     `WHATSAPP : « envoie un message WhatsApp au 04 91… », « envoie à Karim que… », « dis au client que… » → outil whatsapp_send : c'est TOI qui envoies directement depuis le WhatsApp Business de FIK. D'abord SANS confirmed (relecture), lis-lui le message et le destinataire, « je l'envoie ? », puis après son oui confirmed:true. Dis « c'est envoyé » SEULEMENT si l'outil le confirme. JAMAIS « je ne sais pas faire » pour WhatsApp. whatsapp_link (lien sur Telegram) uniquement s'il demande le lien.`,
     `PC (Nexus) : tout ce qui concerne son ordinateur (« ouvre Spotify sur le PC », « volume 30 », « verrouille le PC », « éteins le PC ») → pc_command, c'est direct. « Mon PC est allumé ? » → pc_status ; « allume / réveille le PC » → pc_wake ; « envoie-moi l'écran » → pc_screen_to_telegram ; « qu'est-ce qu'il y a sur mon écran ? », « regarde mon PC » → pc_look (tu reçois l'image de l'écran et tu la décris). Éteindre, redémarrer, veille, supprimer : relis et attends son oui (confirmed:true).`,

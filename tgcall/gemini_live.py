@@ -56,6 +56,25 @@ def meaningful(t: str) -> bool:
     return len(re.findall(r'[A-Za-zÀ-ÿ\u0621-\u064A]', t)) >= 2
 
 
+# Mots seuls qu'il dit vraiment au téléphone ; un mot seul hors liste (« very », « see », « sur ») = bruit mal transcrit (30/10)
+SHORT_OK = {'oui', 'non', 'ok', 'okay', 'ouais', 'ouai', 'vas', 'vasy', 'allo', 'allô', 'merci', 'quoi', 'hein', 'attends', 'stop',
+            'bon', 'voilà', 'voila', 'salut', 'wesh', 'parfait', 'daccord', 'dac', 'exact', 'exactement', 'voilà', 'pardon',
+            'répète', 'repete', 'comment', 'pourquoi', 'quand', 'combien', 'bonjour', 'bonsoir', 'super', 'génial', 'top',
+            'nickel', 'raccroche', 'yes', 'yeah', 'sah', 'wah', 'iyeh', 'la', 'là', 'hamdoullah', 'hamdoulah', 'inchallah',
+            'bye', 'fik', 'ciao', 'tchao', 'ah', 'oh', 'euh', 'continue', 'arrête', 'arrete', 'écoute', 'ecoute', 'non non', 'oui oui'}
+
+
+def lone_noise(t: str) -> bool:
+    words = re.findall(r"[A-Za-zÀ-ÿ\u0621-\u064A']+", t)
+    if len(words) != 1 or re.search(r'[\u0621-\u064A]', t) or re.search(r'\d', t):
+        return False
+    # une vraie réponse d'un mot est transcrite avec majuscule ou ponctuation (« Clio. », « Rien. ») ; le bruit, en minuscules nues
+    if words[0][:1].isupper() or re.search(r'[.!?]', t):
+        return False
+    w = words[0].lower().replace("'", '').replace('-', '')
+    return w not in SHORT_OK and len(w) <= 5
+
+
 def speaks(t: str) -> bool:
     """Assez pour couper Dzaryx : au moins 2 mots ou 6 lettres (pas un « allô » ni un bruit)."""
     words = [w for w in t.split() if re.search(r'[A-Za-zÀ-ÿ\u0621-\u064A]{2}', w)]
@@ -181,9 +200,11 @@ class GeminiLiveWS:
     def _flush_input(self) -> None:
         heard = clean_heard(self.in_text)
         noisy = bool(re.search(r'<[^>]{1,20}>|[\u06F0-\u06F9]', self.in_text))   # « <noise> », chiffres persans = bruit mal transcrit
-        if meaningful(heard) and (not noisy or speaks(heard)):   # un bruit (« <noise> », souffle) n'est pas une phrase de Kouider
+        if meaningful(heard) and (not noisy or speaks(heard)) and not lone_noise(heard):   # un bruit (« <noise> », souffle) n'est pas une phrase de Kouider
             self._put({'type': 'input_audio_buffer.committed'})
             self._put({'type': 'conversation.item.input_audio_transcription.completed', 'transcript': heard})
+        elif self.in_text.strip():   # pour savoir ce qu'il a VRAIMENT entendu quand Kouider dit « il me comprend pas »
+            log.info('entendu mais ignoré (bruit) : %r', self.in_text.strip()[:120])
         self.in_text = ''
         self.barged = False
 

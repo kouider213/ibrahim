@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 31/10 — APPELS : il te comprend mieux au téléphone
+- `tgcall/dzaryx_tg.py` : quand c'est Kouider qui appelle, plus de « ta femme a décroché » (call_back_later refusé) ; end_call refusé tant qu'aucune phrase de lui n'a été comprise (12h56 : raccroché sans l'avoir entendu).
+- `tgcall/realtime.py` : reprise après coupure Gemini sans « Pardon, petite coupure » ; même demande ask_dzaryx envoyée 2 fois → faite une seule fois (30/10 17h58 prise Liberté en double) ; modèle Gemini noté dans les logs.
+- `tgcall/gemini_live.py` : un mot seul en minuscules hors liste (« very », « see », « sur ») = bruit ; ce qui est ignoré est maintenant écrit dans les logs.
+- `backend/src/api/routes/call.ts` : outil rapide quick_liberte (prise / état / envie) au lieu de ask_dzaryx (44-55 s).
+
 ## 31/10 — B049 + B050
 - `integrations/readonly-agent.ts` : outil whatsapp_lecture (unread/drafts/status) → les messages 🔮 « préparé avant que tu demandes » lisent enfin WhatsApp.
 - `nexus/modules/free_llm.py` + `browser_agent.py` : navigateur (Air Algérie, browser_task) sur Gemini gratuit d'abord, Claude en secours (NEXUS_BROWSER_PROVIDER=claude pour forcer).

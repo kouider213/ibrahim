@@ -598,6 +598,12 @@ def call_tools(user_id: int) -> dict:
         return '✅ Envoyé sur Telegram.', True
 
     async def end_call(_: dict) -> tuple[str, bool]:
+        st = active.get(user_id)
+        # 31/10 12h56 : Kouider appelle, rien de lui n'est transcrit, Gemini imagine « sa femme a décroché » et raccroche.
+        # Il ne raccroche jamais sur quelqu'un dont il n'a compris aucune phrase.
+        if st and st.rt and not any(l['role'] == 'user' for l in st.rt.lines):
+            return ('PAS RACCROCHÉ : tu n\'as encore compris aucune phrase de lui (ligne ou bruit). Ne raccroche pas : '
+                    'dis « je t\'entends mal, tu peux répéter ? » et attends.'), True
         asyncio.create_task(hang_up(user_id))
         return 'Raccroché.', False
 
@@ -649,6 +655,9 @@ def call_tools(user_id: int) -> dict:
     async def call_back_later(args: dict) -> tuple[str, bool]:
         """Quelqu'un d'autre a décroché : on rappelle Kouider plus tard avec le VRAI motif (jamais dit à la personne)."""
         st = active.get(user_id)
+        if st and not st.outgoing:   # c'est LUI qui appelle : personne d'autre « n'a décroché » (31/10 12h56)
+            return ('REFUSÉ : c\'est Kouider qui t\'appelle lui-même depuis son Telegram, personne d\'autre n\'a décroché. '
+                    'Ne raccroche pas : demande-lui ce qu\'il veut (« je t\'écoute, vas-y »).'), True
         held = strip_greeting(st.rt.held_greeting) if st and st.rt and st.rt.held_greeting else ''
         who = (args.get('who_answered') or '').strip()
         reason = held or 'Je te rappelle comme prévu.'

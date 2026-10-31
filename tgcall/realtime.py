@@ -113,6 +113,10 @@ ApiFn = Callable[[str, dict, str, float], Awaitable[dict]]
 LocalTool = Callable[[dict], Awaitable[tuple[str, bool]]]
 
 
+def _ask_key(request: str) -> str:
+    return re.sub(r'[^a-z0-9]+', ' ', (request or '').lower().replace('confirmé au téléphone', '')).strip()
+
+
 class RealtimeCall:
     def __init__(self, calls: PyTgCalls, http: aiohttp.ClientSession, api: ApiFn, user_id: int, actor: str,
                  local_tools: dict[str, LocalTool] | None = None):
@@ -131,6 +135,7 @@ class RealtimeCall:
         self.video: tuple[bytes, int, int, int, float] | None = None   # dernière image caméra (brute, l, h, rotation, quand)
         self.video_sent = 0.0
         self.face_seen = ''   # qui a été reconnu à la caméra (une fois par appel)
+        self.asking: dict[str, tuple[float, asyncio.Future]] = {}   # demandes ask_dzaryx récentes (anti-doublon)
         self.lines: list[dict] = []       # transcription de l'appel (mémoire des appels, envoyée à la fin)
         self.started = time.monotonic()
         self.interpreter = ''             # langue du client en mode interprète ('' = normal)
@@ -211,7 +216,7 @@ class RealtimeCall:
         if self.guest_instr and speaker.available() and speaker.known() > 0 and speaker.guard_on():
             self.guarded, self.who = True, '?'
             await self._session(self.guest_instr, auto=False)   # rien d'automatique tant qu'on ne sait pas qui parle
-        log.info('voix temps réel connectée (%s)%s', self.provider, ' (vérification de la voix)' if self.guarded else '')
+        log.info('voix temps réel connectée (%s %s)%s', self.provider, self.live_model, ' (vérification de la voix)' if self.guarded else '')
 
     n_in = n_out = n_voiced = 0; rms_max = 0   # diagnostic : tranches audio reçues / envoyées (voix) pendant l'appel
 
@@ -619,15 +624,16 @@ class RealtimeCall:
         self.ws = await GeminiLiveWS.connect(self.http, res)
         await self.ws.receive(timeout=8)   # session.created
         self.responding = False
-        log.info('voix temps réel reconnectée (%d)', self.reconnects)
+        log.info('voix temps réel reconnectée (%d, %s)', self.reconnects, self.live_model)
         said = '\n'.join(f"{'Dzaryx' if l['role'] == 'dzaryx' else l.get('speaker') or self.actor.capitalize()} : {l['text']}"
                          for l in self.lines[-16:])
         await self._send({'type': 'conversation.item.create', 'item': {'type': 'message', 'role': 'system', 'content': [
             {'type': 'input_text', 'text': 'La ligne a eu une micro-coupure technique, l\'appel continue. Conversation '
              f'jusqu\'ici :\n{said or "(rien encore)"}'}]}})
         await self._send({'type': 'response.create', 'response': {'instructions':
-            'Reprends naturellement en une phrase courte : « Pardon, petite coupure. » puis réponds à sa dernière '
-            'phrase si tu ne l\'avais pas fait, sinon « je t\'écoute ».'}})
+            # 31/10 : « Pardon, petite coupure » à chaque fois → il raccrochait. On reprend sans parler de coupure.
+            'Ne parle PAS de coupure. Si sa dernière phrase n\'a pas eu de réponse, réponds-y directement ; si tu '
+            'étais en train de parler, termine ta phrase en quelques mots ; sinon dis juste « vas-y, je t\'écoute ».'}})
 
     async def _read_ws(self) -> None:
         assert self.ws is not None
@@ -673,6 +679,14 @@ class RealtimeCall:
             elif t == 'error':
                 log.error('realtime: %s', ev.get('error'))
 
+    def _same_ask(self, request: str):
+        """La même demande est déjà partie il y a moins de 2 min → sa réponse (future), sinon None."""
+        hit = self.asking.get(_ask_key(request))
+        if not hit:
+            return None
+        age = time.monotonic() - hit[0]   # encore en cours (< 2 min) ou finie il y a moins de 30 s
+        return hit[1] if (age < 120 and not hit[1].done()) or age < 30 else None
+
     async def _tool(self, ev: dict) -> None:
         self.tools_running += 1   # un outil qui cherche 20 s n'est pas une voix bloquée
         try:
@@ -704,7 +718,18 @@ class RealtimeCall:
                 result, follow_up = await self.local_tools[name](args)
             except Exception as e:
                 result = f'Échec : {e}'
+        elif name == 'ask_dzaryx' and self._same_ask(args.get('request', '')) is not None:
+            # 30/10 17h58 : Gemini a envoyé 2 fois « liberte prise n=1 » en même temps → une seule demande au cerveau
+            log.info('ask_dzaryx en double → même réponse')
+            try:
+                result = await asyncio.shield(self._same_ask(args.get('request', '')))
+            except Exception as e:
+                result = f'Erreur technique : {e}.'
+            result = 'DÉJÀ FAIT (même demande envoyée 2 fois, faite UNE seule fois) : ' + result + ' Ne le redis pas.'
+            follow_up = False
         elif name == 'ask_dzaryx':
+            fut: asyncio.Future = asyncio.get_running_loop().create_future()
+            self.asking[_ask_key(args.get('request', ''))] = (time.monotonic(), fut)
             try:
                 body = {'message': args.get('request', ''), 'textOnly': True}
                 jpg = await asyncio.to_thread(self.snapshot)
@@ -718,6 +743,8 @@ class RealtimeCall:
                 result = out.get('text') or 'Pas de réponse.'
             except Exception as e:
                 result = f'Erreur technique : {e}. Dis-lui que tu n\'arrives pas à vérifier pour le moment.'
+            if not fut.done():
+                fut.set_result(result)
         else:
             try:   # lecture rapide (réservations, mails, flotte…) sans le cerveau complet
                 out = await self.api('/api/call/tool', {'name': name, 'input': args}, self.actor, 30)
