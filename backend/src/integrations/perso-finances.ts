@@ -9,6 +9,7 @@ type Charge = { label: string; amount: number; until?: string /* AAAA-MM = derni
 export type Finances = {
   job?: string;                 // ex. « employé dans une librairie »
   salary?: number;              // net mensuel €
+  extras?: Array<{ label: string; amount: number; per: 'semaine' | 'mois' }>;  // autres rentrées régulières
   charges: Charge[];
   monthlySaving?: number;       // mis de côté chaque mois sur le salaire
   side?: { label: string; dailyMin: number; dailyMax: number; when: string; note?: string };  // revenu d'appoint
@@ -32,7 +33,8 @@ const active = (f: Finances) => f.charges.filter(c => !c.until || c.until >= ym(
 export function budget(f: Finances) {
   const charges = active(f).reduce((s, c) => s + c.amount, 0);
   const salary = f.salary ?? 0, save = f.monthlySaving ?? 0;
-  return { salary, charges, save, rest: salary - charges - save };
+  const extra = (f.extras ?? []).reduce((t, e) => t + (e.per === 'semaine' ? e.amount * 52 / 12 : e.amount), 0);
+  return { salary, extra, charges, save, rest: salary + extra - charges - save };
 }
 
 /** Dettes restantes (charges avec une fin) — pour « ma fortune ». */
@@ -60,6 +62,7 @@ export async function financesText(): Promise<string> {
   return ['FINANCES PERSO DE KOUIDER (STRICTEMENT PRIVÉ : seulement avec lui, en tête-à-tête. Jamais dans un document, PDF, business plan, mail ou message pour quelqu\'un d\'autre, jamais à un client, à Houari, Houari bof ou la famille. Le revenu d\'appoint n\'apparaît JAMAIS dans les chiffres FIK ni dans un dossier banque/partenaire.)',
     f.job ? `- Emploi salarié : ${f.job}. Dans l'agenda, « travail » / « taf » = ce poste (pas FIK). FIK et ses projets sont EN PLUS de ce travail.` : '',
     f.salary ? `- Salaire net : ${eur(f.salary)}/mois.` : '',
+    ...(f.extras ?? []).map(e => `- En plus : ${e.label} ${eur(e.amount)}/${e.per}${e.per === 'semaine' ? ` (≈ ${eur(e.amount * 52 / 12)}/mois)` : ''}.`),
     active(f).length ? `- Charges fixes : ${active(f).map(c => `${c.label} ${eur(c.amount)}/mois${c.until ? ` jusqu'à ${c.until.slice(5)}/${c.until.slice(0, 4)} (encore ${monthsLeft(c.until)} mois)` : ''}`).join(' ; ')} — total ${eur(b.charges)}.` : '',
     f.monthlySaving ? `- Met de côté ${eur(f.monthlySaving)}/mois sur le salaire.` : '',
     f.salary ? `- Reste pour les dépenses variables (courses, essence, famille…) : ≈ ${eur(b.rest)}/mois.` : '',
@@ -83,6 +86,12 @@ export async function financesTool(input: Record<string, unknown>): Promise<stri
     }
     if (f.side) { const a = num(input['side_min']), z = num(input['side_max']); if (a !== undefined) f.side.dailyMin = a; if (z !== undefined) f.side.dailyMax = z; }
     if (input['note']) f.notes = [...(f.notes ?? []), String(input['note'])].slice(-20);
+  } else if (action === 'extra') {
+    const label = String(input['label'] ?? '').trim() || 'rentrée en plus';
+    const l = (f.extras ?? []).filter(e => e.label.toLowerCase() !== label.toLowerCase());
+    const amount = num(input['amount']);
+    if (String(input['op'] ?? 'set') !== 'remove') { if (amount === undefined) return '❌ Il me faut le montant (amount).'; l.push({ label, amount, per: /sem/i.test(String(input['per'] ?? '')) ? 'semaine' : 'mois' }); }
+    f.extras = l;
   } else if (action === 'charge') {
     const label = String(input['label'] ?? '').trim();
     if (!label) return '❌ Il me faut le nom de la charge (label).';
@@ -103,6 +112,7 @@ export async function financesTool(input: Record<string, unknown>): Promise<stri
   return [`💶 Tes finances perso${action === 'show' || action === 'budget' ? '' : ' (mis à jour ✅)'}`,
     f.job ? `• Travail : ${f.job}` : '',
     `• Salaire net : ${eur(b.salary)}/mois`,
+    ...(f.extras ?? []).map(e => `• + ${e.label} : ${eur(e.amount)}/${e.per}${e.per === 'semaine' ? ` (≈ ${eur(e.amount * 52 / 12)}/mois)` : ''}`),
     ...active(f).map(c => `• − ${c.label} : ${eur(c.amount)}${c.until ? ` (jusqu'à ${c.until.slice(5)}/${c.until.slice(0, 4)}, encore ${monthsLeft(c.until)} mois)` : ''}`),
     f.monthlySaving ? `• − Mis de côté : ${eur(f.monthlySaving)}` : '',
     `= Reste pour vivre (courses, essence, imprévus) : ${eur(b.rest)}/mois`,
