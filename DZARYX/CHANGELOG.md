@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-10-31 15h20 — Appels : oui obligatoire, tâches de fond, mémoire propre (663fd09)
+- confirmed:true / CONFIRMÉ refusé dans tgcall si sa dernière phrase n'est pas un oui.
+- ask_dzaryx background:true : étude/PDF/site en fond, résultat glissé dans l'appel ou sur Telegram ; questions générales répondues sans le cerveau.
+- Résumés d'appel sans technique (coupures, allô) ; 2 souvenirs faux du 31/10 supprimés de callmem:kouider.
+- Testé sur gemini-3.8-live : étude → background, rappel → « je te programme ça ? » puis exécuté après « oui vas-y ».
+
 ## 2026-10-31 15h — Appels : Gemini Live 3.8 (46396a1)
 - Appel 13h57 : coupure 1011 + « allô ? » au bruit + motif absurde (« sa femme m'a dit ») hérité du rappel de 12h56.
 - Backend choisit maintenant gemini-3.8-live puis 3.1-flash-live (testés avec vraie config : 0 coupure, ~0,9 s), 2.5 native-audio en secours.
