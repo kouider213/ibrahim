@@ -81,9 +81,13 @@ async function etude(p: Projet): Promise<string> {
       '', 'SITUATION FINANCIÈRE DE KOUIDER (à utiliser pour la partie « est-ce que je peux me le permettre », sans jamais citer d\'activité d\'appoint) :', fin, fort,
       '', 'RECHERCHE DE MARCHÉ :', market,
     ].join('\n');
-    return writeDossier(title,
-      `Étude de marché + business plan pour Kouider et ${p.partner ?? 'son associé'} : marché et demande, concurrents et prix, offre et prix conseillés, chiffres (marge par client, part de chacun, rentabilisation, scénarios 5/10/20/40 clients), matériel à acheter (liste + prix), fonctionnement pas à pas (client → mécanicien → technicien à distance → paiement), risques (légaux, techniques, paiement) et comment s'en protéger, plan des 30 premiers jours sans local, verdict franc (go / go sous conditions / pas maintenant) et ce que ça change pour ses finances.`,
-      material);
+    // Mode gratuit : les cerveaux gratuits saturent parfois juste après la recherche (31/10 : 503) → 3 essais espacés
+    const brief = 
+      `Étude de marché + business plan pour Kouider et ${p.partner ?? 'son associé'} : marché et demande, concurrents et prix, offre et prix conseillés, chiffres (marge par client, part de chacun, rentabilisation, scénarios 5/10/20/40 clients), matériel à acheter (liste + prix), fonctionnement pas à pas (client → mécanicien → technicien à distance → paiement), risques (légaux, techniques, paiement) et comment s'en protéger, plan des 30 premiers jours sans local, verdict franc (go / go sous conditions / pas maintenant) et ce que ça change pour ses finances.`;
+    for (let k = 0; ; k++) {
+      try { return await writeDossier(title, brief, material); }
+      catch (e) { if (k >= 3 || !/503|overload|gratuit|429|rate/i.test(String(e instanceof Error ? e.message : e))) throw e; await new Promise(r => setTimeout(r, (k + 1) * 120_000)); }
+    }
   });
 }
 
