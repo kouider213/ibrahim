@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-01 — FORME COURSE « PRO » après l'analyse de 20 applis (app v226)
+- `forme-runs-pro.ts` : VO2max (VDOT Daniels, vérifié : 5 km 25:00 → 38,3) + temps prévus 5/10/semi/marathon + allures d'entraînement ; charge d'entraînement forme/fatigue/fraîcheur (CTL/ATL/TSB) + alerte montée trop rapide ; plans guidés (débuter 0→5 km, 5 km, 10 km, semi : semaines de récup, semaine de course) ; « Mes parcours » = même trajet reconnu + classement ; météo au départ (Open-Meteo) ; chaussures (km d'usure) ; défis du mois + 12 badges ; export GPX ; analyse du coach IA ; suivi en direct public (?suivi=…, lien secret 24 h).
+- App : séance guidée pas à pas (étape, compte à rebours, voix à chaque changement, « accélère / ralentis »), cadence pas/min (accéléromètre), bouton « Envoyer le suivi », cartes Ma forme / Charge / Défis / Plan, chaussures + suivi dans les réglages.
+- Splits = temps en mouvement (avant : la pause comptait dans le km).
+
 ## 2026-11-01 — FORME : appli de son AMI + COURSE GPS façon Strava (app v225)
 - 3e profil FORME « ami » (lien d'invitation comme sa femme, réglages → « L'appli de mon ami ») : SON suivi à lui, rien en commun avec Kouider, jamais lu par Dzaryx, pas de jeux du couple, pas de Wegovy, en français.
 - Nouveau `forme-runs.ts` + onglet COURSE : course/marche/vélo/rando au GPS, carte en direct (OpenStreetMap), chrono, allure instantanée/moyenne, pause auto, tours, voix tous les X km, allure cible, objectif distance/durée, course contre son « fantôme », mode poche, écran gardé allumé, sortie gardée sur le téléphone (reprise après crash).

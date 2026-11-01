@@ -27,6 +27,9 @@ export interface RunSummary {
   bbox: [number, number, number, number] | null;
   prs: string[];                // records battus pendant cette sortie
   ghostOf?: string;             // « refaire ce parcours » : sortie comparée
+  // 01/11 « pro » (forme-runs-pro.ts)
+  weather?: { temp: number; wind: number; code: number; label: string; e: string; rain: boolean } | null;
+  shoeId?: string; cadence?: number; workout?: { id: string; title: string }; coach?: string;
 }
 export interface RunCfg { weekGoalKm: number; autoPause: boolean; voiceEvery: number; type: RunType; targetPace: number | null }
 const DEFAULT_CFG: RunCfg = { weekGoalKm: 15, autoPause: true, voiceEvery: 1, type: 'run', targetPace: null };
@@ -216,7 +219,7 @@ function autoTitle(type: RunType, at: number): string {
   return `${TYPE_LABEL[type]} ${moment}`;
 }
 
-export async function saveRun(uid: Uid, b: { type?: string; startedAt?: number; points?: unknown; pauses?: unknown; laps?: unknown; title?: string; note?: string; feel?: number; ghostOf?: string }): Promise<{ run: RunSummary }> {
+export async function saveRun(uid: Uid, b: { type?: string; startedAt?: number; points?: unknown; pauses?: unknown; laps?: unknown; title?: string; note?: string; feel?: number; ghostOf?: string; shoeId?: string; cadence?: number; workoutId?: string }): Promise<{ run: RunSummary }> {
   const type: RunType = RUN_TYPES.includes(b.type as RunType) ? b.type as RunType : 'run';
   const pts = (Array.isArray(b.points) ? b.points : []).slice(0, 30000).map(p => (Array.isArray(p) ? [Number(p[0]), Number(p[1]), Number(p[2]), p[3] == null ? null : Number(p[3]), Number(p[4] ?? 20)] : null)).filter(Boolean) as Pt[];
   if (pts.length < 2) throw new Error('Pas assez de points GPS pour enregistrer la sortie');
@@ -247,7 +250,15 @@ export async function saveRun(uid: Uid, b: { type?: string; startedAt?: number; 
     elevGain: c.elevGain, elevLoss: c.elevLoss, altMin: c.altMin, altMax: c.altMax, kcal: c.kcal,
     splits: c.splits, efforts, laps: c.laps, poly: c.poly, bbox: c.bbox, prs,
     ...(typeof b.ghostOf === 'string' && list.some(r => r.id === b.ghostOf) ? { ghostOf: b.ghostOf } : {}),
+    ...(typeof b.shoeId === 'string' && b.shoeId ? { shoeId: b.shoeId.slice(0, 20) } : {}),
+    ...(Number(b.cadence) >= 60 && Number(b.cadence) <= 260 ? { cadence: Math.round(Number(b.cadence)) } : {}),
   };
+  const pro = await import('./forme-runs-pro.js');
+  run.weather = await pro.weatherAt(pts[0]![0], pts[0]![1], startedAt);
+  if (typeof b.workoutId === 'string') {
+    const plan = await pro.getPlan(uid); const w = plan?.workouts.find(x => x.id === b.workoutId);
+    if (w) { run.workout = { id: w.id, title: w.title }; await pro.markWorkoutDone(uid, w.id, id); }
+  }
   await kvSet(RUN_K(uid, id), JSON.stringify({ points: pts, pauses, laps }));
   await kvSet(LIST_K(uid), JSON.stringify([...list, run].sort((a, z) => a.startedAt - z.startedAt).slice(-500)));
   return { run };
@@ -259,16 +270,19 @@ export async function runDetail(uid: Uid, id: string) {
   const raw = await readJson<{ points: Pt[]; pauses: Array<[number, number]>; laps: number[] }>(RUN_K(uid, id), { points: [], pauses: [], laps: [] });
   const p = await getFormeProfile(uid);
   const c = computeRun(run.type, raw.points, { pauses: raw.pauses, laps: raw.laps, weightKg: p.weightKg });
-  return { run, track: c.line, series: c.series, ghost: { cum: c.cum, t: c.times } };
+  const route = (await import('./forme-runs-pro.js')).routeRanking(await runList(uid), run);
+  return { run, track: c.line, series: c.series, ghost: { cum: c.cum, t: c.times }, route };
 }
 
-export async function updateRun(uid: Uid, id: string, patch: { title?: string; note?: string; feel?: number; type?: string }): Promise<RunSummary | null> {
+export async function updateRun(uid: Uid, id: string, patch: { title?: string; note?: string; feel?: number; type?: string; shoeId?: string; coach?: string }): Promise<RunSummary | null> {
   const list = await runList(uid);
   const r = list.find(x => x.id === id); if (!r) return null;
   if (typeof patch.title === 'string' && patch.title.trim()) r.title = patch.title.trim().slice(0, 60);
   if (typeof patch.note === 'string') r.note = patch.note.slice(0, 400);
   if (Number(patch.feel) >= 1 && Number(patch.feel) <= 5) r.feel = Math.round(Number(patch.feel));
   if (patch.type && RUN_TYPES.includes(patch.type as RunType)) r.type = patch.type as RunType;
+  if (typeof patch.shoeId === 'string') { if (patch.shoeId) r.shoeId = patch.shoeId.slice(0, 20); else delete r.shoeId; }
+  if (typeof patch.coach === 'string') r.coach = patch.coach.slice(0, 1500);
   await kvSet(LIST_K(uid), JSON.stringify(list));
   return r;
 }
@@ -304,7 +318,12 @@ export async function runStats(uid: Uid, type?: RunType) {
   // Allure moyenne qui progresse ? (4 dernières semaines vs 4 d'avant, course seulement)
   const runsOnly = all.filter(r => r.type === 'run' && r.pace);
   const avgPace = (rs: RunSummary[]) => { const d = rs.reduce((a, r) => a + r.dist, 0); return d ? Math.round(rs.reduce((a, r) => a + r.moving, 0) / (d / 1000)) : null; };
+  const pro = await import('./forme-runs-pro.js');
+  const fitness = pro.fitnessFrom(all, today);
+  const load = pro.trainingLoad(all, today, fitness?.paces.threshold ?? null);
+  const [plan, shoes] = await Promise.all([pro.getPlan(uid), pro.shoes(uid)]);
   return {
+    fitness, load: { ...load, series: load.series.filter((_, i) => i % 2 === 1 || i === load.series.length - 1) }, challenges: pro.challenges(all, today), plan: pro.planView(plan, today), shoes,
     cfg, week: { ...week, goalKm: cfg.weekGoalKm, pct: cfg.weekGoalKm ? Math.min(100, Math.round(week.km / cfg.weekGoalKm * 100)) : 0 },
     month: sum(list.filter(r => r.date.slice(0, 7) === today.slice(0, 7))), year: sum(list.filter(r => r.date.slice(0, 4) === today.slice(0, 4))), total: sum(list),
     weeks, streakWeeks, records, longest, days,
@@ -319,4 +338,9 @@ export async function runText(uid: Uid = 'kouider'): Promise<string> {
   if (!s || !s.total.n) return '';
   const last = s.recent[0]!;
   return `COURSE GPS (FORME) : semaine ${s.week.km} km / objectif ${s.week.goalKm} km (${s.week.n} sorties) · dernière : ${last.date} ${TYPE_LABEL[last.type]} ${(last.dist / 1000).toFixed(2)} km en ${fmtDur(last.moving)} (${fmtPace(last.pace)}, D+ ${last.elevGain} m)${last.prs.length ? ` · records : ${last.prs.join(', ')}` : ''}.`;
+}
+
+/** Points GPS bruts d'une sortie (export GPX) */
+export async function runPoints(uid: Uid, id: string): Promise<Pt[]> {
+  return (await readJson<{ points: Pt[] }>(RUN_K(uid, id), { points: [] })).points;
 }

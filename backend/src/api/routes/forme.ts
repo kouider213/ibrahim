@@ -17,6 +17,11 @@ import { gamesBoard, submitScore, roomAction, roomPeek, getIsland, islandAction 
 const router = Router();
 const uidOf = new WeakMap<Request, Uid>();
 
+// 📍 Suivi en direct PUBLIC (lien secret envoyé à un proche pendant une sortie) — AVANT le contrôle d'accès
+router.get('/live/:token', async (req, res) => {
+  try { const d = await (await import('../../integrations/forme-runs-pro.js')).livePublic(String(req.params.token)); if (!d) { res.status(404).json({ error: 'Suivi terminé ou lien invalide' }); return; } res.json(d); } catch (err) { res.status(500).json({ error: String(err) }); }
+});
+
 router.use(async (req: Request, res: Response, next: NextFunction) => {
   const ft = req.headers['x-forme-token'];
   if (typeof ft === 'string' && ft) {
@@ -151,6 +156,37 @@ router.get('/runs', async (req, res) => {
 });
 router.post('/runs', async (req, res) => {
   try { res.json(await (await runs()).saveRun(U(req), (req.body ?? {}) as never)); } catch (err) { fail(res, err, 400); }
+});
+const pro = () => import('../../integrations/forme-runs-pro.js');
+router.get('/runs/plan', async (req, res) => {
+  try { const m = await pro(); res.json({ plan: m.planView(await m.getPlan(U(req)), (await import('../../integrations/morning-routine.js')).localNow().date) }); } catch (err) { fail(res, err); }
+});
+router.post('/runs/plan', async (req, res) => {
+  try { const m = await pro(); await m.createPlan(U(req), (req.body ?? {}) as never); res.json({ plan: m.planView(await m.getPlan(U(req)), (await import('../../integrations/morning-routine.js')).localNow().date) }); } catch (err) { fail(res, err); }
+});
+router.delete('/runs/plan', async (req, res) => { try { await (await pro()).deletePlan(U(req)); res.json({ ok: true }); } catch (err) { fail(res, err); } });
+router.post('/runs/shoes', async (req, res) => { try { res.json({ shoes: await (await pro()).shoeAction(U(req), (req.body ?? {}) as never) }); } catch (err) { fail(res, err); } });
+router.post('/runs/live', async (req, res) => {
+  const b = (req.body ?? {}) as { start?: boolean; type?: string };
+  try { const m = await pro(); if (b.start) { const token = await m.liveStart(U(req), (['run', 'walk', 'bike', 'hike'].includes(String(b.type)) ? b.type : 'run') as never); res.json({ link: `https://kouider213.github.io/ibrahim/forme/?suivi=${token}` }); return; } res.json(await m.liveUpdate(U(req), b as never)); } catch (err) { fail(res, err); }
+});
+router.get('/runs/:id/gpx', async (req, res) => {
+  try {
+    const R = await runs(); const id = String(req.params.id).slice(0, 40);
+    const run = (await R.runList(U(req))).find(r => r.id === id); if (!run) { fail(res, 'sortie introuvable', 404); return; }
+    const raw = await R.runPoints(U(req), id);
+    res.json({ name: `forme-${run.date}-${run.type}.gpx`, gpx: (await pro()).gpx(run, raw) });   // JSON : l'app passe par son jeton
+  } catch (err) { fail(res, err); }
+});
+router.post('/runs/:id/coach', async (req, res) => {
+  try {
+    const R = await runs(); const id = String(req.params.id).slice(0, 40); const list = await R.runList(U(req));
+    const run = list.find(r => r.id === id); if (!run) { fail(res, 'sortie introuvable', 404); return; }
+    if (run.coach && !(req.body as { again?: boolean } | undefined)?.again) { res.json({ coach: run.coach }); return; }
+    const coach = await (await pro()).coachDebrief(U(req), run, list);
+    await R.updateRun(U(req), id, { coach });
+    res.json({ coach });
+  } catch (err) { fail(res, err); }
 });
 router.post('/runs/cfg', async (req, res) => {
   try { res.json({ cfg: await (await runs()).setRunCfg(U(req), (req.body ?? {}) as never) }); } catch (err) { fail(res, err); }

@@ -11,6 +11,7 @@ import ScanScreen from './Scan.tsx';
 import FoodScreen from './Food.tsx';
 import { LibraryScreen } from './Exercises.tsx';
 import RunScreen from './Run.tsx';
+import { LiveViewer } from './RunPro.tsx';
 
 // FORME — l'app SPORT de Kouider (31/10 : refaite au style de l'appli « Library » de sa vidéo, nourriture retirée).
 // Marche seule (écran d'accueil : /ibrahim/forme/) ou dans l'app Dzaryx (page FORME, en iframe : même session).
@@ -43,13 +44,15 @@ const urlLang = (): 'fr' | 'ar' | null => { try { const l = new URLSearchParams(
 try { const l = urlLang(); if (l) localStorage.setItem(LANG_K, l); } catch { /* */ }
 const savedLang = (): 'fr' | 'ar' | null => { try { const l = localStorage.getItem(LANG_K); return l === 'fr' || l === 'ar' ? l : null; } catch { return null; } };
 const inviteIn = (s: string) => { const m = /invite=([\w-]{20,})/.exec(s); return m ? m[1] : null; };
+// Page publique de suivi en direct : lue AVANT tout (la gestion du lien d'invitation réécrit l'adresse)
+const SUIVI = (() => { try { return new URLSearchParams(location.search).get('suivi'); } catch { return null; } })();
 // Notification « Kouider t'invite à jouer » : ?jeu=folie → on ouvre directement le jeu (avec son jeton)
 try {
   const jeu = new URLSearchParams(location.search).get('jeu');
   if (jeu && /^[a-z]+$/.test(jeu)) { const ft = new URLSearchParams(location.search).get('invite') ?? localStorage.getItem(FORME_TOKEN); location.replace(`/ibrahim/${jeu}/?hub=1${ft ? `&invite=${encodeURIComponent(ft)}` : ''}`); }
 } catch { /* */ }
 try {
-  const t = new URLSearchParams(location.search).get('invite') ?? localStorage.getItem(FORME_TOKEN);
+  const t = SUIVI ? null : new URLSearchParams(location.search).get('invite') ?? localStorage.getItem(FORME_TOKEN);
   if (t) { localStorage.setItem(FORME_TOKEN, t); keepInvite(t, savedLang() ?? 'ar', savedLang() === 'fr' ? 'ami' : 'femme'); }
 } catch { /* */ }
 const embedded = (() => { try { return window.self !== window.top; } catch { return true; } })();
@@ -195,6 +198,12 @@ function Setup({ initial, onDone }: { initial: Profile; onDone: () => void }) {
 }
 
 export default function App() {
+  // Page publique « suivi en direct » (lien envoyé par un coureur à un proche) : pas besoin de compte
+  if (SUIVI) return <LiveViewer token={SUIVI} />;
+  return <FormeApp />;
+}
+
+function FormeApp() {
   const [authed, setAuthed] = useState(() => !!getDeviceToken() || !!formeToken());
   const [o, setO] = useState<Overview | null>(null);
   const [err, setErr] = useState('');

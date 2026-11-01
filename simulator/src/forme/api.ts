@@ -71,7 +71,18 @@ export interface RunSummary {
   pace: number | null; speed: number; maxSpeed: number; elevGain: number; elevLoss: number; altMin: number | null; altMax: number | null; kcal: number;
   splits: RunSplit[]; efforts: Array<{ label: string; m: number; sec: number; pr?: boolean }>; laps: Array<{ n: number; dist: number; sec: number; pace: number | null }>;
   poly: Array<[number, number]>; bbox: [number, number, number, number] | null; prs: string[]; ghostOf?: string;
+  weather?: { temp: number; wind: number; code: number; label: string; e: string; rain: boolean } | null; shoeId?: string; cadence?: number; workout?: { id: string; title: string }; coach?: string;
 }
+export type StepKind = 'warm' | 'run' | 'rec' | 'cool' | 'walk';
+export interface PlanStep { kind: StepKind; sec?: number; m?: number; pace?: number | null; label: string }
+export interface Workout { id: string; date: string; week: number; title: string; kind: 'easy' | 'long' | 'tempo' | 'interval' | 'walkrun' | 'race'; desc: string; steps: PlanStep[]; km: number; done?: string }
+export type PlanGoal = 'start5k' | '5k' | '10k' | 'semi';
+export interface PlanView { id: string; goal: PlanGoal; label: string; start: string; race: string; days: number[]; vdot: number | null; weeks: number; week: number; workouts: Workout[]; today: Workout | null; next: Workout | null; done: number; total: number; missed: number }
+export interface Fitness { vdot: number; from: { label: string; sec: number; date: string }; predictions: Array<{ label: string; m: number; sec: number }>; paces: { easy: number; marathon: number; threshold: number; interval: number; rep: number } }
+export interface Load { series: Array<{ date: string; ctl: number; atl: number; tsb: number; load: number }>; ctl: number; atl: number; tsb: number; ramp: number; status: string; warn: string | null }
+export interface Tier { v: number; next: number; pct: number; done: number[] }
+export interface Challenges { month: string; km: Tier; elev: Tier; days: Tier; badges: Array<{ id: string; e: string; l: string; ok: boolean }> }
+export interface Shoe { id: string; name: string; maxKm: number; retired?: boolean; km: number; pct: number }
 export interface RunCfg { weekGoalKm: number; autoPause: boolean; voiceEvery: number; type: RunType; targetPace: number | null }
 export interface RunTotals { n: number; km: number; sec: number; elev: number; kcal: number }
 export interface RunStats {
@@ -79,8 +90,9 @@ export interface RunStats {
   weeks: Array<RunTotals & { week: string }>; streakWeeks: number; days: Record<string, number>;
   records: Array<{ label: string; m: number; sec: number; runId: string; date: string; type: RunType }>; longest: Array<{ type: RunType; km: number; runId: string; date: string }>;
   paceTrend: { last4: number | null; prev4: number | null }; recent: RunSummary[];
+  fitness: Fitness | null; load: Load; challenges: Challenges; plan: PlanView | null; shoes: Shoe[];
 }
-export interface RunDetail { run: RunSummary; track: Array<[number, number, number | null]>; series: Array<{ d: number; t: number; pace: number | null; kmh: number; alt: number | null }>; ghost: { cum: number[]; t: number[] } }
+export interface RunDetail { run: RunSummary; track: Array<[number, number, number | null]>; series: Array<{ d: number; t: number; pace: number | null; kmh: number; alt: number | null }>; ghost: { cum: number[]; t: number[] }; route: { count: number; rank: number; best: { id: string; sec: number; date: string }; list: Array<{ id: string; date: string; sec: number; pace: number | null }> } | null }
 
 export type MealSlot = 'matin' | 'midi' | 'collation' | 'soir';
 export interface FoodPart { name: string; grams: number; kcal: number; p: number; c: number; f: number }
@@ -114,10 +126,19 @@ export const forme = {
   invite: (name: string, lang: 'fr' | 'ar', who: 'femme' | 'ami' = 'femme') => post<{ link: string }>('/api/forme/invite', { name, lang, who }),
   revoke: (who: 'femme' | 'ami' = 'femme') => call<{ ok: boolean }>(`/api/forme/invite?who=${who}`, { method: 'DELETE' }),
   runs: (type?: RunType) => call<RunStats>(`/api/forme/runs${type ? `?type=${type}` : ''}`),
-  saveRun: (b: { type: RunType; startedAt: number; points: RunPt[]; pauses: Array<[number, number]>; laps: number[]; title?: string; note?: string; feel?: number; ghostOf?: string }) => post<{ run: RunSummary }>('/api/forme/runs', b),
+  saveRun: (b: { type: RunType; startedAt: number; points: RunPt[]; pauses: Array<[number, number]>; laps: number[]; title?: string; note?: string; feel?: number; ghostOf?: string; shoeId?: string; cadence?: number; workoutId?: string }) => post<{ run: RunSummary }>('/api/forme/runs', b),
   run: (id: string) => call<RunDetail>(`/api/forme/runs/${encodeURIComponent(id)}`),
-  editRun: (id: string, b: { title?: string; note?: string; feel?: number; type?: RunType }) => post<{ run: RunSummary }>(`/api/forme/runs/${encodeURIComponent(id)}`, b),
+  editRun: (id: string, b: { title?: string; note?: string; feel?: number; type?: RunType; shoeId?: string }) => post<{ run: RunSummary }>(`/api/forme/runs/${encodeURIComponent(id)}`, b),
   delRun: (id: string) => call<{ ok: boolean }>(`/api/forme/runs/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  plan: () => call<{ plan: PlanView | null }>('/api/forme/runs/plan'),
+  newPlan: (b: { goal: PlanGoal; weeks?: number; days: number[] }) => post<{ plan: PlanView | null }>('/api/forme/runs/plan', b),
+  delPlan: () => call<{ ok: boolean }>('/api/forme/runs/plan', { method: 'DELETE' }),
+  shoe: (b: { action: 'add' | 'retire' | 'delete'; id?: string; name?: string; maxKm?: number }) => post<{ shoes: Shoe[] }>('/api/forme/runs/shoes', b),
+  liveStart: (type: RunType) => post<{ link: string }>('/api/forme/runs/live', { start: true, type }),
+  liveUpdate: (b: { pts: Array<[number, number]>; dist: number; moving: number; ended?: boolean }) => post<{ ok: boolean }>('/api/forme/runs/live', b),
+  livePublic: async (token: string) => { const r = await fetch(`${BACKEND_URL}/api/forme/live/${encodeURIComponent(token)}`); if (!r.ok) throw new Error(`API ${r.status}: ${await r.text()}`); return r.json() as Promise<{ name: string; type: RunType; startedAt: number; at: number; pts: Array<[number, number]>; dist: number; moving: number; ended: boolean }>; },
+  gpx: (id: string) => call<{ name: string; gpx: string }>(`/api/forme/runs/${encodeURIComponent(id)}/gpx`),
+  coach: (id: string, again = false) => post<{ coach: string }>(`/api/forme/runs/${encodeURIComponent(id)}/coach`, { again }),
   runCfg: (c: Partial<RunCfg>) => post<{ cfg: RunCfg }>('/api/forme/runs/cfg', c),
   log: (kind: string, body: Record<string, unknown> = {}) => post<Overview>('/api/forme/log', { kind, ...body }),
   bodyPhoto: (image: string, pose: string, goal = '', adapt = false) => post<{ photo: Photo; analysis: Analysis | { error: string }; adapted: { date: string; text: string } | null }>('/api/forme/body-photo', { image, pose, goal, adapt }),

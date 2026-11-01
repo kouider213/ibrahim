@@ -4,6 +4,8 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { forme, errText, vibrate, type RunType, type RunPt, type RunStats, type RunSummary, type RunDetail, type RunCfg } from './api.ts';
 import { F, card, btn, ghostBtn, input, Sheet, Spinner, Chip, Ring } from './ui.tsx';
+import { FitnessCard, LoadCard, ChallengesCard, PlanCard, ShoesSection, useCadence, askMotion, stepProgress, sayStep, STEP_E, getShareLive, SHARE_K, shareLiveLink, type StepState } from './RunPro.tsx';
+import type { Workout, Shoe } from './api.ts';
 
 // 🏃 COURSE GPS — FORME (Kouider 01/11, « comme Strava ») : footing, marche, vélo, rando.
 // Chaque profil (Kouider, sa femme, son ami) a SES sorties. Le téléphone enregistre les points GPS bruts
@@ -250,7 +252,8 @@ async function shareImage(d: RunDetail, name: string): Promise<string> {
   return c.toDataURL('image/png');
 }
 
-function RunDetailSheet({ id, onClose, onChanged, onGhost, toast, name }: { id: string | null; onClose: () => void; onChanged: () => void; onGhost: (r: RunDetail) => void; toast: (t: string) => void; name: string }) {
+function RunDetailSheet({ id, onClose, onChanged, onGhost, toast, name, shoes, onOpen }: { id: string | null; onClose: () => void; onChanged: () => void; onGhost: (r: RunDetail) => void; toast: (t: string) => void; name: string; shoes: Shoe[]; onOpen: (id: string) => void }) {
+  const [coachBusy, setCoachBusy] = useState(false);
   const [d, setD] = useState<RunDetail | null>(null);
   const [err, setErr] = useState('');
   const [cursorI, setCursorI] = useState<number | null>(null);
@@ -264,7 +267,7 @@ function RunDetailSheet({ id, onClose, onChanged, onGhost, toast, name }: { id: 
     return tp ? [tp[0], tp[1]] : null;
   }, [d, cursorI]);
   const r = d?.run;
-  const save = async (patch: { title?: string; note?: string; feel?: number; type?: RunType }) => {
+  const save = async (patch: { title?: string; note?: string; feel?: number; type?: RunType; shoeId?: string }) => {
     if (!r) return;
     try { const x = await forme.editRun(r.id, patch); setD(v => v ? { ...v, run: x.run } : v); onChanged(); } catch (e) { toast(errText(e)); }
   };
@@ -291,6 +294,21 @@ function RunDetailSheet({ id, onClose, onChanged, onGhost, toast, name }: { id: 
           {statCell(`${r.elevGain} m`, 'dénivelé +')}{statCell(`${r.kcal}`, 'kcal')}{statCell(isBike(r.type) ? `${r.maxSpeed}` : fmtPace(r.maxSpeed ? 3600 / r.maxSpeed : null), isBike(r.type) ? 'km/h max' : 'allure max')}
           {statCell(fmtDur(r.elapsed), 'temps total')}{statCell(isBike(r.type) ? fmtPace(r.pace) : `${r.speed}`, isBike(r.type) ? 'min/km' : 'km/h moy.')}{statCell(r.altMax != null ? `${r.altMin}–${r.altMax} m` : '—', 'altitude')}
         </div>
+        {(r.weather || r.cadence || r.workout) && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {r.weather && <div style={{ ...card, padding: '8px 12px', fontSize: 13.5, fontWeight: 600 }}>{r.weather.e} {r.weather.temp} °C · {r.weather.label} · 💨 {r.weather.wind} km/h</div>}
+          {r.cadence && <div style={{ ...card, padding: '8px 12px', fontSize: 13.5, fontWeight: 600 }}>👣 {r.cadence} pas/min{r.cadence < 160 && r.type === 'run' ? ' · vise 165-180 (petits pas)' : ''}</div>}
+          {r.workout && <div style={{ ...card, padding: '8px 12px', fontSize: 13.5, fontWeight: 600, color: F.green }}>📋 {r.workout.title} ✓</div>}
+        </div>}
+        <div style={{ ...card, padding: 14, background: 'linear-gradient(135deg,#f1f5ff,#fff)' }}>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>🧠 Analyse du coach</div>
+          {r.coach ? <div style={{ fontSize: 14, lineHeight: 1.5 }}>{r.coach}</div> : <div style={{ fontSize: 13, color: F.muted }}>Ton coach lit tes splits, ton allure, la météo, tes sorties d'avant… et te dit quoi faire la prochaine fois.</div>}
+          <button disabled={coachBusy} onClick={async () => { setCoachBusy(true); try { const c = await forme.coach(r.id, !!r.coach); setD(v => v ? { ...v, run: { ...v.run, coach: c.coach } } : v); onChanged(); } catch (e) { toast(errText(e)); } finally { setCoachBusy(false); } }} style={{ ...ghostBtn, width: '100%', marginTop: 10 }}>{coachBusy ? 'Analyse en cours…' : r.coach ? '🔄 Refaire l\'analyse' : '🧠 Analyser ma sortie'}</button>
+        </div>
+        {d.route && <div style={{ ...card, padding: 14 }}>
+          <div style={{ fontWeight: 700 }}>🗺️ Ce parcours <span style={{ color: '#9a95a8', fontWeight: 600 }}>fait {d.route.count} fois</span></div>
+          <div style={{ fontSize: 14, margin: '4px 0 8px', fontWeight: 600, color: d.route.rank === 1 ? '#a86b00' : F.ink }}>{d.route.rank === 1 ? '🥇 Ton meilleur temps sur ce parcours !' : `Classement : ${d.route.rank}e sur ${d.route.count} · record ${fmtDur(d.route.best.sec)}`}</div>
+          {d.route.list.map((x, k) => <button key={x.id} onClick={() => { if (x.id !== r.id) onOpen(x.id); }} style={{ display: 'flex', width: '100%', gap: 10, padding: '6px 0', border: 'none', borderTop: `1px solid ${F.line}`, background: 'none', fontFamily: F.sans, fontSize: 13.5, cursor: 'pointer', color: F.ink, fontWeight: x.id === r.id ? 800 : 500, fontVariantNumeric: 'tabular-nums' }}><span style={{ width: 26, textAlign: 'start' }}>{['🥇', '🥈', '🥉'][k] ?? `${k + 1}.`}</span><span style={{ flex: 1, textAlign: 'start' }}>{fmtDate(x.date)}</span><span>{fmtDur(x.sec)}</span><span style={{ width: 64, textAlign: 'end', color: F.muted }}>{fmtPace(x.pace)}/km</span></button>)}
+        </div>}
         <RunChart d={d} onCursor={setCursorI} />
         <Splits r={r} />
         {r.efforts.length > 0 && <div style={{ ...card, padding: 14 }}>
@@ -307,6 +325,7 @@ function RunDetailSheet({ id, onClose, onChanged, onGhost, toast, name }: { id: 
           {r.laps.map(l => <div key={l.n} style={{ display: 'flex', gap: 10, padding: '6px 0', borderTop: `1px solid ${F.line}`, fontVariantNumeric: 'tabular-nums', fontSize: 14 }}><b style={{ width: 28 }}>{l.n}</b><span style={{ flex: 1 }}>{km(l.dist)} km</span><span>{fmtDur(l.sec)}</span><span style={{ width: 70, textAlign: 'end', color: F.muted }}>{fmtPace(l.pace)}/km</span></div>)}
         </div>}
         <div style={{ ...card, padding: 14 }}>
+          {r.type !== 'bike' && shoes.length > 0 && <><div style={{ fontWeight: 700, marginBottom: 8 }}>👟 Chaussures</div><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>{shoes.filter(x => !x.retired || x.id === r.shoeId).map(x => <Chip key={x.id} on={r.shoeId === x.id} onClick={() => void save({ shoeId: r.shoeId === x.id ? '' : x.id })}>{x.name}</Chip>)}</div></>}
           <div style={{ fontWeight: 700, marginBottom: 8 }}>Ressenti</div>
           <div style={{ display: 'flex', gap: 6 }}>{['😫', '😕', '🙂', '😀', '🔥'].map((e, i) => <button key={e} onClick={() => void save({ feel: i + 1 })} style={{ flex: 1, fontSize: 24, padding: '8px 0', borderRadius: 14, border: `2px solid ${r.feel === i + 1 ? F.accent : 'transparent'}`, background: F.bg2, cursor: 'pointer' }}>{e}</button>)}</div>
           {editing ? <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
@@ -320,6 +339,8 @@ function RunDetailSheet({ id, onClose, onChanged, onGhost, toast, name }: { id: 
           <button onClick={() => void share()} style={{ ...btn, flex: 1 }}>📤 Partager</button>
           <button onClick={() => onGhost(d)} style={{ ...btn, flex: 1, background: F.dark, boxShadow: 'none' }}>👻 Refaire ce parcours</button>
         </div>
+        <button onClick={async () => { try { const g = await forme.gpx(r.id); const blob = new Blob([g.gpx], { type: 'application/gpx+xml' }); const file = new File([blob], g.name, { type: 'application/gpx+xml' });
+          if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: g.name }); else { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = g.name; a.click(); } } catch (e) { if (!/abort/i.test(String(e))) toast(errText(e)); } }} style={ghostBtn}>📁 Exporter en GPX (Strava, Garmin, Komoot…)</button>
         <button onClick={async () => { if (!confirm('Supprimer cette sortie ?')) return; try { await forme.delRun(r.id); onChanged(); onClose(); toast('Sortie supprimée'); } catch (e) { toast(errText(e)); } }} style={{ ...ghostBtn, color: F.red }}>Supprimer la sortie</button>
       </div>}
     </Sheet>
@@ -327,7 +348,7 @@ function RunDetailSheet({ id, onClose, onChanged, onGhost, toast, name }: { id: 
 }
 
 // ───────────────────────────────── Enregistreur en direct ─────────────────────────────────
-interface Live { type: RunType; startedAt: number; points: RunPt[]; pauses: Array<[number, number]>; laps: number[]; ghostOf?: string; goal?: { kind: 'km' | 'min'; v: number } | null; paused?: number | null }
+interface Live { type: RunType; startedAt: number; points: RunPt[]; pauses: Array<[number, number]>; laps: number[]; ghostOf?: string; goal?: { kind: 'km' | 'min'; v: number } | null; paused?: number | null; workout?: Workout | null; step?: StepState | null; steps?: number; cadence?: number }
 const readLive = (): Live | null => { try { const x = JSON.parse(localStorage.getItem(LIVE_K) || 'null') as Live | null; return x && Array.isArray(x.points) ? x : null; } catch { return null; } };
 const writeLive = (l: Live | null) => { try { if (l) localStorage.setItem(LIVE_K, JSON.stringify(l)); else localStorage.removeItem(LIVE_K); } catch { /* plein */ } };
 
@@ -338,8 +359,13 @@ const ghostTimeAt = (g: Ghost, m: number): number | null => {
   return null;
 };
 
-function Recorder({ type, cfg, ghost, goal, resume, onDone, onCancel }: { type: RunType; cfg: RunCfg; ghost: Ghost | null; goal: Live['goal']; resume: Live | null; onDone: (l: Live) => void; onCancel: () => void }) {
-  const live = useRef<Live>(resume ?? { type, startedAt: Date.now(), points: [], pauses: [], laps: [], ghostOf: undefined, goal, paused: null });
+function Recorder({ type, cfg, ghost, goal, resume, workout, onDone, onCancel, toast }: { type: RunType; cfg: RunCfg; ghost: Ghost | null; goal: Live['goal']; resume: Live | null; workout: Workout | null; onDone: (l: Live) => void; onCancel: () => void; toast: (t: string) => void }) {
+  const live = useRef<Live>(resume ?? { type, startedAt: Date.now(), points: [], pauses: [], laps: [], ghostOf: undefined, goal, paused: null, workout, step: workout ? { i: 0, startD: 0, startT: 0, done: false } : null });
+  const W = live.current.workout ?? null;
+  const cad = useCadence(type !== 'bike');
+  const lastCoach = useRef(0);
+  const [liveLink, setLiveLink] = useState<string | null>(null);
+  const liveSent = useRef(0);
   const [, force] = useState(0);
   const [count, setCount] = useState(resume ? 0 : 3);
   const [acc, setAcc] = useState<number | null>(null);
@@ -353,6 +379,7 @@ function Recorder({ type, cfg, ghost, goal, resume, onDone, onCancel }: { type: 
   const line = useRef<L.Polyline | null>(null); const me = useRef<L.Marker | null>(null); const ghostMk = useRef<L.Marker | null>(null);
   const follow = useRef(true);
   const L0 = live.current;
+  if (ghost && !L0.ghostOf && (ghost as Ghost & { id?: string }).id) L0.ghostOf = (ghost as Ghost & { id?: string }).id;
   const now = () => (Date.now() - L0.startedAt) / 1000;
   const pausedNow = () => L0.paused != null;
   const voiceStep = cfg.voiceEvery * 1000;
@@ -371,7 +398,7 @@ function Recorder({ type, cfg, ghost, goal, resume, onDone, onCancel }: { type: 
   // compte à rebours 3-2-1
   useEffect(() => {
     if (count <= 0) return;
-    vibrate(40); const t = setTimeout(() => { setCount(c => c - 1); if (count === 1) { L0.startedAt = Date.now(); say(`C'est parti ! ${TYPE_L[type]} lancée.${goal ? ` Objectif ${goal.v} ${goal.kind === 'km' ? 'kilomètres' : 'minutes'}.` : ''}${ghost ? ' Tu cours contre ton fantôme.' : ''}`); } }, 1000);
+    vibrate(40); const t = setTimeout(() => { setCount(c => c - 1); if (count === 1) { L0.startedAt = Date.now(); say(`C'est parti ! ${W ? `Séance : ${W.title}. ${sayStep(W.steps[0]!, 0, W.steps.length)}` : `${TYPE_L[type]} lancée.`}${goal ? ` Objectif ${goal.v} ${goal.kind === 'km' ? 'kilomètres' : 'minutes'}.` : ''}${ghost ? ' Tu cours contre ton fantôme.' : ''}`); if (getShareLive()) void forme.liveStart(type).then(r => { setLiveLink(r.link); toast('📍 Suivi en direct prêt : appuie sur « Envoyer le suivi »'); }).catch(() => {}); } }, 1000);
     return () => clearTimeout(t);
   }, [count]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -439,7 +466,7 @@ function Recorder({ type, cfg, ghost, goal, resume, onDone, onCancel }: { type: 
         const splitPace = splitD > 100 ? splitSec / (splitD / 1000) : null;
         let txt = `${km(d, d % 1000 < 50 ? 0 : 1).replace(',', ' virgule ')} kilomètre${d >= 2000 ? 's' : ''}. Temps ${sayDur(mov)}.`;
         txt += isBike(type) ? ` Vitesse moyenne ${(d / mov * 3.6).toFixed(0)} kilomètres heure.` : ` Dernier kilomètre ${sayPace(splitPace)}. Moyenne ${sayPace(mov / (d / 1000))}.`;
-        if (cfg.targetPace && !isBike(type) && splitPace) { const diff = Math.round(splitPace - cfg.targetPace); txt += Math.abs(diff) <= 5 ? ' Pile dans ton allure cible.' : diff > 0 ? ` ${diff} secondes plus lent que ta cible, accélère un peu.` : ` ${-diff} secondes plus rapide que ta cible.`; }
+        if (cfg.targetPace && !W && !isBike(type) && splitPace) { const diff = Math.round(splitPace - cfg.targetPace); txt += Math.abs(diff) <= 5 ? ' Pile dans ton allure cible.' : diff > 0 ? ` ${diff} secondes plus lent que ta cible, accélère un peu.` : ` ${-diff} secondes plus rapide que ta cible.`; }
         if (ghost) { const gt = ghostTimeAt(ghost, d); if (gt != null) { const diff = Math.round(gt - mov); txt += diff >= 0 ? ` ${diff} secondes d'avance sur ton fantôme.` : ` ${-diff} secondes de retard sur ton fantôme.`; } }
         if (goal?.kind === 'km') { const left = goal.v * 1000 - d; if (left > 0) txt += ` Encore ${km(left, 1).replace(',', ' virgule ')} kilomètres.`; }
         say(txt); vibrate(120);
@@ -453,9 +480,29 @@ function Recorder({ type, cfg, ghost, goal, resume, onDone, onCancel }: { type: 
   }, [count, map]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // sauvegarde sur le téléphone toutes les 5 s + tic du chrono
-  useEffect(() => { const t = setInterval(() => { if (count <= 0) writeLive(L0); force(x => x + 1);
+  // séance guidée : passe à l'étape suivante (distance ou durée atteinte) + conseils d'allure
+  const stepTick = () => {
+    const st = L0.step; if (!W || !st || st.done || count > 0 || L0.paused != null) return;
+    const step = W.steps[st.i]; if (!step) return;
+    const mv = movingSec(), dd = dist.current;
+    if (stepProgress(step, st, dd, mv).left <= 0) {
+      const ni = st.i + 1;
+      if (ni >= W.steps.length) { st.done = true; say('Séance terminée ! Bravo, tu peux arrêter quand tu veux.'); vibrate(500); }
+      else { L0.step = { i: ni, startD: dd, startT: mv, done: false }; say(sayStep(W.steps[ni]!, ni, W.steps.length)); vibrate(300); lastCoach.current = mv; }
+      writeLive(L0); return;
+    }
+    if (step.pace && step.kind === 'run' && mv - lastCoach.current > 50 && mv - st.startT > 40 && !isBike(type)) {
+      const ps = L0.points; const last = ps[ps.length - 1]; let j = ps.length - 1; while (j > 0 && last && last[2] - ps[j]![2] < 30) j--;
+      let ddd = 0; for (let k = j + 1; k < ps.length; k++) ddd += hav([ps[k - 1]![0], ps[k - 1]![1]], [ps[k]![0], ps[k]![1]]);
+      const ip = last && ddd > 30 ? (last[2] - ps[j]![2]) / (ddd / 1000) : null;
+      if (ip) { lastCoach.current = mv; const diff = Math.round(ip - step.pace); if (diff > 12) say(`Accélère un peu : tu es à ${Math.floor(ip / 60)} minutes ${Math.round(ip % 60)}, objectif ${Math.floor(step.pace / 60)} minutes ${step.pace % 60}.`); else if (diff < -12) say('Ralentis un peu, tu es plus rapide que prévu.'); }
+    }
+  };
+  useEffect(() => { const t = setInterval(() => { stepTick();
+    if (liveLink && count <= 0 && Date.now() - liveSent.current > 20000) { const pts = L0.points.slice(-60).map(p => [p[0], p[1]] as [number, number]); liveSent.current = Date.now(); void forme.liveUpdate({ pts: pts.filter((_, i) => i % 2 === 0 || i === pts.length - 1), dist: Math.round(dist.current), moving: Math.round(movingSec()) }).catch(() => {}); }
+    if (count <= 0) { L0.steps = cad.total.current; writeLive(L0); } force(x => x + 1);
     if (goal?.kind === 'min' && count <= 0 && movingSec() >= goal.v * 60 && !(L0 as Live & { goalSaid?: boolean }).goalSaid) { (L0 as Live & { goalSaid?: boolean }).goalSaid = true; say(`Objectif atteint ! ${goal.v} minutes. Bravo !`); vibrate(400); }
-  }, 1000); return () => clearInterval(t); }, [count]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, 1000); return () => clearInterval(t); }, [count, liveLink]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const movingSec = () => { const t = count > 0 ? 0 : now(); const pz = L0.pauses.reduce((a, [x, y]) => a + (y - x), 0) + (L0.paused != null ? t - L0.paused : 0); return Math.max(0, t - pz); };
   const mov = movingSec(); const d = dist.current;
@@ -473,6 +520,8 @@ function Recorder({ type, cfg, ghost, goal, resume, onDone, onCancel }: { type: 
   useEffect(() => { if (!hold) return; if (hold >= 100) { setHold(0); finish(); return; } const t = setTimeout(() => setHold(h => h > 0 ? h + 10 : 0), 60); return () => clearTimeout(t); }, [hold]); // eslint-disable-line react-hooks/exhaustive-deps
   const finish = () => {
     if (L0.paused != null) { L0.pauses.push([L0.paused, now()]); L0.paused = null; }
+    const mvF = movingSec(); if (cad.total.current > 50 && mvF > 120 && type !== 'bike') L0.cadence = Math.round(cad.total.current / (mvF / 60));
+    if (liveLink) void forme.liveUpdate({ pts: L0.points.slice(-20).map(p => [p[0], p[1]] as [number, number]), dist: Math.round(dist.current), moving: Math.round(mvF), ended: true }).catch(() => {});
     writeLive(L0); vibrate(200);
     say(`Bravo ! ${km(d, 2).replace(',', ' virgule ')} kilomètres en ${sayDur(mov)}.`);
     onDone({ ...L0 });
@@ -506,10 +555,22 @@ function Recorder({ type, cfg, ghost, goal, resume, onDone, onCancel }: { type: 
         </div>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 10, fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: 600, flexWrap: 'wrap' }}>
           {!isBike(type) && <span>⛰ {elev} m</span>}
-          {cfg.targetPace && !isBike(type) && <span>🎯 cible {fmtPace(cfg.targetPace)}</span>}
+          {cfg.targetPace && !isBike(type) && !W && <span>🎯 cible {fmtPace(cfg.targetPace)}</span>}
           {L0.laps.length > 0 && <span>🔁 {L0.laps.length} tour{L0.laps.length > 1 ? 's' : ''}</span>}
           {gDiff != null && <span style={{ color: gDiff >= 0 ? '#3ad07a' : '#ff8a80', fontWeight: 800 }}>👻 {gDiff >= 0 ? `+${gDiff} s d'avance` : `${gDiff} s de retard`}</span>}
         </div>
+        {W && L0.step && (() => { const st = L0.step; const step = W.steps[Math.min(st.i, W.steps.length - 1)]!; const pr = stepProgress(step, st, d, mov);
+          return <div style={{ marginTop: 10, borderRadius: 16, padding: '10px 12px', background: st.done ? 'rgba(58,208,122,0.18)' : 'rgba(255,255,255,0.08)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.6)' }}><span>{st.done ? '✅ SÉANCE TERMINÉE' : `${STEP_E[step.kind]} · étape ${st.i + 1}/${W.steps.length}`}</span><span>{W.title}</span></div>
+            {!st.done && <><div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 4 }}><div style={{ fontSize: 15, fontWeight: 700, flex: 1 }}>{step.label}</div><div style={{ fontSize: 26, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{pr.txt}</div></div>
+              {step.pace && <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>Allure visée {fmtPace(step.pace)}/km{instPace ? ` · toi ${fmtPace(instPace)}` : ''}</div>}
+              <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.12)', overflow: 'hidden', marginTop: 6 }}><div style={{ width: `${pr.pct * 100}%`, height: '100%', background: '#ff5a1f', transition: 'width .5s' }} /></div>
+              {W.steps[st.i + 1] && <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>Ensuite : {W.steps[st.i + 1]!.label}</div>}</>}
+          </div>; })()}
+        {(cad.live || liveLink) && <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 8, alignItems: 'center' }}>
+          {cad.live && <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>👣 {cad.live} pas/min</span>}
+          {liveLink && <button onClick={() => shareLiveLink(liveLink, toast)} style={{ background: 'rgba(58,208,122,0.2)', color: '#3ad07a', border: 'none', borderRadius: 999, padding: '6px 12px', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', fontFamily: F.sans }}>📍 Envoyer le suivi</button>}
+        </div>}
         {goal && <div style={{ marginTop: 10 }}><div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.12)', overflow: 'hidden' }}><div style={{ width: `${goalPct * 100}%`, height: '100%', background: goalPct >= 1 ? '#3ad07a' : F.accent2, transition: 'width .5s' }} /></div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 4, textAlign: 'center' }}>Objectif {goal.v} {goal.kind === 'km' ? 'km' : 'min'} · {Math.round(goalPct * 100)} %</div></div>}
         <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center' }}>
           <button onClick={() => { L0.laps.push(now()); vibrate(50); say(`Tour ${L0.laps.length}`); force(x => x + 1); }} disabled={paused || count > 0} style={{ width: 62, height: 62, borderRadius: 31, border: 'none', background: 'rgba(255,255,255,0.12)', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>Tour</button>
@@ -532,14 +593,16 @@ function Recorder({ type, cfg, ghost, goal, resume, onDone, onCancel }: { type: 
 }
 
 // ───────────────────────────────── Fin de sortie : enregistrer ─────────────────────────────────
-function FinishSheet({ live, onSaved, onDiscard, toast }: { live: Live | null; onSaved: (r: RunSummary) => void; onDiscard: () => void; toast: (t: string) => void }) {
+function FinishSheet({ live, onSaved, onDiscard, toast, shoes }: { live: Live | null; onSaved: (r: RunSummary) => void; onDiscard: () => void; toast: (t: string) => void; shoes: Shoe[] }) {
   const [title, setTitle] = useState(''); const [note, setNote] = useState(''); const [feel, setFeel] = useState<number | null>(null); const [busy, setBusy] = useState(false);
+  const active = shoes.filter(x => !x.retired); const [shoe, setShoe] = useState<string>(() => { try { return localStorage.getItem('forme:run:shoe') ?? ''; } catch { return ''; } });
   useEffect(() => { setTitle(''); setNote(''); setFeel(null); }, [live]);
   const save = async () => {
     if (!live) return;
     setBusy(true);
     try {
-      const r = await forme.saveRun({ type: live.type, startedAt: live.startedAt, points: live.points, pauses: live.pauses, laps: live.laps, title: title.trim() || undefined, note: note.trim() || undefined, feel: feel ?? undefined, ghostOf: live.ghostOf });
+      const r = await forme.saveRun({ type: live.type, startedAt: live.startedAt, points: live.points, pauses: live.pauses, laps: live.laps, title: title.trim() || undefined, note: note.trim() || undefined, feel: feel ?? undefined, ghostOf: live.ghostOf, shoeId: live.type !== 'bike' && active.some(x => x.id === shoe) ? shoe : undefined, cadence: live.cadence, workoutId: live.workout?.id });
+      try { localStorage.setItem('forme:run:shoe', shoe); } catch { /* */ }
       writeLive(null); onSaved(r.run);
     } catch (e) { toast(`${errText(e)} — la sortie reste gardée sur le téléphone, réessaie.`); } finally { setBusy(false); }
   };
@@ -551,6 +614,8 @@ function FinishSheet({ live, onSaved, onDiscard, toast }: { live: Live | null; o
         <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Comment c'était ? (jambes, météo, chaussures…)" style={{ ...input, minHeight: 64, resize: 'vertical' }} />
         <div style={{ fontWeight: 700, margin: '12px 2px 8px' }}>Ressenti</div>
         <div style={{ display: 'flex', gap: 6 }}>{['😫', '😕', '🙂', '😀', '🔥'].map((e, i) => <button key={e} onClick={() => setFeel(i + 1)} style={{ flex: 1, fontSize: 26, padding: '8px 0', borderRadius: 14, border: `2px solid ${feel === i + 1 ? F.accent : 'transparent'}`, background: '#fff', cursor: 'pointer' }}>{e}</button>)}</div>
+        {live.type !== 'bike' && active.length > 0 && <><div style={{ fontWeight: 700, margin: '12px 2px 8px' }}>👟 Chaussures</div><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{active.map(x => <Chip key={x.id} on={shoe === x.id} onClick={() => setShoe(shoe === x.id ? '' : x.id)}>{x.name}</Chip>)}</div></>}
+        {live.workout && <div style={{ fontSize: 13, color: F.green, fontWeight: 700, marginTop: 12 }}>📋 Séance du plan « {live.workout.title} » : elle sera cochée.</div>}
         <button disabled={busy} onClick={() => void save()} style={{ ...btn, width: '100%', marginTop: 16 }}>{busy ? 'Enregistrement…' : '💾 Enregistrer la sortie'}</button>
         <button onClick={() => { if (confirm('Supprimer cette sortie sans l\'enregistrer ?')) { writeLive(null); onDiscard(); } }} style={{ ...ghostBtn, width: '100%', marginTop: 8, color: F.red }}>Ne pas enregistrer</button>
       </>}
@@ -559,7 +624,7 @@ function FinishSheet({ live, onSaved, onDiscard, toast }: { live: Live | null; o
 }
 
 // ───────────────────────────────── Réglages course ─────────────────────────────────
-function RunSettings({ open, onClose, cfg, onCfg, toast }: { open: boolean; onClose: () => void; cfg: RunCfg; onCfg: (c: RunCfg) => void; toast: (t: string) => void }) {
+function RunSettings({ open, onClose, cfg, onCfg, toast, shoes, onShoes, shareLive, onShareLive }: { open: boolean; onClose: () => void; cfg: RunCfg; onCfg: (c: RunCfg) => void; toast: (t: string) => void; shoes: Shoe[]; onShoes: (s: Shoe[]) => void; shareLive: boolean; onShareLive: (v: boolean) => void }) {
   const set = async (p: Partial<RunCfg>) => { try { onCfg((await forme.runCfg(p)).cfg); } catch (e) { toast(errText(e)); } };
   const [paceTxt, setPaceTxt] = useState(fmtPace(cfg.targetPace));
   useEffect(() => { if (open) setPaceTxt(cfg.targetPace ? fmtPace(cfg.targetPace) : ''); }, [open, cfg.targetPace]);
@@ -573,6 +638,8 @@ function RunSettings({ open, onClose, cfg, onCfg, toast }: { open: boolean; onCl
         <div style={{ ...row, borderBottom: 'none' }}><span style={{ fontWeight: 600 }}>Allure cible (min/km)</span>
           <input value={paceTxt} onChange={e => setPaceTxt(e.target.value)} placeholder="ex. 5:30" inputMode="numeric" onBlur={() => { const m = /^(\d{1,2})[:.,h](\d{1,2})$/.exec(paceTxt.trim()); void set({ targetPace: m ? Number(m[1]) * 60 + Number(m[2]) : null }); }} style={{ ...input, width: 100, textAlign: 'right', padding: '9px 12px' }} /></div>
       </div>
+      <div style={{ ...card, padding: '4px 14px', marginTop: 12 }}><div style={row}><div><div style={{ fontWeight: 600 }}>📍 Suivi en direct</div><div style={{ fontSize: 12, color: F.muted }}>Pendant la sortie, un lien à envoyer à un proche : il voit ta position sur la carte (sécurité, la nuit…).</div></div><Chip on={shareLive} onClick={() => onShareLive(!shareLive)}>{shareLive ? 'Oui' : 'Non'}</Chip></div></div>
+      <ShoesSection shoes={shoes} onShoes={onShoes} toast={toast} />
       <div style={{ fontSize: 13, color: F.muted, marginTop: 12, lineHeight: 1.5 }}>
         📱 <b>iPhone</b> : une appli web ne reçoit pas le GPS quand l'écran est verrouillé. Pendant la sortie, FORME garde l'écran allumé — utilise le <b>mode poche</b> (écran noir) et mets le téléphone dans un brassard ou ta poche sans le verrouiller.
         Si l'appli se ferme, ta sortie n'est pas perdue : elle est gardée sur le téléphone et FORME te propose de la reprendre.
@@ -614,7 +681,8 @@ export default function RunScreen({ toast, name = '' }: { toast: (t: string) => 
   const [err, setErr] = useState('');
   const [type, setType] = useState<RunType>('run');
   const [filter, setFilter] = useState<RunType | 'all'>('all');
-  const [recording, setRecording] = useState<{ ghost: Ghost | null; goal: Live['goal']; resume: Live | null; type: RunType } | null>(null);
+  const [recording, setRecording] = useState<{ ghost: Ghost | null; goal: Live['goal']; resume: Live | null; type: RunType; workout?: Workout | null } | null>(null);
+  const [shareLive, setShareLive] = useState(getShareLive);
   const [done, setDone] = useState<Live | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [settings, setSettings] = useState(false);
@@ -627,14 +695,15 @@ export default function RunScreen({ toast, name = '' }: { toast: (t: string) => 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { if (s) setType(s.cfg.type); }, [s?.cfg.type]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const start = (ghost: Ghost | null = null, t: RunType = type) => {
+  const start = (ghost: Ghost | null = null, t: RunType = type, workout: Workout | null = null) => {
     try { speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch { /* débloque la voix sur iPhone (geste utilisateur) */ }
+    if (t !== 'bike') void askMotion();   // cadence : iPhone demande l'accord au moment du geste
     if (s && t !== s.cfg.type) void forme.runCfg({ type: t }).catch(() => {});
-    setRecording({ ghost, goal, resume: null, type: t });
+    setRecording({ ghost, goal, resume: null, type: t, workout });
   };
-  const startGhost = (d: RunDetail) => { setOpenId(null); setType(d.run.type); start({ title: d.run.title, cum: d.ghost.cum, t: d.ghost.t, track: d.track }, d.run.type); };
+  const startGhost = (d: RunDetail) => { setOpenId(null); setType(d.run.type); start({ title: d.run.title, cum: d.ghost.cum, t: d.ghost.t, track: d.track, id: d.run.id } as Ghost, d.run.type); };
 
-  if (recording && s) return <Recorder type={recording.type} cfg={s.cfg} ghost={recording.ghost} goal={recording.goal} resume={recording.resume}
+  if (recording && s) return <Recorder type={recording.type} cfg={s.cfg} ghost={recording.ghost} goal={recording.goal} resume={recording.resume} workout={recording.workout ?? recording.resume?.workout ?? null} toast={toast}
     onCancel={() => setRecording(null)} onDone={l => { setRecording(null); setDone(l); }} />;
 
   const wk = s?.week; const trend = s?.paceTrend;
@@ -672,6 +741,7 @@ export default function RunScreen({ toast, name = '' }: { toast: (t: string) => 
         <motion.button whileTap={{ scale: 0.96 }} onClick={() => start()} disabled={!s} style={{ ...btn, width: '100%', marginTop: 16, padding: '18px 20px', fontSize: 18, background: '#ff5a1f', boxShadow: '0 10px 24px rgba(255,90,31,0.4)' }}>▶ Démarrer {TYPE_L[type].toLowerCase()}</motion.button>
       </div>
 
+      {s && <PlanCard plan={s.plan} onPlan={p => setS(x => x ? { ...x, plan: p } : x)} toast={toast} onStart={w => { setType('run'); start(null, 'run', w); }} />}
       {err && <div style={{ color: F.red, fontWeight: 700, marginTop: 12 }}>{err} <button onClick={() => void load()} style={{ ...ghostBtn, padding: '6px 10px' }}>Réessayer</button></div>}
       {!s && !err && <div style={{ display: 'flex', justifyContent: 'center', padding: 30 }}><Spinner /></div>}
 
@@ -691,6 +761,9 @@ export default function RunScreen({ toast, name = '' }: { toast: (t: string) => 
           ))}
         </div>
         {trendTxt && <div style={{ ...card, marginTop: 10, padding: 12, fontSize: 14, fontWeight: 600 }}>{trendTxt}</div>}
+        <FitnessCard f={s.fitness} />
+        <LoadCard l={s.load} />
+        <ChallengesCard c={s.challenges} />
 
         <div style={{ ...card, marginTop: 10 }}>
           <div style={{ fontWeight: 700, marginBottom: 10 }}>12 dernières semaines <span style={{ color: '#9a95a8', fontWeight: 600 }}>(km)</span></div>
@@ -733,7 +806,7 @@ export default function RunScreen({ toast, name = '' }: { toast: (t: string) => 
             </motion.button>
           ))}
         </div>
-        <RunSettings open={settings} onClose={() => setSettings(false)} cfg={s.cfg} onCfg={c => setS(x => x ? { ...x, cfg: c, week: { ...x.week, goalKm: c.weekGoalKm, pct: c.weekGoalKm ? Math.min(100, Math.round(x.week.km / c.weekGoalKm * 100)) : 0 } } : x)} toast={toast} />
+        <RunSettings shoes={s.shoes} onShoes={sh => setS(x => x ? { ...x, shoes: sh } : x)} shareLive={shareLive} onShareLive={v => { setShareLive(v); try { localStorage.setItem(SHARE_K, v ? '1' : '0'); } catch { /* */ } }} open={settings} onClose={() => setSettings(false)} cfg={s.cfg} onCfg={c => setS(x => x ? { ...x, cfg: c, week: { ...x.week, goalKm: c.weekGoalKm, pct: c.weekGoalKm ? Math.min(100, Math.round(x.week.km / c.weekGoalKm * 100)) : 0 } } : x)} toast={toast} />
       </>}
 
       <Sheet open={goalSheet} onClose={() => setGoalSheet(false)} title="Objectif de la sortie">
@@ -744,8 +817,8 @@ export default function RunScreen({ toast, name = '' }: { toast: (t: string) => 
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{[15, 20, 30, 45, 60, 90].map(v => <Chip key={v} on={goal?.kind === 'min' && goal.v === v} onClick={() => { setGoal({ kind: 'min', v }); setGoalSheet(false); }}>{v} min</Chip>)}</div>
         <button onClick={() => { setGoal(null); setGoalSheet(false); }} style={{ ...ghostBtn, width: '100%', marginTop: 16 }}>Sans objectif</button>
       </Sheet>
-      <RunDetailSheet id={openId} onClose={() => setOpenId(null)} onChanged={() => void load()} onGhost={startGhost} toast={toast} name={name} />
-      <FinishSheet live={done} toast={toast} onDiscard={() => setDone(null)} onSaved={r => { setDone(null); void load(); setOpenId(r.id); if (r.prs.length) { toast(`🏆 ${r.prs[0]}`); say(`Nouveau record : ${r.prs[0]}`); } }} />
+      <RunDetailSheet id={openId} onClose={() => setOpenId(null)} onChanged={() => void load()} onGhost={startGhost} toast={toast} name={name} shoes={s?.shoes ?? []} onOpen={setOpenId} />
+      <FinishSheet live={done} toast={toast} shoes={s?.shoes ?? []} onDiscard={() => setDone(null)} onSaved={r => { setDone(null); void load(); setOpenId(r.id); if (r.prs.length) { toast(`🏆 ${r.prs[0]}`); say(`Nouveau record : ${r.prs[0]}`); } }} />
     </div>
   );
 }
