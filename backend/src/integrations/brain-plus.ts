@@ -189,9 +189,10 @@ export async function buildSelfReport(days = 30): Promise<string> {
   const health = (await kvJson<Array<{ date: string; sleep_h?: number; steps?: number; rhr?: number }>>('health:daily', [])).filter(h => h.date >= from.slice(0, 10));
   const { executeTool } = await import('./tool-executor.js');
   const [money, expenses] = await Promise.all([
-    executeTool('get_revenue_report', { period: 'month' }, 'self-report').catch(() => ''),
+    executeTool('get_revenue_report', { year: Number(localNow().date.slice(0, 4)), month: Number(localNow().date.slice(5, 7)) === 1 ? 12 : Number(localNow().date.slice(5, 7)) - 1 }, 'self-report').then(t => `(MOIS ÉCOULÉ uniquement — ce n'est pas l'année) ${t}`).catch(() => ''),
     executeTool('get_expenses', {}, 'self-report').catch(() => ''),
   ]);
+  const perso = await import('./perso-finances.js').then(m => m.financesText()).catch(() => '');
   return ai(`Écris à Kouider « Le rapport : qui tu es » des ${days} derniers jours, à partir de ces VRAIES données (n'invente rien) :
 - Messages à son assistant par heure (0h→23h) : ${byHour.join(',')} (total ${turns.length})
 - Exemples de ses demandes : ${turns.filter((_, i) => i % Math.max(1, Math.floor(turns.length / 60)) === 0).map(t => t.content.slice(0, 90)).join(' | ').slice(0, 6000)}
@@ -199,6 +200,7 @@ export async function buildSelfReport(days = 30): Promise<string> {
 - Santé (montre) : ${health.map(h => `${h.date} sommeil ${h.sleep_h ?? '?'}h pas ${h.steps ?? '?'}`).join(' ; ') || 'pas encore branché'}
 - Argent FIK : ${String(money).slice(0, 1200)}
 - Dépenses : ${String(expenses).slice(0, 800)}
+${perso ? `${perso}\n` : ''}RÈGLES ANTI-INVENTION (01/11, Kouider : « il raconte n'importe quoi ») : les « exemples de ses demandes » sont des MORCEAUX de ce qu'il a DEMANDÉ à son assistant, pas des choses qui se sont passées — n'en tire AUCUN événement, aucune personne (mère, femme, enfant, prénom…), aucun lieu, aucun achat. Ne parle de sa famille QUE si c'est écrit noir sur blanc dans les données. Chiffres d'argent : UNIQUEMENT ceux des blocs Argent FIK et Finances perso, recopiés tels quels — jamais recalculés ni déduits d'un message. Dans le doute, n'écris pas la phrase.
 Structure : 🕐 Tes heures les plus efficaces ; 💭 Ton humeur et ce qui la fait bouger ; 😴 Sommeil / énergie (si données) ; 💶 Argent ; 🏆 Tes 3 réussites du mois ; 🎯 3 conseils précis pour le mois prochain. Tutoie-le, chaleureux et honnête, pas de tableau, 25 lignes max.`, { quality: true, max: 2000 });
 }
 

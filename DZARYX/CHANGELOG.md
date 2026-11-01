@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-01 — Projection perso « où je serai en 2028 » : vrai calcul + PDF avec graphiques
+- Nouveau `perso-projection.ts` : mois par mois (salaire + heures sup + appoint net des commandes de stock + bénéfice FIK réel des réservations − charges avec fin du crédit − dépenses de vie), 3 scénarios, PDF 3 pages (courbes, mois type, FIK 12 mois, trimestres, hypothèses, analyse 100 % calculée sans IA) → Telegram.
+- Outil `mes_finances` action `projection` (+ réglages side_days / order_cost / order_every_days / order_pieces).
+- « Le rapport : qui tu es » : règles anti-invention (plus d'événements familiaux inventés à partir de bribes), CA du mois écoulé seulement, finances perso injectées.
+- Rapport santé : mention sommeil mise à jour (mesuré depuis le 01/11).
+
 ## 2026-11-01 — Sommeil Apple Watch : enfin reçu + coach sommeil qui s'adapte chaque semaine
 - Raccourci « Dzaryx Santé » : case sleep = Échantillons Sleep · Durée ; phases « 5:28 » = min:s lues correctement (jarvis-hub.ts, 8a11ce8/f2f8a8d) ; « j'ai dormi 7h » remplit aussi health:daily (life-coach.ts).
 - sleep-coach.ts : nuit + moyenne 7 j + dette + tendance → ligne injectée dans TOUTES les conversations (jarvis4Context), le message du réveil, le mentor business ; coucher du soir avancé (plan + dette) ; bilan dimanche 20h (job sleep-weekly) : pas de progrès = un levier de plus (coucher −30 min → écrans/café → sport plus tôt → business coupé le soir → plan fort/médecin), progrès = on garde, objectif tenu = on relâche ; outil sommeil (etat/bilan/reset).

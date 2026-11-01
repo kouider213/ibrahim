@@ -289,7 +289,7 @@ async function monthReport(month?: string): Promise<string> {
   doc.fontSize(20).fillColor('#0B3D91').text(`Rapport santé — ${title}`).moveDown(0.3);
   doc.fontSize(10).fillColor('#666').text('Kouider · données Apple Watch / Santé iPhone + séances notées par Dzaryx').moveDown(1);
   for (const [k, v] of lines) { doc.fontSize(12).fillColor('#222').text(`${k} : `, { continued: true }).fillColor('#0B3D91').text(v); doc.moveDown(0.3); }
-  doc.moveDown(1).fontSize(9).fillColor('#888').text('Valeurs mesurées par la montre ; le sommeil n\'est pas mesuré (montre retirée la nuit). Document informatif, pas un avis médical.');
+  doc.moveDown(1).fontSize(9).fillColor('#888').text('Valeurs mesurées par la montre (sommeil compris depuis le 01/11/2026). Document informatif, pas un avis médical.');
   doc.end();
   const pdf = await done;
   const { queueTelegramFile } = await import('../actions/handlers/nexus-relay.js');

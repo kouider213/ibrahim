@@ -12,7 +12,7 @@ export type Finances = {
   extras?: Array<{ label: string; amount: number; per: 'semaine' | 'mois' }>;  // autres rentrées régulières
   charges: Charge[];
   monthlySaving?: number;       // mis de côté chaque mois sur le salaire
-  side?: { label: string; dailyMin: number; dailyMax: number; when: string; note?: string };  // revenu d'appoint
+  side?: { label: string; dailyMin: number; dailyMax: number; when: string; note?: string; daysPerWeek?: number; order?: { pieces?: number; cost: number; everyDays: number } };  // revenu d'appoint
   savings?: number;             // épargne totale €
   sideCash?: number;            // ce que le revenu d'appoint a déjà mis de côté €
   notes?: string[];
@@ -66,7 +66,7 @@ export async function financesText(): Promise<string> {
     active(f).length ? `- Charges fixes : ${active(f).map(c => `${c.label} ${eur(c.amount)}/mois${c.until ? ` jusqu'à ${c.until.slice(5)}/${c.until.slice(0, 4)} (encore ${monthsLeft(c.until)} mois)` : ''}`).join(' ; ')} — total ${eur(b.charges)}.` : '',
     f.monthlySaving ? `- Met de côté ${eur(f.monthlySaving)}/mois sur le salaire.` : '',
     f.salary ? `- Reste pour les dépenses variables (courses, essence, famille…) : ≈ ${eur(b.rest)}/mois.` : '',
-    f.side ? `- Revenu d'appoint (${f.side.label}) : ${eur(f.side.dailyMin)} à ${eur(f.side.dailyMax)} de chiffre d'affaires par jour, ${f.side.when}.${f.side.note ? ` ${f.side.note}` : ''}` : '',
+    f.side ? `- Revenu d'appoint (${f.side.label}) : ${f.side.dailyMin === f.side.dailyMax ? eur(f.side.dailyMin) : `${eur(f.side.dailyMin)} à ${eur(f.side.dailyMax)}`} de ventes par jour, ${f.side.when}${f.side.daysPerWeek ? ` (${f.side.daysPerWeek} j/semaine)` : ''}.${f.side.order ? ` Stock : ${f.side.order.pieces ? `${f.side.order.pieces} pièces pour ` : ''}${eur(f.side.order.cost)}, une commande tous les ${f.side.order.everyDays} jours au minimum (≈ ${eur(f.side.order.cost * 365 / f.side.order.everyDays / 12)}/mois à déduire).` : ''}${f.side.note ? ` ${f.side.note}` : ''}` : '',
     f.savings ? `- Épargne : ${eur(f.savings)}.` : '',
     f.sideCash ? `- Mis de côté grâce à l'appoint : ≈ ${eur(f.sideCash)}.` : '',
     ...(f.notes ?? []).slice(-5).map(n => `- ${n}`),
@@ -89,6 +89,11 @@ export async function financesTool(input: Record<string, unknown>): Promise<stri
       const n = num(input[k]); if (n !== undefined) (f as Record<string, unknown>)[field] = n;
     }
     if (f.side) { const a = num(input['side_min']), z = num(input['side_max']); if (a !== undefined) f.side.dailyMin = a; if (z !== undefined) f.side.dailyMax = z; }
+    if (f.side) {   // 01/11 : rythme de l'appoint (jours/semaine) + commande de stock (prix, tous les N jours)
+      const d = num(input['side_days']), c = num(input['order_cost']), e = num(input['order_every_days']), pc = num(input['order_pieces']);
+      if (d !== undefined) f.side.daysPerWeek = d;
+      if (c !== undefined || e !== undefined || pc !== undefined) f.side.order = { cost: c ?? f.side.order?.cost ?? 0, everyDays: e ?? f.side.order?.everyDays ?? 14, ...(pc ?? f.side.order?.pieces ? { pieces: pc ?? f.side.order?.pieces } : {}) };
+    }
     if (input['note']) f.notes = [...(f.notes ?? []), String(input['note'])].slice(-20);
   } else if (action === 'extra') {
     const label = String(input['label'] ?? '').trim() || 'rentrée en plus';
