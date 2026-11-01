@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+
+## 2026-11-01 soir — FORME : calories fiables + page SÈCHE
+- 1c4d562 calories : produit exact (marque/étiquette, code-barres → Open Food Facts), ❓ question quand un aliment est ambigu, outil forme `meal_fix` (correction par message, sans double compte), eau ≠ repas, envoi montre du matin pas pris pour la journée.
+- 171c3d8 onglet **Sèche** (Kouider seulement, remplace Course ; ami/femme gardent Course) : poids tendance lissé, vitesse %/sem, dépense adaptative (après 10 j notés), force 1RM, score du jour, bilan hebdo + bouton « Appliquer », tour de taille ; backend `forme-cut.ts`, `/api/forme/cut(+/apply)`, outil forme `food_cut`.
+
 ## 2026-11-01 — Sport : changer la séance d'un jour + FORME : calories brûlées et déficit réel + exos maison à 21h
 - « Demain lundi au lieu des épaules je fais les bras » : sport_coach swap accepte le NOM de la séance du programme ; un swap efface aussi une séance dictée (plan_day) ce jour-là et réactive un jour annulé. App FORME › Entraînement : bouton « 🔁 Changer la séance de ce jour » (POST /api/sport/swap).
 - FORME › Repas : carte « 🔥 Calories brûlées aujourd'hui » = brûlé (base + montre) − mangé = déficit réel vs visé, bouton « ⌚ Mettre à jour avec ma montre » (lance le raccourci Dzaryx Santé), bouton « 🏠 Exercices maison » (GET /api/forme/food/burn).
