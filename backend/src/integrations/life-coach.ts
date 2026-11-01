@@ -96,12 +96,13 @@ export async function getCoachDay(date: string): Promise<CoachDay | null> {
 export async function buildCoachDay(date: string, writeAgenda = true): Promise<CoachDay> {
   const [coach, agenda, sport, old, slept] = await Promise.all([lifeCoachText(), agendaOf(date),
     import('./sport-coach.js').then(m => m.sportSessionFor(date)).catch(() => null), getCoachDay(date), lastNightSleep()]);
+  const physique = await import('./forme-cut.js').then(m => m.formeSnapshot()).catch(() => '');
   const tired = slept != null && slept < SHORT_NIGHT_H && date === localNow().date
     ? `\n\nNUIT DERNIÈRE : seulement ${slept} h de sommeil → coucher ce soir 1 h à 1 h 30 plus tôt que d'habitude (jamais avant 20:30), raison douce dans « why ».` : '';
   const day = new Date(localTs(date, '12:00')).toLocaleDateString('fr-FR', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long' });
   const res = await createAnthropic().messages.create({
     model: 'claude-sonnet-5-5', max_tokens: 600, system: PLAN_SYSTEM,
-    messages: [{ role: 'user', content: `${coach}\n\nJOUR : ${day}\nAGENDA (sans ce que tu as déjà posé) :\n${agenda}${sport ? `\n\nSÉANCE PRÉVUE :\n${sport}` : ''}${tired}` }],
+    messages: [{ role: 'user', content: `${coach}${physique ? `\n\n${physique}` : ''}\n\nJOUR : ${day}\nAGENDA (sans ce que tu as déjà posé) :\n${agenda}${sport ? `\n\nSÉANCE PRÉVUE :\n${sport}` : ''}${tired}` }],
   }, QUALITY);
   const raw = res.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('');
   const j = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as Partial<CoachDay>;

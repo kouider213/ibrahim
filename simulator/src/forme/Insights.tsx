@@ -7,7 +7,7 @@ import { F, card, Ring, LineChart } from './ui.tsx';
 // anneau objectif semaine (Apple Fitness / Hevy), séries par muscle vs zone utile 10-20 (JEFIT / Alpha Progression),
 // calendrier 12 semaines (Hevy / Strava), semaines tenues + badges (Strava / Peloton), tendances montre (Fitbit / Garmin).
 export interface InsightsData {
-  week: { done: number; target: number }; weekStreak: number; total: number; sets: Record<string, number>;
+  week: { done: number; target: number }; weekStreak: number; total: number; sets: Record<string, number>; estimated?: string[];
   calendar: Array<{ date: string; done: boolean; future: boolean }>; badges: Array<{ e: string; l: string; ok: boolean }>;
   health: Array<{ date: string; steps?: number; rhr?: number; hrv?: number; sleep_h?: number }>; load: string;
 }
@@ -37,7 +37,9 @@ export default function Insights() {
   const d = useInsights();
   if (!d) return null;
   const max = Math.max(20, ...Object.values(d.sets));
-  const weeks = Array.from({ length: 12 }, (_, w) => d.calendar.slice(w * 7, w * 7 + 7));
+  const last = d.calendar.slice(-35);
+  const cal = Array.from({ length: 5 }, (_, w) => last.slice(w * 7, w * 7 + 7));
+  const today = d.calendar.filter(c => !c.future).pop()?.date ?? '';
   const h = d.health;
   return (
     <div>
@@ -53,30 +55,45 @@ export default function Insights() {
         </div>
       </div>
 
-      <H2>Séries par muscle (7 jours)</H2>
+      <H2>Muscles travaillés (7 derniers jours)</H2>
       <div style={{ ...card }}>
-        {Object.entries(d.sets).map(([m, n]) => (
-          <div key={m} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 34px', alignItems: 'center', gap: 10, padding: '6px 0' }}>
-            <div style={{ fontWeight: 600, fontSize: 14 }}>{MUSCLE[m] ?? m}</div>
-            <div style={{ position: 'relative', height: 12, background: F.bg, borderRadius: 6, overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', left: `${10 / max * 100}%`, width: `${10 / max * 100}%`, top: 0, bottom: 0, background: 'rgba(31,157,92,0.14)' }} />
-              <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, n / max * 100)}%` }} style={{ height: '100%', borderRadius: 6, background: n >= 10 ? F.green : n > 0 ? F.accent2 : 'transparent' }} />
+        <div style={{ fontSize: 13, color: F.muted, marginBottom: 8, lineHeight: 1.4 }}>Combien de séries chaque muscle a reçues cette semaine. Pour qu'un muscle grossisse, il en faut <b style={{ color: F.green }}>10 à 20</b> par semaine.</div>
+        {Object.entries(d.sets).map(([m, n]) => {
+          const st = n === 0 ? ['Pas travaillé', F.red] : n < 10 ? ['Un peu', F.gold] : n <= 20 ? ['Parfait ✅', F.green] : ['Beaucoup', F.violet];
+          return (
+            <div key={m} style={{ display: 'grid', gridTemplateColumns: '64px 1fr 92px', alignItems: 'center', gap: 10, padding: '7px 0' }}>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{MUSCLE[m] ?? m}</div>
+              <div style={{ position: 'relative', height: 12, background: F.bg, borderRadius: 6, overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', left: `${10 / max * 100}%`, width: `${10 / max * 100}%`, top: 0, bottom: 0, background: 'rgba(31,157,92,0.14)' }} />
+                <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, n / max * 100)}%` }} style={{ height: '100%', borderRadius: 6, background: st[1] }} />
+              </div>
+              <div style={{ textAlign: 'right', lineHeight: 1.15 }}><div style={{ fontSize: 13, fontWeight: 700, color: st[1] }}>{st[0]}</div><div style={{ fontSize: 11, color: F.muted }}>{d.estimated?.includes(m) ? '≈ ' : ''}{n} série{n > 1 ? 's' : ''}</div></div>
             </div>
-            <div style={{ fontSize: 13, fontWeight: 700, textAlign: 'right', color: n >= 10 ? F.green : F.ink }}>{n}</div>
-          </div>
-        ))}
-        <div style={{ fontSize: 12, color: F.muted, marginTop: 6 }}>Zone verte = 10 à 20 séries par semaine, l'idéal pour faire grossir un muscle.</div>
+          );
+        })}
+        {!!d.estimated?.length && <div style={{ fontSize: 12, color: F.muted, marginTop: 6, lineHeight: 1.4 }}>≈ = séance faite sans séries notées : je compte les séries prévues. Note tes séries (ou « Ce que j'ai fait » sur l'onglet Séance) pour le chiffre exact.</div>}
       </div>
 
-      <H2>Calendrier</H2>
+      <H2>Tes séances (5 dernières semaines)</H2>
       <div style={{ ...card }}>
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(12, 1fr)`, gap: 4 }}>
-          {weeks.map((w, i) => <div key={i} style={{ display: 'grid', gap: 4 }}>{w.map(c => <div key={c.date} title={c.date} style={{ aspectRatio: '1', borderRadius: 4, background: c.done ? F.accent : c.future ? 'transparent' : F.bg2, border: c.future ? `1px dashed ${F.line}` : 'none' }} />)}</div>)}
+        <div style={{ display: 'grid', gridTemplateColumns: '44px repeat(7, 1fr)', gap: 5, alignItems: 'center' }}>
+          <div />{['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((x, i) => <div key={i} style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: F.muted }}>{x}</div>)}
+          {cal.map((w, i) => [
+            <div key={`l${i}`} style={{ fontSize: 11, color: F.muted }}>{new Date(`${w[0]!.date}T12:00:00Z`).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'UTC' })}</div>,
+            ...w.map(c => <div key={c.date} style={{ aspectRatio: '1', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 600,
+              background: c.done ? F.accent : c.future ? 'transparent' : F.bg2, color: c.done ? '#fff' : c.future ? '#c2bdcc' : F.ink,
+              outline: c.date === today ? `2px solid ${F.ink}` : 'none', outlineOffset: 1 }}>{Number(c.date.slice(8))}</div>),
+          ])}
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: F.muted, marginTop: 8 }}><span>il y a 12 semaines</span><span>cette semaine</span></div>
+        <div style={{ display: 'flex', gap: 14, fontSize: 12, color: F.muted, marginTop: 10, flexWrap: 'wrap' }}>
+          <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: F.accent, marginRight: 5 }} />séance faite</span>
+          <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: F.bg2, marginRight: 5 }} />pas de séance</span>
+          <span>▢ = aujourd'hui</span>
+        </div>
       </div>
 
       <H2>Badges</H2>
+      <div style={{ fontSize: 13, color: F.muted, margin: '-4px 2px 10px' }}>Des récompenses qui se débloquent toutes seules quand tu t'entraînes (gris = pas encore).</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
         {d.badges.map(b => (
           <div key={b.l} style={{ ...card, padding: '12px 6px', textAlign: 'center', opacity: b.ok ? 1 : 0.4, filter: b.ok ? 'none' : 'grayscale(1)' }}>

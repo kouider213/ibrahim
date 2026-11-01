@@ -806,9 +806,9 @@ export async function delExSet(uid: Uid, id: string, at: number): Promise<ExSet[
 }
 
 /** Plusieurs séries d'un coup (fin de séance) → historique de chaque exercice de la bibliothèque. */
-export async function addExSets(uid: Uid, sets: Array<{ id: string; kg?: number; reps?: number; fb?: ExSet['fb'] }>): Promise<number> {
+export async function addExSets(uid: Uid, sets: Array<{ id: string; kg?: number; reps?: number; fb?: ExSet['fb'] }>, onDate?: string): Promise<number> {
   const all = await readExLog(uid);
-  const date = localNow().date; let n = 0; const t = Date.now();
+  const date = onDate && /^\d{4}-\d{2}-\d{2}$/.test(onDate) ? onDate : localNow().date; let n = 0; const t = Date.now();
   for (const x of sets.slice(0, 120)) {
     if (!x.id) continue;
     const row: ExSet = { at: t + n, date, ...(x.kg && x.kg > 0 ? { kg: Math.round(x.kg * 10) / 10 } : {}), ...(x.reps && x.reps > 0 ? { reps: Math.round(x.reps) } : {}), ...(x.fb && ['easy', 'ok', 'hard'].includes(x.fb) ? { fb: x.fb } : {}) };

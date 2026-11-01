@@ -1,3 +1,4 @@
+import { DidButton } from './Did.tsx';
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch, type SportOverview, type SportSession, type SportExercise, type SportType } from '../services/api.ts';
@@ -546,6 +547,7 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
         <H2 right={<span style={{ fontSize: 13, color: F.muted }}>{s.exercises.length}</span>}>Exercices</H2>
         <div style={{ ...card, padding: '4px 14px' }}>{s.exercises.map((e, k) => <div key={e.id} style={{ borderBottom: k < s.exercises.length - 1 ? `1px solid ${F.line}` : 'none' }}><ExRow e={e} onClick={() => setEx(e)} /></div>)}</div>
       </>}
+      <DidButton toast={toast} onDone={() => void load()} />
       <Routines toast={toast} prs={prs} onDone={() => void load()} />
       <Shortcuts go={go} />
       <H2>Récupération</H2>

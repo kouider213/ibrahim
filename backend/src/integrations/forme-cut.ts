@@ -153,3 +153,74 @@ export async function cutText(): Promise<string> {
   const c = await cutStatus('kouider');
   return `SÈCHE (FORME → Sèche) : semaine ${c.weeksIn + 1}, poids tendance ${c.weight.current} kg${c.weight.rateWeek != null ? ` (${c.weight.rateWeek} kg/sem, ${c.weight.ratePct} %)` : ''}${c.weight.eta ? `, objectif ${c.weight.goalKg} kg vers le ${c.weight.eta}` : ''}. Score du jour ${c.score}/100. ${c.adaptive ? `Vraie dépense mesurée ${c.adaptive.tdee} kcal (montre ${c.adaptive.vsWatch >= 0 ? 'sous-estime' : 'surestime'} de ${Math.abs(c.adaptive.vsWatch)}). ` : ''}${c.dropping.length ? `Force en baisse : ${c.dropping.join(', ')}. ` : ''}Bilan : ${c.decision.text}`;
 }
+
+// ── 🧠 ÉTAT PHYSIQUE pour TOUS les cerveaux (Kouider 01/11 : « Dzaryx doit utiliser toutes les infos de FORME, aussi
+// pour le coach de vie et le reste ») : une ligne courte, en cache 10 min (le calcul complet prend ~3 s).
+let snapCache: { at: number; text: string } | null = null;
+export async function formeSnapshot(): Promise<string> {
+  if (snapCache && Date.now() - snapCache.at < 10 * 60_000) return snapCache.text;
+  const today = localNow().date;
+  const [c, sport, ready, sleep, ins, photos] = await Promise.all([
+    cutStatus('kouider').catch(() => null),
+    import('./sport-coach.js').then(async m => { const log = await m.readSportLog(); const done = log.find(l => l.date === today); const planned = await m.sportSessionFor(today).catch(() => null); return { done, planned }; }).catch(() => null),
+    import('./workout-live.js').then(m => m.readiness()).then(r => r?.line ?? '').catch(() => ''),
+    import('./sleep-coach.js').then(m => m.sleepContextLine()).catch(() => ''),
+    import('./forme-insights.js').then(m => m.formeInsights('kouider')).catch(() => null),
+    import('./forme.js').then(m => m.readPhotos('kouider')).catch(() => []),
+  ]);
+  const lastPh = [...photos].reverse().find(p => p.analysis && p.analysis.visible !== 'non');
+  const notTrained = ins ? Object.entries(ins.sets).filter(([, n]) => n === 0).map(([m]) => m) : [];
+  const bits = [
+    sport?.done ? `Sport aujourd'hui : FAIT (${sport.done.note?.startsWith('Fait en vrai') ? sport.done.note.split('·')[0]!.replace('Fait en vrai : ', '') : sport.done.type}${sport.done.durationMin ? `, ${sport.done.durationMin} min` : ''})` : sport?.planned ? `Sport aujourd'hui : prévu, pas encore fait (${String(sport.planned).split('\n')[0]!.slice(0, 80)})` : 'Pas de sport prévu aujourd\'hui',
+    ins ? `semaine ${ins.week.done}/${ins.week.target} séances${notTrained.length ? `, muscles pas travaillés en 7 j : ${notTrained.join(', ')}` : ''}` : '',
+    c ? `sèche semaine ${c.weeksIn + 1} : poids tendance ${c.weight.current} kg${c.weight.rateWeek != null ? ` (${c.weight.rateWeek > 0 ? '−' : '+'}${Math.abs(c.weight.rateWeek)} kg/sem)` : ''}, objectif ${c.weight.goalKg ?? '?'} kg${c.weight.eta ? ` vers le ${c.weight.eta}` : ''} ; score du jour ${c.score}/100 (${c.parts.filter(p => !p.ok).map(p => `${p.k} manquant : ${p.hint}`).join(', ') || 'tout bon'})` : '',
+    c?.dropping.length ? `force en baisse : ${c.dropping.join(', ')}` : '',
+    ready, sleep,
+    lastPh ? `dernière photo du corps (${lastPh.date}) : ${lastPh.analysis!.summary.slice(0, 160)}` : '',
+  ].filter(Boolean);
+  const text = `ÉTAT PHYSIQUE (app FORME + montre, à jour) : ${bits.join(' · ')}. UTILISE-LE partout (coach de vie, moral, business, planning) : nuit courte / récupération basse = journée plus douce et pas de grosses décisions le soir ; séance pas faite = propose le meilleur moment ; protéines ou déficit manquants = rappel au bon moment, sans sermon. Jamais de nourriture/repas dans l'agenda.`;
+  snapCache = { at: Date.now(), text };
+  return text;
+}
+
+// ── 🖼️ « Ce que j'ai VRAIMENT fait » en images (Kouider 01/11 : « parfois je connais pas les noms ») ─────────────
+// Il choisit les exercices en photo (bibliothèque ou photo de la machine) → séries dans l'historique de chaque exercice,
+// séance du jour corrigée partout (sport_coach did : journal, FORME, agenda ; la séance prévue reste pour la prochaine fois).
+const LIB_TO_COACH: Record<string, string> = { chest: 'pecs', shoulders: 'epaules', biceps: 'bras', triceps: 'bras', forearms: 'bras', lats: 'dos', 'middle back': 'dos',
+  'lower back': 'dos', traps: 'dos', abdominals: 'abdos', quadriceps: 'jambes', hamstrings: 'jambes', glutes: 'jambes', calves: 'jambes', adductors: 'jambes', abductors: 'jambes' };
+const MUS_FR: Record<string, string> = { pecs: 'Pecs', dos: 'Dos', epaules: 'Épaules', bras: 'Bras', jambes: 'Jambes', abdos: 'Abdos' };
+export interface DidEx { id: string; name: string; p: string[]; sets: number; kg?: number; reps?: number }
+export async function logDidByImages(uid: Uid, date: string, list: DidEx[]): Promise<string> {
+  const exs = list.filter(x => x.id && x.name).slice(0, 20);
+  if (!exs.length) throw new Error('Choisis au moins un exercice.');
+  const { addExSets } = await import('./forme.js');
+  const rows = exs.flatMap(x => Array.from({ length: Math.max(1, Math.min(10, Math.round(x.sets) || 3)) }, () => ({ id: x.id, kg: x.kg, reps: x.reps })));
+  await addExSets(uid, rows, date);
+  // Muscles travaillés (séries) → séance du programme la plus proche
+  const mus: Record<string, number> = {};
+  for (const x of exs) { const m = LIB_TO_COACH[x.p[0] ?? '']; if (m) mus[m] = (mus[m] ?? 0) + (Math.round(x.sets) || 3); }
+  const muscles = Object.entries(mus).sort((a, b) => b[1] - a[1]).map(([m]) => m);
+  const label = `${muscles.map(m => MUS_FR[m]).join(' + ') || 'Séance'} : ${exs.map(x => x.name).join(', ')}`.slice(0, 150);
+  if (uid !== 'kouider') {
+    const { updateDay } = await import('./forme.js');
+    await updateDay(uid, date, d => { d.workout = { ...(d.workout ?? { session: 0, sets: [], at: Date.now() }), label: label.slice(0, 60) }; });
+    return `✅ Noté : ${label}`;
+  }
+  const sc = await import('./sport-coach.js');
+  await sc.exerciseMuscles();   // charge le programme officiel (SESSIONS)
+  const total = Object.values(mus).reduce((a, b) => a + b, 0) || 1;
+  // séance du programme qui correspond dans les DEUX sens : ses séries tombent dans la séance (cover) ET la séance a été
+  // vraiment faite (recall) — « juste biceps » ≠ « Dos & Biceps »
+  let best: { type: string; score: number } | null = null;
+  for (const t of sc.ROTATION) {
+    const ms = (sc.SESSIONS[t].muscles as string[]).filter(m => m !== 'cardio' && m !== 'abdos');
+    if (!ms.length) continue;
+    const cover = Object.entries(mus).filter(([m]) => ms.includes(m)).reduce((a, [, n]) => a + n, 0) / total;
+    const recall = ms.filter(m => mus[m]).length / ms.length;
+    if (cover >= 0.7 && recall >= 0.5 && (!best || cover * recall > best.score)) best = { type: t, score: cover * recall };
+  }
+  const type = best?.type;
+  const r = await sc.sportCoachTool({ action: 'did', date, ...(type ? { type } : {}), note: label });
+  snapCache = null;
+  return `${r}\n🖼️ ${exs.length} exercice(s) ajouté(s) à ton historique (${rows.length} séries)${type ? '' : ` — ${label}`}.`;
+}

@@ -29,6 +29,17 @@ export async function formeInsights(uid: Uid) {
   const coachDays = new Set(coach.log.filter(s => s.date >= since).map(s => s.date));
   const sets: Record<string, number> = { pecs: 0, dos: 0, epaules: 0, bras: 0, jambes: 0, abdos: 0 };
   for (const s of coach.log) if (s.date >= since) for (const x of s.sets) { const m = coach.mus[x.ex]?.muscle; if (m && m in sets) sets[m]!++; }
+  // Séance faite SANS séries notées (montre, « c'est fait ») → on compte les séries prévues de cette séance (estimé), sinon
+  // Progrès affichait « 0 » partout alors qu'il s'entraîne (Kouider 01/11 : « je sais même pas à quoi ça sert »)
+  const estimated: string[] = [];
+  if (uid === 'kouider') {
+    const SESS = await import('./sport-coach.js').then(m => m.SESSIONS).catch(() => null);
+    const exDays = new Set(Object.values(exlog).flatMap(l => l.filter(x => x.date >= since).map(x => x.date)));
+    for (const s of coach.log) if (s.date >= since && !s.sets.length && exDays.has(s.date)) coachDays.delete(s.date);   // séries notées en images → comptées depuis les fiches
+    for (const s of coach.log) if (s.date >= since && !s.sets.length && !exDays.has(s.date) && SESS?.[s.type]) {
+      for (const e of SESS[s.type].exercises) { const m = (e as { muscle?: string }).muscle; if (m && m in sets) { sets[m]! += Number((e as { sets?: number }).sets) || 3; if (!estimated.includes(m)) estimated.push(m); } }
+    }
+  }
   const lib = await import('./exercise-lib.js').then(m => m.exerciseLibrary()).catch(() => []);
   const libP = new Map(lib.map(e => [e.id, e.p]));
   for (const [id, l] of Object.entries(exlog)) for (const x of l) if (x.date >= since && !coachDays.has(x.date)) { const g = G_LIB[libP.get(id)?.[0] ?? '']; if (g) sets[g]!++; }
@@ -54,5 +65,5 @@ export async function formeInsights(uid: Uid) {
   // Santé de la montre (Kouider)
   const health = uid === 'kouider' ? (await json<Array<{ date: string; steps?: number; rhr?: number; hrv?: number; sleep_h?: number }>>('health:daily', [])).slice(-30) : [];
   const load = uid === 'kouider' ? await import('./workout-live.js').then(m => m.loadLine()).catch(() => '') : '';
-  return { week: { done: doneWeek, target }, weekStreak, total, sets, calendar, badges, health, load };
+  return { week: { done: doneWeek, target }, weekStreak, total, sets, estimated, calendar, badges, health, load };
 }

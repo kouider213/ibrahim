@@ -223,6 +223,14 @@ router.delete('/runs/:id', async (req, res) => {
 });
 
 // 📊 Stats pro : objectif semaine, séries par muscle, calendrier, badges, tendances montre
+router.post('/did', async (req, res) => {
+  const b = req.body as { date?: string; exercises?: unknown };
+  try {
+    const list = (Array.isArray(b.exercises) ? b.exercises : []).map((x: Record<string, unknown>) => ({ id: String(x.id ?? '').slice(0, 100), name: String(x.name ?? '').slice(0, 80), p: Array.isArray(x.p) ? (x.p as unknown[]).map(String).slice(0, 4) : [], sets: Number(x.sets) || 3, kg: Number(x.kg) || undefined, reps: Number(x.reps) || undefined }));
+    const date = typeof b.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.date) ? b.date : (await import('../../integrations/morning-routine.js')).localNow().date;
+    res.json({ message: await import('../../integrations/forme-cut.js').then(m => m.logDidByImages(U(req), date, list)) });
+  } catch (err) { fail(res, err); }
+});
 router.get('/cut', async (req, res) => {
   try { res.json(await import('../../integrations/forme-cut.js').then(m => m.cutStatus(U(req)))); } catch (err) { fail(res, err); }
 });

@@ -71,6 +71,7 @@ export async function kouiderDossierText(): Promise<string> {
     import('./life-coach.js').then(m => m.lifeCoachText()).catch(() => ''),   // import dynamique : life-coach → morning-routine → ce fichier
   ]);
   const forme = await import('./forme.js').then(m => m.formeText()).catch(() => '');
+  const physique = await import('./forme-cut.js').then(m => m.formeSnapshot()).catch(() => '');   // 01/11 : FORME sert à tous les cerveaux
   const conns = await import('./connections-watch.js').then(m => m.connectionsText()).catch(() => '');
   const mood = await import('./brain-plus.js').then(m => m.moodText()).catch(() => '');
   const liberte = await import('./liberte.js').then(m => m.liberteText()).catch(() => '');   // programme d'arrêt (privé)
@@ -91,6 +92,7 @@ export async function kouiderDossierText(): Promise<string> {
     ...(gcoach ? [gcoach] : []),
     ...(fin ? [fin] : []),
     ...(forme ? [forme] : []),
+    ...(physique ? [physique] : []),
   ].join('\n');
 }
 
