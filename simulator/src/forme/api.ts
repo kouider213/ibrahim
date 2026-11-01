@@ -22,7 +22,7 @@ export interface Photo { id: string; date: string; pose: 'face' | 'profil' | 'do
 export interface HouseItem extends ShopItem { key: string; who: Array<{ uid: string; name: string; qty: string }>; by?: string; at?: number }
 export interface House { items: HouseItem[]; total: number; budget: number; shared: boolean }
 export interface Overview {
-  uid: 'kouider' | 'femme'; doses: string[]; femme?: { active: boolean; name: string };
+  uid: 'kouider' | 'femme' | 'ami'; doses: string[]; femme?: { active: boolean; name: string }; ami?: { active: boolean; name: string };
   today: string; profile: Profile; targets: Targets; day: Day; eaten: { kcal: number; p: number; c: number; f: number };
   week: Week | null; week7: Array<{ date: string; kcal: number; p: number; c: number; f: number; water: number; sleep: number | null; steps: number | null }>; streak: number;
   badges: Array<{ id: string; label: string; emoji: string; ok: boolean }>;
@@ -62,6 +62,26 @@ export interface ExSet { at: number; date: string; kg?: number; reps?: number; f
 export interface RoutineEx { id: string; name: string; img: string[]; sets: number; reps: string; rest: number }
 export interface Routine { id: string; name: string; at: number; exercises: RoutineEx[] }
 
+// 🏃 Course GPS (backend/src/integrations/forme-runs.ts)
+export type RunType = 'run' | 'walk' | 'bike' | 'hike';
+export type RunPt = [number, number, number, number | null, number];
+export interface RunSplit { km: number; dist: number; sec: number; pace: number; elev: number }
+export interface RunSummary {
+  id: string; type: RunType; title: string; note?: string; feel?: number; startedAt: number; date: string; dist: number; elapsed: number; moving: number;
+  pace: number | null; speed: number; maxSpeed: number; elevGain: number; elevLoss: number; altMin: number | null; altMax: number | null; kcal: number;
+  splits: RunSplit[]; efforts: Array<{ label: string; m: number; sec: number; pr?: boolean }>; laps: Array<{ n: number; dist: number; sec: number; pace: number | null }>;
+  poly: Array<[number, number]>; bbox: [number, number, number, number] | null; prs: string[]; ghostOf?: string;
+}
+export interface RunCfg { weekGoalKm: number; autoPause: boolean; voiceEvery: number; type: RunType; targetPace: number | null }
+export interface RunTotals { n: number; km: number; sec: number; elev: number; kcal: number }
+export interface RunStats {
+  cfg: RunCfg; week: RunTotals & { goalKm: number; pct: number }; month: RunTotals; year: RunTotals; total: RunTotals;
+  weeks: Array<RunTotals & { week: string }>; streakWeeks: number; days: Record<string, number>;
+  records: Array<{ label: string; m: number; sec: number; runId: string; date: string; type: RunType }>; longest: Array<{ type: RunType; km: number; runId: string; date: string }>;
+  paceTrend: { last4: number | null; prev4: number | null }; recent: RunSummary[];
+}
+export interface RunDetail { run: RunSummary; track: Array<[number, number, number | null]>; series: Array<{ d: number; t: number; pace: number | null; kmh: number; alt: number | null }>; ghost: { cum: number[]; t: number[] } }
+
 export type MealSlot = 'matin' | 'midi' | 'collation' | 'soir';
 export interface FoodPart { name: string; grams: number; kcal: number; p: number; c: number; f: number }
 export interface MealLog { id: string; at: number; date: string; time: string; slot: MealSlot; title: string; items: FoodPart[]; kcal: number; p: number; c: number; f: number; confidence: 'haute' | 'moyenne' | 'basse'; note?: string; thumb?: string; src: 'photo' | 'texte'; coach?: string }
@@ -91,8 +111,14 @@ export const forme = {
   translate: (texts: string[]) => post<{ map: Record<string, string> }>('/api/forme/translate', { texts }),
   program: () => call<ProgramView>('/api/forme/program'),
   newProgram: () => post<ProgramView>('/api/forme/program', {}),
-  invite: (name: string, lang: 'fr' | 'ar') => post<{ link: string }>('/api/forme/invite', { name, lang }),
-  revoke: () => call<{ ok: boolean }>('/api/forme/invite', { method: 'DELETE' }),
+  invite: (name: string, lang: 'fr' | 'ar', who: 'femme' | 'ami' = 'femme') => post<{ link: string }>('/api/forme/invite', { name, lang, who }),
+  revoke: (who: 'femme' | 'ami' = 'femme') => call<{ ok: boolean }>(`/api/forme/invite?who=${who}`, { method: 'DELETE' }),
+  runs: (type?: RunType) => call<RunStats>(`/api/forme/runs${type ? `?type=${type}` : ''}`),
+  saveRun: (b: { type: RunType; startedAt: number; points: RunPt[]; pauses: Array<[number, number]>; laps: number[]; title?: string; note?: string; feel?: number; ghostOf?: string }) => post<{ run: RunSummary }>('/api/forme/runs', b),
+  run: (id: string) => call<RunDetail>(`/api/forme/runs/${encodeURIComponent(id)}`),
+  editRun: (id: string, b: { title?: string; note?: string; feel?: number; type?: RunType }) => post<{ run: RunSummary }>(`/api/forme/runs/${encodeURIComponent(id)}`, b),
+  delRun: (id: string) => call<{ ok: boolean }>(`/api/forme/runs/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  runCfg: (c: Partial<RunCfg>) => post<{ cfg: RunCfg }>('/api/forme/runs/cfg', c),
   log: (kind: string, body: Record<string, unknown> = {}) => post<Overview>('/api/forme/log', { kind, ...body }),
   bodyPhoto: (image: string, pose: string, goal = '', adapt = false) => post<{ photo: Photo; analysis: Analysis | { error: string }; adapted: { date: string; text: string } | null }>('/api/forme/body-photo', { image, pose, goal, adapt }),
   doctor: () => call<{ text: string }>('/api/forme/doctor'),

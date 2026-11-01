@@ -16,8 +16,11 @@ import type { PushSubscription } from 'web-push';
 // Sa femme se connecte avec un lien d'invitation : jeton valable UNIQUEMENT pour /api/forme, aucun accès au business.
 // VIE PRIVÉE : dépôt PUBLIC → prénoms, poids, traitements, photos uniquement dans app_kv + bucket privé, jamais ici.
 
-export type Uid = 'kouider' | 'femme';
-export const UIDS: Uid[] = ['kouider', 'femme'];
+export type Uid = 'kouider' | 'femme' | 'ami';
+export const UIDS: Uid[] = ['kouider', 'femme', 'ami'];
+// 01/11 : 3e profil « ami » = un ami de Kouider (lien d'invitation comme sa femme). SON suivi à lui, rien de commun
+// avec celui de Kouider, jamais lu par Dzaryx, pas de jeux du couple, pas de Telegram.
+export const INVITED: Exclude<Uid, 'kouider'>[] = ['femme', 'ami'];
 export type Lang = 'fr' | 'ar';
 
 const PK = (u: Uid) => `${u}:forme:profile`;
@@ -66,6 +69,13 @@ const DEFAULTS: Record<Uid, FormeProfile> = {
     likes: [], dislikes: [], vegetarian: false, wegovy: { on: false, dose: '', day: 0, hour: '20:00' },
     photoEveryDays: 7, weighDaily: false, notif: { meals: true, water: true, injection: true, photo: true, weigh: true }, waterGoal: 8,
     fasting: 'off', reminders: [], stepsGoal: 7000, restDays: [0, 4], favorites: [],
+  },
+  ami: {
+    onboarded: false, name: '', lang: 'fr', shareWithDzaryx: false, goal: 'recompo', sex: 'h', age: 30, heightCm: 178, weightKg: 80, targetKg: 75,
+    sessionsPerWeek: 3, gym: 'Salle de sport', stores: ['Colruyt'], mealsPerDay: 3, budgetWeek: 50,
+    likes: [], dislikes: [], vegetarian: false, wegovy: { on: false, dose: '', day: 0, hour: '20:00' },
+    photoEveryDays: 7, weighDaily: false, notif: { meals: false, water: false, injection: false, photo: true, weigh: true }, waterGoal: 8,
+    fasting: 'off', reminders: [], stepsGoal: 8000, restDays: [0], favorites: [],
   },
 };
 
@@ -195,7 +205,7 @@ export async function uidFromFormeToken(token: string): Promise<Uid | null> {
   // effaçait son lien au moindre hoquet Supabase et elle devait se reconnecter (26/10).
   for (let i = 0; ; i++) {
     const { data, error } = await supabase.from('app_kv').select('value').eq('key', INVITE_K(sha(token))).maybeSingle();
-    if (!error) return (data as { value: string } | null)?.value === 'femme' ? 'femme' : null;
+    if (!error) { const v = (data as { value: string } | null)?.value; return (INVITED as string[]).includes(v ?? '') ? v as Uid : null; }
     if (i >= 1) throw new Error(`forme token: ${error.message}`);
     await new Promise(r => setTimeout(r, 400));
   }
@@ -300,7 +310,7 @@ export async function adaptNextSession(uid: Uid, o: { focus: string; observation
   const lib = uid === 'kouider' ? sc.exerciseLibraryText() : Object.entries(EX_LIB).map(([k, v]) => `${k} (${v})`).join(', ');
   const res = await createAnthropic().messages.create({ model: 'claude-sonnet-5-5', max_tokens: 3000,
     system: `Tu es son coach sportif. Il/elle t'a dit ce qu'il/elle veut perdre ou améliorer${obs ? ' et tu as ses photos analysées' : ''}. Tu refais SA PROCHAINE SÉANCE, exercice par exercice, précise et faisable (~${p.sex === 'h' ? '60-75' : '40-50'} min, lieu : ${p.gym}). Vérité utile : on ne « fond » pas une zone précise — la graisse part avec le déficit calorique + les protéines ; la séance renforce la zone visée, augmente la dépense (circuits, cardio en fin) et améliore la posture. Dis-le en une phrase dans "why".${p.sex === 'h' ? ' Dos à ménager : pas de charge lourde sur la colonne (pas de soulevé de terre lourd ni squat barre lourde).' : ''}${p.wegovy.on ? ' Traitement GLP-1 : renforcement prioritaire pour garder le muscle, hydratation.' : ''}
-Exercices de préférence parmi : ${lib}.${uid === 'femme' ? ' UNIQUEMENT ces identifiants dans "id".' : ''}${LANG_RULE(p.lang)}
+Exercices de préférence parmi : ${lib}.${uid !== 'kouider' ? ' UNIQUEMENT ces identifiants dans "id".' : ''}${LANG_RULE(p.lang)}
 Réponds UNIQUEMENT en JSON : {"label":"nom court","emoji":"🔥","focus":"zones travaillées","warmup":"échauffement","why":"pourquoi cette séance (≤ 180 car.)","exercises":[{"id":"(femme : identifiant)","name":"nom","sets":3,"reps":"12","rest":60,"tip":"consigne précise (≤ 110 car.)","muscle":"pecs|dos|epaules|bras|jambes|abdos|cardio","alt":["variante"]}]} — 6 à 8 exercices dont un finisher cardio.`,
     messages: [{ role: 'user', content: `OBJECTIF : ${o.focus.slice(0, 300)}\n${obs}` }] }, QUALITY);
   const j = jsonOf<{ label?: string; emoji?: string; focus?: string; warmup?: string; why?: string; exercises?: Array<Partial<ProgEx> & { muscle?: string }> }>(textOf(res));
@@ -585,7 +595,7 @@ export function nextInjection(p: FormeProfile, days: Record<string, FormeDay>) {
 
 export async function formeOverview(uid: Uid = 'kouider') {
   const today = localNow().date;
-  const [p, days, photos, femmeInvite] = await Promise.all([getFormeProfile(uid), readDays(uid), readPhotos(uid), uid === 'kouider' ? inviteActive('femme') : Promise.resolve(false)]);
+  const [p, days, photos, femmeInvite, amiInvite] = await Promise.all([getFormeProfile(uid), readDays(uid), readPhotos(uid), uid === 'kouider' ? inviteActive('femme') : Promise.resolve(false), uid === 'kouider' ? inviteActive('ami') : Promise.resolve(false)]);
   const day = days[today] ?? emptyDay();
   // Journée très active (montre) : la cible de base compte déjà une activité normale (~400 kcal) → on rend la moitié
   // du surplus, plafonné à +300 kcal, en glucides (énergie pour la séance)
@@ -625,7 +635,7 @@ export async function formeOverview(uid: Uid = 'kouider') {
     tooFast: ratePerWeek != null && ratePerWeek > curW * 0.012,
     // Date estimée pour atteindre le poids visé, au rythme des 3 dernières semaines
     eta: ratePerWeek && ratePerWeek > 0.05 && curW > p.targetKg ? addDays(today, Math.round((curW - p.targetKg) / ratePerWeek * 7)) : null,
-    ...(uid === 'kouider' ? { femme: { active: femmeInvite, name: (await getFormeProfile('femme')).name } } : {}),
+    ...(uid === 'kouider' ? { femme: { active: femmeInvite, name: (await getFormeProfile('femme')).name }, ami: { active: amiInvite, name: (await getFormeProfile('ami')).name } } : {}),
   };
 }
 
@@ -679,6 +689,7 @@ export async function formeText(uid: Uid = 'kouider'): Promise<string> {
   ];
   let out = lines.filter(Boolean).join('\n');
   if (uid === 'kouider') out += `\n${await import('./forme-food.js').then(m => m.foodText()).catch(() => '')}`;
+  if (uid === 'kouider') { const rt = await import('./forme-runs.js').then(m => m.runText('kouider')).catch(() => ''); if (rt) out += `\n${rt}`; }
   if (uid === 'kouider') {
     const fp = await getFormeProfile('femme');
     if (fp.onboarded && fp.shareWithDzaryx) out += `\n${await formeText('femme')}`;

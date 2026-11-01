@@ -1,5 +1,7 @@
 import { kvGet, kvSet } from './app-store.js';
-import { getFormeProfile, pushForme, type Uid } from './forme.js';
+import { getFormeProfile, pushForme, type Uid as FormeUid } from './forme.js';
+// Jeux = le couple seulement (son ami FORME n'y a pas accès, bloqué dans la route)
+type Uid = Exclude<FormeUid, 'ami'>;
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 
 // Jeux du couple (RUSH = runner 3D, L'ŒIL = jeu des différences) : records de Kouider et de sa femme + une « salle »

@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-01 — FORME : appli de son AMI + COURSE GPS façon Strava (app v225)
+- 3e profil FORME « ami » (lien d'invitation comme sa femme, réglages → « L'appli de mon ami ») : SON suivi à lui, rien en commun avec Kouider, jamais lu par Dzaryx, pas de jeux du couple, pas de Wegovy, en français.
+- Nouveau `forme-runs.ts` + onglet COURSE : course/marche/vélo/rando au GPS, carte en direct (OpenStreetMap), chrono, allure instantanée/moyenne, pause auto, tours, voix tous les X km, allure cible, objectif distance/durée, course contre son « fantôme », mode poche, écran gardé allumé, sortie gardée sur le téléphone (reprise après crash).
+- Après la sortie : carte colorée par l'allure + bornes km, splits (temps en mouvement), courbe allure/altitude au doigt, meilleurs efforts 400 m→marathon + records, image à partager, ressenti/note. Tableau de bord : semaine vs objectif, mois/année/total, 12 semaines, calendrier 6 mois, records, tendance d'allure.
+- BUG trouvé au test : lien invité en français = boucle infinie de rechargement (arabe par défaut → profil fr → reload). Langue gardée sur le téléphone + `&l=fr|ar` dans le lien et l'icône d'accueil.
+
 ## 2026-11-01 — PLAN ALGÉRIE (mes_finances action 'algerie')
 - Nouveau `algerie-plan.ts` : date de départ quand maison + frais 7 % + meubles + voiture + déménagement sont PAYÉS (+ 6 mois d'avance), avec et sans le projet business.
 - Vie à Oran mois par mois : budget détaillé (vie de famille, école privée du fils selon son âge, voiture, santé, CASNOS, CAT-NAT, voyages, imprévus, impôts IFU, zakat) → « salaire » = ce qui reste.

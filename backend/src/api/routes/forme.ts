@@ -31,6 +31,7 @@ router.use(async (req: Request, res: Response, next: NextFunction) => {
   });
 });
 const U = (req: Request): Uid => uidOf.get(req) ?? 'kouider';
+const CU = (req: Request) => U(req) as Exclude<Uid, 'ami'>;   // jeux : le middleware /games a déjà refusé « ami »
 const fail = (res: Response, err: unknown, code = 500) =>
   res.status(code).json({ error: err instanceof Error ? err.message : String(err) });
 const isDate = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
@@ -143,6 +144,27 @@ router.get('/watch', async (req, res) => {
   } catch (err) { fail(res, err); }
 });
 
+// 🏃 COURSE GPS (01/11, façon Strava) : sorties enregistrées au GPS, tout recalculé côté serveur
+const runs = () => import('../../integrations/forme-runs.js');
+router.get('/runs', async (req, res) => {
+  try { const m = await runs(); const t = String(req.query.type ?? ''); res.json(await m.runStats(U(req), m.RUN_TYPES.includes(t as never) ? t as never : undefined)); } catch (err) { fail(res, err); }
+});
+router.post('/runs', async (req, res) => {
+  try { res.json(await (await runs()).saveRun(U(req), (req.body ?? {}) as never)); } catch (err) { fail(res, err, 400); }
+});
+router.post('/runs/cfg', async (req, res) => {
+  try { res.json({ cfg: await (await runs()).setRunCfg(U(req), (req.body ?? {}) as never) }); } catch (err) { fail(res, err); }
+});
+router.get('/runs/:id', async (req, res) => {
+  try { const d = await (await runs()).runDetail(U(req), String(req.params.id).slice(0, 40)); if (!d) { fail(res, 'sortie introuvable', 404); return; } res.json(d); } catch (err) { fail(res, err); }
+});
+router.post('/runs/:id', async (req, res) => {
+  try { const r = await (await runs()).updateRun(U(req), String(req.params.id).slice(0, 40), (req.body ?? {}) as never); if (!r) { fail(res, 'sortie introuvable', 404); return; } res.json({ run: r }); } catch (err) { fail(res, err); }
+});
+router.delete('/runs/:id', async (req, res) => {
+  try { await (await runs()).deleteRun(U(req), String(req.params.id).slice(0, 40)); res.json({ ok: true }); } catch (err) { fail(res, err); }
+});
+
 // 📊 Stats pro : objectif semaine, séries par muscle, calendrier, badges, tendances montre
 router.get('/insights', async (req, res) => {
   try { res.json(await import('../../integrations/forme-insights.js').then(m => m.formeInsights(U(req)))); } catch (err) { fail(res, err); }
@@ -168,19 +190,20 @@ router.post('/translate', async (req, res) => {
   try { res.json({ map: await translateAr(texts.map(String)) }); } catch (err) { fail(res, err); }
 });
 
-// Jeux du couple (RUSH, L'ŒIL) : records + salle pour jouer à deux en direct
+// Jeux du couple (RUSH, L'ŒIL) : records + salle pour jouer à deux en direct — PAS pour son ami
+router.use('/games', (req, res, next) => { if (U(req) === 'ami') { res.status(403).json({ error: 'Jeux réservés au couple' }); return; } next(); });
 router.get('/games', async (req, res) => {
-  try { res.json(await gamesBoard(U(req))); } catch (err) { fail(res, err); }
+  try { res.json(await gamesBoard(CU(req))); } catch (err) { fail(res, err); }
 });
 router.post('/games/score', async (req, res) => {
   const b = req.body as { game?: string; score?: number; date?: string };
-  try { res.json(await submitScore(U(req), String(b.game ?? ''), Number(b.score ?? 0), b.date)); } catch (err) { fail(res, err, 400); }
+  try { res.json(await submitScore(CU(req), String(b.game ?? ''), Number(b.score ?? 0), b.date)); } catch (err) { fail(res, err, 400); }
 });
 router.get('/games/island', async (_req, res) => { try { res.json(await getIsland()); } catch (err) { fail(res, err); } });
-router.post('/games/island', async (req, res) => { try { res.json(await islandAction(U(req), (req.body ?? {}) as Record<string, unknown>)); } catch (err) { fail(res, err, 400); } });
-router.get('/games/room', (req, res) => { res.json(roomPeek(U(req))); });
+router.post('/games/island', async (req, res) => { try { res.json(await islandAction(CU(req), (req.body ?? {}) as Record<string, unknown>)); } catch (err) { fail(res, err, 400); } });
+router.get('/games/room', (req, res) => { res.json(roomPeek(CU(req))); });
 router.post('/games/room', async (req, res) => {
-  try { res.json(await roomAction(U(req), (req.body ?? {}) as Record<string, unknown>)); } catch (err) { fail(res, err); }
+  try { res.json(await roomAction(CU(req), (req.body ?? {}) as Record<string, unknown>)); } catch (err) { fail(res, err); }
 });
 
 // GET /api/forme/doctor — bilan texte pour le médecin
@@ -227,17 +250,22 @@ router.post('/push', async (req, res) => {
 });
 
 // POST /api/forme/invite { name, lang } — Kouider crée (ou recrée) le lien de sa femme ; DELETE = le couper
+// { who: 'ami' } (01/11) = le lien de son ami : son propre suivi, en français par défaut
+const whoOf = (v: unknown): 'femme' | 'ami' => (v === 'ami' ? 'ami' : 'femme');
 router.post('/invite', async (req, res) => {
   if (U(req) !== 'kouider') { fail(res, 'Réservé à Kouider', 403); return; }
-  const b = req.body as { name?: string; lang?: string };
+  const b = req.body as { name?: string; lang?: string; who?: string };
+  const who = whoOf(b.who);
   try {
-    const token = await createInvite('femme', { name: String(b.name ?? '').slice(0, 30), lang: b.lang === 'fr' ? 'fr' : 'ar' });
-    res.json({ link: `https://kouider213.github.io/ibrahim/forme/?invite=${token}` });
+    const lang = b.lang === 'ar' ? 'ar' : b.lang === 'fr' ? 'fr' : who === 'ami' ? 'fr' : 'ar';
+    const token = await createInvite(who, { name: String(b.name ?? '').slice(0, 30), lang });
+    // &l= : l'appli s'ouvre directement dans sa langue (évite le passage par l'arabe + rechargement)
+    res.json({ link: `https://kouider213.github.io/ibrahim/forme/?invite=${token}&l=${lang}` });
   } catch (err) { fail(res, err); }
 });
 router.delete('/invite', async (req, res) => {
   if (U(req) !== 'kouider') { fail(res, 'Réservé à Kouider', 403); return; }
-  try { await revokeInvite('femme'); res.json({ ok: true }); } catch (err) { fail(res, err); }
+  try { await revokeInvite(whoOf(req.query.who ?? (req.body as { who?: string } | undefined)?.who)); res.json({ ok: true }); } catch (err) { fail(res, err); }
 });
 
 export default router;

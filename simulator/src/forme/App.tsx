@@ -10,13 +10,15 @@ import BodyScreen from './Body.tsx';
 import ScanScreen from './Scan.tsx';
 import FoodScreen from './Food.tsx';
 import { LibraryScreen } from './Exercises.tsx';
+import RunScreen from './Run.tsx';
 
 // FORME — l'app SPORT de Kouider (31/10 : refaite au style de l'appli « Library » de sa vidéo, nourriture retirée).
 // Marche seule (écran d'accueil : /ibrahim/forme/) ou dans l'app Dzaryx (page FORME, en iframe : même session).
 // Onglets : Séance (programme du jour) · Exercices (bibliothèque) · Scanner (photo d'une machine) · Progrès (poids, photos).
-type Tab = 'sport' | 'food' | 'library' | 'scan' | 'body';
+type Tab = 'sport' | 'run' | 'food' | 'library' | 'scan' | 'body';
 const TABS: Array<{ id: Tab; label: string; icon: (on: boolean) => JSX.Element }> = [
   { id: 'sport', label: 'Séance', icon: on => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={on ? 2.4 : 1.9} strokeLinecap="round"><path d="M6.5 7v10M3.5 9.5v5M17.5 7v10M20.5 9.5v5M6.5 12h11" /></svg> },
+  { id: 'run', label: 'Course', icon: on => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={on ? 2.4 : 1.9} strokeLinecap="round" strokeLinejoin="round"><circle cx="15" cy="4.5" r="2" /><path d="M9 21l2.5-5 3 2.5V22M6 12.5l3-3.5 4 1 2.5 3.5 3 .5M11.5 16l1.5-6" /></svg> },
   { id: 'food', label: 'Repas', icon: on => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={on ? 2.4 : 1.9} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="13" r="7" /><circle cx="12" cy="13" r="3.5" /><path d="M3 3v5M5 3v5M4 8v13M20 3c-1.5 1-2 3-2 5h2v13" /></svg> },
   { id: 'library', label: 'Exercices', icon: on => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={on ? 2.4 : 1.9} strokeLinejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.5" /></svg> },
   { id: 'scan', label: 'Scanner', icon: on => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={on ? 2.4 : 1.9} strokeLinecap="round"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16" /><circle cx="12" cy="12" r="3.2" /></svg> },
@@ -26,15 +28,20 @@ const isTab = (t: string | null): t is Tab => !!t && TABS.some(x => x.id === t);
 // Lien d'invitation de sa femme : ?invite=… → jeton FORME gardé sur son téléphone.
 // iPhone : l'icône « Sur l'écran d'accueil » n'a PAS la mémoire de Safari → le jeton reste dans l'adresse
 // et dans le manifeste (start_url), sinon l'icône s'ouvrait sur la connexion de Kouider (25/10).
-function keepInvite(t: string) {
-  const start = `${location.origin}${location.pathname}?invite=${encodeURIComponent(t)}`;
-  if (new URLSearchParams(location.search).get('invite') !== t) history.replaceState(null, '', start);
+function keepInvite(t: string, lang: 'ar' | 'fr' = 'ar', who = 'femme') {
+  const start = `${location.origin}${location.pathname}?invite=${encodeURIComponent(t)}&l=${lang}`;
+  const q = new URLSearchParams(location.search);
+  if (q.get('invite') !== t || q.get('l') !== lang) history.replaceState(null, '', start);
   const abs = (u: string) => `${location.origin}${u}`;
-  const m = { id: '/ibrahim/forme/?femme', name: 'Forme', short_name: 'Forme', start_url: start, scope: abs('/ibrahim/forme/'), display: 'standalone', orientation: 'portrait', background_color: '#fbf1ec', theme_color: '#fbf1ec', lang: 'ar', dir: 'rtl',
+  const m = { id: `/ibrahim/forme/?${who}`, name: 'Forme', short_name: 'Forme', start_url: start, scope: abs('/ibrahim/forme/'), display: 'standalone', orientation: 'portrait', background_color: '#fbf1ec', theme_color: '#fbf1ec', lang, dir: lang === 'ar' ? 'rtl' : 'ltr',
     icons: [{ src: abs('/ibrahim/icons/forme-192.png'), sizes: '192x192', type: 'image/png' }, { src: abs('/ibrahim/icons/forme-512.png'), sizes: '512x512', type: 'image/png' }] };
   const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
   if (link) link.href = `data:application/manifest+json,${encodeURIComponent(JSON.stringify(m))}`;
 }
+const LANG_K = 'forme:lang';
+const urlLang = (): 'fr' | 'ar' | null => { try { const l = new URLSearchParams(location.search).get('l'); return l === 'fr' || l === 'ar' ? l : null; } catch { return null; } };
+try { const l = urlLang(); if (l) localStorage.setItem(LANG_K, l); } catch { /* */ }
+const savedLang = (): 'fr' | 'ar' | null => { try { const l = localStorage.getItem(LANG_K); return l === 'fr' || l === 'ar' ? l : null; } catch { return null; } };
 const inviteIn = (s: string) => { const m = /invite=([\w-]{20,})/.exec(s); return m ? m[1] : null; };
 // Notification « Kouider t'invite à jouer » : ?jeu=folie → on ouvre directement le jeu (avec son jeton)
 try {
@@ -43,14 +50,14 @@ try {
 } catch { /* */ }
 try {
   const t = new URLSearchParams(location.search).get('invite') ?? localStorage.getItem(FORME_TOKEN);
-  if (t) { localStorage.setItem(FORME_TOKEN, t); keepInvite(t); }
+  if (t) { localStorage.setItem(FORME_TOKEN, t); keepInvite(t, savedLang() ?? 'ar', savedLang() === 'fr' ? 'ami' : 'femme'); }
 } catch { /* */ }
 const embedded = (() => { try { return window.self !== window.top; } catch { return true; } })();
 
 function Login({ onOk }: { onOk: () => void }) {
   const [u, setU] = useState('');
   // Sa femme colle son lien d'invitation dans le 1er champ → entrée directe dans SON appli
-  const paste = (v: string) => { const t = inviteIn(v); if (!t) return setU(v); try { localStorage.setItem(FORME_TOKEN, t); keepInvite(t); } catch { /* */ } onOk(); }; const [p, setP] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  const paste = (v: string) => { const t = inviteIn(v); if (!t) return setU(v); try { const l = /[?&]l=(fr|ar)/.exec(v)?.[1] as 'fr' | 'ar' | undefined; if (l) localStorage.setItem(LANG_K, l); localStorage.setItem(FORME_TOKEN, t); keepInvite(t, l ?? 'ar'); } catch { /* */ } onOk(); }; const [p, setP] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
   return (
     <div style={{ minHeight: '100dvh', background: `radial-gradient(140% 60% at 50% 0%, ${F.soft}, ${F.bg})`, padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'center', boxSizing: 'border-box' }}>
       <div style={{ width: 70, height: 70, borderRadius: 22, background: F.accent, color: '#fff', fontSize: 38, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 14px 30px rgba(31,99,240,0.35)' }}>F</div>
@@ -76,27 +83,28 @@ async function enablePush(): Promise<string> {
   return '🔔 Notifications activées';
 }
 
-function Invite({ o, toast }: { o: Overview; toast: (t: string) => void }) {
-  const [name, setName] = useState(o.femme?.name ?? '');
-  const [lang, setLang] = useState<'ar' | 'fr'>('ar');
+function Invite({ o, toast, who = 'femme' }: { o: Overview; toast: (t: string) => void; who?: 'femme' | 'ami' }) {
+  const st = who === 'ami' ? o.ami : o.femme;
+  const [name, setName] = useState(st?.name ?? '');
+  const [lang, setLang] = useState<'ar' | 'fr'>(who === 'ami' ? 'fr' : 'ar');
   const [link, setLink] = useState('');
   const [busy, setBusy] = useState(false);
   const create = async () => {
     setBusy(true);
     try {
-      const r = await forme.invite(name.trim(), lang); setLink(r.link);
+      const r = await forme.invite(name.trim(), lang, who); setLink(r.link);
       try { if (navigator.share) await navigator.share({ title: 'FORME', text: lang === 'ar' ? 'تطبيقكِ للرياضة 💪' : 'Ton appli sport 💪', url: r.link }); else { await navigator.clipboard.writeText(r.link); toast('Lien copié'); } } catch { /* partage annulé */ }
     } catch (e) { toast(errText(e)); } finally { setBusy(false); }
   };
   return (
     <div style={{ ...card, marginTop: 14 }}>
-      <div style={{ fontWeight: 800 }}>👫 L'appli de ma femme</div>
-      <div style={{ fontSize: 13, color: F.muted, margin: '4px 0 10px', lineHeight: 1.4 }}>Elle a SA propre FORME (séances, exercices, scanner, photos, Wegovy), en arabe littéraire ou en français. Vous ne voyez pas le suivi de l'autre.{o.femme?.active ? ' ✅ Accès actif.' : ''}</div>
+      <div style={{ fontWeight: 800 }}>{who === 'ami' ? '🤝 L\'appli de mon ami' : '👫 L\'appli de ma femme'}</div>
+      <div style={{ fontSize: 13, color: F.muted, margin: '4px 0 10px', lineHeight: 1.4 }}>{who === 'ami' ? 'Il a SA propre FORME : séances, exercices, scanner, photos, course GPS avec carte et records. Rien en commun avec la tienne : tu ne vois pas son suivi, il ne voit pas le tien, Dzaryx ne le lit pas.' : 'Elle a SA propre FORME (séances, exercices, scanner, photos, Wegovy, course GPS), en arabe littéraire ou en français. Vous ne voyez pas le suivi de l\'autre.'}{st?.active ? ' ✅ Accès actif.' : ''}</div>
       <input value={name} onChange={e => setName(e.target.value)} placeholder="Son prénom" style={{ ...input, marginBottom: 8 }} />
       <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}><Chip on={lang === 'ar'} onClick={() => setLang('ar')}>العربية (principale)</Chip><Chip on={lang === 'fr'} onClick={() => setLang('fr')}>Français</Chip></div>
-      <button disabled={busy || !name.trim()} onClick={create} style={{ ...btn, width: '100%', opacity: name.trim() ? 1 : 0.5 }}>{o.femme?.active ? '🔗 Nouveau lien (coupe l\'ancien)' : '🔗 Créer et envoyer son lien'}</button>
+      <button disabled={busy || !name.trim()} onClick={create} style={{ ...btn, width: '100%', opacity: name.trim() ? 1 : 0.5 }}>{st?.active ? '🔗 Nouveau lien (coupe l\'ancien)' : '🔗 Créer et envoyer son lien'}</button>
       {link && <div style={{ fontSize: 12, wordBreak: 'break-all', color: F.muted, marginTop: 8 }}>{link}</div>}
-      {o.femme?.active && <button onClick={async () => { if (!confirm('Couper son accès ?')) return; await forme.revoke(); toast('Accès coupé'); }} style={{ ...ghostBtn, width: '100%', marginTop: 8 }}>Couper son accès</button>}
+      {st?.active && <button onClick={async () => { if (!confirm('Couper son accès ?')) return; await forme.revoke(who); toast('Accès coupé'); }} style={{ ...ghostBtn, width: '100%', marginTop: 8 }}>Couper son accès</button>}
     </div>
   );
 }
@@ -128,10 +136,11 @@ function Settings({ o, open, onClose, onO, toast }: { o: Overview; open: boolean
       <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}>🌐 Langue · اللغة</div>
       <div style={{ display: 'flex', gap: 6 }}><Chip on={p.lang === 'ar'} onClick={() => void save({ lang: 'ar' })}>العربية</Chip><Chip on={p.lang === 'fr'} onClick={() => void save({ lang: 'fr' })}>Français</Chip></div>
       {o.uid === 'femme' && <div style={{ ...card, padding: '4px 14px', marginTop: 12 }}><Toggle on={p.shareWithDzaryx} onChange={v => void save({ shareWithDzaryx: v })} label="Partager mon suivi avec Dzaryx (l'assistant de Kouider)" /><div style={{ fontSize: 12.5, color: F.muted, padding: '6px 0 10px' }}>Désactivé : ton suivi, tes photos et ton traitement restent rien qu'à toi.</div></div>}
-      {o.uid === 'kouider' && <Invite o={o} toast={toast} />}
+      {o.uid === 'kouider' && <><Invite o={o} toast={toast} /><Invite o={o} toast={toast} who="ami" /></>}
       <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}>🛌 Jours de repos (pas de sport)</div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{[1, 2, 3, 4, 5, 6, 0].map(d => <Chip key={d} on={p.restDays.includes(d)} onClick={() => void save({ restDays: p.restDays.includes(d) ? p.restDays.filter(x => x !== d) : [...p.restDays, d] })}>{DAYS[d]!.slice(0, 3)}</Chip>)}</div>
       {o.uid === 'kouider' && <div style={{ fontSize: 12.5, color: F.muted, marginTop: 6 }}>Tes séances à la salle restent calées par Dzaryx sur ton agenda Google.</div>}
+      {o.uid !== 'ami' && <>
       <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}>💉 Wegovy</div>
       <div style={{ ...card, padding: '4px 14px' }}>
         <Toggle on={p.wegovy.on} onChange={v => void save({ wegovy: { ...p.wegovy, on: v } })} label="Traitement en cours" />
@@ -140,9 +149,10 @@ function Settings({ o, open, onClose, onO, toast }: { o: Overview; open: boolean
         <div style={{ padding: '6px 0 10px' }}><div style={{ fontWeight: 600, marginBottom: 8 }}>Dose prescrite</div><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{o.doses.map(d => <Chip key={d} on={p.wegovy.dose === d} onClick={() => void save({ wegovy: { ...p.wegovy, dose: d } })}>{d}</Chip>)}</div>
           {(p.wegovy.doses?.length ?? 0) > 0 && <div style={{ fontSize: 12.5, color: F.muted, marginTop: 8 }}>Historique : {p.wegovy.doses!.map(x => `${x.dose} (${x.date.slice(8)}/${x.date.slice(5, 7)})`).join(' → ')}</div>}</div>
       </div>
+      </>}
       <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}>🔔 Notifications</div>
       <div style={{ ...card, padding: '4px 14px' }}>
-        <Toggle on={p.notif.injection} onChange={v => void save({ notif: { ...p.notif, injection: v } })} label="Jour d'injection" />
+        {o.uid !== 'ami' && <Toggle on={p.notif.injection} onChange={v => void save({ notif: { ...p.notif, injection: v } })} label="Jour d'injection" />}
         <Toggle on={p.notif.weigh} onChange={v => void save({ notif: { ...p.notif, weigh: v } })} label="Pesée du lundi" />
         <Toggle on={p.weighDaily} onChange={v => void save({ weighDaily: v })} label="… tous les matins" />
         <Toggle on={p.notif.photo} onChange={v => void save({ notif: { ...p.notif, photo: v } })} label="Photo de suivi" />
@@ -202,7 +212,9 @@ export default function App() {
   useEffect(() => { if (!o || embedded || !standalone) return; try { if (typeof Notification !== 'undefined' && Notification.permission === 'granted') void enablePush().catch(() => {}); } catch { /* */ } }, [o?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { try { localStorage.setItem('forme:tab', tab); } catch { /* */ } window.scrollTo({ top: 0 }); }, [tab]);
   useEffect(() => { const f = () => { if (document.visibilityState === 'visible' && authed) void load(); }; document.addEventListener('visibilitychange', f); return () => document.removeEventListener('visibilitychange', f); }, [authed, load]);
-  useEffect(() => { applyLang(o?.profile.lang ?? (formeToken() ? 'ar' : 'fr')); }, [o?.profile.lang]);
+  // Langue : celle du profil, mémorisée sur le téléphone AVANT d'appliquer (sinon arabe par défaut → profil français →
+  // rechargement → arabe… = boucle infinie pour son ami, trouvée au test 01/11)
+  useEffect(() => { const l = o?.profile.lang ?? savedLang() ?? (formeToken() ? 'ar' : 'fr'); if (o) { try { localStorage.setItem(LANG_K, l); } catch { /* */ } const t = formeToken(); if (t && o.uid !== 'kouider') keepInvite(t, l, o.uid); } applyLang(l); }, [o?.profile.lang]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!authed) return <Login onOk={() => setAuthed(true)} />;
   if (!o) return (
@@ -230,6 +242,7 @@ export default function App() {
       <AnimatePresence mode="wait">
         <motion.main key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.16 }}>
           {tab === 'sport' && (o.uid === 'kouider' ? <SportScreen toast={toast} go={setTab} /> : <ProgramSport toast={toast} go={setTab} />)}
+          {tab === 'run' && <RunScreen toast={toast} name={o.profile.name} />}
           {tab === 'food' && <FoodScreen toast={toast} />}
           {tab === 'library' && <LibraryScreen />}
           {tab === 'scan' && <ScanScreen toast={toast} />}
