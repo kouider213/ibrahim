@@ -38,7 +38,11 @@ export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok
     return Number.isFinite(n) && n > 0 ? (n > 24 * 60 ? n / 3600 : n > 24 ? n / 60 : n) : 0;   // nombre seul : secondes / minutes / heures
   };
   const sleepRaw = pick(/sleep|sommeil/i);
-  const sleepHL = String(sleepRaw ?? '').split(/[\n;]+/).map(durH).filter(x => x > 0 && x < 24);
+  // 01/11 : la « Durée » du Raccourci arrive en nombres seuls → l'unité se décide sur TOUTE la liste (une phase de 15 min = 900 s ne doit pas être lue « 900 min »)
+  const sleepLines = String(sleepRaw ?? '').split(/[\n;]+/).map(x => x.trim()).filter(Boolean);
+  const bare = sleepLines.filter(x => /^[\d.,]+$/.test(x)).map(x => Number(x.replace(',', '.')));
+  const unit = bare.length ? (Math.max(...bare) > 24 * 60 ? 3600 : Math.max(...bare) > 24 ? 60 : 1) : 1;
+  const sleepHL = sleepLines.map(x => /^[\d.,]+$/.test(x) ? Number(x.replace(',', '.')) / unit : durH(x)).filter(x => x > 0 && x < 24);
   const stepsL = nums(pick(/step|^pas/i)), hrvL = nums(pick(/variab|hrv|vfc/i)), rhrL = nums(pick(/rest\w*_?(heart|hr|card)|repos|rhr/i)), sleepL = sleepHL;
   // 28/10 : montre = calories actives, poids (balance), entraînements (noms + durées) — Kouider ne dort pas avec sa montre
   const kcalL = nums(pick(/active|actif|calor|kcal/i)), weightL = nums(pick(/weight|poids|body_?mass|masse/i));
