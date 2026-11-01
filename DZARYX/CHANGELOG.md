@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-01 — Promesses : auto-clôture + « tout est réglé »
+- Promesse rappelée sans réponse depuis 3 jours → fermée seule ; la Conscience ne parle plus des promesses en retard de plus de 2 jours.
+- Outil promesses : action done_all (« toutes mes promesses sont faites », « tout est réglé »).
+
 ## 2026-11-01 — B052 : fausses promesses en retard
 - Gardien des promesses : ignore les promesses vagues / déjà faites / refus déjà donnés ; toutes les anciennes marquées tenues (Kouider : « tout est réglé »).
 

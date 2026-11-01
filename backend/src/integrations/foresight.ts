@@ -105,12 +105,14 @@ export async function jobPromises(): Promise<string> {
       { label: 'Rappelle-moi demain', tool: 'promesses', input: { action: 'snooze', id: p.id } },
     ]);
   }
+  // Rappelée une fois avec boutons, sans réponse depuis 3 jours → considérée réglée (le 01/11 : 5 « promesses en retard » déjà faites)
+  for (const p of list) if (!p.done && p.reminded && Date.now() - Date.parse(p.due) > 3 * 86_400_000) p.done = true;
   await kvPut('promises', list.filter(x => !x.done || Date.now() - Date.parse(x.due) < 14 * 86_400_000).slice(-150));
   return `${n} nouvelle(s)`;
 }
 
 export async function promisesDue(): Promise<string[]> {
-  return (await kvJson<Promise_[]>('promises', [])).filter(p => !p.done && Date.parse(p.due) - Date.now() < 6 * 3600_000).map(p => `${p.to} : ${p.what} (pour ${p.due.replace('T', ' ')})`);
+  return (await kvJson<Promise_[]>('promises', [])).filter(p => !p.done && Date.parse(p.due) - Date.now() < 6 * 3600_000 && Date.now() - Date.parse(p.due) < 2 * 86_400_000).map(p => `${p.to} : ${p.what} (pour ${p.due.replace('T', ' ')})`);
 }
 
 export async function promisesTool(input: Record<string, unknown>): Promise<string> {
@@ -121,6 +123,12 @@ export async function promisesTool(input: Record<string, unknown>): Promise<stri
     list.push({ id: uid(), to: String(input['to'] ?? '?'), what: String(input['what'] ?? ''), due: String(input['due'] ?? new Date(Date.now() + 86_400_000).toISOString().slice(0, 16)), source: 'manuel' });
     await kvPut('promises', list);
     return `🤝 Noté : promesse à ${input['to']} — ${input['what']}. Je te la rappelle avant l'échéance.`;
+  }
+  if (a === 'done_all') {
+    const n = list.filter(p => !p.done).length;
+    for (const p of list) p.done = true;
+    await kvPut('promises', list);
+    return n ? `✅ ${n} promesse(s) marquée(s) tenue(s). Plus rien en attente.` : '🤝 Aucune promesse en cours.';
   }
   if (a === 'done' || a === 'snooze') {
     const p = find();
