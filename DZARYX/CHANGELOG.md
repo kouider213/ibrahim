@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-01 — Règle Kouider : 1re réponse location = dates + âge
+- Brouillons WhatsApp, lecture d'une discussion (appel/Telegram) et gardien de nuit : à une demande de location, la PREMIÈRE réponse demande toujours les dates (début/fin) et l'âge du conducteur, sans liste de voitures ni prix. Filet : si le brouillon l'oublie, la question est ajoutée (FR ou arabe).
+
 ## 2026-11-01 — B049 : brouillon WhatsApp jamais montré + faux « pas accès aux données »
 - Garde fast-path : le motif argent `[\d\s,]+\s*(da|€…)` matchait « dans », « dates » (aucun chiffre requis) → réponses légitimes remplacées par « ⚠️ Je n'ai pas accès aux données en temps réel ». Chiffre + fin de mot obligatoires ; montants donnés par Kouider lui-même = pas bloqués.
 - « Montre / monte-moi le message » → le brouillon WhatsApp en attente est affiché tel quel (sans IA) et reste en attente (« oui » l'envoie).
