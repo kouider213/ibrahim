@@ -327,6 +327,8 @@ export async function snapshot(): Promise<Record<string, unknown>> {
     salle_de_crise: crisis ? `${crisis.title} — ${crisis.steps.filter(s => !s.done).length} étape(s) restante(s)` : null,
     kouider_a_dit_2h: ((said ?? []) as Array<{ content: string; created_at: string }>).map(t => `${localNow(Date.parse(t.created_at)).hhmm} ${String(t.content).replace(/^\[[^\]]{20,}\]\s*/s, '').slice(0, 200)}`),
     deja_envoye_3h: sent.filter(s => Date.now() - s.at < 3 * 3600_000).map(s => s.text.slice(0, 140)),
+    // Sujets qu'il a laissés sans réponse : ne pas les relancer (« 3 refus clients » répété 5× en 24 h, 30/10)
+    ignores_24h: (await kvJson<Nudge[]>(LOG, [])).filter(n => n.reacted === false && Date.now() - n.at < 86_400_000).map(n => n.text.slice(0, 120)),
   };
 }
 
@@ -354,6 +356,7 @@ export async function jobConscience(): Promise<string> {
     + `Sa position (lieu) est la vérité : « work » = il est à son poste de travail, c'est normal, jamais un retard ; ne lui annonce pas un RDV ailleurs pendant qu'il y est sauf s'il est noté hors travail. `
     + `Les dates sont déjà écrites en relatif (aujourd'hui / hier / demain) : ne dis JAMAIS qu'une chose se passe aujourd'hui si elle est notée « hier ». Une location « EN COURS » est déjà partie : ne parle pas de son départ. Un message WhatsApp reçu hier n'est pas « nouveau ». `
     + `Ce que Kouider a dit (kouider_a_dit_2h) PRIME sur l'agenda : s'il a dit qu'il n'a pas de RDV, qu'il est au travail ou que c'est réglé, n'en reparle plus. Son travail n'est jamais un « RDV ». `
+    + `Un sujet présent dans ignores_24h (il ne l'a pas relevé) ne se relance PAS, même reformulé, sauf danger réel ou échéance dans moins d'une heure. `
     + `Pas de redite de ce qui a déjà été envoyé ces 3 h. Pas de banalité, pas de motivation creuse, pas de « bonne journée ». Si rien d'utile → speak:false (c'est le cas le plus fréquent).\n`
     + `Réponds UNIQUEMENT en JSON : {"speak":true|false,"kind":"type court (ex. retard-rdv, client-aeroport, promesse, sante, argent, famille, decision)","urgency":1|2|3,"text":"ce que tu lui dis, 1 à 3 phrases, tutoiement, concret","options":[{"label":"bouton court","tool":"outil Dzaryx facultatif","input":{}}]} (options facultatives, 2-3 max, seulement si un simple choix permet d'agir ; "tool" = UNIQUEMENT un vrai nom d'outil Dzaryx (ex. promesses avec input {"action":"list"}), sinon ne mets pas de "tool").`,
     { max: 500 }));
@@ -362,6 +365,9 @@ export async function jobConscience(): Promise<string> {
   const kind = String(o.kind ?? 'autre').slice(0, 30);
   // Jamais deux fois le même sujet en 3 h, même « urgent » (le 28/10 : 4 alertes + appels pour un faux RDV)
   if (log.some(n => n.kind === kind && Date.now() - n.at < 3 * 3600_000)) return `tu (${kind} déjà dit)`;
+  // Même type ignoré 2 fois de suite en 24 h → on se tait 24 h sur ce type (hors catégories fourre-tout)
+  const lastSame = log.filter(n => n.kind === kind && Date.now() - n.at < 86_400_000).slice(-2);
+  if (!/^(decision|autre)$/.test(kind) && lastSame.length === 2 && lastSame.every(n => n.reacted === false)) return `tu (${kind} ignoré 2× en 24 h)`;
   // Au travail d'après le GPS → pas d'alerte « retard » (il est déjà là où il doit être)
   if (where === 'work' && /retard|rdv/i.test(kind)) return 'tu (au travail)';
   if (urgency < 3 && (night || snap['bouclier_famille'] || todayN >= MAX_PER_DAY)) return 'tu (limite)';

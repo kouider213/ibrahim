@@ -74,13 +74,16 @@ const PAYMENT_TOOLS = new Set([
 // 01/11 : l'ancien motif `[\d\s,]+\s*(da|…)` n'exigeait ni chiffre ni fin de mot → « dans », « dates », « d'âge et de dates »
 // suffisaient à remplacer la réponse par « je n'ai pas accès aux données » (brouillon WhatsApp jamais montré).
 const MONEY_RE = /\d[\d\s.,]*\s?(?:€|(?:da|dzd|dinars?|euros?)\b)/i;
+// Reprendre/additionner SES montants (« hier j'ai fait 180 € ») : « tu as gagné 2 150 € » n'est pas inventé (01/11 08h49)
+const GAINED_RE = /tu\s+as\s+gagn[eé]/i, REVENUE_RE = /tes\s+revenus?\s+(sont|s['']él[eè]ve)/i;
+const USER_MONEY_OK = new Set<RegExp>([MONEY_RE, GAINED_RE, REVENUE_RE]);
 const FAST_PATH_FORBIDDEN_PATTERNS: RegExp[] = [
   MONEY_RE,
   /\d+\s+r[eé]servations?/i,
   /(disponible|indisponible|en\s+location|occup[eé])\s+(maintenant|actuellement|en\s+ce\s+moment)/i,
   /\d+\s+clients?\s+(actifs?|ce\s+mois|en\s+cours)/i,
-  /tes\s+revenus?\s+(sont|s['']él[eè]ve)/i,
-  /tu\s+as\s+gagn[eé]/i,
+  REVENUE_RE,
+  GAINED_RE,
   /j['']ai\s+(consult[eé]|v[eé]rifi[eé]|regard[eé])\s+(la\s+base|supabase|les\s+donn[eé]es)/i,
   /d['']apr[eè]s\s+(mes|les)\s+donn[eé]es/i,
   /b[eé]n[eé]fice\s+(de|est)\s+[\d,]/i,
@@ -92,7 +95,7 @@ export const FAST_PATH_REFUSAL = '⚠️ Je n\'ai pas accès aux données en tem
 export function fastPathGuard(text: string, userMessage: string, requestId: string): string {
   // Il donne lui-même ses montants (« hier j'ai fait 180 € ») → les reprendre/calculer n'est pas une donnée inventée
   const userGaveMoney = MONEY_RE.test(userMessage);
-  const hasForbiddenClaim = FAST_PATH_FORBIDDEN_PATTERNS.some(p => !(userGaveMoney && p === MONEY_RE) && p.test(text));
+  const hasForbiddenClaim = FAST_PATH_FORBIDDEN_PATTERNS.some(p => !(userGaveMoney && USER_MONEY_OK.has(p)) && p.test(text));
   if (hasForbiddenClaim) {
     console.log(
       `[fast-path-guard:${requestId}] ⛔ FAST_PATH_BLOCKED business data claim without tools` +

@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-01 — B053 : faux refus « pas accès aux données » + Conscience anti-radotage
+- fastPathGuard : « tu as gagné » / « tes revenus » autorisés quand Kouider a lui-même donné des montants ; une somme inventée reste bloquée.
+- Conscience : ignores_24h dans ce qu'elle voit + règle « type ignoré 2× en 24 h → silence 24 h ».
+
 ## 2026-11-01 — Promesses : auto-clôture + « tout est réglé »
 - Promesse rappelée sans réponse depuis 3 jours → fermée seule ; la Conscience ne parle plus des promesses en retard de plus de 2 jours.
 - Outil promesses : action done_all (« toutes mes promesses sont faites », « tout est réglé »).

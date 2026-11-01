@@ -7,6 +7,9 @@
 
 ## Bugs Ouverts 🔴
 
+### B053 — « Je n'ai pas accès aux données » quand Kouider donne ses propres montants + Conscience qui radote (01/11) ✅ FIXÉ
+« Hier j'ai fait 180 €… total 2000 € » (08h49) : la réponse « tu as gagné / tes revenus » restait bloquée malgré B049 → ces formules passent si Kouider a donné les montants (anti-hallucination.ts). Conscience : « 3 refus clients » répété 5× en 24 h, promesses 7× en 3 j → sujets ignorés passés à l'IA (ignores_24h) + même type ignoré 2× en 24 h = silence 24 h (conscience.ts).
+
 ### B052 — « 5 promesses en retard » alors que tout était réglé (01/11) ✅ FIXÉ
 Le détecteur notait des promesses vagues (« objet non précisé », « pour vous », refus déjà donnés, « déjà envoyé »). 10 promesses ouvertes marquées tenues à la demande de Kouider ; filtre + prompt plus stricts (foresight.ts).
 
