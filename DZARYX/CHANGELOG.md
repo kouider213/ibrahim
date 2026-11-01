@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-01 — Sport : changer la séance d'un jour + FORME : calories brûlées et déficit réel + exos maison à 21h
+- « Demain lundi au lieu des épaules je fais les bras » : sport_coach swap accepte le NOM de la séance du programme ; un swap efface aussi une séance dictée (plan_day) ce jour-là et réactive un jour annulé. App FORME › Entraînement : bouton « 🔁 Changer la séance de ce jour » (POST /api/sport/swap).
+- FORME › Repas : carte « 🔥 Calories brûlées aujourd'hui » = brûlé (base + montre) − mangé = déficit réel vs visé, bouton « ⌚ Mettre à jour avec ma montre » (lance le raccourci Dzaryx Santé), bouton « 🏠 Exercices maison » (GET /api/forme/food/burn).
+- 21h (job forme-food) : s'il n'est pas en déficit → bilan + circuit maison sans matériel chiffré en MET (tours de 5 min, 30 min max, sans jambes lourdes ni charge sur le dos). Outil forme action home_burn. Avant 20h45 la dépense montre n'est pas encore envoyée (raccourci à 22h) → ajouter une automatisation 20h45.
+
 ## 2026-11-01 — Retouche IA : bascule gratuite quand le crédit fal est à 0
 - Photo « Max » sans crédit → FLUX Kontext gratuit tout seul. Vidéo : Kling d'abord ; crédit épuisé (avant ou pendant) → Space HF gratuit « Qwen video edit » par tranches de 2,8 s (16 i/s, 368×656 remis en 1080×1920), son d'origine gardé.
 - Limite réelle : quota ZeroGPU gratuit du compte HF ≈ 3 min GPU/jour, 1 tranche ≈ 190 s → ≈ 3 s de vidéo gratuite par jour. Pour du gratuit en volume : Kaggle GPU (vérif téléphone) ou clé Pollinations.

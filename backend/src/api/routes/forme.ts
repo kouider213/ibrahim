@@ -107,6 +107,14 @@ const food = () => import('../../integrations/forme-food.js');
 router.get('/food', async (req, res) => {
   try { const f = await food(); const date = isDate(req.query.date) ? req.query.date : undefined; res.json({ budget: await f.foodBudget(U(req), date), cfg: await f.foodCfg(U(req)) }); } catch (err) { fail(res, err); }
 });
+// GET /api/forme/food/burn — déficit réel (brûlé − mangé) + circuit maison pour le manque
+router.get('/food/burn', async (req, res) => {
+  try {
+    const f = await food(); const uid = U(req); const b = await f.foodBudget(uid); const d = f.deficitStatus(b);
+    const { getFormeProfile } = await import('../../integrations/forme.js');
+    res.json({ status: d, plan: d.missing > 0 && b.mode === 'deficit' ? f.homeBurnPlan(d.missing, (await getFormeProfile(uid)).weightKg) : null });
+  } catch (err) { fail(res, err); }
+});
 router.post('/food/photo', async (req, res) => {
   const b = req.body as { image?: string; thumb?: string; note?: string; slot?: string };
   try {

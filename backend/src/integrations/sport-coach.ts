@@ -711,7 +711,15 @@ export async function sportOverview() {
 export async function setSportOverride(date: string, type: SessionType | null): Promise<void> {
   const st = await getState();
   if (type) st.overrides[date] = type; else delete st.overrides[date];
+  // 01/11 (Kouider : « lundi au lieu des épaules je fais les bras ») : une séance choisie remplace AUSSI une séance
+  // dictée ce jour-là (plan_day), sinon l'ancien nom restait dans l'agenda ; et un jour annulé redevient un jour de sport.
+  const unskip = !!(type && st.skips[date]);
   await saveState(st);
+  if (type) {
+    const all = JSON.parse((await kvGet(CUSTOM_KEY).catch(() => null)) ?? '{}') as Record<string, CustomSession>;
+    if (all[date]) { delete all[date]; await kvSet(CUSTOM_KEY, JSON.stringify(all)); customMap = all; }
+  }
+  if (unskip) await setSportSkip(date, null).catch(() => []);
   await planSportWeek(true);
 }
 /** Jour sans sport : trajet, séance, retour et douche de la routine enlevés de l'agenda ce jour-là (Kouider 20/10). */
@@ -902,7 +910,7 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
   }
   if (action === 'swap') {
     const type = parseType(input['type']);
-    if (!type) return '❌ Quel type ? push, pull, legs, cardio, upper ou core.';
+    if (!type) return `❌ Je ne connais pas la séance « ${String(input['type'] ?? '')} ». Séances du programme : ${ROTATION.map(t => `${SESSIONS[t].emoji} ${SESSIONS[t].label}`).join(', ')}. Redemande avec type = le NOM exact d'une de ces séances.`;
     await setSportOverride(date, type);
     return `✅ ${fmt(date)} : ${SESSIONS[type].emoji} ${SESSIONS[type].label} (agenda mis à jour).`;
   }

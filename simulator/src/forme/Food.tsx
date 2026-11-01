@@ -92,6 +92,8 @@ export default function FoodScreen({ toast, o, onO }: { toast: (t: string) => vo
         <div style={{ fontSize: 11.5, opacity: 0.6, marginTop: 12 }}>Base {b.bmr} + activité {b.active} kcal, {SRC[b.activeSource]}.</div>
       </div>
 
+      {!bulk && <DeficitCard b={b} me={o.uid === 'kouider'} onRefresh={() => void load()} />}
+
       <input ref={cam} type="file" accept="image/*" capture="environment" hidden onChange={e => void go(e.target.files?.[0])} />
       <input ref={lib} type="file" accept="image/*" hidden onChange={e => void go(e.target.files?.[0])} />
 
@@ -209,6 +211,55 @@ function Settings({ cfg, onSave, bulk, kouider, onQuiz, goalMuscle }: { cfg: Foo
         <input type="checkbox" checked={cfg.telegram} onChange={e => onSave({ telegram: e.target.checked })} style={{ width: 22, height: 22 }} />
         <div><div style={{ fontWeight: 600 }}>Messages de Dzaryx sur Telegram</div><div style={{ fontSize: 12.5, color: F.muted }}>Après chaque plat, réveil (sommeil), collations, ce soir, avant de dormir.</div></div>
       </label>}
+    </div>
+  );
+}
+
+// 🔥 Déficit RÉEL (Kouider 01/11 : « il me dit pas combien de calories je brûle, je sais pas si j'atteins mon déficit »)
+// Brûlé (base + montre) − mangé = déficit réel, comparé au déficit visé ; s'il manque des kcal → circuit maison chiffré.
+type BurnPlan = NonNullable<Awaited<ReturnType<typeof forme.foodBurn>>['plan']>;
+function DeficitCard({ b, me, onRefresh }: { b: FoodBudget; me: boolean; onRefresh: () => void }) {
+  const [plan, setPlan] = useState<BurnPlan | null>(null);
+  const [busy, setBusy] = useState(false);
+  const real = b.burn - b.eaten.kcal, goal = b.deficit, missing = Math.max(0, goal - real), ok = missing <= 30;
+  const measured = b.activeSource === 'montre';
+  useEffect(() => {   // retour du Raccourci Santé → on recharge
+    const f = () => { if (document.visibilityState === 'visible') onRefresh(); };
+    document.addEventListener('visibilitychange', f); return () => document.removeEventListener('visibilitychange', f);
+  }, [onRefresh]);
+  const showPlan = async () => { setBusy(true); try { setPlan((await forme.foodBurn()).plan); } catch { /* garde l'écran */ } finally { setBusy(false); } };
+  const cell = (label: string, v: string, color?: string) => (
+    <div style={{ flex: 1, minWidth: 0, textAlign: 'center' }}>
+      <div style={{ fontSize: 12, color: F.muted }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color: color ?? F.ink }}>{v}</div>
+    </div>
+  );
+  return (
+    <div style={{ ...card, marginBottom: 14 }}>
+      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 10 }}>🔥 Calories brûlées aujourd'hui</div>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        {cell('Brûlé', String(b.burn), '#e8590c')}
+        <div style={{ color: F.muted, fontWeight: 700 }}>−</div>
+        {cell('Mangé', String(b.eaten.kcal))}
+        <div style={{ color: F.muted, fontWeight: 700 }}>=</div>
+        {cell('Déficit', real >= 0 ? String(real) : `+${-real}`, ok ? F.green : F.red)}
+      </div>
+      <div style={{ marginTop: 10 }}><Bar value={Math.max(0, real)} max={Math.max(1, goal)} color={ok ? F.green : '#e8590c'} /></div>
+      <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 8, color: ok ? F.green : F.red }}>
+        {ok ? `✅ Déficit atteint (${real} / ${goal} kcal visés)` : real < 0 ? `⚠️ Tu as mangé ${-real} kcal de plus que ta dépense — il manque ${missing} kcal pour ton déficit` : `⚠️ Déficit ${real} / ${goal} kcal — il manque ${missing} kcal`}
+      </div>
+      <div style={{ fontSize: 12, color: F.muted, marginTop: 4 }}>Base {b.bmr} + activité {b.active} kcal — {measured ? 'mesurée par ta montre ⌚' : 'estimation : ta montre n\'a pas encore envoyé ta journée'}.</div>
+      {me && !measured && <a href={`shortcuts://run-shortcut?name=${encodeURIComponent('Dzaryx Santé')}`} style={{ ...ghostBtn, display: 'block', textAlign: 'center', textDecoration: 'none', marginTop: 10, color: F.ink }}>⌚ Mettre à jour avec ma montre</a>}
+      {!ok && !plan && <button onClick={() => void showPlan()} disabled={busy} style={{ ...btn, width: '100%', marginTop: 10 }}>{busy ? '…' : '🏠 Exercices maison pour l\'atteindre'}</button>}
+      {plan && (
+        <div style={{ marginTop: 12, background: F.bg, borderRadius: 16, padding: 12 }}>
+          <div style={{ fontWeight: 700 }}>{plan.rounds} tour{plan.rounds > 1 ? 's' : ''} de 5 min = {plan.minutes} min ≈ {plan.rounds * plan.perRound} kcal</div>
+          {plan.circuit.map((c, i) => <div key={i} style={{ fontSize: 13.5, marginTop: 6 }}><b>{i + 1}. {c.name}</b><br /><span style={{ color: F.muted }}>{c.how}</span></div>)}
+          <div style={{ fontSize: 13, marginTop: 8 }}>30 s pour boire entre deux tours. Ou : {plan.walkMin} min de marche rapide dehors.</div>
+          {plan.capped && <div style={{ fontSize: 13, marginTop: 6, color: F.muted }}>Il manque plus que ce qu'on brûle raisonnablement ce soir : fais les {plan.minutes} min, le reste n'est pas grave, demain on reprend (ne saute pas de repas).</div>}
+          <div style={{ fontSize: 12, marginTop: 6, color: F.muted }}>Douleur au dos ou vertige → stop.</div>
+        </div>
+      )}
     </div>
   );
 }

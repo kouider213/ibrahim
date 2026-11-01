@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { apiFetch, type SportOverview, type SportSession, type SportExercise } from '../services/api.ts';
+import { apiFetch, type SportOverview, type SportSession, type SportExercise, type SportType } from '../services/api.ts';
 import { errText, SHORT_DAYS, dayOf, vibrate, forme, type ProgramView, type LibItem, type Routine, type RoutineEx, type ExSet } from './api.ts';
 import { F, card, btn, ghostBtn, input, Sheet, Spinner } from './ui.tsx';
 import { ExerciseSheet, Anim, RecoveryMap, LibraryPicker, COACH_TO_GROUP } from './Exercises.tsx';
@@ -541,6 +541,7 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
       <TodayForm />
       {s ? <SessionCard s={s} kicker={isToday ? "Aujourd'hui" : `${pick ? '' : 'Prochaine · '}${SHORT_DAYS[dayOf(s.date)]} ${s.date.slice(8)} · ${new Date(s.start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })}`} onStart={() => setPlay(s)} onEx={setEx} start={isToday ? 'Démarrer l\'entraînement' : 'Voir / faire cette séance'} />
         : <div style={{ ...card, marginTop: 14 }}>Pas de séance prévue cette semaine. Dis à Dzaryx « cale mes séances » 💬</div>}
+      {s && s.date >= (today ?? '') && d.week.find(w => w.date === s.date)?.status !== 'done' && <SwapRow d={d} date={s.date} current={s.type} toast={toast} onD={x => { setD(x); setPick(s.date); }} />}
       {s && <>
         <H2 right={<span style={{ fontSize: 13, color: F.muted }}>{s.exercises.length}</span>}>Exercices</H2>
         <div style={{ ...card, padding: '4px 14px' }}>{s.exercises.map((e, k) => <div key={e.id} style={{ borderBottom: k < s.exercises.length - 1 ? `1px solid ${F.line}` : 'none' }}><ExRow e={e} onClick={() => setEx(e)} /></div>)}</div>
@@ -632,6 +633,38 @@ export function ProgramSport({ toast, go }: { toast: (t: string) => void; go?: (
         await forme.log('workout', { session: s.index, label: s.label, sets, durationMin, rpe });
         return '💪 Séance enregistrée';
       }} />}
+    </div>
+  );
+}
+
+// 🔁 Changer la séance d'un jour (Kouider 01/11 : « demain lundi au lieu des épaules je veux faire les bras ») —
+// même chose que dire à Dzaryx : agenda, appel du matin et rotation suivent.
+function SwapRow({ d, date, current, toast, onD }: { d: SportOverview; date: string; current: SportType; toast: (t: string) => void; onD: (d: SportOverview) => void }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const pickType = async (t: SportType) => {
+    if (t === current) { setOpen(false); return; }
+    setBusy(t); vibrate(15);
+    try {
+      const r = await apiFetch<SportOverview>('/api/sport/swap', { method: 'POST', body: JSON.stringify({ date, type: t }) });
+      onD(r); setOpen(false); toast(`✅ ${SHORT_DAYS[dayOf(date)]} ${Number(date.slice(8))} : ${d.sessions[t]?.label ?? t} (agenda mis à jour)`);
+    } catch (e) { toast(`❌ ${errText(e)}`); } finally { setBusy(null); }
+  };
+  return (
+    <div style={{ marginTop: 10 }}>
+      {!open ? <button onClick={() => setOpen(true)} style={{ ...ghostBtn, width: '100%' }}>🔁 Changer la séance de ce jour</button> : (
+        <div style={{ ...card }}>
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>Ce jour-là je fais…</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {(Object.keys(d.sessions) as SportType[]).map(t => (
+              <button key={t} disabled={!!busy} onClick={() => void pickType(t)} style={{ ...ghostBtn, padding: '9px 14px', fontSize: 14, border: t === current ? `2px solid ${F.accent}` : undefined, opacity: busy && busy !== t ? 0.5 : 1 }}>
+                {busy === t ? '…' : `${d.sessions[t]!.emoji} ${d.sessions[t]!.label}`}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: F.muted, marginTop: 8, fontFamily: 'inherit', cursor: 'pointer' }}>Annuler</button>
+        </div>
+      )}
     </div>
   );
 }

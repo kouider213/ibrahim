@@ -142,6 +142,55 @@ export function burnEquivalent(kcal: number, kg: number): string {
   return `≈ ${walkMin} min de marche rapide, ou ${stairsMin} min d'escaliers / tapis incliné${pompes <= 150 ? `, ou ${pompes} pompes (en séries de 10-15)` : ''}`;
 }
 
+// ── 🔥 Déficit RÉEL du jour + exercices maison (Kouider 01/11) ─────────────
+// « il me montre les calories mais pas combien j'en brûle → je sais pas si j'atteins mon déficit ; vers 21h si je ne suis
+// pas en déficit il doit me donner des exercices, sachant que je suis à la maison ». Brûlé = base + montre ; déficit réel =
+// brûlé − mangé ; manque = déficit visé − déficit réel. Circuit sans matériel, calculé en MET (pas d'IA = toujours dispo, gratuit),
+// intensité modérée (il se couche tôt : rien d'explosif juste avant le lit), jamais de jambes lourdes ni de charge sur le dos.
+export interface DeficitStatus { burned: number; eaten: number; real: number; goal: number; missing: number; ok: boolean; measured: boolean }
+export function deficitStatus(b: Budget): DeficitStatus {
+  const real = b.burn - b.eaten.kcal;
+  const goal = b.deficit;
+  const missing = Math.max(0, goal - real);
+  return { burned: b.burn, eaten: b.eaten.kcal, real, goal, missing, ok: missing <= 30, measured: b.activeSource === 'montre' };
+}
+export interface HomeBurn { kcal: number; minutes: number; rounds: number; perRound: number; circuit: Array<{ name: string; how: string }>; walkMin: number; capped: boolean; text: string }
+const CIRCUIT = [
+  { name: 'Marche rapide sur place', how: '1 min, genoux à hauteur des hanches, bras actifs', met: 4.5 },
+  { name: 'Jumping jacks (ou pas chassés)', how: '1 min, sans sauter si ça tire au dos', met: 7.5 },
+  { name: 'Shadow boxing', how: '1 min, directs + crochets, poings rapides', met: 6 },
+  { name: 'Pompes', how: '45 s (sur les genoux si besoin) + 15 s de repos', met: 4 },
+  { name: 'Gainage planche', how: '45 s + 15 s de repos, ventre serré, dos droit', met: 3.8 },
+];
+export function homeBurnPlan(kcal: number, kg: number): HomeBurn {
+  const perMin = (met: number) => met * 3.5 * kg / 200;
+  const perRound = Math.round(CIRCUIT.reduce((a, c) => a + perMin(c.met), 0));        // 5 min par tour
+  const want = Math.max(1, Math.ceil(kcal / perRound));
+  const rounds = Math.min(6, want);                                                     // 30 min max le soir
+  const minutes = rounds * 5;
+  const walkMin = Math.round(kcal / perMin(4.3));
+  const capped = want > rounds;
+  const text = [`🏠 Circuit maison (sans matériel) : ${rounds} tour${rounds > 1 ? 's' : ''} de 5 min = ${minutes} min ≈ ${rounds * perRound} kcal`,
+    ...CIRCUIT.map((c, i) => `${i + 1}. ${c.name} — ${c.how}`),
+    'Entre deux tours : 30 s pour boire. Commence doucement le 1er tour (échauffement).',
+    `Ou à la place : ${walkMin} min de marche rapide dehors (≈ 6 km/h).`,
+    capped ? `⚠️ Il manque ${kcal} kcal : plus que ce qu'on brûle raisonnablement ce soir. Fais les ${minutes} min, et le reste n'est pas grave : demain on reprend normalement (jamais sauter un repas pour compenser).` : '',
+    'Douleur au dos ou vertige → stop.'].filter(Boolean).join('\n');
+  return { kcal, minutes, rounds, perRound, circuit: CIRCUIT.map(({ name, how }) => ({ name, how })), walkMin, capped, text };
+}
+/** Message du soir (21h) ou à la demande : déficit tenu ? sinon les exercices maison pour l'atteindre. */
+export async function deficitCheckText(uid: Uid = 'kouider', forJob = false): Promise<string | null> {
+  const b = await foodBudget(uid);
+  if (b.mode !== 'deficit') return forJob ? null : 'Objectif prise de masse : pas de déficit à atteindre.';
+  const d = deficitStatus(b);
+  if (forJob && !b.meals.length) return null;    // rien noté aujourd'hui : on ne peut pas juger, on ne l'embête pas
+  const src = d.measured ? 'mesuré par ta montre' : 'estimé : ta montre n\'a pas encore envoyé ta journée, lance le raccourci « Dzaryx Santé » pour le chiffre exact';
+  const head = `🔥 Bilan ${localNow().hhmm}\nBrûlé : ${d.burned} kcal (${src})\nMangé : ${d.eaten} kcal\n→ Déficit réel : ${d.real >= 0 ? d.real : `0 (tu es ${-d.real} kcal AU-DESSUS de ta dépense)`} / ${d.goal} kcal visés`;
+  if (d.ok) return forJob ? null : `${head}\n✅ Déficit atteint, bravo ! Rien à rattraper ce soir.`;
+  const kg = (await getFormeProfile(uid)).weightKg;
+  return `${head}\n⚠️ Il te manque ${d.missing} kcal pour ton déficit.\n\n${homeBurnPlan(d.missing, kg).text}\n\nDis-moi « c'est fait » quand tu as fini 💪`;
+}
+
 // ── Photo d'un plat → aliments + macros ─────────────────────────────────────
 export const VISION_PROMPT = (note: string) => `Tu es un nutritionniste expert du comptage de calories par photo (comme l'appli Cal AI), spécialiste de la cuisine algérienne / maghrébine (couscous, chorba, hrira, karantika, rechta, chakhchoukha, loubia, mhadjeb, garantita, tajines, msemen, kesra, bourek, makrout…), belge et fast-food halal (tacos, kebab, pizza…).
 Regarde la photo et liste CHAQUE aliment visible. Pour chacun, estime le POIDS en grammes à partir des repères (assiette ~26 cm, couverts, main, emballage, verre 25 cl), en comptant l'huile / le beurre / la sauce de cuisson probables, puis calcule kcal, protéines, glucides et lipides avec les tables nutritionnelles classiques (CIQUAL / USDA).
@@ -400,6 +449,8 @@ export async function jobFoodCoach(): Promise<string> {
       : `Dis-lui « pour ce soir il te reste ${x.left} kcal et ${x.proteinLeft} g de protéines » et propose 2 dîners halal précis chiffrés qui tiennent dedans (portion en grammes). 4 lignes max.`;
     return `🍲 Ce soir\n${await coachSay(budgetFacts(x), ask, 350)}`;
   })) sent.push('dîner');
+  // 21h : pas en déficit → exercices maison pour l'atteindre (avant le message du coucher)
+  if (at('21:00') && !at('22:00') && await once('deficit-21h', date, () => deficitCheckText('kouider', true))) sent.push('déficit 21h');
   if (at('21:00') && !at('22:30') && await once('evening', date, eveningSleepMessage)) sent.push('soir');
   return sent.join(', ') || 'rien';
 }
@@ -409,5 +460,5 @@ export async function foodText(): Promise<string> {
   const cfg = await foodCfg();
   if (!cfg.on) return 'COMPTEUR CALORIES FORME : coupé par Kouider.';
   const b = await foodBudget('kouider');
-  return `COMPTEUR CALORIES (FORME → Repas, photo du plat ; objectif = rester en DÉFICIT) : ${b.eaten.kcal}/${b.target} kcal aujourd'hui (dépense ${b.burn}, déficit visé ${b.deficit}), protéines ${b.eaten.p}/${b.proteinGoal} g, reste ${b.left} kcal.${b.meals.length ? ` Repas : ${b.meals.map(m => `${m.time} ${m.title} ${m.kcal} kcal`).join(' ; ')}.` : ''} Outil forme : meal_photo (photo de plat sur Telegram), meal_text (« j'ai mangé… »), food_check (« si je mange ça ? »), food_today, food_settings.`;
+  return `COMPTEUR CALORIES (FORME → Repas, photo du plat ; objectif = rester en DÉFICIT) : ${b.eaten.kcal}/${b.target} kcal aujourd'hui (dépense ${b.burn}, déficit visé ${b.deficit}), protéines ${b.eaten.p}/${b.proteinGoal} g, reste ${b.left} kcal.${b.meals.length ? ` Repas : ${b.meals.map(m => `${m.time} ${m.title} ${m.kcal} kcal`).join(' ; ')}.` : ''} ${(() => { const d = deficitStatus(b); return ` BRÛLÉ aujourd'hui ${d.burned} kcal (${d.measured ? 'montre' : 'estimé'}) − mangé ${d.eaten} = DÉFICIT RÉEL ${d.real} / ${d.goal} visés${d.ok ? ' ✅' : ` → il manque ${d.missing} kcal`}.`; })()} Outil forme : meal_photo (photo de plat sur Telegram), meal_text (« j'ai mangé… »), food_check (« si je mange ça ? »), food_today, food_settings, home_burn (« je suis en déficit ? », « donne-moi des exos pour mon déficit » → bilan brûlé/mangé + circuit maison chiffré).`;
 }

@@ -940,6 +940,7 @@ export async function formeTool(input: Record<string, unknown>): Promise<string>
     if (a === 'food_check') return await f.checkFood(String(input.text ?? input.question ?? ''));
     if (a === 'food_today') return `${await f.foodText()}\n${f.budgetFacts(await f.foodBudget('kouider', typeof input.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? input.date : undefined))}`;
     if (a === 'food_settings') { const c = await f.setFoodCfg({ ...(input.deficit != null ? { deficit: Number(input.deficit) } : {}), ...(input.on != null ? { on: !!input.on } : {}), ...(input.telegram != null ? { telegram: !!input.telegram } : {}) }); return `✅ Calories : ${c.on ? 'actif' : 'coupé'}, déficit visé ${c.deficit} kcal/j, messages Telegram ${c.telegram ? 'oui' : 'non'}.`; }
+    if (a === 'home_burn') return (await f.deficitCheckText('kouider')) ?? 'Pas de bilan.';
     if (a === 'food_morning') return (await f.morningSleepMessage(true)) ?? 'Pas de message (cerveau indisponible).';
   }
   if (a === 'profile') {
