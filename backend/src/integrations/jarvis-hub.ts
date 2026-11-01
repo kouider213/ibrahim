@@ -42,7 +42,14 @@ export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok
   const sleepLines = String(sleepRaw ?? '').split(/[\n;]+/).map(x => x.trim()).filter(Boolean);
   const bare = sleepLines.filter(x => /^[\d.,]+$/.test(x)).map(x => Number(x.replace(',', '.')));
   const unit = bare.length ? (Math.max(...bare) > 24 * 60 ? 3600 : Math.max(...bare) > 24 ? 60 : 1) : 1;
-  const sleepHL = sleepLines.map(x => /^[\d.,]+$/.test(x) ? Number(x.replace(',', '.')) / unit : durH(x)).filter(x => x > 0 && x < 24);
+  // Format réel 01/11 (« Durée » des phases) : « 5:28 » = 5 min 28 s, « 1:06:39 » = h:min:s, « 59 » = 59 s → en liste, « a:b » = min:s
+  const clock = (x: string): number | null => {
+    const m = /^(\d+):(\d{1,2})(?::(\d{1,2}))?$/.exec(x);
+    if (!m) return null;
+    return m[3] != null ? Number(m[1]) + Number(m[2]) / 60 + Number(m[3]) / 3600 : sleepLines.length > 1 ? (Number(m[1]) * 60 + Number(m[2])) / 3600 : Number(m[1]) + Number(m[2]) / 60;
+  };
+  const listSec = sleepLines.length > 1 && sleepLines.some(x => /^\d+:\d{1,2}(:\d{1,2})?$/.test(x));   // phases du Raccourci : nombres seuls = secondes
+  const sleepHL = sleepLines.map(x => clock(x) ?? (/^[\d.,]+$/.test(x) ? Number(x.replace(',', '.')) / (listSec ? 3600 : unit) : durH(x))).filter(x => x > 0 && x < 24);
   const stepsL = nums(pick(/step|^pas/i)), hrvL = nums(pick(/variab|hrv|vfc/i)), rhrL = nums(pick(/rest\w*_?(heart|hr|card)|repos|rhr/i)), sleepL = sleepHL;
   // 28/10 : montre = calories actives, poids (balance), entraînements (noms + durées) — Kouider ne dort pas avec sa montre
   const kcalL = nums(pick(/active|actif|calor|kcal/i)), weightL = nums(pick(/weight|poids|body_?mass|masse/i));
