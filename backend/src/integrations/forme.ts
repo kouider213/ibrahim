@@ -937,6 +937,7 @@ export async function formeTool(input: Record<string, unknown>): Promise<string>
     const f = await import('./forme-food.js');
     if (a === 'meal_photo') return await f.mealFromTelegram(String(input.note ?? input.question ?? ''));
     if (a === 'meal_text') { const r = await f.logMealText('kouider', String(input.text ?? input.question ?? '')); return `${r.message}\n\n(enregistré dans FORME et déjà envoyé sur son Telegram)`; }
+    if (a === 'meal_fix') return await f.fixMeal('kouider', String(input.text ?? input.question ?? ''), { date: typeof input.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? input.date : undefined });
     if (a === 'food_check') return await f.checkFood(String(input.text ?? input.question ?? ''));
     if (a === 'food_today') return `${await f.foodText()}\n${f.budgetFacts(await f.foodBudget('kouider', typeof input.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? input.date : undefined))}`;
     if (a === 'food_settings') { const c = await f.setFoodCfg({ ...(input.deficit != null ? { deficit: Number(input.deficit) } : {}), ...(input.on != null ? { on: !!input.on } : {}), ...(input.telegram != null ? { telegram: !!input.telegram } : {}) }); return `✅ Calories : ${c.on ? 'actif' : 'coupé'}, déficit visé ${c.deficit} kcal/j, messages Telegram ${c.telegram ? 'oui' : 'non'}.`; }

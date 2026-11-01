@@ -19,7 +19,7 @@ export interface FoodPart { name: string; grams: number; kcal: number; p: number
 export interface MealLog {
   id: string; at: number; date: string; time: string; slot: MealSlot; title: string;
   items: FoodPart[]; kcal: number; p: number; c: number; f: number;
-  confidence: 'haute' | 'moyenne' | 'basse'; note?: string; thumb?: string; src: 'photo' | 'texte'; coach?: string;
+  confidence: 'haute' | 'moyenne' | 'basse'; note?: string; assumptions?: string; question?: string; thumb?: string; src: 'photo' | 'texte'; coach?: string;
 }
 export interface FoodCfg { on: boolean; deficit: number; telegram: boolean }
 export interface Budget {
@@ -75,7 +75,7 @@ async function activeFor(date: string): Promise<{ kcal: number; source: Budget['
   // Valeur de la montre = journée complète seulement le soir (envoi 22h) ou un jour passé ; un envoi du matin
   // (réveil) ne compte que quelques kcal → on garde la moyenne tant que la journée n'est pas finie.
   const dayDone = date < localNow().date || localNow().hhmm >= '20:00';
-  if (today > 50 && (dayDone || today >= med)) return { kcal: r0(today), source: 'montre' };
+  if (today > 50 && (dayDone || (med > 0 && today >= med))) return { kcal: r0(today), source: 'montre' };
   if (med) return { kcal: r0(Math.max(med, woK + 200, today)), source: 'moyenne' };
   return { kcal: r0(Math.max(350, woK + 250, today)), source: 'estimation' };
 }
@@ -194,22 +194,26 @@ export async function deficitCheckText(uid: Uid = 'kouider', forJob = false): Pr
 // ── Photo d'un plat → aliments + macros ─────────────────────────────────────
 export const VISION_PROMPT = (note: string) => `Tu es un nutritionniste expert du comptage de calories par photo (comme l'appli Cal AI), spécialiste de la cuisine algérienne / maghrébine (couscous, chorba, hrira, karantika, rechta, chakhchoukha, loubia, mhadjeb, garantita, tajines, msemen, kesra, bourek, makrout…), belge et fast-food halal (tacos, kebab, pizza…).
 Regarde la photo et liste CHAQUE aliment visible. Pour chacun, estime le POIDS en grammes à partir des repères (assiette ~26 cm, couverts, main, emballage, verre 25 cl), en comptant l'huile / le beurre / la sauce de cuisson probables, puis calcule kcal, protéines, glucides et lipides avec les tables nutritionnelles classiques (CIQUAL / USDA).
-Sois précis et réaliste, ni optimiste ni pessimiste. Boisson visible = un aliment aussi.${note ? `\nCe que Kouider précise (PRIORITAIRE sur ton estimation : quantités, sans huile, etc.) : « ${note} »` : ''}
-Réponds UNIQUEMENT en JSON : {"title":"nom court du plat en français","items":[{"name":"aliment","grams":0,"kcal":0,"p":0,"c":0,"f":0}],"confidence":"haute|moyenne|basse","tip":"1 remarque utile en 1 phrase (ex. la sauce pèse lourd)"}
+PRODUIT EXACT : si un emballage, une marque ou une étiquette est lisible, écris la marque + le nom exact du produit (ex. « Thon entier à l'huile Petit Navire », « Skyr nature Danone ») et utilise les valeurs nutritionnelles imprimées (pour 100 g) ; si un code-barres est lisible, recopie ses chiffres dans "barcode". Sinon, nomme précisément ce que tu vois (« thon en boîte à l'huile égoutté » ≠ « steak de thon grillé », « pain de mie » ≠ « baguette » ≠ « kesra »).
+Repères de poids : 1 œuf ≈ 50 g sans coquille ; 1 tranche de pain de mie ≈ 25 g ; 1 tranche de pain/baguette ≈ 30-35 g ; une miche de pain maison ≈ 600-800 g (1/4 ≈ 150-200 g) ; 1 galette de kesra ≈ 300-400 g ; 1 boîte de thon ≈ 110-140 g égoutté ; 1 c. à soupe d'huile ≈ 10 g = 90 kcal.
+Si un aliment est AMBIGU et que ça change beaucoup les chiffres (nom qui n'existe pas ou mal dicté, cuisson inconnue, taille de portion floue), garde l'hypothèse la plus probable, dis-la dans "assumptions" et pose UNE question courte dans "question" (sinon "").
+Sois précis et réaliste, ni optimiste ni pessimiste. Boisson visible = un aliment aussi, mais l'EAU seule n'est pas un repas (0 kcal, ne la liste pas).${note ? `\nCe que Kouider précise (PRIORITAIRE sur ton estimation : quantités, sans huile, etc.) : « ${note} »` : ''}
+Réponds UNIQUEMENT en JSON : {"title":"nom court du plat en français","items":[{"name":"aliment","grams":0,"kcal":0,"p":0,"c":0,"f":0}],"confidence":"haute|moyenne|basse","barcode":"","assumptions":"hypothèses faites, courtes (ou vide)","question":"","tip":"1 remarque utile en 1 phrase (ex. la sauce pèse lourd)"}
 Si la photo ne montre pas de nourriture : {"title":"","items":[],"confidence":"basse","tip":"pas de nourriture visible"}`;
 
-interface RawMeal { title?: string; items?: Array<Partial<FoodPart>>; confidence?: string; tip?: string }
+interface RawMeal { title?: string; items?: Array<Partial<FoodPart>>; confidence?: string; tip?: string; barcode?: string; assumptions?: string; question?: string }
 function cleanItems(items: RawMeal['items']): FoodPart[] {
   return (items ?? []).slice(0, 15).map(x => ({
     name: String(x.name ?? '').slice(0, 60), grams: Math.max(0, r0(x.grams ?? 0)),
     kcal: Math.max(0, r0(x.kcal ?? 0)), p: Math.max(0, r0(x.p ?? 0)), c: Math.max(0, r0(x.c ?? 0)), f: Math.max(0, r0(x.f ?? 0)),
-  })).filter(x => x.name && x.kcal >= 0)
+  })).filter(x => x.name && x.kcal >= 0 && !(x.kcal === 0 && /^eau\b/i.test(x.name)))   // l'eau n'est pas un repas (01/11 : « 1 L d'eau » noté comme repas)
     // garde-fou : kcal cohérentes avec les macros (4/4/9) si le modèle s'est trompé de beaucoup
     .map(x => { const m = x.p * 4 + x.c * 4 + x.f * 9; return m > 30 && Math.abs(m - x.kcal) / m > 0.35 ? { ...x, kcal: m } : x; });
 }
 
 async function storeMeal(uid: Uid, raw: RawMeal, o: { src: MealLog['src']; note?: string; thumb?: string; slot?: MealSlot; date?: string }): Promise<MealLog> {
   const items = cleanItems(raw.items);
+  if (!items.length && ((raw.items ?? []).some(x => /^eau\b/i.test(String(x.name ?? ''))) || /\beau\b/i.test(o.note ?? ''))) throw new Error('💧 De l\'eau = 0 kcal, je ne la compte pas comme un repas. Bien joué pour l\'hydratation !');
   if (!items.length) throw new Error(raw.tip && !/pas de nourriture/i.test(raw.tip) ? raw.tip : 'Je ne vois pas de nourriture sur la photo — reprends ton assiette en entier, vue d\'en haut.');
   const { date: today, hhmm } = localNow();
   const date = o.date ?? today;
@@ -220,9 +224,27 @@ async function storeMeal(uid: Uid, raw: RawMeal, o: { src: MealLog['src']; note?
     confidence: (['haute', 'moyenne', 'basse'].includes(String(raw.confidence)) ? raw.confidence : 'moyenne') as MealLog['confidence'],
     ...(o.note ? { note: o.note.slice(0, 200) } : {}), ...(o.thumb && o.thumb.length < 60_000 ? { thumb: o.thumb } : {}), src: o.src,
     ...(raw.tip ? { coach: String(raw.tip).slice(0, 220) } : {}),
+    ...(raw.assumptions ? { assumptions: String(raw.assumptions).slice(0, 220) } : {}),
+    ...(raw.question ? { question: String(raw.question).slice(0, 200) } : {}),
   };
   await saveMeals(uid, date, [...await mealsOf(uid, date), meal]);
   return meal;
+}
+
+/** Code-barres lisible sur la photo → vraies valeurs Open Food Facts (gratuit) pour le 1er article, au poids estimé. */
+async function applyBarcode(j: RawMeal): Promise<void> {
+  const code = String(j.barcode ?? '').replace(/\D/g, '');
+  if (!/^\d{8}$|^\d{12,14}$/.test(code) || !j.items?.length) return;
+  try {
+    const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,brands,nutriments`, { headers: { 'User-Agent': 'Dzaryx-FORME/1.0' }, signal: AbortSignal.timeout(6000) });
+    const d = await r.json() as { status?: number; product?: { product_name?: string; brands?: string; nutriments?: Record<string, number> } };
+    const n = d.product?.nutriments; if (d.status !== 1 || !n || !Number.isFinite(n['energy-kcal_100g'])) return;
+    const it = j.items[0]!; const g = Number(it.grams) || 100, k = g / 100;
+    Object.assign(it, { name: `${d.product!.brands ? `${d.product!.brands.split(',')[0]} – ` : ''}${d.product!.product_name || it.name}`.slice(0, 60),
+      kcal: n['energy-kcal_100g']! * k, p: (n.proteins_100g ?? 0) * k, c: (n.carbohydrates_100g ?? 0) * k, f: (n.fat_100g ?? 0) * k });
+    j.confidence = 'haute';
+    j.assumptions = [`valeurs officielles du produit (code-barres ${code}) pour ${g} g`, j.assumptions].filter(Boolean).join(' ; ');
+  } catch { /* hors ligne : on garde l'estimation */ }
 }
 
 export async function analyzeMealPhoto(uid: Uid, img: { base64: string; mime: string }, o: { note?: string; thumb?: string; slot?: MealSlot } = {}): Promise<{ meal: MealLog; budget: Budget; message: string }> {
@@ -230,6 +252,7 @@ export async function analyzeMealPhoto(uid: Uid, img: { base64: string; mime: st
   const raw = await vision([img], VISION_PROMPT(o.note ?? ''), { quality: true, maxTokens: 1400 });
   const j = jsonOf<RawMeal>(raw);
   if (!j) throw new Error('Je n\'ai pas réussi à lire la photo — réessaie avec toute l\'assiette dans le cadre, bien éclairée.');
+  await applyBarcode(j);
   const meal = await storeMeal(uid, j, { src: 'photo', ...o });
   return afterMeal(uid, meal);
 }
@@ -267,6 +290,30 @@ export async function editMeal(uid: Uid, date: string, id: string, patch: { item
   Object.assign(m, sumOf(m.items));
   await saveMeals(uid, date, meals);
   return meals;
+}
+/** « Non c'est du thon en boîte », « le pain c'était 200 g » → corrige le DERNIER repas (ou celui dont le titre correspond). */
+export async function fixMeal(uid: Uid, text: string, o: { date?: string; id?: string } = {}): Promise<string> {
+  const date = o.date ?? localNow().date;
+  const meals = await mealsOf(uid, date);
+  if (!meals.length) return 'Aucun repas noté aujourd\'hui à corriger.';
+  const words = text.toLowerCase().split(/\W+/).filter(w => w.length > 3);
+  const m = (o.id && meals.find(x => x.id === o.id))
+    || [...meals].reverse().find(x => words.some(w => `${x.title} ${x.items.map(i => i.name).join(' ')}`.toLowerCase().includes(w)))
+    || meals[meals.length - 1]!;
+  const { ai, jsonOf } = await import('./ai-util.js');
+  const prompt = `${VISION_PROMPT(text).replace('Regarde la photo et liste CHAQUE aliment visible.', `Repas déjà noté « ${m.title} » : ${JSON.stringify(m.items)}${m.note ? ` (il avait dit : « ${m.note} »)` : ''}. Il CORRIGE : « ${text} ». Refais la liste COMPLÈTE corrigée (garde ce qu'il ne change pas, remplace ce qu'il corrige, ajoute ce qu'il ajoute).`)}`;
+  const j = jsonOf<RawMeal>(await ai(prompt, { quality: true, max: 1200 }));
+  const items = cleanItems(j?.items);
+  if (!items.length) return 'Je n\'ai pas compris la correction — redis-moi l\'aliment et la quantité.';
+  const before = m.kcal;
+  m.items = items; Object.assign(m, sumOf(items));
+  if (j?.title) m.title = String(j.title).slice(0, 70);
+  m.note = [m.note, `correction : ${text}`].filter(Boolean).join(' · ').slice(0, 300);
+  delete m.question; if (j?.assumptions) m.assumptions = String(j.assumptions).slice(0, 220); else delete m.assumptions;
+  if (m.confidence === 'basse') m.confidence = 'moyenne';
+  await saveMeals(uid, date, meals);
+  const b = await foodBudget(uid, date);
+  return `✏️ Corrigé : ${m.title} — ${m.kcal} kcal (avant ${before}) · ${m.p} g protéines\n${items.map(i => `• ${i.name} ${i.grams} g : ${i.kcal} kcal · ${i.p} g P`).join('\n')}${j?.question ? `\n❓ ${j.question}` : ''}\n\n📊 Aujourd'hui : ${b.eaten.kcal} / ${b.target} kcal · protéines ${b.eaten.p}/${b.proteinGoal} g → ${b.left >= 0 ? `il te reste ${b.left} kcal` : `dépassé de ${-b.left} kcal`}.`;
 }
 export async function deleteMeal(uid: Uid, date: string, id: string): Promise<MealLog[]> {
   const meals = (await mealsOf(uid, date)).filter(x => x.id !== id);
@@ -310,7 +357,7 @@ async function afterMeal(uid: Uid, meal: MealLog): Promise<{ meal: MealLog; budg
   const kg = (await getFormeProfile(uid)).weightKg;
   const over = -b.left;
   const surplus = b.mode === 'surplus';
-  const head = `🍽️ ${meal.title} — ${meal.kcal} kcal · ${meal.p} g protéines · ${meal.c} g glucides · ${meal.f} g lipides${meal.confidence === 'basse' ? ' (estimation peu sûre : corrige les grammes dans FORME si besoin)' : ''}\n${meal.items.map(i => `• ${i.name} ${i.grams} g : ${i.kcal} kcal`).join('\n')}\n\n📊 Aujourd'hui : ${b.eaten.kcal} / ${b.target} kcal · protéines ${b.eaten.p}/${b.proteinGoal} g → ${b.left >= 0 ? `il te reste ${b.left} kcal${surplus ? ' à manger' : ''}` : surplus ? `objectif atteint ✅ (+${over} kcal)` : `tu as dépassé de ${over} kcal`}.`;
+  const head = `🍽️ ${meal.title} — ${meal.kcal} kcal · ${meal.p} g protéines · ${meal.c} g glucides · ${meal.f} g lipides${meal.confidence === 'basse' ? ' (estimation peu sûre : corrige les grammes dans FORME si besoin)' : ''}\n${meal.items.map(i => `• ${i.name} ${i.grams} g : ${i.kcal} kcal · ${i.p} g P`).join('\n')}${meal.assumptions ? `\nℹ️ J'ai compté : ${meal.assumptions}` : ''}${meal.question ? `\n❓ ${meal.question} (réponds-moi et je corrige)` : ''}\n\n📊 Aujourd'hui : ${b.eaten.kcal} / ${b.target} kcal · protéines ${b.eaten.p}/${b.proteinGoal} g → ${b.left >= 0 ? `il te reste ${b.left} kcal${surplus ? ' à manger' : ''}` : surplus ? `objectif atteint ✅ (+${over} kcal)` : `tu as dépassé de ${over} kcal`}.`;
   const hh = Number(localNow().hhmm.slice(0, 2));
   const ask = surplus
     ? (b.left <= 0
