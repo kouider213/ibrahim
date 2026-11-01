@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-01 — PLAN ALGÉRIE (mes_finances action 'algerie')
+- Nouveau `algerie-plan.ts` : date de départ quand maison + frais 7 % + meubles + voiture + déménagement sont PAYÉS (+ 6 mois d'avance), avec et sans le projet business.
+- Vie à Oran mois par mois : budget détaillé (vie de famille, école privée du fils selon son âge, voiture, santé, CASNOS, CAT-NAT, voyages, imprévus, impôts IFU, zakat) → « salaire » = ce qui reste.
+- Investissements lancés seulement si 6 mois de dépenses restent après paiement (le moins cher d'abord) : voitures de location à soi (prix FIK réel/jour), appartement F3 à louer, salle des fêtes (saison des mariages) ; année par année, retour sur investissement.
+- PDF 4 pages : départ + graphique, budget DA/€, business, « ce à quoi tu n'avais pas pensé », sources. Réglages « clé=valeur » retenus dans perso:finances.algeriePlan.
+
 ## 2026-11-01 — Projection : quitter la librairie = déménager à Oran
 - Scénario départ : fin salaire + charges belges + snus ; voiture + maison à Oran (comptant ET crédit comparés : mensualité, apport, 6 mois d'avance), vie en Algérie, patrimoine = liquide + maison − reste du crédit.
 - Dates « prêt à partir » (crédit / comptant), clients minimum pour que partir vaille rester, conditions (revenus prouvés pour le crédit).
