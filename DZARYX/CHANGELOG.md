@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-01 — B052 : fausses promesses en retard
+- Gardien des promesses : ignore les promesses vagues / déjà faites / refus déjà donnés ; toutes les anciennes marquées tenues (Kouider : « tout est réglé »).
+
 ## 2026-11-01 — B051 : boutons 🧠 « Outil inconnu »
 - Conscience : outils inventés par l'IA filtrés contre Dzaryx_TOOLS ; choix d'un bouton sans outil → cerveau complet (processMessage) qui exécute vraiment l'action.
 
