@@ -28,6 +28,11 @@ export async function createDecision(title: string, options: DecisionOption[], s
   if (waText && !title.includes(waText.slice(0, 40))) title = `${title.slice(0, 300)}\n« ${waText.slice(0, 1200)} »`;
   const waChat = options.map(o => o.tool === 'whatsapp_web' ? String(o.input?.['chat'] ?? '') : '').find(Boolean);
   if (send && waText && waChat) await import('./whatsapp-web.js').then(m => m.setWaPending(waChat, waText)).catch(() => {});
+  // L'IA de la Conscience invente parfois un nom d'outil (« lister_promesses_dues », 01/11) → on garde le bouton
+  // sans outil : au choix, le cerveau complet s'en charge avec ses vrais outils.
+  const { Dzaryx_TOOLS } = await import('./tools.js');
+  const known = new Set(Dzaryx_TOOLS.map(t => t.name));
+  options = options.map(o => o.tool && !known.has(o.tool) ? { label: o.label, say: o.say } : o);
   const d: Decision = { id: uid(), at: Date.now(), title: title.slice(0, 1600), options: options.slice(0, 4) };
   const list = (await kvJson<Decision[]>(DEC_KEY, [])).filter(x => Date.now() - x.at < 2 * 86_400_000);
   list.push(d);
@@ -59,9 +64,18 @@ export async function chooseDecision(id: string | null, n: number): Promise<stri
     // Son choix vaut validation : un envoi WhatsApp passe d'abord par la relecture (signature) puis part
     if (o.tool === 'whatsapp_web' && o.input?.['action'] === 'send') await executeTool(o.tool, { ...o.input }, 'voice_kouider').catch(() => '');
     const r = await executeTool(o.tool, { ...(o.input ?? {}), confirmed: true }, 'voice_kouider').catch(e => `❌ ${e instanceof Error ? e.message : e}`);
-    return `✅ ${o.label}\n${String(r).slice(0, 1500)}`;
+    if (!String(r).startsWith('Outil inconnu')) return `✅ ${o.label}\n${String(r).slice(0, 1500)}`;
   }
-  return o.say ? `✅ ${o.label} — ${o.say}` : `✅ Noté : ${o.label}.`;
+  if (o.say) return `✅ ${o.label} — ${o.say}`;
+  // Bouton sans outil valide → le cerveau fait l'action demandée avec ses vrais outils (au lieu d'un simple « Noté »)
+  try {
+    const { processMessage } = await import('../conversation/orchestrator.js');
+    const { stripToolTrace } = await import('./supabase.js');
+    const out = await processMessage(`[Tu m'as envoyé cette notification : « ${d.title.slice(0, 600)} ». J'ai choisi « ${o.label} ». Fais-le maintenant avec tes outils et donne-moi directement le résultat.]`, 'voice_kouider', true);
+    const t = stripToolTrace(out.text ?? '').trim();
+    if (t) return t.slice(0, 3500);
+  } catch (e) { console.warn('[conscience] choix → cerveau', e instanceof Error ? e.message : e); }
+  return `✅ Noté : ${o.label}.`;
 }
 
 /** « 1 », « 2 »… sur Telegram juste après une décision → exécutée sans repasser par l'IA. */
@@ -341,7 +355,7 @@ export async function jobConscience(): Promise<string> {
     + `Les dates sont déjà écrites en relatif (aujourd'hui / hier / demain) : ne dis JAMAIS qu'une chose se passe aujourd'hui si elle est notée « hier ». Une location « EN COURS » est déjà partie : ne parle pas de son départ. Un message WhatsApp reçu hier n'est pas « nouveau ». `
     + `Ce que Kouider a dit (kouider_a_dit_2h) PRIME sur l'agenda : s'il a dit qu'il n'a pas de RDV, qu'il est au travail ou que c'est réglé, n'en reparle plus. Son travail n'est jamais un « RDV ». `
     + `Pas de redite de ce qui a déjà été envoyé ces 3 h. Pas de banalité, pas de motivation creuse, pas de « bonne journée ». Si rien d'utile → speak:false (c'est le cas le plus fréquent).\n`
-    + `Réponds UNIQUEMENT en JSON : {"speak":true|false,"kind":"type court (ex. retard-rdv, client-aeroport, promesse, sante, argent, famille, decision)","urgency":1|2|3,"text":"ce que tu lui dis, 1 à 3 phrases, tutoiement, concret","options":[{"label":"bouton court","tool":"outil Dzaryx facultatif","input":{}}]} (options facultatives, 2-3 max, seulement si un simple choix permet d'agir).`,
+    + `Réponds UNIQUEMENT en JSON : {"speak":true|false,"kind":"type court (ex. retard-rdv, client-aeroport, promesse, sante, argent, famille, decision)","urgency":1|2|3,"text":"ce que tu lui dis, 1 à 3 phrases, tutoiement, concret","options":[{"label":"bouton court","tool":"outil Dzaryx facultatif","input":{}}]} (options facultatives, 2-3 max, seulement si un simple choix permet d'agir ; "tool" = UNIQUEMENT un vrai nom d'outil Dzaryx (ex. promesses avec input {"action":"list"}), sinon ne mets pas de "tool").`,
     { max: 500 }));
   if (!o?.speak || !o.text) return 'silence';
   const urgency = Math.max(1, Math.min(3, Number(o.urgency) || 1));

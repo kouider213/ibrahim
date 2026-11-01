@@ -7,6 +7,9 @@
 
 ## Bugs Ouverts 🔴
 
+### B051 — « 1 » sur une notif 🧠 → « Outil inconnu: lister_promesses_dues » (01/11 14h43) ✅ FIXÉ
+L'IA de la Conscience inventait un nom d'outil pour ses boutons. Maintenant : nom inconnu → retiré à la création ; au choix, un bouton sans outil valide est confié au cerveau complet qui fait l'action (ex. affiche les 5 promesses) au lieu d'une erreur. Prompt : vrais noms d'outil uniquement (conscience.ts).
+
 ### B050 — Surveillance Air Algérie finie sur « credit balance is too low » (31/10 13h13) ✅ FIXÉ
 Le navigateur (nexus/modules/browser_agent.py, pm2 dzaryx-browser) appelait Claude directement → crédit 0 = erreur. Fix : nexus/modules/free_llm.py, Gemini gratuit (clés tournantes) d'abord, Claude seulement en secours.
 

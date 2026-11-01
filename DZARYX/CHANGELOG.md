@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-01 — B051 : boutons 🧠 « Outil inconnu »
+- Conscience : outils inventés par l'IA filtrés contre Dzaryx_TOOLS ; choix d'un bouton sans outil → cerveau complet (processMessage) qui exécute vraiment l'action.
+
 ## 2026-11-01 — Règle Kouider : 1re réponse location = dates + âge
 - Brouillons WhatsApp, lecture d'une discussion (appel/Telegram) et gardien de nuit : à une demande de location, la PREMIÈRE réponse demande toujours les dates (début/fin) et l'âge du conducteur, sans liste de voitures ni prix. Filet : si le brouillon l'oublie, la question est ajoutée (FR ou arabe).
 
