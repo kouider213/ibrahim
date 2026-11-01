@@ -91,7 +91,10 @@ export async function bestModel(): Promise<ModelId> {
   if (!env.FAL_KEY) return FREE_MODEL;
   return Number((await kvGet(FAL_EMPTY_KEY).catch(() => null)) ?? 0) > Date.now() ? FREE_MODEL : PAID_DEFAULT;
 }
-async function markFalEmpty(): Promise<void> {
+export async function falEmptyNow(): Promise<boolean> {
+  return !env.FAL_KEY || Number((await kvGet(FAL_EMPTY_KEY).catch(() => null)) ?? 0) > Date.now();
+}
+export async function markFalEmpty(): Promise<void> {
   await kvSet(FAL_EMPTY_KEY, String(Date.now() + 6 * 3600_000), 7 * 3600).catch(() => {});
 }
 const isFree = (m: ModelId) => m === 'gratuit';
@@ -809,7 +812,7 @@ export async function videoStudioTool(input: Record<string, unknown>, actor = 'k
     const idea = String(input['idea'] ?? input['manual_prompt'] ?? '').trim();
     if (!idea) return '❌ Demande-lui ce qu\'il faut changer sur la photo/vidéo.';
     const isVideo = !/\.(jpe?g|png|webp|heic)(\?|$)/i.test(url) && /\.(mp4|mov|m4v|webm)(\?|$)|video/i.test(url);
-    if (isVideo && input['confirm'] !== true) {
+    if (isVideo && input['confirm'] !== true && !(await falEmptyNow())) {
       const s = Number(input['seconds']) || 10;
       return `Devis retouche vidéo (Kling O1) : ≈ ${estimateAiEdit('video', s)} $ pour ${Math.min(s, VIDEO_EDIT_MAX_SEC)} s (0,17 $/s, max ${VIDEO_EDIT_MAX_SEC} s). Demande-lui son accord, puis relance action="retouche" avec confirm=true.`;
     }

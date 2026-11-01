@@ -20,11 +20,12 @@ export default function AiRetouche({ say, onLaunched }: { say: (t: string) => vo
   const [prompt, setPrompt] = useState('');
   const [quality, setQuality] = useState<'gratuit' | 'max'>('gratuit');
   const [usd, setUsd] = useState(0);
+  const [free, setFree] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!media) return;
-    business.studioAiEditEstimate(media.type, media.seconds, quality).then(r => setUsd(r.usd)).catch(() => setUsd(0));
+    business.studioAiEditEstimate(media.type, media.seconds, quality).then(r => { setUsd(r.usd); setFree(!!r.free); }).catch(() => setUsd(0));
   }, [media, quality]);
 
   const pick = async (f: File | undefined) => {
@@ -43,7 +44,7 @@ export default function AiRetouche({ say, onLaunched }: { say: (t: string) => vo
 
   const launch = async () => {
     if (!media || !prompt.trim()) return;
-    if (media.type === 'video' && !window.confirm(`Retouche vidéo avec Kling : ≈ ${usd.toFixed(2)} $ sur ton crédit fal.ai. On lance ?`)) return;
+    if (media.type === 'video' && usd > 0 && !window.confirm(`Retouche vidéo avec Kling : ≈ ${usd.toFixed(2)} $ sur ton crédit fal.ai. On lance ?`)) return;
     setBusy(true);
     try {
       await business.studioAiEdit({ url: media.url, type: media.type, prompt: prompt.trim(), quality, seconds: media.seconds || undefined });
@@ -81,18 +82,20 @@ export default function AiRetouche({ say, onLaunched }: { say: (t: string) => vo
         <div style={label}>Qualité</div>
         <div style={{ display: 'flex', gap: 6 }}>
           <button style={chip(quality === 'gratuit')} onClick={() => setQuality('gratuit')}>Gratuite (0 €)</button>
-          <button style={chip(quality === 'max')} onClick={() => setQuality('max')}>Max (≈ 0,04 $)</button>
+          <button style={chip(quality === 'max')} onClick={() => setQuality('max')}>Max (≈ 0,04 ${free ? ' — plus de crédit → gratuite' : ''})</button>
         </div>
       </>)}
       {media?.type === 'video' && (
         <div style={{ fontSize: 12.5, color: C.gold, marginTop: 12, lineHeight: 1.45 }}>
-          🎥 {Math.round(media.seconds)} s{media.seconds > 30 ? ' (seules les 30 premières secondes seront retouchées)' : ''} — Kling refait la vidéo par morceaux de 10 s avec la même voiture partout, et garde ton son. Coût ≈ <b>{usd.toFixed(2)} $</b>.
+          🎥 {Math.round(media.seconds)} s{media.seconds > 30 ? ' (seules les 30 premières secondes seront retouchées)' : ''} — {free
+            ? <>plus de crédit fal.ai : retouche <b>GRATUITE</b> (Hugging Face, qualité plus basse, ≈ 2 min par tranche de 3 s). Ton son est gardé.</>
+            : <>Kling refait la vidéo par morceaux de 10 s avec la même voiture partout, et garde ton son. Coût ≈ <b>{usd.toFixed(2)} $</b> (si le crédit tombe à 0, ça continue gratuitement).</>}
         </div>
       )}
 
       <button style={{ ...btn(C.accent, '#050a16'), width: '100%', marginTop: 14, opacity: !media || !prompt.trim() || busy ? 0.5 : 1 }}
         disabled={!media || !prompt.trim() || busy} onClick={() => void launch()}>
-        {busy ? '⏳ Lancement…' : media?.type === 'video' ? `🪄 Modifier ma vidéo (≈ ${usd.toFixed(2)} $)` : '🪄 Modifier ma photo'}
+        {busy ? '⏳ Lancement…' : media?.type === 'video' ? (usd > 0 ? `🪄 Modifier ma vidéo (≈ ${usd.toFixed(2)} $)` : '🪄 Modifier ma vidéo (0 €)') : '🪄 Modifier ma photo'}
       </button>
     </div>
   );

@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-01 — Retouche IA : bascule gratuite quand le crédit fal est à 0
+- Photo « Max » sans crédit → FLUX Kontext gratuit tout seul. Vidéo : Kling d'abord ; crédit épuisé (avant ou pendant) → Space HF gratuit « Qwen video edit » par tranches de 2,8 s (16 i/s, 368×656 remis en 1080×1920), son d'origine gardé.
+- Limite réelle : quota ZeroGPU gratuit du compte HF ≈ 3 min GPU/jour, 1 tranche ≈ 190 s → ≈ 3 s de vidéo gratuite par jour. Pour du gratuit en volume : Kaggle GPU (vérif téléphone) ou clé Pollinations.
+
 ## 2026-11-01 — MONTAGE : 🪄 Retouche IA (photo + vidéo) + envoi des grosses vidéos
 - Nouvel onglet « 🪄 Retouche IA » : photo/vidéo + phrase (« remplace la voiture par une Ferrari Purosangue »). Photo = FLUX Kontext HF (0 €, ≈ 30 s), qualité max = Nano Banana fal (≈ 0,04 $). Vidéo = Kling O1 edit (fal, ≈ 0,17 $/s, max 30 s) par tranches ≤ 10 s guidées par la même image de référence, son d'origine gardé ; devis affiché avant.
 - Vidéos > 45 Mo (limite Supabase 50 Mo) : envoi en morceaux de 40 Mo → /api/studio/upload-join recolle + compresse en 1080p (testé : 4K 24 s 296 Mo → 48 s). Cause de l'échec de la vidéo de 24 s.

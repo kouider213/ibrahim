@@ -19,8 +19,11 @@ import { supabase } from '../integrations/supabase.js';
 import { askJson } from '../integrations/pro-doc.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
-import { falRun, hfGradio, hfFail, addSpent, run, probe, saveJob, launchJob, type StudioJob } from './video-studio.js';
+import { falRun, hfGradio, hfFail, addSpent, falEmptyNow, markFalEmpty, run, probe, saveJob, launchJob, type StudioJob } from './video-studio.js';
 
+const HF_QWEN_VIDEO = 'https://hugging-apps-qwen-video-edit.hf.space/gradio_api';
+const FREE_CHUNK = 2.8;   // le Space gratuit rend ≈ 45 images (2,8 s à 16 i/s) par appel
+const isCredit = (m: string) => /crédit|balance|exhausted|locked|402|403/i.test(m);
 const HF_KONTEXT = 'https://black-forest-labs-flux-1-kontext-dev.hf.space/gradio_api';
 const FAL_IMG_EDIT = 'fal-ai/nano-banana/edit';
 const FAL_VID_EDIT = 'fal-ai/kling-video/o1/video-to-video/edit';
@@ -30,7 +33,8 @@ export const VIDEO_EDIT_MAX_SEC = 30;
 
 export interface AiEditRequest { url: string; type: 'image' | 'video'; prompt: string; quality?: 'gratuit' | 'max'; seconds?: number }
 
-export function estimateAiEdit(type: 'image' | 'video', seconds = 10, quality: 'gratuit' | 'max' = 'gratuit'): number {
+export function estimateAiEdit(type: 'image' | 'video', seconds = 10, quality: 'gratuit' | 'max' = 'gratuit', falEmpty = false): number {
+  if (falEmpty) return 0;
   if (type === 'image') return quality === 'max' ? IMG_COST : 0;
   return Math.round(Math.min(VIDEO_EDIT_MAX_SEC, Math.max(3, seconds)) * VIDEO_EDIT_PER_SEC * 100) / 100;
 }
@@ -65,22 +69,30 @@ async function editImageUrl(imageUrl: string, promptEn: string, quality: 'gratui
       if (u) return { url: u, cost: 0, engine: 'FLUX Kontext (gratuit)' };
     } catch (e) { await hfFail(e); if (!env.FAL_KEY) throw e; }
   }
-  const r = await falRun(FAL_IMG_EDIT, { prompt: promptEn, image_urls: [imageUrl], num_images: 1, output_format: 'jpeg' }, 300_000);
-  const u = (r['images'] as Array<{ url: string }> | undefined)?.[0]?.url;
-  if (!u) throw new Error('fal.ai : pas d\'image en retour');
-  return { url: u, cost: IMG_COST, engine: 'Nano Banana (fal.ai)' };
+  try {
+    if (await falEmptyNow()) throw new Error('crédit fal.ai épuisé');
+    const r = await falRun(FAL_IMG_EDIT, { prompt: promptEn, image_urls: [imageUrl], num_images: 1, output_format: 'jpeg' }, 300_000);
+    const u = (r['images'] as Array<{ url: string }> | undefined)?.[0]?.url;
+    if (!u) throw new Error('fal.ai : pas d\'image en retour');
+    return { url: u, cost: IMG_COST, engine: 'Nano Banana (fal.ai)' };
+  } catch (e) {
+    // Plus de crédit (ou fal en panne) → version gratuite, toute seule
+    if (isCredit(String(e))) await markFalEmpty();
+    if (quality === 'gratuit') throw e;
+    return editImageUrl(imageUrl, promptEn, 'gratuit');
+  }
 }
 
 export async function startAiEdit(req: AiEditRequest, actor = 'kouider'): Promise<StudioJob> {
   if (!/^https?:\/\//.test(req.url ?? '')) throw new Error('Envoie d\'abord ta photo ou ta vidéo.');
   if (!req.prompt?.trim()) throw new Error('Dis ce qu\'il faut changer (ex. « remplace la voiture par une Ferrari Purosangue »).');
-  if (req.type === 'video' && !env.FAL_KEY) throw new Error('FAL_KEY absente dans Railway — la retouche vidéo passe par Kling (fal.ai).');
   const quality = req.quality === 'max' ? 'max' : 'gratuit';
+  const noCredit = await falEmptyNow();
   const now = new Date().toISOString();
   const job: StudioJob = {
     id: randomUUID().slice(0, 8), planId: 'ai-edit', title: `🪄 ${req.prompt.trim().slice(0, 70)}`,
-    model: req.type === 'video' || quality === 'max' ? 'kling3' : 'gratuit', status: 'queued', step: 'En file…', progress: 2,
-    estimateUsd: estimateAiEdit(req.type, req.seconds, quality), costUsd: 0, shotsDone: 0, shotsTotal: 1, createdAt: now, updatedAt: now, actor,
+    model: !noCredit && (req.type === 'video' || quality === 'max') ? 'kling3' : 'gratuit', status: 'queued', step: 'En file…', progress: 2,
+    estimateUsd: estimateAiEdit(req.type, req.seconds, quality, noCredit), costUsd: 0, shotsDone: 0, shotsTotal: 1, createdAt: now, updatedAt: now, actor,
   };
   await launchJob(job, () => renderAiEdit(job, { ...req, quality }));
   return job;
@@ -92,7 +104,7 @@ async function renderAiEdit(job: StudioJob, req: AiEditRequest): Promise<void> {
   try {
     await step('shots', 'Dzaryx comprend ta demande…', 5);
     const promptEn = await toEnglish(req.prompt);
-    let url: string, kind: string, engine: string;
+    let url: string, kind: string, engine = '';
 
     if (req.type === 'image') {
       await step('shots', 'Retouche de la photo (≈ 30 s à 1 min)…', 20);
@@ -130,6 +142,7 @@ async function renderAiEdit(job: StudioJob, req: AiEditRequest): Promise<void> {
       } catch (e) { console.warn('[ai-edit] référence', e instanceof Error ? e.message : e); }
 
       // Tranches ≤ 10 s, petit côté 1080 px (Kling : 3–10 s, 720–2160 px)
+      const klingChunks = async (): Promise<string[]> => {
       const parts: string[] = [];
       for (let i = 0; i < n; i++) {
         const p = path.join(dir, `in${i}.mp4`);
@@ -148,8 +161,55 @@ async function renderAiEdit(job: StudioJob, req: AiEditRequest): Promise<void> {
         job.shotsDone++; job.costUsd += seg * VIDEO_EDIT_PER_SEC; job.progress = 20 + Math.round(65 * job.shotsDone / n); await saveJob(job);
         return f;
       }));
-      engine = 'Kling O1 (fal.ai)';
+      return outs;
+      };
 
+      // Version gratuite : Space Hugging Face « Qwen video edit », tranches de 2,8 s, même graine partout
+      const freeChunks = async (): Promise<string[]> => {
+        const m = Math.ceil(total / FREE_CHUNK), len = total / m;
+        job.shotsTotal = m; job.shotsDone = 0;
+        await step('shots', `Retouche GRATUITE (${m} morceaux, ≈ 2 min chacun)…`, 20);
+        const res: string[] = new Array(m);
+        const one = async (i: number) => {
+          const p = path.join(dir, `fin${i}.mp4`);
+          await run(['-ss', (i * len).toFixed(3), '-t', len.toFixed(3), '-i', src, '-an',
+            '-vf', "scale='if(gt(iw,ih),-2,720)':'if(gt(iw,ih),720,-2)',format=yuv420p", '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', p]);
+          const u = await putPublic(`rushes/aiedit/${job.id}-fin${i}.mp4`, p, 'video/mp4');
+          let out: unknown[] | null = null;
+          for (let a = 0; a < 2 && !out; a++) {
+            try { out = await hfGradio(HF_QWEN_VIDEO, 'edit_video', [{ path: u, meta: { _type: 'gradio.FileData' } }, promptEn, 16, 1.0, ' ', 42, false, 245760], 600_000); }
+            catch (e) {
+              await hfFail(e);
+              if (a === 1 || /quota|exceeded|ZeroGPU|GPU task/i.test(String(e))) throw new Error(`quota gratuit Hugging Face du jour épuisé (${i}/${m} morceaux faits) — réessaie demain ou recharge fal.ai pour Kling`);
+            }
+          }
+          const ou = (out?.[0] as { url?: string } | undefined)?.url;
+          if (!ou) throw new Error(`morceau ${i + 1} : pas de vidéo en retour`);
+          const f = path.join(dir, `fout${i}.mp4`);
+          await download(ou, f);
+          // retour à la durée d'origine du morceau (le Space rend à 16 i/s)
+          const d = (await probe(f)).duration || len;
+          const f2 = path.join(dir, `fout${i}b.mp4`);
+          await run(['-i', f, '-vf', `setpts=${(len / d).toFixed(4)}*PTS,fps=30`, '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', f2]);
+          res[i] = f2;
+          job.shotsDone++; job.progress = 20 + Math.round(65 * job.shotsDone / m); await saveJob(job);
+        };
+        for (let i = 0; i < m; i += 2) await Promise.all([one(i), ...(i + 1 < m ? [one(i + 1)] : [])]);
+        return res;
+      };
+      let outs: string[] | null = null;
+      if (!(await falEmptyNow())) {
+        try { outs = await klingChunks(); engine = 'Kling O1 (fal.ai)'; }
+        catch (e) {
+          if (!isCredit(String(e))) throw e;
+          await markFalEmpty();   // plus de crédit → on continue gratuitement, tout seul
+        }
+      }
+      if (!outs) {
+        job.model = 'gratuit'; job.estimateUsd = 0;
+        outs = await freeChunks();
+        engine = 'Qwen vidéo (Hugging Face, gratuit — qualité plus basse)';
+      }
       await step('montage', 'Recollage + son d\'origine…', 88);
       const out = path.join(dir, 'final.mp4');
       const inputs = outs.flatMap(f => ['-i', f]);

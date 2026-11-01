@@ -91,9 +91,11 @@ router.post('/upload-join', async (req, res) => {
 });
 
 // « Modifier par l'IA » : ta photo/vidéo + une phrase → retouchée (photo gratuite ; vidéo Kling, devis avant)
-router.post('/ai-edit/estimate', (req, res) => {
+router.post('/ai-edit/estimate', async (req, res) => {
   const b = req.body as { type?: string; seconds?: number; quality?: string };
-  res.json({ usd: estimateAiEdit(b.type === 'video' ? 'video' : 'image', Number(b.seconds) || 10, b.quality === 'max' ? 'max' : 'gratuit') });
+  const { falEmptyNow } = await import('../../marketing/video-studio.js');
+  const free = await falEmptyNow();
+  res.json({ usd: estimateAiEdit(b.type === 'video' ? 'video' : 'image', Number(b.seconds) || 10, b.quality === 'max' ? 'max' : 'gratuit', free), free });
 });
 router.post('/ai-edit', async (req, res) => {
   try { res.json({ job: await startAiEdit(req.body as AiEditRequest, 'kouider') }); } catch (err) { fail(res, err, 400); }
