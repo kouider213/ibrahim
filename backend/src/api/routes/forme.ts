@@ -130,6 +130,19 @@ router.post('/food/edit', async (req, res) => {
     res.json({ budget: await f.foodBudget(U(req), b.date) });
   } catch (err) { fail(res, err, 400); }
 });
+// 💪 Questionnaire PRISE DE MASSE (01/11) : objectif « muscle » → surplus calorique + plan chiffré
+router.get('/bulk', async (req, res) => { try { res.json({ plan: await (await food()).bulkPlan(U(req)) }); } catch (err) { fail(res, err); } });
+router.post('/bulk', async (req, res) => {
+  const b = (req.body ?? {}) as { bulk?: Record<string, unknown>; weightKg?: number; targetKg?: number; heightCm?: number; age?: number; sessionsPerWeek?: number };
+  try {
+    const before = await (await import('../../integrations/forme.js')).getFormeProfile(U(req));
+    await setFormeProfile({ goal: 'muscle', bulk: b.bulk as never, ...(b.weightKg ? { weightKg: Number(b.weightKg) } : {}), ...(b.targetKg ? { targetKg: Number(b.targetKg) } : {}),
+      ...(b.heightCm ? { heightCm: Number(b.heightCm) } : {}), ...(b.age ? { age: Number(b.age) } : {}), ...(b.sessionsPerWeek ? { sessionsPerWeek: Number(b.sessionsPerWeek) } : {}) }, U(req));
+    // passe en prise de masse → son programme de muscu est refait pour l'hypertrophie (en fond, l'IA prend ~30 s)
+    if (U(req) !== 'kouider' && (before.goal !== 'muscle' || !before.bulk)) void getProgram(U(req), true).catch(() => {});
+    res.json({ plan: await (await food()).bulkPlan(U(req)), overview: await formeOverview(U(req)) });
+  } catch (err) { fail(res, err); }
+});
 router.post('/food/cfg', async (req, res) => {
   try { const f = await food(); const cfg = await f.setFoodCfg(req.body as never, U(req)); res.json({ cfg, budget: await f.foodBudget(U(req)) }); } catch (err) { fail(res, err); }
 });

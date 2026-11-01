@@ -22,6 +22,15 @@ export const UIDS: Uid[] = ['kouider', 'femme', 'ami'];
 // avec celui de Kouider, jamais lu par Dzaryx, pas de jeux du couple, pas de Telegram.
 export const INVITED: Exclude<Uid, 'kouider'>[] = ['femme', 'ami'];
 export type Lang = 'fr' | 'ar';
+export interface Bulk {
+  rate: 'lent' | 'moyen' | 'rapide';          // +0,2 / +0,3 / +0,45 kg par semaine
+  level: 'debutant' | 'inter' | 'confirme';   // ancienneté en muscu
+  appetite: 'petit' | 'normal' | 'gros';
+  body: 'maigre' | 'normal' | 'gras';         // « je ne grossis pas » … « je prends vite du gras »
+  job: 'assis' | 'debout' | 'physique';       // activité au travail
+  sports: string;                             // foot, course… à côté de la salle
+  at: number;
+}
 
 const PK = (u: Uid) => `${u}:forme:profile`;
 const DK = (u: Uid) => `${u}:forme:days`;
@@ -53,6 +62,8 @@ export interface FormeProfile {
   stepsGoal: number;
   restDays: number[];                                  // jours sans sport (sa femme : jeudi + dimanche)
   favorites: string[];                                 // recettes adorées (❤️) : reprises de temps en temps
+  // 01/11 : questionnaire PRISE DE MASSE (objectif « muscle ») → surplus calorique au lieu du déficit
+  bulk?: Bulk;
 }
 
 const DEFAULTS: Record<Uid, FormeProfile> = {
@@ -159,6 +170,13 @@ export async function setFormeProfile(patch: Partial<FormeProfile>, uid: Uid = '
     ...(Array.isArray(patch.restDays) ? { restDays: [...new Set(patch.restDays.map(Number).filter(d => d >= 0 && d <= 6))] } : {}),
     ...(Array.isArray(patch.favorites) ? { favorites: patch.favorites.map(x => String(x).slice(0, 90)).slice(-40) } : {}),
     ...(patch.stepsGoal != null ? { stepsGoal: num(patch.stepsGoal, 2000, 30000, cur.stepsGoal) } : {}),
+    ...(patch.bulk ? { bulk: {
+      rate: (['lent', 'moyen', 'rapide'] as const).includes(patch.bulk.rate) ? patch.bulk.rate : 'moyen',
+      level: (['debutant', 'inter', 'confirme'] as const).includes(patch.bulk.level) ? patch.bulk.level : 'debutant',
+      appetite: (['petit', 'normal', 'gros'] as const).includes(patch.bulk.appetite) ? patch.bulk.appetite : 'normal',
+      body: (['maigre', 'normal', 'gras'] as const).includes(patch.bulk.body) ? patch.bulk.body : 'normal',
+      job: (['assis', 'debout', 'physique'] as const).includes(patch.bulk.job) ? patch.bulk.job : 'assis',
+      sports: String(patch.bulk.sports ?? '').slice(0, 80), at: Date.now() } } : {}),
   };
   if (!next.stores.length) next.stores = ['Colruyt'];
   await kvSet(PK(uid), JSON.stringify(next));
@@ -214,12 +232,12 @@ export async function uidFromFormeToken(token: string): Promise<Uid | null> {
 // ── Besoins (Mifflin-St Jeor) adaptés au Wegovy ──────────────────────────────
 export function formeTargets(p: FormeProfile) {
   const bmr = 10 * p.weightKg + 6.25 * p.heightCm - 5 * p.age + (p.sex === 'h' ? 5 : -161);
-  const tdee = bmr * (1.35 + Math.min(p.sessionsPerWeek, 6) * 0.04);
+  const tdee = bmr * (1.35 + Math.min(p.sessionsPerWeek, 6) * 0.04 + (p.bulk?.job === 'physique' ? 0.15 : p.bulk?.job === 'debout' ? 0.07 : 0));
   const factor = p.goal === 'perte' ? 0.78 : p.goal === 'muscle' ? 1.08 : 0.88;
   // Sous Wegovy l'appétit chute : on ne descend jamais trop bas (perte de muscle, fatigue) — plancher 1500 / 1200 kcal.
   const kcal = Math.round(Math.max(p.sex === 'h' ? 1500 : 1200, tdee * factor) / 10) * 10;
   // Protéines hautes pour garder le muscle pendant la perte de poids (GLP-1) : 1,8 g/kg (1,6 pour une femme) du poids visé
-  const p_ = Math.round(Math.min(2.2 * p.weightKg, (p.sex === 'h' ? 1.8 : 1.6) * Math.max(p.targetKg, p.weightKg * 0.8)));
+  const p_ = p.goal === 'muscle' ? Math.round(p.weightKg * (p.sex === 'h' ? 2 : 1.8)) : Math.round(Math.min(2.2 * p.weightKg, (p.sex === 'h' ? 1.8 : 1.6) * Math.max(p.targetKg, p.weightKg * 0.8)));
   const f = Math.round(kcal * 0.27 / 9);
   const c = Math.max(60, Math.round((kcal - p_ * 4 - f * 9) / 4));
   return { kcal, p: p_, c, f, tdee: Math.round(tdee), bmr: Math.round(bmr), fiber: p.sex === 'h' ? 30 : 25, waterL: Math.round(p.waterGoal * 0.25 * 10) / 10 };
@@ -248,6 +266,21 @@ const EX_LIB: Record<string, string> = {
   Plank: 'abdos', Side_Bridge: 'abdos', Dead_Bug: 'abdos', Crunches: 'abdos', Mountain_Climbers: 'cardio', Star_Jump: 'cardio', Pallof_Press: 'abdos', Cat_Stretch: 'mobilité',
   Walking_Treadmill: 'cardio', Elliptical_Trainer: 'cardio', Rowing_Stationary: 'cardio', Bicycling_Stationary: 'cardio', Hamstring_Stretch: 'mobilité', Superman: 'dos',
 };
+// 01/11 : gros exercices de salle pour les HOMMES (son ami en prise de masse) — identifiants vérifiés dans free-exercise-db
+const EX_MALE: Record<string, string> = {
+  'Barbell_Bench_Press_-_Medium_Grip': 'pecs', Incline_Dumbbell_Press: 'pecs', Machine_Bench_Press: 'pecs', Dumbbell_Flyes: 'pecs', Cable_Crossover: 'pecs', 'Dips_-_Chest_Version': 'pecs',
+  Barbell_Squat: 'jambes', Barbell_Deadlift: 'dos', Romanian_Deadlift: 'jambes', Smith_Machine_Squat: 'jambes', Standing_Calf_Raises: 'jambes', Seated_Calf_Raise: 'jambes',
+  Pullups: 'dos', 'Chin-Up': 'dos', Bent_Over_Barbell_Row: 'dos', Barbell_Shrug: 'dos',
+  Standing_Military_Press: 'épaules', Reverse_Flyes: 'épaules',
+  Barbell_Curl: 'bras', 'EZ-Bar_Curl': 'bras', Preacher_Curl: 'bras', 'Close-Grip_Barbell_Bench_Press': 'bras', Lying_Triceps_Press: 'bras',
+  Hanging_Leg_Raise: 'abdos', Cable_Crunch: 'abdos',
+};
+const EX_ALL: Record<string, string> = { ...EX_LIB, ...EX_MALE };
+const exLibFor = (p: { sex: 'h' | 'f' }) => (p.sex === 'h' ? EX_ALL : EX_LIB);
+/** Règles d'entraînement selon l'objectif (prise de masse = hypertrophie, charge progressive) */
+const goalRule = (p: { goal: string; sex: string }) => p.goal === 'muscle'
+  ? ` OBJECTIF PRISE DE MASSE : hypertrophie — chaque séance commence par 1-2 exercices de base lourds${p.sex === 'h' ? ' (développé couché, squat, rowing, développé militaire, tractions, soulevé de terre roumain)' : ''} en 6-10 reps, puis 3-4 exercices d'isolation en 10-15 reps ; repos 90-150 s sur les gros exercices ; 10 à 20 séries par muscle et par semaine ; PAS de cardio long (au plus 10 min d'échauffement), il brûlerait la prise de masse ; dans "tip", rappelle la charge progressive (+1 rep ou +2,5 kg quand toutes les séries sont réussies).`
+  : '';
 export interface ProgEx { id: string; name: string; muscle: string; sets: number; reps: string; rest: number; tip: string; alt: string[]; timed: boolean; demo: string[]; video: string; suggestion: { kg: number | null; last?: string; up?: boolean } }
 export interface ProgSession { label: string; emoji: string; focus: string; warmup: string; estMin: number; exercises: ProgEx[] }
 export interface Program { at: number; days: number[]; sessions: ProgSession[] }
@@ -259,8 +292,8 @@ export async function getProgram(uid: Uid, force = false): Promise<Program> {
   const allowed = [0, 1, 2, 3, 4, 5, 6].filter(d => !p.restDays.includes(d));
   const n = Math.max(2, Math.min(5, Math.min(allowed.length, p.sessionsPerWeek || 3)));
   const res = await createAnthropic().messages.create({ model: 'claude-sonnet-5-5', max_tokens: 5000,
-    system: `Tu es coach sportif. Tu crées un programme de ${n} séances/semaine pour ${p.sex === 'f' ? 'une femme' : 'un homme'} (${p.age} ans, ${p.weightKg} kg → ${p.targetKg} kg, objectif ${p.goal}, lieu : ${p.gym})${p.wegovy.on ? ', sous Wegovy (garder le muscle : renforcement prioritaire, intensité progressive, bien s\'hydrater)' : ''}.
-Exercices UNIQUEMENT parmi ces identifiants : ${Object.entries(EX_LIB).map(([k, v]) => `${k} (${v})`).join(', ')}.${p.gym === 'À la maison' ? ' À la maison : poids du corps, haltères légers, élastique — pas de machines (Leg_Press, Seated_Leg_Curl, Leg_Extensions, Wide-Grip_Lat_Pulldown, Seated_Cable_Rows, Triceps_Pushdown, Face_Pull, Walking_Treadmill, Elliptical_Trainer, Rowing_Stationary, Bicycling_Stationary interdits).' : ''}
+    system: `Tu es coach sportif. Tu crées un programme de ${n} séances/semaine pour ${p.sex === 'f' ? 'une femme' : 'un homme'} (${p.age} ans, ${p.weightKg} kg → ${p.targetKg} kg, objectif ${({ perte: 'perdre du gras', muscle: 'PRENDRE DU MUSCLE (prise de masse)', recompo: 'perdre du gras et gagner du muscle' } as Record<string, string>)[p.goal] ?? p.goal}, lieu : ${p.gym})${p.wegovy.on ? ', sous Wegovy (garder le muscle : renforcement prioritaire, intensité progressive, bien s\'hydrater)' : ''}.
+Exercices UNIQUEMENT parmi ces identifiants : ${Object.entries(exLibFor(p)).map(([k, v]) => `${k} (${v})`).join(', ')}.${goalRule(p)}${p.gym === 'À la maison' ? ' À la maison : poids du corps, haltères légers, élastique — pas de machines (Leg_Press, Seated_Leg_Curl, Leg_Extensions, Wide-Grip_Lat_Pulldown, Seated_Cable_Rows, Triceps_Pushdown, Face_Pull, Walking_Treadmill, Elliptical_Trainer, Rowing_Stationary, Bicycling_Stationary interdits).' : ''}
 ${LANG_RULE(p.lang)}
 JOURS DE REPOS (jamais de séance) : ${p.restDays.map(d => ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'][d]).join(', ') || 'aucun'} → choisis les jours parmi ${allowed.join(', ')} (0=dimanche).
 Réponds UNIQUEMENT en JSON : {"days":[jours de la semaine 0=dimanche…],"sessions":[{"label":"nom court","emoji":"🔥","focus":"muscles","warmup":"échauffement court","estMin":40,"exercises":[{"id":"Goblet_Squat","name":"nom affiché","sets":3,"reps":"12","rest":60,"tip":"consigne technique (≤ 100 car.)","alt":["variante"],"timed":false}]}]} — 5 à 7 exercices par séance, jours espacés.` ,
@@ -270,8 +303,8 @@ Réponds UNIQUEMENT en JSON : {"days":[jours de la semaine 0=dimanche…],"sessi
     at: Date.now(), days: (() => { const d0 = [...new Set((j.days ?? []).map(Number).filter(d => allowed.includes(d)))].slice(0, n); for (const d of [1, 3, 5, 2, 6, 0, 4]) if (d0.length < n && allowed.includes(d) && !d0.includes(d)) d0.push(d); return d0.sort(); })(),
     sessions: (j.sessions ?? []).slice(0, n).map(s => ({
       label: String(s.label ?? 'Séance').slice(0, 40), emoji: String(s.emoji ?? '🔥').slice(0, 4), focus: String(s.focus ?? '').slice(0, 80), warmup: String(s.warmup ?? '').slice(0, 160), estMin: Number(s.estMin) || 40,
-      exercises: (s.exercises ?? []).filter(e => e.id && EX_LIB[String(e.id)]).map(e => ({
-        id: String(e.id), name: String(e.name ?? e.id).slice(0, 60), muscle: EX_LIB[String(e.id)]!, sets: Number(e.sets) || 3, reps: String(e.reps ?? '12'), rest: Number(e.rest) || 60,
+      exercises: (s.exercises ?? []).filter(e => e.id && exLibFor(p)[String(e.id)]).map(e => ({
+        id: String(e.id), name: String(e.name ?? e.id).slice(0, 60), muscle: EX_ALL[String(e.id)]!, sets: Number(e.sets) || 3, reps: String(e.reps ?? '12'), rest: Number(e.rest) || 60,
         tip: String(e.tip ?? '').slice(0, 140), alt: (e.alt ?? []).map(String).slice(0, 3), timed: !!e.timed,
         demo: [0, 1].map(i => `${EX_BASE}/${String(e.id)}/${i}.jpg`), video: `https://www.youtube.com/results?search_query=${encodeURIComponent(`${String(e.id).replace(/_/g, ' ')} exercise form`)}`, suggestion: { kg: null },
       })),
@@ -307,9 +340,9 @@ export async function adaptNextSession(uid: Uid, o: { focus: string; observation
   const obs = [o.observations, lastA ? `Dernière analyse photo : ${lastA.summary} Zones : ${lastA.zones.map(z => `${z.label} (${z.trend})`).join(', ')}. Priorités : ${lastA.focus.join(', ')}.` : ''].filter(Boolean).join('\n');
   const sc = await import('./sport-coach.js');
   const next = uid === 'kouider' ? await sc.nextSessionDate() : null;
-  const lib = uid === 'kouider' ? sc.exerciseLibraryText() : Object.entries(EX_LIB).map(([k, v]) => `${k} (${v})`).join(', ');
+  const lib = uid === 'kouider' ? sc.exerciseLibraryText() : Object.entries(exLibFor(p)).map(([k, v]) => `${k} (${v})`).join(', ');
   const res = await createAnthropic().messages.create({ model: 'claude-sonnet-5-5', max_tokens: 3000,
-    system: `Tu es son coach sportif. Il/elle t'a dit ce qu'il/elle veut perdre ou améliorer${obs ? ' et tu as ses photos analysées' : ''}. Tu refais SA PROCHAINE SÉANCE, exercice par exercice, précise et faisable (~${p.sex === 'h' ? '60-75' : '40-50'} min, lieu : ${p.gym}). Vérité utile : on ne « fond » pas une zone précise — la graisse part avec le déficit calorique + les protéines ; la séance renforce la zone visée, augmente la dépense (circuits, cardio en fin) et améliore la posture. Dis-le en une phrase dans "why".${p.sex === 'h' ? ' Dos à ménager : pas de charge lourde sur la colonne (pas de soulevé de terre lourd ni squat barre lourde).' : ''}${p.wegovy.on ? ' Traitement GLP-1 : renforcement prioritaire pour garder le muscle, hydratation.' : ''}
+    system: `Tu es son coach sportif. Il/elle t'a dit ce qu'il/elle veut perdre ou améliorer${obs ? ' et tu as ses photos analysées' : ''}. Tu refais SA PROCHAINE SÉANCE, exercice par exercice, précise et faisable (~${p.sex === 'h' ? '60-75' : '40-50'} min, lieu : ${p.gym}). Vérité utile : on ne « fond » pas une zone précise — la graisse part avec le déficit calorique + les protéines ; la séance renforce la zone visée, augmente la dépense (circuits, cardio en fin) et améliore la posture. Dis-le en une phrase dans "why".${uid === 'kouider' ? ' Dos à ménager : pas de charge lourde sur la colonne (pas de soulevé de terre lourd ni squat barre lourde).' : ''}${goalRule(p)}${p.wegovy.on ? ' Traitement GLP-1 : renforcement prioritaire pour garder le muscle, hydratation.' : ''}
 Exercices de préférence parmi : ${lib}.${uid !== 'kouider' ? ' UNIQUEMENT ces identifiants dans "id".' : ''}${LANG_RULE(p.lang)}
 Réponds UNIQUEMENT en JSON : {"label":"nom court","emoji":"🔥","focus":"zones travaillées","warmup":"échauffement","why":"pourquoi cette séance (≤ 180 car.)","exercises":[{"id":"(femme : identifiant)","name":"nom","sets":3,"reps":"12","rest":60,"tip":"consigne précise (≤ 110 car.)","muscle":"pecs|dos|epaules|bras|jambes|abdos|cardio","alt":["variante"]}]} — 6 à 8 exercices dont un finisher cardio.`,
     messages: [{ role: 'user', content: `OBJECTIF : ${o.focus.slice(0, 300)}\n${obs}` }] }, QUALITY);
@@ -322,7 +355,7 @@ Réponds UNIQUEMENT en JSON : {"label":"nom court","emoji":"🔥","focus":"zones
     return { date: next.date, text: `${why}\n\n${text}` };
   }
   const session: ProgSession = { label: String(j.label ?? 'Séance sur mesure').slice(0, 40), emoji: String(j.emoji ?? '🎯').slice(0, 4), focus: String(j.focus ?? '').slice(0, 80), warmup: String(j.warmup ?? '').slice(0, 160), estMin: 45,
-    exercises: (j.exercises ?? []).filter(e => e.id && EX_LIB[String(e.id)]).map(e => ({ id: String(e.id), name: String(e.name ?? e.id).slice(0, 60), muscle: EX_LIB[String(e.id)]!, sets: Number(e.sets) || 3, reps: String(e.reps ?? '12'), rest: Number(e.rest) || 60,
+    exercises: (j.exercises ?? []).filter(e => e.id && exLibFor(p)[String(e.id)]).map(e => ({ id: String(e.id), name: String(e.name ?? e.id).slice(0, 60), muscle: EX_ALL[String(e.id)]!, sets: Number(e.sets) || 3, reps: String(e.reps ?? '12'), rest: Number(e.rest) || 60,
       tip: String(e.tip ?? '').slice(0, 140), alt: (e.alt ?? []).map(String).slice(0, 3), timed: false, demo: [0, 1].map(i => `${EX_BASE}/${String(e.id)}/${i}.jpg`), video: `https://www.youtube.com/results?search_query=${encodeURIComponent(`${String(e.id).replace(/_/g, ' ')} exercise form`)}`, suggestion: { kg: null } })) };
   // Sa prochaine séance prévue à partir de demain (jamais un jour de repos)
   const prog = await getProgram(uid);
@@ -402,13 +435,13 @@ async function gridImage(img: Img): Promise<Img> {
   } catch { return img; }
 }
 
-const bodySystem = (p: FormeProfile) => `Tu es le coach physique de ${p.sex === 'h' ? 'Kouider (muscu' : 'cette femme (renforcement'} + perte de gras${p.wegovy.on ? ' sous Wegovy' : ''}). On te donne sa photo AVANT (image 1) et MAINTENANT (image 2), même pose, ou une seule photo de départ.
+const bodySystem = (p: FormeProfile, uid: Uid) => `Tu es le coach physique de ${uid === 'kouider' ? 'Kouider (muscu' : p.sex === 'h' ? `${p.name || 'cet homme'} (muscu` : 'cette femme (renforcement'} + ${p.goal === 'muscle' ? 'PRISE DE MUSCLE : regarde surtout le volume des épaules, pecs, bras, dos, jambes' : p.goal === 'recompo' ? 'perte de gras et prise de muscle' : 'perte de gras'}${p.wegovy.on ? ' sous Wegovy' : ''}). On te donne sa photo AVANT (image 1) et MAINTENANT (image 2), même pose, ou une seule photo de départ.
 Analyse objectivement et avec bienveillance ce qui a changé : épaules, bras, ventre/taille, dos, hanches, jambes, posture. Ne commente jamais le visage. Pas de jugement sur le corps, juste du concret et motivant.
 Réponds UNIQUEMENT en JSON :
 {"summary":"2-3 phrases : ce qui a changé (ou point de départ)","score":0-100 (progression visible, 50 = pareil),
  "zones":[{"label":"Ventre","x":0.5,"y":0.55,"r":0.12,"bx":0.5,"by":0.55,"br":0.13,"trend":"mieux|pareil|à travailler","note":"≤ 90 car."}],
  "advice":["conseil d'entraînement ou d'habitude précis (≤ 120 car.)", "..."],"focus":["muscles à travailler en priorité"]}
-Les photos portent une GRILLE cyan graduée .1 à .9 (horizontal = x, vertical = y) : sers-t'en pour placer chaque cercle EXACTEMENT sur la partie du corps (ventre = sous la poitrine au niveau du nombril, pas sur le fond ni la tête). x,y = centre du cercle sur la photo MAINTENANT (fractions 0-1 de la largeur/hauteur), r = rayon en fraction de la largeur, PETIT (0,04 à 0,12 : le cercle entoure juste la zone) ; bx,by,br = même zone sur la photo AVANT (omet-les s'il n'y a qu'une photo). 3 à 5 zones qui ne se chevauchent pas, JAMAIS sur le visage ni la tête (épaules = au bord des épaules). Le champ "trend" reste TOUJOURS en français (mieux / pareil / à travailler).${p.sex === 'h' ? ' Conseils compatibles avec un dos à ménager.' : ''}${LANG_RULE(p.lang)}`;
+Les photos portent une GRILLE cyan graduée .1 à .9 (horizontal = x, vertical = y) : sers-t'en pour placer chaque cercle EXACTEMENT sur la partie du corps (ventre = sous la poitrine au niveau du nombril, pas sur le fond ni la tête). x,y = centre du cercle sur la photo MAINTENANT (fractions 0-1 de la largeur/hauteur), r = rayon en fraction de la largeur, PETIT (0,04 à 0,12 : le cercle entoure juste la zone) ; bx,by,br = même zone sur la photo AVANT (omet-les s'il n'y a qu'une photo). 3 à 5 zones qui ne se chevauchent pas, JAMAIS sur le visage ni la tête (épaules = au bord des épaules). Le champ "trend" reste TOUJOURS en français (mieux / pareil / à travailler).${uid === 'kouider' ? ' Conseils compatibles avec un dos à ménager.' : ''}${LANG_RULE(p.lang)}`;
 
 export async function analyzeBodyPhoto(uid: Uid, id: string, goal = ''): Promise<BodyAnalysis> {
   const photos = await readPhotos(uid);
@@ -425,7 +458,7 @@ export async function analyzeBodyPhoto(uid: Uid, id: string, goal = ''): Promise
       : `Photo de départ (${cur.date}${cur.weight ? `, ${cur.weight} kg` : ''}), pose ${cur.pose}. Pas de photo d'avant : décris le point de départ et les zones à travailler.` },
     { type: 'text' as const, text: goal.trim() ? `CE QU'IL/ELLE VEUT PERDRE OU AMÉLIORER : ${goal.slice(0, 300)} — entoure surtout ces zones (trend « à travailler » si c'est encore à faire) et donne des conseils précis pour ça.` : 'Il/elle n\'a rien précisé : dis TOI-MÊME, avec tact, ce qu\'il/elle devrait perdre ou travailler en priorité (zones « à travailler » entourées), et pourquoi.' },
   ];
-  const res = await createAnthropic().messages.create({ model: 'claude-sonnet-5-5', max_tokens: 1500, system: bodySystem(prof), messages: [{ role: 'user', content }] }, QUALITY);
+  const res = await createAnthropic().messages.create({ model: 'claude-sonnet-5-5', max_tokens: 1500, system: bodySystem(prof, uid), messages: [{ role: 'user', content }] }, QUALITY);
   const j = jsonOf<Partial<BodyAnalysis>>(textOf(res));
   const f01 = (v: unknown, d: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : d; };
   const a: BodyAnalysis = {
@@ -572,8 +605,9 @@ export async function translateAr(texts: string[]): Promise<Record<string, strin
 export async function askFormeCoach(question: string, uid: Uid = 'kouider', mode = ''): Promise<string> {
   const p = await getFormeProfile(uid);
   let ctx = await formeText(uid);
+  if (p.goal === 'muscle') { const bp = await import('./forme-food.js').then(m => m.bulkPlan(uid)).catch(() => null); if (bp) ctx += `\nPLAN PRISE DE MASSE : ${bp.kcal} kcal/jour (dépense ${bp.tdee} + ${bp.surplus}), protéines ${bp.prot} g, +${bp.kgWeek} kg/semaine visé, ${bp.weightKg} → ${bp.targetKg} kg.`; }
   const res = await createAnthropic().messages.create({ model: 'claude-sonnet-5-5', max_tokens: 900,
-    system: `Tu es le coach SPORT FORME de ${p.name || 'cette personne'} (musculation, cardio, technique, récupération, salle), qui vit à Bruxelles. Tu ne donnes AUCUN conseil de nourriture / régime / recettes (retiré de FORME le 31/10) : si on t'en demande, dis gentiment que FORME s'occupe du sport.\nRéponds simplement, concret, chaleureux, ${mode ? '20' : '8'} lignes max. Questions médicales (dose, effets graves : douleur au ventre forte et persistante, vomissements répétés, malaise) → son médecin ou le 112 en urgence.${p.lang === 'ar' ? ' Réponds en arabe littéraire.' : ' Réponds en français.'}`,
+    system: `Tu es le coach SPORT FORME de ${p.name || 'cette personne'} (musculation, cardio, technique, récupération, salle), qui vit à Bruxelles. ${p.goal === 'muscle' ? 'Son objectif : PRENDRE DU MUSCLE (prise de masse, surplus calorique) — tu peux conseiller sur l\'alimentation pour la prise de masse (assez de calories et de protéines, aliments halal simples), jamais de régime restrictif.' : 'Tu ne donnes AUCUN conseil de régime / recettes : si on t\'en demande, renvoie vers l\'onglet Repas (photo du plat).'}\nRéponds simplement, concret, chaleureux, ${mode ? '20' : '8'} lignes max. Questions médicales (dose, effets graves : douleur au ventre forte et persistante, vomissements répétés, malaise) → son médecin ou le 112 en urgence.${p.lang === 'ar' ? ' Réponds en arabe littéraire.' : ' Réponds en français.'}`,
     messages: [{ role: 'user', content: `${ctx}\n\nQUESTION : ${question.slice(0, 800)}` }] }, QUALITY);
   return textOf(res).trim();
 }
@@ -678,7 +712,7 @@ export async function formeText(uid: Uid = 'kouider'): Promise<string> {
   const lines = [
     uid === 'kouider'
       ? 'APP FORME (son app SPORT : séances, bibliothèque d\'exercices, scan des machines de la salle, photos du corps — page FORME de l\'app Dzaryx et appli à part). Pas de plans de repas ni de courses ; MAIS depuis le 31/10 soir il y a le COMPTEUR CALORIES (onglet Repas : photo du plat → kcal/protéines, objectif déficit selon sa montre). Outil `forme` pour lire/noter.'
-      : `SUIVI FORME DE ${who.toUpperCase()} (elle a accepté de le partager avec Dzaryx ; reste discret et bienveillant, n'en parle qu'à Kouider ou à elle) :`,
+      : uid === 'ami' ? `SUIVI FORME DE ${who.toUpperCase()} (objectif : ${({ perte: 'perdre du gras', muscle: 'prendre du muscle (prise de masse)', recompo: 'perdre du gras et prendre du muscle' } as Record<string, string>)[p.goal]}) :` : `SUIVI FORME DE ${who.toUpperCase()} (elle a accepté de le partager avec Dzaryx ; reste discret et bienveillant, n'en parle qu'à Kouider ou à elle) :`,
     `Objectif : ${p.goal} · ${weights.length ? `${weights[0]![1].weight} kg au départ → ${weights[weights.length - 1]![1].weight} kg aujourd'hui` : `${p.weightKg} kg`} → visé ${p.targetKg} kg.`,
     p.wegovy.on ? `TRAITEMENT WEGOVY (privé ; jamais de conseil de dose → médecin) : ${p.wegovy.dose ? `dose actuelle ${p.wegovy.dose}, ` : ''}injection le ${['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'][p.wegovy.day]} ${p.wegovy.hour}${inj ? `, prochaine ${inj.inDays === 0 ? "AUJOURD'HUI" : `dans ${inj.inDays} j`} (site conseillé : ${inj.site})` : ''}.` : '',
     lastDays.length ? `7 DERNIERS JOURS :\n${lastDays.join('\n')}` : '',

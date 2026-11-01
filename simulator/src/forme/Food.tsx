@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { forme, errText, compressImage, vibrate, type FoodBudget, type FoodCfg, type MealLog, type FoodPart } from './api.ts';
 import { F, card, darkCard, btn, ghostBtn, input, Ring, Bar, Sheet, Spinner } from './ui.tsx';
+import { BulkCard, BulkQuiz } from './Bulk.tsx';
+import type { Overview } from './api.ts';
 
 // 🍽️ REPAS (Kouider 31/10, « style Cal AI ») : photo du plat → chaque aliment, grammes, kcal, protéines.
 // Le budget vient de sa montre (dépense − déficit) ; Dzaryx commente sur Telegram après chaque photo et toute la journée.
@@ -10,7 +12,8 @@ const STEPS = ['Je regarde ton assiette…', 'Je reconnais les aliments…', 'J\
 const SLOT: Record<MealLog['slot'], string> = { matin: 'Petit-déj', midi: 'Midi', collation: 'Collation', soir: 'Soir' };
 const SRC: Record<FoodBudget['activeSource'], string> = { montre: 'mesurée par ta montre', moyenne: 'moyenne de ta montre (14 j)', estimation: 'estimée (pas encore de données montre)' };
 
-export default function FoodScreen({ toast }: { toast: (t: string) => void }) {
+export default function FoodScreen({ toast, o, onO }: { toast: (t: string) => void; o: Overview; onO: (o: Overview) => void }) {
+  const [quiz, setQuiz] = useState(false);
   const cam = useRef<HTMLInputElement>(null), lib = useRef<HTMLInputElement>(null);
   const [b, setB] = useState<FoodBudget | null>(null);
   const [cfg, setCfg] = useState<FoodCfg | null>(null);
@@ -24,7 +27,7 @@ export default function FoodScreen({ toast }: { toast: (t: string) => void }) {
   const [settings, setSettings] = useState(false);
   const [err, setErr] = useState('');
   const load = () => forme.food().then(r => { setB(r.budget); setCfg(r.cfg); }).catch(e => setErr(errText(e)));
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [o.profile.goal, o.profile.bulk?.at]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const go = async (file?: File | null) => {
     if (!file) return;
@@ -45,8 +48,11 @@ export default function FoodScreen({ toast }: { toast: (t: string) => void }) {
   };
 
   if (!b) return <div style={{ padding: 40, display: 'flex', justifyContent: 'center' }}>{err ? <div style={{ color: F.red }}>{err}</div> : <Spinner />}</div>;
-  const over = b.left < 0, near = !over && b.pct >= 75;
-  const ringColor = over ? F.red : near ? F.gold : '#3ddc84';
+  const bulk = b.mode === 'surplus';
+  // Prise de masse : dépasser = objectif atteint (vert) ; le soir, trop peu mangé = alerte
+  const over = !bulk && b.left < 0, near = !bulk && !over && b.pct >= 75;
+  const late = bulk && b.left > 0 && new Date().getHours() >= 18 && b.pct < 70;
+  const ringColor = over ? F.red : near ? F.gold : bulk && b.left > 0 ? (late ? F.gold : '#5b8cff') : '#3ddc84';
   const macro = (l: string, v: number, goal: number | null, color: string) => (
     <div style={{ flex: 1, minWidth: 0 }}>
       <div style={{ fontSize: 12, opacity: 0.7 }}>{l}</div>
@@ -61,20 +67,21 @@ export default function FoodScreen({ toast }: { toast: (t: string) => void }) {
         <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', padding: '4px 2px' }}>Repas</div>
         <button onClick={() => setSettings(true)} aria-label="Réglages" style={{ ...ghostBtn, width: 40, height: 40, padding: 0, borderRadius: 20 }}>⚙️</button>
       </div>
-      <div style={{ fontSize: 14, color: F.muted, margin: '0 2px 14px', lineHeight: 1.4 }}>Prends ton plat en photo : je compte les calories et les protéines, et je te dis ce qu'il te reste pour rester en déficit.</div>
+      <div style={{ fontSize: 14, color: F.muted, margin: '0 2px 14px', lineHeight: 1.4 }}>{bulk ? 'Prends ton plat en photo : je compte les calories et les protéines, et je te dis ce qu\'il te reste à manger pour prendre du muscle.' : 'Prends ton plat en photo : je compte les calories et les protéines, et je te dis ce qu\'il te reste pour rester en déficit.'}</div>
+      {o.profile.goal === 'muscle' && (o.uid !== 'kouider' || !!o.profile.bulk) && <BulkCard o={o} onO={onO} toast={toast} />}
 
       {/* Budget du jour */}
       <div style={{ ...darkCard, marginBottom: 14 }}>
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
           <Ring value={b.eaten.kcal} max={b.target} size={128} stroke={12} color={ringColor}>
-            <div style={{ fontSize: 26, fontWeight: 800, color: over ? '#ff8a80' : '#fff' }}>{Math.abs(b.left)}</div>
-            <div style={{ fontSize: 11.5, opacity: 0.75 }}>{over ? 'kcal en trop' : 'kcal restantes'}</div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: over ? '#ff8a80' : '#fff' }}>{bulk && b.left <= 0 ? '✓' : Math.abs(b.left)}</div>
+            <div style={{ fontSize: 11.5, opacity: 0.75 }}>{bulk ? (b.left > 0 ? 'kcal à manger' : 'objectif atteint') : over ? 'kcal en trop' : 'kcal restantes'}</div>
           </Ring>
           <div style={{ flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 1.55 }}>
             <div><b>{b.eaten.kcal}</b> / {b.target} kcal mangées</div>
             <div style={{ opacity: 0.75 }}>Dépense {b.burn} kcal</div>
-            <div style={{ opacity: 0.75 }}>Déficit visé {b.deficit} kcal</div>
-            <div style={{ marginTop: 6, fontSize: 12.5, fontWeight: 600, color: over ? '#ff8a80' : near ? '#ffd27a' : '#8ff0b8' }}>{over ? '⚠️ Déficit dépassé' : near ? '⚠️ Bientôt la limite — garde de la place pour ce soir' : '✅ Tu es dans ton déficit'}</div>
+            <div style={{ opacity: 0.75 }}>{bulk ? `Surplus visé +${b.surplus} kcal (prise de masse)` : `Déficit visé ${b.deficit} kcal`}</div>
+            <div style={{ marginTop: 6, fontSize: 12.5, fontWeight: 600, color: over || late ? (late ? '#ffd27a' : '#ff8a80') : near ? '#ffd27a' : '#8ff0b8' }}>{bulk ? (b.left <= 0 ? '✅ Objectif atteint : tu construis du muscle' : late ? `⚠️ Il te manque ${b.left} kcal ce soir — mange encore !` : `💪 Encore ${b.left} kcal à manger aujourd'hui`) : over ? '⚠️ Déficit dépassé' : near ? '⚠️ Bientôt la limite — garde de la place pour ce soir' : '✅ Tu es dans ton déficit'}</div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
@@ -139,8 +146,9 @@ export default function FoodScreen({ toast }: { toast: (t: string) => void }) {
 
       <MealSheet meal={open} onClose={() => setOpen(null)} onBudget={nb => { setB(nb); setOpen(null); toast('✅ Repas mis à jour'); }} />
       <Sheet open={settings} onClose={() => setSettings(false)} title="Réglages calories">
-        {cfg && <Settings cfg={cfg} onSave={async c => { try { const r = await forme.foodCfg(c); setCfg(r.cfg); setB(r.budget); toast('✅ Enregistré'); } catch (e) { toast(errText(e)); } }} />}
+        {cfg && <Settings bulk={bulk} kouider={o.uid === 'kouider'} goalMuscle={o.profile.goal === 'muscle' && o.uid !== 'kouider'} onQuiz={() => { setSettings(false); setQuiz(true); }} cfg={cfg} onSave={async c => { try { const r = await forme.foodCfg(c); setCfg(r.cfg); setB(r.budget); toast('✅ Enregistré'); } catch (e) { toast(errText(e)); } }} />}
       </Sheet>
+      <BulkQuiz open={quiz} onClose={() => setQuiz(false)} o={o} onO={onO} toast={toast} />
       <div style={{ height: 24 }} />
     </div>
   );
@@ -186,18 +194,21 @@ function MealSheet({ meal, onClose, onBudget }: { meal: MealLog | null; onClose:
   );
 }
 
-function Settings({ cfg, onSave }: { cfg: FoodCfg; onSave: (c: Partial<FoodCfg>) => void }) {
+function Settings({ cfg, onSave, bulk, kouider, onQuiz, goalMuscle }: { cfg: FoodCfg; onSave: (c: Partial<FoodCfg>) => void; bulk: boolean; kouider: boolean; onQuiz: () => void; goalMuscle: boolean }) {
   const [d, setD] = useState(cfg.deficit);
   return (
     <div style={{ paddingTop: 8 }}>
+      {bulk ? <div style={{ ...card, padding: 14, marginBottom: 12 }}><div style={{ fontWeight: 700 }}>💪 Mode prise de masse</div><div style={{ fontSize: 13, color: F.muted, margin: '4px 0 10px' }}>Ton objectif est « Prendre du muscle » : FORME vise un SURPLUS de calories, pas un déficit. Pour changer le rythme, refais le questionnaire.</div><button onClick={onQuiz} style={{ ...btn, width: '100%' }}>Questionnaire prise de masse</button></div> : <>
+      {!goalMuscle && !kouider && <button onClick={onQuiz} style={{ ...card, width: '100%', border: 'none', textAlign: 'start', cursor: 'pointer', fontFamily: F.sans, color: F.ink, marginBottom: 12 }}><div style={{ fontWeight: 700 }}>💪 Tu veux prendre du poids / du muscle ?</div><div style={{ fontSize: 13, color: F.muted }}>Fais le questionnaire prise de masse : FORME passe en surplus au lieu du déficit.</div></button>}
       <div style={{ fontWeight: 600, marginBottom: 6 }}>Déficit par jour : {d} kcal</div>
       <div style={{ fontSize: 13, color: F.muted, marginBottom: 8 }}>≈ {(d * 7 / 7700).toFixed(1).replace('.', ',')} kg perdu par semaine. Au-delà de 750 on perd du muscle.</div>
       <input type="range" min={0} max={750} step={50} value={d} onChange={e => setD(Number(e.target.value))} style={{ width: '100%' }} />
       <button onClick={() => onSave({ deficit: d })} style={{ ...btn, width: '100%', marginTop: 12 }}>Enregistrer le déficit</button>
-      <label style={{ ...card, display: 'flex', alignItems: 'center', gap: 12, marginTop: 16, padding: 14 }}>
+      </>}
+      {kouider && <label style={{ ...card, display: 'flex', alignItems: 'center', gap: 12, marginTop: 16, padding: 14 }}>
         <input type="checkbox" checked={cfg.telegram} onChange={e => onSave({ telegram: e.target.checked })} style={{ width: 22, height: 22 }} />
         <div><div style={{ fontWeight: 600 }}>Messages de Dzaryx sur Telegram</div><div style={{ fontSize: 12.5, color: F.muted }}>Après chaque plat, réveil (sommeil), collations, ce soir, avant de dormir.</div></div>
-      </label>
+      </label>}
     </div>
   );
 }

@@ -8,8 +8,10 @@ export interface Profile {
   wegovy: { on: boolean; dose: string; day: number; hour: string; start?: string; doses?: Array<{ date: string; dose: string }> };
   photoEveryDays: number; weighDaily: boolean; notif: { meals: boolean; water: boolean; injection: boolean; photo: boolean; weigh: boolean; telegram?: boolean }; waterGoal: number;
   fasting: 'off' | 'ramadan' | 'sunna'; reminders: Array<{ id: string; label: string; time: string; days: number[] }>; stepsGoal: number;
-  restDays: number[]; favorites: string[];
+  restDays: number[]; favorites: string[]; bulk?: Bulk;
 }
+export interface Bulk { rate: 'lent' | 'moyen' | 'rapide'; level: 'debutant' | 'inter' | 'confirme'; appetite: 'petit' | 'normal' | 'gros'; body: 'maigre' | 'normal' | 'gras'; job: 'assis' | 'debout' | 'physique'; sports: string; at: number }
+export interface BulkPlan { kcal: number; surplus: number; tdee: number; kgWeek: number; kgMonth: number; toGain: number; weeks: number; eta: string | null; prot: number; carb: number; fat: number; meals: number; tips: string[]; bulk: Bulk; weightKg: number; targetKg: number }
 export interface Targets { kcal: number; p: number; c: number; f: number; tdee: number; bmr: number; fiber: number; waterL: number }
 export interface Food { name: string; kcal: number; p: number; c: number; f: number; at?: number; src?: string }
 export interface Day { sleep?: number; steps?: number; meals: Record<string, boolean>; extra: Food[]; water: number; weight?: number; measures?: Record<string, number>; injection?: { at: number; site: string; dose?: string }; sides?: Array<{ what: string; level: number; at: number }> }
@@ -97,13 +99,15 @@ export interface RunDetail { run: RunSummary; track: Array<[number, number, numb
 export type MealSlot = 'matin' | 'midi' | 'collation' | 'soir';
 export interface FoodPart { name: string; grams: number; kcal: number; p: number; c: number; f: number }
 export interface MealLog { id: string; at: number; date: string; time: string; slot: MealSlot; title: string; items: FoodPart[]; kcal: number; p: number; c: number; f: number; confidence: 'haute' | 'moyenne' | 'basse'; note?: string; thumb?: string; src: 'photo' | 'texte'; coach?: string }
-export interface FoodBudget { date: string; bmr: number; active: number; activeSource: 'montre' | 'moyenne' | 'estimation'; burn: number; deficit: number; target: number; floor: number; eaten: { kcal: number; p: number; c: number; f: number }; left: number; proteinGoal: number; proteinLeft: number; pct: number; meals: MealLog[] }
+export interface FoodBudget { date: string; bmr: number; active: number; activeSource: 'montre' | 'moyenne' | 'estimation'; burn: number; deficit: number; mode: 'deficit' | 'surplus'; surplus: number; target: number; floor: number; eaten: { kcal: number; p: number; c: number; f: number }; left: number; proteinGoal: number; proteinLeft: number; pct: number; meals: MealLog[] }
 export interface FoodCfg { on: boolean; deficit: number; telegram: boolean }
 export const forme = {
   food: (date?: string) => call<{ budget: FoodBudget; cfg: FoodCfg }>(`/api/forme/food${date ? `?date=${date}` : ''}`),
   foodPhoto: (image: string, thumb?: string, note?: string) => post<{ meal: MealLog; budget: FoodBudget; message: string }>('/api/forme/food/photo', { image, thumb, note }),
   foodText: (text: string) => post<{ meal: MealLog; budget: FoodBudget; message: string }>('/api/forme/food/text', { text }),
   foodEdit: (b: { date: string; id: string; items?: FoodPart[]; scale?: number; slot?: MealSlot; del?: boolean }) => post<{ budget: FoodBudget }>('/api/forme/food/edit', b),
+  bulk: () => call<{ plan: BulkPlan | null }>('/api/forme/bulk'),
+  saveBulk: (b: { bulk: Omit<Bulk, 'at'>; weightKg: number; targetKg: number; heightCm: number; age: number; sessionsPerWeek: number }) => post<{ plan: BulkPlan; overview: Overview }>('/api/forme/bulk', b),
   foodCfg: (c: Partial<FoodCfg>) => post<{ cfg: FoodCfg; budget: FoodBudget }>('/api/forme/food/cfg', c),
   routines: () => call<{ routines: Routine[] }>('/api/forme/routines'),
   saveRoutine: (r: { id?: string; name: string; exercises: RoutineEx[] }) => post<{ routines: Routine[] }>('/api/forme/routines', r),

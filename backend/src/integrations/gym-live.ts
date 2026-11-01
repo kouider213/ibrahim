@@ -175,7 +175,8 @@ export async function startLive(date = localNow().date, at = Date.now()): Promis
     idx: 0, done: {}, skipped: [], nudges: 0, sent: [], ...(await getHomeBy(date).then(h => h ? { homeBy: h } : {})) };
   if (!l.before.length) l.liftsAt = at;                     // pas de cardio avant : la muscu commence tout de suite
   await refreshLeave(l);
-  l.health = [await healthLine(), await import('./workout-live.js').then(m => m.readiness()).then(r => r?.line ?? '').catch(() => '')].filter(Boolean).join('\n');
+  l.health = [await healthLine(), await import('./workout-live.js').then(m => m.readiness()).then(r => r?.line ?? '').catch(() => ''),
+    await import('./forme-runs-pro.js').then(m => m.runRecentLine('kouider')).catch(() => '')].filter(Boolean).join('\n');   // + ses sorties de course (FORME)
   await saveLive(l);
   const log = await readSportLog();
   const t = timeline(l, at);

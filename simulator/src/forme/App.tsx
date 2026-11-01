@@ -12,6 +12,7 @@ import FoodScreen from './Food.tsx';
 import { LibraryScreen } from './Exercises.tsx';
 import RunScreen from './Run.tsx';
 import { LiveViewer } from './RunPro.tsx';
+import { BulkQuiz } from './Bulk.tsx';
 
 // FORME — l'app SPORT de Kouider (31/10 : refaite au style de l'appli « Library » de sa vidéo, nourriture retirée).
 // Marche seule (écran d'accueil : /ibrahim/forme/) ou dans l'app Dzaryx (page FORME, en iframe : même session).
@@ -114,6 +115,7 @@ function Invite({ o, toast, who = 'femme' }: { o: Overview; toast: (t: string) =
 
 function Settings({ o, open, onClose, onO, toast }: { o: Overview; open: boolean; onClose: () => void; onO: (o: Overview) => void; toast: (t: string) => void }) {
   const [p, setP] = useState<Profile>(o.profile);
+  const [quiz, setQuiz] = useState(false);
   useEffect(() => { if (open) setP(o.profile); }, [open, o.profile]);
   const save = async (patch: Partial<Profile>) => {
     const next = { ...p, ...patch }; setP(next);
@@ -139,6 +141,8 @@ function Settings({ o, open, onClose, onO, toast }: { o: Overview; open: boolean
       <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}>🌐 Langue · اللغة</div>
       <div style={{ display: 'flex', gap: 6 }}><Chip on={p.lang === 'ar'} onClick={() => void save({ lang: 'ar' })}>العربية</Chip><Chip on={p.lang === 'fr'} onClick={() => void save({ lang: 'fr' })}>Français</Chip></div>
       {o.uid === 'femme' && <div style={{ ...card, padding: '4px 14px', marginTop: 12 }}><Toggle on={p.shareWithDzaryx} onChange={v => void save({ shareWithDzaryx: v })} label="Partager mon suivi avec Dzaryx (l'assistant de Kouider)" /><div style={{ fontSize: 12.5, color: F.muted, padding: '6px 0 10px' }}>Désactivé : ton suivi, tes photos et ton traitement restent rien qu'à toi.</div></div>}
+      {(p.goal === 'muscle' || o.uid !== 'kouider') && <button onClick={() => setQuiz(true)} style={{ ...ghostBtn, width: '100%', marginBottom: 6 }}>💪 Questionnaire prise de masse{o.profile.bulk ? ' (refaire)' : ''}</button>}
+      <BulkQuiz open={quiz} onClose={() => setQuiz(false)} o={o} onO={onO} toast={toast} />
       {o.uid === 'kouider' && <><Invite o={o} toast={toast} /><Invite o={o} toast={toast} who="ami" /></>}
       <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}>🛌 Jours de repos (pas de sport)</div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{[1, 2, 3, 4, 5, 6, 0].map(d => <Chip key={d} on={p.restDays.includes(d)} onClick={() => void save({ restDays: p.restDays.includes(d) ? p.restDays.filter(x => x !== d) : [...p.restDays, d] })}>{DAYS[d]!.slice(0, 3)}</Chip>)}</div>
@@ -209,6 +213,7 @@ function FormeApp() {
   const [err, setErr] = useState('');
   const [tab, setTab] = useState<Tab>(() => { try { const t = localStorage.getItem('forme:tab'); return isTab(t) ? t : 'sport'; } catch { return 'sport'; } });
   const [settings, setSettings] = useState(false);
+  const [bulkLater, setBulkLater] = useState(() => { try { return sessionStorage.getItem('forme:bulk-later') === '1'; } catch { return false; } });
   const [toastText, setToastText] = useState<string | null>(null);
   const standalone = (() => { try { return matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true; } catch { return false; } })();
   const [notifState, setNotifState] = useState<string>(() => { try { if (localStorage.getItem('forme:notif-dismissed')) return 'dismissed'; } catch { /* */ } return typeof Notification !== 'undefined' ? Notification.permission : 'default'; });
@@ -219,6 +224,9 @@ function FormeApp() {
   useEffect(() => { if (authed) void load(); }, [authed, load]);
   // Abonnement aux notifications ré-envoyé à chaque ouverture depuis l'icône (le serveur garde toujours le bon)
   useEffect(() => { if (!o || embedded || !standalone) return; try { if (typeof Notification !== 'undefined' && Notification.permission === 'granted') void enablePush().catch(() => {}); } catch { /* */ } }, [o?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
+  // objectif « muscle » sans questionnaire → il s'ouvre une fois (reste ouvert pour afficher le plan à la fin)
+  const [bulkOpen, setBulkOpen] = useState(false);
+  useEffect(() => { if (o?.profile.onboarded && o.uid !== 'kouider' && o.profile.goal === 'muscle' && !o.profile.bulk && !bulkLater) setBulkOpen(true); }, [o?.profile.onboarded, o?.profile.goal, o?.profile.bulk]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { try { localStorage.setItem('forme:tab', tab); } catch { /* */ } window.scrollTo({ top: 0 }); }, [tab]);
   useEffect(() => { const f = () => { if (document.visibilityState === 'visible' && authed) void load(); }; document.addEventListener('visibilitychange', f); return () => document.removeEventListener('visibilitychange', f); }, [authed, load]);
   // Langue : celle du profil, mémorisée sur le téléphone AVANT d'appliquer (sinon arabe par défaut → profil français →
@@ -252,7 +260,7 @@ function FormeApp() {
         <motion.main key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.16 }}>
           {tab === 'sport' && (o.uid === 'kouider' ? <SportScreen toast={toast} go={setTab} /> : <ProgramSport toast={toast} go={setTab} />)}
           {tab === 'run' && <RunScreen toast={toast} name={o.profile.name} />}
-          {tab === 'food' && <FoodScreen toast={toast} />}
+          {tab === 'food' && <FoodScreen toast={toast} o={o} onO={setO} />}
           {tab === 'library' && <LibraryScreen />}
           {tab === 'scan' && <ScanScreen toast={toast} />}
           {tab === 'body' && <BodyScreen o={o} onO={setO} toast={toast} />}
@@ -266,6 +274,7 @@ function FormeApp() {
           </button>
         ))}
       </nav>
+      <BulkQuiz open={bulkOpen} onClose={() => { setBulkOpen(false); setBulkLater(true); try { sessionStorage.setItem('forme:bulk-later', '1'); } catch { /* */ } }} o={o} onO={setO} toast={toast} />
       <Settings o={o} open={settings} onClose={() => setSettings(false)} onO={setO} toast={toast} />
       <Toast text={toastText} />
     </div>

@@ -227,7 +227,7 @@ async function sendWakeMessage(cfg: RoutineConfig, plan: DayPlan, date: string, 
   const { tripNudges } = await import('./trips.js');
   const [motivation, nudges, liberte, ready, life, energy] = await Promise.all([motivationLines(cfg, plan, date), tripNudges().catch(() => ''),
     test ? '' : import('./liberte.js').then(m => m.liberteMorningLine()).catch(() => ''),
-    import('./workout-live.js').then(m => m.readiness()).then(r => r?.line ?? '').catch(() => ''),
+    Promise.all([import('./workout-live.js').then(m => m.readiness()).then(r => r?.line ?? '').catch(() => ''), import('./forme-runs-pro.js').then(m => m.runRecentLine('kouider')).catch(() => '')]).then(x => x.filter(Boolean).join('\n')),
     test ? '' : import('./life-plus.js').then(async m => [await m.waterLine().catch(() => ''), await m.prayerLine().catch(() => '')].filter(Boolean).join('\n')).catch(() => ''),
     test ? '' : import('./conscience.js').then(m => m.energyToday()).then(e => e.line.includes('heures fortes') ? `${e.line}\n→ Dis « cale ma journée sur mon énergie » : je mets le difficile sur tes heures fortes (après ton oui).` : '').catch(() => '')]);
   const head = test

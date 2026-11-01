@@ -3,6 +3,13 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-01 — FORME : prise de masse pour son ami + audit d'accès + course ↔ salle (app v227)
+- Objectif « muscle » d'un invité = SURPLUS calorique (lent/normal/rapide : +250/+350/+500 kcal) au lieu du déficit ; Kouider garde son DÉFICIT (« je veux un déficit et me muscler ») sauf s'il fait lui-même le questionnaire.
+- Questionnaire prise de masse (7 questions : corps, poids visé, physique, niveau, appétit, semaine/travail/autres sports, rythme) → plan chiffré (kcal, protéines, glucides, lipides, kg/mois, date d'arrivée, conseils) — `bulkPlan` sans IA ; s'ouvre tout seul pour l'ami.
+- Coach repas des invités : n'est plus « Dzaryx, bras droit de Kouider » ; selon SON objectif (prise de masse = l'encourager à manger assez). Coach photos/séances : la règle « dos à ménager » de Kouider ne s'applique plus aux autres hommes ; gros exercices (développé couché, squat, tractions…) ajoutés pour les hommes ; règles hypertrophie ; programme refait au 1er questionnaire.
+- Audit : toutes les routes /api/forme lisent l'utilisateur du jeton ; photos dans `<uid>/` (bucket privé, liens temporaires) ; jeton invité valable seulement sur /api/forme ; Dzaryx ne lit pas le suivi de l'ami.
+- Kouider : ses sorties de course (FORME) entrent dans le coach de salle en direct et le message du réveil (jambes chargées → leg day allégé) ; kcal des sorties comptées au budget repas si la montre n'a pas mesuré la journée.
+
 ## 2026-11-01 — FORME COURSE « PRO » après l'analyse de 20 applis (app v226)
 - `forme-runs-pro.ts` : VO2max (VDOT Daniels, vérifié : 5 km 25:00 → 38,3) + temps prévus 5/10/semi/marathon + allures d'entraînement ; charge d'entraînement forme/fatigue/fraîcheur (CTL/ATL/TSB) + alerte montée trop rapide ; plans guidés (débuter 0→5 km, 5 km, 10 km, semi : semaines de récup, semaine de course) ; « Mes parcours » = même trajet reconnu + classement ; météo au départ (Open-Meteo) ; chaussures (km d'usure) ; défis du mois + 12 badges ; export GPX ; analyse du coach IA ; suivi en direct public (?suivi=…, lien secret 24 h).
 - App : séance guidée pas à pas (étape, compte à rebours, voix à chaque changement, « accélère / ralentis »), cadence pas/min (accéléromètre), bouton « Envoyer le suivi », cartes Ma forme / Charge / Défis / Plan, chaussures + suivi dans les réglages.

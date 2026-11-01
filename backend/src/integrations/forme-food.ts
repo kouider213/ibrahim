@@ -25,6 +25,7 @@ export interface FoodCfg { on: boolean; deficit: number; telegram: boolean }
 export interface Budget {
   date: string; bmr: number; active: number; activeSource: 'montre' | 'moyenne' | 'estimation'; burn: number;
   deficit: number; target: number; floor: number; eaten: { kcal: number; p: number; c: number; f: number };
+  mode: 'deficit' | 'surplus'; surplus: number;   // objectif « muscle » = SURPLUS (prise de masse), sinon déficit
   left: number; proteinGoal: number; proteinLeft: number; pct: number; meals: MealLog[];
 }
 
@@ -79,16 +80,56 @@ async function activeFor(date: string): Promise<{ kcal: number; source: Budget['
   return { kcal: r0(Math.max(350, woK + 250, today)), source: 'estimation' };
 }
 
+export const BULK_SURPLUS = { lent: 250, moyen: 350, rapide: 500 } as const;
+export const BULK_KG_WEEK = { lent: 0.2, moyen: 0.3, rapide: 0.45 } as const;
+
+/** Plan de prise de masse (après le questionnaire) : chiffres + conseils, sans IA (toujours dispo, gratuit) */
+export async function bulkPlan(uid: Uid) {
+  const p = await getFormeProfile(uid);
+  const b = p.bulk; if (!b) return null;
+  const t = formeTargets(p);
+  const kcal = Math.round((t.tdee + BULK_SURPLUS[b.rate]) / 10) * 10;
+  const kgWeek = BULK_KG_WEEK[b.rate];
+  const toGain = Math.max(0, Math.round((p.targetKg - p.weightKg) * 10) / 10);
+  const weeks = toGain ? Math.ceil(toGain / kgWeek) : 0;
+  const eta = weeks ? new Date(Date.now() + weeks * 7 * 86_400_000).toISOString().slice(0, 10) : null;
+  const prot = t.p, fat = Math.round(kcal * 0.25 / 9), carb = Math.round((kcal - prot * 4 - fat * 9) / 4);
+  const meals = b.appetite === 'petit' ? 5 : b.appetite === 'gros' ? 3 : 4;
+  const tips: string[] = [
+    `Mange ${kcal} kcal par jour en moyenne, en ${meals} repas/collations. La balance doit monter d'environ ${String(kgWeek).replace('.', ',')} kg par semaine : pèse-toi le matin, à jeun, et regarde la moyenne de la semaine.`,
+    `Protéines : ${prot} g par jour (≈ ${Math.round(prot / meals)} g à chaque repas) — poulet, bœuf haché, œufs, thon, skyr, fromage blanc, lentilles.`,
+    `Glucides : ${carb} g par jour, surtout avant et après la salle (riz, pâtes, pain, pommes de terre, flocons d'avoine, fruits, dattes).`,
+  ];
+  if (b.appetite === 'petit') tips.push('Petit appétit : bois une partie de tes calories. Shake maison ≈ 750 kcal / 40 g de protéines : 400 ml de lait entier, 60 g de flocons d\'avoine, 1 banane, 2 c. à soupe de beurre de cacahuète, 1 skyr. Ne bois pas un grand verre d\'eau juste avant de manger.');
+  if (b.appetite === 'petit' || b.body === 'maigre') tips.push('Aliments « denses » qui ajoutent des calories sans remplir : huile d\'olive (1 c. à soupe = 120 kcal) dans le riz et les pâtes, noix et amandes, dattes, fromage, avocat, granola.');
+  if (b.body === 'gras') tips.push('Tu prends vite du gras : on reste en surplus léger. Si ton tour de taille grossit de plus de 1 cm par mois, on baisse un peu (réglage « rythme »).');
+  if (b.body === 'maigre') tips.push('Tu « ne grossis pas » ? En général on mange moins qu\'on ne croit : note TOUT pendant 2 semaines (photo du plat). Si la balance ne bouge pas en 2 semaines, ajoute 200 kcal.');
+  tips.push(b.level === 'debutant' ? 'Débutant : c\'est le moment où on prend le plus de muscle. 3 à 4 séances par semaine, et ajoute un peu de charge ou une répétition à chaque séance.' : 'Charge progressive : le surplus ne sert à rien si la barre ne monte pas. Vise +1 répétition ou +2,5 kg chaque semaine sur tes exercices de base.');
+  if (b.sports) tips.push(`Tu fais aussi ${b.sports} : les jours où tu en fais, ajoute une collation (≈ 300-400 kcal) pour ne pas « brûler » ta prise de masse.`);
+  tips.push('Sommeil 7 à 9 h : c\'est la nuit que le muscle se construit.');
+  return { kcal, surplus: BULK_SURPLUS[b.rate], tdee: t.tdee, kgWeek, kgMonth: Math.round(kgWeek * 4.3 * 10) / 10, toGain, weeks, eta, prot, carb, fat, meals, tips, bulk: b, weightKg: p.weightKg, targetKg: p.targetKg };
+}
+
 export async function foodBudget(uid: Uid = 'kouider', date = localNow().date): Promise<Budget> {
   const [p, cfg, meals] = await Promise.all([getFormeProfile(uid), foodCfg(uid), mealsOf(uid, date)]);
   const t = formeTargets(p);
   const act = uid === 'kouider' ? await activeFor(date) : { kcal: r0(t.tdee - t.bmr), source: 'estimation' as const };
-  const burn = t.bmr + act.kcal;
+  // Sorties GPS de FORME ce jour-là : comptées seulement si la montre n'a pas mesuré la journée (sinon déjà dedans)
+  const runKcal = act.source === 'montre' ? 0 : await import('./forme-runs.js').then(async m => (await m.runList(uid)).filter(r => r.date === date).reduce((a, r) => a + r.kcal, 0)).catch(() => 0);
+  const burn = t.bmr + act.kcal + runKcal;
   const floor = p.sex === 'h' ? 1500 : 1200;
+  const eaten = sumOf(meals);
+  // Kouider garde son DÉFICIT même si son objectif sport est « muscle » (recompo) — sauf s'il fait lui-même le questionnaire
+  if (p.goal === 'muscle' && (uid !== 'kouider' || p.bulk)) {
+    // PRISE DE MASSE (01/11, son ami) : dépense + surplus selon le rythme choisi au questionnaire
+    const surplus = BULK_SURPLUS[p.bulk?.rate ?? 'moyen'];
+    const target = Math.round((burn + surplus) / 10) * 10;
+    return { date, bmr: t.bmr, active: act.kcal, activeSource: act.source, burn, deficit: 0, mode: 'surplus', surplus, target, floor, eaten,
+      left: target - eaten.kcal, proteinGoal: t.p, proteinLeft: Math.max(0, t.p - eaten.p), pct: Math.round(eaten.kcal / target * 100), meals };
+  }
   const deficit = Math.min(cfg.deficit, Math.round(burn * 0.25));
   const target = Math.max(floor, Math.round((burn - deficit) / 10) * 10);
-  const eaten = sumOf(meals);
-  return { date, bmr: t.bmr, active: act.kcal, activeSource: act.source, burn, deficit: burn - target, target, floor, eaten,
+  return { date, bmr: t.bmr, active: act.kcal, activeSource: act.source, burn, deficit: burn - target, mode: 'deficit', surplus: 0, target, floor, eaten,
     left: target - eaten.kcal, proteinGoal: t.p, proteinLeft: Math.max(0, t.p - eaten.p), pct: Math.round(eaten.kcal / target * 100), meals };
 }
 
@@ -190,15 +231,26 @@ Son but : rester en DÉFICIT CALORIQUE sans perdre de muscle (protéines hautes)
 Idées de repas / collations : simples, halal, faciles à trouver en Belgique (Colruyt, Lidl, boucherie halal) ou à la maison algérienne (chorba, poulet, œufs, lben, skyr, fromage blanc, thon, lentilles, pois chiches, fruits, amandes, galette de riz…), avec les kcal et protéines approximatives.
 Sécurité : jamais de régime extrême, jamais sauter un repas pour « compenser », jamais sous le plancher donné ; jamais de conseil sur un médicament ou un traitement (→ son médecin). Le sport de compensation est une option, pas une punition.`;
 
-async function coachSay(facts: string, ask: string, max = 450): Promise<string> {
+async function coachSay(facts: string, ask: string, max = 450, uid: Uid = 'kouider'): Promise<string> {
   const { ai } = await import('./ai-util.js');
-  return (await ai(`${facts}\n\n${ask}`, { system: COACH_SYS, max }).catch(() => '')).replace(/\*\*/g, '').trim();
+  return (await ai(`${facts}\n\n${ask}`, { system: await coachSys(uid), max }).catch(() => '')).replace(/\*\*/g, '').trim();
+}
+/** Coach de chacun : Kouider = Dzaryx (déficit) ; sa femme / son ami = coach FORME neutre, selon SON objectif */
+async function coachSys(uid: Uid): Promise<string> {
+  if (uid === 'kouider') return COACH_SYS;
+  const p = await getFormeProfile(uid);
+  const goal = p.goal === 'muscle' ? 'PRENDRE DU MUSCLE (prise de masse) : il/elle doit manger ASSEZ — atteindre son objectif de calories et de protéines chaque jour est la priorité ; ne jamais lui dire de manger moins ou de faire du sport pour « compenser »'
+    : 'rester en DÉFICIT CALORIQUE sans perdre de muscle (protéines hautes)';
+  return `Tu es le coach nutrition de l'appli FORME${p.name ? ` de ${p.name}` : ''}. Chaleureux, direct, tutoiement, ${p.lang === 'ar' ? 'arabe littéraire simple' : 'français simple'}, phrases courtes, quelques emojis, pas de markdown.
+Son but : ${goal}. Tu utilises UNIQUEMENT les chiffres donnés, tu n'inventes rien.
+Idées de repas : simples, halal, faciles à trouver en Belgique (Colruyt, Lidl, boucherie halal) ou faits maison, avec les kcal et protéines approximatives.
+Sécurité : jamais de régime extrême ; jamais de conseil sur un médicament (→ médecin).`;
 }
 
 export function budgetFacts(b: Budget): string {
   return [`Date ${b.date}, heure ${localNow().hhmm}.`,
     `Dépense estimée du jour : ${b.burn} kcal (base ${b.bmr} + activité ${b.active} ${b.activeSource === 'montre' ? 'mesurée par sa montre' : b.activeSource === 'moyenne' ? '(moyenne de ses 14 derniers jours sur la montre)' : '(estimation, pas encore de données montre)'}).`,
-    `Objectif pour être en déficit : ${b.target} kcal (déficit ${b.deficit} kcal ; plancher de sécurité ${b.floor}).`,
+    b.mode === 'surplus' ? `Objectif PRISE DE MASSE : manger AU MOINS ${b.target} kcal (surplus de ${b.surplus} kcal au-dessus de sa dépense).` : `Objectif pour être en déficit : ${b.target} kcal (déficit ${b.deficit} kcal ; plancher de sécurité ${b.floor}).`,
     `Mangé : ${b.eaten.kcal} kcal (${b.pct} %), protéines ${b.eaten.p}/${b.proteinGoal} g, glucides ${b.eaten.c} g, lipides ${b.eaten.f} g.`,
     `Il reste : ${b.left} kcal et ${b.proteinLeft} g de protéines.`,
     b.meals.length ? `Repas du jour : ${b.meals.map(m => `${m.time} ${SLOT_LABEL[m.slot]} « ${m.title} » ${m.kcal} kcal / ${m.p} g P`).join(' ; ')}.` : 'Aucun repas noté aujourd\'hui.'].join('\n');
@@ -208,13 +260,21 @@ async function afterMeal(uid: Uid, meal: MealLog): Promise<{ meal: MealLog; budg
   const b = await foodBudget(uid, meal.date);
   const kg = (await getFormeProfile(uid)).weightKg;
   const over = -b.left;
-  const head = `🍽️ ${meal.title} — ${meal.kcal} kcal · ${meal.p} g protéines · ${meal.c} g glucides · ${meal.f} g lipides${meal.confidence === 'basse' ? ' (estimation peu sûre : corrige les grammes dans FORME si besoin)' : ''}\n${meal.items.map(i => `• ${i.name} ${i.grams} g : ${i.kcal} kcal`).join('\n')}\n\n📊 Aujourd'hui : ${b.eaten.kcal} / ${b.target} kcal · protéines ${b.eaten.p}/${b.proteinGoal} g → ${b.left >= 0 ? `il te reste ${b.left} kcal` : `tu as dépassé de ${over} kcal`}.`;
-  const ask = over > 0
+  const surplus = b.mode === 'surplus';
+  const head = `🍽️ ${meal.title} — ${meal.kcal} kcal · ${meal.p} g protéines · ${meal.c} g glucides · ${meal.f} g lipides${meal.confidence === 'basse' ? ' (estimation peu sûre : corrige les grammes dans FORME si besoin)' : ''}\n${meal.items.map(i => `• ${i.name} ${i.grams} g : ${i.kcal} kcal`).join('\n')}\n\n📊 Aujourd'hui : ${b.eaten.kcal} / ${b.target} kcal · protéines ${b.eaten.p}/${b.proteinGoal} g → ${b.left >= 0 ? `il te reste ${b.left} kcal${surplus ? ' à manger' : ''}` : surplus ? `objectif atteint ✅ (+${over} kcal)` : `tu as dépassé de ${over} kcal`}.`;
+  const hh = Number(localNow().hhmm.slice(0, 2));
+  const ask = surplus
+    ? (b.left <= 0
+      ? `Objectif de la journée ATTEINT (${b.eaten.kcal}/${b.target} kcal). Félicite-le en 2-3 phrases${-b.left > 600 ? ` ; il est ${-b.left} kcal au-dessus : pas grave pour une prise de masse, mais dis-lui de ne pas dépasser autant tous les jours (sinon du gras en plus du muscle)` : ''} ; protéines ${b.eaten.p}/${b.proteinGoal} g${b.proteinLeft > 0 ? ` — il manque ${b.proteinLeft} g de protéines, propose 1 idée` : ''}.`
+      : hh >= 18 && b.pct < 70
+        ? `Il est ${localNow().hhmm} et il n'a mangé que ${b.pct} % de son objectif : il lui manque ${b.left} kcal pour prendre du muscle aujourd'hui. Dis-le-lui gentiment mais clairement en 3-4 phrases et propose 2 idées CONCRÈTES riches en calories et faciles à avaler ce soir (ex. shake lait + avoine + banane + beurre de cacahuète, plat de riz/pâtes avec huile d'olive, dattes + amandes), avec les kcal.`
+        : `En 2-3 phrases : un retour sur ce repas (assez de protéines ? assez de calories pour une prise de masse ?), puis ce qu'il lui reste à manger aujourd'hui (${b.left} kcal, ${b.proteinLeft} g de protéines) avec 1 idée de prochain repas bien calorique.`)
+    : over > 0
     ? `Ce repas le fait DÉPASSER son objectif de ${over} kcal. Équivalent pour rattraper : ${burnEquivalent(over, kg)}. Dis-le calmement en 3-4 phrases : pas de drame, ce qu'il peut faire (une des options sport chiffrées ci-dessus OU accepter un jour au maintien), et ce qu'il mange encore aujourd'hui s'il a faim (très léger, protéiné).`
     : b.pct >= 75
       ? `Il approche de la limite (${b.pct} %). Avertis-le en 3-4 phrases : « fais attention, laisse de la place pour ce soir », et propose 2 idées précises pour le reste de la journée qui tiennent dans ${b.left} kcal avec le plus de protéines possible.`
       : `En 2-3 phrases : un retour sur ce repas (protéines suffisantes ? bon choix ?), puis ce qu'il garde pour la suite (${b.left} kcal, ${b.proteinLeft} g de protéines) avec 1 idée pour le prochain repas.`;
-  const say = await coachSay(`${budgetFacts(b)}\nRepas qu'il vient d'envoyer : ${meal.title} (${meal.items.map(i => `${i.name} ${i.grams} g`).join(', ')})${meal.coach ? ` — remarque : ${meal.coach}` : ''}.`, ask);
+  const say = await coachSay(`${budgetFacts(b)}\nRepas qu'il vient d'envoyer : ${meal.title} (${meal.items.map(i => `${i.name} ${i.grams} g`).join(', ')})${meal.coach ? ` — remarque : ${meal.coach}` : ''}.`, ask, 450, uid);
   const message = `${head}${say ? `\n\n${say}` : ''}`;
   meal.coach = say || meal.coach;
   const meals = await mealsOf(uid, meal.date);

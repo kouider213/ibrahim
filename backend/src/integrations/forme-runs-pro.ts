@@ -308,3 +308,24 @@ export async function livePublic(token: string) {
   const s = await read<LiveState | null>(LIVE_K(token), null); if (!s) return null;
   return { name: s.name, type: s.type, startedAt: s.startedAt, at: s.at, pts: s.pts, dist: s.dist, moving: s.moving, ended: !!s.ended || Date.now() - s.at > 30 * 60_000 };
 }
+
+// ───────────────────────── Lien course ↔ salle (01/11, Kouider : « il adapte toutes les séances ») ─────────────────────────
+/** Ligne pour le coach de salle / le réveil : sorties des 2 derniers jours + fraîcheur course → conseil pour les jambes */
+export async function runRecentLine(uid: Uid = 'kouider'): Promise<string> {
+  const runs = await runList(uid);
+  if (!runs.length) return '';
+  const today = localNow().date, yest = addDays(today, -1), before = addDays(today, -2);
+  const recent = runs.filter(r => r.date >= before && r.date <= today);
+  const fit = fitnessFrom(runs, today);
+  const load = trainingLoad(runs, today, fit?.paces.threshold ?? null);
+  const parts: string[] = [];
+  for (const r of recent) {
+    const when = r.date === today ? "aujourd'hui" : r.date === yest ? 'hier' : 'avant-hier';
+    parts.push(`${when} ${TYPE_LABEL[r.type].toLowerCase()} ${(r.dist / 1000).toFixed(1).replace('.', ',')} km${r.elevGain > 30 ? ` (D+ ${r.elevGain} m)` : ''}`);
+  }
+  const hardLegs = recent.some(r => (r.type === 'run' && (r.dist >= 8000 || r.elevGain >= 100 || !!r.workout && /×|Tempo/.test(r.workout.title))) || (r.type === 'hike' && r.dist >= 12000)) && recent.some(r => r.date >= yest);
+  const advice = hardLegs ? 'jambes chargées par la course : si c\'est leg day, −10 % sur les charges et pas d\'échec ; sinon haut du corps normal'
+    : load.tsb < -20 ? 'fatigue de course élevée : séance de salle plus légère (−1 série par exercice)' : '';
+  if (!parts.length && !advice) return '';
+  return `🏃 Course (FORME) : ${parts.length ? parts.join(' · ') : 'rien ces 2 derniers jours'}${load.ctl ? ` · forme course ${Math.round(load.ctl)}, fraîcheur ${load.tsb > 0 ? '+' : ''}${Math.round(load.tsb)}` : ''}${advice ? ` → ${advice}.` : '.'}`;
+}
