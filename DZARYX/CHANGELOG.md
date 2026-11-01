@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-01 — Sommeil Apple Watch : enfin reçu + coach sommeil qui s'adapte chaque semaine
+- Raccourci « Dzaryx Santé » : case sleep = Échantillons Sleep · Durée ; phases « 5:28 » = min:s lues correctement (jarvis-hub.ts, 8a11ce8/f2f8a8d) ; « j'ai dormi 7h » remplit aussi health:daily (life-coach.ts).
+- sleep-coach.ts : nuit + moyenne 7 j + dette + tendance → ligne injectée dans TOUTES les conversations (jarvis4Context), le message du réveil, le mentor business ; coucher du soir avancé (plan + dette) ; bilan dimanche 20h (job sleep-weekly) : pas de progrès = un levier de plus (coucher −30 min → écrans/café → sport plus tôt → business coupé le soir → plan fort/médecin), progrès = on garde, objectif tenu = on relâche ; outil sommeil (etat/bilan/reset).
+- Radars : plus de fausse alerte au réveil (saut GPS) — 2 mesures en mouvement + jamais à < 500 m de la maison (8bd6514).
+
 ## 2026-10-31 23h — FORME : compteur calories photo (style Cal AI) + coach déficit/sommeil sur Telegram (app v224)
 - forme-food.ts : photo du plat → aliments, grammes, kcal, protéines/glucides/lipides (vision gratuite, cuisine algérienne/halal) ; budget = métabolisme de base + calories actives de la montre − déficit (500 par défaut, 0-750, plancher 1500) ; correction des grammes ; « j'ai mangé… » en texte ; « si je mange ça ? » (marche/pompes pour compenser).
 - Routes /api/forme/food (+ /photo, /text, /edit, /cfg) ; onglet Repas dans FORME ; outil forme meal_photo / meal_text / food_check / food_today / food_settings / food_morning ; photo de plat sur Telegram → analysée.

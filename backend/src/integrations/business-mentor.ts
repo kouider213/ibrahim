@@ -118,8 +118,10 @@ export async function generateMentorIdea(focus = ''): Promise<MentorIdea | null>
   ]);
   const pastText = past.slice(-20).map(p => `- ${p.at.slice(0, 10)} [${p.kind}] ${p.title}${p.status && p.status !== 'proposee' ? ` (${p.status})` : ''}`).join('\n');
   const oppText = (opps?.items ?? []).slice(0, 8).map(o => `- [${o.category}/${o.urgency}] ${o.title} : ${o.detail.slice(0, 200)}`).join('\n');
+  const sleep = await import('./sleep-coach.js').then(m => m.sleepContextLine()).catch(() => '');
   const instruction = [
     dossier,
+    sleep ? `SON ÉTAT (montre) : ${sleep}\nAdapte l'action proposée : s'il est fatigué, une action courte à faire le matin, pas un gros chantier.` : '',
     `Aujourd'hui : ${new Date().toLocaleDateString('fr-BE', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}.`,
     focus ? `SUJET DEMANDÉ PAR KOUIDER : ${focus}`
       : outsideFik() ? 'AUJOURD\'HUI : une opportunité HORS de FIK — un business à lancer ou une façon de gagner de l\'argent en plus, adaptée à son temps (il travaille la semaine) et à un petit capital, avec un vrai marché trouvé dans tes recherches.'

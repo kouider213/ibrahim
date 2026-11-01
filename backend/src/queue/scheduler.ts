@@ -539,6 +539,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'sleep-weekly',
+    cron:  '0 20 * * 0',            // dimanche 20h — bilan sommeil : pas de progrès → un levier de plus (sleep-coach.ts)
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'forme-weekly',
     cron:  '0 19 * * 0',            // dimanche 19h — bilan FORME + semaine de repas suivante composée
     tz:    'Europe/Brussels',
@@ -814,6 +819,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'connections-watch':       async () => { console.log(`[connections] ${await jobConnectionsWatch()}`); },
   'forme-reminders':         async () => { console.log(`[forme] ${await jobFormeReminders()}`); },
   'forme-weekly':            async () => { await jobFormeWeekly(); },
+  'sleep-weekly':            async () => { console.log(`[sleep-weekly] ${await (await import('../integrations/sleep-coach.js')).weeklySleepReview()}`); },
   'forme-food':              async () => { console.log(`[forme-food] ${await (await import('../integrations/forme-food.js')).jobFoodCoach()}`); },
   'kouider-dossier':         async () => { console.log(`[kouider-dossier] ${await jobKouiderDossier()}`); },
   'season-watch':            async () => { console.log(`[season-watch] ${await jobSeasonWatch()}`); },

@@ -264,6 +264,7 @@ export async function morningSleepMessage(force = false): Promise<string | null>
   // 01/11 : le raccourci part bien à l'alarme mais la case « sleep » arrive vide → le dire tel quel (ce n'est pas la montre)
   const sentEmpty = !t?.sleep_h && t && await kvGet('health:lastraw:any').then(r => /"sleep\\?"\s*:\s*\\?"\\?"/.test(String(r ?? ''))).catch(() => false);
   const sleepLine = t?.sleep_h ? `Sommeil cette nuit (Apple Watch) : ${t.sleep_h} h${usual ? ` (moyenne habituelle ${usual} h)` : ''}${t.hrv ? `, VFC ${t.hrv} ms` : ''}${t.rhr ? `, cœur au repos ${t.rhr}` : ''}.` : sentEmpty ? 'Sommeil de cette nuit : le raccourci Santé a bien envoyé ce matin (cœur, VFC, pas OK) MAIS la case sommeil était VIDE — le réglage « sommeil » du raccourci est à corriger (pas la montre). Demande-lui simplement combien il a dormi (« j\'ai dormi 7 h » suffit).' : 'Sommeil de cette nuit : PAS ENCORE REÇU (le raccourci Santé n\'a rien envoyé ce matin).';
+  const week = await import('./sleep-coach.js').then(m => m.sleepContextLine()).catch(() => '');
   const ready = await import('./workout-live.js').then(m => m.readiness()).then(r => r?.line ?? '').catch(() => '');
   // Nuit courte → la séance du jour s'allège toute seule (comme pour le cœur / la VFC)
   let lighter = '';
@@ -271,7 +272,7 @@ export async function morningSleepMessage(force = false): Promise<string | null>
     const r = await import('./sport-coach.js').then(m => m.setFormFromWatch(date, 2)).catch(() => null);
     if (r && !/pas de séance/i.test(r)) lighter = 'La séance du jour vient d\'être passée en version courte et légère automatiquement (−10 % sur les charges).';
   }
-  const facts = [sleepLine, ready, lighter, yLine, `Budget d'aujourd'hui : ${b.target} kcal (déficit ${b.deficit}), protéines ${b.proteinGoal} g.`, await dayContext(date)].filter(Boolean).join('\n');
+  const facts = [sleepLine, week ? `Semaine : ${week}` : '', ready, lighter, yLine, `Budget d'aujourd'hui : ${b.target} kcal (déficit ${b.deficit}), protéines ${b.proteinGoal} g.`, await dayContext(date)].filter(Boolean).join('\n');
   const say = await coachSay(facts, `C'est le MESSAGE DU RÉVEIL (6-9 lignes max). 1) Sa nuit en une phrase honnête (si pas reçue : dis-lui de lancer le raccourci « Dzaryx Santé » ou de te dire combien il a dormi). 2) Ce que ça change AUJOURD'HUI, concrètement, pour : le SPORT (plus léger ? moins de séries ? garder ?), le BUSINESS (les tâches importantes quand ? éviter les grosses décisions après 15h si nuit courte), le MORAL (patience, pause, respiration, famille) — mauvaise nuit = plus de faim et d'envies sucrées : préviens-le. 3) Hier côté calories en une phrase. 4) Son budget du jour + une idée de petit-déj protéiné qui va avec.`, 600);
   if (!say) return null;
   await kvSet(SENT_K('morning', date), '1', 2 * 86_400);
@@ -285,10 +286,11 @@ export async function eveningSleepMessage(): Promise<string | null> {
   const cfg = await import('./morning-routine.js').then(m => m.getRoutineConfig()).catch(() => null);
   const tomorrow = cfg?.days[(weekday + 1) % 7];
   const wake = tomorrow?.wake ?? null;
-  const bed = wake ? (() => { const [h, m] = wake.split(':').map(Number); const t = (h! * 60 + m! - 7.5 * 60 - 15 + 1440) % 1440; return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; })() : null;
+  const adv = await import('./sleep-coach.js').then(m => m.bedtimeAdvance()).catch(() => ({ minutes: 0, why: '' }));
+  const bed = wake ? (() => { const [h, m] = wake.split(':').map(Number); const t = (h! * 60 + m! - 7.5 * 60 - 15 - adv.minutes + 1440) % 1440; return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; })() : null;
   const all = await health();
   const last = all.find(x => x.date === date)?.sleep_h;
-  const facts = [budgetFacts(b), wake ? `Réveil demain : ${wake} → pour 7 h 30 de sommeil il doit être au lit vers ${bed}.` : '', last ? `Nuit dernière : ${last} h.` : '', await dayContext(addDays(date, 1)).then(x => x ? `DEMAIN — ${x}` : '')].filter(Boolean).join('\n');
+  const facts = [budgetFacts(b), wake ? `Réveil demain : ${wake} → pour 7 h 30 de sommeil il doit être au lit vers ${bed}${adv.minutes ? ` (avancé de ${adv.minutes} min : ${adv.why})` : ''}.` : '', last ? `Nuit dernière : ${last} h.` : '', await dayContext(addDays(date, 1)).then(x => x ? `DEMAIN — ${x}` : '')].filter(Boolean).join('\n');
   const say = await coachSay(facts, `C'est le MESSAGE DU SOIR avant de dormir (5-7 lignes). 1) Bilan calories du jour (déficit tenu ? protéines ?) honnête et encourageant ; s'il reste de la place et qu'il a faim : une collation légère protéinée chiffrée ; s'il a dépassé : pas de drame, demain on reprend (pas de restriction). 2) L'heure où il doit être couché${bed ? ` (${bed})` : ''}, écrans coupés 30 min avant. 3) Rappel : garde la montre au poignet pour la nuit (chargée ?), que je puisse te dire demain matin comment tu as dormi. 4) Une phrase pour le moral / la journée de demain.`, 500);
   return say ? `🌙 Avant de dormir\n${say}` : null;
 }

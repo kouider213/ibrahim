@@ -248,6 +248,8 @@ export async function jarvis4Context(): Promise<string> {
   if (relief && Date.now() < relief.until) l.push('🤝 RELAIS : tu gères les clients à sa place pour le moment, ne lui remonte que l\'urgent.');
   if (mood && Date.now() - mood.at < 3 * 3600_000 && (mood.stress >= 7 || mood.energy <= 3)) l.push(`💭 Il est ${mood.stress >= 7 ? 'tendu' : 'fatigué'} en ce moment (${mood.why}) : sois bref, calme, propose de prendre des choses en charge.`);
   if (e) l.push(e.line);
+  const sl = await import('./sleep-coach.js').then(m => m.sleepContextLine()).catch(() => '');   // 01/11 : sa nuit sert partout
+  if (sl) l.push(sl);
   return l.length ? `\n\nJARVIS 4 — ÉTAT DU MOMENT :\n${l.join('\n')}` : '';
 }
 
