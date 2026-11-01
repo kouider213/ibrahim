@@ -261,7 +261,9 @@ export async function morningSleepMessage(force = false): Promise<string | null>
   const y = await foodBudget('kouider', addDays(date, -1));
   const b = await foodBudget('kouider', date);
   const yLine = y.meals.length ? `Hier : mangé ${y.eaten.kcal} kcal pour une dépense ${y.activeSource === 'montre' ? 'mesurée' : 'estimée'} de ${y.burn} → ${y.burn - y.eaten.kcal >= 0 ? `déficit réel ${y.burn - y.eaten.kcal} kcal` : `surplus ${y.eaten.kcal - y.burn} kcal`} ; protéines ${y.eaten.p}/${y.proteinGoal} g.` : 'Hier : aucun repas noté dans FORME.';
-  const sleepLine = t?.sleep_h ? `Sommeil cette nuit (Apple Watch) : ${t.sleep_h} h${usual ? ` (moyenne habituelle ${usual} h)` : ''}${t.hrv ? `, VFC ${t.hrv} ms` : ''}${t.rhr ? `, cœur au repos ${t.rhr}` : ''}.` : 'Sommeil de cette nuit : PAS ENCORE REÇU (le raccourci Santé n\'a rien envoyé ce matin).';
+  // 01/11 : le raccourci part bien à l'alarme mais la case « sleep » arrive vide → le dire tel quel (ce n'est pas la montre)
+  const sentEmpty = !t?.sleep_h && t && await kvGet('health:lastraw:any').then(r => /"sleep\\?"\s*:\s*\\?"\\?"/.test(String(r ?? ''))).catch(() => false);
+  const sleepLine = t?.sleep_h ? `Sommeil cette nuit (Apple Watch) : ${t.sleep_h} h${usual ? ` (moyenne habituelle ${usual} h)` : ''}${t.hrv ? `, VFC ${t.hrv} ms` : ''}${t.rhr ? `, cœur au repos ${t.rhr}` : ''}.` : sentEmpty ? 'Sommeil de cette nuit : le raccourci Santé a bien envoyé ce matin (cœur, VFC, pas OK) MAIS la case sommeil était VIDE — le réglage « sommeil » du raccourci est à corriger (pas la montre). Demande-lui simplement combien il a dormi (« j\'ai dormi 7 h » suffit).' : 'Sommeil de cette nuit : PAS ENCORE REÇU (le raccourci Santé n\'a rien envoyé ce matin).';
   const ready = await import('./workout-live.js').then(m => m.readiness()).then(r => r?.line ?? '').catch(() => '');
   // Nuit courte → la séance du jour s'allège toute seule (comme pour le cœur / la VFC)
   let lighter = '';

@@ -61,7 +61,7 @@ const mark = (st: PresenceState, kind: string, date = localNow().date) => { st.d
 
 // ── Lieux connus ─────────────────────────────────────────────────────────────
 
-async function places(): Promise<Array<{ id: 'home' | 'gym' | 'work'; lat: number; lng: number; address: string }>> {
+export async function places(): Promise<Array<{ id: 'home' | 'gym' | 'work'; lat: number; lng: number; address: string }>> {
   const a = (await getRoutineConfig()).addresses;
   const out: Array<{ id: 'home' | 'gym' | 'work'; lat: number; lng: number; address: string }> = [];
   for (const id of ['home', 'gym', 'work'] as const) {

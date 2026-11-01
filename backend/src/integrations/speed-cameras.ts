@@ -16,7 +16,7 @@ import { emitProactive } from '../notifications/mobile-push.js';
 
 interface Cam { lat: number; lng: number; max?: number; name?: string; mine?: boolean }
 interface Fine { id: string; at: string; lat?: number; lng?: number; where: string; speed?: number; amount?: number; due?: string; paid?: boolean; asked?: boolean; sent: string[] }
-interface State { off?: boolean; last?: { t: number; lat: number; lng: number }; warned: Record<string, number>; fines: Fine[] }
+interface State { off?: boolean; last?: { t: number; lat: number; lng: number; kmh?: number }; warned: Record<string, number>; fines: Fine[] }
 
 const STATE = 'radars:state';
 const TILE = 0.1;   // ~11 km × 7 km en Belgique
@@ -95,10 +95,15 @@ async function check(p: { t: number; lat: number; lng: number }): Promise<void> 
   const prev = st.last;
   const moved = prev ? km(prev, p) : 0;
   if (prev && moved < 0.05 && p.t - prev.t < 5 * 60_000) return;   // GPS qui tremble : on garde l'ancien point pour le cap
-  st.last = { t: p.t, lat: p.lat, lng: p.lng };
   const dt = prev ? (p.t - prev.t) / 3600_000 : 0;
   const kmh = prev && dt > 5 / 3600 && dt < 0.1 ? moved / dt : 0;
+  st.last = { t: p.t, lat: p.lat, lng: p.lng, kmh: Math.round(kmh) };
   if (!prev || kmh < 25 || kmh > 200) { await saveState(st); return; }
+  // 01/11 : fausse alerte au réveil, à la maison (« ~67 km/h ») = saut GPS (position Wi-Fi/antenne → vraie position GPS).
+  // → il faut 2 mesures de suite en mouvement (≥ 20 km/h) avant d'alerter, et jamais à moins de 500 m de la maison.
+  if ((prev.kmh ?? 0) < 20) { await saveState(st); return; }
+  const home = await import('./presence.js').then(m => m.places()).then(ps => ps.find(x => x.id === 'home')).catch(() => undefined);
+  if (home && km(home, p) < 0.5) { await saveState(st); return; }
   const head = bearing(prev, p);
   const reach = Math.max(0.7, Math.min(2, kmh * 50 / 3600));   // 50 s de route, entre 700 m et 2 km
   const now = p.t;

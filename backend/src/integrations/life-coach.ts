@@ -171,6 +171,13 @@ export async function lifeCoachTool(input: Record<string, unknown>, sessionId?: 
     const log = await readLog();
     log.push(entry);
     await kvSet(LOG_KEY, JSON.stringify(log.slice(-120)));
+    // 01/11 : « j'ai dormi 7h » → aussi dans health:daily (quand la montre n'envoie pas le sommeil), sans écraser une valeur montre
+    if (entry.sleep != null && localNow().hhmm < '15:00') {
+      const { kvJson, kvPut } = await import('./ai-util.js');
+      const all = await kvJson<Array<{ date: string; sleep_h?: number }>>('health:daily', []);
+      const today = localNow().date, d = all.find(x => x.date === today);
+      if (!d?.sleep_h) { if (d) d.sleep_h = entry.sleep; else all.push({ date: today, sleep_h: entry.sleep }); all.sort((a, b) => a.date.localeCompare(b.date)); await kvPut('health:daily', JSON.stringify(all.slice(-120))).catch(() => {}); }
+    }
     const w = log.filter(l => l.weight != null);
     const trend = entry.weight != null && w.length >= 2 ? ` (${(entry.weight - w[0].weight!).toFixed(1)} kg depuis le ${fmtDay(w[0].at)})` : '';
     // Courte nuit (Kouider 22/10 : 4 h après les urgences) : le coucher de ce soir est avancé tout de suite dans l'agenda
