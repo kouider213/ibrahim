@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { business, type StudioOptions, type StudioPlan, type StudioJob, type StudioShot } from '../../services/api.ts';
 import { Hero, StatCard, SkeletonCards } from '../ui/Premium.tsx';
 import MontageEditor, { uploadFile } from './MontageEditor.tsx';
+import AiRetouche from './AiRetouche.tsx';
 
 // « STUDIO VIDÉO » : vidéos virales 9:16 niveau Higgsfield. Dzaryx écrit le scénario, génère les plans IA
 // (Kling 3.0, Veo 3.1, Seedance 2.0 via fal.ai) et fait le montage (voix off, sous-titres, musique, CTA).
@@ -36,7 +37,7 @@ export default function StudioScreen() {
   const [spent, setSpent] = useState(0);
   const [toast, setToast] = useState('');
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<'editor' | 'ia'>('editor');
+  const [tab, setTab] = useState<'editor' | 'retouche' | 'ia'>('editor');
 
   // Création
   const [mode, setMode] = useState<'viral' | 'single'>('viral');
@@ -143,9 +144,11 @@ export default function StudioScreen() {
             <StatCard icon="💸" value={`${spent.toFixed(2)} $`} label="DÉPENSÉ FAL.AI" color={C.green} />
           </div>
           <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-            <button style={{ ...chip(tab === 'editor'), flex: 1, padding: '9px 6px' }} onClick={() => setTab('editor')}>✂️ Éditeur (mes vidéos)</button>
-            <button style={{ ...chip(tab === 'ia'), flex: 1, padding: '9px 6px' }} onClick={() => setTab('ia')}>🤖 Pub IA (sans tournage)</button>
+            <button style={{ ...chip(tab === 'editor'), flex: 1, padding: '9px 6px' }} onClick={() => setTab('editor')}>✂️ Éditeur</button>
+            <button style={{ ...chip(tab === 'retouche'), flex: 1, padding: '9px 6px' }} onClick={() => setTab('retouche')}>🪄 Retouche IA</button>
+            <button style={{ ...chip(tab === 'ia'), flex: 1, padding: '9px 6px' }} onClick={() => setTab('ia')}>🤖 Pub IA</button>
           </div>
+          {tab === 'retouche' && <AiRetouche say={say} onLaunched={() => void loadJobs()} />}
           {tab === 'editor' && <MontageEditor say={say} onExported={() => void loadJobs()} />}
 
           {tab === 'ia' && !plan && (
@@ -294,7 +297,7 @@ export default function StudioScreen() {
                 <span style={{ color: C.muted, fontSize: 11 }}>{new Date(j.createdAt).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
               </div>
               <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>
-                {j.planId === 'montage' ? '✂️ Montage de tes vidéos' : (opts.models.find(x => x.id === j.model)?.label ?? j.model)} · {j.model === 'gratuit' ? '0 €' : j.status === 'done' ? `coût ${j.costUsd.toFixed(2)} $` : `≈ ${j.estimateUsd.toFixed(2)} $`}
+                {j.planId === 'montage' ? '✂️ Montage de tes vidéos' : j.planId === 'ai-edit' ? '🪄 Retouche IA' : (opts.models.find(x => x.id === j.model)?.label ?? j.model)} · {j.model === 'gratuit' ? '0 €' : j.status === 'done' ? `coût ${j.costUsd.toFixed(2)} $` : `≈ ${j.estimateUsd.toFixed(2)} $`}
               </div>
               {RUNNING.includes(j.status) && (<>
                 <div style={{ height: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 3, marginTop: 8, overflow: 'hidden' }}>
@@ -304,7 +307,9 @@ export default function StudioScreen() {
               </>)}
               {j.status === 'error' && <div style={{ fontSize: 12, color: C.red, marginTop: 6 }}>❌ {j.error}</div>}
               {j.status === 'done' && j.url && (<>
-                <video src={j.url} controls playsInline preload="metadata" style={{ width: '100%', maxHeight: 480, borderRadius: 10, marginTop: 8, background: '#000' }} />
+                {/\.(jpe?g|png|webp)(\?|$)/i.test(j.url)
+                  ? <img src={j.url} alt="" style={{ width: '100%', maxHeight: 480, objectFit: 'contain', borderRadius: 10, marginTop: 8, background: '#000' }} />
+                  : <video src={j.url} controls playsInline preload="metadata" style={{ width: '100%', maxHeight: 480, borderRadius: 10, marginTop: 8, background: '#000' }} />}
                 <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                   <a href={j.url} target="_blank" rel="noreferrer" download style={{ ...btn(C.green, '#050a16'), textDecoration: 'none', flex: 1, textAlign: 'center' }}>⬇️ Télécharger</a>
                   {j.caption && <button style={{ ...btn('rgba(255,255,255,0.08)', C.text), flex: 1 }}

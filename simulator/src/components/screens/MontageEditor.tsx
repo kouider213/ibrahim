@@ -37,17 +37,32 @@ interface Clip {
 const fmt = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}.${Math.floor((t % 1) * 10)}`;
 const uid = () => Math.random().toString(36).slice(2, 9);
 
-export function uploadFile(file: File, onProgress: (p: number) => void): Promise<string> {
-  return business.studioUploadUrl(file.name).then(({ uploadUrl, publicUrl }) => new Promise<string>((resolve, reject) => {
+function putOne(blob: Blob, name: string, type: string, onProgress: (loaded: number) => void): Promise<string> {
+  return business.studioUploadUrl(name).then(({ uploadUrl, publicUrl }) => new Promise<string>((resolve, reject) => {
     const x = new XMLHttpRequest();
     x.open('PUT', uploadUrl);
-    x.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    x.setRequestHeader('Content-Type', type || 'application/octet-stream');
     x.setRequestHeader('x-upsert', 'true');
-    x.upload.onprogress = e => e.lengthComputable && onProgress(Math.round((e.loaded / e.total) * 100));
-    x.onload = () => (x.status < 300 ? resolve(publicUrl) : reject(new Error(x.status === 413 ? 'fichier trop lourd (max 50 Mo)' : `envoi refusé (${x.status})`)));
+    x.upload.onprogress = e => e.lengthComputable && onProgress(e.loaded);
+    x.onload = () => (x.status < 300 ? resolve(publicUrl) : reject(new Error(x.status === 413 ? 'fichier trop lourd' : `envoi refusé (${x.status})`)));
     x.onerror = () => reject(new Error('envoi impossible (réseau)'));
-    x.send(file);
+    x.send(blob);
   }));
+}
+
+/** Envoi direct vers le stockage FIK. Au-delà de 45 Mo (limite 50 Mo) : morceaux de 40 Mo, recollés + compressés par le serveur. */
+const PART = 40 * 1024 * 1024;
+export async function uploadFile(file: File, onProgress: (p: number) => void): Promise<string> {
+  if (file.size <= 45 * 1024 * 1024) return putOne(file, file.name, file.type, l => onProgress(Math.round((l / file.size) * 100)));
+  const urls: string[] = [];
+  for (let i = 0, off = 0; off < file.size; i++, off += PART) {
+    const blob = file.slice(off, Math.min(file.size, off + PART));
+    urls.push(await putOne(blob, `${file.name}.part${i}`, 'application/octet-stream', l => onProgress(Math.min(90, Math.round(((off + l) / file.size) * 90)))));
+  }
+  onProgress(92);
+  const { publicUrl } = await business.studioUploadJoin(urls, file.name);
+  onProgress(100);
+  return publicUrl;
 }
 
 function mediaDuration(file: File, local: string): Promise<number> {

@@ -5,6 +5,7 @@ import { bestModel,
   STUDIO_MODELS, STUDIO_CAMERAS, STUDIO_TEMPLATES, STUDIO_LANGS, estimateCost, createStudioPlan, manualPlan,
   startStudioRender, listStudioJobs, getStudioJob, type StudioPlan, type ModelId, type RenderOptions,
 } from '../../marketing/video-studio.js';
+import { startAiEdit, estimateAiEdit, joinUploadParts, type AiEditRequest } from '../../marketing/ai-edit.js';
 import { EDIT_FORMATS, EDIT_LOOKS, EDIT_CAPTIONS, startEdit, uploadUrl, type EditRequest } from '../../marketing/montage-pro.js';
 
 // Page « STUDIO VIDÉO » de l'app (Kouider) : vidéos IA réalistes (Kling 3, Veo 3.1, Seedance 2) montées en 9:16.
@@ -81,6 +82,21 @@ router.post('/upload-url', async (req, res) => {
 // POST /api/studio/edit EditRequest — media[] (auto) ou timeline[] (éditeur)
 router.post('/edit', async (req, res) => {
   try { res.json({ job: await startEdit(req.body as EditRequest, 'kouider') }); } catch (err) { fail(res, err, 400); }
+});
+
+// POST /api/studio/upload-join { urls, name } — gros fichier envoyé en morceaux → recollé + compressé (< 50 Mo)
+router.post('/upload-join', async (req, res) => {
+  const b = req.body as { urls?: string[]; name?: string };
+  try { res.json(await joinUploadParts(Array.isArray(b.urls) ? b.urls.map(String) : [], String(b.name ?? 'rush.mp4'))); } catch (err) { fail(res, err); }
+});
+
+// « Modifier par l'IA » : ta photo/vidéo + une phrase → retouchée (photo gratuite ; vidéo Kling, devis avant)
+router.post('/ai-edit/estimate', (req, res) => {
+  const b = req.body as { type?: string; seconds?: number; quality?: string };
+  res.json({ usd: estimateAiEdit(b.type === 'video' ? 'video' : 'image', Number(b.seconds) || 10, b.quality === 'max' ? 'max' : 'gratuit') });
+});
+router.post('/ai-edit', async (req, res) => {
+  try { res.json({ job: await startAiEdit(req.body as AiEditRequest, 'kouider') }); } catch (err) { fail(res, err, 400); }
 });
 
 router.get('/jobs', async (_req, res) => {

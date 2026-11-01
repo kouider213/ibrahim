@@ -218,7 +218,7 @@ JSON : {"prompt": "..."}`, 800);
 
 // ─── fal.ai ───────────────────────────────────────────────────
 
-async function falRun(modelId: string, input: Record<string, unknown>, maxMs = 600_000): Promise<Record<string, unknown>> {
+export async function falRun(modelId: string, input: Record<string, unknown>, maxMs = 600_000): Promise<Record<string, unknown>> {
   const key = env.FAL_KEY;
   if (!key) throw new Error('FAL_KEY absente dans Railway');
   const headers = { Authorization: `Key ${key}`, 'Content-Type': 'application/json' };
@@ -321,7 +321,7 @@ const HF_WAN = 'https://zerogpu-aoti-wan2-2-fp8da-aoti-faster.hf.space/gradio_ap
 const HF_PAUSE_KEY = 'studio:hf_pause_until';
 
 /** Appel d'un Space Gradio (file d'attente + flux SSE) → tableau de sorties. */
-async function hfGradio(base: string, endpoint: string, data: unknown[], timeoutMs: number): Promise<unknown[]> {
+export async function hfGradio(base: string, endpoint: string, data: unknown[], timeoutMs: number): Promise<unknown[]> {
   const token = process.env['HF_TOKEN'];
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
   const start = await axios.post(`${base}/call/${endpoint}`, { data }, { headers, timeout: 30_000 });
@@ -338,7 +338,7 @@ async function hfGradio(base: string, endpoint: string, data: unknown[], timeout
 async function hfPaused(): Promise<boolean> {
   return Number((await kvGet(HF_PAUSE_KEY).catch(() => null)) ?? 0) > Date.now();
 }
-async function hfFail(e: unknown): Promise<void> {
+export async function hfFail(e: unknown): Promise<void> {
   const m = e instanceof Error ? e.message : String(e);
   console.warn('[studio] Hugging Face :', m.slice(0, 200));
   // Quota GPU gratuit du jour épuisé → on n'insiste pas pendant 3 h (retour automatique à l'animation simple)
@@ -612,7 +612,7 @@ export async function listStudioJobs(): Promise<{ jobs: StudioJob[]; spentUsd: n
   return { jobs, spentUsd: Number((await kvGet(SPENT_KEY).catch(() => null)) ?? 0) };
 }
 
-async function addSpent(usd: number): Promise<void> {
+export async function addSpent(usd: number): Promise<void> {
   const cur = Number((await kvGet(SPENT_KEY).catch(() => null)) ?? 0);
   await kvSet(SPENT_KEY, String(Math.round((cur + usd) * 100) / 100)).catch(() => {});
 }
@@ -800,6 +800,23 @@ export async function videoStudioTool(input: Record<string, unknown>, actor = 'k
       outro: input['outro'] !== false, musicUrl: input['music_url'] ? String(input['music_url']) : null,
     }, actor);
     return `✂️ Montage lancé (0 €, ${urls.length} rush(es)) : silences coupés, sous-titres, accroche, signature FIK. Il arrive sur Telegram et dans la page MONTAGE (job ${job.id}).`;
+  }
+  if (action === 'retouche') {
+    const { startAiEdit, estimateAiEdit, VIDEO_EDIT_MAX_SEC } = await import('./ai-edit.js');
+    const urls = (Array.isArray(input['media_urls']) ? input['media_urls'] : String(input['media_urls'] ?? input['image_url'] ?? '').split(/[\s,]+/)).map(String).filter(u => /^https?:\/\//.test(u));
+    const url = urls[0];
+    if (!url) return '❌ Il me faut le lien de sa photo/vidéo (qu\'il l\'envoie ici ou dans l\'app, page MONTAGE → 🪄 Retouche IA).';
+    const idea = String(input['idea'] ?? input['manual_prompt'] ?? '').trim();
+    if (!idea) return '❌ Demande-lui ce qu\'il faut changer sur la photo/vidéo.';
+    const isVideo = !/\.(jpe?g|png|webp|heic)(\?|$)/i.test(url) && /\.(mp4|mov|m4v|webm)(\?|$)|video/i.test(url);
+    if (isVideo && input['confirm'] !== true) {
+      const s = Number(input['seconds']) || 10;
+      return `Devis retouche vidéo (Kling O1) : ≈ ${estimateAiEdit('video', s)} $ pour ${Math.min(s, VIDEO_EDIT_MAX_SEC)} s (0,17 $/s, max ${VIDEO_EDIT_MAX_SEC} s). Demande-lui son accord, puis relance action="retouche" avec confirm=true.`;
+    }
+    const quality = input['quality'] === 'max' ? 'max' : 'gratuit';
+    const job = await startAiEdit({ url, type: isVideo ? 'video' : 'image', prompt: idea, quality, seconds: Number(input['seconds']) || undefined }, actor);
+    return isVideo ? `🪄 Retouche vidéo lancée (Kling, ≈ ${job.estimateUsd.toFixed(2)} $, 5 à 10 min) — elle arrive sur Telegram et page MONTAGE (job ${job.id}).`
+      : `🪄 Retouche photo lancée (${quality === 'max' ? 'qualité max ≈ 0,04 $' : '0 €'}, ≈ 1 min) — elle arrive sur Telegram et page MONTAGE (job ${job.id}).`;
   }
   if (action === 'status') {
     const { jobs, spentUsd } = await listStudioJobs();

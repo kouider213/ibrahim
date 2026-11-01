@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-01 — MONTAGE : 🪄 Retouche IA (photo + vidéo) + envoi des grosses vidéos
+- Nouvel onglet « 🪄 Retouche IA » : photo/vidéo + phrase (« remplace la voiture par une Ferrari Purosangue »). Photo = FLUX Kontext HF (0 €, ≈ 30 s), qualité max = Nano Banana fal (≈ 0,04 $). Vidéo = Kling O1 edit (fal, ≈ 0,17 $/s, max 30 s) par tranches ≤ 10 s guidées par la même image de référence, son d'origine gardé ; devis affiché avant.
+- Vidéos > 45 Mo (limite Supabase 50 Mo) : envoi en morceaux de 40 Mo → /api/studio/upload-join recolle + compresse en 1080p (testé : 4K 24 s 296 Mo → 48 s). Cause de l'échec de la vidéo de 24 s.
+- Outil video_studio action="retouche" (photo directe, vidéo seulement après accord sur le prix). Fichier : backend/src/marketing/ai-edit.ts.
+
 ## 2026-11-01 — B053 : faux refus « pas accès aux données » + Conscience anti-radotage
 - fastPathGuard : « tu as gagné » / « tes revenus » autorisés quand Kouider a lui-même donné des montants ; une somme inventée reste bloquée.
 - Conscience : ignores_24h dans ce qu'elle voit + règle « type ignoré 2× en 24 h → silence 24 h ».

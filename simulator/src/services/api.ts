@@ -1188,6 +1188,11 @@ export const business = {
   studioJobs: () => apiFetch<{ jobs: StudioJob[]; spentUsd: number }>('/api/studio/jobs'),
   studioEditOptions: () => apiFetch<EditOptions>('/api/studio/edit/options'),
   studioUploadUrl: (name: string) => apiFetch<{ uploadUrl: string; publicUrl: string; type: 'video' | 'image' | 'audio' }>('/api/studio/upload-url', { method: 'POST', body: JSON.stringify({ name }) }),
+  studioUploadJoin: (urls: string[], name: string) => apiFetch<{ publicUrl: string; type: 'video' | 'image' | 'audio' }>('/api/studio/upload-join', { method: 'POST', body: JSON.stringify({ urls, name }) }),
+  studioAiEditEstimate: (type: 'image' | 'video', seconds: number, quality: 'gratuit' | 'max') =>
+    apiFetch<{ usd: number }>('/api/studio/ai-edit/estimate', { method: 'POST', body: JSON.stringify({ type, seconds, quality }) }),
+  studioAiEdit: (body: { url: string; type: 'image' | 'video'; prompt: string; quality: 'gratuit' | 'max'; seconds?: number }) =>
+    apiFetch<{ job: StudioJob }>('/api/studio/ai-edit', { method: 'POST', body: JSON.stringify(body) }),
   studioEdit: (body: EditBody) => apiFetch<{ job: StudioJob }>('/api/studio/edit', { method: 'POST', body: JSON.stringify(body) }),
   billingEco: (on: boolean) => apiFetch<{ ok: boolean; message: string }>('/api/billing/eco', { method: 'POST', body: JSON.stringify({ on }) }),
   billingUpdate: (id: string, patch: { due?: string; amount?: string; balance?: number; note?: string; paid?: boolean }) =>
