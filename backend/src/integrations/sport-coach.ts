@@ -914,6 +914,24 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
     await setSportOverride(date, type);
     return `✅ ${fmt(date)} : ${SESSIONS[type].emoji} ${SESSIONS[type].label} (agenda mis à jour).`;
   }
+  // 01/11 (Kouider : « je ne suis pas ce que tu dis, je fais juste les bras → modifie partout ») : APRÈS COUP, la séance
+  // vraiment faite remplace la prévue dans le journal, FORME et l'agenda ; la séance prévue reste dans la rotation.
+  if (action === 'did') {
+    const type = parseType(input['type']);
+    const what = String(input['note'] ?? input['type'] ?? '').slice(0, 120);
+    if (!type && !what) return '❌ Dis-moi ce qu\'il a vraiment fait (type = nom de la séance du programme, ou note = « juste les bras »).';
+    const st = await getState();
+    const planned = st.overrides[date] ?? st.plan[date]?.type ?? null;
+    if (type) await setSportOverride(date, type).catch(() => null);
+    const label = type ? SESSIONS[type].label : what;
+    const log = await readSportLog();
+    const i = log.findIndex(l => l.date === date);
+    if (i >= 0) { log[i] = { ...log[i]!, ...(type ? { type } : {}), note: `Fait en vrai : ${label}${log[i]!.note ? ` · ${log[i]!.note}` : ''}`.slice(0, 200) }; await kvSet(LOG_KEY, JSON.stringify(log.slice(-300))); }
+    else await logSportSession({ date, type: type ?? planned ?? ROTATION[st.next]!, sets: [], note: `Fait en vrai : ${label}`.slice(0, 200), ...(Number(input['duration_min']) > 0 ? { durationMin: Number(input['duration_min']) } : {}) });
+    await import('./forme.js').then(f => f.updateDay('kouider', date, d => { d.workout = { ...(d.workout ?? { session: 0, sets: [], at: Date.now() }), label }; })).catch(() => {});
+    const keep = planned && type && planned !== type ? ` ${SESSIONS[planned].label} n'est pas perdue : elle reste pour ta prochaine séance.` : '';
+    return `✅ ${fmt(date)} : noté que tu as fait ${type ? `${SESSIONS[type].emoji} ${label}` : `« ${label} »`} — journal du coach, app FORME${type ? ' et agenda' : ''} mis à jour.${keep}${!type ? ' (Pas une séance du programme : si c\'est « Bras », « Épaules »… redis-le avec ce nom.)' : ''}`;
+  }
   if (action === 'skip') {
     const reason = String(input['reason'] ?? 'repos').slice(0, 60);
     const removed = await setSportSkip(date, reason);

@@ -161,9 +161,10 @@ export async function receiveWorkout(body: Record<string, unknown>): Promise<{ o
   const coach = await gym.watchEnded(rec).catch(() => '');
   const water = await import('./life-plus.js').then(m => m.waterLine()).catch(() => '');
   const msg = `⌚ ${t} terminé : ${min} min${rec.kcal ? ` · 🔥 ${rec.kcal} kcal${cmp}` : ''}${rec.distanceKm ? ` · ${rec.distanceKm} km` : ''}${zLine}${advice}${coach ? `\n${coach}` : ''}\n${await loadLine().catch(() => '')}${water ? `\n${water}` : ''}`.trim();
-  await queueTelegramMessage(msg);
-  // FORME + journal sport (comme le Raccourci Santé du soir)
-  await import('./sport-coach.js').then(m => m.markWatchWorkout(localNow().date, min, t)).catch(() => null);
+  // FORME + journal sport (comme le Raccourci Santé du soir) — la montre ne sait pas QUELS muscles : on dit ce qui est coché
+  // et il corrige d'un mot (« j'ai fait les bras » → sport_coach did), partout (Kouider 01/11)
+  const marked = await import('./sport-coach.js').then(m => m.markWatchWorkout(localNow().date, min, t)).catch(() => null);
+  await queueTelegramMessage(marked && kindOf(t) !== 'cardio' ? `${msg}\n${marked}\nTu as fait autre chose ? Dis-moi juste « j'ai fait les bras » (ou épaules, dos…) et je corrige partout.` : msg);
   if (rec.kcal) await import('./forme.js').then(f => f.updateDay('kouider', localNow().date, x => { x.activeKcal = Math.max(x.activeKcal ?? 0, rec.kcal!); })).catch(() => {});
   return { ok: true, say: `${t} terminé, ${min} minutes${rec.kcal ? `, ${rec.kcal} calories` : ''}. Bravo.` };
 }

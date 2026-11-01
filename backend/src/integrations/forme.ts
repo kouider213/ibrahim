@@ -129,13 +129,15 @@ const LANG_RULE = (l: Lang) => l === 'ar'
 export async function getFormeProfile(uid: Uid = 'kouider'): Promise<FormeProfile> {
   const p = await readJson<Partial<FormeProfile>>(PK(uid), {});
   const d = DEFAULTS[uid];
+  // Son AMI ne doit JAMAIS voir de traitement (Kouider 01/11 : « il ne doit jamais savoir que je prends Wegovy ») → toujours coupé
+  if (uid === 'ami') return { ...d, ...p, wegovy: { ...d.wegovy, on: false, dose: '', doses: [] }, notif: { ...d.notif, ...(p.notif ?? {}), injection: false } };
   return { ...d, ...p, wegovy: { ...d.wegovy, ...(p.wegovy ?? {}) }, notif: { ...d.notif, ...(p.notif ?? {}) } };
 }
 
 export async function setFormeProfile(patch: Partial<FormeProfile>, uid: Uid = 'kouider'): Promise<FormeProfile> {
   const cur = await getFormeProfile(uid);
   const num = (v: unknown, min: number, max: number, d: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : d; };
-  const w = patch.wegovy;
+  const w = uid === 'ami' ? undefined : patch.wegovy;
   const dose = w?.dose != null ? String(w.dose).slice(0, 30) : cur.wegovy.dose;
   const next: FormeProfile = {
     ...cur,
@@ -376,7 +378,7 @@ export function parseImage(dataUrl: string): Img {
 const imgBlock = (i: Img) => ({ type: 'image' as const, source: { type: 'base64' as const, media_type: i.media, data: i.data } });
 
 export interface Zone { label: string; x: number; y: number; r: number; bx?: number; by?: number; br?: number; trend: 'mieux' | 'pareil' | 'à travailler'; note: string }
-export interface BodyAnalysis { at: number; vs: string | null; summary: string; zones: Zone[]; advice: string[]; focus: string[]; score: number }
+export interface BodyAnalysis { at: number; vs: string | null; summary: string; zones: Zone[]; advice: string[]; focus: string[]; score: number; visible?: 'oui' | 'partiel' | 'non'; seen?: string }
 export interface BodyPhoto { id: string; date: string; pose: 'face' | 'profil' | 'dos'; path: string; weight?: number; analysis?: BodyAnalysis }
 
 async function ensureBucket() { await supabase.storage.createBucket(BUCKET, { public: false }).catch(() => {}); }
@@ -435,10 +437,15 @@ async function gridImage(img: Img): Promise<Img> {
   } catch { return img; }
 }
 
-const bodySystem = (p: FormeProfile, uid: Uid) => `Tu es le coach physique de ${uid === 'kouider' ? 'Kouider (muscu' : p.sex === 'h' ? `${p.name || 'cet homme'} (muscu` : 'cette femme (renforcement'} + ${p.goal === 'muscle' ? 'PRISE DE MUSCLE : regarde surtout le volume des épaules, pecs, bras, dos, jambes' : p.goal === 'recompo' ? 'perte de gras et prise de muscle' : 'perte de gras'}${p.wegovy.on ? ' sous Wegovy' : ''}). On te donne sa photo AVANT (image 1) et MAINTENANT (image 2), même pose, ou une seule photo de départ.
+const bodySystem = (p: FormeProfile, uid: Uid) => `Tu es le coach physique de ${uid === 'kouider' ? 'Kouider (muscu' : p.sex === 'h' ? `${p.name || 'cet homme'} (muscu` : 'cette femme (renforcement'} + ${uid === 'kouider' ? 'SÈCHE : perdre le gras (ventre, taille, torse) en gardant et montant le muscle (épaules, pecs, bras, dos) — regarde les deux' : p.goal === 'muscle' ? 'PRISE DE MUSCLE : regarde surtout le volume des épaules, pecs, bras, dos, jambes' : p.goal === 'recompo' ? 'perte de gras et prise de muscle' : 'perte de gras'}${p.wegovy.on ? ' sous Wegovy' : ''}). On te donne sa photo AVANT (image 1) et MAINTENANT (image 2), même pose, ou une seule photo de départ.
+VÉRITÉ AVANT TOUT (Kouider 01/11 : « une vraie analyse, pas une invention ») :
+1) Décris d'abord dans "seen" ce que tu vois LITTÉRALEMENT : tenue (torse nu, t-shirt moulant, veste, pull…), parties du corps visibles, angle (face, 3/4, profil, dos), lumière.
+2) "body_visible" : "oui" (torse nu / tenue moulante, corps visible), "partiel" (une partie seulement), "non" (habillé large, veste, cadrage visage, flou, pas une personne).
+3) Tu ne parles QUE de ce qui est visible : une zone couverte par des vêtements = tu n'en dis RIEN (ni gras, ni muscle, ni « sangle abdominale »). Si "non" : zones = [], focus = [], score 50, summary = ce qui empêche de juger + comment refaire la photo.
+4) Comparaison avant/maintenant seulement si même pose, tenue et cadrage comparables ; sinon dis-le et score 50. Le score ne reflète QUE des différences réellement visibles. Jamais de chiffre inventé (pas de % de gras, pas de kg de muscle). Jamais de phrase générique qui irait à n'importe qui.
 Analyse objectivement et avec bienveillance ce qui a changé : épaules, bras, ventre/taille, dos, hanches, jambes, posture. Ne commente jamais le visage. Pas de jugement sur le corps, juste du concret et motivant.
 Réponds UNIQUEMENT en JSON :
-{"summary":"2-3 phrases : ce qui a changé (ou point de départ)","score":0-100 (progression visible, 50 = pareil),
+{"seen":"ce que tu vois vraiment (1-2 phrases)","body_visible":"oui|partiel|non","pose":"face|profil|dos","summary":"2-3 phrases : ce qui a changé (ou point de départ)","score":0-100 (progression visible, 50 = pareil),
  "zones":[{"label":"Ventre","x":0.5,"y":0.55,"r":0.12,"bx":0.5,"by":0.55,"br":0.13,"trend":"mieux|pareil|à travailler","note":"≤ 90 car."}],
  "advice":["conseil d'entraînement ou d'habitude précis (≤ 120 car.)", "..."],"focus":["muscles à travailler en priorité"]}
 Les photos portent une GRILLE cyan graduée .1 à .9 (horizontal = x, vertical = y) : sers-t'en pour placer chaque cercle EXACTEMENT sur la partie du corps (ventre = sous la poitrine au niveau du nombril, pas sur le fond ni la tête). x,y = centre du cercle sur la photo MAINTENANT (fractions 0-1 de la largeur/hauteur), r = rayon en fraction de la largeur, PETIT (0,04 à 0,12 : le cercle entoure juste la zone) ; bx,by,br = même zone sur la photo AVANT (omet-les s'il n'y a qu'une photo). 3 à 5 zones qui ne se chevauchent pas, JAMAIS sur le visage ni la tête (épaules = au bord des épaules). Le champ "trend" reste TOUJOURS en français (mieux / pareil / à travailler).${uid === 'kouider' ? ' Conseils compatibles avec un dos à ménager.' : ''}${LANG_RULE(p.lang)}`;
@@ -461,7 +468,10 @@ export async function analyzeBodyPhoto(uid: Uid, id: string, goal = ''): Promise
   const res = await createAnthropic().messages.create({ model: 'claude-sonnet-5-5', max_tokens: 1500, system: bodySystem(prof, uid), messages: [{ role: 'user', content }] }, QUALITY);
   const j = jsonOf<Partial<BodyAnalysis>>(textOf(res));
   const f01 = (v: unknown, d: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : d; };
+  const vis = (['oui', 'partiel', 'non'].includes(String((j as { body_visible?: string }).body_visible)) ? (j as { body_visible: string }).body_visible : 'partiel') as BodyAnalysis['visible'];
+  if (vis === 'non') { j.zones = []; j.focus = []; j.score = 50; }
   const a: BodyAnalysis = {
+    visible: vis, seen: String((j as { seen?: string }).seen ?? '').slice(0, 300),
     at: Date.now(), vs: before?.id ?? null, summary: String(j.summary ?? '').slice(0, 500), score: Math.round(f01(Number(j.score) / 100, 0.5) * 100),
     zones: (j.zones ?? []).slice(0, 6).map(z => ({ label: String(z.label).slice(0, 30), x: f01(z.x, 0.5), y: f01(z.y, 0.5), r: Math.min(0.15, Math.max(0.04, f01(z.r, 0.1))),
       ...(before && z.bx != null ? { bx: f01(z.bx, 0.5), by: f01(z.by, 0.5), br: Math.min(0.15, Math.max(0.04, f01(z.br, 0.1))) } : {}),
@@ -536,6 +546,7 @@ export async function bodyFromTelegram(o: { focus?: string; pose?: string; adapt
   const ph = await addBodyPhoto('kouider', { media: (/png|webp/.test(mime) ? mime : 'image/jpeg') as Img['media'], data: b64 }, pose);
   await kvDel(TG_PHOTO_KEY);
   const a = await analyzeBodyPhoto('kouider', ph.id, o.focus ?? '');
+  if (a.visible === 'non') return `📸 Photo rangée dans FORME, mais je ne peux PAS analyser ton corps dessus : ${a.seen || 'le corps n\'est pas visible'}.\n${a.summary}\nPour une vraie analyse : torse nu (ou t-shirt moulant), de face, bras le long du corps, bonne lumière, toujours au même endroit. Ta séance n'a pas été modifiée. (Dis-le-lui honnêtement, n'invente aucune zone ni conseil sur son physique.)`;
   const url = await annotatePhoto('kouider', ph.id).catch(() => null);
   let session = '';
   if (o.adapt !== false) {
@@ -544,6 +555,7 @@ export async function bodyFromTelegram(o: { focus?: string; pose?: string; adapt
   }
   return [
     `📸 Photo enregistrée dans FORME (${pose}) et analysée${a.vs ? ' — comparée à la précédente' : ''}. Score de progression : ${a.score}/100.`,
+    a.seen ? `Ce que je vois : ${a.seen}${a.visible === 'partiel' ? ' (corps seulement en partie visible : je ne juge que ce qui se voit)' : ''}` : '',
     a.summary,
     `ZONES (numéros sur la photo) :\n${a.zones.map((z, i) => `${i + 1}. ${z.label} — ${z.trend} : ${z.note}`).join('\n')}`,
     `CONSEILS :\n${a.advice.map(x => `• ${x}`).join('\n')}`,
@@ -659,11 +671,11 @@ export async function formeOverview(uid: Uid = 'kouider') {
     { id: 'photo', label: 'Avant / après', emoji: '📸', ok: photos.length >= 2 },
     { id: 'kg2', label: '−2 kg', emoji: '⚖️', ok: weights.length > 0 && weights[0]!.kg - curW >= 2 },
     { id: 'kg5', label: '−5 kg', emoji: '🏅', ok: weights.length > 0 && weights[0]!.kg - curW >= 5 },
-    { id: 'inj4', label: '4 injections notées', emoji: '💉', ok: injections.length >= 4 },
+    ...(uid === 'ami' ? [] : [{ id: 'inj4', label: '4 injections notées', emoji: '💉', ok: injections.length >= 4 }]),
   ];
   return {
     uid, today, profile: p, targets: t, day, week7, streak, badges,
-    weights, measures, injections, sides, nextInjection: nextInjection(p, days), doses: WEGOVY_DOSES,
+    weights, measures, ...(uid === 'ami' ? { injections: [], sides: [], nextInjection: null, doses: [] } : { injections, sides, nextInjection: nextInjection(p, days), doses: WEGOVY_DOSES }),
     photos: shown.map(ph => ({ ...ph, url: urls[ph.id] ?? null })).reverse(), photoDue,
     weightRate: ratePerWeek != null ? Math.round(ratePerWeek * 10) / 10 : null,
     tooFast: ratePerWeek != null && ratePerWeek > curW * 0.012,
@@ -683,7 +695,7 @@ export async function logForme(kind: string, b: Record<string, unknown>, date = 
     else if (kind === 'food-del') d.extra.splice(n(b.index), 1);
     else if (kind === 'protein') d.extra.push({ name: String(b.name ?? 'Protéines').slice(0, 60), kcal: Math.round(n(b.p) * 4.5), p: Math.round(n(b.p)), c: 0, f: 0, at: Date.now(), src: 'rapide' });
     else if (kind === 'measures') d.measures = { ...(d.measures ?? {}), ...Object.fromEntries(Object.entries(b.measures as Record<string, unknown> ?? {}).filter(([k, v]) => ['taille', 'hanches', 'poitrine', 'bras', 'cuisse'].includes(k) && n(v) > 10).map(([k, v]) => [k, n(v)])) };
-    else if (kind === 'injection') d.injection = { at: Date.now(), site: String(b.site ?? '').slice(0, 30), ...(b.dose ? { dose: String(b.dose).slice(0, 20) } : {}) };
+    else if (kind === 'injection' && uid !== 'ami') d.injection = { at: Date.now(), site: String(b.site ?? '').slice(0, 30), ...(b.dose ? { dose: String(b.dose).slice(0, 20) } : {}) };
     else if (kind === 'injection-del') delete d.injection;
     else if (kind === 'side') (d.sides ??= []).push({ what: String(b.what ?? '').slice(0, 40), level: Math.min(3, Math.max(1, n(b.level) || 1)), at: Date.now() });
     else if (kind === 'sleep' && n(b.hours) > 0) d.sleep = Math.min(14, Math.round(n(b.hours) * 2) / 2);
