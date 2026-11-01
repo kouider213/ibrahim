@@ -42,13 +42,19 @@ export async function fikMonthlyNet(): Promise<{ months: Array<{ m: string; net:
 
 export interface ProjMonth { m: string; salary: number; extra: number; side: number; fik: number; charges: number; living: number; fixedSave: number; biz: number; bizInvest: number }
 export interface ProjBiz { name: string; partner?: string; share: number; perClient: number; clients: number; start: string; invest: number; monthly: number; offerName: string; perMonthFull: number }
-export interface ProjOpts { target?: number; projet?: string; offer?: string; clients?: number; projetStart?: string }
+export interface ProjOpts { target?: number; projet?: string; offer?: string; clients?: number; projetStart?: string; projetInvest?: number; quit?: string; clientsAfterQuit?: number }
+/** « Quitter la librairie ? » : point de liberté calculé + scénario démission comparé à rester. */
+export interface ProjFreedom {
+  month: string | null; need: number; bizCashFull: number; fund: number;
+  quitAt: string; clientsAfter: number; clientsAfterIsGuess: boolean; stayEnd: number; quitEnd: number; quitCurve: number[]; breakEven: number | null;
+  stayMonthly: number; quitMonthly: number;
+}
 export interface Projection {
   until: string; start: number; months: ProjMonth[];
   sideSales: number; sideStock: number; sideNet: number; living: number; livingSource: string; fikAvg: number; fikWithData: number;
   scenarios: Array<{ name: string; keep: number; end: number; curve: number[] }>;
   creditEnd: string | null; creditAmount: number; hypotheses: string[]; warnings: string[];
-  target?: number; biz?: ProjBiz; base?: Array<{ name: string; end: number; curve: number[] }>;
+  target?: number; biz?: ProjBiz; freedom?: ProjFreedom; base?: Array<{ name: string; end: number; curve: number[] }>;
 }
 
 export async function buildProjection(until = '2028-12', opts: ProjOpts = {}): Promise<Projection> {
@@ -83,14 +89,16 @@ export async function buildProjection(until = '2028-12', opts: ProjOpts = {}): P
       warnings.push(...pb.warnings);
       const clients = opts.clients && opts.clients > 0 ? opts.clients : 5;
       const start = /^\d{4}-\d{2}$/.test(opts.projetStart ?? '') ? opts.projetStart! : ymAdd(now, 2);
-      biz = { name: pb.name, partner: pb.partner, share: pb.share, perClient: pb.perClient, clients, start, invest: pb.invest * pb.share / 100,
+      const invest = opts.projetInvest !== undefined && opts.projetInvest >= 0 ? opts.projetInvest : pb.invest;
+      if (opts.projetInvest !== undefined) for (let i = warnings.length - 1; i >= 0; i--) if (/mise de départ/.test(warnings[i]!)) warnings.splice(i, 1);
+      biz = { name: pb.name, partner: pb.partner, share: pb.share, perClient: pb.perClient, clients, start, invest: invest * pb.share / 100,
         monthly: pb.monthly * pb.share / 100, offerName: pb.offerName, perMonthFull: (clients * pb.perClient - pb.monthly) * pb.share / 100 };
     }
   }
-  const bizAt = (m: string) => {
+  const bizAt = (m: string, clients = biz?.clients ?? 0) => {
     if (!biz || m < biz.start) return 0;
     const k = (+m.slice(0, 4) - +biz.start.slice(0, 4)) * 12 + (+m.slice(5, 7) - +biz.start.slice(5, 7));
-    return (biz.clients * Math.min(1, (k + 1) / 3) * biz.perClient * biz.share / 100) - biz.monthly;   // 1/3, 2/3 puis 100 % des clients
+    return (clients * Math.min(1, (k + 1) / 3) * biz.perClient * biz.share / 100) - biz.monthly;   // 1/3, 2/3 puis 100 % des clients
   };
 
   const credit = f.charges.find(c => c.until && /crédit|credit|prêt|pret|leasing/i.test(c.label));
@@ -111,6 +119,44 @@ export async function buildProjection(until = '2028-12', opts: ProjOpts = {}): P
   const NAMES: Array<[string, number]> = [['Discipliné (tu gardes tout le cash)', 1], ['Réaliste (tu gardes 70 % du cash)', 0.7], ['Prudent (tu gardes 40 % du cash)', 0.4]];
   const scenarios = NAMES.map(([n, k]) => scen(n, k));
   const base = biz ? NAMES.map(([n, k]) => scen(n, k, false)) : undefined;
+
+  // Quitter la librairie ? Point de liberté = 1er mois où (appoint + FIK + projet à plein régime) ≥ salaire + heures sup
+  // ET où l'épargne (réaliste) couvre 6 mois de charges + vie. Puis scénario « démission » vs « je reste ».
+  let freedom: ProjFreedom | undefined;
+  if (biz && months.length) {
+    const real = scenarios[1]!;
+    const need = (f.salary ?? 0) + b.extra;
+    const full = ymAdd(biz.start, 2);
+    let month: string | null = null, fundAt = 0;
+    months.forEach((x, k) => {
+      if (month || x.m < full) return;
+      const fund = 6 * (x.charges + x.living);
+      if (0.7 * (x.side + fik.avg + x.biz) >= need && real.curve[k + 1]! >= fund) { month = x.m; fundAt = fund; }
+    });
+    const quitAt = /^\d{4}-\d{2}$/.test(opts.quit ?? '') ? opts.quit! : month ?? ymAdd(full, 1);
+    const guess = !(opts.clientsAfterQuit && opts.clientsAfterQuit > 0);
+    const clientsAfter = guess ? biz.clients * 2 : opts.clientsAfterQuit!;
+    const sim = (cAfter: number) => {
+      let acc = start; const curve = [acc];
+      for (const x of months) {
+        const q = x.m >= quitAt;
+        acc += ((q ? 0 : x.salary + x.extra) - x.charges - x.living - x.bizInvest) + 0.7 * (x.side + x.fik + (q ? bizAt(x.m, cAfter) : x.biz));
+        curve.push(acc);
+      }
+      return curve;
+    };
+    const quitCurve = sim(clientsAfter);
+    let breakEven: number | null = null;
+    for (let c = 1; c <= 300; c++) if (sim(c).at(-1)! >= real.end) { breakEven = c; break; }
+    const ref = months.find(x => x.m >= quitAt) ?? months.at(-1)!;
+    const bizFull = (c: number) => c * biz!.perClient * biz!.share / 100 - biz!.monthly;
+    freedom = {
+      month, need, bizCashFull: 0.7 * (sideNet + fik.avg + bizFull(biz.clients)), fund: fundAt || 6 * (ref.charges + ref.living),
+      quitAt, clientsAfter, clientsAfterIsGuess: guess, stayEnd: real.end, quitEnd: quitCurve.at(-1)!, quitCurve, breakEven,
+      stayMonthly: ref.salary + ref.extra + 0.7 * (sideNet + fik.avg + bizFull(biz.clients)) - ref.charges - ref.living,
+      quitMonthly: 0.7 * (sideNet + fik.avg + bizFull(clientsAfter)) - ref.charges - ref.living,
+    };
+  }
   if (fik.withData < 6) warnings.push(`FIK : seulement ${fik.withData} mois de réservations en base — la saison est approximée par la moyenne.`);
   const miss = fik.months.reduce((s, x) => s + x.missing, 0);
   if (miss) warnings.push(`${miss} réservation(s) FIK sans prix Houari : leur bénéfice n'est PAS compté (jamais inventé).`);
@@ -123,7 +169,7 @@ export async function buildProjection(until = '2028-12', opts: ProjOpts = {}): P
     biz ? `Projet ${biz.name}${biz.partner ? ` avec ${biz.partner}` : ''} : ${biz.clients} client(s)/mois dès ${ymLabel(biz.start)} (1/3 puis 2/3 des clients les 2 premiers mois), marge ${eur(biz.perClient)} par client (${biz.offerName}, après technicien), ta part ${biz.share} % = ${eur(biz.perMonthFull)}/mois à plein régime${biz.invest ? `, mise de départ (ta part) ${eur(biz.invest)}` : ''}. Payé en cash → compté avec le cash.` : '',
     `Départ : épargne ${eur(f.savings ?? 0)}${f.sideCash ? ` + caisse ${eur(f.sideCash)}` : ''} = ${eur(start)}. Aucun intérêt compté, montants d'aujourd'hui (pas d'inflation).`,
   ].filter(Boolean);
-  return { until, start, months, sideSales, sideStock, sideNet, living, livingSource, fikAvg: fik.avg, fikWithData: fik.withData, scenarios, creditEnd: credit?.until ?? null, creditAmount: credit?.amount ?? 0, hypotheses, warnings, target: opts.target && opts.target > 0 ? opts.target : undefined, biz, base };
+  return { until, start, months, sideSales, sideStock, sideNet, living, livingSource, fikAvg: fik.avg, fikWithData: fik.withData, scenarios, creditEnd: credit?.until ?? null, creditAmount: credit?.amount ?? 0, hypotheses, warnings, target: opts.target && opts.target > 0 ? opts.target : undefined, biz, freedom, base };
 }
 
 /** Objectif : quand il est atteint dans chaque scénario + ce qu'il faut changer (chaque levier seul suffit). Tout calculé. */
@@ -155,6 +201,19 @@ export function goalPlan(p: Projection): { reached: Array<{ name: string; when: 
   return { reached, gap, lines };
 }
 
+/** Quitter la librairie : phrases 100 % calculées. */
+export function freedomLines(p: Projection): string[] {
+  const F = p.freedom; if (!F || !p.biz) return [];
+  const L: string[] = [];
+  L.push(F.month
+    ? `Point de liberté : ${ymLabel(F.month)}. Ce mois-là, les 70 % que tu gardes de appoint + FIK + ${p.biz.name} (${eur(F.bizCashFull)}/mois) dépassent ton salaire + heures sup (${eur(F.need)}) ET ton épargne couvre 6 mois de charges + vie (${eur(F.fund)}).`
+    : `Pas de point de liberté avant ${ymLabel(p.until)} : tes business ne remplacent pas encore ton salaire + heures sup (${eur(F.need)}/mois) avec 6 mois d'avance de côté.`);
+  L.push(`Si tu quittes la librairie en ${ymLabel(F.quitAt)} (70 % du cash gardé) et passes à ${F.clientsAfter} clients/mois${F.clientsAfterIsGuess ? ' (hypothèse : 2× plus de clients avec tout ton temps)' : ''} : ${eur(F.quitEnd)} en ${ymLabel(p.until)}, contre ${eur(F.stayEnd)} en restant (${F.quitEnd >= F.stayEnd ? '+' : '−'}${eur(Math.abs(F.quitEnd - F.stayEnd))}).`);
+  L.push(`Épargné par mois à plein régime (70 % du cash gardé) : ${eur(F.quitMonthly)} sans la librairie, contre ${eur(F.stayMonthly)} en restant.`);
+  L.push(F.breakEven ? `Pour gagner AUTANT qu'en restant, il te faut au moins ${F.breakEven} clients/mois après ta démission.` : `Même à 300 clients/mois, partir ne rattrape pas le salaire sur la période.`);
+  return L;
+}
+
 export function projectionText(p: Projection): string {
   const x = p.months[0];
   const inc = x ? x.salary + x.extra + x.side + x.fik : 0;
@@ -165,6 +224,7 @@ export function projectionText(p: Projection): string {
     ...p.scenarios.map((s, i) => `• ${s.name} : ${eur(s.end)} en ${ymLabel(p.until)}${p.base ? ` (sans ${p.biz!.name} : ${eur(p.base[i]!.end)} → +${eur(s.end - p.base[i]!.end)})` : ''}`),
     p.biz ? `• ${p.biz.name} : ${p.biz.clients} client(s)/mois dès ${ymLabel(p.biz.start)} → ta part ${eur(p.biz.perMonthFull)}/mois à plein régime.` : '',
     `Départ : ${eur(p.start)}.`,
+    ...(p.freedom ? freedomLines(p).map(l => `🚪 ${l}`) : []),
     ...(() => { const g = goalPlan(p); if (!g) return []; return [`🎯 Objectif ${eur(p.target!)} : ${g.reached.map(r => `${r.name.split(' (')[0]} ${r.when === 'déjà' ? 'déjà atteint' : r.when ? `atteint en ${ymLabel(r.when)}` : 'pas atteint'}`).join(' · ')}`, ...g.lines]; })(),
     ...p.warnings.map(w => `⚠️ ${w}`),
   ].filter(Boolean).join('\n');
@@ -270,6 +330,32 @@ export async function projectionPdf(p: Projection, analysis = ''): Promise<Buffe
     P(`Moyenne ${eur(p.fikAvg)}/mois (${p.fikWithData} mois avec des réservations). Bénéfice = (prix client − prix Houari) × jours.`, 9.5, GREY);
   }
 
+  if (p.freedom && p.biz) {
+    const F = p.freedom;
+    doc.addPage();
+    H('Quitter la librairie ?');
+    for (const l of freedomLines(p)) { P(l, 10.5); doc.moveDown(0.3); }
+    // Graphique : rester vs partir (réaliste, 70 % du cash gardé)
+    const stay = p.scenarios[1]!.curve, gx = 75, gy = doc.y + 10, gw = 460, gh = 170, n = p.months.length;
+    const all = [...stay, ...F.quitCurve]; const max = Math.max(...all) * 1.08, min = Math.min(0, ...all);
+    const Y = (v: number) => gy + gh - (v - min) / (max - min) * gh;
+    doc.lineWidth(0.5).strokeColor('#DDD');
+    for (let k = 0; k <= 4; k++) { const v = min + (max - min) * k / 4; doc.moveTo(gx, Y(v)).lineTo(gx + gw, Y(v)).stroke(); doc.fontSize(7).fillColor(GREY).text(`${Math.round(v / 1000)} k€`, gx - 34, Y(v) - 4, { width: 30, align: 'right' }); }
+    ([[stay, COLORS[1]!], [F.quitCurve, '#6A4C93']] as Array<[number[], string]>).forEach(([c, col]) => { doc.lineWidth(2).strokeColor(col); c.forEach((v, k) => { const X = gx + k / n * gw; if (k === 0) doc.moveTo(X, Y(v)); else doc.lineTo(X, Y(v)); }); doc.stroke(); });
+    const kq = p.months.findIndex(m => m.m >= F.quitAt);
+    if (kq >= 0) { const X = gx + (kq + 1) / n * gw; doc.lineWidth(0.8).strokeColor('#6A4C93').dash(3, { space: 3 }).moveTo(X, gy).lineTo(X, gy + gh).stroke().undash(); doc.fontSize(7).fillColor('#6A4C93').text('démission', X + 3, gy + 2); }
+    doc.y = gy + gh + 10; doc.x = 45;
+    ([['Tu restes à la librairie', COLORS[1]!], [`Tu pars en ${ymLabel(F.quitAt)}, ${F.clientsAfter} clients/mois`, '#6A4C93']] as Array<[string, string]>).forEach(([t, col]) => { const y = doc.y; doc.rect(45, y + 2, 10, 6).fill(col); doc.fillColor('#333').fontSize(8.5).text(t, 60, y); });
+    H('Avant de poser ta démission (les conditions)');
+    for (const c of [
+      `3 mois de suite avec au moins ${F.breakEven ?? p.biz.clients} vrais clients ${p.biz.name} payés — pas des promesses.`,
+      `${eur(F.fund)} de côté (6 mois de charges + vie) AVANT de partir, sans compter le stock.`,
+      `Les prix du projet vérifiés sur de vrais clients (aujourd'hui : ${eur(p.biz.perClient)} de marge par client, d'après tes chiffres).`,
+      `Ton revenu ne dépend plus d'une seule source : si l'appoint ou le projet s'arrête un mois, tu tiens quand même.`,
+      `Se renseigner sur la mutuelle / la sécurité sociale et le statut (indépendant) quand on n'a plus de salaire.`,
+    ]) P(`• ${c}`, 10);
+  }
+
   // Page 3 : tableau par trimestre + hypothèses + analyse
   doc.addPage();
   H('Trimestre par trimestre (scénario réaliste)');
@@ -344,6 +430,9 @@ export async function projectionTool(input: Record<string, unknown>): Promise<st
     offer: input['offer'] ? String(input['offer']) : undefined,
     clients: Number(input['clients']) || undefined,
     projetStart: input['projet_start'] ? String(input['projet_start']) : undefined,
+    projetInvest: input['projet_invest'] !== undefined && input['projet_invest'] !== '' ? Number(input['projet_invest']) : undefined,
+    quit: input['quit'] ? String(input['quit']) : undefined,
+    clientsAfterQuit: Number(input['clients_after_quit']) || undefined,
   });
   const text = projectionText(p);
   const analysis = autoAnalysis(p);

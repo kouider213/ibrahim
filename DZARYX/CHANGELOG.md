@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-01 — Projection : « Quitter la librairie ? » + matériel à tester
+- Avec un projet : point de liberté calculé (70 % du cash gardé ≥ salaire + heures sup ET 6 mois de charges + vie de côté), scénario démission vs rester (courbes), clients minimum pour partir, conditions avant de démissionner (page dédiée du PDF).
+- `projet_invest` (matériel à tester sans l'enregistrer), `quit` (date), `clients_after_quit`.
+
 ## 2026-11-01 — Projection : objectif (« 100k d'ici 2028 ») + scénario « et si j'ajoute un projet business »
 - `mes_finances` projection + `target` : objectif retenu (perso:finances.goal), date d'atteinte par scénario, ce qu'il faut changer (cash gardé, épargne/mois, FIK, clients du projet) ; ligne objectif sur le graphique.
 - `projet` / `offer` / `clients` / `projet_start` : ajoute la part de Kouider d'un projet de `projet_business` (montée 1/3 → 2/3 → 100 %), comparé à la courbe sans le projet. Helper `projetForProjection` (projets-business.ts).
