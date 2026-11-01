@@ -1356,8 +1356,13 @@ async def on_message(_, msg: Message) -> None:
             await reply_out(msg, out)
     except Exception as e:
         log.error('message échoué: %s %r', e, e)
+        # 01/11 13h19 : 502 « Application failed to respond » = Railway redémarrait (mise à jour poussée à la même seconde) ;
+        # le tour continue souvent côté serveur → on ne renvoie pas tout seul (doublon), on le dit clairement
+        restarting = isinstance(e, RuntimeError) and any(f'HTTP {c}' in str(e) for c in (502, 503, 504))
         await msg.reply_text('⏳ Je n\'ai pas réussi à te répondre à temps (serveur lent). Renvoie ton message, je le reprends.'
-                             if isinstance(e, asyncio.TimeoutError) else 'Petit souci technique, réessaie dans un instant.')
+                             if isinstance(e, asyncio.TimeoutError) else
+                             '🔄 Le serveur redémarrait (mise à jour) pendant ton message. Si ma réponse n\'arrive pas d\'ici une minute, renvoie-le.'
+                             if restarting else 'Petit souci technique, réessaie dans un instant.')
 
 
 @app.on_raw_update(group=-1)

@@ -71,8 +71,11 @@ const PAYMENT_TOOLS = new Set([
 ]);
 
 // Fast-path providers (Groq/Gemini/OpenAI) have NO tools — block any business data claim
+// 01/11 : l'ancien motif `[\d\s,]+\s*(da|…)` n'exigeait ni chiffre ni fin de mot → « dans », « dates », « d'âge et de dates »
+// suffisaient à remplacer la réponse par « je n'ai pas accès aux données » (brouillon WhatsApp jamais montré).
+const MONEY_RE = /\d[\d\s.,]*\s?(?:€|(?:da|dzd|dinars?|euros?)\b)/i;
 const FAST_PATH_FORBIDDEN_PATTERNS: RegExp[] = [
-  /[\d\s,]+\s*(da|dzd|€|dinar|euro)/i,
+  MONEY_RE,
   /\d+\s+r[eé]servations?/i,
   /(disponible|indisponible|en\s+location|occup[eé])\s+(maintenant|actuellement|en\s+ce\s+moment)/i,
   /\d+\s+clients?\s+(actifs?|ce\s+mois|en\s+cours)/i,
@@ -87,7 +90,9 @@ const FAST_PATH_FORBIDDEN_PATTERNS: RegExp[] = [
 export const FAST_PATH_REFUSAL = '⚠️ Je n\'ai pas accès aux données en temps réel pour cette question. Pose-la moi directement et je consulterai la base de données pour te donner une réponse précise.';
 
 export function fastPathGuard(text: string, userMessage: string, requestId: string): string {
-  const hasForbiddenClaim = FAST_PATH_FORBIDDEN_PATTERNS.some(p => p.test(text));
+  // Il donne lui-même ses montants (« hier j'ai fait 180 € ») → les reprendre/calculer n'est pas une donnée inventée
+  const userGaveMoney = MONEY_RE.test(userMessage);
+  const hasForbiddenClaim = FAST_PATH_FORBIDDEN_PATTERNS.some(p => !(userGaveMoney && p === MONEY_RE) && p.test(text));
   if (hasForbiddenClaim) {
     console.log(
       `[fast-path-guard:${requestId}] ⛔ FAST_PATH_BLOCKED business data claim without tools` +

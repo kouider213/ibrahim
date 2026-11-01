@@ -23,7 +23,12 @@ export interface Decision { id: string; at: number; title: string; options: Deci
 const DEC_KEY = 'decisions';
 
 export async function createDecision(title: string, options: DecisionOption[], send = true): Promise<Decision> {
-  const d: Decision = { id: uid(), at: Date.now(), title: title.slice(0, 600), options: options.slice(0, 4) };
+  // Bouton « Envoyer au client » : le texte qui partira doit être visible (01/11 14h20 : « Voici le message… » sans le message)
+  const waText = options.map(o => o.tool === 'whatsapp_web' && typeof o.input?.['text'] === 'string' ? String(o.input['text']) : '').find(Boolean);
+  if (waText && !title.includes(waText.slice(0, 40))) title = `${title.slice(0, 300)}\n« ${waText.slice(0, 1200)} »`;
+  const waChat = options.map(o => o.tool === 'whatsapp_web' ? String(o.input?.['chat'] ?? '') : '').find(Boolean);
+  if (send && waText && waChat) await import('./whatsapp-web.js').then(m => m.setWaPending(waChat, waText)).catch(() => {});
+  const d: Decision = { id: uid(), at: Date.now(), title: title.slice(0, 1600), options: options.slice(0, 4) };
   const list = (await kvJson<Decision[]>(DEC_KEY, [])).filter(x => Date.now() - x.at < 2 * 86_400_000);
   list.push(d);
   await kvPut(DEC_KEY, list.slice(-20));

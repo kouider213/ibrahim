@@ -3,6 +3,13 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-01 — B049 : brouillon WhatsApp jamais montré + faux « pas accès aux données »
+- Garde fast-path : le motif argent `[\d\s,]+\s*(da|€…)` matchait « dans », « dates » (aucun chiffre requis) → réponses légitimes remplacées par « ⚠️ Je n'ai pas accès aux données en temps réel ». Chiffre + fin de mot obligatoires ; montants donnés par Kouider lui-même = pas bloqués.
+- « Montre / monte-moi le message » → le brouillon WhatsApp en attente est affiché tel quel (sans IA) et reste en attente (« oui » l'envoie).
+- La relecture `whatsapp_web send` devient le brouillon en attente (la version réécrite, pas l'ancienne) ; vidée après envoi.
+- Décision à boutons « Envoyer au client » : le texte du message est maintenant dans la notification.
+- tgcall : 502/503/504 (Railway qui redémarre pendant un push) → message clair au lieu de « Petit souci technique ».
+
 ## 2026-11-01 — FORME : prise de masse pour son ami + audit d'accès + course ↔ salle (app v227)
 - Objectif « muscle » d'un invité = SURPLUS calorique (lent/normal/rapide : +250/+350/+500 kcal) au lieu du déficit ; Kouider garde son DÉFICIT (« je veux un déficit et me muscler ») sauf s'il fait lui-même le questionnaire.
 - Questionnaire prise de masse (7 questions : corps, poids visé, physique, niveau, appétit, semaine/travail/autres sports, rythme) → plan chiffré (kcal, protéines, glucides, lipides, kg/mois, date d'arrivée, conseils) — `bulkPlan` sans IA ; s'ouvre tout seul pour l'ami.

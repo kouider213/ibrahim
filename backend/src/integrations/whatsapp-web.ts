@@ -189,6 +189,7 @@ type R = { ok: boolean; error?: string; [k: string]: unknown };
 const YES_RE = /^\s*(oui|ouais|wi|yes|ok|okay|d'?accord|vas[- ]y|envoie(-la|-le)?|go|c'?est bon|parfait|nickel|wah|ih|نعم|واه)(?=$|[\s,.!👍])/i;
 const NO_RE = /^\s*(non|no|nan|laisse|annule|pas maintenant|لا)(?=$|[\s,.!])/i;
 const CHANGE_RE = /mais|change|modifi|plut[oô]t|sauf|ajoute|enl[eè]ve|corrige/i;
+const SHOW_RE = /\b(montre[sz]?|monte|motre|affiche|fais[- ]moi voir|je (peux|veux) voir)\b.{0,25}\b(message|brouillon|r[ée]ponse|texte)\b|^\s*(le message|quel message|c'?est quoi le message)\s*\??\s*$/i;
 const VOICE_RE = /^\s*(oui\s*,?\s*)?(en\s+)?(vocal|audio|voix|message vocal)\s*[.!]?\s*$/i;
 
 /** Réponse envoyée en MESSAGE VOCAL (voix de Dzaryx, langue de la réponse) : fichier audio sur le PC cloud puis envoi. */
@@ -212,6 +213,17 @@ export async function sendWaVoice(chat: string, text: string, own = false): Prom
  *  Tout autre message annule l'attente (il passe à Dzaryx normalement, le brouillon reste disponible). null = pas concerné. */
 export async function handleWaYesNo(message: string): Promise<{ reply?: string; note?: string } | null> {
   const raw = await kvGet(PENDING_KEY).catch(() => null);
+  // « montre-moi le message » (même mal tapé : « monte moi ») → le brouillon tel quel, sans IA (01/11 : 2 × « pas accès aux données »)
+  if (SHOW_RE.test(message) && message.trim().length <= 60) {
+    let p: { chat: string; draft: string } | null = null;
+    try { p = raw ? JSON.parse(raw) as { chat: string; draft: string } : null; } catch { /* */ }
+    if (!p) { const last = Object.values(await drafts()).sort((x, y) => y.at.localeCompare(x.at))[0]; if (last && Date.now() - Date.parse(last.at) < 6 * 3600_000) p = last; }
+    if (p) {
+      await kvSet(PENDING_KEY, JSON.stringify(p), 12 * 3600);   // reste en attente : « oui » l'envoie
+      return { reply: `✍️ Message prêt pour ${p.chat} :\n« ${p.draft} »\n\nRéponds « oui » pour l'envoyer, « non » pour laisser, ou dis-moi quoi changer.` };
+    }
+    if (!raw) return null;
+  }
   if (!raw) return null;
   await kvSet(PENDING_KEY, '', 60);
   const short = message.trim().length <= 40 && !CHANGE_RE.test(message);
@@ -242,6 +254,12 @@ export async function waPendingDrafts(maxH = 24): Promise<Array<{ chat: string; 
 /** Une autre question (assistant GPS) vient d'être répondue : le « oui » suivant ne doit pas envoyer un vieux brouillon. */
 export async function clearWaPending(): Promise<void> {
   await kvSet(PENDING_KEY, '', 60);
+}
+
+/** Brouillon proposé ailleurs (décision à boutons…) : devient la réponse en attente (« montre-moi le message », « oui »). */
+export async function setWaPending(chat: string, draft: string): Promise<void> {
+  await kvSet(PENDING_KEY, JSON.stringify({ chat, draft }), 12 * 3600);
+  await saveWaDraft(chat, (await drafts())[chat.toLowerCase()]?.preview ?? '', draft);
 }
 
 export async function saveWaDraft(chat: string, preview: string, draft: string): Promise<void> {
@@ -495,6 +513,9 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
       const shown = await kvGet(PREVIEW_KEY).catch(() => null);
       if (input['confirmed'] !== true || shown !== sig) {
         await kvSet(PREVIEW_KEY, sig, 20 * 60);
+        // Le texte relu devient LE brouillon en attente : « montre-moi le message » / « oui » portent sur la dernière version
+        await kvSet(PENDING_KEY, JSON.stringify({ chat, draft: text }), 12 * 3600).catch(() => {});
+        await saveWaDraft(chat, (await drafts())[chat.toLowerCase()]?.preview ?? '', text).catch(() => {});
         // Anti-regret (Jarvis 4) : message écrit sous l'énervement → version calme proposée, il choisit
         const calm = await import('./foresight.js').then(m => m.calmVersion(text)).catch(() => null);
         if (calm) return `📝 À envoyer sur WhatsApp à ${chat} :\n« ${text} »\n\n🧯 ANTI-REGRET : ce message risque de braquer. Version calme, même fond :\n« ${calm} »\n\nDEMANDE À KOUIDER : « J'envoie la tienne ou la version calme ? ». Envoie celle qu'il choisit (même outil, même chat, le texte choisi ; montre-le s'il change, puis confirmed:true après son oui). Ne bloque jamais.`;
@@ -503,6 +524,7 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
       const r = await cloudEmit<R & { chat?: string }>('cloud:wa', { action: 'send', chat, text }, 80_000);
       if (!r.ok) return `❌ Pas envoyé : ${r.error}`;
       await kvSet(PREVIEW_KEY, '', 60);
+      await kvSet(PENDING_KEY, '', 60);   // déjà parti : un « oui » plus tard ne doit pas le renvoyer
       const d = await drafts(); delete d[chat.toLowerCase()]; await kvSet(DRAFTS_KEY, JSON.stringify(d), 3 * 86_400);
       void import('./foresight.js').then(m => m.logWa(String(r['chat'] || chat), 'out', text)).catch(() => {});
       return `✅ Envoyé sur WhatsApp à ${r['chat'] || chat}.`;

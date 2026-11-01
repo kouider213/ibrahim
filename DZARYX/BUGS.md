@@ -361,3 +361,6 @@ Fix : readDocVision (Claude → Gemini → Groq → OpenAI, PDF via Gemini) pour
 - **Impact** : Conséquence pour l'utilisateur.
 - **Fix attendu** : Explication de la correction à apporter.
 ```
+
+### B049 — « Montre-moi le message » → « ⚠️ pas accès aux données » + « Petit souci technique » (01/11 14h17-14h21) ✅ FIXÉ
+Cause : motif argent du fastPathGuard sans chiffre obligatoire (« dans », « dates » bloqués) ; pas de raccourci pour réafficher le brouillon ; brouillon en attente effacé dès le 1er message non oui/non ; 502 Railway pendant un push d'une autre session ; décision à boutons sans le texte. Corrigé (voir CHANGELOG 01/11).
