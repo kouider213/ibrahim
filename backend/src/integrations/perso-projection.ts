@@ -42,12 +42,19 @@ export async function fikMonthlyNet(): Promise<{ months: Array<{ m: string; net:
 
 export interface ProjMonth { m: string; salary: number; extra: number; side: number; fik: number; charges: number; living: number; fixedSave: number; biz: number; bizInvest: number }
 export interface ProjBiz { name: string; partner?: string; share: number; perClient: number; clients: number; start: string; invest: number; monthly: number; offerName: string; perMonthFull: number }
-export interface ProjOpts { target?: number; projet?: string; offer?: string; clients?: number; projetStart?: string; projetInvest?: number; quit?: string; clientsAfterQuit?: number }
-/** « Quitter la librairie ? » : point de liberté calculé + scénario démission comparé à rester. */
+export interface ProjOpts { target?: number; projet?: string; offer?: string; clients?: number; projetStart?: string; projetInvest?: number; quit?: string; clientsAfterQuit?: number; algerie?: Partial<AlgerieCfg> }
+export interface AlgerieCfg { houseDa: number; carDa: number; livingDa: number; loanRate: number; years: number; apportPct: number; sideAlg: number }
+/** Défauts sourcés (01/11/2026) : maison ≈ 125 m² × 200 000 DA/m² (prix moyen Oran, dz-immobilier / zoomalgerie) ; voiture neuve Doblo/Tipo 2,7–3,3 M DA ;
+ *  vie famille Oran ≈ 1 600 €/mois au taux officiel (Numbeo/Wise) ≈ 243 000 DA ; crédit CNEP ≈ 6,5 %, 20 ans, apport 20 %. Snus : s'arrête (vendu en Belgique). */
+export const ALGERIE_DEFAUT: AlgerieCfg = { houseDa: 25_000_000, carDa: 2_900_000, livingDa: 243_000, loanRate: 6.5, years: 20, apportPct: 20, sideAlg: 0 };
+/** « Quitter la librairie = déménager en Algérie » (01/11) : fin du salaire et des charges belges, voiture + maison achetées
+ *  à Oran (comptant ou crédit), vie en Algérie ; comparé à rester. Tout en € au taux square. */
+export interface MoveOption { kind: 'comptant' | 'crédit'; possible: boolean; atMove: number; payment: number; liquidEnd: number; netEnd: number; curve: number[]; minLiquid: number; afterPurchase: number; fund: number }
 export interface ProjFreedom {
-  month: string | null; need: number; bizCashFull: number; fund: number;
-  quitAt: string; clientsAfter: number; clientsAfterIsGuess: boolean; stayEnd: number; quitEnd: number; quitCurve: number[]; breakEven: number | null;
-  stayMonthly: number; quitMonthly: number;
+  month: string | null; cashMonth: string | null; moveAt: string; clientsAfter: number; clientsAfterIsGuess: boolean;
+  rate: number; houseDa: number; carDa: number; livingDa: number; houseEur: number; carEur: number; livingEur: number;
+  loanRate: number; years: number; apportPct: number; sideAlg: number;
+  options: MoveOption[]; best: number; stayEnd: number; breakEven: number | null; incomeAlg: number; savingsAtMove: number;
 }
 export interface Projection {
   until: string; start: number; months: ProjMonth[];
@@ -120,41 +127,60 @@ export async function buildProjection(until = '2028-12', opts: ProjOpts = {}): P
   const scenarios = NAMES.map(([n, k]) => scen(n, k));
   const base = biz ? NAMES.map(([n, k]) => scen(n, k, false)) : undefined;
 
-  // Quitter la librairie ? Point de liberté = 1er mois où (appoint + FIK + projet à plein régime) ≥ salaire + heures sup
-  // ET où l'épargne (réaliste) couvre 6 mois de charges + vie. Puis scénario « démission » vs « je reste ».
+  // Quitter la librairie = déménager en Algérie (Kouider 01/11) : plus de salaire ni de charges belges (crédit auto compris),
+  // voiture + maison achetées à Oran (comptant ou crédit), vie en Algérie, snus arrêté sauf s'il dit le contraire.
   let freedom: ProjFreedom | undefined;
   if (biz && months.length) {
     const real = scenarios[1]!;
-    const need = (f.salary ?? 0) + b.extra;
+    const cfg: AlgerieCfg = { ...ALGERIE_DEFAUT, ...((f as { algerie?: Partial<AlgerieCfg> }).algerie ?? {}), ...(opts.algerie ?? {}) };
+    const g = await import('./gold.js').then(m => m.goldMarket()).catch(() => null);
+    const rate = g?.eurDzd ?? 275;
+    const houseEur = cfg.houseDa / rate, carEur = cfg.carDa / rate, livingEur = cfg.livingDa / rate;
+    const r = cfg.loanRate / 100 / 12, N = cfg.years * 12, loan = houseEur * (1 - cfg.apportPct / 100);
+    const pay = r > 0 ? loan * r / (1 - Math.pow(1 + r, -N)) : loan / N;
+    const remaining = (k: number) => k >= N ? 0 : r > 0 ? loan * Math.pow(1 + r, k) - pay * (Math.pow(1 + r, k) - 1) / r : loan - pay * k;
+    const bizFull = (c: number) => c * biz!.perClient * biz!.share / 100 - biz!.monthly;
     const full = ymAdd(biz.start, 2);
-    let month: string | null = null, fundAt = 0;
+    const at = (k: number) => real.curve[k]!;   // argent au DÉBUT du mois (= ce que la simulation de départ utilise)
+    let month: string | null = null, cashMonth: string | null = null;
     months.forEach((x, k) => {
-      if (month || x.m < full) return;
-      const fund = 6 * (x.charges + x.living);
-      if (0.7 * (x.side + fik.avg + x.biz) >= need && real.curve[k + 1]! >= fund) { month = x.m; fundAt = fund; }
+      if (x.m < full) return;
+      const inc = 0.7 * (x.fik + x.biz + cfg.sideAlg);
+      if (!month && inc >= livingEur + pay && at(k) >= carEur + houseEur * cfg.apportPct / 100 + 6 * (livingEur + pay)) month = x.m;
+      if (!cashMonth && inc >= livingEur && at(k) >= carEur + houseEur + 6 * livingEur) cashMonth = x.m;
     });
-    const quitAt = /^\d{4}-\d{2}$/.test(opts.quit ?? '') ? opts.quit! : month ?? ymAdd(full, 1);
+    const moveAt = /^\d{4}-\d{2}$/.test(opts.quit ?? '') ? opts.quit! : month ?? cashMonth ?? ymAdd(full, 1);
     const guess = !(opts.clientsAfterQuit && opts.clientsAfterQuit > 0);
     const clientsAfter = guess ? biz.clients * 2 : opts.clientsAfterQuit!;
-    const sim = (cAfter: number) => {
-      let acc = start; const curve = [acc];
+    const kMove = Math.max(0, months.findIndex(x => x.m >= moveAt));
+    const savingsAtMove = real.curve[kMove]!;
+    const sim = (cAfter: number, kind: MoveOption['kind']): MoveOption => {
+      let acc = start; const curve = [acc]; let paid = 0, afterPurchase = 0, minLiquid = Infinity;
+      const upfront = carEur + (kind === 'comptant' ? houseEur : houseEur * cfg.apportPct / 100);
+      const payment = kind === 'crédit' ? pay : 0;
       for (const x of months) {
-        const q = x.m >= quitAt;
-        acc += ((q ? 0 : x.salary + x.extra) - x.charges - x.living - x.bizInvest) + 0.7 * (x.side + x.fik + (q ? bizAt(x.m, cAfter) : x.biz));
+        if (x.m < moveAt) acc += (x.salary + x.extra - x.charges - x.living - x.bizInvest) + 0.7 * (x.side + x.fik + x.biz);
+        else {
+          if (x.m === moveAt || (curve.length === 1 && x.m > moveAt)) { acc -= upfront; afterPurchase = acc; }
+          acc += -livingEur - payment + 0.7 * (x.fik + bizAt(x.m, cAfter) + cfg.sideAlg);
+          if (payment) paid++;
+          minLiquid = Math.min(minLiquid, acc);
+        }
         curve.push(acc);
       }
-      return curve;
+      const fund = 6 * (livingEur + payment);
+      const netEnd = acc + houseEur - (kind === 'crédit' ? remaining(paid) : 0);
+      return { kind, possible: afterPurchase >= fund && minLiquid >= 0, atMove: upfront, payment, liquidEnd: acc, netEnd, curve, minLiquid: minLiquid === Infinity ? acc : minLiquid, afterPurchase, fund };
     };
-    const quitCurve = sim(clientsAfter);
+    const options = (['comptant', 'crédit'] as const).map(kind => sim(clientsAfter, kind));
+    const okOpts = options.map((o, i) => [o, i] as const).filter(([o]) => o.possible);
+    const best = okOpts.length ? okOpts.sort((a, b) => b[0].netEnd - a[0].netEnd)[0]![1] : 1;
     let breakEven: number | null = null;
-    for (let c = 1; c <= 300; c++) if (sim(c).at(-1)! >= real.end) { breakEven = c; break; }
-    const ref = months.find(x => x.m >= quitAt) ?? months.at(-1)!;
-    const bizFull = (c: number) => c * biz!.perClient * biz!.share / 100 - biz!.monthly;
+    for (let c = 1; c <= 300; c++) if (sim(c, options[best]!.kind).netEnd >= real.end) { breakEven = c; break; }
     freedom = {
-      month, need, bizCashFull: 0.7 * (sideNet + fik.avg + bizFull(biz.clients)), fund: fundAt || 6 * (ref.charges + ref.living),
-      quitAt, clientsAfter, clientsAfterIsGuess: guess, stayEnd: real.end, quitEnd: quitCurve.at(-1)!, quitCurve, breakEven,
-      stayMonthly: ref.salary + ref.extra + 0.7 * (sideNet + fik.avg + bizFull(biz.clients)) - ref.charges - ref.living,
-      quitMonthly: 0.7 * (sideNet + fik.avg + bizFull(clientsAfter)) - ref.charges - ref.living,
+      month, cashMonth, moveAt, clientsAfter, clientsAfterIsGuess: guess, rate, houseDa: cfg.houseDa, carDa: cfg.carDa, livingDa: cfg.livingDa,
+      houseEur, carEur, livingEur, loanRate: cfg.loanRate, years: cfg.years, apportPct: cfg.apportPct, sideAlg: cfg.sideAlg,
+      options, best, stayEnd: real.end, breakEven, incomeAlg: 0.7 * (fik.avg + bizFull(clientsAfter) + cfg.sideAlg), savingsAtMove,
     };
   }
   if (fik.withData < 6) warnings.push(`FIK : seulement ${fik.withData} mois de réservations en base — la saison est approximée par la moyenne.`);
@@ -204,13 +230,17 @@ export function goalPlan(p: Projection): { reached: Array<{ name: string; when: 
 /** Quitter la librairie : phrases 100 % calculées. */
 export function freedomLines(p: Projection): string[] {
   const F = p.freedom; if (!F || !p.biz) return [];
+  const da = (n: number) => n >= 1_000_000 ? `${(Math.round(n / 100_000) / 10).toLocaleString('fr-FR')} M DA` : `${(Math.round(n / 1000) * 1000).toLocaleString('fr-FR')} DA`;
   const L: string[] = [];
-  L.push(F.month
-    ? `Point de liberté : ${ymLabel(F.month)}. Ce mois-là, les 70 % que tu gardes de appoint + FIK + ${p.biz.name} (${eur(F.bizCashFull)}/mois) dépassent ton salaire + heures sup (${eur(F.need)}) ET ton épargne couvre 6 mois de charges + vie (${eur(F.fund)}).`
-    : `Pas de point de liberté avant ${ymLabel(p.until)} : tes business ne remplacent pas encore ton salaire + heures sup (${eur(F.need)}/mois) avec 6 mois d'avance de côté.`);
-  L.push(`Si tu quittes la librairie en ${ymLabel(F.quitAt)} (70 % du cash gardé) et passes à ${F.clientsAfter} clients/mois${F.clientsAfterIsGuess ? ' (hypothèse : 2× plus de clients avec tout ton temps)' : ''} : ${eur(F.quitEnd)} en ${ymLabel(p.until)}, contre ${eur(F.stayEnd)} en restant (${F.quitEnd >= F.stayEnd ? '+' : '−'}${eur(Math.abs(F.quitEnd - F.stayEnd))}).`);
-  L.push(`Épargné par mois à plein régime (70 % du cash gardé) : ${eur(F.quitMonthly)} sans la librairie, contre ${eur(F.stayMonthly)} en restant.`);
-  L.push(F.breakEven ? `Pour gagner AUTANT qu'en restant, il te faut au moins ${F.breakEven} clients/mois après ta démission.` : `Même à 300 clients/mois, partir ne rattrape pas le salaire sur la période.`);
+  L.push(`Déménager à Oran = plus de salaire ni de charges belges (crédit auto, Orange, Basic-Fit, vie en Belgique) ; à la place : voiture ${da(F.carDa)} (${eur(F.carEur)}), maison ${da(F.houseDa)} (${eur(F.houseEur)}), vie de famille ${da(F.livingDa)}/mois (${eur(F.livingEur)}). Taux ${Math.round(F.rate)} DA/€.`);
+  L.push(F.month ? `Prêt à partir (maison à crédit) : ${ymLabel(F.month)} — tes business couvrent la vie + la mensualité et tu as la voiture + l'apport + 6 mois d'avance.` : `Pas encore prêt à partir avec une maison à crédit avant ${ymLabel(p.until)}.`);
+  L.push(F.cashMonth ? `Prêt à partir en achetant la maison COMPTANT : ${ymLabel(F.cashMonth)}.` : `Maison comptant : pas possible avant ${ymLabel(p.until)} avec ces chiffres.`);
+  for (const o of F.options) {
+    L.push(`Départ en ${ymLabel(F.moveAt)}, maison ${o.kind} : tu sors ${eur(o.atMove)} au départ${o.payment ? ` puis ${eur(o.payment)}/mois pendant ${F.years} ans (${F.loanRate} %, apport ${F.apportPct} %)` : ''} → en ${ymLabel(p.until)} : ${eur(o.liquidEnd)} en liquide + la maison = ${eur(o.netEnd)} de patrimoine${o.possible ? '' : ` ⚠️ RISQUÉ : ${o.afterPurchase < 0 ? `il te manque ${eur(-o.afterPurchase)} pour payer au départ` : o.afterPurchase < o.fund ? `après l'achat il ne te reste que ${eur(o.afterPurchase)} (il faut ${eur(o.fund)} = 6 mois d'avance)` : `ton compte passe sous zéro (${eur(o.minLiquid)})`}`}.`);
+  }
+  L.push(`En restant en Belgique : ${eur(F.stayEnd)} en ${ymLabel(p.until)} (sans maison).`);
+  L.push(`En Algérie tu gardes chaque mois ≈ ${eur(F.incomeAlg)} (70 % de FIK + ${p.biz.name} à ${F.clientsAfter} clients${F.clientsAfterIsGuess ? ', hypothèse 2× plus avec tout ton temps' : ''}${F.sideAlg ? ' + appoint' : ', snus arrêté'}) pour ${eur(F.livingEur)} de vie${F.options[1]!.payment ? ` (+ ${eur(F.options[1]!.payment)} si crédit)` : ''}.`);
+  L.push(F.breakEven ? `Pour que partir vaille autant que rester (patrimoine), il faut au moins ${F.breakEven} clients ${p.biz.name}/mois.` : `Même à 300 clients/mois, partir ne rattrape pas rester sur la période.`);
   return L;
 }
 
@@ -333,27 +363,29 @@ export async function projectionPdf(p: Projection, analysis = ''): Promise<Buffe
   if (p.freedom && p.biz) {
     const F = p.freedom;
     doc.addPage();
-    H('Quitter la librairie ?');
-    for (const l of freedomLines(p)) { P(l, 10.5); doc.moveDown(0.3); }
-    // Graphique : rester vs partir (réaliste, 70 % du cash gardé)
-    const stay = p.scenarios[1]!.curve, gx = 75, gy = doc.y + 10, gw = 460, gh = 170, n = p.months.length;
-    const all = [...stay, ...F.quitCurve]; const max = Math.max(...all) * 1.08, min = Math.min(0, ...all);
+    H('Quitter la librairie et partir à Oran ?');
+    for (const l of freedomLines(p)) { P(l, 9.8); doc.moveDown(0.2); }
+    // Graphique : rester vs partir (comptant / crédit), argent liquide, 70 % du cash gardé
+    const stay = p.scenarios[1]!.curve, gx = 75, gy = doc.y + 10, gw = 460, gh = 150, n = p.months.length;
+    const series: Array<[number[], string, string]> = [[stay, COLORS[1]!, 'Tu restes en Belgique'], ...F.options.map((o, i) => [o.curve, i ? '#6A4C93' : '#C73E1D', `Oran, maison ${o.kind} (liquide)`] as [number[], string, string])];
+    const all = series.flatMap(x => x[0]); const max = Math.max(...all) * 1.08, min = Math.min(0, ...all);
     const Y = (v: number) => gy + gh - (v - min) / (max - min) * gh;
     doc.lineWidth(0.5).strokeColor('#DDD');
     for (let k = 0; k <= 4; k++) { const v = min + (max - min) * k / 4; doc.moveTo(gx, Y(v)).lineTo(gx + gw, Y(v)).stroke(); doc.fontSize(7).fillColor(GREY).text(`${Math.round(v / 1000)} k€`, gx - 34, Y(v) - 4, { width: 30, align: 'right' }); }
-    ([[stay, COLORS[1]!], [F.quitCurve, '#6A4C93']] as Array<[number[], string]>).forEach(([c, col]) => { doc.lineWidth(2).strokeColor(col); c.forEach((v, k) => { const X = gx + k / n * gw; if (k === 0) doc.moveTo(X, Y(v)); else doc.lineTo(X, Y(v)); }); doc.stroke(); });
-    const kq = p.months.findIndex(m => m.m >= F.quitAt);
-    if (kq >= 0) { const X = gx + (kq + 1) / n * gw; doc.lineWidth(0.8).strokeColor('#6A4C93').dash(3, { space: 3 }).moveTo(X, gy).lineTo(X, gy + gh).stroke().undash(); doc.fontSize(7).fillColor('#6A4C93').text('démission', X + 3, gy + 2); }
+    series.forEach(([c, col]) => { doc.lineWidth(2).strokeColor(col); c.forEach((v, k) => { const X = gx + k / n * gw; if (k === 0) doc.moveTo(X, Y(v)); else doc.lineTo(X, Y(v)); }); doc.stroke(); });
+    const kq = p.months.findIndex(m => m.m >= F.moveAt);
+    if (kq >= 0) { const X = gx + (kq + 1) / n * gw; doc.lineWidth(0.8).strokeColor('#6A4C93').dash(3, { space: 3 }).moveTo(X, gy).lineTo(X, gy + gh).stroke().undash(); doc.fontSize(7).fillColor('#6A4C93').text('départ', X + 3, gy + 2); }
     doc.y = gy + gh + 10; doc.x = 45;
-    ([['Tu restes à la librairie', COLORS[1]!], [`Tu pars en ${ymLabel(F.quitAt)}, ${F.clientsAfter} clients/mois`, '#6A4C93']] as Array<[string, string]>).forEach(([t, col]) => { const y = doc.y; doc.rect(45, y + 2, 10, 6).fill(col); doc.fillColor('#333').fontSize(8.5).text(t, 60, y); });
-    H('Avant de poser ta démission (les conditions)');
+    series.forEach(([, col, t]) => { const y = doc.y; doc.rect(45, y + 2, 10, 6).fill(col); doc.fillColor('#333').fontSize(8.5).text(t, 60, y); });
+    P('Courbes = argent liquide. La maison n\'y est pas : elle compte dans le patrimoine ci-dessus.', 8, GREY);
+    H('Avant de partir (les conditions)');
     for (const c of [
       `3 mois de suite avec au moins ${F.breakEven ?? p.biz.clients} vrais clients ${p.biz.name} payés — pas des promesses.`,
-      `${eur(F.fund)} de côté (6 mois de charges + vie) AVANT de partir, sans compter le stock.`,
-      `Les prix du projet vérifiés sur de vrais clients (aujourd'hui : ${eur(p.biz.perClient)} de marge par client, d'après tes chiffres).`,
-      `Ton revenu ne dépend plus d'une seule source : si l'appoint ou le projet s'arrête un mois, tu tiens quand même.`,
-      `Se renseigner sur la mutuelle / la sécurité sociale et le statut (indépendant) quand on n'a plus de salaire.`,
-    ]) P(`• ${c}`, 10);
+      `Voiture + ${F.options[F.best]!.kind === 'comptant' ? 'maison' : `apport (${F.apportPct} %)`} payés ET 6 mois de vie d'avance qui restent après (${eur(F.options[F.best]!.fund)}).`,
+      `Crédit en Algérie : la banque demande des revenus prouvés — sans salaire elle peut refuser. Comptant ou gros apport = plus sûr.`,
+      `Prix de la maison et de la voiture vérifiés sur place (ici : moyennes d'annonces 2026, à remplacer par TES prix).`,
+      `Le snus s'arrête en partant (compté 0) ; FIK continue comme aujourd'hui.`,
+    ]) P(`• ${c}`, 9.5);
   }
 
   // Page 3 : tableau par trimestre + hypothèses + analyse
@@ -423,6 +455,16 @@ export async function projectionTool(input: Record<string, unknown>): Promise<st
     f.goal = { amount: tIn, until, set: localNow().date };
     await kvPut('perso:finances', f);
   }
+  // Réglages Algérie donnés (maison, voiture, vie, crédit) : retenus pour les prochains calculs, sauf « imagine » (essai = true)
+  const AK: Array<[string, keyof AlgerieCfg]> = [['maison_da', 'houseDa'], ['voiture_da', 'carDa'], ['vie_da', 'livingDa'], ['taux', 'loanRate'], ['duree', 'years'], ['apport', 'apportPct'], ['appoint_algerie', 'sideAlg']];
+  const algerieIn: Partial<AlgerieCfg> = {};
+  for (const [k, field] of AK) { const v = Number(String(input[k] ?? '').replace(/[^\d.]/g, '')); if (String(input[k] ?? '').trim() !== '' && Number.isFinite(v)) algerieIn[field] = v; }
+  if (Object.keys(algerieIn).length && input['essai'] !== true && input['essai'] !== 'true') {
+    const { kvPut } = await import('./ai-util.js');
+    const ff = f as typeof f & { algerie?: Partial<AlgerieCfg> };
+    ff.algerie = { ...(ff.algerie ?? {}), ...algerieIn };
+    await kvPut('perso:finances', ff);
+  }
   const target = tIn > 0 ? tIn : f.goal && (!input['until'] || f.goal.until === until) ? f.goal.amount : undefined;
   const p = await buildProjection(until, {
     target,
@@ -433,6 +475,7 @@ export async function projectionTool(input: Record<string, unknown>): Promise<st
     projetInvest: input['projet_invest'] !== undefined && input['projet_invest'] !== '' ? Number(input['projet_invest']) : undefined,
     quit: input['quit'] ? String(input['quit']) : undefined,
     clientsAfterQuit: Number(input['clients_after_quit']) || undefined,
+    algerie: algerieIn,
   });
   const text = projectionText(p);
   const analysis = autoAnalysis(p);

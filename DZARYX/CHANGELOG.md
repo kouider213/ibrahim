@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-01 — Projection : quitter la librairie = déménager à Oran
+- Scénario départ : fin salaire + charges belges + snus ; voiture + maison à Oran (comptant ET crédit comparés : mensualité, apport, 6 mois d'avance), vie en Algérie, patrimoine = liquide + maison − reste du crédit.
+- Dates « prêt à partir » (crédit / comptant), clients minimum pour que partir vaille rester, conditions (revenus prouvés pour le crédit).
+- Défauts sourcés (ALGERIE_DEFAUT) modifiables : maison_da, voiture_da, vie_da, taux, duree, apport, appoint_algerie (retenus dans perso:finances.algerie ; essai = test).
+
 ## 2026-11-01 — Projection : « Quitter la librairie ? » + matériel à tester
 - Avec un projet : point de liberté calculé (70 % du cash gardé ≥ salaire + heures sup ET 6 mois de charges + vie de côté), scénario démission vs rester (courbes), clients minimum pour partir, conditions avant de démissionner (page dédiée du PDF).
 - `projet_invest` (matériel à tester sans l'enregistrer), `quit` (date), `clients_after_quit`.
