@@ -11,15 +11,17 @@ import ScanScreen from './Scan.tsx';
 import FoodScreen from './Food.tsx';
 import { LibraryScreen } from './Exercises.tsx';
 import RunScreen from './Run.tsx';
+import CutScreen from './Cut.tsx';
 import { LiveViewer } from './RunPro.tsx';
 import { BulkQuiz } from './Bulk.tsx';
 
 // FORME — l'app SPORT de Kouider (31/10 : refaite au style de l'appli « Library » de sa vidéo, nourriture retirée).
 // Marche seule (écran d'accueil : /ibrahim/forme/) ou dans l'app Dzaryx (page FORME, en iframe : même session).
 // Onglets : Séance (programme du jour) · Exercices (bibliothèque) · Scanner (photo d'une machine) · Progrès (poids, photos).
-type Tab = 'sport' | 'run' | 'food' | 'library' | 'scan' | 'body';
+type Tab = 'sport' | 'run' | 'cut' | 'food' | 'library' | 'scan' | 'body';
 const TABS: Array<{ id: Tab; label: string; icon: (on: boolean) => JSX.Element }> = [
   { id: 'sport', label: 'Séance', icon: on => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={on ? 2.4 : 1.9} strokeLinecap="round"><path d="M6.5 7v10M3.5 9.5v5M17.5 7v10M20.5 9.5v5M6.5 12h11" /></svg> },
+  { id: 'cut', label: 'Sèche', icon: on => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={on ? 2.4 : 1.9} strokeLinecap="round" strokeLinejoin="round"><path d="M12 3c2.5 3 5 5.6 5 9.2A5 5 0 0 1 7 12.2C7 9.8 8.4 8 9.6 6.6c.3 1.6 1 2.6 2 3 0-2.4.1-4.4.4-6.6z" /><path d="M10.2 16.2a2 2 0 0 0 3.6 0" /></svg> },
   { id: 'run', label: 'Course', icon: on => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={on ? 2.4 : 1.9} strokeLinecap="round" strokeLinejoin="round"><circle cx="15" cy="4.5" r="2" /><path d="M9 21l2.5-5 3 2.5V22M6 12.5l3-3.5 4 1 2.5 3.5 3 .5M11.5 16l1.5-6" /></svg> },
   { id: 'food', label: 'Repas', icon: on => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={on ? 2.4 : 1.9} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="13" r="7" /><circle cx="12" cy="13" r="3.5" /><path d="M3 3v5M5 3v5M4 8v13M20 3c-1.5 1-2 3-2 5h2v13" /></svg> },
   { id: 'library', label: 'Exercices', icon: on => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={on ? 2.4 : 1.9} strokeLinejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.5" /></svg> },
@@ -233,6 +235,8 @@ function FormeApp() {
   // rechargement → arabe… = boucle infinie pour son ami, trouvée au test 01/11)
   useEffect(() => { const l = o?.profile.lang ?? savedLang() ?? (formeToken() ? 'ar' : 'fr'); if (o) { try { localStorage.setItem(LANG_K, l); } catch { /* */ } const t = formeToken(); if (t && o.uid !== 'kouider') keepInvite(t, l, o.uid); } applyLang(l); }, [o?.profile.lang]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Course = son ami (et sa femme) ; Sèche = Kouider (01/11) → un onglet mémorisé de l'autre profil bascule
+  useEffect(() => { if (o && o.uid === 'kouider' && tab === 'run') setTab('cut'); else if (o && o.uid !== 'kouider' && tab === 'cut') setTab('run'); }, [o?.uid, tab]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!authed) return <Login onOk={() => setAuthed(true)} />;
   if (!o) return (
     <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, background: F.bg, padding: 24, textAlign: 'center' }}>
@@ -259,6 +263,7 @@ function FormeApp() {
       <AnimatePresence mode="wait">
         <motion.main key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.16 }}>
           {tab === 'sport' && (o.uid === 'kouider' ? <SportScreen toast={toast} go={setTab} /> : <ProgramSport toast={toast} go={setTab} />)}
+          {tab === 'cut' && <CutScreen toast={toast} />}
           {tab === 'run' && <RunScreen toast={toast} name={o.profile.name} />}
           {tab === 'food' && <FoodScreen toast={toast} o={o} onO={setO} />}
           {tab === 'library' && <LibraryScreen />}
@@ -267,7 +272,7 @@ function FormeApp() {
         </motion.main>
       </AnimatePresence>
       <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30, background: 'rgba(250,248,253,0.94)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', borderTop: `1px solid ${F.line}`, padding: '6px 6px calc(6px + env(safe-area-inset-bottom))', display: 'flex' }}>
-        {TABS.map(t => (
+        {TABS.filter(t => o.uid === 'kouider' ? t.id !== 'run' : t.id !== 'cut').map(t => (
           <button key={t.id} data-tour={`nav-${t.id}`} onClick={() => { vibrate(8); setTab(t.id); }} style={{ flex: 1, border: 'none', background: 'none', color: tab === t.id ? F.accent : '#8e899b', padding: '4px 0', cursor: 'pointer', fontFamily: F.sans, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
             {t.icon(tab === t.id)}
             <div style={{ fontSize: 10.5, fontWeight: tab === t.id ? 600 : 500 }}>{t.label}</div>

@@ -937,6 +937,7 @@ export async function formeTool(input: Record<string, unknown>): Promise<string>
     const f = await import('./forme-food.js');
     if (a === 'meal_photo') return await f.mealFromTelegram(String(input.note ?? input.question ?? ''));
     if (a === 'meal_text') { const r = await f.logMealText('kouider', String(input.text ?? input.question ?? '')); return `${r.message}\n\n(enregistré dans FORME et déjà envoyé sur son Telegram)`; }
+    if (a === 'food_cut') return await import('./forme-cut.js').then(m => m.cutText());
     if (a === 'meal_fix') return await f.fixMeal('kouider', String(input.text ?? input.question ?? ''), { date: typeof input.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? input.date : undefined });
     if (a === 'food_check') return await f.checkFood(String(input.text ?? input.question ?? ''));
     if (a === 'food_today') return `${await f.foodText()}\n${f.budgetFacts(await f.foodBudget('kouider', typeof input.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? input.date : undefined))}`;

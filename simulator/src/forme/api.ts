@@ -102,6 +102,7 @@ export interface MealLog { id: string; at: number; date: string; time: string; s
 export interface FoodBudget { date: string; bmr: number; active: number; activeSource: 'montre' | 'moyenne' | 'estimation'; burn: number; deficit: number; mode: 'deficit' | 'surplus'; surplus: number; target: number; floor: number; eaten: { kcal: number; p: number; c: number; f: number }; left: number; proteinGoal: number; proteinLeft: number; pct: number; meals: MealLog[] }
 export interface FoodCfg { on: boolean; deficit: number; telegram: boolean }
 export const forme = {
+  cutApply: (deficit: number) => post<{ deficit: number }>('/api/forme/cut/apply', { deficit }),
   foodBurn: () => call<{ status: { burned: number; eaten: number; real: number; goal: number; missing: number; ok: boolean; measured: boolean }; plan: { kcal: number; minutes: number; rounds: number; perRound: number; circuit: Array<{ name: string; how: string }>; walkMin: number; capped: boolean } | null }>('/api/forme/food/burn'),
   food: (date?: string) => call<{ budget: FoodBudget; cfg: FoodCfg }>(`/api/forme/food${date ? `?date=${date}` : ''}`),
   foodPhoto: (image: string, thumb?: string, note?: string) => post<{ meal: MealLog; budget: FoodBudget; message: string }>('/api/forme/food/photo', { image, thumb, note }),

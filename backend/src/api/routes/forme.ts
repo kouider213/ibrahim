@@ -223,6 +223,12 @@ router.delete('/runs/:id', async (req, res) => {
 });
 
 // 📊 Stats pro : objectif semaine, séries par muscle, calendrier, badges, tendances montre
+router.get('/cut', async (req, res) => {
+  try { res.json(await import('../../integrations/forme-cut.js').then(m => m.cutStatus(U(req)))); } catch (err) { fail(res, err); }
+});
+router.post('/cut/apply', async (req, res) => {
+  try { const d = Number((req.body as { deficit?: unknown }).deficit); if (!Number.isFinite(d)) throw new Error('déficit manquant'); res.json({ deficit: await import('../../integrations/forme-cut.js').then(m => m.applyCutDecision(U(req), d)) }); } catch (err) { fail(res, err); }
+});
 router.get('/insights', async (req, res) => {
   try { res.json(await import('../../integrations/forme-insights.js').then(m => m.formeInsights(U(req)))); } catch (err) { fail(res, err); }
 });
