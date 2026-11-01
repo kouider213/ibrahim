@@ -40,15 +40,18 @@ export async function fikMonthlyNet(): Promise<{ months: Array<{ m: string; net:
   return { months, avg, withData: used.length };
 }
 
-export interface ProjMonth { m: string; salary: number; extra: number; side: number; fik: number; charges: number; living: number; fixedSave: number }
+export interface ProjMonth { m: string; salary: number; extra: number; side: number; fik: number; charges: number; living: number; fixedSave: number; biz: number; bizInvest: number }
+export interface ProjBiz { name: string; partner?: string; share: number; perClient: number; clients: number; start: string; invest: number; monthly: number; offerName: string; perMonthFull: number }
+export interface ProjOpts { target?: number; projet?: string; offer?: string; clients?: number; projetStart?: string }
 export interface Projection {
   until: string; start: number; months: ProjMonth[];
   sideSales: number; sideStock: number; sideNet: number; living: number; livingSource: string; fikAvg: number; fikWithData: number;
   scenarios: Array<{ name: string; keep: number; end: number; curve: number[] }>;
   creditEnd: string | null; creditAmount: number; hypotheses: string[]; warnings: string[];
+  target?: number; biz?: ProjBiz; base?: Array<{ name: string; end: number; curve: number[] }>;
 }
 
-export async function buildProjection(until = '2028-12'): Promise<Projection> {
+export async function buildProjection(until = '2028-12', opts: ProjOpts = {}): Promise<Projection> {
   const f = await loadFinances();
   const side = f.side as Side | undefined;
   const b = budget(f);
@@ -71,22 +74,43 @@ export async function buildProjection(until = '2028-12'): Promise<Projection> {
   const living = depMonths >= 2 ? dep.reduce((s, e) => s + e.amount, 0) / depMonths : Math.max(0, b.rest);
   const livingSource = depMonths >= 2 ? `moyenne de ses dépenses notées (${depMonths} mois)` : 'hypothèse : il dépense tout ce qui reste du salaire + heures sup après charges fixes et épargne fixe';
 
+  // Projet business en plus (« si j'ajoute le business avec Houari bof ») : sa part de la marge, montée en 3 mois
+  let biz: ProjBiz | undefined;
+  if (opts.projet !== undefined) {
+    const pb = await (await import('./projets-business.js')).projetForProjection(opts.projet, opts.offer);
+    if (!pb) warnings.push(`Projet « ${opts.projet} » introuvable : calcul fait sans.`);
+    else {
+      warnings.push(...pb.warnings);
+      const clients = opts.clients && opts.clients > 0 ? opts.clients : 5;
+      const start = /^\d{4}-\d{2}$/.test(opts.projetStart ?? '') ? opts.projetStart! : ymAdd(now, 2);
+      biz = { name: pb.name, partner: pb.partner, share: pb.share, perClient: pb.perClient, clients, start, invest: pb.invest * pb.share / 100,
+        monthly: pb.monthly * pb.share / 100, offerName: pb.offerName, perMonthFull: (clients * pb.perClient - pb.monthly) * pb.share / 100 };
+    }
+  }
+  const bizAt = (m: string) => {
+    if (!biz || m < biz.start) return 0;
+    const k = (+m.slice(0, 4) - +biz.start.slice(0, 4)) * 12 + (+m.slice(5, 7) - +biz.start.slice(5, 7));
+    return (biz.clients * Math.min(1, (k + 1) / 3) * biz.perClient * biz.share / 100) - biz.monthly;   // 1/3, 2/3 puis 100 % des clients
+  };
+
   const credit = f.charges.find(c => c.until && /crédit|credit|prêt|pret|leasing/i.test(c.label));
   const months: ProjMonth[] = [];
   for (let m = ymAdd(now, 1); m <= until; m = ymAdd(m, 1)) {
     const charges = f.charges.filter(c => !c.until || c.until >= m).reduce((s, c) => s + c.amount, 0);
     // FIK : même mois de l'an dernier (saison de la diaspora), sinon la moyenne
     const last = fik.months.find(x => x.m.slice(5) === m.slice(5) && x.n > 0);
-    months.push({ m, salary: f.salary ?? 0, extra: b.extra, side: sideNet, fik: last ? last.net : fik.avg, charges, living, fixedSave: f.monthlySaving ?? 0 });
+    months.push({ m, salary: f.salary ?? 0, extra: b.extra, side: sideNet, fik: last ? last.net : fik.avg, charges, living, fixedSave: f.monthlySaving ?? 0, biz: bizAt(m), bizInvest: biz && m === biz.start ? biz.invest : 0 });
   }
   const start = (f.savings ?? 0) + (f.sideCash ?? 0);
   // Ce qui reste du salaire chaque mois (épargne fixe + crédit libéré) + la part GARDÉE du cash (appoint + FIK)
-  const scen = (name: string, keep: number) => {
+  const scen = (name: string, keep: number, withBiz = true) => {
     let acc = start; const curve = [acc];
-    for (const x of months) { acc += (x.salary + x.extra - x.charges - x.living) + keep * (x.side + x.fik); curve.push(acc); }
+    for (const x of months) { acc += (x.salary + x.extra - x.charges - x.living - (withBiz ? x.bizInvest : 0)) + keep * (x.side + x.fik + (withBiz ? x.biz : 0)); curve.push(acc); }
     return { name, keep, end: acc, curve };
   };
-  const scenarios = [scen('Discipliné (tu gardes tout le cash)', 1), scen('Réaliste (tu gardes 70 % du cash)', 0.7), scen('Prudent (tu gardes 40 % du cash)', 0.4)];
+  const NAMES: Array<[string, number]> = [['Discipliné (tu gardes tout le cash)', 1], ['Réaliste (tu gardes 70 % du cash)', 0.7], ['Prudent (tu gardes 40 % du cash)', 0.4]];
+  const scenarios = NAMES.map(([n, k]) => scen(n, k));
+  const base = biz ? NAMES.map(([n, k]) => scen(n, k, false)) : undefined;
   if (fik.withData < 6) warnings.push(`FIK : seulement ${fik.withData} mois de réservations en base — la saison est approximée par la moyenne.`);
   const miss = fik.months.reduce((s, x) => s + x.missing, 0);
   if (miss) warnings.push(`${miss} réservation(s) FIK sans prix Houari : leur bénéfice n'est PAS compté (jamais inventé).`);
@@ -96,9 +120,39 @@ export async function buildProjection(until = '2028-12'): Promise<Projection> {
     `FIK : bénéfice net réel (prix client − prix Houari) des 12 derniers mois, mois par mois (moyenne ${eur(fik.avg)}/mois sur ${fik.withData} mois).`,
     `Charges fixes : ${f.charges.map(c => `${c.label} ${eur(c.amount)}${c.until ? ` jusqu'à ${c.until.slice(5)}/${c.until.slice(0, 4)}` : ''}`).join(', ')}.`,
     `Dépenses de vie : ${eur(living)}/mois (${livingSource}).`,
+    biz ? `Projet ${biz.name}${biz.partner ? ` avec ${biz.partner}` : ''} : ${biz.clients} client(s)/mois dès ${ymLabel(biz.start)} (1/3 puis 2/3 des clients les 2 premiers mois), marge ${eur(biz.perClient)} par client (${biz.offerName}, après technicien), ta part ${biz.share} % = ${eur(biz.perMonthFull)}/mois à plein régime${biz.invest ? `, mise de départ (ta part) ${eur(biz.invest)}` : ''}. Payé en cash → compté avec le cash.` : '',
     `Départ : épargne ${eur(f.savings ?? 0)}${f.sideCash ? ` + caisse ${eur(f.sideCash)}` : ''} = ${eur(start)}. Aucun intérêt compté, montants d'aujourd'hui (pas d'inflation).`,
   ].filter(Boolean);
-  return { until, start, months, sideSales, sideStock, sideNet, living, livingSource, fikAvg: fik.avg, fikWithData: fik.withData, scenarios, creditEnd: credit?.until ?? null, creditAmount: credit?.amount ?? 0, hypotheses, warnings };
+  return { until, start, months, sideSales, sideStock, sideNet, living, livingSource, fikAvg: fik.avg, fikWithData: fik.withData, scenarios, creditEnd: credit?.until ?? null, creditAmount: credit?.amount ?? 0, hypotheses, warnings, target: opts.target && opts.target > 0 ? opts.target : undefined, biz, base };
+}
+
+/** Objectif : quand il est atteint dans chaque scénario + ce qu'il faut changer (chaque levier seul suffit). Tout calculé. */
+export function goalPlan(p: Projection): { reached: Array<{ name: string; when: string | null }>; gap: number; lines: string[] } | null {
+  if (!p.target) return null;
+  const T = p.target, n = p.months.length, real = p.scenarios[1]!;
+  const reached = p.scenarios.map(s => { const k = s.curve.findIndex(v => v >= T); return { name: s.name, when: k < 0 ? null : k === 0 ? 'déjà' : p.months[k - 1]!.m }; });
+  const gap = T - real.end;
+  const lines: string[] = [];
+  if (gap <= 0) lines.push(`Avec le scénario réaliste tu dépasses l'objectif de ${eur(-gap)} : tu es sur la bonne voie, ne change rien d'important.`);
+  else {
+    const cashSum = p.months.reduce((t, m) => t + m.side + m.fik + m.biz, 0);
+    const fixedSum = p.months.reduce((t, m) => t + m.salary + m.extra - m.charges - m.living - m.bizInvest, 0);
+    const keepNeeded = cashSum > 0 ? (T - p.start - fixedSum) / cashSum : Infinity;
+    lines.push(`Il manque ${eur(gap)} au scénario réaliste (${eur(real.end)}). Chacune de ces solutions suffit À ELLE SEULE :`);
+    if (keepNeeded <= 1) lines.push(`• Garder ${Math.ceil(keepNeeded * 100)} % du cash au lieu de 70 % (soit ${eur((keepNeeded - 0.7) * cashSum / n)} de plus gardés chaque mois).`);
+    else lines.push(`• Même en gardant 100 % du cash tu n'y arrives pas (${eur(p.scenarios[0]!.end)}) : il faut une rentrée en plus.`);
+    lines.push(`• Ou ${eur(gap / n)} de plus mis de côté chaque mois (dépenses de vie en moins ou nouvelle rentrée).`);
+    lines.push(`• Ou FIK à ${eur(p.fikAvg + gap / 0.7 / n)}/mois de bénéfice au lieu de ${eur(p.fikAvg)}.`);
+    if (p.biz && p.biz.perClient > 0) {
+      const perClientTotal = p.months.reduce((t, m) => {
+        if (m.m < p.biz!.start) return t;
+        const k = (+m.m.slice(0, 4) - +p.biz!.start.slice(0, 4)) * 12 + (+m.m.slice(5, 7) - +p.biz!.start.slice(5, 7));
+        return t + Math.min(1, (k + 1) / 3) * p.biz!.perClient * p.biz!.share / 100 * 0.7;
+      }, 0);
+      if (perClientTotal > 0) lines.push(`• Ou ${p.biz.name} à ${p.biz.clients + Math.ceil(gap / perClientTotal)} clients/mois au lieu de ${p.biz.clients}.`);
+    }
+  }
+  return { reached, gap, lines };
 }
 
 export function projectionText(p: Projection): string {
@@ -108,8 +162,10 @@ export function projectionText(p: Projection): string {
     `📈 Projection jusqu'à ${ymLabel(p.until)} (${p.months.length} mois), calculée sur tes vrais chiffres :`,
     x ? `• Un mois type : salaire ${eur(x.salary)} + heures sup ${eur(x.extra)} + appoint net ${eur(x.side)} + FIK ${eur(x.fik)} = ${eur(inc)} ; − charges ${eur(x.charges)} − vie ${eur(x.living)}.` : '',
     p.creditEnd ? `• Crédit fini en ${ymLabel(p.creditEnd)} → +${eur(p.creditAmount)}/mois ensuite.` : '',
-    ...p.scenarios.map(s => `• ${s.name} : ${eur(s.end)} en ${ymLabel(p.until)}`),
+    ...p.scenarios.map((s, i) => `• ${s.name} : ${eur(s.end)} en ${ymLabel(p.until)}${p.base ? ` (sans ${p.biz!.name} : ${eur(p.base[i]!.end)} → +${eur(s.end - p.base[i]!.end)})` : ''}`),
+    p.biz ? `• ${p.biz.name} : ${p.biz.clients} client(s)/mois dès ${ymLabel(p.biz.start)} → ta part ${eur(p.biz.perMonthFull)}/mois à plein régime.` : '',
     `Départ : ${eur(p.start)}.`,
+    ...(() => { const g = goalPlan(p); if (!g) return []; return [`🎯 Objectif ${eur(p.target!)} : ${g.reached.map(r => `${r.name.split(' (')[0]} ${r.when === 'déjà' ? 'déjà atteint' : r.when ? `atteint en ${ymLabel(r.when)}` : 'pas atteint'}`).join(' · ')}`, ...g.lines]; })(),
     ...p.warnings.map(w => `⚠️ ${w}`),
   ].filter(Boolean).join('\n');
 }
@@ -125,14 +181,14 @@ export async function projectionPdf(p: Projection, analysis = ''): Promise<Buffe
   // Helvetica (police PDF de base) n'a pas ≈ − → ni l'espace fine : remplacés pour ne pas afficher de signes cassés.
   const rawText = doc.text.bind(doc) as (...a: unknown[]) => typeof doc;
   (doc as unknown as { text: (...a: unknown[]) => typeof doc }).text = (t: unknown, ...rest: unknown[]) =>
-    rawText(typeof t === 'string' ? t.replace(/≈ ?/g, 'env. ').replace(/−/g, '-').replace(/→/g, '->').replace(/[\u202F\u2009]/g, ' ') : t, ...rest);
+    rawText(typeof t === 'string' ? t.replace(/≈ ?/g, 'env. ').replace(/−/g, '-').replace(/→/g, '->').replace(/⚠\uFE0F? ?/g, '(!) ').replace(/[\u202F\u2009]/g, ' ') : t, ...rest);
   const GOLD = '#B8860B', NAVY = '#0B2545', GREY = '#666666', COLORS = ['#1B998B', '#2E86AB', '#F18F01', '#C73E1D', '#6A4C93'];
   const H = (t: string) => { doc.moveDown(0.8).fontSize(15).fillColor(NAVY).text(t).moveDown(0.3); };
   const P = (t: string, size = 10.5, color = '#222') => doc.fontSize(size).fillColor(color).text(t, { lineGap: 2 });
 
   // Page 1 : résultat
   doc.rect(0, 0, doc.page.width, 90).fill(NAVY);
-  doc.fillColor('#fff').fontSize(22).text(`Où tu seras en ${ymLabel(p.until)}`, 45, 28);
+  doc.fillColor('#fff').fontSize(22).text(p.target ? `Objectif ${eur(p.target)} en ${ymLabel(p.until)}` : `Où tu seras en ${ymLabel(p.until)}`, 45, 28);
   doc.fontSize(10).fillColor('#E8D9A8').text(`Projection personnelle — calculée le ${localNow().date.split('-').reverse().join('/')} par Dzaryx · document privé`, 45, 58);
   doc.y = 110; doc.x = 45;
   const x0 = p.months[0];
@@ -144,15 +200,17 @@ export async function projectionPdf(p: Projection, analysis = ''): Promise<Buffe
     doc.roundedRect(45, y, 505, 34, 6).fill(i === 1 ? '#FFF6DD' : '#F4F6F8');
     doc.fillColor(COLORS[i]!).fontSize(11).text(s.name, 58, y + 11, { width: 300 });
     doc.fillColor(NAVY).fontSize(15).text(eur(s.end), 360, y + 8, { width: 175, align: 'right' });
+    if (p.base) doc.fillColor(GREY).fontSize(7.5).text(`sans ${p.biz!.name} : ${eur(p.base[i]!.end)}`, 360, y + 25, { width: 175, align: 'right' });
+    else if (p.target) doc.fillColor(s.end >= p.target ? '#1B998B' : '#C73E1D').fontSize(7.5).text(s.end >= p.target ? 'objectif atteint' : `il manque ${eur(p.target - s.end)}`, 360, y + 25, { width: 175, align: 'right' });
     doc.y = y + 42; doc.x = 45;
   }
-  P(`Point de départ : ${eur(p.start)} (épargne + caisse). « Cash » = appoint + FIK.`, 9.5, GREY);
+  P(`Point de départ : ${eur(p.start)} (épargne + caisse). « Cash » = appoint + FIK${p.biz ? ` + ${p.biz.name}` : ''}.`, 9.5, GREY);
 
   // Graphique 1 : courbes du patrimoine
   H('Ton argent mois par mois');
   {
     const gx = 75, gy = doc.y + 5, gw = 460, gh = 190;
-    const all = p.scenarios.flatMap(s => s.curve); const max = Math.max(...all) * 1.08, min = Math.min(0, ...all);
+    const all = [...p.scenarios.flatMap(s => s.curve), ...(p.base?.[1]?.curve ?? []), p.target ?? 0]; const max = Math.max(...all) * 1.08, min = Math.min(0, ...all);
     const Y = (v: number) => gy + gh - (v - min) / (max - min) * gh;
     doc.lineWidth(0.5).strokeColor('#DDD');
     for (let k = 0; k <= 4; k++) { const v = min + (max - min) * k / 4; doc.moveTo(gx, Y(v)).lineTo(gx + gw, Y(v)).stroke(); doc.fontSize(7).fillColor(GREY).text(`${Math.round(v / 1000)} k€`, gx - 34, Y(v) - 4, { width: 30, align: 'right' }); }
@@ -166,9 +224,12 @@ export async function projectionPdf(p: Projection, analysis = ''): Promise<Buffe
       const lab = k === 0 ? 'auj.' : p.months[k - 1]!.m.endsWith('-01') ? p.months[k - 1]!.m.slice(0, 4) : ymLabel(p.months[k - 1]!.m);
       doc.fontSize(7).fillColor(GREY).text(lab, gx + k / n * gw - 20, gy + gh + 4, { width: 40, align: 'center' });
     });
+    if (p.base) { doc.lineWidth(1.2).strokeColor('#999').dash(4, { space: 3 }); p.base[1]!.curve.forEach((v, k) => { const X = gx + k / n * gw; if (k === 0) doc.moveTo(X, Y(v)); else doc.lineTo(X, Y(v)); }); doc.stroke().undash(); }
+    if (p.target) { doc.lineWidth(1).strokeColor('#C73E1D').dash(6, { space: 3 }).moveTo(gx, Y(p.target)).lineTo(gx + gw, Y(p.target)).stroke().undash(); doc.fontSize(7.5).fillColor('#C73E1D').text(`objectif ${eur(p.target)}`, gx + 4, Y(p.target) - 11); }
     if (p.creditEnd) { const k = p.months.findIndex(m => m.m > p.creditEnd!); if (k >= 0) { const X = gx + (k + 1) / n * gw; doc.lineWidth(0.8).strokeColor(GOLD).dash(3, { space: 3 }).moveTo(X, gy).lineTo(X, gy + gh).stroke().undash(); doc.fontSize(7).fillColor(GOLD).text('fin du crédit', X + 3, gy + 2); } }
     doc.y = gy + gh + 18; doc.x = 45;
     p.scenarios.forEach((s, i) => { const y = doc.y; doc.rect(45, y + 2, 10, 6).fill(COLORS[i]!); doc.fillColor('#333').fontSize(8.5).text(s.name, 60, y); });
+    if (p.base) { const y = doc.y; doc.rect(45, y + 4, 10, 1.5).fill('#999'); doc.fillColor('#333').fontSize(8.5).text(`Réaliste SANS ${p.biz!.name} (pointillés)`, 60, y); }
   }
 
   // Page 2 : un mois type + FIK
@@ -186,6 +247,13 @@ export async function projectionPdf(p: Projection, analysis = ''): Promise<Buffe
     bar(y + 58, [...out, ['Reste', Math.max(0, tot - outT)]], tot, 'Où ça part');
     doc.y = y + 96; doc.x = 45;
     P(`Reste à épargner un mois type : ${eur(tot - outT)} si tu gardes tout le cash.`, 10.5, NAVY);
+  }
+  if (p.biz) {
+    H(`Le projet ${p.biz.name}${p.biz.partner ? ` avec ${p.biz.partner}` : ''}`);
+    P(`${p.biz.clients} client(s)/mois à partir de ${ymLabel(p.biz.start)} · marge ${eur(p.biz.perClient)} par client (${p.biz.offerName}) après le technicien · ta part ${p.biz.share} %.`, 10);
+    P(`À plein régime : ${eur(p.biz.perMonthFull)}/mois pour toi. Les 2 premiers mois sont comptés à 1/3 puis 2/3 des clients (le temps de démarrer).`, 10);
+    const r = p.scenarios[1]!.end - p.base![1]!.end;
+    P(`Effet sur ${ymLabel(p.until)} (réaliste) : +${eur(r)}.`, 11, NAVY);
   }
   H('FIK — ton bénéfice net réel, 12 derniers mois');
   {
@@ -212,13 +280,20 @@ export async function projectionPdf(p: Projection, analysis = ''): Promise<Buffe
     let y = doc.y; head.forEach((h, i) => doc.fontSize(8.5).fillColor(NAVY).text(h, cols[i]!, y, { width: 80 })); y += 14;
     for (let k = 2; k < p.months.length; k += 3) {
       const q = p.months.slice(k - 2, k + 1);
-      const inc = q.reduce((s, x) => s + x.salary + x.extra + real.keep * (x.side + x.fik), 0), ch = q.reduce((s, x) => s + x.charges, 0), lv = q.reduce((s, x) => s + x.living, 0);
+      const inc = q.reduce((s, x) => s + x.salary + x.extra - x.bizInvest + real.keep * (x.side + x.fik + x.biz), 0), ch = q.reduce((s, x) => s + x.charges, 0), lv = q.reduce((s, x) => s + x.living, 0);
       const vals = [ymLabel(p.months[k]!.m), eur(inc), eur(ch), eur(lv), eur(inc - ch - lv), eur(real.curve[k + 1]!)];
       if ((k / 3) % 2 < 1) doc.rect(42, y - 2, 510, 13).fill('#F4F6F8');
       vals.forEach((v, i) => doc.fontSize(8.5).fillColor('#222').text(v, cols[i]!, y, { width: 80 }));
       y += 14;
     }
     doc.y = y + 6; doc.x = 45;
+  }
+  const g = goalPlan(p);
+  if (g) {
+    H(`Ton objectif : ${eur(p.target!)} en ${ymLabel(p.until)}`);
+    for (const r of g.reached) P(`${r.name.split(' (')[0]} : ${r.when === 'déjà' ? 'déjà atteint' : r.when ? `atteint en ${ymLabel(r.when)}` : 'pas atteint à temps'}`, 10, r.when ? '#1B998B' : '#C73E1D');
+    doc.moveDown(0.3);
+    for (const l of g.lines) P(l, 10);
   }
   H('Les hypothèses (tout est vérifiable)');
   for (const h of p.hypotheses) P(`• ${h}`, 9.5);
@@ -234,7 +309,7 @@ export function autoAnalysis(p: Projection): string {
   const n = p.months.length, x = p.months[0]; if (!x) return '';
   const cash = x.side + x.fik, real = p.scenarios[1]!, disc = p.scenarios[0]!, prud = p.scenarios[2]!;
   const fromSalary = x.salary + x.extra - x.charges - x.living;
-  const tenPct = 0.1 * p.months.reduce((t, m) => t + m.side + m.fik, 0);
+  const tenPct = 0.1 * p.months.reduce((t, m) => t + m.side + m.fik + m.biz, 0);
   const freed = p.creditEnd ? p.months.filter(m => m.m > p.creditEnd!).length * p.creditAmount : 0;
   const shareSide = cash > 0 ? Math.round(x.side / cash * 100) : 0;
   const lines = [
@@ -244,6 +319,7 @@ export function autoAnalysis(p: Projection): string {
     p.creditEnd ? `Levier 2 — le crédit : il s'arrête en ${ymLabel(p.creditEnd)} ; garder ses ${eur(p.creditAmount)}/mois de côté ensuite rapporte ${eur(freed)} avant ${ymLabel(p.until)} (déjà compté ici).` : '',
     `Levier 3 — FIK : aujourd'hui ${eur(p.fikAvg)}/mois de bénéfice net en moyenne. Passer à 500 €/mois ajouterait ≈ ${eur((500 - p.fikAvg) * n)} sur la période : c'est le levier qui peut grandir, l'appoint est déjà à son rythme.`,
     `Levier 4 — la vie : ${eur(p.living)}/mois aujourd'hui (${p.livingSource.startsWith('moyenne') ? 'tes vraies dépenses' : 'estimation'}). 200 € de moins par mois = +${eur(200 * n)}.`,
+    p.biz ? `Le projet ${p.biz.name} : à ${p.biz.clients} client(s)/mois il t'ajoute ${eur(p.scenarios[1]!.end - p.base![1]!.end)} d'ici ${ymLabel(p.until)} (réaliste). Chaque client de plus par mois ≈ +${eur(p.biz.perClient * p.biz.share / 100 * 0.7 * p.months.filter(m => m.m >= p.biz!.start).length)} sur la période. Tant qu'il n'y a pas de vrai client, c'est une hypothèse : premier objectif = 1 vrai client payé.` : '',
     `Action ce mois-ci : chaque soir, note la vente du jour et les dépenses, et chaque commande de stock. Dans 2 mois, la projection utilisera tes VRAIES dépenses au lieu d'une estimation.`,
   ];
   return lines.filter(Boolean).join('\n');
@@ -251,14 +327,30 @@ export function autoAnalysis(p: Projection): string {
 
 /** Outil : texte + PDF sur Telegram (quand le backend tourne : lien de fichier temporaire). */
 export async function projectionTool(input: Record<string, unknown>): Promise<string> {
-  const until = /^\d{4}-\d{2}$/.test(String(input['until'] ?? '')) ? String(input['until']) : '2028-12';
-  const p = await buildProjection(until);
+  const until = /^\d{4}-\d{2}$/.test(String(input['until'] ?? '')) ? String(input['until']) : (await import('./perso-finances.js').then(m => m.loadFinances()).then(f => f.goal?.until).catch(() => undefined)) ?? '2028-12';
+  // Objectif : donné maintenant (et alors retenu) ou déjà fixé avant
+  const { loadFinances } = await import('./perso-finances.js');
+  const f = await loadFinances();
+  const tIn = Number(String(input['target'] ?? '').replace(/[^\d.]/g, ''));
+  if (tIn > 0) {
+    const { kvPut } = await import('./ai-util.js');
+    f.goal = { amount: tIn, until, set: localNow().date };
+    await kvPut('perso:finances', f);
+  }
+  const target = tIn > 0 ? tIn : f.goal && (!input['until'] || f.goal.until === until) ? f.goal.amount : undefined;
+  const p = await buildProjection(until, {
+    target,
+    projet: input['projet'] !== undefined && String(input['projet']).trim() !== '' ? String(input['projet']) : undefined,
+    offer: input['offer'] ? String(input['offer']) : undefined,
+    clients: Number(input['clients']) || undefined,
+    projetStart: input['projet_start'] ? String(input['projet_start']) : undefined,
+  });
   const text = projectionText(p);
   const analysis = autoAnalysis(p);
   const pdf = await projectionPdf(p, analysis);
   if (input['send'] !== false) {
     const { queueTelegramFile } = await import('../actions/handlers/nexus-relay.js');
-    await queueTelegramFile(pdf.toString('base64'), `Projection-${until}.pdf`, `📈 Ta projection jusqu'à ${ymLabel(until)} — vrais chiffres, graphiques, hypothèses.`);
+    await queueTelegramFile(pdf.toString('base64'), `Projection-${until}${p.biz ? `-avec-${p.biz.name.split(/\s/)[0]}` : ''}.pdf`, `📈 Ta projection jusqu'à ${ymLabel(until)}${p.target ? ` — objectif ${eur(p.target)}` : ''}${p.biz ? ` — avec ${p.biz.name}` : ''} : vrais chiffres, graphiques, hypothèses.`);
   }
   return `${text}${analysis ? `\n\n${analysis}` : ''}\n\n📄 PDF avec les graphiques envoyé sur Telegram.`;
 }

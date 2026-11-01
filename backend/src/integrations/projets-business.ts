@@ -27,6 +27,32 @@ function find(l: Projet[], q: unknown): Projet | undefined {
   return l.find(p => p.id === s) ?? l.find(p => p.name.toLowerCase().includes(s) || s.includes(p.name.toLowerCase()));
 }
 
+/** 01/11 : ce que le projet rapporte à Kouider, pour la projection perso (« si j'ajoute le business avec Houari bof »).
+ *  Marge par client = milieu de (prix − technicien − frais par client) ; offer = une prestation précise (sinon moyenne des offres). */
+export async function projetForProjection(q: unknown, offer?: unknown): Promise<{ name: string; partner?: string; share: number; perClient: number; invest: number; monthly: number; offerName: string; warnings: string[] } | null> {
+  const p = find(await load(), q);
+  if (!p) return null;
+  const r = await rate();
+  const toE = (n: number, c: Cur) => (c === 'DZD' ? n / r : n);
+  const perClientCost = p.costs.filter(c => c.kind === 'par_client').reduce((s, c) => s + toE(c.amount, c.cur), 0);
+  const o = String(offer ?? '').toLowerCase().trim();
+  const chosen = o ? p.offers.filter(x => x.name.toLowerCase().includes(o) || o.includes(x.name.toLowerCase())) : p.offers;
+  const offers = chosen.length ? chosen : p.offers;
+  const warnings: string[] = [];
+  if (o && !chosen.length) warnings.push(`Prestation « ${o} » introuvable dans ${p.name} : moyenne de toutes les offres utilisée.`);
+  if (!o && offers.length > 1) warnings.push(`${p.name} : marge = moyenne de ${offers.length} prestations (${offers.map(x => x.name).join(', ')}). Dis laquelle pour un calcul plus juste.`);
+  const margins = offers.map(x => ((toE(x.priceMin, x.cur) - toE(x.techMax, x.techCur)) + (toE(x.priceMax, x.cur) - toE(x.techMin, x.techCur))) / 2 - perClientCost);
+  if (!margins.length) return { name: p.name, partner: p.partner, share: p.myShare, perClient: 0, invest: 0, monthly: 0, offerName: '', warnings: [`${p.name} : aucun prix enregistré, le projet ne rapporte rien dans le calcul.`] };
+  if (p.notes.some(n => /vérifier|verifier/i.test(n))) warnings.push(`${p.name} : certains prix sont encore « à vérifier » (tes notes) — pas encore de vrai client.`);
+  const invest = p.costs.filter(c => c.kind === 'invest').reduce((s, c) => s + toE(c.amount, c.cur), 0);
+  if (!invest) warnings.push(`${p.name} : mise de départ (PC, appli, prise OBD) pas encore donnée → comptée 0 €.`);
+  return {
+    name: p.name, partner: p.partner, share: p.myShare, perClient: margins.reduce((a, b) => a + b, 0) / margins.length, invest,
+    monthly: p.costs.filter(c => c.kind === 'mensuel').reduce((s, c) => s + toE(c.amount, c.cur), 0),
+    offerName: offers.map(x => x.name).join(' / '), warnings,
+  };
+}
+
 /** Les chiffres exacts, calculés (jamais inventés). */
 export async function chiffres(p: Projet): Promise<string> {
   const r = await rate();

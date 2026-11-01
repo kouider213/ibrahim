@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-01 — Projection : objectif (« 100k d'ici 2028 ») + scénario « et si j'ajoute un projet business »
+- `mes_finances` projection + `target` : objectif retenu (perso:finances.goal), date d'atteinte par scénario, ce qu'il faut changer (cash gardé, épargne/mois, FIK, clients du projet) ; ligne objectif sur le graphique.
+- `projet` / `offer` / `clients` / `projet_start` : ajoute la part de Kouider d'un projet de `projet_business` (montée 1/3 → 2/3 → 100 %), comparé à la courbe sans le projet. Helper `projetForProjection` (projets-business.ts).
+
 ## 2026-11-01 — Projection perso « où je serai en 2028 » : vrai calcul + PDF avec graphiques
 - Nouveau `perso-projection.ts` : mois par mois (salaire + heures sup + appoint net des commandes de stock + bénéfice FIK réel des réservations − charges avec fin du crédit − dépenses de vie), 3 scénarios, PDF 3 pages (courbes, mois type, FIK 12 mois, trimestres, hypothèses, analyse 100 % calculée sans IA) → Telegram.
 - Outil `mes_finances` action `projection` (+ réglages side_days / order_cost / order_every_days / order_pieces).

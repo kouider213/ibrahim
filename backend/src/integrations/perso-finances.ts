@@ -14,6 +14,7 @@ export type Finances = {
   monthlySaving?: number;       // mis de côté chaque mois sur le salaire
   side?: { label: string; dailyMin: number; dailyMax: number; when: string; note?: string; daysPerWeek?: number; order?: { pieces?: number; cost: number; everyDays: number } };  // revenu d'appoint
   savings?: number;             // épargne totale €
+  goal?: { amount: number; until: string; set: string };   // 01/11 : objectif d'épargne (« 100k d'ici 2028 »)
   sideCash?: number;            // ce que le revenu d'appoint a déjà mis de côté €
   notes?: string[];
   updated?: string;
@@ -68,6 +69,7 @@ export async function financesText(): Promise<string> {
     f.salary ? `- Reste pour les dépenses variables (courses, essence, famille…) : ≈ ${eur(b.rest)}/mois.` : '',
     f.side ? `- Revenu d'appoint (${f.side.label}) : ${f.side.dailyMin === f.side.dailyMax ? eur(f.side.dailyMin) : `${eur(f.side.dailyMin)} à ${eur(f.side.dailyMax)}`} de ventes par jour, ${f.side.when}${f.side.daysPerWeek ? ` (${f.side.daysPerWeek} j/semaine)` : ''}.${f.side.order ? ` Stock : ${f.side.order.pieces ? `${f.side.order.pieces} pièces pour ` : ''}${eur(f.side.order.cost)}, une commande tous les ${f.side.order.everyDays} jours au minimum (≈ ${eur(f.side.order.cost * 365 / f.side.order.everyDays / 12)}/mois à déduire).` : ''}${f.side.note ? ` ${f.side.note}` : ''}` : '',
     f.savings ? `- Épargne : ${eur(f.savings)}.` : '',
+    f.goal ? `- OBJECTIF : ${eur(f.goal.amount)} d'ici ${f.goal.until.slice(5)}/${f.goal.until.slice(0, 4)} (fixé le ${f.goal.set.split('-').reverse().join('/')}) — pour savoir s'il est sur la bonne voie : mes_finances 'projection'.` : '',
     f.sideCash ? `- Mis de côté grâce à l'appoint : ≈ ${eur(f.sideCash)}.` : '',
     ...(f.notes ?? []).slice(-5).map(n => `- ${n}`),
     await import('./argent-coach.js').then(m => m.argentText()).catch(() => ''),
