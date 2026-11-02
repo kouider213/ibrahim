@@ -47,8 +47,12 @@ export async function setHomeBy(date: string, hhmm: string | null): Promise<void
   const l = await getLive();
   if (l && l.date === date) { if (hhmm) l.homeBy = hhmm; else delete l.homeBy; await saveLive(l); }
 }
-export async function getHomeBy(date: string): Promise<string | null> {
-  try { return (JSON.parse((await kvGet(HOMEBY_KEY)) ?? '{}') as Record<string, string>)[date] ?? null; } catch { return null; }
+/** 02/11 (Kouider : « il sait que je dois être à la maison à 7h30 ») : séance du MATIN (début avant 7h15) sans heure dite → 7h30 max. */
+export const DEFAULT_HOME_BY = '07:30';
+export async function getHomeBy(date: string, startTs?: number): Promise<string | null> {
+  let set: string | null = null;
+  try { set = (JSON.parse((await kvGet(HOMEBY_KEY)) ?? '{}') as Record<string, string>)[date] ?? null; } catch { /* rien */ }
+  return set ?? (startTs && hm(startTs).replace('h', ':').padStart(5, '0') < '07:15' ? DEFAULT_HOME_BY : null);
 }
 
 async function points() {
@@ -172,7 +176,7 @@ export async function startLive(date = localNow().date, at = Date.now()): Promis
   if (cur && !cur.endedAt) return statusText(cur);
   const p = await liveSessionPlan(date);
   const l: Live = { date, startedAt: at, type: p.type, label: p.label, exercises: p.exercises, before: p.before, after: p.after,
-    idx: 0, done: {}, skipped: [], nudges: 0, sent: [], ...(await getHomeBy(date).then(h => h ? { homeBy: h } : {})) };
+    idx: 0, done: {}, skipped: [], nudges: 0, sent: [], ...(await getHomeBy(date, at).then(h => h ? { homeBy: h } : {})) };
   if (!l.before.length) l.liftsAt = at;                     // pas de cardio avant : la muscu commence tout de suite
   await refreshLeave(l);
   l.health = [await healthLine(), await import('./workout-live.js').then(m => m.readiness()).then(r => r?.line ?? '').catch(() => ''),

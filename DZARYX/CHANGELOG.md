@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-02 — Retour salle 7h30 par défaut
+- getHomeBy(date, start) : séance du matin sans heure dite → maison 7h30 max (départ + appel recalculés avec le trafic) ; le cerveau ne demande plus l'heure de retour.
+
 ## 2026-11-02 — FORME Repas : déficit visé vs réel expliqué + fourchettes glucides/lipides
 - « Objectif : déficit d'au moins X » ; carte brûlé : « Déficit à HH:MM » + « ce soir si tu ne manges plus rien » + phrase qui relie les deux.
 - macroRange() : lipides 0,8 g/kg (≥20 %) → 35 % kcal, glucides = reste ; affiché avec statut + donné au cerveau.

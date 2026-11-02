@@ -1050,7 +1050,7 @@ async function homeLine(date: string): Promise<string> {
     const p = (await getState()).plan[date];
     if (!p) return '';
     const { getHomeBy, gymToHomeMin } = await import('./gym-live.js');
-    const [homeBy, road] = await Promise.all([getHomeBy(date), gymToHomeMin().catch(() => 20)]);
+    const [homeBy, road] = await Promise.all([getHomeBy(date, Date.parse(p.start)), gymToHomeMin().catch(() => 20)]);
     const end = Date.parse(p.end);
     if (homeBy) {
       const leave = localTs(date, homeBy) - (road + 3) * 60_000;
