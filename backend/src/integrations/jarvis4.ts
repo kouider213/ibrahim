@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 /**
  * JARVIS 4 (28/10/2026) — ce que l'iPhone envoie et les outils « Iron Man » qui restent :
  *  - ÉVÉNEMENTS iPHONE (automatisations Raccourcis) : CarPlay branché → point de 20 s dit à voix haute ; CarPlay coupé →
@@ -16,7 +17,20 @@ import { localNow } from './morning-routine.js';
 import { supabase } from './supabase.js';
 
 // ── Événements iPhone ────────────────────────────────────────────────────────
-export async function iphoneEvent(type: string, body: Record<string, unknown>): Promise<{ say: string; url?: string; focus?: boolean; menu?: string[] }> {
+// 🎙️ Voix « façon Jarvis » : voix de synthèse grave, calme, majordome (pas la voix d'un acteur — imitation d'une vraie voix = non).
+const VOICES = new Map<string, { at: number; p: Promise<Buffer | null> }>();
+const JARVIS_STYLE = 'Lis ce texte en français, comme JARVIS, l\'intelligence artificielle majordome d\'Iron Man : voix masculine grave, calme, posée, élégante, très légèrement ironique, rythme tranquille et assuré, diction parfaite :';
+function jarvisVoiceUrl(text: string): string {
+  for (const [k, v] of VOICES) if (Date.now() - v.at > 15 * 60_000) VOICES.delete(k);
+  const id = randomUUID().replace(/-/g, '');
+  const p = import('../notifications/dispatcher.js').then(m => m.synthesizeVoiceGemini(text, { voice: process.env['JARVIS_VOICE'] || 'Charon', style: JARVIS_STYLE })).catch(() => null);
+  VOICES.set(id, { at: Date.now(), p });
+  const base = (process.env['PUBLIC_BACKEND_URL'] || 'https://ibrahim-backend-production.up.railway.app').replace(/\/$/, '');
+  return `${base}/api/jarvis/voice/${id}`;
+}
+export async function jarvisVoice(id: string): Promise<Buffer | null> { return (await VOICES.get(id)?.p) ?? null; }
+
+export async function iphoneEvent(type: string, body: Record<string, unknown>): Promise<{ say: string; audio_url?: string; url?: string; focus?: boolean; menu?: string[] }> {
   const lat = Number(body['lat'] ?? body['latitude']), lng = Number(body['lng'] ?? body['longitude']);
   const hasPos = Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0;
   if (hasPos) void import('./gps-life.js').then(m => m.onLocationPoint(lat, lng)).catch(() => {});
@@ -25,7 +39,8 @@ export async function iphoneEvent(type: string, body: Record<string, unknown>): 
       // 02/11 : « Bonjour Kouider » + discours de coach business + citation, puis le point pratique
       const [hello, brief] = await Promise.all([import('./car-coach.js').then(m => m.carGreeting(hasPos ? { lat, lng } : {})).catch(() => 'Bonjour Kouider.'), carBrief(hasPos ? { lat, lng } : {})]);
       void kvPut('car:last-event', { at: Date.now(), type });   // trace : l'automatisation CarPlay est bien arrivée
-      return { say: speakable(carPrivacy(`${hello} ${brief}`)) || 'Bonjour Kouider. Bonne route.' };
+      const say = speakable(carPrivacy(`${hello} ${brief}`)) || 'Bonjour Kouider. Bonne route.';
+      return { say, audio_url: jarvisVoiceUrl(say) };
     }
     case 'carplay_off': case 'parked': {
       void kvPut('car:last-off', { at: Date.now(), type });

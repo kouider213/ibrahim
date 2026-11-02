@@ -19,6 +19,14 @@ function requireOwner(req: Request, res: Response, next: NextFunction): void {
     next();
   });
 }
+// 🎙️ VOIX JARVIS (02/11) : le son du discours CarPlay, généré en arrière-plan (Gemini TTS gratuit, voix grave et posée).
+// Lien à usage court, imprévisible → public (le raccourci « Obtenir le contenu de l'URL » + « Lire le son » sans en-tête).
+router.get('/voice/:id', async (req, res) => {
+  const { jarvisVoice } = await import('../../integrations/jarvis4.js');
+  const wav = await jarvisVoice(String(req.params['id']));
+  if (!wav) { res.status(404).end(); return; }
+  res.setHeader('Content-Type', 'audio/wav'); res.setHeader('Content-Disposition', 'inline; filename="jarvis.wav"'); res.end(wav);
+});
 router.use(requireOwner);
 
 const fail = (res: Response, e: unknown) => res.status(500).json({ error: e instanceof Error ? e.message : String(e) });

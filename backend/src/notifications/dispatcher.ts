@@ -134,20 +134,20 @@ function pcmToWav(pcm: Buffer, sampleRate = 24_000): Buffer {
   return Buffer.concat([header, pcm]);
 }
 
-export async function synthesizeVoiceGemini(text: string): Promise<Buffer | null> {
+export async function synthesizeVoiceGemini(text: string, opts: { voice?: string; style?: string } = {}): Promise<Buffer | null> {
   const geminiKey = process.env['GEMINI_API_KEY'];
   if (!geminiKey) return null;
   try {
     const { data } = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${geminiKey}`,
       {
-        contents: [{ parts: [{ text: cleanTextForTTS(text) }] }],
+        contents: [{ parts: [{ text: (opts.style ? `${opts.style}\n` : '') + cleanTextForTTS(text) }] }],
         generationConfig: {
           responseModalities: ['AUDIO'],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: opts.voice ?? 'Kore' } } },
         },
       },
-      { timeout: 25_000 },
+      { timeout: opts.voice ? 60_000 : 25_000 },
     );
     const b64 = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data as string | undefined;
     if (!b64) throw new Error('Gemini TTS empty audio');
