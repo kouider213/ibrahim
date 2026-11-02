@@ -75,6 +75,7 @@ export async function kouiderDossierText(): Promise<string> {
   const conns = await import('./connections-watch.js').then(m => m.connectionsText()).catch(() => '');
   const mood = await import('./brain-plus.js').then(m => m.moodText()).catch(() => '');
   const liberte = await import('./liberte.js').then(m => m.liberteText()).catch(() => '');   // programme d'arrêt (privé)
+  const vital = await import('./vitalite.js').then(m => m.vitaliteText()).catch(() => '');   // 02/11 désir/testo/couple (privé)
   const vie = await import('./life-plus.js').then(m => m.lifeText()).catch(() => '');
   const gcoach = await import('./grand-coach.js').then(m => m.grandCoachText()).catch(() => '');
   const fin = await import('./perso-finances.js').then(m => m.financesText()).catch(() => '');
@@ -88,6 +89,7 @@ export async function kouiderDossierText(): Promise<string> {
     ...(conns ? [conns] : []),
     ...(mood ? [mood] : []),
     ...(liberte ? [liberte] : []),
+    ...(vital ? [vital] : []),
     ...(vie ? [vie] : []),
     ...(gcoach ? [gcoach] : []),
     ...(fin ? [fin] : []),

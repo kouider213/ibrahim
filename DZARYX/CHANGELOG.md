@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-02 — COACH › 🔥 Vitalité (privé) (app v238)
+- Nouveau module backend/src/integrations/vitalite.ts : désir (questionnaire IIEF domaine désir 2-10 + note /10), rapports/semaine (objectif 1-2), érections du matin, prise de sang (testostérone vs plage 19-39 ans 264-916 ng/dL), croisé avec FORME, montre, sommeil, LIBERTÉ, moral → leviers calculés sans IA.
+- Base de 21 faits sourcés (FACTS) : seule base autorisée pour les conseils ; interactions dangereuses avec l'antidouleur rappelées. Nom du médicament lu dans app_kv (dépôt public).
+- Outil `vitalite` (etat/question/rapport/bilan/iief/labo/objectif/rappel/faits), contexte dans le dossier Kouider (cache 10 min), route /api/vitalite (Kouider seulement, pas de jeton FORME invité), job dimanche 21h30 (bilan privé Telegram, IIEF toutes les 4 semaines).
+- App : page COACH, onglet 🔥 Vitalité (VitaliteTab.tsx).
+
 ## 2026-11-02 — FORME : objectifs vérifiés (rien d'inventé) + suivi automatique (app v237)
 - Vérification du plan sur ses vraies photos : corrigé dos noté depuis une photo de face, jours de séance inventés, seuils en cm sans mesure de départ, « vergetures » inventées, abdos promis trop tôt, « 1 séance sur 8 » (ne lisait que FORME).
 - Plan : toutes ses poses récentes (face/dos/profil), vraies données imposées (protéines formeTargets, pas, jours du programme), zone non visible = « ? » (now null), filtre peau + filtre jalons en cm sans mesure, règles anti-flatterie et abdos ≥ 16 sem.
