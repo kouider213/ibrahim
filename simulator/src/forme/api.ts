@@ -126,6 +126,7 @@ export const forme = {
   exAdd: (id: string, kg?: number, reps?: number) => post<{ sets: ExSet[] }>('/api/forme/exlog', { id, kg, reps }),
   exDel: (id: string, at: number) => post<{ sets: ExSet[] }>('/api/forme/exlog', { id, del: at }),
   overview: () => call<Overview>('/api/forme'),
+  watchSync: () => call<{ at: number | null }>('/api/forme/watch-sync'),
   profile: (p: Partial<Profile>) => post<{ profile: Profile; targets: Targets }>('/api/forme/profile', p),
   translate: (texts: string[]) => post<{ map: Record<string, string> }>('/api/forme/translate', { texts }),
   program: () => call<ProgramView>('/api/forme/program'),

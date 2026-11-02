@@ -108,6 +108,14 @@ router.get('/food', async (req, res) => {
   try { const f = await food(); const date = isDate(req.query.date) ? req.query.date : undefined; res.json({ budget: await f.foodBudget(U(req), date), cfg: await f.foodCfg(U(req)) }); } catch (err) { fail(res, err); }
 });
 // GET /api/forme/food/burn — déficit réel (brûlé − mangé) + circuit maison pour le manque
+// 02/11 : heure du dernier envoi de la montre (Raccourci « Dzaryx Santé ») → l'app le relance tout seul s'il est vieux
+router.get('/watch-sync', async (req, res) => {
+  if (U(req) !== 'kouider') { res.json({ at: null }); return; }
+  const { kvGet } = await import('../../integrations/app-store.js');
+  const at = Number(await kvGet('health:lastsync').catch(() => null)) || null;
+  res.json({ at });
+});
+
 router.get('/food/burn', async (req, res) => {
   try {
     const f = await food(); const uid = U(req); const b = await f.foodBudget(uid); const d = f.deficitStatus(b);

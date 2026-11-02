@@ -22,7 +22,8 @@ export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok
   // Format réel du Raccourci (27/10) : {"data":{"steps":"131\n64\n…","heart_rate_variability":"20.1\n27.0…","resting_heart_rate":"71","sleep":"…"}}
   // → calcul exact : pas = somme, VFC = moyenne, cœur au repos = dernière valeur, sommeil = somme (heures, ou minutes/secondes converties)
   const d0 = (typeof body['data'] === 'object' && body['data']) ? body['data'] as Record<string, unknown> : body;
-  await kvPut('health:lastraw:any', JSON.stringify(body).slice(0, 60_000), 7 * 86_400).catch(() => {});   // dernier envoi brut (vérifier le format du sommeil)
+  await kvPut('health:lastraw:any', JSON.stringify(body).slice(0, 60_000), 7 * 86_400).catch(() => {});
+  await kvPut('health:lastsync', String(Date.now()), 7 * 86_400).catch(() => {});   // 02/11 : FORME relance le Raccourci si > 20 min   // dernier envoi brut (vérifier le format du sommeil)
   const nums = (v: unknown) => String(v ?? '').split(/[\n,;]+/).map(x => Number(x.trim().replace(',', '.'))).filter(x => Number.isFinite(x) && x > 0);
   const pick = (re: RegExp) => Object.entries(d0).find(([k]) => re.test(k))?.[1];
   // Sommeil (31/10) : chaque ligne peut être « 25200 » (s), « 420 » (min), « 7,2 » (h), « 7 h 12 min », « 1:35:00 » ou « 2 hr 5 min »

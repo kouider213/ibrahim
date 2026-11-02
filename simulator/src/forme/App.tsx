@@ -167,6 +167,7 @@ function Settings({ o, open, onClose, onO, toast }: { o: Overview; open: boolean
         <Toggle on={p.notif.photo} onChange={v => void save({ notif: { ...p.notif, photo: v } })} label="Photo de suivi" />
         {o.uid === 'kouider' && <Toggle on={p.notif.telegram !== false} onChange={v => void save({ notif: { ...p.notif, telegram: v } })} label="Aussi sur Telegram (Dzaryx)" />}
       </div>
+      {o.uid === 'kouider' && <AutoSyncToggle Toggle={Toggle} />}
       {!embedded && <button onClick={async () => { try { toast(await enablePush()); } catch (e) { toast(errText(e)); } }} style={{ ...btn, width: '100%', marginTop: 12 }}>🔔 Activer les notifications sur ce téléphone</button>}
       <div style={{ fontSize: 12.5, color: F.muted, marginTop: 10, lineHeight: 1.45 }}>{embedded ? 'Dans Dzaryx, les rappels arrivent dans les notifications de Dzaryx. ' : ''}Pour avoir FORME comme une vraie app : ouvre kouider213.github.io/ibrahim/forme dans Safari → Partager → « Sur l'écran d'accueil ».</div>
       <button onClick={() => { if (confirm('Refaire le questionnaire du début ?')) void save({ onboarded: false }); }} style={{ ...ghostBtn, width: '100%', marginTop: 12 }}>Refaire le questionnaire</button>
@@ -209,6 +210,17 @@ export default function App() {
   return <FormeApp />;
 }
 
+function AutoSyncToggle({ Toggle }: { Toggle: (p: { on: boolean; onChange: (v: boolean) => void; label: string }) => React.ReactElement }) {
+  const [on, setOn] = useState(() => { try { return localStorage.getItem('forme:autosync:off') !== '1'; } catch { return true; } });
+  return (<>
+    <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}>⌚ Montre en direct</div>
+    <div style={{ ...card, padding: '4px 14px' }}>
+      <Toggle on={on} onChange={v => { setOn(v); try { if (v) localStorage.removeItem('forme:autosync:off'); else localStorage.setItem('forme:autosync:off', '1'); } catch { /* */ } }} label="Lancer « Dzaryx Santé » quand j'ouvre FORME" />
+      <div style={{ fontSize: 12.5, color: F.muted, padding: '0 0 10px' }}>Si ta montre n'a rien envoyé depuis 20 min, FORME lance le raccourci (au plus 1 fois toutes les 20 min, de 5h à 23h). Reviens ensuite sur FORME : les chiffres sont à jour.</div>
+    </div>
+  </>);
+}
+
 function FormeApp() {
   const [authed, setAuthed] = useState(() => !!getDeviceToken() || !!formeToken());
   const [o, setO] = useState<Overview | null>(null);
@@ -224,6 +236,25 @@ function FormeApp() {
     // On n'efface le lien de sa femme QUE si le serveur dit vraiment « Lien expiré » (401) — jamais sur une panne réseau/serveur
     if (formeToken() ? /^API 401/.test(raw) && /Lien expiré/.test(m) : /^API 40[13]/.test(raw)) { if (formeToken()) { try { localStorage.removeItem(FORME_TOKEN); history.replaceState(null, '', location.pathname); } catch { /* */ } } else setDeviceToken(null); setAuthed(false); setErr(m); } else setErr(m); }), []);
   useEffect(() => { if (authed) void load(); }, [authed, load]);
+  // 02/11 (Kouider : « les vraies infos à chaque fois que je suis sur la page ») : à l'ouverture / au retour sur l'app,
+  // si la montre n'a rien envoyé depuis 20 min → lance le Raccourci « Dzaryx Santé » (au plus 1 fois / 20 min, désactivable)
+  useEffect(() => {
+    if (o?.uid !== 'kouider') return;
+    const K = 'forme:autosync', GAP = 20 * 60_000;
+    const run = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try { if (localStorage.getItem(K + ':off') === '1') return; if (Date.now() - Number(localStorage.getItem(K) ?? 0) < GAP) return; } catch { return; }
+      const h = new Date().getHours(); if (h < 5 || h >= 23) return;
+      const r = await forme.watchSync().catch(() => null); if (!r || (r.at && Date.now() - r.at < GAP)) return;
+      try { localStorage.setItem(K, String(Date.now())); } catch { return; }
+      const url = `shortcuts://run-shortcut?name=${encodeURIComponent('Dzaryx Santé')}`;
+      try { (embedded && window.top ? window.top : window).location.href = url; } catch { location.href = url; }
+    };
+    const t = setTimeout(() => void run(), 1500);
+    const f = () => { if (document.visibilityState === 'visible') setTimeout(() => void run(), 1500); };
+    document.addEventListener('visibilitychange', f);
+    return () => { clearTimeout(t); document.removeEventListener('visibilitychange', f); };
+  }, [o?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
   // Abonnement aux notifications ré-envoyé à chaque ouverture depuis l'icône (le serveur garde toujours le bon)
   useEffect(() => { if (!o || embedded || !standalone) return; try { if (typeof Notification !== 'undefined' && Notification.permission === 'granted') void enablePush().catch(() => {}); } catch { /* */ } }, [o?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
   // objectif « muscle » sans questionnaire → il s'ouvre une fois (reste ouvert pour afficher le plan à la fin)
