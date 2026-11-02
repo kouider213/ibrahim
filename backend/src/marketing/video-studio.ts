@@ -21,6 +21,7 @@ import { env } from '../config/env.js';
 import { supabase } from '../integrations/supabase.js';
 import { kvGet, kvSet } from '../integrations/app-store.js';
 import { askJson } from '../integrations/pro-doc.js';
+import { readDocVision } from '../integrations/llm-router.js';
 import { synthesizeVoice, synthesizeVoiceGemini, synthesizeVoiceFree } from '../notifications/dispatcher.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
@@ -105,6 +106,8 @@ export interface StudioShot { prompt: string; camera: string; duration: number; 
 export interface StudioPlan {
   id: string; title: string; hook: string; voiceover: string; cta: string; music_prompt: string;
   post_caption: string; brand: string; lang: string; template: string; image_url?: string | null;
+  /** Description réelle de la photo (couleur, déco, lieu) — gardée identique dans chaque plan image. */
+  subject?: string;
   shots: StudioShot[]; createdAt: string;
 }
 export interface RenderOptions { model: ModelId; nativeAudio: boolean; voice: boolean; music: boolean; subtitles: boolean; outro?: boolean }
@@ -138,6 +141,20 @@ export function estimateCost(shots: StudioShot[], o: Pick<RenderOptions, 'model'
 
 // ─── Plan viral (Claude) ──────────────────────────────────────
 
+const SLANG = /\b(fr[ée]ro?t?|frangin|khoya|kho|wesh|wsh|zahma|mazal|sa7bi|sahbi|la famille|el famille|bro|mon gars|3la|cha3la|lamba)\b/i;
+const SLANG_STRIP = /,?\s*\b(el |mon |les )?(fr[ée]ro?t?|frangin|khoya|wesh|wsh|bro|mon gars|la famille)\b/gi;
+
+/** Décrit la vraie photo (gratuit : Gemini/Groq) pour que l'IA vidéo garde la même voiture, la même déco, le même lieu. */
+async function describeSubject(url: string): Promise<string> {
+  try {
+    const r = await axios.get<ArrayBuffer>(url, { responseType: 'arraybuffer', timeout: 20_000 });
+    const mime = String(r.headers['content-type'] ?? 'image/jpeg').split(';')[0]!;
+    const t = await readDocVision(`Describe this photo in ENGLISH in 2 sentences for a video AI prompt: exact vehicle (make, model, exact colour), EVERY decoration or accessory on it (ribbons, flowers, bouquets, plates…) with colour and position, and the setting (street type, weather, light). No opinions.`,
+      Buffer.from(r.data).toString('base64'), /^image\//.test(mime) ? mime : 'image/jpeg', 250);
+    return t.replace(/\s+/g, ' ').trim().slice(0, 600);
+  } catch (e) { console.warn('[studio] describeSubject', e instanceof Error ? e.message : e); return ''; }
+}
+
 export async function createStudioPlan(input: {
   idea: string; template?: string; lang?: string; seconds?: number; imageUrl?: string | null; carName?: string | null;
 }): Promise<StudioPlan> {
@@ -145,12 +162,14 @@ export async function createStudioPlan(input: {
   const lang = STUDIO_LANGS[input.lang ?? 'fr'] ? (input.lang ?? 'fr') : 'fr';
   const seconds = Math.min(45, Math.max(8, input.seconds ?? 20));
   const cameras = Object.keys(STUDIO_CAMERAS).join(', ');
+  const subject = input.imageUrl ? await describeSubject(input.imageUrl) : '';
   const system = `Tu es un réalisateur de pubs virales TikTok/Reels (style Higgsfield) et un expert en prompts pour modèles vidéo IA (Kling 3, Veo 3.1, Seedance 2).
 Tu réponds UNIQUEMENT avec un JSON valide, sans texte autour.`;
   const user = `Brief : ${tpl.brief || '(aucun, suis l\'idée)'}
 Idée de Kouider : ${input.idea}
 ${input.carName ? `Voiture : ${input.carName} (une vraie photo de cette voiture sera utilisée comme image de départ des plans où use_image=true).` : ''}
 ${input.imageUrl && !input.carName ? 'Une photo de départ est fournie : mets use_image=true sur les plans qui doivent montrer ce sujet précis.' : ''}
+${subject ? `CE QUE MONTRE VRAIMENT LA PHOTO (à respecter à la lettre : couleur, décoration, lieu) : ${subject}` : ''}
 Durée totale visée : ${seconds} secondes, format vertical 9:16.
 
 Rends ce JSON :
@@ -170,9 +189,23 @@ Règles des plans (3 à 6 plans, somme des durées ≈ ${seconds} s, chaque dur�
 - Personnes : apparence maghrébine/méditerranéenne réaliste, vêtements modernes.
 - Le plan 1 doit accrocher immédiatement (mouvement fort ou image surprenante).
 - RÉALISME AVANT TOUT (on ne doit pas voir que c'est de l'IA) : écris chaque prompt comme une vraie photo/vidéo prise sur le vif (« candid », « shot on iPhone / Sony A7 », lumière naturelle, imperfections réelles). Évite les visages en gros plan, les mains et le texte (ce qui trahit l'IA) : préfère voitures, routes, paysages, détails, personnes de dos ou de loin.
-- Ne mets PAS de logo de fin : la signature vidéo FIK (clé dorée) est ajoutée automatiquement après le dernier plan.`;
+- Ne mets PAS de logo de fin : la signature vidéo FIK (clé dorée) est ajoutée automatiquement après le dernier plan.
+${input.imageUrl ? `- VOITURE FIDÈLE À LA PHOTO (sinon la pub ment au client) : TOUT plan où la voiture apparaît a use_image=true, et son prompt décrit la voiture EXACTEMENT comme la photo (même couleur, même décoration, qui reste accrochée du début à la fin). Les plans use_image=false ne montrent JAMAIS de voiture (ville, mer, détails d'ambiance, gens de dos).
+- Plans use_image=true : MÊME lieu et même lumière que la photo, la voiture reste à sa place ou avance lentement dans la même rue ; seulement un mouvement de caméra doux (travelling lent, léger tour, rapprochement ; pas de 360°, drone ni zoom rapide). Jamais de changement de décor, de couleur ou de route lointaine (c'est ce qui déforme l'image).` : ''}
+Règles de la voix off et des textes (pub PRO, comme une marque de luxe) :
+- Ton professionnel, élégant, vouvoiement. AUCUN mot familier ni d'argot : jamais « frérot », « fréro », « khoya », « wesh », « la famille », « mazal », etc.
+- Pas de darija ni d'arabizi si la langue demandée est le français. Pas de politique, pas d'histoire, pas de fête nationale.
+- Concret : ce que le client obtient (voiture, service, Oran), puis l'appel à l'action « Réservez sur WhatsApp » ou équivalent.`;
 
-  const raw = await askJson<Partial<StudioPlan> & { shots?: Partial<StudioShot>[] }>(system, user, 2500);
+  let raw = await askJson<Partial<StudioPlan> & { shots?: Partial<StudioShot>[] }>(system, user, 2500);
+  const textOf = (r: typeof raw) => `${r.voiceover ?? ''} ${r.hook ?? ''} ${r.cta ?? ''} ${r.post_caption ?? ''}`;
+  if (SLANG.test(textOf(raw))) {
+    // 02/11 : « el fréro » à la fin d'une pub → refusé par Kouider (« ça fait pas pro »)
+    raw = await askJson<Partial<StudioPlan> & { shots?: Partial<StudioShot>[] }>(system, `${user}\n\nATTENTION : ta version précédente contenait des mots familiers/argot. Ton 100 % professionnel.`, 2500);
+  }
+  if (SLANG.test(textOf(raw))) {
+    for (const k of ['voiceover', 'hook', 'cta', 'post_caption'] as const) raw[k] = String(raw[k] ?? '').replace(SLANG_STRIP, '').replace(/\s+([,.!?])/g, '$1').replace(/\s{2,}/g, ' ').trim();
+  }
   const shots = (raw.shots ?? []).slice(0, 6).map(s => ({
     prompt: String(s.prompt ?? '').slice(0, 1500),
     camera: STUDIO_CAMERAS[String(s.camera)] ? String(s.camera) : 'auto',
@@ -186,7 +219,7 @@ Règles des plans (3 à 6 plans, somme des durées ≈ ${seconds} s, chaque dur�
     hook: String(raw.hook ?? '').slice(0, 80), voiceover: String(raw.voiceover ?? '').slice(0, 1200), cta: String(raw.cta ?? '').slice(0, 60),
     music_prompt: String(raw.music_prompt ?? 'upbeat modern trap beat, energetic, no vocals').slice(0, 300),
     post_caption: String(raw.post_caption ?? '').slice(0, 600), brand: tpl.brand, lang, template: input.template ?? 'libre',
-    image_url: input.imageUrl ?? null, shots, createdAt: new Date().toISOString(),
+    image_url: input.imageUrl ?? null, subject: subject || undefined, shots, createdAt: new Date().toISOString(),
   };
   await kvSet(PLAN_KEY(plan.id), JSON.stringify(plan), KEEP);
   return plan;
@@ -252,13 +285,18 @@ export async function falRun(modelId: string, input: Record<string, unknown>, ma
   throw new Error(`fal.ai ${modelId} : trop long (${Math.round(maxMs / 60000)} min)`);
 }
 
-function shotInput(model: ModelId, shot: StudioShot, imageUrl: string | null, nativeAudio: boolean): { endpoint: string; input: Record<string, unknown> } {
+function shotInput(model: ModelId, shot: StudioShot, imageUrl: string | null, nativeAudio: boolean, subject?: string): { endpoint: string; input: Record<string, unknown> } {
   const m = STUDIO_MODELS[model];
-  const cam = STUDIO_CAMERAS[shot.camera]?.prompt;
-  const prompt = cam ? `${shot.prompt}. Camera: ${cam}.` : shot.prompt;
-  const d = snapDuration(model, shot.duration);
   const img = shot.use_image && imageUrl ? imageUrl : null;
-  const negative = 'blur, distortion, warped hands, extra fingers, text, watermark, logo, low quality, cartoon';
+  // Depuis UNE photo, un 360° / drone / zoom rapide oblige l'IA à inventer le reste de la voiture → déformations
+  const cam = img && /^(orbit|fpv|drone|crash_zoom)$/.test(shot.camera)
+    ? 'slow gentle arc of about 30 degrees around the subject, steady gimbal, realistic commercial camera move'
+    : STUDIO_CAMERAS[shot.camera]?.prompt;
+  // 02/11 : la déco de mariage de la CLS disparaissait en plein plan → on verrouille le sujet de la photo
+  const lock = img ? `Keep the exact same vehicle as the start image${subject ? ` (${subject})` : ''}: identical colour, every decoration stays attached and visible the whole shot, same street and light, real-world physics, no morphing. ` : '';
+  const prompt = `${lock}${cam ? `${shot.prompt}. Camera: ${cam}.` : shot.prompt}`;
+  const d = snapDuration(model, shot.duration);
+  const negative = 'blur, distortion, morphing, warping, changing car colour, decoration disappearing, different car, warped hands, extra fingers, text, watermark, logo, low quality, cartoon, CGI, video game look, plastic look';
   if (model === 'kling3') {
     return img
       ? { endpoint: m.i2v, input: { start_image_url: img, prompt, duration: String(d), generate_audio: nativeAudio, negative_prompt: negative } }
@@ -672,7 +710,7 @@ async function renderJob(job: StudioJob, plan: StudioPlan, opts: RenderOptions):
         for (let attempt = 0; attempt < 2 && !clips[i] && !falEmpty; attempt++) {
           try {
             if (free) { clips[i] = await freeShot(shot, plan.image_url ?? null, dir, i, seed); break; }
-            const { endpoint, input } = shotInput(opts.model, shot, plan.image_url ?? null, opts.nativeAudio);
+            const { endpoint, input } = shotInput(opts.model, shot, plan.image_url ?? null, opts.nativeAudio, plan.subject);
             const res = await falRun(endpoint, input);
             const url = (res['video'] as { url?: string } | undefined)?.url;
             if (!url) throw new Error(`pas de vidéo dans la réponse : ${JSON.stringify(res).slice(0, 200)}`);
