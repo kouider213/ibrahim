@@ -160,7 +160,7 @@ function Camera({ ghost, onShot, onClose }: { ghost: string | null; onShot: (dat
           <button onClick={cycleDelay} disabled={failed || count != null} style={{ ...ghostBtn, background: delay ? F.accent : '#222', color: '#fff', border: 'none', fontSize: 12.5 }}>⏱ {delay ? `${delay} s` : 'off'}</button>
           <button onClick={() => setFacing(f => f === 'user' ? 'environment' : 'user')} aria-label="Retourner" style={{ ...ghostBtn, background: '#222', color: '#fff', border: 'none', fontSize: 15 }}>⟲</button>
         </div>
-        <input ref={file} type="file" accept="image/*" capture="user" hidden onChange={async e => { const f = e.target.files?.[0]; if (f) onShot(await compressImage(f)); }} />
+        <input ref={file} type="file" accept="image/*" hidden onChange={async e => { const f = e.target.files?.[0]; if (f) onShot(await compressImage(f)); }} />
       </div>
     </div>
   );
@@ -191,6 +191,9 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
   const [adapted, setAdapted] = useState<{ date: string; text: string } | null>(null);
   const [adapting, setAdapting] = useState(false);
   const [adaptAfter, setAdaptAfter] = useState(false);
+  // 02/11 : photo DÉJÀ PRISE (galerie) — sans « capture », l'iPhone propose la photothèque
+  const gal = useRef<HTMLInputElement>(null);
+  const fromGallery = (adaptToo: boolean) => { setAdaptAfter(adaptToo); gal.current?.click(); };
   const adapt = async () => {
     setAdapting(true);
     try { setAdapted(await forme.adapt(goal.trim())); vibrate(60); } catch (e) { toast(errText(e)); } finally { setAdapting(false); }
@@ -243,6 +246,8 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
         </div>
         <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.55)', marginTop: 8 }}>{POSES.find(p => p.id === pose)!.tip}</div>
         <button disabled={busy} onClick={() => setCam(true)} style={{ ...btn, width: '100%', marginTop: 12, display: 'flex', justifyContent: 'center', gap: 10, alignItems: 'center' }}>{busy ? <><Spinner size={18} color="#fff" /> Analyse en cours… (~20 s)</> : `📸 Prendre ma photo ${POSES.find(p => p.id === pose)!.label.toLowerCase()}`}</button>
+        <button disabled={busy} onClick={() => fromGallery(false)} style={{ ...ghostBtn, width: '100%', marginTop: 8, background: 'rgba(255,255,255,0.08)', color: '#fff', border: 'none' }}>🖼️ Choisir une photo {POSES.find(p => p.id === pose)!.label.toLowerCase()} dans ma galerie</button>
+        <input ref={gal} type="file" accept="image/*" hidden onChange={async e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) await shot(await compressImage(f)); else setAdaptAfter(false); }} />
       </div>
       <div style={{ ...card, marginTop: 12 }}>
         <div style={{ fontWeight: 800, fontSize: 16 }}>🎯 Ce que je veux perdre ou améliorer</div>
@@ -250,6 +255,7 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
         <textarea value={goal} onChange={e => setGoal(e.target.value)} rows={2} placeholder="ex. le ventre et les poignées d'amour, plus de pecs" style={{ ...input, resize: 'none', fontFamily: 'inherit' }} />
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '8px 0' }}>{['Le ventre', "Les poignées d'amour", 'Le bas du dos', 'Plus de pecs', 'Les bras', 'Les cuisses', 'Le dos plus large'].map(x => <Chip key={x} onClick={() => setGoal(g => g ? `${g}, ${x.toLowerCase()}` : x)}>{x}</Chip>)}</div>
         <button disabled={busy} onClick={() => { setAdaptAfter(true); setCam(true); }} style={{ ...darkBtn, width: '100%', marginBottom: 8, display: 'flex', justifyContent: 'center', gap: 10, alignItems: 'center' }}>{busy && adaptAfter ? <><Spinner size={18} color="#fff" /> Analyse + nouvelle séance…</> : `📸 Photo ${POSES.find(p => p.id === pose)!.label.toLowerCase()} + adapter ma séance`}</button>
+        <button disabled={busy} onClick={() => fromGallery(true)} style={{ ...ghostBtn, width: '100%', marginBottom: 8 }}>🖼️ Photo de ma galerie + adapter ma séance</button>
         <button disabled={adapting} onClick={adapt} style={{ ...btn, width: '100%', display: 'flex', justifyContent: 'center', gap: 10, alignItems: 'center' }}>{adapting ? <><Spinner size={18} color="#fff" /> Le coach prépare ta séance…</> : goal.trim() ? '🎯 Adapter ma séance de demain' : '🎯 Le coach choisit pour moi (sans photo)'}</button>
         <div style={{ fontSize: 12.5, color: F.muted, marginTop: 8, lineHeight: 1.4 }}>Sans rien écrire, le coach regarde tes photos et te dit lui-même quoi perdre. Tu peux aussi envoyer ta photo à Dzaryx sur Telegram : il répond avec ta photo entourée ⭕ et refait ta séance.</div>
       </div>
