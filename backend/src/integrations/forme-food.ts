@@ -29,6 +29,16 @@ export interface Budget {
   left: number; proteinGoal: number; proteinLeft: number; pct: number; meals: MealLog[];
   /** 02/11 : brûlé JUSQU'À MAINTENANT (base au prorata de l'heure + activité déjà faite) — l'écran le montre en direct */
   burnedNow?: number; activeNow?: number; nowSource?: 'montre' | 'estimation'; asOf?: string;
+  /** 02/11 (Kouider : « il me dit pas le max et min de glucides et lipides ») : fourchettes du jour en g, calées sur l'objectif kcal */
+  macros?: { carbMin: number; carbMax: number; fatMin: number; fatMax: number };
+}
+
+// Lipides : min = 0,8 g/kg (hormones) et ≥ 20 % des kcal ; max = 35 % des kcal. Glucides = le reste des kcal après protéines + lipides.
+export function macroRange(target: number, protein: number, kg: number) {
+  const fatMax = r0(target * 0.35 / 9);
+  const fatMin = Math.min(fatMax - 10, Math.max(r0(0.8 * (kg || 75)), r0(target * 0.20 / 9)));
+  const rest = target - protein * 4;
+  return { carbMin: Math.max(0, r0((rest - fatMax * 9) / 4)), carbMax: Math.max(0, r0((rest - fatMin * 9) / 4)), fatMin, fatMax };
 }
 
 const MEALS_K = (u: Uid, date: string) => `${u}:forme:food:${date}`;
@@ -135,12 +145,12 @@ export async function foodBudget(uid: Uid = 'kouider', date = localNow().date): 
     const surplus = BULK_SURPLUS[p.bulk?.rate ?? 'moyen'];
     const target = Math.round((burn + surplus) / 10) * 10;
     return { date, bmr: t.bmr, active: act.kcal, activeSource: act.source, burn, deficit: 0, mode: 'surplus', surplus, target, floor, eaten,
-      left: target - eaten.kcal, proteinGoal: t.p, proteinLeft: Math.max(0, t.p - eaten.p), pct: Math.round(eaten.kcal / target * 100), meals, ...live };
+      left: target - eaten.kcal, proteinGoal: t.p, proteinLeft: Math.max(0, t.p - eaten.p), pct: Math.round(eaten.kcal / target * 100), meals, ...live, macros: macroRange(target, t.p, p.weightKg) };
   }
   const deficit = Math.min(cfg.deficit, Math.round(burn * 0.25));
   const target = Math.max(floor, Math.round((burn - deficit) / 10) * 10);
   return { date, bmr: t.bmr, active: act.kcal, activeSource: act.source, burn, deficit: burn - target, mode: 'deficit', surplus: 0, target, floor, eaten,
-    left: target - eaten.kcal, proteinGoal: t.p, proteinLeft: Math.max(0, t.p - eaten.p), pct: Math.round(eaten.kcal / target * 100), meals, ...live };
+    left: target - eaten.kcal, proteinGoal: t.p, proteinLeft: Math.max(0, t.p - eaten.p), pct: Math.round(eaten.kcal / target * 100), meals, ...live, macros: macroRange(target, t.p, p.weightKg) };
 }
 
 /** Ce que coûte un dépassement, en vrai (MET) : marche rapide et pompes, selon son poids. */
@@ -360,7 +370,7 @@ export function budgetFacts(b: Budget): string {
   return [`Date ${b.date}, heure ${localNow().hhmm}.`,
     `Dépense estimée du jour : ${b.burn} kcal (base ${b.bmr} + activité ${b.active} ${b.activeSource === 'montre' ? 'mesurée par sa montre' : b.activeSource === 'moyenne' ? '(moyenne de ses 14 derniers jours sur la montre)' : '(estimation, pas encore de données montre)'}).`,
     b.mode === 'surplus' ? `Objectif PRISE DE MASSE : manger AU MOINS ${b.target} kcal (surplus de ${b.surplus} kcal au-dessus de sa dépense).` : `Objectif pour être en déficit : ${b.target} kcal (déficit ${b.deficit} kcal ; plancher de sécurité ${b.floor}).`,
-    `Mangé : ${b.eaten.kcal} kcal (${b.pct} %), protéines ${b.eaten.p}/${b.proteinGoal} g, glucides ${b.eaten.c} g, lipides ${b.eaten.f} g.`,
+    `Mangé : ${b.eaten.kcal} kcal (${b.pct} %), protéines ${b.eaten.p}/${b.proteinGoal} g, glucides ${b.eaten.c} g (fourchette du jour ${b.macros?.carbMin}–${b.macros?.carbMax} g), lipides ${b.eaten.f} g (fourchette ${b.macros?.fatMin}–${b.macros?.fatMax} g).`,
     `Il reste : ${b.left} kcal et ${b.proteinLeft} g de protéines.`,
     b.meals.length ? `Repas du jour : ${b.meals.map(m => `${m.time} ${SLOT_LABEL[m.slot]} « ${m.title} » ${m.kcal} kcal / ${m.p} g P`).join(' ; ')}.` : 'Aucun repas noté aujourd\'hui.'].join('\n');
 }
@@ -520,5 +530,5 @@ export async function foodText(): Promise<string> {
   const cfg = await foodCfg();
   if (!cfg.on) return 'COMPTEUR CALORIES FORME : coupé par Kouider.';
   const b = await foodBudget('kouider');
-  return `COMPTEUR CALORIES (FORME → Repas, photo du plat ; objectif = rester en DÉFICIT) : ${b.eaten.kcal}/${b.target} kcal aujourd'hui (dépense ${b.burn}, déficit visé ${b.deficit}), protéines ${b.eaten.p}/${b.proteinGoal} g, reste ${b.left} kcal.${b.meals.length ? ` Repas : ${b.meals.map(m => `${m.time} ${m.title} ${m.kcal} kcal`).join(' ; ')}.` : ''} ${(() => { const d = deficitStatus(b); return ` BRÛLÉ aujourd'hui ${d.burned} kcal (${d.measured ? 'montre' : 'estimé'}) − mangé ${d.eaten} = DÉFICIT RÉEL ${d.real} / ${d.goal} visés${d.ok ? ' ✅' : ` → il manque ${d.missing} kcal`}.`; })()} Outil forme : meal_photo (photo de plat sur Telegram), meal_text (« j'ai mangé… »), food_check (« si je mange ça ? »), food_today, food_settings, home_burn (« je suis en déficit ? », « donne-moi des exos pour mon déficit » → bilan brûlé/mangé + circuit maison chiffré).`;
+  return `COMPTEUR CALORIES (FORME → Repas, photo du plat ; objectif = rester en DÉFICIT) : ${b.eaten.kcal}/${b.target} kcal aujourd'hui (dépense ${b.burn}, déficit visé ${b.deficit}), protéines ${b.eaten.p}/${b.proteinGoal} g, glucides ${b.eaten.c} g (${b.macros?.carbMin}–${b.macros?.carbMax}), lipides ${b.eaten.f} g (${b.macros?.fatMin}–${b.macros?.fatMax}), reste ${b.left} kcal. Déficit VISÉ = minimum à garder en mangeant tout son budget ; déficit RÉEL = brûlé − mangé (plus grand s'il ne mange plus).${b.meals.length ? ` Repas : ${b.meals.map(m => `${m.time} ${m.title} ${m.kcal} kcal`).join(' ; ')}.` : ''} ${(() => { const d = deficitStatus(b); return ` BRÛLÉ aujourd'hui ${d.burned} kcal (${d.measured ? 'montre' : 'estimé'}) − mangé ${d.eaten} = DÉFICIT RÉEL ${d.real} / ${d.goal} visés${d.ok ? ' ✅' : ` → il manque ${d.missing} kcal`}.`; })()} Outil forme : meal_photo (photo de plat sur Telegram), meal_text (« j'ai mangé… »), food_check (« si je mange ça ? »), food_today, food_settings, home_burn (« je suis en déficit ? », « donne-moi des exos pour mon déficit » → bilan brûlé/mangé + circuit maison chiffré).`;
 }

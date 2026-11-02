@@ -62,6 +62,18 @@ export default function FoodScreen({ toast, o, onO }: { toast: (t: string) => vo
       {goal ? <div style={{ marginTop: 5 }}><Bar value={v} max={goal} color={color} /></div> : null}
     </div>
   );
+  // 02/11 : glucides / lipides avec fourchette min–max du jour (Kouider : « il me dit pas le max et min »)
+  const range = (l: string, v: number, min: number, max: number, color: string) => {
+    const st = v > max ? { t: `⚠️ +${v - max} g au-dessus`, c: '#ff8a80' } : v >= min ? { t: '✅ dans la fourchette', c: '#8ff0b8' } : { t: `encore ${min - v} à ${max - v} g`, c: 'rgba(255,255,255,0.65)' };
+    return (
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12, opacity: 0.7 }}>{l}</div>
+        <div style={{ fontSize: 17, fontWeight: 700 }}>{v} g<span style={{ fontSize: 12, opacity: 0.6, fontWeight: 500 }}> / {min}–{max}</span></div>
+        <div style={{ marginTop: 5 }}><Bar value={v} max={max} color={v > max ? '#ff8a80' : color} /></div>
+        <div style={{ fontSize: 11, marginTop: 4, color: st.c, lineHeight: 1.3 }}>{st.t}</div>
+      </div>
+    );
+  };
 
   return (
     <div style={{ padding: '0 14px', overflowX: 'hidden' }}>
@@ -82,15 +94,16 @@ export default function FoodScreen({ toast, o, onO }: { toast: (t: string) => vo
           <div style={{ flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 1.55 }}>
             <div><b>{b.eaten.kcal}</b> / {b.target} kcal mangées</div>
             <div style={{ opacity: 0.75 }}>{b.burnedNow != null ? <>Brûlé à {b.asOf} : <b style={{ color: '#ffb38a' }}>{b.burnedNow}</b> · journée ≈ {b.burn}</> : <>Dépense {b.burn} kcal</>}</div>
-            <div style={{ opacity: 0.75 }}>{bulk ? `Surplus visé +${b.surplus} kcal (prise de masse)` : `Déficit visé ${b.deficit} kcal`}</div>
+            <div style={{ opacity: 0.75 }}>{bulk ? `Surplus visé +${b.surplus} kcal (prise de masse)` : `Objectif : déficit d'au moins ${b.deficit} kcal`}</div>
             <div style={{ marginTop: 6, fontSize: 12.5, fontWeight: 600, color: over || late ? (late ? '#ffd27a' : '#ff8a80') : near ? '#ffd27a' : '#8ff0b8' }}>{bulk ? (b.left <= 0 ? '✅ Objectif atteint : tu construis du muscle' : late ? `⚠️ Il te manque ${b.left} kcal ce soir — mange encore !` : `💪 Encore ${b.left} kcal à manger aujourd'hui`) : over ? '⚠️ Déficit dépassé' : near ? '⚠️ Bientôt la limite — garde de la place pour ce soir' : '✅ Tu es dans ton déficit'}</div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
           {macro('Protéines', b.eaten.p, b.proteinGoal, '#7fb2ff')}
-          {macro('Glucides', b.eaten.c, null, '#ffd27a')}
-          {macro('Lipides', b.eaten.f, null, '#ff9f80')}
+          {b.macros ? range('Glucides', b.eaten.c, b.macros.carbMin, b.macros.carbMax, '#ffd27a') : macro('Glucides', b.eaten.c, null, '#ffd27a')}
+          {b.macros ? range('Lipides', b.eaten.f, b.macros.fatMin, b.macros.fatMax, '#ff9f80') : macro('Lipides', b.eaten.f, null, '#ff9f80')}
         </div>
+        {b.macros && <div style={{ fontSize: 11.5, opacity: 0.6, marginTop: 8 }}>Fourchettes pour {b.target} kcal : lipides 0,8 g/kg à 35 % des kcal (jamais moins, hormones) · glucides = le reste.</div>}
         <div style={{ fontSize: 11.5, opacity: 0.6, marginTop: 12 }}>Base {b.bmr} + activité {b.active} kcal, {SRC[b.activeSource]}.</div>
       </div>
 
@@ -245,12 +258,12 @@ function DeficitCard({ b, me, onRefresh }: { b: FoodBudget; me: boolean; onRefre
         <div style={{ color: F.muted, fontWeight: 700 }}>−</div>
         {cell('Mangé', String(b.eaten.kcal))}
         <div style={{ color: F.muted, fontWeight: 700 }}>=</div>
-        {cell('Déficit maintenant', realNow >= 0 ? String(realNow) : `+${-realNow}`, realNow >= 0 ? F.green : F.red)}
+        {cell(`Déficit à ${b.asOf ?? 'maintenant'}`, realNow >= 0 ? String(realNow) : `+${-realNow}`, realNow >= 0 ? F.green : F.red)}
       </div>
       <div style={{ marginTop: 10 }}><Bar value={Math.max(0, real)} max={Math.max(1, goal)} color={ok ? F.green : '#e8590c'} /></div>
       <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 8, color: ok ? F.green : F.red }}>
-        {b.burnedNow != null && <div style={{ fontSize: 12.5, color: F.muted, fontWeight: 500, marginBottom: 2 }}>Fin de journée prévue : {b.burn} brûlées − {b.eaten.kcal} mangées = {real >= 0 ? real : `+${-real}`} kcal</div>}
-        {ok ? `✅ Déficit du jour en bonne voie (${real} / ${goal} kcal visés)` : real < 0 ? `⚠️ Tu as mangé ${-real} kcal de plus que ta dépense — il manque ${missing} kcal pour ton déficit` : `⚠️ Déficit ${real} / ${goal} kcal — il manque ${missing} kcal`}
+        {b.burnedNow != null && <div style={{ fontSize: 12.5, color: F.muted, fontWeight: 500, marginBottom: 2 }}>Ce soir si tu ne manges plus rien : {b.burn} brûlées − {b.eaten.kcal} mangées = {real >= 0 ? real : `+${-real}`} kcal de déficit</div>}
+        {ok ? (b.left > 0 ? `✅ Objectif atteint. Si tu manges tes ${b.left} kcal restantes, ton déficit retombe à ${goal} kcal : c'est ton minimum, pile dans l'objectif.` : `✅ Déficit du jour : ${real} kcal (objectif ${goal})`) : real < 0 ? `⚠️ Tu as mangé ${-real} kcal de plus que ta dépense — il manque ${missing} kcal pour ton déficit` : `⚠️ Déficit ${real} / ${goal} kcal — il manque ${missing} kcal`}
       </div>
       <div style={{ fontSize: 12, color: F.muted, marginTop: 4 }}>{b.burnedNow != null ? `Jusqu'ici : base ${b.burnedNow - (b.activeNow ?? 0)} + activité ${b.activeNow ?? 0} kcal (${b.nowSource === 'montre' ? 'montre ⌚' : 'estimée, la montre précise quand elle envoie'}). ` : ''}Journée : base {b.bmr} + activité {b.active} kcal — {measured ? 'mesurée par ta montre ⌚' : 'estimation : ta montre n\'a pas encore envoyé ta journée'}.</div>
       {me && !measured && <a href={`shortcuts://run-shortcut?name=${encodeURIComponent('Dzaryx Santé')}`} style={{ ...ghostBtn, display: 'block', textAlign: 'center', textDecoration: 'none', marginTop: 10, color: F.ink }}>⌚ Mettre à jour avec ma montre</a>}
