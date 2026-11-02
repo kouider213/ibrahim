@@ -27,6 +27,8 @@ export interface Budget {
   deficit: number; target: number; floor: number; eaten: { kcal: number; p: number; c: number; f: number };
   mode: 'deficit' | 'surplus'; surplus: number;   // objectif « muscle » = SURPLUS (prise de masse), sinon déficit
   left: number; proteinGoal: number; proteinLeft: number; pct: number; meals: MealLog[];
+  /** 02/11 : brûlé JUSQU'À MAINTENANT (base au prorata de l'heure + activité déjà faite) — l'écran le montre en direct */
+  burnedNow?: number; activeNow?: number; nowSource?: 'montre' | 'estimation'; asOf?: string;
 }
 
 const MEALS_K = (u: Uid, date: string) => `${u}:forme:food:${date}`;
@@ -64,7 +66,7 @@ const sumOf = (items: Array<{ kcal: number; p: number; c: number; f: number }>) 
 
 // ── Dépense du jour (montre) et objectif ────────────────────────────────────
 interface HDay { date: string; active_kcal?: number; steps?: number; sleep_h?: number; rhr?: number; hrv?: number }
-async function activeFor(date: string): Promise<{ kcal: number; source: Budget['activeSource'] }> {
+async function activeFor(date: string): Promise<{ kcal: number; source: Budget['activeSource']; today?: number; woK?: number }> {
   const all = await readJson<HDay[]>('health:daily', []);
   const today = all.find(x => x.date === date)?.active_kcal ?? 0;
   // Séances vues par la montre aujourd'hui (début/fin envoyés en direct) → au moins ça + la vie de tous les jours
@@ -75,9 +77,9 @@ async function activeFor(date: string): Promise<{ kcal: number; source: Budget['
   // Valeur de la montre = journée complète seulement le soir (envoi 22h) ou un jour passé ; un envoi du matin
   // (réveil) ne compte que quelques kcal → on garde la moyenne tant que la journée n'est pas finie.
   const dayDone = date < localNow().date || localNow().hhmm >= '20:00';
-  if (today > 50 && (dayDone || (med > 0 && today >= med))) return { kcal: r0(today), source: 'montre' };
-  if (med) return { kcal: r0(Math.max(med, woK + 200, today)), source: 'moyenne' };
-  return { kcal: r0(Math.max(350, woK + 250, today)), source: 'estimation' };
+  if (today > 50 && (dayDone || (med > 0 && today >= med))) return { kcal: r0(today), source: 'montre', today, woK };
+  if (med) return { kcal: r0(Math.max(med, woK + 200, today)), source: 'moyenne', today, woK };
+  return { kcal: r0(Math.max(350, woK + 250, today)), source: 'estimation', today, woK };
 }
 
 export const BULK_SURPLUS = { lent: 250, moyen: 350, rapide: 500 } as const;
@@ -119,18 +121,26 @@ export async function foodBudget(uid: Uid = 'kouider', date = localNow().date): 
   const burn = t.bmr + act.kcal + runKcal;
   const floor = p.sex === 'h' ? 1500 : 1200;
   const eaten = sumOf(meals);
+  // 02/11 (Kouider : « il doit noter tout le temps combien j'ai déjà brûlé, instantané ») : base au prorata des minutes
+  // écoulées + activité déjà faite (montre si elle a envoyé, sinon moyenne répartie de 6h à 22h, jamais moins que les séances du jour)
+  const ln = localNow(), isToday = date === ln.date;
+  const minNow = isToday ? Number(ln.hhmm.slice(0, 2)) * 60 + Number(ln.hhmm.slice(3)) : 1440;
+  const wakeFrac = Math.max(0, Math.min(1, (minNow - 360) / 960));
+  const watchNow = 'today' in act ? (act.today ?? 0) : 0, woNow = 'woK' in act ? (act.woK ?? 0) : 0;
+  const activeNow = !isToday || act.source === 'montre' ? act.kcal + runKcal : r0(Math.max(watchNow, woNow + runKcal, (act.kcal + runKcal) * wakeFrac));
+  const live = { burnedNow: r0(t.bmr * minNow / 1440 + activeNow), activeNow, nowSource: (watchNow > 50 && watchNow >= activeNow ? 'montre' : act.source === 'montre' ? 'montre' : 'estimation') as 'montre' | 'estimation', asOf: isToday ? ln.hhmm : '23:59' };
   // Kouider garde son DÉFICIT même si son objectif sport est « muscle » (recompo) — sauf s'il fait lui-même le questionnaire
   if (p.goal === 'muscle' && (uid !== 'kouider' || p.bulk)) {
     // PRISE DE MASSE (01/11, son ami) : dépense + surplus selon le rythme choisi au questionnaire
     const surplus = BULK_SURPLUS[p.bulk?.rate ?? 'moyen'];
     const target = Math.round((burn + surplus) / 10) * 10;
     return { date, bmr: t.bmr, active: act.kcal, activeSource: act.source, burn, deficit: 0, mode: 'surplus', surplus, target, floor, eaten,
-      left: target - eaten.kcal, proteinGoal: t.p, proteinLeft: Math.max(0, t.p - eaten.p), pct: Math.round(eaten.kcal / target * 100), meals };
+      left: target - eaten.kcal, proteinGoal: t.p, proteinLeft: Math.max(0, t.p - eaten.p), pct: Math.round(eaten.kcal / target * 100), meals, ...live };
   }
   const deficit = Math.min(cfg.deficit, Math.round(burn * 0.25));
   const target = Math.max(floor, Math.round((burn - deficit) / 10) * 10);
   return { date, bmr: t.bmr, active: act.kcal, activeSource: act.source, burn, deficit: burn - target, mode: 'deficit', surplus: 0, target, floor, eaten,
-    left: target - eaten.kcal, proteinGoal: t.p, proteinLeft: Math.max(0, t.p - eaten.p), pct: Math.round(eaten.kcal / target * 100), meals };
+    left: target - eaten.kcal, proteinGoal: t.p, proteinLeft: Math.max(0, t.p - eaten.p), pct: Math.round(eaten.kcal / target * 100), meals, ...live };
 }
 
 /** Ce que coûte un dépassement, en vrai (MET) : marche rapide et pompes, selon son poids. */

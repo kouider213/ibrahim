@@ -165,7 +165,8 @@ router.get('/watch', async (req, res) => {
     const days = JSON.parse((await kvGet('health:daily')) ?? '[]') as Array<{ date: string; sleep_h?: number; steps?: number; rhr?: number; hrv?: number; active_kcal?: number; weight?: number }>;
     const prev = days.slice(-15, -1);
     const avg = (k: 'rhr' | 'hrv' | 'steps' | 'sleep_h') => { const v = prev.map(x => Number(x[k] ?? 0)).filter(x => x > 0); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length * 10) / 10 : null; };
-    res.json({ ok: true, last: days[days.length - 1] ?? null, days: days.slice(-14), usual: { rhr: avg('rhr'), hrv: avg('hrv'), steps: avg('steps'), sleep_h: avg('sleep_h') },
+    const eff = w.effectiveToday(days as never) as { day: typeof days[number] } | null;   // 02/11 : VFC/cœur les plus récents si la montre n'a pas encore envoyé ce matin
+    res.json({ ok: true, last: eff ? { ...days[days.length - 1], ...eff.day } : days[days.length - 1] ?? null, lastSync: days[days.length - 1]?.date ?? null, at: Date.now(), days: days.slice(-14), usual: { rhr: avg('rhr'), hrv: avg('hrv'), steps: avg('steps'), sleep_h: avg('sleep_h') },
       readiness: await w.readiness().catch(() => null), series: (await w.readinessSeries().catch(() => [])).slice(-14) });
   } catch (err) { fail(res, err); }
 });

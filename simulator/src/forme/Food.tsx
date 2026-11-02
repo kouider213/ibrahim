@@ -28,6 +28,8 @@ export default function FoodScreen({ toast, o, onO }: { toast: (t: string) => vo
   const [err, setErr] = useState('');
   const load = () => forme.food().then(r => { setB(r.budget); setCfg(r.cfg); }).catch(e => setErr(errText(e)));
   useEffect(() => { void load(); }, [o.profile.goal, o.profile.bulk?.at]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 02/11 : brûlé en direct → recalculé toutes les minutes et à chaque retour sur l'appli
+  useEffect(() => { const t = setInterval(() => void load(), 60_000); const f = () => void load(); window.addEventListener('focus', f); return () => { clearInterval(t); window.removeEventListener('focus', f); }; }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const go = async (file?: File | null) => {
     if (!file) return;
@@ -79,7 +81,7 @@ export default function FoodScreen({ toast, o, onO }: { toast: (t: string) => vo
           </Ring>
           <div style={{ flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 1.55 }}>
             <div><b>{b.eaten.kcal}</b> / {b.target} kcal mangées</div>
-            <div style={{ opacity: 0.75 }}>Dépense {b.burn} kcal</div>
+            <div style={{ opacity: 0.75 }}>{b.burnedNow != null ? <>Brûlé à {b.asOf} : <b style={{ color: '#ffb38a' }}>{b.burnedNow}</b> · journée ≈ {b.burn}</> : <>Dépense {b.burn} kcal</>}</div>
             <div style={{ opacity: 0.75 }}>{bulk ? `Surplus visé +${b.surplus} kcal (prise de masse)` : `Déficit visé ${b.deficit} kcal`}</div>
             <div style={{ marginTop: 6, fontSize: 12.5, fontWeight: 600, color: over || late ? (late ? '#ffd27a' : '#ff8a80') : near ? '#ffd27a' : '#8ff0b8' }}>{bulk ? (b.left <= 0 ? '✅ Objectif atteint : tu construis du muscle' : late ? `⚠️ Il te manque ${b.left} kcal ce soir — mange encore !` : `💪 Encore ${b.left} kcal à manger aujourd'hui`) : over ? '⚠️ Déficit dépassé' : near ? '⚠️ Bientôt la limite — garde de la place pour ce soir' : '✅ Tu es dans ton déficit'}</div>
           </div>
@@ -222,6 +224,7 @@ function DeficitCard({ b, me, onRefresh }: { b: FoodBudget; me: boolean; onRefre
   const [plan, setPlan] = useState<BurnPlan | null>(null);
   const [busy, setBusy] = useState(false);
   const real = b.burn - b.eaten.kcal, goal = b.deficit, missing = Math.max(0, goal - real), ok = missing <= 30;
+  const now = b.burnedNow ?? b.burn, realNow = now - b.eaten.kcal;   // 02/11 : chiffres EN DIRECT ; « ok » reste jugé sur la journée entière
   const measured = b.activeSource === 'montre';
   useEffect(() => {   // retour du Raccourci Santé → on recharge
     const f = () => { if (document.visibilityState === 'visible') onRefresh(); };
@@ -236,19 +239,20 @@ function DeficitCard({ b, me, onRefresh }: { b: FoodBudget; me: boolean; onRefre
   );
   return (
     <div style={{ ...card, marginBottom: 14 }}>
-      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 10 }}>🔥 Calories brûlées aujourd'hui</div>
+      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 10 }}>🔥 Calories brûlées aujourd'hui{b.asOf ? <span style={{ fontSize: 12.5, fontWeight: 500, color: F.muted }}> · en direct {b.asOf}</span> : null}</div>
       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-        {cell('Brûlé', String(b.burn), '#e8590c')}
+        {cell('Brûlé jusqu\'ici', String(now), '#e8590c')}
         <div style={{ color: F.muted, fontWeight: 700 }}>−</div>
         {cell('Mangé', String(b.eaten.kcal))}
         <div style={{ color: F.muted, fontWeight: 700 }}>=</div>
-        {cell('Déficit', real >= 0 ? String(real) : `+${-real}`, ok ? F.green : F.red)}
+        {cell('Déficit maintenant', realNow >= 0 ? String(realNow) : `+${-realNow}`, realNow >= 0 ? F.green : F.red)}
       </div>
       <div style={{ marginTop: 10 }}><Bar value={Math.max(0, real)} max={Math.max(1, goal)} color={ok ? F.green : '#e8590c'} /></div>
       <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 8, color: ok ? F.green : F.red }}>
-        {ok ? `✅ Déficit atteint (${real} / ${goal} kcal visés)` : real < 0 ? `⚠️ Tu as mangé ${-real} kcal de plus que ta dépense — il manque ${missing} kcal pour ton déficit` : `⚠️ Déficit ${real} / ${goal} kcal — il manque ${missing} kcal`}
+        {b.burnedNow != null && <div style={{ fontSize: 12.5, color: F.muted, fontWeight: 500, marginBottom: 2 }}>Fin de journée prévue : {b.burn} brûlées − {b.eaten.kcal} mangées = {real >= 0 ? real : `+${-real}`} kcal</div>}
+        {ok ? `✅ Déficit du jour en bonne voie (${real} / ${goal} kcal visés)` : real < 0 ? `⚠️ Tu as mangé ${-real} kcal de plus que ta dépense — il manque ${missing} kcal pour ton déficit` : `⚠️ Déficit ${real} / ${goal} kcal — il manque ${missing} kcal`}
       </div>
-      <div style={{ fontSize: 12, color: F.muted, marginTop: 4 }}>Base {b.bmr} + activité {b.active} kcal — {measured ? 'mesurée par ta montre ⌚' : 'estimation : ta montre n\'a pas encore envoyé ta journée'}.</div>
+      <div style={{ fontSize: 12, color: F.muted, marginTop: 4 }}>{b.burnedNow != null ? `Jusqu'ici : base ${b.burnedNow - (b.activeNow ?? 0)} + activité ${b.activeNow ?? 0} kcal (${b.nowSource === 'montre' ? 'montre ⌚' : 'estimée, la montre précise quand elle envoie'}). ` : ''}Journée : base {b.bmr} + activité {b.active} kcal — {measured ? 'mesurée par ta montre ⌚' : 'estimation : ta montre n\'a pas encore envoyé ta journée'}.</div>
       {me && !measured && <a href={`shortcuts://run-shortcut?name=${encodeURIComponent('Dzaryx Santé')}`} style={{ ...ghostBtn, display: 'block', textAlign: 'center', textDecoration: 'none', marginTop: 10, color: F.ink }}>⌚ Mettre à jour avec ma montre</a>}
       {!ok && !plan && <button onClick={() => void showPlan()} disabled={busy} style={{ ...btn, width: '100%', marginTop: 10 }}>{busy ? '…' : '🏠 Exercices maison pour l\'atteindre'}</button>}
       {plan && (

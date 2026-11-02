@@ -4,6 +4,12 @@
 > Plus récent en haut.
 
 
+## 2026-11-02 — FORME en direct + argent réel (v231)
+- FORME › Séance : séance du jour faite → carte « ✓ Séance du jour faite » + la PROCHAINE séance (plus de « Aujourd'hui · Démarrer » après l'avoir faite).
+- Forme du jour : toujours un score (VFC/cœur les plus récents ≤ 3 j + sommeil de la nuit, `effectiveToday` dans workout-live.ts) + ⚡ énergie en direct (récup − heures éveillé − séances du jour) ; heure de réveil = 1er sommeil reçu (`kouider:woke`) ; l'écran se recalcule à l'ouverture, au retour sur l'appli et chaque minute.
+- Calories : `burnedNow` (base au prorata de l'heure + activité déjà faite, montre si elle a envoyé) → « Brûlé jusqu'ici / Déficit maintenant » en direct + fin de journée prévue ; rafraîchi chaque minute.
+- Argent : `argent-direct.ts` — « hier j'ai fait 300 avec le snus », « cash 2400 », « combien j'ai gagné hier ? », « quel jour je gagne le plus ? », « je suis à combien tout confondu ? » exécutés PAR LE CODE dans l'orchestrateur (le cerveau disait « Noté » sans rien noter puis inventait 7 950 €). mes_finances + 'gains' / 'meilleur_jour' / 'total' / 'cash'. « épargne 15 000 » met aussi à jour les finances perso.
+
 ## 2026-11-01 soir — FORME : calories fiables + page SÈCHE
 - 1c4d562 calories : produit exact (marque/étiquette, code-barres → Open Food Facts), ❓ question quand un aliment est ambigu, outil forme `meal_fix` (correction par message, sans double compte), eau ≠ repas, envoi montre du matin pas pris pour la journée.
 - 171c3d8 onglet **Sèche** (Kouider seulement, remplace Course ; ami/femme gardent Course) : poids tendance lissé, vitesse %/sem, dépense adaptative (après 10 j notés), force 1RM, score du jour, bilan hebdo + bouton « Appliquer », tour de taille ; backend `forme-cut.ts`, `/api/forme/cut(+/apply)`, outil forme `food_cut`.

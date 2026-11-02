@@ -257,6 +257,17 @@ export async function processMessage(
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
     return { text: done, status: 'done' };
   }
+  // ARGENT en phrases normales (02/11 : « hier j'ai fait 300 avec le snus, je suis à 2 400 en cash », « combien j'ai gagné hier ? »,
+  // « quel jour je gagne le plus ? », « je suis à combien tout confondu ? ») → enregistré / calculé par le CODE sur ses vraies données
+  // (le cerveau disait « ✅ Noté » sans rien noter, puis inventait « 7 950 € »)
+  const moneyCmd = actorUserId === 'kouider' && !sandbox && !privateMode ? (await import('../integrations/argent-direct.js')).parseMoneyCommand(userMessage) : null;
+  if (moneyCmd) {
+    const done = await (await import('../integrations/argent-direct.js')).runMoneyCommand(moneyCmd).catch(e => `❌ échec : ${e instanceof Error ? e.message : e}`);
+    _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: done });
+    saveConversationTurn(sessionId, 'assistant', done).catch(() => {});
+    _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+    return { text: done, status: 'done' };
+  }
   // « vérifie si Halfi a bien son permis » = lecture seule : get_client_document n'envoie rien (le modèle oubliait send:false)
   const { setDocReadOnly } = await import('../integrations/tool-executor.js');
   setDocReadOnly(sessionId, /v[ée]rifi|regarde|est-ce qu|a bien|existe|il y a|c'est quand|quelle heure|valide|expir/i.test(userMessage)

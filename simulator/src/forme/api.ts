@@ -99,7 +99,7 @@ export interface RunDetail { run: RunSummary; track: Array<[number, number, numb
 export type MealSlot = 'matin' | 'midi' | 'collation' | 'soir';
 export interface FoodPart { name: string; grams: number; kcal: number; p: number; c: number; f: number }
 export interface MealLog { id: string; at: number; date: string; time: string; slot: MealSlot; title: string; items: FoodPart[]; kcal: number; p: number; c: number; f: number; confidence: 'haute' | 'moyenne' | 'basse'; note?: string; thumb?: string; src: 'photo' | 'texte'; coach?: string }
-export interface FoodBudget { date: string; bmr: number; active: number; activeSource: 'montre' | 'moyenne' | 'estimation'; burn: number; deficit: number; mode: 'deficit' | 'surplus'; surplus: number; target: number; floor: number; eaten: { kcal: number; p: number; c: number; f: number }; left: number; proteinGoal: number; proteinLeft: number; pct: number; meals: MealLog[] }
+export interface FoodBudget { date: string; bmr: number; active: number; activeSource: 'montre' | 'moyenne' | 'estimation'; burn: number; deficit: number; mode: 'deficit' | 'surplus'; surplus: number; target: number; floor: number; eaten: { kcal: number; p: number; c: number; f: number }; left: number; proteinGoal: number; proteinLeft: number; pct: number; meals: MealLog[]; burnedNow?: number; activeNow?: number; nowSource?: 'montre' | 'estimation'; asOf?: string }
 export interface FoodCfg { on: boolean; deficit: number; telegram: boolean }
 export const forme = {
   did: (date: string, exercises: Array<{ id: string; name: string; p: string[]; sets: number; kg?: number; reps?: number }>) => post<{ message: string }>('/api/forme/did', { date, exercises }),

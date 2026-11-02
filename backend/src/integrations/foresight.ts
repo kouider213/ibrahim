@@ -249,6 +249,9 @@ export async function runLifeGoalCommand(c: LifeGoalCommand): Promise<string> {
   }
   if (c.kind === 'depart') return lifeGpsTool({ action: 'update', name: 'quitter', current: c.value });
   const prev = await lifeGoalValue('pargne');
+  // 02/11 : même chiffre dans ses finances perso (total « tout confondu » = épargne + cash) — une seule vérité
+  const fin = await kvJson<Record<string, unknown>>('perso:finances', {});
+  if (fin['salary']) await kvPut('perso:finances', { ...fin, savings: c.add ? Number(fin['savings'] ?? 0) + c.value : c.value, savingsAt: localNow().date });
   return lifeGpsTool({ action: 'update', name: 'pargne', current: c.add && prev !== null ? prev + c.value : c.value });
 }
 

@@ -90,6 +90,8 @@ export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok
   all.push(d);
   all.sort((a, b) => a.date.localeCompare(b.date));
   await kvPut('health:daily', all.slice(-120));
+  // 02/11 : 1er sommeil reçu ce matin = heure de réveil (le Raccourci part à l'arrêt de l'alarme) → « énergie en direct » de FORME
+  if (d.sleep_h && !same?.sleep_h && date === localNow().date && localNow().hhmm < '12:00') await kvPut('kouider:woke', { date, hhmm: localNow().hhmm }, 2 * 86_400).catch(() => {});
   const prev = all.slice(-15, -1);
   const avg = (k: keyof HealthDay) => { const v = prev.map(x => Number(x[k] ?? 0)).filter(x => x > 0); return v.length >= 5 ? v.reduce((a, b) => a + b, 0) / v.length : 0; };
   const notes: string[] = [];

@@ -7,7 +7,7 @@ import { F, card, btn, Sheet, Ring } from './ui.tsx';
 // récupération (VFC + cœur au repos vs ses habitudes), pas, sommeil. Gratuit : aucune appli montre payante.
 // Et la montre PARLE à Dzaryx : « Dis Siri, Dzaryx » marche aussi au poignet (tout son cerveau, ses outils, le coach en direct).
 interface HDay { date: string; sleep_h?: number; steps?: number; rhr?: number; hrv?: number; active_kcal?: number }
-interface WatchData { ok: boolean; last: HDay | null; days: HDay[]; usual: { rhr: number | null; hrv: number | null; steps: number | null; sleep_h: number | null }; readiness: { score: number; line: string } | null; series: Array<{ date: string; score: number }> }
+interface WatchData { ok: boolean; last: HDay | null; days: HDay[]; usual: { rhr: number | null; hrv: number | null; steps: number | null; sleep_h: number | null }; readiness: { score: number; line: string; energy?: number; energyLine?: string; from?: string | null } | null; lastSync?: string | null; series: Array<{ date: string; score: number }> }
 
 const col = (s: number) => s >= 67 ? F.green : s >= 34 ? F.gold : F.red;
 const word = (s: number) => s >= 67 ? 'Feu vert' : s >= 34 ? 'Modéré' : 'Récupère';
@@ -47,10 +47,19 @@ export function WatchGuide({ open, onClose }: { open: boolean; onClose: () => vo
 export function TodayForm() {
   const [d, setD] = useState<WatchData | null>(null);
   const [guide, setGuide] = useState(false);
-  useEffect(() => { get<WatchData>('/api/forme/watch').then(setD).catch(() => setD(null)); }, []);
+  // 02/11 : recalculé à chaque ouverture / retour sur l'appli + toutes les minutes (énergie en direct, nouvelles données montre)
+  useEffect(() => {
+    const load = () => { get<WatchData>('/api/forme/watch').then(setD).catch(() => {}); };
+    load();
+    const vis = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', vis); window.addEventListener('focus', load);
+    const t = setInterval(load, 60_000);
+    return () => { document.removeEventListener('visibilitychange', vis); window.removeEventListener('focus', load); clearInterval(t); };
+  }, []);
   if (!d?.ok) return null;
   const r = d.readiness, l = d.last;
-  const ago = l ? Math.round((Date.parse(new Date().toISOString().slice(0, 10)) - Date.parse(l.date)) / 86_400_000) : null;
+  const sync = d.lastSync ?? l?.date ?? null;
+  const ago = sync ? Math.round((Date.parse(new Date().toISOString().slice(0, 10)) - Date.parse(sync)) / 86_400_000) : null;
   const mini = (v: string, lab: string, sub?: string, c?: string) => (
     <div style={{ background: F.bg, borderRadius: 14, padding: '10px 10px', minWidth: 0 }}>
       <div style={{ fontSize: 17, fontWeight: 700, color: c ?? F.ink }}>{v}</div>
@@ -68,8 +77,9 @@ export function TodayForm() {
           </Ring>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: F.muted }}>FORME DU JOUR</div>
-            <div style={{ fontSize: 19, fontWeight: 700, color: r ? col(r.score) : F.ink }}>{r ? word(r.score) : 'En attente de la montre'}</div>
-            <div style={{ fontSize: 12.5, color: F.muted, marginTop: 2 }}>{ago == null ? 'Aucune donnée reçue' : ago === 0 ? 'Montre synchronisée aujourd\'hui' : `Dernière synchro il y a ${ago} j`}</div>
+            <div style={{ fontSize: 19, fontWeight: 700, color: r ? col(r.score) : F.ink }}>{r ? word(r.score) : 'Pas encore de données montre'}</div>
+            <div style={{ fontSize: 12.5, color: F.muted, marginTop: 2 }}>{ago == null ? 'Aucune donnée reçue' : ago === 0 ? 'Montre synchronisée aujourd\'hui' : `Dernière synchro il y a ${ago} j`}{r?.from ? ' · cœur/VFC d\'hier' : ''}</div>
+            {r?.energy != null && <div style={{ fontSize: 13.5, fontWeight: 700, color: col(r.energy), marginTop: 4 }}>⚡ Énergie maintenant : {r.energy}/100</div>}
             {d.series.length > 1 && <div style={{ marginTop: 6 }}><Spark pts={d.series.map(x => x.score)} /></div>}
           </div>
         </div>

@@ -84,6 +84,8 @@ export async function financesTool(input: Record<string, unknown>): Promise<stri
   const action = String(input['action'] ?? 'show');
   const other = await import('./argent-coach.js').then(m => m.argentTool(action, input));
   if (other !== null) return other;
+  const direct = await import('./argent-direct.js').then(m => m.moneyToolAction(action, input));   // 02/11 : vrais chiffres (gains, meilleur jour, total, cash)
+  if (direct !== null) return direct;
   const f = await loadFinances();
   if (action === 'set') {
     if (input['job']) f.job = String(input['job']);

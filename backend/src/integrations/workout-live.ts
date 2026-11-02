@@ -69,7 +69,7 @@ type HDay = { date: string; sleep_h?: number; rhr?: number; hrv?: number };
 /** Score de récupération 0-100 d'un jour (index i de health:daily) : VFC et cœur au repos vs les 14 jours d'avant, + sommeil s'il est connu. */
 export function scoreDay(all: HDay[], i: number): { score: number; hAvg: number; rAvg: number } | null {
   const d = all[i];
-  if (!d || (!d.hrv && !d.rhr)) return null;
+  if (!d || (!d.hrv && !d.rhr && !d.sleep_h)) return null;
   const prev = all.slice(Math.max(0, i - 14), i);
   const avg = (k: 'rhr' | 'hrv') => { const v = prev.map(x => Number(x[k] ?? 0)).filter(x => x > 0); return v.length >= 3 ? v.reduce((a, b) => a + b, 0) / v.length : 0; };
   const clamp = (x: number) => Math.max(-1, Math.min(1, x));
@@ -81,14 +81,41 @@ export function scoreDay(all: HDay[], i: number): { score: number; hAvg: number;
   return { score: Math.max(0, Math.min(100, Math.round(s))), hAvg: h, rAvg: r };
 }
 
-/** Récupération du dernier jour reçu (façon Whoop / Athlytic). */
-export async function readiness(): Promise<{ score: number; line: string } | null> {
+/** Jour « effectif » d'aujourd'hui (02/11, Kouider : « il note juste en attente de montre, il doit le donner à tout moment ») :
+ *  le matin la montre n'a souvent envoyé que le sommeil → on prend la VFC / le cœur au repos les plus récents (≤ 3 jours)
+ *  + le sommeil de cette nuit. Jamais « en attente » s'il existe la moindre donnée. */
+export function effectiveToday(all: HDay[]): { arr: HDay[]; day: HDay; from: string | null } | null {
+  if (!all.length) return null;
+  const today = localNow().date, last = all.at(-1)!;
+  if (last.hrv || last.rhr) return { arr: all, day: last, from: null };
+  const k = all.map((d, i) => ({ d, i })).reverse().find(x => (x.d.hrv || x.d.rhr) && (Date.parse(today) - Date.parse(x.d.date)) <= 3 * 86_400_000);
+  const day: HDay = { date: last.date, hrv: k?.d.hrv, rhr: k?.d.rhr, sleep_h: last.sleep_h };   // pas / kcal d'hier JAMAIS recopiés sur aujourd'hui
+  if (!day.hrv && !day.rhr && !day.sleep_h) return null;
+  const arr = [...all.slice(0, k ? k.i : all.length - 1), day];
+  return { arr, day, from: k ? k.d.date : null };
+}
+
+/** Récupération du jour (façon Whoop / Athlytic) + ÉNERGIE EN DIRECT (façon Body Battery Garmin) :
+ *  récup du matin − fatigue des heures éveillé − charge des séances du jour. Recalculée à chaque appel. */
+export async function readiness(): Promise<{ score: number; line: string; energy: number; energyLine: string; from: string | null } | null> {
   const all = await readJson<HDay[]>('health:daily', []);
-  const r = scoreDay(all, all.length - 1);
+  const eff = effectiveToday(all);
+  if (!eff) return null;
+  const r = scoreDay(eff.arr, eff.arr.length - 1);
   if (!r) return null;
-  const d = all.at(-1)!, { score, hAvg: h, rAvg: rr } = r;
+  const d = eff.day, { score, hAvg: h, rAvg: rr } = r;
   const base = !h && !rr ? ' (encore peu de jours pour comparer)' : '';
-  return { score, line: `🔋 Récupération ${score}/100${base} — ${score >= 67 ? 'feu vert, journée pour pousser' : score >= 34 ? 'normal : charges habituelles' : 'corps fatigué : séance légère, technique, et coucher tôt'} (VFC ${d.hrv ?? '?'}${h ? ` / ${Math.round(h)} d'habitude` : ''}, cœur au repos ${d.rhr ?? '?'}${rr ? ` / ${Math.round(rr)}` : ''}).` };
+  const src = eff.from ? ` — cœur/VFC du ${eff.from.slice(8)}/${eff.from.slice(5, 7)}, sommeil de cette nuit` : '';
+  // énergie maintenant : ~2,5 pts / h éveillé depuis le réveil (6h par défaut si inconnu), séances du jour = charge / 3
+  const now = localNow(), hNow = Number(now.hhmm.slice(0, 2)) + Number(now.hhmm.slice(3)) / 60;
+  const woke = await readJson<{ date?: string; hhmm?: string } | null>('kouider:woke', null);
+  const wakeH = woke?.date === now.date && woke.hhmm ? Number(woke.hhmm.slice(0, 2)) + Number(woke.hhmm.slice(3, 5)) / 60 : 6;
+  const awake = Math.max(0, hNow - wakeH);
+  const today = (await readWorkouts()).filter(w => localNow(Date.parse(w.end)).date === now.date);
+  const load = today.reduce((a, w) => a + (w.load ?? w.min * 2), 0);
+  const energy = Math.max(5, Math.min(100, Math.round(score - awake * 2.5 - load / 3)));
+  const energyLine = `⚡ Énergie maintenant ${energy}/100 (récup ${score}${awake ? ` − ${Math.round(awake * 2.5)} de journée` : ''}${load ? ` − ${Math.round(load / 3)} de séance` : ''})`;
+  return { score, energy, energyLine, from: eff.from, line: `🔋 Récupération ${score}/100${base} — ${score >= 67 ? 'feu vert, journée pour pousser' : score >= 34 ? 'normal : charges habituelles' : 'corps fatigué : séance légère, technique, et coucher tôt'} (VFC ${d.hrv ?? '?'}${h ? ` / ${Math.round(h)} d'habitude` : ''}, cœur au repos ${d.rhr ?? '?'}${rr ? ` / ${Math.round(rr)}` : ''}${d.sleep_h ? `, sommeil ${d.sleep_h} h` : ''}${src}).` };
 }
 
 /** Récupération jour par jour (courbe du dimanche, surentraînement, corrélations). */

@@ -511,7 +511,9 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
   if (!d) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner /></div>;
   const today = d.week[0]?.date;
   const picked = pick ? (d.planned ?? []).find(x => x.date === pick) ?? (pick === d.today?.date ? d.today : pick === d.next?.date ? d.next : null) : null;
-  const s = pick ? picked : d.today ?? d.next;
+  // 02/11 (Kouider : « j'enregistre ma séance mais il me dit encore la séance d'aujourd'hui ») : faite → on passe à la suivante
+  const doneToday = d.week[0]?.status === 'done';
+  const s = pick ? picked : doneToday ? d.next : d.today ?? d.next;
   const isToday = !!s && s.date === today;
   const weekVol = d.stats.weeks[d.stats.weeks.length - 1]?.volume ?? 0;
   const prs = Object.fromEntries(d.stats.prs.map(p => [norm(p.ex), p.kg]));
@@ -540,7 +542,8 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
       </div>
       <ResumeBanner toast={toast} onDone={() => void load()} />
       <TodayForm />
-      {s ? <SessionCard s={s} kicker={isToday ? "Aujourd'hui" : `${pick ? '' : 'Prochaine · '}${SHORT_DAYS[dayOf(s.date)]} ${s.date.slice(8)} · ${new Date(s.start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })}`} onStart={() => setPlay(s)} onEx={setEx} start={isToday ? 'Démarrer l\'entraînement' : 'Voir / faire cette séance'} />
+      {doneToday && !pick && <div style={{ ...card, marginTop: 14, display: 'flex', alignItems: 'center', gap: 12 }}><div style={{ width: 40, height: 40, borderRadius: 20, background: F.green, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 800 }}>✓</div><div><div style={{ fontWeight: 700 }}>Séance du jour faite{d.today?.label ? ` : ${d.today.label}` : ''}</div><div style={{ fontSize: 13, color: F.muted }}>Bravo. Récupère bien — voici la prochaine.</div></div></div>}
+      {s ? <SessionCard s={s} kicker={isToday ? (doneToday ? 'Aujourd\'hui · faite ✓' : "Aujourd'hui") : `${pick ? '' : 'Prochaine · '}${SHORT_DAYS[dayOf(s.date)]} ${s.date.slice(8)} · ${new Date(s.start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })}`} onStart={() => setPlay(s)} onEx={setEx} start={isToday ? 'Démarrer l\'entraînement' : 'Voir / faire cette séance'} />
         : <div style={{ ...card, marginTop: 14 }}>Pas de séance prévue cette semaine. Dis à Dzaryx « cale mes séances » 💬</div>}
       {s && s.date >= (today ?? '') && d.week.find(w => w.date === s.date)?.status !== 'done' && <SwapRow d={d} date={s.date} current={s.type} toast={toast} onD={x => { setD(x); setPick(s.date); }} />}
       {s && <>
