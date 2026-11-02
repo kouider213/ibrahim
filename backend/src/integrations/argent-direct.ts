@@ -23,9 +23,9 @@ export type MoneyCommand = {
   ask?: { kind: 'total' | 'cash' | 'gains' | 'best'; from?: string; to?: string; title?: string };
 };
 
-const MONEY = /gagn|vend|ventes?\b|encaiss|cash|caisse|liquide|snus|argent|€|euros?\b|capital|fortune|patrimoine|tout confondu|b[ée]n[ée]f|thune|rentr[ée]/i;
+const MONEY = /gagn|vend|ventes?\b|encaiss|cash|caisse|liquide|snus|argent|€|euros?\b|capital|fortune|patrimoine|tout confondu|au total|en tout|combien d.argent|j.ai combien\s*\??\s*$|b[ée]n[ée]f|thune|rentr[ée]|[ée]pargne/i;   // 02/11 « j'ai combien au total ? » partait au cerveau (risque de chiffre inventé)
 const OTHER = /calori|kcal|\bpas\b|km\b|kg\b|kilos?|séance|seance|sommeil|dormi|course[s]? (?:à|a) pied/i;
-const FIK_ONLY = /\b(fik|location|voiture|clio|client|r[ée]servation|booking|conciergerie|site)\b/i;
+const FIK_ONLY = /\b(fik|locations?|voitures?|clio|clients?|r[ée]servations?|bookings?|conciergerie|sites?)\b/i;
 
 function parseNum(s: string): number | null {
   const m = s.match(/(\d{1,3}(?:[\s. ]\d{3})+|\d+(?:[.,]\d+)?)\s*(k\b)?/i);
@@ -55,12 +55,13 @@ export function parseMoneyCommand(raw: string): MoneyCommand | null {
   const today = localNow().date;
   const question = /\?|combien|quel(?:le)?s? jours?|meilleur jour|j.en suis|je suis (?:à|a) combien|c.est quoi mon|dis[- ]moi/i.test(msg);
   const snus = /snus/i.test(msg);
-  if (FIK_ONLY.test(msg) && !snus && !/tout confondu|au total|en tout/i.test(msg)) return null;   // CA FIK = réservations : autre outil
+  if (/combien de (?!fric|thune|sous|argent|cash|liquide)\p{L}/iu.test(msg) && !/gagn|vend|encaiss|€|euros?\b/i.test(msg)) return null;   // « combien de messages/clients au total » ≠ argent
+  if (FIK_ONLY.test(msg) && !snus && !/tout confondu/i.test(msg)) return null;   // « combien de clients au total » = FIK, pas l'argent perso   // CA FIK = réservations : autre outil
   const out: MoneyCommand = {};
 
   if (question) {
     if (/quel(?:le)?s? jours?|meilleur jour|jour o[ùu]/i.test(msg) && /gagn|vend|plus|meilleur|rapport/i.test(msg)) out.ask = { kind: 'best' };
-    else if (/tout confondu|au total|en tout|capital|fortune|patrimoine|j.ai combien|je suis (?:à|a) combien|combien j.ai(?! (?:gagn|vendu|fait|encaiss))/i.test(msg) && !/gagn|vendu|encaiss/i.test(msg)) out.ask = { kind: /cash|caisse|liquide/i.test(msg) && !/tout confondu|au total|capital|patrimoine/i.test(msg) ? 'cash' : 'total' };
+    else if (/tout confondu|au total|en tout|capital|fortune|patrimoine|[ée]pargne|combien d.argent|j.ai combien|je suis (?:à|a) combien|combien j.ai(?! (?:gagn|vendu|fait|encaiss))/i.test(msg) && !/gagn|vendu|encaiss/i.test(msg)) out.ask = { kind: /cash|caisse|liquide/i.test(msg) && !/tout confondu|au total|capital|patrimoine/i.test(msg) ? 'cash' : 'total' };
     else if (/combien.{0,25}(cash|caisse|liquide)/i.test(msg) && !/gagn|vendu/i.test(msg)) out.ask = { kind: 'cash' };
     else if (/gagn|vend|ventes?\b|encaiss|rentr|b[ée]n[ée]f|fait\b.{0,15}(€|euros?|snus)|snus/i.test(msg)) {
       if (/semaine derni|la semaine pass/i.test(msg)) { const mon = addDays(today, -((wd(today) + 6) % 7) - 7); out.ask = { kind: 'gains', from: mon, to: addDays(mon, 6), title: 'la semaine dernière' }; }

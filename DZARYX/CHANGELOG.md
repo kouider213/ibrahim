@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-02 — Argent réel : questions « total » sans invention
+- `argent-direct.ts` : « j'ai combien au total / en tout / d'argent ? » et « c'est quoi mon épargne ? » partaient encore au cerveau (risque de chiffre inventé) → maintenant calculés par le code (épargne + cash). « combien de clients/réservations/messages au total » n'est plus pris pour de l'argent (pluriels FIK reconnus).
+
 ## 2026-11-02 — FORME : montre en direct (app v232)
 - `jarvis-hub.ts` : chaque envoi Santé note `health:lastsync`. `routes/forme.ts` : GET /api/forme/watch-sync.
 - `forme/App.tsx` : à l'ouverture/retour sur FORME, si la montre n'a rien envoyé depuis 20 min → lance le Raccourci « Dzaryx Santé » (1×/20 min, 5h-23h). Réglage « ⌚ Montre en direct » pour couper.
