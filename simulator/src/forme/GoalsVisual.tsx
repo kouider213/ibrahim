@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { get, type GoalsView } from './api.ts';
 import { F, card, darkCard, Ring, Bar, LineChart } from './ui.tsx';
-import { RecoveryMap, ExerciseSheet } from './Exercises.tsx';
+import { ExerciseSheet } from './Exercises.tsx';
 import type { Cut } from './Cut.tsx';
 
 // 🎯 OBJECTIFS « PRO » (Kouider 02/11 : « trop simple, je veux un truc visuel avec des images, des conseils… la meilleure
@@ -20,7 +20,29 @@ import type { Cut } from './Cut.tsx';
 const fmt = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 const today = () => new Date().toISOString().slice(0, 10);
 const daysTo = (d: string) => Math.max(0, Math.round((Date.parse(`${d}T12:00:00Z`) - Date.now()) / 86_400_000));
-const lvlColor = (n: number | null) => n == null ? 'rgba(255,255,255,0.25)' : n >= 70 ? '#34d399' : n >= 40 ? '#fbbf24' : '#5b8cff';
+// 02/11 Kouider : « je vois pas bien les couleurs → chiffres + bleu, jaune, rouge » : rouge = à construire, jaune = en route, bleu = solide
+const LV = { low: '#e5322d', mid: '#f5c400', high: '#1f63f0' } as const;
+const lvlColor = (n: number | null) => n == null ? 'rgba(255,255,255,0.25)' : n >= 70 ? LV.high : n >= 40 ? LV.mid : LV.low;
+// Calques muscles (wger) utilisés comme MASQUE → couleur exacte (bleu / jaune / rouge), pas un filtre approximatif
+const MAP_LAYERS: Record<string, { f?: number[]; b?: number[] }> = { pecs: { f: [4] }, epaules: { f: [2] }, bras: { f: [1, 13], b: [5] }, dos: { b: [12, 9] }, abdos: { f: [6, 14] }, jambes: { f: [10], b: [11, 8, 7, 15] } };
+// Où poser le chiffre sur la silhouette (en % de l'image)
+const MAP_LABEL: Record<string, { f?: [number, number]; b?: [number, number] }> = {
+  pecs: { f: [50, 26] }, epaules: { f: [24, 22] }, bras: { f: [17, 35], b: [83, 33] }, abdos: { f: [50, 40] }, dos: { b: [50, 30] }, jambes: { f: [38, 64], b: [62, 66] },
+};
+function BodyLevelMap({ zones, h = 230 }: { zones: Array<{ id: string; label: string; now: number | null }>; h?: number }) {
+  const known = zones.filter(z => z.now != null);
+  const fig = (side: 'f' | 'b') => (
+    <div style={{ position: 'relative', height: h, aspectRatio: '200 / 369' }}>
+      <img src={`/ibrahim/muscles/muscular_system_${side === 'f' ? 'front' : 'back'}.svg`} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
+      {known.flatMap(z => (MAP_LAYERS[z.id]?.[side] ?? []).map(n => { const m = `url(/ibrahim/muscles/main/muscle-${n}.svg) center / 100% 100% no-repeat`;
+        return <div key={`${z.id}-${n}`} style={{ position: 'absolute', inset: 0, background: lvlColor(z.now), WebkitMask: m, mask: m, opacity: 0.88 }} />; }))}
+      {known.map(z => { const at = MAP_LABEL[z.id]?.[side]; if (!at) return null; const c = lvlColor(z.now);
+        return <div key={`l-${z.id}`} style={{ position: 'absolute', left: `${at[0]}%`, top: `${at[1]}%`, transform: 'translate(-50%,-50%)', minWidth: 30, height: 30, borderRadius: 15, background: c, color: c === LV.mid ? '#17151c' : '#fff', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, boxShadow: '0 3px 8px rgba(0,0,0,0.45)' }}>{z.now}</div>; })}
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: -18, textAlign: 'center', fontSize: 10.5, fontWeight: 800, color: 'rgba(255,255,255,0.55)' }}>{side === 'f' ? 'FACE' : 'DOS'}</div>
+    </div>
+  );
+  return <div style={{ display: 'flex', justifyContent: 'center', gap: 24, direction: 'ltr', paddingBottom: 18 }}>{fig('f')}{fig('b')}</div>;
+}
 const lvlWord = (n: number | null) => n == null ? 'pas visible' : n >= 70 ? 'solide' : n >= 40 ? 'en route' : 'à construire';
 const ZONE_MUSCLE: Record<string, RegExp> = { pecs: /pec|chest|poitr/i, bras: /bras|bicep|tricep|arm/i, abdos: /abdo|abs|core|gainage|ventre/i, epaules: /épaul|epaul|shoulder|delt/i, dos: /dos|back|lat|trap/i, jambes: /jamb|leg|quad|ischio|fess|glute|mollet/i };
 
@@ -87,14 +109,21 @@ export function GoalToday({ g }: { g: GoalsView }) {
 /** 3. Carte du corps + anneaux par zone (Fitbod / Caliber). */
 export function GoalBody({ g, onEx, details }: { g: GoalsView; onEx: (id: string) => void; details: boolean }) {
   const s = g.state, p = s.plan!;
-  const rec = p.zones.filter(z => z.now != null).map(z => ({ muscle: z.id, pct: z.now! >= 70 ? 100 : z.now! >= 40 ? 60 : 0 }));
   const prev = s.history.length > 1 ? s.history[s.history.length - 2]! : null;
   return <>
     <H t="🧍 Ton corps aujourd'hui" sub={`Photo du ${fmt(p.photoDate)} · estimation`} />
     <div style={{ ...darkCard }}>
-      <RecoveryMap rec={rec} h={200} />
-      <div style={{ display: 'flex', justifyContent: 'center', gap: 14, fontSize: 11.5, color: 'rgba(255,255,255,0.7)', marginTop: 10 }}>
-        <span><b style={{ color: '#e5322d' }}>●</b> à construire</span><span><b style={{ color: '#fbbf24' }}>●</b> en route</span><span><b style={{ color: '#34d399' }}>●</b> solide</span>
+      <BodyLevelMap zones={p.zones} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginTop: 12 }}>
+        {[{ c: LV.low, t: 'À construire', r: '0 – 39' }, { c: LV.mid, t: 'En route', r: '40 – 69' }, { c: LV.high, t: 'Solide', r: '70 – 100' }].map(x => <div key={x.t} style={{ background: x.c, color: x.c === LV.mid ? '#17151c' : '#fff', borderRadius: 12, padding: '7px 4px', textAlign: 'center' }}>
+          <div style={{ fontSize: 12.5, fontWeight: 900 }}>{x.t}</div><div style={{ fontSize: 11.5, fontWeight: 700, opacity: 0.85 }}>{x.r}</div></div>)}
+      </div>
+      <div style={{ display: 'grid', gap: 6, marginTop: 12 }}>
+        {[...p.zones].sort((a, b) => (a.now ?? 999) - (b.now ?? 999)).map(z => <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 34, height: 26, borderRadius: 8, background: lvlColor(z.now), color: z.now != null && z.now >= 40 && z.now < 70 ? '#17151c' : '#fff', fontWeight: 900, fontSize: 13.5, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{z.now ?? '?'}</div>
+          <div style={{ flex: 1, fontSize: 13.5, fontWeight: 700 }}>{z.label}</div>
+          <div style={{ width: 90 }}><Bar value={z.now ?? 0} max={100} color={lvlColor(z.now)} track="rgba(255,255,255,0.12)" h={6} /></div>
+        </div>)}
       </div>
     </div>
     <div style={{ display: 'flex', gap: 10, overflowX: 'auto', padding: '12px 2px 4px', scrollSnapType: 'x mandatory' }}>
@@ -109,7 +138,7 @@ export function GoalBody({ g, onEx, details }: { g: GoalsView; onEx: (id: string
             {star && <div style={{ position: 'absolute', left: 8, top: 8, background: F.gold, color: '#fff', borderRadius: 999, padding: '3px 9px', fontSize: 11, fontWeight: 900 }}>⭐ PRIORITÉ</div>}
             <div style={{ position: 'absolute', right: 8, bottom: -26 }}>
               <div style={{ background: '#fff', borderRadius: 40, padding: 3, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
-                <Ring value={z.now ?? 0} max={100} size={56} stroke={6} color={lvlColor(z.now) === 'rgba(255,255,255,0.25)' ? F.muted : lvlColor(z.now)} track={F.tile}>
+                <Ring value={z.now ?? 0} max={100} size={56} stroke={6} color={z.now == null ? F.muted : lvlColor(z.now)} track={F.tile}>
                   <div style={{ fontSize: 14, fontWeight: 900, color: F.ink }}>{z.now ?? '?'}</div>
                 </Ring>
               </div>

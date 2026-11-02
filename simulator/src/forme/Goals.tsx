@@ -25,7 +25,7 @@ export function GoalsCard({ toast }: { toast: (t: string) => void }) {
       {p ? <>
         <div style={{ fontSize: 20, fontWeight: 800, marginTop: 6 }}>Arrivée ~{fmt(p.eta)} <span style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>· {weeksLeft(p.eta)} sem.</span></div>
         <div style={{ display: 'grid', gap: 6, marginTop: 10 }}>
-          {p.zones.slice(0, 4).map(z => <div key={z.id}><div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 3 }}><span>{g!.state.priority.includes(z.id) || p.focus?.zones.includes(z.id) ? '⭐ ' : ''}{z.label}</span><b>{z.now == null ? '?' : `${z.now}/100`}</b></div><Bar value={z.now ?? 0} max={100} color={(z.now ?? 0) >= 70 ? F.green : (z.now ?? 0) >= 40 ? F.gold : F.accent2} /></div>)}
+          {p.zones.slice(0, 4).map(z => <div key={z.id}><div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 3 }}><span>{g!.state.priority.includes(z.id) || p.focus?.zones.includes(z.id) ? '⭐ ' : ''}{z.label}</span><b>{z.now == null ? '?' : `${z.now}/100`}</b></div><Bar value={z.now ?? 0} max={100} color={(z.now ?? 0) >= 70 ? '#1f63f0' : (z.now ?? 0) >= 40 ? '#f5c400' : '#e5322d'} /></div>)}
         </div>
         {g?.pace && g.pace.status !== 'inconnu' && <div style={{ fontSize: 13, marginTop: 10, fontWeight: 700, color: g.pace.status === 'retard' ? '#ff8a80' : g.pace.status === 'avance' ? '#7ee2a8' : '#fff' }}>{g.pace.status === 'retard' ? '⚠️ En retard' : g.pace.status === 'avance' ? '🚀 En avance' : '✅ Dans les temps'}</div>}
         {g?.nextMilestone && <div style={{ fontSize: 13, marginTop: 10, color: 'rgba(255,255,255,0.8)' }}>⏳ Prochaine deadline {fmt(g.nextMilestone.date)} : {g.nextMilestone.title}</div>}
