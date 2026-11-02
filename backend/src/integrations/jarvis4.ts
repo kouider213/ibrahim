@@ -23,7 +23,8 @@ export async function iphoneEvent(type: string, body: Record<string, unknown>): 
   switch (type) {
     case 'carplay_on': case 'carplay': {
       // 02/11 : « Bonjour Kouider » + discours de coach business + citation, puis le point pratique
-      const [hello, brief] = await Promise.all([import('./car-coach.js').then(m => m.carGreeting()).catch(() => 'Bonjour Kouider.'), carBrief(hasPos ? { lat, lng } : {})]);
+      const [hello, brief] = await Promise.all([import('./car-coach.js').then(m => m.carGreeting(hasPos ? { lat, lng } : {})).catch(() => 'Bonjour Kouider.'), carBrief(hasPos ? { lat, lng } : {})]);
+      void kvPut('car:last-event', { at: Date.now(), type });   // trace : l'automatisation CarPlay est bien arrivée
       return { say: speakable(`${hello} ${brief}`) };
     }
     case 'carplay_off': case 'parked': {
@@ -56,6 +57,8 @@ export function speakable(t: string): string {
 
 /** Point vocal de 20 s quand CarPlay se branche : trajet jusqu'à la prochaine étape, ce que veulent les clients, locations
  *  du jour, promesse, décision. Les faits sont rassemblés ici ; l'IA n'en fait qu'une phrase naturelle (rien d'inventé). */
+// 02/11 : lu à VOIX HAUTE dans la voiture (sa femme peut être là) → jamais LIBERTÉ, médicament, santé, vitalité.
+const PRIVATE_RX = /libert|m[ée]dicament|demi|prise autoris|comprim|dose|zaldiar|vitalit|libido|sant[ée]|psy|m[ée]decin/i;
 async function carBrief(body: Record<string, unknown> = {}): Promise<string> {
   const now = new Date();
   const { date } = localNow();
@@ -70,7 +73,7 @@ async function carBrief(body: Record<string, unknown> = {}): Promise<string> {
   ]);
   // Créneaux « 🟢 Libre — RDV possibles » de l'agenda = pas une étape ; déjà commencés = ignorés
   const next = ((evs ?? []) as Array<{ summary?: string; location?: string; start?: { dateTime?: string } }>)
-    .find(e => !/libre|rdv possibles|disponible/i.test(e.summary ?? '') && (!e.start?.dateTime || Date.parse(e.start.dateTime) > Date.now()));
+    .find(e => !/libre|rdv possibles|disponible/i.test(e.summary ?? '') && !PRIVATE_RX.test(e.summary ?? '') && (!e.start?.dateTime || Date.parse(e.start.dateTime) > Date.now()));
   // Trajet réel depuis sa position (Raccourci ou Telegram) jusqu'au lieu du rendez-vous
   let trip = '';
   const lat = Number(body['lat']), lng = Number(body['lng']);
@@ -96,15 +99,15 @@ async function carBrief(body: Record<string, unknown> = {}): Promise<string> {
     prochaine_etape: next ? { quoi: next.summary, heure: next.start?.dateTime ? localNow(Date.parse(next.start.dateTime)).hhmm : null, trajet: trip || null } : null,
     clients_whatsapp_en_attente: { nombre: clients.length, les_plus_chauds: clients.slice(0, 2) },
     locations_du_jour: (books as Array<Record<string, unknown>>).filter(b => !/REJECT|CANCEL/i.test(String(b['status']))).map(b => `${(b['cars'] as { name?: string } | null)?.name ?? ''} ${b['client_name']} ${String(b['start_date']).startsWith(date) ? 'départ' : 'retour'}`),
-    promesse: promises[0] ?? null,
-    decision: dec[0]?.title.slice(0, 140) ?? null,
+    promesse: promises.find(p => !PRIVATE_RX.test(String(p))) ?? null,
+    decision: dec.find(d => !PRIVATE_RX.test(`${d.title} ${d.options.map(o => `${o.label} ${o.tool ?? ''}`).join(' ')}`))?.title.slice(0, 140) ?? null,
   };
-  const said = await ai(`Kouider vient de monter en voiture (CarPlay). Fais-lui son point en 3 à 5 phrases courtes à l'ORAL (20 secondes), tutoiement, naturel, comme Jarvis :
+  const said = await ai(`Kouider vient de monter en voiture (CarPlay). Fais-lui son point en 3 à 5 phrases courtes à l'ORAL (20 secondes), comme JARVIS d'Iron Man : calme, précis, élégant, VOUVOIEMENT :
 d'abord sa prochaine étape avec le temps de route et la marge (ou le retard), puis ce que veulent les 1-2 clients les plus chauds sur WhatsApp et combien attendent en tout, puis la location, la promesse ou la décision du jour s'il y en a.
-Uniquement ces faits, n'invente rien. Ce qui est vide ou null : n'en parle PAS du tout (jamais « pas de… »). Pas de « salut », pas de numéro de téléphone, pas d'emoji, pas de liste. Termine par « Bonne route. »
+Ne redis PAS l'heure (déjà dite). S'il n'y a aucun fait, dis seulement « Rien d'urgent à signaler. Bonne route. ». Uniquement ces faits, n'invente rien. Ce qui est vide ou null : n'en parle PAS du tout (jamais « pas de… »). Pas de « salut », pas de numéro de téléphone, pas d'emoji, pas de liste. Termine par « Bonne route. »
 Faits : ${JSON.stringify(facts)}`, { max: 300 }).catch(() => '');
   if (said) return speakable(said);
-  const parts = [next ? `Prochaine étape : ${next.summary} à ${facts.prochaine_etape?.heure?.replace(':', 'h') ?? 'bientôt'}${trip ? `, ${trip}` : ''}.` : '', clients.length ? `${clients.length} clients attendent sur WhatsApp.` : '', promises[0] ? `Promesse à tenir : ${promises[0]}.` : ''].filter(Boolean);
+  const parts = [next ? `Prochaine étape : ${next.summary} à ${facts.prochaine_etape?.heure?.replace(':', 'h') ?? 'bientôt'}${trip ? `, ${trip}` : ''}.` : '', clients.length ? `${clients.length} clients attendent sur WhatsApp.` : '', facts.promesse ? `Promesse à tenir : ${facts.promesse}.` : ''].filter(Boolean);
   return speakable(parts.length ? `En route. ${parts.join(' ')} Bonne route.` : 'En route, rien d\'urgent. Bonne route.');
 }
 

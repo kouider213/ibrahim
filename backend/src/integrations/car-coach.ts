@@ -39,25 +39,34 @@ async function pickQuote() {
   return QUOTES[i]!;
 }
 
-/** « Bonjour Kouider » + discours de coach business + citation. Court si déjà dit il y a moins de 30 min (arrêt rapide). */
-export async function carGreeting(): Promise<string> {
+/** Style JARVIS (Kouider 02/11 : « je veux qu'il me parle comme le vrai Jarvis ») : majordome IA calme, précis, élégant,
+ *  vouvoiement, une pointe d'humour — heure, météo réelle, état de la journée, puis motivation business et citation.
+ *  Court si déjà dit il y a moins de 30 min (arrêt rapide). */
+export async function carGreeting(pos: { lat?: number; lng?: number } = {}): Promise<string> {
   const { hhmm } = localNow();
-  const hello = hhmm < '18:00' ? 'Bonjour Kouider.' : 'Bonsoir Kouider.';
+  const h = Number(hhmm.slice(0, 2));
+  const hello = h < 5 || h >= 18 ? 'Bonsoir Kouider.' : 'Bonjour Kouider.';
   const last = await kvJson<number>(LAST_K, 0);
-  if (Date.now() - last < 30 * 60_000) return `Re-bonjour Kouider.`;
+  if (Date.now() - last < 30 * 60_000) return 'Re-bonjour Kouider. Content de vous revoir à bord.';
   await kvPut(LAST_K, Date.now());
-  const [quote, off, hard, coach] = await Promise.all([
+  let here: { lat: number; lng: number } | null = Number.isFinite(pos.lat) && pos.lat ? { lat: pos.lat!, lng: pos.lng! } : null;
+  if (!here) { const loc = await import('./location.js').then(m => m.getLocation('kouider')).catch(() => null); if (loc && Date.now() - Date.parse(loc.updated_at) < 6 * 3600_000) here = { lat: loc.lat, lng: loc.lng }; }
+  const [quote, off, hard, coach, meteo] = await Promise.all([
     pickQuote(),
     import('./kouider-dossier.js').then(m => m.isDayOff()).catch(() => false),
     import('./kouider-dossier.js').then(m => m.isHardDay()).catch(() => false),
     import('./grand-coach.js').then(m => m.grandCoachText()).catch(() => ''),
+    here ? import('./forme-runs-pro.js').then(m => m.weatherAt(here!.lat, here!.lng, Date.now())).catch(() => null) : Promise.resolve(null),
   ]);
-  const tone = hard ? 'Il a demandé une JOURNÉE DURE : sois doux, rassurant, pas de pression business, juste de la force.'
-    : off ? 'C\'est son jour de congé (famille) : motive-le sur le sens de son business (sa famille, sa liberté, l\'Algérie), sans lui donner de travail.'
-    : 'Journée de travail : motive-le sur son business (FIK, ses clients, son objectif du mois, devenir un grand businessman en Algérie) avec UNE action concrète pour aujourd\'hui.';
-  const speech = await ai(`Kouider vient de monter dans sa voiture. Tu es son COACH DE VIE et son coach business, comme un grand frère. Dis-lui un court discours de motivation à l'ORAL : 3 phrases courtes maximum (15 secondes), tutoiement, énergie, sincère, en français simple. ${tone}
-Ne commence PAS par bonjour ni par son prénom (déjà dit). Il CONDUIT : jamais d'action à faire au téléphone maintenant (« en arrivant, … » si besoin). Pas d'emoji, pas de liste, pas de citation (elle vient après). N'invente aucun chiffre : utilise seulement ce qui est dans son contexte ci-dessous, sinon reste général.
-Contexte (Grand Coach) : ${coach.slice(0, 1500)}`, { max: 200 }).catch(() => '');
-  const fallback = off ? 'Profite des tiens aujourd\'hui : c\'est pour eux que tu construis tout ça.' : 'Aujourd\'hui, une seule chose compte : avancer d\'un pas concret sur ton business. Les grands se font dans la régularité.';
-  return [hello, (speech || fallback).trim(), `Citation du jour : ${quote.q} ${quote.who[0]!.toUpperCase()}${quote.who.slice(1)}, ${quote.src}.`].join(' ');
+  const time = `Il est ${hhmm.replace(':', ' heures ').replace(/ 00$/, '')}`;
+  const weather = meteo ? `, ${Math.round(meteo.temp)} degrés dehors, ${meteo.label.toLowerCase()}${meteo.rain ? ', prudence sur la route' : ''}` : '';
+  const tone = hard ? 'Il a demandé une JOURNÉE DURE : doux, rassurant, aucune pression business.'
+    : off ? 'Jour de congé (famille) : rappelle le sens de ce qu\'il construit (sa famille, sa liberté, l\'Algérie), sans lui donner de travail.'
+    : 'Journée de travail : motive-le sur son business (FIK, ses clients, son objectif du mois, devenir un grand businessman en Algérie) avec UNE priorité concrète pour aujourd\'hui.';
+  const speech = await ai(`Tu es JARVIS, l'intelligence artificielle majordome de Kouider (comme le Jarvis d'Iron Man) : voix calme, phrases précises et élégantes, VOUVOIEMENT, assurance tranquille, une petite pointe d'humour fin. Kouider vient de monter dans sa voiture ; tu lui as déjà dit bonjour, l'heure et la météo.
+Dis maintenant 3 phrases courtes maximum (15 secondes à l'oral) : un mot sur l'état des choses façon Jarvis (ex. « Tous les systèmes sont opérationnels. »), puis un discours de motivation de coach de vie et de coach business. ${tone}
+Ne redis pas bonjour, ni son prénom en premier mot. Il CONDUIT : aucune action à faire au téléphone maintenant (dis « en arrivant » si besoin). Pas d'emoji, pas de liste, pas de citation (elle vient après). N'invente aucun chiffre ni nom : seulement ce qui est dans le contexte, sinon reste général.
+Contexte (Grand Coach) : ${coach.slice(0, 1500)}`, { max: 220 }).catch(() => '');
+  const fallback = off ? 'Tous les systèmes sont opérationnels. Profitez des vôtres aujourd\'hui, c\'est pour eux que vous construisez tout cela.' : 'Tous les systèmes sont opérationnels. Une seule priorité aujourd\'hui, monsieur : un pas concret pour votre entreprise. Les grands se construisent dans la régularité.';
+  return [`${hello} ${time}${weather}.`, (speech || fallback).trim(), `Citation du jour : ${quote.q} ${quote.who[0]!.toUpperCase()}${quote.who.slice(1)}, ${quote.src}.`].join(' ');
 }
