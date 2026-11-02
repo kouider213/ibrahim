@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { forme, errText, vibrate, type GoalsView, type GoalChallenge } from './api.ts';
 import { F, card, darkCard, btn, darkBtn, ghostBtn, input, Sheet, Spinner, Bar, Chip, Kicker } from './ui.tsx';
+import { GoalEvolution, GoalHero, GoalToday, GoalBody, GoalWeight, GoalJourney, GoalExercises, GoalTips, GoalBadges, GoalExSheet } from './GoalsVisual.tsx';
 
 // 🎯 OBJECTIFS & DÉFIS (Kouider 02/11) — dans Progrès.
 // Il choisit ce qu'il veut (pecs, bras, ventre plat + abdos…), le dit avec ses mots, met des muscles en PRIORITÉ ;
@@ -102,8 +103,8 @@ function Goals({ g, setG, toast }: { g: GoalsView; setG: (g: GoalsView) => void;
       <button disabled={!!busy} onClick={plan} style={{ ...btn, width: '100%', background: F.green }}>{busy === 'plan' ? <Spinner size={16} color="#fff" /> : '📊 Faire le point'}</button>
     </div>}
 
-    {p && <Tracking g={g} setG={setG} toast={toast} busy={busy} run={run} />}
     {p && <Plan g={g} setG={setG} toast={toast} busy={busy} run={run} />}
+    {p && <Tracking g={g} setG={setG} toast={toast} busy={busy} run={run} />}
     <Challenges g={g} setG={setG} toast={toast} />
     <Coach g={g} setG={setG} toast={toast} />
   </div>;
@@ -114,98 +115,46 @@ function Plan({ g, setG, toast, busy, run }: { g: GoalsView; setG: (g: GoalsView
   const [applied, setApplied] = useState<{ date: string; text: string } | null>(null);
   const v = s.vision;
   const H = ({ t }: { t: string }) => <div style={{ fontSize: 17, fontWeight: 800, margin: '20px 2px 8px' }}>{t}</div>;
+  const [exId, setExId] = useState<string | null>(null);
+  const [details, setDetails] = useState(false);
+  const vision = () => run('vision', async () => { await forme.goalVision(); setG(await forme.goals()); });
   return <>
-    {/* Où j'en suis */}
-    <div style={{ ...darkCard, marginTop: 12 }}>
-      <Kicker color="rgba(255,255,255,0.6)">Où tu en es · photo du {fmt(p.photoDate)}</Kicker>
-      <div style={{ fontSize: 26, fontWeight: 800, marginTop: 6 }}>Arrivée ~{fmt(p.eta)}</div>
-      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)' }}>{p.weeks} semaines au total · encore {weeksLeft(p.eta)} — si tu suis le plan</div>
-      <div style={{ fontSize: 14.5, lineHeight: 1.45, marginTop: 10, color: 'rgba(255,255,255,0.88)' }}>{p.summary}</div>
-      {p.warning && <div style={{ fontSize: 13, marginTop: 8, background: 'rgba(255,180,0,0.15)', borderRadius: 10, padding: 8 }}>⚠️ {p.warning}</div>}
-      <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.5)', marginTop: 10 }}>Niveaux /100 = estimation du coach à l'œil sur tes photos, pas une mesure. « ? » = zone pas visible : prends la photo qui manque.</div>
-      <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
-        {p.zones.map(z => {
-          const star = s.priority.includes(z.id) || p.focus?.zones.includes(z.id);
-          return <div key={z.id}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 700, marginBottom: 4 }}><span>{star ? '⭐ ' : ''}{z.label}</span><span>{z.now == null ? '? pas visible' : `${z.now}/100`} · ~{z.weeks} sem.</span></div>
-            {z.now != null ? <Bar value={z.now} max={100} h={8} color={z.now >= 70 ? F.green : z.now >= 40 ? F.gold : F.accent2} /> : <div style={{ height: 8, borderRadius: 4, border: '1px dashed rgba(255,255,255,0.35)' }} />}
-            {z.note && <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.65)', marginTop: 3 }}>{z.note}</div>}
-          </div>;
-        })}
-      </div>
-      {s.history.length > 1 && <div style={{ marginTop: 12, fontSize: 12.5, color: 'rgba(255,255,255,0.75)' }}>
-        📈 Évolution : {p.zones.map(z => { const pts = s.history.filter(h => h.levels[z.id] != null); if (pts.length < 2) return null; const d = pts[pts.length - 1]!.levels[z.id]! - pts[0]!.levels[z.id]!; return `${z.label} ${d >= 0 ? '+' : ''}${d}`; }).filter(Boolean).join(' · ')} depuis le {fmt(s.history[0]!.date)}
-      </div>}
+    <GoalHero g={g} onVision={vision} details={details} />
+    <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+      <button disabled={v?.status === 'running' || !!busy} onClick={vision} style={{ ...ghostBtn, flex: 1, fontSize: 13 }}>{v?.status === 'running' ? '⏳ Image en cours…' : g.visionUrl ? '🔄 Refaire l\'image d\'arrivée' : '🔮 Me montrer à l\'arrivée'}</button>
     </div>
+    {v?.status === 'error' && <div style={{ fontSize: 12.5, color: F.red, marginTop: 6 }}>{v.error}</div>}
+    {(g.visionUrl || v?.status === 'running') && <div style={{ fontSize: 11.5, color: F.muted, marginTop: 4 }}>Image d'arrivée créée par IA à partir de ta photo : une projection pour te motiver, pas une promesse au muscle près.</div>}
 
-    {/* Priorités du coach */}
-    {p.focus?.why && <div style={{ ...card, marginTop: 10 }}>
-      <div style={{ fontWeight: 800 }}>⭐ Ce qu'on priorise</div>
-      <div style={{ fontSize: 14, lineHeight: 1.45, marginTop: 4 }}>{p.focus.why}</div>
-      {p.focus.split && <div style={{ fontSize: 13, color: F.muted, marginTop: 6 }}>📅 {p.focus.split}</div>}
-      <div style={{ fontSize: 13, color: F.muted, marginTop: 6 }}>Chaque semaine : {p.weekly.sessions} séances{p.weekly.cardio ? ` · ${p.weekly.cardio}` : ''}{p.weekly.steps ? ` · ${p.weekly.steps.toLocaleString('fr-FR')} pas/jour` : ''}{p.weekly.protein ? ` · ${p.weekly.protein} g de protéines/jour` : ''}</div>
-      <button disabled={!!busy} onClick={() => run('apply', async () => { const r = await forme.goalApply(); setApplied(r); vibrate(60); toast('🏋️ Prochaine séance refaite'); })} style={{ ...darkBtn, width: '100%', marginTop: 10 }}>{busy === 'apply' ? <Spinner size={16} color="#fff" /> : '🏋️ Mettre ça dans ma prochaine séance'}</button>
-      {applied && <div style={{ fontSize: 13, whiteSpace: 'pre-wrap', marginTop: 8, background: F.tile, borderRadius: 12, padding: 10 }}><b>Séance du {fmt(applied.date)}</b>{'\n'}{applied.text}</div>}
-    </div>}
+    <GoalEvolution g={g} />
+    <GoalBody g={g} onEx={setExId} details={details} />
+    <GoalToday g={g} />
+    <GoalWeight />
 
-    {/* Toi à l'arrivée */}
-    <H t="🔮 Toi à l'arrivée" />
-    <div style={card}>
-      <div style={{ display: 'flex', gap: 8 }}>
-        {[{ u: g.planPhotoUrl, l: `AUJOURD'HUI` }, { u: v?.status === 'done' || v?.path ? g.visionUrl : null, l: `~${fmt(p.eta)}` }].map((x, i) =>
-          <div key={i} style={{ flex: 1, position: 'relative', borderRadius: 14, overflow: 'hidden', background: F.dark, aspectRatio: '3/4' }}>
-            {x.u ? <img src={x.u} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-              : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.6)', fontSize: 13, textAlign: 'center', padding: 10 }}>{i === 1 && v?.status === 'running' ? <div><Spinner color="#fff" /><div style={{ marginTop: 8 }}>Création… 1 à 4 min</div></div> : i === 1 ? '?' : ''}</div>}
-            <div style={{ position: 'absolute', left: 6, bottom: 6, background: i ? F.accent : 'rgba(0,0,0,0.6)', color: '#fff', borderRadius: 999, padding: '3px 9px', fontSize: 11, fontWeight: 900 }}>{x.l}</div>
-          </div>)}
-      </div>
-      {v?.status === 'error' && <div style={{ fontSize: 13, color: F.red, marginTop: 8 }}>{v.error}</div>}
-      <div style={{ fontSize: 12, color: F.muted, marginTop: 8 }}>Image créée par IA à partir de ta photo : une projection pour te motiver, pas une promesse au muscle près.</div>
-      <button disabled={v?.status === 'running' || !!busy} onClick={() => run('vision', async () => { await forme.goalVision(); setG(await forme.goals()); })} style={{ ...btn, width: '100%', marginTop: 10, opacity: v?.status === 'running' ? 0.6 : 1 }}>{v?.status === 'running' ? 'En cours… tu peux fermer, je te préviens' : g.visionUrl ? '🔄 Refaire l\'image' : '🔮 Me montrer à l\'arrivée'}</button>
-    </div>
-
-    {/* Deadlines */}
-    {p.milestones.length > 0 && <><H t="⏳ Tes deadlines" />
-      <div style={{ ...card, padding: 6 }}>
-        {p.milestones.map((m, i) => {
-          const late = !m.done && m.date < new Date().toISOString().slice(0, 10);
-          return <button key={i} onClick={() => run(`m${i}`, async () => { setG(await forme.goalMilestone(i, !m.done)); if (!m.done) { vibrate(80); toast('🏁 Bravo !'); } })}
-            style={{ display: 'flex', gap: 10, width: '100%', textAlign: 'left', background: 'none', border: 'none', borderBottom: i < p.milestones.length - 1 ? `1px solid ${F.line}` : 'none', padding: '10px', cursor: 'pointer', fontFamily: F.sans, color: F.ink }}>
-            <div style={{ width: 26, height: 26, borderRadius: 13, flexShrink: 0, border: `2px solid ${m.done ? F.green : late ? F.red : F.line}`, background: m.done ? F.green : '#fff', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>{m.done ? '✓' : ''}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: late ? F.red : F.accent }}>{fmt(m.date)} · semaine {m.week}{late ? ' · en retard' : ''}</div>
-              <div style={{ fontSize: 14.5, fontWeight: 700, textDecoration: m.done ? 'line-through' : 'none' }}>{m.title}{m.auto && <span style={{ fontSize: 11, color: F.green, marginLeft: 6, textDecoration: 'none' }}>✓ auto</span>}</div>
-              {!m.done && m.metric && m.metric !== 'photo' && <div style={{ fontSize: 11.5, color: F.green }}>Se coche tout seul ({m.metric === 'poids' ? `balance ≤ ${m.value} kg` : m.metric === 'seances' ? `${m.value} séances validées` : 'mensurations notées'})</div>}
-              {m.check && <div style={{ fontSize: 12.5, color: F.muted }}>{m.check}</div>}
-            </div>
-          </button>;
-        })}
+    {details && p.focus?.why && <><H t="⭐ Ce qu'on priorise" />
+      <div style={card}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>{(p.focus.zones.length ? p.focus.zones : s.priority).map(id => <span key={id} style={{ background: '#fff4dc', color: F.gold, borderRadius: 999, padding: '4px 10px', fontSize: 12.5, fontWeight: 800 }}>⭐ {g.zones.find(z => z.id === id)?.label ?? id}</span>)}</div>
+        <div style={{ fontSize: 14, lineHeight: 1.45 }}>{p.focus.why}</div>
+        <button disabled={!!busy} onClick={() => run('apply', async () => { const r = await forme.goalApply(); setApplied(r); vibrate(60); toast('🏋️ Prochaine séance refaite'); })} style={{ ...darkBtn, width: '100%', marginTop: 12 }}>{busy === 'apply' ? <Spinner size={16} color="#fff" /> : '🏋️ Mettre ça dans ma prochaine séance'}</button>
+        {applied && <div style={{ fontSize: 13, whiteSpace: 'pre-wrap', marginTop: 8, background: F.tile, borderRadius: 12, padding: 10 }}><b>Séance du {fmt(applied.date)}</b>{'\n'}{applied.text}</div>}
       </div></>}
 
-    {/* Exercices */}
-    {p.exercises.length > 0 && <><H t="🏋️ Tes exercices" />
-      <div style={{ display: 'grid', gap: 8 }}>
-        {p.exercises.map(e => <div key={e.id} style={{ ...card, padding: 10, display: 'flex', gap: 10, alignItems: 'center' }}>
-          <img src={e.img} alt="" loading="lazy" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 10, background: F.tile, flexShrink: 0 }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 14.5 }}>{e.name}</div>
-            <div style={{ fontSize: 12.5, color: F.accent, fontWeight: 700 }}>{e.sets} × {e.reps}{e.muscle ? ` · ${e.muscle}` : ''}</div>
-            {e.why && <div style={{ fontSize: 12.5, color: F.muted }}>{e.why}</div>}
-          </div>
+    {p.milestones.length > 0 && <GoalJourney g={g} details={details} onToggle={(i, done) => run(`m${i}`, async () => { setG(await forme.goalMilestone(i, done)); if (done) { vibrate(80); toast('🏁 Bravo !'); } })} />}
+    <GoalExercises g={g} onEx={setExId} details={details} />
+    {details && <GoalTips g={g} />}
+
+    {details && p.measures.length > 0 && <><H t="📏 Mensurations à viser" />
+      <div style={{ ...card, display: 'grid', gap: 10 }}>
+        {p.measures.map((m, i) => <div key={i}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 4 }}><span>{m.what}</span><b>{m.now ? `${m.now} → ` : ''}{m.target} {m.unit}</b></div>
+          {m.now ? <Bar value={Math.min(m.now, m.target)} max={Math.max(m.now, m.target)} color={F.accent} track={F.tile} h={6} /> : null}
         </div>)}
-      </div></>}
-
-    {p.measures.length > 0 && <><H t="📏 Mensurations à viser" />
-      <div style={{ ...card, display: 'grid', gap: 6 }}>
-        {p.measures.map((m, i) => <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}><span>{m.what}</span><b>{m.now ? `${m.now} → ` : ''}{m.target} {m.unit}</b></div>)}
-        {p.measures.some(m => !m.now) && <div style={{ fontSize: 12.5, color: F.accent, fontWeight: 700 }}>📏 Tu n'as pas encore de mesure de départ : ces cibles sont indicatives. Mesure-toi d'abord pour suivre l'écart réel.</div>}
+        {p.measures.some(m => !m.now) && <div style={{ fontSize: 12.5, color: F.accent, fontWeight: 700 }}>📏 Pas encore de mesure de départ : ces cibles sont indicatives. Mesure-toi d'abord pour suivre l'écart réel.</div>}
         <div style={{ fontSize: 12, color: F.muted }}>Mesure-toi toutes les 2 semaines (Progrès → mensurations) : le mètre ruban voit les progrès avant le miroir.</div>
       </div></>}
-
-    {p.ideas.length > 0 && <><H t="💡 Auxquelles tu n'aurais pas pensé" />
-      <div style={{ ...card, display: 'grid', gap: 8 }}>{p.ideas.map((x, i) => <div key={i} style={{ fontSize: 14, lineHeight: 1.4 }}>💡 {x}</div>)}</div></>}
-    {p.habits.length > 0 && <><H t="✅ Tes habitudes" />
-      <div style={{ ...card, display: 'grid', gap: 8 }}>{p.habits.map((x, i) => <div key={i} style={{ fontSize: 14, lineHeight: 1.4 }}>• {x}</div>)}</div></>}
+    <GoalBadges g={g} />
+    <button onClick={() => setDetails(d => !d)} style={{ ...ghostBtn, width: '100%', marginTop: 16 }}>{details ? '🙈 Cacher les explications' : '📖 Voir les explications du coach'}</button>
+    <GoalExSheet id={exId} onClose={() => setExId(null)} />
   </>;
 }
 

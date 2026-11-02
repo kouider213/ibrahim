@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-02 — FORME : page Objectifs « pro » en images (app v239)
+- GoalsVisual.tsx : 📸 évolution en photos (curseur avant/maintenant à glisser, par pose, frise datée avec poids), héros avant → arrivée + anneau du parcours + J-xx, carte du corps colorée par niveau + cartes par zone (image d'exercice, anneau), « aujourd'hui pour ton objectif » (score Sèche), courbe de poids, parcours à étapes « tu es ici », exercices en grandes images (fiche au toucher), conseils en cartes, badges.
+- Kouider : « l'évolution avec des images, pas une explication détaillée » → explications cachées derrière « 📖 Voir les explications du coach ».
+- Backend goalsOverview : `evolution` = ses 24 dernières photos de suivi signées (+ poids du jour).
+
 ## 2026-11-02 — COACH › 🔥 Vitalité (privé) (app v238)
 - Nouveau module backend/src/integrations/vitalite.ts : désir (questionnaire IIEF domaine désir 2-10 + note /10), rapports/semaine (objectif 1-2), érections du matin, prise de sang (testostérone vs plage 19-39 ans 264-916 ng/dL), croisé avec FORME, montre, sommeil, LIBERTÉ, moral → leviers calculés sans IA.
 - Base de 21 faits sourcés (FACTS) : seule base autorisée pour les conseils ; interactions dangereuses avec l'antidouleur rappelées. Nom du médicament lu dans app_kv (dépôt public).

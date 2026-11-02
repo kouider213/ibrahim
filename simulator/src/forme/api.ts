@@ -208,6 +208,7 @@ export interface GoalsView {
   state: { wantBy?: string; autoAdjust?: boolean; log?: GoalAutoLog[]; zones: string[]; note: string; priority: string[]; chat: Array<{ role: 'moi' | 'coach'; text: string; at: number }>; at: number; plan?: GoalPlanV; history: Array<{ date: string; levels: Record<string, number> }>; vision?: GoalVision; challenges: GoalChallenge[] };
   planPhotoUrl: string | null; latest: { id: string; date: string; url: string | null } | null; visionUrl: string | null; recheck: boolean;
   nextMilestone: GoalPlanV['milestones'][number] | null;
+  evolution?: Array<{ id: string; date: string; pose: 'face' | 'profil' | 'dos'; url: string; kg: number | null }>;
 }
 export interface GoalAutoLog { at: number; date: string; status: 'avance' | 'ok' | 'retard' | 'inconnu'; text: string; changes: string[] }
 export interface GoalPace { status: GoalAutoLog['status']; text: string; rateWeek: number | null; weightEta: string | null; sessions14: number; planned14: number; next?: { title: string; date: string; projected?: number; target?: number; late: boolean } }

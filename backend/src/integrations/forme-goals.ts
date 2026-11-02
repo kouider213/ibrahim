@@ -147,14 +147,19 @@ export async function goalsOverview(uid: Uid) {
   const photos = await readPhotos(uid);
   const ph = s.plan ? photos.find(p => p.id === s.plan!.photoId) : null;
   const latest = latestPhoto(photos);
-  const urls = await signedPhotoUrls([ph, latest].filter(Boolean) as BodyPhoto[]);
+  // 02/11 (Kouider : « l'évolution avec des images, pas une explication ») : toutes ses photos de suivi, par pose, dans l'ordre
+  const sorted = [...photos].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  const evo = sorted.slice(-24);
+  const urls = await signedPhotoUrls([...new Map([ph, latest, ...evo].filter(Boolean).map(x => [x!.id, x!])).values()] as BodyPhoto[]);
+  const weightOn = (d: string) => { const w = Object.entries(days).filter(([k, x]) => k <= d && (x as { weight?: number }).weight).sort(([a], [b]) => b.localeCompare(a))[0]; return w ? (w[1] as { weight?: number }).weight ?? null : null; };
+  const evolution = evo.filter(x => urls[x.id]).map(x => ({ id: x.id, date: x.date, pose: x.pose, url: urls[x.id]!, kg: x.weight ?? weightOn(x.date) }));
   // Une photo plus récente que le plan → on propose de « faire le point »
   const recheck = !!(s.plan && latest && latest.id !== s.plan.photoId && latest.date > s.plan.photoDate);
   const nextMilestone = s.plan?.milestones.find(m => !m.done) ?? null;
   return {
     zones: GOAL_ZONES, presets: CHALLENGE_PRESETS, state: { ...s, challenges: s.challenges.map(c => challengeView(c, days, exlog, trained)) }, pace: s.plan ? await pace(uid, s, days, trained).catch(() => null) : null,
     planPhotoUrl: ph ? urls[ph.id] ?? null : null, latest: latest ? { id: latest.id, date: latest.date, url: urls[latest.id] ?? null } : null,
-    visionUrl, recheck, nextMilestone,
+    visionUrl, recheck, nextMilestone, evolution,
   };
 }
 
