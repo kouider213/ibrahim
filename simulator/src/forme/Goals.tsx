@@ -149,7 +149,7 @@ function Plan({ g, setG, toast, busy, run }: { g: GoalsView; setG: (g: GoalsView
           </div>)}
       </div>
       {v?.status === 'error' && <div style={{ fontSize: 13, color: F.red, marginTop: 8 }}>{v.error}</div>}
-      <div style={{ fontSize: 12, color: F.muted, marginTop: 8 }}>Image créée par IA (gratuite) à partir de ta photo : une projection pour te motiver, pas une promesse au muscle près.</div>
+      <div style={{ fontSize: 12, color: F.muted, marginTop: 8 }}>Image créée par IA à partir de ta photo : une projection pour te motiver, pas une promesse au muscle près.</div>
       <button disabled={v?.status === 'running' || !!busy} onClick={() => run('vision', async () => { await forme.goalVision(); setG(await forme.goals()); })} style={{ ...btn, width: '100%', marginTop: 10, opacity: v?.status === 'running' ? 0.6 : 1 }}>{v?.status === 'running' ? 'En cours… tu peux fermer, je te préviens' : g.visionUrl ? '🔄 Refaire l\'image' : '🔮 Me montrer à l\'arrivée'}</button>
     </div>
 

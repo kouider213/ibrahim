@@ -12,7 +12,7 @@ import {
 // de moi à l'arrivée, me donne les deadlines… et d'autres options auxquelles je n'aurais pas pensé »).
 // - Objectif = zones choisies (+ note libre) → plan lu sur sa DERNIÈRE photo : niveau actuel par zone, délai réaliste,
 //   exercices de la bibliothèque, jalons datés (deadlines), mensurations cibles, habitudes, idées en plus.
-// - « Toi à l'arrivée » : image générée GRATUITEMENT (FLUX Kontext sur Hugging Face) à partir de sa photo.
+// - « Toi à l'arrivée » : image générée à partir de sa photo — fal.ai d'abord (accord Kouider 02/11), sinon gratuit (HF Kontext / Qwen).
 // - Défis : quotidiens / total / record / case à cocher, certains comptés tout seuls (séances, pas).
 // - « Faire le point » : nouvelle photo → nouveau plan, historique des niveaux → en avance ou en retard.
 // Données privées : app_kv + bucket privé uniquement (dépôt public).
@@ -223,13 +223,25 @@ export async function startVision(uid: Uid): Promise<Vision> {
       if (!data?.signedUrl) throw new Error('photo illisible');
       const { hfGradio, hfFail } = await import('../marketing/video-studio.js');
       let url: string | undefined;
-      // 2 générateurs gratuits l'un après l'autre (FLUX Kontext, puis Qwen Image Edit)
+      // 1) fal.ai (Nano Banana, ~0,04 $) — Kouider 02/11 : OK pour cette image ; plus de crédit → gratuits
+      const vs = await import('../marketing/video-studio.js');
+      if (process.env['FAL_KEY'] && !await vs.falEmptyNow().catch(() => true)) {
+        try {
+          const r = await vs.falRun('fal-ai/nano-banana/edit', { prompt, image_urls: [data.signedUrl], num_images: 1, output_format: 'jpeg' }, 300_000);
+          url = (r['images'] as Array<{ url: string }> | undefined)?.[0]?.url;
+          if (url) await vs.addSpent(0.04).catch(() => {});
+        } catch (e) {
+          console.warn('[forme-goals] fal.ai :', String(e).slice(0, 200));
+          if (/crédit|balance|exhausted|locked|402|403/i.test(String(e))) await vs.markFalEmpty().catch(() => {});
+        }
+      }
+      // 2) sinon 2 générateurs gratuits l'un après l'autre (FLUX Kontext, puis Qwen Image Edit)
       const file = { path: data.signedUrl, meta: { _type: 'gradio.FileData' } };
-      for (const [base, args] of [[HF_KONTEXT, [file, prompt, 0, true, 2.5, 28]], [HF_QWEN, [file, prompt, 0, true, 1.0, 8, false]]] as const) {
+      if (!url) for (const [base, args] of [[HF_KONTEXT, [file, prompt, 0, true, 2.5, 28]], [HF_QWEN, [file, prompt, 0, true, 1.0, 8, false]]] as const) {
         try { const r = await hfGradio(base, 'infer', [...args], 300_000); url = (r[0] as { url?: string } | undefined)?.url; if (url) break; }
         catch (e) { await hfFail(e); }
       }
-      if (!url) throw new Error('Les générateurs d\'images gratuits sont saturés en ce moment : réessaie dans quelques heures (bouton ci-dessous).');
+      if (!url) throw new Error('fal.ai sans crédit et générateurs gratuits saturés en ce moment : réessaie dans quelques heures (bouton ci-dessous).');
       const img = await fetch(url, { signal: AbortSignal.timeout(60_000) });
       if (!img.ok) throw new Error(`téléchargement image ${img.status}`);
       const path = `${uid}/vision-${Date.now().toString(36)}.jpg`;
