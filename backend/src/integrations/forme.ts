@@ -801,7 +801,7 @@ export async function deleteMachine(uid: Uid, id: string): Promise<MachineScan[]
 // ── Historique / progrès par exercice de la bibliothèque (onglets « Historique » et « Progrès » de la fiche) ──
 export interface ExSet { at: number; date: string; kg?: number; reps?: number; fb?: 'easy' | 'ok' | 'hard' }
 const EXLOG_K = (uid: Uid) => `${uid}:forme:exlog`;
-async function readExLog(uid: Uid): Promise<Record<string, ExSet[]>> { return readJson<Record<string, ExSet[]>>(EXLOG_K(uid), {}); }
+export async function readExLog(uid: Uid): Promise<Record<string, ExSet[]>> { return readJson<Record<string, ExSet[]>>(EXLOG_K(uid), {}); }
 export async function exHistory(uid: Uid, id: string): Promise<ExSet[]> { return (await readExLog(uid))[id] ?? []; }
 export async function addExSet(uid: Uid, id: string, kg?: number, reps?: number): Promise<ExSet[]> {
   const all = await readExLog(uid);
@@ -939,7 +939,10 @@ export async function jobFormeReminders(): Promise<string> {
 
 /** Dimanche 19h : avant, bilan nutrition + semaine de repas. 31/10 : nutrition retirée de FORME → plus rien ici
  * (le bilan sport du dimanche, c'est sport-weekly à 20h). Gardé pour ne pas casser le planning. */
-export async function jobFormeWeekly(): Promise<void> { /* rien : FORME = sport seulement */ }
+export async function jobFormeWeekly(): Promise<void> {
+  // 02/11 : suivi automatique des OBJECTIFS (avance / retard → ajuste séance + déficit, prévient Kouider)
+  await import('./forme-goals.js').then(m => m.goalsWeekly('kouider')).catch(e => console.warn('[forme-goals] hebdo :', e));
+}
 
 // ── Outil Dzaryx `forme` (Kouider seulement : son suivi à lui) ───────────────
 export async function formeTool(input: Record<string, unknown>): Promise<string> {

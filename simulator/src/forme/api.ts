@@ -154,12 +154,13 @@ export const forme = {
   analyze: (id: string, vs?: string) => post<{ analysis: Analysis }>('/api/forme/analyze', vs ? { id, vs } : { id }),
   adapt: (focus: string) => post<{ date: string; text: string }>('/api/forme/adapt', { focus }),
   goals: () => call<GoalsView>('/api/forme/goals'),
-  goalPlan: (b: { zones: string[]; note: string; priority: string[] }) => post<GoalsView>('/api/forme/goals', b),
-  goalPrefs: (b: { zones?: string[]; note?: string; priority?: string[] }) => post<GoalsView>('/api/forme/goals/prefs', b),
+  goalPlan: (b: { zones: string[]; note: string; priority: string[]; wantBy?: string }) => post<GoalsView>('/api/forme/goals', b),
+  goalPrefs: (b: { zones?: string[]; note?: string; priority?: string[]; wantBy?: string; autoAdjust?: boolean }) => post<GoalsView>('/api/forme/goals/prefs', b),
   goalVision: () => post<{ vision: GoalVision }>('/api/forme/goals/vision', {}),
   goalMilestone: (i: number, done: boolean) => post<GoalsView>('/api/forme/goals/milestone', { i, done }),
   goalChallenge: (b: { action: 'add' | 'log' | 'delete' | 'reset-day'; id?: string; preset?: number; fromPlan?: number; value?: number }) => post<GoalsView>('/api/forme/goals/challenge', b),
   goalChat: (message: string, clear = false) => post<{ answer: string; changed: boolean; overview: GoalsView }>('/api/forme/goals/chat', { message, clear }),
+  goalCheck: () => post<{ entry: GoalAutoLog; overview: GoalsView }>('/api/forme/goals/check', {}),
   goalApply: () => post<{ date: string; text: string }>('/api/forme/goals/apply', {}),
   ask: (question: string, mode = '') => post<{ answer: string }>('/api/forme/ask', { question, mode }),
   push: (sub: PushSubscriptionJSON) => post<{ ok: boolean }>('/api/forme/push', sub),
@@ -189,13 +190,13 @@ export const vibrate = (ms = 30) => { try { navigator.vibrate?.(ms); } catch { /
 // 🎯 Objectifs & défis (02/11)
 export interface GoalVision { status: 'running' | 'done' | 'error'; at: number; photoId: string; path?: string; error?: string }
 export interface GoalChallenge { id: string; title: string; emoji: string; unit: string; kind: 'daily' | 'total' | 'record' | 'check'; target: number; days: number; start: string; log: Record<string, number>; auto?: 'sessions' | 'steps';
-  end: string; dayNo: number; today: number; progress: number; label: string; finished: boolean; late: boolean }
+  end: string; dayNo: number; today: number; autoFill: string | null; progress: number; label: string; finished: boolean; late: boolean }
 export interface GoalPlanV {
   at: number; photoId: string; photoDate: string; seen: string; visible: 'oui' | 'partiel' | 'non'; summary: string; weeks: number; eta: string;
-  zones: Array<{ id: string; label: string; now: number; note: string; weeks: number }>;
+  zones: Array<{ id: string; label: string; now: number | null; note: string; weeks: number }>;
   weekly: { sessions: number; cardio: string; steps: number; protein: number };
   exercises: Array<{ id: string; name: string; muscle: string; sets: number; reps: string; why: string; img: string }>;
-  milestones: Array<{ week: number; date: string; title: string; check: string; done?: number }>;
+  milestones: Array<{ week: number; date: string; title: string; check: string; done?: number; metric?: string; value?: number; auto?: boolean }>;
   measures: Array<{ what: string; now?: number; target: number; unit: string }>;
   focus?: { zones: string[]; why: string; split: string };
   habits: string[]; ideas: string[]; challenges: Array<{ title: string; emoji: string; kind: GoalChallenge['kind']; target: number; unit: string; days: number }>; warning?: string;
@@ -203,7 +204,10 @@ export interface GoalPlanV {
 export interface GoalsView {
   zones: Array<{ id: string; label: string; emoji: string }>;
   presets: Array<{ title: string; emoji: string; kind: GoalChallenge['kind']; target: number; unit: string; days: number; for: string[] }>;
-  state: { zones: string[]; note: string; priority: string[]; chat: Array<{ role: 'moi' | 'coach'; text: string; at: number }>; at: number; plan?: GoalPlanV; history: Array<{ date: string; levels: Record<string, number> }>; vision?: GoalVision; challenges: GoalChallenge[] };
+  pace: GoalPace | null;
+  state: { wantBy?: string; autoAdjust?: boolean; log?: GoalAutoLog[]; zones: string[]; note: string; priority: string[]; chat: Array<{ role: 'moi' | 'coach'; text: string; at: number }>; at: number; plan?: GoalPlanV; history: Array<{ date: string; levels: Record<string, number> }>; vision?: GoalVision; challenges: GoalChallenge[] };
   planPhotoUrl: string | null; latest: { id: string; date: string; url: string | null } | null; visionUrl: string | null; recheck: boolean;
   nextMilestone: GoalPlanV['milestones'][number] | null;
 }
+export interface GoalAutoLog { at: number; date: string; status: 'avance' | 'ok' | 'retard' | 'inconnu'; text: string; changes: string[] }
+export interface GoalPace { status: GoalAutoLog['status']; text: string; rateWeek: number | null; weightEta: string | null; sessions14: number; planned14: number; next?: { title: string; date: string; projected?: number; target?: number; late: boolean } }

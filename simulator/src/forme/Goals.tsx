@@ -24,8 +24,9 @@ export function GoalsCard({ toast }: { toast: (t: string) => void }) {
       {p ? <>
         <div style={{ fontSize: 20, fontWeight: 800, marginTop: 6 }}>Arrivée ~{fmt(p.eta)} <span style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>· {weeksLeft(p.eta)} sem.</span></div>
         <div style={{ display: 'grid', gap: 6, marginTop: 10 }}>
-          {p.zones.slice(0, 4).map(z => <div key={z.id}><div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 3 }}><span>{g!.state.priority.includes(z.id) || p.focus?.zones.includes(z.id) ? '⭐ ' : ''}{z.label}</span><b>{z.now}/100</b></div><Bar value={z.now} max={100} color={z.now >= 70 ? F.green : z.now >= 40 ? F.gold : F.accent2} /></div>)}
+          {p.zones.slice(0, 4).map(z => <div key={z.id}><div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 3 }}><span>{g!.state.priority.includes(z.id) || p.focus?.zones.includes(z.id) ? '⭐ ' : ''}{z.label}</span><b>{z.now == null ? '?' : `${z.now}/100`}</b></div><Bar value={z.now ?? 0} max={100} color={(z.now ?? 0) >= 70 ? F.green : (z.now ?? 0) >= 40 ? F.gold : F.accent2} /></div>)}
         </div>
+        {g?.pace && g.pace.status !== 'inconnu' && <div style={{ fontSize: 13, marginTop: 10, fontWeight: 700, color: g.pace.status === 'retard' ? '#ff8a80' : g.pace.status === 'avance' ? '#7ee2a8' : '#fff' }}>{g.pace.status === 'retard' ? '⚠️ En retard' : g.pace.status === 'avance' ? '🚀 En avance' : '✅ Dans les temps'}</div>}
         {g?.nextMilestone && <div style={{ fontSize: 13, marginTop: 10, color: 'rgba(255,255,255,0.8)' }}>⏳ Prochaine deadline {fmt(g.nextMilestone.date)} : {g.nextMilestone.title}</div>}
         {active.length > 0 && <div style={{ fontSize: 13, marginTop: 4, color: 'rgba(255,255,255,0.8)' }}>🏆 {active.length} défi{active.length > 1 ? 's' : ''} en cours</div>}
       </> : <div style={{ fontSize: 15, lineHeight: 1.4, marginTop: 6, color: 'rgba(255,255,255,0.85)' }}>Pecs, bras, ventre plat avec abdos… Dis ce que tu veux : le coach lit ta dernière photo, te dit où tu en es, quoi faire, en combien de temps, et te montre à quoi tu ressembleras.</div>}
@@ -41,10 +42,11 @@ function Goals({ g, setG, toast }: { g: GoalsView; setG: (g: GoalsView) => void;
   const [zones, setZones] = useState<string[]>(s.zones);
   const [prio, setPrio] = useState<string[]>(s.priority);
   const [note, setNote] = useState(s.note);
+  const [wantBy, setWantBy] = useState(s.wantBy ?? '');
   const [busy, setBusy] = useState<string | null>(null);
   const [edit, setEdit] = useState(!p);
-  const dirty = zones.join() !== s.zones.join() || prio.join() !== s.priority.join() || note !== s.note;
-  useEffect(() => { setZones(s.zones); setPrio(s.priority); setNote(s.note); }, [s.zones.join(), s.priority.join(), s.note]);   // le coach a pu les changer
+  const dirty = zones.join() !== s.zones.join() || prio.join() !== s.priority.join() || note !== s.note || wantBy !== (s.wantBy ?? '');
+  useEffect(() => { setZones(s.zones); setPrio(s.priority); setNote(s.note); setWantBy(s.wantBy ?? ''); }, [s.zones.join(), s.priority.join(), s.note, s.wantBy]);   // le coach a pu les changer
   // Image en cours → on revient voir toutes les 6 s
   useEffect(() => {
     if (s.vision?.status !== 'running') return;
@@ -53,8 +55,8 @@ function Goals({ g, setG, toast }: { g: GoalsView; setG: (g: GoalsView) => void;
   }, [s.vision?.status]);
   const run = async (k: string, f: () => Promise<void>) => { setBusy(k); try { await f(); } catch (e) { toast(errText(e)); } finally { setBusy(null); } };
   const toggleZone = (id: string) => { setZones(z => z.includes(id) ? z.filter(x => x !== id) : [...z, id]); setPrio(pr => pr.filter(x => x !== id || !zones.includes(id))); };
-  const plan = () => run('plan', async () => { setG(await forme.goalPlan({ zones, note: note.trim(), priority: prio })); setEdit(false); vibrate(60); toast('🎯 Plan prêt'); });
-  const savePrefs = () => run('prefs', async () => { setG(await forme.goalPrefs({ zones, note: note.trim(), priority: prio })); toast('Enregistré — refais le plan pour le recalculer'); });
+  const plan = () => run('plan', async () => { setG(await forme.goalPlan({ zones, note: note.trim(), priority: prio, wantBy })); setEdit(false); vibrate(60); toast('🎯 Plan prêt'); });
+  const savePrefs = () => run('prefs', async () => { setG(await forme.goalPrefs({ zones, note: note.trim(), priority: prio, wantBy })); toast('Enregistré — refais le plan pour le recalculer'); });
 
   return <div style={{ paddingBottom: 10 }}>
     {/* 1. Ce que je veux */}
@@ -73,6 +75,12 @@ function Goals({ g, setG, toast }: { g: GoalsView; setG: (g: GoalsView) => void;
       <button onClick={() => { setZones(['dos', 'bras', 'pecs', 'abdos', 'jambes']); setPrio(['dos', 'bras', 'pecs', 'abdos']); setNote('D\'abord le haut du corps (dos, bras, pecs, ventre plat avec abdos). Quand le haut est bien entraîné, je commence le bas du corps.'); }} style={{ ...ghostBtn, width: '100%', marginTop: 12, fontSize: 13 }}>⚡ Raccourci : haut du corps d'abord, le bas ensuite</button>
       <div style={{ fontWeight: 800, margin: '14px 0 6px' }}>Avec tes mots</div>
       <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder="Ex. je veux des pecs bien dessinés et un ventre plat avec les abdos pour l'été, sans perdre mes bras" style={{ ...input, resize: 'vertical', fontSize: 15 }} />
+      <div style={{ fontWeight: 800, margin: '14px 0 6px' }}>📅 Je veux voir des résultats d'ici le</div>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        <input type="date" value={wantBy} min={new Date().toISOString().slice(0, 10)} onChange={e => setWantBy(e.target.value)} style={{ ...input, flex: 1 }} />
+        {wantBy && <button onClick={() => setWantBy('')} style={{ ...ghostBtn, padding: '10px 12px' }}>✕</button>}
+      </div>
+      <div style={{ fontSize: 12.5, color: F.muted, marginTop: 4 }}>Facultatif. Le coach met une deadline à cette date et te dit franchement ce qui sera visible.</div>
       <div style={{ fontSize: 12.5, color: F.muted, margin: '8px 0 10px' }}>📸 Le plan part de ta dernière photo{g.latest ? ` (${fmt(g.latest.date)})` : ' — prends-en une de face dans Photos de suivi'}. Torse nu ou t-shirt moulant = analyse juste.</div>
       <button disabled={!zones.length || !!busy} onClick={plan} style={{ ...btn, width: '100%', opacity: zones.length ? 1 : 0.5 }}>{busy === 'plan' ? <><Spinner size={16} color="#fff" /> Le coach regarde ta photo… (~30 s)</> : p ? '🔄 Refaire mon plan' : '🎯 Créer mon plan'}</button>
       {p && <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
@@ -83,6 +91,7 @@ function Goals({ g, setG, toast }: { g: GoalsView; setG: (g: GoalsView) => void;
       <div style={{ flex: 1, fontSize: 13.5, lineHeight: 1.4 }}>
         <b>{s.zones.map(id => `${s.priority.includes(id) ? '⭐' : ''}${g.zones.find(z => z.id === id)?.label ?? id}`).join(' · ')}</b>
         {s.note && <div style={{ color: F.muted, marginTop: 2 }}>« {s.note} »</div>}
+        {s.wantBy && <div style={{ color: F.accent, marginTop: 2, fontWeight: 700 }}>📅 Résultats voulus d'ici le {fmt(s.wantBy)}</div>}
       </div>
       <button onClick={() => setEdit(true)} style={{ ...ghostBtn, padding: '8px 12px' }}>✏️ Changer</button>
     </div>}
@@ -93,6 +102,7 @@ function Goals({ g, setG, toast }: { g: GoalsView; setG: (g: GoalsView) => void;
       <button disabled={!!busy} onClick={plan} style={{ ...btn, width: '100%', background: F.green }}>{busy === 'plan' ? <Spinner size={16} color="#fff" /> : '📊 Faire le point'}</button>
     </div>}
 
+    {p && <Tracking g={g} setG={setG} toast={toast} busy={busy} run={run} />}
     {p && <Plan g={g} setG={setG} toast={toast} busy={busy} run={run} />}
     <Challenges g={g} setG={setG} toast={toast} />
     <Coach g={g} setG={setG} toast={toast} />
@@ -112,12 +122,13 @@ function Plan({ g, setG, toast, busy, run }: { g: GoalsView; setG: (g: GoalsView
       <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)' }}>{p.weeks} semaines au total · encore {weeksLeft(p.eta)} — si tu suis le plan</div>
       <div style={{ fontSize: 14.5, lineHeight: 1.45, marginTop: 10, color: 'rgba(255,255,255,0.88)' }}>{p.summary}</div>
       {p.warning && <div style={{ fontSize: 13, marginTop: 8, background: 'rgba(255,180,0,0.15)', borderRadius: 10, padding: 8 }}>⚠️ {p.warning}</div>}
-      <div style={{ display: 'grid', gap: 10, marginTop: 14 }}>
+      <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.5)', marginTop: 10 }}>Niveaux /100 = estimation du coach à l'œil sur tes photos, pas une mesure. « ? » = zone pas visible : prends la photo qui manque.</div>
+      <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
         {p.zones.map(z => {
           const star = s.priority.includes(z.id) || p.focus?.zones.includes(z.id);
           return <div key={z.id}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 700, marginBottom: 4 }}><span>{star ? '⭐ ' : ''}{z.label}</span><span>{z.now}/100 · ~{z.weeks} sem.</span></div>
-            <Bar value={z.now} max={100} h={8} color={z.now >= 70 ? F.green : z.now >= 40 ? F.gold : F.accent2} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 700, marginBottom: 4 }}><span>{star ? '⭐ ' : ''}{z.label}</span><span>{z.now == null ? '? pas visible' : `${z.now}/100`} · ~{z.weeks} sem.</span></div>
+            {z.now != null ? <Bar value={z.now} max={100} h={8} color={z.now >= 70 ? F.green : z.now >= 40 ? F.gold : F.accent2} /> : <div style={{ height: 8, borderRadius: 4, border: '1px dashed rgba(255,255,255,0.35)' }} />}
             {z.note && <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.65)', marginTop: 3 }}>{z.note}</div>}
           </div>;
         })}
@@ -163,7 +174,8 @@ function Plan({ g, setG, toast, busy, run }: { g: GoalsView; setG: (g: GoalsView
             <div style={{ width: 26, height: 26, borderRadius: 13, flexShrink: 0, border: `2px solid ${m.done ? F.green : late ? F.red : F.line}`, background: m.done ? F.green : '#fff', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>{m.done ? '✓' : ''}</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 12, fontWeight: 800, color: late ? F.red : F.accent }}>{fmt(m.date)} · semaine {m.week}{late ? ' · en retard' : ''}</div>
-              <div style={{ fontSize: 14.5, fontWeight: 700, textDecoration: m.done ? 'line-through' : 'none' }}>{m.title}</div>
+              <div style={{ fontSize: 14.5, fontWeight: 700, textDecoration: m.done ? 'line-through' : 'none' }}>{m.title}{m.auto && <span style={{ fontSize: 11, color: F.green, marginLeft: 6, textDecoration: 'none' }}>✓ auto</span>}</div>
+              {!m.done && m.metric && m.metric !== 'photo' && <div style={{ fontSize: 11.5, color: F.green }}>Se coche tout seul ({m.metric === 'poids' ? `balance ≤ ${m.value} kg` : m.metric === 'seances' ? `${m.value} séances validées` : 'mensurations notées'})</div>}
               {m.check && <div style={{ fontSize: 12.5, color: F.muted }}>{m.check}</div>}
             </div>
           </button>;
@@ -186,6 +198,7 @@ function Plan({ g, setG, toast, busy, run }: { g: GoalsView; setG: (g: GoalsView
     {p.measures.length > 0 && <><H t="📏 Mensurations à viser" />
       <div style={{ ...card, display: 'grid', gap: 6 }}>
         {p.measures.map((m, i) => <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}><span>{m.what}</span><b>{m.now ? `${m.now} → ` : ''}{m.target} {m.unit}</b></div>)}
+        {p.measures.some(m => !m.now) && <div style={{ fontSize: 12.5, color: F.accent, fontWeight: 700 }}>📏 Tu n'as pas encore de mesure de départ : ces cibles sont indicatives. Mesure-toi d'abord pour suivre l'écart réel.</div>}
         <div style={{ fontSize: 12, color: F.muted }}>Mesure-toi toutes les 2 semaines (Progrès → mensurations) : le mètre ruban voit les progrès avant le miroir.</div>
       </div></>}
 
@@ -212,7 +225,8 @@ function ChallengeRow({ c, setG, toast }: { c: GoalChallenge; setG: (g: GoalsVie
       <button onClick={() => { if (confirm(`Supprimer « ${c.title} » ?`)) void act({ action: 'delete', id: c.id }); }} style={{ background: 'none', border: 'none', color: F.muted, fontSize: 16, cursor: 'pointer' }}>✕</button>
     </div>
     <div style={{ margin: '8px 0' }}><Bar value={c.progress} max={1} h={8} color={color} track={F.tile} /></div>
-    {!c.finished && (c.auto ? <div style={{ fontSize: 12.5, color: F.muted }}>Compté tout seul ({c.auto === 'sessions' ? 'tes séances validées' : 'les pas de ta montre'}) · aujourd'hui : {c.today.toLocaleString('fr-FR')}</div>
+    {c.autoFill && !c.finished && <div style={{ fontSize: 11.5, color: F.green, marginBottom: 4 }}>🤖 Rempli tout seul avec {c.autoFill}{c.auto ? '' : ' (tu peux aussi ajouter à la main)'}</div>}
+    {!c.finished && (c.auto ? <div style={{ fontSize: 12.5, color: F.muted }}>Aujourd'hui : {c.today.toLocaleString('fr-FR')}</div>
       : c.kind === 'check' ? <button disabled={busy} onClick={() => act({ action: 'log', id: c.id, value: doneToday ? 0 : 1 })} style={{ ...(doneToday ? ghostBtn : btn), width: '100%', padding: '10px' }}>{doneToday ? '✓ Fait aujourd\'hui (annuler)' : 'Fait aujourd\'hui'}</button>
       : <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
         <div style={{ fontSize: 12.5, color: F.muted, flex: 1 }}>{c.kind === 'record' ? `Ton meilleur : ${Math.max(0, ...Object.values(c.log))} ${c.unit}` : `Aujourd'hui : ${c.today}${c.kind === 'daily' ? ` / ${c.target}` : ''} ${c.unit}`}</div>
@@ -279,4 +293,29 @@ function Coach({ g, setG, toast }: { g: GoalsView; setG: (g: GoalsView) => void;
       </div>
     </div>
   </>;
+}
+
+function Tracking({ g, setG, toast, busy, run }: { g: GoalsView; setG: (g: GoalsView) => void; toast: (t: string) => void; busy: string | null; run: (k: string, f: () => Promise<void>) => Promise<void> }) {
+  const pc = g.pace, s = g.state;
+  const log = [...(s.log ?? [])].reverse().slice(0, 4);
+  const col = pc?.status === 'retard' ? F.red : pc?.status === 'avance' ? F.green : pc?.status === 'ok' ? F.accent : F.muted;
+  return <div style={{ ...card, marginTop: 12, borderLeft: `4px solid ${col}` }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ fontWeight: 800, color: col }}>{pc?.status === 'retard' ? '⚠️ En retard sur tes deadlines' : pc?.status === 'avance' ? '🚀 En avance sur tes deadlines' : pc?.status === 'ok' ? '✅ Dans les temps' : '📊 Suivi automatique'}</div>
+    </div>
+    {pc && <div style={{ fontSize: 13.5, lineHeight: 1.45, marginTop: 4 }}>{pc.text}</div>}
+    {pc?.next?.projected != null && <div style={{ fontSize: 12.5, color: F.muted, marginTop: 4 }}>Projection au {fmt(pc.next.date)} : {pc.next.projected} kg (objectif {pc.next.target} kg)</div>}
+    <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, marginTop: 10 }}>
+      <input type="checkbox" checked={s.autoAdjust !== false} onChange={e => run('auto', async () => setG(await forme.goalPrefs({ autoAdjust: e.target.checked })))} />
+      Si je prends du retard, ajuster tout seul ma séance et mon déficit (bilan chaque dimanche 19h)
+    </label>
+    <button disabled={!!busy} onClick={() => run('check', async () => { const r = await forme.goalCheck(); setG(r.overview); toast(r.entry.changes.length ? '🤖 Ajusté' : 'Vérifié'); })} style={{ ...ghostBtn, width: '100%', marginTop: 8 }}>{busy === 'check' ? <Spinner size={14} /> : '🔎 Vérifier maintenant'}</button>
+    {log.length > 0 && <div style={{ marginTop: 10, display: 'grid', gap: 6 }}>
+      <div style={{ fontSize: 12, fontWeight: 800, color: F.muted }}>DERNIERS BILANS</div>
+      {log.map((e, i) => <div key={i} style={{ fontSize: 12.5, background: F.tile, borderRadius: 10, padding: 8 }}>
+        <b>{fmt(e.date)} · {e.status === 'retard' ? 'retard' : e.status === 'avance' ? 'avance' : e.status === 'ok' ? 'dans les temps' : 'pas assez de données'}</b>
+        {e.changes.map((c, j) => <div key={j}>🤖 {c}</div>)}
+      </div>)}
+    </div>}
+  </div>;
 }

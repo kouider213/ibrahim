@@ -3,6 +3,13 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-02 — FORME : objectifs vérifiés (rien d'inventé) + suivi automatique (app v237)
+- Vérification du plan sur ses vraies photos : corrigé dos noté depuis une photo de face, jours de séance inventés, seuils en cm sans mesure de départ, « vergetures » inventées, abdos promis trop tôt, « 1 séance sur 8 » (ne lisait que FORME).
+- Plan : toutes ses poses récentes (face/dos/profil), vraies données imposées (protéines formeTargets, pas, jours du programme), zone non visible = « ? » (now null), filtre peau + filtre jalons en cm sans mesure, règles anti-flatterie et abdos ≥ 16 sem.
+- 📅 « Résultats voulus d'ici le » (wantBy, aussi réglable en parlant au coach) → jalon honnête à cette date.
+- Auto : défis remplis seuls (séances toutes sources = trainedDays, pas montre, pompes/tractions/dips/squats/gainage depuis l'exlog), jalons cochés seuls (poids, mensurations, séances).
+- Suivi avance/retard (vitesse lissée du module Sèche + séances 14 j vs prévues) ; dimanche 19h (forme-weekly) : bilan + si retard → séance refaite et déficit ajusté via la règle Sèche (bornes 250-750, pauses diète), push + Telegram ; interrupteur autoAdjust + bouton « Vérifier maintenant ».
+
 ## 2026-11-02 — FORME : Objectifs & défis (app v236)
 - Progrès → carte 🎯 « Mes objectifs & défis » : zones (pecs, bras, ventre plat + abdos, épaules, dos, jambes, posture, force), ⭐ muscles prioritaires, objectif avec ses mots, raccourci « haut du corps d'abord, le bas ensuite » (phases).
 - Plan lu sur la DERNIÈRE photo : niveau /100 par zone, délai + date d'arrivée, priorités choisies par le coach si rien n'est coché, répartition de la semaine, exercices, deadlines à cocher, mensurations, habitudes, « auxquelles tu n'aurais pas pensé », défis proposés.

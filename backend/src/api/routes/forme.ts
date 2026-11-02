@@ -317,10 +317,10 @@ router.post('/body-photo', async (req, res) => {
 const goals = () => import('../../integrations/forme-goals.js');
 router.get('/goals', async (req, res) => { try { res.json(await (await goals()).goalsOverview(U(req))); } catch (err) { fail(res, err); } });
 router.post('/goals', async (req, res) => {
-  const b = (req.body ?? {}) as { zones?: unknown; note?: unknown; photoId?: unknown; priority?: unknown };
+  const b = (req.body ?? {}) as { zones?: unknown; note?: unknown; photoId?: unknown; priority?: unknown; wantBy?: unknown };
   try {
     const g = await goals();
-    await g.makeGoalPlan(U(req), { zones: Array.isArray(b.zones) ? b.zones.map(String) : undefined, note: typeof b.note === 'string' ? b.note : undefined, photoId: typeof b.photoId === 'string' ? b.photoId : undefined, priority: Array.isArray(b.priority) ? b.priority.map(String) : undefined });
+    await g.makeGoalPlan(U(req), { zones: Array.isArray(b.zones) ? b.zones.map(String) : undefined, note: typeof b.note === 'string' ? b.note : undefined, photoId: typeof b.photoId === 'string' ? b.photoId : undefined, priority: Array.isArray(b.priority) ? b.priority.map(String) : undefined, wantBy: typeof b.wantBy === 'string' ? b.wantBy : undefined });
     res.json(await g.goalsOverview(U(req)));
   } catch (err) { fail(res, err, 400); }
 });
@@ -344,6 +344,9 @@ router.post('/goals/apply', async (req, res) => {
     const pr = (st.priority.length ? st.priority : st.plan.focus.zones).map(z => st.plan!.zones.find(x => x.id === z)?.label ?? z);
     res.json(await adaptNextSession(U(req), { focus: `Priorité : ${pr.join(', ')}. ${st.note}`.slice(0, 300), observations: `${st.plan.summary} ${st.plan.focus.why} Exercices conseillés : ${st.plan.exercises.map(e => e.id).join(', ')}.` }));
   } catch (err) { fail(res, err, 400); }
+});
+router.post('/goals/check', async (req, res) => {
+  try { const g = await goals(); const e = await g.goalsCheck(U(req), true); res.json({ entry: e, overview: await g.goalsOverview(U(req)) }); } catch (err) { fail(res, err, 400); }
 });
 router.post('/goals/vision', async (req, res) => { try { res.json({ vision: await (await goals()).startVision(U(req)) }); } catch (err) { fail(res, err, 400); } });
 router.post('/goals/milestone', async (req, res) => {
