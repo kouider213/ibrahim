@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-02 (soir) — 🖼️ FORME galerie + 🚗 discours voiture
+- 672ae10 FORME Progrès (app v241) : bouton « Choisir une photo … dans ma galerie » + « Photo de ma galerie + adapter ma séance » ; le bouton Galerie de la caméra n'a plus `capture` (l'iPhone ouvrait l'appareil photo au lieu de la photothèque).
+- 4e266ae car-coach.ts : vrai discours de motivation 5-7 phrases (30-40 s) + phrase de boost au re-démarrage < 30 min.
+- Raccourci CarPlay de Kouider : audio_url joué via « Émettre un son » (voix Jarvis Gemini TTS).
+- Crash-test : scénarios mis à jour (jour du retour jamais compté, nutrition via FORME) + darija-oranaise + liberte-prive.
+
 ## 2026-11-02 — 🚗 « Bonjour Kouider » en montant en voiture
 - car-coach.ts : à l'événement CarPlay (POST /api/jarvis/event type carplay_on), bonjour/bonsoir + 3 phrases de coach business (Grand Coach, doux si journée dure, famille si congé, jamais d'action au téléphone en conduisant) + citation vérifiée avec sa source (20 citations, rotation sans répétition), puis le point pratique existant (carBrief). « Re-bonjour » si moins de 30 min.
 - Constat : aucun événement CarPlay jamais reçu (gps:parking vide) → automatisation iPhone à installer.
