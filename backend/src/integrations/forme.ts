@@ -42,7 +42,7 @@ const WEEKS_K = (u: Uid) => `${u}:forme:weeks`;   // dates de début des plans (
 const SENT_K = (u: Uid, what: string, date: string) => `${u}:forme:sent:${what}:${date}`;
 const INVITE_K = (hash: string) => `forme:invite:${hash}`;
 const INVITE_OF = (u: Uid) => `forme:invite-of:${u}`;
-const BUCKET = 'forme-private';
+export const BUCKET = 'forme-private';
 
 export const STORES = ['Colruyt', 'Delhaize', 'Aldi', 'Lidl', 'Carrefour', 'Albert Heijn', 'Intermarché', 'Boucherie halal'] as const;
 export const WEGOVY_DOSES = ['0,25 mg', '0,5 mg', '1 mg', '1,7 mg', '2,4 mg', '7,2 mg'];
@@ -117,12 +117,12 @@ export interface WeekPlan {
 }
 
 // ── Lecture / écriture ───────────────────────────────────────────────────────
-const readJson = async <T,>(key: string, fallback: T): Promise<T> => {
+export const readJson = async <T,>(key: string, fallback: T): Promise<T> => {
   try { const raw = await kvGet(key); return raw ? JSON.parse(raw) as T : fallback; } catch { return fallback; }
 };
-const textOf = (res: { content: Array<{ type: string }> }) => res.content.filter(b => b.type === 'text').map(b => (b as unknown as { text: string }).text).join('');
-const jsonOf = <T,>(raw: string): T => JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as T;
-const LANG_RULE = (l: Lang) => l === 'ar'
+export const textOf = (res: { content: Array<{ type: string }> }) => res.content.filter(b => b.type === 'text').map(b => (b as unknown as { text: string }).text).join('');
+export const jsonOf = <T,>(raw: string): T => JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as T;
+export const LANG_RULE = (l: Lang) => l === 'ar'
   ? '\nLANGUE : écris TOUS les textes destinés à l\'utilisatrice (titres, étapes, conseils, notes, résumés) en ARABE LITTÉRAIRE (فصحى) clair et simple. Pour les produits à acheter, écris « nom arabe (nom français du rayon belge) ».'
   : '';
 
@@ -185,7 +185,7 @@ export async function setFormeProfile(patch: Partial<FormeProfile>, uid: Uid = '
   return next;
 }
 
-async function readDays(uid: Uid): Promise<Record<string, FormeDay>> { return readJson(DK(uid), {}); }
+export async function readDays(uid: Uid): Promise<Record<string, FormeDay>> { return readJson(DK(uid), {}); }
 async function saveDays(uid: Uid, d: Record<string, FormeDay>): Promise<void> {
   const keep = Object.keys(d).sort().slice(-200);
   await kvSet(DK(uid), JSON.stringify(Object.fromEntries(keep.map(k => [k, d[k]!]))));
@@ -259,7 +259,7 @@ export async function currentStart(uid: Uid, date = localNow().date): Promise<st
 
 // ── Séances de sa femme (Kouider a déjà son coach : sport-coach.ts, calé sur son agenda) ──
 // Exercices de free-exercise-db (vraies photos, domaine public) — la démo = les 2 photos en alternance.
-const EX_BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises';
+export const EX_BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises';
 const EX_LIB: Record<string, string> = {
   Bodyweight_Squat: 'jambes', Goblet_Squat: 'jambes', Dumbbell_Lunges: 'jambes', Barbell_Glute_Bridge: 'fessiers', Butt_Lift_Bridge: 'fessiers', Glute_Kickback: 'fessiers',
   Leg_Press: 'jambes', Seated_Leg_Curl: 'jambes', Leg_Extensions: 'jambes', Side_Lying_Groin_Stretch: 'mobilité', 'Step-up_with_Knee_Raise': 'jambes', Dumbbell_Step_Ups: 'jambes',
@@ -277,8 +277,8 @@ const EX_MALE: Record<string, string> = {
   Barbell_Curl: 'bras', 'EZ-Bar_Curl': 'bras', Preacher_Curl: 'bras', 'Close-Grip_Barbell_Bench_Press': 'bras', Lying_Triceps_Press: 'bras',
   Hanging_Leg_Raise: 'abdos', Cable_Crunch: 'abdos',
 };
-const EX_ALL: Record<string, string> = { ...EX_LIB, ...EX_MALE };
-const exLibFor = (p: { sex: 'h' | 'f' }) => (p.sex === 'h' ? EX_ALL : EX_LIB);
+export const EX_ALL: Record<string, string> = { ...EX_LIB, ...EX_MALE };
+export const exLibFor = (p: { sex: 'h' | 'f' }) => (p.sex === 'h' ? EX_ALL : EX_LIB);
 /** Règles d'entraînement selon l'objectif (prise de masse = hypertrophie, charge progressive) */
 const goalRule = (p: { goal: string; sex: string }) => p.goal === 'muscle'
   ? ` OBJECTIF PRISE DE MASSE : hypertrophie — chaque séance commence par 1-2 exercices de base lourds${p.sex === 'h' ? ' (développé couché, squat, rowing, développé militaire, tractions, soulevé de terre roumain)' : ''} en 6-10 reps, puis 3-4 exercices d'isolation en 10-15 reps ; repos 90-150 s sur les gros exercices ; 10 à 20 séries par muscle et par semaine ; PAS de cardio long (au plus 10 min d'échauffement), il brûlerait la prise de masse ; dans "tip", rappelle la charge progressive (+1 rep ou +2,5 kg quand toutes les séries sont réussies).`
@@ -368,14 +368,14 @@ Réponds UNIQUEMENT en JSON : {"label":"nom court","emoji":"🔥","focus":"zones
 }
 
 // ── Vision : photos du corps → évolution entourée ─
-type Img = { media: 'image/jpeg' | 'image/png' | 'image/webp'; data: string };
+export type Img = { media: 'image/jpeg' | 'image/png' | 'image/webp'; data: string };
 export function parseImage(dataUrl: string): Img {
   const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(dataUrl ?? '');
   if (!m) throw new Error('image invalide');
   if (m[2]!.length > 9_000_000) throw new Error('photo trop lourde');
   return { media: m[1] as Img['media'], data: m[2]! };
 }
-const imgBlock = (i: Img) => ({ type: 'image' as const, source: { type: 'base64' as const, media_type: i.media, data: i.data } });
+export const imgBlock = (i: Img) => ({ type: 'image' as const, source: { type: 'base64' as const, media_type: i.media, data: i.data } });
 
 export interface Zone { label: string; x: number; y: number; r: number; bx?: number; by?: number; br?: number; trend: 'mieux' | 'pareil' | 'à travailler'; note: string }
 export interface BodyAnalysis { at: number; vs: string | null; summary: string; zones: Zone[]; advice: string[]; focus: string[]; score: number; visible?: 'oui' | 'partiel' | 'non'; seen?: string }
@@ -411,7 +411,7 @@ export async function addBodyPhoto(uid: Uid, img: Img, pose: BodyPhoto['pose']):
   return ph;
 }
 
-async function photoB64(path: string): Promise<Img> {
+export async function photoB64(path: string): Promise<Img> {
   const { data, error } = await supabase.storage.from(BUCKET).download(path);
   if (error || !data) throw new Error('photo introuvable');
   const ext = path.split('.').pop();
@@ -746,6 +746,7 @@ export async function formeText(uid: Uid = 'kouider'): Promise<string> {
   ];
   let out = lines.filter(Boolean).join('\n');
   if (uid === 'kouider') out += `\n${await import('./forme-food.js').then(m => m.foodText()).catch(() => '')}`;
+  if (uid === 'kouider') { const gt = await import('./forme-goals.js').then(m => m.goalsText('kouider')).catch(() => ''); if (gt) out += `\n${gt}`; }
   if (uid === 'kouider') { const rt = await import('./forme-runs.js').then(m => m.runText('kouider')).catch(() => ''); if (rt) out += `\n${rt}`; }
   if (uid === 'kouider') {
     const fp = await getFormeProfile('femme');

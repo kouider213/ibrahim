@@ -3,6 +3,15 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-02 — FORME : Objectifs & défis (app v236)
+- Progrès → carte 🎯 « Mes objectifs & défis » : zones (pecs, bras, ventre plat + abdos, épaules, dos, jambes, posture, force), ⭐ muscles prioritaires, objectif avec ses mots, raccourci « haut du corps d'abord, le bas ensuite » (phases).
+- Plan lu sur la DERNIÈRE photo : niveau /100 par zone, délai + date d'arrivée, priorités choisies par le coach si rien n'est coché, répartition de la semaine, exercices, deadlines à cocher, mensurations, habitudes, « auxquelles tu n'aurais pas pensé », défis proposés.
+- « Mettre ça dans ma prochaine séance », « Faire le point » quand une photo plus récente existe (historique des niveaux).
+- 🔮 « Toi à l'arrivée » : image gratuite (HF FLUX Kontext puis Qwen Image Edit). 02/11 : les 2 Spaces HF répondaient « error null » (quota) → à retester.
+- 🏆 Défis : quotidien / cumul / record / case, 10 prêts + ceux du coach, séances et pas comptés tout seuls.
+- 💬 Coach : questions libres, et il change l'objectif/priorités en parlant (`goalChat`).
+- Backend : `forme-goals.ts`, routes /api/forme/goals*, ligne objectif dans formeText.
+
 ## 2026-11-02 — FORME : « Reprendre la photo » (app v235)
 - Dans « Avant / maintenant » : bouton 📸 Reprendre la photo → caméra même pose (ancienne photo AVANT en transparence), la nouvelle REMPLACE l'ancienne (liste + stockage) et garde la même photo AVANT. « Refaire l'analyse » reste (même photo).
 - Backend : `removeBodyPhoto()`, POST /api/forme/body-photo accepte `replace` + `vs`.

@@ -313,6 +313,47 @@ router.post('/body-photo', async (req, res) => {
   } catch (err) { fail(res, err, 400); }
 });
 
+// 🎯 OBJECTIFS & DÉFIS (02/11) : dernière photo → niveau, exercices, délai, jalons ; image « toi à l'arrivée » ; défis
+const goals = () => import('../../integrations/forme-goals.js');
+router.get('/goals', async (req, res) => { try { res.json(await (await goals()).goalsOverview(U(req))); } catch (err) { fail(res, err); } });
+router.post('/goals', async (req, res) => {
+  const b = (req.body ?? {}) as { zones?: unknown; note?: unknown; photoId?: unknown; priority?: unknown };
+  try {
+    const g = await goals();
+    await g.makeGoalPlan(U(req), { zones: Array.isArray(b.zones) ? b.zones.map(String) : undefined, note: typeof b.note === 'string' ? b.note : undefined, photoId: typeof b.photoId === 'string' ? b.photoId : undefined, priority: Array.isArray(b.priority) ? b.priority.map(String) : undefined });
+    res.json(await g.goalsOverview(U(req)));
+  } catch (err) { fail(res, err, 400); }
+});
+router.post('/goals/prefs', async (req, res) => {
+  try { const g = await goals(); await g.setGoalPrefs(U(req), (req.body ?? {}) as never); res.json(await g.goalsOverview(U(req))); } catch (err) { fail(res, err, 400); }
+});
+router.post('/goals/chat', async (req, res) => {
+  const b = (req.body ?? {}) as { message?: string; clear?: boolean };
+  try {
+    const g = await goals();
+    if (b.clear) { await g.clearGoalChat(U(req)); res.json({ answer: '', changed: false, overview: await g.goalsOverview(U(req)) }); return; }
+    const r2 = await g.goalChat(U(req), String(b.message ?? ''));
+    res.json({ ...r2, overview: await g.goalsOverview(U(req)) });
+  } catch (err) { fail(res, err, 400); }
+});
+// « Mettre dans mes séances » : la prochaine séance est refaite autour des priorités du plan
+router.post('/goals/apply', async (req, res) => {
+  try {
+    const st = (await (await goals()).goalsOverview(U(req))).state;
+    if (!st.plan) throw new Error('Pas encore de plan');
+    const pr = (st.priority.length ? st.priority : st.plan.focus.zones).map(z => st.plan!.zones.find(x => x.id === z)?.label ?? z);
+    res.json(await adaptNextSession(U(req), { focus: `Priorité : ${pr.join(', ')}. ${st.note}`.slice(0, 300), observations: `${st.plan.summary} ${st.plan.focus.why} Exercices conseillés : ${st.plan.exercises.map(e => e.id).join(', ')}.` }));
+  } catch (err) { fail(res, err, 400); }
+});
+router.post('/goals/vision', async (req, res) => { try { res.json({ vision: await (await goals()).startVision(U(req)) }); } catch (err) { fail(res, err, 400); } });
+router.post('/goals/milestone', async (req, res) => {
+  const b = (req.body ?? {}) as { i?: number; done?: boolean };
+  try { const g = await goals(); await g.toggleMilestone(U(req), Number(b.i), !!b.done); res.json(await g.goalsOverview(U(req))); } catch (err) { fail(res, err, 400); }
+});
+router.post('/goals/challenge', async (req, res) => {
+  try { const g = await goals(); await g.challengeAction(U(req), (req.body ?? {}) as never); res.json(await g.goalsOverview(U(req))); } catch (err) { fail(res, err, 400); }
+});
+
 // POST /api/forme/analyze { id, vs? } — refaire l'analyse d'une photo (vs = photo « avant » choisie)
 router.post('/analyze', async (req, res) => {
   const b = req.body as { id?: string; vs?: string };

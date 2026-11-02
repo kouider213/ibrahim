@@ -153,6 +153,14 @@ export const forme = {
   doctor: () => call<{ text: string }>('/api/forme/doctor'),
   analyze: (id: string, vs?: string) => post<{ analysis: Analysis }>('/api/forme/analyze', vs ? { id, vs } : { id }),
   adapt: (focus: string) => post<{ date: string; text: string }>('/api/forme/adapt', { focus }),
+  goals: () => call<GoalsView>('/api/forme/goals'),
+  goalPlan: (b: { zones: string[]; note: string; priority: string[] }) => post<GoalsView>('/api/forme/goals', b),
+  goalPrefs: (b: { zones?: string[]; note?: string; priority?: string[] }) => post<GoalsView>('/api/forme/goals/prefs', b),
+  goalVision: () => post<{ vision: GoalVision }>('/api/forme/goals/vision', {}),
+  goalMilestone: (i: number, done: boolean) => post<GoalsView>('/api/forme/goals/milestone', { i, done }),
+  goalChallenge: (b: { action: 'add' | 'log' | 'delete' | 'reset-day'; id?: string; preset?: number; fromPlan?: number; value?: number }) => post<GoalsView>('/api/forme/goals/challenge', b),
+  goalChat: (message: string, clear = false) => post<{ answer: string; changed: boolean; overview: GoalsView }>('/api/forme/goals/chat', { message, clear }),
+  goalApply: () => post<{ date: string; text: string }>('/api/forme/goals/apply', {}),
   ask: (question: string, mode = '') => post<{ answer: string }>('/api/forme/ask', { question, mode }),
   push: (sub: PushSubscriptionJSON) => post<{ ok: boolean }>('/api/forme/push', sub),
 };
@@ -177,3 +185,25 @@ export const dayOf = (d: string) => new Date(`${d}T12:00:00Z`).getUTCDay();
 export const fmtLong = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString(isAr() ? 'ar' : 'fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
 export const weekNo = (d: string) => { const t = new Date(`${d}T00:00:00Z`); const n = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - n); return Math.ceil(((t.getTime() - Date.UTC(t.getUTCFullYear(), 0, 1)) / 86_400_000 + 1) / 7); };
 export const vibrate = (ms = 30) => { try { navigator.vibrate?.(ms); } catch { /* */ } };
+
+// 🎯 Objectifs & défis (02/11)
+export interface GoalVision { status: 'running' | 'done' | 'error'; at: number; photoId: string; path?: string; error?: string }
+export interface GoalChallenge { id: string; title: string; emoji: string; unit: string; kind: 'daily' | 'total' | 'record' | 'check'; target: number; days: number; start: string; log: Record<string, number>; auto?: 'sessions' | 'steps';
+  end: string; dayNo: number; today: number; progress: number; label: string; finished: boolean; late: boolean }
+export interface GoalPlanV {
+  at: number; photoId: string; photoDate: string; seen: string; visible: 'oui' | 'partiel' | 'non'; summary: string; weeks: number; eta: string;
+  zones: Array<{ id: string; label: string; now: number; note: string; weeks: number }>;
+  weekly: { sessions: number; cardio: string; steps: number; protein: number };
+  exercises: Array<{ id: string; name: string; muscle: string; sets: number; reps: string; why: string; img: string }>;
+  milestones: Array<{ week: number; date: string; title: string; check: string; done?: number }>;
+  measures: Array<{ what: string; now?: number; target: number; unit: string }>;
+  focus?: { zones: string[]; why: string; split: string };
+  habits: string[]; ideas: string[]; challenges: Array<{ title: string; emoji: string; kind: GoalChallenge['kind']; target: number; unit: string; days: number }>; warning?: string;
+}
+export interface GoalsView {
+  zones: Array<{ id: string; label: string; emoji: string }>;
+  presets: Array<{ title: string; emoji: string; kind: GoalChallenge['kind']; target: number; unit: string; days: number; for: string[] }>;
+  state: { zones: string[]; note: string; priority: string[]; chat: Array<{ role: 'moi' | 'coach'; text: string; at: number }>; at: number; plan?: GoalPlanV; history: Array<{ date: string; levels: Record<string, number> }>; vision?: GoalVision; challenges: GoalChallenge[] };
+  planPhotoUrl: string | null; latest: { id: string; date: string; url: string | null } | null; visionUrl: string | null; recheck: boolean;
+  nextMilestone: GoalPlanV['milestones'][number] | null;
+}

@@ -4,6 +4,7 @@ import { forme, errText, compressImage, type Overview, type Photo, type Analysis
 import { F, Title, Section, card, darkCard, btn, darkBtn, ghostBtn, Sheet, Spinner, LineChart, Ring, Stat, input, Chip } from './ui.tsx';
 import { beep } from './Sport.tsx';
 import Insights from './Insights.tsx';
+import { GoalsCard } from './Goals.tsx';
 
 // Onglet CORPS : poids, mensurations et PHOTOS DE SUIVI. Caméra avec la photo d'avant en transparence pour se placer
 // pareil, minuteur 3 s par défaut (10 s / off au choix), photo « avant » au choix, puis Claude compare avant / maintenant et entoure ce qui a changé.
@@ -216,6 +217,7 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
   return (
     <div style={{ padding: '6px 18px 0' }}>
       <Title a="Ton" b="évolution" />
+      <div style={{ marginTop: -6, marginBottom: 12 }}><GoalsCard toast={toast} /></div>
       <div style={{ display: 'flex', gap: 8 }}>
         <Stat v={`${cur}`} l="kg aujourd'hui" />
         <Stat v={`${cur - start > 0 ? '+' : ''}${(cur - start).toFixed(1)}`} l="kg depuis le début" color={cur <= start ? F.green : F.accent} />
