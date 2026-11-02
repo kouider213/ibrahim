@@ -229,7 +229,13 @@ async function freeBrain(body: Body, quality = false): Promise<Response | null> 
   // leur quota du jour pour les conversations avec Kouider (29/10 : quota vide dès 8 h)
   const all = fallbackEndpoints();
   const light = !deep && !hasImage && !((body.tools ?? []) as unknown[]).length;
-  const eps = light ? [...all.filter(e => /lite/.test(e.model)), ...all.filter(e => !/lite/.test(e.model))] : visionFirst(all, hasImage);
+  // 02/11 : photo envoyée MAINTENANT (repas FORME, inspection…) → seulement des cerveaux qui voient ; un cerveau aveugle
+  // inventait le contenu (calories/protéines fausses). Images plus anciennes de l'historique : ordre vision d'abord seulement.
+  const lastU = [...msgs].reverse().find(m => m.role === 'user');
+  const imageNow = Array.isArray(lastU?.content) && (lastU!.content as Block[]).some(b => b.type === 'image');
+  const seeing = all.filter(e => e.vision);
+  const eps = light ? [...all.filter(e => /lite/.test(e.model)), ...all.filter(e => !/lite/.test(e.model))]
+    : imageNow && seeing.length ? seeing : visionFirst(all, hasImage);
   const race = await hedgedRace(eps, async (ep, signal) => {
     try {
       const oai = toOpenAI(body, ep.model, !!ep.vision, ep.toolMax ?? 120, deep);
