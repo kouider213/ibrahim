@@ -539,6 +539,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'quotidien',
+    cron:  '*/15 4-22 * * *',       // LE QUOTIDIEN : sac, givre, pluie, courses, Ibrahim, dos, poubelles, montre, caisse, taux (quotidien.ts)
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'forme-food',
     cron:  '*/15 4-22 * * *',       // compteur calories : réveil (nuit montre), collations, rappel midi, « ce soir il te reste », avant de dormir
     tz:    'Europe/Brussels',
@@ -826,6 +831,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'forme-reminders':         async () => { console.log(`[forme] ${await jobFormeReminders()}`); },
   'forme-weekly':            async () => { await jobFormeWeekly(); },
   'sleep-weekly':            async () => { console.log(`[sleep-weekly] ${await (await import('../integrations/sleep-coach.js')).weeklySleepReview()}`); },
+  'quotidien':               async () => { console.log(`[quotidien] ${await (await import('../integrations/quotidien.js')).jobQuotidien()}`); },
   'forme-food':              async () => { console.log(`[forme-food] ${await (await import('../integrations/forme-food.js')).jobFoodCoach()}`); },
   'kouider-dossier':         async () => { console.log(`[kouider-dossier] ${await jobKouiderDossier()}`); },
   'season-watch':            async () => { console.log(`[season-watch] ${await jobSeasonWatch()}`); },

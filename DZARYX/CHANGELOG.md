@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-02 (nuit) — LE QUOTIDIEN : 10 options
+- quotidien.ts + outil quotidien + job */15 : sac veille de sport, givre, pluie 30 min, courses au magasin, darija+jeu Ibrahim, pause dos au travail, poubelles, montre en charge, caisse du soir, taux € → DA.
+
 ## 2026-11-02 (soir) — corrections
 - Rappel de lieu : ne sonne plus en boucle (verrou + enregistré avant envoi), pas tout de suite si créé sur place (armement hors zone), option from (pas avant date).
 - Ne pas déranger : ses demandes sont exécutées (agenda ignoré → « profite de ta soirée ») ; plus de « à partir de quelle heure je peux te rappeler » chaque matin.
