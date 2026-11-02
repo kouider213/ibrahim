@@ -2,7 +2,20 @@
 import { JARVIS3_TOOLS } from './jarvis3-tools.js';
 import { JARVIS4_TOOLS } from './jarvis4-tools.js';
 
-export const Dzaryx_TOOLS: Anthropic.Tool[] = [
+// 🧹 02/11 (Kouider « oui cache les ») : outils morts cachés au cerveau — le code reste (tool-executor), on peut les
+// remettre en les retirant de cette liste. Le cerveau gratuit ne voit qu'~120 outils par message : les morts prenaient la place.
+export const HIDDEN_TOOLS = new Set([
+  // Nexus (PC de Kouider) — abandonné 02/11
+  'ping_nexus', 'send_nexus_command', 'nexus_screenshot', 'wake_nexus', 'restart_nexus', 'update_nexus', 'nexus_full_status',
+  // Obsidian (passe par Nexus)
+  'obsidian_find_vault', 'obsidian_read_client', 'obsidian_update_client', 'obsidian_list_clients', 'obsidian_write_note', 'obsidian_read_note',
+  // anciennes vidéos TikTok → remplacées par video_studio (page MONTAGE)
+  'create_marketing_video', 'edit_marketing_video', 'regenerate_voice', 'create_scenario_video', 'create_video_project', 'generate_tiktok_video', 'merge_videos',
+  // divers
+  'netlify_deploy', 'get_learning_evolution', 'get_monthly_improvement_report',
+]);
+
+const ALL_TOOLS: Anthropic.Tool[] = [
   {
     name: 'list_bookings',
     description: 'Lister les réservations depuis Supabase. Filtre par status, client, voiture ou date.',
@@ -3268,3 +3281,4 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   ...JARVIS3_TOOLS,
   ...JARVIS4_TOOLS,
 ];
+export const Dzaryx_TOOLS: Anthropic.Tool[] = ALL_TOOLS.filter(t => !HIDDEN_TOOLS.has(t.name));

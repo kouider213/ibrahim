@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-02 (soir, 2) — 🧹 23 outils morts cachés + appels résistants au redéploiement
+- tools.ts : HIDDEN_TOOLS (Nexus ×7, Obsidian ×6, anciennes vidéos TikTok ×7, netlify_deploy, get_learning_evolution, get_monthly_improvement_report) retirés de Dzaryx_TOOLS (306 → 283). Code gardé : retirer un nom de la liste pour le remettre.
+- 9a87a78 tgcall : HTTP 502 du backend (redéploiement Railway) pendant un appel → nouvel essai 6 s après au lieu de OpenAI (sans crédit) + voix de secours lente.
+
 ## 2026-11-02 (soir) — 🖼️ FORME galerie + 🚗 discours voiture
 - 672ae10 FORME Progrès (app v241) : bouton « Choisir une photo … dans ma galerie » + « Photo de ma galerie + adapter ma séance » ; le bouton Galerie de la caméra n'a plus `capture` (l'iPhone ouvrait l'appareil photo au lieu de la photothèque).
 - 4e266ae car-coach.ts : vrai discours de motivation 5-7 phrases (30-40 s) + phrase de boost au re-démarrage < 30 min.
