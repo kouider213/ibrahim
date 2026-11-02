@@ -28,6 +28,16 @@ export const QUOTES: Array<{ q: string; who: string; src: string }> = [
   { q: 'Il n\'y a qu\'un seul patron : le client. Il peut licencier tout le monde dans l\'entreprise, du président jusqu\'en bas, simplement en dépensant son argent ailleurs.', who: 'Sam Walton, fondateur de Walmart', src: 'citée par Walmart' },
 ];
 
+// 02/11 : dans la voiture = philosophie, business, sport, avenir en Algérie… tout SAUF médicament / Liberté.
+const THEMES = [
+  'business : FIK, ses clients, une priorité concrète du jour',
+  'philosophie stoïque appliquée à sa journée (Marc Aurèle, Sénèque)',
+  'sport et discipline : le corps qu\'il forge, la régularité',
+  'son AVENIR EN ALGÉRIE : la maison à Oran, s\'installer là-bas avec sa femme et Ibrahim, chaque jour en Belgique le rapproche du retour',
+  'devenir un grand businessman en Algérie : la vision à 5 ans',
+  'être un père et un mari solide : ce qu\'il construit pour sa femme et Ibrahim',
+];
+
 const LAST_K = 'car:greet:last', USED_K = 'car:quotes:used';
 
 async function pickQuote() {
@@ -61,12 +71,16 @@ export async function carGreeting(pos: { lat?: number; lng?: number } = {}): Pro
   const time = `Il est ${hhmm.replace(':', ' heures ').replace(/ 00$/, '')}`;
   const weather = meteo ? `, ${Math.round(meteo.temp)} degrés dehors, ${meteo.label.toLowerCase()}${meteo.rain ? ', prudence sur la route' : ''}` : '';
   const tone = hard ? 'Il a demandé une JOURNÉE DURE : doux, rassurant, aucune pression business.'
-    : off ? 'Jour de congé (famille) : rappelle le sens de ce qu\'il construit (sa famille, sa liberté, l\'Algérie), sans lui donner de travail.'
+    : off ? 'Jour de congé (famille) : rappelle le sens de ce qu\'il construit (sa femme, Ibrahim, leur avenir en Algérie), sans lui donner de travail.'
     : 'Journée de travail : motive-le sur son business (FIK, ses clients, son objectif du mois, devenir un grand businessman en Algérie) avec UNE priorité concrète pour aujourd\'hui.';
   const speech = await ai(`Tu es JARVIS, l'intelligence artificielle majordome de Kouider (comme le Jarvis d'Iron Man) : voix calme, phrases précises et élégantes, VOUVOIEMENT, assurance tranquille, une petite pointe d'humour fin. Kouider vient de monter dans sa voiture ; tu lui as déjà dit bonjour, l'heure et la météo.
-Dis maintenant 3 phrases courtes maximum (15 secondes à l'oral) : un mot sur l'état des choses façon Jarvis (ex. « Tous les systèmes sont opérationnels. »), puis un discours de motivation de coach de vie et de coach business. ${tone}
+Dis maintenant 3 phrases courtes maximum (15 secondes à l'oral) : un mot sur l'état des choses façon Jarvis (ex. « Tous les systèmes sont opérationnels. »), puis un discours de motivation. ${tone}
+THÈMES (varie chaque fois) : ${THEMES[Math.floor(Math.random() * THEMES.length)]}.
+SA VIE : Kouider vit en BELGIQUE avec sa femme et leur fils Ibrahim, loin de l'Algérie. Il travaille et construit ici, à distance, l'avenir de sa famille EN ALGÉRIE (Oran) : la maison, la voiture, son business, pour pouvoir aller y vivre tous les trois. Ce sacrifice de l'exil a un but, tu peux le lui rappeler avec respect.
+⛔ STRICTEMENT INTERDIT dans la voiture : médicament, pharmacie, santé, sevrage, programme Liberté, dose, envie — pas même une allusion. C'est privé.
 Ne redis pas bonjour, ni son prénom en premier mot. Il CONDUIT : aucune action à faire au téléphone maintenant (dis « en arrivant » si besoin). Pas d'emoji, pas de liste, pas de citation (elle vient après). N'invente aucun chiffre ni nom : seulement ce qui est dans le contexte, sinon reste général.
 Contexte (Grand Coach) : ${coach.slice(0, 1500)}`, { max: 220 }).catch(() => '');
   const fallback = off ? 'Tous les systèmes sont opérationnels. Profitez des vôtres aujourd\'hui, c\'est pour eux que vous construisez tout cela.' : 'Tous les systèmes sont opérationnels. Une seule priorité aujourd\'hui, monsieur : un pas concret pour votre entreprise. Les grands se construisent dans la régularité.';
-  return [`${hello} ${time}${weather}.`, (speech || fallback).trim(), `Citation du jour : ${quote.q} ${quote.who[0]!.toUpperCase()}${quote.who.slice(1)}, ${quote.src}.`].join(' ');
+  const { carPrivacy } = await import('./jarvis4.js');
+  return [`${hello} ${time}${weather}.`, carPrivacy(speech || '') || fallback, `Citation du jour : ${quote.q} ${quote.who[0]!.toUpperCase()}${quote.who.slice(1)}, ${quote.src}.`].join(' ');
 }

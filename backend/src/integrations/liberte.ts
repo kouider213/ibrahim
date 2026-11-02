@@ -990,13 +990,21 @@ async function pharmacyWatch(): Promise<void> {
   if (!key) return;
   const loc = await (await import('./location.js')).getLocation('kouider').catch(() => null);
   if (!loc || Date.now() - Date.parse(loc.updated_at) > 10 * 60_000) return;
-  const last = parse<{ lat: number; lng: number; n: number; day: string } | null>(await kvGet(sentKey('ph-last')).catch(() => null), null);
+  // 02/11 : fausse alerte « je te vois à la pharmacie » en voiture → seulement s'il est À L'ARRÊT au même endroit ≥ 5 min
+  // (passer devant en roulant ou s'arrêter à un feu ne compte plus), et jamais pendant qu'il conduit (CarPlay branché).
+  const car = parse<{ at: number; type: string } | null>(await kvGet('car:last-event').catch(() => null), null);
+  if (car && car.type.startsWith('carplay') && car.type !== 'carplay_off' && Date.now() - car.at < 3 * 3600_000) {
+    const off = parse<{ at: number; type: string } | null>(await kvGet('car:last-off').catch(() => null), null);
+    if (!off || off.at < car.at) return;
+  }
+  const last = parse<{ lat: number; lng: number; since: number; n: number; day: string; checked?: boolean } | null>(await kvGet(sentKey('ph-last')).catch(() => null), null);
   const { date } = localNow();
-  const moved = !last || Math.hypot((loc.lat - last.lat) * 111_000, (loc.lng - last.lng) * 73_000) > 150;
+  const same = last && Math.hypot((loc.lat - last.lat) * 111_000, (loc.lng - last.lng) * 73_000) < 40;
   const count = last?.day === date ? last.n : 0;
-  if (!moved || count >= 15) return;
-  await kvSet(sentKey('ph-last'), JSON.stringify({ lat: loc.lat, lng: loc.lng, n: count + 1, day: date }), 2 * 86_400);
-  const r = await fetch(`https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${loc.lat},${loc.lng}&radius=35&type=pharmacy&key=${key}`);
+  if (!same) { await kvSet(sentKey('ph-last'), JSON.stringify({ lat: loc.lat, lng: loc.lng, since: Date.now(), n: count, day: date }), 2 * 86_400); return; }
+  if (last!.checked || Date.now() - last!.since < 5 * 60_000 || count >= 15) return;
+  await kvSet(sentKey('ph-last'), JSON.stringify({ ...last, n: count + 1, day: date, checked: true }), 2 * 86_400);
+  const r = await fetch(`https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${loc.lat},${loc.lng}&radius=25&type=pharmacy&key=${key}`);
   const j = await r.json() as { results?: Array<{ name: string }> };
   const ph = j.results?.[0];
   if (ph && await once(`pharma:${date}`, 86_400)) {
