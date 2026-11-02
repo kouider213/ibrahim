@@ -285,16 +285,21 @@ export async function falRun(modelId: string, input: Record<string, unknown>, ma
   throw new Error(`fal.ai ${modelId} : trop long (${Math.round(maxMs / 60000)} min)`);
 }
 
-function shotInput(model: ModelId, shot: StudioShot, imageUrl: string | null, nativeAudio: boolean, subject?: string): { endpoint: string; input: Record<string, unknown> } {
-  const m = STUDIO_MODELS[model];
-  const img = shot.use_image && imageUrl ? imageUrl : null;
+/** Prompt du plan : sujet de la photo verrouillé (couleur, déco, lieu) + mouvement doux quand on part d'une vraie photo. */
+function lockedPrompt(shot: StudioShot, img: string | null, subject?: string): string {
   // Depuis UNE photo, un 360° / drone / zoom rapide oblige l'IA à inventer le reste de la voiture → déformations
   const cam = img && /^(orbit|fpv|drone|crash_zoom)$/.test(shot.camera)
     ? 'slow gentle arc of about 30 degrees around the subject, steady gimbal, realistic commercial camera move'
     : STUDIO_CAMERAS[shot.camera]?.prompt;
   // 02/11 : la déco de mariage de la CLS disparaissait en plein plan → on verrouille le sujet de la photo
   const lock = img ? `Keep the exact same vehicle as the start image${subject ? ` (${subject})` : ''}: identical colour, every decoration stays attached and visible the whole shot, same street and light, real-world physics, no morphing. ` : '';
-  const prompt = `${lock}${cam ? `${shot.prompt}. Camera: ${cam}.` : shot.prompt}`;
+  return `${lock}${cam ? `${shot.prompt}. Camera: ${cam}.` : shot.prompt}`;
+}
+
+function shotInput(model: ModelId, shot: StudioShot, imageUrl: string | null, nativeAudio: boolean, subject?: string): { endpoint: string; input: Record<string, unknown> } {
+  const m = STUDIO_MODELS[model];
+  const img = shot.use_image && imageUrl ? imageUrl : null;
+  const prompt = lockedPrompt(shot, img, subject);
   const d = snapDuration(model, shot.duration);
   const negative = 'blur, distortion, morphing, warping, changing car colour, decoration disappearing, different car, warped hands, extra fingers, text, watermark, logo, low quality, cartoon, CGI, video game look, plastic look';
   if (model === 'kling3') {
@@ -405,10 +410,9 @@ async function hfVideo(imageUrl: string, prompt: string, seconds: number): Promi
   } catch (e) { await hfFail(e); return null; }
 }
 
-export async function freeShot(shot: StudioShot, imageUrl: string | null, dir: string, i: number, seed: number): Promise<string> {
+export async function freeShot(shot: StudioShot, imageUrl: string | null, dir: string, i: number, seed: number, subject?: string): Promise<string> {
   const img = path.join(dir, `img${i}.jpg`);
-  const cam = STUDIO_CAMERAS[shot.camera]?.prompt;
-  const motion = cam ? `${shot.prompt}. Camera: ${cam}` : shot.prompt;
+  const motion = lockedPrompt(shot, shot.use_image && imageUrl ? imageUrl : null, subject);
   // 1) Image de départ : vraie photo de la voiture, sinon photo IA réaliste (FLUX), sinon Pollinations
   let srcUrl: string | null = shot.use_image && imageUrl ? imageUrl : await hfImage(shot.prompt, seed + i);
   // 2) Vraie vidéo IA à partir de cette image (Wan 2.2) ; sinon animation au montage
@@ -699,7 +703,7 @@ async function renderJob(job: StudioJob, plan: StudioPlan, opts: RenderOptions):
     let falEmpty = !free && Number((await kvGet(FAL_EMPTY_KEY).catch(() => null)) ?? 0) > Date.now();
     let freeUsed = 0;
     const fallbackFree = async (i: number) => {
-      try { clips[i] = await freeShot(plan.shots[i]!, plan.image_url ?? null, dir, i, seed); freeUsed++; }
+      try { clips[i] = await freeShot(plan.shots[i]!, plan.image_url ?? null, dir, i, seed, plan.subject); freeUsed++; }
       catch (e) { console.error(`[studio] plan ${i + 1} secours gratuit :`, e instanceof Error ? e.message : e); }
     };
     let cursor = 0;
@@ -709,7 +713,7 @@ async function renderJob(job: StudioJob, plan: StudioPlan, opts: RenderOptions):
         const shot = plan.shots[i]!;
         for (let attempt = 0; attempt < 2 && !clips[i] && !falEmpty; attempt++) {
           try {
-            if (free) { clips[i] = await freeShot(shot, plan.image_url ?? null, dir, i, seed); break; }
+            if (free) { clips[i] = await freeShot(shot, plan.image_url ?? null, dir, i, seed, plan.subject); break; }
             const { endpoint, input } = shotInput(opts.model, shot, plan.image_url ?? null, opts.nativeAudio, plan.subject);
             const res = await falRun(endpoint, input);
             const url = (res['video'] as { url?: string } | undefined)?.url;
