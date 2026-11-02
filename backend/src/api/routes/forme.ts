@@ -2,7 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import { requireMobileAuth } from '../middleware/auth.js';
 import {
   formeOverview, setFormeProfile, logForme,
-  parseImage, addBodyPhoto, analyzeBodyPhoto, askFormeCoach, storeFormeSub, formeTargets,
+  parseImage, addBodyPhoto, removeBodyPhoto, analyzeBodyPhoto, askFormeCoach, storeFormeSub, formeTargets,
   adaptNextSession, doctorReport, translateAr, createInvite, revokeInvite, uidFromFormeToken, getProgram, programOverview,
   type FormeProfile, type BodyPhoto, type Uid,
   scanMachine, machineHistory, deleteMachine, exFavs, toggleExFav, exHistory, addExSet, delExSet, addExSets, exLast, routines, saveRoutine, deleteRoutine, type RoutineEx,
@@ -299,12 +299,14 @@ router.post('/adapt', async (req, res) => {
 
 // POST /api/forme/body-photo { image, pose } → stockée en privé puis analysée (avant / maintenant)
 router.post('/body-photo', async (req, res) => {
-  const b = req.body as { image?: string; pose?: string; goal?: string; adapt?: boolean };
+  const b = req.body as { image?: string; pose?: string; goal?: string; adapt?: boolean; replace?: string; vs?: string };
   const pose = (['face', 'profil', 'dos'].includes(String(b.pose)) ? b.pose : 'face') as BodyPhoto['pose'];
   try {
     const ph = await addBodyPhoto(U(req), parseImage(String(b.image ?? '')), pose);
+    // replace = « reprendre la photo » : l'ancienne disparaît, la comparaison garde la même photo AVANT
+    if (b.replace) await removeBodyPhoto(U(req), String(b.replace)).catch(() => null);
     const goal = String(b.goal ?? '').slice(0, 300);
-    const analysis = await analyzeBodyPhoto(U(req), ph.id, goal).catch(e => ({ error: e instanceof Error ? e.message : String(e) }));
+    const analysis = await analyzeBodyPhoto(U(req), ph.id, goal, String(b.vs ?? '')).catch(e => ({ error: e instanceof Error ? e.message : String(e) }));
     // « Photo + adapter » : la séance de demain est refaite d'après la photo (et ce qu'il veut perdre)
     const adapted = b.adapt && !('error' in analysis) ? await adaptNextSession(U(req), { focus: goal, observations: `${analysis.summary} Zones : ${analysis.zones.map(z => `${z.label} (${z.trend})`).join(', ')}.` }).catch(e => ({ date: '', text: e instanceof Error ? e.message : String(e) })) : null;
     res.json({ photo: ph, analysis, adapted });

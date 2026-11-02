@@ -385,6 +385,16 @@ async function ensureBucket() { await supabase.storage.createBucket(BUCKET, { pu
 
 export async function readPhotos(uid: Uid = 'kouider'): Promise<BodyPhoto[]> { return readJson<BodyPhoto[]>(PHK(uid), []); }
 
+/** « Reprendre la photo » : l'ancienne est retirée (liste + stockage) une fois la nouvelle enregistrée. */
+export async function removeBodyPhoto(uid: Uid, id: string): Promise<BodyPhoto | null> {
+  const photos = await readPhotos(uid);
+  const old = photos.find(p => p.id === id);
+  if (!old) return null;
+  await kvSet(PHK(uid), JSON.stringify(photos.filter(p => p.id !== id)));
+  await supabase.storage.from(BUCKET).remove([old.path]).catch(() => {});
+  return old;
+}
+
 export async function addBodyPhoto(uid: Uid, img: Img, pose: BodyPhoto['pose']): Promise<BodyPhoto> {
   await ensureBucket();
   const date = localNow().date;

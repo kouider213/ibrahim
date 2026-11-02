@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-02 — FORME : « Reprendre la photo » (app v235)
+- Dans « Avant / maintenant » : bouton 📸 Reprendre la photo → caméra même pose (ancienne photo AVANT en transparence), la nouvelle REMPLACE l'ancienne (liste + stockage) et garde la même photo AVANT. « Refaire l'analyse » reste (même photo).
+- Backend : `removeBodyPhoto()`, POST /api/forme/body-photo accepte `replace` + `vs`.
+
 ## 2026-11-02 — FORME : photo AVANT au choix + minuteur 3 s (app v234)
 - `forme/Body.tsx` : dans « Avant / maintenant », bandeau de toutes les photos (même pose d'abord) → toucher une photo la prend comme AVANT et relance la comparaison. Une photo pas encore analysée s'ouvre aussi (analyse lancée).
 - Caméra : le gros bouton lance un compte à rebours 3 s par défaut (bip chaque seconde), bouton ⏱ 3 s → 10 s → off (mémorisé), re-appui = annuler.

@@ -40,7 +40,7 @@ function Framed({ url, zones, before, label }: { url: string | null; zones: Anal
   );
 }
 
-export function Compare({ photo, before, a, onReanalyze, photos, onPickBefore, picking }: { photo: Photo; before: Photo | null; a: Analysis; onReanalyze?: () => void; photos?: Photo[]; onPickBefore?: (id: string) => void; picking?: boolean }) {
+export function Compare({ photo, before, a, onReanalyze, onRetake, photos, onPickBefore, picking }: { photo: Photo; before: Photo | null; a: Analysis; onReanalyze?: () => void; onRetake?: () => void; photos?: Photo[]; onPickBefore?: (id: string) => void; picking?: boolean }) {
   const [mode, setMode] = useState<'side' | 'slide'>('side');
   const [pos, setPos] = useState(50);
   // Toutes les autres photos, même pose d'abord, puis par date (la plus ancienne en premier)
@@ -99,7 +99,8 @@ export function Compare({ photo, before, a, onReanalyze, photos, onPickBefore, p
         {a.focus.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>{a.focus.map(f => <span key={f} style={{ background: F.soft, color: F.accent, borderRadius: 999, padding: '5px 11px', fontSize: 12.5, fontWeight: 800 }}>💪 {f}</span>)}</div>}
       </div>
       <div style={{ fontSize: 12, color: F.muted, textAlign: 'center', marginTop: 10 }}>Analyse par Claude · envoyée à Dzaryx · photos privées (jamais partagées)</div>
-      {onReanalyze && <button onClick={onReanalyze} style={{ ...ghostBtn, width: '100%', marginTop: 10 }}>🔄 Refaire l'analyse</button>}
+      {onRetake && <button onClick={onRetake} style={{ ...btn, width: '100%', marginTop: 10 }}>📸 Reprendre la photo</button>}
+      {onReanalyze && <button onClick={onReanalyze} style={{ ...ghostBtn, width: '100%', marginTop: 8 }}>🔄 Refaire l'analyse (même photo)</button>}
     </div>
   );
 }
@@ -170,6 +171,8 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<{ photo: Photo; a: Analysis } | null>(null);
   const [picking, setPicking] = useState(false);
+  // « Reprendre la photo » : même pose, l'ancienne est remplacée, même photo AVANT
+  const [retake, setRetake] = useState<{ id: string; pose: Photo['pose']; vs: string } | null>(null);
   const pickBefore = async (vs: string) => {
     if (!view) return;
     setPicking(true);
@@ -198,7 +201,8 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
   const shot = async (dataUrl: string) => {
     setCam(false); setBusy(true);
     try {
-      const r = await forme.bodyPhoto(dataUrl, pose, goal.trim(), adaptAfter);
+      const rt = retake; setRetake(null);
+      const r = await forme.bodyPhoto(dataUrl, rt?.pose ?? pose, goal.trim(), adaptAfter, rt?.id ?? '', rt?.vs ?? '');
       const fresh = await forme.overview(); onO(fresh);
       const ph = fresh.photos.find(x => x.id === r.photo.id) ?? { ...r.photo, url: dataUrl };
       if ('error' in r.analysis) toast(`Photo gardée, analyse impossible : ${r.analysis.error}`);
@@ -280,9 +284,9 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
         <button onClick={async () => { onO(await forme.log('measures', { measures: Object.fromEntries(Object.entries(m).map(([k, v]) => [k, Number(v.replace(',', '.'))])) })); setM({}); setMOpen(false); toast('📏 Mensurations notées'); }} style={{ ...btn, width: '100%' }}>Enregistrer</button>
       </Sheet>
       <Sheet open={!!view} onClose={() => setView(null)} title={<Title a="Avant /" b="maintenant" size={24} />}>
-        {view && <Compare photo={view.photo} before={(view.a.vs ? o.photos.find(x => x.id === view.a.vs) : null) ?? beforeOf(view.photo)} a={view.a} photos={o.photos} onPickBefore={pickBefore} picking={picking} onReanalyze={async () => { setBusy(true); try { const r = await forme.analyze(view.photo.id); setView({ ...view, a: r.analysis }); onO(await forme.overview()); } catch (e) { toast(errText(e)); } finally { setBusy(false); } }} />}
+        {view && <Compare photo={view.photo} before={(view.a.vs ? o.photos.find(x => x.id === view.a.vs) : null) ?? beforeOf(view.photo)} a={view.a} photos={o.photos} onPickBefore={pickBefore} picking={picking} onRetake={() => { setRetake({ id: view.photo.id, pose: view.photo.pose, vs: view.a.vs ?? '' }); setView(null); setCam(true); }} onReanalyze={async () => { setBusy(true); try { const r = await forme.analyze(view.photo.id); setView({ ...view, a: r.analysis }); onO(await forme.overview()); } catch (e) { toast(errText(e)); } finally { setBusy(false); } }} />}
       </Sheet>
-      {cam && <Camera ghost={lastOf(pose)?.url ?? null} onShot={shot} onClose={() => setCam(false)} />}
+      {cam && <Camera ghost={retake ? (o.photos.find(x => x.id === retake.vs) ?? o.photos.find(x => x.id === retake.id))?.url ?? null : lastOf(pose)?.url ?? null} onShot={shot} onClose={() => { setCam(false); setRetake(null); }} />}
     </div>
   );
 }
