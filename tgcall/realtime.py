@@ -208,7 +208,16 @@ class RealtimeCall:
         try:
             if time.monotonic() < gemini_out_until:
                 raise RuntimeError('limite Gemini atteinte, nouvel essai plus tard')
-            res = await self.api('/api/call/realtime-gemini', {}, self.actor, 20)
+            try:
+                res = await self.api('/api/call/realtime-gemini', {}, self.actor, 20)
+            except Exception as e0:
+                # 02/11 : appel tombé pile pendant un redéploiement Railway (HTTP 502) → on attend que le serveur revienne
+                # au lieu de basculer sur OpenAI (sans crédit) puis sur une voix de secours lente
+                if not re.search(r'HTTP 50[234]|failed to respond|timed? ?out|Cannot connect', str(e0), re.I):
+                    raise
+                log.warning('serveur Dzaryx indisponible (%s) → nouvel essai dans 6 s', str(e0)[:120])
+                await asyncio.sleep(6)
+                res = await self.api('/api/call/realtime-gemini', {}, self.actor, 25)
             self.live_model = res.get('model', '')
             self.ws = await GeminiLiveWS.connect(self.http, res)
             await self.ws.receive(timeout=8)   # session.created
