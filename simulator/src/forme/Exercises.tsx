@@ -354,7 +354,7 @@ export function LibraryScreen() {
 const REC: Record<string, { f?: number[]; b?: number[] }> = {
   pecs: { f: [4] }, epaules: { f: [2] }, bras: { f: [1, 13], b: [5] }, dos: { b: [12, 9] }, abdos: { f: [6, 14] }, jambes: { f: [10], b: [11, 8, 7, 15] },
 };
-const recColor = (pct: number) => pct >= 100 ? 'hue-rotate(115deg) saturate(0.9)' : pct >= 60 ? 'hue-rotate(32deg) saturate(1.2)' : 'none';
+const recColor = (pct: number) => pct >= 100 ? 'hue-rotate(115deg) saturate(0.9)' : pct >= 60 ? 'hue-rotate(40deg) saturate(1.8) brightness(1.2)' : 'none';
 export function RecoveryMap({ rec, h = 190 }: { rec: Array<{ muscle: string; pct: number }>; h?: number }) {
   const fig = (side: 'f' | 'b') => (
     <div style={{ position: 'relative', height: h, aspectRatio: '200 / 369' }}>

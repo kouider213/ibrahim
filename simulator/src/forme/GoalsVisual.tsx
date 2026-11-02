@@ -232,7 +232,7 @@ export function GoalBadges({ g }: { g: GoalsView }) {
     { e: '🔥', t: 'Mi-parcours', ok: ms.length > 0 && ms.filter(m => m.done).length >= Math.ceil(ms.length / 2) },
     { e: '🏆', t: '1er défi réussi', ok: finished >= 1 },
     { e: '💎', t: '3 défis réussis', ok: finished >= 3 },
-    { e: '📸', t: '2e photo de suivi', ok: s.history.length >= 2 },
+    { e: '📸', t: '2e photo de suivi', ok: (g.evolution?.length ?? 0) >= 2 || s.history.length >= 2 },
     { e: '🚀', t: 'En avance', ok: g.pace?.status === 'avance' },
     { e: '👑', t: 'Arrivée', ok: ms.length > 0 && ms.every(m => m.done) },
   ];
