@@ -6,10 +6,10 @@
  *  1 sac    — 21h veille de sport : météo du départ (5h30) → tenue + sac à préparer + séance de demain
  *  2 givre  — 4h50 : ≤ 1 °C au départ → pare-brise gelé, pars 5 min plus tôt
  *  3 pluie  — pluie dans les 30 min là où il est (et sec maintenant) → « prends la veste / rentre le linge »
- *  4 courses — liste de courses à la voix ; envoyée toute seule quand il arrive dans un de SES magasins
+ *  4 anglais — 10h : 1 phrase d'anglais pour ses clients FIK étrangers (location, clés, caution) + prononciation — remplace « courses »
  *  5 ibrahim — 18h30 : un mot de darija à apprendre à Ibrahim + un jeu de 10 min pour son âge
  *  6 dos    — au travail (GPS) : 2 h après l'arrivée puis 2 h plus tard, 1 minute pour le dos (max 2/jour)
- *  7 poubelles — la veille au soir 20h, selon SES jours de collecte
+ *  7 etirements — 21h45 : 5 min de mobilité avant de dormir (dos + muscles travaillés aujourd'hui) — remplace « poubelles » (sport/santé demandé)
  *  8 montre — 19h30 : mets ta montre en charge maintenant → batterie pleine pour mesurer ta nuit
  *  9 caisse — 21h15 les jours de travail : « combien tu as fait aujourd'hui ? » (1 chiffre → noté)
  * 10 taux   — 9h : 1 € = X DA (square) seulement s'il bouge de 1 % ou plus depuis le dernier envoi
@@ -21,25 +21,22 @@ import { localNow, localTs, getRoutineConfig } from './morning-routine.js';
 import { geocode, km } from './departures.js';
 import { getLocation } from './location.js';
 
-const OPTIONS = ['sac', 'givre', 'pluie', 'courses', 'ibrahim', 'dos', 'poubelles', 'montre', 'caisse', 'taux'] as const;
+const OPTIONS = ['sac', 'givre', 'pluie', 'anglais', 'ibrahim', 'dos', 'etirements', 'montre', 'caisse', 'taux'] as const;
 type Opt = typeof OPTIONS[number];
 const LABEL: Record<Opt, string> = {
   sac: '🎒 Sac + tenue la veille du sport (21h)', givre: '🧊 Alerte givre au réveil', pluie: '🌧️ Pluie dans 30 min là où tu es',
-  courses: '🛒 Liste de courses envoyée en arrivant au magasin', ibrahim: '👶 Mot de darija + jeu pour Ibrahim (18h30)', dos: '🧘 Pause dos au travail',
-  poubelles: '🗑️ Poubelles la veille au soir', montre: '⌚ Montre en charge avant la nuit (19h30)', caisse: '📒 Caisse du soir (21h15)', taux: '💱 Taux € → DA quand il bouge',
+  anglais: '🇬🇧 Phrase d\'anglais pour tes clients FIK (10h)', ibrahim: '👶 Mot de darija + jeu pour Ibrahim (18h30)', dos: '🧘 Pause dos au travail',
+  etirements: '🤸 5 min d\'étirements avant de dormir (21h45)', montre: '⌚ Montre en charge avant la nuit (19h30)', caisse: '📒 Caisse du soir (21h15)', taux: '💱 Taux € → DA quand il bouge',
 };
 
-interface Cfg { off: Opt[]; bins: Record<string, number[]>; shops: Array<{ name: string; lat: number; lng: number }> }
-interface Item { name: string; at: string }
-const CFG_K = 'quotidien:cfg', LIST_K = 'quotidien:courses';
+interface Cfg { off: Opt[] }
+const CFG_K = 'quotidien:cfg';
 const sentK = (what: string, date: string) => `quotidien:sent:${what}:${date}`;
 
 async function cfg(): Promise<Cfg> {
-  try { return { off: [], bins: {}, shops: [], ...(JSON.parse((await kvGet(CFG_K)) ?? '{}') as Partial<Cfg>) }; } catch { return { off: [], bins: {}, shops: [] }; }
+  try { return { off: [], ...(JSON.parse((await kvGet(CFG_K)) ?? '{}') as Partial<Cfg>) }; } catch { return { off: [] }; }
 }
 const saveCfg = (c: Cfg) => kvSet(CFG_K, JSON.stringify(c));
-async function items(): Promise<Item[]> { try { return JSON.parse((await kvGet(LIST_K)) ?? '[]') as Item[]; } catch { return []; } }
-const saveItems = (l: Item[]) => kvSet(LIST_K, JSON.stringify(l.slice(-60)));
 
 async function tg(text: string): Promise<void> { await (await import('./ai-util.js')).tg(text); }
 /** Une fois par jour (clé posée AVANT l'envoi : jamais deux fois). */
@@ -53,7 +50,6 @@ async function once(what: string, date: string, fn: () => Promise<string | null>
 }
 
 const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
-const DAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 
 // ── Météo (Open-Meteo, gratuit) ─────────────────────────────────────────────
 async function homePos(): Promise<{ lat: number; lng: number } | null> {
@@ -130,20 +126,51 @@ async function pluieCheck(date: string): Promise<boolean> {
   return true;
 }
 
-// ── 4 courses (au magasin) ──────────────────────────────────────────────────
-async function coursesCheck(c: Cfg): Promise<boolean> {
-  if (!c.shops.length) return false;
-  const l = await items();
-  if (!l.length) return false;
-  const loc = await getLocation('kouider').catch(() => null);
-  if (!loc || Date.now() - Date.parse(loc.updated_at) > 20 * 60_000) return false;
-  const shop = c.shops.find(s => km({ lat: loc.lat, lng: loc.lng }, s) * 1000 <= 150);
-  if (!shop) return false;
-  const last = Number((await kvGet('quotidien:courses:last').catch(() => '0')) ?? 0);
-  if (Date.now() - last < 3 * 3600_000) return false;
-  await kvSet('quotidien:courses:last', String(Date.now()), 86_400);
-  await tg(`🛒 Tu es à ${shop.name} — ta liste (${l.length}) :\n${l.map(i => `• ${i.name}`).join('\n')}\n\nDis « courses faites » quand c'est bon (ou « j'ai pris le skyr » pour un seul).`);
-  return true;
+// ── 4 anglais pour les clients FIK ─────────────────────────────────────────
+const EN: Array<[string, string, string]> = [
+  ['Hello, welcome! Here are the keys to your car.', 'hèlo, wèlkeum ! hir ar ze kiz tou yor kar', 'Bonjour, bienvenue ! Voici les clés de votre voiture.'],
+  ['Could I see your driving licence and passport, please?', 'koud aï si yor draïving laïsseuns ènd passport, pliz', 'Je peux voir votre permis et votre passeport ?'],
+  ['There is a deposit of five hundred euros.', 'zèr iz eu dipozit ov faïv heundred iourôz', 'Il y a une caution de 500 €.'],
+  ['You will get the deposit back when you return the car.', 'you wil guèt ze dipozit bak wèn you ritern ze kar', 'La caution vous est rendue au retour de la voiture.'],
+  ['Please return the car with a full tank.', 'pliz ritern ze kar wiz eu foul tank', 'Merci de rendre la voiture avec le plein.'],
+  ['What time will you return the car?', 'wat taïm wil you ritern ze kar', 'À quelle heure vous rendez la voiture ?'],
+  ['Let\'s check the car together before you leave.', 'lèts tchèk ze kar tougèzeur bifor you liv', 'On fait le tour de la voiture ensemble avant de partir.'],
+  ['There is a small scratch here, I will note it.', 'zèr iz eu smol skratch hir, aï wil nôt it', 'Il y a une petite rayure ici, je la note.'],
+  ['It runs on diesel, not petrol.', 'it reunz on dizel, not pètrol', 'Elle roule au diesel, pas à l\'essence.'],
+  ['Smoking is not allowed in the car.', 'smôking iz not alaoud in ze kar', 'Interdit de fumer dans la voiture.'],
+  ['If you have a problem, call me or send me a WhatsApp.', 'if you hav eu problem, kol mi or sènd mi eu watsap', 'Un problème ? Appelez-moi ou envoyez un WhatsApp.'],
+  ['The price is forty euros per day, insurance included.', 'ze praïs iz forti iourôz peur dèï, inchourance inklouded', 'Le prix est de 40 € par jour, assurance comprise.'],
+  ['How many days do you need the car?', 'haou mèni dèïz dou you nid ze kar', 'Vous avez besoin de la voiture combien de jours ?'],
+  ['I can deliver the car to the airport.', 'aï kan dilivèr ze kar tou zi èrport', 'Je peux livrer la voiture à l\'aéroport.'],
+  ['Where are you staying?', 'wèr ar you stèïing', 'Vous logez où ?'],
+  ['You can pay cash or by bank transfer.', 'you kan pèï kash or baï bank transfeur', 'Vous pouvez payer en liquide ou par virement.'],
+  ['Is everything okay with the car?', 'iz èvrissing okèï wiz ze kar', 'Tout va bien avec la voiture ?'],
+  ['Thank you, have a safe trip!', 'thank you, hav eu sèïf trip', 'Merci, bonne route !'],
+  ['Would you like to extend the rental?', 'woud you laïk tou ikstènd ze rèntal', 'Vous voulez prolonger la location ?'],
+  ['Could you leave us a review on Google? It helps a lot.', 'koud you liv eus eu rivyou on gougueul ? it hèlps eu lot', 'Vous pouvez nous laisser un avis Google ? Ça aide beaucoup.'],
+];
+function enText(date: string): string {
+  const n = Math.floor(Date.parse(`${date}T12:00:00Z`) / 86_400_000);
+  const [en, say, fr] = EN[n % EN.length]!;
+  const [en2, , fr2] = EN[(n + 7) % EN.length]!;
+  return `🇬🇧 Anglais du jour pour tes clients FIK\n« ${en} »\n🗣️ ${say}\n= ${fr}\n\nRévision : « ${en2} » = ${fr2}`;
+}
+
+// ── 7 étirements du soir ────────────────────────────────────────────────────
+const STRETCH: Record<string, string[]> = {
+  dos: ['Enfant (genoux au sol, bras devant, fesses vers les talons) 45 s', 'Chat-vache à 4 pattes 10 fois lentement', 'Suspension à une porte / barre 20 s (ou bras tendus contre un mur)'],
+  pecs: ['Pecs dans l\'encadrement de porte 30 s de chaque côté', 'Ouverture allongé : bras en croix, genoux tombent d\'un côté puis de l\'autre, 30 s'],
+  epaules: ['Bras croisé devant la poitrine 30 s de chaque côté', 'Rotations d\'épaules lentes 10 vers l\'arrière'],
+  bras: ['Biceps : main à plat contre le mur, bras tendu, tourne le buste 30 s', 'Triceps : coude derrière la tête 30 s de chaque côté'],
+  jambes: ['Quadriceps debout, talon aux fesses 30 s de chaque côté', 'Ischios : jambe tendue sur une chaise, buste droit 30 s', 'Fessiers allongé : cheville sur le genou, tire la cuisse 30 s'],
+  base: ['Genoux poitrine allongé sur le dos 45 s (bas du dos)', 'Torsion allongé : genoux d\'un côté, regard de l\'autre, 30 s de chaque côté', '5 grandes respirations ventre, expiration longue'],
+};
+async function etirementsText(date: string): Promise<string> {
+  const s = (await import('./sport-coach.js').then(m => m.sportSessionFor(date)).catch(() => null))?.split('\n')[0]?.toLowerCase() ?? '';
+  const did = /pas de séance|repos/.test(s) ? '' : s;
+  const groups = [/dos|pull|tirage/.test(did) && 'dos', /pec|push|poitrine/.test(did) && 'pecs', /épaule|epaule|upper/.test(did) && 'epaules', /bras|biceps|triceps/.test(did) && 'bras', /jambe|leg|cuisse|fessier/.test(did) && 'jambes'].filter(Boolean) as string[];
+  const list = [...groups.flatMap(g => STRETCH[g]!.slice(0, 2)), ...STRETCH['base']!].slice(0, 6);
+  return `🤸 5 min avant de dormir${groups.length ? ` (séance du jour : ${groups.join(' + ')})` : ''} — sur le tapis, sans forcer :\n${list.map(x => `• ${x}`).join('\n')}\nRésultat : moins de courbatures demain, dos plus souple, et tu t'endors plus vite.`;
 }
 
 // ── 5 ibrahim ───────────────────────────────────────────────────────────────
@@ -200,13 +227,6 @@ async function dosCheck(date: string): Promise<boolean> {
   return true;
 }
 
-// ── 7 poubelles ─────────────────────────────────────────────────────────────
-function poubellesText(c: Cfg, date: string): string | null {
-  const tomorrowDow = localNow(localTs(addDays(date, 1), '12:00')).weekday;
-  const bins = Object.entries(c.bins).filter(([, d]) => d.includes(tomorrowDow)).map(([b]) => b);
-  return bins.length ? `🗑️ Ce soir : sors ${bins.length > 1 ? 'les sacs ' : 'le sac '}${bins.join(' + ')} (collecte demain ${DAYS[tomorrowDow]} matin).` : null;
-}
-
 // ── 9 caisse ────────────────────────────────────────────────────────────────
 async function workedToday(): Promise<boolean> {
   const day = (await getRoutineConfig()).days[localNow().weekday];
@@ -240,11 +260,11 @@ export async function jobQuotidien(): Promise<string> {
   if (quiet) return sent.join(', ') || 'silence';
   if (on('taux') && between('09:00', '10:00') && await once('taux', date, tauxText)) sent.push('taux');
   if (on('pluie') && between('07:00', '21:00') && await pluieCheck(date).catch(() => false)) sent.push('pluie');
-  if (on('courses') && between('07:00', '22:00') && await coursesCheck(c).catch(() => false)) sent.push('courses');
+  if (on('anglais') && between('10:00', '11:00') && await once('anglais', date, async () => enText(date))) sent.push('anglais');
   if (on('dos') && between('07:00', '20:00') && await dosCheck(date).catch(() => false)) sent.push('dos');
   if (on('ibrahim') && between('18:30', '19:30') && await once('ibrahim', date, async () => ibrahimText(date))) sent.push('ibrahim');
   if (on('montre') && between('19:30', '20:30') && await once('montre', date, async () => '⌚ Mets ta montre en charge maintenant (45 min) : batterie pleine pour mesurer ta nuit et ta récupération demain matin.')) sent.push('montre');
-  if (on('poubelles') && between('20:00', '21:00') && await once('poubelles', date, async () => poubellesText(c, date))) sent.push('poubelles');
+  if (on('etirements') && between('21:45', '22:45') && await once('etirements', date, () => etirementsText(date))) sent.push('étirements');
   if (on('sac') && between('21:00', '22:00') && await once('sac', date, () => sacText(date))) sent.push('sac');
   if (on('caisse') && between('21:15', '22:15') && await workedToday() && await once('caisse', date, async () => '📒 Caisse du jour : combien tu as fait aujourd\'hui ? Réponds juste le chiffre (ex. « 220 »), je le note dans ton argent.')) sent.push('caisse');
   return sent.join(', ') || 'rien';
@@ -260,54 +280,16 @@ export async function quotidienTool(input: Record<string, unknown>): Promise<str
     await saveCfg(c);
     return `${action === 'off' ? '🔕 Coupé' : '🔔 Activé'} : ${LABEL[opt]}.`;
   }
-  if (action === 'add') {
-    const raw = Array.isArray(input['items']) ? (input['items'] as unknown[]).map(String) : String(input['text'] ?? '').split(/,| et /);
-    const add = raw.map(s => s.trim()).filter(Boolean);
-    if (!add.length) return '❌ Donne les articles (items).';
-    const l = await items();
-    for (const a of add) if (!l.some(i => i.name.toLowerCase() === a.toLowerCase())) l.push({ name: a, at: new Date().toISOString() });
-    await saveItems(l);
-    return `🛒 Ajouté : ${add.join(', ')}. Liste : ${l.length} article(s).${c.shops.length ? '' : ' (Dis « enregistre ce magasin » quand tu es dans ton magasin habituel : la liste s\'affichera toute seule en arrivant.)'}`;
-  }
-  if (action === 'list') { const l = await items(); return l.length ? `🛒 Ta liste (${l.length}) :\n${l.map(i => `• ${i.name}`).join('\n')}` : '🛒 Liste de courses vide.'; }
-  if (action === 'done') {
-    const q = String(input['text'] ?? '').toLowerCase().trim();
-    const l = await items();
-    const keep = q ? l.filter(i => !i.name.toLowerCase().includes(q) && !q.includes(i.name.toLowerCase())) : [];
-    await saveItems(keep);
-    return q ? `✅ Rayé (${l.length - keep.length}). Il reste ${keep.length} article(s).` : '✅ Courses faites, liste vidée.';
-  }
-  if (action === 'shop') {
-    const loc = await getLocation('kouider').catch(() => null);
-    if (!loc) return '❌ Je n\'ai pas ta position : partage ta position en direct sur Telegram, puis redis-le.';
-    const name = String(input['text'] ?? 'ton magasin').slice(0, 40);
-    c.shops = [...c.shops.filter(s => km(s, { lat: loc.lat, lng: loc.lng }) * 1000 > 150), { name, lat: loc.lat, lng: loc.lng }].slice(-8);
-    await saveCfg(c);
-    return `📍 Magasin enregistré : ${name}. Quand tu y arrives et que ta liste n'est pas vide, je te l'envoie.`;
-  }
-  if (action === 'bins') {
-    // text = « blanc:lundi,jeudi ; jaune:mercredi » — ou vide pour tout effacer
-    const t = String(input['text'] ?? '').trim();
-    const bins: Record<string, number[]> = {};
-    for (const part of t.split(/;|\n/)) {
-      const [b, d] = part.split(':');
-      if (!b || !d) continue;
-      const days = d.split(/,| et /).map(x => DAYS.findIndex(n => x.trim().toLowerCase().startsWith(n.slice(0, 3)))).filter(x => x >= 0);
-      if (days.length) bins[b.trim()] = days;
-    }
-    c.bins = bins; await saveCfg(c);
-    return Object.keys(bins).length ? `🗑️ Collectes : ${Object.entries(bins).map(([b, d]) => `${b} → ${d.map(x => DAYS[x]).join(', ')}`).join(' ; ')}. Rappel la veille à 20h.` : '🗑️ Jours de collecte effacés.';
-  }
   if (action === 'test') {
     const { date } = localNow();
     const o = opt;
     if (o === 'sac') return (await sacText(date)) ?? 'Pas de sport demain : pas de message sac.';
     if (o === 'givre') return (await givreText(date)) ?? 'Pas de givre prévu au départ.';
     if (o === 'ibrahim') return ibrahimText(date);
-    if (o === 'poubelles') return poubellesText(c, date) ?? 'Rien à sortir ce soir.';
+    if (o === 'anglais') return enText(date);
+    if (o === 'etirements') return etirementsText(date);
     if (o === 'taux') { const g = await import('./gold.js').then(m => m.goldMarket()).catch(() => null); return g ? `💱 1 € = ${Math.round(g.eurDzd)} DA au square.` : 'Taux indisponible.'; }
     return LABEL[o] ?? '❌ option inconnue';
   }
-  return [`🗓️ LE QUOTIDIEN — 10 options :`, ...OPTIONS.map(o => `${c.off.includes(o) ? '🔕' : '✅'} ${LABEL[o]}`),
-    `Magasins : ${c.shops.map(s => s.name).join(', ') || 'aucun (dis « enregistre ce magasin » sur place)'} · Poubelles : ${Object.keys(c.bins).length ? Object.entries(c.bins).map(([b, d]) => `${b} ${d.map(x => DAYS[x]).join('/')}`).join(', ') : 'jours pas encore donnés'}`].join('\n');
+  return [`🗓️ LE QUOTIDIEN — 10 options :`, ...OPTIONS.map(o => `${c.off.includes(o) ? '🔕' : '✅'} ${LABEL[o]}`)].join('\n');
 }

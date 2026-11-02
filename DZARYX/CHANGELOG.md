@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-02 (nuit) — LE QUOTIDIEN : courses + poubelles remplacées
+- Remplacées (à sa demande, sport/santé ou business) par : anglais du jour pour clients FIK (10h) + étirements 5 min avant de dormir (21h45, selon la séance).
+
 ## 2026-11-02 (nuit) — LE QUOTIDIEN : 10 options
 - quotidien.ts + outil quotidien + job */15 : sac veille de sport, givre, pluie 30 min, courses au magasin, darija+jeu Ibrahim, pause dos au travail, poubelles, montre en charge, caisse du soir, taux € → DA.
 
