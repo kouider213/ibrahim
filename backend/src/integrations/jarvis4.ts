@@ -21,7 +21,11 @@ export async function iphoneEvent(type: string, body: Record<string, unknown>): 
   const hasPos = Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0;
   if (hasPos) void import('./gps-life.js').then(m => m.onLocationPoint(lat, lng)).catch(() => {});
   switch (type) {
-    case 'carplay_on': case 'carplay': return { say: await carBrief(hasPos ? { lat, lng } : {}) };
+    case 'carplay_on': case 'carplay': {
+      // 02/11 : « Bonjour Kouider » + discours de coach business + citation, puis le point pratique
+      const [hello, brief] = await Promise.all([import('./car-coach.js').then(m => m.carGreeting()).catch(() => 'Bonjour Kouider.'), carBrief(hasPos ? { lat, lng } : {})]);
+      return { say: speakable(`${hello} ${brief}`) };
+    }
     case 'carplay_off': case 'parked': {
       if (hasPos) await import('./gps-life.js').then(m => m.setParking(lat, lng));
       return { say: hasPos ? 'Voiture garée, je retiens l\'endroit.' : 'Garé. Ajoute « Obtenir l\'emplacement actuel » au raccourci pour que je retienne l\'endroit.' };

@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-02 — 🚗 « Bonjour Kouider » en montant en voiture
+- car-coach.ts : à l'événement CarPlay (POST /api/jarvis/event type carplay_on), bonjour/bonsoir + 3 phrases de coach business (Grand Coach, doux si journée dure, famille si congé, jamais d'action au téléphone en conduisant) + citation vérifiée avec sa source (20 citations, rotation sans répétition), puis le point pratique existant (carBrief). « Re-bonjour » si moins de 30 min.
+- Constat : aucun événement CarPlay jamais reçu (gps:parking vide) → automatisation iPhone à installer.
+- Carte du corps FORME : bleu/jaune/rouge exacts (masques CSS) + chiffre sur chaque muscle (app v240).
+
 ## 2026-11-02 — FORME : page Objectifs « pro » en images (app v239)
 - GoalsVisual.tsx : 📸 évolution en photos (curseur avant/maintenant à glisser, par pose, frise datée avec poids), héros avant → arrivée + anneau du parcours + J-xx, carte du corps colorée par niveau + cartes par zone (image d'exercice, anneau), « aujourd'hui pour ton objectif » (score Sèche), courbe de poids, parcours à étapes « tu es ici », exercices en grandes images (fiche au toucher), conseils en cartes, badges.
 - Kouider : « l'évolution avec des images, pas une explication détaillée » → explications cachées derrière « 📖 Voir les explications du coach ».
