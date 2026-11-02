@@ -38,6 +38,14 @@ const THEMES = [
   'être un père et un mari solide : ce qu\'il construit pour sa femme et Ibrahim',
 ];
 
+const REBOOST = [
+  'Content de vous revoir à bord. Chaque trajet vous rapproche d\'Oran, monsieur. On continue.',
+  'De retour aux commandes. Les grands ne s\'arrêtent pas au premier effort, ils enchaînent. Allons-y.',
+  'Encore un trajet, encore un pas. La régularité bat le talent, et vous avez les deux.',
+  'Tous les systèmes sont toujours opérationnels. Votre famille compte sur l\'homme que vous devenez aujourd\'hui.',
+  'Vous êtes déjà en mouvement, c\'est ce qui sépare ceux qui rêvent de ceux qui construisent.',
+];
+
 const LAST_K = 'car:greet:last', USED_K = 'car:quotes:used';
 
 async function pickQuote() {
@@ -57,7 +65,11 @@ export async function carGreeting(pos: { lat?: number; lng?: number } = {}): Pro
   const h = Number(hhmm.slice(0, 2));
   const hello = h < 5 || h >= 18 ? 'Bonsoir Kouider.' : 'Bonjour Kouider.';
   const last = await kvJson<number>(LAST_K, 0);
-  if (Date.now() - last < 30 * 60_000) return 'Re-bonjour Kouider. Content de vous revoir à bord.';
+  if (Date.now() - last < 30 * 60_000) {
+    // 02/11 : même un 2e démarrage = un coup de motivation (Kouider : « il doit aussi me donner des discours motivants »)
+    const pep = REBOOST[Math.floor(Math.random() * REBOOST.length)]!;
+    return `Re-bonjour Kouider. ${pep}`;
+  }
   await kvPut(LAST_K, Date.now());
   let here: { lat: number; lng: number } | null = Number.isFinite(pos.lat) && pos.lat ? { lat: pos.lat!, lng: pos.lng! } : null;
   if (!here) { const loc = await import('./location.js').then(m => m.getLocation('kouider')).catch(() => null); if (loc && Date.now() - Date.parse(loc.updated_at) < 6 * 3600_000) here = { lat: loc.lat, lng: loc.lng }; }
@@ -74,12 +86,12 @@ export async function carGreeting(pos: { lat?: number; lng?: number } = {}): Pro
     : off ? 'Jour de congé (famille) : rappelle le sens de ce qu\'il construit (sa femme, Ibrahim, leur avenir en Algérie), sans lui donner de travail.'
     : 'Journée de travail : motive-le sur son business (FIK, ses clients, son objectif du mois, devenir un grand businessman en Algérie) avec UNE priorité concrète pour aujourd\'hui.';
   const speech = await ai(`Tu es JARVIS, l'intelligence artificielle majordome de Kouider (comme le Jarvis d'Iron Man) : voix calme, phrases précises et élégantes, VOUVOIEMENT, assurance tranquille, une petite pointe d'humour fin. Kouider vient de monter dans sa voiture ; tu lui as déjà dit bonjour, l'heure et la météo.
-Dis maintenant 3 phrases courtes maximum (15 secondes à l'oral) : un mot sur l'état des choses façon Jarvis (ex. « Tous les systèmes sont opérationnels. »), puis un discours de motivation. ${tone}
+Dis maintenant un VRAI DISCOURS DE MOTIVATION de 5 à 7 phrases (30 à 40 secondes à l'oral) : commence par un mot sur l'état des choses façon Jarvis (ex. « Tous les systèmes sont opérationnels. »), puis un discours qui donne la chair de poule — rythmé, puissant, avec une image forte, une montée en intensité et une phrase finale qui claque et donne envie de tout donner aujourd'hui. Parle à l'homme qu'il est en train de devenir. ${tone}
 THÈMES (varie chaque fois) : ${THEMES[Math.floor(Math.random() * THEMES.length)]}.
 SA VIE : Kouider vit en BELGIQUE avec sa femme et leur fils Ibrahim, loin de l'Algérie. Il travaille et construit ici, à distance, l'avenir de sa famille EN ALGÉRIE (Oran) : la maison, la voiture, son business, pour pouvoir aller y vivre tous les trois. Ce sacrifice de l'exil a un but, tu peux le lui rappeler avec respect.
 ⛔ STRICTEMENT INTERDIT dans la voiture : médicament, pharmacie, santé, sevrage, programme Liberté, dose, envie — pas même une allusion. C'est privé.
 Ne redis pas bonjour, ni son prénom en premier mot. Il CONDUIT : aucune action à faire au téléphone maintenant (dis « en arrivant » si besoin). Pas d'emoji, pas de liste, pas de citation (elle vient après). N'invente aucun chiffre ni nom : seulement ce qui est dans le contexte, sinon reste général.
-Contexte (Grand Coach) : ${coach.slice(0, 1500)}`, { max: 220 }).catch(() => '');
+Contexte (Grand Coach) : ${coach.slice(0, 1500)}`, { max: 450 }).catch(() => '');
   const fallback = off ? 'Tous les systèmes sont opérationnels. Profitez des vôtres aujourd\'hui, c\'est pour eux que vous construisez tout cela.' : 'Tous les systèmes sont opérationnels. Une seule priorité aujourd\'hui, monsieur : un pas concret pour votre entreprise. Les grands se construisent dans la régularité.';
   const { carPrivacy } = await import('./jarvis4.js');
   return [`${hello} ${time}${weather}.`, carPrivacy(speech || '') || fallback, `Citation du jour : ${quote.q} ${quote.who[0]!.toUpperCase()}${quote.who.slice(1)}, ${quote.src}.`].join(' ');
