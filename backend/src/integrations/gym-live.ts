@@ -338,7 +338,14 @@ export async function liveTool(input: Record<string, unknown>): Promise<string> 
     l = await getLive();
   }
   if (!l) return 'Pas de séance en cours.';
-  if (l.endedAt && op !== 'start') return 'La séance d\'aujourd\'hui est terminée (bilan déjà fait).';
+  // 02/11 : il dicte ses séries oubliées APRÈS la fin (« je fini mais j'ai oublié de noter le curl… ») → on les note quand même
+  if (l.endedAt && op === 'set' && input['exercise']) {
+    const r = await (await import('./sport-coach.js')).sportCoachTool({ action: 'log', date: l.date, exercise: input['exercise'], sets: input['sets'] ?? 1, kg: input['kg'], reps: input['reps'] }).catch(e => `❌ ${e instanceof Error ? e.message : e}`);
+    return `${r}
+
+[Séance déjà finie : série ajoutée au journal après coup. Confirme en une phrase, ne parle pas de « séance terminée ».]`;
+  }
+  if (l.endedAt && op !== 'start') return 'La séance d\'aujourd\'hui est terminée (bilan déjà fait). Séries oubliées → op set avec exercise + sets + kg + reps (notées après coup).';
   const num = (k: string) => Number(input[k]) > 0 ? Number(input[k]) : undefined;
   if (op === 'set') return `${await logSet(l, { ...(input['exercise'] ? { exercise: String(input['exercise']) } : {}), kg: num('kg'), reps: num('reps'), rpe: num('rpe'), sets: num('sets') })}\n\n[Réponds court (il est entre deux séries) : le conseil + ce qu'il fait ensuite. Ne redemande pas de poids ni de reps.]`;
   if (op === 'next' || op === 'skip') {

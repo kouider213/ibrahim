@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-02 (soir) — corrections
+- Rappel de lieu : ne sonne plus en boucle (verrou + enregistré avant envoi), pas tout de suite si créé sur place (armement hors zone), option from (pas avant date).
+- Ne pas déranger : ses demandes sont exécutées (agenda ignoré → « profite de ta soirée ») ; plus de « à partir de quelle heure je peux te rappeler » chaque matin.
+- Séance finie : séries oubliées notées après coup. VFC basse le soir → conseil pour demain.
+
 ## 2026-11-02 — Retour salle 7h30 par défaut
 - getHomeBy(date, start) : séance du matin sans heure dite → maison 7h30 max (départ + appel recalculés avec le trafic) ; le cerveau ne demande plus l'heure de retour.
 

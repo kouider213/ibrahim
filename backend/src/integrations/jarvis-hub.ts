@@ -100,7 +100,7 @@ export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok
   const rhr = avg('rhr');
   if (d.rhr && rhr && d.rhr >= rhr + 8) notes.push(`❤️ Cœur au repos à ${d.rhr} (d'habitude ${Math.round(rhr)}) : fatigue, stress ou début de maladie possible. Bois, lève le pied, et consulte si ça dure.`);
   const hrv = avg('hrv');
-  if (d.hrv && hrv && d.hrv < hrv * 0.75) notes.push(`📉 VFC basse (${d.hrv} contre ${Math.round(hrv)} d'habitude) : ton corps récupère mal, séance de sport légère aujourd'hui.`);
+  if (d.hrv && hrv && d.hrv < hrv * 0.75) notes.push(`📉 VFC basse (${d.hrv} contre ${Math.round(hrv)} d'habitude) : ton corps récupère mal${localNow().hhmm >= '18:00' ? ' → couche-toi tôt ce soir, séance de demain plus légère' : ', séance de sport légère aujourd\'hui'}.`);
   // Cœur fatigué → la séance du jour passe en version légère toute seule (s'il n'a pas déjà donné sa forme)
   if (notes.some(n => n.startsWith('❤️') || n.startsWith('📉'))) {
     // Envoi du soir (21h30, sans montre la nuit) → c'est la séance de DEMAIN qui s'allège

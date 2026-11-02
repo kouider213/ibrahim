@@ -2851,10 +2851,10 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'rappel_lieu',
-    description: "RAPPEL SELON LE LIEU (GPS) : « quand j'arrive chez le garagiste Benali, rappelle-moi de demander pour la courroie », « en arrivant à l'aéroport, rappelle-moi le parking ». action 'add' : text (le rappel), place (adresse, nom du lieu, « maison », « salle », « travail », ou « ici » = là où il est maintenant), radius_m (200 par défaut), repeat (true = à chaque passage). 'list' ; 'delete' (id ou mot du rappel). Se déclenche quand sa position (partagée) arrive dans la zone → message Telegram + notification. Pour un rappel à une HEURE : schedule_reminder, pas cet outil.",
+    description: "RAPPEL SELON LE LIEU (GPS) : « quand j'arrive chez le garagiste Benali, rappelle-moi de demander pour la courroie », « en arrivant à l'aéroport, rappelle-moi le parking ». action 'add' : text (le rappel), place (adresse, nom du lieu, « maison », « salle », « travail », ou « ici » = là où il est maintenant), radius_m (200 par défaut), repeat (true = à chaque passage). 'list' ; 'delete' (id ou mot du rappel). Se déclenche quand sa position (partagée) arrive dans la zone → message Telegram + notification. Pour un rappel à une HEURE : schedule_reminder, pas cet outil. Créé là où il est déjà : il sonnera seulement à sa PROCHAINE arrivée.",
     input_schema: {
       type: 'object' as const,
-      properties: { action: { type: 'string', enum: ['add', 'list', 'delete'] }, text: { type: 'string' }, place: { type: 'string' }, radius_m: { type: 'number' }, repeat: { type: 'boolean' }, id: { type: 'string' } },
+      properties: { action: { type: 'string', enum: ['add', 'list', 'delete'] }, text: { type: 'string' }, place: { type: 'string' }, radius_m: { type: 'number' }, repeat: { type: 'boolean' }, id: { type: 'string' }, from: { type: 'string', description: "pas avant AAAA-MM-JJ ou AAAA-MM-JJ HH:MM (« demain quand je rentre » → date de demain)" } },
       required: ['action'],
     },
   },
