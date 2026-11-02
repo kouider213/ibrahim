@@ -7,6 +7,7 @@
 - 672ae10 FORME Progrès (app v241) : bouton « Choisir une photo … dans ma galerie » + « Photo de ma galerie + adapter ma séance » ; le bouton Galerie de la caméra n'a plus `capture` (l'iPhone ouvrait l'appareil photo au lieu de la photothèque).
 - 4e266ae car-coach.ts : vrai discours de motivation 5-7 phrases (30-40 s) + phrase de boost au re-démarrage < 30 min.
 - Raccourci CarPlay de Kouider : audio_url joué via « Émettre un son » (voix Jarvis Gemini TTS).
+- Crash-test 21 scénarios : 15 OK · 1 moyen · 5 KO → corrigés : 🔒 « à voix haute / ma femme est là / en voiture avec… » = filtre privé (santé, Liberté, médicament) sur la réponse (orchestrator-engine OTHERS_PRESENT_RX) ; set_private_mode ≠ « mode invité » (n'existe pas) ; darija « bezzaf » jamais « bzaf ». KO Belgique = artefact du bac à sable (le vrai set_cities refuse Liège). Re-test : liberte-prive ✅ mode-invite ✅.
 - Crash-test : scénarios mis à jour (jour du retour jamais compté, nutrition via FORME) + darija-oranaise + liberte-prive.
 
 ## 2026-11-02 — 🚗 « Bonjour Kouider » en montant en voiture

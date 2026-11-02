@@ -2346,7 +2346,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'set_private_mode',
-    description: 'Mode privé : "mode privé", "ne retiens rien", "on parle en privé" → on:true (Dzaryx ne retient rien et EFFACE nos messages à la fin). "fin du mode privé" → on:false.',
+    description: 'Mode privé : "mode privé", "ne retiens rien", "on parle en privé" → on:true (Dzaryx ne retient rien et EFFACE nos messages à la fin). "fin du mode privé" → on:false. ⛔ Ce n\'est PAS un « mode invité » : il n\'existe AUCUN mode invité ni multi-utilisateur (Dzaryx est à Kouider seul). Si on te demande un mode invité / accès pour quelqu\'un d\'autre → dis-le simplement, n\'appelle pas cet outil.',
     input_schema: {
       type: 'object' as const,
       properties: {

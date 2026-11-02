@@ -41,6 +41,8 @@ export function initOrchestratorEngine(_opts: P15InitOptions = {}): void {
   console.log('[p15] Orchestrator Engine initialized');
 }
 
+const OTHERS_PRESENT_RX = /(à|a) voix haute|lis[- ]le (moi )?(à|a) voix|ma femme (est |)(l[àa]|à c[ôo]t[ée]|avec moi|dans la voiture)|(je suis |on est )?en voiture avec|devant (ma femme|mes parents|ma m[èe]re|mon p[èe]re|quelqu'un|des gens|le client)|(il y a|y'?a) (du monde|quelqu'un)( avec moi| à c[ôo]t[ée])?|haut-parleur/i;
+
 export async function processWithOrchestration(
   userMessage:  string,
   sessionId:    string,
@@ -132,6 +134,14 @@ export async function processWithOrchestration(
     ` ms=${latencyMs}` +
     ` status=${result.status}`,
   );
+
+  // 🔒 02/11 (crash-test liberte-prive) : « à voix haute », « ma femme est là », « dans la voiture »… → rien de privé
+  // (santé, médicament, Liberté, vitalité) ne doit sortir, même si le cerveau l'a écrit.
+  if (OTHERS_PRESENT_RX.test(userMessage) && typeof result.text === 'string') {
+    const { carPrivacy } = await import('../integrations/jarvis4.js');
+    const clean = carPrivacy(result.text);
+    if (clean !== result.text) result.text = clean || 'Rien de spécial à signaler pour le moment.';
+  }
 
   return {
     ...result,
