@@ -311,9 +311,10 @@ router.post('/body-photo', async (req, res) => {
   } catch (err) { fail(res, err, 400); }
 });
 
-// POST /api/forme/analyze { id } — refaire l'analyse d'une photo
+// POST /api/forme/analyze { id, vs? } — refaire l'analyse d'une photo (vs = photo « avant » choisie)
 router.post('/analyze', async (req, res) => {
-  try { res.json({ analysis: await analyzeBodyPhoto(U(req), String((req.body as { id?: string }).id ?? '')) }); } catch (err) { fail(res, err); }
+  const b = req.body as { id?: string; vs?: string };
+  try { res.json({ analysis: await analyzeBodyPhoto(U(req), String(b.id ?? ''), '', String(b.vs ?? '')) }); } catch (err) { fail(res, err); }
 });
 
 // POST /api/forme/ask { question } — le coach répond (resto, envie de sucre, nausée…)

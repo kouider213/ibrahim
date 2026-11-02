@@ -151,7 +151,7 @@ export const forme = {
   log: (kind: string, body: Record<string, unknown> = {}) => post<Overview>('/api/forme/log', { kind, ...body }),
   bodyPhoto: (image: string, pose: string, goal = '', adapt = false) => post<{ photo: Photo; analysis: Analysis | { error: string }; adapted: { date: string; text: string } | null }>('/api/forme/body-photo', { image, pose, goal, adapt }),
   doctor: () => call<{ text: string }>('/api/forme/doctor'),
-  analyze: (id: string) => post<{ analysis: Analysis }>('/api/forme/analyze', { id }),
+  analyze: (id: string, vs?: string) => post<{ analysis: Analysis }>('/api/forme/analyze', vs ? { id, vs } : { id }),
   adapt: (focus: string) => post<{ date: string; text: string }>('/api/forme/adapt', { focus }),
   ask: (question: string, mode = '') => post<{ answer: string }>('/api/forme/ask', { question, mode }),
   push: (sub: PushSubscriptionJSON) => post<{ ok: boolean }>('/api/forme/push', sub),

@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-02 — FORME : photo AVANT au choix + minuteur 3 s (app v234)
+- `forme/Body.tsx` : dans « Avant / maintenant », bandeau de toutes les photos (même pose d'abord) → toucher une photo la prend comme AVANT et relance la comparaison. Une photo pas encore analysée s'ouvre aussi (analyse lancée).
+- Caméra : le gros bouton lance un compte à rebours 3 s par défaut (bip chaque seconde), bouton ⏱ 3 s → 10 s → off (mémorisé), re-appui = annuler.
+- Backend : `analyzeBodyPhoto(uid, id, goal, vsId)` + POST /api/forme/analyze { id, vs }.
+
 ## 2026-11-02 — Argent réel : questions « total » sans invention
 - `argent-direct.ts` : « j'ai combien au total / en tout / d'argent ? » et « c'est quoi mon épargne ? » partaient encore au cerveau (risque de chiffre inventé) → maintenant calculés par le code (épargne + cash). « combien de clients/réservations/messages au total » n'est plus pris pour de l'argent (pluriels FIK reconnus).
 

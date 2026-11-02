@@ -450,11 +450,12 @@ Réponds UNIQUEMENT en JSON :
  "advice":["conseil d'entraînement ou d'habitude précis (≤ 120 car.)", "..."],"focus":["muscles à travailler en priorité"]}
 Les photos portent une GRILLE cyan graduée .1 à .9 (horizontal = x, vertical = y) : sers-t'en pour placer chaque cercle EXACTEMENT sur la partie du corps (ventre = sous la poitrine au niveau du nombril, pas sur le fond ni la tête). x,y = centre du cercle sur la photo MAINTENANT (fractions 0-1 de la largeur/hauteur), r = rayon en fraction de la largeur, PETIT (0,04 à 0,12 : le cercle entoure juste la zone) ; bx,by,br = même zone sur la photo AVANT (omet-les s'il n'y a qu'une photo). 3 à 5 zones qui ne se chevauchent pas, JAMAIS sur le visage ni la tête (épaules = au bord des épaules). Le champ "trend" reste TOUJOURS en français (mieux / pareil / à travailler).${uid === 'kouider' ? ' Conseils compatibles avec un dos à ménager.' : ''}${LANG_RULE(p.lang)}`;
 
-export async function analyzeBodyPhoto(uid: Uid, id: string, goal = ''): Promise<BodyAnalysis> {
+export async function analyzeBodyPhoto(uid: Uid, id: string, goal = '', vsId = ''): Promise<BodyAnalysis> {
   const photos = await readPhotos(uid);
   const cur = photos.find(p => p.id === id);
   if (!cur) throw new Error('photo introuvable');
-  const before = photos.filter(p => p.pose === cur.pose && p.date < cur.date)[0] ?? null;
+  // vsId = photo « avant » choisie à la main dans l'appli ; sinon la plus ancienne de la même pose
+  const before = (vsId && vsId !== id ? photos.find(p => p.id === vsId) : null) ?? photos.filter(p => p.pose === cur.pose && p.date < cur.date)[0] ?? null;
   const imgs = await Promise.all([before ? photoB64(before.path).then(gridImage) : null, photoB64(cur.path).then(gridImage)]);
   const prof = await getFormeProfile(uid);
   const t = formeTargets(prof);

@@ -6,7 +6,7 @@ import { beep } from './Sport.tsx';
 import Insights from './Insights.tsx';
 
 // Onglet CORPS : poids, mensurations et PHOTOS DE SUIVI. Caméra avec la photo d'avant en transparence pour se placer
-// pareil, minuteur 10 s (téléphone posé), puis Claude compare avant / maintenant et entoure ce qui a changé.
+// pareil, minuteur 3 s par défaut (10 s / off au choix), photo « avant » au choix, puis Claude compare avant / maintenant et entoure ce qui a changé.
 const TREND = { 'mieux': F.green, 'pareil': F.gold, 'à travailler': F.accent } as const;
 const POSES: Array<{ id: Photo['pose']; label: string; tip: string }> = [
   { id: 'face', label: 'Face', tip: 'Bras légèrement écartés, pieds largeur d\'épaules' },
@@ -40,11 +40,25 @@ function Framed({ url, zones, before, label }: { url: string | null; zones: Anal
   );
 }
 
-export function Compare({ photo, before, a, onReanalyze }: { photo: Photo; before: Photo | null; a: Analysis; onReanalyze?: () => void }) {
+export function Compare({ photo, before, a, onReanalyze, photos, onPickBefore, picking }: { photo: Photo; before: Photo | null; a: Analysis; onReanalyze?: () => void; photos?: Photo[]; onPickBefore?: (id: string) => void; picking?: boolean }) {
   const [mode, setMode] = useState<'side' | 'slide'>('side');
   const [pos, setPos] = useState(50);
+  // Toutes les autres photos, même pose d'abord, puis par date (la plus ancienne en premier)
+  const others = (photos ?? []).filter(p => p.id !== photo.id && p.url).sort((x, y) => (x.pose === photo.pose ? 0 : 1) - (y.pose === photo.pose ? 0 : 1) || x.date.localeCompare(y.date));
   return (
     <div>
+      {onPickBefore && others.length > 0 && <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>👆 Choisis ta photo AVANT {picking && <><Spinner size={14} /> <span style={{ fontWeight: 600, color: F.muted }}>nouvelle comparaison…</span></>}</div>
+        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
+          {others.map(p => {
+            const on = before?.id === p.id;
+            return <button key={p.id} disabled={picking} onClick={() => !on && onPickBefore(p.id)} style={{ position: 'relative', flexShrink: 0, width: 64, aspectRatio: '3/4', padding: 0, borderRadius: 10, overflow: 'hidden', border: on ? `3px solid ${F.accent}` : '3px solid transparent', background: F.dark, cursor: 'pointer', opacity: picking && !on ? 0.5 : 1 }}>
+              <img src={p.url!} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: 9.5, fontWeight: 800, padding: '2px 0' }}>{p.date.slice(8)}/{p.date.slice(5, 7)} · {p.pose}</div>
+            </button>;
+          })}
+        </div>
+      </div>}
       {before && <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
         {(['side', 'slide'] as const).map(m => <button key={m} onClick={() => setMode(m)} style={{ ...ghostBtn, flex: 1, padding: '8px', background: mode === m ? F.dark : '#fff', color: mode === m ? '#fff' : F.ink }}>{m === 'side' ? 'Côte à côte' : 'Glisser avant / après'}</button>)}
       </div>}
@@ -113,9 +127,16 @@ function Camera({ ghost, onShot, onClose }: { ghost: string | null; onShot: (dat
     vibrate(80); beep();
     c.toBlob(b => { if (b) void compressImage(b).then(onShot); }, 'image/jpeg', 0.92);
   };
-  const timer = () => {
-    let n = 10; setCount(n);
-    const t = setInterval(() => { n--; if (n > 0) { setCount(n); if (n <= 3) beep(); } else { clearInterval(t); setCount(null); snap(); } }, 1000);
+  // Minuteur : 3 s par défaut (le temps de reculer), 10 s ou sans — appliqué au gros bouton
+  const [delay, setDelay] = useState<0 | 3 | 10>(() => { try { const v = Number(localStorage.getItem('forme_cam_delay')); return v === 0 || v === 10 ? v : 3; } catch { return 3; } });
+  const tick = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => () => { if (tick.current) clearInterval(tick.current); }, []);
+  const cycleDelay = () => setDelay(d => { const n = d === 3 ? 10 : d === 10 ? 0 : 3; try { localStorage.setItem('forme_cam_delay', String(n)); } catch { /* */ } return n; });
+  const shoot = () => {
+    if (count != null) { if (tick.current) clearInterval(tick.current); tick.current = null; setCount(null); return; }   // re-appui = annuler
+    if (!delay) { snap(); return; }
+    let n: number = delay; setCount(n); beep();
+    tick.current = setInterval(() => { n--; if (n > 0) { setCount(n); if (n <= 3) beep(); } else { if (tick.current) clearInterval(tick.current); tick.current = null; setCount(null); snap(); } }, 1000);
   };
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 70, background: '#000', display: 'flex', flexDirection: 'column' }}>
@@ -132,9 +153,9 @@ function Camera({ ghost, onShot, onClose }: { ghost: string | null; onShot: (dat
       </div>
       <div style={{ background: '#000', padding: '14px 18px calc(18px + env(safe-area-inset-bottom))', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <button onClick={() => file.current?.click()} style={{ ...ghostBtn, background: '#222', color: '#fff', border: 'none', fontSize: 12.5 }}>Galerie</button>
-        <button onClick={snap} disabled={failed} aria-label="Prendre la photo" style={{ width: 74, height: 74, borderRadius: 37, border: '5px solid #fff', background: F.accent, cursor: 'pointer' }} />
+        <button onClick={shoot} disabled={failed} aria-label={count != null ? 'Annuler' : 'Prendre la photo'} style={{ width: 74, height: 74, borderRadius: 37, border: '5px solid #fff', background: count != null ? '#444' : F.accent, color: '#fff', fontWeight: 900, fontSize: 13, cursor: 'pointer' }}>{count != null ? '✕' : delay ? `${delay} s` : ''}</button>
         <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={timer} disabled={failed || count != null} style={{ ...ghostBtn, background: '#222', color: '#fff', border: 'none', fontSize: 12.5 }}>⏱ 10 s</button>
+          <button onClick={cycleDelay} disabled={failed || count != null} style={{ ...ghostBtn, background: delay ? F.accent : '#222', color: '#fff', border: 'none', fontSize: 12.5 }}>⏱ {delay ? `${delay} s` : 'off'}</button>
           <button onClick={() => setFacing(f => f === 'user' ? 'environment' : 'user')} aria-label="Retourner" style={{ ...ghostBtn, background: '#222', color: '#fff', border: 'none', fontSize: 15 }}>⟲</button>
         </div>
         <input ref={file} type="file" accept="image/*" capture="user" hidden onChange={async e => { const f = e.target.files?.[0]; if (f) onShot(await compressImage(f)); }} />
@@ -148,6 +169,17 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
   const [cam, setCam] = useState(false);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<{ photo: Photo; a: Analysis } | null>(null);
+  const [picking, setPicking] = useState(false);
+  const pickBefore = async (vs: string) => {
+    if (!view) return;
+    setPicking(true);
+    try { const r = await forme.analyze(view.photo.id, vs); setView({ ...view, a: r.analysis }); onO(await forme.overview()); vibrate(40); } catch (e) { toast(errText(e)); } finally { setPicking(false); }
+  };
+  const openPhoto = async (ph: Photo) => {
+    if (ph.analysis) { setView({ photo: ph, a: ph.analysis }); return; }
+    setBusy(true);
+    try { const r = await forme.analyze(ph.id); setView({ photo: ph, a: r.analysis }); onO(await forme.overview()); } catch (e) { toast(errText(e)); } finally { setBusy(false); }
+  };
   const [mOpen, setMOpen] = useState(false);
   const [m, setM] = useState<Record<string, string>>({});
   const [kg, setKg] = useState('');
@@ -218,7 +250,7 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
       {o.photos.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 12 }}>
           {o.photos.map(ph => (
-            <button key={ph.id} onClick={() => ph.analysis ? setView({ photo: ph, a: ph.analysis }) : undefined} style={{ position: 'relative', padding: 0, border: 'none', borderRadius: 14, overflow: 'hidden', aspectRatio: '3/4', background: F.dark, cursor: 'pointer' }}>
+            <button key={ph.id} onClick={() => void openPhoto(ph)} style={{ position: 'relative', padding: 0, border: 'none', borderRadius: 14, overflow: 'hidden', aspectRatio: '3/4', background: F.dark, cursor: 'pointer' }}>
               {ph.url && <img src={ph.url} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
               <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '14px 6px 5px', background: 'linear-gradient(transparent, rgba(0,0,0,0.75))', color: '#fff', fontSize: 11, fontWeight: 800, textAlign: 'left' }}>{ph.date.slice(8)}/{ph.date.slice(5, 7)} · {ph.pose}{ph.weight ? ` · ${ph.weight} kg` : ''}</div>
               {ph.analysis && <div style={{ position: 'absolute', top: 5, right: 5, background: F.accent, color: '#fff', borderRadius: 8, padding: '2px 6px', fontSize: 10.5, fontWeight: 900 }}>⭕ {ph.analysis.score}</div>}
@@ -248,7 +280,7 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
         <button onClick={async () => { onO(await forme.log('measures', { measures: Object.fromEntries(Object.entries(m).map(([k, v]) => [k, Number(v.replace(',', '.'))])) })); setM({}); setMOpen(false); toast('📏 Mensurations notées'); }} style={{ ...btn, width: '100%' }}>Enregistrer</button>
       </Sheet>
       <Sheet open={!!view} onClose={() => setView(null)} title={<Title a="Avant /" b="maintenant" size={24} />}>
-        {view && <Compare photo={view.photo} before={beforeOf(view.photo)} a={view.a} onReanalyze={async () => { setBusy(true); try { const r = await forme.analyze(view.photo.id); setView({ ...view, a: r.analysis }); onO(await forme.overview()); } catch (e) { toast(errText(e)); } finally { setBusy(false); } }} />}
+        {view && <Compare photo={view.photo} before={(view.a.vs ? o.photos.find(x => x.id === view.a.vs) : null) ?? beforeOf(view.photo)} a={view.a} photos={o.photos} onPickBefore={pickBefore} picking={picking} onReanalyze={async () => { setBusy(true); try { const r = await forme.analyze(view.photo.id); setView({ ...view, a: r.analysis }); onO(await forme.overview()); } catch (e) { toast(errText(e)); } finally { setBusy(false); } }} />}
       </Sheet>
       {cam && <Camera ghost={lastOf(pose)?.url ?? null} onShot={shot} onClose={() => setCam(false)} />}
     </div>
