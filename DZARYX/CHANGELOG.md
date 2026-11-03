@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-03 (soir) — Réponses de conseil « comme ChatGPT »
+- Question « comment faire / conseils » (hors demandes de travail) → consigne À CÔTÉ de la question (rich-answer.ts) : intro, son cas avec ses vrais chiffres FORME, sections **1. Titre** + puces, « Ton plan », photos d'exercices choisies à la main (free-exercise-db). Le cerveau gratuit ignorait la consigne dans le prompt système.
+- tgcall : tg_format() transforme ### / --- / * en gras et • (Telegram affichait les symboles bruts).
+
 ## 2026-11-03 (soir) — Argent : mouvements de caisse lus par le code
 - « je pris 200 du cash… retombé à 2200… je récupère 400 » n'était pas lu → le cerveau a répondu « Cash +400 € enregistré » sans rien écrire. Parseur : total + mouvements après le total, « -200€ en cash », « cash +400 », « moins 200 », « j'ai pris 150 de la caisse » (appliqué au cash enregistré). Garde-fou phantom : « ✅ **Cash** … enregistré » bloqué sans outil.
 

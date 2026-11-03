@@ -289,6 +289,13 @@ export async function processMessage(
     const r = await (await import('../integrations/sport-coach.js')).runSportCancel(sportCancel).catch(e => `❌ échec de l'annulation : ${e instanceof Error ? e.message : e}`);
     ctx.systemExtra = `DÉJÀ FAIT PAR LE CODE pour ce message (ne rappelle PAS sport_coach skip/rest pour ce jour) : ${r}\nConfirme-le-lui en une phrase avec CE résultat exact, puis réponds au reste de son message.\n\n${ctx.systemExtra ?? ''}`.trim();
   }
+  // 03/11 question de conseil → réponse « comme ChatGPT » (personnalisée FORME, illustrée, format Telegram propre). La consigne
+  // va À CÔTÉ de sa question : noyée dans le prompt système, le cerveau gratuit l'ignorait (### bruts, aucun chiffre à lui).
+  if (actorUserId === 'kouider' && !(sessionId.startsWith('voice_') && !textOnly)) {
+    const rich = await import('../integrations/rich-answer.js').then(m => m.richAnswerHint(userMessage)).catch(() => '');
+    const last = ctx.messages[ctx.messages.length - 1];
+    if (rich && last && last.role === 'user' && typeof last.content === 'string') last.content = `${last.content}\n\n[Consigne pour ta réponse, pas un message de Kouider :\n${rich}]`;
+  }
   if (v2ContextAddition) {
     ctx.systemExtra = `${v2ContextAddition}\n\n${ctx.systemExtra ?? ''}`.trim();
   }

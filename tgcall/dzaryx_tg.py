@@ -907,6 +907,21 @@ photo_wait: dict[int, asyncio.Future] = {}   # uid → légende attendue pour la
 MD_IMAGE = re.compile(r'!\[([^\]]*)\]\((https?://[^)\s]+)\)')
 
 
+def tg_format(text: str) -> str:
+    """Markdown du cerveau → ce que Telegram affiche (03/11 : « ### 1. Titre », « --- » et « * » apparaissaient bruts)."""
+    out = []
+    for line in text.split('\n'):
+        if re.fullmatch(r'\s*([-*_—])\1{2,}\s*', line):          # --- / *** : ligne de séparation → rien
+            continue
+        m = re.match(r'^\s*#{1,6}\s+(.*)$', line)                 # ### Titre → **Titre**
+        if m:
+            t = m.group(1).replace('**', '').strip()
+            line = f'**{t}**' if t else ''
+        line = re.sub(r'^(\s*)[*-]\s+', lambda mm: f"{mm.group(1)}• ", line)   # * puce / - puce → •
+        out.append(line)
+    return re.sub(r'\n{3,}', '\n\n', '\n'.join(out)).strip()
+
+
 async def send_text_safe(chat_id: int, text: str, reply_to: Message | None = None) -> None:
     """Texte → Telegram ; si le markdown casse (lien bizarre…), on renvoie en texte brut au lieu de « souci technique »."""
     try:
@@ -925,7 +940,7 @@ async def reply_out(msg: Message, out: dict) -> None:
     # « ![Avant / maintenant](https://…) » dans le texte : Pyrogram le prend pour un emoji perso et plante (int(url), 27/10)
     # → l'image part en photo, le texte sans elle
     images = [{'title': t, 'url': u} for t, u in MD_IMAGE.findall(text)] + list(out.get('images') or [])
-    text = MD_IMAGE.sub('', text).strip() or ('📷' if images else '…')
+    text = tg_format(MD_IMAGE.sub('', text)) or ('📷' if images else '…')
     for i, part in enumerate(split_text(text)):
         await send_text_safe(msg.chat.id, part, msg if i == 0 else None)
     for img in images:
