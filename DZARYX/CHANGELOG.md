@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-03 (16h45) — Vitalité : action 'causes'
+- Action 'causes' (+ note, stockée en base privée) : ce qu'il pense être l'origine ; met les leviers correspondants en tête (nouveau levier stress) pour les rappels du soir et le coach.
+
 ## 2026-11-03 (16h) — FORME : repas texte en double
 - « 250 g de skyr » noté 2× à 24 s d'écart (2 appels meal_text) → logMealText ignore un repas texte de calories proches noté il y a < 5 min. Doublon du jour supprimé.
 

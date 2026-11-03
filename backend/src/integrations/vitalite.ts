@@ -27,7 +27,7 @@ export interface VitLog {
   testo?: number; unit?: 'ng/dL' | 'nmol/L'; heure?: string; shbg?: number; lh?: number; prolactine?: number; vitd?: number; ferritine?: number;
   note?: string;
 }
-interface VitSettings { goalPerWeek: [number, number]; weekly: boolean; daily: boolean; dailyAt: string }
+interface VitSettings { goalPerWeek: [number, number]; weekly: boolean; daily: boolean; dailyAt: string; causes?: string }
 // daily (03/11, il l'a demandé) : un rappel chaque soir = UN geste concret du jour (sommeil, assiette, sport, couple, médecin)
 const DEFAULT_SET: VitSettings = { goalPerWeek: [1, 2], weekly: true, daily: true, dailyAt: '20:30' };
 
@@ -91,6 +91,7 @@ export interface VitState {
   mood: number | null;
   levers: Array<{ k: string; title: string; why: string; todo: string; fact: string }>;
   missing: string[];
+  causes: string | null;             // ce que LUI pense être la cause (texte en base privée, jamais dans le dépôt)
 }
 
 function mondayOf(d: string): string { const x = new Date(`${d}T12:00:00Z`); const wd = (x.getUTCDay() + 6) % 7; return addDays(d, -wd); }
@@ -143,6 +144,9 @@ export async function vitaliteState(): Promise<VitState> {
   if (ins && ins.week.done < 3 && ins.week.target >= 3) levers.push({ k: 'sport', title: '3 séances de muscu par semaine', why: `${ins.week.done}/${ins.week.target} séances cette semaine.`, todo: 'Caler les séances qui restent dans l\'agenda (FORME).', fact: 'sport' });
   if (!labo) levers.push({ k: 'labo', title: 'Faire une prise de sang le matin', why: 'Sans ça, personne ne peut te dire ton vrai niveau de testostérone.', todo: 'Demander à ton médecin : testostérone totale avant 10 h, LH, FSH, prolactine, SHBG, TSH, ferritine, vitamine D, HbA1c. Puis me donner les chiffres.', fact: 'prise-sang' });
   if ((lib?.phq2 ?? 0) >= 3 || (moods.length >= 2 && avg(moods)! <= 4)) levers.push({ k: 'moral', title: 'Soigner le moral', why: 'Ton moral noté est bas ces derniers temps.', todo: 'Psychologue de 1re ligne (11 € la séance) — le désir suit souvent le moral.', fact: 'moral' });
+  // Causes qu'il a lui-même nommées → leviers en tête (même si la montre ne voit pas encore de dette de sommeil)
+  if (set.causes && /sommeil|dor|fatigu/i.test(set.causes) && !levers.some(l => l.k === 'sleep')) levers.unshift({ k: 'sleep', title: 'Récupérer du sommeil', why: `Tu l'as dit toi-même : ${set.causes}.`, todo: 'Coucher fixe, 7 h 30 visées, pas d\'écran au lit.', fact: 'sommeil' });
+  if (set.causes && /stress|travail|boulot|fatigu/i.test(set.causes)) levers.splice(levers.findIndex(l => l.k === 'sleep') + 1, 0, { k: 'stress', title: 'Faire baisser le stress', why: `Tu l'as dit toi-même : ${set.causes}.`, todo: 'Une vraie coupure par jour, et décharger ce que Dzaryx peut faire à ta place.', fact: 'moral' });
   levers.push({ k: 'couple', title: 'Du temps à deux, protégé', why: `Objectif : ${set.goalPerWeek[0]} à ${set.goalPerWeek[1]} fois par semaine${avg4 != null ? ` (moyenne actuelle ${avg4})` : ''}.`, todo: '2 soirs par semaine sans téléphone après 21 h, tendresse sans pression, et le dire simplement à ta femme.', fact: 'couple' });
 
   const missing: string[] = [];
@@ -152,6 +156,7 @@ export async function vitaliteState(): Promise<VitState> {
   if (!log.some(l => l.kind === 'rapport')) missing.push('rapports : dis-moi juste « on l\'a fait » à chaque fois');
 
   return {
+    causes: set.causes ?? null,
     today, age, goal: set.goalPerWeek, weeks, thisWeek: weeks.at(-1)!.rapports, avg4,
     desir: { last: lastB?.desir ?? null, date: lastB?.date ?? null, trend: bilans.filter(b => b.desir != null).slice(-8).map(b => b.desir!) },
     iief: { score: lastI ? lastI.q1! + lastI.q2! : null, date: lastI?.date ?? null, prev: prevI ? prevI.q1! + prevI.q2! : null },
@@ -171,6 +176,7 @@ export async function vitaliteState(): Promise<VitState> {
 function stateText(s: VitState): string {
   return [
     `Âge : ${s.age ?? '?'} ans.`,
+    s.causes ? `CE QU'IL DIT LUI-MÊME sur l'origine : ${s.causes}. Pars de là en priorité.` : '',
     `Rapports : ${s.thisWeek} cette semaine ; moyenne 4 dernières semaines complètes ${s.avg4 ?? 'pas encore de données'} ; objectif ${s.goal[0]}-${s.goal[1]}/semaine. Par semaine (ancienne → récente) : ${s.weeks.map(w => w.rapports).join(', ')}.`,
     `Désir (sa note /10 de la semaine) : ${s.desir.last ?? 'pas noté'}${s.desir.trend.length > 1 ? ` (évolution ${s.desir.trend.join(' → ')})` : ''}. Questionnaire IIEF désir : ${s.iief.score != null ? `${s.iief.score}/10 le ${s.iief.date}${s.iief.prev != null ? ` (avant : ${s.iief.prev}/10)` : ''}` : 'pas encore fait'}. Érections du matin : ${s.matins.last != null ? `${s.matins.last}/7 matins (${s.matins.date})` : 'pas noté'}.`,
     `Testostérone : ${s.testoTxt}`,
@@ -313,10 +319,15 @@ export async function vitaliteTool(input: Record<string, unknown>, sessionId?: s
       }
       st.weekly = input['on'] !== false; await kvSet(SET_K, JSON.stringify(st)); return st.weekly ? 'Bilan privé du dimanche 21 h 30 : activé.' : 'Bilan du dimanche : coupé.';
     }
+    case 'causes': {
+      const c = String(input['note'] ?? input['question'] ?? '').trim().slice(0, 200);
+      const st = await settings(); st.causes = c || undefined; await kvSet(SET_K, JSON.stringify(st));
+      return c ? `Noté : selon toi, la baisse vient de « ${c} ». Tes rappels du soir et mes réponses partent de là.` : 'Causes effacées.';
+    }
     case 'jour': return (await dailyText()) ?? 'Rien à proposer aujourd\'hui.';
     case 'faits': return (await factsFor()).map(f => `• ${f.fait}\n  (${f.source})`).join('\n');
   }
-  return '❌ action : etat | question | rapport | annuler | bilan | iief | labo | objectif | rappel | jour | faits';
+  return '❌ action : etat | question | rapport | annuler | bilan | iief | labo | objectif | rappel | causes | jour | faits';
 }
 
 // ── 🔁 Rappel du soir (03/11) : UN geste concret par jour, tiré de SES leviers + des FAITS (rien d'inventé, sans IA) ──
@@ -335,6 +346,11 @@ const DAY_TIPS: Record<string, string[]> = {
   labo: ['Appelle ton médecin pour la prise de sang du matin (testostérone avant 10 h, LH, FSH, prolactine, SHBG, TSH, ferritine, vitamine D, HbA1c). Sans elle, personne ne connaît ton vrai niveau.'],
   moral: ['Comment va le moral ? Si c\'est lourd depuis plusieurs jours, un psychologue de 1re ligne (11 € la séance) aide souvent l\'envie à revenir.'],
   deficit: ['Tu perds vite : remonte de 150 kcal aujourd\'hui (ex. une poignée de noix). Un déficit trop fort fait baisser l\'envie.'],
+  stress: [
+    'Ce soir, 15 min rien que pour toi après le boulot : marche, douche, prière ou respiration lente (4 s inspire, 6 s expire). Le stress coupe l\'envie.',
+    'Une chose de ta liste que Dzaryx peut faire à ta place demain ? Dis-la-lui ce soir et vide ta tête avant de dormir.',
+    'Fatigué ce soir ? Pas de business après 21 h : téléphone en mode avion, tu récupères. C\'est comme ça que l\'énergie et l\'envie reviennent.',
+  ],
   med: ['Continue ton programme palier par palier, sans rien accélérer : le désir revient surtout APRÈS l\'arrêt complet. Tu es sur le bon chemin.'],
 };
 export async function dailyText(date = localNow().date): Promise<string | null> {
