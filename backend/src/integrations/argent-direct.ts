@@ -20,6 +20,8 @@ const label = (d: string) => `${DAYS[wd(d)]} ${dm(d)}`;
 export type MoneyCommand = {
   sale?: { amount: number; date: string; cat: string };
   cash?: number;
+  cashDelta?: number;   // 03/11 : mouvement de caisse sans total (« j'ai pris 200 du cash ») → appliqué au cash enregistré
+  cashCalc?: string;    // le calcul fait, montré à Kouider (« 2 200 € + 400 € récupérés »)
   ask?: { kind: 'total' | 'cash' | 'gains' | 'best'; from?: string; to?: string; title?: string };
 };
 
@@ -76,10 +78,40 @@ export function parseMoneyCommand(raw: string): MoneyCommand | null {
   // ── Enregistrements ──
   // Cash total : « je suis en total en cash à 2400 », « cash 2400 », « j'ai 2400 en cash », « caisse à 2400 »
   let cashPos = -1;
+  const cashNums = new Set<number>();   // positions des chiffres déjà lus comme mouvements de caisse (pas des ventes)
   const c1 = /(?:cash|caisse|liquide)\D{0,18}?(\d[\d\s. ,]*\s*k?)/i.exec(msg);
   const c2 = /(\d[\d\s. ,]*\s*k?)\s*(?:€|euros?)?\s*(?:en|de)\s*(?:cash|liquide)/i.exec(msg);
+  // 03/11 « -200€ en cash », « cash +400 », « moins 200 de la caisse » = mouvement, JAMAIS « ton cash = 200 »
+  const signed = [...msg.matchAll(/(?:^|[\s(:])([+−–-]|moins|plus)\s*(\d[\d\s.,]*\s*k?)\s*(?:€|euros?)?\s*(?:(?:en|de|du|dans|sur)\s+(?:la\s+|le\s+|mon\s+|ma\s+)?)?(?=cash|caisse|liquide)/giu),
+    ...msg.matchAll(/(?:cash|caisse|liquide)\s*:?\s*([+−–-]|moins|plus)\s*(\d[\d\s.,]*\s*k?)/giu)]
+    .map(m => ({ v: parseNum(m[2]!), sign: /^(\+|plus)$/i.test(m[1]!) ? 1 : -1 })).filter(x => x.v !== null && x.v >= 1 && x.v <= 1_000_000) as Array<{ v: number; sign: number }>;
+  if (signed.length && !/retomb|redescend|remont|repass|il me reste|je suis (?:à|a)\s+\d/i.test(msg)) return { cashDelta: signed.reduce((t, x) => t + x.sign * x.v, 0) };
   const cm = /total|en tout|je suis|j.ai|il me reste|caisse|^\s*(?:mon\s+)?cash\b/i.test(msg) ? (c1 ?? c2) : null;
   if (cm) { const v = parseNum(cm[1]!); if (v !== null && v >= 10 && v <= 1_000_000) { out.cash = Math.round(v); cashPos = cm.index + cm[0].lastIndexOf(cm[1]!); } }
+  // Mouvements de caisse (03/11, « je pris 200 € du cash hier donc je suis retombé à 2200 € mais aujourd'hui je récupère 400 € »
+  // → rien n'était lu, le cerveau a répondu « Cash +400 € enregistré, 2 600 € » sans rien écrire).
+  const cashCtx = /cash|caisse|liquide/i.test(msg);
+  const NUM = '(\\d[\\d\\s.,]*\\s*k?)';
+  const absM = new RegExp('(?:retomb|redescend|remont|repass|tomb)\\p{L}*\\s+(?:(?:à|a)\\s+)?' + NUM, 'iu').exec(msg)
+    ?? (cashCtx ? new RegExp('(?:je suis|j.ai|il me reste)\\s+(?:(?:à|a)\\s+|plus que\\s+)?' + NUM + '\\s*(?:€|euros?)', 'iu').exec(msg) : null);
+  const plusRe = new RegExp('(?:r[ée]cup[èée]r\\p{L}*|remets|remis|rajout\\p{L}*|ajout\\p{L}*|reçu|recu|remet\\p{L}*|rembours\\p{L}*|rends|rendu)\\D{0,12}?' + NUM, 'giu');
+  const minusRe = new RegExp('(?:pris|prends|retir\\p{L}*|sorti\\p{L}*|enlev\\p{L}*|tir[ée]|pioch\\p{L}*|emprunt\\p{L}*)\\D{0,8}?' + NUM + '\\s*(?:€|euros?)?\\s*(?:du|de|dans|en|sur)\\s+(?:la\\s+|le\\s+|mon\\s+|ma\\s+)?(?:cash|caisse|liquide)', 'giu');
+  const moves = (re: RegExp, sign: number) => [...msg.matchAll(re)].map(m => ({ pos: m.index! + m[0].lastIndexOf(m[1]!), v: parseNum(m[1]!), sign })).filter(x => x.v !== null && x.v >= 1 && x.v <= 1_000_000) as Array<{ pos: number; v: number; sign: number }>;
+  if (cashCtx || absM) {
+    const plus = moves(plusRe, 1), minus = cashCtx ? moves(minusRe, -1) : [];
+    if (absM && (cashCtx || plus.length || minus.length)) {
+      const base = parseNum(absM[1]!), at = absM.index! + absM[0].lastIndexOf(absM[1]!);
+      if (base !== null && base >= 0 && base <= 1_000_000) {
+        const after = [...plus, ...minus].filter(x => x.pos > at);   // ce qui est AVANT le total explique comment il y est arrivé
+        const total = after.reduce((s, x) => s + x.sign * x.v, base);
+        out.cash = Math.max(0, Math.round(total)); cashPos = at;
+        if (after.length) out.cashCalc = [eur(base), ...after.map(x => `${x.sign > 0 ? '+' : '−'} ${eur(x.v)}${x.sign > 0 ? ' récupérés' : ' pris'}`)].join(' ') + ` = ${eur(out.cash)}`;
+      }
+    } else if (out.cash === undefined && (plus.length || minus.length) && cashCtx) {
+      out.cashDelta = [...plus, ...minus].reduce((s, x) => s + x.sign * x.v, 0);
+    }
+    for (const x of [...plus, ...minus]) cashNums.add(x.pos);   // mouvement de caisse ≠ vente
+  }
   // Vente : « hier j'ai fait 300 € avec le snus », « snus 180 », « j'ai vendu pour 150 »
   if (!/d[ée]pens|course|essence|achet|achat|command|pay[ée]|factur|amende|loyer/i.test(msg)) {
     const res = [
@@ -89,14 +121,14 @@ export function parseMoneyCommand(raw: string): MoneyCommand | null {
     for (const re of res) {
       for (const m of msg.matchAll(re)) {
         const pos = m.index! + m[0].lastIndexOf(m[1]!);
-        if (pos === cashPos) continue;
+        if (pos === cashPos || cashNums.has(pos)) continue;
         const v = parseNum(m[1]!);
         if (v !== null && v >= 1 && v <= 20_000 && (snus || /€|euros?/i.test(msg))) { out.sale = { amount: Math.round(v * 100) / 100, date: dayOf(msg, today) ?? today, cat: /fik/i.test(msg) && !snus ? 'fik' : 'snus' }; break; }
       }
       if (out.sale) break;
     }
   }
-  return out.sale || out.cash !== undefined ? out : null;
+  return out.sale || out.cash !== undefined || out.cashDelta !== undefined ? out : null;
 }
 
 // ── Lectures ──
@@ -160,10 +192,16 @@ export async function runMoneyCommand(c: MoneyCommand): Promise<string> {
     const day = l.filter(e => e.t === 'vente' && e.d === c.sale!.date).reduce((s, e) => s + e.amount, 0);
     out.push(`✅ Enregistré : ${c.sale.cat} +${eur(c.sale.amount)} le ${label(c.sale.date)}${day !== c.sale.amount ? ` (total ce jour-là ${eur(day)})` : ''}.`);
   }
+  if (c.cashDelta !== undefined && c.cash === undefined) {
+    const f = await kvJson<{ sideCash?: number }>('perso:finances', {});
+    if (f.sideCash == null) return `📒 Ton cash n'est pas encore noté, je ne peux pas faire ${c.cashDelta >= 0 ? '+' : '−'} ${eur(Math.abs(c.cashDelta))}. Dis « cash 2400 » avec le total.`;
+    c.cash = Math.max(0, Math.round(f.sideCash + c.cashDelta));
+    c.cashCalc = `${eur(f.sideCash)} ${c.cashDelta >= 0 ? '+' : '−'} ${eur(Math.abs(c.cashDelta))} = ${eur(c.cash)}`;
+  }
   if (c.cash !== undefined) {
     const f = await kvJson<Record<string, unknown>>('perso:finances', {});
     await kvPut('perso:finances', { ...f, sideCash: c.cash, sideCashAt: localNow().date, updated: localNow().date });
-    out.push(`✅ Cash mis à jour : ${eur(c.cash)}.`);
+    out.push(`✅ Cash mis à jour : ${eur(c.cash)}${c.cashCalc ? ` (${c.cashCalc})` : ''}.`);
   }
   out.push((await totalText()).split('\n')[0]!);
   return out.join('\n');

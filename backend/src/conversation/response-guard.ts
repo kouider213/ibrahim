@@ -40,6 +40,9 @@ const PHANTOM_ACTION_PATTERNS: RegExp[] = [
   // j'ai + verbe write
   /j'ai\s+(corrig[eé]|modifi[eé]|cr[eé][eé]|envoy[eé]|supprim[eé]|annul[eé]|mis\s+[aà]\s+jour|ajout[eé]|publi[eé]|r[eé]par[eé]|g[eé]n[eé]r[eé]|lanc[eé]|ex[eé]cut[eé]|fix[eé]|d[eé]ploy[eé]|push[eé]|commit[eé]|enregistr[eé]|effac[eé])/im,
   // Claims directs sans formule j'ai
+  // 03/11 argent : « ✅ **Cash +400 €** enregistré » (gras entre ✅ et le verbe) / « c'est noté, 2 600 € en cash » sans rien écrire
+  /✅[^\n]{0,60}(cash|caisse|liquide|[ée]pargne|vente|€)[^\n]{0,40}(enregistr[eé]|not[eé]|mis\s+[aà]\s+jour|ajout[eé])/im,
+  /c.est\s+not[eé][^\n]{0,60}(cash|caisse|liquide|[ée]pargne|€)/im,
   /\b(site\s+mis\s+[aà]\s+jour|r[eé]servation\s+cr[eé][eé]e?|paiement\s+enregistr[eé]|agenda\s+mis\s+[aà]\s+jour|envoy[eé]e?\s+sur\s+telegram|fichier\s+modifi[eé]|code\s+corrig[eé]|bug\s+corrig[eé]|d[eé]ploy[eé]\s+sur\s+railway|vid[eé]o\s+cr[eé][eé]e?|image\s+g[eé]n[eé]r[eé]e?|rappel\s+programm[eé])\b/im,
 ];
 

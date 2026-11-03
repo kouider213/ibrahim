@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-03 (soir) — Argent : mouvements de caisse lus par le code
+- « je pris 200 du cash… retombé à 2200… je récupère 400 » n'était pas lu → le cerveau a répondu « Cash +400 € enregistré » sans rien écrire. Parseur : total + mouvements après le total, « -200€ en cash », « cash +400 », « moins 200 », « j'ai pris 150 de la caisse » (appliqué au cash enregistré). Garde-fou phantom : « ✅ **Cash** … enregistré » bloqué sans outil.
+
 ## 2026-11-03 — CarPlay mode RETOUR + annulation sport faite par le code
 - 🚗 Jarvis CarPlay : en RENTRANT (après 11 h, près du travail ou plus rien de prévu, pas déjà à la maison) → plus aucune tâche ; discours de courage (il a tenu, le pire est passé, boulot + exil = une étape vers Oran), citation de courage, « reposez-vous » (car-coach.ts isHomeward/homewardSpeech).
 - 🏋️ « annule ma séance de demain » : le cerveau disait « ✅ annulée » sans outil (tools: []) → parseSportCancel/runSportCancel exécutés par le code avant le cerveau (jour le plus proche du mot séance) ; planSportWeek retire de l'agenda les séances encore présentes sur un jour annulé. 4/11 marqué annulé.
