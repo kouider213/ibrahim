@@ -199,9 +199,13 @@ router.get('/widget', async (_req, res) => {
 router.get('/car-widget', async (_req, res) => {
   try { res.json(await import('../../integrations/jarvis4.js').then(m => m.carWidgetData())); } catch (e) { fail(res, e); }
 });
-router.get('/car-widget/photo', async (_req, res) => {
+router.get('/car-widget/script', async (_req, res) => {
+  const { CAR_WIDGET_RENDER } = await import('../../integrations/car-widget-script.js');
+  res.setHeader('Content-Type', 'text/javascript; charset=utf-8'); res.setHeader('Cache-Control', 'no-store'); res.end(CAR_WIDGET_RENDER);
+});
+router.get('/car-widget/photo', async (req, res) => {
   try {
-    const jpg = await import('../../integrations/jarvis4.js').then(m => m.carWidgetPhoto());
+    const jpg = await import('../../integrations/jarvis4.js').then(m => m.carWidgetPhoto(String(req.query['shape'] ?? '')));
     if (!jpg) { res.status(404).json({ error: 'pas de photo' }); return; }
     res.setHeader('Content-Type', 'image/jpeg'); res.setHeader('Cache-Control', 'private, max-age=604800'); res.end(jpg);
   } catch (e) { fail(res, e); }

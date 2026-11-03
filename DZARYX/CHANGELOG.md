@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-03 (midi) — WIDGET CARPLAY v2, app v243
+- Retour Kouider (capture) : mise en page inversée (droite à gauche), Audi mal cadrée, « 0 € aujourd'hui ».
+- Widget dessiné en image (DrawContext) → plus d'inversion ; photos dédiées large (Audi à droite, dégradé à gauche) + carré (CarPlay), app_kv car:widget:photo:wide|square.
+- Grande température, « PROCHAIN · FIK » + date en or, phrase Jarvis entre guillemets, voitures louées + € du jour ou du mois, heure de mise à jour.
+- Script collé = petit chargeur : le rendu vient de GET /api/jarvis/car-widget/script (car-widget-script.ts) → les prochains changements arrivent sans recopier.
+
 ## 2026-11-03 — WIDGET CARPLAY (Audi + Jarvis), app v242
 - GET /api/jarvis/car-widget (météo réelle, prochain départ/retour FIK sur 14 j, argent du jour, voitures louées, phrase Jarvis qui tourne chaque heure, 0 € sans IA) + /car-widget/photo (photo stylée de son Audi, en app_kv `car:widget:photo`, jamais dans le repo).
 - App JARVIS › Cerveau : carte « Ton widget CarPlay » → copie le script Scriptable (jeton inclus) + étapes CarPlay / écran d'accueil. Rouge Jarvis + or, logo hexagone D. Rien de santé sur le widget.

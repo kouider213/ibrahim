@@ -203,11 +203,12 @@ export async function carWidgetData(): Promise<Record<string, unknown>> {
   const here = loc && Date.now() - Date.parse(loc.updated_at) < 12 * 3600_000 ? { lat: loc.lat, lng: loc.lng } : { lat: 50.85, lng: 4.35 };
   const day = (n: number) => new Date(Date.parse(`${date}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
   const tomorrow = day(1), horizon = day(14);
-  const [meteo, { data: cars }, { data: books }, { data: paid }] = await Promise.all([
+  const [meteo, { data: cars }, { data: books }, { data: paid }, { data: monthB }] = await Promise.all([
     import('./forme-runs-pro.js').then(m => m.weatherAt(here.lat, here.lng, Date.now())).catch(() => null),
     supabase.from('cars').select('id, name'),
     supabase.from('bookings').select('car_id, start_date, end_date, status').or(`start_date.gte.${date},end_date.gte.${date}`).lte('start_date', `${horizon}T23:59:59`),
     supabase.from('bookings').select('final_price').gte('created_at', `${date}T00:00:00`),
+    supabase.from('bookings').select('final_price, total_price, status').gte('start_date', `${date.slice(0, 7)}-01`),
   ]);
   const C = (cars ?? []) as Array<{ id: string; name: string }>;
   const now = `${date}T${hhmm}`;
@@ -225,20 +226,23 @@ export async function carWidgetData(): Promise<Record<string, unknown>> {
     return `${['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'][x.getUTCDay()]} ${x.getUTCDate()}/${x.getUTCMonth() + 1}${t}`;
   };
   const money = ((paid ?? []) as Array<{ final_price?: number }>).reduce((s, b) => s + Number(b.final_price ?? 0), 0);
+  const month = ((monthB ?? []) as Array<{ final_price?: number; total_price?: number; status?: string }>).filter(b => !/REJECT|CANCEL/i.test(String(b.status))).reduce((s, b) => s + Number(b.final_price ?? b.total_price ?? 0), 0);
   const hourIdx = Math.floor(Date.now() / 3_600_000);
   return {
     at: hhmm,
     temp: meteo ? Math.round(meteo.temp) : null, weatherE: meteo?.e ?? '', weather: meteo?.label ?? '', rain: !!meteo?.rain,
     next: m ? `${m.k} ${carName(m.car)} · ${when(m.at)}` : 'Aucun mouvement FIK',
+    nextTitle: m ? `${m.k} ${carName(m.car)}` : 'Aucun mouvement FIK', nextWhen: m ? when(m.at) : 'flotte au calme',
+    month: Math.round(month),
     rented: ((books ?? []) as Array<Record<string, unknown>>).filter(b => !/REJECT|CANCEL/i.test(String(b['status'])) && String(b['start_date']).slice(0, 10) <= date && String(b['end_date']).slice(0, 10) >= date).length,
     moves: moves.filter(x => x.at.slice(0, 10) === date).length,
     money: Math.round(money),
     jarvis: CAR_LINES[hourIdx % CAR_LINES.length],
   };
 }
-export async function carWidgetPhoto(): Promise<Buffer | null> {
+export async function carWidgetPhoto(shape?: string): Promise<Buffer | null> {
   const { kvGet } = await import('./app-store.js');
-  const b64 = await kvGet('car:widget:photo').catch(() => null);
+  const b64 = await kvGet(shape === 'wide' || shape === 'square' ? `car:widget:photo:${shape}` : 'car:widget:photo').catch(() => null);
   return b64 ? Buffer.from(b64, 'base64') : null;
 }
 
