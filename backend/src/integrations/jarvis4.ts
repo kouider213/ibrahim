@@ -230,6 +230,7 @@ export async function carWidgetData(): Promise<Record<string, unknown>> {
   const hourIdx = Math.floor(Date.now() / 3_600_000);
   return {
     at: hhmm,
+    alert: meteo ? (meteo.temp <= 3 ? '❄️ Risque de verglas' : meteo.rain ? '🌧️ Pluie, prudence' : meteo.wind >= 50 ? '💨 Vent fort' : '') : '',
     temp: meteo ? Math.round(meteo.temp) : null, weatherE: meteo?.e ?? '', weather: meteo?.label ?? '', rain: !!meteo?.rain,
     next: m ? `${m.k} ${carName(m.car)} · ${when(m.at)}` : 'Aucun mouvement FIK',
     nextTitle: m ? `${m.k} ${carName(m.car)}` : 'Aucun mouvement FIK', nextWhen: m ? when(m.at) : 'flotte au calme',

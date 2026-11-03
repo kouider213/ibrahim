@@ -1,6 +1,6 @@
 import { kvGet, kvSet } from './app-store.js';
 import { localNow, localTs } from './morning-routine.js';
-import { createAgendaEvent, deleteAgendaEvent } from './google-calendar.js';
+import { createAgendaEvent, deleteAgendaEvent, listAgendaRange } from './google-calendar.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { autoCall } from '../notifications/auto-call.js';
@@ -289,8 +289,22 @@ async function holdSteps(s: LibState, days: number, why: string): Promise<string
 }
 
 // ── Agenda (titres discrets, sans nom de médicament) ─────────────────────────
+// 03/11 : CarPlay affiche les événements du jour à l'écran de la voiture (passagers) → titres NEUTRES, jamais « Liberté »,
+// ni dose dans la description (tout le détail reste dans la page LIBERTÉ de l'app).
 
+export async function resyncLiberteAgenda(): Promise<number> { const s = await getLib(); if (!s) return 0; await syncAgenda(s); return s.eventIds.length; }
+// 03/11 : anciens titres « 🕊️ Liberté — … » visibles sur CarPlay → supprimés de l'agenda (une fois, là où Google répond).
+const OLD_TITLES = /^🕊️ Liberté —|^🕊️ Appeler le médecin \(Liberté\)|^🩺 Médecin \(Liberté\)/;
+async function purgeOldLiberteEvents(): Promise<number | null> {
+  const evs = await listAgendaRange(new Date(Date.now() - 3 * 86_400_000).toISOString(), new Date(Date.now() + 120 * 86_400_000).toISOString(), 250).catch(() => null);
+  if (!evs) return null;
+  let n = 0;
+  for (const e of evs) if (e.id && OLD_TITLES.test(e.summary ?? '') && await deleteAgendaEvent(e.id).catch(() => false)) n++;
+  return n;
+}
 async function syncAgenda(s: LibState): Promise<void> {
+  // Sans accès Google (ex. serveur de secours) : ne rien toucher, sinon les ids sont perdus et les vieux événements restent.
+  if (!(await listAgendaRange(new Date().toISOString(), new Date(Date.now() + 86_400_000).toISOString(), 1).catch(() => null))) return;
   for (const id of s.eventIds) await deleteAgendaEvent(id).catch(() => false);
   s.eventIds = [];
   if (!s.active) { await saveLib(s); return; }
@@ -300,21 +314,22 @@ async function syncAgenda(s: LibState): Promise<void> {
     const end = s.steps[i + 1]?.from ?? addDays(st.from, 1);
     if (end <= today) continue;
     const plan = slotPlan(st.max, s.times, s.wakeDose).filter(p => p.n).map(p => `${p.time} → ${p.n} demi${p.n > 1 ? 's' : ''}`).join(', ');
-    const title = st.max === 0 ? '🕊️ Liberté — JOUR ZÉRO' : `🕊️ Liberté — étape ${i + 1}/${n}`;
-    const desc = st.max === 0 ? 'Plus rien. Dzaryx est là à chaque envie. Dis-lui « j\'ai une envie ».' : `Maximum ${st.max} demi(s) par jour. Prises : ${plan}. Rien en dehors.`;
+    void plan;
+    const title = st.max === 0 ? '🎯 Objectif perso — jour J' : `🎯 Objectif perso — étape ${i + 1}/${n}`;
+    const desc = 'Détails dans l\'app Dzaryx.';
     const id = await createAgendaEvent(title, `${st.from}T00:00:00`, `${st.max === 0 ? addDays(st.from, 1) : end}T00:00:00`, desc, true, undefined, { transparent: true }).catch(() => null);
     if (id) s.eventIds.push(id);
   }
   if (s.doctor.status === 'a_appeler') {
     const day = localNow().hhmm < '09:00' ? today : addDays(today, 1);
-    const id = await createAgendaEvent('🕊️ Appeler le médecin (Liberté)', new Date(localTs(day, '09:00')).toISOString(), new Date(localTs(day, '09:15')).toISOString(),
-      'Lui dire : je veux arrêter, je prends environ X demis par jour depuis des années, je suis fatigué et sans moral. Lui demander de valider le plan de baisse, de m\'aider pour le moral, et une prise de sang (fatigue, libido).', false).catch(() => null);
+    const id = await createAgendaEvent('📞 Appel perso', new Date(localTs(day, '09:00')).toISOString(), new Date(localTs(day, '09:15')).toISOString(),
+      'Détails dans l\'app Dzaryx.', false).catch(() => null);
     if (id) s.eventIds.push(id);
   }
   if (s.doctor.status === 'rdv_pris' && s.doctor.date && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s.doctor.date) && s.doctor.date.slice(0, 10) >= today) {
     const t = localTs(s.doctor.date.slice(0, 10), s.doctor.date.slice(11, 16));
-    const id = await createAgendaEvent('🩺 Médecin (Liberté)', new Date(t).toISOString(), new Date(t + 30 * 60_000).toISOString(),
-      'Apporter : la page LIBERTÉ (combien par jour, symptômes, envies). Demander : validation du plan, aide pour le manque si besoin, soutien moral / psychologue de 1re ligne (11 € la séance, 1re séance gratuite), prise de sang pour la fatigue et la libido (testostérone, fer, vitamine D, thyroïde).', false).catch(() => null);
+    const id = await createAgendaEvent('📌 RDV perso', new Date(t).toISOString(), new Date(t + 30 * 60_000).toISOString(),
+      'Détails dans l\'app Dzaryx.', false).catch(() => null);
     if (id) s.eventIds.push(id);
   }
   await saveLib(s);
@@ -824,6 +839,10 @@ const once = async (what: string, ttl = 2 * 86_400) => {
 export async function jobLiberte(): Promise<void> {
   const s = await getLib();
   if (!s?.active) return;
+  if (!(await kvGet('liberte:agenda-neutral-v1').catch(() => null))) {
+    const n = await purgeOldLiberteEvents();
+    if (n !== null) { await syncAgenda(s).catch(() => {}); if (s.eventIds.length || !s.steps.length) await kvSet('liberte:agenda-neutral-v1', String(n)); console.log(`[liberte] agenda neutre : ${n} ancien(s) supprimé(s), ${s.eventIds.length} recréé(s)`); }
+  }
   // Étapes pas encore dans l'agenda (plan lancé d'un endroit sans accès Google) : rattrapage, nouvel essai toutes les 6 h
   if (!s.finishedAt && !s.eventIds.length && await once('agenda-sync', 6 * 3600)) await syncAgenda(s).catch(err => console.error('[liberte] agenda:', err instanceof Error ? err.message : err));
   const o = await libOverview();

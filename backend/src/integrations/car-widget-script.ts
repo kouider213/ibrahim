@@ -1,7 +1,7 @@
 // 🚗 Rendu du widget CarPlay (Scriptable), téléchargé à chaque rafraîchissement par le petit script collé une fois sur l'iPhone.
 // Modifier ici = le widget de Kouider change tout seul (pas de nouveau copier-coller). Pas de ` ni de ${ dans le code.
 export const CAR_WIDGET_RENDER = String.raw`// DZARYX · rendu du widget CarPlay (servi par le backend, le script collé dans Scriptable le télécharge à chaque fois)
-const PHOTO_V = 3;
+const PHOTO_V = 4;
 const RED = new Color("#ff2b3a"), GOLD = new Color("#f7c548"), WHITE = Color.white();
 const SOFT = new Color("#ffffff", 0.78), DIM = new Color("#ffffff", 0.5);
 const fm = FileManager.local();
@@ -62,7 +62,8 @@ if (small) {
   hexa(32, 30, 58);
   t("DZARYX", 100, 44, 260, 40, Font.heavySystemFont(30), WHITE);
   t(temp, W - 230, 18, 200, 80, Font.heavySystemFont(66), WHITE, "right");
-  t((data.weatherE || "") + " " + (data.weather || ""), W - 330, 98, 300, 36, Font.mediumSystemFont(24), SOFT, "right");
+  if (data.alert) t(data.alert, W - 360, 98, 330, 36, Font.boldSystemFont(24), RED, "right");
+  else t((data.weatherE || "") + " " + (data.weather || ""), W - 330, 98, 300, 36, Font.mediumSystemFont(24), SOFT, "right");
   bar(34, 372, 74);
   t(data.nextTitle, 34, 392, W - 68, 46, Font.boldSystemFont(36), WHITE);
   t(data.nextWhen, 34, 440, W - 68, 36, Font.semiboldSystemFont(27), GOLD);
@@ -72,7 +73,8 @@ if (small) {
   t("DZARYX", 136, 50, 400, 46, Font.heavySystemFont(40), WHITE);
   t("JARVIS · EN LIGNE", 138, 96, 400, 28, Font.semiboldSystemFont(20), GOLD);
   t(temp, 40, 128, 360, 150, Font.heavySystemFont(132), WHITE);
-  t((data.weatherE || "") + "  " + (data.weather || ""), 48, 276, 560, 44, Font.mediumSystemFont(32), SOFT);
+  t((data.weatherE || "") + "  " + (data.weather || "") + (data.alert ? "   " : ""), 48, 276, 560, 44, Font.mediumSystemFont(32), SOFT);
+  if (data.alert) t(data.alert, 48, 304, 560, 34, Font.boldSystemFont(24), RED);
   bar(48, 340, 110);
   t("PROCHAIN · FIK", 48, 362, 400, 30, Font.heavySystemFont(22), GOLD);
   t(data.nextTitle, 48, 392, 560, 52, Font.boldSystemFont(40), WHITE);

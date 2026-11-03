@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-03 (après-midi) — CarPlay : Liberté invisible + widget alerte route
+- Sa capture CarPlay montrait « 🕊️ Liberté — étape… » (événement agenda FIK) → titres neutres « 🎯 Objectif perso — étape x/n », « 📞 Appel perso », « 📌 RDV perso », descriptions sans dose ; purge unique des anciens titres (kv liberte:agenda-neutral-v1) ; syncAgenda ne touche plus rien sans accès Google (le VPS avait vidé les ids).
+- Widget : photo Audi devant FIK, haut assombri sur CarPlay (logo lisible), alerte route en rouge (verglas ≤ 3°, pluie, vent fort).
+
 ## 2026-11-03 (midi) — WIDGET CARPLAY v2, app v243
 - Retour Kouider (capture) : mise en page inversée (droite à gauche), Audi mal cadrée, « 0 € aujourd'hui ».
 - Widget dessiné en image (DrawContext) → plus d'inversion ; photos dédiées large (Audi à droite, dégradé à gauche) + carré (CarPlay), app_kv car:widget:photo:wide|square.
