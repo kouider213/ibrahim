@@ -796,6 +796,29 @@ interface Crisis { title: string; at: number; steps: Array<{ text: string; who?:
 interface ScreenNow { title: string; content: string; at: number }
 interface Widget { money: number; month: number | null; waiting: number; sport: string; energy: number | null; next: string; weather: string; weatherText: string; at: string }
 
+// ── 🚗 WIDGET CARPLAY (03/11) : photo de son Audi + météo + prochain mouvement FIK + phrase Jarvis (app Scriptable, 0 €) ──
+const CAR_WIDGET_SCRIPT = "// DZARYX · Widget CarPlay de Kouider (Audi + Jarvis)\nconst API = \"__API__\";\nconst TOKEN = \"__TOKEN__\";\nconst RED = new Color(\"#ff2b3a\"), GOLD = new Color(\"#f7c548\"), WHITE = Color.white(), SHADOW = new Color(\"#000000\", 0.85);\nconst fm = FileManager.local();\nconst dir = fm.joinPath(fm.documentsDirectory(), \"dzaryx\");\nif (!fm.fileExists(dir)) fm.createDirectory(dir);\nconst P = fm.joinPath(dir, \"car.jpg\"), D = fm.joinPath(dir, \"data.json\");\nasync function get(path, img) {\n  const r = new Request(API + path);\n  r.headers = { Authorization: \"Bearer \" + TOKEN };\n  r.timeoutInterval = 15;\n  return img ? await r.loadImage() : await r.loadJSON();\n}\nlet data;\ntry { data = await get(\"/api/jarvis/car-widget\"); if (data.error) throw new Error(data.error); fm.writeString(D, JSON.stringify(data)); }\ncatch (e) { data = fm.fileExists(D) ? JSON.parse(fm.readString(D)) : { next: \"Dzaryx hors ligne\", jarvis: \"Tous les systèmes sont opérationnels, monsieur.\" }; }\nlet photo = null;\nconst old = !fm.fileExists(P) || Date.now() - fm.modificationDate(P).getTime() > 7 * 864e5;\nif (old) { try { photo = await get(\"/api/jarvis/car-widget/photo\", true); fm.writeImage(P, photo); } catch (e) {} }\nif (!photo && fm.fileExists(P)) photo = fm.readImage(P);\n\nfunction logo(s) {\n  const c = new DrawContext(); c.size = new Size(s, s); c.opaque = false; c.respectScreenScale = true;\n  const p = new Path();\n  for (let i = 0; i < 6; i++) {\n    const a = Math.PI / 3 * i - Math.PI / 2, x = s / 2 + s * 0.43 * Math.cos(a), y = s / 2 + s * 0.43 * Math.sin(a);\n    if (i) p.addLine(new Point(x, y)); else p.move(new Point(x, y));\n  }\n  p.closeSubpath(); c.addPath(p); c.setStrokeColor(RED); c.setLineWidth(s * 0.08); c.strokePath();\n  c.setFont(Font.heavySystemFont(s * 0.48)); c.setTextColor(GOLD); c.setTextAlignedCenter();\n  c.drawTextInRect(\"D\", new Rect(0, s * 0.2, s, s * 0.62));\n  return c.getImage();\n}\nfunction txt(stack, t, font, color, lines) {\n  const x = stack.addText(t); x.font = font; x.textColor = color; x.shadowColor = SHADOW; x.shadowRadius = 3;\n  x.lineLimit = lines || 1; x.minimumScaleFactor = 0.65; return x;\n}\n\nconst fam = config.widgetFamily || \"medium\", small = fam === \"small\";\nconst w = new ListWidget();\nw.setPadding(small ? 10 : 14, small ? 11 : 15, small ? 10 : 13, small ? 11 : 15);\nif (photo) w.backgroundImage = photo;\nelse { const g = new LinearGradient(); g.colors = [new Color(\"#2a0408\"), new Color(\"#000000\")]; g.locations = [0, 1]; w.backgroundGradient = g; }\nw.url = \"https://kouider213.github.io/ibrahim/\";\nw.refreshAfterDate = new Date(Date.now() + 15 * 60e3);\n\nconst top = w.addStack(); top.centerAlignContent();\nconst li = top.addImage(logo(60)); li.imageSize = new Size(small ? 18 : 22, small ? 18 : 22);\ntop.addSpacer(5);\ntxt(top, \"DZARYX\", Font.heavySystemFont(small ? 11 : 13), WHITE);\ntop.addSpacer();\nif (data.temp != null) txt(top, (data.weatherE || \"\") + \" \" + data.temp + \"°\", Font.boldSystemFont(small ? 12 : 15), WHITE);\n\nw.addSpacer();\ntxt(w, \"🚗 \" + data.next, Font.semiboldSystemFont(small ? 11 : 13), GOLD);\nif (!small) txt(w, \"💶 \" + (data.money || 0) + \" € aujourd'hui · \" + (data.rented || 0) + \" voiture(s) louée(s)\", Font.mediumSystemFont(11.5), WHITE);\nw.addSpacer(4);\nconst bar = w.addStack(); bar.size = new Size(small ? 34 : 54, 2); bar.backgroundColor = RED; bar.cornerRadius = 1;\nw.addSpacer(4);\ntxt(w, data.jarvis, Font.italicSystemFont(small ? 11 : 13), WHITE, 2);\n\nif (config.runsInWidget) Script.setWidget(w);\nelse if (small) await w.presentSmall(); else await w.presentMedium();\nScript.complete();\n";
+function CarWidgetSetup() {
+  const [ok, setOk] = useState(false);
+  const code = CAR_WIDGET_SCRIPT.replace('__API__', PRIMARY_BACKEND).replace('__TOKEN__', getDeviceToken() ?? '');
+  const copy = () => { void navigator.clipboard?.writeText(code).then(() => { setOk(true); setTimeout(() => setOk(false), 2500); }); };
+  const li = (n: number, t: React.ReactNode) => <div style={{ display: 'flex', gap: 8, fontSize: 13, lineHeight: 1.45 }}><b style={{ color: '#ff2b3a', minWidth: 18 }}>{n}.</b><div style={{ flex: 1 }}>{t}</div></div>;
+  return (
+    <Card accent="#ff2b3a">
+      <div style={{ fontWeight: 800, fontSize: 15 }}>🚗 Ton widget CarPlay (Audi + Jarvis)</div>
+      <div style={{ fontSize: 12, color: T.muted, marginTop: 4 }}>Photo de ton Audi, météo, prochain départ / retour FIK, argent du jour et une phrase Jarvis qui change chaque heure. Rouge Jarvis + or.</div>
+      <div style={{ display: 'grid', gap: 6, marginTop: 10 }}>
+        {li(1, <>Installe l'app gratuite <b>Scriptable</b> (App Store).</>)}
+        {li(2, <>Appuie ici 👇 pour copier le script (ton accès est déjà dedans).</>)}
+        <Btn onClick={copy}>{ok ? '✅ Script copié' : '📋 Copier le script du widget'}</Btn>
+        {li(3, <>Dans Scriptable : <b>+</b> en haut à droite → colle → nomme-le <b>Dzaryx Auto</b> → ▶️ pour voir l'aperçu.</>)}
+        {li(4, <>CarPlay : <b>Réglages › Général › CarPlay › ta voiture</b> → <b>Widgets</b> → ajoute <b>Scriptable</b>, puis sur l'iPhone appui long sur le widget → <b>Modifier</b> → Script = <b>Dzaryx Auto</b>.</>)}
+        {li(5, <>Écran d'accueil iPhone : appui long → <b>+</b> → Scriptable, taille moyenne (plus d'infos) → Script = <b>Dzaryx Auto</b>.</>)}
+      </div>
+    </Card>
+  );
+}
+
 function Cerveau({ onAsk }: { onAsk: (p: string) => void }) {
   const [dec, setDec] = useState<Decision[]>([]);
   const [crisis, setCrisis] = useState<Crisis | null>(null);
@@ -832,6 +855,7 @@ function Cerveau({ onAsk }: { onAsk: (p: string) => void }) {
           <div style={{ fontSize: 11, color: T.faint, marginTop: 4 }}>C'est aussi le widget de ton écran d'accueil (app Scriptable).</div>
         </Card>
       )}
+      <CarWidgetSetup />
       <SectionTitle>🔘 Décisions en attente</SectionTitle>
       {!dec.length && <div style={{ color: T.faint, fontSize: 13 }}>Rien à décider. Quand Dzaryx a besoin de toi, les boutons arrivent ici et sur Telegram (réponds juste 1, 2 ou 3).</div>}
       {dec.map(d => (

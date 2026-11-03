@@ -196,6 +196,16 @@ router.post('/event', express.text({ type: 'text/*', limit: '256kb' }), async (r
 router.get('/widget', async (_req, res) => {
   try { res.json(await import('../../integrations/jarvis4.js').then(m => m.widgetData())); } catch (e) { fail(res, e); }
 });
+router.get('/car-widget', async (_req, res) => {
+  try { res.json(await import('../../integrations/jarvis4.js').then(m => m.carWidgetData())); } catch (e) { fail(res, e); }
+});
+router.get('/car-widget/photo', async (_req, res) => {
+  try {
+    const jpg = await import('../../integrations/jarvis4.js').then(m => m.carWidgetPhoto());
+    if (!jpg) { res.status(404).json({ error: 'pas de photo' }); return; }
+    res.setHeader('Content-Type', 'image/jpeg'); res.setHeader('Cache-Control', 'private, max-age=604800'); res.end(jpg);
+  } catch (e) { fail(res, e); }
+});
 router.get('/decisions', async (_req, res) => {
   try { res.json({ decisions: await import('../../integrations/conscience.js').then(m => m.pendingDecisions()) }); } catch (e) { fail(res, e); }
 });

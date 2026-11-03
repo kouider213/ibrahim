@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-03 — WIDGET CARPLAY (Audi + Jarvis), app v242
+- GET /api/jarvis/car-widget (météo réelle, prochain départ/retour FIK sur 14 j, argent du jour, voitures louées, phrase Jarvis qui tourne chaque heure, 0 € sans IA) + /car-widget/photo (photo stylée de son Audi, en app_kv `car:widget:photo`, jamais dans le repo).
+- App JARVIS › Cerveau : carte « Ton widget CarPlay » → copie le script Scriptable (jeton inclus) + étapes CarPlay / écran d'accueil. Rouge Jarvis + or, logo hexagone D. Rien de santé sur le widget.
+
 ## 2026-11-03 (5h) — B054 Supabase bloqué (quota de transfert) → Dzaryx muet
 - Cause : trace GPS (170 Ko) relue/réécrite toutes les 30 s avec la position en direct + fichiers audio 3 Mo relus en base → quota gratuit dépassé, Supabase restreint depuis 02/11 23h21 : jetons d'appareil illisibles → « Invalid token » partout, sauvegarde 402.
 - gps-life.ts : trace en mémoire, écrite en base max toutes les 10 min ; my-voice.ts : fichiers audio/média servis depuis la mémoire ; device-auth.ts : liste d'appareils gardée si la lecture revient vide.

@@ -173,6 +173,75 @@ export async function widgetData(): Promise<Record<string, unknown>> {
   };
 }
 
+// ── 🚗 Widget CarPlay (Kouider 03/11) : photo de SON Audi + météo + prochain mouvement FIK + argent du jour + phrase Jarvis.
+// Rien de santé / médicament / Liberté (écran visible par les passagers). Phrase Jarvis = liste fixe (0 €, pas d'IA à chaque rafraîchissement).
+const CAR_LINES = [
+  'Tous les systèmes sont opérationnels, monsieur.',
+  'Chaque trajet vous rapproche d\'Oran.',
+  'La régularité bat le talent. Vous avez les deux.',
+  'Un client servi aujourd\'hui, dix clients demain.',
+  'Les grands ne s\'arrêtent pas au premier effort.',
+  'Votre famille compte sur l\'homme que vous devenez.',
+  'Ce qui barre la route devient la route.',
+  'Construisez aujourd\'hui l\'ombre de demain.',
+  'Une priorité. Une seule. Exécutez.',
+  'Le marché récompense ceux qui reviennent.',
+  'Discipline aujourd\'hui, liberté demain.',
+  'FIK grandit au rythme de votre constance.',
+  'Ceux qui construisent ne regardent pas l\'heure.',
+  'Calme, précis, inarrêtable. Comme d\'habitude.',
+  'Le futur grand businessman d\'Oran est au volant.',
+  'Vous ne rêvez pas, vous bâtissez.',
+  'Avec la difficulté vient la facilité.',
+  'La maison à Oran se construit trajet après trajet.',
+  'Restez affamé, monsieur. Restez concentré.',
+  'Aujourd\'hui compte. Faites-le compter.',
+];
+export async function carWidgetData(): Promise<Record<string, unknown>> {
+  const { date, hhmm } = localNow();
+  const loc = await import('./location.js').then(m => m.getLocation('kouider')).catch(() => null);
+  const here = loc && Date.now() - Date.parse(loc.updated_at) < 12 * 3600_000 ? { lat: loc.lat, lng: loc.lng } : { lat: 50.85, lng: 4.35 };
+  const day = (n: number) => new Date(Date.parse(`${date}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  const tomorrow = day(1), horizon = day(14);
+  const [meteo, { data: cars }, { data: books }, { data: paid }] = await Promise.all([
+    import('./forme-runs-pro.js').then(m => m.weatherAt(here.lat, here.lng, Date.now())).catch(() => null),
+    supabase.from('cars').select('id, name'),
+    supabase.from('bookings').select('car_id, start_date, end_date, status').or(`start_date.gte.${date},end_date.gte.${date}`).lte('start_date', `${horizon}T23:59:59`),
+    supabase.from('bookings').select('final_price').gte('created_at', `${date}T00:00:00`),
+  ]);
+  const C = (cars ?? []) as Array<{ id: string; name: string }>;
+  const now = `${date}T${hhmm}`;
+  const moves = ((books ?? []) as Array<Record<string, unknown>>).filter(b => !/REJECT|CANCEL/i.test(String(b['status'])))
+    .flatMap(b => [{ k: 'Départ', at: String(b['start_date']).slice(0, 16), car: b['car_id'] }, { k: 'Retour', at: String(b['end_date']).slice(0, 16), car: b['car_id'] }])
+    .filter(m => m.at.slice(0, 10) >= date && m.at.slice(0, 10) <= horizon && (m.at.length < 16 ? m.at >= date : m.at >= now))
+    .sort((a, b) => a.at.localeCompare(b.at));
+  const m = moves[0];
+  const carName = (id: unknown) => (C.find(c => c.id === id)?.name ?? 'voiture').replace(/\s*\(.*\)$/, '');
+  const when = (at: string) => {
+    const d = at.slice(0, 10), t = at.length >= 16 && at.slice(11, 16) !== '00:00' ? ` ${at.slice(11, 16)}` : '';
+    if (d === date) return `aujourd'hui${t}`;
+    if (d === tomorrow) return `demain${t}`;
+    const x = new Date(`${d}T12:00:00Z`);
+    return `${['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'][x.getUTCDay()]} ${x.getUTCDate()}/${x.getUTCMonth() + 1}${t}`;
+  };
+  const money = ((paid ?? []) as Array<{ final_price?: number }>).reduce((s, b) => s + Number(b.final_price ?? 0), 0);
+  const hourIdx = Math.floor(Date.now() / 3_600_000);
+  return {
+    at: hhmm,
+    temp: meteo ? Math.round(meteo.temp) : null, weatherE: meteo?.e ?? '', weather: meteo?.label ?? '', rain: !!meteo?.rain,
+    next: m ? `${m.k} ${carName(m.car)} · ${when(m.at)}` : 'Aucun mouvement FIK',
+    rented: ((books ?? []) as Array<Record<string, unknown>>).filter(b => !/REJECT|CANCEL/i.test(String(b['status'])) && String(b['start_date']).slice(0, 10) <= date && String(b['end_date']).slice(0, 10) >= date).length,
+    moves: moves.filter(x => x.at.slice(0, 10) === date).length,
+    money: Math.round(money),
+    jarvis: CAR_LINES[hourIdx % CAR_LINES.length],
+  };
+}
+export async function carWidgetPhoto(): Promise<Buffer | null> {
+  const { kvGet } = await import('./app-store.js');
+  const b64 = await kvGet('car:widget:photo').catch(() => null);
+  return b64 ? Buffer.from(b64, 'base64') : null;
+}
+
 // ── Total Recall ─────────────────────────────────────────────────────────────
 export async function totalRecall(question: string): Promise<string> {
   const { visitsText } = await import('./gps-life.js');
