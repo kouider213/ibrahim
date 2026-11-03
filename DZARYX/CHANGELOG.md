@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-03 (16h) — B055 : « 6 demi » ≠ 6 dattes
+- « j'ai pris 2 demis », « je pris 6 demi aujourd'hui » (= total du jour, n'ajoute que la différence), « 1 comprimé et demi » → noté par le CODE dans le programme privé, réponse directe.
+- forme meal_text/meal_fix/food_check refuse un texte de comprimés (rien enregistré, renvoie vers l'outil liberte).
+- Prise notée → le rappel à boutons 🕊️ est fermé ; la Conscience ignore ce sujet (plus de « 0/9 » périmé).
+
 ## 2026-11-03 (après-midi) — CarPlay : Liberté invisible + widget alerte route
 - Sa capture CarPlay montrait « 🕊️ Liberté — étape… » (événement agenda FIK) → titres neutres « 🎯 Objectif perso — étape x/n », « 📞 Appel perso », « 📌 RDV perso », descriptions sans dose ; purge unique des anciens titres (kv liberte:agenda-neutral-v1) ; syncAgenda ne touche plus rien sans accès Google (le VPS avait vidé les ids).
 - Widget : photo Audi devant FIK, haut assombri sur CarPlay (logo lisible), alerte route en rouge (verglas ≤ 3°, pluie, vent fort).

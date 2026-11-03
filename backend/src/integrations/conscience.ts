@@ -21,6 +21,7 @@ import { supabase } from './supabase.js';
 export interface DecisionOption { label: string; tool?: string; input?: Record<string, unknown>; say?: string }
 export interface Decision { id: string; at: number; title: string; options: DecisionOption[]; done?: string }
 const DEC_KEY = 'decisions';
+const MED_RE = /comprim|cachet|m[ée]doc|m[ée]dicament|traitement|lib[ée]rt[ée]|\bdemis?\b|prise autoris/i;
 
 export async function createDecision(title: string, options: DecisionOption[], send = true): Promise<Decision> {
   // Bouton « Envoyer au client » : le texte qui partira doit être visible (01/11 14h20 : « Voici le message… » sans le message)
@@ -43,6 +44,15 @@ export async function createDecision(title: string, options: DecisionOption[], s
     emitProactive(`🔘 ${d.title.slice(0, 80)}`, 'reminder', d.options.map((o, i) => `${i + 1}. ${o.label}`).join(' · '));
   }
   return d;
+}
+
+/** Marque comme réglées les décisions ouvertes dont le titre correspond (ex. rappel de prise Liberté déjà répondu autrement). */
+export async function closeDecisions(match: (title: string) => boolean): Promise<number> {
+  const list = await kvJson<Decision[]>(DEC_KEY, []);
+  let n = 0;
+  for (const d of list) if (!d.done && match(d.title)) { d.done = 'réglé autrement'; n++; }
+  if (n) await kvPut(DEC_KEY, list);
+  return n;
 }
 
 export async function pendingDecisions(): Promise<Decision[]> {
@@ -323,9 +333,10 @@ export async function snapshot(): Promise<Record<string, unknown>> {
     sante_du_jour: health ?? null,
     energie: (await energyToday()).line,
     humeur: await kvJson<MoodNow | null>('mood:now', null),
-    decisions_en_attente: decisions.map(d => d.title.slice(0, 80)),
+    // Liberté (son médicament) a son propre suivi : la Conscience n'en voit rien et n'en parle jamais (03/11)
+    decisions_en_attente: decisions.filter(d => !d.title.startsWith('🕊️')).map(d => d.title.slice(0, 80)),
     salle_de_crise: crisis ? `${crisis.title} — ${crisis.steps.filter(s => !s.done).length} étape(s) restante(s)` : null,
-    kouider_a_dit_2h: ((said ?? []) as Array<{ content: string; created_at: string }>).map(t => `${localNow(Date.parse(t.created_at)).hhmm} ${String(t.content).replace(/^\[[^\]]{20,}\]\s*/s, '').slice(0, 200)}`),
+    kouider_a_dit_2h: ((said ?? []) as Array<{ content: string; created_at: string }>).filter(t => !MED_RE.test(String(t.content))).map(t => `${localNow(Date.parse(t.created_at)).hhmm} ${String(t.content).replace(/^\[[^\]]{20,}\]\s*/s, '').slice(0, 200)}`),
     deja_envoye_3h: sent.filter(s => Date.now() - s.at < 3 * 3600_000).map(s => s.text.slice(0, 140)),
     // Sujets qu'il a laissés sans réponse : ne pas les relancer (« 3 refus clients » répété 5× en 24 h, 30/10)
     ignores_24h: (await kvJson<Nudge[]>(LOG, [])).filter(n => n.reacted === false && Date.now() - n.at < 86_400_000).map(n => n.text.slice(0, 120)),
@@ -361,6 +372,7 @@ export async function jobConscience(): Promise<string> {
     + `Réponds UNIQUEMENT en JSON : {"speak":true|false,"kind":"type court (ex. retard-rdv, client-aeroport, promesse, sante, argent, famille, decision)","urgency":1|2|3,"text":"ce que tu lui dis, 1 à 3 phrases, tutoiement, concret","options":[{"label":"bouton court","tool":"outil Dzaryx facultatif","input":{}}]} (options facultatives, 2-3 max, seulement si un simple choix permet d'agir ; "tool" = UNIQUEMENT un vrai nom d'outil Dzaryx (ex. promesses avec input {"action":"list"}), sinon ne mets pas de "tool").`,
     { max: 500 }));
   if (!o?.speak || !o.text) return 'silence';
+  if (MED_RE.test(o.text) || /lib[ée]rt[ée]|sant[ée]-?m[ée]d/i.test(String(o.kind))) return 'tu (Liberté a son propre suivi)';
   const urgency = Math.max(1, Math.min(3, Number(o.urgency) || 1));
   const kind = String(o.kind ?? 'autre').slice(0, 30);
   // Jamais deux fois le même sujet en 3 h, même « urgent » (le 28/10 : 4 alertes + appels pour un faux RDV)

@@ -268,6 +268,16 @@ export async function processMessage(
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
     return { text: done, status: 'done' };
   }
+  // LIBERTÉ en phrase normale (03/11 : « Je pris 6 demi aujourd'hui » → le cerveau a noté 6 DATTES dans le compteur calories)
+  // → la prise est notée par le CODE dans Liberté, réponse directe
+  const medCmd = actorUserId === 'kouider' && !sandbox ? (await import('../integrations/liberte.js')).parseMedTake(userMessage) : null;
+  if (medCmd) {
+    const done = await (await import('../integrations/liberte.js')).runMedTake(medCmd).catch(e => `❌ échec : ${e instanceof Error ? e.message : e}`);
+    _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: done });
+    saveConversationTurn(sessionId, 'assistant', done).catch(() => {});
+    _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+    return { text: done, status: 'done' };
+  }
   // « vérifie si Halfi a bien son permis » = lecture seule : get_client_document n'envoie rien (le modèle oubliait send:false)
   const { setDocReadOnly } = await import('../integrations/tool-executor.js');
   setDocReadOnly(sessionId, /v[ée]rifi|regarde|est-ce qu|a bien|existe|il y a|c'est quand|quelle heure|valide|expir/i.test(userMessage)

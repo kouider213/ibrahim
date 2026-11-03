@@ -87,6 +87,9 @@ async function addLog(e: Omit<LibLog, 'at'>): Promise<LibLog[]> {
   const log = await readLibLog();
   log.push({ at: new Date().toISOString(), ...e });
   await kvSet(LOG_KEY, JSON.stringify(log.slice(-1500)));
+  // Prise / prise sautée notée → le rappel « 🕊️ … (0/9) » à boutons est réglé (03/11 : la Conscience le relisait et
+  // lui reposait la question avec l'ancien compte, 2 min après « Noté : 6/9 »)
+  if (e.kind === 'prise' || e.kind === 'resiste') await import('./conscience.js').then(m => m.closeDecisions(t => t.startsWith('🕊️'))).catch(() => {});
   return log;
 }
 
@@ -1033,4 +1036,41 @@ async function pharmacyWatch(): Promise<void> {
       { label: '😔 J\'avoue, c\'était pour ça', tool: 'liberte', input: { action: 'envie', trigger: 'pharmacie' } },
     ]);
   }
+}
+
+// ── Prise dite en phrase normale (03/11 : « Je pris 6 demi aujourd'hui » → le cerveau a compté 6 DATTES dans FORME) ──
+const NUM_WORDS: Record<string, number> = { un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6, sept: 7, huit: 8, neuf: 9, dix: 10, onze: 11, douze: 12 };
+const FOOD_RE = /mang|bouff|dattes?|baguette|pain|pizza|kebab|tacos|poulet|riz|p[âa]tes?|verre|bi[èe]re|litre|caf[ée]|th[ée]\b|lait|jus|sandwich|burger|kcal|calorie/i;
+/** Texte qui parle de SES comprimés (demi(s), comprimé(s), cachet(s), médoc, traitement) et pas de nourriture. */
+export function looksLikeMedText(text: string): boolean {
+  const t = text.toLowerCase();
+  if (/comprim|cachet|m[ée]doc|m[ée]dicament|traitement|lib[ée]rt[ée]/.test(t)) return true;
+  return /\bdemis?\b/.test(t) && !FOOD_RE.test(t);
+}
+/** « j'ai pris 2 demis », « je pris 6 demi aujourd'hui », « pris un comprimé et demi » → quantité en demis + total du jour ou nouvelle prise. */
+export function parseMedTake(text: string): { n: number; total: boolean } | null {
+  const t = text.toLowerCase().replace(/[’`]/g, "'").trim();
+  const medWord = /comprim|cachet|m[ée]doc|m[ée]dicament|traitement|lib[ée]r/.test(t);
+  if (t.length > 200 || (FOOD_RE.test(t) && !medWord) || /\?|combien|est-ce|je peux|puis-je|dois|vais|veux|envie/.test(t)) return null;
+  if (!/\b(pris|prise|pri|prends|prend|aval[ée])\b/.test(t)) return null;
+  const m = /(\d+(?:[.,]5)?|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|onze|douze)\s*(?:demi(?:-|\s)?(?:comprim[ée]s?|cachets?)?s?(?![a-zé])|demis(?![a-zé])|(comprim[ée]s?|cachets?|cp)(?![a-zé])(\s*et\s*demi)?)/.exec(t);
+  if (!m) return null;
+  const v = Number(String(m[1]).replace(',', '.')) || NUM_WORDS[m[1]!] || 0;
+  const n = m[2] ? v * 2 + (m[3] ? 1 : 0) : v;          // comprimés → demis
+  if (!(n > 0 && n <= 30)) return null;
+  return { n, total: /aujourd|en tout|au total|depuis ce matin|dans la journ[ée]e/.test(t) };
+}
+/** Exécutée par le code (orchestrateur), réponse directe. « aujourd'hui / en tout » = TOTAL du jour → on n'ajoute que la différence. */
+export async function runMedTake(c: { n: number; total: boolean }): Promise<string> {
+  const s = await getLib();
+  if (!s) return 'Programme LIBERTÉ pas encore commencé.';
+  const today = localNow().date;
+  let add = c.n;
+  if (c.total) {
+    const already = takenOn(await readLibLog(), today);
+    add = c.n - already;
+    if (add <= 0) return `✅ Déjà noté : ${halvesShort(already)} aujourd'hui${add < 0 ? ` (tu dis ${halvesShort(c.n)} — dis-moi « corrige liberté » si mon compte est faux)` : ''}. Rien ajouté.`;
+  }
+  const r = await liberteTool({ action: 'prise', n: add, nouvelle: c.total ? true : undefined }, 'kouider');
+  return r.replace(/\s*Félicite-le d'avoir noté\.?/, '').replace(/ Réponds sans juger.*$/s, '').trim() + (c.total && add !== c.n ? `\n(Total du jour : ${halvesShort(c.n)}, j'ai ajouté ${halvesShort(add)}.)` : '');
 }

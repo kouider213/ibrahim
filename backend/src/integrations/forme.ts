@@ -963,6 +963,10 @@ export async function formeTool(input: Record<string, unknown>): Promise<string>
   if (a.startsWith('food') || a.startsWith('meal')) {
     const f = await import('./forme-food.js');
     if (a === 'meal_photo') return await f.mealFromTelegram(String(input.note ?? input.question ?? ''));
+    if (a === 'meal_text' || a === 'meal_fix' || a === 'food_check') {
+      const txt = String(input.text ?? input.question ?? '');
+      if ((await import('./liberte.js')).looksLikeMedText(txt)) return `❌ RIEN enregistré dans FORME : « ${txt.slice(0, 80)} » parle de ses DEMI-COMPRIMÉS (programme Liberté), pas de nourriture. Utilise l'outil liberte (action prise, n = nombre de demis).`;
+    }
     if (a === 'meal_text') { const r = await f.logMealText('kouider', String(input.text ?? input.question ?? '')); return `${r.message}\n\n(enregistré dans FORME et déjà envoyé sur son Telegram)`; }
     if (a === 'food_cut') return await import('./forme-cut.js').then(m => m.cutText());
     if (a === 'meal_fix') return await f.fixMeal('kouider', String(input.text ?? input.question ?? ''), { date: typeof input.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? input.date : undefined });

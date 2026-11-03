@@ -7,6 +7,9 @@
 
 ## Bugs Ouverts 🔴
 
+### B055 — « Je pris 6 demi aujourd'hui » compté comme 6 dattes dans FORME + Conscience qui repose la question avec l'ancien compte (03/11 15h34) ✅ FIXÉ
+Cause : le cerveau a choisi forme meal_text ; le rappel de prise à boutons restait ouvert (0/9) et la Conscience le relisait. Fix : prise dite en phrase normale notée par le code (parseMedTake/runMedTake, orchestrateur), garde dans forme meal_text/meal_fix/food_check, rappel fermé dès qu'une prise est notée (closeDecisions), Conscience ne voit/ne parle plus de ce programme.
+
 ### B054 — Dzaryx muet + raccourci « Invalid token » (03/11 5h37) ✅ FIXÉ (code) — base à débloquer (Supabase Pro)
 Supabase restreint (exceed_egress_quota) → liste des appareils vide → tout rejeté. Gaspillage corrigé (trace GPS en mémoire, audio en mémoire, liste d'appareils conservée).
 
