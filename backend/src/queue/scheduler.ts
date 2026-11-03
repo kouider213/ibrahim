@@ -350,7 +350,7 @@ const JOBS = [
   },
   {
     name:  'vitalite',
-    cron:  '*/15 21-22 * * 0',      // VITALITÉ : bilan privé du dimanche 21h30 (désir, rapports, érections du matin, IIEF /4 sem)
+    cron:  '*/15 6-22 * * *',       // VITALITÉ : rappel du soir (geste du jour, 20h30 par défaut) + bilan privé du dimanche 21h30 (désir, rapports, érections du matin, IIEF /4 sem)
     tz:    'Europe/Brussels',
   },
   {

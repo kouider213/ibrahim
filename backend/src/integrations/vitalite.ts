@@ -27,14 +27,16 @@ export interface VitLog {
   testo?: number; unit?: 'ng/dL' | 'nmol/L'; heure?: string; shbg?: number; lh?: number; prolactine?: number; vitd?: number; ferritine?: number;
   note?: string;
 }
-interface VitSettings { goalPerWeek: [number, number]; weekly: boolean }
-const DEFAULT_SET: VitSettings = { goalPerWeek: [1, 2], weekly: true };
+interface VitSettings { goalPerWeek: [number, number]; weekly: boolean; daily: boolean; dailyAt: string }
+// daily (03/11, il l'a demandé) : un rappel chaque soir = UN geste concret du jour (sommeil, assiette, sport, couple, médecin)
+const DEFAULT_SET: VitSettings = { goalPerWeek: [1, 2], weekly: true, daily: true, dailyAt: '20:30' };
 
 const parse = <T,>(raw: string | null, fb: T): T => { try { return raw ? JSON.parse(raw) as T : fb; } catch { return fb; } };
 export async function readVitLog(): Promise<VitLog[]> { return parse<VitLog[]>(await kvGet(LOG_K).catch(() => null), []); }
 async function writeLog(l: VitLog[]) { textCache = null; await kvSet(LOG_K, JSON.stringify(l.slice(-600))); }
 async function settings(): Promise<VitSettings> { return { ...DEFAULT_SET, ...parse<Partial<VitSettings>>(await kvGet(SET_K).catch(() => null), {}) }; }
 const addDays = (d: string, n: number) => { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+const addMin = (hhmm: string, m: number) => { const [h, mi] = hhmm.split(':').map(Number); const t = Math.min(23 * 60 + 59, (h ?? 0) * 60 + (mi ?? 0) + m); return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; };
 const r1 = (x: number) => Math.round(x * 10) / 10;
 const avg = (a: number[]) => a.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
 
@@ -301,18 +303,67 @@ export async function vitaliteTool(input: Record<string, unknown>, sessionId?: s
       if (lo == null || hi == null || hi < lo) return '❌ min et max par semaine.';
       const st = await settings(); st.goalPerWeek = [lo, hi]; await kvSet(SET_K, JSON.stringify(st)); return `Objectif : ${lo} à ${hi} par semaine.`;
     }
-    case 'rappel': { const st = await settings(); st.weekly = input['on'] !== false; await kvSet(SET_K, JSON.stringify(st)); return st.weekly ? 'Bilan privé du dimanche 21 h 30 : activé.' : 'Bilan du dimanche : coupé.'; }
+    case 'rappel': {
+      const st = await settings();
+      const h = String(input['heure'] ?? '').replace('h', ':').trim(), hh = /^\d{1,2}(:\d{2})?$/.test(h) ? (h.includes(':') ? h : `${h}:00`).padStart(5, '0') : null;
+      if (input['quotidien'] != null || hh) {
+        st.daily = input['quotidien'] !== false; if (hh) st.dailyAt = hh;
+        await kvSet(SET_K, JSON.stringify(st));
+        return st.daily ? `Rappel Vitalité tous les soirs à ${st.dailyAt} : activé (un geste concret par jour).` : 'Rappel Vitalité du soir : coupé.';
+      }
+      st.weekly = input['on'] !== false; await kvSet(SET_K, JSON.stringify(st)); return st.weekly ? 'Bilan privé du dimanche 21 h 30 : activé.' : 'Bilan du dimanche : coupé.';
+    }
+    case 'jour': return (await dailyText()) ?? 'Rien à proposer aujourd\'hui.';
     case 'faits': return (await factsFor()).map(f => `• ${f.fait}\n  (${f.source})`).join('\n');
   }
-  return '❌ action : etat | question | rapport | annuler | bilan | iief | labo | objectif | rappel | faits';
+  return '❌ action : etat | question | rapport | annuler | bilan | iief | labo | objectif | rappel | jour | faits';
+}
+
+// ── 🔁 Rappel du soir (03/11) : UN geste concret par jour, tiré de SES leviers + des FAITS (rien d'inventé, sans IA) ──
+const PLATES = [
+  'poisson (sardines, maquereau ou saumon) + légumes + filet d\'huile d\'olive',
+  'une poignée de noix ou d\'amandes (30 g) en collation',
+  'légumineuses : lentilles, pois chiches ou loubia',
+  'poulet ou œufs + salade + huile d\'olive (assez de protéines, pas zéro gras)',
+  'fruits et légumes de saison à chaque repas',
+  'poisson au four ou grillé, pas frit',
+];
+const DAY_TIPS: Record<string, string[]> = {
+  sleep: ['Ce soir au lit 30 min plus tôt que d\'habitude, téléphone hors de la chambre.', 'Pas d\'écran 30 min avant de dormir ce soir : c\'est la nuit qui fabrique ta testostérone.'],
+  sport: ['Demain : ta séance de muscu est calée ? Sinon cale-la maintenant dans FORME.', '20 min de marche rapide demain, ça compte aussi pour l\'érection et le moral.'],
+  couple: ['Ce soir : 30 min avec ta femme sans téléphone. Tendresse, sans « obligation » — c\'est comme ça que l\'envie revient.', 'Propose-lui une sortie à deux cette semaine (même un café). Le temps à deux protégé = la base.'],
+  labo: ['Appelle ton médecin pour la prise de sang du matin (testostérone avant 10 h, LH, FSH, prolactine, SHBG, TSH, ferritine, vitamine D, HbA1c). Sans elle, personne ne connaît ton vrai niveau.'],
+  moral: ['Comment va le moral ? Si c\'est lourd depuis plusieurs jours, un psychologue de 1re ligne (11 € la séance) aide souvent l\'envie à revenir.'],
+  deficit: ['Tu perds vite : remonte de 150 kcal aujourd\'hui (ex. une poignée de noix). Un déficit trop fort fait baisser l\'envie.'],
+  med: ['Continue ton programme palier par palier, sans rien accélérer : le désir revient surtout APRÈS l\'arrêt complet. Tu es sur le bon chemin.'],
+};
+export async function dailyText(date = localNow().date): Promise<string | null> {
+  const s = await vitaliteState();
+  const n = Math.floor(Date.parse(`${date}T12:00:00Z`) / 86_400_000);
+  const levers = s.levers.filter(l => DAY_TIPS[l.k]);
+  if (!levers.length) return null;
+  const lv = levers[n % levers.length]!, tips = DAY_TIPS[lv.k]!;
+  return [
+    '🔥 Vitalité — ton geste du jour (privé)',
+    `👉 ${tips[Math.floor(n / levers.length) % tips.length]}`,
+    `🍽️ Dans l'assiette : ${PLATES[n % PLATES.length]}.`,
+    'Rien à acheter : aucun « booster » ni aliment miracle n\'a de preuve, et avec ton traitement, aucun complément sans le pharmacien.',
+    `Cette semaine : ${s.thisWeek} rapport(s) noté(s), objectif ${s.goal[0]}-${s.goal[1]}. Dis-moi juste « on l'a fait » quand c'est le cas.`,
+  ].join('\n');
 }
 
 // ── ⏰ Job : bilan privé du dimanche 21 h 30 + questionnaire désir toutes les 4 semaines ─────────────────────────────
 export async function jobVitalite(): Promise<void> {
   const st = await settings();
-  if (!st.weekly) return;
   const { date, hhmm: time } = localNow();
   const wd = new Date(`${date}T12:00:00Z`).getUTCDay();
+  // Rappel quotidien du soir (pas le dimanche : c'est le bilan)
+  if (st.daily && wd !== 0 && time >= st.dailyAt && time < addMin(st.dailyAt, 60) && !(await kvGet(SENT_K(`d:${date}`)).catch(() => null))) {
+    await kvSet(SENT_K(`d:${date}`), '1');
+    const t = await dailyText(date).catch(() => null);
+    if (t) await queueTelegramMessage(t, undefined, 'kouider', undefined, true);
+  }
+  if (!st.weekly) return;
   if (wd !== 0 || time < '21:30' || time > '22:30') return;
   if (await kvGet(SENT_K(date)).catch(() => null)) return;
   await kvSet(SENT_K(date), '1');

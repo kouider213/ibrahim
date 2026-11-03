@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-03 (16h30) — Vitalité : rappel chaque soir
+- Il veut que Dzaryx lui rappelle quoi faire pour son envie : rappel privé à 20h30 (sauf dimanche = bilan), UN geste concret tiré de ses leviers (sommeil, sport, couple, prise de sang, moral, déficit, programme) + une idée d'assiette (base méditerranéenne sourcée) ; rien à acheter sans pharmacien.
+- Outil vitalite : 'rappel' quotidien true/false + heure, 'jour' = geste du jour maintenant. Job vitalite toutes les 15 min 6h-22h.
+
 ## 2026-11-03 (16h) — B055 : « 6 demi » ≠ 6 dattes
 - « j'ai pris 2 demis », « je pris 6 demi aujourd'hui » (= total du jour, n'ajoute que la différence), « 1 comprimé et demi » → noté par le CODE dans le programme privé, réponse directe.
 - forme meal_text/meal_fix/food_check refuse un texte de comprimés (rien enregistré, renvoie vers l'outil liberte).
