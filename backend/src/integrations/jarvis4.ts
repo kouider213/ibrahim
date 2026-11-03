@@ -207,12 +207,10 @@ export async function carWidgetData(): Promise<Record<string, unknown>> {
   const here = loc && Date.now() - Date.parse(loc.updated_at) < 12 * 3600_000 ? { lat: loc.lat, lng: loc.lng } : { lat: 50.85, lng: 4.35 };
   const day = (n: number) => new Date(Date.parse(`${date}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
   const tomorrow = day(1), horizon = day(14);
-  const [meteo, { data: cars }, { data: books }, { data: paid }, { data: monthB }] = await Promise.all([
+  const [meteo, { data: cars }, { data: books }] = await Promise.all([
     import('./forme-runs-pro.js').then(m => m.weatherAt(here.lat, here.lng, Date.now())).catch(() => null),
     supabase.from('cars').select('id, name'),
     supabase.from('bookings').select('car_id, start_date, end_date, status').or(`start_date.gte.${date},end_date.gte.${date}`).lte('start_date', `${horizon}T23:59:59`),
-    supabase.from('bookings').select('final_price').gte('created_at', `${date}T00:00:00`),
-    supabase.from('bookings').select('final_price, total_price, status').gte('start_date', `${date.slice(0, 7)}-01`),
   ]);
   const C = (cars ?? []) as Array<{ id: string; name: string }>;
   const now = `${date}T${hhmm}`;
@@ -222,27 +220,62 @@ export async function carWidgetData(): Promise<Record<string, unknown>> {
     .sort((a, b) => a.at.localeCompare(b.at));
   const m = moves[0];
   const carName = (id: unknown) => (C.find(c => c.id === id)?.name ?? 'voiture').replace(/\s*\(.*\)$/, '');
-  const when = (at: string) => {
-    const d = at.slice(0, 10), t = at.length >= 16 && at.slice(11, 16) !== '00:00' ? ` ${at.slice(11, 16)}` : '';
-    if (d === date) return `aujourd'hui${t}`;
-    if (d === tomorrow) return `demain${t}`;
-    const x = new Date(`${d}T12:00:00Z`);
-    return `${['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'][x.getUTCDay()]} ${x.getUTCDate()}/${x.getUTCMonth() + 1}${t}`;
+
+  // 03/11 v3 « un truc de fou, AUCUN chiffre » (ni voitures louées, ni argent, ni mot pour Ibrahim) : tout en MOTS,
+  // + le vrai ciel (aube / jour / couchant / nuit, soleil réel), effets météo, mode du moment, prière qui approche.
+  const nowMs = Date.now();
+  const H = Number(hhmm.slice(0, 2)), M = Number(hhmm.slice(3, 5)), minNow = H * 60 + M;
+  const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+  const [sun, homeward, prayers] = await Promise.all([
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${here.lat.toFixed(3)}&longitude=${here.lng.toFixed(3)}&daily=sunrise,sunset&forecast_days=1&timezone=auto`, { signal: AbortSignal.timeout(5000) })
+      .then(r => r.json() as Promise<{ daily?: { sunrise?: string[]; sunset?: string[] } }>).then(j => ({ rise: toMin(String(j.daily?.sunrise?.[0] ?? '').slice(11, 16) || '07:30'), set: toMin(String(j.daily?.sunset?.[0] ?? '').slice(11, 16) || '17:30') })).catch(() => ({ rise: 450, set: 1050 })),
+    import('./car-coach.js').then(m => m.isHomeward(here)).catch(() => false),
+    (async () => { const oran = await import('./gps-life.js').then(m => m.oranActive()).catch(() => null); const [y, mo, d] = date.split('-');
+      const r = await fetch(`https://api.aladhan.com/v1/timingsByCity/${d}-${mo}-${y}?city=${oran ? 'Oran' : 'Brussels'}&country=${oran ? 'Algeria' : 'Belgium'}&method=3`, { signal: AbortSignal.timeout(5000) });
+      return ((await r.json()) as { data?: { timings?: Record<string, string> } }).data?.timings ?? null; })().catch(() => null),
+  ]);
+  const phase = minNow < sun.rise - 40 || minNow > sun.set + 40 ? 'nuit' : minNow < sun.rise + 50 ? 'aube' : minNow > sun.set - 70 ? 'couchant' : 'jour';
+  const sunPos = minNow >= sun.rise && minNow <= sun.set ? (minNow - sun.rise) / Math.max(1, sun.set - sun.rise) : null;
+  const nightLen = 1440 - (sun.set - sun.rise);
+  const moonPos = sunPos === null ? ((minNow - sun.set + 1440) % 1440) / Math.max(1, nightLen) : null;
+  const mode = H >= 23 || H < 5 ? 'nuit' : H < 11 ? 'depart' : homeward ? 'retour' : 'journee';
+  const greeting = H >= 5 && H < 12 ? 'Bonjour, Monsieur.' : H >= 12 && H < 18 ? 'Bon après-midi, Monsieur.' : 'Bonsoir, Monsieur.';
+  const modeLabel = { depart: 'MODE DÉPART · BONNE ROUTE', journee: 'MODE MISSION · EN LIGNE', retour: 'MODE RETOUR · LA MAISON VOUS ATTEND', nuit: 'VEILLE DE NUIT · ACTIVE' }[mode];
+  const t = meteo?.temp;
+  const feel = t == null ? '' : t <= 0 ? 'Gel' : t <= 5 ? 'Froid' : t <= 12 ? 'Frais' : t <= 20 ? 'Doux' : t <= 27 ? 'Chaud' : 'Canicule';
+  const code = meteo?.code ?? 0;
+  const fx = { rain: !!meteo?.rain || code >= 95, snow: code >= 71 && code <= 86 && !(code >= 80 && code <= 82), fog: code === 45 || code === 48, storm: code >= 95, clear: code <= 1 };
+  // Moment en mots (« demain matin », « jeudi soir »), jamais d'heure
+  const part = (hh: number) => hh < 12 ? 'matin' : hh < 14 ? 'midi' : hh < 18 ? 'après-midi' : 'soir';
+  const whenWords = (at: string) => {
+    const d = at.slice(0, 10), hh = at.length >= 16 ? Number(at.slice(11, 13)) : NaN, p = Number.isFinite(hh) && at.slice(11, 16) !== '00:00' ? part(hh) : '';
+    if (d === date) return p === 'matin' ? 'ce matin' : p === 'midi' ? 'ce midi' : p === 'après-midi' ? 'cet après-midi' : p === 'soir' ? 'ce soir' : "aujourd'hui";
+    if (d === tomorrow) return p ? `demain ${p}` : 'demain';
+    const x = new Date(`${d}T12:00:00Z`), wdn = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'][x.getUTCDay()];
+    return Date.parse(`${d}T12:00:00Z`) - Date.parse(`${date}T12:00:00Z`) < 7 * 86_400_000 ? `${wdn}${p ? ` ${p}` : ''}` : 'plus tard';
   };
-  const money = ((paid ?? []) as Array<{ final_price?: number }>).reduce((s, b) => s + Number(b.final_price ?? 0), 0);
-  const month = ((monthB ?? []) as Array<{ final_price?: number; total_price?: number; status?: string }>).filter(b => !/REJECT|CANCEL/i.test(String(b.status))).reduce((s, b) => s + Number(b.final_price ?? b.total_price ?? 0), 0);
-  const hourIdx = Math.floor(Date.now() / 3_600_000);
+  // Prière : seulement quand elle approche (≤ 40 min) ou vient de commencer (≤ 20 min)
+  const PR: Record<string, string> = { Fajr: 'Fajr', Dhuhr: 'Dohr', Asr: 'Asr', Maghrib: 'Maghreb', Isha: 'Icha' };
+  let prayer = '';
+  for (const [k, fr] of Object.entries(PR)) { const v = prayers?.[k]; if (!v) continue; const d = toMin(v) - minNow; if (d > 0 && d <= 40) { prayer = `${fr} approche`; break; } if (d <= 0 && d >= -20) { prayer = `C'est l'heure de ${fr}`; break; } }
+  // Phrase Jarvis selon le vrai moment (listes fixes, 0 €)
+  const slot = Math.floor(nowMs / 3_600_000);
+  const L: Record<string, string[]> = {
+    depart: ['Systèmes prêts. La journée vous appartient.', 'Bonne route, Monsieur. Je veille sur FIK.', 'Le monde se lève. Vous êtes déjà en route.', 'Une priorité. Une seule. Exécutez.'],
+    journee: CAR_LINES,
+    retour: ['Mission accomplie. Votre famille vous attend.', 'Le plus dur est derrière vous, Monsieur.', 'Vous avez tenu. Rentrez en héros.', 'Ce soir, on recharge. Demain, on conquiert.'],
+    nuit: ['Je veille. Reposez-vous, Monsieur.', 'La nuit travaille pour ceux qui ont tout donné.', 'Les empires se construisent aussi en dormant.'],
+  };
+  let jarvis = L[mode]![slot % L[mode]!.length]!;
+  if (fx.snow || (t != null && t <= 2)) jarvis = 'Route froide, Monsieur. Douceur sur les freins.';
+  else if (fx.storm) jarvis = 'Orage sur la route. Je reste en alerte avec vous.';
+  else if (fx.fog) jarvis = 'Brouillard. Feux allumés, distance doublée.';
   return {
-    at: hhmm,
-    alert: meteo ? (meteo.temp <= 3 ? '❄️ Risque de verglas' : meteo.rain ? '🌧️ Pluie, prudence' : meteo.wind >= 50 ? '💨 Vent fort' : '') : '',
-    temp: meteo ? Math.round(meteo.temp) : null, weatherE: meteo?.e ?? '', weather: meteo?.label ?? '', rain: !!meteo?.rain,
-    next: m ? `${m.k} ${carName(m.car)} · ${when(m.at)}` : 'Aucun mouvement FIK',
-    nextTitle: m ? `${m.k} ${carName(m.car)}` : 'Aucun mouvement FIK', nextWhen: m ? when(m.at) : 'flotte au calme',
-    month: Math.round(month),
-    rented: ((books ?? []) as Array<Record<string, unknown>>).filter(b => !/REJECT|CANCEL/i.test(String(b['status'])) && String(b['start_date']).slice(0, 10) <= date && String(b['end_date']).slice(0, 10) >= date).length,
-    moves: moves.filter(x => x.at.slice(0, 10) === date).length,
-    money: Math.round(money),
-    jarvis: CAR_LINES[hourIdx % CAR_LINES.length],
+    v: 3, at: hhmm, phase, sunPos, moonPos, mode, modeLabel, greeting, fx,
+    alert: meteo ? (t! <= 3 ? '❄️ Risque de verglas' : meteo.rain ? '🌧️ Pluie, prudence' : meteo.wind >= 50 ? '💨 Vent fort' : '') : '',
+    weatherE: phase === 'nuit' && meteo && meteo.code <= 1 ? '🌙' : phase === 'nuit' && meteo && meteo.code <= 3 ? '☁️' : meteo?.e ?? '', weather: [feel, (meteo?.label ?? '').toLowerCase()].filter(Boolean).join(' · '),
+    nextTitle: m ? `${m.k} ${carName(m.car)}` : 'Flotte au calme', nextWhen: m ? whenWords(m.at) : 'rien de prévu',
+    prayer, jarvis,
   };
 }
 export async function carWidgetPhoto(shape?: string): Promise<Buffer | null> {

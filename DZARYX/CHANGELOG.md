@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-03 (soir) — Widget CarPlay v3 « Jarvis HUD », zéro chiffre
+- Plus de voitures louées / argent / mot Ibrahim. Vrai ciel sur la photo (aube/jour/couchant/nuit + étoiles), pluie/neige/brouillard, arc soleil/lune à la position réelle (Open-Meteo sunrise/sunset), HUD qui tourne, mode départ/mission/retour/veille, prochain mouvement FIK en mots (« demain matin »), prière qui approche, phrase Jarvis selon le moment. Aperçu vérifié avec une simulation Scriptable.
+
 ## 2026-11-03 (soir) — Réponses de conseil « comme ChatGPT »
 - Question « comment faire / conseils » (hors demandes de travail) → consigne À CÔTÉ de la question (rich-answer.ts) : intro, son cas avec ses vrais chiffres FORME, sections **1. Titre** + puces, « Ton plan », photos d'exercices choisies à la main (free-exercise-db). Le cerveau gratuit ignorait la consigne dans le prompt système.
 - tgcall : tg_format() transforme ### / --- / * en gras et • (Telegram affichait les symboles bruts).
