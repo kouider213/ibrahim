@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-03 — CarPlay mode RETOUR + annulation sport faite par le code
+- 🚗 Jarvis CarPlay : en RENTRANT (après 11 h, près du travail ou plus rien de prévu, pas déjà à la maison) → plus aucune tâche ; discours de courage (il a tenu, le pire est passé, boulot + exil = une étape vers Oran), citation de courage, « reposez-vous » (car-coach.ts isHomeward/homewardSpeech).
+- 🏋️ « annule ma séance de demain » : le cerveau disait « ✅ annulée » sans outil (tools: []) → parseSportCancel/runSportCancel exécutés par le code avant le cerveau (jour le plus proche du mot séance) ; planSportWeek retire de l'agenda les séances encore présentes sur un jour annulé. 4/11 marqué annulé.
+
 ## 2026-11-03 (17h30) — Vitalité : pause, idées, « avant », confidentialité
 - Actions 'regles' (semaine en pause, rien compté ni relancé), 'idee' (24 idées tirées sans répétition), 'avant' (quoi manger/faire avant, sourcé).
 - Rappel du soir : idée le mercredi/vendredi si l'objectif de la semaine n'est pas atteint (pas en pause). Messages ouverts par « 🔒 Privé » (aperçu neutre).

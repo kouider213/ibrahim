@@ -282,6 +282,13 @@ export async function processMessage(
   const { setDocReadOnly } = await import('../integrations/tool-executor.js');
   setDocReadOnly(sessionId, /v[ée]rifi|regarde|est-ce qu|a bien|existe|il y a|c'est quand|quelle heure|valide|expir/i.test(userMessage)
     && !/envoi|envoy|montre|transf|partage|donne|fais.?voir|photo/i.test(userMessage));
+  // SPORT annulé en phrase normale (03/11 : « annulé ma séance de sport de demain je me repose » → le cerveau a dit
+  // « ✅ annulée » sans appeler l'outil, la séance restait dans l'agenda) → fait par le CODE, le cerveau reçoit le résultat
+  const sportCancel = actorUserId === 'kouider' && !sandbox ? (await import('../integrations/sport-coach.js')).parseSportCancel(userMessage) : null;
+  if (sportCancel) {
+    const r = await (await import('../integrations/sport-coach.js')).runSportCancel(sportCancel).catch(e => `❌ échec de l'annulation : ${e instanceof Error ? e.message : e}`);
+    ctx.systemExtra = `DÉJÀ FAIT PAR LE CODE pour ce message (ne rappelle PAS sport_coach skip/rest pour ce jour) : ${r}\nConfirme-le-lui en une phrase avec CE résultat exact, puis réponds au reste de son message.\n\n${ctx.systemExtra ?? ''}`.trim();
+  }
   if (v2ContextAddition) {
     ctx.systemExtra = `${v2ContextAddition}\n\n${ctx.systemExtra ?? ''}`.trim();
   }

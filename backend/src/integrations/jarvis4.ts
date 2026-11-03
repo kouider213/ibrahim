@@ -37,7 +37,11 @@ export async function iphoneEvent(type: string, body: Record<string, unknown>): 
   switch (type) {
     case 'carplay_on': case 'carplay': {
       // 02/11 : « Bonjour Kouider » + discours de coach business + citation, puis le point pratique
-      const [hello, brief] = await Promise.all([import('./car-coach.js').then(m => m.carGreeting(hasPos ? { lat, lng } : {})).catch(() => 'Bonjour Kouider.'), carBrief(hasPos ? { lat, lng } : {})]);
+      // 03/11 : en RETOUR à la maison → pas de point « à faire », seulement du courage (car-coach.ts isHomeward)
+      const cc = await import('./car-coach.js');
+      const homeward = await cc.isHomeward(hasPos ? { lat, lng } : {}).catch(() => false);
+      const [hello, brief] = await Promise.all([cc.carGreeting(hasPos ? { lat, lng } : {}, homeward).catch(() => 'Bonjour Kouider.'), homeward ? Promise.resolve('') : carBrief(hasPos ? { lat, lng } : {})]);
+      void kvPut('car:last-mode', { at: Date.now(), homeward });
       void kvPut('car:last-event', { at: Date.now(), type });   // trace : l'automatisation CarPlay est bien arrivée
       const say = speakable(carPrivacy(`${hello} ${brief}`)) || 'Bonjour Kouider. Bonne route.';
       return { say, audio_url: jarvisVoiceUrl(say) };

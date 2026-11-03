@@ -411,7 +411,12 @@ export async function planSportWeek(write = true): Promise<{ slots: Array<PlanSl
   const today = localNow().date;
   const evs = await listAgendaRange(new Date(localTs(today, '00:00')).toISOString(), new Date(localTs(addDays(today, 7), '23:59')).toISOString(), 250);
   if (!evs) return { slots: [], note: 'agenda FIK injoignable' };
-  const sport = evs.filter(isSport).filter(e => e.transparency !== 'transparent');
+  // 03/11 : jour annulé mais séance encore dans l'agenda (ex. 4/11 annulé sans que l'agenda suive) → on la retire ici
+  if (write) for (const e of evs) {
+    if (e.id && e.start.dateTime && st.skips[dateOf(e.start.dateTime)] && dateOf(e.start.dateTime) >= today
+      && Date.parse(e.start.dateTime) > Date.now() && CHAIN.test(e.summary ?? '')) await deleteAgendaEvent(e.id).catch(() => false);
+  }
+  const sport = evs.filter(isSport).filter(e => e.transparency !== 'transparent' && !st.skips[dateOf(e.start.dateTime!)]);
   const plan: Record<string, PlanSlot> = {};
   let idx = st.next; let changed = 0;
   for (const e of sport) {
@@ -1216,4 +1221,29 @@ export async function markWatchWorkout(date: string, minutes: number, name: stri
 export async function exerciseMuscles(): Promise<Record<string, { muscle: string; name: string }>> {
   await getState();
   return Object.fromEntries(ALL_EXERCISES().map(e => [e.id, { muscle: e.muscle, name: e.name }]));
+}
+
+// 03/11 : « annulé ma séance de sport de demain je me repose » → le cerveau a répondu « ✅ annulée » SANS appeler l'outil
+// (tools: []) et l'agenda gardait la séance. → l'annulation est faite par le CODE, avant le cerveau, qui reçoit le résultat.
+export function parseSportCancel(raw: string): { date: string; reason: string } | null {
+  if (raw.includes('?') || raw.length > 400) return null;
+  const s = norm(raw);
+  if (/remet|reprend|unskip|annule l.annulation|finalement je (vais|fais)/.test(s)) return null;
+  const cancel = /\b(annul\w*|supprim\w*|enl[eè]v\w*|retir\w*|saut\w*|pas de (sport|salle|seance|muscu)|je (ne )?(fais|vais) pas (a la )?(sport|salle|seance|muscu)|pas (a la )?salle)\b/.test(s);
+  const sport = /\b(seance|sport|salle|muscu|entrainement|training)\b/.test(s);
+  if (!cancel || !sport) return null;
+  // le jour le plus PROCHE du mot séance/sport (« prise de sang lundi … ma séance de demain » → demain)
+  const at = s.search(/\b(seance|sport|salle|muscu|entrainement|training)\b/);
+  const ds = [...s.matchAll(/\b(demain|aujourd.?hui|ce matin|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)\b/g)]
+    .sort((a, b) => Math.abs(a.index! - at) - Math.abs(b.index! - at));
+  const dw = ds[0]?.[1];
+  if (!dw) return null;
+  const date = /aujourd|ce matin/.test(dw) ? localNow().date : parseDate(dw);
+  const reason = /malade/.test(s) ? 'malade' : /fatigu|creve/.test(s) ? 'fatigué' : 'repos demandé';
+  return { date, reason };
+}
+export async function runSportCancel(c: { date: string; reason: string }): Promise<string> {
+  const removed = await setSportSkip(c.date, c.reason);
+  const fmt = new Date(localTs(c.date, '12:00')).toLocaleDateString('fr-FR', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long' });
+  return `Séance du ${fmt} annulée (${c.reason}) : pas d'appel ni d'alerte de départ, la séance passe au prochain créneau. Agenda : ${removed.length ? `enlevé ${removed.join(', ')}` : 'rien à enlever (ou agenda injoignable)'}.`;
 }

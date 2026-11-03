@@ -48,6 +48,51 @@ const REBOOST = [
 
 const LAST_K = 'car:greet:last', USED_K = 'car:quotes:used';
 
+// 03/11 : en RENTRANT à la maison il lui donnait encore « des trucs à faire avant 12 h ». Kouider : « là je rentre, je me
+// repose jusqu'à demain, il doit me dire tu as tenu le coup, tu as passé le pire — le pire dans ma vie c'est le travail où
+// je suis et le pays où je suis, il doit trouver un truc pour me donner du courage ». → mode RETOUR : zéro tâche, du courage.
+const COURAGE_QUOTES = [0, 1, 2, 6, 13, 16, 17];   // indices dans QUOTES : patience, épreuve, persévérance
+
+/** Il rentre chez lui ? Après 11 h, pas déjà à la maison, et (près du travail OU plus aucune étape réelle dans les 4 h
+ *  hors « Maison »). Sans position fraîche : après 11 h et rien de prévu → retour aussi. */
+export async function isHomeward(pos: { lat?: number; lng?: number } = {}): Promise<boolean> {
+  const h = Number(localNow().hhmm.slice(0, 2));
+  if (h < 11 || h >= 23) return false;
+  let here: { lat: number; lng: number } | null = Number.isFinite(pos.lat) && pos.lat ? { lat: pos.lat!, lng: pos.lng! } : null;
+  if (!here) { const loc = await import('./location.js').then(m => m.getLocation('kouider')).catch(() => null); if (loc && Date.now() - Date.parse(loc.updated_at) < 2 * 3600_000) here = { lat: loc.lat, lng: loc.lng }; }
+  const [{ geocode }, { getRoutineConfig }, { haversine }] = await Promise.all([import('./departures.js'), import('./morning-routine.js'), import('./forme-runs.js')]);
+  const a = (await getRoutineConfig()).addresses;
+  const [home, work] = await Promise.all([geocode(a.home).catch(() => null), geocode(a.work).catch(() => null)]);
+  const dist = (p: { lat: number; lng: number } | null) => (here && p ? haversine([here.lat, here.lng], [p.lat, p.lng]) : Infinity);
+  if (dist(home) < 600) return false;                      // déjà devant chez lui : il part, il ne rentre pas
+  if (dist(work) < 2500) return true;                      // il quitte le boulot
+  const evs = await import('./google-calendar.js').then(m => m.listAgendaRange(new Date().toISOString(), new Date(Date.now() + 4 * 3600_000).toISOString())).catch(() => null);
+  const real = ((evs ?? []) as Array<{ summary?: string; start?: { dateTime?: string } }>)
+    .filter(e => !/libre|rdv possibles|disponible|🏠|maison|repos|famille|dîner|diner|repas/i.test(e.summary ?? '') && (!e.start?.dateTime || Date.parse(e.start.dateTime) > Date.now()));
+  return real.length === 0;
+}
+
+/** Discours du RETOUR : il a tenu, le plus dur de la journée est derrière lui ; le boulot et l'exil en Belgique sont
+ *  une étape, pas sa vie — courage, sens (Oran, sa femme, Ibrahim), repos mérité. Aucune tâche, aucun « avant midi ». */
+async function homewardSpeech(hello: string, time: string, weather: string): Promise<string> {
+  const used = await kvJson<number[]>(USED_K, []);
+  const pool = COURAGE_QUOTES.filter(i => !used.slice(-4).includes(i));
+  const qi = (pool.length ? pool : COURAGE_QUOTES)[Math.floor(Math.random() * (pool.length || COURAGE_QUOTES.length))]!;
+  await kvPut(USED_K, used.concat(qi).slice(-QUOTES.length + 1));
+  const quote = QUOTES[qi]!;
+  const speech = await ai(`Tu es JARVIS, l'intelligence artificielle majordome de Kouider (comme le Jarvis d'Iron Man) : voix calme, chaleureuse, VOUVOIEMENT, phrases élégantes. Kouider vient de finir sa journée de travail et RENTRE CHEZ LUI se reposer jusqu'à demain. Tu lui as déjà dit bonjour, l'heure et la météo.
+Dis-lui un discours de COURAGE de 5 à 7 phrases (30 à 40 secondes à l'oral), sincère, qui touche le cœur :
+- il a TENU LE COUP aujourd'hui, le plus dur de la journée est derrière lui, il peut relâcher maintenant ;
+- ce qui lui pèse le plus dans sa vie aujourd'hui, c'est ce travail et ce pays (la Belgique, loin de l'Algérie) : reconnais-le avec respect, sans le juger ni minimiser ; ce travail et cet exil sont une ÉTAPE, un passage, pas sa vie — chaque journée tenue est une brique de la maison à Oran, de sa liberté future, de la vie qu'il prépare pour sa femme et Ibrahim ;
+- trouve UNE image forte et nouvelle pour lui donner du courage (ex. le marin qui traverse la tempête, la graine sous la neige, l'athlète dans le dernier kilomètre, l'homme qui porte sa famille sur le dos et ne plie pas…) ;
+- termine en douceur : ce soir c'est repos, sa famille, il l'a mérité ; demain il repart plus fort. Dernière phrase qui réchauffe.
+⛔ INTERDIT : toute tâche, tout « avant midi », tout client à rappeler, tout chiffre à faire, toute action — c'est l'heure du repos. ⛔ Jamais médicament, pharmacie, santé, sevrage, programme Liberté (privé).
+Ne redis pas bonjour, ni son prénom en premier mot. Pas d'emoji, pas de liste, pas de citation (elle vient après). N'invente aucun fait.`, { max: 450 }).catch(() => '');
+  const fallback = 'Journée accomplie, monsieur. Vous avez tenu, encore une fois, et le plus dur est derrière vous. Ce travail et ce pays ne sont qu\'une étape : chaque jour que vous tenez ici pose une pierre de votre maison à Oran. Ce soir, rien à faire, seulement vous reposer auprès des vôtres. Vous l\'avez mérité.';
+  const { carPrivacy } = await import('./jarvis4.js');
+  return [`${hello} ${time}${weather}.`, carPrivacy(speech || '') || fallback, `Pour la route : ${quote.q} ${quote.who[0]!.toUpperCase()}${quote.who.slice(1)}, ${quote.src}.`, 'Rien d\'autre à faire aujourd\'hui. Reposez-vous, bonne route jusqu\'à la maison.'].join(' ');
+}
+
 async function pickQuote() {
   const used = await kvJson<number[]>(USED_K, []);
   const free = QUOTES.map((_, i) => i).filter(i => !used.includes(i));
@@ -60,13 +105,14 @@ async function pickQuote() {
 /** Style JARVIS (Kouider 02/11 : « je veux qu'il me parle comme le vrai Jarvis ») : majordome IA calme, précis, élégant,
  *  vouvoiement, une pointe d'humour — heure, météo réelle, état de la journée, puis motivation business et citation.
  *  Court si déjà dit il y a moins de 30 min (arrêt rapide). */
-export async function carGreeting(pos: { lat?: number; lng?: number } = {}): Promise<string> {
+export async function carGreeting(pos: { lat?: number; lng?: number } = {}, homeward = false): Promise<string> {
   const { hhmm } = localNow();
   const h = Number(hhmm.slice(0, 2));
   const hello = h < 5 || h >= 18 ? 'Bonsoir Kouider.' : 'Bonjour Kouider.';
   const last = await kvJson<number>(LAST_K, 0);
   if (Date.now() - last < 30 * 60_000) {
     // 02/11 : même un 2e démarrage = un coup de motivation (Kouider : « il doit aussi me donner des discours motivants »)
+    if (homeward) return 'Re-bonjour Kouider. Cap sur la maison, monsieur. La journée est faite, vous avez tenu, le reste peut attendre demain.';
     const pep = REBOOST[Math.floor(Math.random() * REBOOST.length)]!;
     return `Re-bonjour Kouider. ${pep}`;
   }
@@ -82,6 +128,7 @@ export async function carGreeting(pos: { lat?: number; lng?: number } = {}): Pro
   ]);
   const time = `Il est ${hhmm.replace(':', ' heures ').replace(/ 00$/, '')}`;
   const weather = meteo ? `, ${Math.round(meteo.temp)} degrés dehors, ${meteo.label.toLowerCase()}${meteo.rain ? ', prudence sur la route' : ''}` : '';
+  if (homeward) return homewardSpeech(hello, time, weather);
   const tone = hard ? 'Il a demandé une JOURNÉE DURE : doux, rassurant, aucune pression business.'
     : off ? 'Jour de congé (famille) : rappelle le sens de ce qu\'il construit (sa femme, Ibrahim, leur avenir en Algérie), sans lui donner de travail.'
     : 'Journée de travail : motive-le sur son business (FIK, ses clients, son objectif du mois, devenir un grand businessman en Algérie) avec UNE priorité concrète pour aujourd\'hui.';
