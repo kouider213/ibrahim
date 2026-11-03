@@ -36,6 +36,9 @@ export const sha256 = (t: string) => createHash('sha256').update(t).digest('hex'
 async function refresh(): Promise<void> {
   try {
     const raw = await kvGet(DEVICES_KEY);
+    // 03/11 : base bloquée (quota Supabase) → lecture vide → tous les appareils rejetés (Telegram, raccourcis).
+    // Une liste vide alors qu'on en avait une = panne de lecture, pas une révocation : on garde la dernière bonne.
+    if (!raw && devices.size) { console.warn('[auth] liste des appareils illisible — on garde la dernière'); return; }
     const list = raw ? (JSON.parse(raw) as DeviceRecord[]) : [];
     devices = new Map(list.map(d => [d.h, d]));
     legacyOff = (await kvGet(LEGACY_KEY)) === 'off';

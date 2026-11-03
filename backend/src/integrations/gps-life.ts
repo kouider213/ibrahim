@@ -29,6 +29,22 @@ interface GpsState {
 const STATE = 'gps:state', TRACK = 'gps:track', VISITS = 'gps:visits', PARKING = 'gps:parking', ORAN = 'mode:oran', ANGEL_CFG = 'angel:cfg';
 const STAY_M = 0.15;
 
+// Trace GPS gardée en mémoire (03/11 : relire + réécrire 170 Ko toutes les 30 s a fait sauter le quota
+// de transfert Supabase gratuit → base bloquée, Dzaryx muet). Écrite en base au plus toutes les 10 min.
+let trackMem: Pt[] | null = null;
+let trackDirtyAt = 0;
+export async function gpsTrack(): Promise<Pt[]> {
+  if (!trackMem) trackMem = await kvJson<Pt[]>(TRACK, []);
+  return trackMem;
+}
+async function flushTrack(force = false): Promise<void> {
+  if (!trackMem || !trackDirtyAt || (!force && Date.now() - trackDirtyAt < 10 * 60_000)) return;
+  trackDirtyAt = 0;
+  await kvPut(TRACK, trackMem).catch(e => { trackDirtyAt = Date.now(); console.error('[gps-life] trace:', e instanceof Error ? e.message : e); });
+}
+setInterval(() => { void flushTrack(); }, 60_000).unref?.();
+process.once('SIGTERM', () => { void flushTrack(true); });
+
 let busy = false;
 export function onLocationPoint(lat: number, lng: number): void {
   if (busy) return;
@@ -57,9 +73,10 @@ async function handle(p: Pt): Promise<void> {
   const dt = st.last ? (p.t - st.last.t) / 3600_000 : 0;
   const kmh = st.last && dt > 30 / 3600 && dt < 0.25 ? km(st.last, p) / dt : 0;
   if (st.last && p.t - st.last.t < 30_000) return;
-  const track = await kvJson<Pt[]>(TRACK, []);
+  const track = await gpsTrack();
   track.push(p);
-  await kvPut(TRACK, track.filter(x => p.t - x.t < 8 * 86_400_000).slice(-2500));
+  trackMem = track.filter(x => p.t - x.t < 8 * 86_400_000).slice(-2500);
+  if (!trackDirtyAt) trackDirtyAt = Date.now();
   if (kmh >= 80) st.fastAt = p.t;
 
   // ── Séjours / visites ──
@@ -275,7 +292,7 @@ export async function visitsText(fromIso?: string, toIso?: string, q?: string): 
 export async function timeBank(days = 7): Promise<string> {
   const since = Date.now() - days * 86_400_000;
   const vs = (await kvJson<Visit[]>(VISITS, [])).filter(v => v.to > since);
-  const track = (await kvJson<Pt[]>(TRACK, [])).filter(x => x.t > since);
+  const track = (await gpsTrack()).filter(x => x.t > since);
   const h: Record<string, number> = {};
   for (const v of vs) { const k = v.place ?? v.label ?? 'ailleurs'; h[k] = (h[k] ?? 0) + (v.to - Math.max(v.from, since)) / 3600_000; }
   let road = 0, jam = 0;

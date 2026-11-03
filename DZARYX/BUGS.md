@@ -7,6 +7,9 @@
 
 ## Bugs Ouverts 🔴
 
+### B054 — Dzaryx muet + raccourci « Invalid token » (03/11 5h37) ✅ FIXÉ (code) — base à débloquer (Supabase Pro)
+Supabase restreint (exceed_egress_quota) → liste des appareils vide → tout rejeté. Gaspillage corrigé (trace GPS en mémoire, audio en mémoire, liste d'appareils conservée).
+
 ### B053 — « Je n'ai pas accès aux données » quand Kouider donne ses propres montants + Conscience qui radote (01/11) ✅ FIXÉ
 « Hier j'ai fait 180 €… total 2000 € » (08h49) : la réponse « tu as gagné / tes revenus » restait bloquée malgré B049 → ces formules passent si Kouider a donné les montants (anti-hallucination.ts). Conscience : « 3 refus clients » répété 5× en 24 h, promesses 7× en 3 j → sujets ignorés passés à l'IA (ignores_24h) + même type ignoré 2× en 24 h = silence 24 h (conscience.ts).
 

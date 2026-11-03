@@ -28,25 +28,43 @@ const LANG: Array<[RegExp, string, string]> = [
 const langOf = (l?: string) => { const x = LANG.find(([re]) => re.test(l ?? '')); return x ? { boost: x[1], name: x[2] } : { boost: 'French', name: 'français' }; };
 
 /** Lien public temporaire (jeton aléatoire) vers un audio gardé dans app_kv — pour le clonage et les envois Telegram. */
+// Fichiers audio/média servis depuis la mémoire : un lecteur audio (CarPlay, Raccourcis) les redemande plusieurs fois,
+// et chaque relecture de 3 Mo en base coûtait du quota de transfert Supabase (03/11). La base reste le secours.
+const fileMem = new Map<string, { v: string; exp: number }>();
+function memPut(k: string, v: string, ttl: number): void {
+  const now = Date.now();
+  for (const [key, x] of fileMem) if (x.exp < now) fileMem.delete(key);
+  while (fileMem.size >= 20) fileMem.delete(fileMem.keys().next().value!);
+  fileMem.set(k, { v, exp: now + ttl * 1000 });
+}
+async function memGet(k: string): Promise<string | null> {
+  const x = fileMem.get(k);
+  if (x && x.exp > Date.now()) return x.v;
+  const v = await kvGet(k).catch(() => null);
+  if (v) memPut(k, v, 3600);
+  return v;
+}
 async function publish(b64: string, ttl = 2 * 86_400): Promise<string> {
   const t = crypto.randomBytes(16).toString('hex');
+  memPut(OUT(t), b64, ttl);
   await kvSet(OUT(t), b64, ttl);
   return `${API_BASE()}/api/call/voice-file/${t}.mp3`;
 }
 /** Image / vidéo publiée de la même façon (photo de référence pour le double vidéo). */
 export async function publishMedia(b64: string, mime: string, ttl = 3600): Promise<string> {
   const t = crypto.randomBytes(16).toString('hex');
+  memPut(`media:file:${t}`, JSON.stringify({ mime, b64 }), ttl);
   await kvSet(`media:file:${t}`, JSON.stringify({ mime, b64 }), ttl);
   return `${API_BASE()}/api/call/media/${t}.${mime.includes('png') ? 'png' : mime.includes('mp4') ? 'mp4' : 'jpg'}`;
 }
 export async function mediaFile(token: string): Promise<{ mime: string; buf: Buffer } | null> {
   if (!/^[a-f0-9]{32}$/.test(token)) return null;
-  const j = JSON.parse((await kvGet(`media:file:${token}`).catch(() => null)) ?? 'null') as { mime: string; b64: string } | null;
+  const j = JSON.parse((await memGet(`media:file:${token}`)) ?? 'null') as { mime: string; b64: string } | null;
   return j ? { mime: j.mime, buf: Buffer.from(j.b64, 'base64') } : null;
 }
 export async function voiceFile(token: string): Promise<Buffer | null> {
   if (!/^[a-f0-9]{32}$/.test(token)) return null;
-  const b64 = await kvGet(OUT(token)).catch(() => null);
+  const b64 = await memGet(OUT(token));
   return b64 ? Buffer.from(b64, 'base64') : null;
 }
 

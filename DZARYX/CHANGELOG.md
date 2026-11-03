@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-03 (5h) — B054 Supabase bloqué (quota de transfert) → Dzaryx muet
+- Cause : trace GPS (170 Ko) relue/réécrite toutes les 30 s avec la position en direct + fichiers audio 3 Mo relus en base → quota gratuit dépassé, Supabase restreint depuis 02/11 23h21 : jetons d'appareil illisibles → « Invalid token » partout, sauvegarde 402.
+- gps-life.ts : trace en mémoire, écrite en base max toutes les 10 min ; my-voice.ts : fichiers audio/média servis depuis la mémoire ; device-auth.ts : liste d'appareils gardée si la lecture revient vide.
+- Déblocage : Kouider passe Supabase en Pro.
+
 ## 2026-11-02 (nuit) — LE QUOTIDIEN : courses + poubelles remplacées
 - Remplacées (à sa demande, sport/santé ou business) par : anglais du jour pour clients FIK (10h) + étirements 5 min avant de dormir (21h45, selon la séance).
 

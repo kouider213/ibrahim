@@ -14,7 +14,6 @@ import { geocode, drive, km } from './departures.js';
 import { listAgendaRange } from './google-calendar.js';
 import { localNow, hm } from './morning-routine.js';
 
-interface Pt { t: number; lat: number; lng: number }
 interface Visit { lat: number; lng: number; from: number; to: number; label?: string; place?: string }
 const LATE_KEY = 'wow:late', PARK_KEY = 'wow:parkmeter';
 const ROUTINE = /^(🏋️|🚗|🚿|⏰|🟢|🍽️|😴|🕌|🧘|📚)/u;
@@ -134,7 +133,7 @@ export async function dejaVu(p: { lat: number; lng: number }): Promise<void> {
 export async function dayMap(send = true): Promise<string> {
   const { date } = localNow();
   const dayStart = (await import('./morning-routine.js')).localTs(date, '00:00');
-  const pts = (await kvJson<Pt[]>('gps:track', [])).filter(x => x.t >= dayStart);
+  const pts = (await (await import('./gps-life.js')).gpsTrack()).filter(x => x.t >= dayStart);
   if (pts.length < 6) return 'Pas assez de positions aujourd\'hui pour dessiner ta journée (partage ta position en direct sur Telegram).';
   let dist = 0, driveMs = 0;
   for (let i = 1; i < pts.length; i++) {
