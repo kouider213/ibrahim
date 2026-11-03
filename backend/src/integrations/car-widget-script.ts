@@ -1,7 +1,7 @@
 // 🚗 Rendu du widget CarPlay (Scriptable), téléchargé à chaque rafraîchissement par le petit script collé une fois sur l'iPhone.
 // Modifier ici = le widget de Kouider change tout seul (pas de nouveau copier-coller). Pas de ` ni de ${ dans le code.
 export const CAR_WIDGET_RENDER = String.raw`// DZARYX · rendu du widget CarPlay (servi par le backend, le script collé dans Scriptable le télécharge à chaque fois)
-const PHOTO_V = 2;
+const PHOTO_V = 3;
 const RED = new Color("#ff2b3a"), GOLD = new Color("#f7c548"), WHITE = Color.white();
 const SOFT = new Color("#ffffff", 0.78), DIM = new Color("#ffffff", 0.5);
 const fm = FileManager.local();
@@ -75,11 +75,10 @@ if (small) {
   t((data.weatherE || "") + "  " + (data.weather || ""), 48, 276, 560, 44, Font.mediumSystemFont(32), SOFT);
   bar(48, 340, 110);
   t("PROCHAIN · FIK", 48, 362, 400, 30, Font.heavySystemFont(22), GOLD);
-  t(data.nextTitle, 48, 392, 680, 52, Font.boldSystemFont(42), WHITE);
-  t(data.nextWhen, 48, 444, 680, 40, Font.semiboldSystemFont(30), GOLD);
-  t("« " + data.jarvis + " »", 48, 510, 820, 44, Font.italicSystemFont(30), SOFT);
-  t(biz, W - 48 - 640, 50, 640, 34, Font.semiboldSystemFont(25), SOFT, "right");
-  t("à jour " + (data.at || ""), W - 48 - 300, 556, 300, 26, Font.mediumSystemFont(19), DIM, "right");
+  t(data.nextTitle, 48, 392, 560, 52, Font.boldSystemFont(40), WHITE);
+  t(data.nextWhen, 48, 444, 560, 40, Font.semiboldSystemFont(30), GOLD);
+  t("« " + data.jarvis + " »", 48, 500, 580, 84, Font.italicSystemFont(27), SOFT);
+  t(biz + "  ·  à jour " + (data.at || ""), W - 40 - 640, 558, 640, 28, Font.semiboldSystemFont(21), SOFT, "right");
 }
 
 const w = new ListWidget();
