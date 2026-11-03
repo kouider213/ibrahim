@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-03 (17h30) — Vitalité : pause, idées, « avant », confidentialité
+- Actions 'regles' (semaine en pause, rien compté ni relancé), 'idee' (24 idées tirées sans répétition), 'avant' (quoi manger/faire avant, sourcé).
+- Rappel du soir : idée le mercredi/vendredi si l'objectif de la semaine n'est pas atteint (pas en pause). Messages ouverts par « 🔒 Privé » (aperçu neutre).
+- Confidentialité : vitaliteText interdit d'en parler de lui-même (appels, briefs, voiture, agenda, WA) ; filtre CarPlay élargi (PRIVATE_RX).
+
 ## 2026-11-03 (17h) — Vitalité : prise de sang planifiée
 - Action 'prise_de_sang' + date (base privée) → rappels Telegram : veille 20 h (préparation : sommeil, à jeun, pas de sport, avant 10 h), jour J 6 h (liste des analyses), résultats demandés à J+3 et J+6 s'ils ne sont pas notés.
 

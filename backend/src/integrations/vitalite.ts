@@ -27,7 +27,7 @@ export interface VitLog {
   testo?: number; unit?: 'ng/dL' | 'nmol/L'; heure?: string; shbg?: number; lh?: number; prolactine?: number; vitd?: number; ferritine?: number;
   note?: string;
 }
-interface VitSettings { goalPerWeek: [number, number]; weekly: boolean; daily: boolean; dailyAt: string; causes?: string; labDate?: string }
+interface VitSettings { goalPerWeek: [number, number]; weekly: boolean; daily: boolean; dailyAt: string; causes?: string; labDate?: string; pauseUntil?: string; ideaOrder?: number[]; ideaPos?: number }
 // daily (03/11, il l'a demandé) : un rappel chaque soir = UN geste concret du jour (sommeil, assiette, sport, couple, médecin)
 const DEFAULT_SET: VitSettings = { goalPerWeek: [1, 2], weekly: true, daily: true, dailyAt: '20:30' };
 
@@ -37,6 +37,7 @@ async function writeLog(l: VitLog[]) { textCache = null; await kvSet(LOG_K, JSON
 async function settings(): Promise<VitSettings> { return { ...DEFAULT_SET, ...parse<Partial<VitSettings>>(await kvGet(SET_K).catch(() => null), {}) }; }
 const addDays = (d: string, n: number) => { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
 const addMin = (hhmm: string, m: number) => { const [h, mi] = hhmm.split(':').map(Number); const t = Math.min(23 * 60 + 59, (h ?? 0) * 60 + (mi ?? 0) + m); return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; };
+const fmtFr = (d: string) => d.slice(8, 10) + '/' + d.slice(5, 7);
 const r1 = (x: number) => Math.round(x * 10) / 10;
 const avg = (a: number[]) => a.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
 
@@ -91,7 +92,8 @@ export interface VitState {
   mood: number | null;
   levers: Array<{ k: string; title: string; why: string; todo: string; fact: string }>;
   missing: string[];
-  causes: string | null;             // ce que LUI pense être la cause (texte en base privée, jamais dans le dépôt)
+  causes: string | null;
+  pause: string | null;              // « elle a ses règles » → semaine en pause jusqu'à cette date (objectif non compté)             // ce que LUI pense être la cause (texte en base privée, jamais dans le dépôt)
 }
 
 function mondayOf(d: string): string { const x = new Date(`${d}T12:00:00Z`); const wd = (x.getUTCDay() + 6) % 7; return addDays(d, -wd); }
@@ -158,6 +160,7 @@ export async function vitaliteState(): Promise<VitState> {
 
   return {
     causes: set.causes ?? null,
+    pause: set.pauseUntil && set.pauseUntil >= today ? set.pauseUntil : null,
     today, age, goal: set.goalPerWeek, weeks, thisWeek: weeks.at(-1)!.rapports, avg4,
     desir: { last: lastB?.desir ?? null, date: lastB?.date ?? null, trend: bilans.filter(b => b.desir != null).slice(-8).map(b => b.desir!) },
     iief: { score: lastI ? lastI.q1! + lastI.q2! : null, date: lastI?.date ?? null, prev: prevI ? prevI.q1! + prevI.q2! : null },
@@ -177,6 +180,7 @@ export async function vitaliteState(): Promise<VitState> {
 function stateText(s: VitState): string {
   return [
     `Âge : ${s.age ?? '?'} ans.`,
+    s.pause ? `PAUSE jusqu'au ${s.pause} (règles de sa femme) : aucun objectif, aucune pression, aucune idée de rapport ; tendresse seulement.` : '',
     s.causes ? `CE QU'IL DIT LUI-MÊME sur l'origine : ${s.causes}. Pars de là en priorité.` : '',
     `Rapports : ${s.thisWeek} cette semaine ; moyenne 4 dernières semaines complètes ${s.avg4 ?? 'pas encore de données'} ; objectif ${s.goal[0]}-${s.goal[1]}/semaine. Par semaine (ancienne → récente) : ${s.weeks.map(w => w.rapports).join(', ')}.`,
     `Désir (sa note /10 de la semaine) : ${s.desir.last ?? 'pas noté'}${s.desir.trend.length > 1 ? ` (évolution ${s.desir.trend.join(' → ')})` : ''}. Questionnaire IIEF désir : ${s.iief.score != null ? `${s.iief.score}/10 le ${s.iief.date}${s.iief.prev != null ? ` (avant : ${s.iief.prev}/10)` : ''}` : 'pas encore fait'}. Érections du matin : ${s.matins.last != null ? `${s.matins.last}/7 matins (${s.matins.date})` : 'pas noté'}.`,
@@ -209,7 +213,7 @@ export async function vitaliteText(): Promise<string> {
   if (textCache && Date.now() - textCache.at < 10 * 60_000) return textCache.text;
   const s = await vitaliteState().catch(() => null);
   if (!s) return '';
-  const out = `VITALITÉ (privé : désir, couple, testostérone — outil \`vitalite\`) : rapports ${s.thisWeek} cette semaine (objectif ${s.goal[0]}-${s.goal[1]}, moyenne ${s.avg4 ?? '?'}) ; désir ${s.desir.last ?? '?'}/10 ; IIEF désir ${s.iief.score ?? '?'}/10 ; testostérone ${s.labo ? s.testoTxt.split(':')[0] : 'inconnue (pas de prise de sang)'} ; levier n°1 : ${s.levers[0]?.title ?? '—'}. Pour toute question sur libido / testostérone / sexualité / envie → outil vitalite action question (JAMAIS de réponse inventée). « on l'a fait » / « on a fait l'amour » → vitalite action rapport. Strictement privé.`;
+  const out = `VITALITÉ (STRICTEMENT PRIVÉ — n'en parle JAMAIS de toi-même : ni dans un appel, un brief, un bilan, la voiture/CarPlay/Siri, l'agenda, WhatsApp ou devant quelqu'un ; seulement quand LUI en parle le premier, et réponds alors par écrit ; outil \`vitalite\`) : rapports ${s.thisWeek} cette semaine (objectif ${s.goal[0]}-${s.goal[1]}, moyenne ${s.avg4 ?? '?'}) ; désir ${s.desir.last ?? '?'}/10 ; IIEF désir ${s.iief.score ?? '?'}/10 ; testostérone ${s.labo ? s.testoTxt.split(':')[0] : 'inconnue (pas de prise de sang)'} ; levier n°1 : ${s.levers[0]?.title ?? '—'}. Pour toute question sur libido / testostérone / sexualité / envie → outil vitalite action question (JAMAIS de réponse inventée). « on l'a fait » / « on a fait l'amour » → vitalite action rapport. Strictement privé.`;
   textCache = { at: Date.now(), text: out };
   return out;
 }
@@ -234,7 +238,7 @@ export function planText(s: VitState): string {
   return [
     `🔥 VITALITÉ — le point (${s.today})`,
     '',
-    `❤️ Rapports : ${s.thisWeek} cette semaine · moyenne ${s.avg4 ?? '—'} · objectif ${s.goal[0]}-${s.goal[1]}/sem`,
+    `❤️ Rapports : ${s.thisWeek} cette semaine · moyenne ${s.avg4 ?? '—'} · objectif ${s.goal[0]}-${s.goal[1]}/sem${s.pause ? ` · ⏸️ pause jusqu'au ${fmtFr(s.pause)}` : ''}`,
     `🧠 Désir : ${s.iief.score != null ? `${s.iief.score}/10 (questionnaire IIEF)` : s.desir.last != null ? `${s.desir.last}/10 (ta note)` : 'pas encore mesuré'}`,
     `🌅 Érections du matin : ${s.matins.last != null ? `${s.matins.last}/7` : 'pas noté'}`,
     `🧪 Testostérone : ${s.testoTxt}`,
@@ -331,13 +335,68 @@ export async function vitaliteTool(input: Record<string, unknown>, sessionId?: s
       const st = await settings(); st.labDate = d; await kvSet(SET_K, JSON.stringify(st));
       return `🧪 Prise de sang notée le ${d.split('-').reverse().join('/')}. Rappels : la veille à 20 h (préparation), le matin même à 6 h (liste à demander), puis je te demande les résultats.`;
     }
+    case 'regles': {
+      const st = await settings();
+      if (input['on'] === false) { st.pauseUntil = undefined; await kvSet(SET_K, JSON.stringify(st)); return '▶️ Pause terminée : l\'objectif de la semaine reprend.'; }
+      const days = Math.min(10, Math.max(3, Number(input['n']) || 6));
+      st.pauseUntil = addDays(today, days - 1); await kvSet(SET_K, JSON.stringify(st));
+      return `⏸️ Noté, en pause jusqu'au ${fmtFr(st.pauseUntil)} : pas d'objectif, pas de relance, la semaine n'est pas comptée comme ratée. Dis-moi « c'est fini » si ça s'arrête avant.`;
+    }
+    case 'idee': {
+      const st = await settings();
+      if (!st.ideaOrder || st.ideaOrder.length !== IDEAS.length || (st.ideaPos ?? 0) >= IDEAS.length) {
+        const o = IDEAS.map((_, i) => i); for (let i = o.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [o[i], o[j]] = [o[j]!, o[i]!]; }
+        st.ideaOrder = o; st.ideaPos = 0;
+      }
+      const idea = IDEAS[st.ideaOrder[st.ideaPos!]!]!; st.ideaPos = st.ideaPos! + 1; await kvSet(SET_K, JSON.stringify(st));
+      return `💡 Idée (${st.ideaPos}/${IDEAS.length}, jamais deux fois la même avant d'avoir fait le tour) :\n${idea}`;
+    }
+    case 'avant': return BEFORE;
     case 'jour': return (await dailyText()) ?? 'Rien à proposer aujourd\'hui.';
     case 'faits': return (await factsFor()).map(f => `• ${f.fait}\n  (${f.source})`).join('\n');
   }
-  return '❌ action : etat | question | rapport | annuler | bilan | iief | labo | objectif | rappel | causes | prise_de_sang | jour | faits';
+  return '❌ action : etat | question | rapport | annuler | bilan | iief | labo | objectif | rappel | causes | prise_de_sang | regles | idee | avant | jour | faits';
 }
 
 // ── 🔁 Rappel du soir (03/11) : UN geste concret par jour, tiré de SES leviers + des FAITS (rien d'inventé, sans IA) ──
+// Idées pour lancer un moment à deux : tendresse d'abord, sans pression, chaque fois différent (tirage sans répétition)
+const IDEAS = [
+  'Dans la journée, envoie-lui un message simple : « Je pense à toi, j\'ai hâte d\'être avec toi ce soir. » Le désir commence bien avant le soir.',
+  'Prépare-lui un thé ou un dessert qu\'elle aime une fois Ibrahim couché, et assieds-toi près d\'elle, sans téléphone.',
+  'Propose-lui un massage des épaules et du dos (huile ou crème), lentement, sans rien attendre d\'autre. Laisse venir.',
+  'Faites la cuisine ensemble ce soir, musique douce, et dis-lui ce que tu trouves beau chez elle.',
+  'Une douche ou un bain préparé pour elle (bougie, serviette chaude), puis rejoins-la.',
+  'Ce soir, téléphones dans une autre pièce dès 21 h : juste vous deux, discuter, rire, vous rapprocher.',
+  'Rappelle-lui un beau souvenir à vous deux (votre rencontre, votre mariage) et dis-lui ce que tu as ressenti.',
+  'Complimente-la sincèrement trois fois dans la soirée, sur des choses précises (son regard, sa patience avec Ibrahim, son parfum).',
+  'Change le décor : draps propres, lumière tamisée, une odeur qu\'elle aime (bakhour, bougie). Le lieu compte.',
+  'Prends-la dans tes bras longtemps en rentrant du travail (20 secondes et plus), sans parler.',
+  'Sortie à deux : un café, une glace ou une balade le soir, même 30 min, avec quelqu\'un pour garder Ibrahim.',
+  'Écris-lui un petit mot laissé sous son oreiller ou dans son sac. Elle le trouvera dans la journée.',
+  'Massage des pieds pendant qu\'elle se détend devant une série. Tendresse sans objectif.',
+  'Demande-lui ce qui lui ferait plaisir à elle en ce moment, écoute vraiment, et fais-le.',
+  'Couchez-vous en même temps ce soir, tôt, sans écran : parler au lit rapproche plus que tout.',
+  'Mets-toi beau pour elle : douche, parfum, tenue soignée un soir de semaine, sans raison particulière.',
+  'Danse avec elle dans le salon sur une chanson qui compte pour vous deux.',
+  'Prenez le petit-déjeuner ensemble un jour de congé, au lit, préparé par toi.',
+  'Dis-lui ce que tu vis en ce moment (fatigue, stress) et que ce n\'est pas elle : la complicité revient quand elle comprend.',
+  'Proposez-vous un « soir à nous » fixe chaque semaine, le même jour, qu\'elle attend avec plaisir.',
+  'Caresses et câlins sur le canapé, en vous laissant le temps : pas de pression, le désir monte souvent pendant, pas avant.',
+  'Prépare son plat préféré (ou commande-le) et dresse une jolie table pour vous deux.',
+  'Laisse-lui une soirée de repos complet : tu t\'occupes d\'Ibrahim, du bain, du coucher. Une femme reposée a plus envie aussi.',
+  'Regardez vos photos de vacances ou de mariage ensemble et revivez ces moments.',
+];
+const BEFORE = [
+  '🍽️ Avant un moment à deux — ce qui aide vraiment (aucun aliment « magique » n\'a de preuve) :',
+  '• Repas LÉGER 2 à 3 h avant : protéines + légumes (poulet, poisson, œufs, salade). Un gros repas gras ou très sucré fatigue et coupe l\'élan.',
+  '• Bien boire de l\'eau dans la journée.',
+  '• Dessert léger si envie : fruits (pastèque, grenade, fraises), quelques carrés de chocolat noir, une poignée de noix — bon pour la santé, pas un « boost ».',
+  '• Pas de grosse séance de sport juste avant : tu serais vidé.',
+  '• Une douche, 10 min de calme : couper avec le stress du travail compte plus que n\'importe quel aliment.',
+  '• Pas de complément « naturel » (gingembre concentré, ginseng, maca, tribulus…) sans l\'avis du pharmacien : avec ton traitement, certains sont dangereux.',
+  '• Si l\'érection pose problème, ton médecin peut prescrire un traitement efficace (à prendre comme il l\'explique). Jamais acheté sur internet.',
+].join('\n');
+
 const PLATES = [
   'poisson (sardines, maquereau ou saumon) + légumes + filet d\'huile d\'olive',
   'une poignée de noix ou d\'amandes (30 g) en collation',
@@ -363,15 +422,18 @@ const DAY_TIPS: Record<string, string[]> = {
 export async function dailyText(date = localNow().date): Promise<string | null> {
   const s = await vitaliteState();
   const n = Math.floor(Date.parse(`${date}T12:00:00Z`) / 86_400_000);
-  const levers = s.levers.filter(l => DAY_TIPS[l.k]);
+  const levers = s.levers.filter(l => DAY_TIPS[l.k] && !(s.pause && l.k === 'couple'));
   if (!levers.length) return null;
   const lv = levers[n % levers.length]!, tips = DAY_TIPS[lv.k]!;
+  const wd = new Date(`${date}T12:00:00Z`).getUTCDay();
+  const idea = !s.pause && s.thisWeek < s.goal[0] && (wd === 3 || wd === 5) ? await vitaliteTool({ action: 'idee' }, 'kouider').catch(() => '') : '';
   return [
-    '🔥 Vitalité — ton geste du jour (privé)',
+    '🔒 Privé — ton geste du jour',
     `👉 ${tips[Math.floor(n / levers.length) % tips.length]}`,
+    ...(idea ? ['', idea, 'Avant : repas léger 2-3 h avant, de l\'eau, une douche et 10 min de calme. (« quoi manger avant ? » pour le détail)', ''] : []),
     `🍽️ Dans l'assiette : ${PLATES[n % PLATES.length]}.`,
     'Rien à acheter : aucun « booster » ni aliment miracle n\'a de preuve, et avec ton traitement, aucun complément sans le pharmacien.',
-    `Cette semaine : ${s.thisWeek} rapport(s) noté(s), objectif ${s.goal[0]}-${s.goal[1]}. Dis-moi juste « on l'a fait » quand c'est le cas.`,
+    s.pause ? `⏸️ Pause jusqu'au ${fmtFr(s.pause)} : pas d'objectif cette semaine, juste de la tendresse.` : `Cette semaine : ${s.thisWeek} rapport(s) noté(s), objectif ${s.goal[0]}-${s.goal[1]}. Dis-moi juste « on l'a fait » quand c'est le cas.`,
   ].join('\n');
 }
 
@@ -391,17 +453,17 @@ export async function jobVitalite(): Promise<void> {
     const lab = st.labDate, fr = lab.split('-').reverse().join('/');
     const LIST = 'testostérone totale, LH, FSH, prolactine, SHBG, TSH, ferritine, vitamine D, glycémie / HbA1c';
     const once = async (k: string, text: string) => { if (await kvGet(SENT_K(`lab:${k}:${lab}`)).catch(() => null)) return; await kvSet(SENT_K(`lab:${k}:${lab}`), '1'); await queueTelegramMessage(text, undefined, 'kouider', undefined, true); };
-    if (date === addDays(lab, -1) && time >= '20:00') await once('veille', `🧪 Demain matin : ta prise de sang (privé).
+    if (date === addDays(lab, -1) && time >= '20:00') await once('veille', `🔒 Privé — demain matin : ta prise de sang.
 • Couché tôt ce soir : une nuit courte fait baisser la testostérone et fausse le résultat.
 • À jeun : rien à manger après le dîner, de l'eau oui.
 • Pas de grosse séance de sport ce soir ni demain matin avant la prise.
 • Y aller AVANT 10 h.
 À demander : ${LIST}.`);
-    if (date === lab && time >= '06:00' && time < '11:00') await once('jour', `🧪 C'est ce matin : prise de sang avant 10 h, à jeun.
+    if (date === lab && time >= '06:00' && time < '11:00') await once('jour', `🔒 Privé — c'est ce matin : prise de sang avant 10 h, à jeun.
 À demander : ${LIST}.
 Dis au médecin / au labo les traitements que tu prends. Quand tu as les résultats, envoie-moi la photo ou les chiffres.`);
     const hasLabo = (await readVitLog()).some(l => l.kind === 'labo' && l.date >= lab);
-    if (!hasLabo && (date === addDays(lab, 3) || date === addDays(lab, 6)) && time >= '19:00') await once(`res:${date}`, `🧪 Tu as reçu les résultats de ta prise de sang du ${fr} ? Envoie-moi la photo ou les chiffres (testostérone + unité), je les range et je t'explique — c'est ton médecin qui interprète.`);
+    if (!hasLabo && (date === addDays(lab, 3) || date === addDays(lab, 6)) && time >= '19:00') await once(`res:${date}`, `🔒 Privé — tu as reçu les résultats de ta prise de sang du ${fr} ? Envoie-moi la photo ou les chiffres (testostérone + unité), je les range et je t'explique — c'est ton médecin qui interprète.`);
   }
   if (!st.weekly) return;
   if (wd !== 0 || time < '21:30' || time > '22:30') return;
@@ -410,8 +472,8 @@ Dis au médecin / au labo les traitements que tu prends. Quand tu as les résult
   const s = await vitaliteState();
   const iiefDue = !s.iief.date || s.iief.date <= addDays(date, -28);
   await queueTelegramMessage([
-    '🔥 Bilan privé de la semaine (que toi et moi)',
-    `Rapports notés : ${s.thisWeek} (objectif ${s.goal[0]}-${s.goal[1]}).`,
+    '🔒 Privé — bilan de la semaine (que toi et moi)',
+    s.pause ? `Semaine en pause (règles) : elle ne compte pas comme ratée.` : `Rapports notés : ${s.thisWeek} (objectif ${s.goal[0]}-${s.goal[1]}).`,
     'Réponds juste en une ligne, ex. « désir 6, matins 3, énergie 5, rapports 1 ».',
     iiefDue ? '\nEt toutes les 4 semaines, 2 questions (1 à 5) :\nQ1 fréquence du désir (1 presque jamais → 5 presque toujours)\nQ2 niveau du désir (1 très bas → 5 très élevé)\nex. « iief 3 2 »' : '',
     s.levers[0] ? `\nLevier n°1 cette semaine : ${s.levers[0].title} — ${s.levers[0].todo}` : '',

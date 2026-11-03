@@ -75,7 +75,7 @@ export function speakable(t: string): string {
  *  du jour, promesse, décision. Les faits sont rassemblés ici ; l'IA n'en fait qu'une phrase naturelle (rien d'inventé). */
 // 02/11 : lu à VOIX HAUTE dans la voiture (sa femme peut être là) → jamais LIBERTÉ, médicament, santé, vitalité.
 // 02/11 (2) : il a entendu « je vois que tu vas à la pharmacie » → pharmacie/🕊️/outil liberte filtrés aussi, + filet final sur la phrase dite.
-const PRIVATE_RX = /libert|m[ée]dicament|demi|prise autoris|comprim|dose|zaldiar|vitalit|libido|sant[ée]|psy|m[ée]decin|pharmac|ordonnance|sevrage|manque|envie|🕊|cachet|traitement/i;
+const PRIVATE_RX = /libert|m[ée]dicament|demi|prise autoris|comprim|dose|zaldiar|vitalit|libido|sant[ée]|psy|m[ée]decin|pharmac|ordonnance|sevrage|manque|envie|🕊|cachet|traitement|sex|rapports? |testost|prise de sang|r[èe]gles|c[âa]lin|massage|intime|🔒|🔥 vital/i;
 /** Retire toute phrase privée (médicament, Liberté, santé) d'un texte dit à voix haute dans la voiture. */
 export function carPrivacy(t: string): string {
   return t.split(/(?<=[.!?])\s+/).filter(x => !PRIVATE_RX.test(x)).join(' ').trim();
