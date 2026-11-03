@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-03 (16h) — FORME : repas texte en double
+- « 250 g de skyr » noté 2× à 24 s d'écart (2 appels meal_text) → logMealText ignore un repas texte de calories proches noté il y a < 5 min. Doublon du jour supprimé.
+
 ## 2026-11-03 (16h30) — Vitalité : rappel chaque soir
 - Il veut que Dzaryx lui rappelle quoi faire pour son envie : rappel privé à 20h30 (sauf dimanche = bilan), UN geste concret tiré de ses leviers (sommeil, sport, couple, prise de sang, moral, déficit, programme) + une idée d'assiette (base méditerranéenne sourcée) ; rien à acheter sans pharmacien.
 - Outil vitalite : 'rappel' quotidien true/false + heure, 'jour' = geste du jour maintenant. Job vitalite toutes les 15 min 6h-22h.

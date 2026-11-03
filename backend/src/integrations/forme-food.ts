@@ -286,6 +286,11 @@ export async function logMealText(uid: Uid, text: string, slot?: MealSlot): Prom
   const raw = await ai(`${VISION_PROMPT(text).replace('Regarde la photo et liste CHAQUE aliment visible.', `Voici ce qu'il a mangé (pas de photo) : « ${text} ». Liste chaque aliment, avec une portion normale si la quantité n'est pas dite.`)}`, { quality: true, max: 1200 });
   const j = jsonOf<RawMeal>(raw);
   if (!j) throw new Error('Je n\'ai pas compris ce repas — redis-le avec les quantités.');
+  // Même repas déjà noté il y a moins de 5 min (03/11 : « 250 g de skyr » noté 2× à 24 s d'écart — le cerveau a rappelé
+  // meal_text) → on ne le compte pas une 2e fois
+  const kcalNew = cleanItems(j.items).reduce((a, x) => a + x.kcal, 0);
+  const twin = (await mealsOf(uid)).find(m => m.src === 'texte' && Date.now() - m.at < 5 * 60_000 && kcalNew > 0 && Math.abs(m.kcal - kcalNew) <= Math.max(25, kcalNew * 0.15));
+  if (twin) { const b = await foodBudget(uid, twin.date); return { meal: twin, budget: b, message: `ℹ️ Déjà noté à ${twin.time} : ${twin.title} (${twin.kcal} kcal) — PAS compté une 2e fois. Si c'en est vraiment un autre, redis-le dans 5 min.` }; }
   const meal = await storeMeal(uid, j, { src: 'texte', note: text, slot });
   return afterMeal(uid, meal);
 }
