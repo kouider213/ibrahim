@@ -27,7 +27,7 @@ export interface VitLog {
   testo?: number; unit?: 'ng/dL' | 'nmol/L'; heure?: string; shbg?: number; lh?: number; prolactine?: number; vitd?: number; ferritine?: number;
   note?: string;
 }
-interface VitSettings { goalPerWeek: [number, number]; weekly: boolean; daily: boolean; dailyAt: string; causes?: string }
+interface VitSettings { goalPerWeek: [number, number]; weekly: boolean; daily: boolean; dailyAt: string; causes?: string; labDate?: string }
 // daily (03/11, il l'a demandé) : un rappel chaque soir = UN geste concret du jour (sommeil, assiette, sport, couple, médecin)
 const DEFAULT_SET: VitSettings = { goalPerWeek: [1, 2], weekly: true, daily: true, dailyAt: '20:30' };
 
@@ -142,7 +142,8 @@ export async function vitaliteState(): Promise<VitState> {
   if (sleep?.avg7 != null && sleep.avg7 < 7) levers.push({ k: 'sleep', title: 'Dormir 7 h 30 et plus', why: `Moyenne de la montre sur 7 nuits : ${sleep.avg7} h (dette ${sleep.debt} h).`, todo: 'Coucher 30 min plus tôt, pas d\'écran au lit, réveil fixe.', fact: 'sommeil' });
   if (cut?.weight.ratePct != null && cut.weight.ratePct > 1.1) levers.push({ k: 'deficit', title: 'Déficit un peu moins fort', why: `Tu perds ${cut.weight.ratePct} % de ton poids par semaine (au-dessus de 1 %).`, todo: 'Remonter de 150 kcal/jour (bouton dans FORME → Sèche).', fact: 'deficit' });
   if (ins && ins.week.done < 3 && ins.week.target >= 3) levers.push({ k: 'sport', title: '3 séances de muscu par semaine', why: `${ins.week.done}/${ins.week.target} séances cette semaine.`, todo: 'Caler les séances qui restent dans l\'agenda (FORME).', fact: 'sport' });
-  if (!labo) levers.push({ k: 'labo', title: 'Faire une prise de sang le matin', why: 'Sans ça, personne ne peut te dire ton vrai niveau de testostérone.', todo: 'Demander à ton médecin : testostérone totale avant 10 h, LH, FSH, prolactine, SHBG, TSH, ferritine, vitamine D, HbA1c. Puis me donner les chiffres.', fact: 'prise-sang' });
+  if (!labo && set.labDate && set.labDate >= today) levers.push({ k: 'labo-prevue', title: `Prise de sang prévue le ${set.labDate.split('-').reverse().join('/')}`, why: 'Elle dira ton vrai niveau de testostérone et vérifiera le reste.', todo: 'Le matin avant 10 h, à jeun, après une bonne nuit. Demander : testostérone totale, LH, FSH, prolactine, SHBG, TSH, ferritine, vitamine D, HbA1c.', fact: 'prise-sang' });
+  else if (!labo) levers.push({ k: 'labo', title: 'Faire une prise de sang le matin', why: 'Sans ça, personne ne peut te dire ton vrai niveau de testostérone.', todo: 'Demander à ton médecin : testostérone totale avant 10 h, LH, FSH, prolactine, SHBG, TSH, ferritine, vitamine D, HbA1c. Puis me donner les chiffres.', fact: 'prise-sang' });
   if ((lib?.phq2 ?? 0) >= 3 || (moods.length >= 2 && avg(moods)! <= 4)) levers.push({ k: 'moral', title: 'Soigner le moral', why: 'Ton moral noté est bas ces derniers temps.', todo: 'Psychologue de 1re ligne (11 € la séance) — le désir suit souvent le moral.', fact: 'moral' });
   // Causes qu'il a lui-même nommées → leviers en tête (même si la montre ne voit pas encore de dette de sommeil)
   if (set.causes && /sommeil|dor|fatigu/i.test(set.causes) && !levers.some(l => l.k === 'sleep')) levers.unshift({ k: 'sleep', title: 'Récupérer du sommeil', why: `Tu l'as dit toi-même : ${set.causes}.`, todo: 'Coucher fixe, 7 h 30 visées, pas d\'écran au lit.', fact: 'sommeil' });
@@ -324,10 +325,16 @@ export async function vitaliteTool(input: Record<string, unknown>, sessionId?: s
       const st = await settings(); st.causes = c || undefined; await kvSet(SET_K, JSON.stringify(st));
       return c ? `Noté : selon toi, la baisse vient de « ${c} ». Tes rappels du soir et mes réponses partent de là.` : 'Causes effacées.';
     }
+    case 'prise_de_sang': {
+      const d = String(input['date'] ?? '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return '❌ date AAAA-MM-JJ de la prise de sang.';
+      const st = await settings(); st.labDate = d; await kvSet(SET_K, JSON.stringify(st));
+      return `🧪 Prise de sang notée le ${d.split('-').reverse().join('/')}. Rappels : la veille à 20 h (préparation), le matin même à 6 h (liste à demander), puis je te demande les résultats.`;
+    }
     case 'jour': return (await dailyText()) ?? 'Rien à proposer aujourd\'hui.';
     case 'faits': return (await factsFor()).map(f => `• ${f.fait}\n  (${f.source})`).join('\n');
   }
-  return '❌ action : etat | question | rapport | annuler | bilan | iief | labo | objectif | rappel | causes | jour | faits';
+  return '❌ action : etat | question | rapport | annuler | bilan | iief | labo | objectif | rappel | causes | prise_de_sang | jour | faits';
 }
 
 // ── 🔁 Rappel du soir (03/11) : UN geste concret par jour, tiré de SES leviers + des FAITS (rien d'inventé, sans IA) ──
@@ -378,6 +385,23 @@ export async function jobVitalite(): Promise<void> {
     await kvSet(SENT_K(`d:${date}`), '1');
     const t = await dailyText(date).catch(() => null);
     if (t) await queueTelegramMessage(t, undefined, 'kouider', undefined, true);
+  }
+  // Prise de sang prévue : veille 20 h, jour J 6 h, puis résultats J+3 (un seul envoi chacun)
+  if (st.labDate) {
+    const lab = st.labDate, fr = lab.split('-').reverse().join('/');
+    const LIST = 'testostérone totale, LH, FSH, prolactine, SHBG, TSH, ferritine, vitamine D, glycémie / HbA1c';
+    const once = async (k: string, text: string) => { if (await kvGet(SENT_K(`lab:${k}:${lab}`)).catch(() => null)) return; await kvSet(SENT_K(`lab:${k}:${lab}`), '1'); await queueTelegramMessage(text, undefined, 'kouider', undefined, true); };
+    if (date === addDays(lab, -1) && time >= '20:00') await once('veille', `🧪 Demain matin : ta prise de sang (privé).
+• Couché tôt ce soir : une nuit courte fait baisser la testostérone et fausse le résultat.
+• À jeun : rien à manger après le dîner, de l'eau oui.
+• Pas de grosse séance de sport ce soir ni demain matin avant la prise.
+• Y aller AVANT 10 h.
+À demander : ${LIST}.`);
+    if (date === lab && time >= '06:00' && time < '11:00') await once('jour', `🧪 C'est ce matin : prise de sang avant 10 h, à jeun.
+À demander : ${LIST}.
+Dis au médecin / au labo les traitements que tu prends. Quand tu as les résultats, envoie-moi la photo ou les chiffres.`);
+    const hasLabo = (await readVitLog()).some(l => l.kind === 'labo' && l.date >= lab);
+    if (!hasLabo && (date === addDays(lab, 3) || date === addDays(lab, 6)) && time >= '19:00') await once(`res:${date}`, `🧪 Tu as reçu les résultats de ta prise de sang du ${fr} ? Envoie-moi la photo ou les chiffres (testostérone + unité), je les range et je t'explique — c'est ton médecin qui interprète.`);
   }
   if (!st.weekly) return;
   if (wd !== 0 || time < '21:30' || time > '22:30') return;

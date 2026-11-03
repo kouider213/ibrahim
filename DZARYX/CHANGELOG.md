@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-03 (17h) — Vitalité : prise de sang planifiée
+- Action 'prise_de_sang' + date (base privée) → rappels Telegram : veille 20 h (préparation : sommeil, à jeun, pas de sport, avant 10 h), jour J 6 h (liste des analyses), résultats demandés à J+3 et J+6 s'ils ne sont pas notés.
+
 ## 2026-11-03 (16h45) — Vitalité : action 'causes'
 - Action 'causes' (+ note, stockée en base privée) : ce qu'il pense être l'origine ; met les leviers correspondants en tête (nouveau levier stress) pour les rappels du soir et le coach.
 
