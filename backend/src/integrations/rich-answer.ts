@@ -3,9 +3,9 @@
 // données (poids, objectif de sèche, séances… de FORME) et illustré (photos d'exercices de la bibliothèque FORME,
 // domaine public). Avant : bonne réponse générale, mais rien sur LUI, aucune image, et des « ### » bruts dans Telegram.
 
-const HOWTO = /comment (?:faire|avoir|rendre|gagner|perdre|prendre|devenir|am[ée]liorer|augmenter|r[ée]duire|muscler|travailler|progresser|bien|on fait|je fais|je peux)|tu me conseill|des conseils|conseille[- ]moi|quels? (?:exercices?|aliments?|conseils?)|qu.est[- ]ce qu.il faut|c.est quoi le mieux|explique[- ]moi|pourquoi (?:je|mes|mon|ma)|astuces?|m[ée]thode pour|programme pour|plan pour/i;
+const HOWTO = /comment (?:faire|avoir|rendre|gagner|perdre|prendre|devenir|am[ée]liorer|augmenter|r[ée]duire|muscler|travailler|progresser|bien|on fait|je fais|je peux)|tu me conseill|des conseils|conseille[- ]moi|quels? (?:exercices?|aliments?|conseils?)|qu.est[- ]ce qu.il faut|c.est quoi le mieux|explique[- ]moi|pourquoi (?:je|mes|mon|ma)|astuces?|m[ée]thode pour|programme pour|plan pour|c.est quoi (?:la|le|les|un|une|l.)|qu.est[- ]ce que (?:c.est|la|le|les|l.)|pourquoi |quelle (?:est la )?diff[ée]rence|vaut[- ]il mieux|lequel (?:est|choisir)|compare[sr]? |recette|r[ée]sume[- ]moi|traduis|d[ée]finition|qui (?:est|était|a invent|a gagn)|quand (?:est|a eu lieu|commence)|combien (?:co[uû]te|vaut|de temps)|quel (?:est le )?prix/i;
 // Demandes de travail (FIK, outils) : réponse courte et action, pas un cours
-const WORK = /r[ée]serv|client|factur|devis|voiture|clio|location|mail|whatsapp|agenda|rendez|rdv|appel|message|envoi|envoy|houari|site|prospect|paiement|caution|contrat|dzaryx|appli|widget/i;
+const WORK = /\bmon (?:solde|cash|[ée]pargne|programme|planning|agenda)|programme (?:de )?demain|ma s[ée]ance|r[ée]serv|client|factur|devis|voiture|clio|location|mail|whatsapp|agenda|rendez|rdv|appel|message|envoi|envoy|houari|site|prospect|paiement|caution|contrat|dzaryx|appli|widget/i;
 const BODY = /veine|vascular|muscl|bras|biceps|triceps|avant[- ]bras|pecs?\b|pectora|[ée]paules?|dos\b|abdos?|ventre|jambes?|cuisses?|fessiers?|mollets?|s[èe]che|gras|graisse|maigrir|perdre du poids|prise de masse|abdominaux|force|endurance|cardio|courir|course|sport|salle|entra[iî]n|r[ée]cup[ée]r|sommeil|dormir|prot[ée]ine|calorie|physique|corps|posture|souplesse/i;
 
 // Exercices classiques choisis à la main (free-exercise-db) par zone citée — les « premiers de la liste » donnaient
@@ -48,6 +48,9 @@ export async function richAnswerHint(userMessage: string): Promise<string> {
     body ? `• PUIS une phrase sur SON cas avec SES vrais chiffres ci-dessous (poids actuel, objectif, semaine de sèche, séances) : « Avec ton objectif de passer de X kg à … voici ce que je te conseille. » N'invente aucun chiffre absent.` : `• Relie la réponse à SA situation (FIK, Oran, sa famille, ses objectifs) quand c'est pertinent, sans inventer.`,
     `• Ensuite des sections numérotées avec un titre en gras (**1. Titre**), chacune avec 2-4 puces « • » concrètes et chiffrées (séries, reps, durées, quantités).`,
     `• Finis par **Ton plan** : 3-4 actions précises pour cette semaine, adaptées à lui.`,
+    `• Si la réponse dépend de l'actualité, d'un prix, d'un score, d'une date récente ou d'un fait que tu n'es pas sûr de connaître : appelle web_search AVANT de répondre (requête précise, 1 à 2 recherches), puis cite 1-2 sources (nom du site) à la fin. Ne dis jamais « je n'ai pas d'info » sans avoir cherché.`,
+    `• Question simple (une date, un nom, un score) = réponse directe en 1-3 lignes + source, pas de plan en sections.`,
+    `• Tutoie Kouider (jamais « vous »). N'invente AUCUN chiffre de FIK (prix, marges, tarifs, CA) pour illustrer : exemples génériques (« une voiture louée 40 €/jour ») ou ses vrais chiffres donnés par un outil.`,
     `• Format Telegram : **gras** et puces « • » seulement — PAS de titres « ### », PAS de lignes « --- », PAS de tableaux.`,
     body ? `• Santé : conseils sûrs et sourcés (pas de produits dopants, diurétiques ou déshydratation pour « faire ressortir les veines »).` : '',
     physique ? `\n${physique}` : '',

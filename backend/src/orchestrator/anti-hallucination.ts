@@ -90,9 +90,14 @@ const FAST_PATH_FORBIDDEN_PATTERNS: RegExp[] = [
   /chiffre\s+d['']affaires\s+(de|est)\s+[\d,]/i,
 ];
 
+const BUSINESS_Q = /r[ée]serv|client|voitures?|flotte|\bfik\b|location|lou[ée]e?s?\b|gagn|revenus?|chiffre d.affaires|\bca\b|b[ée]n[ée]f|profit|cash|caisse|[ée]pargne|pay[ée]|impay|factur|acompte|caution|houari|combien (?:j|on|tu|il|elle)|mon argent|mes (?:finances|comptes|sous)|salaire|snus|d[ée]penses?|dispo|clio|fiat|jumpy|berlingo|sandero|duster|creta|jogger|alpine|i10|prospect|sites? client|devis|contrat|\bmon\b|\bma\b|\bmes\b|\bj.ai\b|\bon a\b/i;
+
 export const FAST_PATH_REFUSAL = '⚠️ Je n\'ai pas accès aux données en temps réel pour cette question. Pose-la moi directement et je consulterai la base de données pour te donner une réponse précise.';
 
 export function fastPathGuard(text: string, userMessage: string, requestId: string): string {
+  // 03/11 : « explique-moi l'inflation » → l'exemple « 100 € » était pris pour un chiffre FIK inventé → réponse remplacée.
+  // Ce garde-fou ne vaut que pour les questions sur SES données (FIK, son argent) ; culture générale / prix publics = libre.
+  if (!BUSINESS_Q.test(userMessage.replace(/^\s*\[[\s\S]*?\]\s*/, ''))) return text;
   // Il donne lui-même ses montants (« hier j'ai fait 180 € ») → les reprendre/calculer n'est pas une donnée inventée
   const userGaveMoney = MONEY_RE.test(userMessage);
   const hasForbiddenClaim = FAST_PATH_FORBIDDEN_PATTERNS.some(p => !(userGaveMoney && USER_MONEY_OK.has(p)) && p.test(text));

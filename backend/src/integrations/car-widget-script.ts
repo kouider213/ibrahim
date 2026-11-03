@@ -3,14 +3,16 @@
 export const CAR_WIDGET_RENDER = String.raw`// DZARYX · rendu du widget CarPlay v3 « Jarvis HUD » (servi par le backend : le script collé dans Scriptable le télécharge à chaque fois)
 // Aucun chiffre (Kouider 03/11) : le vrai ciel sur la photo, soleil/lune réels, mode du moment, tout en mots.
 const PHOTO_V = 4;
-const RED = new Color("#ff2b3a"), GOLD = new Color("#f7c548"), WHITE = Color.white();
+let RED = new Color("#ff2b3a"); const GOLD = new Color("#f7c548"), WHITE = Color.white();
 const SOFT = new Color("#ffffff", 0.82), DIM = new Color("#ffffff", 0.5);
 const fm = FileManager.local();
 const dir = fm.joinPath(fm.documentsDirectory(), "dzaryx");
 if (!fm.fileExists(dir)) fm.createDirectory(dir);
 const fam = config.widgetFamily || "medium";
-const small = fam === "small" || fam === "accessoryRectangular";
-const shape = small ? "square" : "wide";
+const lock = fam === "accessoryRectangular" || fam === "accessoryInline" || fam === "accessoryCircular";
+const large = fam === "large" || fam === "extraLarge";
+const small = fam === "small";
+const shape = small || large ? "square" : "wide";
 const D = fm.joinPath(dir, "data.json"), P = fm.joinPath(dir, "car-" + shape + "-v" + PHOTO_V + ".jpg");
 
 async function get(path, img) {
@@ -23,13 +25,35 @@ let data;
 try { data = await get("/api/jarvis/car-widget"); if (data.error) throw new Error(data.error); fm.writeString(D, JSON.stringify(data)); }
 catch (e) { data = fm.fileExists(D) ? JSON.parse(fm.readString(D)) : {}; }
 data.fx = data.fx || {};
+// Couleur selon le moment : rouge Jarvis (journée), or (retour, fête), bleu nuit (veille), vert (Ramadan, repos)
+let ACC = "#ff2b3a";
+if (data.eid) ACC = "#f7a531";
+else if (data.ramadan || data.mode === "repos") ACC = "#21c47b";
+else if (data.mode === "retour") ACC = "#f7a531";
+else if (data.mode === "nuit") ACC = "#4d7cff";
+RED = new Color(ACC);
+// Écran verrouillé : texte seul (iOS l'affiche en monochrome)
+if (lock) {
+  const w = new ListWidget();
+  if (fam === "accessoryInline") { const l = w.addText("◆ " + (data.prayer || data.fennecs || data.nextTitle || "Dzaryx en ligne")); l.font = Font.semiboldSystemFont(12); }
+  else if (fam === "accessoryCircular") { const l = w.addText("D"); l.font = Font.heavySystemFont(26); l.centerAlignText(); }
+  else {
+    const a = w.addText("◆ DZARYX · " + ((data.modeLabel || "EN LIGNE").split(" · ")[0])); a.font = Font.heavySystemFont(11);
+    const b = w.addText(data.prayer || data.fennecs || data.tomorrow || ((data.weatherE || "") + " " + (data.weather || ""))); b.font = Font.semiboldSystemFont(13); b.lineLimit = 1;
+    const c2 = w.addText((data.nextTitle || "") + (data.nextWhen ? " · " + data.nextWhen : "")); c2.font = Font.systemFont(12); c2.lineLimit = 1;
+  }
+  w.refreshAfterDate = new Date(Date.now() + 15 * 60e3);
+  if (config.runsInWidget) Script.setWidget(w); else await w.presentAccessoryRectangular();
+  Script.complete();
+  return;
+}
 let photo = null;
 if (!fm.fileExists(P) || Date.now() - fm.modificationDate(P).getTime() > 7 * 864e5) {
   try { photo = await get("/api/jarvis/car-widget/photo?shape=" + shape, true); fm.writeImage(P, photo); } catch (e) {}
 }
 if (!photo && fm.fileExists(P)) photo = fm.readImage(P);
 
-const W = small ? 600 : 1280, H = 600;
+const W = small ? 600 : large ? 1200 : 1280, H = large ? 1260 : 600;
 const c = new DrawContext();
 c.size = new Size(W, H); c.respectScreenScale = false; c.opaque = true;
 c.setFillColor(new Color("#050505")); c.fillRect(new Rect(0, 0, W, H));
@@ -64,6 +88,7 @@ const ph = data.phase || "jour";
 if (ph === "nuit") { c.setFillColor(new Color("#030a26", 0.38)); c.fillRect(new Rect(0, 0, W, H)); veil("#050f3a", 0.55, 0, H * 0.6); }
 else if (ph === "aube") { veil("#ff8a5c", 0.42, 0, H * 0.55); veil("#7a4cff", 0.18, 0, H * 0.25); }
 else if (ph === "couchant") { veil("#ff4d1f", 0.40, 0, H * 0.6); veil("#f7c548", 0.16, H * 0.2, H * 0.55); }
+if (data.eid) { veil("#f7c548", 0.30, 0, H * 0.5); for (let i = 0; i < 40; i++) dot(rnd() * W, rnd() * H * 0.5, 1 + rnd() * 2.5, new Color("#ffe9a8", 0.5 + rnd() * 0.5)); }
 if (data.fx.rain || data.fx.storm) { c.setFillColor(new Color("#0b1020", 0.22)); c.fillRect(new Rect(0, 0, W, H)); }
 if (ph === "nuit" && !data.fx.rain && !data.fx.fog) {
   for (let i = 0; i < (small ? 40 : 90); i++) { const x = rnd() * W, y = rnd() * H * 0.45, r = rnd() < 0.12 ? 2.6 : 1.3; dot(x, y, r, new Color("#ffffff", 0.35 + rnd() * 0.55)); }
@@ -103,31 +128,33 @@ function hud(x, y, s) {
   }
   p.closeSubpath();
   c.addPath(p); c.setFillColor(new Color("#000000", 0.35)); c.fillPath();
-  c.addPath(p); c.setStrokeColor(new Color("#ff2b3a", 0.3)); c.setLineWidth(s * 0.2); c.strokePath();
+  c.addPath(p); c.setStrokeColor(new Color(ACC, 0.3)); c.setLineWidth(s * 0.2); c.strokePath();
   c.addPath(p); c.setStrokeColor(RED); c.setLineWidth(s * 0.075); c.strokePath();
   t("D", x, y + s * 0.2, s, s * 0.62, Font.heavySystemFont(s * 0.48), GOLD, "center");
   arc(cx, cy, s * 0.66, rot, rot + 95, RED, 3);
-  arc(cx, cy, s * 0.66, rot + 150, rot + 205, new Color("#ff2b3a", 0.5), 3);
+  arc(cx, cy, s * 0.66, rot + 150, rot + 205, new Color(ACC, 0.5), 3);
   arc(cx, cy, s * 0.78, -rot * 1.5, -rot * 1.5 + 60, GOLD, 2);
   arc(cx, cy, s * 0.78, -rot * 1.5 + 180, -rot * 1.5 + 215, new Color("#f7c548", 0.5), 2);
   for (let k = 0; k < 12; k++) { const a = (k * 30 + rot / 4) * Math.PI / 180; dot(cx + s * 0.88 * Math.cos(a), cy + s * 0.88 * Math.sin(a), k % 3 ? 1.2 : 2.4, new Color("#ffffff", k % 3 ? 0.35 : 0.8)); }
 }
 function bar(x, y, w) {
-  c.setFillColor(new Color("#ff2b3a", 0.25)); c.fillRect(new Rect(x - 3, y - 3, w + 6, 12));
+  c.setFillColor(new Color(ACC, 0.25)); c.fillRect(new Rect(x - 3, y - 3, w + 6, 12));
   c.setFillColor(RED); c.fillRect(new Rect(x, y, w, 6));
 }
 // Ligne de scan en bas : le point avance avec la journée (aucun chiffre)
 function scan(y) {
   c.setFillColor(new Color("#ffffff", 0.14)); c.fillRect(new Rect(0, y, W, 2));
   const k = (now.getHours() * 60 + now.getMinutes()) / 1440, x = W * k;
-  c.setFillColor(new Color("#ff2b3a", 0.7)); c.fillRect(new Rect(0, y, x, 2));
+  c.setFillColor(new Color(ACC, 0.7)); c.fillRect(new Rect(0, y, x, 2));
   for (let i = 4; i >= 1; i--) dot(x, y + 1, 3 + i * 4, new Color("#f7c548", 0.08));
   dot(x, y + 1, 5, GOLD);
 }
 
 const rainTwice = data.alert && /Pluie/.test(data.alert) && /pluie/i.test(data.weather || "");
-const info = (!rainTwice && data.alert) || (data.prayer ? "🕌 " + data.prayer : "");
-const infoColor = data.alert && !rainTwice ? RED : GOLD;
+const alertOn = data.alert && !rainTwice;
+const info = alertOn ? data.alert : data.fennecs ? "🇩🇿 " + data.fennecs : data.prayer ? (/Iftar|Shour/.test(data.prayer) ? "🌙 " : "🕌 ") + data.prayer : data.tomorrow ? "🌅 " + data.tomorrow : "";
+const infoColor = alertOn ? new Color("#ff2b3a") : GOLD;
+const extra = [data.fennecs && info.indexOf(data.fennecs) < 0 ? "🇩🇿 " + data.fennecs : "", data.prayer && info.indexOf(data.prayer) < 0 ? "🕌 " + data.prayer : "", data.tomorrow && info.indexOf(data.tomorrow) < 0 ? "🌅 " + data.tomorrow : ""].filter(Boolean);
 const weather = ((data.weatherE || "") + "  " + (data.weather || "")).trim();
 const jarvis = data.jarvis ? "« " + data.jarvis + " »" : "";
 
@@ -147,6 +174,28 @@ if (small) {
   t(data.nextWhen, 34, 428, W - 68, 36, Font.semiboldSystemFont(27), GOLD);
   t(jarvis, 34, 476, W - 68, 92, Font.italicSystemFont(24), SOFT);
   scan(H - 10);
+} else if (large) {
+  // Grand format : photo en haut, tableau de bord Jarvis en bas
+  const n = 34;
+  for (let i = 0; i < n; i++) { c.setFillColor(new Color("#000000", 0.92 * i / n)); c.fillRect(new Rect(0, H * 0.32 + i * H * 0.4 / n, W, H * 0.4 / n + 1)); }
+  c.setFillColor(new Color("#000000", 0.92)); c.fillRect(new Rect(0, H * 0.72, W, H * 0.28));
+  c.setFillColor(new Color("#000000", 0.35)); c.fillRect(new Rect(0, 0, W, 150));
+  sky(W - 230, 330, 180);
+  hud(44, 40, 84);
+  t("DZARYX", 156, 44, 500, 50, Font.heavySystemFont(44), WHITE);
+  t(data.modeLabel || "JARVIS · EN LIGNE", 158, 96, 900, 30, Font.semiboldSystemFont(23), GOLD);
+  t(data.greeting || "Bonjour, Monsieur.", 50, 520, W - 100, 80, Font.heavySystemFont(64), WHITE);
+  t(weather, 52, 600, W - 100, 46, Font.mediumSystemFont(36), SOFT);
+  t(info, 52, 650, W - 100, 42, Font.boldSystemFont(30), infoColor);
+  extra.slice(0, 2).forEach((e, i) => t(e, 52, 696 + i * 42, W - 100, 40, Font.semiboldSystemFont(28), SOFT));
+  bar(52, 806, 120);
+  t("PROCHAIN · FIK", 52, 828, 500, 32, Font.heavySystemFont(24), GOLD);
+  t(data.nextTitle, 52, 860, W - 100, 56, Font.boldSystemFont(46), WHITE);
+  t(data.nextWhen, 52, 916, W - 100, 44, Font.semiboldSystemFont(34), GOLD);
+  c.setFillColor(new Color("#ffffff", 0.12)); c.fillRect(new Rect(52, 990, W - 104, 2));
+  t(jarvis, 52, 1012, W - 104, 150, Font.italicSystemFont(34), SOFT);
+  t("◆ JARVIS · TOUS SYSTÈMES OPÉRATIONNELS", 52, 1180, W - 104, 34, Font.semiboldSystemFont(22), new Color(ACC, 0.9));
+  scan(H - 12);
 } else {
   sky(W - 250, 270, 190);
   hud(46, 40, 76);
@@ -169,6 +218,6 @@ w.backgroundImage = c.getImage();
 w.url = "https://kouider213.github.io/ibrahim/";
 w.refreshAfterDate = new Date(Date.now() + 15 * 60e3);
 if (config.runsInWidget) Script.setWidget(w);
-else if (small) await w.presentSmall(); else await w.presentMedium();
+else if (small) await w.presentSmall(); else if (large) await w.presentLarge(); else await w.presentMedium();
 Script.complete();
 `;

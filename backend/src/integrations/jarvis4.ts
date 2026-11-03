@@ -201,6 +201,24 @@ const CAR_LINES = [
   'Restez affamé, monsieur. Restez concentré.',
   'Aujourd\'hui compte. Faites-le compter.',
 ];
+// 🇩🇿 Match de l'Algérie aujourd'hui ? (TheSportsDB gratuit, en cache 3 h)
+let fennecsCache: { at: number; date: string; v: string } | null = null;
+async function fennecsToday(date: string): Promise<string> {
+  if (fennecsCache && fennecsCache.date === date && Date.now() - fennecsCache.at < 3 * 3600_000) return fennecsCache.v;
+  let v = '';
+  try {
+    const base = 'https://www.thesportsdb.com/api/v1/json/3';
+    const team = await fetch(`${base}/searchteams.php?t=Algeria`, { signal: AbortSignal.timeout(5000) }).then(r => r.json() as Promise<{ teams?: Array<{ idTeam: string; strSport?: string; strGender?: string }> | null }>);
+    const id = team.teams?.find(x => x.strSport === 'Soccer' && x.strGender !== 'Female')?.idTeam;
+    if (id) {
+      const ev = await fetch(`${base}/eventsnext.php?id=${id}`, { signal: AbortSignal.timeout(5000) }).then(r => r.json() as Promise<{ events?: Array<{ dateEvent: string; strTime?: string }> | null }>);
+      const e = ev.events?.find(x => x.dateEvent === date);
+      if (e) { const h = Number(String(e.strTime ?? '').slice(0, 2)) + 1; v = h >= 17 ? 'Les Fennecs jouent ce soir' : 'Les Fennecs jouent aujourd\'hui'; }
+    }
+  } catch { /* hors ligne : rien */ }
+  fennecsCache = { at: Date.now(), date, v };
+  return v;
+}
 export async function carWidgetData(): Promise<Record<string, unknown>> {
   const { date, hhmm } = localNow();
   const loc = await import('./location.js').then(m => m.getLocation('kouider')).catch(() => null);
@@ -226,21 +244,36 @@ export async function carWidgetData(): Promise<Record<string, unknown>> {
   const nowMs = Date.now();
   const H = Number(hhmm.slice(0, 2)), M = Number(hhmm.slice(3, 5)), minNow = H * 60 + M;
   const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
-  const [sun, homeward, prayers] = await Promise.all([
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${here.lat.toFixed(3)}&longitude=${here.lng.toFixed(3)}&daily=sunrise,sunset&forecast_days=1&timezone=auto`, { signal: AbortSignal.timeout(5000) })
-      .then(r => r.json() as Promise<{ daily?: { sunrise?: string[]; sunset?: string[] } }>).then(j => ({ rise: toMin(String(j.daily?.sunrise?.[0] ?? '').slice(11, 16) || '07:30'), set: toMin(String(j.daily?.sunset?.[0] ?? '').slice(11, 16) || '17:30') })).catch(() => ({ rise: 450, set: 1050 })),
+  const [sun, homeward, prayerData, daysOff, fennecs] = await Promise.all([
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${here.lat.toFixed(3)}&longitude=${here.lng.toFixed(3)}&daily=sunrise,sunset&hourly=weather_code,temperature_2m&forecast_days=2&timezone=auto`, { signal: AbortSignal.timeout(5000) })
+      .then(r => r.json() as Promise<{ daily?: { sunrise?: string[]; sunset?: string[] }; hourly?: { time: string[]; weather_code: number[]; temperature_2m: number[] } }>)
+      .then(j => {
+        // Demain matin (5 h – 9 h, son départ) : le pire temps de la tranche
+        const hh = j.hourly; let code = -1, tmin = 99;
+        if (hh) hh.time.forEach((tt, i) => { if (tt.slice(0, 10) === tomorrow && Number(tt.slice(11, 13)) >= 5 && Number(tt.slice(11, 13)) <= 9) { code = Math.max(code, hh.weather_code[i] ?? 0); tmin = Math.min(tmin, hh.temperature_2m[i] ?? 99); } });
+        return { rise: toMin(String(j.daily?.sunrise?.[0] ?? '').slice(11, 16) || '07:30'), set: toMin(String(j.daily?.sunset?.[0] ?? '').slice(11, 16) || '17:30'), tmCode: code, tmMin: tmin };
+      }).catch(() => ({ rise: 450, set: 1050, tmCode: -1, tmMin: 99 })),
     import('./car-coach.js').then(m => m.isHomeward(here)).catch(() => false),
     (async () => { const oran = await import('./gps-life.js').then(m => m.oranActive()).catch(() => null); const [y, mo, d] = date.split('-');
       const r = await fetch(`https://api.aladhan.com/v1/timingsByCity/${d}-${mo}-${y}?city=${oran ? 'Oran' : 'Brussels'}&country=${oran ? 'Algeria' : 'Belgium'}&method=3`, { signal: AbortSignal.timeout(5000) });
-      return ((await r.json()) as { data?: { timings?: Record<string, string> } }).data?.timings ?? null; })().catch(() => null),
+      return ((await r.json()) as { data?: { timings?: Record<string, string>; date?: { hijri?: { day?: string; month?: { number?: number }; holidays?: string[] } } } }).data ?? null; })().catch(() => null),
+    import('./kouider-dossier.js').then(m => m.getDaysOff()).catch(() => [] as number[]),
+    fennecsToday(date),
   ]);
+  const prayers = prayerData?.timings ?? null;
+  const hijri = prayerData?.date?.hijri;
+  const ramadan = hijri?.month?.number === 9;
+  const hDay = Number(hijri?.day ?? 0), hMonth = hijri?.month?.number ?? 0;
+  const eid = (hMonth === 10 && hDay <= 3) || (hMonth === 12 && hDay >= 10 && hDay <= 13);
+  const wdNow = new Date(`${date}T12:00:00Z`).getUTCDay();
   const phase = minNow < sun.rise - 40 || minNow > sun.set + 40 ? 'nuit' : minNow < sun.rise + 50 ? 'aube' : minNow > sun.set - 70 ? 'couchant' : 'jour';
   const sunPos = minNow >= sun.rise && minNow <= sun.set ? (minNow - sun.rise) / Math.max(1, sun.set - sun.rise) : null;
   const nightLen = 1440 - (sun.set - sun.rise);
   const moonPos = sunPos === null ? ((minNow - sun.set + 1440) % 1440) / Math.max(1, nightLen) : null;
-  const mode = H >= 23 || H < 5 ? 'nuit' : H < 11 ? 'depart' : homeward ? 'retour' : 'journee';
-  const greeting = H >= 5 && H < 12 ? 'Bonjour, Monsieur.' : H >= 12 && H < 18 ? 'Bon après-midi, Monsieur.' : 'Bonsoir, Monsieur.';
-  const modeLabel = { depart: 'MODE DÉPART · BONNE ROUTE', journee: 'MODE MISSION · EN LIGNE', retour: 'MODE RETOUR · LA MAISON VOUS ATTEND', nuit: 'VEILLE DE NUIT · ACTIVE' }[mode];
+  const dayOff = daysOff.includes(wdNow) && !homeward;
+  const mode = H >= 23 || H < 5 ? 'nuit' : dayOff && H >= 8 && H < 22 ? 'repos' : H < 11 ? 'depart' : homeward ? 'retour' : 'journee';
+  const greeting = eid ? 'Aïd Mubarak, Monsieur.' : wdNow === 5 && H >= 5 && H < 16 ? 'Jumu\'a Mubarak, Monsieur.' : ramadan && H >= 5 && H < 18 ? 'Ramadan Karim, Monsieur.' : H >= 5 && H < 12 ? 'Bonjour, Monsieur.' : H >= 12 && H < 18 ? 'Bon après-midi, Monsieur.' : 'Bonsoir, Monsieur.';
+  const modeLabel = eid ? 'JOUR DE FÊTE · AÏD MUBARAK' : ramadan && mode !== 'nuit' ? 'MODE RAMADAN · ' + ({ depart: 'BONNE ROUTE', journee: 'EN LIGNE', retour: 'LA MAISON VOUS ATTEND', repos: 'REPOS' } as Record<string, string>)[mode] : ({ depart: 'MODE DÉPART · BONNE ROUTE', journee: 'MODE MISSION · EN LIGNE', retour: 'MODE RETOUR · LA MAISON VOUS ATTEND', nuit: 'VEILLE DE NUIT · ACTIVE', repos: 'JOUR DE REPOS · EN FAMILLE' } as Record<string, string>)[mode]!;
   const t = meteo?.temp;
   const feel = t == null ? '' : t <= 0 ? 'Gel' : t <= 5 ? 'Froid' : t <= 12 ? 'Frais' : t <= 20 ? 'Doux' : t <= 27 ? 'Chaud' : 'Canicule';
   const code = meteo?.code ?? 0;
@@ -257,21 +290,33 @@ export async function carWidgetData(): Promise<Record<string, unknown>> {
   // Prière : seulement quand elle approche (≤ 40 min) ou vient de commencer (≤ 20 min)
   const PR: Record<string, string> = { Fajr: 'Fajr', Dhuhr: 'Dohr', Asr: 'Asr', Maghrib: 'Maghreb', Isha: 'Icha' };
   let prayer = '';
-  for (const [k, fr] of Object.entries(PR)) { const v = prayers?.[k]; if (!v) continue; const d = toMin(v) - minNow; if (d > 0 && d <= 40) { prayer = `${fr} approche`; break; } if (d <= 0 && d >= -20) { prayer = `C'est l'heure de ${fr}`; break; } }
+  for (const [k, fr] of Object.entries(PR)) {
+    const v = prayers?.[k]; if (!v) continue; const d = toMin(v) - minNow;
+    if (ramadan && k === 'Maghrib' && d > 0 && d <= 60) { prayer = 'Iftar approche'; break; }
+    if (ramadan && k === 'Fajr' && d > 0 && d <= 60) { prayer = 'Shour avant Fajr'; break; }
+    if (d > 0 && d <= 40) { prayer = `${fr} approche`; break; } if (d <= 0 && d >= -20) { prayer = `C'est l'heure de ${fr}`; break; }
+  }
   // Phrase Jarvis selon le vrai moment (listes fixes, 0 €)
   const slot = Math.floor(nowMs / 3_600_000);
   const L: Record<string, string[]> = {
     depart: ['Systèmes prêts. La journée vous appartient.', 'Bonne route, Monsieur. Je veille sur FIK.', 'Le monde se lève. Vous êtes déjà en route.', 'Une priorité. Une seule. Exécutez.'],
     journee: CAR_LINES,
     retour: ['Mission accomplie. Votre famille vous attend.', 'Le plus dur est derrière vous, Monsieur.', 'Vous avez tenu. Rentrez en héros.', 'Ce soir, on recharge. Demain, on conquiert.'],
+    repos: ['Aujourd\'hui, la mission c\'est votre famille.', 'Je garde la boutique. Profitez, Monsieur.', 'Un roi se repose aussi. Demain, on repart.'],
     nuit: ['Je veille. Reposez-vous, Monsieur.', 'La nuit travaille pour ceux qui ont tout donné.', 'Les empires se construisent aussi en dormant.'],
   };
   let jarvis = L[mode]![slot % L[mode]!.length]!;
+  if (eid) jarvis = 'Aïd Mubarak. Que cette fête vous rapproche d\'Oran.';
+  else if (fennecs) jarvis = 'Ce soir, toute l\'Algérie est derrière les Fennecs.';
+  else if (ramadan && mode === 'retour') jarvis = 'Tenez bon, Monsieur. L\'iftar vous attend à la maison.';
   if (fx.snow || (t != null && t <= 2)) jarvis = 'Route froide, Monsieur. Douceur sur les freins.';
   else if (fx.storm) jarvis = 'Orage sur la route. Je reste en alerte avec vous.';
   else if (fx.fog) jarvis = 'Brouillard. Feux allumés, distance doublée.';
+  const wordOf = (c: number) => c < 0 ? '' : c >= 95 ? 'orage' : c >= 71 && c <= 86 && !(c >= 80 && c <= 82) ? 'neige' : c >= 51 ? 'pluie' : c === 45 || c === 48 ? 'brouillard' : c >= 3 ? 'gris' : 'dégagé';
+  const tomorrowMorning = H >= 17 || H < 3 ? [wordOf(sun.tmCode), sun.tmMin <= 1 ? 'gel, attention au verglas' : sun.tmMin <= 5 ? 'froid' : ''].filter(Boolean).join(', ') : '';
   return {
-    v: 3, at: hhmm, phase, sunPos, moonPos, mode, modeLabel, greeting, fx,
+    v: 4, eid, ramadan, friday: wdNow === 5, fennecs, tomorrow: tomorrowMorning ? `Demain matin : ${tomorrowMorning}` : '',
+    at: hhmm, phase, sunPos, moonPos, mode, modeLabel, greeting, fx,
     alert: meteo ? (t! <= 3 ? '❄️ Risque de verglas' : meteo.rain ? '🌧️ Pluie, prudence' : meteo.wind >= 50 ? '💨 Vent fort' : '') : '',
     weatherE: phase === 'nuit' && meteo && meteo.code <= 1 ? '🌙' : phase === 'nuit' && meteo && meteo.code <= 3 ? '☁️' : meteo?.e ?? '', weather: [feel, (meteo?.label ?? '').toLowerCase()].filter(Boolean).join(' · '),
     nextTitle: m ? `${m.k} ${carName(m.car)}` : 'Flotte au calme', nextWhen: m ? whenWords(m.at) : 'rien de prévu',

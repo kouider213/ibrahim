@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-03 (nuit) — Widget v4 + Dzaryx « comme ChatGPT / Google »
+- Widget : vendredi Jumu'a, Ramadan (Iftar/Shour, vert), Aïd (ciel doré), jour de congé (mode repos), match des Fennecs du jour (TheSportsDB, cache 3 h), météo de demain matin le soir, couleur par mode, grand format + écran verrouillé.
+- Garde-fou fastPath limité aux questions FIK/argent perso (« explique l'inflation » était remplacé par « pas accès aux données » à cause d'un exemple en €).
+- rich-answer : aussi « c'est quoi / pourquoi / différence / prix / qui a gagné » ; web_search obligatoire si actu/prix, sources citées ; tutoiement ; aucun chiffre FIK inventé.
+- Testé : grounding Google Search de Gemini NON dispo en gratuit (429 sur toutes les clés) ; Tavily OK sur Railway.
+
 ## 2026-11-03 (soir) — Widget CarPlay v3 « Jarvis HUD », zéro chiffre
 - Plus de voitures louées / argent / mot Ibrahim. Vrai ciel sur la photo (aube/jour/couchant/nuit + étoiles), pluie/neige/brouillard, arc soleil/lune à la position réelle (Open-Meteo sunrise/sunset), HUD qui tourne, mode départ/mission/retour/veille, prochain mouvement FIK en mots (« demain matin »), prière qui approche, phrase Jarvis selon le moment. Aperçu vérifié avec une simulation Scriptable.
 
