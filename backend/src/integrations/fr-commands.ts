@@ -348,11 +348,25 @@ async function fikRevenue(raw: string): Promise<Direct | null> {
 }
 
 /** Le premier qui reconnaît la phrase. direct = réponse sans le cerveau. */
+/** 🎨🛠️ « crée-moi une image… » / « ajoute-toi une fonction… » (04/11 banc : le petit cerveau répondait « je n'ai pas d'outil »
+ * alors que generate_image / transform_image / se_coder existent) → consigne au cerveau : lance le bon outil. */
+async function toolIntent(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (t.length > 300) return null;
+  if (/\b(cree|creer|genere|generer|fais|fait|faire|dessine|dessiner|imagine)\b[^.?!]{0,15}\b(une?|des)\s+(image|photo|dessin|visuel|affiche|illustration|logo)s?\b/.test(t))
+    return { text: "CONSIGNE : Kouider veut une image → lance l'outil MAINTENANT : une voiture de NOTRE flotte citée (clio, fiat, duster…) = transform_image avec car_name (vraie photo) ; sinon generate_image avec une description détaillée. Ne dis JAMAIS « je n'ai pas d'outil » ; si l'outil échoue, dis-le tel quel.", direct: false };
+  if (/\b(ajoute|rajoute|code|programme|cree|apprends|fais)[- ]?(toi|te)\b|\b(tu peux|tu pourrais|tu devrais) (te coder|t'?ajouter|apprendre a)|\bameliore[- ]toi\b|\b(ajoute|rajoute) (une|la) (fonction|option|fonctionnalite)\b/.test(t))
+    return { text: "CONSIGNE : Kouider demande une nouvelle capacité pour Dzaryx → outil se_coder (action add, sa demande mot pour mot) = l'atelier la code cette nuit. Dis-lui que c'est noté pour l'atelier de cette nuit (PAS que c'est déjà fait). Ne dis JAMAIS « je n'ai pas d'outil ».", direct: false };
+  if (/\b(programme|planning|itineraire|circuit|plan)\b[^.?!]{0,25}\b\d+\s*(jours?|j)\b|\b(week-?end|sejour|vacances)\b[^.?!]{0,30}\b(programme|planning|quoi faire|idees?)\b/.test(t))
+    return { text: "CONSIGNE : écris le programme COMPLET directement dans ta réponse (jour par jour, matin / après-midi / soir, vrais lieux qui existent, adapté à qui vient — ex. enfant en bas âge = sieste, coins calmes). Ne promets AUCUN Google Doc / PDF / « je te prépare » sans appeler l'outil dans ce même tour.", direct: false };
+  return null;
+}
+
 export async function frCommand(raw: string, sessionId = 'telegram_kouider'): Promise<Direct | null> {
   SID = sessionId;
   const msg = raw.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
   if (!msg) return null;
-  for (const f of [craving, carKm, privacy, reminder, rdv, dnd, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue]) {
+  for (const f of [craving, carKm, privacy, reminder, rdv, dnd, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, toolIntent]) {
     const r = await f(msg).catch(e => ({ text: `❌ ${e instanceof Error ? e.message : e}`, direct: true }));
     if (r) return r;
   }

@@ -673,8 +673,16 @@ export async function processMessage(
         // données en temps réel » (27/10 : « je vois pas qu'il a été envoyé ? »). On lui redonne UNE chance, outils obligatoires.
         // 29/10 : jusqu'à 2 relances, chacune sur un AUTRE cerveau (le même modèle faible réinventait pareil → « pas accès aux données »)
         const skip: string[] = [];
-        for (let retry = 0; retry < 2 && !agRes.toolsExecuted.length && fastPathGuard(agRes.text, userMessage, requestId) === FAST_PATH_REFUSAL; retry++) {
+        // 04/11 banc : « je te prépare un programme… je t'envoie le lien tout de suite » sans aucun outil = promesse vide → relance aussi
+        const emptyPromise = (t: string) => t.length < 900 && /\b(je (te )?(pr[ée]pare|fais|r[ée]dige|monte|concocte|m'en occupe)|je t'envoie|je reviens (vers toi|avec)|donne[- ]moi (juste )?(une|deux) (petite )?(seconde|minute))/i.test(t) && /\b(tout de suite|maintenant|dans (une|deux|quelques) (seconde|minute)|je t'envoie|lien|google doc|pdf|d[ée]tail propre)/i.test(t);
+        for (let retry = 0; retry < 2 && !agRes.toolsExecuted.length && (fastPathGuard(agRes.text, userMessage, requestId) === FAST_PATH_REFUSAL || emptyPromise(agRes.text)); retry++) {
           if (agRes.model) skip.push(agRes.model);
+          if (emptyPromise(agRes.text)) {
+            const again = await runAg(`${agentSystemExtra ?? ''}\n\n[OBLIGATOIRE À CE TOUR : ta réponse précédente PROMETTAIT un travail (« je te prépare… je t'envoie… ») sans le faire. Écris MAINTENANT la réponse complète elle-même dans ce message, ou appelle l'outil qui la produit. Aucune promesse.]`, [...skip]).catch(() => null);
+            if (!again) break;
+            agRes = again;
+            continue;
+          }
           const again = await runAg(`${agentSystemExtra ?? ''}\n\n[OBLIGATOIRE À CE TOUR : ta réponse précédente donnait des faits sans avoir appelé d'outil. Appelle d'abord l'outil qui vérifie (ex. whatsapp_web read pour voir si un message est parti, list_bookings pour une résa, get_revenue_report pour l'argent gagné, forme pour une photo de lui), puis réponds avec ce que l'outil a renvoyé.]`, [...skip]).catch(() => null);
           if (!again) break;
           agRes = again;

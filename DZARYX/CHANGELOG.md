@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (25) — Fin du banc questions générales : image, atelier, programme de voyage
+- `fr-commands.ts` (toolIntent) : « crée-moi une image » → consigne generate_image / transform_image ; « ajoute-toi une fonction » → se_coder (noté pour l'atelier de la nuit) ; « programme de N jours / week-end » → programme écrit en entier dans la réponse. Avant, le petit cerveau disait « je n'ai pas d'outil » ou promettait un Google Doc.
+- `orchestrator.ts` : une réponse du cerveau de secours qui promet sans rien faire (« je te prépare… je t'envoie tout de suite ») et sans outil → relancée sur un autre cerveau avec « écris la réponse maintenant ».
+- Banc : g-image, g-coder-dzaryx, g-plan-voyage, g-memoire-suite, b-jours-retard → OK.
+
 ## 2026-11-04 (24) — Questions générales testées avec le vrai cerveau (24/25 OK) + 3 corrections
 - `car-price-direct.ts` : « si je place 10000 € à 4 % » répondait les prix des Clio (le « 4 » de « Clio 4 » suffisait) → il faut un mot du nom ; placements/intérêts/% exclus.
 - `oran-knowledge.ts` + `context-builder.ts` : « rani mqalleq » traduit « bloqué » → lexique des émotions (mqalleq = énervé ≠ m3allaq = bloqué) et guide darija chargé aussi quand on demande le sens d'un mot.
