@@ -44,8 +44,18 @@ export async function iphoneEvent(type: string, body: Record<string, unknown>): 
       // 03/11 : en RETOUR à la maison → pas de point « à faire », seulement du courage (car-coach.ts isHomeward)
       const cc = await import('./car-coach.js');
       const homeward = await cc.isHomeward(hasPos ? { lat, lng } : {}).catch(() => false);
+      // 04/11 (6) : vacances (voyage, > 300 km, « je suis en vacances ») et « je suis avec Houari / en famille / seul »
+      const cco = await import('./car-company.js');
+      const vac = await cco.vacationState(hasPos ? { lat, lng } : {}).catch(() => null);
+      const who = vac ? await cco.rideCompany(vac).catch(() => null) : null;
+      if (vac && who && (vac.on || who !== 'seul')) {
+        void kvPut('car:last-mode', { at: Date.now(), homeward, company: who, vacation: vac.on });
+        void kvPut('car:last-event', { at: Date.now(), type });
+        const full = `${await cco.companyGreeting(who, vac).catch(() => 'Bonjour Kouider.')} ${await cc.carBlessing(false).catch(() => '')}`.trim();
+        return { say: full.replace(/\s*\[\[Q:[\d,]+\]\]/g, '').trim(), audio_url: jarvisVoiceUrl(full) };
+      }
       // 04/11 : lundi après le sport / jeudi après le travail = sa femme et son fils sont dans la voiture → mode famille
-      if (await cc.isFamilyRide(homeward).catch(() => false)) {
+      if (who !== 'seul' && await cc.isFamilyRide(homeward).catch(() => false)) {
         void kvPut('car:last-mode', { at: Date.now(), homeward, family: true });
         void kvPut('car:last-event', { at: Date.now(), type });
         const full = `${await cc.familyGreeting().catch(() => 'Bonjour à toute la famille.')} ${await cc.carBlessing(false).catch(() => '')}`.trim();

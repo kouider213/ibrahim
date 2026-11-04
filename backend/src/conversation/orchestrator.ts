@@ -257,6 +257,16 @@ export async function processMessage(
       return { text: sleepReply, status: 'done' };
     }
   }
+  // 🚗 Qui est dans la voiture / vacances (04/11) : « je suis avec Houari », « on est en famille », « je suis en vacances »
+  if (actorUserId === 'kouider' && !sandbox) {
+    const car = await (await import('../integrations/car-company.js')).companyFromMessage(userMessage).catch(() => null);
+    if (car?.direct) {
+      _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: car.reply });
+      saveConversationTurn(sessionId, 'assistant', car.reply).catch(() => {});
+      _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+      return { text: car.reply, status: 'done' };
+    }
+  }
   // GPS de vie en phrases normales (« j'ai épargné 17 000 », « je pèse 78 », « départ 20 % », « où j'en suis de mes objectifs ? »)
   // → mis à jour pour de vrai par le code, réponse directe (le cerveau seul ne le faisait pas de façon fiable)
   const lifeCmd = actorUserId === 'kouider' && !sandbox ? (await import('../integrations/foresight.js')).parseLifeGoalCommand(userMessage) : null;

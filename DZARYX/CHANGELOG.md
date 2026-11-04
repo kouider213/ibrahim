@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (12) — CarPlay : mode vacances + qui est dans la voiture
+- `car-company.ts` : vacances = voyage enregistré, > 300 km de la maison ou « je suis en vacances » (jusqu'à « fin des vacances », 45 j max).
+- En vacances : famille par défaut, heure du pays (fuseau GPS via Open-Meteo), zéro travail/business, prochaine étape voyage seulement, « Bienvenue au pays » 1×/jour en Algérie, logement = point de départ du matin.
+- « je suis avec Houari » / « on est en famille » / « je suis seul » → valable jusqu'à la fin de la journée (aussi hors vacances) ; mode associés : salue les deux, rien de privé.
+- Jeudi famille à partir de 13h30 (febc12cf).
+
 ## 2026-11-04 (11) — CarPlay : verset en cycle (jamais le même avant le tour complet) + protection qui tourne (voyage 43:13-14, Al-Falaq, An-Nas, Ayat al-Kursi) ; point voiture = temps restant avant la prochaine étape (agenda, sinon travail de la routine), plus jamais de « décision » ; MODE FAMILLE lundi après le sport et jeudi après le travail (bonjour à la famille + protection, zéro business)
 
 ## 2026-11-04 (10) — CarPlay voix v3 : plus de son de démarrage ; une seule synthèse = une seule voix ; « Dzaryx » lu « D'zarix » (app_kv jarvis:say:dzaryx) ; à chaque démarrage verset du jour (sens FR + vraie récitation Alafasy) + invocation du voyage 43:13-14 ; Gemini TTS en chaîne de modèles (quota gratuit ~10/jour/modèle), consigne de style seulement pour 2.5 (les 3.x la lisaient à voix haute), secours ElevenLabs/voix Google
