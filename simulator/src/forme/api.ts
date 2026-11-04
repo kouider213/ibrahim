@@ -100,11 +100,13 @@ export type MealSlot = 'matin' | 'midi' | 'collation' | 'soir';
 export interface FoodPart { name: string; grams: number; kcal: number; p: number; c: number; f: number }
 export interface MealLog { id: string; at: number; date: string; time: string; slot: MealSlot; title: string; items: FoodPart[]; kcal: number; p: number; c: number; f: number; confidence: 'haute' | 'moyenne' | 'basse'; note?: string; thumb?: string; src: 'photo' | 'texte'; coach?: string }
 export interface FoodBudget { date: string; bmr: number; active: number; activeSource: 'montre' | 'moyenne' | 'estimation'; burn: number; deficit: number; mode: 'deficit' | 'surplus'; surplus: number; target: number; floor: number; eaten: { kcal: number; p: number; c: number; f: number }; left: number; proteinGoal: number; proteinLeft: number; pct: number; meals: MealLog[]; burnedNow?: number; activeNow?: number; nowSource?: 'montre' | 'estimation'; asOf?: string; macros?: { carbMin: number; carbMax: number; fatMin: number; fatMax: number } }
+export interface FoodDay { date: string; eaten: number; p: number; proteinGoal: number; burn: number; real: number; goal: number; mode: 'deficit' | 'surplus'; measured: boolean; meals: number; today: boolean }
 export interface FoodCfg { on: boolean; deficit: number; telegram: boolean }
 export const forme = {
   did: (date: string, exercises: Array<{ id: string; name: string; p: string[]; sets: number; kg?: number; reps?: number }>) => post<{ message: string }>('/api/forme/did', { date, exercises }),
   cutApply: (deficit: number) => post<{ deficit: number }>('/api/forme/cut/apply', { deficit }),
   foodBurn: () => call<{ status: { burned: number; eaten: number; real: number; goal: number; missing: number; ok: boolean; measured: boolean }; plan: { kcal: number; minutes: number; rounds: number; perRound: number; circuit: Array<{ name: string; how: string }>; walkMin: number; capped: boolean } | null }>('/api/forme/food/burn'),
+  foodWeek: () => call<{ days: FoodDay[]; avgReal: number | null; logged: number }>('/api/forme/food/week'),
   food: (date?: string) => call<{ budget: FoodBudget; cfg: FoodCfg }>(`/api/forme/food${date ? `?date=${date}` : ''}`),
   foodPhoto: (image: string, thumb?: string, note?: string) => post<{ meal: MealLog; budget: FoodBudget; message: string }>('/api/forme/food/photo', { image, thumb, note }),
   foodText: (text: string) => post<{ meal: MealLog; budget: FoodBudget; message: string }>('/api/forme/food/text', { text }),

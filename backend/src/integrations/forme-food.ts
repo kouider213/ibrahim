@@ -135,7 +135,11 @@ export async function foodBudget(uid: Uid = 'kouider', date = localNow().date): 
   // écoulées + activité déjà faite (montre si elle a envoyé, sinon moyenne répartie de 6h à 22h, jamais moins que les séances du jour)
   const ln = localNow(), isToday = date === ln.date;
   const minNow = isToday ? Number(ln.hhmm.slice(0, 2)) * 60 + Number(ln.hhmm.slice(3)) : 1440;
-  const wakeFrac = Math.max(0, Math.min(1, (minNow - 360) / 960));
+  // 04/11 (Kouider : « réveillé à 8h, resté au lit avec mon fils, comment déjà 920 de déficit ? ») : l'activité estimée
+  // démarre à SON réveil (montre / raccourci sommeil), pas à 6h ; tant que le réveil est inconnu, rien d'estimé avant 8h
+  const wk = isToday ? await readJson<{ date?: string; hhmm?: string } | null>('kouider:woke', null) : null;
+  const wakeMin = wk?.date === ln.date && wk.hhmm ? Number(wk.hhmm.slice(0, 2)) * 60 + Number(wk.hhmm.slice(3, 5)) : 480;
+  const wakeFrac = Math.max(0, Math.min(1, (minNow - wakeMin) / Math.max(240, 1320 - wakeMin)));
   const watchNow = 'today' in act ? (act.today ?? 0) : 0, woNow = 'woK' in act ? (act.woK ?? 0) : 0;
   const activeNow = !isToday || act.source === 'montre' ? act.kcal + runKcal : r0(Math.max(watchNow, woNow + runKcal, (act.kcal + runKcal) * wakeFrac));
   const live = { burnedNow: r0(t.bmr * minNow / 1440 + activeNow), activeNow, nowSource: (watchNow > 50 && watchNow >= activeNow ? 'montre' : act.source === 'montre' ? 'montre' : 'estimation') as 'montre' | 'estimation', asOf: isToday ? ln.hhmm : '23:59' };
@@ -447,7 +451,7 @@ export async function morningSleepMessage(force = false): Promise<string | null>
   const yLine = y.meals.length ? `Hier : mangé ${y.eaten.kcal} kcal pour une dépense ${y.activeSource === 'montre' ? 'mesurée' : 'estimée'} de ${y.burn} → ${y.burn - y.eaten.kcal >= 0 ? `déficit réel ${y.burn - y.eaten.kcal} kcal` : `surplus ${y.eaten.kcal - y.burn} kcal`} ; protéines ${y.eaten.p}/${y.proteinGoal} g.` : 'Hier : aucun repas noté dans FORME.';
   // 01/11 : le raccourci part bien à l'alarme mais la case « sleep » arrive vide → le dire tel quel (ce n'est pas la montre)
   const sentEmpty = !t?.sleep_h && t && await kvGet('health:lastraw:any').then(r => /"sleep\\?"\s*:\s*\\?"\\?"/.test(String(r ?? ''))).catch(() => false);
-  const sleepLine = t?.sleep_h ? `Sommeil cette nuit (Apple Watch) : ${t.sleep_h} h${usual ? ` (moyenne habituelle ${usual} h)` : ''}${t.hrv ? `, VFC ${t.hrv} ms` : ''}${t.rhr ? `, cœur au repos ${t.rhr}` : ''}.` : sentEmpty ? 'Sommeil de cette nuit : le raccourci Santé a bien envoyé ce matin (cœur, VFC, pas OK) MAIS la case sommeil était VIDE — le réglage « sommeil » du raccourci est à corriger (pas la montre). Demande-lui simplement combien il a dormi (« j\'ai dormi 7 h » suffit).' : 'Sommeil de cette nuit : PAS ENCORE REÇU (le raccourci Santé n\'a rien envoyé ce matin).';
+  const sleepLine = t?.sleep_h ? `Sommeil cette nuit (${(t as { sleep_src?: string }).sleep_src === 'telephone' ? 'estimé par le téléphone : coucher → réveil, sans montre' : 'Apple Watch'}) : ${t.sleep_h} h${usual ? ` (moyenne habituelle ${usual} h)` : ''}${t.hrv ? `, VFC ${t.hrv} ms` : ''}${t.rhr ? `, cœur au repos ${t.rhr}` : ''}.` : sentEmpty ? 'Sommeil de cette nuit : le raccourci Santé a bien envoyé ce matin (cœur, VFC, pas OK) MAIS la case sommeil était VIDE — le réglage « sommeil » du raccourci est à corriger (pas la montre). Demande-lui simplement combien il a dormi (« j\'ai dormi 7 h » suffit).' : 'Sommeil de cette nuit : PAS ENCORE REÇU (le raccourci Santé n\'a rien envoyé ce matin).';
   const week = await import('./sleep-coach.js').then(m => m.sleepContextLine()).catch(() => '');
   const ready = await import('./workout-live.js').then(m => m.readiness()).then(r => r?.line ?? '').catch(() => '');
   // Nuit courte → la séance du jour s'allège toute seule (comme pour le cœur / la VFC)
@@ -536,4 +540,18 @@ export async function foodText(): Promise<string> {
   if (!cfg.on) return 'COMPTEUR CALORIES FORME : coupé par Kouider.';
   const b = await foodBudget('kouider');
   return `COMPTEUR CALORIES (FORME → Repas, photo du plat ; objectif = rester en DÉFICIT) : ${b.eaten.kcal}/${b.target} kcal aujourd'hui (dépense ${b.burn}, déficit visé ${b.deficit}), protéines ${b.eaten.p}/${b.proteinGoal} g, glucides ${b.eaten.c} g (${b.macros?.carbMin}–${b.macros?.carbMax}), lipides ${b.eaten.f} g (${b.macros?.fatMin}–${b.macros?.fatMax}), reste ${b.left} kcal. Déficit VISÉ = minimum à garder en mangeant tout son budget ; déficit RÉEL = brûlé − mangé (plus grand s'il ne mange plus).${b.meals.length ? ` Repas : ${b.meals.map(m => `${m.time} ${m.title} ${m.kcal} kcal`).join(' ; ')}.` : ''} ${(() => { const d = deficitStatus(b); return ` BRÛLÉ aujourd'hui ${d.burned} kcal (${d.measured ? 'montre' : 'estimé'}) − mangé ${d.eaten} = DÉFICIT RÉEL ${d.real} / ${d.goal} visés${d.ok ? ' ✅' : ` → il manque ${d.missing} kcal`}.`; })()} Outil forme : meal_photo (photo de plat sur Telegram), meal_text (« j'ai mangé… »), food_check (« si je mange ça ? »), food_today, food_settings, home_burn (« je suis en déficit ? », « donne-moi des exos pour mon déficit » → bilan brûlé/mangé + circuit maison chiffré).`;
+}
+
+/** 04/11 (Kouider : « il me dit que les trucs d'aujourd'hui, pas de la semaine et les jours passés ») : 7 derniers jours. */
+export interface FoodDay { date: string; eaten: number; p: number; proteinGoal: number; burn: number; real: number; goal: number; mode: 'deficit' | 'surplus'; measured: boolean; meals: number; today: boolean }
+export async function foodWeek(uid: Uid = 'kouider', days = 7): Promise<{ days: FoodDay[]; avgReal: number | null; logged: number }> {
+  const today = localNow().date;
+  const list = await Promise.all(Array.from({ length: days }, (_, i) => addDays(today, -i)).map(async date => {
+    const b = await foodBudget(uid, date);
+    const burn = date === today ? (b.burnedNow ?? b.burn) : b.burn;
+    return { date, eaten: b.eaten.kcal, p: b.eaten.p, proteinGoal: b.proteinGoal, burn, real: burn - b.eaten.kcal, goal: b.mode === 'surplus' ? b.surplus : b.deficit, mode: b.mode, measured: b.activeSource === 'montre', meals: b.meals.length, today: date === today } satisfies FoodDay;
+  }));
+  // moyenne seulement sur les jours finis où il a noté des repas (un jour sans repas noté = déficit faux)
+  const done = list.filter(d => !d.today && d.meals > 0);
+  return { days: list, avgReal: done.length ? r0(done.reduce((a, d) => a + d.real, 0) / done.length) : null, logged: done.length };
 }

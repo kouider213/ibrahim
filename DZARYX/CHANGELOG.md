@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 — VPS↔Railway via WARP, sommeil sans montre, FORME semaine
+- VPS : l'hébergeur ne routait plus vers Railway → trafic Railway seul via Cloudflare WARP (proxy + redsocks + iptables, systemd railway-via-warp). Watchdog : vérif externe check-host (plus de fausse « PANNE ») ; heal ne relance plus TG/PC cloud si Railway injoignable.
+- 😴 Sommeil sans montre : POST /api/jarvis/sleep {kind auto|couche|leve} (sleep-phone.ts) → nuit estimée (coucher → réveil − 15 min) dans health:daily (sleep_src telephone, la montre la remplace).
+- FORME Repas : activité estimée démarre au vrai réveil (plus 6h) ; note « normal le matin » ; section « Ma semaine » 7 jours (GET /api/forme/food/week), appui = plats du jour passé. App v244.
+
 ## 2026-11-03 (nuit) — Widget v4 + Dzaryx « comme ChatGPT / Google »
 - Widget : vendredi Jumu'a, Ramadan (Iftar/Shour, vert), Aïd (ciel doré), jour de congé (mode repos), match des Fennecs du jour (TheSportsDB, cache 3 h), météo de demain matin le soir, couleur par mode, grand format + écran verrouillé.
 - Garde-fou fastPath limité aux questions FIK/argent perso (« explique l'inflation » était remplacé par « pas accès aux données » à cause d'un exemple en €).

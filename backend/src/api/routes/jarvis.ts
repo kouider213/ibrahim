@@ -128,6 +128,11 @@ router.post('/health', express.text({ type: 'text/*', limit: '1mb' }), async (re
   const body = typeof req.body === 'string' ? { data: req.body } : (req.body ?? {}) as Record<string, unknown>;   // corps en texte simple accepté
   try { res.json(await import('../../integrations/jarvis-hub.js').then(m => m.receiveHealth(body))); } catch (e) { fail(res, e); }
 });
+// 😴 Sommeil sans montre : raccourci « Dzaryx Sommeil » (chargeur branché / débranché, appli ouverte, ou bouton) → coucher / réveil
+router.post('/sleep', express.text({ type: 'text/*', limit: '10kb' }), async (req, res) => {
+  const b = typeof req.body === 'string' ? { kind: req.body } : (req.body ?? {}) as Record<string, unknown>;
+  try { res.json(await import('../../integrations/sleep-phone.js').then(m => m.phoneSleepMark(String(b['kind'] ?? 'auto')))); } catch (e) { fail(res, e); }
+});
 // Montre : automatisations Raccourcis « Entraînement Apple Watch » commence / se termine (+ relevé de pouls ponctuel)
 router.post('/workout', express.text({ type: 'text/*', limit: '1mb' }), async (req, res) => {
   const body = typeof req.body === 'string' ? { data: req.body } : (req.body ?? {}) as Record<string, unknown>;

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { forme, errText, compressImage, vibrate, type FoodBudget, type FoodCfg, type MealLog, type FoodPart } from './api.ts';
+import { forme, errText, compressImage, vibrate, type FoodBudget, type FoodCfg, type MealLog, type FoodPart, type FoodDay } from './api.ts';
 import { F, card, darkCard, btn, ghostBtn, input, Ring, Bar, Sheet, Spinner } from './ui.tsx';
 import { BulkCard, BulkQuiz } from './Bulk.tsx';
 import type { Overview } from './api.ts';
@@ -161,7 +161,9 @@ export default function FoodScreen({ toast, o, onO }: { toast: (t: string) => vo
         </motion.button>
       ))}
 
-      <MealSheet meal={open} onClose={() => setOpen(null)} onBudget={nb => { setB(nb); setOpen(null); toast('✅ Repas mis à jour'); }} />
+      <WeekHistory onOpen={setOpen} />
+
+      <MealSheet meal={open} onClose={() => setOpen(null)} onBudget={nb => { if (nb.date === b.date) setB(nb); else void load(); setOpen(null); toast('✅ Repas mis à jour'); }} />
       <Sheet open={settings} onClose={() => setSettings(false)} title="Réglages calories">
         {cfg && <Settings bulk={bulk} kouider={o.uid === 'kouider'} goalMuscle={o.profile.goal === 'muscle' && o.uid !== 'kouider'} onQuiz={() => { setSettings(false); setQuiz(true); }} cfg={cfg} onSave={async c => { try { const r = await forme.foodCfg(c); setCfg(r.cfg); setB(r.budget); toast('✅ Enregistré'); } catch (e) { toast(errText(e)); } }} />}
       </Sheet>
@@ -260,6 +262,7 @@ function DeficitCard({ b, me, onRefresh }: { b: FoodBudget; me: boolean; onRefre
         <div style={{ color: F.muted, fontWeight: 700 }}>=</div>
         {cell(`Déficit à ${b.asOf ?? 'maintenant'}`, realNow >= 0 ? String(realNow) : `+${-realNow}`, realNow >= 0 ? F.green : F.red)}
       </div>
+      {b.burnedNow != null && b.eaten.kcal === 0 && (b.asOf ?? '99') < '12:00' && <div style={{ fontSize: 12.5, color: F.muted, marginTop: 6 }}>Normal le matin : même en dormant ton corps brûle ≈ {Math.round(b.bmr / 24)} kcal/h depuis minuit. Ce chiffre n'est pas ton déficit du jour : celui qui compte, c'est ce soir.</div>}
       <div style={{ marginTop: 10 }}><Bar value={Math.max(0, real)} max={Math.max(1, goal)} color={ok ? F.green : '#e8590c'} /></div>
       <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 8, color: ok ? F.green : F.red }}>
         {b.burnedNow != null && <div style={{ fontSize: 12.5, color: F.muted, fontWeight: 500, marginBottom: 2 }}>Ce soir si tu ne manges plus rien : {b.burn} brûlées − {b.eaten.kcal} mangées = {real >= 0 ? real : `+${-real}`} kcal de déficit</div>}
@@ -278,5 +281,47 @@ function DeficitCard({ b, me, onRefresh }: { b: FoodBudget; me: boolean; onRefre
         </div>
       )}
     </div>
+  );
+}
+
+// 04/11 : « Ma semaine » — les 7 derniers jours ; un appui = les plats de ce jour-là (modifiables comme aujourd'hui)
+const DAYS_FR = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
+function WeekHistory({ onOpen }: { onOpen: (m: MealLog) => void }) {
+  const [w, setW] = useState<{ days: FoodDay[]; avgReal: number | null; logged: number } | null>(null);
+  const [day, setDay] = useState<string | null>(null);
+  const [meals, setMeals] = useState<MealLog[] | null>(null);
+  useEffect(() => { forme.foodWeek().then(setW).catch(() => setW(null)); }, []);
+  useEffect(() => { setMeals(null); if (day) forme.food(day).then(r => setMeals(r.budget.meals)).catch(() => setMeals([])); }, [day]);
+  if (!w) return null;
+  const label = (d: string) => { const x = new Date(`${d}T12:00:00`); return `${DAYS_FR[x.getDay()]} ${x.getDate()}/${x.getMonth() + 1}`; };
+  return (
+    <>
+      <div style={{ fontSize: 19, fontWeight: 700, margin: '22px 2px 10px' }}>Ma semaine</div>
+      <div style={{ ...card, padding: 14 }}>
+        {w.avgReal != null && <div style={{ fontSize: 13.5, marginBottom: 10 }}>Moyenne sur {w.logged} jour{w.logged > 1 ? 's' : ''} noté{w.logged > 1 ? 's' : ''} : <b style={{ color: w.avgReal >= 0 ? F.green : F.red }}>{w.avgReal >= 0 ? `déficit ${w.avgReal}` : `surplus ${-w.avgReal}`} kcal/jour</b></div>}
+        {w.days.map(d => {
+          const ok = d.mode === 'deficit' ? d.real >= d.goal : -d.real >= d.goal;
+          return (
+            <button key={d.date} onClick={() => d.meals && setDay(d.date)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', border: 'none', borderTop: `1px solid ${F.tile}`, background: 'none', fontFamily: 'inherit', color: F.ink, textAlign: 'left', cursor: d.meals ? 'pointer' : 'default' }}>
+              <div style={{ width: 74, fontWeight: 650, fontSize: 14 }}>{d.today ? "Aujourd'hui" : label(d.date)}</div>
+              {d.meals ? (
+                <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: F.muted }}>mangé {d.eaten} · brûlé {d.burn}{d.measured ? ' ⌚' : ''}<br />protéines {d.p}/{d.proteinGoal} g · {d.meals} repas</div>
+              ) : <div style={{ flex: 1, fontSize: 12.5, color: F.muted }}>aucun repas noté</div>}
+              {d.meals > 0 && <div style={{ fontWeight: 800, fontSize: 15, whiteSpace: 'nowrap', color: d.today ? F.muted : ok ? F.green : F.red }}>{d.real >= 0 ? `−${d.real}` : `+${-d.real}`}</div>}
+            </button>
+          );
+        })}
+        <div style={{ fontSize: 11.5, color: F.muted, marginTop: 6 }}>Chiffre de droite : déficit (−) ou surplus (+) du jour. ⌚ = dépense mesurée par la montre, sinon estimée. Aujourd'hui = en cours.</div>
+      </div>
+      <Sheet open={!!day} onClose={() => setDay(null)} title={day ? `Repas du ${label(day)}` : ''}>
+        {!meals ? <Spinner /> : !meals.length ? <div style={{ color: F.muted }}>Aucun repas.</div> : meals.map(m => (
+          <button key={m.id} onClick={() => { setDay(null); onOpen(m); }} style={{ ...card, width: '100%', border: 'none', textAlign: 'left', fontFamily: 'inherit', color: F.ink, display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8, padding: 10 }}>
+            {m.thumb ? <img src={m.thumb} alt="" style={{ width: 48, height: 48, borderRadius: 12, objectFit: 'cover' }} /> : <div style={{ fontSize: 24 }}>🍽️</div>}
+            <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 12, color: F.muted }}>{SLOT[m.slot]} · {m.time}</div><div style={{ fontWeight: 650, fontSize: 14.5 }}>{m.title}</div></div>
+            <div style={{ fontWeight: 800 }}>{m.kcal}</div>
+          </button>
+        ))}
+      </Sheet>
+    </>
   );
 }

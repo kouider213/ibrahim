@@ -107,6 +107,10 @@ const food = () => import('../../integrations/forme-food.js');
 router.get('/food', async (req, res) => {
   try { const f = await food(); const date = isDate(req.query.date) ? req.query.date : undefined; res.json({ budget: await f.foodBudget(U(req), date), cfg: await f.foodCfg(U(req)) }); } catch (err) { fail(res, err); }
 });
+// GET /api/forme/food/week — les 7 derniers jours (mangé / brûlé / déficit / protéines)
+router.get('/food/week', async (req, res) => {
+  try { res.json(await (await food()).foodWeek(U(req))); } catch (err) { fail(res, err); }
+});
 // GET /api/forme/food/burn — déficit réel (brûlé − mangé) + circuit maison pour le manque
 // 02/11 : heure du dernier envoi de la montre (Raccourci « Dzaryx Santé ») → l'app le relance tout seul s'il est vieux
 router.get('/watch-sync', async (req, res) => {

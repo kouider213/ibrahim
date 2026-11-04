@@ -13,7 +13,7 @@ import { supabase } from './supabase.js';
 import { localNow } from './morning-routine.js';
 
 // ── Santé ────────────────────────────────────────────────────────────────────
-export interface HealthDay { date: string; sleep_h?: number; steps?: number; rhr?: number; hrv?: number; active_kcal?: number; weight?: number }
+export interface HealthDay { date: string; sleep_h?: number; steps?: number; rhr?: number; hrv?: number; active_kcal?: number; weight?: number; sleep_src?: 'montre' | 'telephone' }
 const num = (v: unknown) => { const n = Number(String(v ?? '').replace(',', '.').replace(/[^\d.]/g, '')); return Number.isFinite(n) && n > 0 ? n : undefined; };
 
 export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok: true; note: string }> {
@@ -83,6 +83,8 @@ export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok
   let sleep = num(body['sleep_h'] ?? body['sleep'] ?? body['sommeil']);
   if (sleep && sleep > 24) sleep = Math.round((sleep / 60) * 10) / 10;
   const d: HealthDay = { date, sleep_h: sleep, steps: num(body['steps'] ?? body['pas']), rhr: num(body['rhr'] ?? body['resting_hr'] ?? body['coeur_repos']), hrv: num(body['hrv'] ?? body['vfc']), active_kcal: num(body['active_kcal'] ?? body['calories']), weight: num(body['weight'] ?? body['poids']) };
+  // 04/11 : nuit estimée par le téléphone (sleep-phone.ts) ou vraie nuit de la montre — la montre remplace l'estimation
+  if (d.sleep_h) d.sleep_src = body['sleep_src'] === 'telephone' ? 'telephone' : 'montre';
   const stored = await kvJson<HealthDay[]>('health:daily', []);
   const same = stored.find(x => x.date === date);
   // Plusieurs envois le même jour : on complète, on n'efface pas une valeur déjà reçue
