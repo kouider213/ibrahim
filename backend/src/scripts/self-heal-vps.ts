@@ -25,7 +25,15 @@ function say(text: string): void {
   try { mkdirSync(OUTBOX, { recursive: true }); writeFileSync(`${OUTBOX}/heal-${Date.now()}.txt`, text); } catch { /* rien */ }
 }
 
+const RAILWAY = 'https://ibrahim-backend-production.up.railway.app/health';
+async function railwayReachable(): Promise<boolean> {
+  try { const r = await fetch(RAILWAY, { signal: AbortSignal.timeout(15_000) }); return r.ok; } catch { return false; }
+}
+
 (async () => {
+  // 04/11 : le réseau de l'hébergeur ne routait plus vers Railway → TG/PC cloud « coupés », relancés toutes les 10 min
+  // pour rien. Si le VPS ne joint pas Railway, relancer ne sert à rien : on ne touche à rien (le watchdog prévient).
+  if (!(await railwayReachable())) { console.log('[heal] VPS ne joint pas Railway — pas de relance'); process.exit(0); }
   const log = JSON.parse((await kv('heal:log')) ?? '[]') as Array<{ at: string; svc: string; why: string }>;
   const recent = (svc: string) => log.filter(l => l.svc === svc && Date.now() - Date.parse(l.at) < 6 * 3600_000).length;
   const restart = (svc: string, why: string) => {

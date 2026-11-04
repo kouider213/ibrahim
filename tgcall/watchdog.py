@@ -38,6 +38,22 @@ def check(url: str) -> str | None:
         return str(e)[:150]
 
 
+def seen_from_outside(url: str) -> bool | None:
+    """Railway répond-il ailleurs dans le monde (check-host.net) ? None si on ne sait pas."""
+    try:
+        h = {'Accept': 'application/json'}
+        req = urllib.request.Request(f'https://check-host.net/check-http?host={url}/health&max_nodes=4', headers=h)
+        with urllib.request.urlopen(req, timeout=15) as r:
+            rid = json.load(r)['request_id']
+        time.sleep(10)
+        with urllib.request.urlopen(urllib.request.Request(f'https://check-host.net/check-result/{rid}', headers=h), timeout=15) as r:
+            res = json.load(r)
+        oks = [v for v in res.values() if v and v[0] and v[0][0] == 1]
+        return len(oks) >= 2
+    except Exception:
+        return None
+
+
 def drop(name: str, text: str, dry: bool) -> None:
     """Écrit d'abord ailleurs puis déplace : tgcall ne lit jamais un fichier à moitié écrit."""
     if dry:
@@ -72,6 +88,16 @@ def main() -> None:
             not st.get('alerted_at') or now - st['alerted_at'] >= REMIND_S)
         if due:
             mins = max(1, int((now - st['down_since']) / 60))
+            if seen_from_outside(url):
+                # 04/11 : Railway marchait, c'est le réseau de l'hébergeur VPS qui ne routait plus vers lui
+                drop(f'{stamp}-watchdog.txt',
+                     f'⚠️ Le VPS ne joint plus Railway depuis {mins} min (réseau de l\'hébergeur VPS).\n'
+                     'Railway marche : l\'app et le site répondent. Mais les appels Telegram, WhatsApp '
+                     '(PC cloud) et le navigateur du VPS ne parlent plus au cerveau.', dry)
+                st['alerted_at'] = now
+                if not dry:
+                    STATE.write_text(json.dumps(st))
+                return
             drop(f'{stamp}-watchdog.txt',
                  f'🚨 SERVEUR DZARYX EN PANNE\nRailway ne répond plus depuis {mins} min.\nErreur : {err}\n\n'
                  'L\'app et les réponses aux clients sont coupées. Vérifie Railway (railway.app → Deployments).', dry)
