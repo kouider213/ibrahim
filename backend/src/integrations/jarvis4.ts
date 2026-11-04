@@ -49,7 +49,10 @@ export async function iphoneEvent(type: string, body: Record<string, unknown>): 
     case 'carplay_off': case 'parked': {
       void kvPut('car:last-off', { at: Date.now(), type });
       if (hasPos) await import('./gps-life.js').then(m => m.setParking(lat, lng));
-      return { say: hasPos ? 'Voiture garée, je retiens l\'endroit.' : 'Garé. Ajoute « Obtenir l\'emplacement actuel » au raccourci pour que je retienne l\'endroit.' };
+      // 04/11 : discours d'arrivée façon Jarvis (maison = bienvenue + demain ; ailleurs = phrase courte), avec la voix Jarvis
+      const said = await import('./car-widget-plus.js').then(m => m.arrivalSpeech(hasPos ? { lat, lng } : null)).catch(() => 'Vous êtes arrivé, Monsieur.');
+      const say = speakable(carPrivacy(said)) || 'Vous êtes arrivé, Monsieur.';
+      return { say, audio_url: jarvisVoiceUrl(say) };
     }
     case 'charger': case 'charge': {
       const h = localNow().hhmm;
@@ -223,6 +226,7 @@ export async function carWidgetData(): Promise<Record<string, unknown>> {
   const { date, hhmm } = localNow();
   const loc = await import('./location.js').then(m => m.getLocation('kouider')).catch(() => null);
   const here = loc && Date.now() - Date.parse(loc.updated_at) < 12 * 3600_000 ? { lat: loc.lat, lng: loc.lng } : { lat: 50.85, lng: 4.35 };
+  const freshPos = !!loc && Date.now() - Date.parse(loc.updated_at) < 30 * 60_000;
   const day = (n: number) => new Date(Date.parse(`${date}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
   const tomorrow = day(1), horizon = day(14);
   const [meteo, { data: cars }, { data: books }] = await Promise.all([
@@ -259,6 +263,12 @@ export async function carWidgetData(): Promise<Record<string, unknown>> {
       return ((await r.json()) as { data?: { timings?: Record<string, string>; date?: { hijri?: { day?: string; month?: { number?: number }; holidays?: string[] } } } }).data ?? null; })().catch(() => null),
     import('./kouider-dossier.js').then(m => m.getDaysOff()).catch(() => [] as number[]),
     fennecsToday(date),
+  ]);
+  // 04/11 : quand partir / trafic / retard prédit / client qui attend — en mots (car-widget-plus.ts)
+  const plus = await import('./car-widget-plus.js');
+  const [roadI, waiting] = await Promise.all([
+    plus.carRoad(here, freshPos, homeward).catch(() => ({ go: '', road: '', late: '' })),
+    plus.clientWaiting().catch(() => ''),
   ]);
   const prayers = prayerData?.timings ?? null;
   const hijri = prayerData?.date?.hijri;
@@ -312,15 +322,19 @@ export async function carWidgetData(): Promise<Record<string, unknown>> {
   if (fx.snow || (t != null && t <= 2)) jarvis = 'Route froide, Monsieur. Douceur sur les freins.';
   else if (fx.storm) jarvis = 'Orage sur la route. Je reste en alerte avec vous.';
   else if (fx.fog) jarvis = 'Brouillard. Feux allumés, distance doublée.';
+  else if (roadI.late) jarvis = 'Retard en vue. Restez calme, Monsieur, on prévient et on assure.';
+  else if (/^Partez maintenant/.test(roadI.go)) jarvis = 'Il est l\'heure, Monsieur. Moteur, et on y va.';
+  else if (/^Trafic chargé/.test(roadI.road)) jarvis = 'La route est lente. Patience, Monsieur : on arrive entier.';
   const wordOf = (c: number) => c < 0 ? '' : c >= 95 ? 'orage' : c >= 71 && c <= 86 && !(c >= 80 && c <= 82) ? 'neige' : c >= 51 ? 'pluie' : c === 45 || c === 48 ? 'brouillard' : c >= 3 ? 'gris' : 'dégagé';
   const tomorrowMorning = H >= 17 || H < 3 ? [wordOf(sun.tmCode), sun.tmMin <= 1 ? 'gel, attention au verglas' : sun.tmMin <= 5 ? 'froid' : ''].filter(Boolean).join(', ') : '';
   return {
-    v: 4, eid, ramadan, friday: wdNow === 5, fennecs, tomorrow: tomorrowMorning ? `Demain matin : ${tomorrowMorning}` : '',
+    v: 5, eid, ramadan, friday: wdNow === 5, fennecs, tomorrow: tomorrowMorning ? `Demain matin : ${tomorrowMorning}` : '',
     at: hhmm, phase, sunPos, moonPos, mode, modeLabel, greeting, fx,
     alert: meteo ? (t! <= 3 ? '❄️ Risque de verglas' : meteo.rain ? '🌧️ Pluie, prudence' : meteo.wind >= 50 ? '💨 Vent fort' : '') : '',
     weatherE: phase === 'nuit' && meteo && meteo.code <= 1 ? '🌙' : phase === 'nuit' && meteo && meteo.code <= 3 ? '☁️' : meteo?.e ?? '', weather: [feel, (meteo?.label ?? '').toLowerCase()].filter(Boolean).join(' · '),
     nextTitle: m ? `${m.k} ${carName(m.car)}` : 'Flotte au calme', nextWhen: m ? whenWords(m.at) : 'rien de prévu',
     prayer, jarvis,
+    go: roadI.go, road: roadI.road, late: roadI.late, waiting,
   };
 }
 export async function carWidgetPhoto(shape?: string): Promise<Buffer | null> {

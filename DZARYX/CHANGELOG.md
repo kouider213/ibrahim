@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (2) — Widget CarPlay v5 « Jarvis + route » + discours d'arrivée
+- car-widget-plus.ts : quand partir (prochain RDV avec adresse ≤ 3 h, en mots), trafic en mots (RDV ou maison au retour, Google Maps caché 10 min), retard prédit, « un client attend votre réponse » (wa:convlog, sans nom), phrase Jarvis adaptée.
+- Widget : 2e ligne route/client (moyen, petit), 3 lignes en grand, écran verrouillé priorise départ/retard ; appui = raccourci Siri « Dzaryx ».
+- carplay_off : discours d'arrivée Jarvis (maison : bienvenue + demain + prochain mouvement FIK ; ailleurs : phrase courte) + voix audio_url.
+- Kouider confirme fonctionnels : voix CarPlay, widget, Jarvis 4, radars, course GPS, retouche IA, WARP.
+
 ## 2026-11-04 — VPS↔Railway via WARP, sommeil sans montre, FORME semaine
 - VPS : l'hébergeur ne routait plus vers Railway → trafic Railway seul via Cloudflare WARP (proxy + redsocks + iptables, systemd railway-via-warp). Watchdog : vérif externe check-host (plus de fausse « PANNE ») ; heal ne relance plus TG/PC cloud si Railway injoignable.
 - 😴 Sommeil sans montre : POST /api/jarvis/sleep {kind auto|couche|leve} (sleep-phone.ts) → nuit estimée (coucher → réveil − 15 min) dans health:daily (sleep_src telephone, la montre la remplace).

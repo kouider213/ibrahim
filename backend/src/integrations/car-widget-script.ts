@@ -1,6 +1,6 @@
 // 🚗 Rendu du widget CarPlay (Scriptable), téléchargé à chaque rafraîchissement par le petit script collé une fois sur l'iPhone.
 // Modifier ici = le widget de Kouider change tout seul (pas de nouveau copier-coller). Pas de ` ni de ${ dans le code.
-export const CAR_WIDGET_RENDER = String.raw`// DZARYX · rendu du widget CarPlay v3 « Jarvis HUD » (servi par le backend : le script collé dans Scriptable le télécharge à chaque fois)
+export const CAR_WIDGET_RENDER = String.raw`// DZARYX · rendu du widget CarPlay v5 « Jarvis HUD + route » (servi par le backend : le script collé dans Scriptable le télécharge à chaque fois)
 // Aucun chiffre (Kouider 03/11) : le vrai ciel sur la photo, soleil/lune réels, mode du moment, tout en mots.
 const PHOTO_V = 4;
 let RED = new Color("#ff2b3a"); const GOLD = new Color("#f7c548"), WHITE = Color.white();
@@ -35,11 +35,11 @@ RED = new Color(ACC);
 // Écran verrouillé : texte seul (iOS l'affiche en monochrome)
 if (lock) {
   const w = new ListWidget();
-  if (fam === "accessoryInline") { const l = w.addText("◆ " + (data.prayer || data.fennecs || data.nextTitle || "Dzaryx en ligne")); l.font = Font.semiboldSystemFont(12); }
+  if (fam === "accessoryInline") { const l = w.addText("◆ " + (data.late || data.go || data.prayer || data.fennecs || data.nextTitle || "Dzaryx en ligne")); l.font = Font.semiboldSystemFont(12); }
   else if (fam === "accessoryCircular") { const l = w.addText("D"); l.font = Font.heavySystemFont(26); l.centerAlignText(); }
   else {
     const a = w.addText("◆ DZARYX · " + ((data.modeLabel || "EN LIGNE").split(" · ")[0])); a.font = Font.heavySystemFont(11);
-    const b = w.addText(data.prayer || data.fennecs || data.tomorrow || ((data.weatherE || "") + " " + (data.weather || ""))); b.font = Font.semiboldSystemFont(13); b.lineLimit = 1;
+    const b = w.addText(data.late || data.go || data.waiting || data.prayer || data.fennecs || data.tomorrow || ((data.weatherE || "") + " " + (data.weather || ""))); b.font = Font.semiboldSystemFont(13); b.lineLimit = 1;
     const c2 = w.addText((data.nextTitle || "") + (data.nextWhen ? " · " + data.nextWhen : "")); c2.font = Font.systemFont(12); c2.lineLimit = 1;
   }
   w.refreshAfterDate = new Date(Date.now() + 15 * 60e3);
@@ -152,9 +152,11 @@ function scan(y) {
 
 const rainTwice = data.alert && /Pluie/.test(data.alert) && /pluie/i.test(data.weather || "");
 const alertOn = data.alert && !rainTwice;
-const info = alertOn ? data.alert : data.fennecs ? "🇩🇿 " + data.fennecs : data.prayer ? (/Iftar|Shour/.test(data.prayer) ? "🌙 " : "🕌 ") + data.prayer : data.tomorrow ? "🌅 " + data.tomorrow : "";
-const infoColor = alertOn ? new Color("#ff2b3a") : GOLD;
-const extra = [data.fennecs && info.indexOf(data.fennecs) < 0 ? "🇩🇿 " + data.fennecs : "", data.prayer && info.indexOf(data.prayer) < 0 ? "🕌 " + data.prayer : "", data.tomorrow && info.indexOf(data.tomorrow) < 0 ? "🌅 " + data.tomorrow : ""].filter(Boolean);
+const info = alertOn ? data.alert : data.late ? "⏰ " + data.late : data.go ? "🧭 " + data.go : data.fennecs ? "🇩🇿 " + data.fennecs : data.prayer ? (/Iftar|Shour/.test(data.prayer) ? "🌙 " : "🕌 ") + data.prayer : data.tomorrow ? "🌅 " + data.tomorrow : "";
+const infoColor = alertOn || data.late || /^Partez/.test(data.go || "") ? new Color("#ff2b3a") : GOLD;
+const busyRoad = !!(data.late || data.go);
+const line2 = busyRoad ? (data.road ? "🛣️ " + data.road : data.waiting ? "💬 " + data.waiting : "") : data.waiting ? "💬 " + data.waiting : data.road ? "🛣️ " + data.road : "";
+const extra = [line2, data.road && line2.indexOf(data.road) < 0 ? "🛣️ " + data.road : "", data.waiting && line2.indexOf(data.waiting) < 0 ? "💬 " + data.waiting : "", data.fennecs && info.indexOf(data.fennecs) < 0 ? "🇩🇿 " + data.fennecs : "", data.prayer && info.indexOf(data.prayer) < 0 ? "🕌 " + data.prayer : "", data.tomorrow && info.indexOf(data.tomorrow) < 0 ? "🌅 " + data.tomorrow : ""].filter(Boolean);
 const weather = ((data.weatherE || "") + "  " + (data.weather || "")).trim();
 const jarvis = data.jarvis ? "« " + data.jarvis + " »" : "";
 
@@ -169,6 +171,7 @@ if (small) {
   t(data.greeting || "Bonjour, Monsieur.", 34, 214, W - 68, 56, Font.heavySystemFont(40), WHITE);
   t(weather, 34, 268, W - 68, 36, Font.mediumSystemFont(26), SOFT);
   t(info, 34, 304, W - 68, 34, Font.boldSystemFont(24), infoColor);
+  t(line2, 34, 334, W - 68, 28, Font.semiboldSystemFont(20), SOFT);
   bar(34, 362, 74);
   t(data.nextTitle, 34, 382, W - 68, 46, Font.boldSystemFont(34), WHITE);
   t(data.nextWhen, 34, 428, W - 68, 36, Font.semiboldSystemFont(27), GOLD);
@@ -187,7 +190,7 @@ if (small) {
   t(data.greeting || "Bonjour, Monsieur.", 50, 520, W - 100, 80, Font.heavySystemFont(64), WHITE);
   t(weather, 52, 600, W - 100, 46, Font.mediumSystemFont(36), SOFT);
   t(info, 52, 650, W - 100, 42, Font.boldSystemFont(30), infoColor);
-  extra.slice(0, 2).forEach((e, i) => t(e, 52, 696 + i * 42, W - 100, 40, Font.semiboldSystemFont(28), SOFT));
+  extra.slice(0, 3).forEach((e, i) => t(e, 52, 696 + i * 36, W - 100, 34, Font.semiboldSystemFont(26), SOFT));
   bar(52, 806, 120);
   t("PROCHAIN · FIK", 52, 828, 500, 32, Font.heavySystemFont(24), GOLD);
   t(data.nextTitle, 52, 860, W - 100, 56, Font.boldSystemFont(46), WHITE);
@@ -203,8 +206,9 @@ if (small) {
   t(data.modeLabel || "JARVIS · EN LIGNE", 152, 94, 640, 28, Font.semiboldSystemFont(20), GOLD);
   t(data.greeting || "Bonjour, Monsieur.", 46, 150, 760, 70, Font.heavySystemFont(56), WHITE);
   t(weather, 48, 220, 700, 42, Font.mediumSystemFont(32), SOFT);
-  t(info, 48, 262, 700, 36, Font.boldSystemFont(26), infoColor);
-  bar(48, 326, 110);
+  t(info, 48, 258, 760, 34, Font.boldSystemFont(26), infoColor);
+  t(line2, 48, 291, 760, 32, Font.semiboldSystemFont(23), SOFT);
+  bar(48, 330, 110);
   t("PROCHAIN · FIK", 48, 346, 400, 30, Font.heavySystemFont(22), GOLD);
   t(data.nextTitle, 48, 374, 640, 52, Font.boldSystemFont(40), WHITE);
   t(data.nextWhen, 48, 424, 640, 40, Font.semiboldSystemFont(30), GOLD);
@@ -215,7 +219,8 @@ if (small) {
 const w = new ListWidget();
 w.setPadding(0, 0, 0, 0);
 w.backgroundImage = c.getImage();
-w.url = "https://kouider213.github.io/ibrahim/";
+// 04/11 : un appui = parler à Jarvis (raccourci Siri « Dzaryx »)
+w.url = "shortcuts://run-shortcut?name=Dzaryx";
 w.refreshAfterDate = new Date(Date.now() + 15 * 60e3);
 if (config.runsInWidget) Script.setWidget(w);
 else if (small) await w.presentSmall(); else if (large) await w.presentLarge(); else await w.presentMedium();
