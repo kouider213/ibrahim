@@ -2,7 +2,15 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : **2026-10-28**.
+> Dernière mise à jour : **2026-11-04**.
+
+---
+
+## ⚡ Session 2026-11-04 (soir) — Banc « comme Kouider » terminé + vocal CarPlay court (731de9af → 0472621f)
+- Banc /root/dzaryx-bench phase2 : les 101 scénarios ont tourné ; derniers ratés corrigés (image / atelier / programme de voyage, promesse vide relancée, « pas de salle demain », visites du site, horizon d'épargne). Plusieurs tests attendaient un outil alors que le code répond en direct → attentes changées en `say:`.
+- Agenda : clés Google présentes sur Railway, ABSENTES du .env VPS (secours + banc) → RDV impossible quand le VPS répond seul. Non copiées (risque de doublons des tâches auto), à décider avec Kouider.
+- Voiture : discours 2-3 phrases, point 2-3 phrases, une seule récitation alternée (verset / protection), Ayat al-Kursi retiré.
+- À vérifier en vrai : question gardée quand les cerveaux sont saturés + secours Claude Haiku (vus seulement en test).
 
 ---
 
