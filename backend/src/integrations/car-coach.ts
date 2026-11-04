@@ -72,7 +72,6 @@ const PROTECT: Array<{ a: string; say: string }> = [
   { a: '043013,043014', say: 'l\'invocation du voyage : « Gloire à Celui qui nous a soumis tout cela, alors que nous n\'étions pas capables de le dominer. Et c\'est vers notre Seigneur que nous retournerons. » Sourate 43' },
   { a: '113001,113002,113003,113004,113005', say: 'la sourate Al-Falaq, l\'Aube naissante : « Dis : je cherche protection auprès du Seigneur de l\'aube naissante, contre le mal de ce qu\'Il a créé. »' },
   { a: '114001,114002,114003,114004,114005,114006', say: 'la sourate An-Nas, les Hommes : « Dis : je cherche protection auprès du Seigneur des hommes, le Souverain des hommes, Dieu des hommes. »' },
-  { a: '002255', say: 'Ayat al-Kursi, le verset du Trône : « Allah, point de divinité à part Lui, le Vivant, Celui qui subsiste par Lui-même. Ni somnolence ni sommeil ne Le saisissent. »' },
 ];
 /** Fin de chaque démarrage : verset du jour + récitation de protection, annoncés et traduits, puis les vraies récitations
  *  ([[Q:…]] → jarvis-audio.ts les joue après la voix, dans l'ordre). Aussi dit tel quel par « Énoncer » (sans [[ ]]). */
@@ -86,9 +85,14 @@ export async function carBlessing(courage = false): Promise<string> {
   await kvPut(VUSED_K, (all.every(k => used.includes(k)) ? [] : used).concat(i).slice(-VERSES.length));
   const pn = await kvJson<number>(PUSED_K, 0);
   await kvPut(PUSED_K, pn + 1);
-  const pr = PROTECT[pn % PROTECT.length]!;
   const v = VERSES[i]!;
-  return `Pour la route, le verset du jour : « ${v.fr} » Le Coran, ${v.ref}. Et pour votre protection, ${pr.say}. Je reste en veille, dites simplement : « Dis Siri, Jarvis ». Écoutez. [[Q:${v.a}]] [[Q:${pr.a}]]`;
+  // 04/11 (Kouider : « le vocal au démarrage est trop long, parfois il coupe ») : UNE seule récitation par démarrage,
+  // en alternance verset du jour / protection (Ayat al-Kursi retiré de la voiture : plus d'une minute)
+  if (pn % 2 === 1) {
+    const pr = PROTECT[Math.floor(pn / 2) % PROTECT.length]!;
+    return `Pour votre protection, ${pr.say}. Je reste en veille. [[Q:${pr.a}]]`;
+  }
+  return `Le verset du jour : « ${v.fr} » Je reste en veille. [[Q:${v.a}]]`;
 }
 
 // 04/11 (3) : « le lundi après le sport et le jeudi après le travail, je ne suis pas seul, je suis avec ma femme et mon fils »
@@ -161,13 +165,13 @@ async function homewardSpeech(hello: string, time: string, weather: string): Pro
   await kvPut(USED_K, used.concat(qi).slice(-QUOTES.length + 1));
   const quote = QUOTES[qi]!;
   const speech = await ai(`Tu es JARVIS, l'intelligence artificielle majordome de Kouider (comme le Jarvis d'Iron Man) : voix calme, chaleureuse, VOUVOIEMENT, phrases élégantes. Kouider vient de finir sa journée de travail et RENTRE CHEZ LUI se reposer jusqu'à demain. Tu lui as déjà dit bonjour, l'heure et la météo.
-Dis-lui un discours de COURAGE de 4 à 5 phrases (25 secondes à l'oral), sincère, qui touche le cœur :
+Dis-lui un discours de COURAGE COURT de 2 à 3 phrases (12 secondes à l'oral, 45 mots maximum), sincère, qui touche le cœur :
 - il a TENU LE COUP aujourd'hui, le plus dur de la journée est derrière lui, il peut relâcher maintenant ;
 - ce qui lui pèse le plus dans sa vie aujourd'hui, c'est ce travail et ce pays (la Belgique, loin de l'Algérie) : reconnais-le avec respect, sans le juger ni minimiser ; ce travail et cet exil sont une ÉTAPE, un passage, pas sa vie — chaque journée tenue est une brique de la maison à Oran, de sa liberté future, de la vie qu'il prépare pour sa femme et Ibrahim ;
 - trouve UNE image forte et nouvelle pour lui donner du courage (ex. le marin qui traverse la tempête, la graine sous la neige, l'athlète dans le dernier kilomètre, l'homme qui porte sa famille sur le dos et ne plie pas…) ;
 - termine en douceur : ce soir c'est repos, sa famille, il l'a mérité ; demain il repart plus fort. Dernière phrase qui réchauffe.
 ⛔ INTERDIT : toute tâche, tout « avant midi », tout client à rappeler, tout chiffre à faire, toute action — c'est l'heure du repos. ⛔ Jamais médicament, pharmacie, santé, sevrage, programme Liberté (privé).
-Ne redis pas bonjour, ni son prénom en premier mot. Pas d'emoji, pas de liste, pas de citation ni de verset (le verset vient après). N'invente aucun fait.`, { max: 450, emergency: 'voix' }).catch(() => '');
+Ne redis pas bonjour, ni son prénom en premier mot. Pas d'emoji, pas de liste, pas de citation ni de verset (le verset vient après). N'invente aucun fait.`, { max: 400, emergency: 'voix' }).catch(() => '');
   const fallback = 'Journée accomplie, monsieur. Vous avez tenu, encore une fois, et le plus dur est derrière vous. Ce travail et ce pays ne sont qu\'une étape : chaque jour que vous tenez ici pose une pierre de votre maison à Oran. Ce soir, rien à faire, seulement vous reposer auprès des vôtres. Vous l\'avez mérité.';
   const { carPrivacy } = await import('./jarvis4.js');
   void quote;
@@ -215,12 +219,12 @@ export async function carGreeting(pos: { lat?: number; lng?: number } = {}, home
     : off ? 'Jour de congé (famille) : rappelle le sens de ce qu\'il construit (sa femme, Ibrahim, leur avenir en Algérie), sans lui donner de travail.'
     : 'Journée de travail : motive-le sur son business (FIK, ses clients, son objectif du mois, devenir un grand businessman en Algérie) avec UNE priorité concrète pour aujourd\'hui.';
   const speech = await ai(`Tu es JARVIS, l'intelligence artificielle majordome de Kouider (comme le Jarvis d'Iron Man) : voix calme, phrases précises et élégantes, VOUVOIEMENT, assurance tranquille, une petite pointe d'humour fin. Kouider vient de monter dans sa voiture ; tu lui as déjà dit bonjour, l'heure et la météo.
-Dis maintenant un VRAI DISCOURS DE MOTIVATION de 4 à 5 phrases (25 secondes à l'oral) : ne redis PAS « tous les systèmes sont opérationnels » ni « protocole » (la séquence de démarrage vient d'être dite) ; glisse une ou deux tournures d'IA du futur façon Jarvis (« mes projections indiquent… », « j'ai recalculé la trajectoire de votre journée », « analyse terminée : … ») SANS inventer aucun chiffre ; puis un discours qui donne la chair de poule — rythmé, puissant, avec une image forte, une montée en intensité et une phrase finale qui claque et donne envie de tout donner aujourd'hui. Parle à l'homme qu'il est en train de devenir. ${tone}
+Dis maintenant un DISCOURS DE MOTIVATION COURT de 2 à 3 phrases (12 secondes à l'oral, 45 mots maximum — Kouider 04/11 : « le vocal est trop long ») : ne redis PAS « tous les systèmes sont opérationnels » ni « protocole » (la séquence de démarrage vient d'être dite) ; glisse une ou deux tournures d'IA du futur façon Jarvis (« mes projections indiquent… », « j'ai recalculé la trajectoire de votre journée », « analyse terminée : … ») SANS inventer aucun chiffre ; puis un discours qui donne la chair de poule — rythmé, puissant, avec une image forte, une montée en intensité et une phrase finale qui claque et donne envie de tout donner aujourd'hui. Parle à l'homme qu'il est en train de devenir. ${tone}
 THÈMES (varie chaque fois) : ${THEMES[Math.floor(Math.random() * THEMES.length)]}.
 SA VIE : Kouider vit en BELGIQUE avec sa femme et leur fils Ibrahim, loin de l'Algérie. Il travaille et construit ici, à distance, l'avenir de sa famille EN ALGÉRIE (Oran) : la maison, la voiture, son business, pour pouvoir aller y vivre tous les trois. Ce sacrifice de l'exil a un but, tu peux le lui rappeler avec respect.
 ⛔ STRICTEMENT INTERDIT dans la voiture : médicament, pharmacie, santé, sevrage, programme Liberté, dose, envie — pas même une allusion. C'est privé.
 Ne redis pas bonjour, ni son prénom en premier mot. Il CONDUIT : aucune action à faire au téléphone maintenant (dis « en arrivant » si besoin). Pas d'emoji, pas de liste, pas de citation ni de verset (le verset vient après). N'invente aucun chiffre ni nom : seulement ce qui est dans le contexte, sinon reste général.
-Contexte (Grand Coach) : ${coach.slice(0, 1500)}`, { max: 450, emergency: 'voix' }).catch(() => '');
+Contexte (Grand Coach) : ${coach.slice(0, 1500)}`, { max: 400, emergency: 'voix' }).catch(() => '');
   const fallback = off ? 'Tous les systèmes sont opérationnels. Profitez des vôtres aujourd\'hui, c\'est pour eux que vous construisez tout cela.' : 'Tous les systèmes sont opérationnels. Une seule priorité aujourd\'hui, monsieur : un pas concret pour votre entreprise. Les grands se construisent dans la régularité.';
   const { carPrivacy } = await import('./jarvis4.js');
   return [boot, `${hello} ${time}${weather}.`, carPrivacy(speech || '') || fallback].join(' ');   // 04/11 : la citation → verset du Coran à la fin (carBlessing)

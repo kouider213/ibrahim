@@ -172,7 +172,7 @@ async function carBrief(body: Record<string, unknown> = {}): Promise<string> {
     promesse: promises.find(p => !PRIVATE_RX.test(String(p))) ?? null,
   };
   void dec;
-  const said = await ai(`Kouider vient de monter en voiture (CarPlay). Fais-lui son point en 3 à 5 phrases courtes à l'ORAL (20 secondes), comme JARVIS d'Iron Man : calme, précis, élégant, VOUVOIEMENT :
+  const said = await ai(`Kouider vient de monter en voiture (CarPlay). Fais-lui son point en 2 à 3 phrases courtes à l'ORAL (12 secondes, 45 mots maximum), comme JARVIS d'Iron Man : calme, précis, élégant, VOUVOIEMENT :
 d'abord sa prochaine étape et COMBIEN DE TEMPS IL LUI RESTE avant (dans_minutes, dit en mots simples : « le travail commence dans 25 minutes », « dans 1 heure 10 »), avec le temps de route et la marge (ou le retard) ; puis ce que veulent les 1-2 clients les plus chauds sur WhatsApp et combien attendent en tout ; puis la location ou la promesse du jour s'il y en a. JAMAIS de « décision » ni de proposition à choisir (resto, soirée…) : il conduit.
 Ne redis PAS l'heure (déjà dite). JAMAIS un mot sur médicament, pharmacie, santé, Liberté ou sevrage (c'est privé). S'il n'y a aucun fait, dis seulement « Rien d'urgent à signaler. Bonne route. ». Uniquement ces faits, n'invente rien. Ce qui est vide ou null : n'en parle PAS du tout (jamais « pas de… »). Pas de « salut », pas de numéro de téléphone, pas d'emoji, pas de liste. Termine par « Bonne route. »
 Faits : ${JSON.stringify(facts)}`, { max: 300, emergency: 'voix' }).catch(() => '');
