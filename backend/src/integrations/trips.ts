@@ -117,7 +117,10 @@ async function addFlight(f: NewFlight): Promise<Trip | string> {
   const dtz = f.depart_tz || guessTz(f.from), atz = f.arrive_tz || guessTz(f.to);
   const departAt = parseLocal(f.depart_local, dtz);
   if (!departAt) return '❌ Il me faut la date et l\'heure de départ (YYYY-MM-DD HH:MM).';
+  if (departAt < Date.now() - 2 * 86_400_000) return '❌ Cette date de départ est passée : vérifie le jour et l\'année du billet.';
   const arriveAt = parseLocal(f.arrive_local, atz) ?? undefined;
+  // « ah 1015 », « AH-1015 » → « AH1015 » (sinon doublon + radar qui ne trouve pas l'avion)
+  if (f.flight_number) f = { ...f, flight_number: f.flight_number.toUpperCase().replace(/[\s-]+/g, '') || undefined };
   const list = await readTrips();
   const dup = list.find(t => t.kind === 'flight' && t.who === who && Math.abs(t.departAt - departAt) < 30 * 60_000
     && (!f.flight_number || !t.flightNumber || norm(t.flightNumber) === norm(f.flight_number)));
@@ -134,7 +137,7 @@ async function addFlight(f: NewFlight): Promise<Trip | string> {
     flightNumber: f.flight_number?.toUpperCase(), airline: f.airline, from: f.from, to: f.to, departAt, arriveAt, tz: dtz,
     airport, checklist: who === 'kouider' ? kouiderChecklist(f.to) : [], validated: who === 'client', calendarIds: [],
     createdAt: new Date().toISOString(), source: f.source,
-    pnr: f.booking_ref?.toUpperCase() || undefined, terminal: f.terminal || undefined,
+    pnr: f.booking_ref?.toUpperCase() || undefined, terminal: f.terminal?.replace(/^\s*terminal\s*/i, '').trim() || undefined,
   };
 
   // Agenda FIK : le vol, et (pour Kouider) « être à l'aéroport » 2 h 30 avant → alerte de départ avec le trafic
@@ -162,6 +165,7 @@ async function addFlight(f: NewFlight): Promise<Trip | string> {
 /** Aller + retour de Kouider : la routine du matin est en pause entre les deux. */
 function linkPause(list: Trip[], out: Trip, back?: Trip): void {
   if (out.who !== 'kouider') return;
+  back ??= list.find(t => t.returnOf === out.id);          // billet aller renvoyé seul : on garde le retour déjà connu
   out.pauseFrom = dateOf(out.departAt);
   out.pauseTo = back ? dateOf(back.arriveAt ?? back.departAt) : undefined;
   if (back) back.returnOf = out.id;
@@ -348,7 +352,7 @@ function findTrip(list: Trip[], q: unknown): Trip | undefined {
   const s = norm(String(q ?? ''));
   const live = list.filter(t => t.departAt > Date.now() - 3 * 3600_000).sort((a, b) => a.departAt - b.departAt);
   if (!s) return live.find(t => t.who === 'kouider' && t.checklist.length) ?? live.find(t => t.checklist.length);
-  return list.find(t => t.id === String(q)) ?? live.find(t => norm(`${t.title} ${t.clientName ?? ''} ${t.to ?? ''} ${t.flightNumber ?? ''}`).includes(s))
+  return list.find(t => t.id === String(q)) ?? live.find(t => norm(`${t.title} ${t.clientName ?? ''} ${t.to ?? ''} ${t.flightNumber ?? ''} ${t.pnr ?? ''}`).includes(s))
     ?? live.find(t => s.split(' ').filter(w => w.length > 2).some(w => norm(`${t.title} ${t.clientName ?? ''}`).includes(w)));
 }
 
@@ -373,8 +377,14 @@ function show(t: Trip): string {
 }
 
 export async function travelTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
-  const action = String(input['action'] ?? 'list');
-  const items0 = (Array.isArray(input['items']) ? input['items'] : []).map(String).filter(Boolean);
+  const ALIAS: Record<string, string> = { remove: 'remove_items', delete_item: 'remove_items', delete_items: 'remove_items', add: 'add_items', add_item: 'add_items',
+    remove_item: 'remove_items', checklist: 'show', tick: 'check', done: 'check', untick: 'uncheck', status: 'track', where: 'track', add_flight: 'add_trip', add_ticket: 'add_trip' };
+  const a0 = String(input['action'] ?? 'list').toLowerCase().trim();
+  const action = ALIAS[a0] ?? a0;
+  const rawItems = Array.isArray(input['items']) ? input['items'] : typeof input['items'] === 'string' ? String(input['items']).split(/[,;]| et /) : [];
+  if (input['item']) rawItems.push(...String(input['item']).split(/[,;]| et /));
+  const items0 = rawItems.map(x => String(x).trim()).filter(Boolean);
+  input = { ...input, items: items0 };
   if (/houari/i.test(sessionId ?? '')) {
     // Houari peut seulement demander à Kouider de lui ramener / faire quelque chose avant son voyage
     if (action !== 'request' || !items0.length) return '❌ Réservé à Kouider. Houari peut seulement faire une demande pour son voyage (action request).';
@@ -384,23 +394,48 @@ export async function travelTool(input: Record<string, unknown>, sessionId?: str
 C'est ajouté à ta check-list, je te le rappelle avant le départ.`);
     return r.startsWith('✅') ? `✅ C'est noté, je le rappelle à Kouider avant son départ : ${items0.join(', ')}.` : r;
   }
+  if (action === 'add_items' && items0.length) {
+    const forRe = /\bpour\s+(houari|ma femme|ma m[eè]re|mon p[eè]re|mon fr[eè]re|ma s[oœ]eur|mon fils|ma fille|[A-ZÀ-Ü][a-zà-ü]+)\b/;
+    const m = items0.map(i => i.match(forRe)).find(Boolean);
+    if (input['phase'] === 'back' || m) {
+      const { addRequest } = await import('./flight-live.js');
+      const person = String(input['person'] ?? (m ? m[1]!.replace(/^ma |^mon /i, x => x.toLowerCase() === 'ma ' ? 'Ma ' : 'Mon ') : ''));
+      const clean = items0.map(i => i.replace(forRe, '').replace(/\(?\s*[àa] ramener au retour\s*\)?|\bau retour\b/gi, '').replace(/^(rapporter|ramener)\s+/i, '').replace(/\s{2,}/g, ' ').trim());
+      const tr = input['trip'] ? findTrip(await readTrips(), input['trip']) : undefined;
+      return addRequest(person, clean, input['phase'] === 'back' ? 'back' : 'out', tr);
+    }
+  }
   if (action === 'request') {
     if (!items0.length) return '❌ Dis-moi ce qu\'il faut ramener ou faire.';
     const { addRequest } = await import('./flight-live.js');
     const tr = input['trip'] ? findTrip(await readTrips(), input['trip']) : undefined;
     return addRequest(String(input['person'] ?? 'Houari'), items0, input['phase'] === 'back' ? 'back' : 'out', tr);
   }
+  if (action === 'set_key') {
+    // Clé d'un service de vols gratuit (AirLabs / Aviationstack) envoyée par Kouider → app_kv, jamais dans le dépôt
+    const prov = /aviation/i.test(String(input['provider'] ?? '')) ? 'aviationstack' : 'airlabs';
+    const k = String(input['key'] ?? '').trim();
+    if (!/^[\w-]{16,80}$/.test(k)) return '❌ Clé illisible : copie-colle la clé « API key » du tableau de bord.';
+    await kvSet(`cfg:${prov}_key`, k);
+    return `✅ Clé ${prov === 'airlabs' ? 'AirLabs' : 'Aviationstack'} enregistrée : je l'utilise pour l'heure prévue/estimée, le retard, le terminal et la porte de tes vols.`;
+  }
   if (action === 'track') {
     const { trackText } = await import('./flight-live.js');
     const all = await readTrips();
     const fl = all.filter(t => t.kind === 'flight' && (t.arriveAt ?? t.departAt + 4 * 3600_000) + 3 * 3600_000 > Date.now()).sort((a, b) => a.departAt - b.departAt);
     const s = norm(String(input['trip'] ?? ''));
-    const t = s ? fl.find(x => x.id === input['trip'] || norm(`${x.title} ${x.clientName ?? ''} ${x.flightNumber ?? ''}`).includes(s)) : (fl.find(x => x.who === 'kouider') ?? fl[0]);
+    const t = (s ? fl.find(x => x.id === input['trip'] || norm(`${x.title} ${x.clientName ?? ''} ${x.flightNumber ?? ''} ${x.pnr ?? ''} ${x.to ?? ''}`).includes(s)) : undefined) ?? (fl.find(x => x.who === 'kouider') ?? fl[0]);
     return t ? trackText(t) : 'Aucun vol à suivre. Envoie-moi un billet (photo, PDF ou mail).';
   }
   const list = await readTrips();
 
   if (action === 'add_trip') {
+    // Le cerveau se trompe parfois d'année (« 2025-11-10 » pour un billet de 2026) : un billet est toujours à venir
+    const dep0 = parseLocal(String(input['depart_local'] ?? ''), guessTz(String(input['from'] ?? '')));
+    let bump = 0;
+    while (dep0 && bump < 3 && dep0 + bump * 365.25 * 86_400_000 < Date.now() - 2 * 86_400_000) bump++;
+    if (bump) for (const k of ['depart_local', 'arrive_local', 'return_depart_local', 'return_arrive_local'])
+      if (typeof input[k] === 'string') input[k] = (input[k] as string).replace(/^(\d{4})/, y => String(Number(y) + bump));
     const base: NewFlight = {
       who: input['who'] === 'client' ? 'client' : 'kouider', client_name: input['client_name'] as string | undefined,
       booking_id: input['booking_id'] as string | undefined, flight_number: input['flight_number'] as string | undefined,
@@ -421,7 +456,8 @@ C'est ajouté à ta check-list, je te le rappelle avant le départ.`);
       if (typeof r !== 'string') back = r;
     }
     const fresh = await readTrips();
-    const o = fresh.find(t => t.id === out.id)!;
+    const o = fresh.find(t => t.id === out.id);
+    if (!o) return '❌ Cette date de départ est passée : vérifie le jour et l\'année du billet.';
     if (back) { const b = fresh.find(t => t.id === back!.id)!; b.checklist = []; b.validated = true; }
     linkPause(fresh, o, back && fresh.find(t => t.id === back!.id));
     await writeTrips(fresh);
@@ -452,6 +488,7 @@ C'est ajouté à ta check-list, je te le rappelle avant le départ.`);
     t.validated = false;
   } else if (action === 'remove_items') {
     const hit = matchItems(t, items);
+    if (!hit.length) return `❌ Je ne vois pas « ${items.join(', ')} » dans la check-list.\n${show(t)}`;
     t.checklist = t.checklist.filter(i => !hit.includes(i));
   } else if (action === 'check' || action === 'validate') {
     const hit = action === 'validate' ? t.checklist : matchItems(t, items);
@@ -468,7 +505,10 @@ C'est ajouté à ta check-list, je te le rappelle avant le départ.`);
 
   if (!t.validated && t.checklist.length && t.checklist.every(i => i.done)) { t.validated = true; t.validatedAt = new Date().toISOString(); }
   await writeTrips(list);
-  return t.validated ? `🎉 Check-list VALIDÉE pour ${t.title} — plus de rappels. Bon voyage !\n${show(t)}` : show(t);
+  // « ✅ » en tête : le garde anti-invention (response-guard) sait que l'action a vraiment eu lieu
+  const done = action === 'add_items' ? `ajouté : ${items.join(', ')}` : action === 'remove_items' ? `retiré : ${items.join(', ')}`
+    : action === 'uncheck' ? `décoché : ${items.join(', ')}` : `coché : ${action === 'validate' ? 'tout' : items.join(', ')}`;
+  return t.validated ? `✅ 🎉 Check-list VALIDÉE pour ${t.title} — plus de rappels. Bon voyage !\n${show(t)}` : `✅ ${done.charAt(0).toUpperCase() + done.slice(1)}\n${show(t)}`;
 }
 
 /** Billet reçu en PDF / image hors chat (ex. Telegram) — utilisé si besoin par d'autres modules. */

@@ -3,6 +3,14 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (14) — Vols : services AirLabs/Aviationstack + 9 bugs trouvés par test « comme Kouider »
+- `flight-live.ts` : statut AirLabs (1000/mois) → Aviationstack (100/mois) → Gemini ; clé par `travel set_key` (app_kv `cfg:*_key`) ou env `AIRLABS_API_KEY`/`AVIATIONSTACK_API_KEY`.
+- Banc isolé (faux Telegram/appels/agenda/mémoire, horloge + radar pilotés) : 83/83 + 8 tours avec le vrai cerveau. Bugs corrigés :
+  numéro « ah 1015 » → doublon de vol (normalisé AH1015) ; billet aller renvoyé seul effaçait la pause retour ; statut « à l'heure » malgré 75 min de retard ;
+  arrivée pas décalée dans le message de retard ; ETA au décollage trop tard ; vol client : agenda arrivée décalé à l'heure de départ + décollage jamais vu (aéroport d'arrivée pris pour départ) ;
+  année passée (le cerveau écrivait 2025) → crash + agenda dans le passé (année corrigée, départ passé refusé) ; recherche par référence PNR ; alias remove/add/item ;
+  add_items « au retour / pour Houari » → demande ; réponses check/add/remove commencent par ✅ (garde anti-invention bloquait à tort) ; « terminal Terminal A ».
+
 ## 2026-11-04 (13) — Vols suivis en direct + demandes de Houari
 - `flight-live.ts` (job `flight-live` */5) : pour chaque vol des 30 h à venir (Kouider ET clients) → statut web (Gemini + Google Search, retard appliqué après 2 lectures concordantes), radar ADS-B en direct (adsb.lol → airplanes.live, indicatif OACI ou immatriculation), décollage / atterrissage / « pas encore décollé » +20 et +60 min.
 - Retard → agenda FIK décalé (vol + « être à l'aéroport ») + `dep:<id>` remis à zéro → heure de partir recalculée avec le trafic ; ≥ 60 min → appel ; annulation → appel urgent ; changement de terminal / porte.

@@ -109,7 +109,75 @@ async function radarOne(path: string): Promise<LiveState['pos'] | null> {
 }
 
 /** Statut du vol (heure prévue/estimée, annulé, terminal, porte) lu sur le web par Gemini + Google Search. */
-async function webStatus(t: Trip): Promise<{ sched?: string; est?: string; est_arr?: string; delay_min?: number; cancelled?: boolean; terminal?: string; gate?: string; status?: string; source?: string; callsign?: string; registration?: string } | null> {
+type WebStatus = { sched?: string; est?: string; est_arr?: string; delay_min?: number; cancelled?: boolean; terminal?: string; gate?: string; status?: string; source?: string; callsign?: string; registration?: string };
+
+/** Clé d'un service de vols : variable Railway ou app_kv `cfg:<nom>` (posée par « set_key »). */
+async function apiKey(env: string, kv: string): Promise<string | null> {
+  return process.env[env]?.trim() || (await kvGet(`cfg:${kv}`).catch(() => null))?.trim() || null;
+}
+/** Quota mensuel d'un service (gratuit) : false si épuisé ce mois-ci. */
+async function spend(name: string, perMonth: number): Promise<boolean> {
+  const k = `flight:quota:${name}:${new Date().toISOString().slice(0, 7)}`;
+  const n = Number((await kvGet(k).catch(() => null)) ?? 0);
+  if (n >= perMonth) return false;
+  await kvSet(k, String(n + 1), 40 * 86_400);
+  return true;
+}
+const hhmmOf = (v: unknown, tz: string): string | undefined => {
+  const str = String(v ?? '');
+  if (!str) return undefined;
+  const ts = /[zZ]|[+-]\d{2}:?\d{2}$/.test(str) ? Date.parse(str) : NaN;
+  if (Number.isFinite(ts)) return localNow(ts, tz).hhmm;
+  const m = str.match(/(\d{2}):(\d{2})/);
+  return m ? `${m[1]}:${m[2]}` : undefined;
+};
+const STATUS_FR: Record<string, string> = { scheduled: "à l'heure", active: 'parti', 'en-route': 'en vol', landed: 'atterri', cancelled: 'annulé', diverted: 'dérouté', delayed: 'retardé', incident: 'incident' };
+
+/** AirLabs (gratuit 1000 demandes/mois, clé AIRLABS_API_KEY). Heures locales des aéroports. */
+async function airlabs(t: Trip): Promise<WebStatus | null> {
+  const key = await apiKey('AIRLABS_API_KEY', 'airlabs_key');
+  if (!key || !t.flightNumber || !(await spend('airlabs', 950))) return null;
+  const j = await getJson<{ response?: Record<string, unknown>; error?: unknown }>(`https://airlabs.co/api/v9/flight?flight_iata=${encodeURIComponent(t.flightNumber)}&api_key=${key}`, 12_000);
+  const r = j?.response;
+  if (!r || !r['dep_time']) return null;
+  if (String(r['dep_time']).slice(0, 10) !== localNow(t.departAt, t.tz).date) return null;      // autre jour (vol de demain pas encore publié)
+  const st = String(r['status'] ?? '');
+  const delay = Number(r['dep_delayed'] ?? r['delayed'] ?? 0) || 0;
+  return { sched: hhmmOf(r['dep_time'], t.tz), est: hhmmOf(r['dep_actual'] ?? r['dep_estimated'], t.tz), est_arr: hhmmOf(r['arr_estimated'], guessTzOf(t.to)),
+    delay_min: delay, cancelled: st === 'cancelled', terminal: r['dep_terminal'] ? String(r['dep_terminal']) : undefined, gate: r['dep_gate'] ? String(r['dep_gate']) : undefined,
+    status: delay >= 15 && (!st || st === 'scheduled') ? 'retardé' : STATUS_FR[st] ?? (st || undefined), source: 'AirLabs', callsign: r['flight_icao'] ? String(r['flight_icao']) : undefined,
+    registration: r['reg_number'] ? String(r['reg_number']) : undefined };
+}
+
+/** Aviationstack (gratuit 100 demandes/mois, clé AVIATIONSTACK_API_KEY) : seulement les 4 dernières heures. */
+async function aviationstack(t: Trip): Promise<WebStatus | null> {
+  const key = await apiKey('AVIATIONSTACK_API_KEY', 'aviationstack_key');
+  if (!key || !t.flightNumber || (t.departAt - Date.now()) > 4 * 3600_000 || !(await spend('aviationstack', 95))) return null;
+  type Side = { scheduled?: string; estimated?: string; actual?: string; delay?: number | null; terminal?: string | null; gate?: string | null };
+  const j = await getJson<{ data?: Array<{ flight_date?: string; flight_status?: string; departure?: Side; arrival?: Side; flight?: { icao?: string }; aircraft?: { registration?: string } | null }> }>(
+    `http://api.aviationstack.com/v1/flights?access_key=${key}&flight_iata=${encodeURIComponent(t.flightNumber)}`, 12_000);
+  const day = localNow(t.departAt, t.tz).date;
+  const f = j?.data?.find(x => x.flight_date === day);
+  if (!f?.departure) return null;
+  const d = f.departure, st = String(f.flight_status ?? '');
+  const delay = Number(d.delay ?? 0) || 0;
+  // Aviationstack écrit l'heure LOCALE suivie de « +00:00 » : on ne garde que HH:MM
+  const hh = (v?: string) => v?.match(/T(\d{2}:\d{2})/)?.[1];
+  return { sched: hh(d.scheduled), est: hh(d.actual ?? d.estimated), est_arr: hh(f.arrival?.estimated), delay_min: delay,
+    cancelled: st === 'cancelled', terminal: d.terminal ?? undefined, gate: d.gate ?? undefined, status: delay >= 15 && (!st || st === 'scheduled') ? 'retardé' : STATUS_FR[st] ?? (st || undefined),
+    source: 'Aviationstack', callsign: f.flight?.icao, registration: f.aircraft?.registration };
+}
+
+/** Statut : AirLabs → Aviationstack → Gemini + Google Search (le premier qui répond). */
+async function webStatus(t: Trip): Promise<WebStatus | null> {
+  for (const src of [airlabs, aviationstack, geminiStatus]) {
+    const r = await src(t).catch(() => null);
+    if (r) return r;
+  }
+  return null;
+}
+
+async function geminiStatus(t: Trip): Promise<WebStatus | null> {
   const keys = [process.env['GEMINI_API_KEY'], ...(process.env['GEMINI_API_KEYS'] ?? '').split(',')].map(k => k?.trim()).filter(Boolean) as string[];
   if (!keys.length || !t.flightNumber) return null;
   const day = localNow(t.departAt, t.tz).date;
@@ -160,7 +228,8 @@ async function shiftAgenda(t: Trip, minutes: number): Promise<void> {
   const [flightId, airportId] = t.calendarIds;
   const dep = t.departAt + minutes * 60_000;
   const end = (t.arriveAt ?? t.departAt + 3 * 3600_000) + minutes * 60_000;
-  if (flightId) await updateAgendaEvent(flightId, { start: iso(dep), end: iso(end) }).catch(() => false);
+  // Kouider : l'événement = le vol (départ → arrivée) ; client : l'événement = son ARRIVÉE (1 h)
+  if (flightId) await updateAgendaEvent(flightId, mine(t) ? { start: iso(dep), end: iso(end) } : { start: iso(end), end: iso(end + 3600_000) }).catch(() => false);
   if (airportId && mine(t)) {
     const a = dep - 150 * 60_000;
     await updateAgendaEvent(airportId, { start: iso(a), end: iso(a + 30 * 60_000),
@@ -238,6 +307,7 @@ async function eveBriefing(t: Trip, st: LiveState, list: Trip[]): Promise<string
   return lines.join('\n');
 }
 
+const depAirport = (t: Trip) => (mine(t) ? t.airport ?? t.from : t.from) ?? '';
 function guessTzOf(place?: string): string { return isDZ(place) ? 'Africa/Algiers' : TZ; }
 
 // ── Le job ──────────────────────────────────────────────────────────────────
@@ -257,7 +327,7 @@ async function watchOne(t: Trip, list: Trip[], now: number): Promise<void> {
   if (!st.token) st.token = randomBytes(9).toString('base64url');
   const hBefore = (t.departAt - now) / 3_600_000;
   const name = mine(t) ? `Ton vol ${t.flightNumber ?? ''}`.trim() : `Le vol de ${t.clientName ?? 'ton client'}${t.flightNumber ? ` (${t.flightNumber})` : ''}`;
-  if (!st.from) st.from = await airportPoint(t.airport ?? t.from ?? '') ?? undefined;
+  if (!st.from) st.from = await airportPoint(depAirport(t)) ?? undefined;
   if (!st.to) st.to = await airportPoint(t.to ?? '') ?? undefined;
 
   // 1. Statut web : toutes les 3 h jusqu'à H-6, puis toutes les 30 min, puis 20 min après l'heure prévue tant qu'il n'a pas décollé
@@ -273,6 +343,7 @@ async function watchOne(t: Trip, list: Trip[], now: number): Promise<void> {
         await tell(t, st, 'cancel', `❌ ${name} ${t.from} → ${t.to} est indiqué ANNULÉ${s.source ? ` (source : ${s.source})` : ''}.\nVérifie tout de suite chez la compagnie${t.pnr ? ` (réservation ${t.pnr})` : ''}.`, '❌ Vol annulé');
         if (mine(t)) await autoCall(`flight-cancel:${t.id}`, `Kouider, attention : ton vol ${t.flightNumber ?? ''} vers ${t.to} est indiqué annulé. Vérifie vite chez la compagnie.`, { level: 'urgent' });
       }
+      if (s.terminal) s.terminal = String(s.terminal).replace(/^\s*terminal\s*/i, '').trim();
       if (s.terminal && s.terminal !== st.terminal) { const old = st.terminal; st.terminal = s.terminal; if (old) await tell(t, st, `term:${s.terminal}`, `🔀 ${name} : changement de terminal → ${s.terminal} (avant ${old}).`); }
       if (s.gate && s.gate !== st.gate) { st.gate = s.gate; if (hBefore < 3) await tell(t, st, `gate:${s.gate}`, `🚪 ${name} : porte ${s.gate}${st.terminal ? `, terminal ${st.terminal}` : ''}.`); }
       // Retard : appliqué seulement si 2 lectures à ±10 min l'une de l'autre
@@ -289,7 +360,7 @@ async function watchOne(t: Trip, list: Trip[], now: number): Promise<void> {
           const tag = `delay:${Math.round(d / 15)}`;
           if (d >= 15) {
             const lp = mine(t) ? await leavePlan(t, st).catch(() => null) : null;
-            await tell(t, st, tag, `⏳ ${name} ${t.from} → ${t.to} a du RETARD : ${d} min.\n🛫 Nouveau départ ≈ ${at(newDep, t.tz)} (au lieu de ${at(t.departAt, t.tz)})${s.est_arr ? ` · arrivée ≈ ${s.est_arr}` : ''}${s.source ? `\nSource : ${s.source}` : ''}\n📅 Agenda FIK décalé${mine(t) ? ` — « être à l'aéroport » à ${at(newDep - 150 * 60_000, t.tz)}${lp ? `, partir vers ${at(lp.leave, TZ)}` : ''} (je te redis avec le trafic)` : ' — décale la remise de la voiture'}.`, `⏳ Vol retardé de ${d} min`);
+            await tell(t, st, tag, `⏳ ${name} ${t.from} → ${t.to} a du RETARD : ${d} min.\n🛫 Nouveau départ ≈ ${at(newDep, t.tz)} (au lieu de ${at(t.departAt, t.tz)})${s.est_arr ? ` · arrivée ≈ ${s.est_arr.replace(':', 'h')}` : t.arriveAt ? ` · arrivée ≈ ${at(t.arriveAt + d * 60_000, guessTzOf(t.to))}` : ''}${s.source ? `\nSource : ${s.source}` : ''}\n📅 Agenda FIK décalé${mine(t) ? ` — « être à l'aéroport » à ${at(newDep - 150 * 60_000, t.tz)}${lp ? `, partir vers ${at(lp.leave, TZ)}` : ''} (je te redis avec le trafic)` : ' — décale la remise de la voiture'}.`, `⏳ Vol retardé de ${d} min`);
             if (mine(t) && d >= 60 && hBefore < 5) await autoCall(`flight-delay:${t.id}:${Math.round(d / 30)}`, `Kouider, ton vol pour ${t.to} a ${d} minutes de retard. Nouveau départ vers ${at(newDep, t.tz).replace('h', ' heures ')}. Pas besoin de partir aussi tôt, j'ai décalé l'agenda.`, { level: 'urgent' });
           } else await tell(t, st, tag, `✅ ${name} est de nouveau à l'heure : départ ${at(t.departAt, t.tz)}.`);
         } else st.pendingDelay = d;
@@ -331,8 +402,9 @@ async function watchOne(t: Trip, list: Trip[], now: number): Promise<void> {
       if (!p.ground && p.alt > 300 && !st.airborneAt && (fromKm == null || fromKm < 400)) {
         st.airborneAt = now;
         const late = Math.round((now - t.departAt) / 60_000);
-        if (toKm && p.spd > 200) st.etaAt = now + (toKm / (p.spd * 0.92)) * 3_600_000 + 12 * 60_000;
-        await tell(t, st, 'takeoff', `🛫 ${name} a DÉCOLLÉ (${at(now, t.tz)}${late >= 15 ? `, ${late} min de retard` : ''}).${st.etaAt ? `\n🛬 Arrivée estimée ≈ ${at(st.etaAt, guessTzOf(t.to))} heure de ${t.to}.` : ''}\n🌍 Suis-le en direct : app GLOBE › « 🧳 Mon vol »${mine(t) ? ` · lien famille ${PUBLIC}/api/vol/suivi/${st.token}` : ''}`, '🛫 Décollé');
+        if (t.arriveAt) st.etaAt = now + (t.arriveAt - t.departAt);
+        else if (toKm && p.spd > 200) st.etaAt = now + (toKm / (Math.max(p.spd, 780) * 0.92)) * 3_600_000 + 12 * 60_000;
+        await tell(t, st, 'takeoff', `🛫 ${name} a DÉCOLLÉ (${at(now, t.tz)}${late >= 15 ? `, ${late} min de retard` : ''}).${st.etaAt ? `\n🛬 Arrivée estimée ≈ ${at(st.etaAt, guessTzOf(t.to))} heure ${/^[aeiouyéèh]/i.test(t.to ?? '') ? 'd’' : 'de '}${t.to}.` : ''}\n🌍 Suis-le en direct : app GLOBE › « 🧳 Mon vol »${mine(t) ? ` · lien famille ${PUBLIC}/api/vol/suivi/${st.token}` : ''}`, '🛫 Décollé');
         if (mine(t) && st.etaAt && (await quietUntil()) < st.etaAt) await setQuietUntil(st.etaAt + 30 * 60_000);   // mode avion : pas d'appels pendant le vol
       } else if (st.airborneAt && toKm != null && p.spd > 200) st.etaAt = now + (toKm / (p.spd * 0.92)) * 3_600_000 + 12 * 60_000;
       if (st.airborneAt && toKm != null && toKm < 15 && (p.ground || p.alt < 150)) await landed(t, st, name, now);
@@ -382,7 +454,7 @@ export async function flightView(t: Trip, refresh = true): Promise<FlightView> {
     const p = await radar(css, st.reg).catch(() => null);
     if (p) st.pos = p;
   }
-  if (!st.from) st.from = await airportPoint(t.airport ?? t.from ?? '') ?? undefined;
+  if (!st.from) st.from = await airportPoint(depAirport(t)) ?? undefined;
   if (!st.to) st.to = await airportPoint(t.to ?? '') ?? undefined;
   const leftKm = st.pos && st.to ? Math.round(distKm(st.pos, st.to)) : undefined;
   const tot = st.from && st.to ? distKm(st.from, st.to) : undefined;
