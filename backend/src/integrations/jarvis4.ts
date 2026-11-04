@@ -327,8 +327,10 @@ export async function carWidgetData(): Promise<Record<string, unknown>> {
   else if (/^Trafic chargé/.test(roadI.road)) jarvis = 'La route est lente. Patience, Monsieur : on arrive entier.';
   const wordOf = (c: number) => c < 0 ? '' : c >= 95 ? 'orage' : c >= 71 && c <= 86 && !(c >= 80 && c <= 82) ? 'neige' : c >= 51 ? 'pluie' : c === 45 || c === 48 ? 'brouillard' : c >= 3 ? 'gris' : 'dégagé';
   const tomorrowMorning = H >= 17 || H < 3 ? [wordOf(sun.tmCode), sun.tmMin <= 1 ? 'gel, attention au verglas' : sun.tmMin <= 5 ? 'froid' : ''].filter(Boolean).join(', ') : '';
+  // Scriptable en arabe chez Kouider (04/11) → mise en page miroir ; « car:widget:rtl » = false s'il repasse en français
+  const rtl = await kvJson<boolean>('car:widget:rtl', true);
   return {
-    v: 5, eid, ramadan, friday: wdNow === 5, fennecs, tomorrow: tomorrowMorning ? `Demain matin : ${tomorrowMorning}` : '',
+    v: 5, rtl, eid, ramadan, friday: wdNow === 5, fennecs, tomorrow: tomorrowMorning ? `Demain matin : ${tomorrowMorning}` : '',
     at: hhmm, phase, sunPos, moonPos, mode, modeLabel, greeting, fx,
     alert: meteo ? (t! <= 3 ? '❄️ Risque de verglas' : meteo.rain ? '🌧️ Pluie, prudence' : meteo.wind >= 50 ? '💨 Vent fort' : '') : '',
     weatherE: phase === 'nuit' && meteo && meteo.code <= 1 ? '🌙' : phase === 'nuit' && meteo && meteo.code <= 3 ? '☁️' : meteo?.e ?? '', weather: [feel, (meteo?.label ?? '').toLowerCase()].filter(Boolean).join(' · '),

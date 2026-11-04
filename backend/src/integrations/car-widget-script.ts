@@ -233,23 +233,29 @@ w.setPadding(0, 0, 0, 0);
 w.backgroundImage = c.getImage();
 // Texte natif aux mêmes places que l'ancien dessin (unités W×H → points du widget)
 const PS = wPt / W;
+const RTL = data.rtl === true || /^(ar|he|fa|ur)/i.test(String(Device.language ? Device.language() : ""));
 const col = w.addStack(); col.layoutVertically(); col.topAlignContent();
 let cur = 0;
 TXT.sort((a, b) => a.y - b.y).forEach(it => {
   const gap = it.y - cur;
   if (gap > 0) col.addSpacer(gap * PS);
   cur = Math.max(cur, it.y) + it.h;
+  // Scriptable en arabe → iOS inverse les rangées (1er enfant à droite) : on ajoute les éléments dans l'ordre inverse
   const row = col.addStack(); row.layoutHorizontally();
-  if (it.x > 0) row.addSpacer(it.x * PS);
-  const box = row.addStack(); box.size = new Size(it.w * PS, it.h * PS); box.topAlignContent(); box.layoutHorizontally();
-  if (it.align === "right" || it.align === "center") box.addSpacer();
-  const tx = box.addText(it.s);
+  const lead = () => { if (it.x > 0) row.addSpacer(it.x * PS); };
+  if (RTL) row.addSpacer(); else lead();
+  const bx = row.addStack(); bx.size = new Size(it.w * PS, it.h * PS); bx.topAlignContent(); bx.layoutHorizontally();
+  const flexIn = () => { if (it.align !== "right") bx.addSpacer(); };
+  const flexOut = () => { if (it.align === "right" || it.align === "center") bx.addSpacer(); };
+  if (RTL) flexIn(); else flexOut();
+  const tx = bx.addText(it.s);
   tx.font = Font[it.font.k + "SystemFont"](it.font.n * PS); tx.textColor = it.color;
   tx.lineLimit = Math.max(1, Math.floor(it.h / (it.font.n * 1.18)));
   tx.minimumScaleFactor = 0.7;
   tx.shadowColor = new Color("#000000", 0.55); tx.shadowRadius = 2; tx.shadowOffset = new Point(0, 1);
-  if (it.align !== "right") box.addSpacer();
-  row.addSpacer();
+  if (RTL) { if (it.align === "center") tx.centerAlignText(); else if (it.align === "right") tx.leftAlignText(); else tx.rightAlignText(); }
+  if (RTL) flexOut(); else flexIn();
+  if (RTL) lead(); else row.addSpacer();
 });
 w.addSpacer();
 w.url = "shortcuts://run-shortcut?name=Jarvis";
