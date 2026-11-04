@@ -416,8 +416,16 @@ C'est ajouté à ta check-list, je te le rappelle avant le départ.`);
     const prov = /aviation/i.test(String(input['provider'] ?? '')) ? 'aviationstack' : 'airlabs';
     const k = String(input['key'] ?? '').trim();
     if (!/^[\w-]{16,80}$/.test(k)) return '❌ Clé illisible : copie-colle la clé « API key » du tableau de bord.';
+    if (prov === 'airlabs') {
+      const { airlabsCheck } = await import('./flight-live.js');
+      const ck = await airlabsCheck(k);
+      if (!ck) return '❌ AirLabs refuse cette clé (fausse ou expirée) : copie-colle la clé « API Key » du tableau de bord airlabs.co.';
+      await kvSet(`cfg:${prov}_key`, k);
+      const until = ck.expires ? ` Elle est valable jusqu'au ${new Date(ck.expires).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} : je te préviens si elle expire avant un de tes vols.` : '';
+      return `✅ Clé AirLabs vérifiée et enregistrée : je l'utilise pour l'heure prévue/estimée, le retard, le terminal et la porte de tes vols.${until}`;
+    }
     await kvSet(`cfg:${prov}_key`, k);
-    return `✅ Clé ${prov === 'airlabs' ? 'AirLabs' : 'Aviationstack'} enregistrée : je l'utilise pour l'heure prévue/estimée, le retard, le terminal et la porte de tes vols.`;
+    return `✅ Clé Aviationstack enregistrée : je l'utilise pour l'heure prévue/estimée, le retard, le terminal et la porte de tes vols.`;
   }
   if (action === 'track') {
     const { trackText } = await import('./flight-live.js');

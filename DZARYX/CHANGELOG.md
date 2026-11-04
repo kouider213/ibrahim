@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (15) — Vols : clé AirLabs vérifiée + rappel d'expiration
+- `trips.ts` set_key AirLabs : la clé est testée chez AirLabs avant d'être enregistrée (clé refusée = ❌) et Dzaryx annonce sa date de fin.
+- `flight-live.ts` : date d'expiration gardée dans app_kv `cfg:airlabs_exp` ; si elle tombe avant un vol de Kouider dans les 10 jours → 1 rappel Telegram par jour (9h-21h) pour reprendre une clé gratuite. Clé free actuelle : jusqu'au 04/12/2026.
+
 ## 2026-11-04 (14) — Vols : services AirLabs/Aviationstack + 9 bugs trouvés par test « comme Kouider »
 - `flight-live.ts` : statut AirLabs (1000/mois) → Aviationstack (100/mois) → Gemini ; clé par `travel set_key` (app_kv `cfg:*_key`) ou env `AIRLABS_API_KEY`/`AVIATIONSTACK_API_KEY`.
 - Banc isolé (faux Telegram/appels/agenda/mémoire, horloge + radar pilotés) : 83/83 + 8 tours avec le vrai cerveau. Bugs corrigés :

@@ -137,7 +137,8 @@ const STATUS_FR: Record<string, string> = { scheduled: "à l'heure", active: 'pa
 async function airlabs(t: Trip): Promise<WebStatus | null> {
   const key = await apiKey('AIRLABS_API_KEY', 'airlabs_key');
   if (!key || !t.flightNumber || !(await spend('airlabs', 950))) return null;
-  const j = await getJson<{ response?: Record<string, unknown>; error?: unknown }>(`https://airlabs.co/api/v9/flight?flight_iata=${encodeURIComponent(t.flightNumber)}&api_key=${key}`, 12_000);
+  const j = await getJson<{ response?: Record<string, unknown>; error?: unknown; request?: { key?: { expired?: string } } }>(`https://airlabs.co/api/v9/flight?flight_iata=${encodeURIComponent(t.flightNumber)}&api_key=${key}`, 12_000);
+  if (j?.request?.key?.expired) await kvSet('cfg:airlabs_exp', j.request.key.expired).catch(() => {});
   const r = j?.response;
   if (!r || !r['dep_time']) return null;
   if (String(r['dep_time']).slice(0, 10) !== localNow(t.departAt, t.tz).date) return null;      // autre jour (vol de demain pas encore publié)
@@ -312,9 +313,37 @@ function guessTzOf(place?: string): string { return isDZ(place) ? 'Africa/Algier
 
 // ── Le job ──────────────────────────────────────────────────────────────────
 
+/** Vérifie une clé AirLabs (1 demande) et retient sa date d'expiration. null = clé refusée. */
+export async function airlabsCheck(key: string): Promise<{ expires?: string } | null> {
+  const j = await getJson<{ error?: { code?: string }; request?: { key?: { expired?: string } } }>(`https://airlabs.co/api/v9/flight?flight_iata=AH1015&api_key=${encodeURIComponent(key)}`, 12_000);
+  if (!j?.request?.key) return null;
+  if (/key|auth|expired/i.test(String(j.error?.code ?? ''))) return null;
+  const exp = j.request.key.expired;
+  if (exp) await kvSet('cfg:airlabs_exp', exp).catch(() => {});
+  return { expires: exp };
+}
+
+/** Clé AirLabs gratuite = 1 mois : si elle expire avant un vol de Kouider dans les 10 jours → 1 rappel par jour (9h-21h). */
+async function airlabsExpiryReminder(list: Trip[], now: number): Promise<void> {
+  const exp = Date.parse((await kvGet('cfg:airlabs_exp').catch(() => null)) ?? '');
+  if (!Number.isFinite(exp)) return;
+  const next = list.filter(t => t.kind === 'flight' && mine(t) && t.departAt > now && t.departAt - now < 10 * 86_400_000).sort((a, b) => a.departAt - b.departAt)[0];
+  if (!next || exp > next.departAt + 86_400_000) return;
+  const loc = localNow(now, TZ);
+  const h = Number(loc.hhmm.slice(0, 2));
+  if (h < 9 || h >= 21) return;
+  const k = `flight:airlabs_remind:${loc.date}`;
+  if (await kvGet(k).catch(() => null)) return;
+  await kvSet(k, '1', 2 * 86_400);
+  const fmt = (ms: number) => new Date(ms).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', timeZone: TZ });
+  const dead = exp <= now;
+  await queueTelegramMessage(`✈️ Ta clé AirLabs (suivi des vols) ${dead ? `a expiré le ${fmt(exp)}` : `expire le ${fmt(exp)}`}, et ton vol ${next.flightNumber ?? ''} est le ${fmt(next.departAt)}.\n\nReprends une clé gratuite sur airlabs.co (2 min), puis envoie-moi : « clé airlabs TA_CLÉ ». Sans elle je suis quand même ton vol (radar + recherche web), mais moins précis sur le retard et la porte.`);
+}
+
 export async function jobFlightWatch(): Promise<void> {
   const now = Date.now();
   const list = await readTrips();
+  await airlabsExpiryReminder(list, now).catch(e => console.error('[flight-live] airlabs reminder', e instanceof Error ? e.message : e));
   const flights = list.filter(t => t.kind === 'flight' && t.departAt - now < 30 * 3600_000 && (t.arriveAt ?? t.departAt + 4 * 3600_000) + 6 * 3600_000 > now);
   for (const t of flights) {
     try { await watchOne(t, list, now); } catch (e) { console.error('[flight-live]', t.id, e instanceof Error ? e.message : e); }
