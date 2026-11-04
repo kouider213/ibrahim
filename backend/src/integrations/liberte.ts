@@ -1048,7 +1048,7 @@ export function looksLikeMedText(text: string): boolean {
   return /\bdemis?\b/.test(t) && !FOOD_RE.test(t);
 }
 /** « j'ai pris 2 demis », « je pris 6 demi aujourd'hui », « pris un comprimé et demi » → quantité en demis + total du jour ou nouvelle prise. */
-export function parseMedTake(text: string): { n: number; total: boolean } | null {
+export function parseMedTake(text: string): { n: number; total: boolean; rest?: boolean } | null {
   const t = text.toLowerCase().replace(/[’`]/g, "'").trim();
   const medWord = /comprim|cachet|m[ée]doc|m[ée]dicament|traitement|lib[ée]r/.test(t);
   if (t.length > 200 || (FOOD_RE.test(t) && !medWord) || /\?|combien|est-ce|je peux|puis-je|dois|vais|veux|envie/.test(t)) return null;
@@ -1058,7 +1058,12 @@ export function parseMedTake(text: string): { n: number; total: boolean } | null
   const v = Number(String(m[1]).replace(',', '.')) || NUM_WORDS[m[1]!] || 0;
   const n = m[2] ? v * 2 + (m[3] ? 1 : 0) : v;          // comprimés → demis
   if (!(n > 0 && n <= 30)) return null;
-  return { n, total: /aujourd|en tout|au total|depuis ce matin|dans la journ[ée]e/.test(t) };
+  // 04/11 « J'en ai marre moralement, je suis au travail, j'ai encore pris un demi… » → seul « ✅ Noté » partait, son moral ignoré.
+  // rest = il dit AUTRE CHOSE que la prise → le code note, puis le cerveau lui répond vraiment.
+  const left = t.replace(m[0], ' ').replace(/[^a-zà-ÿ' ]/g, ' ').split(/[\s']+/)
+    .filter(w => w && !/^(je|j|ai|pris|prise|pri|prends|prend|aval[ée]e?|viens|vien|de|d|du|un|une|le|la|les|l|ce|cette|matin|midi|soir|aujourd|hui|en|tout|au|total|depuis|dans|journ[ée]e|encore|l[àa]|[àa]|h|heure|heures|et|demi|demis|ok|voil[àa]|c|est|fait|bien|mon|ma|m[ée]doc|comprim[ée]s?|cachets?|lib[ée]rt[ée])$/.test(w));
+  const rest = left.length >= 3 || /marre|moral|fatigu|triste|stress|angoiss|d[ée]prim|craqu|pleur|seul|[ée]nerv|peux plus|en peux|mal\b|dur\b|travail|boulot|taf|aide/.test(t);
+  return { n, total: /aujourd|en tout|au total|depuis ce matin|dans la journ[ée]e/.test(t), rest };
 }
 /** Exécutée par le code (orchestrateur), réponse directe. « aujourd'hui / en tout » = TOTAL du jour → on n'ajoute que la différence. */
 export async function runMedTake(c: { n: number; total: boolean }): Promise<string> {

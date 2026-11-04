@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (16) — Liberté : un message « prise + moral » reçoit une vraie réponse
+- `liberte.ts` parseMedTake → `rest` quand le message dit autre chose que la prise (moral, travail, ≥ 3 mots en plus) ; `orchestrator.ts` : la prise est notée par le code puis le cerveau répond à ce qu'il vit (avant : seul « ✅ Noté : 1 demi… Prochaine 19:30 », son « j'en peux plus » ignoré).
+
 ## 2026-11-04 (15) — Vols : clé AirLabs vérifiée + rappel d'expiration
 - `trips.ts` set_key AirLabs : la clé est testée chez AirLabs avant d'être enregistrée (clé refusée = ❌) et Dzaryx annonce sa date de fin.
 - `flight-live.ts` : date d'expiration gardée dans app_kv `cfg:airlabs_exp` ; si elle tombe avant un vol de Kouider dans les 10 jours → 1 rappel Telegram par jour (9h-21h) pour reprendre une clé gratuite. Clé free actuelle : jusqu'au 04/12/2026.

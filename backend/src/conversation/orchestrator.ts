@@ -291,7 +291,11 @@ export async function processMessage(
   // LIBERTÉ en phrase normale (03/11 : « Je pris 6 demi aujourd'hui » → le cerveau a noté 6 DATTES dans le compteur calories)
   // → la prise est notée par le CODE dans Liberté, réponse directe
   const medCmd = actorUserId === 'kouider' && !sandbox ? (await import('../integrations/liberte.js')).parseMedTake(userMessage) : null;
-  if (medCmd) {
+  if (medCmd?.rest) {
+    // Il dit autre chose que la prise (moral, travail…) : le code note, le cerveau RÉPOND à ce qu'il vit
+    const done = await (await import('../integrations/liberte.js')).runMedTake(medCmd).catch(e => `❌ échec : ${e instanceof Error ? e.message : e}`);
+    ctx.systemExtra = `DÉJÀ FAIT PAR LE CODE pour ce message (ne rappelle PAS liberte prise) : ${done}\nDis-le en une demi-phrase au plus (sans chiffres en liste), puis réponds VRAIMENT à ce qu'il dit d'autre : son moral, sa fatigue, son travail. Comme un ami proche, chaleureux, sans juger ni faire la morale sur le comprimé : montre que tu as compris ce qu'il ressent, une phrase de soutien concrète, et une seule question pour qu'il en parle. Court, pas de liste, pas de titre.\n\n${ctx.systemExtra ?? ''}`.trim();
+  } else if (medCmd) {
     const done = await (await import('../integrations/liberte.js')).runMedTake(medCmd).catch(e => `❌ échec : ${e instanceof Error ? e.message : e}`);
     _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: done });
     saveConversationTurn(sessionId, 'assistant', done).catch(() => {});
