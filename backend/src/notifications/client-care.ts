@@ -134,9 +134,13 @@ type CarKm = { id: string; name: string; current_km: number | null; last_service
 /** Enregistre le km au compteur et retourne une ligne sur la prochaine vidange (alerte + appel si ≤ 1000 km ou dépassée). */
 export async function recordCarKm(carName: string, km: number): Promise<string> {
   if (!Number.isFinite(km) || km <= 0) return '';
-  const { data } = await supabase.from('cars').select('id, name, current_km, last_service_km, next_service_km, service_interval_km').ilike('name', `%${carName.trim()}%`).limit(5);
-  const cars = (data ?? []) as CarKm[];
-  const car = cars.find(c => c.name.toLowerCase() === carName.trim().toLowerCase()) ?? (cars.length === 1 ? cars[0] : undefined);
+  // 05/11 banc : « fiat 500x » ne trouvait pas « Fiat 500 X » (ilike avec espace) → comparaison sans espaces ni accents
+  const norm = (x: string) => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+  const { data: allCars } = await supabase.from('cars').select('id, name, current_km, last_service_km, next_service_km, service_interval_km');
+  const want = norm(carName);
+  const all = (allCars ?? []) as CarKm[];
+  const cars = want ? (all.filter(c => norm(c.name) === want).length ? all.filter(c => norm(c.name) === want) : all.filter(c => norm(c.name).includes(want) || want.includes(norm(c.name)))) : [];
+  const car = cars.find(c => norm(c.name) === want) ?? (cars.length === 1 ? cars[0] : undefined);
   if (!car) return cars.length ? `⚠️ Km non enregistré : plusieurs voitures « ${carName} » (${cars.map(c => c.name).join(', ')}). Laquelle ?` : `⚠️ Km non enregistré : voiture « ${carName} » introuvable.`;
   if (car.current_km && km < car.current_km - 50) return `⚠️ Km non enregistré : ${km.toLocaleString('fr-FR')} km est inférieur au dernier relevé (${car.current_km.toLocaleString('fr-FR')} km). Vérifie le compteur.`;
 

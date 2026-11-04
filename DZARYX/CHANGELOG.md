@@ -3,6 +3,13 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (21) — Secours Claude sur TOUT + voiture/réveil jamais muets + kilométrage
+- `anthropic-compat.ts` : tous les cerveaux gratuits en échec → la requête part sur Claude Haiku (quota 'tout' 100/jour) au lieu d'une erreur ; réglages Sonnet retirés (réflexion, repli serveur). Quotas chat 30 / voix 20 ; 1 info Telegram par jour.
+- `ai-util.ts` ai({emergency}) + `car-coach.ts`, `jarvis4.ts` carBrief, `morning-routine.ts` : discours voiture (aller/retour), point voiture et réveil → secours Claude si le gratuit tombe.
+- `fr-commands.ts` carKm : « la fiat 500x est à 45200 km » noté par le code (avant : faux « ✅ Noté » ; remember_info plantait) ; `client-care.ts` recordCarKm trouve « Fiat 500 X » sans espaces ; `remember_info` accepte {key, value}.
+- `tool-executor.ts` set_cities Belgique : parle en « tu », ne propose jamais de « forcer ».
+- Banc : phase 1 112/112 · outils 25/25 · Haiku testé en vrai (200).
+
 ## 2026-11-04 (20) — Banc phase 2, tour 2 : question gardée, secours Claude, SOS envie, CA du mois juste, impayés UNPAID
 - `brain-retry.ts` (nouveau, job */5) : tous les cerveaux gratuits saturés → la question est GARDÉE et rejouée, réponse sur Telegram (avant : « Service temporairement indisponible », question perdue).
 - `anthropic-compat.ts` + `orchestrator.ts` + `claude-api.ts` : secours Claude Haiku seulement si tout le gratuit a échoué, messages de Kouider seulement, 5×/jour max, info Telegram au 1er usage.

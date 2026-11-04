@@ -8,7 +8,16 @@ import { inSandbox } from './crash-test-sandbox.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 export { jsonOf } from './media-util.js';
 
-export async function ai(prompt: string, opts: { system?: string; quality?: boolean; max?: number; images?: Array<{ base64: string; mime: string }> } = {}): Promise<string> {
+/** emergency : 'voix' (voiture, réveil…) = si TOUS les cerveaux gratuits échouent, secours Claude Haiku (anthropic-compat). */
+export async function ai(prompt: string, opts: { system?: string; quality?: boolean; max?: number; images?: Array<{ base64: string; mime: string }>; emergency?: 'voix' | 'chat' } = {}): Promise<string> {
+  if (!opts.emergency) return aiOnce(prompt, opts);
+  const first = await aiOnce(prompt, opts).catch(e => { console.warn('[ai] gratuit en échec :', e instanceof Error ? e.message.slice(0, 120) : e); return ''; });
+  if (first) return first;
+  const { runClaudeEmergency } = await import('./anthropic-compat.js');
+  return (await runClaudeEmergency(() => aiOnce(prompt, { ...opts, quality: false }), opts.emergency).catch(() => null)) ?? '';
+}
+
+async function aiOnce(prompt: string, opts: { system?: string; quality?: boolean; max?: number; images?: Array<{ base64: string; mime: string }> }): Promise<string> {
   const content = [
     ...(opts.images ?? []).map(i => ({ type: 'image' as const, source: { type: 'base64' as const, media_type: (/png|webp|gif/.test(i.mime) ? i.mime : 'image/jpeg') as 'image/jpeg', data: i.base64 } })),
     { type: 'text' as const, text: prompt },

@@ -1352,7 +1352,9 @@ function inferUserId(sessionId?: string): string {
 
 async function rememberInfo(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   const category = (input['category'] as string | undefined) ?? 'fact';
-  const content  = input['content'] as string;
+  // 05/11 banc : le cerveau envoie souvent {key, value} ou {info} → « Cannot read properties of undefined (toLowerCase) » puis faux « ✅ Noté »
+  const content  = String(input['content'] ?? input['info'] ?? input['text'] ?? input['fact'] ?? (input['value'] != null ? `${input['key'] ? `${String(input['key']).replace(/_/g, ' ')} : ` : ''}${input['value']}` : '')).trim();
+  if (!content) return '❌ Rien à retenir : donne le contenu (content).';
   const userId   = inferUserId(sessionId);
   const domain: MemoryDomain = CATEGORY_TO_DOMAIN[category] ?? 'note';
   // Normalized SHA256 hash → same fact with punctuation/case variations = same key = UPDATE not INSERT
@@ -2789,7 +2791,7 @@ async function prospectAutopilotTool(input: Record<string, unknown>): Promise<st
     const be = cities.filter(isBelgianCity);
     // 05/11 banc : une liste mélangée (« Liège » + villes FR inventées) était ENREGISTRÉE telle quelle, Liège compris,
     // et remplaçait ses vraies villes → la moindre ville belge = rien n'est changé
-    if (be.length) return `❌ Pas de démarchage en Belgique (${be.join(', ')}) : Kouider l'a arrêté le 16/10. Seulement France et Algérie. RIEN n'a été changé (ses villes actuelles restent). Ne change les villes que s'il te les dicte lui-même.`;
+    if (be.length) return `❌ Pas de démarchage en Belgique (${be.join(', ')}) : tu l'as arrêté le 16/10, seulement France et Algérie. Rien n'a été changé, tes villes actuelles restent.\n[Consigne : parle-lui en « tu » (jamais « Kouider a… »). Ne propose JAMAIS de forcer ni d'ajouter la Belgique : c'est impossible. Propose seulement une ville française ou algérienne.]`;
     await setSiteCities(cities);
   }
   if (action === 'retry_demo') {

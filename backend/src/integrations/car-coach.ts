@@ -167,7 +167,7 @@ Dis-lui un discours de COURAGE de 4 à 5 phrases (25 secondes à l'oral), sincè
 - trouve UNE image forte et nouvelle pour lui donner du courage (ex. le marin qui traverse la tempête, la graine sous la neige, l'athlète dans le dernier kilomètre, l'homme qui porte sa famille sur le dos et ne plie pas…) ;
 - termine en douceur : ce soir c'est repos, sa famille, il l'a mérité ; demain il repart plus fort. Dernière phrase qui réchauffe.
 ⛔ INTERDIT : toute tâche, tout « avant midi », tout client à rappeler, tout chiffre à faire, toute action — c'est l'heure du repos. ⛔ Jamais médicament, pharmacie, santé, sevrage, programme Liberté (privé).
-Ne redis pas bonjour, ni son prénom en premier mot. Pas d'emoji, pas de liste, pas de citation ni de verset (le verset vient après). N'invente aucun fait.`, { max: 450 }).catch(() => '');
+Ne redis pas bonjour, ni son prénom en premier mot. Pas d'emoji, pas de liste, pas de citation ni de verset (le verset vient après). N'invente aucun fait.`, { max: 450, emergency: 'voix' }).catch(() => '');
   const fallback = 'Journée accomplie, monsieur. Vous avez tenu, encore une fois, et le plus dur est derrière vous. Ce travail et ce pays ne sont qu\'une étape : chaque jour que vous tenez ici pose une pierre de votre maison à Oran. Ce soir, rien à faire, seulement vous reposer auprès des vôtres. Vous l\'avez mérité.';
   const { carPrivacy } = await import('./jarvis4.js');
   void quote;
@@ -220,7 +220,7 @@ THÈMES (varie chaque fois) : ${THEMES[Math.floor(Math.random() * THEMES.length)
 SA VIE : Kouider vit en BELGIQUE avec sa femme et leur fils Ibrahim, loin de l'Algérie. Il travaille et construit ici, à distance, l'avenir de sa famille EN ALGÉRIE (Oran) : la maison, la voiture, son business, pour pouvoir aller y vivre tous les trois. Ce sacrifice de l'exil a un but, tu peux le lui rappeler avec respect.
 ⛔ STRICTEMENT INTERDIT dans la voiture : médicament, pharmacie, santé, sevrage, programme Liberté, dose, envie — pas même une allusion. C'est privé.
 Ne redis pas bonjour, ni son prénom en premier mot. Il CONDUIT : aucune action à faire au téléphone maintenant (dis « en arrivant » si besoin). Pas d'emoji, pas de liste, pas de citation ni de verset (le verset vient après). N'invente aucun chiffre ni nom : seulement ce qui est dans le contexte, sinon reste général.
-Contexte (Grand Coach) : ${coach.slice(0, 1500)}`, { max: 450 }).catch(() => '');
+Contexte (Grand Coach) : ${coach.slice(0, 1500)}`, { max: 450, emergency: 'voix' }).catch(() => '');
   const fallback = off ? 'Tous les systèmes sont opérationnels. Profitez des vôtres aujourd\'hui, c\'est pour eux que vous construisez tout cela.' : 'Tous les systèmes sont opérationnels. Une seule priorité aujourd\'hui, monsieur : un pas concret pour votre entreprise. Les grands se construisent dans la régularité.';
   const { carPrivacy } = await import('./jarvis4.js');
   return [boot, `${hello} ${time}${weather}.`, carPrivacy(speech || '') || fallback].join(' ');   // 04/11 : la citation → verset du Coran à la fin (carBlessing)

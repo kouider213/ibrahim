@@ -7,6 +7,12 @@
 
 ## Bugs Ouverts 🔴
 
+### B057 — Impayés jamais relancés quand le client n'a RIEN payé (banc 04/11) ✅ FIXÉ (403553db)
+Les filtres cherchaient payment_status PENDING/PARTIAL ; une résa sans aucun paiement est « UNPAID » → absente des relances, appels, moteur proactif, rapport impayés. UNPAID ajouté aux 7 endroits.
+
+### B056 — « Service temporairement indisponible » = question perdue (banc 04/11) ✅ FIXÉ (403553db)
+Tous les cerveaux gratuits saturés → question gardée (brain-retry.ts, rejouée */5, réponse Telegram) ; avant ça secours Claude Haiku 5×/jour (messages de Kouider seulement). Aussi : CA mensuel compté en entier dans 2 mois (prorata), « envie d'en prendre un » → « Quelle voiture ? » (SOS direct), contrat demandé par ID (par nom maintenant).
+
 ### B055 — « Je pris 6 demi aujourd'hui » compté comme 6 dattes dans FORME + Conscience qui repose la question avec l'ancien compte (03/11 15h34) ✅ FIXÉ
 Cause : le cerveau a choisi forme meal_text ; le rappel de prise à boutons restait ouvert (0/9) et la Conscience le relisait. Fix : prise dite en phrase normale notée par le code (parseMedTake/runMedTake, orchestrateur), garde dans forme meal_text/meal_fix/food_check, rappel fermé dès qu'une prise est notée (closeDecisions), Conscience ne voit/ne parle plus de ce programme.
 

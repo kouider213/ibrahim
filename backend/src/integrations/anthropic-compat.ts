@@ -99,18 +99,31 @@ function refreshFree(): void {
 import { AsyncLocalStorage as _ALS } from 'async_hooks';
 const emergencyALS = new _ALS<{ on: true }>();
 export const inClaudeEmergency = (): boolean => !!emergencyALS.getStore();
-export const EMERGENCY_PER_DAY = 5;
-/** Lance fn avec Claude autorisé (mode gratuit levé pour CE tour seulement). null = pas d'urgence possible (quota du jour, crédit à 0). */
-export async function runClaudeEmergency<T>(fn: () => Promise<T>): Promise<T | null> {
-  if (Date.now() < claudeDeadUntil || process.env['BENCH'] === '1') return null;
+// 04/11 soir (Kouider : « s'il a pas, il pourra utiliser le crédit Claude jusqu'à ce que le gratuit revienne ») :
+// 'chat' = ses messages (30/jour), 'voix' = voiture + réveil + messages programmés (20/jour). Haiku ≈ 0,2 centime le message.
+// 'tout' = n'importe quel autre appel du cerveau (mentor, appels, jobs…) quand le gratuit est mort (« Claude prend le secours sur tout »).
+export const EMERGENCY_PER_DAY = { chat: 30, voix: 20, tout: 100 } as const;
+/** Prend 1 place de secours Claude dans le quota du jour. false = pas de secours possible (quota atteint, crédit à 0, banc). */
+export async function takeClaudeEmergency(bucket: keyof typeof EMERGENCY_PER_DAY): Promise<boolean> {
+  if (Date.now() < claudeDeadUntil || process.env['BENCH'] === '1' || !env.ANTHROPIC_API_KEY) return false;
   const { kvGet, kvSet } = await import('./app-store.js');
   const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels' }).format(new Date());
-  const k = `claude:emergency:${day}`;
+  const k = `claude:emergency:${bucket}:${day}`;
   const n = Number((await kvGet(k).catch(() => null)) ?? 0);
-  if (n >= EMERGENCY_PER_DAY) return null;
+  const cap = EMERGENCY_PER_DAY[bucket];
+  if (n >= cap) return false;
   await kvSet(k, String(n + 1), 3 * 86_400).catch(() => {});
-  console.warn(`[claude-emergency] 🚑 tous les cerveaux gratuits ont échoué → Claude Haiku (${n + 1}/${EMERGENCY_PER_DAY} aujourd'hui)`);
-  if (n === 0) void import('../notifications/tg-outbox.js').then(m => m.queueTelegramMessage(`🚑 Info : mes cerveaux gratuits étaient tous saturés, j'ai utilisé le crédit Claude en secours (Haiku, le moins cher). Maximum ${EMERGENCY_PER_DAY} fois par jour.`, undefined, 'kouider', undefined, true)).catch(() => {});
+  console.warn(`[claude-emergency] 🚑 ${bucket} : cerveaux gratuits en échec → Claude Haiku (${n + 1}/${cap} aujourd'hui)`);
+  const told = `claude:emergency:told:${day}`;
+  if (!(await kvGet(told).catch(() => null))) {
+    await kvSet(told, '1', 2 * 86_400).catch(() => {});
+    void import('../notifications/tg-outbox.js').then(m => m.queueTelegramMessage(`🚑 Info : mes cerveaux gratuits sont saturés, je continue sur le crédit Claude (Haiku, le moins cher) jusqu'à ce qu'ils reviennent.`, undefined, 'kouider', undefined, true)).catch(() => {});
+  }
+  return true;
+}
+/** Lance fn avec Claude autorisé (mode gratuit levé pour CE tour seulement). null = pas d'urgence possible. */
+export async function runClaudeEmergency<T>(fn: () => Promise<T>, bucket: keyof typeof EMERGENCY_PER_DAY = 'chat'): Promise<T | null> {
+  if (!(await takeClaudeEmergency(bucket))) return null;
   return emergencyALS.run({ on: true }, fn);
 }
 export function freeModeOn(): boolean { refreshFree(); return freeCache.on && !emergencyALS.getStore(); }
@@ -354,7 +367,18 @@ export const compatFetch: typeof fetch = async (input, init) => {
     if (url.includes('count_tokens')) return json(200, { input_tokens: Math.ceil(String(init?.body ?? '').length / 3.5) });
     const r = parsed ? await freeBrain(parsed, quality) : null;
     if (r) return parsed!.stream ? toSSE(await r.json() as Body) : r;
-    return json(503, { type: 'error', error: { type: 'overloaded_error', message: 'mode gratuit : aucun cerveau gratuit disponible pour le moment' } });
+    // 🚑 04/11 soir : tout le gratuit est mort → Claude Haiku prend le relais sur TOUT (quota 'tout'), sinon 503 comme avant
+    if (!parsed || !(await takeClaudeEmergency('tout'))) {
+      return json(503, { type: 'error', error: { type: 'overloaded_error', message: 'mode gratuit : aucun cerveau gratuit disponible pour le moment' } });
+    }
+    parsed.model = CLAUDE_FAST;
+    delete parsed.fallbacks;
+    parsed.thinking = { type: 'disabled' };                       // réglages Sonnet (réflexion, repli serveur) retirés pour Haiku
+    parsed.output_config = { ...(parsed.output_config ?? {}), effort: 'low' };
+    const h = new Headers(init?.headers);
+    const b = (h.get('anthropic-beta') ?? '').split(',').map(x => x.trim()).filter(x => x && x !== FALLBACK_BETA);
+    if (b.length) h.set('anthropic-beta', b.join(',')); else h.delete('anthropic-beta');
+    init = { ...init, body: JSON.stringify(parsed), headers: h };
   }
   const canRescue = !!parsed && !parsed.stream;
   // Claude déjà connu comme coupé : on ne perd pas de temps, on revérifie toutes les 10 min

@@ -259,6 +259,22 @@ async function flight(raw: string): Promise<Direct | null> {
 }
 
 
+/** 🚗 « la fiat 500x est à 45200 km » (05/11 banc : faux « ✅ Noté » via remember_info qui plantait) → compteur noté par le code. */
+async function carKm(raw: string): Promise<Direct | null> {
+  const t = strip(raw).trim();
+  if (raw.length > 160 || /\?|combien|depuis|par jour|pour aller|trajet|d'ici|jusqu'a|route/.test(t)) return null;
+  const m = /^(?:la|le|ma|notre)?\s*([a-z0-9][a-z0-9 .-]{1,30}?)\s+(?:est a|a|affiche|fait|est maintenant a|compteur a)\s+(\d{1,3}(?:[ .]?\d{3})+|\d{4,6})\s*(?:km|kilometres?|bornes)\b/.exec(t)
+    ?? /\bcompteur (?:de )?(?:la |le )?([a-z0-9][a-z0-9 .-]{1,30}?)\s*:?\s*(\d{1,3}(?:[ .]?\d{3})+|\d{4,6})\s*(?:km)?\b/.exec(t);
+  if (!m) return null;
+  const name = m[1]!.replace(/\b(voiture|bagnole|tomobil)\b/g, '').trim();
+  const km = Number(m[2]!.replace(/[ .]/g, ''));
+  if (!name || !(km >= 100 && km <= 999_999)) return null;
+  const { recordCarKm } = await import('../notifications/client-care.js');
+  const r = await recordCarKm(name, km).catch(() => '');
+  if (!r || /introuvable/.test(r)) return null;     // pas une voiture de la flotte → le cerveau
+  return { text: r, direct: true };
+}
+
 /** 🔥 « j'ai trop envie d'en prendre un là » (05/11 banc : « Quelle voiture t'intéresse ? 🚗 ») → SOS Liberté, tout de suite. */
 async function craving(raw: string): Promise<Direct | null> {
   const t = strip(raw);
@@ -333,7 +349,7 @@ export async function frCommand(raw: string, sessionId = 'telegram_kouider'): Pr
   SID = sessionId;
   const msg = raw.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
   if (!msg) return null;
-  for (const f of [craving, privacy, reminder, rdv, dnd, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue]) {
+  for (const f of [craving, carKm, privacy, reminder, rdv, dnd, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue]) {
     const r = await f(msg).catch(e => ({ text: `❌ ${e instanceof Error ? e.message : e}`, direct: true }));
     if (r) return r;
   }

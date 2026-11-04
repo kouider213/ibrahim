@@ -197,8 +197,9 @@ export async function motivationLines(cfg: RoutineConfig, plan: DayPlan, date: s
   try { history = JSON.parse((await kvGet(HISTORY_KEY)) ?? '[]') as string[]; } catch { /* vide */ }
   try {
     const dossier = await kouiderDossierText().catch(() => '');
-    const res = await createAnthropic().messages.create({
-      model: 'claude-sonnet-5-5', max_tokens: 700, system: WAKE_SYSTEM,
+    // 04/11 soir : cerveaux gratuits tous saturés → secours Claude Haiku (quota 'voix'), sinon les 5 lignes de secours
+    const ask = (model: string) => createAnthropic().messages.create({
+      model, max_tokens: 700, system: WAKE_SYSTEM,
       messages: [{ role: 'user', content: [
         dossier,
         `Famille : ${cfg.family}.`,
@@ -206,6 +207,13 @@ export async function motivationLines(cfg: RoutineConfig, plan: DayPlan, date: s
         history.length ? `DÉJÀ UTILISÉ (ne pas répéter) :\n${history.slice(-20).join('\n')}` : '',
       ].filter(Boolean).join('\n\n') }],
     }, QUALITY);
+    const res = await ask('claude-sonnet-5-5').catch(async e => {
+      console.warn('[routine] motivation gratuit en échec :', e instanceof Error ? e.message.slice(0, 120) : e);
+      const { runClaudeEmergency, CLAUDE_FAST } = await import('./anthropic-compat.js');
+      const r = await runClaudeEmergency(() => ask(CLAUDE_FAST), 'voix');
+      if (!r) throw e;
+      return r;
+    });
     const text = res.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('').trim();
     if (text.split('\n').filter(l => l.trim()).length >= 4) {
       await kvSet(HISTORY_KEY, JSON.stringify([...history, text.replace(/\n+/g, ' | ').slice(0, 400)].slice(-30)));
