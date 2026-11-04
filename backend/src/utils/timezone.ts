@@ -45,10 +45,40 @@ export function toLocalISO(date: Date, tz: string): string {
   return f.format(date).replace(' ', 'T');
 }
 
+// ── Dates/heures telles que le cerveau les écrit (05/11 banc « comme Kouider ») ──
+// « 18h30 », « 18h », « 9H », « 18:30:00 » → « 18:30 ». null si illisible.
+export function normalizeHHMM(raw: unknown): string | null {
+  const m = /^\s*(\d{1,2})\s*(?:[:hH]\s*(\d{1,2})?)?(?::\d{2})?\s*$/.exec(String(raw ?? ''));
+  if (!m) return null;
+  const h = Number(m[1]), mi = Number(m[2] ?? 0);
+  if (h > 23 || mi > 59 || (!/[:hH]/.test(String(raw)))) return null;
+  return `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`;
+}
+
+/** « 2026-11-16 », « 2026-11-16T10:00 », « 16/11/2026 », « 16-11-2026 », « 16.11.26 », « 16/11 » → { date: YYYY-MM-DD, time? }.
+ *  Année PASSÉE écrite par erreur (le cerveau met souvent l'année d'avant) → prochaine occurrence à partir d'hier. */
+export function normalizeYMD(raw: unknown, today = new Date().toISOString().slice(0, 10)): { date: string; time?: string; yearFixed?: boolean } | null {
+  const s = String(raw ?? '').trim();
+  let y: number, mo: number, d: number, time: string | undefined;
+  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}:\d{2}))?/.exec(s);
+  if (m) { y = +m[1]!; mo = +m[2]!; d = +m[3]!; time = m[4]; }
+  else if ((m = /^(\d{1,2})[/.\-](\d{1,2})(?:[/.\-](\d{2,4}))?(?:\s+(?:à\s+)?(\d{1,2}[:h]\d{0,2}))?$/.exec(s))) {
+    d = +m[1]!; mo = +m[2]!; y = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : +today.slice(0, 4); time = m[4] ? normalizeHHMM(m[4]) ?? undefined : undefined;
+  } else return null;
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  const fmt = (yy: number) => `${yy}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  let date = fmt(y), yearFixed = false;
+  const ty = +today.slice(0, 4);
+  const yesterday = new Date(Date.parse(`${today}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  if (y < ty) { date = fmt(ty); if (date < yesterday) date = fmt(ty + 1); yearFixed = true; }
+  else if (!m?.[3] && /\//.test(s) && date < yesterday) date = fmt(ty + 1);     // « 10/01 » en novembre = janvier prochain
+  return { date, ...(time ? { time: normalizeHHMM(time) ?? time } : {}), ...(yearFixed ? { yearFixed } : {}) };
+}
+
 // ── Parse "HH:MM" in a given timezone → UTC Date ─────────────────────────────
 // Returns the next occurrence of that local time (today if future, tomorrow if past)
 export function parseLocalHHMM(HHmm: string, tz: string): Date | null {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(HHmm);
+  const match = /^(\d{1,2}):(\d{2})$/.exec(normalizeHHMM(HHmm) ?? HHmm);
   if (!match) return null;
   const [, hStr, mStr] = match;
   const h = Number(hStr), m = Number(mStr);
@@ -79,6 +109,9 @@ export function parseLocalHHMM(HHmm: string, tz: string): Date | null {
 // Pour les rappels à une date future ("le 29 juillet"). Retourne null si format invalide,
 // ou si la date+heure est déjà passée (un rappel ne peut pas être dans le passé).
 export function parseLocalDateTime(dateYMD: string, HHmm: string | undefined, tz: string): Date | null {
+  const nd = normalizeYMD(dateYMD, new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date()));
+  if (nd) { dateYMD = nd.date; if (!HHmm && nd.time) HHmm = nd.time; }
+  if (HHmm) HHmm = normalizeHHMM(HHmm) ?? HHmm;
   const dMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateYMD.trim());
   if (!dMatch) return null;
   let h = 9, m = 0;

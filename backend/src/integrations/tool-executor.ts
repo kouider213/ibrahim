@@ -682,7 +682,20 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
   const id = input['id'] as string;
   if (!id) return 'ID manquant';
 
+  // 05/11 banc : dates FR / année passée / prix en texte, et bénéfice jamais recalculé quand dates ou prix changent
+  const { normalizeYMD } = await import('../utils/timezone.js');
+  const todayBx = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels' }).format(new Date());
+  for (const dk of ['start_date', 'end_date']) {
+    if (!input[dk]) continue;
+    const nd = normalizeYMD(input[dk], todayBx);
+    if (!nd) return `❌ ${dk} illisible (« ${input[dk]} ») — format YYYY-MM-DD`;
+    input[dk] = nd.date;
+  }
+  const money = (v: unknown) => { if (v == null || v === '') return undefined; const n = Number(String(v).replace(/\s/g, '').replace(/[€$]|eur(os?)?|da|dzd/gi, '').replace(',', '.')); return Number.isFinite(n) ? n : undefined; };
+  for (const k of ['final_price', 'client_price_per_day', 'owner_price_per_day', 'paid_amount']) { if (input[k] === undefined) continue; const n = money(input[k]); if (n === undefined) delete input[k]; else input[k] = n; }
   const fields: Record<string, unknown> = {};
+  if (input['client_price_per_day'] !== undefined) fields['client_price_per_day'] = input['client_price_per_day'];
+  if (input['owner_price_per_day'] !== undefined) fields['owner_price_per_day'] = input['owner_price_per_day'];
   if (input['client_name'])  fields['client_name']  = input['client_name'];
   if (input['client_phone']) fields['client_phone'] = input['client_phone'];
   if (input['client_age'])   fields['client_age']   = input['client_age'];
@@ -716,6 +729,28 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
     fields['payment_status'] = pa <= 0 ? 'UNPAID' : (fp > 0 && pa >= fp ? 'PAID' : 'PARTIAL');
   }
 
+  // Dates ou prix changés → jours, part Houari et bénéfice recalculés (sinon l'ancien bénéfice reste)
+  if (['start_date', 'end_date', 'final_price', 'client_price_per_day', 'owner_price_per_day'].some(k => fields[k] !== undefined)) {
+    const { data: cur } = await supabase.from('bookings').select('start_date, end_date, final_price, client_price_per_day, owner_price_per_day, rented_by').eq('id', id).single();
+    const c = (cur ?? {}) as Record<string, unknown>;
+    const sd = String(fields['start_date'] ?? c['start_date'] ?? ''), ed = String(fields['end_date'] ?? c['end_date'] ?? '');
+    if (sd && ed && sd > ed) return `❌ Dates incohérentes : ${sd} → ${ed} (rien modifié).`;
+    if (sd && ed) {
+      const days = rentalDays(sd, ed);
+      const fp = fields['final_price'] !== undefined ? Number(fields['final_price']) : Number(c['final_price'] ?? 0);
+      // prix/jour client : donné ; sinon déduit du nouveau total ; sinon l'ancien (dates changées = même prix/jour, total recalculé)
+      const datesChanged = fields['start_date'] !== undefined || fields['end_date'] !== undefined;
+      let cpd: number | null = fields['client_price_per_day'] !== undefined ? Number(fields['client_price_per_day'])
+        : fields['final_price'] !== undefined && fp > 0 ? Math.round(fp / days * 100) / 100
+        : c['client_price_per_day'] != null ? Number(c['client_price_per_day']) : fp > 0 ? Math.round(fp / days * 100) / 100 : null;
+      if (cpd != null && fields['final_price'] === undefined && (datesChanged || fields['client_price_per_day'] !== undefined)) fields['final_price'] = Math.round(cpd * days * 100) / 100;
+      const opd = fields['owner_price_per_day'] !== undefined ? Number(fields['owner_price_per_day']) : c['owner_price_per_day'] != null ? Number(c['owner_price_per_day']) : null;
+      if (cpd != null) fields['client_price_per_day'] = cpd;
+      if (opd != null) fields['owner_total'] = Math.round(opd * days * 100) / 100;
+      fields['profit_kouider'] = cpd != null && opd != null && !/houari/i.test(String(c['rented_by'] ?? '')) ? Math.round((cpd - opd) * days * 100) / 100 : null;
+    }
+  }
+
   const { error } = await supabase.from('bookings').update(fields).eq('id', id);
   if (error) return `Erreur mise à jour: ${error.message}`;
 
@@ -724,6 +759,25 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
 }
 
 async function createBooking(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  // 05/11 banc « comme Kouider » : dates FR (16/11/2026), avec heure (2026-11-16T10:00), année passée (2025 au lieu de 2026),
+  // prix en texte (« 240 € ») ou prix/jour manquant → réservation plantée, mauvaise année ou bénéfice vide
+  const { normalizeYMD, normalizeHHMM } = await import('../utils/timezone.js');
+  const todayBx = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels' }).format(new Date());
+  const notes: string[] = [];
+  for (const [dk, tk] of [['start_date', 'start_time'], ['end_date', 'end_time']] as const) {
+    if (!input[dk]) continue;
+    const nd = normalizeYMD(input[dk], todayBx);
+    if (!nd) return `❌ ${dk} illisible (« ${input[dk]} ») — format YYYY-MM-DD`;
+    if (nd.yearFixed) notes.push(`📅 Année corrigée : ${input[dk]} → ${nd.date}`);
+    input[dk] = nd.date;
+    if (nd.time && !input[tk]) input[tk] = nd.time;
+    if (input[tk]) input[tk] = normalizeHHMM(input[tk]) ?? input[tk];
+  }
+  if (notes.length && String(input['start_date']) > String(input['end_date'])) {   // seule une des deux dates avait la mauvaise année
+    return `❌ Dates incohérentes après correction d'année (${input['start_date']} → ${input['end_date']}) : redonne les deux dates complètes.`;
+  }
+  const money = (v: unknown) => { if (v == null || v === '') return undefined; const n = Number(String(v).replace(/\s/g, '').replace(/[€$]|eur(os?)?|da|dzd/gi, '').replace(',', '.')); return Number.isFinite(n) ? n : undefined; };
+  for (const k of ['final_price', 'client_price_per_day', 'owner_price_per_day', 'paid_amount', 'discount_applied']) { const n = money(input[k]); if (n === undefined) delete input[k]; else input[k] = n; }
   if (!input['client_name']) return '❌ client_name manquant';
   if (!input['start_date'])  return '❌ start_date manquant (format YYYY-MM-DD)';
   if (!input['end_date'])    return '❌ end_date manquant (format YYYY-MM-DD)';
@@ -780,6 +834,11 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
   // nb_days = nombre de nuits : le jour du retour ne compte jamais (rentalDays, Kouider 30/10)
   const nb_days = rentalDays(input['start_date'] as string, input['end_date'] as string, null,
     input['start_time'] as string | undefined, input['end_time'] as string | undefined);
+
+  // Prix : le total et le prix/jour se déduisent l'un de l'autre (jours = tranches de 24 h)
+  if (input['final_price'] == null && input['client_price_per_day'] != null) input['final_price'] = Math.round(Number(input['client_price_per_day']) * nb_days * 100) / 100;
+  if (input['client_price_per_day'] == null && Number(input['final_price']) > 0) input['client_price_per_day'] = Math.round(Number(input['final_price']) / nb_days * 100) / 100;
+  if (input['final_price'] == null) return '❌ Prix manquant : donne le prix total ou le prix par jour du client (réservation non créée).';
 
   // Vérification prix Houari — refuse si prix client < coût Houari
   try {
@@ -939,7 +998,7 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
     }
   }
 
-  return `✅ Réservation créée! ID: ${booking.id} | ${input['client_name']} | ${input['start_date']} → ${input['end_date']} | ${input['final_price']}€${calendarNote}${owner_ppd === null ? ' | ⚠️ Prix proprio manquant' : ''}${papersNote}${fridayWarning}${ramadanNote}`;
+  return `✅ Réservation créée! ID: ${booking.id} | ${input['client_name']} | ${input['start_date']} → ${input['end_date']} | ${input['final_price']}€${calendarNote}${owner_ppd === null ? ' | ⚠️ Prix proprio manquant' : ''}${papersNote}${fridayWarning}${ramadanNote}${notes.length ? `\n${notes.join('\n')}` : ''}`;
 }
 
 async function cancelBooking(input: Record<string, unknown>): Promise<string> {

@@ -60,8 +60,9 @@ export async function clearPendingAction(sessionId: string): Promise<void> {
 
 // ── Resolve vague reply against pending action ────────────────────────────────
 
-const CONFIRM_WORDS = /\b(oui|ok|okay|oki|go|vas-y|confirme|d['']accord|l['']original|continue|the\s+real|yes|proceed|fais-le|fait-le)\b/i;
-const CANCEL_WORDS  = /\b(non|nan|nope|stop|annule|cancel|arr[eê]te|pas)\b/i;
+// 05/11 banc « comme Kouider » : « wakha », « ih », « c'est bon envoie », « laisse tomber », « la la », « nn » restaient ambigus
+const CONFIRM_WORDS = /\b(oui|ouais|ouai|ok|okay|oki|okk?|go|vas-y|vazy|confirme|d['’]accord|dac|l['’]original|continue|the\s+real|yes|yep|proceed|fais-le|fait-le|envoie|envoi|envoies|balance|fonce|parfait|nickel|valid[ée]?|c['’]est bon|wakha|wakh|ih+|iyeh|ey+h|ewa|saha|yallah|yalla|naam|na3am)\b/i;
+const CANCEL_WORDS  = /\b(non|nan|nn|nope|stop|annule|cancel|arr[eê]te|pas|laisse tomber|laisse|oublie|attends|attend|la+(?:\s+la+)+|lala|machi|machi dork|mazal|walou)\b/i;
 
 export function resolveReply(text: string): 'confirm' | 'cancel' | 'ambiguous' {
   const isConfirm = CONFIRM_WORDS.test(text);

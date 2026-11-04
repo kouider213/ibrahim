@@ -3,6 +3,14 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (18) — Banc « comme Kouider » phase 1 : 7 bugs de dates / prix / oui-non corrigés
+- Banc isolé PRIVÉ (hors dépôt, /root/dzaryx-bench) : vrai code, écritures Supabase dans une couche mémoire, sorties bloquées, horloge pilotée. 80 phrases + 25 tests d'outils.
+- `tool-executor.ts` create_booking : dates FR (16/11/2026), avec heure (…T10:00 → start_time), année passée écrite par le cerveau (2025 → 2026, signalé), prix en texte (« 240 € »), prix/jour client déduit du total (bénéfice n'était plus calculé) et total déduit du prix/jour (était vide) ; prix manquant → refus clair.
+- update_booking : mêmes normalisations + jours, part Houari et bénéfice RECALCULÉS quand dates/prix changent (prolonger une résa gardait l'ancien bénéfice) ; dates incohérentes refusées.
+- `utils/timezone.ts` normalizeYMD/normalizeHHMM : rappels « 01/12/2026 » et « 18h30 » n'étaient pas acceptés.
+- `google-calendar.ts` : heure sans fuseau = Bruxelles (Oran s'il y est) au lieu d'Alger → la routine aurait été décalée d'1 h dès l'heure d'été (28/03/2027).
+- `pending-action.ts` : oui/non en darija et argot (wakha, ih, saha, c'est bon envoie / laisse tomber, la la, nn, mazal).
+
 ## 2026-11-04 (17) — MON ESPRIT : journal de chaque jour + classement des jours de la semaine + 20 options
 - `mon-esprit.ts` (nouveau) : journal du soir 23h10 (`esprit-day`) écrit depuis ses vrais messages + montre + sport (même dit à la voix) + humeur → note 1-10, moral/énergie/stress, moments en famille, meilleur/pire moment, gratitude (app_kv `esprit:days`, privé, jamais de médicament).
 - Dimanche 18h (`esprit-sunday`) : classement 🥇🥈🥉 des 7 jours, meilleur/pire jour, moyenne vs semaine d'avant, record du mois, moments en famille, recette chiffrée (famille/sport/sommeil/congé/pas), déclencheurs, gratitude, défi famille.

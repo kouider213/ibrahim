@@ -224,7 +224,9 @@ export async function createAgendaEvent(
     body['start'] = { date: startDateTime.slice(0, 10) };
     body['end']   = { date: endDateTime.slice(0, 10) };
   } else {
-    const tz = opts.timeZone ?? 'Africa/Algiers';
+    // 05/11 : heure sans fuseau = heure de Kouider (Bruxelles ; Oran s'il y est). Avant : Alger par défaut → toute la
+    // routine (réveil, sport, intentions…) décalée d'1 h dès l'heure d'été (Alger ne change pas d'heure)
+    const tz = opts.timeZone ?? (await import('./gps-life.js').then(m => m.oranActive()).catch(() => null) ? 'Africa/Algiers' : 'Europe/Brussels');
     body['start'] = { dateTime: startDateTime.includes('T') ? startDateTime : `${startDateTime}T09:00:00`, timeZone: tz };
     body['end']   = { dateTime: endDateTime.includes('T')   ? endDateTime   : `${endDateTime}T10:00:00`,   timeZone: tz };
   }
