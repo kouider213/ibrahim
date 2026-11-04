@@ -3,6 +3,8 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (10) — CarPlay voix v3 : plus de son de démarrage ; une seule synthèse = une seule voix ; « Dzaryx » lu « D'zarix » (app_kv jarvis:say:dzaryx) ; à chaque démarrage verset du jour (sens FR + vraie récitation Alafasy) + invocation du voyage 43:13-14 ; Gemini TTS en chaîne de modèles (quota gratuit ~10/jour/modèle), consigne de style seulement pour 2.5 (les 3.x la lisaient à voix haute), secours ElevenLabs/voix Google
+
 ## 2026-11-04 (9) — Couple : idées À LA MAISON par défaut (mercredi → samedi soir après le coucher d'Ibrahim) ; SORTIE seulement pour le lundi (congé), envoyée chaque dimanche 17h ; plus de rappel « garde d'Ibrahim » pour une soirée maison ; un seul message (plus de doublon décision + texte)
 
 ## 2026-11-04 (8) — CarPlay voix « cinéma » + widget v6 + messages repris après redémarrage + soirée à deux réaliste

@@ -1,4 +1,10 @@
 /**
+ * 04/11 (2) Kouider : « le son du début et le souffle c'est pas beau, enlève-le » → plus de séquence de démarrage.
+ * « Le truc sur le Coran c'est magique, à chaque fois + qu'il récite la sourate pour nous protéger sur la route » →
+ * [[Q:043013,043014]] dans le texte = VRAIE récitation (Mishary Alafasy, everyayah.com) insérée dans l'audio.
+ * Quota Gemini TTS gratuit minuscule (~10/jour/modèle) → UNE seule synthèse par démarrage (les phrases fixes sont en
+ * cache), secours ElevenLabs / voix Google décodés par ffmpeg puis habillés pareil.
+ *
  * 🎬 VOIX JARVIS « CINÉMA » POUR CARPLAY (04/11/2026, Kouider : « encore plus fou, plus futuriste, style Jarvis même en mieux »)
  * Tout est calculé ici en pur code (0 €, aucune librairie) sur le PCM de Gemini TTS :
  *  - séquence de DÉMARRAGE : souffle qui monte, basse qui s'allume, bips de scan gauche/droite, carillon à 3 notes ;
@@ -47,45 +53,14 @@ function chime(L: Float32Array, R: Float32Array, t: number, f: number, amp: numb
   }
 }
 
-/** Séquence de démarrage ~2,2 s (souffle + basse + scan + carillon). Pseudo-aléatoire fixe = même « signature » chaque jour. */
-function bootSequence(L: Float32Array, R: Float32Array) {
-  let seed = 7;
-  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
-  const dur = Math.round(2.2 * SR);
-  let lpL = 0, lpR = 0, ph = 0;
-  for (let i = 0; i < dur; i++) {
-    const t = i / SR;
-    // souffle filtré qui s'ouvre (200 → 5000 Hz) puis retombe
-    const cut = 200 + 4800 * Math.min(1, t / 1.3), a = 1 - Math.exp(-2 * Math.PI * cut / SR);
-    lpL += a * (rnd() - lpL); lpR += a * (rnd() - lpR);
-    const wEnv = Math.sin(Math.PI * Math.min(1, t / 1.7)) ** 2 * 0.11;
-    // basse qui s'allume 45 → 90 Hz
-    ph += 2 * Math.PI * (45 + 45 * Math.min(1, t / 1.4)) / SR;
-    const sub = Math.sin(ph) * 0.2 * Math.min(1, t / 0.9) * Math.max(0, 1 - Math.max(0, t - 1.5) / 0.7);
-    L[i]! += lpL * wEnv + sub; R[i]! += lpR * wEnv + sub;
-  }
-  // bips de scan gauche ↔ droite
-  for (let k = 0; k < 7; k++) {
-    const t0 = 0.45 + k * 0.075, f = 1700 + ((k * 389) % 900), s0 = Math.round(t0 * SR), len = Math.round(0.028 * SR);
-    const pan = k % 2 ? 0.75 : -0.75;
-    for (let i = 0; i < len; i++) {
-      const v = Math.sin(2 * Math.PI * f * i / SR) * Math.sin(Math.PI * i / len) * 0.07;
-      L[s0 + i]! += v * (1 - pan) / 2 * 1.4; R[s0 + i]! += v * (1 + pan) / 2 * 1.4;
-    }
-  }
-  // carillon « en ligne » : mi – si – mi aigu
-  chime(L, R, 1.35, 659.25, 0.16, -0.3); chime(L, R, 1.45, 987.77, 0.13, 0.3); chime(L, R, 1.56, 1318.5, 0.11, 0, 0.9);
-}
-
 /** Habille la voix : démarrage, écho stéréo, nappage grave, fin de veille. */
 export function jarvisMaster(voice: Float32Array): Buffer {
   let peak = 0;
   for (const v of voice) peak = Math.max(peak, Math.abs(v));
   const g = peak > 0 ? 0.78 / peak : 1;
-  const start = Math.round(2.05 * SR), tail = Math.round(2.4 * SR);
+  const start = Math.round(0.25 * SR), tail = Math.round(2.4 * SR);
   const n = start + voice.length + tail;
   const L = new Float32Array(n), R = new Float32Array(n);
-  bootSequence(L, R);
   // voix + écho stéréo court (gauche 110 ms, droite 170 ms, 2e rebond plus faible)
   const taps: Array<[number, number, number]> = [[0.11, 0.15, 0.04], [0.17, 0.04, 0.15], [0.26, 0.05, 0.02], [0.37, 0.02, 0.05]];
   for (let i = 0; i < voice.length; i++) {
@@ -108,31 +83,80 @@ export function jarvisMaster(voice: Float32Array): Buffer {
   return stereoWav(L, R);
 }
 
-/** Coupe en ~3 morceaux sur les fins de phrase (pour synthétiser en parallèle). */
-export function splitForTts(text: string, parts = 3): string[] {
-  const sentences = text.split(/(?<=[.!?…])\s+/).filter(Boolean);
-  if (sentences.length < 4) return [text];
-  const target = text.length / parts, out: string[] = [];
-  let cur = '';
-  for (const s of sentences) {
-    cur = cur ? `${cur} ${s}` : s;
-    if (cur.length >= target && out.length < parts - 1) { out.push(cur); cur = ''; }
+// ── Récitation (Mishary Alafasy, fichiers publics par verset) → PCM 24 kHz mono, en mémoire ──
+const RECIT = new Map<string, Float32Array>();
+export async function decodeToPcm(audio: Buffer): Promise<Float32Array | null> {
+  const { spawn } = await import('node:child_process');
+  return new Promise(resolve => {
+    const ff = spawn('ffmpeg', ['-v', 'error', '-i', 'pipe:0', '-f', 's16le', '-ac', '1', '-ar', String(SR), 'pipe:1']);
+    const out: Buffer[] = [];
+    ff.stdout.on('data', (d: Buffer) => out.push(d));
+    ff.on('error', () => resolve(null));
+    ff.on('close', code => {
+      const b = Buffer.concat(out);
+      if (code !== 0 || b.length < 2000) return resolve(null);
+      const f = new Float32Array(b.length >> 1);
+      for (let i = 0; i < f.length; i++) f[i] = b.readInt16LE(i * 2) / 32768;
+      resolve(f);
+    });
+    ff.stdin.on('error', () => {});
+    ff.stdin.end(audio);
+  });
+}
+async function recitation(ayah: string): Promise<Float32Array | null> {
+  if (!/^\d{6}$/.test(ayah)) return null;
+  const hit = RECIT.get(ayah);
+  if (hit) return hit;
+  const r = await fetch(`https://everyayah.com/data/Alafasy_128kbps/${ayah}.mp3`, { signal: AbortSignal.timeout(20_000) }).catch(() => null);
+  if (!r?.ok) return null;
+  const pcm = await decodeToPcm(Buffer.from(await r.arrayBuffer()));
+  if (pcm) RECIT.set(ayah, pcm);
+  return pcm;
+}
+const norm = (p: Float32Array, to = 0.8) => { let m = 0; for (const v of p) m = Math.max(m, Math.abs(v)); const g = m ? to / m : 1; return p.map(v => v * g); };
+
+// Phrases déjà dites (fixes) : gardées en mémoire → aucune synthèse en plus
+const TTS_CACHE = new Map<string, Float32Array>();
+async function speak(text: string, voice: string, style: string): Promise<Float32Array | null> {
+  const key = `${voice}|${text}`;
+  const hit = TTS_CACHE.get(key);
+  if (hit) return hit;
+  const { synthesizeVoiceGemini, synthesizeVoice } = await import('../notifications/dispatcher.js');
+  let pcm: Float32Array | null = null;
+  const wav = await synthesizeVoiceGemini(text, { voice, style }).catch(() => null);
+  if (wav) pcm = wavToFloat(wav);
+  else {
+    // Kouider 04/11 : « si il a pas la voix Gemini, passe à une autre » → ElevenLabs, puis voix Google gratuite (MP3)
+    const mp3 = await synthesizeVoice(text).catch(() => null);
+    if (mp3) pcm = await decodeToPcm(mp3);
   }
-  if (cur) out.push(cur);
-  return out;
+  if (pcm && text.length < 400) { if (TTS_CACHE.size > 40) TTS_CACHE.clear(); TTS_CACHE.set(key, pcm); }
+  return pcm;
 }
 
-/** Texte → WAV stéréo Jarvis (null si Gemini TTS indisponible). */
+/** Comment la voix doit LIRE certains mots (« Dzaryx » sortait « Daryx »). Réglable : app_kv jarvis:say:dzaryx. */
+async function phonetic(text: string): Promise<string> {
+  const { kvGet } = await import('./app-store.js');
+  const dz = (await kvGet('jarvis:say:dzaryx').catch(() => null))?.trim() || "D'zarix";
+  return text.replace(/\bDzaryx\b/gi, dz);
+}
+
+/** Texte (avec [[Q:043013,043014]] pour une récitation) → WAV stéréo Jarvis. null si aucune voix n'a marché.
+ *  04/11 (3) Kouider : « il a 2 voix différentes » (3 morceaux synthétisés à part = 3 timbres) → TOUT le texte en UNE
+ *  seule synthèse = une seule voix ; les récitations sont jouées APRÈS, dans l'ordre (le texte annonce et traduit avant). */
 export async function jarvisCinemaVoice(text: string, voice: string, style: string): Promise<Buffer | null> {
-  const { synthesizeVoiceGemini } = await import('../notifications/dispatcher.js');
-  const one = async (t: string) => (await synthesizeVoiceGemini(t, { voice, style })) ?? (await new Promise(r => setTimeout(r, 1500)), synthesizeVoiceGemini(t, { voice, style }));
-  const chunks = splitForTts(text);
-  const wavs = await Promise.all(chunks.map(one));
-  if (wavs.some(w => !w)) return null;
-  const pcs = wavs.map(w => wavToFloat(w!));
-  const gap = Math.round(0.18 * SR);
-  const all = new Float32Array(pcs.reduce((s, p) => s + p.length, 0) + gap * (pcs.length - 1));
+  const ayahs = [...text.matchAll(/\[\[Q:([\d,]+)\]\]/g)].map(m => m[1]!.split(','));
+  const spoken = text.replace(/\s*\[\[Q:[\d,]+\]\]\s*/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  const [tts, ...recits] = await Promise.all([
+    phonetic(spoken).then(t => speak(t, voice, style)),
+    ...ayahs.map(async list => (await Promise.all(list.map(recitation))).filter((x): x is Float32Array => !!x)),
+  ]);
+  if (!tts) return null;
+  const pieces: Float32Array[] = [norm(tts)];
+  for (const r of recits as Float32Array[][]) for (const a of r) pieces.push(norm(a, 0.75));
+  const gap = Math.round(0.7 * SR);
+  const all = new Float32Array(pieces.reduce((s2, x) => s2 + x.length, 0) + gap * (pieces.length - 1));
   let o = 0;
-  for (const [i, p] of pcs.entries()) { all.set(p, o); o += p.length + (i < pcs.length - 1 ? gap : 0); }
+  for (const [i, x] of pieces.entries()) { all.set(x, o); o += x.length + (i < pieces.length - 1 ? gap : 0); }
   return jarvisMaster(all);
 }

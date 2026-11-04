@@ -134,30 +134,44 @@ function pcmToWav(pcm: Buffer, sampleRate = 24_000): Buffer {
   return Buffer.concat([header, pcm]);
 }
 
+// 04/11 : le quota GRATUIT de Gemini TTS = ~10 voix / jour / modèle (2.5-flash épuisé à 11h30). Chaque modèle a son propre
+// quota → on enchaîne les modèles ; un modèle qui répond 429 est mis de côté 3 h.
+const TTS_MODELS = (process.env['GEMINI_TTS_MODELS'] || 'gemini-2.5-flash-preview-tts,gemini-2.5-pro-preview-tts,gemini-3.8-flash-tts,gemini-3.1-flash-tts-preview,gemini-3.8-flash-lite-tts').split(',').map(x => x.trim()).filter(Boolean);
+const ttsOut = new Map<string, number>();
 export async function synthesizeVoiceGemini(text: string, opts: { voice?: string; style?: string } = {}): Promise<Buffer | null> {
   const geminiKey = process.env['GEMINI_API_KEY'];
   if (!geminiKey) return null;
-  try {
-    const { data } = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${geminiKey}`,
-      {
-        contents: [{ parts: [{ text: (opts.style ? `${opts.style}\n` : '') + cleanTextForTTS(text) }] }],
-        generationConfig: {
-          responseModalities: ['AUDIO'],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: opts.voice ?? 'Kore' } } },
+  for (const model of TTS_MODELS) {
+    if ((ttsOut.get(model) ?? 0) > Date.now()) continue;
+    try {
+      const { data } = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
+        {
+          // 04/11 : les modèles 3.x LISENT la consigne de style à voix haute (« Lis ce texte comme Jarvis… » entendu
+          // dans l'audio) et refusent systemInstruction → consigne seulement pour 2.5 ; 3.x = texte seul (voix Charon).
+          contents: [{ parts: [{ text: (opts.style && model.includes('2.5') ? `${opts.style}\n` : '') + cleanTextForTTS(text) }] }],
+          generationConfig: {
+            responseModalities: ['AUDIO'],
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: opts.voice ?? 'Kore' } } },
+          },
         },
-      },
-      { timeout: opts.voice ? 60_000 : 25_000 },
-    );
-    const b64 = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data as string | undefined;
-    if (!b64) throw new Error('Gemini TTS empty audio');
-    const wav = pcmToWav(Buffer.from(b64, 'base64'));
-    console.log(`[gemini-tts] ✅ secours — ${wav.length} bytes WAV`);
-    return wav;
-  } catch (err) {
-    console.error('[gemini-tts] failed:', err instanceof Error ? err.message : String(err));
-    return null;
+        { timeout: opts.voice ? 60_000 : 25_000 },
+      );
+      const part = data.candidates?.[0]?.content?.parts?.[0]?.inlineData as { data?: string; mimeType?: string } | undefined;
+      if (!part?.data) throw new Error('Gemini TTS empty audio');
+      const raw = Buffer.from(part.data, 'base64');
+      // 2.5 / 3.1 : PCM brut (audio/l16) ; 3.8 : déjà un WAV
+      const wav = raw.subarray(0, 4).toString('ascii') === 'RIFF' ? raw : pcmToWav(raw);
+      console.log(`[gemini-tts] ✅ ${model} — ${wav.length} bytes WAV`);
+      return wav;
+    } catch (err) {
+      const st = (err as { response?: { status?: number } }).response?.status;
+      if (st === 429 || st === 404) ttsOut.set(model, Date.now() + (st === 429 ? 3 : 24) * 3600_000);
+      else if (st === 503) ttsOut.set(model, Date.now() + 5 * 60_000);   // surchargé : on passe au suivant 5 min
+      console.error(`[gemini-tts] ${model} failed:`, st ?? (err instanceof Error ? err.message : String(err)));
+    }
   }
+  return null;
 }
 
 // fast = modèle flash (latence ~75 ms) : pour les vrais appels, où chaque seconde compte.

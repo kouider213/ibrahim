@@ -27,7 +27,7 @@ function jarvisVoiceUrl(text: string): string {
   // jarvis-audio.ts ; synthèse en 3 morceaux parallèles. Secours : voix nue en un bloc.
   const voice = process.env['JARVIS_VOICE'] || 'Charon';
   const p = import('./jarvis-audio.js').then(m => m.jarvisCinemaVoice(text, voice, JARVIS_STYLE)).catch(() => null)
-    .then(w => w ?? import('../notifications/dispatcher.js').then(m => m.synthesizeVoiceGemini(text, { voice, style: JARVIS_STYLE })).catch(() => null));
+    .then(w => w ?? import('../notifications/dispatcher.js').then(m => m.synthesizeVoiceGemini(text.replace(/\s*\[\[Q:[\d,]+\]\]/g, ''), { voice, style: JARVIS_STYLE })).catch(() => null));
   VOICES.set(id, { at: Date.now(), p });
   const base = (process.env['PUBLIC_BACKEND_URL'] || 'https://ibrahim-backend-production.up.railway.app').replace(/\/$/, '');
   return `${base}/api/jarvis/voice/${id}`;
@@ -47,10 +47,11 @@ export async function iphoneEvent(type: string, body: Record<string, unknown>): 
       const [hello, brief] = await Promise.all([cc.carGreeting(hasPos ? { lat, lng } : {}, homeward).catch(() => 'Bonjour Kouider.'), homeward ? Promise.resolve('') : carBrief(hasPos ? { lat, lng } : {})]);
       void kvPut('car:last-mode', { at: Date.now(), homeward });
       void kvPut('car:last-event', { at: Date.now(), type });   // trace : l'automatisation CarPlay est bien arrivée
-      // 04/11 : fin façon Jarvis = il passe en veille et rappelle comment le réveiller (raccourci Siri « Jarvis »)
-      const sign = /^Re-bonjour/.test(hello) ? '' : ' Je reste en veille. Dites simplement : « Dis Siri, Jarvis », et je suis là.';
-      const say = speakable(carPrivacy(`${hello} ${brief}${sign}`)) || 'Bonjour Kouider. Bonne route.';
-      return { say, audio_url: jarvisVoiceUrl(say) };
+      // 04/11 (2) : à CHAQUE démarrage, verset du jour + invocation du voyage récitée (car-coach carBlessing) ; la veille
+      // (« Dis Siri, Jarvis ») est annoncée dedans. [[Q:…]] = récitation insérée dans l'audio, retirée du texte « say ».
+      const bless = await cc.carBlessing(homeward).catch(() => '');
+      const full = `${speakable(carPrivacy(`${hello} ${brief}`)) || 'Bonjour Kouider.'} ${bless}`.trim();
+      return { say: full.replace(/\s*\[\[Q:[\d,]+\]\]/g, '').trim(), audio_url: jarvisVoiceUrl(full) };
     }
     case 'carplay_off': case 'parked': {
       void kvPut('car:last-off', { at: Date.now(), type });
