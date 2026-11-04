@@ -494,7 +494,9 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
   // Bloc vocab darija oranais — chargé dès que l'interlocuteur (Houari OU Kouider) écrit en arabe/darija.
   // Sinon (français/espagnol/anglais) on ne charge PAS ce vocab → pas de fuite "Labas sahbi" en français.
   // Darija 100 % oranaise + connaissance d'Oran/Algérie (Kouider 2026-10-29) — voir config/oran-knowledge.ts.
-  const darijaGuide = (langDetection.lang === 'darija' ? `\n${ORAN_DARIJA_GUIDE}` : '')
+  // 04/11 : question SUR la darija en français (« ça veut dire quoi rani mqalleq ? ») → le lexique aussi, sinon sens inventé
+  const asksDarija = /\b(darija|dz|alg[ée]rien|oranais|en arabe|veut dire|signifie|traduis|traduction)\b/i.test(userMessage);
+  const darijaGuide = (langDetection.lang === 'darija' || asksDarija ? `\n${ORAN_DARIJA_GUIDE}` : '')
     + (langDetection.lang === 'darija' || ORAN_TOPIC_RE.test(userMessage) ? `\n${ORAN_KNOWLEDGE}` : '');
 
   const actorPersonaText = isHouari

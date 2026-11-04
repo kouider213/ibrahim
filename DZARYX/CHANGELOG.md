@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (24) — Questions générales testées avec le vrai cerveau (24/25 OK) + 3 corrections
+- `car-price-direct.ts` : « si je place 10000 € à 4 % » répondait les prix des Clio (le « 4 » de « Clio 4 » suffisait) → il faut un mot du nom ; placements/intérêts/% exclus.
+- `oran-knowledge.ts` + `context-builder.ts` : « rani mqalleq » traduit « bloqué » → lexique des émotions (mqalleq = énervé ≠ m3allaq = bloqué) et guide darija chargé aussi quand on demande le sens d'un mot.
+- `constants.ts` : actualité/lois récentes seulement depuis un outil ; recherche en échec → aucun « fait certain » de mémoire.
+- Banc phase 2 « g- » : veux/souhaite, orthographe, histoire, sciences, maths, %, traductions, code, Excel, recette, droit, philo, islam, darija, mails, quiz, actu → OK.
+
 ## 2026-11-04 (23) — Culture générale : gros Gemini ou Claude Haiku, jamais un petit cerveau + nom privé hors du code
 - `anthropic-compat.ts` : `factualQuestion()` (histoire, religion, droit, santé, langue, définitions…) → seulement le gros Gemini ; saturé → secours Claude Haiku (quota 'tout') ; sans secours possible, petits cerveaux en dernier recours (option A choisie).
 - `config/private-terms.ts` : noms de médicament lus depuis `PRIVATE_MED_TERMS` (env Railway + .env), retirés de fr-commands / jarvis4 / mon-esprit (dépôt public).

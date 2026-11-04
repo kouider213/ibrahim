@@ -5,7 +5,7 @@ import { supabase } from './supabase.js';
 
 type CarRow = { name: string; base_price: number | null; resale_price: number | null; available: boolean | null; currency?: string | null };
 const PRICE_Q = /\b(combien|prix|tarif|co[uû]te?|à combien|a combien|on la (loue|fait|met)|on le (loue|fait))\b/i;
-const NOT_PRICE = /(gagn|rapport|b[ée]n[ée]f|profit|\bkm\b|kilom|\bplein\b|d.essence|vendre|vente|achet|r[ée]par|garage|assurance|amende|r[ée]servations?|combien de clients?|billet|vol\b|dispo|libre|r[ée]serv|semaine|week|mois|envoie|envoyer|dis[- ]lui|dis à|transmets|[ée]cris|whatsapp|mail|pr[ée]viens)/i;
+const NOT_PRICE = /(gagn|rapport|b[ée]n[ée]f|profit|\bkm\b|kilom|\bplein\b|d.essence|vendre|vente|achet|r[ée]par|garage|assurance|amende|r[ée]servations?|combien de clients?|billet|vol\b|dispo|libre|r[ée]serv|semaine|week|mois|envoie|envoyer|dis[- ]lui|dis à|transmets|[ée]cris|whatsapp|mail|pr[ée]viens|plac|investi|int[ée]r[eê]ts?|%|pour ?cent|par an\b|cr[ée]dit|pr[eê]t\b)/i;
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
 /** Voitures citées dans le message : le plus de mots du nom retrouvés (« Clio » = toutes les Clio, « clio 4 diesel » = une). */
@@ -14,6 +14,9 @@ function carsIn(msg: string, cars: CarRow[]): CarRow[] {
   const m = new Set(split(msg));
   const scored = cars.map(c => { const w = split(c.name); const hits = w.filter(x => m.has(x)).length; return { c, hits, all: hits === w.length }; })
     .filter(x => x.hits > 0);
+  // 04/11 banc : « si je place 10000 euros à 4 % » → le « 4 » de « Clio 4 » suffisait → prix des Clio. Il faut un mot du nom (pas un chiffre).
+  const named = scored.filter(x => split(x.c.name).some(w => /[a-z]/.test(w) && m.has(w)));
+  scored.length = 0; scored.push(...named);
   if (!scored.length) return [];
   const exact = scored.filter(x => x.all);
   const pool = exact.length ? exact : scored;

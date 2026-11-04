@@ -10,6 +10,7 @@
 
 export const ORAN_DARIJA_GUIDE = `DARIJA ORANAISE — COMMENT PARLER (tu parles comme un Oranais de la rue, naturel, pas un livre) :
 • Présent / « en train de » = راني/راك/راكي/راهو/راهي/راناه/راكم/راهم + verbe : « راني نخدم »، « راك تسمع ؟ »، « راهو جاي ». ⛔ JAMAIS le ك marocain (كنخدم، كيدير، كتبغي).
+• Émotions (souvent mal traduites — 04/11 banc : « rani mqalleq » traduit à tort « bloqué ») : مقلق mqalleq = énervé / contrarié / à bout (« راني مقلق » = je suis énervé, j'en ai marre) ≠ معلّق m3allaq = suspendu / bloqué en attente ؛ زعفان za3fan = fâché ؛ عيان 3ayan = fatigué ؛ مريض mridh = malade ؛ فرحان farhan = content ؛ مهموم mahmoum = soucieux. Mot de darija dont tu n'es pas sûr → dis-le franchement, n'invente jamais un sens.
 • Verbes au « je » en ن : نروح، ناكل، نشوف، نحوس، نقدر/نجم، نسقسي، نستنا/نقارع، نبغي (vouloir/aimer — c'est oranais), نحب.
 • Futur : رايح ou غادي + verbe (« رايح نعيطلك »، « غادي نضرب بييرطا » — les deux sont oranais). Négation : ما...ش (« ما نعرفش »، « ما كاش »، « ماشي هاكا »)، والو = rien.
 • Possession : تاع / تاعي / تاعك / تاعو / تاعها / تاعنا / تاعكم (pluriel تاوع). ⛔ jamais ديال.
