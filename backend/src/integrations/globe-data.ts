@@ -243,7 +243,12 @@ async function cams(q: Q) {
     nearest_elsewhere: near.length ? null : { name: z[0], lat: z[1], lon: z[2], dist: Math.round(km(lat, lon, z[1], z[2])) } };
 }
 
-const KINDS: Record<string, (q: Q) => Promise<unknown>> = { planes, quakes, sats, weather, place, geocode, inbound, cams, world, catcams };
+async function myflight() {   // « 🧳 Mon vol » : le prochain vol suivi (Kouider d'abord), position radar en direct
+  const { nextFlight } = await import('./flight-live.js');
+  return { flight: await nextFlight() };
+}
+
+const KINDS: Record<string, (q: Q) => Promise<unknown>> = { planes, quakes, sats, weather, place, geocode, inbound, cams, world, catcams, myflight };
 
 export async function globeData(kind: string, q: Q): Promise<unknown | null> {
   const fn = KINDS[kind];

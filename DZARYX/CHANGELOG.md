@@ -3,6 +3,13 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (13) — Vols suivis en direct + demandes de Houari
+- `flight-live.ts` (job `flight-live` */5) : pour chaque vol des 30 h à venir (Kouider ET clients) → statut web (Gemini + Google Search, retard appliqué après 2 lectures concordantes), radar ADS-B en direct (adsb.lol → airplanes.live, indicatif OACI ou immatriculation), décollage / atterrissage / « pas encore décollé » +20 et +60 min.
+- Retard → agenda FIK décalé (vol + « être à l'aéroport ») + `dep:<id>` remis à zéro → heure de partir recalculée avec le trafic ; ≥ 60 min → appel ; annulation → appel urgent ; changement de terminal / porte.
+- Veille 20h : briefing (départ, arrivée, heure de partir, réveil si vol tôt, météo d'arrivée, décalage, taux €→DA, check-list, demandes, locations FIK pendant l'absence, rappel 10 000 € liquide) ; H-24 enregistrement en ligne ; jour J fiche + appel réveil si aucun signe de vie ; pendant le vol pas d'appels (mode avion) ; « bien atterri » + décalage horaire.
+- `travel` : actions `track` (où est le vol) et `request` (« Houari m'a demandé de ramener X » → check-list aller ou retour, rappelée veille / jour J / réveil) ; Houari peut faire sa demande lui-même ; billets : référence PNR + terminal.
+- Lien public famille `/api/vol/suivi/<jeton>` (carte Leaflet, avion en direct) ; globe de l'app : bouton « 🧳 Mon vol » (`kind=myflight`).
+
 ## 2026-11-04 (12) — CarPlay : mode vacances + qui est dans la voiture
 - `car-company.ts` : vacances = voyage enregistré, > 300 km de la maison ou « je suis en vacances » (jusqu'à « fin des vacances », 45 j max).
 - En vacances : famille par défaut, heure du pays (fuseau GPS via Open-Meteo), zéro travail/business, prochaine étape voyage seulement, « Bienvenue au pays » 1×/jour en Algérie, logement = point de départ du matin.

@@ -694,6 +694,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'flight-live',
+    cron:  '1-59/5 * * * *',        // vols des 30 prochaines heures : statut/retard (web), radar en direct, briefing veille, jour J, atterrissage
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'flight-mail-import',
     cron:  '*/15 * * * *',          // billets d'avion arrivés dans la boîte pro → agenda + check-list
     tz:    'Europe/Brussels',
@@ -852,6 +857,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'departure-watch':         async () => { await jobDepartureWatch(); },
   'trip-reminders':          async () => { await jobTripReminders(); },
   'flight-mail-import':      async () => { await jobFlightMailImport(); },
+  'flight-live':             async () => { await (await import('../integrations/flight-live.js')).jobFlightWatch(); },
   'mail-digest':             async () => { await jobMailDigest(); },
   'site-traffic':            async () => { await jobSiteTraffic(); },
   'missions':                async () => { await jobMissions(); },

@@ -25,7 +25,7 @@ const MAIL_DONE_KEY = 'trips:mail:done';
 const REMIND_FROM_DAYS = 5;
 const CALL_FROM_DAYS = 2;
 
-export interface CheckItem { label: string; done: boolean; doneAt?: string; auto?: string }
+export interface CheckItem { label: string; done: boolean; doneAt?: string; auto?: string; for?: string }
 export interface Trip {
   id: string;
   who: 'kouider' | 'client';
@@ -49,12 +49,15 @@ export interface Trip {
   calendarIds: string[];
   createdAt: string;
   source?: string;
+  pnr?: string;               // référence de réservation
+  terminal?: string;
+  returnOf?: string;          // id du vol aller (pour le retour)
 }
 
-async function readTrips(): Promise<Trip[]> {
+export async function readTrips(): Promise<Trip[]> {
   try { return JSON.parse((await kvGet(KEY)) ?? '[]') as Trip[]; } catch { return []; }
 }
-async function writeTrips(list: Trip[]): Promise<void> {
+export async function writeTrips(list: Trip[]): Promise<void> {
   const keep = list.filter(t => t.departAt > Date.now() - 30 * 86_400_000).slice(-80);
   await kvSet(KEY, JSON.stringify(keep));
 }
@@ -101,6 +104,7 @@ export interface NewFlight {
   flight_number?: string; airline?: string; from: string; to: string;
   depart_local: string; arrive_local?: string;       // « YYYY-MM-DD HH:MM », heure locale de chaque aéroport
   depart_tz?: string; arrive_tz?: string; airport_address?: string; source?: string;
+  booking_ref?: string; terminal?: string;
 }
 
 function parseLocal(v: string | undefined, tz: string): number | null {
@@ -130,6 +134,7 @@ async function addFlight(f: NewFlight): Promise<Trip | string> {
     flightNumber: f.flight_number?.toUpperCase(), airline: f.airline, from: f.from, to: f.to, departAt, arriveAt, tz: dtz,
     airport, checklist: who === 'kouider' ? kouiderChecklist(f.to) : [], validated: who === 'client', calendarIds: [],
     createdAt: new Date().toISOString(), source: f.source,
+    pnr: f.booking_ref?.toUpperCase() || undefined, terminal: f.terminal || undefined,
   };
 
   // Agenda FIK : le vol, et (pour Kouider) « être à l'aéroport » 2 h 30 avant → alerte de départ avec le trafic
@@ -159,6 +164,7 @@ function linkPause(list: Trip[], out: Trip, back?: Trip): void {
   if (out.who !== 'kouider') return;
   out.pauseFrom = dateOf(out.departAt);
   out.pauseTo = back ? dateOf(back.arriveAt ?? back.departAt) : undefined;
+  if (back) back.returnOf = out.id;
   const i = list.findIndex(t => t.id === out.id);
   if (i >= 0) list[i] = out;
 }
@@ -264,7 +270,7 @@ export async function jobTripReminders(): Promise<void> {
 // ── Billets reçus par mail (boîte pro) ───────────────────────────────────────
 
 const EXTRACT_SYSTEM = `Tu lis un e-mail (souvent transféré) et tu extrais une réservation de VOL s'il y en a une.
-Réponds UNIQUEMENT en JSON : {"is_flight": bool, "passengers": [noms], "flights": [{"flight_number": "", "airline": "", "from": "ville ou aéroport", "to": "ville ou aéroport", "depart_local": "YYYY-MM-DD HH:MM", "arrive_local": "YYYY-MM-DD HH:MM"}]}
+Réponds UNIQUEMENT en JSON : {"is_flight": bool, "passengers": [noms], "flights": [{"flight_number": "", "airline": "", "from": "ville ou aéroport", "to": "ville ou aéroport", "depart_local": "YYYY-MM-DD HH:MM", "arrive_local": "YYYY-MM-DD HH:MM", "booking_ref": "référence / PNR", "terminal": ""}]}
 Heures = heures LOCALES de chaque aéroport, telles qu'écrites dans le billet. Aller puis retour dans l'ordre. is_flight=false si ce n'est pas une réservation de vol confirmée (pub, newsletter, offre).`;
 
 async function extractFlights(material: string, image?: { b64: string; mime: string }): Promise<{ is_flight: boolean; passengers?: string[]; flights?: NewFlight[] } | null> {
@@ -367,8 +373,31 @@ function show(t: Trip): string {
 }
 
 export async function travelTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
-  if (/houari/i.test(sessionId ?? '')) return '❌ Réservé à Kouider.';
   const action = String(input['action'] ?? 'list');
+  const items0 = (Array.isArray(input['items']) ? input['items'] : []).map(String).filter(Boolean);
+  if (/houari/i.test(sessionId ?? '')) {
+    // Houari peut seulement demander à Kouider de lui ramener / faire quelque chose avant son voyage
+    if (action !== 'request' || !items0.length) return '❌ Réservé à Kouider. Houari peut seulement faire une demande pour son voyage (action request).';
+    const { addRequest } = await import('./flight-live.js');
+    const r = await addRequest('Houari', items0, input['phase'] === 'back' ? 'back' : 'out');
+    if (r.startsWith('✅')) await queueTelegramMessage(`🎁 Houari te demande pour ton voyage : ${items0.join(', ')}.
+C'est ajouté à ta check-list, je te le rappelle avant le départ.`);
+    return r.startsWith('✅') ? `✅ C'est noté, je le rappelle à Kouider avant son départ : ${items0.join(', ')}.` : r;
+  }
+  if (action === 'request') {
+    if (!items0.length) return '❌ Dis-moi ce qu\'il faut ramener ou faire.';
+    const { addRequest } = await import('./flight-live.js');
+    const tr = input['trip'] ? findTrip(await readTrips(), input['trip']) : undefined;
+    return addRequest(String(input['person'] ?? 'Houari'), items0, input['phase'] === 'back' ? 'back' : 'out', tr);
+  }
+  if (action === 'track') {
+    const { trackText } = await import('./flight-live.js');
+    const all = await readTrips();
+    const fl = all.filter(t => t.kind === 'flight' && (t.arriveAt ?? t.departAt + 4 * 3600_000) + 3 * 3600_000 > Date.now()).sort((a, b) => a.departAt - b.departAt);
+    const s = norm(String(input['trip'] ?? ''));
+    const t = s ? fl.find(x => x.id === input['trip'] || norm(`${x.title} ${x.clientName ?? ''} ${x.flightNumber ?? ''}`).includes(s)) : (fl.find(x => x.who === 'kouider') ?? fl[0]);
+    return t ? trackText(t) : 'Aucun vol à suivre. Envoie-moi un billet (photo, PDF ou mail).';
+  }
   const list = await readTrips();
 
   if (action === 'add_trip') {
@@ -379,6 +408,7 @@ export async function travelTool(input: Record<string, unknown>, sessionId?: str
       depart_local: String(input['depart_local'] ?? ''), arrive_local: input['arrive_local'] as string | undefined,
       depart_tz: input['depart_tz'] as string | undefined, arrive_tz: input['arrive_tz'] as string | undefined,
       airport_address: input['airport_address'] as string | undefined, source: 'billet envoyé à Dzaryx',
+      booking_ref: input['booking_ref'] as string | undefined, terminal: input['terminal'] as string | undefined,
     };
     if (!base.from || !base.to) return '❌ Il me faut la ville / l\'aéroport de départ et d\'arrivée.';
     const out = await addFlight(base);

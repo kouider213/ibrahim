@@ -139,7 +139,7 @@ body.strip #cam{bottom:226px}
 <div class="hud" id="search"><input id="q" type="search" enterkeyhint="go" placeholder="Ville, pays, aéroport…" aria-label="Lieu"><button id="go">Aller</button></div>
 <div id="acts">
   <button data-a="in">✈️ Vols vers…</button><button data-a="out">🛫 Départs de…</button><button data-a="cams">📷 Caméras ici</button>
-  <button data-a="world">🌍 Caméras du monde</button><button data-a="strip">🎞 Par catégorie</button><button data-a="events">📡 Que se passe-t-il ?</button>
+  <button data-a="world">🌍 Caméras du monde</button><button data-a="strip">🎞 Par catégorie</button><button data-a="events">📡 Que se passe-t-il ?</button><button data-a="mine">🧳 Mon vol</button>
 </div>
 <div class="hud" id="clock"><div class="t" id="c-time">--:--</div><div class="s" id="c-sub"></div></div>
 <div class="hud" id="wx"><div class="n" id="wx-name"></div><div class="s" id="wx-body"></div></div>
@@ -523,6 +523,44 @@ async function showInbound(query, mode){
     await loadInbound(true);
   } catch(e){ reply('Recherche des vols impossible : ' + e.message); }
 }
+/* « 🧳 Mon vol » : le vol de Kouider (ou d'un client) enregistré par Dzaryx depuis le billet, suivi au radar en direct */
+const hmTz = (ts, tz) => new Date(ts).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit', timeZone: tz || undefined });
+async function loadMine(first){
+  let r; try { r = await get('myflight'); } catch(e){ if(first) reply('Suivi du vol impossible : ' + e.message); return; }
+  const f = r && r.flight;
+  if(!f){ if(first){ reply('Aucun vol enregistré. Envoie ton billet à Dzaryx sur Telegram.'); closeInbound(); } return; }
+  clearInbound();
+  const gold = Cesium.Color.fromCssColorString('#ffc53d');
+  const pin = (p, txt) => p && inbound.ents.push(viewer.entities.add({ position:Cesium.Cartesian3.fromDegrees(p.lon, p.lat),
+    point:{ pixelSize:10, color:gold, outlineColor:gold.withAlpha(.35), outlineWidth:9 },
+    label:{ text:txt, font:'13px Segoe UI', fillColor:Cesium.Color.fromCssColorString('#ffe2a0'), outlineColor:Cesium.Color.BLACK, outlineWidth:3, style:Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new Cesium.Cartesian2(0,-20) } }));
+  pin(f.fromPt, f.from); pin(f.toPt, f.to);
+  if(f.fromPt && f.toPt) inbound.ents.push(viewer.entities.add({ polyline:{ positions:Cesium.Cartesian3.fromDegreesArray([f.fromPt.lon, f.fromPt.lat, f.toPt.lon, f.toPt.lat]),
+    width:2.2, arcType:Cesium.ArcType.GEODESIC, material:new Cesium.PolylineDashMaterialProperty({ color:gold.withAlpha(.8), dashLength:14 }) } }));
+  if(f.pos){
+    const pos = Cesium.Cartesian3.fromDegrees(f.pos.lon, f.pos.lat, Math.max(0, f.pos.alt));
+    inBB.add({ position:pos, image:goldPlane, scale:1.25, rotation:-Cesium.Math.toRadians(f.pos.trk), alignedAxis:Cesium.Cartesian3.UNIT_Z });
+    inLabels.add({ position:pos, text:f.cs || f.flight || '', font:'13px Segoe UI', fillColor:Cesium.Color.fromCssColorString('#ffe2a0'), outlineColor:Cesium.Color.BLACK, outlineWidth:2, style:Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new Cesium.Cartesian2(16,-10) });
+  }
+  const dep = f.departAt + (f.delay || 0) * 60000, arrTz = /oran|alger|algiers|alg[eé]rie|tlemcen|constantine/i.test(f.to || '') ? 'Africa/Algiers' : 'Europe/Brussels';
+  const status = f.cancelled ? '❌ Annulé' : f.landed ? '🛬 Atterri' : f.airborne ? '✈️ En vol' : `🕐 Départ ${hmTz(dep, f.tz)}${f.delay ? ` (retard ${f.delay} min)` : ''}`;
+  $('fl-title').textContent = `🧳 ${f.flight || 'Mon vol'} · ${f.from} → ${f.to}`;
+  $('fl-sub').textContent = `${status}${f.status ? ' · ' + f.status : ''} · mis à jour ${new Date().toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })}`;
+  $('fl-list').innerHTML = `<div class="fl sel"><div class="r1"><span class="cs">${esc(f.cs || f.flight || '')}</span><span class="al">${esc(f.terminal ? 'Terminal ' + f.terminal : '')}${esc(f.gate ? ' · porte ' + f.gate : '')}</span><span class="eta">${f.etaAt && !f.landed ? esc(hmTz(f.etaAt, arrTz)) : ''}</span></div>
+    <div class="r2">${esc(f.title)}</div>
+    <div class="r3">${f.pos && !f.pos.ground ? `${f.pos.alt.toLocaleString('fr-FR')} m · ${f.pos.spd} km/h${f.leftKm != null ? ' · encore ' + fmtKm(f.leftKm) : ''}${f.pct != null ? ' · ' + f.pct + ' %' : ''}` : f.pos ? 'Au sol (radar)' : 'Pas encore au radar — visible ~30 min avant le départ'}</div></div>`;
+  if(!first) return;
+  state.spin = false; syncButtons();
+  if(f.pos) camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(f.pos.lon, f.pos.lat, 1_200_000), duration:2.5 });
+  else if(f.fromPt && f.toPt) camera.flyTo({ destination:Cesium.Rectangle.fromDegrees(Math.min(f.fromPt.lon, f.toPt.lon) - 3, Math.min(f.fromPt.lat, f.toPt.lat) - 3, Math.max(f.fromPt.lon, f.toPt.lon) + 3, Math.max(f.fromPt.lat, f.toPt.lat) + 3), duration:2.5 });
+  reply(f.landed ? `Ton vol ${f.flight || ''} a atterri à ${f.to}.` : f.airborne ? `Ton vol ${f.flight || ''} est en vol vers ${f.to}${f.leftKm != null ? `, encore ${Math.round(f.leftKm)} kilomètres` : ''}${f.etaAt ? `, arrivée vers ${hmTz(f.etaAt, arrTz)}` : ''}.` : `Ton vol ${f.flight || ''} pour ${f.to} part à ${hmTz(dep, f.tz)}${f.delay ? `, avec ${f.delay} minutes de retard` : ''}.`);
+}
+async function showMine(){
+  closeInbound(); inbound.place = { name:'mine', lat:0, lon:0 }; inbound.mode = 'mine'; syncNexus();
+  $('fl-title').textContent = '🧳 Mon vol'; $('fl-sub').textContent = 'Je cherche ton avion…'; $('fl-list').innerHTML = ''; $('flights').classList.add('on');
+  clearInterval(inbound.timer); inbound.timer = setInterval(() => loadMine(false), 30000);
+  await loadMine(true);
+}
 function closeInbound(){ clearInterval(inbound.timer); inbound.place = null; inbound.flights = []; clearInbound(); $('flights').classList.remove('on'); $('info').style.display = 'none'; syncNexus(); }
 $('fl-x').onclick = () => closeInbound();
 
@@ -805,6 +843,7 @@ function command(d){
     case 'layer': setLayer(d.name, !!d.on); break;
     case 'inbound': void showInbound(d.query, d.mode); break;
     case 'inbound_close': closeInbound(); break;
+    case 'myflight': void showMine(); break;
     case 'cams': void showCams(d.query); break;
     case 'cam_next': openCam(cams.i + 1, true); break;
     case 'cam_prev': openCam(cams.i - 1, true); break;
@@ -850,8 +889,10 @@ document.querySelectorAll('#acts button').forEach(b => b.onclick = () => {
   else if(a === 'world') void showWorld();
   else if(a === 'strip') void showStrip('all', place, false);
   else if(a === 'events') events();
+  else if(a === 'mine') void showMine();
 });
 applyView(); tick(); void refreshWeather(true);
+if(new URLSearchParams(location.search).get('myflight')) setTimeout(() => void showMine(), 2500);   // ouvert depuis une notif « Mon vol »
 </script>
 </body>
 </html>
