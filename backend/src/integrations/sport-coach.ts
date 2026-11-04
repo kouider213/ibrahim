@@ -910,8 +910,21 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
   const fmt = (d: string) => new Date(localTs(d, '12:00')).toLocaleDateString('fr-FR', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long' });
 
   if (action === 'session' || action === 'today') {
+    // 04/11 (« je suis pas allé aujourd'hui, c'est mauvais ? ») : un jour ANNULÉ par lui était dit « aucune séance programmée »
+    // → on dit qu'il l'a annulée, pourquoi, et où en est sa semaine (faites / prévues), pour juger vraiment
+    const st = await getState();
+    const log = await readSportLog().catch(() => []);
+    const { weekday } = localNow();
+    const monday = addDays(localNow().date, -((weekday + 6) % 7));
+    const sunday = addDays(monday, 6);
+    const done = log.filter(l => l.date >= monday && l.date <= sunday).map(l => l.date);
+    const planned = Object.keys(st.plan).filter(d => d >= localNow().date && d <= sunday && !st.skips[d] && !done.includes(d));
+    const cancelled = Object.keys(st.skips).filter(d => d >= monday && d <= sunday);
+    const dd = (d: string) => new Date(localTs(d, '12:00')).toLocaleDateString('fr-FR', { timeZone: TZ, weekday: 'short', day: 'numeric' });
+    const week = `\n📅 Semaine : ${done.length} séance(s) faite(s)${done.length ? ` (${done.map(dd).join(', ')})` : ''}, ${cancelled.length} annulée(s) à ta demande${cancelled.length ? ` (${cancelled.map(dd).join(', ')})` : ''}, ${planned.length} encore prévue(s)${planned.length ? ` (${planned.map(dd).join(', ')})` : ''}.`;
+    if (st.skips[date]) return `🛌 ${fmt(date)} : séance ANNULÉE à ta demande (${st.skips[date]}) — ce n'est pas un oubli.${week}`;
     const t = await sportSessionFor(date);
-    return t ? `🏋️ ${fmt(date)} — ${t}${await homeLine(date)}` : `Pas de créneau sport à l'agenda le ${fmt(date)}.`;
+    return (t ? `🏋️ ${fmt(date)} — ${t}${await homeLine(date)}` : `Pas de séance prévue le ${fmt(date)} (jour de repos du programme).`) + week;
   }
   if (action === 'swap') {
     const type = parseType(input['type']);

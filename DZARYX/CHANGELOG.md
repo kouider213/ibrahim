@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (31) — « Je suis pas allé à la salle, c'est mauvais ? » : réponse honnête
+- `sport-coach.ts` session : jour annulé par lui → « séance ANNULÉE à ta demande (raison) » (avant : « aucune séance programmée ») + ligne semaine (faites / annulées / prévues).
+- `fr-commands.ts` skipJudge : vrais faits (aujourd'hui, demain, repas du jour) + consigne : juger la semaine, protéines qui manquent, déficit un jour de repos, prévenir si séances enchaînées.
+
 ## 2026-11-04 (30) — Question jamais perdue pendant un redéploiement + réponses sport plus perso
 - `orchestrator-engine.ts` + `brain-retry.ts` + `queue.ts` : questions en cours suivies ; au SIGTERM (redéploiement Railway) elles vont dans la file « question gardée » et la réponse part sur Telegram après le redémarrage — jamais si un outil qui écrit (cash, résa…) a déjà tourné (pas de doublon). Cause de « veines » sans réponse le 04/11 à 09:57.
 - `forme-cut.ts` formeSnapshot : + charges actuelles (1RM estimé, évolution 2 sem.), déficit et protéines visés.

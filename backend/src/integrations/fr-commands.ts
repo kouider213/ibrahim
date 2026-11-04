@@ -456,6 +456,18 @@ async function mindWeek(raw: string): Promise<Direct | null> {
   return { text: await espritTool({ action: 'semaine' }), direct: true };
 }
 
+/** 🤔 « je suis pas allé m'entraîner aujourd'hui… c'est mauvais ? » (04/11 : « aucune séance programmée » alors qu'il l'avait annulée) */
+async function skipJudge(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (t.length > 400) return null;
+  if (!/\b(pas (ete|alle|aller|fait)|rate|saute|zappe)\b[^.?!]{0,30}\b(entrainer|salle|sport|seance|muscu)/.test(t) && !/\b(entrainer|salle|sport|seance)\b[^.?!]{0,40}\b(c'?est (mauvais|grave|pas bien)|tu en penses quoi|ca va\b)/.test(t)) return null;
+  const { sportCoachTool } = await import('./sport-coach.js');
+  const [today, tomorrow] = await Promise.all([sportCoachTool({ action: 'session', date: 'today' }).catch(() => ''), sportCoachTool({ action: 'session', date: 'demain' }).catch(() => '')]);
+  const food = await import('./forme-food.js').then(async f => { const b = await f.foodBudget('kouider'); return `mangé ${b.eaten.kcal}/${b.target} kcal, protéines ${b.eaten.p}/${b.proteinGoal} g`; }).catch(() => '');
+  return { text: `FAITS RÉELS : AUJOURD'HUI → ${today.replace(/\n/g, ' ')} | DEMAIN → ${tomorrow.split('\n')[0]} | Repas du jour : ${food}.\n`
+    + "CONSIGNE : réponds HONNÊTEMENT à « c'est mauvais ? » avec ces faits : si la séance a été annulée par lui, dis-le (« tu l'avais annulée hier pour te reposer ») ; juge sa SEMAINE (faites / prévues), pas un seul jour ; dis ce qui compte un jour de repos pour sa sèche (rester en déficit, protéines du jour à finir : donne le chiffre qui manque, marche) ; si plusieurs séances s'enchaînent ensuite, préviens. Court (4-5 phrases), sans culpabiliser.", direct: false };
+}
+
 /** Le premier qui reconnaît la phrase. direct = réponse sans le cerveau. */
 /** 🎨🛠️ « crée-moi une image… » / « ajoute-toi une fonction… » (04/11 banc : le petit cerveau répondait « je n'ai pas d'outil »
  * alors que generate_image / transform_image / se_coder existent) → consigne au cerveau : lance le bon outil. */
@@ -479,7 +491,7 @@ export async function frCommand(raw: string, sessionId = 'telegram_kouider'): Pr
   SID = sessionId;
   const msg = raw.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
   if (!msg) return null;
-  for (const f of [craving, carKm, sportSkip, water, rentalCount, mindWeek, privacy, reminder, rdv, dnd, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, toolIntent, businessAdvice]) {
+  for (const f of [craving, carKm, sportSkip, water, rentalCount, mindWeek, privacy, reminder, rdv, dnd, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
     const r = await f(msg).catch(e => ({ text: `❌ ${e instanceof Error ? e.message : e}`, direct: true }));
     if (r) return r;
   }
