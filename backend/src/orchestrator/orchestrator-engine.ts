@@ -43,7 +43,7 @@ export function initOrchestratorEngine(_opts: P15InitOptions = {}): void {
 
 const OTHERS_PRESENT_RX = /(à|a) voix haute|lis[- ]le (moi )?(à|a) voix|ma femme (est |)(l[àa]|à c[ôo]t[ée]|avec moi|dans la voiture)|(je suis |on est )?en voiture avec|devant (ma femme|mes parents|ma m[èe]re|mon p[èe]re|quelqu'un|des gens|le client)|(il y a|y'?a) (du monde|quelqu'un)( avec moi| à c[ôo]t[ée])?|haut-parleur/i;
 
-export async function processWithOrchestration(
+async function processWithOrchestrationInner(
   userMessage:  string,
   sessionId:    string,
   textOnly    = false,
@@ -170,4 +170,24 @@ function logOrchestratorStart(
     ` cross_channel_msgs=${ctx.crossChannel.length}` +
     ` tz=${ctx.channel.timezone ?? 'unknown'}`,
   );
+}
+
+/** 04/11 (« veines » perdue à 09:57) : un redéploiement Railway coupait la question en cours → elle est suivie ici et, si le
+ *  serveur s'arrête avant la réponse, gardée pour être rejouée après le redémarrage (réponse sur Telegram). */
+export async function processWithOrchestration(
+  userMessage:  string,
+  sessionId:    string,
+  textOnly    = false,
+  imageBase64?: string,
+  imageMime   = 'image/jpeg',
+  actor:        OrgMember = DEFAULT_MEMBER,
+): Promise<P15Response> {
+  const track = /kouider/.test(sessionId) && !imageBase64 && !/^(sandbox|bench|crash)/.test(sessionId);
+  const br = track ? await import('../integrations/brain-retry.js').catch(() => null) : null;
+  const id = br?.inflightStart(sessionId, userMessage);
+  try {
+    return await processWithOrchestrationInner(userMessage, sessionId, textOnly, imageBase64, imageMime, actor);
+  } finally {
+    if (id) br?.inflightEnd(id);
+  }
 }

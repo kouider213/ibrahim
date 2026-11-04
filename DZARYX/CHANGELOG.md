@@ -3,6 +3,13 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (30) — Question jamais perdue pendant un redéploiement + réponses sport plus perso
+- `orchestrator-engine.ts` + `brain-retry.ts` + `queue.ts` : questions en cours suivies ; au SIGTERM (redéploiement Railway) elles vont dans la file « question gardée » et la réponse part sur Telegram après le redémarrage — jamais si un outil qui écrit (cash, résa…) a déjà tourné (pas de doublon). Cause de « veines » sans réponse le 04/11 à 09:57.
+- `forme-cut.ts` formeSnapshot : + charges actuelles (1RM estimé, évolution 2 sem.), déficit et protéines visés.
+- `rich-answer.ts` : chaque section part de SES données, dos ménagé, section « À quoi tu n'as peut-être pas pensé ».
+- `constants.ts` : message client → aucune règle FIK inventée (frais de retard…), [à compléter par Kouider] sinon.
+- Banc : 13 scénarios « vie de tous les jours » (journée de demain, oublis, essence, snus, courses sèche, achat voiture, anniversaire, fièvre d'Ibrahim, week-end en Belgique, flemme, message client, octobre vs novembre, bonjour) → OK.
+
 ## 2026-11-04 (29) — Ses vrais messages rejoués : questions perso avec SES chiffres, générales sans FIK
 - `context-builder.ts` : question générale (langue, culture, science…) sans mot business → flotte, résas, agenda, finances, clients, dossier PAS envoyés au cerveau.
 - `orchestrator.ts` : consigne du code aussi À CÔTÉ de la question ; prise Liberté + moral seul → soutien cadré sans outils.

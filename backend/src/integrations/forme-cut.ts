@@ -175,6 +175,8 @@ export async function formeSnapshot(): Promise<string> {
     ins ? `semaine ${ins.week.done}/${ins.week.target} séances${notTrained.length ? `, muscles pas travaillés en 7 j : ${notTrained.join(', ')}` : ''}` : '',
     c ? `sèche semaine ${c.weeksIn + 1} : poids tendance ${c.weight.current} kg${c.weight.rateWeek != null ? ` (${c.weight.rateWeek > 0 ? '−' : '+'}${Math.abs(c.weight.rateWeek)} kg/sem)` : ''}, objectif ${c.weight.goalKg ?? '?'} kg${c.weight.eta ? ` vers le ${c.weight.eta}` : ''} ; score du jour ${c.score}/100 (${c.parts.filter(p => !p.ok).map(p => `${p.k} manquant : ${p.hint}`).join(', ') || 'tout bon'})` : '',
     c?.dropping.length ? `force en baisse : ${c.dropping.join(', ')}` : '',
+    c?.lifts?.length ? `charges actuelles (1RM estimé) : ${c.lifts.slice(0, 5).map((l: { name: string; now: number; pct: number | null }) => `${l.name} ${l.now} kg${l.pct != null ? ` (${l.pct > 0 ? '+' : ''}${l.pct} % en 2 sem.)` : ''}`).join(', ')}` : '',
+    c ? `déficit visé ${c.deficit} kcal/j, protéines visées ${c.protein.goal} g/j` : '',
     ready, sleep,
     lastPh ? `dernière photo du corps (${lastPh.date}) : ${lastPh.analysis!.summary.slice(0, 160)}` : '',
   ].filter(Boolean);

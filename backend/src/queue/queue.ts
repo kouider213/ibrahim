@@ -6,8 +6,13 @@ import { KvRedis } from './kv-redis.js';
 export const redis = new KvRedis();
 
 // Sauvegarde les dernières écritures avant l'arrêt (redéploiement Railway)
+/** Tâches rapides à faire avant l'arrêt (ex. garder les questions en cours, brain-retry.ts). */
+export const shutdownHooks: Array<() => Promise<void>> = [];
 for (const sig of ['SIGTERM', 'SIGINT'] as const) {
-  process.once(sig, () => { void redis.flush().finally(() => process.exit(0)); });
+  process.once(sig, () => {
+    void Promise.race([Promise.allSettled(shutdownHooks.map(h => h())), new Promise(r => setTimeout(r, 2500))])
+      .then(() => redis.flush()).finally(() => process.exit(0));
+  });
 }
 
 export interface ExecuteActionJob {
