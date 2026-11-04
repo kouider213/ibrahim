@@ -247,6 +247,16 @@ export async function processMessage(
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
     return { text: done, status: 'done' };
   }
+  // 😴 SOMMEIL par message (04/11) : « bonne nuit » le soir = coucher, 1er message du matin = réveil → nuit calculée
+  if (actorUserId === 'kouider' && !sandbox) {
+    const sleepReply = await (await import('../integrations/sleep-phone.js')).sleepFromMessage(userMessage).catch(() => null);
+    if (sleepReply) {
+      _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: sleepReply });
+      saveConversationTurn(sessionId, 'assistant', sleepReply).catch(() => {});
+      _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+      return { text: sleepReply, status: 'done' };
+    }
+  }
   // GPS de vie en phrases normales (« j'ai épargné 17 000 », « je pèse 78 », « départ 20 % », « où j'en suis de mes objectifs ? »)
   // → mis à jour pour de vrai par le code, réponse directe (le cerveau seul ne le faisait pas de façon fiable)
   const lifeCmd = actorUserId === 'kouider' && !sandbox ? (await import('../integrations/foresight.js')).parseLifeGoalCommand(userMessage) : null;

@@ -31,7 +31,7 @@ export async function phoneSleepMark(kindIn: string): Promise<{ ok: true; say: s
   if (kind !== 'leve') return { ok: true, say: '' };
 
   const woke = await kvJson<{ date: string } | null>(WOKE_K, null);
-  if (woke?.date === date && kindIn === 'auto') return { ok: true, say: '' };   // déjà levé ce matin : les autres signaux ne comptent pas
+  if (woke?.date === date) return { ok: true, say: '' };   // déjà levé ce matin : les autres signaux ne comptent pas
   await kvPut(WOKE_K, { date, at: nowIso }, 2 * 86_400);
   await kvPut('kouider:woke', { date, hhmm }, 2 * 86_400).catch(() => {});   // FORME : l'activité du jour démarre ici
 
@@ -53,4 +53,33 @@ export async function phoneSleepMark(kindIn: string): Promise<{ ok: true; say: s
 
   await import('./jarvis-hub.js').then(m => m.receiveHealth({ date, sleep_h, sleep_src: 'telephone' }));
   return { ok: true, say: `Bonjour ☀️ Couché à ${hm(bed.at)}, levé à ${hm(nowIso)} → environ ${fmtH(sleep)} de sommeil (estimé sans montre).` };
+}
+
+/**
+ * 04/11 (Kouider : « je vais envoyer un message à Dzaryx avant de dormir, ex. bonne nuit, et au réveil aussi ») :
+ *  - le soir (19h → 4h), « bonne nuit / je vais dormir / je me couche… » = coucher (le dernier compte) ;
+ *  - le matin (4h30 → 13h), son 1er message (quel qu'il soit) après un « bonne nuit » = réveil → nuit calculée.
+ * Renvoie une réponse directe seulement si le message n'est QUE la salutation ; sinon null (le cerveau répond normalement).
+ */
+const NIGHT_RE = /\b(bonne nuit|bne nuit|b nuit|tesbah|tesba7|tasbah|t'?sbah|je (vais|part|pars) (dormir|me coucher|au lit)|je (me couche|dors|vais au lit)|au lit|dodo|(je vais|on va) faire dodo)(?![\wà-ÿ])/i;
+const NOT_SLEEP_RE = /\b(pas encore|dors pas|dort pas|(peux|arrive) pas (à |a )?dormir|pas sommeil|insomnie)/i;
+const MORNING_RE = /\b(bonjour|bonjoir|sala+m\w*|salut|sbah|sba7|sbah el ?kh?ir|r[ée]veill[ée]|je me l[èe]ve|je suis (debout|lev[ée])|debout)(?![\wà-ÿ])/i;
+export async function sleepFromMessage(text: string): Promise<string | null> {
+  const t = text.trim();
+  if (!t || t.length > 400) return null;
+  const { date, hhmm } = localNow();
+  const short = t.split(/\s+/).length <= 6;
+  if ((hhmm >= '19:00' || hhmm < '04:00') && NIGHT_RE.test(t) && !NOT_SLEEP_RE.test(t)) {
+    await kvPut(BED_K, { at: new Date().toISOString() }, 20 * 3600);
+    return short ? `Bonne nuit 🌙 Coucher noté à ${hhmm}. Envoie-moi un message au réveil et je calcule ta nuit.` : null;
+  }
+  if (hhmm >= '04:30' && hhmm < '13:00') {
+    const woke = await kvJson<{ date: string } | null>(WOKE_K, null);
+    if (woke?.date === date) return null;
+    const bed = await kvJson<{ at: string } | null>(BED_K, null);
+    if (!bed && !MORNING_RE.test(t)) return null;       // pas de « bonne nuit » hier : seul un vrai « bonjour » compte comme réveil
+    const r = await phoneSleepMark('leve');
+    return short && MORNING_RE.test(t) ? r.say : null;
+  }
+  return null;
 }

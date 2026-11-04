@@ -6,6 +6,7 @@
 ## 2026-11-04 — VPS↔Railway via WARP, sommeil sans montre, FORME semaine
 - VPS : l'hébergeur ne routait plus vers Railway → trafic Railway seul via Cloudflare WARP (proxy + redsocks + iptables, systemd railway-via-warp). Watchdog : vérif externe check-host (plus de fausse « PANNE ») ; heal ne relance plus TG/PC cloud si Railway injoignable.
 - 😴 Sommeil sans montre : POST /api/jarvis/sleep {kind auto|couche|leve} (sleep-phone.ts) → nuit estimée (coucher → réveil − 15 min) dans health:daily (sleep_src telephone, la montre la remplace).
+- 😴 Sommeil par message Telegram/app : « bonne nuit » (19h→4h) = coucher, 1er message du matin (4h30→13h) = réveil → nuit dans health:daily (sleepFromMessage, orchestrator). Raccourci iPhone abandonné par Kouider.
 - FORME Repas : activité estimée démarre au vrai réveil (plus 6h) ; note « normal le matin » ; section « Ma semaine » 7 jours (GET /api/forme/food/week), appui = plats du jour passé. App v244.
 
 ## 2026-11-03 (nuit) — Widget v4 + Dzaryx « comme ChatGPT / Google »
