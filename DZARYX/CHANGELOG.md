@@ -3,6 +3,8 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (9) — Couple : idées À LA MAISON par défaut (mercredi → samedi soir après le coucher d'Ibrahim) ; SORTIE seulement pour le lundi (congé), envoyée chaque dimanche 17h ; plus de rappel « garde d'Ibrahim » pour une soirée maison ; un seul message (plus de doublon décision + texte)
+
 ## 2026-11-04 (8) — CarPlay voix « cinéma » + widget v6 + messages repris après redémarrage + soirée à deux réaliste
 - jarvis-audio.ts : voix Jarvis habillée (séquence de démarrage : souffle, basse, bips de scan, carillon ; écho stéréo ; nappage grave ; carillon de veille), synthèse en 3 morceaux parallèles, secours voix nue
 - car-coach.ts : séquence de démarrage dite + « Protocole mission / retour au foyer / famille / journée douce / vendredi » ; discours avec tournures d'IA futuriste sans chiffre inventé ; jarvis4 : fin « Je reste en veille, Dis Siri, Jarvis »

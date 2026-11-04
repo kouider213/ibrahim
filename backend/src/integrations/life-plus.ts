@@ -240,32 +240,45 @@ async function coupleContext(sat: string): Promise<string> {
   ].filter(Boolean).join('\n');
 }
 
-async function proposeCouple(): Promise<string> {
+// 04/11 (2) Kouider : « il doit plus me proposer des trucs à faire à la maison au lieu de dehors, sauf le lundi : le
+// dimanche il doit m'envoyer une idée de sortie pour lundi » → MAISON par défaut (mercredi, pour samedi soir après le
+// coucher d'Ibrahim) ; SORTIE seulement pour le lundi (son jour de congé), envoyée le dimanche.
+async function proposeCouple(kind: 'maison' | 'sortie' = 'maison', when?: string): Promise<string> {
   const cfg = await getRoutineConfig();
   const home = await geocode(cfg.addresses.home).catch(() => null);
   const today = localNow().date;
-  const sat = addDays(today, (6 - localNow().weekday + 7) % 7 || 7);
-  const ctx = await coupleContext(sat).catch(() => 'FAMILLE : un fils Ibrahim (1 an et demi).');
-  const txt = await research(`Kouider (musulman, mange halal, vit près de ${cfg.addresses.home}${home ? ` (${home.lat.toFixed(3)}, ${home.lng.toFixed(3)})` : ''}, Bruxelles) veut une soirée à deux avec sa femme le ${fmtD(sat)}.
-SA VRAIE SITUATION (à respecter ABSOLUMENT, c'est le cœur de la proposition) :
+  const target = when ?? (kind === 'sortie'
+    ? addDays(today, (1 - localNow().weekday + 7) % 7 || 7)          // prochain lundi
+    : addDays(today, (6 - localNow().weekday + 7) % 7 || 7));        // prochain samedi
+  const ctx = await coupleContext(target).catch(() => 'FAMILLE : un fils Ibrahim (1 an et demi).');
+  const common = `SA VRAIE SITUATION (à respecter ABSOLUMENT, c'est le cœur de la proposition) :
 ${ctx}
-
-RÈGLES :
-- Ibrahim : dis clairement qui/quoi pour lui (garde à prévoir par la famille, OU formule à la maison après son coucher). Jamais une sortie sans avoir réglé Ibrahim.
-- Horaires : la soirée commence APRÈS sa fin de travail + le temps de rentrer et souffler (pas de départ à 19h s'il finit à 18h30 loin). L'heure de fin dépend de son réveil du lendemain : il doit pouvoir dormir au moins 7 h 30.
-- Fatigue / manque de sommeil / moral bas : soirée COURTE et calme, près de chez lui, zéro trajet long ni marche longue ; si très fatigué, privilégie la formule maison.
-- Régime (sèche) : resto où il peut manger protéiné et léger (grillades, poisson, salade), dessert PARTAGÉ ou évité, aucune « gaufre + thé » comme point central ; donne une estimation rapide (« ~700 kcal si grillade + légumes »).
-- Donne 2 FORMULES : A) sortie (1 restaurant HALAL réel et bien noté à moins de 20 min : nom, adresse, prix, pourquoi ; + petite activité courte à côté), B) soirée à la maison spéciale après le coucher d'Ibrahim (repas commandé ou cuisiné compatible sèche, idée d'ambiance). Dis laquelle tu conseilles et POURQUOI d'après sa situation (1 phrase).
-- Termine par le planning conseillé (heure de départ, heure de retour, heure de coucher).
-Tiens compte de la météo prévue ce soir-là. Français, court, sans alcool. Texte simple pour Telegram : pas de « ### », pas de « --- », puces avec •.`, { rounds: 6, max: 1100 }).catch(() => '');
+RÈGLES COMMUNES :
+- Fatigue / manque de sommeil / moral bas : simple, calme, rien de lourd à organiser.
+- Régime (sèche) : repas protéiné et léger (grillades, poisson, salade), dessert PARTAGÉ ou évité ; donne une estimation rapide (« ~700 kcal »).
+- Termine par le planning conseillé (heures) et une heure de coucher qui lui laisse au moins 7 h 30 de sommeil avant son réveil du lendemain.
+Français, court, sans alcool. Texte simple pour Telegram : pas de « ### », pas de « --- », puces avec •.`;
+  const prompt = kind === 'maison'
+    ? `Kouider (musulman, halal, Bruxelles) veut une SOIRÉE À DEUX À LA MAISON avec sa femme le ${fmtD(target)} soir, APRÈS LE COUCHER D'IBRAHIM. AUCUNE sortie.
+${common}
+- Donne UNE soirée maison complète et originale (pas toujours « film + plateau ») : un repas (commandé chez un traiteur HALAL réel qui livre près de ${cfg.addresses.home}${home ? ` (${home.lat.toFixed(3)}, ${home.lng.toFixed(3)})` : ''}, OU une recette simple compatible sèche à faire à deux), une ambiance (lumière, musique, table), et UNE activité à deux (jeu de couple, souvenirs/photos, projet Oran à rêver ensemble, massage des pieds, film choisi ensemble…).
+- Ce qu'il doit préparer avant (courses, commande à passer, à quelle heure), simple vu sa journée.
+- Commence après le coucher d'Ibrahim et après sa fin de travail + temps de souffler.`
+    : `Kouider (musulman, halal, vit près de ${cfg.addresses.home}${home ? ` (${home.lat.toFixed(3)}, ${home.lng.toFixed(3)})` : ''}, Bruxelles) a son JOUR DE CONGÉ le ${fmtD(target)} : propose UNE idée de SORTIE pour ce jour-là.
+${common}
+- Ibrahim : dis clairement si c'est une sortie EN FAMILLE avec lui (adaptée à 1 an et demi : sieste, poussette, coin enfants) ou à deux avec une garde à prévoir. En journée de congé, privilégie une belle sortie en famille, ou un déjeuner à deux pendant que quelqu'un le garde.
+- 1 lieu ou restaurant HALAL réel et bien noté à moins de 25 min (nom, adresse, prix, pourquoi), + petite activité à côté, adaptée à la météo prévue ce jour-là.
+- Retour tôt : le lendemain il travaille.`;
+  const txt = await research(prompt, { rounds: 6, max: 1100 }).catch(() => '');
   if (!txt) return '❌ Recherche impossible pour le moment.';
   await kvPut(COUPLE_KEY, { ...(await kvJson<Couple>(COUPLE_KEY, {})), proposedAt: today });
   const { createDecision } = await import('./conscience.js');
-  await createDecision(`💑 Soirée à deux ${fmtD(sat)} ?\n${txt.slice(0, 1200)}`, [
-    { label: 'Oui, réserve le créneau', tool: 'vie', input: { action: 'couple', op: 'book', date: sat } },
-    { label: 'Pas cette semaine', tool: 'vie', input: { action: 'couple', op: 'skip' } },
-  ]).catch(() => {});
-  return `💑 Idée pour ${fmtD(sat)} :\n${txt}`;
+  const title = kind === 'maison' ? `🏠 Soirée à deux à la maison ${fmtD(target)} ?` : `🚗 Sortie de ton lundi ${fmtD(target)} ?`;
+  await createDecision(`${title}\n${txt.slice(0, 1200)}`, [
+    { label: 'Oui, mets-le dans l\'agenda', tool: 'vie', input: { action: 'couple', op: 'book', date: target, ...(kind === 'sortie' ? { time: '11:00', place: 'Sortie du lundi' } : { time: '20:30', place: 'Soirée à deux à la maison' }) } },
+    { label: 'Pas cette fois', tool: 'vie', input: { action: 'couple', op: 'skip' } },
+  ], false).catch(() => {});
+  return `${title}\n${txt}\n\n1️⃣ Oui, mets-le dans l'agenda · 2️⃣ Pas cette fois — réponds juste le chiffre.`;
 }
 
 async function bookCouple(date: string, time = '19:30', place = 'Soirée à deux'): Promise<string> {
@@ -273,7 +286,7 @@ async function bookCouple(date: string, time = '19:30', place = 'Soirée à deux
   const end = `${String(Math.min(23, Number(time.slice(0, 2)) + 3)).padStart(2, '0')}:${time.slice(3, 5)}`;
   const id = await createAgendaEvent(`💑 ${place}`, `${date}T${time}:00`, `${date}T${end}:00`, 'Soirée à deux. Téléphone en silencieux : Dzaryx garde les clients (bouclier famille).', false).catch(() => null);
   await kvPut(COUPLE_KEY, { last: date, next: { date, time, place, ...(id ? { eventId: id } : {}) } });
-  return `✅ ${place} le ${fmtD(date)} à ${time.replace(':', 'h')} dans ton agenda.${id ? '' : ' (agenda injoignable : pas écrit dedans)'} Je te rappelle 2 jours avant de prévoir la garde d'Ibrahim, et le jour même je t'envoie l'itinéraire. C'est toi qui proposes à ta femme : je ne la contacte jamais.`;
+  return `✅ ${place} le ${fmtD(date)} à ${time.replace(':', 'h')} dans ton agenda.${id ? '' : ' (agenda injoignable : pas écrit dedans)'} ${/maison/i.test(place) ? 'Le jour même je te rappelle ce qu\'il faut préparer.' : 'Je te rappelle 2 jours avant de prévoir la garde d\'Ibrahim (si vous sortez à deux), et le jour même je t\'envoie l\'itinéraire.'} C'est toi qui proposes à ta femme : je ne la contacte jamais.`;
 }
 
 // ── 5. Conseil avant une grosse décision ─────────────────────────────────────
@@ -413,14 +426,21 @@ export async function jobLifePlus(): Promise<void> {
   if (weekday === 3 && hhmm >= '12:00' && hhmm < '12:15') await run('couple', async () => {
     const c = await kvJson<Couple>(COUPLE_KEY, {});
     const last = [c.last, c.proposedAt].filter(Boolean).sort().at(-1);
-    if (!last || last <= addDays(date, -13)) await tg(await proposeCouple());
+    if (!last || last <= addDays(date, -13)) await tg(await proposeCouple('maison'));
+  });
+  // Dimanche 17h : idée de SORTIE pour son lundi de congé (chaque semaine) — avant la revue de vie de 19h
+  if (weekday === 0 && hhmm >= '17:00' && hhmm < '17:15') await run('sortie-lundi', async () => {
+    const off = await import('./kouider-dossier.js').then(m => m.isDayOff(1)).catch(() => true);
+    if (off) await tg(await proposeCouple('sortie', addDays(date, 1)));
   });
   const c = await kvJson<Couple>(COUPLE_KEY, {});
   if (c.next && hhmm >= '10:00' && hhmm < '10:15') {
-    if (c.next.date === addDays(date, 2)) await run('couple-garde', async () => tg(`💑 Samedi ${c.next!.time.replace(':', 'h')} : ta soirée à deux. Pense à trouver quelqu'un pour garder Ibrahim.`));
+    const atHome = /maison/i.test(c.next.place);
+    if (c.next.date === addDays(date, 2) && !atHome) await run('couple-garde', async () => tg(`💑 ${fmtD(c.next!.date)} ${c.next!.time.replace(':', 'h')} : ${c.next!.place}. Si vous sortez à deux, pense à trouver quelqu'un pour garder Ibrahim.`));
     if (c.next.date === date) await run('couple-jour', async () => {
+      if (atHome) { await tg(`🏠 Ce soir ${c.next!.time.replace(':', 'h')}, après le coucher d'Ibrahim : votre soirée à deux à la maison. Pense à ce qu'il faut préparer (commande ou courses). Téléphone en silencieux, je garde les clients.`); return; }
       const g = await geocode(c.next!.place).catch(() => null);
-      await tg(`💑 Ce soir ${c.next!.time.replace(':', 'h')} : ${c.next!.place}. Téléphone en silencieux, je garde les clients.${g ? `\n🧭 Waze : https://waze.com/ul?ll=${g.lat},${g.lng}&navigate=yes` : ''}`);
+      await tg(`💑 ${c.next!.time.replace(':', 'h')} : ${c.next!.place}. Téléphone en silencieux, je garde les clients.${g ? `\n🧭 Waze : https://waze.com/ul?ll=${g.lat},${g.lng}&navigate=yes` : ''}`);
     });
   }
   if (hhmm >= '10:00' && hhmm < '10:15') await run('decisions-suivi', async () => {
@@ -515,7 +535,9 @@ export async function lifeTool(input: Record<string, unknown>): Promise<string> 
       const op = String(input['op'] ?? 'propose');
       if (op === 'book') return bookCouple(String(input['date'] ?? addDays(localNow().date, 1)), /^\d{2}:\d{2}$/.test(String(input['time'] ?? '')) ? String(input['time']) : undefined, String(input['place'] ?? '') || undefined);
       if (op === 'skip') { await kvPut(COUPLE_KEY, { ...(await kvJson<Couple>(COUPLE_KEY, {})), proposedAt: localNow().date }); return 'OK, pas cette semaine. Je te reproposerai dans 15 jours.'; }
-      return proposeCouple();
+      // Par défaut MAISON ; sortie seulement si c'est pour un lundi (son congé) ou s'il demande une sortie
+      const kind = String(input['kind'] ?? '') === 'sortie' || (typeof input['date'] === 'string' && new Date(`${input['date']}T12:00:00Z`).getUTCDay() === 1) ? 'sortie' : 'maison';
+      return proposeCouple(kind, /^\d{4}-\d{2}-\d{2}$/.test(String(input['date'] ?? '')) ? String(input['date']) : undefined);
     }
     case 'decision': {
       const t = String(input['text'] ?? '').trim();
