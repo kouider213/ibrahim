@@ -41,7 +41,7 @@ def check(url: str) -> str | None:
 def seen_from_outside(url: str) -> bool | None:
     """Railway répond-il ailleurs dans le monde (check-host.net) ? None si on ne sait pas."""
     try:
-        h = {'Accept': 'application/json'}
+        h = {'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0 (dzaryx-watchdog)'}
         req = urllib.request.Request(f'https://check-host.net/check-http?host={url}/health&max_nodes=4', headers=h)
         with urllib.request.urlopen(req, timeout=15) as r:
             rid = json.load(r)['request_id']
