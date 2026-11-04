@@ -27,7 +27,7 @@ export async function jobDailyRecapCall(): Promise<void> {
     supabase.from('bookings').select('client_name, cars(name)').in('status', ['CONFIRMED', 'ACTIVE']).eq('end_date', today),
     supabase.from('bookings').select('client_name, cars(name)').in('status', ['CONFIRMED', 'ACTIVE']).eq('start_date', tomorrow),
     supabase.from('bookings').select('id').in('status', ['CONFIRMED', 'ACTIVE']).lt('end_date', today),
-    supabase.from('bookings').select('id').in('payment_status', ['PENDING', 'PARTIAL']).in('status', ['ACTIVE', 'COMPLETED']).lte('start_date', today),
+    supabase.from('bookings').select('id').in('payment_status', ['UNPAID', 'PENDING', 'PARTIAL']).in('status', ['ACTIVE', 'COMPLETED']).lte('start_date', today),
     buildYesterdayRecap().catch(() => null),
   ]);
   const list = (rows: unknown) => ((rows ?? []) as B[]).map(b => `${b.client_name} avec ${carOf(b)}`).join(', ');

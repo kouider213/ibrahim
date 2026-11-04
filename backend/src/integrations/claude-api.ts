@@ -161,6 +161,7 @@ async function chatMode(): Promise<string> {
 }
 export function setChatModeCache(mode: string): void { chatModeCache = { mode, at: Date.now() }; }
 
+const CLAUDE_FAST_EMERGENCY = 'claude-haiku-5-5';
 export function pickChatModel(messages: Message[], o: { thinking: boolean; web: boolean; image: boolean }): { model: string; why: string } {
   if (o.thinking) return { model: 'claude-sonnet-5-5', why: 'réflexion' };
   if (o.web)      return { model: 'claude-sonnet-5-5', why: 'recherche web' };
@@ -414,7 +415,7 @@ export async function chatWithTools(
   const pick = (await chatMode()) === 'sonnet'
     ? { model: 'claude-sonnet-5-5', why: 'tout sur Sonnet (réglage)' }
     : pickChatModel(processedMessages, { thinking: useThinking, web: useWebSearch, image: !!imageBase64 });
-  let chatModel = pick.model;
+  let chatModel = (await import('./anthropic-compat.js')).inClaudeEmergency() ? CLAUDE_FAST_EMERGENCY : pick.model;   // secours : toujours le moins cher
   console.log(`[claude] 🧭 cerveau : ${chatModel} (${pick.why})`);
 
   let inputTokens      = 0;

@@ -220,7 +220,7 @@ async function triggerUnpaidReminder(demo: boolean): Promise<TriggerResult> {
   const { data, error } = await supabase
     .from('bookings')
     .select('id, client_name, client_phone, final_price, paid_amount, payment_status, start_date, cars(name)')
-    .in('payment_status', ['PENDING', 'PARTIAL'])
+    .in('payment_status', ['UNPAID', 'PENDING', 'PARTIAL'])
     .in('status',         ['ACTIVE', 'COMPLETED'])
     .lte('start_date',    cutoffStr)
     .order('start_date',  { ascending: true });

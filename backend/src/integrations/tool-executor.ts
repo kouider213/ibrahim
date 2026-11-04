@@ -260,6 +260,7 @@ export async function executeTool(
   sessionId?: string,
 ): Promise<string> {
   input = aliasToolInput(name, input);              // 05/11 : noms de champs inventés par le cerveau (booking_id, total_price…)
+  input = await bookingByClient(name, input);        // 05/11 : « fais le contrat de Halfi » → il demandait l'ID de la résa
   const simulated = sandboxIntercept(name, input);   // crash-test : rien de réel ne part
   if (simulated !== null) return simulated;
   const t0     = Date.now();
@@ -322,6 +323,21 @@ export function aliasToolInput(name: string, input: Record<string, unknown>): Re
   // record_payment / get_payment_status attendent booking_id : on le garde aussi
   if ((name === 'record_payment' || name === 'get_payment_status' || name.startsWith('generate_')) && out['id'] !== undefined && out['booking_id'] === undefined) out['booking_id'] = out['id'];
   return out;
+}
+
+/** Outil de résa sans id mais avec un nom de client → sa résa la plus récente/en cours (une seule possible, sinon on laisse l'outil demander). */
+async function bookingByClient(name: string, input: Record<string, unknown>): Promise<Record<string, unknown>> {
+  if (!BOOKING_TOOLS.has(name) || name === 'create_booking' || input['id'] || input['booking_id']) return input;
+  const who = String(input['client_name'] ?? input['client'] ?? '').trim();
+  if (who.length < 3) return input;
+  const { data } = await supabase.from('bookings').select('id, client_name, start_date, end_date, status').ilike('client_name', `%${who}%`).not('status', 'eq', 'REJECTED').order('start_date', { ascending: false }).limit(5);
+  const list = (data ?? []) as Array<{ id: string; start_date: string; end_date: string }>;
+  if (!list.length) return input;
+  const today = new Date().toISOString().slice(0, 10);
+  const current = list.filter(b => b.end_date >= today);
+  const pick = current.length === 1 ? current[0] : current.length === 0 ? list[0] : null;
+  if (!pick) return input;
+  return { ...input, id: pick.id, booking_id: pick.id };
 }
 
 const NEXUS_TOOLS = new Set(['ping_nexus', 'send_nexus_command', 'nexus_screenshot', 'wake_nexus', 'restart_nexus', 'update_nexus', 'nexus_full_status']);
@@ -2991,8 +3007,20 @@ async function forgetLearnedRuleTool(input: Record<string, unknown>, sessionId?:
 }
 
 async function generateContractTool(input: Record<string, unknown>, _sessionId?: string): Promise<string> {
-  const bookingId = input['booking_id'] as string | undefined;
-  if (!bookingId) return '❌ booking_id requis';
+  let bookingId = input['booking_id'] as string | undefined;
+  // 05/11 banc : « fais le contrat de Halfi » → « Quel est l'ID ? ». Kouider ne connaît pas les ID : on cherche par nom.
+  const who = String(input['client_name'] ?? input['client'] ?? (bookingId && !/^[0-9a-f-]{8,}$/i.test(bookingId) ? bookingId : '')).trim();
+  if (who && (!bookingId || !/^[0-9a-f-]{8,}$/i.test(bookingId))) {
+    const { data: found } = await supabase.from('bookings').select('id, client_name, start_date, status')
+      .ilike('client_name', `%${who.replace(/[%_]/g, '')}%`).neq('status', 'CANCELLED').order('start_date', { ascending: false }).limit(5);
+    if (!found?.length) return `❌ Aucune réservation au nom de « ${who} ».`;
+    const today = new Date().toISOString().slice(0, 10);
+    const current = (found as Array<{ id: string; start_date: string; status: string }>).filter(b => b.status === 'ACTIVE' || b.start_date >= today);
+    const pick = current.length === 1 ? current[0] : found.length === 1 ? found[0] : null;
+    if (!pick) return `❓ Plusieurs réservations au nom de « ${who} » : ${(found as Array<{ client_name: string; start_date: string }>).map(b => `${b.client_name} (${b.start_date})`).join(', ')}. Laquelle ?`;
+    bookingId = (pick as { id: string }).id;
+  }
+  if (!bookingId) return '❌ Dis-moi le nom du client (ou la réservation).';
 
   const { data: bk } = await supabase.from('bookings').select('*, cars(name)').eq('id', bookingId).single();
   if (!bk) return '❌ Réservation introuvable';

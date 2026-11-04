@@ -299,6 +299,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'brain-retry',
+    cron:  '*/5 * * * *',           // question gardée quand tous les cerveaux gratuits étaient saturés → rejouée, réponse sur Telegram
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'esprit-day',
     cron:  '10 23 * * *',           // 23h10 — journal du jour (note, sport, famille, gratitude) — mon-esprit.ts
     tz:    'Europe/Brussels',
@@ -800,6 +805,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'digest':                  async () => { console.log(`[digest] ${await (await import('../notifications/digest.js')).jobDigest()}`); },
   'digest-evening':          async () => { console.log(`[digest] ${await (await import('../notifications/digest.js')).jobDigest()}`); },
   'dzaryx-weekly':           async () => { await (await import('../integrations/dzaryx-weekly.js')).jobDzaryxWeekly(); },
+  'brain-retry':             async () => { const r = await (await import('../integrations/brain-retry.js')).jobBrainRetry(); if (r !== 'rien') console.log(`[brain-retry] ${r}`); },
   'esprit-day':              async () => { console.log(`[esprit] ${await (await import('../integrations/mon-esprit.js')).jobEspritDay()}`); },
   'esprit-sunday':           async () => { console.log(`[esprit] ${await (await import('../integrations/mon-esprit.js')).jobEspritSunday()}`); },
   'esprit-watch':            async () => { console.log(`[esprit] ${await (await import('../integrations/mon-esprit.js')).jobEspritWatch()}`); },

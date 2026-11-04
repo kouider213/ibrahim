@@ -2521,9 +2521,10 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     input_schema: {
       type: 'object' as const,
       properties: {
-        booking_id: { type: 'string', description: 'UUID de la réservation' },
+        booking_id: { type: 'string', description: 'UUID de la réservation (si connu)' },
+        client_name: { type: 'string', description: 'Nom du client (« contrat de Halfi ») — le code trouve la réservation, ne demande JAMAIS l\'ID à Kouider' },
       },
-      required: ['booking_id'],
+      required: [],
     },
   },
 

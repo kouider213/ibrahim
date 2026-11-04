@@ -68,7 +68,7 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
     getFinancialReport(new Date().getFullYear(), new Date().getMonth() + 1).catch(() => null),
     // Soldes à encaisser : voiture déjà remise (start passé), encore dû. Même règle que jobUnpaidReminder.
     supabase.from('bookings').select('client_name, final_price, paid_amount, currency, cars(name)')
-      .in('payment_status', ['PENDING', 'PARTIAL'])
+      .in('payment_status', ['UNPAID', 'PENDING', 'PARTIAL'])
       .in('status', ['ACTIVE', 'COMPLETED'])
       .lte('start_date', today),
     // Docs clients qui expirent ≤7j (passeport / permis)
@@ -471,7 +471,7 @@ export async function jobUnpaidReminder(_job: Job): Promise<void> {
   const { data: activeUnpaid } = await supabase
     .from('bookings')
     .select('id, client_name, client_phone, final_price, paid_amount, payment_status, created_at, start_date, end_date, cars(name)')
-    .in('payment_status', ['PENDING', 'PARTIAL'])
+    .in('payment_status', ['UNPAID', 'PENDING', 'PARTIAL'])
     .in('status', ['ACTIVE', 'COMPLETED'])
     .lte('start_date', today)
     .order('start_date', { ascending: true });

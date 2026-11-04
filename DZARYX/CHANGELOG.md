@@ -3,6 +3,15 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (20) — Banc phase 2, tour 2 : question gardée, secours Claude, SOS envie, CA du mois juste, impayés UNPAID
+- `brain-retry.ts` (nouveau, job */5) : tous les cerveaux gratuits saturés → la question est GARDÉE et rejouée, réponse sur Telegram (avant : « Service temporairement indisponible », question perdue).
+- `anthropic-compat.ts` + `orchestrator.ts` + `claude-api.ts` : secours Claude Haiku seulement si tout le gratuit a échoué, messages de Kouider seulement, 5×/jour max, info Telegram au 1er usage.
+- `fr-commands.ts` : « j'ai trop envie d'en prendre un » → SOS Liberté direct (avant : « Quelle voiture t'intéresse ? ») ; « j'ai encore pris un demi » reste au cerveau ; « mon salaire est tombé / j'ai touché ma paie » noté ; plan Algérie / projection / CA par le code.
+- `phase5-finance.ts` getCAReport : location à cheval sur 2 mois comptée au prorata (29/10→9/11 comptée entière dans octobre ET novembre), montants arrondis.
+- Impayés : `payment_status` UNPAID ajouté partout (relances, appels, moteur proactif) — les clients qui n'avaient RIEN payé n'étaient jamais relancés.
+- `generate_contract` : par nom de client (« fais le contrat de Halfi » → « quel est l'ID ? »).
+- Banc : phase 1 112/112 · outils 25/25 · finances 11/11.
+
 ## 2026-11-04 (19) — Banc « comme Kouider » phase 2 (vrai cerveau, 43 scénarios) : 20 bugs corrigés
 - `tool-executor.ts` aliasToolInput : le cerveau écrit booking_id / price_per_day / total_price… → « ID manquant » / « Prix manquant » ×10 puis « Clio INDISPONIBLE » inventé ou « Service indisponible » (prolonger une résa ne marchait JAMAIS). Synonymes traduits pour tous les outils de réservation.
 - `agentic-fallback.ts` : même appel d'outil = pas réexécuté, 3 échecs du même outil = stop → il dit la vraie erreur.

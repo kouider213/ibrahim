@@ -748,7 +748,22 @@ export async function processMessage(
     }
 
     console.error(`[MOBILE_RUNTIME] channel=${source_channel} session=${sessionId} ALL_PROVIDERS_FAILED error=true router_used=true legacy=false`);
-    const errorText = `⚠️ Service temporairement indisponible. Réessaie dans quelques secondes.`;
+    // 🚑 Dernier secours payant : Claude Haiku, 5 fois/jour max, seulement pour Kouider (04/11 « vraiment en cas d'urgence »)
+    if (actorUserId === 'kouider' && !sandbox) {
+      const compat = await import('../integrations/anthropic-compat.js');
+      const em = await compat.runClaudeEmergency(() => chatWithTools(ctx.messages, agentSystemExtra, sessionId, onToolStart, onToolDone, onTextChunk, imageBase64, imageMime, agentRoute.agentTools)).catch(e => { console.error('[claude-emergency] échec :', e instanceof Error ? e.message : e); return null; });
+      if (em?.text) {
+        const emText = oranize(localizeGuardMessage(phantomGuard(guardResponse(em.text, userMessage, requestId), em.toolsExecuted ?? [], userMessage, requestId), null, guardLang), actor);
+        _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: emText });
+        saveConversationTurn(sessionId, 'assistant', emText, { tools: (em.toolsExecuted ?? []).map((t: { name: string; success: boolean }) => `${t.name} ${t.success ? '✅' : '❌'}`) }).catch(() => {});
+        _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+        return { text: emText, status: 'done' };
+      }
+    }
+    // 05/11 : la question n'est plus perdue — gardée et rejouée dès qu'un cerveau revient (brain-retry.ts, job */5)
+    const errorText = actorUserId === 'kouider' && !sandbox
+      ? await (await import('../integrations/brain-retry.js')).keepForLater(sessionId, userMessage, Date.now() - 6 * 60_000).catch(() => `⚠️ Service temporairement indisponible. Réessaie dans quelques secondes.`)
+      : `⚠️ Service temporairement indisponible. Réessaie dans quelques secondes.`;
     _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: errorText });
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
     return { text: errorText, status: 'error' };

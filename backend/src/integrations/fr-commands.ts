@@ -258,12 +258,82 @@ async function flight(raw: string): Promise<Direct | null> {
   return null;
 }
 
+
+/** 🔥 « j'ai trop envie d'en prendre un là » (05/11 banc : « Quelle voiture t'intéresse ? 🚗 ») → SOS Liberté, tout de suite. */
+async function craving(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (raw.length > 240 || /\?/.test(raw) && !/\bje (peux|dois)\b/.test(t)) return null;
+  const want = /\b(envie|besoin|je craque|ca me demange|je vais craquer|je tiens plus|j'en peux plus)\b/.test(t);
+  const med = /\b(en prendre (un|une|1)|prendre (un|une|1) (demi|cachet|comprime)|un demi|un cachet|un comprime|mes demis?|mon medoc|mes medocs|le medicament|zaldiar|reprendre)\b/.test(t);
+  // « j'ai encore pris un demi, j'en peux plus » = prise DÉJÀ faite + moral → le cerveau (outil liberte + écoute), pas le SOS envie
+  if (/\b(j'?ai|je l'?ai|je les ai)\s+(encore\s+|deja\s+|quand meme\s+)?(pris|repris|craque)\b|\bpris\b/.test(t)) return null;
+  if (!want || !med || /\b(voiture|clio|location|louer|resa|client|cafe|the|cigarette|pizza|gateau|sucre|manger)\b/.test(t)) return null;
+  const { liberteTool } = await import('./liberte.js');
+  const r = await liberteTool({ action: 'envie', note: raw.slice(0, 200) }, SID).catch(() => '');
+  if (!r || /pas encore commencé/.test(r)) return null;
+  // Réponse directe (même si les cerveaux sont saturés, il a son SOS tout de suite) : consignes au cerveau → à lui, en « tu »
+  const lines = r.split('\n').map(l => l.trim()).filter(Boolean).flatMap(l => {
+    if (/^Accompagne-le|à ta façon/i.test(l)) return [];
+    if (/^Rappelle-lui SES raisons\s*:/i.test(l)) return [l.replace(/^Rappelle-lui SES raisons\s*:/i, '💛 Tes raisons :')];
+    if (/^Rappelle-lui pourquoi/i.test(l)) return ['💛 Pense à pourquoi tu fais ça : ta femme, Ibrahim, ton énergie retrouvée.'];
+    if (/^Ses plans à lui/i.test(l)) return [l.replace(/^Ses plans à lui pour ce moment\s*:/i, '🧭 Ton plan pour ce moment :')];
+    if (/^Rappelle-lui ses victoires/i.test(l)) return [l.replace(/^Rappelle-lui ses victoires\s*:/i, '🏆 Tes victoires :')];
+    if (/\b(lui|il)\b/.test(l) && !/^[0-9️⃣⏱🔥]/u.test(l)) return [];
+    return [l.replace(/il peut la prendre, sans plus/, 'tu peux la prendre, sans plus')];
+  });
+  return { text: `🤍 Je suis là, Kouider.\n${lines.join('\n')}\nJe te réécris dans 15 minutes pour voir comment tu tiens.`, direct: true };
+}
+
+/** « mon salaire est tombé 2350 » (05/11 banc : « pas accès aux données ») → salaire du mois noté. */
+async function salary(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  const m = /\b(?:mon\s+)?(salaire|paie|paye)\b[^0-9?]{0,30}?\b(tombe|recu|arrive|vire|touche|rentre|est la|vient de tomber)\b[^0-9?]{0,15}(\d[\d .,]{2,8})/.exec(t) ?? /\b(?:j'ai\s+)?(touche|recu)\s+(?:mon\s+|ma\s+)?(salaire|paie|paye)\b[^0-9?]{0,15}(\d[\d .,]{2,8})/.exec(t);
+  if (!m || raw.length > 200) return null;
+  const amount = Math.round(Number(m[3]!.replace(/[ .]/g, '').replace(',', '.')));
+  if (!(amount >= 300 && amount <= 20_000)) return null;
+  const { kvGet, kvSet } = await import('./app-store.js');
+  const fin = JSON.parse((await kvGet('perso:finances').catch(() => null)) ?? '{}') as { salary?: number; monthlySaving?: number };
+  const ym = localNow().date.slice(0, 7);
+  await kvSet(`perso:salary:received:${ym}`, JSON.stringify({ amount, at: new Date().toISOString() }));
+  const usual = fin.salary;
+  const diff = usual ? amount - usual : 0;
+  const eur = (n: number) => `${n.toLocaleString('fr-FR')} €`;
+  return { text: `💶 Salaire de ${MO_FR[Number(ym.slice(5))]} reçu : ${eur(amount)}${usual ? (Math.abs(diff) < 20 ? ' (comme d\'habitude).' : diff > 0 ? ` — ${eur(diff)} de plus que d'habitude (${eur(usual)}) : heures sup ?` : ` — ${eur(-diff)} de moins que d'habitude (${eur(usual)}) : vérifie ta fiche de paie.`) : '.'}${fin.monthlySaving ? `\n👉 Ton plan : mettre ${eur(fin.monthlySaving)} de côté dès maintenant. Dis « j'ai mis ${fin.monthlySaving} de côté » quand c'est fait.` : ''}`, direct: true };
+}
+
+/** « j'en suis où pour le plan Algérie ? », « ma projection 2028 » → ses vraies finances (05/11 banc : « je n'ai pas trouvé »). */
+async function financePlans(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (raw.length > 160) return null;
+  const algerie = /\b(plan algerie|projet algerie|rentrer en algerie|m'installer a oran|demenager a oran|la maison a oran|plan oran)\b/.test(t);
+  const proj = /\b(projection|combien j'aurai|j'aurai combien|de cote fin \d{4}|fin 20\d\d)\b/.test(t) && /\b(cote|epargne|aurai|projection|economis)\b/.test(t);
+  if (!algerie && !proj) return null;
+  const { runJarvis4Tool } = await import('./jarvis4-tools.js');
+  const r = await runJarvis4Tool('mes_finances', { action: algerie ? 'algerie' : 'projection' }, SID).catch(() => null);
+  if (!r) return null;
+  return { text: r, direct: false };
+}
+
+/** « combien on a gagné ce mois-ci / le mois dernier / cette année avec FIK ? » → le vrai rapport (05/11 banc : total de l'année donné pour le mois). */
+async function fikRevenue(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (raw.length > 160 || !/\b(on a gagne|on a fait|ca nous a rapporte|chiffre d'affaires|\bca\b|benefice|on a encaisse|fik a rapporte|fik a fait)\b/.test(t) || /\b(snus|cash|caisse|perso|clio|fiat|duster|jumpy|voiture)\b/.test(t)) return null;
+  const now = localNow().date;
+  let y = Number(now.slice(0, 4)), mo: number | undefined = Number(now.slice(5, 7));
+  if (/mois dernier|mois passe/.test(t)) { mo! -= 1; if (mo! < 1) { mo = 12; y--; } }
+  else if (/cette annee|depuis janvier|de l'annee|en 20\d\d/.test(t)) { mo = undefined; const yy = /en (20\d\d)/.exec(t); if (yy) y = Number(yy[1]); }
+  else if (!/ce mois|du mois|le mois/.test(t)) return null;
+  const { executeTool } = await import('./tool-executor.js');
+  const r = await executeTool('get_revenue_report', { year: y, ...(mo ? { month: mo } : {}) }, SID);
+  return { text: r, direct: false };
+}
+
 /** Le premier qui reconnaît la phrase. direct = réponse sans le cerveau. */
 export async function frCommand(raw: string, sessionId = 'telegram_kouider'): Promise<Direct | null> {
   SID = sessionId;
   const msg = raw.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
   if (!msg) return null;
-  for (const f of [privacy, reminder, rdv, dnd, sleep, couple, weather, islamicDates, flight]) {
+  for (const f of [craving, privacy, reminder, rdv, dnd, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue]) {
     const r = await f(msg).catch(e => ({ text: `❌ ${e instanceof Error ? e.message : e}`, direct: true }));
     if (r) return r;
   }

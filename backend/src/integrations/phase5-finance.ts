@@ -174,6 +174,15 @@ export async function recordPayment(
 // 2. CALCUL CA AUTOMATIQUE
 // ─────────────────────────────────────────────
 
+/** Part d'une location [start, end) dans la période [from, to] (jours inclus) — 1 si entièrement dedans. */
+export function periodShare(start: string, end: string, from: string, to: string): number {
+  const d = (x: string) => Date.parse(`${x.slice(0, 10)}T12:00:00Z`) / 86_400_000;
+  const s = d(start), e = Math.max(d(end), d(start) + 1);   // même jour = 1 jour
+  const total = e - s;
+  const inside = Math.max(0, Math.min(e, d(to) + 1) - Math.max(s, d(from)));
+  return total > 0 ? Math.min(1, inside / total) : 1;
+}
+
 export async function getCAReport(
   year: number,
   month?: number,
@@ -223,12 +232,18 @@ export async function getCAReport(
   let totalHouari    = 0;
 
   let missingOwnerPpd = 0;
+  let prorated = 0;
 
   for (const b of data as any[]) {
     const carArr   = Array.isArray(b.cars) ? b.cars[0] : b.cars;
     const carName  = carArr?.name ?? 'Inconnu';
     const rentedBy = b.rented_by ?? 'Kouider';
-    const fin      = resolveFinancials(b);
+    const fin0     = resolveFinancials(b);
+    // 05/11 banc : une location à cheval sur 2 mois (29/10 → 9/11) était comptée EN ENTIER dans chaque mois → CA mensuel gonflé.
+    // Au prorata des jours (tranches de 24 h, le jour du retour ne compte pas) passés dans la période.
+    const share    = periodShare(String(b.start_date), String(b.end_date), startDate, endDate);
+    const fin      = { ...fin0, gross_ca: fin0.gross_ca != null ? fin0.gross_ca * share : null, owner_cost: fin0.owner_cost != null ? fin0.owner_cost * share : null, profit: fin0.profit != null ? fin0.profit * share : null };
+    if (share < 1) prorated++;
 
     const grossCA = fin.gross_ca ?? 0;
 
@@ -249,7 +264,7 @@ export async function getCAReport(
   const vehicleRows = Object.entries(byVehicle)
     .sort(([, a], [, b]) => b.grossCA - a.grossCA)
     .map(([name, v]) =>
-      `  - ${name}: ${v.count} loc. | CA: ${v.grossCA}€ | Houari: ${v.ownerCost}€ | Bénéfice Kouider: ${v.profit}€`,
+      `  - ${name}: ${v.count} loc. | CA: ${Math.round(v.grossCA)}€ | Houari: ${Math.round(v.ownerCost)}€ | Bénéfice Kouider: ${Math.round(v.profit)}€`,
     );
 
   const missingWarn = missingOwnerPpd > 0
@@ -258,10 +273,11 @@ export async function getCAReport(
 
   return `📊 CHIFFRE D'AFFAIRES — ${period}\n` +
     `${'─'.repeat(40)}\n` +
-    `📈 CA Brut (prix réels clients): ${totalGrossCA}€\n` +
-    `🏢 Coût Houari (prix réels):     ${totalOwnerCost}€\n` +
-    `💰 Bénéfice Kouider NET:         ${totalProfit}€\n` +
+    `📈 CA Brut (prix réels clients): ${Math.round(totalGrossCA)}€\n` +
+    `🏢 Coût Houari (prix réels):     ${Math.round(totalOwnerCost)}€\n` +
+    `💰 Bénéfice Kouider NET:         ${Math.round(totalProfit)}€\n` +
     `📋 Réservations: ${data.length} (Kouider: ${totalKouider} | Houari: ${totalHouari})\n` +
+    (prorated ? `ℹ️ ${prorated} location(s) à cheval sur la période : comptée(s) au prorata des jours dans la période.\n` : '') +
     missingWarn +
     `\n🚗 PAR VÉHICULE:\n${vehicleRows.join('\n')}`;
 }
@@ -276,7 +292,7 @@ export async function getUnpaidBookings(): Promise<string> {
   const { data, error } = await supabase
     .from('bookings')
     .select('id, client_name, client_phone, final_price, paid_amount, payment_status, currency, start_date, end_date, created_at, cars(name)')
-    .in('payment_status', ['PENDING', 'PARTIAL'])
+    .in('payment_status', ['UNPAID', 'PENDING', 'PARTIAL'])   // 05/11 : les résas pas payées du tout sont « UNPAID » → elles n'apparaissaient jamais
     .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
     .order('start_date', { ascending: false });
 
@@ -426,7 +442,7 @@ export async function getFinancialDashboard(): Promise<string> {
     supabase
       .from('bookings')
       .select('final_price, paid_amount')
-      .in('payment_status', ['PENDING', 'PARTIAL'])
+      .in('payment_status', ['UNPAID', 'PENDING', 'PARTIAL'])
       .in('status', ['CONFIRMED', 'ACTIVE']),
   ]);
 
@@ -690,7 +706,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       .gte('end_date',   `${prevYear}-${ppm}-01`),
     supabase.from('bookings')
       .select('id, client_name, client_phone, final_price, paid_amount, cars(name)')
-      .in('payment_status', ['PENDING', 'PARTIAL'])
+      .in('payment_status', ['UNPAID', 'PENDING', 'PARTIAL'])
       .in('status', ['CONFIRMED', 'ACTIVE']),
   ]);
 

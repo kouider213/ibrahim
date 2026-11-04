@@ -94,7 +94,26 @@ function refreshFree(): void {
   void import('./app-store.js').then(m => m.kvGet('brain:free'))
     .then(v => { if (v === '0' || v === '1') freeCache.on = v === '1'; }).catch(() => {});
 }
-export function freeModeOn(): boolean { refreshFree(); return freeCache.on; }
+// SECOURS CLAUDE (Kouider 04/11 : « on a du crédit Claude, en cas d'urgence il peut l'utiliser, mais vraiment en cas d'urgence »)
+// Seulement quand TOUS les cerveaux gratuits ont échoué sur un message de Kouider, 5 fois par jour max, Haiku (le moins cher).
+import { AsyncLocalStorage as _ALS } from 'async_hooks';
+const emergencyALS = new _ALS<{ on: true }>();
+export const inClaudeEmergency = (): boolean => !!emergencyALS.getStore();
+export const EMERGENCY_PER_DAY = 5;
+/** Lance fn avec Claude autorisé (mode gratuit levé pour CE tour seulement). null = pas d'urgence possible (quota du jour, crédit à 0). */
+export async function runClaudeEmergency<T>(fn: () => Promise<T>): Promise<T | null> {
+  if (Date.now() < claudeDeadUntil || process.env['BENCH'] === '1') return null;
+  const { kvGet, kvSet } = await import('./app-store.js');
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels' }).format(new Date());
+  const k = `claude:emergency:${day}`;
+  const n = Number((await kvGet(k).catch(() => null)) ?? 0);
+  if (n >= EMERGENCY_PER_DAY) return null;
+  await kvSet(k, String(n + 1), 3 * 86_400).catch(() => {});
+  console.warn(`[claude-emergency] 🚑 tous les cerveaux gratuits ont échoué → Claude Haiku (${n + 1}/${EMERGENCY_PER_DAY} aujourd'hui)`);
+  if (n === 0) void import('../notifications/tg-outbox.js').then(m => m.queueTelegramMessage(`🚑 Info : mes cerveaux gratuits étaient tous saturés, j'ai utilisé le crédit Claude en secours (Haiku, le moins cher). Maximum ${EMERGENCY_PER_DAY} fois par jour.`, undefined, 'kouider', undefined, true)).catch(() => {});
+  return emergencyALS.run({ on: true }, fn);
+}
+export function freeModeOn(): boolean { refreshFree(); return freeCache.on && !emergencyALS.getStore(); }
 export function setFreeCache(on: boolean): void { freeCache = { on, at: Date.now() }; }
 
 /** Claude à ne pas appeler (mode gratuit, ou crédit épuisé revérifié toutes les 10 min) : on part direct sur le gratuit. */
