@@ -70,6 +70,15 @@ async function facts(date: string) {
   };
 }
 
+/** Note du jour CALCULÉE (Kouider 04/11 « classé selon mon état d'esprit et le sport ») : toujours la même règle.
+ *  60 % état d'esprit (moral, énergie, stress inversé) · 25 % sport (fait + ressenti) · 15 % moment en famille. */
+export function dayScore(d: Pick<EspritDay, 'moral' | 'energie' | 'stress' | 'sport' | 'famille'>): number {
+  const esprit = (d.moral + d.energie + (11 - d.stress)) / 3;
+  const sport = d.sport.fait ? (/dur|nul|mal|crev|fatigu|bof/i.test(d.sport.ressenti ?? '') ? 7 : 10) : 3;
+  const fam = d.famille.length ? 10 : 4;
+  return Math.max(1, Math.min(10, Math.round(0.6 * esprit + 0.25 * sport + 0.15 * fam)));
+}
+
 /** Option 1 : le journal de la journée, écrit depuis ses vraies données. */
 export async function writeJournal(date = localNow().date): Promise<EspritDay | null> {
   const old = (await readDays()).find(d => d.date === date);
@@ -84,11 +93,17 @@ export async function writeJournal(date = localNow().date): Promise<EspritDay | 
     `Jour de congé : ${f.off ? 'oui' : 'non'}\n\n` +
     `Écris le journal de SA journée, uniquement d'après ces faits (rien d'inventé). Le sport compte même s'il l'a seulement dit dans un message (« j'ai fait 30 min de vélo »). ` +
     `famille = les vrais moments avec sa femme / son fils / sa famille cités dans ses messages (vide si aucun). ` +
-    `JAMAIS de médicament, comprimé, traitement ni sevrage dans aucun champ. ` +
+    `JAMAIS de médicament, comprimé, traitement, sevrage, libido, sexualité, testostérone, prise de sang ni maladie dans aucun champ (le journal peut être lu à côté de sa femme) : écris « santé » ou « fatigue » à la place. ` +
     `Réponds UNIQUEMENT : {"score":1-10,"moral":1-10,"energie":1-10,"stress":1-10,"sport":{"fait":true/false,"quoi":"…","ressenti":"…"},"famille":["…"],"top":"meilleur moment en 1 phrase","dur":"moment le plus dur (ou vide)","declencheurs":["2-3 mots : ce qui a pesé"],"gratitude":"une chose positive de sa journée","resume":"2 phrases"}`,
     { max: 700 }));
   if (!o || !(Number(o.score) >= 1)) return null;
   const clamp = (v: unknown) => Math.max(1, Math.min(10, Math.round(Number(v) || 5)));
+  // Filet de sécurité : rien de privé (santé, traitement, intimité) ne sort du journal, même si l'IA l'écrit
+  const PRIV = /m[ée]dic|m[ée]doc|comprim|cachet|demis?\b|zaldiar|tramadol|sevrage|lib[ée]rt[ée]|libido|sexu|testo|[ée]rection|prise de sang|ordonnance|pharmac/i;
+  const clean = (x?: string) => (x && PRIV.test(x) ? undefined : x);
+  o.top = clean(o.top); o.dur = clean(o.dur) ?? (o.dur ? 'journée difficile (santé / fatigue)' : undefined); o.gratitude = clean(o.gratitude); o.resume = clean(o.resume);
+  o.famille = (o.famille ?? []).filter(x => !PRIV.test(x)); o.declencheurs = (o.declencheurs ?? []).map(x => (PRIV.test(x) ? 'santé' : x));
+  if (o.sport) o.sport.ressenti = clean(o.sport.ressenti);
   const day: EspritDay = {
     date, score: clamp(o.score), moral: clamp(o.moral), energie: clamp(o.energie), stress: clamp(o.stress),
     sport: { fait: !!o.sport?.fait || f.sportStatus === 'done' || f.sessions.length > 0, quoi: o.sport?.quoi || f.sessions.map(s => s.type).join(', ') || undefined, ressenti: o.sport?.ressenti || undefined },
@@ -97,6 +112,7 @@ export async function writeJournal(date = localNow().date): Promise<EspritDay | 
     sommeil: f.health?.sleep_h, pas: f.health?.steps, off: f.off,
   };
   if (!day.famille.length) day.famille = f.turns.filter(t => FAMILY_RE.test(t)).slice(0, 2).map(t => t.slice(6, 120));
+  day.score = dayScore(day);
   await saveDay(day);
   return day;
 }
@@ -156,7 +172,7 @@ export async function weekRecap(send = false): Promise<string> {
     `2) un mot de fin chaleureux de grand frère (1 phrase, tutoiement, sans médicament). Réponds UNIQUEMENT : {"defi":"…","mot":"…"}`, { max: 250 })) ?? {};
   const text = [
     `🧠 TA SEMAINE DANS LA TÊTE (${dayName(addDays(today, -6))} → ${dayName(today)})`,
-    '', ...lines, '',
+    '(classé : 60 % ton état d\'esprit · 25 % le sport · 15 % la famille)', '', ...lines, '',
     `⭐ Meilleur jour : ${dayName(best.date)}${best.resume ? ` — ${best.resume}` : ''}`,
     worst.date !== best.date ? `🌧️ Jour le plus dur : ${dayName(worst.date)}${worst.dur ? ` — ${worst.dur}` : ''}` : '',
     `📊 Moyenne : ${a}/10${p != null ? ` (semaine d'avant : ${p}/10 ${a > p ? '📈' : a < p ? '📉' : '='})` : ''}`,
@@ -257,6 +273,20 @@ export async function espritText(): Promise<string> {
   return `${base}\nSes derniers jours (journal du soir) : ${days.map(d => `${dayName(d.date)} ${d.score}/10${d.sport.fait ? ` sport${d.sport.quoi ? ` ${d.sport.quoi}` : ''}` : ''}${d.famille.length ? ' famille' : ''}${d.dur ? ` (dur : ${d.dur.slice(0, 60)})` : ''}`).join(' · ')}.\nQuand il demande comment il va, ses meilleurs jours, son moral ou sa semaine → outil esprit.`;
 }
 
+/** « ma journée 8/10 », « je mets 7 à ma journée », « journée de merde 3 sur 10 » → noté par le CODE (05/11 banc : le cerveau
+ *  disait « c'est top » sans rien enregistrer). rest = il raconte autre chose → le cerveau répond aussi. */
+export function parseDayNote(raw: string): { score: number; famille?: string; top?: string; date?: string; rest: boolean } | null {
+  const t = raw.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
+  if (t.length > 300 || /\?/.test(t)) return null;
+  const m = /\bjourn[ée]e\b[^0-9?]{0,40}?\b(10|[1-9])(?:[.,]5)?\s*(?:\/|sur)\s*10\b/i.exec(t) ?? /\b(10|[1-9])\s*(?:\/|sur)\s*10\b[^?]{0,25}\bjourn[ée]e\b/i.exec(t) ?? /\bje (?:mets|donne)\s+(10|[1-9])\b[^?]{0,20}\bjourn[ée]e/i.exec(t);
+  if (!m) return null;
+  const score = Number(m[1]);
+  const date = /\bhier\b/i.test(t) ? new Date(Date.parse(`${localNow().date}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10) : undefined;
+  const restTxt = t.replace(m[0], ' ').replace(/\b(ma|mon|d['’]hier|hier|aujourd['’]hui|du jour)\b/gi, ' ').replace(/\s+/g, ' ').replace(/^[\s,.:;!-]+|[\s,.:;!-]+$/g, '').trim();
+  const famille = FAMILY_RE.test(restTxt) ? restTxt.slice(0, 160) : undefined;
+  return { score, ...(famille ? { famille } : {}), ...(restTxt.split(/\s+/).length >= 3 ? { top: restTxt.slice(0, 160) } : {}), ...(date ? { date } : {}), rest: restTxt.split(/\s+/).filter(Boolean).length >= 4 };
+}
+
 /** Outil `esprit` (Kouider seulement). */
 export async function espritTool(input: Record<string, unknown>): Promise<string> {
   const action = String(input['action'] ?? 'semaine');
@@ -274,7 +304,7 @@ export async function espritTool(input: Record<string, unknown>): Promise<string
       const date = String(input['date'] ?? today).slice(0, 10);
       const base = all.find(d => d.date === date) ?? (await writeJournal(date)) ?? { date, score, moral: score, energie: 5, stress: 5, sport: { fait: false }, famille: [], declencheurs: [] };
       const fam = String(input['famille'] ?? '').trim(), top = String(input['top'] ?? '').trim();
-      await saveDay({ ...base, score: Math.round(score), manual: true, ...(top ? { top } : {}), famille: fam ? [...base.famille, fam] : base.famille });
+      await saveDay({ ...base, score: Math.round(score), moral: Math.round(score), manual: true, ...(top ? { top } : {}), famille: fam ? [...base.famille, fam] : base.famille });
       return `✅ ${dayName(date)} noté ${Math.round(score)}/10${top ? ` — meilleur moment : ${top}` : ''}. Je garde TA note, pas la mienne.`;
     }
     case 'famille': {                                                     // 5

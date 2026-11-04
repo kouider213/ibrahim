@@ -58,7 +58,11 @@ export function parseMoneyCommand(raw: string): MoneyCommand | null {
   const question = /\?|combien|quel(?:le)?s? jours?|meilleur jour|j.en suis|je suis (?:à|a) combien|c.est quoi mon|dis[- ]moi/i.test(msg);
   const snus = /snus/i.test(msg);
   if (/combien de (?!fric|thune|sous|argent|cash|liquide)\p{L}/iu.test(msg) && !/gagn|vend|encaiss|€|euros?\b/i.test(msg)) return null;   // « combien de messages/clients au total » ≠ argent
-  if (FIK_ONLY.test(msg) && !snus && !/tout confondu/i.test(msg)) return null;   // « combien de clients au total » = FIK, pas l'argent perso   // CA FIK = réservations : autre outil
+  if (FIK_ONLY.test(msg) && !snus && !/tout confondu/i.test(msg)) return null;
+  // 05/11 banc : « 230 millions ça fait combien en euros ? » partait en « tes gains » → conversion de devises, pas son argent
+  if (/\b(millions?|milliards?|dinars?|\bda\b|dzd|centimes?|en euros?\s*\?|en dinars?|au square|taux|convert|change)\b/i.test(msg) && !/snus|caisse|j.ai (fait|vendu|gagn)/i.test(msg)) return null;
+  // 05/11 banc : « combien on a gagné ce mois-ci » = FIK (le « on » = Kouider + Houari), pas sa caisse snus perso
+  if (/\b(on a|on s.est fait|on fait|nous avons|on gagne|on encaisse|qu.on a)\b/i.test(msg) && !snus && !/cash|caisse|liquide|perso|moi seul|tout confondu/i.test(msg)) return null;   // « combien de clients au total » = FIK, pas l'argent perso   // CA FIK = réservations : autre outil
   const out: MoneyCommand = {};
 
   if (question) {

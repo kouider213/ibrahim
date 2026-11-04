@@ -434,6 +434,7 @@ export async function runAgenticFallback(
         }
       }
     };
+    const seenCalls = new Map<string, string>();
     try {
       for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
         if (round > 0) await takeOver();
@@ -457,6 +458,16 @@ export async function runAgenticFallback(
         for (const tc of toolCalls) {
           let args: Record<string, unknown> = {};
           try { args = JSON.parse(tc.function.arguments || '{}'); } catch { /* args invalides → {} */ }
+          // 05/11 banc : le cerveau gratuit relançait 10 fois le même outil refusé (« ID manquant ») puis inventait une
+          // raison (« Clio INDISPONIBLE ») ou finissait en « Service indisponible » → même appel = pas réexécuté
+          const sig = `${tc.function.name}:${JSON.stringify(args, Object.keys(args).sort())}`;
+          const fails = toolsExecuted.filter(t => t.name === tc.function.name && !t.success).length;
+          const prev = seenCalls.get(sig);
+          if (prev !== undefined || fails >= 3) {
+            const why = prev !== undefined ? `Appel IDENTIQUE déjà fait à ce tour, résultat : ${prev.slice(0, 600)}` : `${tc.function.name} a déjà échoué ${fails} fois à ce tour.`;
+            history.push({ role: 'tool', content: `⛔ ${why}\nNE RELANCE PAS cet outil. Réponds maintenant à Kouider : dis-lui exactement ce qui a bloqué (le message d'erreur réel, sans inventer d'autre raison) et ce qu'il te faut pour finir.`, tool_call_id: tc.id });
+            continue;
+          }
           onToolStart?.(tc.function.name, args);
           let result: string;
           try {
@@ -464,6 +475,7 @@ export async function runAgenticFallback(
           } catch (toolErr) {
             result = `❌ Erreur outil: ${toolErr instanceof Error ? toolErr.message : String(toolErr)}`;
           }
+          seenCalls.set(sig, result);
           onToolDone?.(tc.function.name, result);
           toolsExecuted.push({ name: tc.function.name, success: !result.startsWith('❌'), result });
           history.push({ role: 'tool', content: result.slice(0, ep.compact ? 2_500 : 12_000), tool_call_id: tc.id });

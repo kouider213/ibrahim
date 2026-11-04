@@ -3,6 +3,16 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (19) — Banc « comme Kouider » phase 2 (vrai cerveau, 43 scénarios) : 20 bugs corrigés
+- `tool-executor.ts` aliasToolInput : le cerveau écrit booking_id / price_per_day / total_price… → « ID manquant » / « Prix manquant » ×10 puis « Clio INDISPONIBLE » inventé ou « Service indisponible » (prolonger une résa ne marchait JAMAIS). Synonymes traduits pour tous les outils de réservation.
+- `agentic-fallback.ts` : même appel d'outil = pas réexécuté, 3 échecs du même outil = stop → il dit la vraie erreur.
+- `fr-commands.ts` (nouveau, exécuté par le code) : rappels (« le 1er décembre », « mardi prochain », « dans 10 min »… → avant create_intention qui ne sonne jamais + « Rappel noté ! »), RDV agenda (avant rappel_lieu / « je l'ajoute ? »), « ne me dérange pas jusqu'à 18h » (avant MODE VACANCES), « j'ai dormi 5h » (rien noté), soirée à deux (restaurants inventés à Oran + vin → coach couple maison), météo J→J+6 Open-Meteo (« pas d'info »), ramadan/aïd calculés (« février 2026 »), « il est où mon vol », « Houari m'a demandé du parfum » (faux « Noté » ; gardé avant billet puis ajouté à la check-list à l'envoi du billet, trips.ts), verrou santé : jamais partager traitement/santé avec quelqu'un.
+- `car-price-direct.ts` (nouveau) : « la Clio 4 diesel on la loue combien ? » (« pas accès aux données ») + « quelle voiture rapporte le plus ? » (« aucune donnée ») lus dans la flotte / les résas.
+- `argent-direct.ts` : « combien ON a gagné » = FIK, pas la caisse snus ; « 230 millions en euros ? » = conversion, pas « tes gains ».
+- `tool-executor.ts` set_cities : une ville belge dans la liste = rien changé (Liège était enregistré + liste de villes inventée), description sans exemple belge.
+- `mon-esprit.ts` : « ma journée 8/10 » noté par le code (« c'est top » sans rien noter) ; note du jour = 60 % esprit / 25 % sport / 15 % famille ; jamais médicament/libido/santé dans le journal (filet + 2 jours nettoyés).
+- Banc : phase 1 112/112 · outils 25/25 (le cas agenda été non testable ici : pas de clé Google sur le VPS).
+
 ## 2026-11-04 (18) — Banc « comme Kouider » phase 1 : 7 bugs de dates / prix / oui-non corrigés
 - Banc isolé PRIVÉ (hors dépôt, /root/dzaryx-bench) : vrai code, écritures Supabase dans une couche mémoire, sorties bloquées, horloge pilotée. 80 phrases + 25 tests d'outils.
 - `tool-executor.ts` create_booking : dates FR (16/11/2026), avec heure (…T10:00 → start_time), année passée écrite par le cerveau (2025 → 2026, signalé), prix en texte (« 240 € »), prix/jour client déduit du total (bénéfice n'était plus calculé) et total déduit du prix/jour (était vide) ; prix manquant → refus clair.

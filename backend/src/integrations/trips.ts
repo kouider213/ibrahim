@@ -469,10 +469,23 @@ C'est ajouté à ta check-list, je te le rappelle avant le départ.`);
     if (back) { const b = fresh.find(t => t.id === back!.id)!; b.checklist = []; b.validated = true; }
     linkPause(fresh, o, back && fresh.find(t => t.id === back!.id));
     await writeTrips(fresh);
+    // Demandes faites AVANT d'avoir le billet (« Houari m'a demandé du parfum », 05/11) → ajoutées maintenant à la check-list
+    let pendingNote = '';
+    if (o.who !== 'client') {
+      const { kvGet: g, kvSet: st } = await import('./app-store.js');
+      const pend = JSON.parse((await g('trips:pending-requests').catch(() => null)) ?? '[]') as Array<{ person: string; items: string[]; phase: 'out' | 'back' }>;
+      if (pend.length) {
+        const { addRequest } = await import('./flight-live.js');
+        const done: string[] = [];
+        for (const p of pend) { const r = await addRequest(p.person, p.items, p.phase, o).catch(() => '❌'); if (!r.startsWith('❌')) done.push(`${p.items.join(', ')} (${p.person})`); }
+        await st('trips:pending-requests', '[]').catch(() => {});
+        if (done.length) pendingNote = `\n🛍️ Demandes notées avant le billet, ajoutées à la check-list : ${done.join(' · ')}`;
+      }
+    }
     if (o.who === 'client') return `✅ ${o.title} ajouté à l'agenda FIK (${fmtWhen(o.arriveAt ?? o.departAt, guessTz(o.to ?? ''))}). Le point « vol connu » de sa check-list d'arrivée est coché.`;
     return [
       `✅ Voyage enregistré : ${o.title} — ${fmtWhen(o.departAt, o.tz)}${back ? `\n↩️ Retour : ${back.title} — ${fmtWhen(back.departAt, back.tz)}` : ''}`,
-      `📅 Dans l'agenda FIK : le vol + « être à l'aéroport » 2 h 30 avant (je te dirai quand partir selon le trafic).`,
+      `📅 Dans l'agenda FIK : le vol + « être à l'aéroport » 2 h 30 avant (je te dirai quand partir selon le trafic).${pendingNote}`,
       o.pauseFrom && o.pauseTo ? `⏸️ Routine du matin en pause du ${o.pauseFrom} au ${o.pauseTo}.` : `ℹ️ Donne-moi la date de retour pour mettre la routine du matin en pause pendant le voyage.`,
       '', show(o), '',
       `Je te rappelle ce qui manque chaque soir dès J-5, et je t'appelle à J-2 si ce n'est pas validé. Dis « ajoute … » pour compléter.`,

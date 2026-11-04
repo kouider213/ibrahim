@@ -280,6 +280,40 @@ export async function processMessage(
   // ARGENT en phrases normales (02/11 : « hier j'ai fait 300 avec le snus, je suis à 2 400 en cash », « combien j'ai gagné hier ? »,
   // « quel jour je gagne le plus ? », « je suis à combien tout confondu ? ») → enregistré / calculé par le CODE sur ses vraies données
   // (le cerveau disait « ✅ Noté » sans rien noter, puis inventait « 7 950 € »)
+  // RAPPELS / RDV / NE PAS DÉRANGER / SOMMEIL / SOIRÉE À DEUX en phrase normale (05/11 banc : mauvais outil ou faux « noté »)
+  if (actorUserId === 'kouider' && !sandbox) {
+    const fc = await (await import('../integrations/fr-commands.js')).frCommand(userMessage, sessionId).catch(() => null);
+    if (fc?.direct) {
+      _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: fc.text });
+      saveConversationTurn(sessionId, 'assistant', fc.text).catch(() => {});
+      _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+      return { text: fc.text, status: 'done' };
+    }
+    if (fc) ctx.systemExtra = `DÉJÀ FAIT / CONSIGNE DU CODE pour ce message : ${fc.text}\nNe relance pas le même outil ; réponds à Kouider avec ça (court).\n\n${ctx.systemExtra ?? ''}`.trim();
+  }
+  // « MA JOURNÉE 8/10 » (05/11 banc : « c'est top » sans rien noter) → noté par le code ; s'il raconte plus, le cerveau répond aussi
+  const dayNote = actorUserId === 'kouider' && !sandbox ? (await import('../integrations/mon-esprit.js')).parseDayNote(userMessage) : null;
+  if (dayNote) {
+    const done = await (await import('../integrations/mon-esprit.js')).espritTool({ action: 'noter', score: dayNote.score, ...(dayNote.top ? { top: dayNote.top } : {}), ...(dayNote.famille ? { famille: dayNote.famille } : {}), ...(dayNote.date ? { date: dayNote.date } : {}) }).catch(e => `❌ échec : ${e instanceof Error ? e.message : e}`);
+    if (!dayNote.rest) {
+      _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: done });
+      saveConversationTurn(sessionId, 'assistant', done).catch(() => {});
+      _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+      return { text: done, status: 'done' };
+    }
+    ctx.systemExtra = `DÉJÀ FAIT PAR LE CODE (ne rappelle PAS esprit noter) : ${done}\nDis-le en une demi-phrase puis réponds chaleureusement à ce qu'il raconte (court, une question au plus).\n\n${ctx.systemExtra ?? ''}`.trim();
+  }
+  // PRIX D'UNE VOITURE (05/11 banc) : « la Clio 4 diesel on la loue combien ? » → « pas accès aux données » → lu dans la flotte
+  if (actorUserId === 'kouider' && !sandbox) {
+    const cp = await import('../integrations/car-price-direct.js');
+    const price = await cp.bestCarAnswer(userMessage).catch(() => null) ?? await cp.carPriceAnswer(userMessage).catch(() => null);
+    if (price) {
+      _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: price });
+      saveConversationTurn(sessionId, 'assistant', price).catch(() => {});
+      _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+      return { text: price, status: 'done' };
+    }
+  }
   const moneyCmd = actorUserId === 'kouider' && !sandbox && !privateMode ? (await import('../integrations/argent-direct.js')).parseMoneyCommand(userMessage) : null;
   if (moneyCmd) {
     const done = await (await import('../integrations/argent-direct.js')).runMoneyCommand(moneyCmd).catch(e => `❌ échec : ${e instanceof Error ? e.message : e}`);

@@ -259,6 +259,7 @@ export async function executeTool(
   input: Record<string, unknown>,
   sessionId?: string,
 ): Promise<string> {
+  input = aliasToolInput(name, input);              // 05/11 : noms de champs inventés par le cerveau (booking_id, total_price…)
   const simulated = sandboxIntercept(name, input);   // crash-test : rien de réel ne part
   if (simulated !== null) return simulated;
   const t0     = Date.now();
@@ -289,6 +290,38 @@ export async function executeTool(
   }).catch(err => console.error('[action-engine] recordToolExecution failed:', err instanceof Error ? err.message : err));
 
   return result;
+}
+
+/** Banc « comme Kouider » 05/11 : le cerveau gratuit écrit booking_id au lieu de id, price_per_day / total_price au lieu de
+ *  client_price_per_day / final_price… → « ID manquant » / « Prix manquant », 10 essais en boucle, puis « Clio INDISPONIBLE »
+ *  inventé ou « Service indisponible ». On traduit les synonymes courants (sans écraser un vrai champ donné). */
+const TOOL_ALIASES: Record<string, Record<string, string>> = {
+  _booking: {
+    booking_id: 'id', reservation_id: 'id', bookingId: 'id',
+    price_per_day: 'client_price_per_day', daily_price: 'client_price_per_day', prix_jour: 'client_price_per_day', prix_par_jour: 'client_price_per_day', day_price: 'client_price_per_day', client_daily_price: 'client_price_per_day',
+    total_price: 'final_price', total: 'final_price', price: 'final_price', prix: 'final_price', prix_total: 'final_price', amount_total: 'final_price', client_total: 'final_price',
+    owner_price: 'owner_price_per_day', houari_price: 'owner_price_per_day', prix_houari: 'owner_price_per_day',
+    deposit: 'paid_amount', acompte: 'paid_amount', advance: 'paid_amount', amount_paid: 'paid_amount',
+    car: 'car_name', vehicle: 'car_name', voiture: 'car_name', vehicle_name: 'car_name',
+    start: 'start_date', end: 'end_date', date_debut: 'start_date', date_fin: 'end_date', from_date: 'start_date', to_date: 'end_date', pickup_date: 'start_date', return_date: 'end_date',
+    name: 'client_name', client: 'client_name', phone: 'client_phone', telephone: 'client_phone',
+  },
+};
+const BOOKING_TOOLS = new Set(['create_booking', 'update_booking', 'cancel_booking', 'delete_booking', 'record_payment', 'get_payment_status', 'generate_contract', 'generate_receipt', 'generate_reservation_voucher']);
+export function aliasToolInput(name: string, input: Record<string, unknown>): Record<string, unknown> {
+  if (!input || typeof input !== 'object') return input;
+  const map = BOOKING_TOOLS.has(name) ? TOOL_ALIASES['_booking']! : null;
+  if (!map) return input;
+  const out: Record<string, unknown> = { ...input };
+  for (const [from, to] of Object.entries(map)) {
+    if (out[from] === undefined) continue;
+    if (name === 'create_booking' && from === 'name' ) { if (out['client_name'] === undefined) out['client_name'] = out[from]; continue; }
+    if (out[to] === undefined || out[to] === null || out[to] === '') out[to] = out[from];
+    if (from !== to) delete out[from];
+  }
+  // record_payment / get_payment_status attendent booking_id : on le garde aussi
+  if ((name === 'record_payment' || name === 'get_payment_status' || name.startsWith('generate_')) && out['id'] !== undefined && out['booking_id'] === undefined) out['booking_id'] = out['id'];
+  return out;
 }
 
 const NEXUS_TOOLS = new Set(['ping_nexus', 'send_nexus_command', 'nexus_screenshot', 'wake_nexus', 'restart_nexus', 'update_nexus', 'nexus_full_status']);
@@ -2738,9 +2771,10 @@ async function prospectAutopilotTool(input: Record<string, unknown>): Promise<st
     if (!cities.length) return '❌ Donne au moins une ville (ex. « Lyon, France » ou « Oran, Algérie »).';
     // Plus de démarchage en Belgique (Kouider 16/10/2026) : le dire, sinon Dzaryx croit avoir ciblé la ville
     const be = cities.filter(isBelgianCity);
-    if (be.length === cities.length) return `❌ Pas de démarchage en Belgique (${be.join(', ')}) : Kouider l'a arrêté le 16/10. Seulement France et Algérie — propose-lui une ville FR/DZ. Rien n'a été changé, ne lance pas run_now pour ça.`;
+    // 05/11 banc : une liste mélangée (« Liège » + villes FR inventées) était ENREGISTRÉE telle quelle, Liège compris,
+    // et remplaçait ses vraies villes → la moindre ville belge = rien n'est changé
+    if (be.length) return `❌ Pas de démarchage en Belgique (${be.join(', ')}) : Kouider l'a arrêté le 16/10. Seulement France et Algérie. RIEN n'a été changé (ses villes actuelles restent). Ne change les villes que s'il te les dicte lui-même.`;
     await setSiteCities(cities);
-    if (be.length) dropped = `⚠️ Villes belges ignorées (plus de démarchage en Belgique) : ${be.join(', ')}.\n`;
   }
   if (action === 'retry_demo') {
     const found = await findProspect(String(input['company'] ?? ''));

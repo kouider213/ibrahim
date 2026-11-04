@@ -1168,7 +1168,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
       properties: {
         action:  { type: 'string', enum: ['status', 'on', 'off', 'set_per_day', 'run_now', 'set_mode', 'set_cities', 'retry_demo'] },
         mode:    { type: 'string', enum: ['sites', 'conciergerie', 'both'], description: 'Pour set_mode' },
-        cities:  { type: 'array', items: { type: 'string' }, description: 'Pour set_cities : villes/quartiers ciblés (ex. « Jette, Bruxelles », « Oran, Algérie »)' },
+        cities:  { type: 'array', items: { type: 'string' }, description: 'Pour set_cities : SEULEMENT les villes que Kouider dicte lui-même, France ou Algérie (ex. « Lyon, France », « Oran, Algérie »). Jamais la Belgique, jamais une liste inventée : ça REMPLACE ses villes.' },
         company: { type: 'string', description: 'Pour retry_demo : nom du commerce' },
         per_day: { type: 'number', description: 'Mails de démarchage par jour (1 à 15) pour set_per_day' },
       },
