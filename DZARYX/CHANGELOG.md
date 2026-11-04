@@ -3,6 +3,8 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (5) — Widget net : dessiné à la taille exacte en pixels de l'iPhone (Device.screenSize × screenScale, K), plus de réduction par iOS → texte net
+
 ## 2026-11-04 (4) — Widget : appui = raccourci Siri « Jarvis » (vrai nom chez Kouider, pas « Dzaryx »)
 
 ## 2026-11-04 (3) — Widget : travail de la routine + atelier sans crédit API

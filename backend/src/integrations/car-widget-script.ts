@@ -54,10 +54,18 @@ if (!fm.fileExists(P) || Date.now() - fm.modificationDate(P).getTime() > 7 * 864
 if (!photo && fm.fileExists(P)) photo = fm.readImage(P);
 
 const W = small ? 600 : large ? 1200 : 1280, H = large ? 1260 : 600;
+// 04/11 net : on dessine à la taille EXACTE en pixels du widget sur cet iPhone (sinon iOS réduit l'image → texte flou).
+// Mise en page gardée en unités W×H, tout est multiplié par K au dessin.
+const SCR = Device.screenSize(), SW = Math.round(Math.min(SCR.width, SCR.height)), SCALE = Device.screenScale();
+const WPT = { 440: [364, 170], 430: [364, 170], 428: [364, 170], 414: [360, 169], 402: [346, 162], 393: [338, 158], 390: [338, 158], 375: [329, 155], 360: [329, 155] };
+const wPt = WPT[SW] ? WPT[SW][small ? 1 : 0] : Math.round(SW * (small ? 0.4 : 0.847));
+const K = Math.min(1.5, (wPt * SCALE) / W);
+const R = (x, y, w, h) => new Rect(x * K, y * K, w * K, h * K);
+const Pt = (x, y) => new Point(x * K, y * K);
 const c = new DrawContext();
-c.size = new Size(W, H); c.respectScreenScale = false; c.opaque = true;
-c.setFillColor(new Color("#050505")); c.fillRect(new Rect(0, 0, W, H));
-if (photo) c.drawImageInRect(photo, new Rect(0, 0, W, H));
+c.size = new Size(Math.round(W * K), Math.round(H * K)); c.respectScreenScale = false; c.opaque = true;
+c.setFillColor(new Color("#050505")); c.fillRect(R(0, 0, W, H));
+if (photo) c.drawImageInRect(photo, R(0, 0, W, H));
 
 const now = new Date();
 let seed = now.getFullYear() * 400 + now.getMonth() * 32 + now.getDate();
@@ -66,39 +74,39 @@ function t(s, x, y, w, h, font, color, align) {
   if (!s) return;
   c.setFont(font); c.setTextColor(color);
   if (align === "right") c.setTextAlignedRight(); else if (align === "center") c.setTextAlignedCenter(); else c.setTextAlignedLeft();
-  c.drawTextInRect(String(s), new Rect(x, y, w, h));
+  c.drawTextInRect(String(s), R(x, y, w, h));
 }
-function dot(x, y, r, color) { c.setFillColor(color); c.fillEllipse(new Rect(x - r, y - r, 2 * r, 2 * r)); }
+function dot(x, y, r, color) { c.setFillColor(color); c.fillEllipse(R(x - r, y - r, 2 * r, 2 * r)); }
 function arc(cx, cy, r, a0, a1, color, width) {
   const p = new Path(), n = Math.max(6, Math.round(Math.abs(a1 - a0) / 4));
   for (let i = 0; i <= n; i++) {
-    const a = (a0 + (a1 - a0) * i / n) * Math.PI / 180, pt = new Point(cx + r * Math.cos(a), cy + r * Math.sin(a));
+    const a = (a0 + (a1 - a0) * i / n) * Math.PI / 180, pt = Pt(cx + r * Math.cos(a), cy + r * Math.sin(a));
     if (i) p.addLine(pt); else p.move(pt);
   }
-  c.addPath(p); c.setStrokeColor(color); c.setLineWidth(width); c.strokePath();
+  c.addPath(p); c.setStrokeColor(color); c.setLineWidth((width) * K); c.strokePath();
 }
 // Bandes de couleur (DrawContext n'a pas de dégradé) : du haut vers le bas, opacité décroissante
 function veil(hex, maxA, from, to) {
   const n = 28, h = (to - from) / n;
-  for (let i = 0; i < n; i++) { c.setFillColor(new Color(hex, maxA * (1 - i / n))); c.fillRect(new Rect(0, from + i * h, W, h + 1)); }
+  for (let i = 0; i < n; i++) { c.setFillColor(new Color(hex, maxA * (1 - i / n))); c.fillRect(R(0, from + i * h, W, h + 1)); }
 }
 
 // ── 1. Le vrai ciel sur la photo ──
 const ph = data.phase || "jour";
-if (ph === "nuit") { c.setFillColor(new Color("#030a26", 0.38)); c.fillRect(new Rect(0, 0, W, H)); veil("#050f3a", 0.55, 0, H * 0.6); }
+if (ph === "nuit") { c.setFillColor(new Color("#030a26", 0.38)); c.fillRect(R(0, 0, W, H)); veil("#050f3a", 0.55, 0, H * 0.6); }
 else if (ph === "aube") { veil("#ff8a5c", 0.42, 0, H * 0.55); veil("#7a4cff", 0.18, 0, H * 0.25); }
 else if (ph === "couchant") { veil("#ff4d1f", 0.40, 0, H * 0.6); veil("#f7c548", 0.16, H * 0.2, H * 0.55); }
 if (data.eid) { veil("#f7c548", 0.30, 0, H * 0.5); for (let i = 0; i < 40; i++) dot(rnd() * W, rnd() * H * 0.5, 1 + rnd() * 2.5, new Color("#ffe9a8", 0.5 + rnd() * 0.5)); }
-if (data.fx.rain || data.fx.storm) { c.setFillColor(new Color("#0b1020", 0.22)); c.fillRect(new Rect(0, 0, W, H)); }
+if (data.fx.rain || data.fx.storm) { c.setFillColor(new Color("#0b1020", 0.22)); c.fillRect(R(0, 0, W, H)); }
 if (ph === "nuit" && !data.fx.rain && !data.fx.fog) {
   for (let i = 0; i < (small ? 40 : 90); i++) { const x = rnd() * W, y = rnd() * H * 0.45, r = rnd() < 0.12 ? 2.6 : 1.3; dot(x, y, r, new Color("#ffffff", 0.35 + rnd() * 0.55)); }
 }
-if (data.fx.fog) { for (let i = 0; i < 5; i++) { c.setFillColor(new Color("#d8dde6", 0.10)); c.fillRect(new Rect(0, H * (0.2 + i * 0.13), W, 70)); } }
+if (data.fx.fog) { for (let i = 0; i < 5; i++) { c.setFillColor(new Color("#d8dde6", 0.10)); c.fillRect(R(0, H * (0.2 + i * 0.13), W, 70)); } }
 if (data.fx.rain || data.fx.storm) {
   for (let i = 0; i < (small ? 70 : 150); i++) {
     const x = rnd() * (W + 120), y = rnd() * H, l = 22 + rnd() * 26, p = new Path();
-    p.move(new Point(x, y)); p.addLine(new Point(x - l * 0.35, y + l));
-    c.addPath(p); c.setStrokeColor(new Color("#cfe3ff", 0.18 + rnd() * 0.2)); c.setLineWidth(1.6); c.strokePath();
+    p.move(Pt(x, y)); p.addLine(Pt(x - l * 0.35, y + l));
+    c.addPath(p); c.setStrokeColor(new Color("#cfe3ff", 0.18 + rnd() * 0.2)); c.setLineWidth((1.6) * K); c.strokePath();
   }
 }
 if (data.fx.snow) { for (let i = 0; i < (small ? 50 : 110); i++) dot(rnd() * W, rnd() * H, 1.5 + rnd() * 3, new Color("#ffffff", 0.5 + rnd() * 0.4)); }
@@ -124,13 +132,13 @@ function hud(x, y, s) {
   const p = new Path();
   for (let i = 0; i < 6; i++) {
     const a = Math.PI / 3 * i - Math.PI / 2, px = cx + s * 0.45 * Math.cos(a), py = cy + s * 0.45 * Math.sin(a);
-    if (i) p.addLine(new Point(px, py)); else p.move(new Point(px, py));
+    if (i) p.addLine(Pt(px, py)); else p.move(Pt(px, py));
   }
   p.closeSubpath();
   c.addPath(p); c.setFillColor(new Color("#000000", 0.35)); c.fillPath();
-  c.addPath(p); c.setStrokeColor(new Color(ACC, 0.3)); c.setLineWidth(s * 0.2); c.strokePath();
-  c.addPath(p); c.setStrokeColor(RED); c.setLineWidth(s * 0.075); c.strokePath();
-  t("D", x, y + s * 0.2, s, s * 0.62, Font.heavySystemFont(s * 0.48), GOLD, "center");
+  c.addPath(p); c.setStrokeColor(new Color(ACC, 0.3)); c.setLineWidth((s * 0.2) * K); c.strokePath();
+  c.addPath(p); c.setStrokeColor(RED); c.setLineWidth((s * 0.075) * K); c.strokePath();
+  t("D", x, y + s * 0.2, s, s * 0.62, Font.heavySystemFont((s * 0.48) * K), GOLD, "center");
   arc(cx, cy, s * 0.66, rot, rot + 95, RED, 3);
   arc(cx, cy, s * 0.66, rot + 150, rot + 205, new Color(ACC, 0.5), 3);
   arc(cx, cy, s * 0.78, -rot * 1.5, -rot * 1.5 + 60, GOLD, 2);
@@ -138,14 +146,14 @@ function hud(x, y, s) {
   for (let k = 0; k < 12; k++) { const a = (k * 30 + rot / 4) * Math.PI / 180; dot(cx + s * 0.88 * Math.cos(a), cy + s * 0.88 * Math.sin(a), k % 3 ? 1.2 : 2.4, new Color("#ffffff", k % 3 ? 0.35 : 0.8)); }
 }
 function bar(x, y, w) {
-  c.setFillColor(new Color(ACC, 0.25)); c.fillRect(new Rect(x - 3, y - 3, w + 6, 12));
-  c.setFillColor(RED); c.fillRect(new Rect(x, y, w, 6));
+  c.setFillColor(new Color(ACC, 0.25)); c.fillRect(R(x - 3, y - 3, w + 6, 12));
+  c.setFillColor(RED); c.fillRect(R(x, y, w, 6));
 }
 // Ligne de scan en bas : le point avance avec la journée (aucun chiffre)
 function scan(y) {
-  c.setFillColor(new Color("#ffffff", 0.14)); c.fillRect(new Rect(0, y, W, 2));
+  c.setFillColor(new Color("#ffffff", 0.14)); c.fillRect(R(0, y, W, 2));
   const k = (now.getHours() * 60 + now.getMinutes()) / 1440, x = W * k;
-  c.setFillColor(new Color(ACC, 0.7)); c.fillRect(new Rect(0, y, x, 2));
+  c.setFillColor(new Color(ACC, 0.7)); c.fillRect(R(0, y, x, 2));
   for (let i = 4; i >= 1; i--) dot(x, y + 1, 3 + i * 4, new Color("#f7c548", 0.08));
   dot(x, y + 1, 5, GOLD);
 }
@@ -163,56 +171,56 @@ const jarvis = data.jarvis ? "« " + data.jarvis + " »" : "";
 if (small) {
   // Petit format : voile sombre sous le texte (la photo carrée est chargée partout)
   const n = 30;
-  for (let i = 0; i < n; i++) { c.setFillColor(new Color("#000000", 0.8 * i / n)); c.fillRect(new Rect(0, H * 0.25 + i * H * 0.75 / n, W, H * 0.75 / n + 1)); }
-  c.setFillColor(new Color("#000000", 0.35)); c.fillRect(new Rect(0, 0, W, 120));
+  for (let i = 0; i < n; i++) { c.setFillColor(new Color("#000000", 0.8 * i / n)); c.fillRect(R(0, H * 0.25 + i * H * 0.75 / n, W, H * 0.75 / n + 1)); }
+  c.setFillColor(new Color("#000000", 0.35)); c.fillRect(R(0, 0, W, 120));
   sky(W - 150, 190, 110);
   hud(30, 30, 64);
-  t(data.modeLabel ? data.modeLabel.split(" · ")[0] : "DZARYX", 112, 50, 330, 30, Font.heavySystemFont(22), GOLD);
-  t(data.greeting || "Bonjour, Monsieur.", 34, 214, W - 68, 56, Font.heavySystemFont(40), WHITE);
-  t(weather, 34, 268, W - 68, 36, Font.mediumSystemFont(26), SOFT);
-  t(info, 34, 304, W - 68, 34, Font.boldSystemFont(24), infoColor);
-  t(line2, 34, 334, W - 68, 28, Font.semiboldSystemFont(20), SOFT);
+  t(data.modeLabel ? data.modeLabel.split(" · ")[0] : "DZARYX", 112, 50, 330, 30, Font.heavySystemFont((22) * K), GOLD);
+  t(data.greeting || "Bonjour, Monsieur.", 34, 214, W - 68, 56, Font.heavySystemFont((40) * K), WHITE);
+  t(weather, 34, 268, W - 68, 36, Font.mediumSystemFont((26) * K), SOFT);
+  t(info, 34, 304, W - 68, 34, Font.boldSystemFont((24) * K), infoColor);
+  t(line2, 34, 334, W - 68, 28, Font.semiboldSystemFont((20) * K), SOFT);
   bar(34, 362, 74);
-  t(data.nextTitle, 34, 382, W - 68, 46, Font.boldSystemFont(34), WHITE);
-  t(data.nextWhen, 34, 428, W - 68, 36, Font.semiboldSystemFont(27), GOLD);
-  t(jarvis, 34, 476, W - 68, 92, Font.italicSystemFont(24), SOFT);
+  t(data.nextTitle, 34, 382, W - 68, 46, Font.boldSystemFont((34) * K), WHITE);
+  t(data.nextWhen, 34, 428, W - 68, 36, Font.semiboldSystemFont((27) * K), GOLD);
+  t(jarvis, 34, 476, W - 68, 92, Font.italicSystemFont((24) * K), SOFT);
   scan(H - 10);
 } else if (large) {
   // Grand format : photo en haut, tableau de bord Jarvis en bas
   const n = 34;
-  for (let i = 0; i < n; i++) { c.setFillColor(new Color("#000000", 0.92 * i / n)); c.fillRect(new Rect(0, H * 0.32 + i * H * 0.4 / n, W, H * 0.4 / n + 1)); }
-  c.setFillColor(new Color("#000000", 0.92)); c.fillRect(new Rect(0, H * 0.72, W, H * 0.28));
-  c.setFillColor(new Color("#000000", 0.35)); c.fillRect(new Rect(0, 0, W, 150));
+  for (let i = 0; i < n; i++) { c.setFillColor(new Color("#000000", 0.92 * i / n)); c.fillRect(R(0, H * 0.32 + i * H * 0.4 / n, W, H * 0.4 / n + 1)); }
+  c.setFillColor(new Color("#000000", 0.92)); c.fillRect(R(0, H * 0.72, W, H * 0.28));
+  c.setFillColor(new Color("#000000", 0.35)); c.fillRect(R(0, 0, W, 150));
   sky(W - 230, 330, 180);
   hud(44, 40, 84);
-  t("DZARYX", 156, 44, 500, 50, Font.heavySystemFont(44), WHITE);
-  t(data.modeLabel || "JARVIS · EN LIGNE", 158, 96, 900, 30, Font.semiboldSystemFont(23), GOLD);
-  t(data.greeting || "Bonjour, Monsieur.", 50, 520, W - 100, 80, Font.heavySystemFont(64), WHITE);
-  t(weather, 52, 600, W - 100, 46, Font.mediumSystemFont(36), SOFT);
-  t(info, 52, 650, W - 100, 42, Font.boldSystemFont(30), infoColor);
-  extra.slice(0, 3).forEach((e, i) => t(e, 52, 696 + i * 36, W - 100, 34, Font.semiboldSystemFont(26), SOFT));
+  t("DZARYX", 156, 44, 500, 50, Font.heavySystemFont((44) * K), WHITE);
+  t(data.modeLabel || "JARVIS · EN LIGNE", 158, 96, 900, 30, Font.semiboldSystemFont((23) * K), GOLD);
+  t(data.greeting || "Bonjour, Monsieur.", 50, 520, W - 100, 80, Font.heavySystemFont((64) * K), WHITE);
+  t(weather, 52, 600, W - 100, 46, Font.mediumSystemFont((36) * K), SOFT);
+  t(info, 52, 650, W - 100, 42, Font.boldSystemFont((30) * K), infoColor);
+  extra.slice(0, 3).forEach((e, i) => t(e, 52, 696 + i * 36, W - 100, 34, Font.semiboldSystemFont((26) * K), SOFT));
   bar(52, 806, 120);
-  t("PROCHAIN · FIK", 52, 828, 500, 32, Font.heavySystemFont(24), GOLD);
-  t(data.nextTitle, 52, 860, W - 100, 56, Font.boldSystemFont(46), WHITE);
-  t(data.nextWhen, 52, 916, W - 100, 44, Font.semiboldSystemFont(34), GOLD);
-  c.setFillColor(new Color("#ffffff", 0.12)); c.fillRect(new Rect(52, 990, W - 104, 2));
-  t(jarvis, 52, 1012, W - 104, 150, Font.italicSystemFont(34), SOFT);
-  t("◆ JARVIS · TOUS SYSTÈMES OPÉRATIONNELS", 52, 1180, W - 104, 34, Font.semiboldSystemFont(22), new Color(ACC, 0.9));
+  t("PROCHAIN · FIK", 52, 828, 500, 32, Font.heavySystemFont((24) * K), GOLD);
+  t(data.nextTitle, 52, 860, W - 100, 56, Font.boldSystemFont((46) * K), WHITE);
+  t(data.nextWhen, 52, 916, W - 100, 44, Font.semiboldSystemFont((34) * K), GOLD);
+  c.setFillColor(new Color("#ffffff", 0.12)); c.fillRect(R(52, 990, W - 104, 2));
+  t(jarvis, 52, 1012, W - 104, 150, Font.italicSystemFont((34) * K), SOFT);
+  t("◆ JARVIS · TOUS SYSTÈMES OPÉRATIONNELS", 52, 1180, W - 104, 34, Font.semiboldSystemFont((22) * K), new Color(ACC, 0.9));
   scan(H - 12);
 } else {
   sky(W - 250, 270, 190);
   hud(46, 40, 76);
-  t("DZARYX", 150, 46, 420, 46, Font.heavySystemFont(40), WHITE);
-  t(data.modeLabel || "JARVIS · EN LIGNE", 152, 94, 640, 28, Font.semiboldSystemFont(20), GOLD);
-  t(data.greeting || "Bonjour, Monsieur.", 46, 150, 760, 70, Font.heavySystemFont(56), WHITE);
-  t(weather, 48, 220, 700, 42, Font.mediumSystemFont(32), SOFT);
-  t(info, 48, 258, 760, 34, Font.boldSystemFont(26), infoColor);
-  t(line2, 48, 291, 760, 32, Font.semiboldSystemFont(23), SOFT);
+  t("DZARYX", 150, 46, 420, 46, Font.heavySystemFont((40) * K), WHITE);
+  t(data.modeLabel || "JARVIS · EN LIGNE", 152, 94, 640, 28, Font.semiboldSystemFont((20) * K), GOLD);
+  t(data.greeting || "Bonjour, Monsieur.", 46, 150, 760, 70, Font.heavySystemFont((56) * K), WHITE);
+  t(weather, 48, 220, 700, 42, Font.mediumSystemFont((32) * K), SOFT);
+  t(info, 48, 258, 760, 34, Font.boldSystemFont((26) * K), infoColor);
+  t(line2, 48, 291, 760, 32, Font.semiboldSystemFont((23) * K), SOFT);
   bar(48, 330, 110);
-  t("PROCHAIN · FIK", 48, 346, 400, 30, Font.heavySystemFont(22), GOLD);
-  t(data.nextTitle, 48, 374, 640, 52, Font.boldSystemFont(40), WHITE);
-  t(data.nextWhen, 48, 424, 640, 40, Font.semiboldSystemFont(30), GOLD);
-  t(jarvis, 48, 482, 760, 84, Font.italicSystemFont(28), SOFT);
+  t("PROCHAIN · FIK", 48, 346, 400, 30, Font.heavySystemFont((22) * K), GOLD);
+  t(data.nextTitle, 48, 374, 640, 52, Font.boldSystemFont((40) * K), WHITE);
+  t(data.nextWhen, 48, 424, 640, 40, Font.semiboldSystemFont((30) * K), GOLD);
+  t(jarvis, 48, 482, 760, 84, Font.italicSystemFont((28) * K), SOFT);
   scan(H - 10);
 }
 
