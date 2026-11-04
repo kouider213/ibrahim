@@ -220,7 +220,7 @@ const w = new ListWidget();
 w.setPadding(0, 0, 0, 0);
 w.backgroundImage = c.getImage();
 // 04/11 : un appui = parler à Jarvis (raccourci Siri « Dzaryx »)
-w.url = "shortcuts://run-shortcut?name=Dzaryx";
+w.url = "shortcuts://run-shortcut?name=Jarvis";
 w.refreshAfterDate = new Date(Date.now() + 15 * 60e3);
 if (config.runsInWidget) Script.setWidget(w);
 else if (small) await w.presentSmall(); else if (large) await w.presentLarge(); else await w.presentMedium();

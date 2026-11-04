@@ -3,6 +3,8 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (4) — Widget : appui = raccourci Siri « Jarvis » (vrai nom chez Kouider, pas « Dzaryx »)
+
 ## 2026-11-04 (3) — Widget : travail de la routine + atelier sans crédit API
 - car-widget-plus.ts : sans RDV dans l'agenda, « quand partir » / trafic / retard utilisent l'heure de travail de la routine (ex. mercredi 13:00) et l'adresse travail, 3 h avant.
 - night-dev.mjs : Claude Code lancé SANS ANTHROPIC_API_KEY → abonnement claude.ai, le crédit API (10 € rechargés le 04/11) reste à Dzaryx ; veille hebdo plus en double (date UTC vs Bruxelles), file nettoyée (8 → 2).
