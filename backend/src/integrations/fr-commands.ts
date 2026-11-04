@@ -390,7 +390,11 @@ async function toolIntent(raw: string): Promise<Direct | null> {
   if (/\b(ajoute|rajoute|code|programme|cree|apprends|fais)[- ]?(toi|te)\b|\b(tu peux|tu pourrais|tu devrais) (te coder|t'?ajouter|apprendre a)|\bameliore[- ]toi\b|\b(ajoute|rajoute) (une|la) (fonction|option|fonctionnalite)\b/.test(t))
     return { text: "CONSIGNE : Kouider demande une nouvelle capacité pour Dzaryx → outil se_coder (action add, sa demande mot pour mot) = l'atelier la code cette nuit. Dis-lui que c'est noté pour l'atelier de cette nuit (PAS que c'est déjà fait). Ne dis JAMAIS « je n'ai pas d'outil ».", direct: false };
   if (/\b(programme|planning|itineraire|circuit|plan)\b[^.?!]{0,25}\b\d+\s*(jours?|j)\b|\b(week-?end|sejour|vacances)\b[^.?!]{0,30}\b(programme|planning|quoi faire|idees?)\b/.test(t))
-    return { text: "CONSIGNE : écris le programme COMPLET directement dans ta réponse (jour par jour, matin / après-midi / soir, vrais lieux qui existent, adapté à qui vient — ex. enfant en bas âge = sieste, coins calmes). Ne promets AUCUN Google Doc / PDF / « je te prépare » sans appeler l'outil dans ce même tour.", direct: false };
+    return { text: "CONSIGNE : écris le programme COMPLET directement dans ta réponse (jour par jour, matin / après-midi / soir, vrais lieux qui existent, adapté à qui vient — ex. enfant en bas âge = sieste, coins calmes). Ne promets AUCUN Google Doc / PDF / « je te prépare » sans appeler l'outil dans ce même tour. Ne parle PAS de FIK (ni logement, ni voiture, ni clients) s'il ne l'a pas demandé. Style simple et propre : aucun mot vulgaire ni étranger bricolé.", direct: false };
+  // 04/11 banc : « différence entre je veux et je souhaite » → exemple « je veux cette voiture » (FIK glissé partout)
+  if (t.length < 250 && /\b(difference entre|explique[- ]moi|ca veut dire quoi|que veut dire|c'est quoi (le|la|un|une) (mot|verbe|expression|difference)|comment on dit|traduis|traduction|conjugue|synonyme|orthographe|grammaire|definition)\b/.test(t)
+      && !/\b(fik|voiture|client|resa|reservation|location|prospect|site|clio|fiat|duster)\b/.test(t))
+    return { text: "CONSIGNE : question générale (langue / culture) → réponds clairement avec des exemples de la vie de tous les jours (famille, travail, courses). AUCUN exemple de voiture, client, réservation ou FIK. Style propre, aucun mot vulgaire.", direct: false };
   return null;
 }
 
