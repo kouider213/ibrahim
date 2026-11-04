@@ -299,6 +299,21 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'esprit-day',
+    cron:  '10 23 * * *',           // 23h10 — journal du jour (note, sport, famille, gratitude) — mon-esprit.ts
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'esprit-sunday',
+    cron:  '0 18 * * 0',            // dimanche 18h — classement de ses jours de la semaine + défi famille
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'esprit-watch',
+    cron:  '15 18 * * *',           // 18h15 — série dure / remontée / 3 jours sans moment famille (mots doux, jamais d'appel)
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'dzaryx-weekly',
     cron:  '0 19 * * 0',            // dimanche 19h — « ce que j'ai fait pour toi cette semaine » (Telegram + app)
     tz:    'Europe/Brussels',
@@ -785,6 +800,9 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'digest':                  async () => { console.log(`[digest] ${await (await import('../notifications/digest.js')).jobDigest()}`); },
   'digest-evening':          async () => { console.log(`[digest] ${await (await import('../notifications/digest.js')).jobDigest()}`); },
   'dzaryx-weekly':           async () => { await (await import('../integrations/dzaryx-weekly.js')).jobDzaryxWeekly(); },
+  'esprit-day':              async () => { console.log(`[esprit] ${await (await import('../integrations/mon-esprit.js')).jobEspritDay()}`); },
+  'esprit-sunday':           async () => { console.log(`[esprit] ${await (await import('../integrations/mon-esprit.js')).jobEspritSunday()}`); },
+  'esprit-watch':            async () => { console.log(`[esprit] ${await (await import('../integrations/mon-esprit.js')).jobEspritWatch()}`); },
   'sport-weekly':            async () => { await (await import('../integrations/sport-coach.js')).jobSportWeekly(); },
   'presence-watch':          async () => { await (await import('../integrations/presence.js')).jobPresenceWatch(); },
   'wow-watch':               async () => { await (await import('../integrations/wow.js')).jobWowWatch(); },

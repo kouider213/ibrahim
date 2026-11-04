@@ -3,6 +3,13 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (17) — MON ESPRIT : journal de chaque jour + classement des jours de la semaine + 20 options
+- `mon-esprit.ts` (nouveau) : journal du soir 23h10 (`esprit-day`) écrit depuis ses vrais messages + montre + sport (même dit à la voix) + humeur → note 1-10, moral/énergie/stress, moments en famille, meilleur/pire moment, gratitude (app_kv `esprit:days`, privé, jamais de médicament).
+- Dimanche 18h (`esprit-sunday`) : classement 🥇🥈🥉 des 7 jours, meilleur/pire jour, moyenne vs semaine d'avant, record du mois, moments en famille, recette chiffrée (famille/sport/sommeil/congé/pas), déclencheurs, gratitude, défi famille.
+- 18h15 (`esprit-watch`) : mot doux après 3 jours durs, « tu remontes », rappel après 3 jours sans moment famille (jamais d'appel, respecte ne-pas-déranger).
+- Outil `esprit` (jarvis4-tools) : semaine, aujourdhui, jour, noter, famille, recette, declencheurs, gratitude, demain, mois, options ; dossier du cerveau : « meilleurs moments = sa femme et Ibrahim » + ses 7 derniers jours.
+- Testé sur ses vrais jours 29/10→04/11 (7 journaux écrits, rien envoyé).
+
 ## 2026-11-04 (16) — Liberté : un message « prise + moral » reçoit une vraie réponse
 - `liberte.ts` parseMedTake → `rest` quand le message dit autre chose que la prise (moral, travail, ≥ 3 mots en plus) ; `orchestrator.ts` : la prise est notée par le code puis le cerveau répond à ce qu'il vit (avant : seul « ✅ Noté : 1 demi… Prochaine 19:30 », son « j'en peux plus » ignoré).
 
