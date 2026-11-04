@@ -92,6 +92,8 @@ function runClaude(task) {
   mkdirSync(LOGS, { recursive: true });
   const r = spawnSync('claude', ['-p', task.kind === 'undo' ? undoPrompt(task) : prompt(task), '--permission-mode', 'auto', '--output-format', 'json'], {
     cwd: '/root', encoding: 'utf8', timeout: TASK_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024,
+    // 04/11 Kouider : le crédit API Claude (10 €) est réservé à Dzaryx → l'atelier passe par l'abonnement Claude Code, jamais par la clé API
+    env: Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^ANTHROPIC_(API_KEY|AUTH_TOKEN)$/.test(k))),
   });
   writeFileSync(`${LOGS}/${task.id}-${Date.now()}.json`, `${r.stdout ?? ''}\n--- stderr ---\n${r.stderr ?? ''}`);
   if (r.error) return { ok: false, report: `l'atelier s'est arrêté (${r.error.code === 'ETIMEDOUT' ? 'plus de 75 min' : r.error.message}).` };
@@ -128,7 +130,7 @@ async function main() {
   }
 
   // Veille hebdo : nuit de samedi à dimanche
-  if (now.weekday.startsWith('dim') && night && !q.some(t => t.source === 'veille' && t.at.slice(0, 10) >= now.day)) {
+  if (now.weekday.startsWith('dim') && night && !q.some(t => t.source === 'veille' && Date.now() - Date.parse(t.at) < 3 * 86400_000)) {
     const src = readFileSync(`${REPO}/backend/src/integrations/self-dev.ts`, 'utf8');   // même texte que l'outil se_coder 'veille'
     const text = (src.match(/WEEKLY_WATCH = ([\s\S]*?);\n/)?.[1] ?? '').split(/'\s*\+\s*'/).join('').replace(/^'|'$/g, '').replace(/\\'/g, "'")
       || 'VEILLE HEBDO : nouveautés Anthropic, GitHub (agents IA open source dont Hermes Agent), assistants vocaux → max 3 fonctions utiles à Kouider, codées, testées, en ligne.';

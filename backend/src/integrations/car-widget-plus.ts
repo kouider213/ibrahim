@@ -32,6 +32,26 @@ async function cachedDrive(o: LatLng, d: LatLng): Promise<{ min: number; normal:
 const trafficWords = (t: { min: number; normal: number }, to: string) =>
   t.min - t.normal >= 5 ? `Trafic chargé ${to} · partez plus tôt` : t.min - t.normal >= 2 ? `Un peu de trafic ${to}` : `Route fluide ${to}`;
 
+/** Début du travail aujourd'hui d'après la routine (« 10:00 Agence FIK, 13:00 travail » → 13:00), dans les 3 h à venir. */
+async function routineWork(now: number): Promise<{ start: number; pos: LatLng } | null> {
+  const { getRoutineConfig } = await import('./morning-routine.js');
+  const cfg = await getRoutineConfig();
+  if (!cfg.enabled || (cfg.pausedUntil && Date.parse(String(cfg.pausedUntil)) > now) || !cfg.addresses?.work) return null;
+  const ln = localNow(now);
+  let hhmm: string | null = null;
+  for (const part of (cfg.days[ln.weekday]?.next ?? '').split(',')) {
+    const m = part.match(/(\d{2}):(\d{2})\s*(.*)/);
+    if (m && /travail|magasin|ouverture|bureau/i.test(m[3]!) && !/agence|cong[ée]/i.test(part)) { hhmm = `${m[1]}:${m[2]}`; break; }
+  }
+  if (!hhmm) return null;
+  const [h, mi] = hhmm.split(':').map(Number);
+  const [nh, nm] = ln.hhmm.split(':').map(Number);
+  const start = now + ((h! * 60 + mi!) - (nh! * 60 + nm!)) * 60_000;
+  if (start <= now || start - now > 3 * 3600_000) return null;
+  const pos = await import('./departures.js').then(m => m.geocode(cfg.addresses!.work!)).catch(() => null);
+  return pos ? { start, pos } : null;
+}
+
 export interface CarRoad { go: string; road: string; late: string }
 /** 1 + 2 + 4 : quand partir, trafic, retard prédit — tout en mots. */
 export async function carRoad(here: LatLng, fresh: boolean, homeward: boolean): Promise<CarRoad> {
@@ -56,6 +76,22 @@ export async function carRoad(here: LatLng, fresh: boolean, homeward: boolean): 
         if (lateBy >= 5 && fresh) out.late = `Retard probable · ${name} · je vous propose de prévenir`;
         out.go = leaveIn <= 3 ? `Partez maintenant · ${name}` : leaveIn <= 20 ? `Départ dans un quart d'heure · ${name}` : leaveIn <= 45 ? `Départ dans la demi-heure · ${name}` : leaveIn <= 90 ? `Départ dans l'heure · ${name}` : '';
         out.road = trafficWords(t, `vers ${name}`);
+        return out;
+      }
+    }
+  }
+  // Pas de RDV dans l'agenda : l'heure de travail de la routine (Kouider 04/11 : « je dois être au travail à 13h, 3 h avant minimum »)
+  const work = await routineWork(now).catch(() => null);
+  if (work && !homeward) {
+    const origin = fresh ? here : home ?? here;
+    if (km(origin, work.pos) > 0.4 && km(origin, work.pos) < 150) {
+      const t = await cachedDrive(origin, work.pos);
+      if (t) {
+        const leaveIn = (work.start - (t.min + 5) * 60_000 - now) / 60_000;
+        const lateBy = (now + (t.min + 3) * 60_000 - work.start) / 60_000;
+        if (lateBy >= 5 && fresh) out.late = 'Retard probable · le travail · je vous propose de prévenir';
+        out.go = leaveIn <= 3 ? 'Partez maintenant · le travail' : leaveIn <= 20 ? "Départ dans un quart d'heure · le travail" : leaveIn <= 45 ? 'Départ dans la demi-heure · le travail' : leaveIn <= 90 ? "Départ dans l'heure · le travail" : 'Travail plus tard · vous avez le temps';
+        out.road = trafficWords(t, 'vers le travail');
         return out;
       }
     }

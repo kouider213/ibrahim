@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (3) — Widget : travail de la routine + atelier sans crédit API
+- car-widget-plus.ts : sans RDV dans l'agenda, « quand partir » / trafic / retard utilisent l'heure de travail de la routine (ex. mercredi 13:00) et l'adresse travail, 3 h avant.
+- night-dev.mjs : Claude Code lancé SANS ANTHROPIC_API_KEY → abonnement claude.ai, le crédit API (10 € rechargés le 04/11) reste à Dzaryx ; veille hebdo plus en double (date UTC vs Bruxelles), file nettoyée (8 → 2).
+
 ## 2026-11-04 (2) — Widget CarPlay v5 « Jarvis + route » + discours d'arrivée
 - car-widget-plus.ts : quand partir (prochain RDV avec adresse ≤ 3 h, en mots), trafic en mots (RDV ou maison au retour, Google Maps caché 10 min), retard prédit, « un client attend votre réponse » (wa:convlog, sans nom), phrase Jarvis adaptée.
 - Widget : 2e ligne route/client (moyen, petit), 3 lignes en grand, écran verrouillé priorise départ/retard ; appui = raccourci Siri « Dzaryx ».
