@@ -326,7 +326,12 @@ async function financePlans(raw: string): Promise<Direct | null> {
   const proj = /\b(projection|combien j'aurai|j'aurai combien|combien je vais avoir|de cote fin \d{4}|fin 20\d\d|dans \d+ ans)\b/.test(t) && /\b(cote|epargne|aurai|projection|economis)\b/.test(t);
   if (!algerie && !proj) return null;
   const { runJarvis4Tool } = await import('./jarvis4-tools.js');
-  const r = await runJarvis4Tool('mes_finances', { action: algerie ? 'algerie' : 'projection' }, SID).catch(() => null);
+  // 04/11 banc : « fin 2027 » répondait déc. 2028 → l'horizon demandé est passé à l'outil
+  const y = t.match(/\b(?:fin|en|decembre|d'ici)\s+(20\d\d)\b/)?.[1];
+  const n = Number(t.match(/\bdans (\d+) ans?\b/)?.[1] ?? 0);
+  const now = localNow().date;
+  const until = y ? `${y}-12` : n > 0 && n < 30 ? `${Number(now.slice(0, 4)) + n}-${now.slice(5, 7)}` : undefined;
+  const r = await runJarvis4Tool('mes_finances', { action: algerie ? 'algerie' : 'projection', ...(until && !algerie ? { until } : {}) }, SID).catch(() => null);
   if (!r) return null;
   // 05/11 banc tour 3 : en « consigne », le cerveau gratuit l'ignorait (« aucune donnée sur un plan Algérie », ou bénéfice FIK donné
   // comme épargne perso) → réponse DIRECTE du code, rien à réinterpréter
@@ -345,6 +350,33 @@ async function fikRevenue(raw: string): Promise<Direct | null> {
   const { executeTool } = await import('./tool-executor.js');
   const r = await executeTool('get_revenue_report', { year: y, ...(mo ? { month: mo } : {}) }, SID);
   return { text: r, direct: !/^Erreur/.test(r) };   // vrais chiffres : directs (le cerveau ne peut plus les « arrondir »)
+}
+
+/** 🛌 « je suis crevé je vais pas à la salle demain » (04/11 banc : le cerveau disait « c'est noté » sans outil → garde anti-mensonge) */
+async function sportSkip(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (t.length > 200 || /\?\s*$/.test(t)) return null;
+  const DAY = "(aujourd'hui|ce soir|ce matin|demain|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)";
+  const m = t.match(new RegExp(`\\b(?:(?:je )?(?:vais|irai|peux|pourrai|veux|ferai|fais)\\s+pas\\s+(?:aller\\s+)?(?:a la salle|au sport|a la muscu|a la gym|de sport|de salle|la seance)|pas de (?:sport|salle|seance|muscu)|je (?:saute|zappe|annule|sauterai) (?:la salle|le sport|la seance|ma seance))\\b[^.!]{0,25}?\\b${DAY}\\b`))
+    ?? t.match(new RegExp(`\\b${DAY}\\b[^.!]{0,25}?\\b(?:(?:je )?(?:vais|irai|peux|fais|ferai)\\s+pas\\s+(?:aller\\s+)?(?:a la salle|au sport|a la muscu|a la gym|de sport|la seance)|pas de (?:sport|salle|seance|muscu))\\b`));
+  if (!m) return null;
+  const day = m[1] ?? 'demain';
+  const date = /aujourd|ce soir|ce matin/.test(day) ? localNow().date : day;   // sport_coach comprend demain / lundi…
+  const reason = /crev|fatigu|epuis|naze|mort/.test(t) ? 'fatigue' : /malade|grippe|fievre|mal (au|a la|au dos)|douleur|bless/.test(t) ? 'malade / douleur' : /travail|boulot|taf/.test(t) ? 'travail' : 'repos';
+  const { sportCoachTool } = await import('./sport-coach.js');
+  const r = await sportCoachTool({ action: 'skip', date, reason });
+  return { text: `${reason === 'fatigue' ? '🛌 Repose-toi bien, la récup fait partie du programme.\n' : ''}${r}`, direct: true };
+}
+
+/** 🌐 « combien de visites sur le site hier ? » (04/11 banc : il répondait les visites des prospects) → vrai trafic du jour, tri robots/nous */
+async function siteVisits(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (t.length > 160 || /\b(prospect|client|demo|concurrent)/.test(t)) return null;
+  if (!/\b(visites?|visiteurs?|trafic|traffic|passe|venu)\b[^.?!]{0,30}\bsite\b|\bsite\b[^.?!]{0,30}\b(visites?|visiteurs?|trafic|traffic|frequentation)\b/.test(t)) return null;
+  const off = /avant[- ]hier/.test(t) ? -2 : /\bhier\b/.test(t) ? -1 : /\b(aujourd'?hui|ce jour|today)\b/.test(t) || !/semaine|mois/.test(t) ? 0 : null;
+  if (off === null) return null;   // semaine / mois → get_site_analytics par le cerveau
+  const { dayTraffic, formatTraffic } = await import('./site-traffic.js');
+  return { text: formatTraffic(await dayTraffic(off), off === -2 ? 'avant-hier' : off === -1 ? 'hier' : "aujourd'hui"), direct: true };
 }
 
 /** Le premier qui reconnaît la phrase. direct = réponse sans le cerveau. */
@@ -366,7 +398,7 @@ export async function frCommand(raw: string, sessionId = 'telegram_kouider'): Pr
   SID = sessionId;
   const msg = raw.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
   if (!msg) return null;
-  for (const f of [craving, carKm, privacy, reminder, rdv, dnd, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, toolIntent]) {
+  for (const f of [craving, carKm, sportSkip, privacy, reminder, rdv, dnd, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, toolIntent]) {
     const r = await f(msg).catch(e => ({ text: `❌ ${e instanceof Error ? e.message : e}`, direct: true }));
     if (r) return r;
   }

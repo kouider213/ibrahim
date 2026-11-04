@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (26) — Derniers scénarios du banc : salle, visites du site, horizon d'épargne
+- `fr-commands.ts` sportSkip : « je suis crevé je vais pas à la salle demain » → séance annulée par le code (agenda, réveil, départ) ; avant : « je n'ai pas exécuté cette action ».
+- `fr-commands.ts` siteVisits : « combien de visites sur le site hier ? » → vrai trafic du jour (visiteurs / nous / robots) ; avant : visites des prospects.
+- `fr-commands.ts` financePlans : « fin 2027 » / « dans 3 ans » → projection jusqu'à cette date (avant : toujours déc. 2028).
+- Banc : 16 scénarios restants repassés → tous OK (Liège déjà bloqué par le code ; agenda OK sur Railway, clé Google absente seulement au VPS/banc).
+
 ## 2026-11-04 (25) — Fin du banc questions générales : image, atelier, programme de voyage
 - `fr-commands.ts` (toolIntent) : « crée-moi une image » → consigne generate_image / transform_image ; « ajoute-toi une fonction » → se_coder (noté pour l'atelier de la nuit) ; « programme de N jours / week-end » → programme écrit en entier dans la réponse. Avant, le petit cerveau disait « je n'ai pas d'outil » ou promettait un Google Doc.
 - `orchestrator.ts` : une réponse du cerveau de secours qui promet sans rien faire (« je te prépare… je t'envoie tout de suite ») et sans outil → relancée sur un autre cerveau avec « écris la réponse maintenant ».
