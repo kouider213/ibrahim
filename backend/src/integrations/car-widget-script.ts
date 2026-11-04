@@ -53,6 +53,7 @@ if (!fm.fileExists(P) || Date.now() - fm.modificationDate(P).getTime() > 7 * 864
 }
 if (!photo && fm.fileExists(P)) photo = fm.readImage(P);
 
+const FF = (k, n) => ({ k: k, n: n });
 const W = small ? 600 : large ? 1200 : 1280, H = large ? 1260 : 600;
 // 04/11 net : on dessine à la taille EXACTE en pixels du widget sur cet iPhone (sinon iOS réduit l'image → texte flou).
 // Mise en page gardée en unités W×H, tout est multiplié par K au dessin.
@@ -70,12 +71,15 @@ if (photo) c.drawImageInRect(photo, R(0, 0, W, H));
 const now = new Date();
 let seed = now.getFullYear() * 400 + now.getMonth() * 32 + now.getDate();
 function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
-function t(s, x, y, w, h, font, color, align) {
+const TXT = [];
+function td(s, x, y, w, h, font, color, align) {
   if (!s) return;
-  c.setFont(font); c.setTextColor(color);
+  c.setFont(Font[font.k + "SystemFont"](font.n * K)); c.setTextColor(color);
   if (align === "right") c.setTextAlignedRight(); else if (align === "center") c.setTextAlignedCenter(); else c.setTextAlignedLeft();
   c.drawTextInRect(String(s), R(x, y, w, h));
 }
+// 04/11 : le texte n'est plus dessiné dans l'image (iOS la compresse → flou) mais posé en vrai texte iPhone, toujours net
+function t(s, x, y, w, h, font, color, align) { if (s) TXT.push({ s: String(s), x, y, w, h, font, color, align }); }
 function dot(x, y, r, color) { c.setFillColor(color); c.fillEllipse(R(x - r, y - r, 2 * r, 2 * r)); }
 function arc(cx, cy, r, a0, a1, color, width) {
   const p = new Path(), n = Math.max(6, Math.round(Math.abs(a1 - a0) / 4));
@@ -138,7 +142,7 @@ function hud(x, y, s) {
   c.addPath(p); c.setFillColor(new Color("#000000", 0.35)); c.fillPath();
   c.addPath(p); c.setStrokeColor(new Color(ACC, 0.3)); c.setLineWidth((s * 0.2) * K); c.strokePath();
   c.addPath(p); c.setStrokeColor(RED); c.setLineWidth((s * 0.075) * K); c.strokePath();
-  t("D", x, y + s * 0.2, s, s * 0.62, Font.heavySystemFont((s * 0.48) * K), GOLD, "center");
+  td("D", x, y + s * 0.2, s, s * 0.62, FF("heavy", s * 0.48), GOLD, "center");
   arc(cx, cy, s * 0.66, rot, rot + 95, RED, 3);
   arc(cx, cy, s * 0.66, rot + 150, rot + 205, new Color(ACC, 0.5), 3);
   arc(cx, cy, s * 0.78, -rot * 1.5, -rot * 1.5 + 60, GOLD, 2);
@@ -175,15 +179,15 @@ if (small) {
   c.setFillColor(new Color("#000000", 0.35)); c.fillRect(R(0, 0, W, 120));
   sky(W - 150, 190, 110);
   hud(30, 30, 64);
-  t(data.modeLabel ? data.modeLabel.split(" · ")[0] : "DZARYX", 112, 50, 330, 30, Font.heavySystemFont((22) * K), GOLD);
-  t(data.greeting || "Bonjour, Monsieur.", 34, 214, W - 68, 56, Font.heavySystemFont((40) * K), WHITE);
-  t(weather, 34, 268, W - 68, 36, Font.mediumSystemFont((26) * K), SOFT);
-  t(info, 34, 304, W - 68, 34, Font.boldSystemFont((24) * K), infoColor);
-  t(line2, 34, 334, W - 68, 28, Font.semiboldSystemFont((20) * K), SOFT);
+  t(data.modeLabel ? data.modeLabel.split(" · ")[0] : "DZARYX", 112, 50, 330, 30, FF("heavy", 22), GOLD);
+  t(data.greeting || "Bonjour, Monsieur.", 34, 214, W - 68, 56, FF("heavy", 40), WHITE);
+  t(weather, 34, 268, W - 68, 36, FF("medium", 26), SOFT);
+  t(info, 34, 304, W - 68, 34, FF("bold", 24), infoColor);
+  t(line2, 34, 334, W - 68, 28, FF("semibold", 20), SOFT);
   bar(34, 362, 74);
-  t(data.nextTitle, 34, 382, W - 68, 46, Font.boldSystemFont((34) * K), WHITE);
-  t(data.nextWhen, 34, 428, W - 68, 36, Font.semiboldSystemFont((27) * K), GOLD);
-  t(jarvis, 34, 476, W - 68, 92, Font.italicSystemFont((24) * K), SOFT);
+  t(data.nextTitle, 34, 382, W - 68, 46, FF("bold", 34), WHITE);
+  t(data.nextWhen, 34, 428, W - 68, 36, FF("semibold", 27), GOLD);
+  t(jarvis, 34, 476, W - 68, 92, FF("italic", 24), SOFT);
   scan(H - 10);
 } else if (large) {
   // Grand format : photo en haut, tableau de bord Jarvis en bas
@@ -193,41 +197,61 @@ if (small) {
   c.setFillColor(new Color("#000000", 0.35)); c.fillRect(R(0, 0, W, 150));
   sky(W - 230, 330, 180);
   hud(44, 40, 84);
-  t("DZARYX", 156, 44, 500, 50, Font.heavySystemFont((44) * K), WHITE);
-  t(data.modeLabel || "JARVIS · EN LIGNE", 158, 96, 900, 30, Font.semiboldSystemFont((23) * K), GOLD);
-  t(data.greeting || "Bonjour, Monsieur.", 50, 520, W - 100, 80, Font.heavySystemFont((64) * K), WHITE);
-  t(weather, 52, 600, W - 100, 46, Font.mediumSystemFont((36) * K), SOFT);
-  t(info, 52, 650, W - 100, 42, Font.boldSystemFont((30) * K), infoColor);
-  extra.slice(0, 3).forEach((e, i) => t(e, 52, 696 + i * 36, W - 100, 34, Font.semiboldSystemFont((26) * K), SOFT));
+  t("DZARYX", 156, 44, 500, 50, FF("heavy", 44), WHITE);
+  t(data.modeLabel || "JARVIS · EN LIGNE", 158, 96, 900, 30, FF("semibold", 23), GOLD);
+  t(data.greeting || "Bonjour, Monsieur.", 50, 520, W - 100, 80, FF("heavy", 64), WHITE);
+  t(weather, 52, 600, W - 100, 46, FF("medium", 36), SOFT);
+  t(info, 52, 650, W - 100, 42, FF("bold", 30), infoColor);
+  extra.slice(0, 3).forEach((e, i) => t(e, 52, 696 + i * 36, W - 100, 34, FF("semibold", 26), SOFT));
   bar(52, 806, 120);
-  t("PROCHAIN · FIK", 52, 828, 500, 32, Font.heavySystemFont((24) * K), GOLD);
-  t(data.nextTitle, 52, 860, W - 100, 56, Font.boldSystemFont((46) * K), WHITE);
-  t(data.nextWhen, 52, 916, W - 100, 44, Font.semiboldSystemFont((34) * K), GOLD);
+  t("PROCHAIN · FIK", 52, 828, 500, 32, FF("heavy", 24), GOLD);
+  t(data.nextTitle, 52, 860, W - 100, 56, FF("bold", 46), WHITE);
+  t(data.nextWhen, 52, 916, W - 100, 44, FF("semibold", 34), GOLD);
   c.setFillColor(new Color("#ffffff", 0.12)); c.fillRect(R(52, 990, W - 104, 2));
-  t(jarvis, 52, 1012, W - 104, 150, Font.italicSystemFont((34) * K), SOFT);
-  t("◆ JARVIS · TOUS SYSTÈMES OPÉRATIONNELS", 52, 1180, W - 104, 34, Font.semiboldSystemFont((22) * K), new Color(ACC, 0.9));
+  t(jarvis, 52, 1012, W - 104, 150, FF("italic", 34), SOFT);
+  t("◆ JARVIS · TOUS SYSTÈMES OPÉRATIONNELS", 52, 1180, W - 104, 34, FF("semibold", 22), new Color(ACC, 0.9));
   scan(H - 12);
 } else {
   sky(W - 250, 270, 190);
   hud(46, 40, 76);
-  t("DZARYX", 150, 46, 420, 46, Font.heavySystemFont((40) * K), WHITE);
-  t(data.modeLabel || "JARVIS · EN LIGNE", 152, 94, 640, 28, Font.semiboldSystemFont((20) * K), GOLD);
-  t(data.greeting || "Bonjour, Monsieur.", 46, 150, 760, 70, Font.heavySystemFont((56) * K), WHITE);
-  t(weather, 48, 220, 700, 42, Font.mediumSystemFont((32) * K), SOFT);
-  t(info, 48, 258, 760, 34, Font.boldSystemFont((26) * K), infoColor);
-  t(line2, 48, 291, 760, 32, Font.semiboldSystemFont((23) * K), SOFT);
+  t("DZARYX", 150, 46, 420, 46, FF("heavy", 40), WHITE);
+  t(data.modeLabel || "JARVIS · EN LIGNE", 152, 94, 640, 28, FF("semibold", 20), GOLD);
+  t(data.greeting || "Bonjour, Monsieur.", 46, 150, 760, 70, FF("heavy", 56), WHITE);
+  t(weather, 48, 220, 700, 42, FF("medium", 32), SOFT);
+  t(info, 48, 258, 760, 34, FF("bold", 26), infoColor);
+  t(line2, 48, 291, 760, 32, FF("semibold", 23), SOFT);
   bar(48, 330, 110);
-  t("PROCHAIN · FIK", 48, 346, 400, 30, Font.heavySystemFont((22) * K), GOLD);
-  t(data.nextTitle, 48, 374, 640, 52, Font.boldSystemFont((40) * K), WHITE);
-  t(data.nextWhen, 48, 424, 640, 40, Font.semiboldSystemFont((30) * K), GOLD);
-  t(jarvis, 48, 482, 760, 84, Font.italicSystemFont((28) * K), SOFT);
+  t("PROCHAIN · FIK", 48, 346, 400, 30, FF("heavy", 22), GOLD);
+  t(data.nextTitle, 48, 374, 640, 52, FF("bold", 40), WHITE);
+  t(data.nextWhen, 48, 424, 640, 40, FF("semibold", 30), GOLD);
+  t(jarvis, 48, 482, 760, 84, FF("italic", 28), SOFT);
   scan(H - 10);
 }
 
 const w = new ListWidget();
 w.setPadding(0, 0, 0, 0);
 w.backgroundImage = c.getImage();
-// 04/11 : un appui = parler à Jarvis (raccourci Siri « Dzaryx »)
+// Texte natif aux mêmes places que l'ancien dessin (unités W×H → points du widget)
+const PS = wPt / W;
+const col = w.addStack(); col.layoutVertically(); col.topAlignContent();
+let cur = 0;
+TXT.sort((a, b) => a.y - b.y).forEach(it => {
+  const gap = it.y - cur;
+  if (gap > 0) col.addSpacer(gap * PS);
+  cur = Math.max(cur, it.y) + it.h;
+  const row = col.addStack(); row.layoutHorizontally();
+  if (it.x > 0) row.addSpacer(it.x * PS);
+  const box = row.addStack(); box.size = new Size(it.w * PS, it.h * PS); box.topAlignContent(); box.layoutHorizontally();
+  if (it.align === "right" || it.align === "center") box.addSpacer();
+  const tx = box.addText(it.s);
+  tx.font = Font[it.font.k + "SystemFont"](it.font.n * PS); tx.textColor = it.color;
+  tx.lineLimit = Math.max(1, Math.floor(it.h / (it.font.n * 1.18)));
+  tx.minimumScaleFactor = 0.7;
+  tx.shadowColor = new Color("#000000", 0.55); tx.shadowRadius = 2; tx.shadowOffset = new Point(0, 1);
+  if (it.align !== "right") box.addSpacer();
+  row.addSpacer();
+});
+w.addSpacer();
 w.url = "shortcuts://run-shortcut?name=Jarvis";
 w.refreshAfterDate = new Date(Date.now() + 15 * 60e3);
 if (config.runsInWidget) Script.setWidget(w);
