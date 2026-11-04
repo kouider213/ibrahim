@@ -72,6 +72,7 @@ const PROTECT: Array<{ a: string; say: string }> = [
   { a: '043013,043014', say: 'l\'invocation du voyage : « Gloire à Celui qui nous a soumis tout cela, alors que nous n\'étions pas capables de le dominer. Et c\'est vers notre Seigneur que nous retournerons. » Sourate 43' },
   { a: '113001,113002,113003,113004,113005', say: 'la sourate Al-Falaq, l\'Aube naissante : « Dis : je cherche protection auprès du Seigneur de l\'aube naissante, contre le mal de ce qu\'Il a créé. »' },
   { a: '114001,114002,114003,114004,114005,114006', say: 'la sourate An-Nas, les Hommes : « Dis : je cherche protection auprès du Seigneur des hommes, le Souverain des hommes, Dieu des hommes. »' },
+  { a: '002255', say: 'Ayat al-Kursi, le verset du Trône : « Allah, point de divinité à part Lui, le Vivant, Celui qui subsiste par Lui-même. Ni somnolence ni sommeil ne Le saisissent. »' },
 ];
 /** Fin de chaque démarrage : verset du jour + récitation de protection, annoncés et traduits, puis les vraies récitations
  *  ([[Q:…]] → jarvis-audio.ts les joue après la voix, dans l'ordre). Aussi dit tel quel par « Énoncer » (sans [[ ]]). */
@@ -87,7 +88,7 @@ export async function carBlessing(courage = false): Promise<string> {
   await kvPut(PUSED_K, pn + 1);
   const v = VERSES[i]!;
   // 04/11 (Kouider : « le vocal au démarrage est trop long, parfois il coupe ») : UNE seule récitation par démarrage,
-  // en alternance verset du jour / protection (Ayat al-Kursi retiré de la voiture : plus d'une minute)
+  // en alternance verset du jour / protection (Ayat al-Kursi gardé : Kouider aime finir sur le Coran)
   if (pn % 2 === 1) {
     const pr = PROTECT[Math.floor(pn / 2) % PROTECT.length]!;
     return `Pour votre protection, ${pr.say}. Je reste en veille. [[Q:${pr.a}]]`;

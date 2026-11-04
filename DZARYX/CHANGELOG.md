@@ -4,7 +4,7 @@
 > Plus récent en haut.
 
 ## 2026-11-04 (27) — Vocal CarPlay plus court (« trop long, parfois il coupe »)
-- `car-coach.ts` : discours de motivation / de courage 2-3 phrases (45 mots max) au lieu de 4-5 ; UNE seule récitation par démarrage, en alternance verset du jour / protection (avant : les deux à chaque fois) ; Ayat al-Kursi retiré de la voiture (> 1 min) ; « Je reste en veille » sans la phrase Siri.
+- `car-coach.ts` : discours de motivation / de courage 2-3 phrases (45 mots max) au lieu de 4-5 ; UNE seule récitation par démarrage, en alternance verset du jour / protection (avant : les deux à chaque fois) ; (Ayat al-Kursi remis le soir même à la demande de Kouider) ; « Je reste en veille » sans la phrase Siri.
 - `jarvis4.ts` carBrief : point en 2-3 phrases courtes (45 mots max) au lieu de 3-5.
 - Total ~50 s au lieu de 1 min 45-2 min 30 → synthèse plus rapide (la voix Gemini coupait parfois les textes longs).
 
