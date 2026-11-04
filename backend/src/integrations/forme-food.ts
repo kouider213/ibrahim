@@ -416,6 +416,15 @@ export async function mealFromTelegram(note = ''): Promise<string> {
   const { lastTelegramPhoto } = await import('./forme.js');
   const ph = await lastTelegramPhoto();
   if (!ph) return '❌ Je n\'ai pas de photo récente : renvoie la photo de ton plat (ou prends-la dans FORME → Repas).';
+  // 04/11 banc : photo + « je peux manger ça ce soir ? » → le repas était ENREGISTRÉ comme mangé. Question / hésitation
+  // → on regarde la photo, on donne kcal + reste du jour, RIEN n'est noté.
+  const ask = `${ph.caption ?? ''} ${note}`.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (/\b(je peux|j'?peux|est-ce que|est ce que|si je mange|je mange (ca|ça)\s*\?|c'?est bon pour|ca passe|ça passe|je devrais|tu me conseilles|ca rentre|combien de (calories|kcal))\b|\?\s*$/.test(ask)
+      && !/\b(j'?ai mange|je viens de manger|je mange (ca|ça)$|note|enregistre)\b/.test(ask)) {
+    const { vision } = await import('./media-util.js');
+    const seen = await vision([{ base64: ph.b64, mime: ph.mime }], 'Décris en une phrase en français ce qu\'il y a à manger sur cette photo, avec les quantités visibles (ex. « 3 parts de pizza aux légumes et fromage »). Rien d\'autre.', { quality: true, maxTokens: 200 }).catch(() => '');
+    if (seen) return `${await checkFood(seen.trim())}\n\n(Pas noté dans FORME : dis « je l'ai mangé » pour l'enregistrer.)`;
+  }
   const r = await analyzeMealPhoto('kouider', { base64: ph.b64, mime: ph.mime }, { note });
   return `${r.message}\n\n(déjà envoyé sur son Telegram et enregistré dans FORME → Repas)`;
 }

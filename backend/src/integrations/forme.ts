@@ -537,15 +537,15 @@ export async function annotatePhoto(uid: Uid, id: string): Promise<string | null
 
 /** Dernière photo reçue sur Telegram (gardée 30 min, privée) → pour « voilà ma photo, je veux perdre le ventre ». */
 const TG_PHOTO_KEY = 'kouider:forme:tg-photo';
-export async function stashTelegramPhoto(b64: string, mime: string): Promise<void> {
+export async function stashTelegramPhoto(b64: string, mime: string, caption = ''): Promise<void> {
   if (b64.length > 9_000_000) return;
-  await kvSet(TG_PHOTO_KEY, JSON.stringify({ b64, mime, at: Date.now() }), 1800);
+  await kvSet(TG_PHOTO_KEY, JSON.stringify({ b64, mime, at: Date.now(), caption: caption.slice(0, 300) }), 1800);
 }
 
 /** Dernière photo envoyée à Dzaryx sur Telegram (30 min) — sans la consommer (ex. la transférer sur WhatsApp). */
-export async function lastTelegramPhoto(): Promise<{ b64: string; mime: string } | null> {
+export async function lastTelegramPhoto(): Promise<{ b64: string; mime: string; caption?: string } | null> {
   const raw = await kvGet(TG_PHOTO_KEY).catch(() => null);
-  return raw ? JSON.parse(raw) as { b64: string; mime: string } : null;
+  return raw ? JSON.parse(raw) as { b64: string; mime: string; caption?: string } : null;
 }
 
 /** Photo de lui envoyée à Dzaryx : stockée, analysée (avant / maintenant), séance de demain refaite partout, photo entourée. */

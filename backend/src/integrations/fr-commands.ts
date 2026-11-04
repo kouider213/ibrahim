@@ -379,6 +379,83 @@ async function siteVisits(raw: string): Promise<Direct | null> {
   return { text: formatTraffic(await dayTraffic(off), off === -2 ? 'avant-hier' : off === -1 ? 'hier' : "aujourd'hui"), direct: true };
 }
 
+/** 💧 « je bu 2 litre d'eau » (04/11 : « Bien joué » sans rien noter) → FORME (verres de 25 cl), total du jour vs objectif */
+async function water(raw: string): Promise<Direct | null> {
+  const t = strip(raw).replace(/(\d),(\d)/g, '$1.$2');
+  if (t.length > 140 || /\?\s*$/.test(t) || !/\b(bu|bois|avale|pris)\b/.test(t) || !/\beau\b/.test(t)) return null;
+  const m = t.match(/(\d+(?:\.\d+)?|un|une|deux|trois|quatre|cinq|six)\s*(litres?|l|verres?|bouteilles?|cl|gorgees?)\b/);
+  if (!m) return null;
+  const W: Record<string, number> = { un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6 };
+  const n = W[m[1]!] ?? Number(m[1]);
+  const u = m[2]!;
+  const liters = /^l/.test(u) ? n : /^verre/.test(u) ? n * 0.25 : /^bouteille/.test(u) ? n * 1.5 : /^cl/.test(u) ? n / 100 : 0;
+  if (!(liters > 0 && liters <= 6)) return null;
+  const glasses = Math.round(liters * 4);
+  const f = await import('./forme.js');
+  const day = await f.updateDay('kouider', localNow().date, d => { d.water = Math.max(0, Math.min(30, (d.water ?? 0) + glasses)); });
+  const prof = await f.getFormeProfile('kouider').catch(() => null);
+  const goalL = (prof?.waterGoal ?? 8) * 0.25, totL = day.water * 0.25;
+  const fmt = (x: number) => String(Math.round(x * 10) / 10).replace('.', ',');
+  return { text: `💧 Noté dans FORME : +${fmt(liters)} L → ${fmt(totL)} L aujourd'hui (objectif ${fmt(goalL)} L).${totL >= goalL ? ' Objectif atteint 💪' : ` Encore ${fmt(goalL - totL)} L.`}`, direct: true };
+}
+
+/** 💼 Conseil business (« comment avoir plus de clients… ») : 04/11 banc → réponse générique sans ses chiffres → consigne : ses vraies données d'abord */
+async function businessAdvice(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (t.length > 300) return null;
+  if (!/\b(comment|quoi faire|idee|conseil|strategie|astuce|tu me conseilles|je fais comment)\b/.test(t)) return null;
+  if (!/\b(clients?|location|louer|fik|business|chiffre|ca\b|vendre|rentab|prospect|flotte|voitures? (dorment|au garage))\b/.test(t)) return null;
+  return { text: "CONSIGNE : conseil business pour SON entreprise → base-toi sur SES vrais chiffres : appelle d'abord les outils qui les donnent (flotte et taux d'occupation / réservations à venir, chiffre du mois, prospects), puis donne 3-4 actions concrètes qui citent ses vraies voitures, ses prix et ses clients (MRE). Pas de conseil générique copiable par n'importe qui.", direct: false };
+}
+
+/** ⏳ « avec les exercices que je fais, ça va être visible dans combien de temps ? » (04/11 : « quelques semaines », sans calcul) */
+async function bodyEta(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (t.length > 300) return null;
+  if (!/\b(dans combien de temps|en combien de temps|combien de (temps|semaines|mois)|quand (est-ce que|est ce que)?\s*(je|j'|ca|mes)|ca va (etre|prendre))\b/.test(t)) return null;
+  if (!/\b(veines?|vaines?|abdos?|ventre|muscl|seche|maigrir|perdre|kilos?|kg|gras|bras|pecs?|dos|epaules?|visible|dessine|poids|forme)\b/.test(t)) return null;
+  const c = await import('./forme-cut.js').then(m => m.cutStatus('kouider')).catch(() => null);
+  const w = c?.weight;
+  const expected = c?.deficit ? Math.round(c.deficit * 7 / 7700 * 100) / 100 : null;   // kg/semaine attendus avec son déficit
+  const rate = w?.rateWeek && w.rateWeek > 0.05 ? w.rateWeek : expected;
+  const weeks = w?.toLose && rate ? Math.ceil(w.toLose / rate) : null;
+  const facts = c && w ? `FAITS RÉELS (FORME › Sèche) : poids ${w.current} kg, objectif ${w.goalKg ?? '?'} kg (reste ${w.toLose} kg), sèche semaine ${c.weeksIn}, déficit visé ${c.deficit} kcal/j, `
+    + `perte mesurée ${w.rateWeek != null ? `${w.rateWeek} kg/sem` : 'pas encore mesurable (pas assez de pesées)'}, perte attendue avec ce déficit ${expected ?? '?'} kg/sem, protéines visées ${c.protein.goal} g (${c.protein.perKg} g/kg)`
+    + `${weeks ? ` → CALCUL : ${w.toLose} kg ÷ ${rate} kg/sem ≈ ${weeks} semaines` : ''}.\n` : '';
+  const when = weeks ? new Date(Date.now() + weeks * 7 * 86400_000).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' }) : null;
+  const opener = weeks && w ? `COMMENCE ta réponse EXACTEMENT par : « D'après tes vrais chiffres : il te reste ${String(w.toLose).replace('.', ',')} kg à perdre (${String(w.current).replace('.', ',')} → ${w.goalKg} kg) ; avec ton déficit de ${c!.deficit} kcal par jour tu perds environ ${String(rate).replace('.', ',')} kg par semaine, donc compte environ ${weeks} semaines, vers le ${when}${w.rateWeek == null ? ' (je l’affinerai dès que tu te pèses chaque matin)' : ''}. » puis enchaîne.\n` : '';
+  return { text: facts + opener + "CONSIGNE : question sur SON corps → utilise CES chiffres (sinon appelle forme status) pour ses VRAIS chiffres (poids actuel, objectif, déficit moyen réel, séances faites, tendance des dernières semaines), puis CALCULE : kg à perdre ÷ perte réelle par semaine = N semaines → donne une fourchette chiffrée ET une date (« vers fin janvier »). Explique le calcul en une ligne, puis les 2-3 leviers qui raccourcissent ce délai pour LUI (ce qui manque dans ses données : sommeil, protéines, pas, cardio…), et un point auquel il n'aurait pas pensé. Pas de « quelques semaines » sans chiffre.", direct: false };
+}
+
+/** 📅 « il l'a prise le 3 à 10h, il la rend le 7 à 14h, je compte combien de jours ? » (04/11 banc : « 5 jours ») → règle FIK par le code */
+async function rentalCount(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (t.length > 220 || !/\b(combien de jours|je compte combien|ca fait combien|nombre de jours)\b/.test(t)) return null;
+  const a = t.match(/\b(?:pris|prise|prend|recupere|part|depart|commence)\w*\b[^0-9]{0,15}le (\d{1,2})\b(?:[^0-9]{0,6}(\d{1,2}) ?h)?/);
+  const b = t.match(/\b(?:rend|rendra|ramene|rapporte|retour|revient|fini)\w*\b[^0-9]{0,15}le (\d{1,2})\b(?:[^0-9]{0,6}(\d{1,2}) ?h)?/);
+  if (!a || !b) return null;
+  const d1 = Number(a[1]), d2 = Number(b[1]);
+  if (!(d1 >= 1 && d1 <= 31 && d2 >= 1 && d2 <= 31)) return null;
+  const { date } = localNow();
+  const y = Number(date.slice(0, 4)), m = Number(date.slice(5, 7));
+  const iso = (yy: number, mm: number, dd: number) => `${yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+  const start = iso(y, m, d1);
+  const end = d2 > d1 ? iso(y, m, d2) : (m === 12 ? iso(y + 1, 1, d2) : iso(y, m + 1, d2));
+  const { rentalDays } = await import('./finance.js');
+  const n = rentalDays(start, end, null, a[2] ? `${a[2]}:00` : null, b[2] ? `${b[2]}:00` : null);
+  const late = a[2] && b[2] && Number(b[2]) > Number(a[2]);
+  return { text: `📅 ${n} jour${n > 1 ? 's' : ''}. Chez FIK on compte par tranches de 24 h et le jour du retour ne compte jamais${late ? `, même rendue à ${b[2]} h au lieu de ${a[2]} h` : ''}.`, direct: true };
+}
+
+/** 🧠 « comment s'est passée ma semaine dans la tête ? » (04/11 banc : résumé inventé sans le journal) → journal Mon esprit */
+async function mindWeek(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (t.length > 160) return null;
+  if (!/\b(ma semaine|cette semaine)\b/.test(t) || !/\b(tete|moral|mental|esprit|journal|dans ma tete|passee?|bilan)\b/.test(t) || /\b(sport|salle|seance|clients?|fik|chiffre|argent|voiture)\b/.test(t)) return null;
+  const { espritTool } = await import('./mon-esprit.js');
+  return { text: await espritTool({ action: 'semaine' }), direct: true };
+}
+
 /** Le premier qui reconnaît la phrase. direct = réponse sans le cerveau. */
 /** 🎨🛠️ « crée-moi une image… » / « ajoute-toi une fonction… » (04/11 banc : le petit cerveau répondait « je n'ai pas d'outil »
  * alors que generate_image / transform_image / se_coder existent) → consigne au cerveau : lance le bon outil. */
@@ -402,7 +479,7 @@ export async function frCommand(raw: string, sessionId = 'telegram_kouider'): Pr
   SID = sessionId;
   const msg = raw.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
   if (!msg) return null;
-  for (const f of [craving, carKm, sportSkip, privacy, reminder, rdv, dnd, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, toolIntent]) {
+  for (const f of [craving, carKm, sportSkip, water, rentalCount, mindWeek, privacy, reminder, rdv, dnd, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, toolIntent, businessAdvice]) {
     const r = await f(msg).catch(e => ({ text: `❌ ${e instanceof Error ? e.message : e}`, direct: true }));
     if (r) return r;
   }

@@ -281,6 +281,7 @@ export async function processMessage(
   // « quel jour je gagne le plus ? », « je suis à combien tout confondu ? ») → enregistré / calculé par le CODE sur ses vraies données
   // (le cerveau disait « ✅ Noté » sans rien noter, puis inventait « 7 950 € »)
   // RAPPELS / RDV / NE PAS DÉRANGER / SOMMEIL / SOIRÉE À DEUX en phrase normale (05/11 banc : mauvais outil ou faux « noté »)
+  let codeHint = '';   // consigne du code (fr-commands) : remise aussi À CÔTÉ de la question (04/11 : noyée dans le système, ignorée)
   if (actorUserId === 'kouider' && !sandbox) {
     const fc = await (await import('../integrations/fr-commands.js')).frCommand(userMessage, sessionId).catch(() => null);
     if (fc?.direct) {
@@ -289,6 +290,7 @@ export async function processMessage(
       _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
       return { text: fc.text, status: 'done' };
     }
+    if (fc) codeHint = fc.text;
     if (fc) ctx.systemExtra = `DÉJÀ FAIT / CONSIGNE DU CODE pour ce message : ${fc.text}\nNe relance pas le même outil ; réponds à Kouider avec ça (court).\n\n${ctx.systemExtra ?? ''}`.trim();
   }
   // « MA JOURNÉE 8/10 » (05/11 banc : « c'est top » sans rien noter) → noté par le code ; s'il raconte plus, le cerveau répond aussi
@@ -328,7 +330,24 @@ export async function processMessage(
   if (medCmd?.rest) {
     // Il dit autre chose que la prise (moral, travail…) : le code note, le cerveau RÉPOND à ce qu'il vit
     const done = await (await import('../integrations/liberte.js')).runMedTake(medCmd).catch(e => `❌ échec : ${e instanceof Error ? e.message : e}`);
-    ctx.systemExtra = `DÉJÀ FAIT PAR LE CODE pour ce message (ne rappelle PAS liberte prise) : ${done}\nDis-le en une demi-phrase au plus (sans chiffres en liste), puis réponds VRAIMENT à ce qu'il dit d'autre : son moral, sa fatigue, son travail. Comme un ami proche, chaleureux, sans juger ni faire la morale sur le comprimé : montre que tu as compris ce qu'il ressent, une phrase de soutien concrète, et une seule question pour qu'il en parle. Court, pas de liste, pas de titre.\n\n${ctx.systemExtra ?? ''}`.trim();
+    // 04/11 banc : le cerveau dramatisait (« rentre chez toi », journée dure lancée tout seul) → s'il ne dit QUE son ressenti
+    // (aucune demande), le soutien est écrit sans outils, cadré, et la réponse part directement
+    const feel = userMessage.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    if (/\b(marre|moral|peux plus|peut plus|en peux|fatigu|crev|epuis|stress|dur|deprim|triste|craque|ras le bol|ras-le-bol|travail|boulot|taf)\b/.test(feel)
+        && !/\b(rappelle|envoie|ajoute|mets|appelle|note|cherche|reserve|annule|programme|dis a|previens)\b/.test(feel)) {
+      const { ai } = await import('../integrations/ai-util.js');
+      const support = await ai(`Kouider (ton ami, tu le tutoies, darija oranaise légère possible) t'écrit : « ${userMessage.replace(/^\s*\[[\s\S]*?\]\s*/, '').slice(0, 400)} ».
+Sa prise est déjà notée. Réponds en 3 phrases maximum, comme un ami proche : montre que tu comprends ce qu'il ressent (le travail, la fatigue), rappelle-lui avec une phrase concrète qu'il tient le coup et pourquoi il fait tout ça (sa femme, Ibrahim, leur avenir à Oran), puis UNE question douce pour qu'il en parle.
+INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'appeler quelqu'un, dramatiser, faire la morale sur le comprimé, donner des chiffres de dose, liste ou titre.`, { max: 400, emergency: 'chat' }).catch(() => '');
+      if (support.trim()) {
+        const text = `${done}\n\n${support.trim()}`;
+        _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text });
+        saveConversationTurn(sessionId, 'assistant', text).catch(() => {});
+        _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+        return { text, status: 'done' };
+      }
+    }
+    ctx.systemExtra = `DÉJÀ FAIT PAR LE CODE pour ce message (ne rappelle PAS liberte prise) : ${done}\nDis-le en une demi-phrase au plus (sans chiffres en liste), puis réponds VRAIMENT à ce qu'il dit d'autre : son moral, sa fatigue, son travail. Comme un ami proche, chaleureux, sans juger ni faire la morale sur le comprimé : montre que tu as compris ce qu'il ressent, une phrase de soutien concrète, et une seule question pour qu'il en parle. Court, pas de liste, pas de titre. NE DRAMATISE PAS (04/11 banc : « rentre chez toi », « on appelle quelqu'un pour venir te chercher ») : il est au travail et va finir sa journée ; pas de conseil de partir, pas d'appel à la famille, aucun outil (ni family_care ni pause) sauf s'il le demande ; 3-4 phrases max.\n\n${ctx.systemExtra ?? ''}`.trim();
   } else if (medCmd) {
     const done = await (await import('../integrations/liberte.js')).runMedTake(medCmd).catch(e => `❌ échec : ${e instanceof Error ? e.message : e}`);
     _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: done });
@@ -352,7 +371,8 @@ export async function processMessage(
   if (actorUserId === 'kouider' && !(sessionId.startsWith('voice_') && !textOnly)) {
     const rich = await import('../integrations/rich-answer.js').then(m => m.richAnswerHint(userMessage)).catch(() => '');
     const last = ctx.messages[ctx.messages.length - 1];
-    if (rich && last && last.role === 'user' && typeof last.content === 'string') last.content = `${last.content}\n\n[Consigne pour ta réponse, pas un message de Kouider :\n${rich}]`;
+    const hint = [codeHint, rich].filter(Boolean).join('\n\n');
+    if (hint && last && last.role === 'user' && typeof last.content === 'string') last.content = `${last.content}\n\n[Consigne pour ta réponse, pas un message de Kouider :\n${hint}]`;
   }
   if (v2ContextAddition) {
     ctx.systemExtra = `${v2ContextAddition}\n\n${ctx.systemExtra ?? ''}`.trim();

@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (29) — Ses vrais messages rejoués : questions perso avec SES chiffres, générales sans FIK
+- `context-builder.ts` : question générale (langue, culture, science…) sans mot business → flotte, résas, agenda, finances, clients, dossier PAS envoyés au cerveau.
+- `orchestrator.ts` : consigne du code aussi À CÔTÉ de la question ; prise Liberté + moral seul → soutien cadré sans outils.
+- `fr-commands.ts` : eau → FORME ; « dans combien de temps… » → calcul réel Sèche ; jours de location avec heures → rentalDays ; « ma semaine dans la tête » → Mon esprit ; conseil business → ses vrais chiffres.
+- `forme-food.ts` + `call.ts` : photo de plat + question → kcal sans enregistrer ; légende gardée.
+
 ## 2026-11-04 (28) — Style du cerveau de secours
 - `constants.ts` : jamais de mot vulgaire ni d'expression étrangère bricolée (« cojones »), pas de FIK dans les exemples d'une question générale, rien d'inventé sur sa vie (« un appart FIK »), pas de page de l'app citée hors sujet.
 - `fr-commands.ts` : consigne du code sur les questions de langue/culture (exemples de la vie de tous les jours) + programme de voyage sans FIK.

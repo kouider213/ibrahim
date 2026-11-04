@@ -518,6 +518,12 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
 • Messages courts ("oui", "go", "nan", "sah") → déduis du contexte conversationnel
 • JAMAIS dire "je n'ai pas compris" si l'intention est devinable — fais de ton mieux`;
 
+  // 04/11 (Kouider : « je veux / je souhaite » → exemples « la voiture prête à 9h », clients…) : question générale
+  // (langue, culture, histoire, science…) sans aucun mot business → on n'envoie PAS les données FIK au cerveau
+  const { factualQuestion } = await import('../integrations/anthropic-compat.js');
+  const generalQ = factualQuestion(userMessage)
+    && !/\b(fik|voitures?|v[ée]hicules?|clients?|r[ée]sa|r[ée]serv|locations?|lou[eé]|flotte|prix|tarif|houari|prospect|site|chiffre|argent|€|euros?|dinars?|caisse|cash|business|entreprise|boite|bo[iî]te|agence|clio|fiat|duster|jumpy|berlingo|jogger|dacia|renault|peugeot|garage|contrat|facture|paiement|agenda|rdv|rendez)/i.test(userMessage);
+  const biz = (x: string) => (generalQ ? '' : x);
   const systemExtra = [
     actorPersonaText,
     toleranceHint,
@@ -527,28 +533,29 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     chartHint,
     dateInfo,
     moodText,
-    jarvis4Text,
+    biz(jarvis4Text),
     weatherText,
-    fleetText,
-    bookingsText,
-    calendarText,
+    biz(fleetText),
+    biz(bookingsText),
+    biz(calendarText),
     personalCalendarText,
     newsText,
-    financeText,
+    biz(financeText),
     memoriesText,
     crossChannelText,
     rulesText,
-    pricingText,
+    biz(pricingText),
     styleText,
-    clientIntelText,
-    clientBrainText,
-    clientDocsText,
+    biz(clientIntelText),
+    biz(clientBrainText),
+    biz(clientDocsText),
     actorBrainText,
     episodesText,
-    remindersText,
+    biz(remindersText),
     learnedRulesText,
     callsMemText ? `\n\n${callsMemText}` : '',
-    dossierText ? `\n\n${dossierText}` : '',
+    biz(dossierText ? `\n\n${dossierText}` : ''),
+    generalQ ? '\n\n[Question GÉNÉRALE : réponds comme un très bon professeur, exemples de la vie courante, sans parler de FIK ni de voitures.]' : '',
   ].join('');
 
   // Filter old confirmation-only messages from non-recent history to prevent context contamination.
