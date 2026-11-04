@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (23) — Culture générale : gros Gemini ou Claude Haiku, jamais un petit cerveau + nom privé hors du code
+- `anthropic-compat.ts` : `factualQuestion()` (histoire, religion, droit, santé, langue, définitions…) → seulement le gros Gemini ; saturé → secours Claude Haiku (quota 'tout') ; sans secours possible, petits cerveaux en dernier recours (option A choisie).
+- `config/private-terms.ts` : noms de médicament lus depuis `PRIVATE_MED_TERMS` (env Railway + .env), retirés de fr-commands / jarvis4 / mon-esprit (dépôt public).
+- Banc : phase 1 112/112 · outils 25/25.
+
 ## 2026-11-04 (22) — Réponses d'argent directes + règle d'exactitude
 - `fr-commands.ts` : plan Algérie, projection d'épargne, CA FIK du mois/année et suivi de vol = réponse DIRECTE du code (en « consigne », le cerveau gratuit disait « aucune donnée sur un plan Algérie » ou donnait le bénéfice FIK comme épargne perso). « combien je vais avoir », « dans N ans » reconnus.
 - `constants.ts` SYSTEM_PROMPT : règle EXACTITUDE (date/chiffre/nom seulement si sûr, jamais de statistique inventée, pas de FIK dans une question qui n'en parle pas) — banc : résumé guerre d'Algérie avec 4 dates fausses par un cerveau de secours.

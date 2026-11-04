@@ -16,6 +16,7 @@
 import { ai, jsonOf, kvJson, kvPut, tg } from './ai-util.js';
 import { localNow } from './morning-routine.js';
 import { supabase } from './supabase.js';
+import { MED_ALT } from '../config/private-terms.js';
 
 const DAYS_KEY = 'esprit:days';
 const CORE = "Ses meilleurs moments de vie sont avec sa femme et son fils Ibrahim (1 an et demi) : c'est sa priorité n°1, avant le business.";
@@ -99,7 +100,7 @@ export async function writeJournal(date = localNow().date): Promise<EspritDay | 
   if (!o || !(Number(o.score) >= 1)) return null;
   const clamp = (v: unknown) => Math.max(1, Math.min(10, Math.round(Number(v) || 5)));
   // Filet de sécurité : rien de privé (santé, traitement, intimité) ne sort du journal, même si l'IA l'écrit
-  const PRIV = /m[ée]dic|m[ée]doc|comprim|cachet|demis?\b|zaldiar|tramadol|sevrage|lib[ée]rt[ée]|libido|sexu|testo|[ée]rection|prise de sang|ordonnance|pharmac/i;
+  const PRIV = new RegExp(String.raw`m[ée]dic|m[ée]doc|comprim|cachet|demis?\b${MED_ALT}|sevrage|lib[ée]rt[ée]|libido|sexu|testo|[ée]rection|prise de sang|ordonnance|pharmac`, 'i');
   const clean = (x?: string) => (x && PRIV.test(x) ? undefined : x);
   o.top = clean(o.top); o.dur = clean(o.dur) ?? (o.dur ? 'journée difficile (santé / fatigue)' : undefined); o.gratitude = clean(o.gratitude); o.resume = clean(o.resume);
   o.famille = (o.famille ?? []).filter(x => !PRIV.test(x)); o.declencheurs = (o.declencheurs ?? []).map(x => (PRIV.test(x) ? 'santé' : x));

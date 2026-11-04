@@ -248,7 +248,15 @@ function toAnthropic(data: Body, model: string, allowed: Set<string> = new Set()
 let pickFallbackTools: typeof import('./agentic-fallback.js').pickFallbackTools = t => t;
 let textToolCalls: typeof import('./agentic-fallback.js').textToolCalls = () => [];
 
-async function freeBrain(body: Body, quality = false): Promise<Response | null> {
+/** 04/11 (Kouider : « il doit jamais mentir, jamais se tromper », option A) : question de culture générale / histoire / religion /
+ * droit / santé / langue → seulement le gros Gemini ; s'il est saturé, Claude Haiku plutôt qu'un petit cerveau gratuit
+ * (4 dates fausses sur la guerre d'Algérie au banc). Messages courts seulement (les consignes des tâches de fond sont longues). */
+export function factualQuestion(text: string): boolean {
+  if (!text || text.length > 400) return false;
+  return /\b(histoire|historique|guerre|si[eè]cle|r[ée]volution|ind[ée]pendance|colonis|empire|roi|pr[ée]sident|religion|islam|coran|hadith|proph[eè]te|sourate|imam|ramadan|loi|droit|juridique|l[ée]gal|tribunal|code (civil|p[ée]nal|de la route)|amende|imp[oô]ts?|sant[ée]|maladie|sympt[oô]me|vaccin|grossesse|b[ée]b[ée]|traduis|tradui[st]|traduction|diff[ée]rence entre|c'?est quoi|qu'?est-ce que|qui (a|est|était|etait)|quand (a|est|était|etait)|en quelle ann[ée]e|capitale|g[ée]ograph|science|physique|chimie|biologie|grammaire|conjug|orthograph|synonyme|d[ée]finition|signifie|veut dire)\b/i.test(text);
+}
+
+async function freeBrain(body: Body, quality = false, strongOnly = false): Promise<Response | null> {
   const { fallbackEndpoints, pickFallbackTools: pick, markFailure, hedgedRace, visionFirst, needsDeepThought, textToolCalls: ttc } = await import('./agentic-fallback.js');
   pickFallbackTools = pick;
   textToolCalls = ttc;
@@ -266,8 +274,9 @@ async function freeBrain(body: Body, quality = false): Promise<Response | null> 
   const lastU = [...msgs].reverse().find(m => m.role === 'user');
   const imageNow = Array.isArray(lastU?.content) && (lastU!.content as Block[]).some(b => b.type === 'image');
   const seeing = all.filter(e => e.vision);
-  const eps = light ? [...all.filter(e => /lite/.test(e.model)), ...all.filter(e => !/lite/.test(e.model))]
+  let eps = light ? [...all.filter(e => /lite/.test(e.model)), ...all.filter(e => !/lite/.test(e.model))]
     : imageNow && seeing.length ? seeing : visionFirst(all, hasImage);
+  if (strongOnly) { eps = all.filter(e => e.key === 'gemini' && !/lite/.test(e.model)); if (!eps.length) return null; }
   const race = await hedgedRace(eps, async (ep, signal) => {
     try {
       const oai = toOpenAI(body, ep.model, !!ep.vision, ep.toolMax ?? 120, deep);
@@ -365,10 +374,18 @@ export const compatFetch: typeof fetch = async (input, init) => {
   if (freeModeOn() && /\/v1\/messages/.test(url)) {
     const json = (status: number, data: Body) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
     if (url.includes('count_tokens')) return json(200, { input_tokens: Math.ceil(String(init?.body ?? '').length / 3.5) });
-    const r = parsed ? await freeBrain(parsed, quality) : null;
+    const lastU = parsed ? blockText([...((parsed.messages ?? []) as Array<{ role: string; content: unknown }>)].reverse().find(m => m.role === 'user')?.content) : '';
+    const factual = !!parsed && factualQuestion(lastU);
+    let r = parsed ? await freeBrain(parsed, quality, factual) : null;
     if (r) return parsed!.stream ? toSSE(await r.json() as Body) : r;
     // 🚑 04/11 soir : tout le gratuit est mort → Claude Haiku prend le relais sur TOUT (quota 'tout'), sinon 503 comme avant
-    if (!parsed || !(await takeClaudeEmergency('tout'))) {
+    // (question de culture générale : gros Gemini saturé → Haiku ; sans secours possible, petits cerveaux en dernier recours)
+    const rescue = !!parsed && await takeClaudeEmergency('tout');
+    if (!rescue && factual) {
+      r = await freeBrain(parsed!, quality);
+      if (r) return parsed!.stream ? toSSE(await r.json() as Body) : r;
+    }
+    if (!rescue || !parsed) {
       return json(503, { type: 'error', error: { type: 'overloaded_error', message: 'mode gratuit : aucun cerveau gratuit disponible pour le moment' } });
     }
     parsed.model = CLAUDE_FAST;

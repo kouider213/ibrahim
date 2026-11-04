@@ -8,6 +8,7 @@
 //  « une idée de soirée avec ma femme samedi ? » → restaurants inventés à Oran + vin
 // Dates en heure de Bruxelles (Kouider y vit). Une phrase floue (pas de date/heure claire) part au cerveau.
 import { localNow } from './morning-routine.js';
+import { MED_ALT } from '../config/private-terms.js';
 
 const MONTHS: Record<string, number> = { janvier: 1, janv: 1, fevrier: 2, fevr: 2, fev: 2, mars: 3, avril: 4, avr: 4, mai: 5, juin: 6, juillet: 7, juil: 7, aout: 8, septembre: 9, sept: 9, octobre: 10, oct: 10, novembre: 11, nov: 11, decembre: 12, dec: 12 };
 const WDAYS: Record<string, number> = { dimanche: 0, lundi: 1, mardi: 2, mercredi: 3, jeudi: 4, vendredi: 5, samedi: 6 };
@@ -184,7 +185,7 @@ async function privacy(raw: string): Promise<Direct | null> {
   const t = strip(raw);
   if (!/\b(dis|dire|envoie|envoyer|montre|montrer|transmets|transmettre|partage|partager|explique|raconte|previens|informe|ecris)\b/.test(t)) return null;
   if (!/\b(houari|client|clients|ma femme|ma mere|mon pere|mon frere|ma soeur|mes freres|famille|cousin|collegue|patron|ami|pote|quelqu'un|whatsapp|mail)\b/.test(t)) return null;
-  if (!/\b(medic\w*|medoc\w*|comprim\w*|cachets?|traitement|zaldiar|liberte|sevrage|libido|vitalite|testo\w*|sante|analyses?|prise de sang|ordonnance|demis?)\b/.test(t)) return null;
+  if (!new RegExp(String.raw`\b(medic\w*|medoc\w*|comprim\w*|cachets?|traitement${MED_ALT}|liberte|sevrage|libido|vitalite|testo\w*|sante|analyses?|prise de sang|ordonnance|demis?)\b`).test(t)) return null;
   return { text: "🔒 Ça, je le garde entre nous : je ne partage jamais ta santé, ton traitement ni ce qui est privé, avec personne (Houari, clients, famille). Si tu veux le dire à quelqu'un, c'est toi qui le lui dis — je peux t'aider à trouver les mots.", direct: true };
 }
 
@@ -280,7 +281,7 @@ async function craving(raw: string): Promise<Direct | null> {
   const t = strip(raw);
   if (raw.length > 240 || /\?/.test(raw) && !/\bje (peux|dois)\b/.test(t)) return null;
   const want = /\b(envie|besoin|je craque|ca me demange|je vais craquer|je tiens plus|j'en peux plus)\b/.test(t);
-  const med = /\b(en prendre (un|une|1)|prendre (un|une|1) (demi|cachet|comprime)|un demi|un cachet|un comprime|mes demis?|mon medoc|mes medocs|le medicament|zaldiar|reprendre)\b/.test(t);
+  const med = new RegExp(String.raw`\b(en prendre (un|une|1)|prendre (un|une|1) (demi|cachet|comprime)|un demi|un cachet|un comprime|mes demis?|mon medoc|mes medocs|le medicament${MED_ALT}|reprendre)\b`).test(t);
   // « j'ai encore pris un demi, j'en peux plus » = prise DÉJÀ faite + moral → le cerveau (outil liberte + écoute), pas le SOS envie
   if (/\b(j'?ai|je l'?ai|je les ai)\s+(encore\s+|deja\s+|quand meme\s+)?(pris|repris|craque)\b|\bpris\b/.test(t)) return null;
   if (!want || !med || /\b(voiture|clio|location|louer|resa|client|cafe|the|cigarette|pizza|gateau|sucre|manger)\b/.test(t)) return null;
