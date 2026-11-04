@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (22) — Réponses d'argent directes + règle d'exactitude
+- `fr-commands.ts` : plan Algérie, projection d'épargne, CA FIK du mois/année et suivi de vol = réponse DIRECTE du code (en « consigne », le cerveau gratuit disait « aucune donnée sur un plan Algérie » ou donnait le bénéfice FIK comme épargne perso). « combien je vais avoir », « dans N ans » reconnus.
+- `constants.ts` SYSTEM_PROMPT : règle EXACTITUDE (date/chiffre/nom seulement si sûr, jamais de statistique inventée, pas de FIK dans une question qui n'en parle pas) — banc : résumé guerre d'Algérie avec 4 dates fausses par un cerveau de secours.
+- Banc tour 3 arrêté à 70 scénarios : le banc épuisait le quota gratuit partagé avec le vrai Dzaryx.
+
 ## 2026-11-04 (21) — Secours Claude sur TOUT + voiture/réveil jamais muets + kilométrage
 - `anthropic-compat.ts` : tous les cerveaux gratuits en échec → la requête part sur Claude Haiku (quota 'tout' 100/jour) au lieu d'une erreur ; réglages Sonnet retirés (réflexion, repli serveur). Quotas chat 30 / voix 20 ; 1 info Telegram par jour.
 - `ai-util.ts` ai({emergency}) + `car-coach.ts`, `jarvis4.ts` carBrief, `morning-routine.ts` : discours voiture (aller/retour), point voiture et réveil → secours Claude si le gratuit tombe.

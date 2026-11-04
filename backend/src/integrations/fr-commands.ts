@@ -237,7 +237,7 @@ async function flight(raw: string): Promise<Direct | null> {
   if (raw.length > 200) return null;
   const { executeTool } = await import('./tool-executor.js');
   if (/\b(il est ou|ou est|ou en est|statut|retard|heure d'arrivee|atterri|decolle)\b[^.]{0,20}\b(mon|le|notre|son) vol\b|\bmon vol\b[^.]{0,25}\b(retard|ou|heure|statut|decolle|atterri)\b/.test(t)) {
-    return { text: await executeTool('travel', { action: 'track' }, SID), direct: false };
+    return { text: await executeTool('travel', { action: 'track' }, SID), direct: true };
   }
   const m = /^(?:mon |ma )?([a-z][a-z' -]{1,25}?)\s+(?:m'a|ma|m a)\s+demande\s+(?:de\s+)?(?:lui\s+|leur\s+|me\s+)?(ramener|rapporter|acheter|prendre|apporter|ramene)\s+(.{2,120})$/.exec(t);
   if (m) {
@@ -322,12 +322,14 @@ async function financePlans(raw: string): Promise<Direct | null> {
   const t = strip(raw);
   if (raw.length > 160) return null;
   const algerie = /\b(plan algerie|projet algerie|rentrer en algerie|m'installer a oran|demenager a oran|la maison a oran|plan oran)\b/.test(t);
-  const proj = /\b(projection|combien j'aurai|j'aurai combien|de cote fin \d{4}|fin 20\d\d)\b/.test(t) && /\b(cote|epargne|aurai|projection|economis)\b/.test(t);
+  const proj = /\b(projection|combien j'aurai|j'aurai combien|combien je vais avoir|de cote fin \d{4}|fin 20\d\d|dans \d+ ans)\b/.test(t) && /\b(cote|epargne|aurai|projection|economis)\b/.test(t);
   if (!algerie && !proj) return null;
   const { runJarvis4Tool } = await import('./jarvis4-tools.js');
   const r = await runJarvis4Tool('mes_finances', { action: algerie ? 'algerie' : 'projection' }, SID).catch(() => null);
   if (!r) return null;
-  return { text: r, direct: false };
+  // 05/11 banc tour 3 : en « consigne », le cerveau gratuit l'ignorait (« aucune donnée sur un plan Algérie », ou bénéfice FIK donné
+  // comme épargne perso) → réponse DIRECTE du code, rien à réinterpréter
+  return { text: r, direct: true };
 }
 
 /** « combien on a gagné ce mois-ci / le mois dernier / cette année avec FIK ? » → le vrai rapport (05/11 banc : total de l'année donné pour le mois). */
@@ -341,7 +343,7 @@ async function fikRevenue(raw: string): Promise<Direct | null> {
   else if (!/ce mois|du mois|le mois/.test(t)) return null;
   const { executeTool } = await import('./tool-executor.js');
   const r = await executeTool('get_revenue_report', { year: y, ...(mo ? { month: mo } : {}) }, SID);
-  return { text: r, direct: false };
+  return { text: r, direct: !/^Erreur/.test(r) };   // vrais chiffres : directs (le cerveau ne peut plus les « arrondir »)
 }
 
 /** Le premier qui reconnaît la phrase. direct = réponse sans le cerveau. */
