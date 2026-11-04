@@ -199,6 +199,42 @@ async def api(path: str, body: dict, actor: str, timeout: float = 90) -> dict:
         return await r.json()
 
 
+async def backend_back(max_wait: float = 240) -> bool:
+    """Attend que le backend réponde de nouveau (redémarrage Railway ~1-2 min)."""
+    assert http is not None
+    end = time.monotonic() + max_wait
+    while time.monotonic() < end:
+        await asyncio.sleep(10)
+        try:
+            async with http.get(f'{BACKEND}/health', timeout=aiohttp.ClientTimeout(total=8)) as r:
+                if r.status == 200:
+                    return True
+        except Exception:
+            pass
+    return False
+
+
+async def turn_with_resume(msg: Message, body: dict, actor: str, timeout: float = 180) -> dict:
+    """04/11 10h57 : sa question est morte dans un redémarrage Railway (502) et il a dû la renvoyer lui-même.
+    Maintenant : 502/503/504 ou connexion coupée → on attend le serveur et on renvoie la MÊME question (même turnId :
+    si l'ancien serveur avait déjà répondu, le backend redonne cette réponse, jamais de doublon)."""
+    body = {**body, 'turnId': f'tg:{msg.chat.id}:{msg.id}'}
+    try:
+        return await api('/api/call/turn', body, actor, timeout)
+    except (RuntimeError, aiohttp.ClientConnectionError, aiohttp.ServerDisconnectedError) as e:
+        if isinstance(e, RuntimeError) and not any(f'HTTP {c}' in str(e) for c in (502, 503, 504)):
+            raise
+        log.warning('tour coupé (%s) → reprise automatique dès que le serveur revient', e)
+        try:
+            await msg.reply_text('🔄 Le serveur redémarre (mise à jour). Je garde ta question et je te réponds dès qu\'il revient.')
+        except Exception:
+            pass
+        if not await backend_back():
+            raise
+        await app.send_chat_action(msg.chat.id, enums.ChatAction.TYPING)
+        return await api('/api/call/turn', body, actor, timeout)
+
+
 async def api_stream(path: str, body: dict, actor: str, timeout: float = 90):
     """NDJSON : rend chaque ligne dès qu'elle arrive (1re phrase de Dzaryx avant la suite)."""
     assert http is not None
@@ -845,7 +881,8 @@ async def mute_guard(actor: str, user_id: int, rt: RealtimeCall, greeting: str, 
 
 async def send_outbox_message(uid: int, m: dict) -> None:
     try:
-        text = (m.get('text') or '')[:4000]
+        # 04/11 : messages automatiques (soirée à deux…) arrivaient avec « ### » et « * » bruts → même nettoyage que les réponses
+        text = tg_format(m.get('text') or '')[:4000]
         if m.get('album'):     # photos d'une voiture / d'un bien : album(s) de 10 max, légende sur la 1re
             from pyrogram.types import InputMediaPhoto
             urls = [x['url'] for x in m['album'] if x.get('url')]
@@ -1222,7 +1259,7 @@ async def on_message(_, msg: Message) -> None:
                 await msg.reply_text("Je n'ai pas bien entendu, tu peux répéter ?")
                 return
             await app.send_chat_action(uid, enums.ChatAction.RECORD_AUDIO)
-            out = await api('/api/call/turn', {'message': text, 'textOnly': True, 'channel': 'message'}, actor)
+            out = await turn_with_resume(msg, {'message': text, 'textOnly': True, 'channel': 'message'}, actor, 180)
             reply = out.get('text') or '…'
             try:   # même voix que les appels
                 await reply_voice_pcm(msg, await speak(http, api, re.sub(r'[*_#`>|]', '', reply)[:900], actor))
@@ -1367,7 +1404,7 @@ async def on_message(_, msg: Message) -> None:
                 return
             await app.send_chat_action(uid, enums.ChatAction.TYPING)
             # 180 s : sans crédit Claude, le cerveau de secours peut dépasser 90 s (23/10 6h42 : 2 × « souci technique »)
-            out = await api('/api/call/turn', {'message': msg.text, 'textOnly': True, 'channel': 'message'}, actor, 180)
+            out = await turn_with_resume(msg, {'message': msg.text, 'textOnly': True, 'channel': 'message'}, actor, 180)
             await reply_out(msg, out)
     except Exception as e:
         log.error('message échoué: %s %r', e, e)

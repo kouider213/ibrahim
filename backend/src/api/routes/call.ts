@@ -230,6 +230,15 @@ router.post('/turn', requireCallerAuth, async (req, res) => {
   const actor: OrgMember = who === 'houari'
     ? { orgId: '', ownerKey: 'houari', role: 'admin', displayName: env.PARTNER_NAME }
     : DEFAULT_MEMBER;
+  // 04/11 : sa question de 10h57 (veines des bras) est morte dans un redémarrage Railway → tgcall la renvoie toute seule
+  // avec le même turnId une fois le serveur revenu. Réponse déjà faite (l'ancien serveur a fini) → on la redonne, sans doublon.
+  const turnId = typeof req.body?.turnId === 'string' && /^[\w:-]{1,60}$/.test(req.body.turnId) ? `turn:done:${req.body.turnId}` : '';
+  if (turnId && !stream) {
+    const done = await kvGet(turnId).catch(() => null);
+    if (done) { res.json(JSON.parse(done)); return; }
+    const send = res.json.bind(res);
+    res.json = ((b: unknown) => { void kvSet(turnId, JSON.stringify(b), 3600).catch(() => {}); return send(b); }) as typeof res.json;
+  }
   try {
     // Dzaryx doit savoir qu'il est DÉJÀ au téléphone : sinon « tu m'entends ? » relance call_me.
     const dndNote = who === 'kouider' ? await dndOnKouiderMessage().catch(() => null) : null;   // « ne pas déranger » : il a répondu

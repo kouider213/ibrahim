@@ -48,6 +48,19 @@ const REBOOST = [
 
 const LAST_K = 'car:greet:last', USED_K = 'car:quotes:used';
 
+// 04/11 « encore plus fou, plus futuriste, style Jarvis même en mieux » : séquence de démarrage dite AVANT le bonjour
+// (le son de démarrage est ajouté par jarvis-audio.ts). Vraie, jamais inventée : il synchronise vraiment ces données.
+const BOOTS = [
+  'Dzaryx en ligne. Liaison avec l\'Audi établie. Météo, trafic, agenda et flotte synchronisés.',
+  'Initialisation terminée. Habitacle connecté, toutes vos données sont à jour.',
+  'Systèmes de bord en ligne. Je viens de tout analyser pour vous : agenda, route, clients.',
+  'Connexion établie. Votre copilote est réveillé, et il a déjà lu votre journée.',
+];
+export function bootLine(mode: 'retour' | 'famille' | 'douceur' | 'jumua' | 'matin' | 'mission'): string {
+  const p = { retour: 'Protocole retour au foyer activé.', famille: 'Protocole famille activé.', douceur: 'Protocole journée douce activé.', jumua: 'Protocole vendredi activé. Jumu\'a moubaraka, monsieur.', matin: 'Protocole mission du matin activé.', mission: 'Protocole mission activé.' }[mode];
+  return `${BOOTS[Math.floor(Math.random() * BOOTS.length)]} ${p}`;
+}
+
 // 03/11 : en RENTRANT à la maison il lui donnait encore « des trucs à faire avant 12 h ». Kouider : « là je rentre, je me
 // repose jusqu'à demain, il doit me dire tu as tenu le coup, tu as passé le pire — le pire dans ma vie c'est le travail où
 // je suis et le pays où je suis, il doit trouver un truc pour me donner du courage ». → mode RETOUR : zéro tâche, du courage.
@@ -128,12 +141,13 @@ export async function carGreeting(pos: { lat?: number; lng?: number } = {}, home
   ]);
   const time = `Il est ${hhmm.replace(':', ' heures ').replace(/ 00$/, '')}`;
   const weather = meteo ? `, ${Math.round(meteo.temp)} degrés dehors, ${meteo.label.toLowerCase()}${meteo.rain ? ', prudence sur la route' : ''}` : '';
-  if (homeward) return homewardSpeech(hello, time, weather);
+  const boot = bootLine(homeward ? 'retour' : hard ? 'douceur' : off ? 'famille' : new Date().getUTCDay() === 5 && h < 14 ? 'jumua' : h < 12 ? 'matin' : 'mission');
+  if (homeward) return `${boot} ${await homewardSpeech(hello, time, weather)}`;
   const tone = hard ? 'Il a demandé une JOURNÉE DURE : doux, rassurant, aucune pression business.'
     : off ? 'Jour de congé (famille) : rappelle le sens de ce qu\'il construit (sa femme, Ibrahim, leur avenir en Algérie), sans lui donner de travail.'
     : 'Journée de travail : motive-le sur son business (FIK, ses clients, son objectif du mois, devenir un grand businessman en Algérie) avec UNE priorité concrète pour aujourd\'hui.';
   const speech = await ai(`Tu es JARVIS, l'intelligence artificielle majordome de Kouider (comme le Jarvis d'Iron Man) : voix calme, phrases précises et élégantes, VOUVOIEMENT, assurance tranquille, une petite pointe d'humour fin. Kouider vient de monter dans sa voiture ; tu lui as déjà dit bonjour, l'heure et la météo.
-Dis maintenant un VRAI DISCOURS DE MOTIVATION de 5 à 7 phrases (30 à 40 secondes à l'oral) : commence par un mot sur l'état des choses façon Jarvis (ex. « Tous les systèmes sont opérationnels. »), puis un discours qui donne la chair de poule — rythmé, puissant, avec une image forte, une montée en intensité et une phrase finale qui claque et donne envie de tout donner aujourd'hui. Parle à l'homme qu'il est en train de devenir. ${tone}
+Dis maintenant un VRAI DISCOURS DE MOTIVATION de 5 à 7 phrases (30 à 40 secondes à l'oral) : ne redis PAS « tous les systèmes sont opérationnels » ni « protocole » (la séquence de démarrage vient d'être dite) ; glisse une ou deux tournures d'IA du futur façon Jarvis (« mes projections indiquent… », « j'ai recalculé la trajectoire de votre journée », « analyse terminée : … ») SANS inventer aucun chiffre ; puis un discours qui donne la chair de poule — rythmé, puissant, avec une image forte, une montée en intensité et une phrase finale qui claque et donne envie de tout donner aujourd'hui. Parle à l'homme qu'il est en train de devenir. ${tone}
 THÈMES (varie chaque fois) : ${THEMES[Math.floor(Math.random() * THEMES.length)]}.
 SA VIE : Kouider vit en BELGIQUE avec sa femme et leur fils Ibrahim, loin de l'Algérie. Il travaille et construit ici, à distance, l'avenir de sa famille EN ALGÉRIE (Oran) : la maison, la voiture, son business, pour pouvoir aller y vivre tous les trois. Ce sacrifice de l'exil a un but, tu peux le lui rappeler avec respect.
 ⛔ STRICTEMENT INTERDIT dans la voiture : médicament, pharmacie, santé, sevrage, programme Liberté, dose, envie — pas même une allusion. C'est privé.
@@ -141,5 +155,5 @@ Ne redis pas bonjour, ni son prénom en premier mot. Il CONDUIT : aucune action 
 Contexte (Grand Coach) : ${coach.slice(0, 1500)}`, { max: 450 }).catch(() => '');
   const fallback = off ? 'Tous les systèmes sont opérationnels. Profitez des vôtres aujourd\'hui, c\'est pour eux que vous construisez tout cela.' : 'Tous les systèmes sont opérationnels. Une seule priorité aujourd\'hui, monsieur : un pas concret pour votre entreprise. Les grands se construisent dans la régularité.';
   const { carPrivacy } = await import('./jarvis4.js');
-  return [`${hello} ${time}${weather}.`, carPrivacy(speech || '') || fallback, `Citation du jour : ${quote.q} ${quote.who[0]!.toUpperCase()}${quote.who.slice(1)}, ${quote.src}.`].join(' ');
+  return [boot, `${hello} ${time}${weather}.`, carPrivacy(speech || '') || fallback, `Citation du jour : ${quote.q} ${quote.who[0]!.toUpperCase()}${quote.who.slice(1)}, ${quote.src}.`].join(' ');
 }

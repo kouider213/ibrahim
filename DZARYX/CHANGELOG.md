@@ -3,6 +3,13 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (8) — CarPlay voix « cinéma » + widget v6 + messages repris après redémarrage + soirée à deux réaliste
+- jarvis-audio.ts : voix Jarvis habillée (séquence de démarrage : souffle, basse, bips de scan, carillon ; écho stéréo ; nappage grave ; carillon de veille), synthèse en 3 morceaux parallèles, secours voix nue
+- car-coach.ts : séquence de démarrage dite + « Protocole mission / retour au foyer / famille / journée douce / vendredi » ; discours avec tournures d'IA futuriste sans chiffre inventé ; jarvis4 : fin « Je reste en veille, Dis Siri, Jarvis »
+- Widget v6 : cadre de visée HUD aux 4 coins, lignes de balayage, graduations, ligne « SCAN · MÉTÉO ✓ · ROUTE ⚠ · AGENDA ✓ · CLIENTS ✓ » ; libellés PROTOCOLE …
+- B053 : message Telegram perdu pendant un redémarrage Railway (10h57) → tgcall attend le serveur et renvoie la même question (turnId, réponse déjà faite = redonnée, pas de doublon) ; messages automatiques nettoyés (### / *)
+- life-plus.ts : soirée à deux tient compte d'Ibrahim (garde ou formule maison), horaires de travail du jour et du lendemain, sommeil/dette, forme, moral, sèche
+
 ## 2026-11-04 (7) — Widget : Scriptable en arabe → rangées inversées (RTL) ; ordre des éléments inversé quand data.rtl (app_kv car:widget:rtl, défaut true) ou langue ar/he/fa/ur
 
 ## 2026-11-04 (6) — Widget net (vraiment) : tout le texte en texte natif iPhone (ListWidget stacks) posé aux mêmes places ; l'image ne garde que photo, logo, HUD, ciel. iOS compressait l'image → texte flou

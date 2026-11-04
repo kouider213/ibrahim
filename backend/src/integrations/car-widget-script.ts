@@ -1,6 +1,6 @@
 // 🚗 Rendu du widget CarPlay (Scriptable), téléchargé à chaque rafraîchissement par le petit script collé une fois sur l'iPhone.
 // Modifier ici = le widget de Kouider change tout seul (pas de nouveau copier-coller). Pas de ` ni de ${ dans le code.
-export const CAR_WIDGET_RENDER = String.raw`// DZARYX · rendu du widget CarPlay v5 « Jarvis HUD + route » (servi par le backend : le script collé dans Scriptable le télécharge à chaque fois)
+export const CAR_WIDGET_RENDER = String.raw`// DZARYX · rendu du widget CarPlay v6 « Jarvis HUD + route + scan » (servi par le backend : le script collé dans Scriptable le télécharge à chaque fois)
 // Aucun chiffre (Kouider 03/11) : le vrai ciel sur la photo, soleil/lune réels, mode du moment, tout en mots.
 const PHOTO_V = 4;
 let RED = new Color("#ff2b3a"); const GOLD = new Color("#f7c548"), WHITE = Color.white();
@@ -162,6 +162,22 @@ function scan(y) {
   dot(x, y + 1, 5, GOLD);
 }
 
+// ── 04/11 « encore plus futuriste » : cadre de visée HUD aux 4 coins, lignes de balayage, graduations ──
+function scifi() {
+  for (let y = 0; y < H; y += 6) { c.setFillColor(new Color("#000000", 0.05)); c.fillRect(R(0, y, W, 2)); }
+  const m = 14, L = small ? 34 : 52, th = 3;
+  c.setFillColor(new Color(ACC, 0.85));
+  [[m, m, 1, 1], [W - m, m, -1, 1], [m, H - m - 12, 1, -1], [W - m, H - m - 12, -1, -1]].forEach(([x, y, dx, dy]) => {
+    c.fillRect(R(dx > 0 ? x : x - L, dy > 0 ? y : y - th, L, th));
+    c.fillRect(R(dx > 0 ? x : x - th, dy > 0 ? y : y - L, th, L));
+  });
+  if (!small) for (let k = 0; k < 24; k++) { const x = W * 0.42 + k * 16; c.setFillColor(new Color("#ffffff", k % 4 ? 0.18 : 0.45)); c.fillRect(R(x, 22, 2, k % 4 ? 8 : 16)); }
+}
+scifi();
+// Ligne d'état « scan » en mots (✓ / ⚠), jamais de chiffre
+const chargedRoad = /charg|Un peu/.test(data.road || "");
+const scanLine = "◆ SCAN · MÉTÉO " + (data.alert ? "⚠" : "✓") + " · ROUTE " + (chargedRoad ? "⚠" : "✓") + " · AGENDA " + (data.late || /^Partez/.test(data.go || "") ? "⚠" : "✓") + " · CLIENTS " + (data.waiting ? "⚠" : "✓");
+
 const rainTwice = data.alert && /Pluie/.test(data.alert) && /pluie/i.test(data.weather || "");
 const alertOn = data.alert && !rainTwice;
 const info = alertOn ? data.alert : data.late ? "⏰ " + data.late : data.go ? "🧭 " + data.go : data.fennecs ? "🇩🇿 " + data.fennecs : data.prayer ? (/Iftar|Shour/.test(data.prayer) ? "🌙 " : "🕌 ") + data.prayer : data.tomorrow ? "🌅 " + data.tomorrow : "";
@@ -209,7 +225,7 @@ if (small) {
   t(data.nextWhen, 52, 916, W - 100, 44, FF("semibold", 34), GOLD);
   c.setFillColor(new Color("#ffffff", 0.12)); c.fillRect(R(52, 990, W - 104, 2));
   t(jarvis, 52, 1012, W - 104, 150, FF("italic", 34), SOFT);
-  t("◆ JARVIS · TOUS SYSTÈMES OPÉRATIONNELS", 52, 1180, W - 104, 34, FF("semibold", 22), new Color(ACC, 0.9));
+  t(scanLine, 52, 1180, W - 104, 34, FF("semibold", 22), new Color(ACC, 0.95));
   scan(H - 12);
 } else {
   sky(W - 250, 270, 190);
@@ -224,7 +240,8 @@ if (small) {
   t("PROCHAIN · FIK", 48, 346, 400, 30, FF("heavy", 22), GOLD);
   t(data.nextTitle, 48, 374, 640, 52, FF("bold", 40), WHITE);
   t(data.nextWhen, 48, 424, 640, 40, FF("semibold", 30), GOLD);
-  t(jarvis, 48, 482, 760, 84, FF("italic", 28), SOFT);
+  t(jarvis, 48, 474, 760, 72, FF("italic", 27), SOFT);
+  t(scanLine, 48, 550, 900, 26, FF("semibold", 18), new Color(ACC, 0.95));
   scan(H - 10);
 }
 

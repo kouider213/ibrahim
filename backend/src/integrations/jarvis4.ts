@@ -23,7 +23,11 @@ const JARVIS_STYLE = 'Lis ce texte en français, comme JARVIS, l\'intelligence a
 function jarvisVoiceUrl(text: string): string {
   for (const [k, v] of VOICES) if (Date.now() - v.at > 15 * 60_000) VOICES.delete(k);
   const id = randomUUID().replace(/-/g, '');
-  const p = import('../notifications/dispatcher.js').then(m => m.synthesizeVoiceGemini(text, { voice: process.env['JARVIS_VOICE'] || 'Charon', style: JARVIS_STYLE })).catch(() => null);
+  // 04/11 « encore plus fou, plus futuriste » : voix habillée façon film (démarrage, écho stéréo, nappage, veille) —
+  // jarvis-audio.ts ; synthèse en 3 morceaux parallèles. Secours : voix nue en un bloc.
+  const voice = process.env['JARVIS_VOICE'] || 'Charon';
+  const p = import('./jarvis-audio.js').then(m => m.jarvisCinemaVoice(text, voice, JARVIS_STYLE)).catch(() => null)
+    .then(w => w ?? import('../notifications/dispatcher.js').then(m => m.synthesizeVoiceGemini(text, { voice, style: JARVIS_STYLE })).catch(() => null));
   VOICES.set(id, { at: Date.now(), p });
   const base = (process.env['PUBLIC_BACKEND_URL'] || 'https://ibrahim-backend-production.up.railway.app').replace(/\/$/, '');
   return `${base}/api/jarvis/voice/${id}`;
@@ -43,7 +47,9 @@ export async function iphoneEvent(type: string, body: Record<string, unknown>): 
       const [hello, brief] = await Promise.all([cc.carGreeting(hasPos ? { lat, lng } : {}, homeward).catch(() => 'Bonjour Kouider.'), homeward ? Promise.resolve('') : carBrief(hasPos ? { lat, lng } : {})]);
       void kvPut('car:last-mode', { at: Date.now(), homeward });
       void kvPut('car:last-event', { at: Date.now(), type });   // trace : l'automatisation CarPlay est bien arrivée
-      const say = speakable(carPrivacy(`${hello} ${brief}`)) || 'Bonjour Kouider. Bonne route.';
+      // 04/11 : fin façon Jarvis = il passe en veille et rappelle comment le réveiller (raccourci Siri « Jarvis »)
+      const sign = /^Re-bonjour/.test(hello) ? '' : ' Je reste en veille. Dites simplement : « Dis Siri, Jarvis », et je suis là.';
+      const say = speakable(carPrivacy(`${hello} ${brief}${sign}`)) || 'Bonjour Kouider. Bonne route.';
       return { say, audio_url: jarvisVoiceUrl(say) };
     }
     case 'carplay_off': case 'parked': {
@@ -283,7 +289,7 @@ export async function carWidgetData(): Promise<Record<string, unknown>> {
   const dayOff = daysOff.includes(wdNow) && !homeward;
   const mode = H >= 23 || H < 5 ? 'nuit' : dayOff && H >= 8 && H < 22 ? 'repos' : H < 11 ? 'depart' : homeward ? 'retour' : 'journee';
   const greeting = eid ? 'Aïd Mubarak, Monsieur.' : wdNow === 5 && H >= 5 && H < 16 ? 'Jumu\'a Mubarak, Monsieur.' : ramadan && H >= 5 && H < 18 ? 'Ramadan Karim, Monsieur.' : H >= 5 && H < 12 ? 'Bonjour, Monsieur.' : H >= 12 && H < 18 ? 'Bon après-midi, Monsieur.' : 'Bonsoir, Monsieur.';
-  const modeLabel = eid ? 'JOUR DE FÊTE · AÏD MUBARAK' : ramadan && mode !== 'nuit' ? 'MODE RAMADAN · ' + ({ depart: 'BONNE ROUTE', journee: 'EN LIGNE', retour: 'LA MAISON VOUS ATTEND', repos: 'REPOS' } as Record<string, string>)[mode] : ({ depart: 'MODE DÉPART · BONNE ROUTE', journee: 'MODE MISSION · EN LIGNE', retour: 'MODE RETOUR · LA MAISON VOUS ATTEND', nuit: 'VEILLE DE NUIT · ACTIVE', repos: 'JOUR DE REPOS · EN FAMILLE' } as Record<string, string>)[mode]!;
+  const modeLabel = eid ? 'JOUR DE FÊTE · AÏD MUBARAK' : ramadan && mode !== 'nuit' ? 'MODE RAMADAN · ' + ({ depart: 'BONNE ROUTE', journee: 'EN LIGNE', retour: 'LA MAISON VOUS ATTEND', repos: 'REPOS' } as Record<string, string>)[mode] : ({ depart: 'PROTOCOLE DÉPART · BONNE ROUTE', journee: 'PROTOCOLE MISSION · EN LIGNE', retour: 'PROTOCOLE RETOUR · LA MAISON VOUS ATTEND', nuit: 'VEILLE DE NUIT · ACTIVE', repos: 'PROTOCOLE FAMILLE · REPOS' } as Record<string, string>)[mode]!;
   const t = meteo?.temp;
   const feel = t == null ? '' : t <= 0 ? 'Gel' : t <= 5 ? 'Froid' : t <= 12 ? 'Frais' : t <= 20 ? 'Doux' : t <= 27 ? 'Chaud' : 'Canicule';
   const code = meteo?.code ?? 0;

@@ -203,16 +203,65 @@ async function setIntentions(items: string[]): Promise<string> {
 
 // ── 3. Coach de couple ───────────────────────────────────────────────────────
 
+/** 04/11 Kouider (capture de la proposition « BXL Steak House + Galeries Saint-Hubert ») : « il prend pas en compte que
+ *  j'ai un fils, mes horaires de travail, mon moral, ma fatigue, mon régime, le manque de sommeil — il doit tout prendre en
+ *  compte ». → on rassemble SA vraie situation (Ibrahim 1,5 an, travail ce jour-là et le lendemain, sommeil/dette, forme du
+ *  jour, humeur, sèche) et la proposition s'y plie : formule maison après le coucher d'Ibrahim OU sortie avec garde,
+ *  durée/heure de fin selon la fatigue et le réveil du lendemain, resto compatible sèche. */
+async function coupleContext(sat: string): Promise<string> {
+  const cfg = await getRoutineConfig();
+  const wd = new Date(`${sat}T12:00:00Z`).getUTCDay();
+  const offset = Math.round((Date.parse(`${sat}T12:00:00Z`) - Date.parse(`${localNow().date}T12:00:00Z`)) / 86_400_000);
+  const [evs, nextEvs, off, offNext, sleep, forme, family, ready] = await Promise.all([
+    import('./google-calendar.js').then(m => m.listAgendaRange(`${sat}T04:00:00+01:00`, `${sat}T23:59:00+01:00`, 20)).catch(() => null),
+    import('./google-calendar.js').then(m => m.listAgendaRange(`${addDays(sat, 1)}T04:00:00+01:00`, `${addDays(sat, 1)}T13:00:00+01:00`, 10)).catch(() => null),
+    import('./kouider-dossier.js').then(m => m.isDayOff(offset)).catch(() => false),
+    import('./kouider-dossier.js').then(m => m.isDayOff(offset + 1)).catch(() => false),
+    import('./sleep-coach.js').then(m => m.sleepContextLine()).catch(() => ''),
+    import('./forme-cut.js').then(m => m.formeSnapshot()).catch(() => ''),
+    import('./kouider-dossier.js').then(m => m.familyText()).catch(() => ''),
+    import('./workout-live.js').then(m => m.readiness()).catch(() => null),
+  ]);
+  const mood = await kvJson<{ at: number; stress: number; energy: number } | null>('mood:now', null);
+  const PRIV = /libert|m[ée]dic|pharma|dose|🕊|perso/i;
+  const fmtEv = (e: { summary?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string } }) =>
+    `${(e.start?.dateTime ?? '').slice(11, 16) || 'journée'}${e.end?.dateTime ? `–${e.end.dateTime.slice(11, 16)}` : ''} ${e.summary ?? ''}`;
+  const day = ((evs ?? []) as Array<{ summary?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string } }>).filter(e => !PRIV.test(e.summary ?? '')).map(fmtEv);
+  const nextDay = cfg.days[(wd + 1) % 7];
+  return [
+    `FAMILLE : marié, un fils IBRAHIM d'environ 1 an et demi (couché tôt, il faut une garde pour sortir à deux, ou une soirée à la maison après son coucher).`,
+    family ? `Infos famille connues :\n${family.slice(0, 600)}` : '',
+    `CE JOUR-LÀ (${fmtD(sat)}) : ${off ? 'jour de congé' : `il TRAVAILLE (routine : ${cfg.days[wd]?.next ?? '?'})`}. Agenda : ${day.length ? day.join(' ; ') : 'rien de noté'}.`,
+    `LENDEMAIN : ${offNext ? 'congé' : `travail, réveil ${nextDay?.wake ?? '?'}${nextDay?.next ? ` (${nextDay.next})` : ''}`}${(nextEvs ?? []).length ? `, agenda : ${((nextEvs ?? []) as Array<{ summary?: string; start?: { dateTime?: string } }>).filter(e => !PRIV.test(e.summary ?? '')).map(fmtEv).join(' ; ')}` : ''}.`,
+    sleep ? `SOMMEIL : ${sleep}` : '',
+    ready ? `FORME DU JOUR : récupération ${ready.score}/100.` : '',
+    mood && Date.now() - mood.at < 48 * 3600_000 ? `MORAL récent : stress ${mood.stress}/10, énergie ${mood.energy}/10.` : '',
+    forme ? `RÉGIME / SPORT : ${forme.slice(0, 500)}` : '',
+  ].filter(Boolean).join('\n');
+}
+
 async function proposeCouple(): Promise<string> {
   const cfg = await getRoutineConfig();
   const home = await geocode(cfg.addresses.home).catch(() => null);
   const today = localNow().date;
   const sat = addDays(today, (6 - localNow().weekday + 7) % 7 || 7);
-  const txt = await research(`Kouider (musulman, mange halal, vit près de ${cfg.addresses.home}${home ? ` (${home.lat.toFixed(3)}, ${home.lng.toFixed(3)})` : ''}, Bruxelles) veut une soirée à deux avec sa femme le ${fmtD(sat)}. Cherche 2 idées concrètes à moins de 25 min : 1 restaurant HALAL bien noté (nom, adresse, fourchette de prix, pourquoi c'est bien pour un couple) et 1 activité (balade, expo, cinéma, dessert…), en tenant compte de la météo prévue ce soir-là. Termine par l'heure conseillée. Réponse courte, en français, sans mentionner d'alcool.`, { rounds: 5, max: 900 }).catch(() => '');
+  const ctx = await coupleContext(sat).catch(() => 'FAMILLE : un fils Ibrahim (1 an et demi).');
+  const txt = await research(`Kouider (musulman, mange halal, vit près de ${cfg.addresses.home}${home ? ` (${home.lat.toFixed(3)}, ${home.lng.toFixed(3)})` : ''}, Bruxelles) veut une soirée à deux avec sa femme le ${fmtD(sat)}.
+SA VRAIE SITUATION (à respecter ABSOLUMENT, c'est le cœur de la proposition) :
+${ctx}
+
+RÈGLES :
+- Ibrahim : dis clairement qui/quoi pour lui (garde à prévoir par la famille, OU formule à la maison après son coucher). Jamais une sortie sans avoir réglé Ibrahim.
+- Horaires : la soirée commence APRÈS sa fin de travail + le temps de rentrer et souffler (pas de départ à 19h s'il finit à 18h30 loin). L'heure de fin dépend de son réveil du lendemain : il doit pouvoir dormir au moins 7 h 30.
+- Fatigue / manque de sommeil / moral bas : soirée COURTE et calme, près de chez lui, zéro trajet long ni marche longue ; si très fatigué, privilégie la formule maison.
+- Régime (sèche) : resto où il peut manger protéiné et léger (grillades, poisson, salade), dessert PARTAGÉ ou évité, aucune « gaufre + thé » comme point central ; donne une estimation rapide (« ~700 kcal si grillade + légumes »).
+- Donne 2 FORMULES : A) sortie (1 restaurant HALAL réel et bien noté à moins de 20 min : nom, adresse, prix, pourquoi ; + petite activité courte à côté), B) soirée à la maison spéciale après le coucher d'Ibrahim (repas commandé ou cuisiné compatible sèche, idée d'ambiance). Dis laquelle tu conseilles et POURQUOI d'après sa situation (1 phrase).
+- Termine par le planning conseillé (heure de départ, heure de retour, heure de coucher).
+Tiens compte de la météo prévue ce soir-là. Français, court, sans alcool. Texte simple pour Telegram : pas de « ### », pas de « --- », puces avec •.`, { rounds: 6, max: 1100 }).catch(() => '');
   if (!txt) return '❌ Recherche impossible pour le moment.';
   await kvPut(COUPLE_KEY, { ...(await kvJson<Couple>(COUPLE_KEY, {})), proposedAt: today });
   const { createDecision } = await import('./conscience.js');
-  await createDecision(`💑 Soirée à deux ${fmtD(sat)} ?\n${txt.slice(0, 450)}`, [
+  await createDecision(`💑 Soirée à deux ${fmtD(sat)} ?\n${txt.slice(0, 1200)}`, [
     { label: 'Oui, réserve le créneau', tool: 'vie', input: { action: 'couple', op: 'book', date: sat } },
     { label: 'Pas cette semaine', tool: 'vie', input: { action: 'couple', op: 'skip' } },
   ]).catch(() => {});

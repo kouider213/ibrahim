@@ -379,3 +379,7 @@ Fix : readDocVision (Claude → Gemini → Groq → OpenAI, PDF via Gemini) pour
 
 ### B049 — « Montre-moi le message » → « ⚠️ pas accès aux données » + « Petit souci technique » (01/11 14h17-14h21) ✅ FIXÉ
 Cause : motif argent du fastPathGuard sans chiffre obligatoire (« dans », « dates » bloqués) ; pas de raccourci pour réafficher le brouillon ; brouillon en attente effacé dès le 1er message non oui/non ; 502 Railway pendant un push d'une autre session ; décision à boutons sans le texte. Corrigé (voir CHANGELOG 01/11).
+
+### B053 — Question Telegram sans réponse : redémarrage Railway pendant le tour (04/11 10h57, « veines des bras ») ✅ FIXÉ
+Cause : déploiement à 09:58 UTC pendant que le cerveau de secours (Gemini 503) traitait ; tgcall disait « renvoie-le ». Fix : turn_with_resume (tgcall) attend /health et renvoie avec turnId ; /api/call/turn redonne la réponse en cache si déjà faite.
+
