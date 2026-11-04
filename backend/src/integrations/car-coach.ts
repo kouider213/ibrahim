@@ -93,7 +93,7 @@ export async function carBlessing(courage = false): Promise<string> {
 
 // 04/11 (3) : « le lundi après le sport et le jeudi après le travail, je ne suis pas seul, je suis avec ma femme et mon fils »
 // → MODE FAMILLE : bonjour à tous, heure, météo, et la protection — aucun discours business, aucun point travail/clients.
-export async function isFamilyRide(homeward: boolean): Promise<boolean> {
+export async function isFamilyRide(_homeward: boolean): Promise<boolean> {
   const { weekday, hhmm } = localNow();
   if (weekday === 1) {
     const { getRoutineConfig } = await import('./morning-routine.js');
@@ -102,7 +102,7 @@ export async function isFamilyRide(homeward: boolean): Promise<boolean> {
     const t = `${String(Math.floor(((h! * 60 + m!) - 15) / 60)).padStart(2, '0')}:${String(((h! * 60 + m!) - 15) % 60).padStart(2, '0')}`;
     return hhmm >= t && hhmm < '23:00';                           // lundi : dès la fin de la séance (le retour de la salle compris)
   }
-  if (weekday === 4) return homeward || (hhmm >= '13:00' && hhmm < '23:00');
+  if (weekday === 4) return hhmm >= '13:30' && hhmm < '23:00';     // jeudi : à partir de 13h30 (Kouider 04/11), même s'il part plus tôt
   return false;
 }
 export async function familyGreeting(): Promise<string> {
