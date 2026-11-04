@@ -33,7 +33,7 @@ const trafficWords = (t: { min: number; normal: number }, to: string) =>
   t.min - t.normal >= 5 ? `Trafic chargé ${to} · partez plus tôt` : t.min - t.normal >= 2 ? `Un peu de trafic ${to}` : `Route fluide ${to}`;
 
 /** Début du travail aujourd'hui d'après la routine (« 10:00 Agence FIK, 13:00 travail » → 13:00), dans les 3 h à venir. */
-async function routineWork(now: number): Promise<{ start: number; pos: LatLng } | null> {
+export async function routineWork(now: number): Promise<{ start: number; pos: LatLng } | null> {
   const { getRoutineConfig } = await import('./morning-routine.js');
   const cfg = await getRoutineConfig();
   if (!cfg.enabled || (cfg.pausedUntil && Date.parse(String(cfg.pausedUntil)) > now) || !cfg.addresses?.work) return null;

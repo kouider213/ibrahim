@@ -64,17 +64,55 @@ export const VERSES: Array<{ a: string; fr: string; ref: string; courage?: boole
   { a: '029069', fr: 'Et quant à ceux qui luttent pour Notre cause, Nous les guiderons certes sur Nos sentiers. Et Allah est en vérité avec les bienfaisants.', ref: 'sourate 29, verset 69' },
   { a: '003200', fr: 'Ô les croyants, soyez endurants, incitez-vous à l\'endurance, luttez constamment, et craignez Allah, afin que vous réussissiez.', ref: 'sourate 3, verset 200' },
 ];
-const VUSED_K = 'car:verses:used';
-/** Fin de chaque démarrage : verset du jour + invocation du voyage, annoncés et traduits, puis les vraies récitations
+const VUSED_K = 'car:verses:used', PUSED_K = 'car:protect:n';
+// 04/11 (3) Kouider : « faut que la sourate change à chaque fois » → le verset suit un CYCLE (jamais deux fois le même
+// avant d'avoir fait tout le tour) et la récitation de protection tourne aussi : invocation du voyage, Al-Falaq,
+// An-Nas, Ayat al-Kursi.
+const PROTECT: Array<{ a: string; say: string }> = [
+  { a: '043013,043014', say: 'l\'invocation du voyage : « Gloire à Celui qui nous a soumis tout cela, alors que nous n\'étions pas capables de le dominer. Et c\'est vers notre Seigneur que nous retournerons. » Sourate 43' },
+  { a: '113001,113002,113003,113004,113005', say: 'la sourate Al-Falaq, l\'Aube naissante : « Dis : je cherche protection auprès du Seigneur de l\'aube naissante, contre le mal de ce qu\'Il a créé. »' },
+  { a: '114001,114002,114003,114004,114005,114006', say: 'la sourate An-Nas, les Hommes : « Dis : je cherche protection auprès du Seigneur des hommes, le Souverain des hommes, Dieu des hommes. »' },
+  { a: '002255', say: 'Ayat al-Kursi, le verset du Trône : « Allah, point de divinité à part Lui, le Vivant, Celui qui subsiste par Lui-même. Ni somnolence ni sommeil ne Le saisissent. »' },
+];
+/** Fin de chaque démarrage : verset du jour + récitation de protection, annoncés et traduits, puis les vraies récitations
  *  ([[Q:…]] → jarvis-audio.ts les joue après la voix, dans l'ordre). Aussi dit tel quel par « Énoncer » (sans [[ ]]). */
 export async function carBlessing(courage = false): Promise<string> {
   const used = await kvJson<number[]>(VUSED_K, []);
   const all = VERSES.map((_, i) => i).filter(i => !courage || VERSES[i]!.courage);
-  const free = all.filter(i => !used.slice(-Math.min(6, all.length - 1)).includes(i));
-  const i = (free.length ? free : all)[Math.floor(Math.random() * (free.length || all.length))]!;
-  await kvPut(VUSED_K, used.concat(i).slice(-12));
+  const last = used.at(-1);
+  let free = all.filter(i => !used.includes(i));
+  if (!free.length) free = all.filter(i => i !== last);           // tour complet fait → on recommence, sans répéter le dernier
+  const i = free[Math.floor(Math.random() * free.length)]!;
+  await kvPut(VUSED_K, (all.every(k => used.includes(k)) ? [] : used).concat(i).slice(-VERSES.length));
+  const pn = await kvJson<number>(PUSED_K, 0);
+  await kvPut(PUSED_K, pn + 1);
+  const pr = PROTECT[pn % PROTECT.length]!;
   const v = VERSES[i]!;
-  return `Pour la route, le verset du jour : « ${v.fr} » Le Coran, ${v.ref}. Et pour votre protection, l'invocation du voyage : « Gloire à Celui qui nous a soumis tout cela, alors que nous n'étions pas capables de le dominer. Et c'est vers notre Seigneur que nous retournerons. » Sourate 43. Je reste en veille, dites simplement : « Dis Siri, Jarvis ». Écoutez. [[Q:${v.a}]] [[Q:043013,043014]]`;
+  return `Pour la route, le verset du jour : « ${v.fr} » Le Coran, ${v.ref}. Et pour votre protection, ${pr.say}. Je reste en veille, dites simplement : « Dis Siri, Jarvis ». Écoutez. [[Q:${v.a}]] [[Q:${pr.a}]]`;
+}
+
+// 04/11 (3) : « le lundi après le sport et le jeudi après le travail, je ne suis pas seul, je suis avec ma femme et mon fils »
+// → MODE FAMILLE : bonjour à tous, heure, météo, et la protection — aucun discours business, aucun point travail/clients.
+export async function isFamilyRide(homeward: boolean): Promise<boolean> {
+  const { weekday, hhmm } = localNow();
+  if (weekday === 1) {
+    const { getRoutineConfig } = await import('./morning-routine.js');
+    const end = (await getRoutineConfig().catch(() => null))?.days?.[1]?.sport?.[1] ?? '08:50';
+    const [h, m] = end.split(':').map(Number);
+    const t = `${String(Math.floor(((h! * 60 + m!) - 15) / 60)).padStart(2, '0')}:${String(((h! * 60 + m!) - 15) % 60).padStart(2, '0')}`;
+    return hhmm >= t && hhmm < '23:00';                           // lundi : dès la fin de la séance (le retour de la salle compris)
+  }
+  if (weekday === 4) return homeward || (hhmm >= '13:00' && hhmm < '23:00');
+  return false;
+}
+export async function familyGreeting(): Promise<string> {
+  const { hhmm } = localNow();
+  const h = Number(hhmm.slice(0, 2));
+  const loc = await import('./location.js').then(m => m.getLocation('kouider')).catch(() => null);
+  const meteo = loc ? await import('./forme-runs-pro.js').then(m => m.weatherAt(loc.lat, loc.lng, Date.now())).catch(() => null) : null;
+  const time = `Il est ${hhmm.replace(':', ' heures ').replace(/ 00$/, '')}`;
+  const weather = meteo ? `, ${Math.round(meteo.temp)} degrés dehors, ${meteo.label.toLowerCase()}${meteo.rain ? ', prudence sur la route' : ''}` : '';
+  return `${h < 5 || h >= 18 ? 'Bonsoir' : 'Bonjour'} à toute la famille. ${time}${weather}. Protocole famille activé : aujourd'hui, rien d'autre ne compte que vous trois. Profitez de ce moment ensemble.`;
 }
 
 // 04/11 « encore plus fou, plus futuriste, style Jarvis même en mieux » : séquence de démarrage dite AVANT le bonjour

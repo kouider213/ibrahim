@@ -44,6 +44,13 @@ export async function iphoneEvent(type: string, body: Record<string, unknown>): 
       // 03/11 : en RETOUR à la maison → pas de point « à faire », seulement du courage (car-coach.ts isHomeward)
       const cc = await import('./car-coach.js');
       const homeward = await cc.isHomeward(hasPos ? { lat, lng } : {}).catch(() => false);
+      // 04/11 : lundi après le sport / jeudi après le travail = sa femme et son fils sont dans la voiture → mode famille
+      if (await cc.isFamilyRide(homeward).catch(() => false)) {
+        void kvPut('car:last-mode', { at: Date.now(), homeward, family: true });
+        void kvPut('car:last-event', { at: Date.now(), type });
+        const full = `${await cc.familyGreeting().catch(() => 'Bonjour à toute la famille.')} ${await cc.carBlessing(false).catch(() => '')}`.trim();
+        return { say: full.replace(/\s*\[\[Q:[\d,]+\]\]/g, '').trim(), audio_url: jarvisVoiceUrl(full) };
+      }
       const [hello, brief] = await Promise.all([cc.carGreeting(hasPos ? { lat, lng } : {}, homeward).catch(() => 'Bonjour Kouider.'), homeward ? Promise.resolve('') : carBrief(hasPos ? { lat, lng } : {})]);
       void kvPut('car:last-mode', { at: Date.now(), homeward });
       void kvPut('car:last-event', { at: Date.now(), type });   // trace : l'automatisation CarPlay est bien arrivée
@@ -129,16 +136,33 @@ async function carBrief(body: Record<string, unknown> = {}): Promise<string> {
     const sc = scores[d.chat.toLowerCase()];
     return { who: /^[+\d\s().-]+$/.test(d.chat) ? 'un numéro inconnu' : d.chat, wants: d.preview.replace(/\s+/g, ' ').slice(0, 120), pct: sc?.pct ?? null };
   }).sort((x, y) => (y.pct ?? 0) - (x.pct ?? 0));
+  // 04/11 Kouider : « il dit décision pour le resto alors qu'il devrait dire combien de temps il me reste avant mon prochain
+  // RDV de l'agenda, comme maintenant le travail » → plus aucune décision/bouton dans le point voiture ; le temps restant
+  // avant la prochaine étape (agenda, sinon l'heure de travail de la routine) passe en premier.
+  let nextStep: { quoi: string; heure: string | null; dans_minutes: number | null; trajet: string | null } | null = next ? {
+    quoi: next.summary ?? 'rendez-vous', heure: next.start?.dateTime ? localNow(Date.parse(next.start.dateTime)).hhmm : null,
+    dans_minutes: next.start?.dateTime ? Math.round((Date.parse(next.start.dateTime) - Date.now()) / 60_000) : null, trajet: trip || null } : null;
+  if (!nextStep || (nextStep.dans_minutes ?? 9999) > 3 * 60) {
+    const w = await import('./car-widget-plus.js').then(m => m.routineWork(Date.now())).catch(() => null);
+    if (w && (!nextStep || w.start < Date.now() + (nextStep.dans_minutes ?? 9999) * 60_000)) {
+      let wTrip: string | null = null;
+      if (here) {
+        const d = await import('./departures.js').then(m => m.drive(here, w.pos)).catch(() => null);
+        if (d) { const margin = Math.round((w.start - Date.now()) / 60_000) - d.min; wTrip = `${d.min} min de route, ${margin >= 0 ? `marge ${margin} min` : `RETARD probable de ${-margin} min`}`; }
+      }
+      nextStep = { quoi: 'le travail', heure: localNow(w.start).hhmm, dans_minutes: Math.round((w.start - Date.now()) / 60_000), trajet: wTrip };
+    }
+  }
   const facts = {
     heure: localNow().hhmm,
-    prochaine_etape: next ? { quoi: next.summary, heure: next.start?.dateTime ? localNow(Date.parse(next.start.dateTime)).hhmm : null, trajet: trip || null } : null,
+    prochaine_etape: nextStep,
     clients_whatsapp_en_attente: { nombre: clients.length, les_plus_chauds: clients.slice(0, 2) },
     locations_du_jour: (books as Array<Record<string, unknown>>).filter(b => !/REJECT|CANCEL/i.test(String(b['status']))).map(b => `${(b['cars'] as { name?: string } | null)?.name ?? ''} ${b['client_name']} ${String(b['start_date']).startsWith(date) ? 'départ' : 'retour'}`),
     promesse: promises.find(p => !PRIVATE_RX.test(String(p))) ?? null,
-    decision: dec.find(d => !PRIVATE_RX.test(`${d.title} ${d.options.map(o => `${o.label} ${o.tool ?? ''} ${o.say ?? ''}`).join(' ')}`))?.title.slice(0, 140) ?? null,
   };
+  void dec;
   const said = await ai(`Kouider vient de monter en voiture (CarPlay). Fais-lui son point en 3 à 5 phrases courtes à l'ORAL (20 secondes), comme JARVIS d'Iron Man : calme, précis, élégant, VOUVOIEMENT :
-d'abord sa prochaine étape avec le temps de route et la marge (ou le retard), puis ce que veulent les 1-2 clients les plus chauds sur WhatsApp et combien attendent en tout, puis la location, la promesse ou la décision du jour s'il y en a.
+d'abord sa prochaine étape et COMBIEN DE TEMPS IL LUI RESTE avant (dans_minutes, dit en mots simples : « le travail commence dans 25 minutes », « dans 1 heure 10 »), avec le temps de route et la marge (ou le retard) ; puis ce que veulent les 1-2 clients les plus chauds sur WhatsApp et combien attendent en tout ; puis la location ou la promesse du jour s'il y en a. JAMAIS de « décision » ni de proposition à choisir (resto, soirée…) : il conduit.
 Ne redis PAS l'heure (déjà dite). JAMAIS un mot sur médicament, pharmacie, santé, Liberté ou sevrage (c'est privé). S'il n'y a aucun fait, dis seulement « Rien d'urgent à signaler. Bonne route. ». Uniquement ces faits, n'invente rien. Ce qui est vide ou null : n'en parle PAS du tout (jamais « pas de… »). Pas de « salut », pas de numéro de téléphone, pas d'emoji, pas de liste. Termine par « Bonne route. »
 Faits : ${JSON.stringify(facts)}`, { max: 300 }).catch(() => '');
   if (said) return speakable(said);
