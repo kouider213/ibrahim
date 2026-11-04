@@ -447,6 +447,29 @@ async function rentalCount(raw: string): Promise<Direct | null> {
   return { text: `📅 ${n} jour${n > 1 ? 's' : ''}. Chez FIK on compte par tranches de 24 h et le jour du retour ne compte jamais${late ? `, même rendue à ${b[2]} h au lieu de ${a[2]} h` : ''}.`, direct: true };
 }
 
+/** 💶 « si je loue la Fiat 500X du 29 octobre au 9 novembre à 40 €, ça fait un total de combien ? » (04/11 rejeu : il donnait
+ *  les prix de la flotte) → jours FIK (24 h, retour jamais compté) × prix donné, par le code */
+async function rentalTotal(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (t.length > 250 || !/\b(total|combien|ca fait|ca me fait)\b/.test(t)) return null;
+  const M = ['janvier', 'fevrier', 'mars', 'avril', 'mai', 'juin', 'juillet', 'aout', 'septembre', 'octobre', 'novembre', 'decembre'];
+  const m = t.match(new RegExp(`\\bdu (\\d{1,2})(?:er)?\\s*(${M.join('|')})?\\s+(?:au|jusqu'?au) (\\d{1,2})(?:er)?\\s*(${M.join('|')})?`));
+  const p = t.match(/(\d+(?:[.,]\d+)?)\s*(?:€|euros?\b|eur\b)|\b(?:a|au prix de|pour)\s+(\d+(?:[.,]\d+)?)\s*(?:par jour|\/j|le jour)/);
+  if (!m || !p) return null;
+  const price = Number((p[1] ?? p[2])!.replace(',', '.'));
+  if (!(price > 0 && price < 1000)) return null;
+  const { date } = localNow();
+  const y = Number(date.slice(0, 4)), cm = Number(date.slice(5, 7));
+  const m2 = m[4] ? M.indexOf(m[4]) + 1 : m[2] ? M.indexOf(m[2]) + 1 : cm;
+  const m1 = m[2] ? M.indexOf(m[2]) + 1 : (Number(m[1]) > Number(m[3]) ? (m2 === 1 ? 12 : m2 - 1) : m2);
+  const y1 = m1 > m2 ? y - (cm < m1 ? 1 : 0) : y, y2 = m1 > m2 ? y1 + 1 : y1;
+  const iso = (yy: number, mm: number, dd: number) => `${yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+  const { rentalDays } = await import('./finance.js');
+  const n = rentalDays(iso(y1, m1, Number(m[1])), iso(y2, m2, Number(m[3])));
+  const total = Math.round(n * price * 100) / 100;
+  return { text: `💶 ${n} jours × ${String(price).replace('.', ',')} € = ${String(total).replace('.', ',')} € au total (du ${m[1]} ${M[m1 - 1]} au ${m[3]} ${M[m2 - 1]} : tranches de 24 h, le jour du retour ne compte pas).`, direct: true };
+}
+
 /** 🧠 « comment s'est passée ma semaine dans la tête ? » (04/11 banc : résumé inventé sans le journal) → journal Mon esprit */
 async function mindWeek(raw: string): Promise<Direct | null> {
   const t = strip(raw);
@@ -491,7 +514,7 @@ export async function frCommand(raw: string, sessionId = 'telegram_kouider'): Pr
   SID = sessionId;
   const msg = raw.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
   if (!msg) return null;
-  for (const f of [craving, carKm, sportSkip, water, rentalCount, mindWeek, privacy, reminder, rdv, dnd, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
+  for (const f of [craving, carKm, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, dnd, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
     const r = await f(msg).catch(e => ({ text: `❌ ${e instanceof Error ? e.message : e}`, direct: true }));
     if (r) return r;
   }

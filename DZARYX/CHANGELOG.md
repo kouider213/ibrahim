@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-04 (32) — Rejeu de ses 80 vraies questions (2 semaines) + juge automatique
+- Banc `replay.ts` : ses vraies questions rejouées sur le vrai cerveau, chaque réponse contrôlée contre les résultats d'outils. 36 passées (24 OK, 12 signalées dont 1 vrai bug), 44 non jouées (quota gratuit épuisé par le rejeu).
+- `fr-commands.ts` rentalTotal : « du 29 octobre au 9 novembre à 40 €, total ? » → 11 j × 40 = 440 € par le code (avant : prix de la flotte).
+- `car-price-direct.ts` : plus d'interception quand il y a des dates / « total » / « au prix de ».
+- `constants.ts` : RÉPONDS À TOUT — chaque partie de la question ; « annulée / en pause / en attente » jamais changés en « aucun » ; « vérifie » = dire ce qui a été vérifié.
+
 ## 2026-11-04 (31) — « Je suis pas allé à la salle, c'est mauvais ? » : réponse honnête
 - `sport-coach.ts` session : jour annulé par lui → « séance ANNULÉE à ta demande (raison) » (avant : « aucune séance programmée ») + ligne semaine (faites / annulées / prévues).
 - `fr-commands.ts` skipJudge : vrais faits (aujourd'hui, demain, repas du jour) + consigne : juger la semaine, protéines qui manquent, déficit un jour de repos, prévenir si séances enchaînées.

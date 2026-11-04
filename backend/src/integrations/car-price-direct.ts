@@ -5,7 +5,7 @@ import { supabase } from './supabase.js';
 
 type CarRow = { name: string; base_price: number | null; resale_price: number | null; available: boolean | null; currency?: string | null };
 const PRICE_Q = /\b(combien|prix|tarif|co[uû]te?|à combien|a combien|on la (loue|fait|met)|on le (loue|fait))\b/i;
-const NOT_PRICE = /(gagn|rapport|b[ée]n[ée]f|profit|\bkm\b|kilom|\bplein\b|d.essence|vendre|vente|achet|r[ée]par|garage|assurance|amende|r[ée]servations?|combien de clients?|billet|vol\b|dispo|libre|r[ée]serv|semaine|week|mois|envoie|envoyer|dis[- ]lui|dis à|transmets|[ée]cris|whatsapp|mail|pr[ée]viens|plac|investi|int[ée]r[eê]ts?|%|pour ?cent|par an\b|cr[ée]dit|pr[eê]t\b)/i;
+const NOT_PRICE = /(gagn|rapport|b[ée]n[ée]f|profit|\bkm\b|kilom|\bplein\b|d.essence|vendre|vente|achet|r[ée]par|garage|assurance|amende|r[ée]servations?|combien de clients?|billet|vol\b|dispo|libre|r[ée]serv|semaine|week|mois|envoie|envoyer|dis[- ]lui|dis à|transmets|[ée]cris|whatsapp|mail|pr[ée]viens|plac|investi|int[ée]r[eê]ts?|%|pour ?cent|par an\b|cr[ée]dit|pr[eê]t\b|total|au prix de|\bdu \d{1,2}\b|\bau \d{1,2}\b|jusqu)/i;
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
 /** Voitures citées dans le message : le plus de mots du nom retrouvés (« Clio » = toutes les Clio, « clio 4 diesel » = une). */
