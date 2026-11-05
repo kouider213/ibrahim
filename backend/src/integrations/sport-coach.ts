@@ -449,12 +449,19 @@ export async function planSportWeek(write = true): Promise<{ slots: Array<PlanSl
     evOf[date] = e;
   }
   // 05/11 Kouider : samedi = à la maison à 08:30 → la plus grosse séance, celle qu'il a le plus besoin de développer
-  // (ses priorités FORME, ex. dos > bras > pecs > abdos). Échange avec le jour de la semaine qui l'avait (la rotation ne bouge pas).
+  // (ses priorités FORME, ex. dos > bras > pecs > abdos).
   const sat = Object.keys(plan).find(d => new Date(`${d}T12:00:00Z`).getUTCDay() === 6 && !fixed[d]);
   if (sat) {
     const big = await bigSessionType().catch(() => null);
-    const other = big && plan[sat]!.type !== big ? Object.keys(plan).find(d => d !== sat && !fixed[d] && d >= today && plan[d]!.type === big) : undefined;
-    if (big && other) { const t = plan[sat]!.type; plan[sat]!.type = big; plan[other]!.type = t; }
+    if (big && plan[sat]!.type !== big) {
+      // Kouider : « elle peut être les autres jours aussi, si je dois la faire 2× » → le samedi la prend toujours ; elle reste aussi
+      // en semaine (2×/semaine) SAUF si la séance du samedi disparaîtrait de la semaine : alors on échange les deux jours.
+      const displaced = plan[sat]!.type;
+      const elsewhere = Object.keys(plan).some(d => d !== sat && plan[d]!.type === displaced);
+      const other = elsewhere ? undefined : Object.keys(plan).find(d => d !== sat && !fixed[d] && d >= today && plan[d]!.type === big);
+      plan[sat]!.type = big;
+      if (other) plan[other]!.type = displaced;
+    }
   }
   for (const [date, slot] of Object.entries(plan)) {
     const e = evOf[date]!, type = slot.type, minutes = slot.minutes;
