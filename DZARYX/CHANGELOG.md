@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-05 (43) — samedi : maison à 08:30 + plus grosse séance
+- `morning-routine.ts` : fin de séance = heure maison − 25 min pour CHAQUE jour de sport (07:05 en semaine, 08:05 le samedi), retour → 07:30 / 08:30 ; resync unique kv routine:resync:2026-11-05c.
+- `gym-live.ts` defaultHomeBy(date) : 08:30 le samedi (alerte de départ au vrai trafic). `foresight.ts` utilise la même heure.
+- `sport-coach.ts` planSportWeek : le samedi reçoit la séance qui travaille le plus ses priorités FORME (dos > bras > pecs > abdos → DOS & BICEPS), échangée avec le jour qui l'avait (rotation inchangée ; jours faits / choisis par lui jamais touchés).
+
 ## 2026-11-05 (42) — agenda : à la maison à 07:30
 - `morning-routine.ts` syncRoutineCalendar : séance = jusqu'à 07:05 (07:30 − 20 min de route − 5), « 🚗 Retour maison » 07:05→07:30 (avant : séance 06:00-07:30 puis retour jusqu'à 09:15). Description : gym-live prévient 10 min avant le départ (vrai trafic) et appelle à l'heure. Resync unique (kv routine:resync:2026-11-05b) au prochain departure-watch.
 

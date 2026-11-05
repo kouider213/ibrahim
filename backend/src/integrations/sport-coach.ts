@@ -404,6 +404,21 @@ function freeMinutes(e: AgendaEvent, all: AgendaEvent[]): number {
   return Math.max(0, Math.round((en - s - cut) / 60_000));
 }
 
+/** La séance de la rotation qui travaille le plus ses muscles prioritaires (FORME objectifs : 1er = plus de poids), à égalité la plus longue. */
+async function bigSessionType(): Promise<SessionType | null> {
+  const { kvGet } = await import('./app-store.js');
+  const g = JSON.parse((await kvGet('kouider:forme:goals').catch(() => null)) ?? '{}') as { priority?: string[]; zones?: string[] };
+  const prio = (g.priority?.length ? g.priority : g.zones ?? []).map(z => z.toLowerCase());
+  const w = (m: string) => { const i = prio.indexOf(m.toLowerCase()); return i < 0 ? 0 : prio.length - i; };
+  let best: SessionType | null = null, bestScore = -1;
+  for (const t of ROTATION) {
+    const s = SESSIONS[t]; if (!s) continue;
+    const score = (s.muscles ?? []).reduce((a, m) => a + w(m), 0) * 100 + s.exercises.reduce((a, e) => a + e.sets, 0);
+    if (score > bestScore) { best = t; bestScore = score; }
+  }
+  return prio.length ? best : null;
+}
+
 /** Donne une séance à chaque créneau sport des 7 prochains jours et l'écrit dans l'agenda (titre + détail). */
 export async function planSportWeek(write = true): Promise<{ slots: Array<PlanSlot & { date: string }>; note: string }> {
   const st = await getState();
@@ -418,6 +433,7 @@ export async function planSportWeek(write = true): Promise<{ slots: Array<PlanSl
   }
   const sport = evs.filter(isSport).filter(e => e.transparency !== 'transparent' && !st.skips[dateOf(e.start.dateTime!)]);
   const plan: Record<string, PlanSlot> = {};
+  const fixed: Record<string, boolean> = {}, evOf: Record<string, AgendaEvent> = {};
   let idx = st.next; let changed = 0;
   for (const e of sport) {
     const date = dateOf(e.start.dateTime!);
@@ -428,9 +444,23 @@ export async function planSportWeek(write = true): Promise<{ slots: Array<PlanSl
     const type: SessionType = doneLog?.type ?? st.overrides[date] ?? ROTATION[idx % ROTATION.length]!;
     if (!doneLog && (!st.overrides[date] || st.overrides[date] === ROTATION[idx % ROTATION.length])) idx++;   // séance choisie = celle qui venait → la rotation avance
     const minutes = freeMinutes(e, evs);
+    plan[date] = { type, eventId: e.id!, start: e.start.dateTime!, end: e.end.dateTime!, minutes, title: '' };
+    fixed[date] = !!doneLog || !!st.overrides[date];
+    evOf[date] = e;
+  }
+  // 05/11 Kouider : samedi = à la maison à 08:30 → la plus grosse séance, celle qu'il a le plus besoin de développer
+  // (ses priorités FORME, ex. dos > bras > pecs > abdos). Échange avec le jour de la semaine qui l'avait (la rotation ne bouge pas).
+  const sat = Object.keys(plan).find(d => new Date(`${d}T12:00:00Z`).getUTCDay() === 6 && !fixed[d]);
+  if (sat) {
+    const big = await bigSessionType().catch(() => null);
+    const other = big && plan[sat]!.type !== big ? Object.keys(plan).find(d => d !== sat && !fixed[d] && d >= today && plan[d]!.type === big) : undefined;
+    if (big && other) { const t = plan[sat]!.type; plan[sat]!.type = big; plan[other]!.type = t; }
+  }
+  for (const [date, slot] of Object.entries(plan)) {
+    const e = evOf[date]!, type = slot.type, minutes = slot.minutes;
     const suffix = (e.summary ?? '').includes(' — ') ? (e.summary ?? '').split(' — ').slice(1).join(' — ') : 'salle';
     const title = `🏋️ ${customMap[date]?.label ?? SESSIONS[type].label}${inDeload(date) ? ' (allégée)' : lowForm(date) ? ' (courte)' : ''} — ${suffix}`;
-    plan[date] = { type, eventId: e.id!, start: e.start.dateTime!, end: e.end.dateTime!, minutes, title };
+    slot.title = title;
     if (write && e.id) {
       const base = (e.description ?? '').includes(MARK) ? (e.description ?? '').split(MARK).pop()! : (e.description ?? '');
       const desc = `${sessionText(type, minutes, log, true, date)}${MARK}${base}`.slice(0, 7000);

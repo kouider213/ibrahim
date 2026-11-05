@@ -49,10 +49,12 @@ export async function setHomeBy(date: string, hhmm: string | null): Promise<void
 }
 /** 02/11 (Kouider : « il sait que je dois être à la maison à 7h30 ») : séance du MATIN (début avant 7h15) sans heure dite → 7h30 max. */
 export const DEFAULT_HOME_BY = '07:30';
+/** 05/11 Kouider : à la maison à 07:30 en semaine, 08:30 le samedi (grosse séance). */
+export const defaultHomeBy = (date: string): string => new Date(`${date}T12:00:00Z`).getUTCDay() === 6 ? '08:30' : DEFAULT_HOME_BY;
 export async function getHomeBy(date: string, startTs?: number): Promise<string | null> {
   let set: string | null = null;
   try { set = (JSON.parse((await kvGet(HOMEBY_KEY)) ?? '{}') as Record<string, string>)[date] ?? null; } catch { /* rien */ }
-  return set ?? (startTs && hm(startTs).replace('h', ':').padStart(5, '0') < '07:15' ? DEFAULT_HOME_BY : null);
+  return set ?? (startTs && hm(startTs).replace('h', ':').padStart(5, '0') < '07:15' ? defaultHomeBy(date) : null);
 }
 
 async function points() {

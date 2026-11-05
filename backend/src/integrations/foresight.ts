@@ -61,7 +61,7 @@ export async function simulateTomorrow(send = true): Promise<string> {
     vols: trips.map(t => `${t.who} ${t.title} ${localNow(t.departAt).hhmm}`), prieres: prayers, trajets: legs, energie: energy,
     // 05/11 il a corrigé le planning : « retour 07:30-07:50 » (il doit être À la maison à 07:30), « déjeuner + micro-sieste au travail » (aucune pause là-bas), « coucher 22:30 » (il dort vers 23h)
     contraintes: [
-      ...(sport ? [`séance le matin → à la maison à ${await import('./gym-live.js').then(m => m.getHomeBy(date)).catch(() => null) ?? '07:30'} AU PLUS TARD (trajet retour terminé avant)`] : []),
+      ...(sport ? [`séance le matin → à la maison à ${await import('./gym-live.js').then(async m => (await m.getHomeBy(date)) ?? m.defaultHomeBy(date)).catch(() => '07:30')} AU PLUS TARD (trajet retour terminé avant)`] : []),
       'au travail : AUCUNE pause (ni repas, ni sieste, ni repos) — repas avant ou après le travail',
       'coucher : 23:00 (il dort vers 23h au plus tôt), jamais plus tôt dans le planning',
     ],

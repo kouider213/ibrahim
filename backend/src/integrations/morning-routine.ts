@@ -261,10 +261,10 @@ export async function ensureRoutineStart(): Promise<void> {
     console.log(`[routine] horaires v4 (réveil 6h40, départ 7h, sauf jeudi) : ${r}`);
   }
   // 05/11 soir : séance raccourcie pour être à la maison à 07:30 → séries recréées tout de suite (une fois)
-  if ((await kvGet('routine:resync:2026-11-05b').catch(() => '1')) !== '1') {
+  if ((await kvGet('routine:resync:2026-11-05c').catch(() => '1')) !== '1') {
     const r = await syncRoutineCalendar().catch(e => String(e));
-    if (/^\d+\/\d+ séries/.test(r) && !r.startsWith('0/')) await kvSet('routine:resync:2026-11-05b', '1', 30 * 86_400).catch(() => {});
-    console.log(`[routine] maison à 07:30 : ${r}`);
+    if (/^\d+\/\d+ séries/.test(r) && !r.startsWith('0/')) await kvSet('routine:resync:2026-11-05c', '1', 30 * 86_400).catch(() => {});
+    console.log(`[routine] maison à 07:30 (samedi 08:30) : ${r}`);
   }
   if ((await kvGet(START_FLAG).catch(() => '1')) === '1') return;
   const r = await syncRoutineCalendar().catch(e => String(e));
@@ -358,9 +358,11 @@ export async function syncRoutineCalendar(cfg?: RoutineConfig): Promise<string> 
   const after = (hhmm: string, min: number) => { const t = toMin(hhmm) + min; return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; };
   // 05/11 Kouider : « je veux être à la maison à 07:30 » → l'agenda disait séance 06:00-07:30 puis retour jusqu'à 09:15.
   // Fin de séance = 07:30 − route (20 min) − 5 min de marge ; le coach en direct (gym-live) recalcule avec le vrai trafic.
-  const HOME_BY = '07:30', ROAD_BACK = 20;
+  // Samedi : à la maison à 08:30 → la séance la plus longue (sport-coach y met la séance prioritaire).
+  const ROAD_BACK = 20;
   c.days.forEach((p0, d) => {
-    const p = p0.kind === 'sport' && p0.sport && toMin(p0.sport[1]) > toMin(HOME_BY) - ROAD_BACK - 5
+    const HOME_BY = d === 6 ? '08:30' : '07:30';
+    const p = p0.kind === 'sport' && p0.sport
       ? { ...p0, sport: [p0.sport[0], after(HOME_BY, -(ROAD_BACK + 5))] as [string, string], homeAt: HOME_BY } : { ...p0, homeAt: undefined as string | undefined };
     if (p.kind === 'sport' && p.sport) {
       add(`sport-${p.sport.join('-')}`, { title: '🏋️ Sport — salle de Wemmel', start: p.sport[0], end: p.sport[1], location: c.addresses.gym,
