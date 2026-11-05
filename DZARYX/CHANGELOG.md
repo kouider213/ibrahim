@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-05 (38) — réponses rapides aux raccourcis
+- `orchestrator.ts` : les raccourcis du code (eau, comprimés, sommeil, argent, rappels…) mettaient 9-15 s (médiane 2 jours) parce qu'ils attendaient le contexte complet du cerveau. Le contexte + notes (intentions/procédures/tâches) se chargent maintenant en parallèle et ne sont attendus que si le cerveau répond ; les consignes du code s'empilent dans `pre[]` puis sont posées sur le contexte. Même ordre qu'avant.
+- `fr-commands.ts` water : « corige » (1 r) / « mets l'eau à » reconnus (20h41 : faux « C'est noté » du cerveau, 4 L restés) (eba53699).
+
 ## 2026-11-05 (37) — raccourcis aveugles en « ne pas déranger » + eau en total
 - `liberte.ts` parseMedTake, `sleep-phone.ts` sleepFromMessage, `sport-coach.ts` parseSportCancel : la consigne « [Contexte : ne pas déranger…] » devant le message le rendait trop long → 19h53 « Je pris 8 demis aujaurdhui » pas noté + réponse vide (et « bonne nuit » n'aurait pas noté le coucher). Consignes retirées avant lecture ; « aujaurdhui » = total du jour.
 - `fr-commands.ts` water : « j'ai bu que 2 L / en tout / au total / corrige l'eau à 2 L » = total du jour (remplace), plus un ajout (05/11 : 4 L comptés au lieu de 2).

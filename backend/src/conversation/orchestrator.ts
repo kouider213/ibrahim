@@ -204,27 +204,25 @@ export async function processMessage(
   // Mode privé : rien n'est retenu (mémoire auto, apprentissage) et les messages seront effacés à la fin du mode
   const privateMode = await isPrivate(actorUserId, sessionId).catch(() => false);
   const sandbox = inSandbox();   // crash-test : ni mémoire auto ni apprentissage, sans la consigne du mode privé
-  const [ctx] = await Promise.all([
-    buildContext(sessionId, effectiveMessage, actor, textOnly),
-    saveConversationTurn(sessionId, 'user', userMessage).catch((err: unknown) =>
-      console.error('[orchestrator] user save error:', err),
-    ),
-    // Auto-extract memory facts from user message (non-blocking, background)
-    privateMode || sandbox ? Promise.resolve() : autoExtractMemory(userMessage, actorUserId).catch(() => {}),
-  ]);
-  // Apprentissage automatique : relecture de la conversation 10 min après le dernier message
-  if (!privateMode && !sandbox) noteOwnerTurn(sessionId, actorUserId);
-  if (privateMode) ctx.systemExtra = `MODE PRIVÉ ACTIF : n'enregistre RIEN en mémoire (remember_info, learn_rule…) sauf si l'utilisateur le demande explicitement dans ce message.\n\n${ctx.systemExtra ?? ''}`.trim();
-
+  // 05/11 VITESSE : « j'ai bu 2 L », « j'ai pris 8 demis » mettaient 9-15 s alors que le code répond seul → le contexte
+  // (agenda, flotte, mémoire, procédures…) se charge EN MÊME TEMPS que les raccourcis, attendu seulement si le cerveau répond.
+  const ctxP = buildContext(sessionId, effectiveMessage, actor, textOnly);
+  ctxP.catch(() => {});
   // Rappels déclenchés par ce que dit Kouider/Houari (« quand je parle de la Clio, rappelle-moi le pneu »)
   // + procédures apprises qui concernent ce message, + tâches en attente de Houari
-  const [intentNote, procNote, tasksNote] = await Promise.all([
+  const notesP = Promise.all([
     checkMentionIntentions(userMessage, actorUserId).catch(() => ''),
     proceduresContext(userMessage, actorUserId).catch(() => ''),
     openTasksContext(actorUserId).catch(() => ''),
   ]);
-  const extraNotes = [intentNote, procNote, tasksNote].filter(Boolean).join('\n\n');
-  if (extraNotes) ctx.systemExtra = `${extraNotes}\n\n${ctx.systemExtra ?? ''}`.trim();
+  await saveConversationTurn(sessionId, 'user', userMessage).catch((err: unknown) =>
+    console.error('[orchestrator] user save error:', err),
+  );
+  // Auto-extract memory facts from user message (non-blocking, background)
+  if (!privateMode && !sandbox) void autoExtractMemory(userMessage, actorUserId).catch(() => {});
+  // Apprentissage automatique : relecture de la conversation 10 min après le dernier message
+  if (!privateMode && !sandbox) noteOwnerTurn(sessionId, actorUserId);
+  const pre: string[] = [];   // consignes du code pour le cerveau, la plus récente en tête (appliquées quand le contexte est prêt)
 
   // Inject V2 pending-action context into system extra if present
   // « 14 $ je rajoute sur Claude » (24/10) : le cerveau répondait « noté » sans rien enregistrer → plus d'alerte « crédit bas ».
@@ -233,7 +231,7 @@ export async function processMessage(
   if (recharge !== null) {
     const { updateBilling } = await import('../integrations/billing.js');
     const done = await updateBilling('anthropic', { balance: recharge }).catch(e => `échec : ${e instanceof Error ? e.message : e}`);
-    ctx.systemExtra = `[Système : recharge Claude de ${recharge} $ ENREGISTRÉE dans la page À PAYER (${done}). Confirme-le en une phrase ; je préviendrai Kouider quand il restera moins de 3 $.]\n\n${ctx.systemExtra ?? ''}`.trim();
+    pre.unshift(`[Système : recharge Claude de ${recharge} $ ENREGISTRÉE dans la page À PAYER (${done}). Confirme-le en une phrase ; je préviendrai Kouider quand il restera moins de 3 $.]`);
   }
   // « Ange gardien contact Fatima +32… » (28/10) : le cerveau ignorait la phrase et repartait sur la question d'avant
   // (heure d'arrivée d'un client) → contact jamais enregistré. Enregistré ici pour de vrai, sans dépendre du modèle.
@@ -291,7 +289,7 @@ export async function processMessage(
       return { text: fc.text, status: 'done' };
     }
     if (fc) codeHint = fc.text;
-    if (fc) ctx.systemExtra = `DÉJÀ FAIT / CONSIGNE DU CODE pour ce message : ${fc.text}\nNe relance pas le même outil ; réponds à Kouider avec ça (court).\n\n${ctx.systemExtra ?? ''}`.trim();
+    if (fc) pre.unshift(`DÉJÀ FAIT / CONSIGNE DU CODE pour ce message : ${fc.text}\nNe relance pas le même outil ; réponds à Kouider avec ça (court).`);
   }
   // « MA JOURNÉE 8/10 » (05/11 banc : « c'est top » sans rien noter) → noté par le code ; s'il raconte plus, le cerveau répond aussi
   const dayNote = actorUserId === 'kouider' && !sandbox ? (await import('../integrations/mon-esprit.js')).parseDayNote(userMessage) : null;
@@ -303,7 +301,7 @@ export async function processMessage(
       _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
       return { text: done, status: 'done' };
     }
-    ctx.systemExtra = `DÉJÀ FAIT PAR LE CODE (ne rappelle PAS esprit noter) : ${done}\nDis-le en une demi-phrase puis réponds chaleureusement à ce qu'il raconte (court, une question au plus).\n\n${ctx.systemExtra ?? ''}`.trim();
+    pre.unshift(`DÉJÀ FAIT PAR LE CODE (ne rappelle PAS esprit noter) : ${done}\nDis-le en une demi-phrase puis réponds chaleureusement à ce qu'il raconte (court, une question au plus).`);
   }
   // PRIX D'UNE VOITURE (05/11 banc) : « la Clio 4 diesel on la loue combien ? » → « pas accès aux données » → lu dans la flotte
   if (actorUserId === 'kouider' && !sandbox) {
@@ -347,7 +345,7 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
         return { text, status: 'done' };
       }
     }
-    ctx.systemExtra = `DÉJÀ FAIT PAR LE CODE pour ce message (ne rappelle PAS liberte prise) : ${done}\nDis-le en une demi-phrase au plus (sans chiffres en liste), puis réponds VRAIMENT à ce qu'il dit d'autre : son moral, sa fatigue, son travail. Comme un ami proche, chaleureux, sans juger ni faire la morale sur le comprimé : montre que tu as compris ce qu'il ressent, une phrase de soutien concrète, et une seule question pour qu'il en parle. Court, pas de liste, pas de titre. NE DRAMATISE PAS (04/11 banc : « rentre chez toi », « on appelle quelqu'un pour venir te chercher ») : il est au travail et va finir sa journée ; pas de conseil de partir, pas d'appel à la famille, aucun outil (ni family_care ni pause) sauf s'il le demande ; 3-4 phrases max.\n\n${ctx.systemExtra ?? ''}`.trim();
+    pre.unshift(`DÉJÀ FAIT PAR LE CODE pour ce message (ne rappelle PAS liberte prise) : ${done}\nDis-le en une demi-phrase au plus (sans chiffres en liste), puis réponds VRAIMENT à ce qu'il dit d'autre : son moral, sa fatigue, son travail. Comme un ami proche, chaleureux, sans juger ni faire la morale sur le comprimé : montre que tu as compris ce qu'il ressent, une phrase de soutien concrète, et une seule question pour qu'il en parle. Court, pas de liste, pas de titre. NE DRAMATISE PAS (04/11 banc : « rentre chez toi », « on appelle quelqu'un pour venir te chercher ») : il est au travail et va finir sa journée ; pas de conseil de partir, pas d'appel à la famille, aucun outil (ni family_care ni pause) sauf s'il le demande ; 3-4 phrases max.`);
   } else if (medCmd) {
     const done = await (await import('../integrations/liberte.js')).runMedTake(medCmd).catch(e => `❌ échec : ${e instanceof Error ? e.message : e}`);
     _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: done });
@@ -364,10 +362,15 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
   const sportCancel = actorUserId === 'kouider' && !sandbox ? (await import('../integrations/sport-coach.js')).parseSportCancel(userMessage) : null;
   if (sportCancel) {
     const r = await (await import('../integrations/sport-coach.js')).runSportCancel(sportCancel).catch(e => `❌ échec de l'annulation : ${e instanceof Error ? e.message : e}`);
-    ctx.systemExtra = `DÉJÀ FAIT PAR LE CODE pour ce message (ne rappelle PAS sport_coach skip/rest pour ce jour) : ${r}\nConfirme-le-lui en une phrase avec CE résultat exact, puis réponds au reste de son message.\n\n${ctx.systemExtra ?? ''}`.trim();
+    pre.unshift(`DÉJÀ FAIT PAR LE CODE pour ce message (ne rappelle PAS sport_coach skip/rest pour ce jour) : ${r}\nConfirme-le-lui en une phrase avec CE résultat exact, puis réponds au reste de son message.`);
   }
   // 03/11 question de conseil → réponse « comme ChatGPT » (personnalisée FORME, illustrée, format Telegram propre). La consigne
   // va À CÔTÉ de sa question : noyée dans le prompt système, le cerveau gratuit l'ignorait (### bruts, aucun chiffre à lui).
+  const ctx = await ctxP;
+  if (privateMode) ctx.systemExtra = `MODE PRIVÉ ACTIF : n'enregistre RIEN en mémoire (remember_info, learn_rule…) sauf si l'utilisateur le demande explicitement dans ce message.\n\n${ctx.systemExtra ?? ''}`.trim();
+  const extraNotes = (await notesP).filter(Boolean).join('\n\n');
+  if (extraNotes) ctx.systemExtra = `${extraNotes}\n\n${ctx.systemExtra ?? ''}`.trim();
+  if (pre.length) ctx.systemExtra = `${pre.join('\n\n')}\n\n${ctx.systemExtra ?? ''}`.trim();
   if (actorUserId === 'kouider' && !(sessionId.startsWith('voice_') && !textOnly)) {
     const rich = await import('../integrations/rich-answer.js').then(m => m.richAnswerHint(userMessage)).catch(() => '');
     const last = ctx.messages[ctx.messages.length - 1];
