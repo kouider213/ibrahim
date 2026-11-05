@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-05 (42) — agenda : à la maison à 07:30
+- `morning-routine.ts` syncRoutineCalendar : séance = jusqu'à 07:05 (07:30 − 20 min de route − 5), « 🚗 Retour maison » 07:05→07:30 (avant : séance 06:00-07:30 puis retour jusqu'à 09:15). Description : gym-live prévient 10 min avant le départ (vrai trafic) et appelle à l'heure. Resync unique (kv routine:resync:2026-11-05b) au prochain departure-watch.
+
 ## 2026-11-05 (41) — planning de demain : ses vraies contraintes
 - 21h « 🔮 Demain » : « retour maison 07:30-07:50 », « déjeuner + micro-sieste au travail », « coucher 22:30 ». Il doit être À la maison à 07:30 max, n'a AUCUNE pause au travail, dort vers 23h.
 - `foresight.ts` facts.contraintes (home_by de gym-live, pas de pause au travail, coucher 23:00) + consigne de les respecter strictement.

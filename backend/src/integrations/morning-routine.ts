@@ -260,6 +260,12 @@ export async function ensureRoutineStart(): Promise<void> {
     if (/^\d+\/\d+ séries/.test(r) && !r.startsWith('0/')) await kvSet(DAYS_V2_FLAG, '1');
     console.log(`[routine] horaires v4 (réveil 6h40, départ 7h, sauf jeudi) : ${r}`);
   }
+  // 05/11 soir : séance raccourcie pour être à la maison à 07:30 → séries recréées tout de suite (une fois)
+  if ((await kvGet('routine:resync:2026-11-05b').catch(() => '1')) !== '1') {
+    const r = await syncRoutineCalendar().catch(e => String(e));
+    if (/^\d+\/\d+ séries/.test(r) && !r.startsWith('0/')) await kvSet('routine:resync:2026-11-05b', '1', 30 * 86_400).catch(() => {});
+    console.log(`[routine] maison à 07:30 : ${r}`);
+  }
   if ((await kvGet(START_FLAG).catch(() => '1')) === '1') return;
   const r = await syncRoutineCalendar().catch(e => String(e));
   if (/^\d+\/\d+ séries/.test(r) && !r.startsWith('0/')) await kvSet(START_FLAG, '1');
@@ -350,13 +356,18 @@ export async function syncRoutineCalendar(cfg?: RoutineConfig): Promise<string> 
     if (cur) cur.days.push(d); else blocks.set(k, { ...b, days: [d] });
   };
   const after = (hhmm: string, min: number) => { const t = toMin(hhmm) + min; return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; };
-  c.days.forEach((p, d) => {
+  // 05/11 Kouider : « je veux être à la maison à 07:30 » → l'agenda disait séance 06:00-07:30 puis retour jusqu'à 09:15.
+  // Fin de séance = 07:30 − route (20 min) − 5 min de marge ; le coach en direct (gym-live) recalcule avec le vrai trafic.
+  const HOME_BY = '07:30', ROAD_BACK = 20;
+  c.days.forEach((p0, d) => {
+    const p = p0.kind === 'sport' && p0.sport && toMin(p0.sport[1]) > toMin(HOME_BY) - ROAD_BACK - 5
+      ? { ...p0, sport: [p0.sport[0], after(HOME_BY, -(ROAD_BACK + 5))] as [string, string], homeAt: HOME_BY } : { ...p0, homeAt: undefined as string | undefined };
     if (p.kind === 'sport' && p.sport) {
       add(`sport-${p.sport.join('-')}`, { title: '🏋️ Sport — salle de Wemmel', start: p.sport[0], end: p.sport[1], location: c.addresses.gym,
-        desc: `Réveil ${p.wake} · départ ${p.leave} (Dzaryx te dit l'heure exacte selon le trafic).\nDzaryx vérifie que tu es réveillé et t'appelle si tu ne réponds pas.` }, d);
+        desc: `Réveil ${p.wake} · départ ${p.leave} (Dzaryx te dit l'heure exacte selon le trafic).\nDzaryx vérifie que tu es réveillé et t'appelle si tu ne réponds pas.${p.homeAt ? `\nÀ la maison à ${p.homeAt} au plus tard : à la salle, Dzaryx te prévient 10 min avant de partir (vrai trafic) et t'appelle à l'heure.` : ''}` }, d);
       if (p.leave) add(`aller-${p.leave}-${p.sport[0]}`, { title: '🚗 Trajet → salle de Wemmel', start: p.leave, end: p.sport[0], location: '',
         desc: 'Temps de trajet maison → salle (Dzaryx te prévient si le trafic l\'allonge).' }, d);
-      if (p.shower) add(`retour-${p.sport[1]}-${p.shower}`, { title: '🚗 Retour maison', start: p.sport[1], end: p.shower, location: '',
+      if (p.shower) add(`retour-${p.sport[1]}-${p.homeAt ?? p.shower}`, { title: '🚗 Retour maison', start: p.sport[1], end: p.homeAt ?? p.shower, location: '',
         desc: 'Temps de trajet salle → maison.' }, d);
       if (p.shower && p.eat) {
         const familyMeal = /famille/i.test(p.next ?? '');
