@@ -14,17 +14,18 @@ const TZ = 'Europe/Brussels';
 const DOSSIER_KEY = 'kouider:dossier';
 const NOTES_KEY = 'kouider:dossier:notes';
 const DAYS_OFF_KEY = 'kouider:days_off';
-const DEFAULT_DAYS_OFF = [1, 4];
+const DEFAULT_DAYS_OFF = [1];   // 05/11 (Kouider) : « mon seul jour de congé c'est le lundi »
 // 05/11 (Kouider) : le jeudi n'est PAS une journée entière de congé — librairie le matin, congé (pas de business)
 // seulement à partir de 13h. Heure de début du congé par jour : app_kv `kouider:days_off_from` ({"4":"13:00"}).
 const DAYS_OFF_FROM_KEY = 'kouider:days_off_from';
-const DEFAULT_DAYS_OFF_FROM: Record<string, string> = { '4': '13:00' };
+const DEFAULT_DAYS_OFF_FROM: Record<string, string> = {};
 const DAY_NAMES = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 
 const BASE = [
   'Kouider vit à Bruxelles avec sa femme et son fils ; FIK Conciergerie (location de voitures + conciergerie) à Oran avec son associé Houari, qu\'il gère à distance.',
   'Il est salarié dans une librairie à Jette (Bruxelles) ; FIK et le reste, c\'est en plus.',
-  'Jeudi : librairie le matin, congé business seulement à partir de 13h (après-midi en famille, pas de RDV business, seulement les urgences).',
+  'SEUL jour de congé : le LUNDI (avec sa femme et son fils : pas de travail, pas de RDV business, seulement les urgences). Le jeudi est un jour de TRAVAIL (librairie le matin) — jamais « jour de congé ».',
+  'Quand tu parles de sa famille, cite TOUJOURS sa femme ET Ibrahim (jamais Ibrahim seul : il ne veut pas qu\'on oublie sa femme).',
   'Il veut un assistant qui agit comme un vrai bras droit humain, en mieux : proactif, qui appelle et écrit, qui propose des idées et des plans comme un homme d\'affaires qui a réussi.',
   'Style : direct, concis, pas de blabla. Tutoiement. Français.',
   'Dzaryx a accès à son agenda Google et peut le modifier librement (ajouter, déplacer, supprimer) ; il le prévient de ce qu\'il a changé.',
@@ -98,6 +99,7 @@ export async function kouiderDossierText(): Promise<string> {
     'QUI EST KOUIDER (son dossier — tu tournes autour de lui, tu le connais par cœur) :',
     dossier?.trim() || BASE,
     `Jours de congé : ${daysOffText(days)}.${off && offFrom ? ` AUJOURD'HUI ce n'est PAS une journée de congé : il travaille à la LIBRAIRIE jusqu'à ${offFrom}, et il est en congé business seulement à partir de ${offFrom} (après-midi en famille). Ne lui dis jamais « jour de congé » / « journée en famille » avant ${offFrom} (Kouider 05/11).` : ''}${off && !offFrom ? " AUJOURD'HUI EST NORMALEMENT UN JOUR DE CONGÉ : sois bref, rien de non urgent, souhaite-lui une bonne journée en famille. MAIS s'il dit être au travail (ou si l'agenda du jour / le GPS le montre au travail), c'est un jour travaillé : ne lui parle pas de congé (22/10 : « comme c'est jeudi, ton jour de congé » alors qu'il bossait depuis 5h)." : ''}`,
+    "SA FAMILLE = sa femme ET son fils Ibrahim : quand tu en parles (motivation, « c'est pour eux que… »), cite TOUJOURS les deux, jamais Ibrahim seul (Kouider 05/11 : « il oublie la femme »).",
     ...(await isHardDay() ? ["AUJOURD'HUI = JOURNÉE DURE (il l'a demandé) : aucune prospection ni idée business, rien de non urgent, propose de décaler ce qui peut l'être, sois doux et bref. « journée normale » / « c'est bon » → family_care action hard_day off:true."] : []),
     ...(notes.length ? ['Notes récentes de Kouider sur lui-même :', ...notes.slice(-10).map(n => `- ${n}`)] : []),
     ...(coach ? [coach] : []),
@@ -120,7 +122,7 @@ export async function kouiderDossierText(): Promise<string> {
 const FAMILY_KEY = 'kouider:family';
 const FAMILY_BASE = [
   'Sa femme et son fils (« le petit ») vivent avec lui à Bruxelles.',
-  'Jeudi après-midi (à partir de 13h) : temps en famille. L\'été : vacances à Oran.',
+  'Lundi : journée en famille (son seul jour de congé). L\'été : vacances à Oran.',
 ];
 const FAMILY_WORDS = /\b(femme|épouse|fils|petit|enfant|bébé|famille|mère|maman|père|papa|frère|sœur|soeur|beau-|belle-|cousin|oncle|tante|neveu|nièce|anniversaire)\b/i;
 
