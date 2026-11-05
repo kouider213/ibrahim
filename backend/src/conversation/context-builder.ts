@@ -229,6 +229,7 @@ export async function buildContext(
   const fmtBruxelles = new Intl.DateTimeFormat('fr-BE', { timeZone: 'Europe/Brussels', hour: 'numeric', minute: 'numeric', hour12: false });
   const fmtOran      = new Intl.DateTimeFormat('fr-DZ', { timeZone: 'Africa/Algiers',  hour: 'numeric', minute: 'numeric', hour12: false });
   const fmtDate      = new Intl.DateTimeFormat('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const fmtDay       = new Intl.DateTimeFormat('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long' });
 
   const timeContext = hourBruxelles < 12
     ? 'PÉRIODE: Matin — ton énergique, propose résumé du jour si pertinent.'
@@ -237,7 +238,7 @@ export async function buildContext(
     : `PÉRIODE: Soir — ton calme, propose résumé journée si ${actor.displayName} salue.`;
 
   const actorRoleLabel = actor.role === 'owner' ? 'PDG' : actor.role === 'admin' ? 'Associé/Admin' : 'Membre';
-  const dateInfo = `\n\nUTILISATEUR: ${actor.displayName} (${actorRoleLabel} — Fik Conciergerie)\nDate: AUJOURD'HUI = ${fmtDate.format(now)} · DEMAIN = ${fmtDate.format(new Date(now.getTime() + 86_400_000))} (ne te fie jamais au jour écrit dans les anciens messages) | Heure Bruxelles: ${fmtBruxelles.format(now)} | Heure Oran: ${fmtOran.format(now)} | ${timeContext}`;
+  const dateInfo = `\n\nUTILISATEUR: ${actor.displayName} (${actorRoleLabel} — Fik Conciergerie)\nDate: AUJOURD'HUI = ${fmtDate.format(now)} · DEMAIN = ${fmtDate.format(new Date(now.getTime() + 86_400_000))} (ne te fie jamais au jour écrit dans les anciens messages ; le matin au réveil, « demain » = le jour d'APRÈS aujourd'hui, jamais aujourd'hui) · 7 PROCHAINS JOURS = ${[2,3,4,5,6,7].map(i => fmtDay.format(new Date(now.getTime() + i * 86_400_000))).join(', ')} (05/11 : il a dit « dimanche 1er novembre » au lieu du 8 → prends la date d'un jour nommé dans cette liste) | Heure Bruxelles: ${fmtBruxelles.format(now)} | Heure Oran: ${fmtOran.format(now)} | ${timeContext}`;
 
   // Active rentals
   const today = new Date().toISOString().slice(0, 10);

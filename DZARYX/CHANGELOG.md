@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-05 (36) — dates des jours + actions inventées
+- `fr-commands.ts` water : « Je pris 7 demi comprime est bu 2l d'eau » → la prise Liberté est notée aussi (0ba80871).
+- `context-builder.ts` : liste des 7 prochains jours avec leur date (« dimanche 1er novembre » dit au lieu du 8) + « demain » le matin ≠ aujourd'hui (« demain jeudi » dit un jeudi).
+- `conscience.ts` bouton de notification → le cerveau ne dit que ce que ses outils ont fait (« j'ai nettoyé ton agenda » après une simple lecture).
+
 ## 2026-11-05 (35) — « dispo à 6:30 » respecté, pas de sport inventé au réveil
 - `fr-commands.ts` dispoAt : « je suis dispo à 6:30 / joignable après 14h / dispo à partir de 9h » → pause_calls until_time par le code (le cerveau faisait resume:true et ignorait l'heure). Heure déjà passée → reprise.
 - `forme-food.ts` message du réveil : jour sans séance → « PAS DE SPORT AUJOURD'HUI » dans les faits + consigne sport seulement si séance prévue (jeudi 05/11 : « séance très légère » inventée).

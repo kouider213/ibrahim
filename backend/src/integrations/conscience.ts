@@ -81,7 +81,7 @@ export async function chooseDecision(id: string | null, n: number): Promise<stri
   try {
     const { processMessage } = await import('../conversation/orchestrator.js');
     const { stripToolTrace } = await import('./supabase.js');
-    const out = await processMessage(`[Tu m'as envoyé cette notification : « ${d.title.slice(0, 600)} ». J'ai choisi « ${o.label} ». Fais-le maintenant avec tes outils et donne-moi directement le résultat.]`, 'voice_kouider', true);
+    const out = await processMessage(`[Tu m'as envoyé cette notification : « ${d.title.slice(0, 600)} ». J'ai choisi « ${o.label} ». Fais-le maintenant avec tes outils et donne-moi directement le résultat. Ne dis QUE ce que tes outils ont réellement fait : lire l'agenda n'est pas le modifier (05/11 : « j'ai nettoyé ton agenda » alors qu'il était juste lu).]`, 'voice_kouider', true);
     const t = stripToolTrace(out.text ?? '').trim();
     if (t) return t.slice(0, 3500);
   } catch (e) { console.warn('[conscience] choix → cerveau', e instanceof Error ? e.message : e); }
