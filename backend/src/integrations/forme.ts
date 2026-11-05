@@ -121,6 +121,15 @@ export const readJson = async <T,>(key: string, fallback: T): Promise<T> => {
   try { const raw = await kvGet(key); return raw ? JSON.parse(raw) as T : fallback; } catch { return fallback; }
 };
 export const textOf = (res: { content: Array<{ type: string }> }) => res.content.filter(b => b.type === 'text').map(b => (b as unknown as { text: string }).text).join('');
+/** JSON d'un modèle, réparé si besoin (virgules finales, guillemets “ ” ‘ ’, clés sans guillemets). null = illisible. */
+export function jsonLoose<T>(raw: string): T | null {
+  const t = raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1);
+  if (!t) return null;
+  try { return JSON.parse(t) as T; } catch { /* réparation */ }
+  const fixed = t.replace(/[\u201C\u201D]/g, '"').replace(/,\s*([}\]])/g, '$1')
+    .replace(/([{,]\s*)'([^'\n]*?)'\s*:/g, '$1"$2":').replace(/([{,]\s*)([A-Za-z_][\w]*)\s*:/g, '$1"$2":');
+  try { return JSON.parse(fixed) as T; } catch { return null; }
+}
 export const jsonOf = <T,>(raw: string): T => JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as T;
 export const LANG_RULE = (l: Lang) => l === 'ar'
   ? '\nLANGUE : écris TOUS les textes destinés à l\'utilisatrice (titres, étapes, conseils, notes, résumés) en ARABE LITTÉRAIRE (فصحى) clair et simple. Pour les produits à acheter, écris « nom arabe (nom français du rayon belge) ».'
@@ -476,8 +485,14 @@ export async function analyzeBodyPhoto(uid: Uid, id: string, goal = '', vsId = '
       : `Photo de départ (${cur.date}${cur.weight ? `, ${cur.weight} kg` : ''}), pose ${cur.pose}. Pas de photo d'avant : décris le point de départ et les zones à travailler.` },
     { type: 'text' as const, text: goal.trim() ? `CE QU'IL/ELLE VEUT PERDRE OU AMÉLIORER : ${goal.slice(0, 300)} — entoure surtout ces zones (trend « à travailler » si c'est encore à faire) et donne des conseils précis pour ça.` : 'Il/elle n\'a rien précisé : dis TOI-MÊME, avec tact, ce qu\'il/elle devrait perdre ou travailler en priorité (zones « à travailler » entourées), et pourquoi.' },
   ];
-  const res = await createAnthropic().messages.create({ model: 'claude-sonnet-5-5', max_tokens: 1500, system: bodySystem(prof, uid), messages: [{ role: 'user', content }] }, QUALITY);
-  const j = jsonOf<Partial<BodyAnalysis>>(textOf(res));
+  // 05/11 : le cerveau gratuit de secours a rendu un JSON mal formé → « Expected double-quoted property name » et analyse perdue.
+  // JSON réparé (virgules en trop, guillemets typographiques/simples) + 1 nouvel essai.
+  let j: Partial<BodyAnalysis> | null = null;
+  for (let k = 0; k < 2 && !j; k++) {
+    const res = await createAnthropic().messages.create({ model: 'claude-sonnet-5-5', max_tokens: 1500, system: bodySystem(prof, uid), messages: [{ role: 'user', content }] }, QUALITY);
+    j = jsonLoose<Partial<BodyAnalysis>>(textOf(res));
+  }
+  if (!j) throw new Error('analyse illisible (cerveau saturé) — la photo est gardée, redemande dans quelques minutes');
   const f01 = (v: unknown, d: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : d; };
   const vis = (['oui', 'partiel', 'non'].includes(String((j as { body_visible?: string }).body_visible)) ? (j as { body_visible: string }).body_visible : 'partiel') as BodyAnalysis['visible'];
   if (vis === 'non') { j.zones = []; j.focus = []; j.score = 50; }
@@ -552,11 +567,16 @@ export async function lastTelegramPhoto(): Promise<{ b64: string; mime: string; 
 export async function bodyFromTelegram(o: { focus?: string; pose?: string; adapt?: boolean }): Promise<string> {
   const raw = await kvGet(TG_PHOTO_KEY);
   if (!raw) return '❌ Je n\'ai pas de photo récente (30 min max) : renvoie-moi ta photo.';
-  const { b64, mime } = JSON.parse(raw) as { b64: string; mime: string };
+  const stash = JSON.parse(raw) as { b64: string; mime: string; photoId?: string; pose?: string };
   const pose = (['face', 'profil', 'dos'].includes(String(o.pose)) ? o.pose : 'face') as BodyPhoto['pose'];
-  const ph = await addBodyPhoto('kouider', { media: (/png|webp/.test(mime) ? mime : 'image/jpeg') as Img['media'], data: b64 }, pose);
+  // 05/11 : la photo était effacée AVANT l'analyse → l'analyse plante, le 2e essai disait « pas de photo récente ».
+  // Maintenant : rangée une seule fois dans FORME, et gardée 30 min tant que l'analyse n'a pas réussi.
+  const ph = stash.photoId ? { id: stash.photoId } : await addBodyPhoto('kouider', { media: (/png|webp/.test(stash.mime) ? stash.mime : 'image/jpeg') as Img['media'], data: stash.b64 }, pose);
+  if (!stash.photoId) await kvSet(TG_PHOTO_KEY, JSON.stringify({ ...stash, photoId: ph.id }), 1800);
+  let a: BodyAnalysis;
+  try { a = await analyzeBodyPhoto('kouider', ph.id, o.focus ?? ''); }
+  catch (e) { return `📸 Photo rangée dans FORME, mais l'analyse n'a pas marché (${e instanceof Error ? e.message : e}). La photo reste gardée : rappelle l'outil dans quelques minutes, sans redemander la photo. Dis-le-lui honnêtement et n'invente AUCUNE analyse de son physique.`; }
   await kvDel(TG_PHOTO_KEY);
-  const a = await analyzeBodyPhoto('kouider', ph.id, o.focus ?? '');
   if (a.visible === 'non') return `📸 Photo rangée dans FORME, mais je ne peux PAS analyser ton corps dessus : ${a.seen || 'le corps n\'est pas visible'}.\n${a.summary}\nPour une vraie analyse : torse nu (ou t-shirt moulant), de face, bras le long du corps, bonne lumière, toujours au même endroit. Ta séance n'a pas été modifiée. (Dis-le-lui honnêtement, n'invente aucune zone ni conseil sur son physique.)`;
   const url = await annotatePhoto('kouider', ph.id).catch(() => null);
   let session = '';
