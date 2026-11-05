@@ -35,6 +35,8 @@ interface Settings { on: boolean; hoursWeek: number; monthTarget?: number }
 
 async function settings(): Promise<Settings> { return { on: true, hoursWeek: 15, ...(await kvJson<Partial<Settings>>(K.settings, {})) }; }
 async function dayOff(): Promise<boolean> { return import('./kouider-dossier.js').then(m => m.isDayOff()).catch(() => false); }
+/** Congé seulement à partir d'une heure (jeudi : librairie le matin, congé business dès 13h — Kouider 05/11). */
+async function offFrom(): Promise<string | null> { return import('./kouider-dossier.js').then(m => m.dayOffFrom()).catch(() => null); }
 
 // ── Données réelles ──────────────────────────────────────────────────────────
 
@@ -264,7 +266,7 @@ function sageOfDay(date: string, used: string[]): Sage {
   return pool[Math.floor(Date.parse(date) / 86_400_000) % pool.length]!;
 }
 const sageText = (s: Sage) => `${s.name} (${s.from}) — ${s.story}\nPrincipes : ${s.principles.join(' ; ')}\nPour Kouider : ${s.fik}${s.storm ? `\nÉpreuve : ${s.storm}` : ''}`;
-const COACH_SYS = `Tu es le GRAND COACH de Kouider : déterminé, chaleureux, exigeant, comme un grand frère qui a lu la vie de tous les grands entrepreneurs. Kouider : Algérien d'Oran installé en Belgique, marié, un fils (Ibrahim, 1 an et demi), il bâtit FIK Conciergerie (location de voitures à Oran) et FIK Sites, sport le matin, et il veut devenir un grand businessman en Algérie : indépendant, bon statut, bien financièrement, quitter la Belgique fin 2028. Tutoiement, phrases courtes, français simple. Jamais de nutrition ni de médicaments. N'invente ni chiffre, ni citation douteuse, ni nom de client.`;
+const COACH_SYS = `Tu es le GRAND COACH de Kouider : déterminé, chaleureux, exigeant, comme un grand frère qui a lu la vie de tous les grands entrepreneurs. Kouider : Algérien d'Oran installé en Belgique, salarié dans une librairie à Jette (Bruxelles), marié, un fils (Ibrahim, 1 an et demi), il bâtit FIK Conciergerie (location de voitures à Oran) et FIK Sites, sport le matin, et il veut devenir un grand businessman en Algérie : indépendant, bon statut, bien financièrement, quitter la Belgique fin 2028. Tutoiement, phrases courtes, français simple. Jamais de nutrition ni de médicaments. N'invente ni chiffre, ni citation douteuse, ni nom de client.`;
 
 // L1 — Texte du matin
 export async function texteDuJour(force = false): Promise<string> {
@@ -273,10 +275,14 @@ export async function texteDuJour(force = false): Promise<string> {
   const used = await kvJson<string[]>(K.used, []);
   const sage = sageOfDay(date, used);
   const off = await dayOff();
+  const from = off ? await offFrom() : null;
+  const dayDesc = !off ? 'jour de travail (librairie + FIK en plus)'
+    : from ? `il travaille à la LIBRAIRIE ce matin, puis congé business à partir de ${from} (après-midi en famille, pas de business sauf urgence). Ce n'est PAS une journée entière de congé : ne dis jamais « c'est ton jour de congé »`
+    : 'JOUR DE CONGÉ en famille (pas de business, sauf urgence)';
   const [vision, ex, pil] = await Promise.all([kvJson<{ ten?: string; one?: string; month?: string } | null>(K.vision, null), kvJson<Record<string, string>>(K.examen, {}), piliers().catch(() => null)]);
   const lastExam = Object.entries(ex).sort().at(-1);
   const weak = pil ? Object.entries(pil).sort((a, b) => a[1] - b[1])[0]?.[0] : '';
-  const body = await ai(`${sageText(sage)}\n\n${vision ? `Sa vision : 10 ans = ${vision.ten ?? '?'} ; cette année = ${vision.one ?? '?'} ; ce mois = ${vision.month ?? '?'}.` : ''}\n${lastExam ? `Son examen d'hier soir : ${lastExam[1]}` : ''}\n${weak ? `Pilier le plus faible cette semaine : ${weak}.` : ''}\nAujourd'hui : ${off ? 'JOUR DE CONGÉ en famille (pas de business, sauf urgence)' : 'jour de travail'}.\n\nÉcris son TEXTE DE MOTIVATION DU JOUR (8 à 12 lignes) :\n- commence par l'histoire vraie de ${sage.name} en 2-3 phrases qui accrochent\n- la leçon à appliquer AUJOURD'HUI dans SA vie (business, sport, famille ou amis selon le jour et son pilier faible)\n- finis par une phrase forte de détermination\nPas de titre, pas de liste à puces.`, { system: COACH_SYS, max: 600 }).catch(() => '');
+  const body = await ai(`${sageText(sage)}\n\n${vision ? `Sa vision : 10 ans = ${vision.ten ?? '?'} ; cette année = ${vision.one ?? '?'} ; ce mois = ${vision.month ?? '?'}.` : ''}\n${lastExam ? `Son examen d'hier soir : ${lastExam[1]}` : ''}\n${weak ? `Pilier le plus faible cette semaine : ${weak}.` : ''}\nAujourd'hui : ${dayDesc}.\n\nÉcris son TEXTE DE MOTIVATION DU JOUR (8 à 12 lignes) :\n- commence par l'histoire vraie de ${sage.name} en 2 phrases qui accrochent\n- PUIS LE RAPPROCHEMENT, OBLIGATOIRE et explicite (Kouider 05/11 : « il me raconte juste une histoire, pas ce que ça a à voir avec moi ») : une phrase qui commence par « Toi, Kouider, » et relie l'histoire à SA vraie situation (salarié en librairie qui construit FIK à distance avec Houari, épargne pour partir à Oran, papa d'Ibrahim…) : qu'est-ce qui est PAREIL entre lui et ${sage.name} ?\n- la leçon en UNE action concrète à faire AUJOURD'HUI, qui colle au moment de sa journée (à la librairie, avec FIK, au sport ou en famille selon le jour et son pilier faible) — jamais « demain »\n- finis par une phrase forte de détermination\nPas de titre, pas de liste à puces.`, { system: COACH_SYS, max: 600 }).catch(() => '');
   const text = body || `${sage.name} — ${sage.story}\n\n${sage.fik}\n\nAujourd'hui, une seule règle : avance, même d'un petit pas. Les grands ne sont pas nés grands, ils ont continué.`;
   await kvPut(K.used, [...used, sage.id].slice(-30));
   await kvPut(K.text(date), text, 3 * 86_400);
@@ -285,6 +291,7 @@ export async function texteDuJour(force = false): Promise<string> {
 
 async function morningMessage(): Promise<string> {
   const off = await dayOff();
+  const from = off ? await offFrom() : null;
   const [txt, defi, book] = await Promise.all([texteDuJour(), currentDefi(), livre().catch(() => '')]);
   const parts = [`☀️ LE GRAND COACH — ${fmtD(localNow().date)}`, '', txt];
   if (!off) {
@@ -292,7 +299,7 @@ async function morningMessage(): Promise<string> {
     parts.push('', '💼 TES 3 ACTIONS QUI RAPPORTENT AUJOURD\'HUI (réponds « fait 1 », « fait 2 »…) :', big3Line(b3), '', r);
     const rep = await repartition().catch(() => '');
     if (rep && !rep.includes('Rien d\'encaissé')) parts.push('', rep);
-  } else parts.push('', '👨‍👩‍👦 Jour de congé : téléphone loin, ta femme et Ibrahim d\'abord. Dzaryx garde la boutique.');
+  } else parts.push('', from ? `📚 Ce matin librairie. À partir de ${from}, congé : téléphone loin, ta femme et Ibrahim d'abord. Dzaryx garde la boutique.` : '👨‍👩‍👦 Jour de congé : téléphone loin, ta femme et Ibrahim d\'abord. Dzaryx garde la boutique.');
   if (defi) parts.push('', `🔥 Défi de la semaine : ${defi.text}`);
   if (book) parts.push('', book);
   const plus = await import('./grand-coach-plus.js').then(m => m.morningSections(localNow().weekday)).catch(() => [] as string[]);
