@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-05 (41) — planning de demain : ses vraies contraintes
+- 21h « 🔮 Demain » : « retour maison 07:30-07:50 », « déjeuner + micro-sieste au travail », « coucher 22:30 ». Il doit être À la maison à 07:30 max, n'a AUCUNE pause au travail, dort vers 23h.
+- `foresight.ts` facts.contraintes (home_by de gym-live, pas de pause au travail, coucher 23:00) + consigne de les respecter strictement.
+- `constants.ts` ⏰ SES CONTRAINTES (pour tous les cerveaux) ; `life-coach.ts` coucher par défaut 23:00, plus tôt seulement après une nuit courte.
+
 ## 2026-11-05 (40) — ses fautes comprises par les raccourcis (banc 41 phrases t-*)
 - Liberté : « je viens de prendre 2 demis », « j'ai prit un demi » notés ; « j'ai oublié de prendre / il faut prendre » ignorés.
 - Eau : « jai bu 1l deau », « je boi 50cl d'eau ». Argent : « snu 170 ». Sommeil : « bonne nui », « je suis réveiller ». Rappels : « rapel moi… », « rappel moi dans 10 minute… ». Silence : « me derange pas jusqua 18h ».

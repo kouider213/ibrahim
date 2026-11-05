@@ -59,10 +59,16 @@ export async function simulateTomorrow(send = true): Promise<string> {
     routine: cfg.days[wd], agenda: evs.map(e => `${e.start?.dateTime?.slice(11, 16) ?? 'journée'}-${e.end?.dateTime?.slice(11, 16) ?? ''} ${e.summary ?? ''}${e.location ? ` @${e.location}` : ''}`),
     seance: sport, locations: (books ?? []).filter((b: Record<string, unknown>) => !/REJECT|CANCEL/i.test(String(b['status']))),
     vols: trips.map(t => `${t.who} ${t.title} ${localNow(t.departAt).hhmm}`), prieres: prayers, trajets: legs, energie: energy,
+    // 05/11 il a corrigé le planning : « retour 07:30-07:50 » (il doit être À la maison à 07:30), « déjeuner + micro-sieste au travail » (aucune pause là-bas), « coucher 22:30 » (il dort vers 23h)
+    contraintes: [
+      ...(sport ? [`séance le matin → à la maison à ${await import('./gym-live.js').then(m => m.getHomeBy(date)).catch(() => null) ?? '07:30'} AU PLUS TARD (trajet retour terminé avant)`] : []),
+      'au travail : AUCUNE pause (ni repas, ni sieste, ni repos) — repas avant ou après le travail',
+      'coucher : 23:00 (il dort vers 23h au plus tôt), jamais plus tôt dans le planning',
+    ],
   };
   const o = jsonOf<{ timeline?: string[]; collisions?: Array<{ what: string; fix: string }>; tip?: string }>(await ai(
     `Simule la journée de DEMAIN de Kouider minute par minute avec ces faits réels :\n${JSON.stringify(facts, null, 1)}\n\n`
-    + `Déroule-la (réveil, trajets réels, séance, travail, clients, vols, prières, repas, famille) et repère les COLLISIONS : deux choses en même temps, trajet impossible, retard probable, séance qui fait rater un client, fatigue mal placée (chose difficile dans un creux d'énergie). Pour chacune : un plan B concret.\n`
+    + `Déroule-la (réveil, trajets réels, séance, travail, clients, vols, prières, repas, famille) en RESPECTANT STRICTEMENT « contraintes » et repère les COLLISIONS : deux choses en même temps, trajet impossible, retard probable, séance qui fait rater un client, fatigue mal placée (chose difficile dans un creux d'énergie). Pour chacune : un plan B concret.\n`
     + `Réponds UNIQUEMENT : {"timeline":["6h40 réveil", "..."] (8-12 lignes),"collisions":[{"what":"…","fix":"…"}],"tip":"1 phrase pour réussir sa journée"}`, { quality: true, max: 1200 }));
   if (!o) return 'Simulation impossible pour le moment.';
   const text = `🔮 Demain (${facts.jour} ${date.slice(8)}/${date.slice(5, 7)})\n${(o.timeline ?? []).join('\n')}${o.collisions?.length ? `\n\n⚠️ Collisions repérées :\n${o.collisions.map(c => `• ${c.what}\n  → ${c.fix}`).join('\n')}` : '\n\n✅ Aucune collision.'}${o.tip ? `\n\n💡 ${o.tip}` : ''}`;

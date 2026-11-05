@@ -68,7 +68,7 @@ const PLAN_SYSTEM = `Tu es le coach de vie et coach sportif personnel de Kouider
 Réponds UNIQUEMENT avec un objet JSON valide (pas de texte autour, pas de \`\`\`), de cette forme :
 {"mental":{"time":"HH:MM","goal":"objectif du jour (≤ 70 caractères)","action":"petit geste concret pour le moral (≤ 160 caractères)"},
  "sleep":{"time":"HH:MM","why":"pourquoi cette heure (≤ 100 caractères)"}}
-Règles : AUCUN repas ni conseil nutrition (il n'en veut pas). Heures de Bruxelles, jamais pendant le sport ni pendant un RDV. Mental : objectif + geste (famille, gratitude, respiration, prière si c'est dans ses habitudes), placé le matin. Coucher selon le réveil du lendemain.
+Règles : AUCUN repas ni conseil nutrition (il n'en veut pas). Heures de Bruxelles, jamais pendant le sport ni pendant un RDV. Mental : objectif + geste (famille, gratitude, respiration, prière si c'est dans ses habitudes), placé le matin. Coucher selon le réveil du lendemain : d'habitude il dort vers 23:00 (Kouider 05/11) → 23:00 par défaut, plus tôt seulement après une nuit courte.
 CONFIDENTIALITÉ : ces textes vont dans son agenda — n'y écris JAMAIS rien sur sa santé, ses traitements, son poids ou son moral (pas de « traitement », « appétit », « médicament », « moral bas »). Respecte TOUTES les règles de sécurité fournies. N'invente aucun rendez-vous.`;
 
 export interface CoachDay {
@@ -109,7 +109,7 @@ export async function buildCoachDay(date: string, writeAgenda = true): Promise<C
   const out: CoachDay = {
     date,
     mental: { time: isHHMM(j.mental?.time) ? j.mental!.time : '09:30', goal: String(j.mental?.goal ?? '').slice(0, 90), action: String(j.mental?.action ?? '').slice(0, 200) },
-    sleep: { time: isHHMM(j.sleep?.time) ? j.sleep!.time : '22:30', why: String(j.sleep?.why ?? '').slice(0, 120) },
+    sleep: { time: isHHMM(j.sleep?.time) ? j.sleep!.time : '23:00', why: String(j.sleep?.why ?? '').slice(0, 120) },
     sport, eventIds: [], at: Date.now(),
   };
   if (writeAgenda) {
