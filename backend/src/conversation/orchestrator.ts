@@ -682,6 +682,20 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
     // Crédits Claude morts → Dzaryx garde toute sa puissance (résas, finance, photos…)
     try {
       const { isAgenticFallbackAvailable, runAgenticFallback } = await import('../integrations/agentic-fallback.js');
+      // 🚑 05/11 (Kouider « oui ») : gros Gemini épuisés → il ne reste que des petits cerveaux qui répondent mal (photo du
+      // matin) → Claude Haiku d'abord, 6 fois/jour max (~20 c). Au-delà, ou si Haiku échoue, les petits cerveaux comme avant.
+      if (actorUserId === 'kouider' && !sandbox && !(await import('../integrations/agentic-fallback.js')).bigGeminiAvailable()) {
+        const compat = await import('../integrations/anthropic-compat.js');
+        const em = await compat.runClaudeEmergency(() => chatWithTools(ctx.messages, agentSystemExtra, sessionId, onToolStart, onToolDone, onTextChunk, imageBase64, imageMime, agentRoute.agentTools), 'faible').catch(e => { console.error('[claude-emergency] faible — échec :', e instanceof Error ? e.message : e); return null; });
+        if (em?.text) {
+          console.warn(`[claude-emergency] faible : gros Gemini épuisés → réponse Claude Haiku session=${sessionId}`);
+          const emText = oranize(localizeGuardMessage(phantomGuard(guardResponse(em.text, userMessage, requestId), em.toolsExecuted ?? [], userMessage, requestId), null, guardLang), actor);
+          _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: emText });
+          saveConversationTurn(sessionId, 'assistant', emText, { tools: (em.toolsExecuted ?? []).map((t: { name: string; success: boolean }) => `${t.name} ${t.success ? '✅' : '❌'}`) }).catch(() => {});
+          _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+          return { text: emText, status: 'done' };
+        }
+      }
       if (isAgenticFallbackAvailable()) {
         const runAg = (extra?: string, skip?: string[]) => runAgenticFallback(
           ctx.messages, extra ?? agentSystemExtra, sessionId,

@@ -102,7 +102,8 @@ export const inClaudeEmergency = (): boolean => !!emergencyALS.getStore();
 // 04/11 soir (Kouider : « s'il a pas, il pourra utiliser le crédit Claude jusqu'à ce que le gratuit revienne ») :
 // 'chat' = ses messages (30/jour), 'voix' = voiture + réveil + messages programmés (20/jour). Haiku ≈ 0,2 centime le message.
 // 'tout' = n'importe quel autre appel du cerveau (mentor, appels, jobs…) quand le gratuit est mort (« Claude prend le secours sur tout »).
-export const EMERGENCY_PER_DAY = { chat: 30, voix: 20, tout: 100 } as const;
+// faible = chat de Kouider quand il ne reste que les petits cerveaux gratuits (05/11 : ~3 c/tour Haiku → 6/jour ≈ 20 c)
+export const EMERGENCY_PER_DAY = { chat: 30, voix: 20, tout: 100, faible: 6 } as const;
 /** Prend 1 place de secours Claude dans le quota du jour. false = pas de secours possible (quota atteint, crédit à 0, banc). */
 export async function takeClaudeEmergency(bucket: keyof typeof EMERGENCY_PER_DAY): Promise<boolean> {
   if (Date.now() < claudeDeadUntil || process.env['BENCH'] === '1' || !env.ANTHROPIC_API_KEY) return false;

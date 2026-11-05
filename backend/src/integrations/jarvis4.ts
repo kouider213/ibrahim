@@ -303,7 +303,8 @@ export async function carWidgetData(): Promise<Record<string, unknown>> {
     (async () => { const oran = await import('./gps-life.js').then(m => m.oranActive()).catch(() => null); const [y, mo, d] = date.split('-');
       const r = await fetch(`https://api.aladhan.com/v1/timingsByCity/${d}-${mo}-${y}?city=${oran ? 'Oran' : 'Brussels'}&country=${oran ? 'Algeria' : 'Belgium'}&method=3`, { signal: AbortSignal.timeout(5000) });
       return ((await r.json()) as { data?: { timings?: Record<string, string>; date?: { hijri?: { day?: string; month?: { number?: number }; holidays?: string[] } } } }).data ?? null; })().catch(() => null),
-    import('./kouider-dossier.js').then(m => m.getDaysOff()).catch(() => [] as number[]),
+    // 05/11 : congé selon l'HEURE (jeudi dès 13h, dimanche dès 18h) + soirée libre après 20h les autres jours
+    import('./kouider-dossier.js').then(m => Promise.all([m.isDayOff(), m.isAfterWork()])).then(([off, evening]) => ({ off, evening })).catch(() => ({ off: false, evening: false })),
     fennecsToday(date),
   ]);
   // 04/11 : quand partir / trafic / retard prédit / client qui attend — en mots (car-widget-plus.ts)
@@ -322,10 +323,11 @@ export async function carWidgetData(): Promise<Record<string, unknown>> {
   const sunPos = minNow >= sun.rise && minNow <= sun.set ? (minNow - sun.rise) / Math.max(1, sun.set - sun.rise) : null;
   const nightLen = 1440 - (sun.set - sun.rise);
   const moonPos = sunPos === null ? ((minNow - sun.set + 1440) % 1440) / Math.max(1, nightLen) : null;
-  const dayOff = daysOff.includes(wdNow) && !homeward;
+  const dayOff = daysOff.off && !homeward;
+  const evening = daysOff.evening && homeward;   // fin du travail à 20h, il rentre : soirée en famille
   const mode = H >= 23 || H < 5 ? 'nuit' : dayOff && H >= 8 && H < 22 ? 'repos' : H < 11 ? 'depart' : homeward ? 'retour' : 'journee';
   const greeting = eid ? 'Aïd Mubarak, Monsieur.' : wdNow === 5 && H >= 5 && H < 16 ? 'Jumu\'a Mubarak, Monsieur.' : ramadan && H >= 5 && H < 18 ? 'Ramadan Karim, Monsieur.' : H >= 5 && H < 12 ? 'Bonjour, Monsieur.' : H >= 12 && H < 18 ? 'Bon après-midi, Monsieur.' : 'Bonsoir, Monsieur.';
-  const modeLabel = eid ? 'JOUR DE FÊTE · AÏD MUBARAK' : ramadan && mode !== 'nuit' ? 'MODE RAMADAN · ' + ({ depart: 'BONNE ROUTE', journee: 'EN LIGNE', retour: 'LA MAISON VOUS ATTEND', repos: 'REPOS' } as Record<string, string>)[mode] : ({ depart: 'PROTOCOLE DÉPART · BONNE ROUTE', journee: 'PROTOCOLE MISSION · EN LIGNE', retour: 'PROTOCOLE RETOUR · LA MAISON VOUS ATTEND', nuit: 'VEILLE DE NUIT · ACTIVE', repos: 'PROTOCOLE FAMILLE · REPOS' } as Record<string, string>)[mode]!;
+  const modeLabel = eid ? 'JOUR DE FÊTE · AÏD MUBARAK' : ramadan && mode !== 'nuit' ? 'MODE RAMADAN · ' + ({ depart: 'BONNE ROUTE', journee: 'EN LIGNE', retour: 'LA MAISON VOUS ATTEND', repos: 'REPOS' } as Record<string, string>)[mode] : ({ depart: 'PROTOCOLE DÉPART · BONNE ROUTE', journee: 'PROTOCOLE MISSION · EN LIGNE', retour: evening ? 'PROTOCOLE SOIRÉE · TEMPS EN FAMILLE' : 'PROTOCOLE RETOUR · LA MAISON VOUS ATTEND', nuit: 'VEILLE DE NUIT · ACTIVE', repos: 'PROTOCOLE FAMILLE · REPOS' } as Record<string, string>)[mode]!;
   const t = meteo?.temp;
   const feel = t == null ? '' : t <= 0 ? 'Gel' : t <= 5 ? 'Froid' : t <= 12 ? 'Frais' : t <= 20 ? 'Doux' : t <= 27 ? 'Chaud' : 'Canicule';
   const code = meteo?.code ?? 0;
@@ -353,14 +355,15 @@ export async function carWidgetData(): Promise<Record<string, unknown>> {
   const L: Record<string, string[]> = {
     depart: ['Systèmes prêts. La journée vous appartient.', 'Bonne route, Monsieur. Je veille sur FIK.', 'Le monde se lève. Vous êtes déjà en route.', 'Une priorité. Une seule. Exécutez.'],
     journee: CAR_LINES,
-    retour: ['Mission accomplie. Votre famille vous attend.', 'Le plus dur est derrière vous, Monsieur.', 'Vous avez tenu. Rentrez en héros.', 'Ce soir, on recharge. Demain, on conquiert.'],
-    repos: ['Aujourd\'hui, la mission c\'est votre famille.', 'Je garde la boutique. Profitez, Monsieur.', 'Un roi se repose aussi. Demain, on repart.'],
+    retour: ['Mission accomplie. Votre femme et Ibrahim vous attendent.', 'Le plus dur est derrière vous, Monsieur.', 'Vous avez tenu. Rentrez en héros.', 'Ce soir, on recharge. Demain, on conquiert.'],
+    repos: ['Aujourd\'hui, la mission c\'est votre femme et Ibrahim.', 'Je garde la boutique. Profitez, Monsieur.', 'Un roi se repose aussi. Demain, on repart.'],
     nuit: ['Je veille. Reposez-vous, Monsieur.', 'La nuit travaille pour ceux qui ont tout donné.', 'Les empires se construisent aussi en dormant.'],
   };
   let jarvis = L[mode]![slot % L[mode]!.length]!;
   if (eid) jarvis = 'Aïd Mubarak. Que cette fête vous rapproche d\'Oran.';
   else if (fennecs) jarvis = 'Ce soir, toute l\'Algérie est derrière les Fennecs.';
   else if (ramadan && mode === 'retour') jarvis = 'Tenez bon, Monsieur. L\'iftar vous attend à la maison.';
+  else if (evening && mode === 'retour') jarvis = ['Journée terminée, Monsieur. Ce soir, c\'est votre femme et Ibrahim.', 'Le travail s\'arrête ici. La soirée est à votre famille : votre femme et Ibrahim.', 'Vous avez donné votre journée. Offrez votre soirée à votre femme et à Ibrahim.'][slot % 3]!;
   if (fx.snow || (t != null && t <= 2)) jarvis = 'Route froide, Monsieur. Douceur sur les freins.';
   else if (fx.storm) jarvis = 'Orage sur la route. Je reste en alerte avec vous.';
   else if (fx.fog) jarvis = 'Brouillard. Feux allumés, distance doublée.';

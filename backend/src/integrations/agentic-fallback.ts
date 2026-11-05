@@ -88,6 +88,10 @@ export function markFailure(qid: string, status?: number, detail?: string): void
 const NO_MINIMAL = /^gemini-flash-latest$/;
 export const geminiEffort = (model: string, deep: boolean) => deep ? 'medium' : NO_MINIMAL.test(model) ? 'low' : 'minimal';
 const usable = (model: string) => (quotaUntil.get(model) ?? 0) < Date.now();
+/** Un « gros » Gemini (pas lite) est encore disponible. false = il ne reste que les petits cerveaux gratuits (05/11). */
+export function bigGeminiAvailable(): boolean {
+  return GEMINI_KEYS.length > 0 && GEMINI_MODELS.some(m => !/lite/.test(m) && GEMINI_KEYS.some((_, k) => usable(k ? `${m}#${k}` : m)));
+}
 
 // ── Fournisseurs gratuits ajoutés le 27/10 : le modèle est pris dans leur liste du moment (préférences dans l'ordre),
 // relue toutes les 6 h ; avant la 1re lecture, la 1re préférence connue sert par défaut.
