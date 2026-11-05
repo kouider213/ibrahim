@@ -100,7 +100,7 @@ router.get('/me', requireMobileAuth, async (req, res) => {
   try {
     const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Algiers' }).format(new Date());
     const from = new Date(`${day}T00:00:00+01:00`), to = new Date(from.getTime() + 8 * 86_400_000);
-    const [evs, daysOff] = await Promise.all([listAgendaRange(from.toISOString(), to.toISOString(), 80), getDaysOff().catch(() => [1])]);
+    const [evs, daysOff] = await Promise.all([listAgendaRange(from.toISOString(), to.toISOString(), 80), getDaysOff().catch(() => [1, 4, 0])]);
     const access = evs === null ? await agendaAccess() : { ok: true, calendar: 'fikconciergerie@gmail.com' };
     const events = (evs ?? []).filter(e => !(e.summary ?? '').startsWith('🚗'))      // les locations sont déjà sur la carte
       .map(e => ({ id: e.id, title: e.summary, location: e.location ?? null, start: e.start.dateTime ?? e.start.date ?? null, end: e.end?.dateTime ?? e.end?.date ?? null, allDay: !e.start.dateTime }));

@@ -13,7 +13,7 @@ import { isDayOff } from '../integrations/kouider-dossier.js';
 // - Pas plus d'un appel auto toutes les 10 min : sinon mis en file, appel groupé ensuite.
 // - Max 12 appels auto par jour, et chaque info n'appelle qu'une fois (clé anti-doublon 24 h).
 // - Interrupteur : app_kv `autocall:off` = '1' → plus aucun appel auto (les notifs restent).
-// - Jour de congé de Kouider (lundi seul depuis 05/11, app_kv `kouider:days_off`) : seuls les appels 'urgent' sonnent ;
+// - Congés de Kouider (lundi ; jeudi dès 13h ; dimanche dès 18h — 05/11, app_kv `kouider:days_off`) : seuls les appels 'urgent' sonnent ;
 //   les 'normal' (idées business, actu, anniversaires, vidange…) sont gardés et dits le prochain jour travaillé.
 //
 // « J'ai des choses pour toi » : ce qui n'a pas pu être dit par appel (quota, appels coupés, appel manqué)

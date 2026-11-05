@@ -275,10 +275,10 @@ export async function texteDuJour(force = false): Promise<string> {
   const used = await kvJson<string[]>(K.used, []);
   const sage = sageOfDay(date, used);
   const off = await dayOff();
-  const from = off ? await offFrom() : null;
-  const dayDesc = !off ? 'jour de travail (librairie + FIK en plus)'
-    : from ? `il travaille à la LIBRAIRIE ce matin, puis congé business à partir de ${from} (après-midi en famille, pas de business sauf urgence). Ce n'est PAS une journée entière de congé : ne dis jamais « c'est ton jour de congé »`
-    : 'JOUR DE CONGÉ en famille (pas de business, sauf urgence)';
+  const from = await offFrom();
+  const dayDesc = from ? `il travaille à la LIBRAIRIE jusqu'à ${from}, puis TEMPS LIBRE (congé) : du temps en famille avec sa femme et Ibrahim + du sport, pas de business sauf urgence. Ce n'est PAS une journée entière de congé : ne dis jamais « c'est ton jour de congé »`
+    : off ? 'JOUR DE CONGÉ : du temps en famille avec sa femme et Ibrahim + du sport, pas de business sauf urgence'
+    : 'jour de travail (librairie + FIK en plus)';
   const [vision, ex, pil] = await Promise.all([kvJson<{ ten?: string; one?: string; month?: string } | null>(K.vision, null), kvJson<Record<string, string>>(K.examen, {}), piliers().catch(() => null)]);
   const lastExam = Object.entries(ex).sort().at(-1);
   const weak = pil ? Object.entries(pil).sort((a, b) => a[1] - b[1])[0]?.[0] : '';
@@ -290,8 +290,8 @@ export async function texteDuJour(force = false): Promise<string> {
 }
 
 async function morningMessage(): Promise<string> {
-  const off = await dayOff();
-  const from = off ? await offFrom() : null;
+  const from = await offFrom();
+  const off = from ? false : await dayOff();   // 7h15 : le jeudi / dimanche il travaille encore (congé seulement à partir de « from »)
   const [txt, defi, book] = await Promise.all([texteDuJour(), currentDefi(), livre().catch(() => '')]);
   const parts = [`☀️ LE GRAND COACH — ${fmtD(localNow().date)}`, '', txt];
   if (!off) {
@@ -299,7 +299,8 @@ async function morningMessage(): Promise<string> {
     parts.push('', '💼 TES 3 ACTIONS QUI RAPPORTENT AUJOURD\'HUI (réponds « fait 1 », « fait 2 »…) :', big3Line(b3), '', r);
     const rep = await repartition().catch(() => '');
     if (rep && !rep.includes('Rien d\'encaissé')) parts.push('', rep);
-  } else parts.push('', from ? `📚 Ce matin librairie. À partir de ${from}, congé : téléphone loin, ta femme et Ibrahim d'abord. Dzaryx garde la boutique.` : '👨‍👩‍👦 Jour de congé : téléphone loin, ta femme et Ibrahim d\'abord. Dzaryx garde la boutique.');
+  } else parts.push('', '👨‍👩‍👦 Jour de congé : ta femme et Ibrahim d\'abord + ta séance de sport. Téléphone loin, Dzaryx garde la boutique.');
+  if (from) parts.push('', `🕐 À partir de ${from}, c'est ton temps libre : 🏋️ garde ton créneau sport, et le reste 👨‍👩‍👦 avec ta femme et Ibrahim. Pas de business sauf urgence, Dzaryx garde la boutique.`);
   if (defi) parts.push('', `🔥 Défi de la semaine : ${defi.text}`);
   if (book) parts.push('', book);
   const plus = await import('./grand-coach-plus.js').then(m => m.morningSections(localNow().weekday)).catch(() => [] as string[]);

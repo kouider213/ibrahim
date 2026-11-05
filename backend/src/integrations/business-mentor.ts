@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { kvGet, kvSet } from './app-store.js';
 import { runReadOnlyAgent } from './readonly-agent.js';
-import { kouiderDossierText, isDayOff } from './kouider-dossier.js';
+import { kouiderDossierText, hasDayOff } from './kouider-dossier.js';
 import { getAutoOpportunities } from './opportunities.js';
 import { startDossierJob, writeDossier } from './pro-doc.js';
 import { createMissionTool } from './missions.js';
@@ -148,7 +148,7 @@ async function deliver(idea: MentorIdea, callKey: string): Promise<void> {
 
 /** Tâche quotidienne (11h Bruxelles) : l'appel « conseiller » du jour. Pas les jours de congé. */
 export async function jobBusinessMentor(attempt = 1): Promise<void> {
-  if (await isDayOff()) { console.log('[mentor] jour de congé — pas de conseil business aujourd\'hui'); return; }
+  if (await hasDayOff()) { console.log('[mentor] jour de congé — pas de conseil business aujourd\'hui'); return; }
   let idea: Awaited<ReturnType<typeof generateMentorIdea>>;
   try { idea = await generateMentorIdea(); }
   catch (e) {
