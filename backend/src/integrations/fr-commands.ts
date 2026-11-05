@@ -400,9 +400,9 @@ async function siteVisits(raw: string): Promise<Direct | null> {
 /** 💧 « je bu 2 litre d'eau » (04/11 : « Bien joué » sans rien noter) → FORME (verres de 25 cl), total du jour vs objectif */
 async function water(raw: string): Promise<Direct | null> {
   const t = strip(raw).replace(/(\d),(\d)/g, '$1.$2');
-  if (t.length > 140 || /\?\s*$/.test(t) || !/\b(bu|bois|avale|pris|corrige|corriger|mets)\b/.test(t) || !/\beau\b/.test(t)) return null;
+  if (t.length > 140 || /\?\s*$/.test(t) || !/\b(bu|bois|avale|pris|corr?ige[rz]?|corr?igez|mets|met|remet[sz]?)\b/.test(t) || !/\beau\b/.test(t)) return null;
   // 05/11 : 2 L redits à 15h31 → 4 L comptés. « que 2 L / en tout / au total / corrige l'eau à 2 L » = TOTAL du jour, pas un ajout
-  const setTotal = /\bqu(?:e|')?\s*(?:\d|un|une|deux|trois|quatre)|\b(en tout|au total|total|corrige|corriger|mets)\b/.test(t);
+  const setTotal = /\bqu(?:e|')?\s*(?:\d|un|une|deux|trois|quatre)|\b(en tout|au total|total|corr?ige[rz]?|corr?igez|mets|met|remet[sz]?)\b/.test(t);  // 05/11 20h41 « Corige l'eau à 2l » (1 r) → cerveau « C'est noté » sans rien changer
   const m = t.match(/(\d+(?:\.\d+)?|un|une|deux|trois|quatre|cinq|six)\s*(litres?|l|verres?|bouteilles?|cl|gorgees?)\b/);
   if (!m) return null;
   const W: Record<string, number> = { un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6 };
