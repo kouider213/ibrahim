@@ -1,6 +1,6 @@
 import { kvGet, kvSet } from '../integrations/app-store.js';
 import { callOwner, getPendingCall } from './voice-call.js';
-import { isDayOff } from '../integrations/kouider-dossier.js';
+import { isDayOff, isAfterWork } from '../integrations/kouider-dossier.js';
 
 // Appels AUTOMATIQUES de Dzaryx à Kouider (sans qu'il demande) — UNIQUEMENT les moments importants
 // (choix de Kouider) : récap quotidien de 10h, quelqu'un répond à un de ses mails, nouvelle réservation
@@ -149,7 +149,7 @@ export async function autoCall(key: string, spoken: string, opts: { level?: Auto
     // Appels coupés : rien ne sonne, mais il l'entendra quand il appellera
     if ((await kvGet(OFF_KEY)) === '1') { await addToCallInbox(clean); return; }
     // Jour de congé : on ne dérange pas pour du non urgent → gardé pour le prochain jour travaillé
-    if (opts.level === 'normal' && await isDayOff().catch(() => false)) {
+    if (opts.level === 'normal' && (await isDayOff().catch(() => false) || await isAfterWork().catch(() => false))) {   // + soirée après 20h (05/11)
       const held = await readList(HELD_KEY);
       if (!held.some(h => sameInfo(h, clean))) held.push(clean);
       await kvSet(HELD_KEY, JSON.stringify(held.slice(-8)), 4 * 86_400);
@@ -182,7 +182,7 @@ export async function flushAutoCalls(): Promise<void> {
   await sendDndRecap().catch(e => console.warn('[auto-call] récap fin de silence:', e instanceof Error ? e.message : e));
   // Fin du congé : ce qui a été gardé (non urgent) rejoint la file, dès 9h le jour travaillé suivant
   const held = await readList(HELD_KEY);
-  if (held.length && !(await isDayOff().catch(() => true)) && localNow().hour >= 9) {
+  if (held.length && !(await isDayOff().catch(() => true)) && !(await isAfterWork().catch(() => true)) && localNow().hour >= 9) {
     const q = await readQueue();
     await kvSet(QUEUE_KEY, JSON.stringify([...q, ...held.filter(h => !q.some(x => sameInfo(x, h)))].slice(-10)), 2 * 86_400);
     await kvSet(HELD_KEY, '[]', 60);

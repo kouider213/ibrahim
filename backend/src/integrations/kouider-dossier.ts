@@ -20,12 +20,16 @@ const DEFAULT_DAYS_OFF = [1, 4, 0];
 // Ce temps libre doit lui garder du temps EN FAMILLE (sa femme ET Ibrahim) et du SPORT.
 const DAYS_OFF_FROM_KEY = 'kouider:days_off_from';
 const DEFAULT_DAYS_OFF_FROM: Record<string, string> = { '4': '13:00', '0': '18:00' };
+// 05/11 (Kouider) : « je termine les autres jours à 20h » → mardi, mercredi, vendredi, samedi : après 20h = temps libre
+// (famille, pas de non urgent). Le sport reste à l'horaire déjà enregistré. app_kv `kouider:work_end`.
+const WORK_END_KEY = 'kouider:work_end';
+const DEFAULT_WORK_END: Record<string, string> = { '2': '20:00', '3': '20:00', '5': '20:00', '6': '20:00' };
 const DAY_NAMES = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 
 const BASE = [
   'Kouider vit à Bruxelles avec sa femme et son fils ; FIK Conciergerie (location de voitures + conciergerie) à Oran avec son associé Houari, qu\'il gère à distance.',
   'Il est salarié dans une librairie à Jette (Bruxelles) ; FIK et le reste, c\'est en plus.',
-  'Congé = quand il n\'est pas au travail : LUNDI toute la journée, JEUDI à partir de 13h (librairie le matin), DIMANCHE à partir de 18h. Pendant ce temps : pas de RDV business, seulement les urgences, et du temps pour sa famille et pour le sport.',
+  'Congé = quand il n\'est pas au travail : LUNDI toute la journée, JEUDI à partir de 13h (librairie le matin), DIMANCHE à partir de 18h ; les autres jours (mardi, mercredi, vendredi, samedi) il finit à 20h, la soirée est libre. Pendant ce temps : pas de RDV business, seulement les urgences, et du temps pour sa famille et pour le sport.',
   'Quand tu parles de sa famille, cite TOUJOURS sa femme ET Ibrahim (jamais Ibrahim seul : il ne veut pas qu\'on oublie sa femme).',
   'Il veut un assistant qui agit comme un vrai bras droit humain, en mieux : proactif, qui appelle et écrit, qui propose des idées et des plans comme un homme d\'affaires qui a réussi.',
   'Style : direct, concis, pas de blabla. Tutoiement. Français.',
@@ -85,6 +89,16 @@ export async function dayOffFrom(offsetDays = 0): Promise<string | null> {
   return typeof h === 'string' && /^\d{2}:\d{2}$/.test(h) ? h : null;
 }
 
+/** Soirée libre MAINTENANT : un jour travaillé (mar/mer/ven/sam) après sa fin de travail (20h). */
+export async function isAfterWork(): Promise<boolean> {
+  let map = DEFAULT_WORK_END;
+  try { const v = JSON.parse((await kvGet(WORK_END_KEY)) ?? 'null'); if (v && typeof v === 'object') map = v as Record<string, string>; } catch { /* défaut */ }
+  const end = map[String(brusselsWeekday())];
+  if (typeof end !== 'string' || !/^\d{2}:\d{2}$/.test(end)) return false;
+  const now = new Date().toLocaleTimeString('fr-FR', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  return now >= end;
+}
+
 export const daysOffText = (days: number[]) => days.map(d => DAY_NAMES[d]).join(' et ') || 'aucun';
 
 async function readNotes(): Promise<string[]> {
@@ -111,7 +125,7 @@ export async function kouiderDossierText(): Promise<string> {
   return [
     'QUI EST KOUIDER (son dossier — tu tournes autour de lui, tu le connais par cœur) :',
     dossier?.trim() || BASE,
-    `Congés : lundi toute la journée, jeudi dès 13h, dimanche dès 18h (= quand il n'est pas au travail).${off && offFrom ? ` AUJOURD'HUI : il travaille à la LIBRAIRIE jusqu'à ${offFrom}, congé seulement à partir de ${offFrom}. Ne dis jamais « jour de congé » avant ${offFrom}. Dans son temps libre, garde-lui du temps EN FAMILLE (sa femme ET Ibrahim) et du SPORT, pas de business non urgent (Kouider 05/11).` : ''}${off && !offFrom ? " AUJOURD'HUI EST NORMALEMENT UN JOUR DE CONGÉ : sois bref, rien de non urgent, garde-lui du temps en famille (sa femme ET Ibrahim) et pour le sport. MAIS s'il dit être au travail (ou si l'agenda du jour / le GPS le montre au travail), c'est un jour travaillé : ne lui parle pas de congé (22/10 : « comme c'est jeudi, ton jour de congé » alors qu'il bossait depuis 5h)." : ''}`,
+    `Congés : lundi toute la journée, jeudi dès 13h, dimanche dès 18h ; mardi, mercredi, vendredi, samedi il finit à 20h → soirée libre (= quand il n'est pas au travail). Le sport reste à l'horaire déjà enregistré, ne le déplace pas.${off && offFrom ? ` AUJOURD'HUI : il travaille à la LIBRAIRIE jusqu'à ${offFrom}, congé seulement à partir de ${offFrom}. Ne dis jamais « jour de congé » avant ${offFrom}. Dans son temps libre, garde-lui du temps EN FAMILLE (sa femme ET Ibrahim) et du SPORT, pas de business non urgent (Kouider 05/11).` : ''}${off && !offFrom ? " AUJOURD'HUI EST NORMALEMENT UN JOUR DE CONGÉ : sois bref, rien de non urgent, garde-lui du temps en famille (sa femme ET Ibrahim) et pour le sport. MAIS s'il dit être au travail (ou si l'agenda du jour / le GPS le montre au travail), c'est un jour travaillé : ne lui parle pas de congé (22/10 : « comme c'est jeudi, ton jour de congé » alors qu'il bossait depuis 5h)." : ''}`,
     "SA FAMILLE = sa femme ET son fils Ibrahim : quand tu en parles (motivation, « c'est pour eux que… »), cite TOUJOURS les deux, jamais Ibrahim seul (Kouider 05/11 : « il oublie la femme »).",
     ...(await isHardDay() ? ["AUJOURD'HUI = JOURNÉE DURE (il l'a demandé) : aucune prospection ni idée business, rien de non urgent, propose de décaler ce qui peut l'être, sois doux et bref. « journée normale » / « c'est bon » → family_care action hard_day off:true."] : []),
     ...(notes.length ? ['Notes récentes de Kouider sur lui-même :', ...notes.slice(-10).map(n => `- ${n}`)] : []),
@@ -135,7 +149,7 @@ export async function kouiderDossierText(): Promise<string> {
 const FAMILY_KEY = 'kouider:family';
 const FAMILY_BASE = [
   'Sa femme et son fils (« le petit ») vivent avec lui à Bruxelles.',
-  'Lundi, jeudi après 13h, dimanche après 18h : temps en famille. L\'été : vacances à Oran.',
+  'Lundi, jeudi après 13h, dimanche après 18h, et les autres soirs après 20h : temps en famille. L\'été : vacances à Oran.',
 ];
 const FAMILY_WORDS = /\b(femme|épouse|fils|petit|enfant|bébé|famille|mère|maman|père|papa|frère|sœur|soeur|beau-|belle-|cousin|oncle|tante|neveu|nièce|anniversaire)\b/i;
 
