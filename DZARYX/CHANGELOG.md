@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-05 (35) — « dispo à 6:30 » respecté, pas de sport inventé au réveil
+- `fr-commands.ts` dispoAt : « je suis dispo à 6:30 / joignable après 14h / dispo à partir de 9h » → pause_calls until_time par le code (le cerveau faisait resume:true et ignorait l'heure). Heure déjà passée → reprise.
+- `forme-food.ts` message du réveil : jour sans séance → « PAS DE SPORT AUJOURD'HUI » dans les faits + consigne sport seulement si séance prévue (jeudi 05/11 : « séance très légère » inventée).
+
 ## 2026-11-05 (34) — « La tâche conscience a planté » (05:20)
 - `life-coach.ts` : le sommeil noté par message enregistrait health:daily en JSON doublé → `.find is not a function` dans conscience. Écriture corrigée + donnée réparée.
 - `ai-util.ts` kvJson : relit aussi une valeur doublement encodée (plus de plantage si ça revient ailleurs).

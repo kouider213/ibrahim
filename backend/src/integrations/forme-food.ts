@@ -439,7 +439,9 @@ function sleepUsual(all: HDay[], date: string): number | null {
 async function dayContext(date: string): Promise<string> {
   const bits: string[] = [];
   const sp = await import('./sport-coach.js').then(m => m.sportToday()).catch(() => null);
-  if (sp?.label) bits.push(`Séance de sport prévue aujourd'hui : ${sp.label}${sp.skipped ? ' (annulée)' : ''}.`);
+  // 05/11 : jeudi sans séance → le message du réveil parlait quand même de « séance très légère » : le dire noir sur blanc
+  if (sp?.label && !sp.skipped) bits.push(`Séance de sport prévue aujourd'hui : ${sp.label}.`);
+  else bits.push(`PAS DE SPORT AUJOURD'HUI (${sp?.skipped ? 'séance annulée' : 'jour sans séance'}) : ne parle d'AUCUNE séance, salle ou entraînement ; au plus de la marche / bouger un peu.`);
   const { localTs } = await import('./morning-routine.js');
   const ev = await import('./google-calendar.js').then(m => m.listAgendaRange(new Date(localTs(date, '00:00')).toISOString(), new Date(localTs(date, '23:59')).toISOString(), 15)).then(x => x ?? []).catch(() => []);
   if (ev.length) bits.push(`Agenda (FIK) : ${ev.slice(0, 8).map(e => `${e.start?.dateTime ? localNow(Date.parse(e.start.dateTime)).hhmm : ''} ${e.summary ?? ''}`.trim()).join(' ; ')}.`);
@@ -470,7 +472,7 @@ export async function morningSleepMessage(force = false): Promise<string | null>
     if (r && !/pas de séance/i.test(r)) lighter = 'La séance du jour vient d\'être passée en version courte et légère automatiquement (−10 % sur les charges).';
   }
   const facts = [sleepLine, week ? `Semaine : ${week}` : '', ready, lighter, yLine, `Budget d'aujourd'hui : ${b.target} kcal (déficit ${b.deficit}), protéines ${b.proteinGoal} g.`, await dayContext(date)].filter(Boolean).join('\n');
-  const say = await coachSay(facts, `C'est le MESSAGE DU RÉVEIL (6-9 lignes max). 1) Sa nuit en une phrase honnête (si pas reçue : dis-lui de lancer le raccourci « Dzaryx Santé » ou de te dire combien il a dormi). 2) Ce que ça change AUJOURD'HUI, concrètement, pour : le SPORT (plus léger ? moins de séries ? garder ?), le BUSINESS (les tâches importantes quand ? éviter les grosses décisions après 15h si nuit courte), le MORAL (patience, pause, respiration, famille) — mauvaise nuit = plus de faim et d'envies sucrées : préviens-le. 3) Hier côté calories en une phrase. 4) Son budget du jour + une idée de petit-déj protéiné qui va avec.`, 600);
+  const say = await coachSay(facts, `C'est le MESSAGE DU RÉVEIL (6-9 lignes max). 1) Sa nuit en une phrase honnête (si pas reçue : dis-lui de lancer le raccourci « Dzaryx Santé » ou de te dire combien il a dormi). 2) Ce que ça change AUJOURD'HUI, concrètement, pour : le SPORT (UNIQUEMENT si une séance est prévue aujourd'hui dans les faits ; sinon n'en parle pas), le BUSINESS (les tâches importantes quand ? éviter les grosses décisions après 15h si nuit courte), le MORAL (patience, pause, respiration, famille) — mauvaise nuit = plus de faim et d'envies sucrées : préviens-le. 3) Hier côté calories en une phrase. 4) Son budget du jour + une idée de petit-déj protéiné qui va avec.`, 600);
   if (!say) return null;
   await kvSet(SENT_K('morning', date), '1', 2 * 86_400);
   return `🌅 Ta nuit & ta journée\n${say}`;

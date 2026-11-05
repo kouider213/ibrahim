@@ -152,6 +152,24 @@ async function dnd(raw: string): Promise<Direct | null> {
   return { text: input['until_reply'] ? '🔕 OK, je ne te dérange plus (ni appel ni message) jusqu\'à ce que tu m\'écrives. Tout est gardé pour après.' : `🔕 OK, je ne te dérange plus jusqu'à ${fin ?? 'la fin du silence'} : ni appel, ni message. Ce qui arrive est gardé et te parvient en un seul message après.`, direct: true };
 }
 
+/** « je suis dispo à 6:30 », « joignable après 14h », « dispo à partir de 15h » → silence jusqu'à cette heure.
+ *  05/11 : « Je suis dispo à 6:30 » (05:41) → le cerveau a fait resume:true (« C'est reparti ») et ignoré l'heure. */
+async function dispoAt(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (raw.length > 120 || /\?/.test(raw) || /\b(demain|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)\b/.test(t)) return null;
+  const m = /\b(?:dispo(?:nible)?|joignable|libre)\s+(?:a partir de|apres|vers|des|a)\s*(\d{1,2})\s*(?:h|:)\s*(\d{2})?\b/.exec(t);
+  if (!m || Number(m[1]) > 23) return null;
+  const hhmm = `${pad(Number(m[1]))}:${m[2] ?? '00'}`;
+  const { executeTool } = await import('./tool-executor.js');
+  if (hhmm <= localNow().hhmm) {   // heure déjà passée = il est là maintenant
+    const r = await executeTool('pause_calls', { resume: true }, SID);
+    return { text: /❌/.test(r) ? r : '✅ OK, tu es dispo : appels et messages réactivés.', direct: true };
+  }
+  const r = await executeTool('pause_calls', { until_time: hhmm, reason: 'dispo plus tard' }, SID);
+  if (/❌/.test(r)) return { text: r, direct: true };
+  return { text: `🔕 OK, je ne t'appelle pas et je ne t'écris pas avant ${hhmm}. Ce qui attend arrive à ${hhmm}.`, direct: true };
+}
+
 /** « j'ai dormi 5h », « dormi 6h30 », « j'ai dormi que 4 heures » → sommeil de la nuit noté. */
 async function sleep(raw: string): Promise<Direct | null> {
   const t = strip(raw);
@@ -514,7 +532,7 @@ export async function frCommand(raw: string, sessionId = 'telegram_kouider'): Pr
   SID = sessionId;
   const msg = raw.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
   if (!msg) return null;
-  for (const f of [craving, carKm, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, dnd, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
+  for (const f of [craving, carKm, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
     const r = await f(msg).catch(e => ({ text: `❌ ${e instanceof Error ? e.message : e}`, direct: true }));
     if (r) return r;
   }
