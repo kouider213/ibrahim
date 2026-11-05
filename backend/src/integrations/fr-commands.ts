@@ -91,7 +91,7 @@ let SID = 'telegram_kouider';
 /** « rappelle-moi … » avec une date/heure claire → schedule_reminder. */
 async function reminder(raw: string): Promise<Direct | null> {
   const t = strip(raw);
-  const head = /^(?:stp\s+|s'il te plait\s+)?(rappelle[- ]?moi|rappel(?:le)?\s*(?::|de|d')|fais[- ]moi penser|pense a me rappeler|n'oublie pas de me rappeler|tu me rappelles?)\b/.exec(t);
+  const head = /^(?:stp\s+|s'il te plait\s+)?(rappelle[- ]?moi|r+app?ell?e?s?[- ]?moi|rapp?el(?:le)?\s*(?::|de|d')|fais[- ]moi penser|pense a me rappeler|n'oublie pas de me rappeler|tu me rappelles?)\b/.exec(t);
   if (!head || raw.length > 220 || /\?$/.test(raw.trim())) return null;
   const w = parseWhen(raw);
   if (!w.date && !w.time && !w.inMinutes) return null;
@@ -136,7 +136,7 @@ async function rdv(raw: string): Promise<Direct | null> {
 /** « ne me dérange pas jusqu'à 18h / pendant 2 h / 30 min » → silence (appels + messages). */
 async function dnd(raw: string): Promise<Direct | null> {
   const t = strip(raw);
-  const m = /\b(ne me derange(?:s|z)? pas|derange[- ]moi pas|pas d'appels?|silence|mode silence|laisse[- ]moi tranquille)\b/.exec(t);
+  const m = /\b((?:ne )?me derange(?:s|z|r)? pas|derange[- ]moi pas|pas d'appels?|silence|mode silence|laisse[- ]moi tranquille)\b/.exec(t);
   if (!m || raw.length > 160 || /\?/.test(raw) || /\b(demain|ce soir|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|matin)\b/.test(t)) return null;   // plus tard = silence programmé → cerveau (pause_calls day/from_time)
   const { executeTool } = await import('./tool-executor.js');
   let input: Record<string, unknown>;
@@ -415,7 +415,7 @@ async function siteVisits(raw: string): Promise<Direct | null> {
 /** 💧 « je bu 2 litre d'eau » (04/11 : « Bien joué » sans rien noter) → FORME (verres de 25 cl), total du jour vs objectif */
 async function water(raw: string): Promise<Direct | null> {
   const t = strip(raw).replace(/(\d),(\d)/g, '$1.$2');
-  if (t.length > 140 || /\?\s*$/.test(t) || !/\b(bu|bois|avale|pris|corr?ige[rz]?|corr?igez|mets|met|remet[sz]?)\b/.test(t) || !/\beau\b/.test(t)) return null;
+  if (t.length > 140 || /\?\s*$/.test(t) || !/\b(bu|bue|bus|bois|boi|boit|avale|pris|corr?ige[rz]?|corr?igez|mets|met|remet[sz]?)\b/.test(t) || !/\bd?eau\b/.test(t)) return null;   // 05/11 banc : « jai bu 1l deau », « je boi 50cl »
   // 05/11 : 2 L redits à 15h31 → 4 L comptés. « que 2 L / en tout / au total / corrige l'eau à 2 L » = TOTAL du jour, pas un ajout
   const setTotal = /\bqu(?:e|')?\s*(?:\d|un|une|deux|trois|quatre)|\b(en tout|au total|total|corr?ige[rz]?|corr?igez|mets|met|remet[sz]?)\b/.test(t);  // 05/11 20h41 « Corige l'eau à 2l » (1 r) → cerveau « C'est noté » sans rien changer
   const m = t.match(/(\d+(?:\.\d+)?|un|une|deux|trois|quatre|cinq|six)\s*(litres?|l|verres?|bouteilles?|cl|gorgees?)\b/);

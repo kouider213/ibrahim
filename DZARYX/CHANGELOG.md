@@ -3,6 +3,11 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-05 (40) — ses fautes comprises par les raccourcis (banc 41 phrases t-*)
+- Liberté : « je viens de prendre 2 demis », « j'ai prit un demi » notés ; « j'ai oublié de prendre / il faut prendre » ignorés.
+- Eau : « jai bu 1l deau », « je boi 50cl d'eau ». Argent : « snu 170 ». Sommeil : « bonne nui », « je suis réveiller ». Rappels : « rapel moi… », « rappel moi dans 10 minute… ». Silence : « me derange pas jusqua 18h ».
+- Banc phase1 : 150/152 (fr-journee hors bac à sable connu ; t-couche-a OK, cerveau appelé en fond), phase1b 25/25.
+
 ## 2026-11-05 (39) — « aucune vente » à la question du soir
 - `fr-commands.ts` noSales : réponse « aucun / rien / pas gagné de cash » après « 💵 Combien de snus aujourd'hui ? » (kv argent:sent:soir:date) → réponse directe, rien inscrit (20h50 : « ⚠️ Je n'ai pas exécuté cette action »). Mot d'argent exigé sauf réponse ≤ 3 mots, aucun chiffre.
 

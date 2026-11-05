@@ -61,9 +61,9 @@ export async function phoneSleepMark(kindIn: string): Promise<{ ok: true; say: s
  *  - le matin (4h30 → 13h), son 1er message (quel qu'il soit) après un « bonne nuit » = réveil → nuit calculée.
  * Renvoie une réponse directe seulement si le message n'est QUE la salutation ; sinon null (le cerveau répond normalement).
  */
-const NIGHT_RE = /\b(bonne nuit|bne nuit|b nuit|tesbah|tesba7|tasbah|t'?sbah|je (vais|part|pars) (dormir|me coucher|au lit)|je (me couche|dors|vais au lit)|au lit|dodo|(je vais|on va) faire dodo)(?![\wà-ÿ])/i;
+const NIGHT_RE = /\b(bonne nuit+|bonne nui|bone nuit|bn nuit|bne nuit|b nuit|tesbah|tesba7|tasbah|t'?sbah|je (vais|part|pars) (dormir|me coucher|au lit)|je (me couche|dors|vais au lit)|au lit|dodo|(je vais|on va) faire dodo)(?![\wà-ÿ])/i;
 const NOT_SLEEP_RE = /\b(pas encore|dors pas|dort pas|(peux|arrive) pas (à |a )?dormir|pas sommeil|insomnie)/i;
-const MORNING_RE = /\b(bonjour|bonjoir|sala+m\w*|salut|sbah|sba7|sbah el ?kh?ir|r[ée]veill[ée]|je me l[èe]ve|je suis (debout|lev[ée])|debout)(?![\wà-ÿ])/i;
+const MORNING_RE = /\b(bonjour|bonjoir|sala+m\w*|salut|sbah|sba7|sbah el ?kh?ir|r[ée]v[eé]ill?(?:[ée]e?s?|er|ez)|je me l[èe]ve|je suis (debout|lev[ée])|debout)(?![\wà-ÿ])/i;
 export async function sleepFromMessage(text: string): Promise<string | null> {
   // 05/11 : « bonne nuit » avec « [Contexte : ne pas déranger jusqu'à 23h30…] » devant → trop long → coucher pas noté
   let raw = text; for (let i = 0; i < 3; i++) { const m = raw.match(/^\s*\[[\s\S]*?\]\s*/); if (!m) break; raw = raw.slice(m[0].length); }

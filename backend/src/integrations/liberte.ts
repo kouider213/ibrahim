@@ -1054,8 +1054,8 @@ export function parseMedTake(text: string): { n: number; total: boolean; rest?: 
   raw = raw.replace(/^CONFIRM[ÉE] AU T[ÉE]L[ÉE]PHONE\s*:\s*/i, '');
   const t = raw.toLowerCase().replace(/[’`]/g, "'").trim();
   const medWord = /comprim|cachet|m[ée]doc|m[ée]dicament|traitement|lib[ée]r/.test(t);
-  if (t.length > 200 || (FOOD_RE.test(t) && !medWord) || /\?|combien|est-ce|je peux|puis-je|dois|vais|veux|envie/.test(t)) return null;
-  if (!/\b(pris|prise|pri|prends|prend|aval[ée])\b/.test(t)) return null;
+  if (t.length > 200 || (FOOD_RE.test(t) && !medWord) || /\?|combien|est-ce|je peux|puis-je|dois|vais|veux|envie|faut|faudr|oubli|devrai/.test(t)) return null;
+  if (!/\b(pris|prise|pri|prit|prie|pries|prends|prend|prendre|aval[ée])\b/.test(t)) return null;   // 05/11 banc : « je viens de prendre », « j'ai prit »
   const m = /(\d+(?:[.,]5)?|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|onze|douze)\s*(?:demi(?:-|\s)?(?:comprim[ée]s?|cachets?)?s?(?![a-zé])|demis(?![a-zé])|(comprim[ée]s?|cachets?|cp)(?![a-zé])(\s*et\s*demi)?)/.exec(t);
   if (!m) return null;
   const v = Number(String(m[1]).replace(',', '.')) || NUM_WORDS[m[1]!] || 0;

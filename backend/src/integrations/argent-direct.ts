@@ -53,6 +53,7 @@ export function parseMoneyCommand(raw: string): MoneyCommand | null {
   let msg = raw;
   for (let i = 0; i < 3; i++) { const m = msg.match(/^\s*\[[\s\S]*?\]\s*/); if (!m) break; msg = msg.slice(m[0].length); }
   msg = msg.replace(/^CONFIRM[ÉE] AU T[ÉE]L[ÉE]PHONE\s*:\s*/i, '').trim();
+  msg = msg.replace(/\bsnu\b/gi, 'snus');   // 05/11 banc : « snu 170 »
   if (!msg || msg.length > 300 || !MONEY.test(msg) || OTHER.test(msg)) return null;
   const today = localNow().date;
   const question = /\?|combien|quel(?:le)?s? jours?|meilleur jour|j.en suis|je suis (?:à|a) combien|c.est quoi mon|dis[- ]moi/i.test(msg);
