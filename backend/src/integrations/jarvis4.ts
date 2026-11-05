@@ -27,8 +27,10 @@ function jarvisVoiceUrl(text: string): string {
   // 04/11 « encore plus fou, plus futuriste » : voix habillée façon film (démarrage, écho stéréo, nappage, veille) —
   // jarvis-audio.ts ; synthèse en 3 morceaux parallèles. Secours : voix nue en un bloc.
   const voice = process.env['JARVIS_VOICE'] || 'Charon';
+  const t0 = Date.now();   // 05/11 mesure : « on peut réduire le temps de lancement CarPlay ? » → combien prend la voix
   const p = import('./jarvis-audio.js').then(m => m.jarvisCinemaVoice(text, voice, JARVIS_STYLE)).catch(() => null)
-    .then(w => w ?? import('../notifications/dispatcher.js').then(m => m.synthesizeVoiceGemini(text.replace(/\s*\[\[Q:[\d,]+\]\]/g, ''), { voice, style: JARVIS_STYLE })).catch(() => null));
+    .then(w => w ?? import('../notifications/dispatcher.js').then(m => m.synthesizeVoiceGemini(text.replace(/\s*\[\[Q:[\d,]+\]\]/g, ''), { voice, style: JARVIS_STYLE })).catch(() => null))
+    .then(w => { console.log(`[car-timing] voix ${w ? 'ok' : 'ÉCHEC'} en ${Date.now() - t0} ms (${text.length} car.)`); return w; });
   VOICES.set(id, { at: Date.now(), p });
   const base = (process.env['PUBLIC_BACKEND_URL'] || 'https://ibrahim-backend-production.up.railway.app').replace(/\/$/, '');
   return `${base}/api/jarvis/voice/${id}`;
@@ -62,12 +64,15 @@ export async function iphoneEvent(type: string, body: Record<string, unknown>): 
         const full = `${await cc.familyGreeting().catch(() => 'Bonjour à toute la famille.')} ${await cc.carBlessing(false).catch(() => '')}`.trim();
         return { say: full.replace(/\s*\[\[Q:[\d,]+\]\]/g, '').trim(), audio_url: jarvisVoiceUrl(full) };
       }
+      const tc = Date.now();
       const [hello, brief] = await Promise.all([cc.carGreeting(hasPos ? { lat, lng } : {}, homeward).catch(() => 'Bonjour Kouider.'), homeward ? Promise.resolve('') : carBrief(hasPos ? { lat, lng } : {})]);
       void kvPut('car:last-mode', { at: Date.now(), homeward });
       void kvPut('car:last-event', { at: Date.now(), type });   // trace : l'automatisation CarPlay est bien arrivée
       // 04/11 (2) : à CHAQUE démarrage, verset du jour + invocation du voyage récitée (car-coach carBlessing) ; la veille
       // (« Dis Siri, Jarvis ») est annoncée dedans. [[Q:…]] = récitation insérée dans l'audio, retirée du texte « say ».
+      const tb = Date.now();
       const bless = await cc.carBlessing(homeward).catch(() => '');
+      console.log(`[car-timing] texte : discours+point ${tb - tc} ms, verset ${Date.now() - tb} ms`);
       const full = `${speakable(carPrivacy(`${hello} ${brief}`)) || 'Bonjour Kouider.'} ${bless}`.trim();
       return { say: full.replace(/\s*\[\[Q:[\d,]+\]\]/g, '').trim(), audio_url: jarvisVoiceUrl(full) };
     }
