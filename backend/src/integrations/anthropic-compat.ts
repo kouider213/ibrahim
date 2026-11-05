@@ -97,13 +97,16 @@ function refreshFree(): void {
 // SECOURS CLAUDE (Kouider 04/11 : « on a du crédit Claude, en cas d'urgence il peut l'utiliser, mais vraiment en cas d'urgence »)
 // Seulement quand TOUS les cerveaux gratuits ont échoué sur un message de Kouider, 5 fois par jour max, Haiku (le moins cher).
 import { AsyncLocalStorage as _ALS } from 'async_hooks';
-const emergencyALS = new _ALS<{ on: true }>();
+const emergencyALS = new _ALS<{ on: true; model?: 'auto' }>();
+/** Claude demandé par Kouider pour CE message (« utilise Claude ») : choix normal du modèle (Sonnet si important), pas forcé sur Haiku. */
+export const claudeOnDemand = (): boolean => emergencyALS.getStore()?.model === 'auto';
 export const inClaudeEmergency = (): boolean => !!emergencyALS.getStore();
 // 04/11 soir (Kouider : « s'il a pas, il pourra utiliser le crédit Claude jusqu'à ce que le gratuit revienne ») :
 // 'chat' = ses messages (30/jour), 'voix' = voiture + réveil + messages programmés (20/jour). Haiku ≈ 0,2 centime le message.
 // 'tout' = n'importe quel autre appel du cerveau (mentor, appels, jobs…) quand le gratuit est mort (« Claude prend le secours sur tout »).
 // faible = chat de Kouider quand il ne reste que les petits cerveaux gratuits (05/11 : ~3 c/tour Haiku → 6/jour ≈ 20 c)
-export const EMERGENCY_PER_DAY = { chat: 30, voix: 20, tout: 100, faible: 6 } as const;
+// demande = « utilise Claude pour cette question » (05/11), 10/jour max (~1 € au pire avec Sonnet)
+export const EMERGENCY_PER_DAY = { chat: 30, voix: 20, tout: 100, faible: 6, demande: 10 } as const;
 /** Prend 1 place de secours Claude dans le quota du jour. false = pas de secours possible (quota atteint, crédit à 0, banc). */
 export async function takeClaudeEmergency(bucket: keyof typeof EMERGENCY_PER_DAY): Promise<boolean> {
   if (Date.now() < claudeDeadUntil || process.env['BENCH'] === '1' || !env.ANTHROPIC_API_KEY) return false;
@@ -126,6 +129,18 @@ export async function takeClaudeEmergency(bucket: keyof typeof EMERGENCY_PER_DAY
 export async function runClaudeEmergency<T>(fn: () => Promise<T>, bucket: keyof typeof EMERGENCY_PER_DAY = 'chat'): Promise<T | null> {
   if (!(await takeClaudeEmergency(bucket))) return null;
   return emergencyALS.run({ on: true }, fn);
+}
+/** « Utilise Claude pour cette question » : Claude pour CE tour seulement, modèle choisi normalement. null = quota du jour atteint / pas de clé. */
+export async function runClaudeOnDemand<T>(fn: () => Promise<T>): Promise<T | null> {
+  if (process.env['BENCH'] === '1' || !env.ANTHROPIC_API_KEY) return null;
+  const { kvGet, kvSet } = await import('./app-store.js');
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels' }).format(new Date());
+  const k = `claude:emergency:demande:${day}`;
+  const n = Number((await kvGet(k).catch(() => null)) ?? 0);
+  if (n >= EMERGENCY_PER_DAY.demande) return null;
+  await kvSet(k, String(n + 1), 3 * 86_400).catch(() => {});
+  console.warn(`[claude-demande] Kouider a demandé Claude pour ce message (${n + 1}/${EMERGENCY_PER_DAY.demande} aujourd'hui)`);
+  return emergencyALS.run({ on: true, model: 'auto' }, fn);
 }
 export function freeModeOn(): boolean { refreshFree(); return freeCache.on && !emergencyALS.getStore(); }
 export function setFreeCache(on: boolean): void { freeCache = { on, at: Date.now() }; }

@@ -415,7 +415,8 @@ export async function chatWithTools(
   const pick = (await chatMode()) === 'sonnet'
     ? { model: 'claude-sonnet-5-5', why: 'tout sur Sonnet (réglage)' }
     : pickChatModel(processedMessages, { thinking: useThinking, web: useWebSearch, image: !!imageBase64 });
-  let chatModel = (await import('./anthropic-compat.js')).inClaudeEmergency() ? CLAUDE_FAST_EMERGENCY : pick.model;   // secours : toujours le moins cher
+  const _cmp = await import('./anthropic-compat.js');
+  let chatModel = _cmp.inClaudeEmergency() && !_cmp.claudeOnDemand() ? CLAUDE_FAST_EMERGENCY : pick.model;   // « utilise Claude » → choix normal   // secours : toujours le moins cher
   console.log(`[claude] 🧭 cerveau : ${chatModel} (${pick.why})`);
 
   let inputTokens      = 0;

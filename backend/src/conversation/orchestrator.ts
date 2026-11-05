@@ -653,6 +653,15 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
   try {
     // Crédit Claude épuisé (23/10 : « Petit souci technique » à 6h42) : on n'attend plus l'échec de Claude à chaque
     // message, on part tout de suite sur le secours — sinon Telegram abandonnait avant la réponse (> 90 s)
+    // 05/11 (Kouider) : « utilise Claude pour cette question » → Claude pour CE message seulement (10/jour), puis gratuit à nouveau
+    const askClaude = actorUserId === 'kouider' && !sandbox && /\b(utilise|prends|passe (par|sur)|avec|demande (à|a)|via|réponds? avec)\s+(le cerveau\s+)?claude\b(?!\s*code)|\bclaude\s+(pour|sur)\s+(cette|ça|ca|ce)\b/i.test(userMessage);
+    if (askClaude) {
+      const ask = await (await import('../integrations/anthropic-compat.js')).runClaudeOnDemand(() => chatWithTools(ctx.messages,
+        `${agentSystemExtra ?? ''}\n\n[Kouider a demandé que TU (Claude) répondes à ce message. Ne commente pas ce choix, réponds à sa question.]`,
+        sessionId, onToolStart, onToolDone, onTextChunk, imageBase64, imageMime, agentRoute.agentTools)).catch(e => { console.error('[claude-demande] échec :', e instanceof Error ? e.message : e); return null; });
+      if (!ask) throw new Error('Claude à la demande : quota du jour atteint ou crédit vide');
+      response = ask;
+    } else {
     if ((await import('../integrations/anthropic-compat.js')).claudeKnownDead()) throw new Error('crédit Claude épuisé (connu)');
     // Claude revient après une coupure → il reçoit une fois ce que le secours a fait entre-temps
     const handoffMod = await import('../integrations/brain-handoff.js');
@@ -669,6 +678,7 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
       agentRoute.agentTools,   // Phase 3: scoped tool subset
     );
     if (backNote) void handoffMod.clearReturnNote();
+    }
   } catch (claudeErr) {
     const _cAxErr = claudeErr as { response?: { status?: number; data?: unknown } };
     console.error(`[PROVIDER_ROUTER] provider=claude FAILED status=${_cAxErr.response?.status ?? 'unknown'} body=${JSON.stringify(_cAxErr.response?.data ?? {}).slice(0, 200)} msg="${claudeErr instanceof Error ? claudeErr.message : String(claudeErr)}" session=${sessionId}`);
