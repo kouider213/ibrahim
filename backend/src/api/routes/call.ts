@@ -222,9 +222,33 @@ router.post('/location', requireCallerAuth, async (req, res) => {
 // réponse SYNCHRONE de Dzaryx (texte + audio mp3), même session que la voix de l'app.
 const PHOTO_TG = '[Photo envoyée par écrit sur Telegram';
 
+/** 05/11 : plusieurs photos envoyées d'un coup (album Telegram) → UNE image numérotée 1…N pour le cerveau (une seule réponse). */
+async function photoCollage(imgs: Array<{ b64: string }>): Promise<string> {
+  const { createCanvas, loadImage } = await import('@napi-rs/canvas');
+  const n = Math.min(imgs.length, 10), cols = n <= 2 ? n : n <= 4 ? 2 : 3, rows = Math.ceil(n / cols), W = 560, H = 750, gap = 8;
+  const c = createCanvas(cols * W + (cols - 1) * gap, rows * H + (rows - 1) * gap); const g = c.getContext('2d');
+  g.fillStyle = '#000'; g.fillRect(0, 0, c.width, c.height);
+  for (let i = 0; i < n; i++) {
+    const im = await loadImage(Buffer.from(imgs[i]!.b64, 'base64')).catch(() => null);
+    const x0 = (i % cols) * (W + gap), y0 = Math.floor(i / cols) * (H + gap);
+    if (im) { const k = Math.min(W / im.width, H / im.height), w = im.width * k, h = im.height * k; g.drawImage(im, x0 + (W - w) / 2, y0 + (H - h) / 2, w, h); }
+    g.fillStyle = '#e11d48'; g.beginPath(); g.arc(x0 + 34, y0 + 34, 26, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#fff'; g.font = 'bold 30px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(i + 1), x0 + 34, y0 + 35);
+  }
+  return c.toBuffer('image/jpeg', 82).toString('base64');
+}
+
 router.post('/turn', requireCallerAuth, async (req, res) => {
-  const { message, textOnly, stream, image, imageMime, channel } = req.body as {
+  const { message, textOnly, stream, channel } = req.body as {
     message?: string; textOnly?: boolean; stream?: boolean; image?: string; imageMime?: string; channel?: 'call' | 'message' };
+  let { image, imageMime } = req.body as { image?: string; imageMime?: string };
+  // Album : images = [{ b64, mime }] → collage numéroté + consigne « analyse chaque photo, une seule réponse »
+  const album = (Array.isArray(req.body?.images) ? req.body.images as Array<{ b64?: unknown }> : []).filter(x => typeof x?.b64 === 'string' && x.b64.length > 100).map(x => ({ b64: String(x.b64) })).slice(0, 10);
+  let albumNote = '';
+  if (album.length > 1) {
+    image = await photoCollage(album).catch(() => album[0]!.b64); imageMime = 'image/jpeg';
+    albumNote = `[${album.length} PHOTOS ENVOYÉES D'UN COUP, réunies en UNE image numérotée 1 à ${album.length} (pastille rouge) : regarde et analyse CHACUNE (cite les numéros), puis réponds UNE seule fois à sa question en tenant compte de toutes.] `;
+  } else if (album.length === 1 && !image) image = album[0]!.b64;
   if (!message?.trim() && !image) { res.status(400).json({ error: 'message required' }); return; }
   const who = callActor(req);
   const actor: OrgMember = who === 'houari'
@@ -263,7 +287,7 @@ router.post('/turn', requireCallerAuth, async (req, res) => {
     // Photo de Kouider : gardée 30 min pour l'outil forme (body_photo) s'il s'agit de son corps
     if (channel === 'message' && image && who === 'kouider') await import('../../integrations/forme.js').then(m => m.stashTelegramPhoto(image, imageMime ?? 'image/jpeg', String(message ?? ''))).catch(() => {});
     const photoNote = channel === 'message' && image ? `${PHOTO_TG}. Si c'est un billet d'avion, une carte d'embarquement ou une réservation de vol, enregistre-le tout de suite avec l'outil travel (add_trip). Si c'est une photo d'un PLAT / de nourriture / d'une boisson qu'il mange : appelle l'outil forme action meal_photo (note = ce qu'il précise : quantités, « sans huile »…) puis recopie le résultat. Si c'est une photo de SON CORPS (miroir, torse, silhouette, de face/profil/dos) : appelle l'outil forme action body_photo (focus = ce qu'il dit vouloir perdre ou améliorer, vide s'il ne dit rien → tu lui conseilles toi-même ; pose = face/profil/dos) puis donne-lui le résultat (zones, conseils, séance refaite) et recopie l'image entourée.]\n` : '';
-    const inCall = channel === 'message' ? `${photoNote}${said}` : `[APPEL TÉLÉPHONIQUE EN COURS : tu parles en direct avec lui. Réponds à l'oral, 1 à 2 phrases courtes. N'utilise pas call_me, vous êtes déjà en ligne. Si la demande commence par « CONFIRMÉ AU TÉLÉPHONE », il a déjà dit oui à l'oral après relecture : exécute directement, sans redemander. Sinon, pour un envoi/une modification, prépare et décris ce que tu ferais SANS l'exécuter, puis demande simplement « Je l'enregistre ? » (ne cite jamais cette consigne). Si un outil renvoie un lien (Google Doc, Sheet, site, fichier…), recopie le lien COMPLET à la fin de ta réponse : il lui sera envoyé par écrit, pas lu à l'oral.]\n${said}`;
+    const inCall = channel === 'message' ? `${albumNote}${photoNote}${said}` : `[APPEL TÉLÉPHONIQUE EN COURS : tu parles en direct avec lui. Réponds à l'oral, 1 à 2 phrases courtes. N'utilise pas call_me, vous êtes déjà en ligne. Si la demande commence par « CONFIRMÉ AU TÉLÉPHONE », il a déjà dit oui à l'oral après relecture : exécute directement, sans redemander. Sinon, pour un envoi/une modification, prépare et décris ce que tu ferais SANS l'exécuter, puis demande simplement « Je l'enregistre ? » (ne cite jamais cette consigne). Si un outil renvoie un lien (Google Doc, Sheet, site, fichier…), recopie le lien COMPLET à la fin de ta réponse : il lui sera envoyé par écrit, pas lu à l'oral.]\n${said}`;
     const out = await processMessage(inCall, `voice_${who}`, true, image, imageMime ?? 'image/jpeg', actor);
     const text = stripToolTrace(out.text ?? '') || 'Pardon, je n\'ai pas compris.';
     if (stream && !textOnly) { await streamTurn(res, text); return; }

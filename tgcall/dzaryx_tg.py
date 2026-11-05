@@ -940,6 +940,8 @@ def split_text(text: str, limit: int = 4000) -> list[str]:
 VIDEO_TEXT_WAIT_S = 15                     # vidéo : sa consigne arrive souvent juste après (ou pendant l'envoi)
 PHOTO_TEXT_WAIT_S = 8                       # délai pour qu'un texte envoyé juste après une photo parte avec elle
 photo_wait: dict[int, asyncio.Future] = {}   # uid → légende attendue pour la photo en cours
+# 05/11 : plusieurs photos envoyées d'un coup (album) → UNE seule demande avec toutes les photos, UNE seule réponse
+album_buf: dict[str, dict] = {}   # media_group_id → {'imgs': [...], 'pending': n, 'caption': str}
 
 MD_IMAGE = re.compile(r'!\[([^\]]*)\]\((https?://[^)\s]+)\)')
 
@@ -1333,6 +1335,21 @@ async def on_message(_, msg: Message) -> None:
             for part in split_text(str(out.get('text') or out.get('error') or 'Analyse impossible.')):
                 await msg.reply_text(part)
         elif msg.photo or (msg.document and (msg.document.mime_type or '').startswith('image/')):
+            gid = msg.media_group_id
+            album = album_buf.get(gid) if gid else None
+            if gid and album is not None:   # photo suivante d'un album déjà en cours : ajoutée, pas de réponse à part
+                album['pending'] += 1
+                try:
+                    path = await msg.download(file_name=tempfile.mktemp(prefix='dzimg_', suffix='.jpg'))
+                    album['imgs'].append({'b64': base64.b64encode(Path(path).read_bytes()).decode(), 'id': msg.id})
+                    os.unlink(path)
+                    if msg.caption:
+                        album['caption'] = msg.caption
+                finally:
+                    album['pending'] -= 1
+                return
+            if gid:
+                album = album_buf[gid] = {'imgs': [], 'pending': 0, 'caption': ''}
             await app.send_chat_action(uid, enums.ChatAction.TYPING)
             # Photo sans légende : le texte qui suit dans les secondes d'après en fait partie
             # (27/10 22h06 : photo puis « c'était comment j'étais avant » traités séparément → texte sans la photo)
@@ -1364,9 +1381,23 @@ async def on_message(_, msg: Message) -> None:
                 finally:
                     if photo_wait.get(uid) is caption_wait:
                         del photo_wait[uid]
+            payload = {'image': b64, 'imageMime': mime}
+            if album is not None:
+                album['imgs'].append({'b64': b64, 'id': msg.id})
+                for _ in range(40):   # toutes les photos de l'album arrivées et téléchargées (2 s sans nouvelle)
+                    n = len(album['imgs'])
+                    await asyncio.sleep(2)
+                    if album['pending'] == 0 and len(album['imgs']) == n:
+                        break
+                album_buf.pop(gid, None)
+                caption = caption or album['caption']
+                imgs = sorted(album['imgs'], key=lambda x: x['id'])
+                if len(imgs) > 1:
+                    payload = {'images': [{'b64': x['b64']} for x in imgs[:10]]}
+                    log.info('album de %d photos → une seule demande', len(imgs))
             out = await api('/api/call/turn', {'message': f'{seen}\n{caption}'.strip() if seen else caption,
-                                               'image': b64, 'imageMime': mime,
-                                               'textOnly': True, 'channel': 'message'}, actor, 120)
+                                               **payload,
+                                               'textOnly': True, 'channel': 'message'}, actor, 180)
             await reply_out(msg, out)
         elif msg.text and PASSCODE_CMD.match(msg.text.strip()) and actor == speaker.OWNER:
             speaker.set_passcode(PASSCODE_CMD.match(msg.text.strip()).group(1))
