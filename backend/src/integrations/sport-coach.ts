@@ -1239,6 +1239,8 @@ export async function exerciseMuscles(): Promise<Record<string, { muscle: string
 // 03/11 : « annulé ma séance de sport de demain je me repose » → le cerveau a répondu « ✅ annulée » SANS appeler l'outil
 // (tools: []) et l'agenda gardait la séance. → l'annulation est faite par le CODE, avant le cerveau, qui reçoit le résultat.
 export function parseSportCancel(raw: string): { date: string; reason: string } | null {
+  // 05/11 : avec « [Contexte : ne pas déranger…] » devant (trop long, et la consigne parle de « séance sport ») → on ne lit que ce qu'il a dit
+  for (let i = 0; i < 3; i++) { const m = raw.match(/^\s*\[[\s\S]*?\]\s*/); if (!m) break; raw = raw.slice(m[0].length); }
   if (raw.includes('?') || raw.length > 400) return null;
   const s = norm(raw);
   if (/remet|reprend|unskip|annule l.annulation|finalement je (vais|fais)/.test(s)) return null;

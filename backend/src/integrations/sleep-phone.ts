@@ -65,7 +65,9 @@ const NIGHT_RE = /\b(bonne nuit|bne nuit|b nuit|tesbah|tesba7|tasbah|t'?sbah|je 
 const NOT_SLEEP_RE = /\b(pas encore|dors pas|dort pas|(peux|arrive) pas (à |a )?dormir|pas sommeil|insomnie)/i;
 const MORNING_RE = /\b(bonjour|bonjoir|sala+m\w*|salut|sbah|sba7|sbah el ?kh?ir|r[ée]veill[ée]|je me l[èe]ve|je suis (debout|lev[ée])|debout)(?![\wà-ÿ])/i;
 export async function sleepFromMessage(text: string): Promise<string | null> {
-  const t = text.trim();
+  // 05/11 : « bonne nuit » avec « [Contexte : ne pas déranger jusqu'à 23h30…] » devant → trop long → coucher pas noté
+  let raw = text; for (let i = 0; i < 3; i++) { const m = raw.match(/^\s*\[[\s\S]*?\]\s*/); if (!m) break; raw = raw.slice(m[0].length); }
+  const t = raw.trim();
   if (!t || t.length > 400) return null;
   const { date, hhmm } = localNow();
   const short = t.split(/\s+/).length <= 6;

@@ -400,7 +400,9 @@ async function siteVisits(raw: string): Promise<Direct | null> {
 /** 💧 « je bu 2 litre d'eau » (04/11 : « Bien joué » sans rien noter) → FORME (verres de 25 cl), total du jour vs objectif */
 async function water(raw: string): Promise<Direct | null> {
   const t = strip(raw).replace(/(\d),(\d)/g, '$1.$2');
-  if (t.length > 140 || /\?\s*$/.test(t) || !/\b(bu|bois|avale|pris)\b/.test(t) || !/\beau\b/.test(t)) return null;
+  if (t.length > 140 || /\?\s*$/.test(t) || !/\b(bu|bois|avale|pris|corrige|corriger|mets)\b/.test(t) || !/\beau\b/.test(t)) return null;
+  // 05/11 : 2 L redits à 15h31 → 4 L comptés. « que 2 L / en tout / au total / corrige l'eau à 2 L » = TOTAL du jour, pas un ajout
+  const setTotal = /\bqu(?:e|')?\s*(?:\d|un|une|deux|trois|quatre)|\b(en tout|au total|total|corrige|corriger|mets)\b/.test(t);
   const m = t.match(/(\d+(?:\.\d+)?|un|une|deux|trois|quatre|cinq|six)\s*(litres?|l|verres?|bouteilles?|cl|gorgees?)\b/);
   if (!m) return null;
   const W: Record<string, number> = { un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6 };
@@ -410,7 +412,7 @@ async function water(raw: string): Promise<Direct | null> {
   if (!(liters > 0 && liters <= 6)) return null;
   const glasses = Math.round(liters * 4);
   const f = await import('./forme.js');
-  const day = await f.updateDay('kouider', localNow().date, d => { d.water = Math.max(0, Math.min(30, (d.water ?? 0) + glasses)); });
+  const day = await f.updateDay('kouider', localNow().date, d => { d.water = Math.max(0, Math.min(30, setTotal ? glasses : (d.water ?? 0) + glasses)); });
   const prof = await f.getFormeProfile('kouider').catch(() => null);
   const goalL = (prof?.waterGoal ?? 8) * 0.25, totL = day.water * 0.25;
   const fmt = (x: number) => String(Math.round(x * 10) / 10).replace('.', ',');
@@ -419,7 +421,7 @@ async function water(raw: string): Promise<Direct | null> {
   const lib = await import('./liberte.js');
   const mc = lib.looksLikeMedText(raw) ? lib.parseMedTake(raw) : null;
   if (mc) med = (await lib.runMedTake(mc).catch(e => `❌ Prise non notée : ${e instanceof Error ? e.message : e}`)) + '\n';
-  return { text: `${med}💧 Noté dans FORME : +${fmt(liters)} L → ${fmt(totL)} L aujourd'hui (objectif ${fmt(goalL)} L).${totL >= goalL ? ' Objectif atteint 💪' : ` Encore ${fmt(goalL - totL)} L.`}`, direct: true };
+  return { text: `${med}💧 ${setTotal ? 'Corrigé' : 'Noté'} dans FORME : ${setTotal ? '' : `+${fmt(liters)} L → `} ${fmt(totL)} L aujourd'hui (objectif ${fmt(goalL)} L).${totL >= goalL ? ' Objectif atteint 💪' : ` Encore ${fmt(goalL - totL)} L.`}`, direct: true };
 }
 
 /** 💼 Conseil business (« comment avoir plus de clients… ») : 04/11 banc → réponse générique sans ses chiffres → consigne : ses vraies données d'abord */

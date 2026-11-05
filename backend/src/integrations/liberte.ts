@@ -1049,7 +1049,10 @@ export function looksLikeMedText(text: string): boolean {
 }
 /** « j'ai pris 2 demis », « je pris 6 demi aujourd'hui », « pris un comprimé et demi » → quantité en demis + total du jour ou nouvelle prise. */
 export function parseMedTake(text: string): { n: number; total: boolean; rest?: boolean } | null {
-  const t = text.toLowerCase().replace(/[’`]/g, "'").trim();
+  // 05/11 19h53 : « Je pris 8 demis » précédé de « [Contexte : ne pas déranger…] » → trop long → rien noté, réponse vide
+  let raw = text; for (let i = 0; i < 3; i++) { const m = raw.match(/^\s*\[[\s\S]*?\]\s*/); if (!m) break; raw = raw.slice(m[0].length); }
+  raw = raw.replace(/^CONFIRM[ÉE] AU T[ÉE]L[ÉE]PHONE\s*:\s*/i, '');
+  const t = raw.toLowerCase().replace(/[’`]/g, "'").trim();
   const medWord = /comprim|cachet|m[ée]doc|m[ée]dicament|traitement|lib[ée]r/.test(t);
   if (t.length > 200 || (FOOD_RE.test(t) && !medWord) || /\?|combien|est-ce|je peux|puis-je|dois|vais|veux|envie/.test(t)) return null;
   if (!/\b(pris|prise|pri|prends|prend|aval[ée])\b/.test(t)) return null;
@@ -1063,7 +1066,7 @@ export function parseMedTake(text: string): { n: number; total: boolean; rest?: 
   const left = t.replace(m[0], ' ').replace(/[^a-zà-ÿ' ]/g, ' ').split(/[\s']+/)
     .filter(w => w && !/^(je|j|ai|pris|prise|pri|prends|prend|aval[ée]e?|viens|vien|de|d|du|un|une|le|la|les|l|ce|cette|matin|midi|soir|aujourd|hui|en|tout|au|total|depuis|dans|journ[ée]e|encore|l[àa]|[àa]|h|heure|heures|et|demi|demis|ok|voil[àa]|c|est|fait|bien|mon|ma|m[ée]doc|comprim[ée]s?|cachets?|lib[ée]rt[ée])$/.test(w));
   const rest = left.length >= 3 || /marre|moral|fatigu|triste|stress|angoiss|d[ée]prim|craqu|pleur|seul|[ée]nerv|peux plus|en peux|mal\b|dur\b|travail|boulot|taf|aide/.test(t);
-  return { n, total: /aujourd|en tout|au total|depuis ce matin|dans la journ[ée]e/.test(t), rest };
+  return { n, total: /aujourd|aujaurd|auj\b|en tout|au total|depuis ce matin|dans la journ[ée]e/.test(t), rest };
 }
 /** Exécutée par le code (orchestrateur), réponse directe. « aujourd'hui / en tout » = TOTAL du jour → on n'ajoute que la différence. */
 export async function runMedTake(c: { n: number; total: boolean }): Promise<string> {

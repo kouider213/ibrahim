@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-05 (37) — raccourcis aveugles en « ne pas déranger » + eau en total
+- `liberte.ts` parseMedTake, `sleep-phone.ts` sleepFromMessage, `sport-coach.ts` parseSportCancel : la consigne « [Contexte : ne pas déranger…] » devant le message le rendait trop long → 19h53 « Je pris 8 demis aujaurdhui » pas noté + réponse vide (et « bonne nuit » n'aurait pas noté le coucher). Consignes retirées avant lecture ; « aujaurdhui » = total du jour.
+- `fr-commands.ts` water : « j'ai bu que 2 L / en tout / au total / corrige l'eau à 2 L » = total du jour (remplace), plus un ajout (05/11 : 4 L comptés au lieu de 2).
+
 ## 2026-11-05 (36) — dates des jours + actions inventées
 - `fr-commands.ts` water : « Je pris 7 demi comprime est bu 2l d'eau » → la prise Liberté est notée aussi (0ba80871).
 - `context-builder.ts` : liste des 7 prochains jours avec leur date (« dimanche 1er novembre » dit au lieu du 8) + « demain » le matin ≠ aujourd'hui (« demain jeudi » dit un jeudi).
