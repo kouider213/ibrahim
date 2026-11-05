@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { kvGet, kvSet, kvDel } from './app-store.js';
 import { supabase } from './supabase.js';
-import { createAnthropic, QUALITY } from './anthropic-compat.js';
+import { createAnthropic, QUALITY, runClaudeEmergency } from './anthropic-compat.js';
 import { localNow } from './morning-routine.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
@@ -487,11 +487,12 @@ export async function analyzeBodyPhoto(uid: Uid, id: string, goal = '', vsId = '
   ];
   // 05/11 : le cerveau gratuit de secours a rendu un JSON mal formé → « Expected double-quoted property name » et analyse perdue.
   // JSON réparé (virgules en trop, guillemets typographiques/simples) + 1 nouvel essai.
-  let j: Partial<BodyAnalysis> | null = null;
-  for (let k = 0; k < 2 && !j; k++) {
-    const res = await createAnthropic().messages.create({ model: 'claude-sonnet-5-5', max_tokens: 1500, system: bodySystem(prof, uid), messages: [{ role: 'user', content }] }, QUALITY);
-    j = jsonLoose<Partial<BodyAnalysis>>(textOf(res));
-  }
+  // 05/11 (Kouider « oui ») : si le gratuit rend une analyse illisible → secours Claude Haiku (~1 centime), puis gratuit une dernière fois.
+  const ask = (model: string) => createAnthropic().messages.create({ model, max_tokens: 1500, system: bodySystem(prof, uid), messages: [{ role: 'user', content }] }, QUALITY)
+    .then(res => jsonLoose<Partial<BodyAnalysis>>(textOf(res))).catch(() => null);
+  let j = await ask('claude-sonnet-5-5');
+  if (!j) j = await runClaudeEmergency(() => ask('claude-haiku-5-5'), 'tout').catch(() => null);
+  if (!j) j = await ask('claude-sonnet-5-5');
   if (!j) throw new Error('analyse illisible (cerveau saturé) — la photo est gardée, redemande dans quelques minutes');
   const f01 = (v: unknown, d: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : d; };
   const vis = (['oui', 'partiel', 'non'].includes(String((j as { body_visible?: string }).body_visible)) ? (j as { body_visible: string }).body_visible : 'partiel') as BodyAnalysis['visible'];
