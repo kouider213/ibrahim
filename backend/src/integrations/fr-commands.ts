@@ -414,7 +414,12 @@ async function water(raw: string): Promise<Direct | null> {
   const prof = await f.getFormeProfile('kouider').catch(() => null);
   const goalL = (prof?.waterGoal ?? 8) * 0.25, totL = day.water * 0.25;
   const fmt = (x: number) => String(Math.round(x * 10) / 10).replace('.', ',');
-  return { text: `💧 Noté dans FORME : +${fmt(liters)} L → ${fmt(totL)} L aujourd'hui (objectif ${fmt(goalL)} L).${totL >= goalL ? ' Objectif atteint 💪' : ` Encore ${fmt(goalL - totL)} L.`}`, direct: true };
+  // 05/11 « Je pris 7 demi comprime est bu 2l d'eau » → seule l'eau notée, la prise Liberté perdue → on note aussi la prise
+  let med = '';
+  const lib = await import('./liberte.js');
+  const mc = lib.looksLikeMedText(raw) ? lib.parseMedTake(raw) : null;
+  if (mc) med = (await lib.runMedTake(mc).catch(e => `❌ Prise non notée : ${e instanceof Error ? e.message : e}`)) + '\n';
+  return { text: `${med}💧 Noté dans FORME : +${fmt(liters)} L → ${fmt(totL)} L aujourd'hui (objectif ${fmt(goalL)} L).${totL >= goalL ? ' Objectif atteint 💪' : ` Encore ${fmt(goalL - totL)} L.`}`, direct: true };
 }
 
 /** 💼 Conseil business (« comment avoir plus de clients… ») : 04/11 banc → réponse générique sans ses chiffres → consigne : ses vraies données d'abord */
