@@ -295,6 +295,21 @@ async function carKm(raw: string): Promise<Direct | null> {
 }
 
 /** 🔥 « j'ai trop envie d'en prendre un là » (05/11 banc : « Quelle voiture t'intéresse ? 🚗 ») → SOS Liberté, tout de suite. */
+/** 💵 Réponse « rien » à la question du soir « Combien de snus aujourd'hui ? » (argent-coach, 20h30)
+ *  05/11 20h50 « Aucun aujourd'hui rien je pas u le temps je pas gagner de cash » → cerveau sans outil → « ⚠️ Je n'ai pas exécuté
+ *  cette action ». Rien n'est inscrit (pas de vente à 0 € dans le journal) : on confirme seulement, sans redemander ce soir. */
+async function noSales(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (t.length > 200 || /\?\s*$/.test(t) || /\b[1-9]\d*\b/.test(t)) return null;
+  if (!/\b(aucun|aucune|rien|zero|nada|walou|wallou|que dalle)\b|\bpas\s+(eu\s+le\s+temps|u\s+le\s+temps|gagn|vendu|fait|travaill|de\s+(vente|cash|snus))/.test(t)) return null;
+  // un « rien de spécial » en discutant ≠ réponse à la caisse : mot d'argent/vente exigé, sauf réponse très courte (« rien », « aucun »)
+  if (t.split(/\s+/).length > 3 && !/cash|vend|vente|gagn|snus|argent|caisse|encaiss|sous|thune|fric|client/.test(t)) return null;
+  const { kvJson } = await import('./ai-util.js');
+  const { date } = localNow();
+  if (!(await kvJson<string | null>(`argent:sent:soir:${date}`, null))) return null;   // seulement si la question a été posée ce soir
+  return { text: "📒 OK, aucune vente aujourd'hui : rien à noter, je ne te redemande pas ce soir.", direct: true };
+}
+
 async function craving(raw: string): Promise<Direct | null> {
   const t = strip(raw);
   if (raw.length > 240 || /\?/.test(raw) && !/\bje (peux|dois)\b/.test(t)) return null;
@@ -539,7 +554,7 @@ export async function frCommand(raw: string, sessionId = 'telegram_kouider'): Pr
   SID = sessionId;
   const msg = raw.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
   if (!msg) return null;
-  for (const f of [craving, carKm, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
+  for (const f of [craving, noSales, carKm, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
     const r = await f(msg).catch(e => ({ text: `❌ ${e instanceof Error ? e.message : e}`, direct: true }));
     if (r) return r;
   }

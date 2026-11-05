@@ -3,6 +3,9 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-05 (39) — « aucune vente » à la question du soir
+- `fr-commands.ts` noSales : réponse « aucun / rien / pas gagné de cash » après « 💵 Combien de snus aujourd'hui ? » (kv argent:sent:soir:date) → réponse directe, rien inscrit (20h50 : « ⚠️ Je n'ai pas exécuté cette action »). Mot d'argent exigé sauf réponse ≤ 3 mots, aucun chiffre.
+
 ## 2026-11-05 (38) — réponses rapides aux raccourcis
 - `orchestrator.ts` : les raccourcis du code (eau, comprimés, sommeil, argent, rappels…) mettaient 9-15 s (médiane 2 jours) parce qu'ils attendaient le contexte complet du cerveau. Le contexte + notes (intentions/procédures/tâches) se chargent maintenant en parallèle et ne sont attendus que si le cerveau répond ; les consignes du code s'empilent dans `pre[]` puis sont posées sur le contexte. Même ordre qu'avant.
 - `fr-commands.ts` water : « corige » (1 r) / « mets l'eau à » reconnus (20h41 : faux « C'est noté » du cerveau, 4 L restés) (eba53699).
