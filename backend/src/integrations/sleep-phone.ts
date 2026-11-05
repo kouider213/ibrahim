@@ -73,6 +73,25 @@ export async function sleepFromMessage(text: string): Promise<string | null> {
     await kvPut(BED_K, { at: new Date().toISOString() }, 20 * 3600);
     return short ? `Bonne nuit 🌙 Coucher noté à ${hhmm}. Envoie-moi un message au réveil et je calcule ta nuit.` : null;
   }
+  // « couché à 23:30 » le matin (réponse à « je n'ai pas ton heure de coucher ») → nuit calculée par le code, pas par le cerveau
+  // (05/11 : le cerveau avait répondu « pour demain (jeudi) » alors qu'on était jeudi)
+  const bedM = /\b(?:je me suis\s+)?couch[ée]e?s?\s+(?:vers\s+|a\s+|à\s+)+(\d{1,2})\s*(?:h|:)\s*(\d{2})?/i.exec(t);
+  if (bedM && hhmm >= '04:30' && hhmm < '14:00' && t.length < 120) {
+    const H = Number(bedM[1]), M = Number(bedM[2] ?? 0);
+    if (H > 23 || M > 59) return null;
+    const woke = await kvJson<{ date: string; at: string } | null>(WOKE_K, null);
+    const wakeIso = woke?.date === date ? woke.at : new Date().toISOString();
+    if (woke?.date !== date) await kvPut(WOKE_K, { date, at: wakeIso }, 2 * 86_400);
+    const wakeMin = Number(hm(wakeIso).slice(0, 2)) * 60 + Number(hm(wakeIso).slice(3, 5));
+    let mins = wakeMin - (H * 60 + M); if (mins <= 0) mins += 1440;
+    if (mins < 120 || mins > 14 * 60) return null;
+    const sleep_h = Math.round(mins / 6) / 10;
+    await kvPut(BED_K, null, 1).catch(() => {});
+    await import('./jarvis-hub.js').then(m => m.receiveHealth({ date, sleep_h, sleep_src: 'telephone' }));
+    const bedTxt = `${String(H).padStart(2, '0')}:${String(M).padStart(2, '0')}`;
+    const tip = sleep_h < 6.5 ? ' Nuit courte : vas-y doucement aujourd\'hui et couche-toi plus tôt ce soir.' : sleep_h >= 7 ? ' Belle nuit 💪' : '';
+    return `✅ Noté : ${fmtH(mins / 60)} de sommeil (couché ${bedTxt} → réveil ${hm(wakeIso)}).${tip}`;
+  }
   if (hhmm >= '04:30' && hhmm < '13:00') {
     const woke = await kvJson<{ date: string } | null>(WOKE_K, null);
     if (woke?.date === date) return null;

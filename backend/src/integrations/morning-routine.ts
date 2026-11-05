@@ -269,6 +269,11 @@ export async function ensureRoutineStart(): Promise<void> {
 export async function jobMorningRoutine(): Promise<void> {
   await ensureRoutineStart();
   if ((await kvGet(CALENDAR_FLAG).catch(() => '1')) !== '1') await setupRoutineCalendar().catch(e => console.error('[routine] agenda:', e));
+  // Une fois : séries de l'agenda recréées après la remise du jeudi en jour de magasin (05/11)
+  if ((await kvGet('routine:resync:2026-11-05').catch(() => '1')) !== '1') {
+    await kvSet('routine:resync:2026-11-05', '1', 30 * 86_400).catch(() => {});
+    await syncRoutineCalendar().then(r => console.log(`[routine] agenda resynchronisé : ${r}`)).catch(e => console.error('[routine] resync:', e));
+  }
   const cfg = await getRoutineConfig();
   const { date, hhmm, weekday } = localNow();
   const plan = cfg.days[weekday];
@@ -454,6 +459,10 @@ export async function morningRoutineTool(input: Record<string, unknown>, session
     if (d === null) return '❌ Quel jour ? (lundi… dimanche)';
     const p: DayPlan = { ...c.days[d]! };
     if (input['kind'] === 'sport' || input['kind'] === 'work' || input['kind'] === 'none') p.kind = input['kind'];
+    // « Jeudi repos » = pas de SPORT, mais le magasin ouvre quand même : un jour de travail ne devient jamais « rien »
+    // (31/10 le jeudi était passé à 'none' → plus de réveil le jour d'ouverture, 05/11). Pause = action pause.
+    const workKept = p.kind === 'none' && c.days[d]!.kind === 'work' && input['no_work'] !== true;
+    if (workKept) p.kind = 'work';
     if (isHHMM(input['wake'])) p.wake = input['wake'];
     if (isHHMM(input['leave'])) p.leave = input['leave'];
     if (isHHMM(input['sport_start']) && isHHMM(input['sport_end'])) p.sport = [input['sport_start'], input['sport_end']];
@@ -473,7 +482,7 @@ export async function morningRoutineTool(input: Record<string, unknown>, session
     const next = { ...c, days };
     await saveConfig(next);
     const cal = await syncRoutineCalendar(next).catch(e => `agenda non mis à jour (${e instanceof Error ? e.message : e})`);
-    return `✅ ${DAY_NAMES[d]} modifié (${cal}).\n${describe(next)}`;
+    return `✅ ${DAY_NAMES[d]} modifié (${cal}).${workKept ? `\nℹ️ ${DAY_NAMES[d]} reste ton jour de travail : pas de sport, mais je te réveille quand même à ${p.wake} pour le magasin. Si tu ne travailles plus ce jour-là, dis-le-moi clairement (« je ne travaille plus le ${DAY_NAMES[d]} »).` : ''}\n${describe(next)}`;
   }
   if (action === 'set_addresses') {
     const a = { ...c.addresses };

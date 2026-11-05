@@ -645,7 +645,7 @@ const JOBS = [
   },
   {
     name:  'review-whatsapp',
-    cron:  '30 10 * * *',           // 10h30 — demande d'avis WhatsApp prête pour les clients sans email (rendus hier)
+    cron:  '30 10 * * *',           // 10h30 — remerciement + avis Google envoyé sur WhatsApp aux clients rendus hier
     tz:    'Africa/Algiers',
   },
   {

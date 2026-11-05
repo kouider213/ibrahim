@@ -2,8 +2,7 @@
 // - clientRisk : historique d'un client (notes, impayés, dégâts) affiché à chaque nouvelle réservation
 // - recordCarKm : kilométrage relevé (état des lieux / dicté) → prochaine vidange, alerte + appel si proche
 // - jobBirthdays : anniversaires des clients (date de naissance lue sur passeport/permis) → message WhatsApp prêt + appel
-// - jobReviewWhatsapp : demande d'avis Google prête à envoyer sur WhatsApp pour les clients SANS email
-//   (ceux avec email la reçoivent déjà par le site, cron reminders)
+// - jobReviewWhatsapp : remerciement + lien d'avis Google envoyé tout seul sur WhatsApp le lendemain du retour (05/11)
 // - fidélité : à partir de la 3e location, -LOYALTY_DISCOUNT % (signalé à chaque nouvelle réservation + message prêt
 //   au client après sa 2e location terminée, dans jobReviewWhatsapp)
 // - jobFlashOffer : voiture libre le week-end qui vient → offre flash prête pour les anciens clients de ce type de voiture
@@ -13,7 +12,6 @@ import { emitProactive } from './mobile-push.js';
 import { autoCall } from './auto-call.js';
 
 const TZ = 'Africa/Algiers';
-const SITE = 'https://fikconciergerie.com';
 const GOOGLE_REVIEW_URL = 'https://g.page/r/CSluTI58e1CwEBM/review';  // même lien que le site (lib/google.js)
 export const BIRTHDAY_DISCOUNT = 10;  // % proposé dans le message d'anniversaire
 export const LOYALTY_DISCOUNT = 10;   // % à partir de la 3e location
@@ -233,13 +231,15 @@ export async function jobBirthdays(): Promise<void> {
 
 // ── 4. Demande d'avis par WhatsApp (clients sans email) ──────────────────────
 
-function reviewText(first: string, id: string, lang: string): string {
-  const link = `${GOOGLE_REVIEW_URL}`;
-  if (lang === 'ar') return `مرحباً ${first}، شكراً لاختيارك Fik Conciergerie! تقييمك على Google يساعدنا كثيراً — لا يستغرق سوى 30 ثانية: ${link}\nأو على موقعنا: ${SITE}/avis/${id}`;
-  if (lang === 'en') return `Hello ${first}, thank you for choosing Fik Conciergerie! A Google review helps us a lot — it takes 30 seconds: ${link}\nOr on our site: ${SITE}/avis/${id}`;
-  return `Bonjour ${first}, merci d'avoir choisi Fik Conciergerie ! Un avis Google nous aide énormément, ça prend 30 secondes : ${link}\nOu sur notre site : ${SITE}/avis/${id}`;
+function reviewText(first: string, _id: string, lang: string): string {
+  const link = GOOGLE_REVIEW_URL;
+  if (lang === 'ar') return `مرحباً ${first}، شكراً جزيلاً لثقتك في Fik Conciergerie 🙏 إذا كنت راضياً عن خدماتنا، لا تتردد في ترك تقييم على Google، فهو يساعدنا كثيراً: ${link}\nنتمنى رؤيتك قريباً!`;
+  if (lang === 'en') return `Hello ${first}, thank you so much for choosing Fik Conciergerie 🙏 If you were satisfied with our services, feel free to leave us a Google review, it really helps us: ${link}\nHope to see you again soon!`;
+  return `Bonjour ${first}, merci beaucoup d'avoir choisi Fik Conciergerie pour votre location 🙏 Si vous avez été satisfait de nos services, n'hésitez pas à nous laisser un avis Google, ça nous aide énormément : ${link}\nAu plaisir de vous revoir très bientôt !`;
 }
 
+/** Location terminée hier → remerciement + lien d'avis Google ENVOYÉ AUTOMATIQUEMENT sur WhatsApp (Kouider 05/11).
+ *  Tous les clients avec un numéro (avec ou sans email). PC cloud / WhatsApp injoignable → lien prêt à envoyer en 1 clic. */
 export async function jobReviewWhatsapp(): Promise<void> {
   const y = new Date(Date.now() - 86_400_000);
   const yesterday = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(y);
@@ -249,21 +249,33 @@ export async function jobReviewWhatsapp(): Promise<void> {
     .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED']);
   const ended = (data ?? []) as Array<{ id: string; client_name: string; client_phone: string | null; client_email: string | null; client_lang: string | null; cars?: { name: string } | { name: string }[] | null }>;
   await loyaltyNudges(ended).catch(e => console.error('[loyalty]', e));
-  const todo = ended.filter(b => !/@/.test(b.client_email ?? '') && phoneKey(b.client_phone));
+  const todo = ended.filter(b => phoneKey(b.client_phone));
   if (!todo.length) return;
 
-  const lines: string[] = [];
+  const { sendWaDirect } = await import('../integrations/whatsapp-web.js');
+  const sent: string[] = [], manual: string[] = [];
   for (const b of todo) {
     const first = titleCase(b.client_name.split(/\s/)[0] ?? b.client_name);
-    const link = waLink(b.client_phone, reviewText(first, b.id, b.client_lang ?? 'fr'));
+    const text = reviewText(first, b.id, b.client_lang ?? 'fr');
+    const link = waLink(b.client_phone, text);
     if (!link) continue;
     const car = Array.isArray(b.cars) ? b.cars[0]?.name : b.cars?.name;
-    lines.push(`⭐ ${b.client_name}${car ? ` (${car})` : ''}\n👉 ${link}`);
+    const who = `${b.client_name}${car ? ` (${car})` : ''}`;
+    const num = new URL(link).pathname.slice(1);   // numéro international déjà normalisé par waLink
+    try {
+      await sendWaDirect(num, text);
+      sent.push(`✅ ${who}`);
+    } catch (e) {
+      console.error('[review-wa] envoi auto:', e instanceof Error ? e.message : e);
+      manual.push(`⭐ ${who}\n👉 ${link}`);
+    }
     await supabase.from('bookings').update({ review_request_sent_at: new Date().toISOString() }).eq('id', b.id);
   }
-  if (!lines.length) return;
-  emitProactive(`⭐ ${lines.length} demande(s) d'avis prête(s) à envoyer sur WhatsApp`, 'info',
-    [`⭐ Locations terminées hier, clients sans email : demande d'avis Google prête. Appuie sur le lien, WhatsApp s'ouvre avec le message :`, ...lines].join('\n\n'), 'kouider', 'bookings');
+  if (!sent.length && !manual.length) return;
+  const parts: string[] = [];
+  if (sent.length) parts.push(`⭐ Location terminée hier : message de remerciement + lien d'avis Google envoyé sur WhatsApp à :\n${sent.join('\n')}`);
+  if (manual.length) parts.push(`⚠️ WhatsApp injoignable, envoi pas fait. Appuie sur le lien, le message est prêt :\n\n${manual.join('\n\n')}`);
+  emitProactive(`⭐ Avis Google : ${sent.length} envoyé(s)${manual.length ? `, ${manual.length} à envoyer` : ''}`, 'info', parts.join('\n\n'), 'kouider', 'bookings');
 }
 
 // ── 5. Fidélité : message après la 2e location terminée ──────────────────────

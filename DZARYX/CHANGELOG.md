@@ -3,6 +3,12 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-05 (33) — Réveil du jeudi, « couché à 23:30 », avis Google automatique
+- `morning-routine.ts` : le 31/10 « jeudi repos » avait mis le jeudi à « rien » → plus de réveil le jour d'ouverture du magasin (05/11). Jeudi remis en jour de travail (05:15) ; un jour de travail ne devient plus jamais « rien » sauf `no_work` explicite ; agenda resynchronisé une fois.
+- `sleep-phone.ts` : « couché à 23:30 » le matin → nuit calculée par le code (avant : le cerveau répondait « demain (jeudi) » un jeudi).
+- `context-builder.ts` : AUJOURD'HUI + DEMAIN écrits en toutes lettres dans le contexte.
+- `client-care.ts` jobReviewWhatsapp : le lendemain du retour (10h30 Oran), remerciement + lien d'avis Google ENVOYÉ tout seul sur WhatsApp à chaque client (avec ou sans email) ; WhatsApp injoignable → lien prêt en 1 clic sur Telegram.
+
 ## 2026-11-04 (32) — Rejeu de ses 80 vraies questions (2 semaines) + juge automatique
 - Banc `replay.ts` : ses vraies questions rejouées sur le vrai cerveau, chaque réponse contrôlée contre les résultats d'outils. 36 passées (24 OK, 12 signalées dont 1 vrai bug), 44 non jouées (quota gratuit épuisé par le rejeu).
 - `fr-commands.ts` rentalTotal : « du 29 octobre au 9 novembre à 40 €, total ? » → 11 j × 40 = 440 € par le code (avant : prix de la flotte).

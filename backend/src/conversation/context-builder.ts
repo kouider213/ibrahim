@@ -237,7 +237,7 @@ export async function buildContext(
     : `PÉRIODE: Soir — ton calme, propose résumé journée si ${actor.displayName} salue.`;
 
   const actorRoleLabel = actor.role === 'owner' ? 'PDG' : actor.role === 'admin' ? 'Associé/Admin' : 'Membre';
-  const dateInfo = `\n\nUTILISATEUR: ${actor.displayName} (${actorRoleLabel} — Fik Conciergerie)\nDate: ${fmtDate.format(now)} | Heure Bruxelles: ${fmtBruxelles.format(now)} | Heure Oran: ${fmtOran.format(now)} | ${timeContext}`;
+  const dateInfo = `\n\nUTILISATEUR: ${actor.displayName} (${actorRoleLabel} — Fik Conciergerie)\nDate: AUJOURD'HUI = ${fmtDate.format(now)} · DEMAIN = ${fmtDate.format(new Date(now.getTime() + 86_400_000))} (ne te fie jamais au jour écrit dans les anciens messages) | Heure Bruxelles: ${fmtBruxelles.format(now)} | Heure Oran: ${fmtOran.format(now)} | ${timeContext}`;
 
   // Active rentals
   const today = new Date().toISOString().slice(0, 10);
