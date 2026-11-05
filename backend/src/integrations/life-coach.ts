@@ -177,7 +177,7 @@ export async function lifeCoachTool(input: Record<string, unknown>, sessionId?: 
       const { kvJson, kvPut } = await import('./ai-util.js');
       const all = await kvJson<Array<{ date: string; sleep_h?: number }>>('health:daily', []);
       const today = localNow().date, d = all.find(x => x.date === today);
-      if (!d?.sleep_h) { if (d) d.sleep_h = entry.sleep; else all.push({ date: today, sleep_h: entry.sleep }); all.sort((a, b) => a.date.localeCompare(b.date)); await kvPut('health:daily', JSON.stringify(all.slice(-120))).catch(() => {}); }
+      if (!d?.sleep_h) { if (d) d.sleep_h = entry.sleep; else all.push({ date: today, sleep_h: entry.sleep }); all.sort((a, b) => a.date.localeCompare(b.date)); await kvPut('health:daily', all.slice(-120)).catch(() => {}); }
     }
     const w = log.filter(l => l.weight != null);
     const trend = entry.weight != null && w.length >= 2 ? ` (${(entry.weight - w[0].weight!).toFixed(1)} kg depuis le ${fmtDay(w[0].at)})` : '';

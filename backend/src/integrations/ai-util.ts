@@ -30,7 +30,13 @@ async function aiOnce(prompt: string, opts: { system?: string; quality?: boolean
 }
 
 export async function kvJson<T>(key: string, fallback: T): Promise<T> {
-  try { const v = await kvGet(key); return v ? JSON.parse(v) as T : fallback; } catch { return fallback; }
+  try {
+    const v = await kvGet(key); if (!v) return fallback;
+    let x: unknown = JSON.parse(v);
+    // Valeur enregistrée 2 fois en JSON (05/11 health:daily → « conscience » plantée) : on la relit quand même
+    if (typeof x === 'string' && /^\s*[[{]/.test(x)) x = JSON.parse(x);
+    return x as T;
+  } catch { return fallback; }
 }
 export async function kvPut(key: string, value: unknown, ttlSeconds?: number): Promise<void> {
   await kvSet(key, JSON.stringify(value), ttlSeconds);

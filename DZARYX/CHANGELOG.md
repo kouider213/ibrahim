@@ -3,6 +3,10 @@
 > Format : Date | Commit | Fichiers | Description
 > Plus récent en haut.
 
+## 2026-11-05 (34) — « La tâche conscience a planté » (05:20)
+- `life-coach.ts` : le sommeil noté par message enregistrait health:daily en JSON doublé → `.find is not a function` dans conscience. Écriture corrigée + donnée réparée.
+- `ai-util.ts` kvJson : relit aussi une valeur doublement encodée (plus de plantage si ça revient ailleurs).
+
 ## 2026-11-05 (33) — Réveil du jeudi, « couché à 23:30 », avis Google automatique
 - `morning-routine.ts` : le 31/10 « jeudi repos » avait mis le jeudi à « rien » → plus de réveil le jour d'ouverture du magasin (05/11). Jeudi remis en jour de travail (05:15) ; un jour de travail ne devient plus jamais « rien » sauf `no_work` explicite ; agenda resynchronisé une fois.
 - `sleep-phone.ts` : « couché à 23:30 » le matin → nuit calculée par le code (avant : le cerveau répondait « demain (jeudi) » un jeudi).
