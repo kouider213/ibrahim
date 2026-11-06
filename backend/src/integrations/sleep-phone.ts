@@ -15,8 +15,8 @@ const WOKE_K = 'sleep:phone:woke';    // { date, at }
 const FALL_ASLEEP_MIN = 15;
 // 06/11 (Kouider : « bonne nuit » à 21h38 alors qu'il dort à 90 % vers 23h-23h30 → nuit gonflée d'1 h) :
 // heure de coucher MINIMUM (« enregistre mon sommeil à partir de 22:30 au minimum ») : un « bonne nuit » plus tôt compte à cette heure-là.
-const MINBED_K = 'sleep:phone:min_bed';   // 'HH:MM' (défaut 22:30, dit par Kouider)
-const DEFAULT_MIN_BED = '22:30';
+const MINBED_K = 'sleep:phone:min_bed';   // 'HH:MM' (défaut 23:00, dit par Kouider)
+const DEFAULT_MIN_BED = '23:00';   // 06/11 21h50 Kouider : « fixe mon coucher à 23:00 minimum sauf si je donne un horaire »
 export async function minBed(): Promise<string> { return (await kvJson<string | null>(MINBED_K, null)) ?? DEFAULT_MIN_BED; }
 /** Heure de coucher à enregistrer maintenant : jamais avant son minimum le soir même. */
 async function bedAtNow(): Promise<{ iso: string; floored: boolean; min: string }> {
