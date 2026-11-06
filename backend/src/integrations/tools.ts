@@ -838,6 +838,21 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     },
   },
 
+  // ─── BILANS FORME (06/11) ─────────────────────────────────
+  {
+    name: 'forme_bilan',
+    description: "BILAN FORME de Kouider calculé sur ses VRAIS chiffres (montre : pas, sommeil, cœur au repos, VFC, calories ; séances : séries, kg soulevés, records ; repas/déficit, eau, poids) : note /100 par domaine, points forts, points faibles, quoi améliorer, charges à augmenter, comparaison avec la période d'avant + PDF avec graphiques envoyé sur Telegram. « mon bilan du jour / de la semaine / du mois », « comment j'ai progressé ce mois », « mes points faibles cette semaine ». Ne JAMAIS inventer un bilan sans cet outil. Automatique : chaque soir 21h, dimanche 20h, le 1er du mois.",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        kind: { type: 'string', enum: ['day', 'week', 'month'], description: 'day = aujourd\'hui, week = semaine en cours, month = mois en cours' },
+        date: { type: 'string', description: 'AAAA-MM-JJ : jour (ou fin de période) voulu, défaut aujourd\'hui' },
+        send: { type: 'boolean', description: 'false = texte seulement, sans PDF Telegram' },
+      },
+      required: ['kind'],
+    },
+  },
+
   // ─── APPEL VOCAL DANS L'APP ─────────────────────────────────
   {
     name: 'pause_calls',

@@ -574,6 +574,21 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'forme-report-day',
+    cron:  '0 21 * * *',            // 06/11 : bilan du jour FORME (montre, séance, repas, eau) + PDF graphiques sur Telegram
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'forme-report-week',
+    cron:  '0 20 * * 0',            // dimanche 20h : bilan de la semaine + PDF
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'forme-report-month',
+    cron:  '0 20 1 * *',            // le 1er à 20h : bilan du mois d'avant + PDF
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'forme-weekly',
     cron:  '0 19 * * 0',            // dimanche 19h — bilan FORME + semaine de repas suivante composée
     tz:    'Europe/Brussels',
@@ -864,6 +879,9 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'connections-watch':       async () => { console.log(`[connections] ${await jobConnectionsWatch()}`); },
   'forme-reminders':         async () => { console.log(`[forme] ${await jobFormeReminders()}`); },
   'forme-weekly':            async () => { await jobFormeWeekly(); },
+  'forme-report-day':        async () => { await (await import('../integrations/forme-report.js')).jobFormeDaily(); },
+  'forme-report-week':       async () => { await (await import('../integrations/forme-report.js')).jobFormeWeekReport(); },
+  'forme-report-month':      async () => { await (await import('../integrations/forme-report.js')).jobFormeMonthReport(); },
   'sleep-weekly':            async () => { console.log(`[sleep-weekly] ${await (await import('../integrations/sleep-coach.js')).weeklySleepReview()}`); },
   'quotidien':               async () => { console.log(`[quotidien] ${await (await import('../integrations/quotidien.js')).jobQuotidien()}`); },
   'forme-food':              async () => { console.log(`[forme-food] ${await (await import('../integrations/forme-food.js')).jobFoodCoach()}`); },

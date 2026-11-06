@@ -445,6 +445,7 @@ async function _dispatch(
       case 'schedule_reminder':          return await scheduleReminder(input, sessionId);
       case 'call_me':                    return await callMeTool(input, sessionId);
       case 'pause_calls':                return await pauseCallsTool(input);
+      case 'forme_bilan':                return await (await import('./forme-report.js')).formeReportTool(input);
       // ─── PHASE 15 — Recherche images ───
       case 'search_images':              return await searchImages(input);
       // ─── GOOGLE CALENDAR ───

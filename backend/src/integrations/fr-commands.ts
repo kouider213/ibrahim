@@ -468,6 +468,18 @@ async function fikRevenue(raw: string): Promise<Direct | null> {
 }
 
 /** 🛌 « je suis crevé je vais pas à la salle demain » (04/11 banc : le cerveau disait « c'est noté » sans outil → garde anti-mensonge) */
+/** 📊 06/11 « mon bilan du jour / de la semaine / du mois », « envoie mon récap de la semaine » → bilan FORME par le code (PDF + texte). */
+async function formeBilan(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (t.length > 140 || !/\b(bilan|recap|recapitulatif|resume|rapport)\b/.test(t)) return null;
+  if (/\b(fik|client|location|resa|voiture|argent|cash|finance|business|prospect|site|mail|liberte|demis?)\b/.test(t)) return null;   // autres bilans
+  const kind = /\b(mois|mensuel)\b/.test(t) ? 'month' : /\b(semaine|hebdo)\b/.test(t) ? 'week' : /\b(jour|journee|aujourd'hui|ce soir|du soir)\b/.test(t) ? 'day' : null;
+  if (!kind || !/\b(mon|ma|le|du|de|envoie|fais|donne|montre)\b/.test(t)) return null;
+  if (/\b(sport|forme|sante|seance|montre|coach|corps|progres|evolution)\b/.test(t) === false && !/^(?:envoie|fais|donne|montre)?[- ]?(?:moi )?(?:mon |le )?(bilan|recap)/.test(t)) return null;
+  const r = await (await import('./forme-report.js')).formeReportTool({ kind });
+  return { text: r, direct: true };
+}
+
 async function sportSkip(raw: string): Promise<Direct | null> {
   const t = strip(raw);
   if (t.length > 200 || /\?\s*$/.test(t)) return null;
@@ -638,7 +650,7 @@ export async function frCommand(raw: string, sessionId = 'telegram_kouider'): Pr
   SID = sessionId;
   const msg = raw.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
   if (!msg) return null;
-  for (const f of [sharePub, pubTiktok, craving, noSales, carKm, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
+  for (const f of [sharePub, pubTiktok, craving, noSales, carKm, formeBilan, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
     const r = await f(msg).catch(e => ({ text: `❌ ${e instanceof Error ? e.message : e}`, direct: true }));
     if (r) return r;
   }

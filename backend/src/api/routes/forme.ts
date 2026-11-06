@@ -250,6 +250,25 @@ router.get('/cut', async (req, res) => {
 router.post('/cut/apply', async (req, res) => {
   try { const d = Number((req.body as { deficit?: unknown }).deficit); if (!Number.isFinite(d)) throw new Error('déficit manquant'); res.json({ deficit: await import('../../integrations/forme-cut.js').then(m => m.applyCutDecision(U(req), d)) }); } catch (err) { fail(res, err); }
 });
+// 06/11 bilans : GET /api/forme/day?date=AAAA-MM-JJ (jour du calendrier en détail) · GET /api/forme/report?kind=day|week|month&send=1
+router.get('/day', async (req, res) => {
+  try {
+    if (U(req) !== 'kouider') { res.status(403).json({ error: 'réservé' }); return; }
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query['date'] ?? '')) ? String(req.query['date']) : new Date().toISOString().slice(0, 10);
+    res.json(await import('../../integrations/forme-report.js').then(m => m.formeDayDetail(date)));
+  } catch (err) { fail(res, err); }
+});
+router.get('/report', async (req, res) => {
+  try {
+    if (U(req) !== 'kouider') { res.status(403).json({ error: 'réservé' }); return; }
+    const kind = (['day', 'week', 'month'] as const).find(k => k === req.query['kind']) ?? 'week';
+    const m = await import('../../integrations/forme-report.js');
+    if (req.query['send'] === '1') { res.json({ text: await m.sendReport(kind, undefined, true), sent: true }); return; }
+    const r = await m.buildReport(kind, undefined, false);
+    res.json({ title: r.title, text: r.text, scores: r.scores, prevScores: r.prevScores, totals: r.totals, strengths: r.strengths, weaknesses: r.weaknesses, actions: r.actions, progression: r.progression,
+      days: r.days.map(d => ({ date: d.date, steps: d.steps, sleep_h: d.sleep_h, rhr: d.rhr, hrv: d.hrv, activeKcal: d.activeKcal, volume: d.session?.volume ?? 0, weight: d.weight })) });
+  } catch (err) { fail(res, err); }
+});
 router.get('/insights', async (req, res) => {
   try { res.json(await import('../../integrations/forme-insights.js').then(m => m.formeInsights(U(req)))); } catch (err) { fail(res, err); }
 });
