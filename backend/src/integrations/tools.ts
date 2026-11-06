@@ -853,6 +853,19 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     },
   },
 
+  {
+    name: 'forme_programme',
+    description: "OBJECTIF + PROGRAMME de Kouider (FORME + coach sport + agenda) : action 'objectif' = où il en est (kilos restants, date d'arrivée au rythme réel, deadline tenue ou pas, quoi faire si ce n'est pas assez) ; 'adapter' = « adapte mon programme » → objectif vérifié, séances refaites dans l'agenda, déficit ajusté si sûr, muscles oubliés ajoutés ; 'priorite' + muscles (pecs, dos, epaules, bras, jambes, abdos) = « entraîne le dos en priorité » → priorité FORME + programme de la semaine refait partout.",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action: { type: 'string', enum: ['objectif', 'adapter', 'priorite'] },
+        muscles: { type: 'array', items: { type: 'string' }, description: 'pour priorite : pecs | dos | epaules | bras | jambes | abdos' },
+      },
+      required: ['action'],
+    },
+  },
+
   // ─── APPEL VOCAL DANS L'APP ─────────────────────────────────
   {
     name: 'pause_calls',

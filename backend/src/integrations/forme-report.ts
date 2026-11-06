@@ -127,6 +127,7 @@ export interface Report {
     bestDay?: string; muscleSets: Record<string, number> };
   prev?: Report['totals'];
   strengths: string[]; weaknesses: string[]; actions: string[]; progression: string[]; coach: string; text: string;
+  goal?: { lines: string[]; ifBehind: string[]; behind: boolean };
 }
 
 const pct = (a: number, b: number) => b ? Math.round((a - b) / b * 100) : 0;
@@ -231,14 +232,16 @@ export async function buildReport(kind: Kind, end = localNow().date, withCoach =
   const core = { kind, from: p.from, to: p.to, title: p.title, days, scores: scores(days, base, sessTarget, kind), prevScores: scores(prevDays, base, sessTarget, kind),
     totals: totals(days, sessTarget, s), prev: totals(prevDays, sessTarget, s), progression: progression(s, p.to) };
   const an = analyse(core);
+  const gs = await import('./forme-adapt.js').then(m => m.goalStatus()).catch(() => null);
+  const goal = gs && (gs.lines.length || gs.ifBehind.length) ? { lines: gs.lines, ifBehind: gs.ifBehind, behind: gs.behind } : undefined;
   let coach = '';
   if (withCoach) {
-    const facts = { periode: p.title, notes: core.scores, notes_avant: core.prevScores, totaux: core.totals, avant: core.prev, forts: an.strengths, faibles: an.weaknesses, actions: an.actions, charges: core.progression };
+    const facts = { objectif: goal?.lines, si_pas_assez: goal?.ifBehind, periode: p.title, notes: core.scores, notes_avant: core.prevScores, totaux: core.totals, avant: core.prev, forts: an.strengths, faibles: an.weaknesses, actions: an.actions, charges: core.progression };
     coach = (await ai(`Tu es le coach sportif et de vie de Kouider (grand frère exigeant et bienveillant, tutoiement, français simple). Voici SES chiffres réels :\n${JSON.stringify(facts)}\n\n`
       + `Écris 3 à 4 phrases : ce qui progresse (avec un chiffre), le point n°1 à améliorer et COMMENT concrètement, une phrase de motivation liée à sa femme et son fils. N'invente AUCUN chiffre. Pas de médicament. Pas de liste, pas de titre.`,
       { max: 300 }).catch(() => '')).trim().replace(/^["«]|["»]$/g, '');
   }
-  const r = { ...core, ...an, coach, text: '' } as Report;
+  const r = { ...core, ...an, coach, goal, text: '' } as Report;
   r.text = reportText(r);
   return r;
 }
@@ -269,6 +272,7 @@ export function reportText(r: Report): string {
     r.strengths.length ? `✅ Points forts :\n${r.strengths.map(x => `• ${x}`).join('\n')}` : '',
     r.weaknesses.length ? `⚠️ À améliorer :\n${r.weaknesses.map(x => `• ${x}`).join('\n')}` : '',
     r.actions.length ? `🎯 ${one ? 'Demain' : 'La suite'} :\n${r.actions.map(x => `• ${x}`).join('\n')}` : '',
+    r.goal?.lines.length ? `${r.goal.lines.join('\n')}${r.goal.ifBehind.length ? `\n💡 Pour y arriver plus vite :\n${r.goal.ifBehind.map(x => `• ${x}`).join('\n')}` : ''}${r.goal.behind ? '\n👉 Dis « adapte mon programme » (ou le bouton dans FORME › Progrès) et je change tout.' : ''}` : '',
     r.progression.length && !one ? `📈 Charges à augmenter :\n${r.progression.slice(0, 4).map(x => `• ${x}`).join('\n')}` : '',
     r.coach ? `\n🗣️ ${r.coach}` : '',
   ];
@@ -354,6 +358,8 @@ export async function reportPdf(r: Report): Promise<Buffer> {
   block('À améliorer', r.weaknesses, RED);
   block(r.kind === 'day' ? 'Demain' : 'Plan pour la suite', r.actions, ACC);
   if (r.progression.length) block('Charges à augmenter (surcharge progressive)', r.progression, GOLD);
+  if (r.goal?.lines.length) block('Ton objectif', r.goal.lines, NAVY);
+  if (r.goal?.ifBehind.length) block('Pour y arriver plus vite', r.goal.ifBehind, ACC);
   if (r.coach) { room(80); say('Le mot du coach', { bold: true, size: 12, color: NAVY }); say(r.coach, { size: 10.5, gap: 0.6 }); }
 
   // Graphiques (période ; pour un jour : les 7 derniers jours pour voir la tendance)

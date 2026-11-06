@@ -463,6 +463,17 @@ export async function planSportWeek(write = true): Promise<{ slots: Array<PlanSl
       if (other) plan[other]!.type = displaced;
     }
   }
+  // 06/11 Kouider : « s'il voit que je fais moins souvent un truc il le met dans le programme » → muscle pas travaillé depuis 10 jours
+  // et absent des 7 prochains jours = mis dans la prochaine séance libre (pas le samedi, pas une séance qu'il a choisie).
+  const neg = await import('./forme-adapt.js').then(m => m.neglectedMuscles(10)).catch(() => [] as string[]);
+  const usedNeg = new Set<string>();
+  for (const m of neg) {
+    if (Object.values(plan).some(p => (SESSIONS[p.type]?.muscles ?? []).includes(m as Muscle))) continue;
+    const t = ROTATION.filter(r => (SESSIONS[r]?.muscles ?? []).includes(m as Muscle))
+      .sort((a, b) => (SESSIONS[b]!.muscles.indexOf(m as Muscle) === 0 ? 1 : 0) - (SESSIONS[a]!.muscles.indexOf(m as Muscle) === 0 ? 1 : 0))[0];
+    const d = Object.keys(plan).sort().find(x => !fixed[x] && x >= today && x !== sat && !usedNeg.has(x));
+    if (t && d) { plan[d]!.type = t; usedNeg.add(d); console.log(`[sport] ${m} pas travaillé depuis 10 j → ${t} le ${d}`); }
+  }
   for (const [date, slot] of Object.entries(plan)) {
     const e = evOf[date]!, type = slot.type, minutes = slot.minutes;
     const suffix = (e.summary ?? '').includes(' — ') ? (e.summary ?? '').split(' — ').slice(1).join(' — ') : 'salle';

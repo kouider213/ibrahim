@@ -269,6 +269,20 @@ router.get('/report', async (req, res) => {
       days: r.days.map(d => ({ date: d.date, steps: d.steps, sleep_h: d.sleep_h, rhr: d.rhr, hrv: d.hrv, activeKcal: d.activeKcal, volume: d.session?.volume ?? 0, weight: d.weight })) });
   } catch (err) { fail(res, err); }
 });
+// 06/11 : POST /api/forme/adapt → objectif vérifié + programme refait partout (agenda, FORME) · POST /api/forme/priority { muscles: ['dos'] }
+router.post('/adapt', async (req, res) => {
+  try { if (U(req) !== 'kouider') { res.status(403).json({ error: 'réservé' }); return; } res.json(await import('../../integrations/forme-adapt.js').then(m => m.adaptProgram())); } catch (err) { fail(res, err); }
+});
+router.post('/priority', async (req, res) => {
+  try {
+    if (U(req) !== 'kouider') { res.status(403).json({ error: 'réservé' }); return; }
+    const muscles = Array.isArray((req.body as { muscles?: unknown })?.muscles) ? ((req.body as { muscles: unknown[] }).muscles).map(String) : [];
+    res.json({ text: await import('../../integrations/forme-adapt.js').then(m => m.prioritize(muscles)) });
+  } catch (err) { fail(res, err); }
+});
+router.get('/goal-status', async (req, res) => {
+  try { if (U(req) !== 'kouider') { res.status(403).json({ error: 'réservé' }); return; } res.json(await import('../../integrations/forme-adapt.js').then(m => m.goalStatus())); } catch (err) { fail(res, err); }
+});
 router.get('/insights', async (req, res) => {
   try { res.json(await import('../../integrations/forme-insights.js').then(m => m.formeInsights(U(req)))); } catch (err) { fail(res, err); }
 });

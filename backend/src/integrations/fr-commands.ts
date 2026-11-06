@@ -480,6 +480,25 @@ async function formeBilan(raw: string): Promise<Direct | null> {
   return { text: r, direct: true };
 }
 
+/** 🎯 06/11 « entraîne le dos en priorité », « adapte mon programme », « combien de temps il me reste pour mon objectif ». */
+async function formeProgram(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (t.length > 160) return null;
+  const MUS: Array<[RegExp, string]> = [[/\b(pecs?|pectoraux|poitrine|torse)\b/, 'pecs'], [/\bdos\b/, 'dos'], [/\b(epaules?|deltoides?)\b/, 'epaules'], [/\b(bras|biceps|triceps)\b/, 'bras'], [/\b(jambes?|cuisses?|fessiers?|mollets?|legs?)\b/, 'jambes'], [/\b(abdos?|ventre|abdominaux)\b/, 'abdos']];
+  const m = await import('./forme-adapt.js');
+  if (/\b(en priorite|priorite|prioritaire|en premier|surtout|plus de)\b/.test(t) && /\b(entrain\w*|travaill\w*|muscl\w*|met|mets|focus|bosser|developp\w*|seances?)\b/.test(t) && !/\?/.test(raw)) {
+    const ms = MUS.filter(([re]) => re.test(t)).map(([, id]) => id);
+    if (ms.length) return { text: await m.prioritize(ms), direct: true };
+  }
+  if (/\b(adapte|adapter|ajuste|ajuster|refai[st]|change|modifie)\b.{0,20}\b(mon |le |ma )?(programme|planning sport|seances|entrainement)\b/.test(t)) return { text: (await m.adaptProgram()).text, direct: true };
+  if (/\b(combien de temps|quand|dans combien)\b.{0,40}\b(objectif|atteindre|arriver|mes? \d{2,3} ?kg|perdre)\b|\bil me reste combien\b.{0,20}\b(kg|kilos?|objectif)\b/.test(t) && /\b(objectif|kg|kilos?|poids|perdre|atteindre)\b/.test(t)) {
+    const g = await m.goalStatus();
+    if (!g.lines.length) return null;
+    return { text: [...g.lines, ...(g.ifBehind.length ? ['', '💡 Pour y arriver plus vite :', ...g.ifBehind.map(x => `• ${x}`), '', '👉 Dis « adapte mon programme » et je change tout (agenda + FORME).'] : [])].join('\n'), direct: true };
+  }
+  return null;
+}
+
 async function sportSkip(raw: string): Promise<Direct | null> {
   const t = strip(raw);
   if (t.length > 200 || /\?\s*$/.test(t)) return null;
@@ -650,7 +669,7 @@ export async function frCommand(raw: string, sessionId = 'telegram_kouider'): Pr
   SID = sessionId;
   const msg = raw.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
   if (!msg) return null;
-  for (const f of [sharePub, pubTiktok, craving, noSales, carKm, formeBilan, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
+  for (const f of [sharePub, pubTiktok, craving, noSales, carKm, formeBilan, formeProgram, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
     const r = await f(msg).catch(e => ({ text: `❌ ${e instanceof Error ? e.message : e}`, direct: true }));
     if (r) return r;
   }

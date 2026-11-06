@@ -445,6 +445,13 @@ async function _dispatch(
       case 'schedule_reminder':          return await scheduleReminder(input, sessionId);
       case 'call_me':                    return await callMeTool(input, sessionId);
       case 'pause_calls':                return await pauseCallsTool(input);
+      case 'forme_programme': {
+        const m = await import('./forme-adapt.js');
+        const act = String(input['action'] ?? 'objectif');
+        if (act === 'adapter') return (await m.adaptProgram()).text;
+        if (act === 'priorite') return await m.prioritize((Array.isArray(input['muscles']) ? input['muscles'] : [input['muscles']]).map(x => String(x ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')));
+        const g = await m.goalStatus(); return [...g.lines, ...(g.ifBehind.length ? ['Pour aller plus vite :', ...g.ifBehind] : [])].join('\n') || 'Pas encore d\'objectif de poids dans FORME.';
+      }
       case 'forme_bilan':                return await (await import('./forme-report.js')).formeReportTool(input);
       // ─── PHASE 15 — Recherche images ───
       case 'search_images':              return await searchImages(input);
