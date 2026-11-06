@@ -353,7 +353,7 @@ async function pubTiktok(raw: string): Promise<Direct | null> {
   const pubWord = /\bpub\b/.test(t);
   if (!tiktokNow && !brief && !pubWord) return null;                             // « crée une vidéo » sans contexte TikTok/pub → le cerveau
   const idea = brief ?? (raw.length >= 40 ? raw : '');                           // vide = PUB LIBRE, l'équipe décide de tout
-  const r = await tiktokPubTool({ idea });
+  const r = await tiktokPubTool({ idea, force: /\b(autre|nouvelle|deuxieme|2e|2eme|encore une|refai[st]|relance)\b/.test(t) });   // pub en cours → pas de 2e rendu payé sauf « une autre »
   if (r.startsWith('❌')) return { text: r, direct: true };
   if (!idea) return { text: r.replace(/\nDis-lui tout ça[^\n]*$/, '').replace(/^🎬 Pub TikTok lancée \(job \w+, /, '🎬 Pub libre : mon équipe choisit tout (angle, voiture à pousser, texte) — c\'est parti ('), direct: true };
   return { text: r.replace(/\nDis-lui tout ça[^\n]*$/, '').replace(/^🎬 Pub TikTok lancée \(job \w+, /, '🎬 C\'est parti, je te fais la pub TikTok complète (') , direct: true };

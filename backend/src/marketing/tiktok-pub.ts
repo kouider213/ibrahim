@@ -710,6 +710,15 @@ async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: 
 export async function tiktokPubTool(input: Record<string, unknown>, actor = 'kouider'): Promise<string> {
   // message vide = PUB LIBRE : l'équipe choisit tout (angle, voiture à pousser, texte)
   const message = String(input['idea'] ?? input['message'] ?? '').trim();
+  // 06/11 : « Crée moi la pub TikTok » redit 5 fois (10h17 → 12h44) = 5 rendus Kling payés (≈ 13 $). Une pub encore en fabrication
+  // (< 40 min) n'est pas relancée : on dit où elle en est. « une autre / nouvelle / 2e pub » ou force:true = vraie nouvelle pub.
+  if (input['force'] !== true && !/\b(autre|nouvelle|deuxi[èe]me|2e|2ème|encore une|refai[st]|relance)\b/i.test(message)) {
+    const { listStudioJobs } = await import('./video-studio.js');
+    const busy = (await listStudioJobs().catch(() => ({ jobs: [] as StudioJob[] }))).jobs
+      .filter(j => j.planId === 'pub' && !['done', 'error'].includes(j.status) && Date.now() - Date.parse(j.createdAt) < 40 * 60_000)
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
+    if (busy) return `⏳ Ta pub « ${busy.title} » est déjà en fabrication (${busy.step}, ${busy.progress} %) : je te l'envoie sur Telegram dès qu'elle est prête, rien de plus à payer. Si tu veux vraiment une 2e pub en plus, dis « fais une autre pub ».`;
+  }
   const all = await fleet();
   if (!all.length) return '❌ Aucune voiture disponible avec photo dans la flotte.';
   const wantedRaw = (Array.isArray(input['car_names']) ? input['car_names'] : String(input['car_names'] ?? input['car_name'] ?? '').split(/[,;]+/)).map(String).map(s => s.trim()).filter(Boolean);
