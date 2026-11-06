@@ -145,7 +145,7 @@ const SLANG = /\b(fr[ée]ro?t?|frangin|khoya|kho|wesh|wsh|zahma|mazal|sa7bi|sahb
 const SLANG_STRIP = /,?\s*\b(el |mon |les )?(fr[ée]ro?t?|frangin|khoya|wesh|wsh|bro|mon gars|la famille)\b/gi;
 
 /** Décrit la vraie photo (gratuit : Gemini/Groq) pour que l'IA vidéo garde la même voiture, la même déco, le même lieu. */
-async function describeSubject(url: string): Promise<string> {
+export async function describeSubject(url: string): Promise<string> {
   try {
     const r = await axios.get<ArrayBuffer>(url, { responseType: 'arraybuffer', timeout: 20_000 });
     const mime = String(r.headers['content-type'] ?? 'image/jpeg').split(';')[0]!;
@@ -296,7 +296,7 @@ function lockedPrompt(shot: StudioShot, img: string | null, subject?: string): s
   return `${lock}${cam ? `${shot.prompt}. Camera: ${cam}.` : shot.prompt}`;
 }
 
-function shotInput(model: ModelId, shot: StudioShot, imageUrl: string | null, nativeAudio: boolean, subject?: string): { endpoint: string; input: Record<string, unknown> } {
+export function shotInput(model: ModelId, shot: StudioShot, imageUrl: string | null, nativeAudio: boolean, subject?: string): { endpoint: string; input: Record<string, unknown> } {
   const m = STUDIO_MODELS[model];
   const img = shot.use_image && imageUrl ? imageUrl : null;
   const prompt = lockedPrompt(shot, img, subject);
@@ -834,6 +834,7 @@ async function fleetPhoto(carName: string): Promise<{ name: string; url: string 
 
 export async function videoStudioTool(input: Record<string, unknown>, actor = 'kouider'): Promise<string> {
   const action = String(input['action'] ?? 'plan');
+  if (action === 'pub_tiktok') return (await import('./tiktok-pub.js')).tiktokPubTool(input, actor);
   if (action === 'edit') {
     const { startEdit } = await import('./montage-pro.js');
     const urls = (Array.isArray(input['media_urls']) ? input['media_urls'] : String(input['media_urls'] ?? '').split(/[\s,]+/)).map(String).filter(u => /^https?:\/\//.test(u));

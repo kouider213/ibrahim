@@ -1,3 +1,8 @@
+## 2026-11-06 — Pub TikTok complète (video_studio action=pub_tiktok)
+- marketing/tiktok-pub.ts : réalisateur IA (hook + 2 hooks de secours, motion design tiré de son message, 3 voitures, CTA) → hook sur le moment le plus fort mesuré (scene score) → intro motion design fond noir calée sur la voix → voitures (vraie photo → Kling, nom doré + atout) → CTA → signature FIK ; zone sûre TikTok, étalonnage premium, musique baissée sous la voix.
+- Pack community manager sur Telegram : vidéo, miniature, légende + hashtags, commentaire à épingler, réponses types, conseils, meilleur créneau (habitudes Algérie) + rappel à l'heure.
+- fr-commands pubTiktok : « crée-moi la vidéo/pub » après un message TikTok → lancé direct (même cerveaux saturés) ; avis/« je vais faire » → cerveau.
+
 ## 2026-11-06 — Vidéo IA aussi sur Telegram + « si j'ai envie je te ferai signe » ≠ envie
 - tgVideo (tool-executor) : la vidéo partait seulement dans l'app → aussi envoyée sur Telegram (queueTelegramMessage file).
 - craving (fr-commands) : phrase au conditionnel/plan (« si j'ai envie… je te ferai signe ») ne déclenche plus le SOS envie.

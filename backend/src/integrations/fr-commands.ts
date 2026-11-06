@@ -310,6 +310,30 @@ async function noSales(raw: string): Promise<Direct | null> {
   return { text: "📒 OK, aucune vente aujourd'hui : rien à noter, je ne te redemande pas ce soir.", direct: true };
 }
 
+/** 🎬 06/11 « Créer moi la vidéo ia stp » (après son message TikTok) → le cerveau gratuit a fait un clip de 5 s de la Clio dans le parking.
+ *  Demande claire de créer la pub/vidéo pour TikTok → pub complète tout de suite (video_studio pub_tiktok), avec SON message comme texte. */
+async function pubTiktok(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (!/\b(cree|crees|creer|creez|cre|fais|fait|faire|lance|monte|genere|prepare)\b(\s+(moi|nous|lui))?\s+(la|une|ma|notre|cette|ta)?\s*(video|pub|montage)\b/.test(t)) return null;
+  if (/\?|tu en penses?|t'en penses?|ton avis/.test(t)) return null;          // il demande un avis → le cerveau
+  if (/\b(photo|retouche|remplace|enleve)\b/.test(t)) return null;
+  if (/\bje (vais|veux|veut|voudrais|dois|compte|pense|vai)\b.{0,25}\b(faire|creer|monter|poster)\b/.test(t)) return null;   // c'est LUI qui va la faire → le cerveau conseille
+  const { supabase } = await import('./supabase.js');
+  const since = new Date(Date.now() - 3 * 3600_000).toISOString();
+  const { data } = await supabase.from('conversations').select('role, content, created_at').eq('session_id', SID).eq('role', 'user')
+    .gte('created_at', since).order('created_at', { ascending: false }).limit(8);
+  const recent = ((data ?? []) as Array<{ content: string }>).map(r => String(r.content ?? '').replace(/^\s*\[[\s\S]*?\]\s*/, '').trim());
+  const tiktokNow = /\b(tiktok|tik tok|reels?|insta)\b/.test(t);
+  const brief = [raw, ...recent].filter(m => m.length >= 60 && /tiktok|tik tok|pub|montage|motion/i.test(m)).sort((a, b) => b.length - a.length)[0];
+  if (!tiktokNow && !brief) return null;                                         // « crée une vidéo » sans contexte TikTok → le cerveau
+  const idea = brief ?? (raw.length >= 40 ? raw : '');
+  if (!idea) return { text: "🎬 Je te fais la pub TikTok complète. Dis-moi juste en une phrase ce qu'elle doit dire (ex. « FIK est de retour, merci aux clients fidèles… »).", direct: true };
+  const { tiktokPubTool } = await import('../marketing/tiktok-pub.js');
+  const r = await tiktokPubTool({ idea });
+  if (r.startsWith('❌')) return { text: r, direct: true };
+  return { text: r.replace(/\nDis-lui tout ça[^\n]*$/, '').replace(/^🎬 Pub TikTok lancée \(job \w+, /, '🎬 C\'est parti, je te fais la pub TikTok complète (') , direct: true };
+}
+
 async function craving(raw: string): Promise<Direct | null> {
   const t = strip(raw);
   if (raw.length > 240 || /\?/.test(raw) && !/\bje (peux|dois)\b/.test(t)) return null;
@@ -556,7 +580,7 @@ export async function frCommand(raw: string, sessionId = 'telegram_kouider'): Pr
   SID = sessionId;
   const msg = raw.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
   if (!msg) return null;
-  for (const f of [craving, noSales, carKm, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
+  for (const f of [pubTiktok, craving, noSales, carKm, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
     const r = await f(msg).catch(e => ({ text: `❌ ${e instanceof Error ? e.message : e}`, direct: true }));
     if (r) return r;
   }
