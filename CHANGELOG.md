@@ -1,3 +1,11 @@
+## 2026-11-06 — Pub TikTok : une vraie équipe
+- Producteur (données) : voitures sans réservation à 3 semaines / moins vues en pub, moment de l’année (Noël diaspora, Ramadan≈, été/mariages…), historique pub:history (20 dernières).
+- Stratège : 8 angles (storytelling, POV diaspora, convoi, 3 moments, Oran by night, devine la voiture, road trip, luxe), jamais un des 3 derniers sauf si demandé.
+- Comité de relecture : note hook/rétention/originalité/visuel/voix/CTA/CM sur 10 et corrige le plan ; décisions expliquées dans le pack Telegram.
+- Monteur : chaque scène coupée sur son passage le plus fort mesuré.
+- « crée moi une pub » sans texte = pub libre ; un message déjà utilisé n’est pas réutilisé.
+- Échec du 06/11 09h35 (job 2bdd8c41) : vidéo 64 Mo > limite 50 Mo → encodage plafonné 9 Mbit/s + fitSize() ≤ 45 Mo (64,5→33,8 Mo testé).
+
 ## 2026-11-06 — Pub TikTok : vraies scènes vidéo IA
 - tiktok-pub.ts : le réalisateur écrit 3-5 SCÈNES (décors réels Oran : corniche, Santa Cruz, centre de nuit, Les Andalouses…), au moins une avec 2-3 voitures ensemble (convoi), la plus spectaculaire en premier (hook).
 - keyframe() : vraies photos de la flotte placées dans le décor (Nano Banana multi-photos 9:16, sinon FLUX Kontext gratuit testé OK 34 s, sinon photo d’origine) → Kling fait rouler la voiture.

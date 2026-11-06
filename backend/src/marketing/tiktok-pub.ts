@@ -47,6 +47,8 @@ interface PubPlan {
   scenes: Array<{ cars: string[]; label: string; scene: string; action: string; camera: string }>;
   music_prompt: string; caption: string; hashtags: string[]; pinned_comment: string; replies: string[];
   cover_text: string; tips: string[];
+  /** Angle créatif choisi par l'équipe (id de ANGLES) + décisions expliquées à Kouider. */
+  angle: string; team_notes: string[];
 }
 
 // ─── Meilleur créneau (public : Oran / Algérie + diaspora en France) ─────────
@@ -96,12 +98,13 @@ function findCar(all: Car[], name: string): Car | undefined {
   return all.find(c => norm(c.name) === n) ?? all.find(c => norm(c.name).includes(n) || n.includes(norm(c.name)));
 }
 
-export async function direct(message: string, cars: Car[], wanted: string[], seconds: number): Promise<PubPlan> {
+export async function direct(message: string, cars: Car[], wanted: string[], seconds: number, brief?: TeamBrief): Promise<PubPlan> {
   const system = `Tu es à la fois le meilleur réalisateur de pubs TikTok, le meilleur monteur motion design et le meilleur community manager du marché algérien (location de voitures, Oran).
 Tu réponds UNIQUEMENT avec un JSON valide, sans texte autour.`;
   const user = `Entreprise : FIK Conciergerie — location de voitures à Oran (Algérie), clients locaux et diaspora (France).
-Message de Kouider (le patron), à transformer en pub — corrige l'orthographe, garde SON sens et ses mots forts :
-« ${message} »
+${message ? `Message de Kouider (le patron), à transformer en pub — corrige l'orthographe, garde SON sens et ses mots forts :
+« ${message} »` : 'Kouider n\'a pas donné de texte : PUB LIBRE, c\'est l\'équipe qui décide du message (donner envie de louer chez FIK, en suivant l\'angle et le moment ci-dessous).'}
+${brief ? `\n${brief.text}\n` : ''}
 Voitures disponibles (avec vraie photo) : ${cars.map(c => `${c.name} [${c.category}]`).join(' · ')}
 ${wanted.length ? `Voitures imposées par Kouider : ${wanted.join(', ')}.` : 'Choisis 3 voitures qui se complètent (une sportive/premium, une prestige, une familiale ou SUV).'}
 Durée totale visée : ${seconds} s (hook 1,6 s + intro motion design + scènes vidéo IA ${CAR_S} s chacune + CTA ${CTA_S} s).
@@ -126,7 +129,7 @@ Rends ce JSON :
  "tips": ["5 conseils concrets pour CE post (1re heure, son tendance, répondre aux commentaires…), adaptés à TikTok Algérie"]
 }
 Règles :
-- 3 à 5 lignes de motion design, ordre du message : retour → excuses → merci aux clients fidèles → plus fort que jamais.
+- 3 à 5 lignes de motion design qui suivent SON message dans son ordre (ou l'angle si pub libre). Phrases très courtes, une idée par ligne.
 - Ton pro et chaleureux, vouvoiement, AUCUN argot (jamais « frérot », « wesh », « la famille »…). « Inshallah » autorisé UNE fois si Kouider l'a écrit.
 - Jamais de prix, jamais de date, jamais de ville belge.
 - 4 scènes (3 à 5) qui ont le potentiel de devenir VIRALES : décors spectaculaires et réels d'Oran/Algérie (corniche au coucher du soleil, front de mer de nuit avec les lumières de la ville, route de Santa Cruz en lacets au-dessus de la mer, port, route du désert…), variés d'une scène à l'autre.
@@ -134,6 +137,11 @@ Règles :
 - La scène la plus spectaculaire en PREMIER (elle sert au hook). Chaque voiture apparaît au moins une fois. Noms EXACTS de la liste.
 - Réalisme : pas de cascade impossible, pas de vol, pas de personnes en gros plan ; la voiture garde exactement sa forme et sa couleur.`;
   const raw = await askJson<Partial<PubPlan>>(system, user, 2500);
+  return shapePlan(raw);
+}
+
+/** Nettoie / borne un plan rendu par une IA (réalisateur ou comité). */
+export function shapePlan(raw: Partial<PubPlan>): PubPlan {
   const lines = (raw.lines ?? []).map(l => ({ text: String(l?.text ?? '').trim().slice(0, 60), gold: (l?.gold ?? []).map(String).slice(0, 2) })).filter(l => l.text).slice(0, 5);
   if (!lines.length) throw new Error('le réalisateur IA n\'a pas rendu de texte — réessaie dans une minute');
   return {
@@ -147,7 +155,141 @@ Règles :
     caption: String(raw.caption ?? '').slice(0, 300), hashtags: (raw.hashtags ?? []).map(h => `#${String(h).replace(/^#/, '').replace(/\s+/g, '')}`).slice(0, 10),
     pinned_comment: String(raw.pinned_comment ?? '').slice(0, 300), replies: (raw.replies ?? []).map(String).slice(0, 3),
     cover_text: String(raw.cover_text ?? raw.hook ?? '').slice(0, 40), tips: (raw.tips ?? []).map(String).slice(0, 6),
+    angle: String(raw.angle ?? '').slice(0, 40), team_notes: (Array.isArray(raw.team_notes) ? raw.team_notes : []).map(String).map(x => x.slice(0, 220)).slice(0, 6),
   };
+}
+
+// ─── L'ÉQUIPE (producteur + stratège + comité de relecture) ───────────────────
+// « À chaque fois une NOUVELLE pub, avec une vraie équipe derrière » (Kouider 06/11) :
+//  • le producteur lit les DONNÉES (voitures qui dorment, pubs déjà faites, moment de l'année)
+//  • le stratège choisit un ANGLE jamais utilisé récemment
+//  • le réalisateur écrit, puis le COMITÉ (stratège viral, monteur, CM, directeur artistique, voix off) note et corrige.
+
+const HISTORY_KEY = 'pub:history';
+export interface PubMemo { at: string; title: string; angle: string; hook: string; cars: string[]; decors: string[]; brief: string }
+
+export async function pubHistory(): Promise<PubMemo[]> {
+  const { kvGet } = await import('../integrations/app-store.js');
+  try { return JSON.parse((await kvGet(HISTORY_KEY)) ?? '[]') as PubMemo[]; } catch { return []; }
+}
+async function remember(m: PubMemo): Promise<void> {
+  const { kvGet, kvSet } = await import('../integrations/app-store.js');
+  let h: PubMemo[] = [];
+  try { h = JSON.parse((await kvGet(HISTORY_KEY)) ?? '[]') as PubMemo[]; } catch { /* vide */ }
+  await kvSet(HISTORY_KEY, JSON.stringify([m, ...h].slice(0, 20))).catch(() => {});
+}
+
+/** Angles qui marchent sur TikTok, réalisables avec nos scènes IA (voitures dans un décor, qui roulent). */
+export const ANGLES: Array<{ id: string; name: string; how: string }> = [
+  { id: 'histoire', name: 'Storytelling de marque', how: 'message du patron en motion design (retour, merci, promesse), puis la flotte en action' },
+  { id: 'pov_diaspora', name: 'POV diaspora', how: '« POV : tu atterris à Oran et ta voiture t\'attend » — aéroport Es Sénia, route vers la corniche, arrivée famille' },
+  { id: 'convoi', name: 'Le convoi FIK', how: 'toute la flotte qui roule ensemble (convoi de mariage, sortie de nuit), plans larges puis détails' },
+  { id: '3_moments', name: '3 voitures pour 3 moments', how: 'une voiture = une occasion : mariage (prestige), famille (grand volume), affaires/sortie (sportive)' },
+  { id: 'oran_nuit', name: 'Oran by night', how: 'ambiance nocturne : front de mer illuminé, Santa Cruz éclairée, reflets sur bitume mouillé, phares' },
+  { id: 'devine', name: 'Devine la voiture', how: 'hook « Devine laquelle tu prends ce week-end » : silhouettes / détails (phares, jantes) puis révélation' },
+  { id: 'roadtrip', name: 'Road trip Algérie', how: 'Oran → Santa Cruz → Les Andalouses → route du désert : liberté, grands espaces' },
+  { id: 'luxe', name: 'Le luxe accessible', how: 'plans lents très premium sur la voiture de prestige, lumière dorée, détails chromés, calme' },
+];
+
+/** Moment de l'année vu d'Oran (dates islamiques ≈, à ±1 jour). */
+export function momentOfYear(now = new Date()): { label: string; hints: string[] } {
+  const md = (now.getUTCMonth() + 1) * 100 + now.getUTCDate();
+  const y = now.getUTCFullYear();
+  const dow = new Date(now.getTime() + 3600_000).getUTCDay();
+  const hints: string[] = [];
+  const ev: Array<[number, number, string, string]> = [   // [début MMJJ, fin MMJJ, nom, conseil]
+    [1025, 1105, 'Fête de la Révolution (1er novembre)', 'fierté algérienne, drapeau discret possible'],
+    [1106, 1218, 'Avant les vacances de Noël en France', 'la diaspora réserve MAINTENANT pour fin décembre : « réservez avant d\'atterrir »'],
+    [1219, 1231, 'Vacances de Noël — la diaspora arrive', 'arrivées aéroport, retrouvailles famille, fêtes de fin d\'année'],
+    [101, 108, 'Nouvel an / fin des vacances', 'nouvelle année, nouveaux départs'],
+    [109, 114, 'Yennayer (12 janvier)', 'fête berbère, tradition'],
+  ];
+  if (y === 2027) ev.push([125, 207, 'Avant le Ramadan (≈ 8 février 2027)', 'préparer le mois : voitures familiales pour les courses et les visites'],
+    [208, 309, 'Ramadan (≈ 8 fév → 9 mars 2027)', 'poster APRÈS le ftour (21h-23h), ton doux, famille, soirées'],
+    [310, 316, 'Aïd el-Fitr (≈ 10 mars 2027)', 'visites familiales, grande voiture, élégance'],
+    [505, 520, 'Aïd el-Adha (≈ 16 mai 2027)', 'retour au bled, famille, grands volumes']);
+  ev.push([601, 630, 'Début de la saison des mariages', 'voiture de mariage, convoi, prestige'],
+    [701, 831, 'Été — diaspora + mariages + plages', 'Les Andalouses, corniche, convois de mariage, aéroport'], [702, 706, 'Fête de l\'Indépendance (5 juillet)', 'fierté, Algérie'],
+    [901, 920, 'Rentrée', 'dernier mariages, retour des vacances']);
+  let label = 'Période normale';
+  for (const [a, b, n, h] of ev) if (md >= a && md <= b) { label = n; hints.push(h); }
+  hints.push(dow >= 4 && dow <= 6 ? 'on est dans le week-end algérien (jeudi soir → samedi) : sorties, mariages' : 'semaine : déplacements pro, aéroport, préparer le week-end qui arrive');
+  return { label, hints };
+}
+
+export interface TeamBrief { angle: (typeof ANGLES)[number]; push: Array<{ name: string; why: string }>; moment: ReturnType<typeof momentOfYear>; history: PubMemo[]; text: string }
+
+/** Le producteur : données réelles → voitures à pousser, angle neuf, moment, pubs déjà faites. */
+export async function teamBrief(all: Car[], message: string): Promise<TeamBrief> {
+  const history = await pubHistory();
+  const moment = momentOfYear();
+  // voitures qui dorment le plus (dernière location terminée) et les moins vues dans nos pubs
+  const push: Array<{ name: string; why: string; score: number }> = [];
+  try {
+    const { data: cars } = await supabase.from('cars').select('id, name').eq('available', true);
+    const { data: bk } = await supabase.from('bookings').select('car_id, start_date, end_date, status').in('status', ['CONFIRMED', 'COMPLETED', 'ACTIVE']);
+    const today = new Date().toISOString().slice(0, 10);
+    const in21 = new Date(Date.now() + 21 * 86_400_000).toISOString().slice(0, 10);
+    for (const c of (cars ?? []) as Array<{ id: string; name: string }>) {
+      if (!all.some(x => x.name === c.name)) continue;
+      const mine = ((bk ?? []) as Array<{ car_id: string; start_date: string; end_date: string }>).filter(b => b.car_id === c.id);
+      const booked = mine.filter(b => b.end_date >= today && b.start_date <= in21).length;
+      const lastEnd = mine.map(b => b.end_date).filter(d => d <= today).sort().pop();
+      const idle = lastEnd ? Math.round((Date.parse(today) - Date.parse(lastEnd)) / 86_400_000) : 99;
+      const seen = history.slice(0, 6).filter(h => h.cars.some(n => norm(n) === norm(c.name))).length;
+      push.push({ name: c.name, score: (booked ? -40 : 20) + Math.min(idle, 60) - seen * 15,
+        why: `${booked ? 'déjà réservée dans les 3 semaines' : 'aucune réservation dans les 3 prochaines semaines'}, ${idle >= 99 ? 'aucune location enregistrée' : `dernière location il y a ${idle} j`}${seen ? `, vue dans ${seen} pub(s) récente(s)` : ', pas encore mise en avant en pub'}` });
+    }
+  } catch (e) { console.warn('[pub] producteur :', e instanceof Error ? e.message : e); }
+  push.sort((a, b) => b.score - a.score);
+  const used = history.slice(0, 3).map(h => h.angle);
+  const t = norm(message);
+  const asked = ANGLES.find(a => (a.id === 'pov_diaspora' && /(pov|diaspora|aeroport|atterri)/.test(t)) || (a.id === 'convoi' && /(convoi|flotte|mariage)/.test(t))
+    || (a.id === 'oran_nuit' && /(nuit|soir)/.test(t)) || (a.id === 'devine' && /devine/.test(t)) || (a.id === 'roadtrip' && /(road ?trip|desert|voyage)/.test(t))
+    || (a.id === 'histoire' && /(retour|excuse|desole|merci|absence|annonce)/.test(t)));
+  const fresh = ANGLES.filter(a => !used.includes(a.id));
+  const angle = asked ?? fresh[Math.floor(Math.random() * fresh.length)] ?? ANGLES[0]!;
+  const top = push.slice(0, 3);
+  const text = [
+    `ANGLE CRÉATIF imposé par le stratège : « ${angle.name} » — ${angle.how}.`,
+    `MOMENT : ${moment.label} — ${moment.hints.join(' ; ')}.`,
+    top.length ? `VOITURES À POUSSER (données réelles des réservations) : ${top.map(p => `${p.name} (${p.why})`).join(' · ')}. Mets-les en avant, au moins la 1re.` : '',
+    history.length ? `PUBS DÉJÀ FAITES (NE RÉPÈTE NI le hook, NI les décors, NI la structure) :
+${history.slice(0, 6).map(h => `- ${h.at.slice(0, 10)} « ${h.title} » angle ${h.angle} · hook « ${h.hook} » · décors : ${h.decors.join(' / ').slice(0, 160)}`).join('\n')}` : 'Première pub de la série.',
+  ].filter(Boolean).join('\n');
+  return { angle, push: top, moment, history, text };
+}
+
+/** Le comité de relecture : note la pub comme une équipe d'agence et rend la version corrigée. */
+export async function review(plan: PubPlan, brief: TeamBrief, message: string): Promise<{ plan: PubPlan; scores: Record<string, number>; verdict: string }> {
+  const system = `Tu es le COMITÉ de relecture d'une agence TikTok qui fait des vidéos virales en Algérie : un stratège viral, un monteur, un community manager, un directeur artistique et un comédien voix off. Tu réponds UNIQUEMENT avec un JSON valide.`;
+  const user = `Brief de l'équipe :
+${brief.text}
+
+Message du patron : « ${message || '(aucun — pub libre, l\'équipe décide)'} »
+
+Projet du réalisateur :
+${JSON.stringify(plan)}
+
+Note chaque point sur 10 puis CORRIGE tout ce qui est sous 8 :
+- hook : arrête-t-il le scroll en moins d'1 seconde (curiosité, choc, POV, question) ? 2 à 5 mots.
+- retention : enchaînement sans temps mort (scène la plus forte en 1er, phrases courtes, chaque plan apporte du neuf, payoff à la fin) ?
+- originalite : différent des pubs déjà faites (hook, décors, structure) ?
+- visuel : décors réels d'Oran spectaculaires et variés, actions réalistes où les voitures BOUGENT, au moins une scène multi-voitures ?
+- voix : texte de voix off écrit pour être DIT (rythme, respiration, ≤ 2,5 mots/s, chaleureux, vouvoiement, zéro argot) ?
+- cta : clair, une seule action (WhatsApp) ?
+- cm : légende qui fait commenter, hashtags pertinents, commentaire épinglé utile ?
+Règles inchangées : jamais de prix, jamais de date, jamais de Belgique, noms de voitures EXACTS.
+Rends : { "scores": {"hook":0,"retention":0,"originalite":0,"visuel":0,"voix":0,"cta":0,"cm":0}, "verdict": "1 phrase", "plan": { …le projet COMPLET corrigé, MÊMES clés, + "angle": "${brief.angle.id}", + "team_notes": ["3 à 5 décisions expliquées simplement au patron : pourquoi ce hook, pourquoi cette voiture, pourquoi cet ordre, ce qui a été coupé"] } }`;
+  try {
+    const r = await askJson<{ scores?: Record<string, number>; verdict?: string; plan?: Partial<PubPlan> }>(system, user, 3500);
+    const fixed = r.plan ? shapePlan({ ...plan, ...r.plan }) : plan;
+    if (!fixed.scenes.length) fixed.scenes = plan.scenes;
+    return { plan: fixed, scores: r.scores ?? {}, verdict: String(r.verdict ?? '').slice(0, 240) };
+  } catch (e) {
+    console.warn('[pub] comité :', e instanceof Error ? e.message : e);
+    return { plan, scores: {}, verdict: '' };
+  }
 }
 
 // ─── Monteur ──────────────────────────────────────────────────
@@ -180,7 +322,18 @@ const gold = (text: string, words: string[]) => {
 const goldBar = (x: number, y: number, w: number, delayMs: number) =>
   `{\\an7\\pos(${x},${y})\\p1\\c${GOLD}\\bord0\\shad0\\fscx0\\t(${delayMs},${delayMs + 350},\\fscx100)}m 0 0 l ${w} 0 l ${w} 7 l 0 7{\\p0}`;
 const esc = (p: string) => p.replace(/\\/g, '/').replace(/:/g, '\\:').replace(/'/g, "\\'");
-const ENC = ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '19', '-pix_fmt', 'yuv420p', '-r', String(FPS)];
+const ENC = ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-maxrate', '9M', '-bufsize', '18M', '-pix_fmt', 'yuv420p', '-r', String(FPS)];
+/** Limite Supabase + Telegram = 50 Mo : au-dessus de 45 Mo on ré-encode au débit qui tient dans ~38 Mo. */
+export async function fitSize(dir: string, file: string, dur: number, maxMb = 45): Promise<string> {
+  const size = (await fs.stat(file)).size;
+  if (size <= maxMb * 1e6) return file;
+  const kbps = Math.max(2500, Math.floor((38e6 * 8) / Math.max(dur, 1) / 1000) - 220);
+  const out = path.join(dir, 'final-small.mp4');
+  await run(['-i', file, '-c:v', 'libx264', '-preset', 'medium', '-b:v', `${kbps}k`, '-maxrate', `${Math.round(kbps * 1.3)}k`, '-bufsize', `${kbps * 2}k`,
+    '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-c:a', 'aac', '-b:a', '160k', out]);
+  console.log(`[pub] vidéo ${(size / 1e6).toFixed(1)} Mo → ${((await fs.stat(out)).size / 1e6).toFixed(1)} Mo`);
+  return out;
+}
 const FIT = `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${FPS},setsar=1`;
 /** Étalonnage « pub premium » : plus de contraste, noirs profonds, vignette → raccord avec le motion design noir. */
 const GRADE = 'eq=contrast=1.14:brightness=-0.035:saturation=1.08,vignette=angle=PI/4.2';
@@ -270,7 +423,9 @@ export async function buildPubVideo(o: {
       ev(a, 0.05, perCar, 'CarName', `{\\move(-400,1280,90,1280,0,220)}${assText(x.car.name.replace(/\s+—.*$/, '').toUpperCase())}`);
       ev(a, 0.15, perCar, 'CarLbl', `{\\move(-600,1380,90,1380,0,260)}${assText(x.label.toUpperCase())}`);
       const f = path.join(dir, `car${i}.ass`); await fs.writeFile(f, a.join('\n') + '\n');
-      const st = i === hi ? Math.max(0, Math.min(wins[hi]!.start + HOOK_S, 5 - perCar)) : 0.4;   // pas deux fois la même image que le hook
+      // le monteur coupe chaque scène sur SON passage le plus fort (mesuré) ; pour la scène du hook, la suite du hook (pas deux fois la même image)
+      const st = i === hi ? Math.max(0, Math.min(wins[hi]!.start + HOOK_S, 5 - perCar))
+        : (await strongestWindow(x.file, perCar).catch(() => ({ start: 0.4, score: 0 }))).start;
       await seg(`s2_${i}`, ['-ss', st.toFixed(2), '-i', x.file, '-vf',
         `${FIT},${GRADE},tpad=stop_mode=clone:stop_duration=${perCar.toFixed(2)},trim=duration=${perCar.toFixed(2)},` +
         `zoompan=z='1.0+0.06*on/${Math.round(perCar * FPS)}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${W}x${H}:fps=${FPS},` +
@@ -347,7 +502,7 @@ export async function keyframe(sc: Scene, allowPaid: boolean): Promise<{ url: st
   return { url: sc.cars[0]!.url, cost: 0 };
 }
 
-async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: ModelId, myVoice: boolean, slots: ReturnType<typeof bestPostSlots>): Promise<void> {
+async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: ModelId, myVoice: boolean, slots: ReturnType<typeof bestPostSlots>, team = ''): Promise<void> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), `pub-${job.id}-`));
   const free = model === 'gratuit';
   const rate = STUDIO_MODELS[model].perSec;
@@ -415,7 +570,8 @@ async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: 
     // ── 6. Livraison : vidéo + pack community manager sur Telegram, rappel à la bonne heure ──
     job.step = 'Envoi…'; job.progress = 95; await saveJob(job);
     const name = `studio/pub-${job.id}.mp4`;
-    const { error } = await supabase.storage.from('videos').upload(name, await fs.readFile(final), { contentType: 'video/mp4', upsert: true, cacheControl: '3600' });
+    const sendable = await fitSize(dir, final, finalDur);
+    const { error } = await supabase.storage.from('videos').upload(name, await fs.readFile(sendable), { contentType: 'video/mp4', upsert: true, cacheControl: '3600' });
     if (error) throw new Error(`upload Supabase : ${error.message}`);
     const url = supabase.storage.from('videos').getPublicUrl(name).data.publicUrl;
     const caption = `${plan.caption}\n\n${plan.hashtags.join(' ')}`.trim();
@@ -440,6 +596,7 @@ async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: 
       prime ? `⏰ Meilleur moment pour poster : ${prime.label} — ${prime.why}.${slots.filter(s => s !== prime).slice(0, 2).map(s => `\n   Autre créneau : ${s.label}`).join('')}\n   Je te préviens à l'heure.\n` : '',
       `🎣 Hook utilisé : « ${plan.hook} » (pris sur le moment le plus fort des vidéos de voitures).${plan.alt_hooks.length ? `\n   Hooks de secours pour un 2e post : ${plan.alt_hooks.map(h => `« ${h} »`).join(' · ')}` : ''}`,
       '',
+      team ? team : '',
       plan.replies.length ? `💬 Réponses toutes prêtes aux commentaires :\n${plan.replies.map(r => `• ${r}`).join('\n')}\n` : '',
       plan.tips.length ? `🧠 Conseils pour ce post :\n${plan.tips.map(t => `• ${t}`).join('\n')}` : '',
       '',
@@ -472,14 +629,18 @@ async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: 
 // ─── Outil ────────────────────────────────────────────────────
 
 export async function tiktokPubTool(input: Record<string, unknown>, actor = 'kouider'): Promise<string> {
+  // message vide = PUB LIBRE : l'équipe choisit tout (angle, voiture à pousser, texte)
   const message = String(input['idea'] ?? input['message'] ?? '').trim();
-  if (message.length < 8) return '❌ Il me faut son message (ce que la pub doit dire). Demande-lui en une phrase, ou reprends celui qu\'il vient d\'écrire.';
   const all = await fleet();
   if (!all.length) return '❌ Aucune voiture disponible avec photo dans la flotte.';
   const wantedRaw = (Array.isArray(input['car_names']) ? input['car_names'] : String(input['car_names'] ?? input['car_name'] ?? '').split(/[,;]+/)).map(String).map(s => s.trim()).filter(Boolean);
   const wanted = wantedRaw.map(n => findCar(all, n)?.name).filter((x): x is string => !!x);
   const seconds = Math.min(40, Math.max(18, Number(input['seconds']) || 26));
-  const plan = await direct(message, all, wanted, seconds);
+  const brief = await teamBrief(all, message);
+  const draft = await direct(message, all, wanted, seconds, brief);
+  const rv = await review(draft, brief, message);
+  const plan = rv.plan;
+  plan.angle = brief.angle.id;
   let scenes: Scene[] = plan.scenes.map(sc => ({ ...sc, cars: sc.cars.map(n => findCar(all, n)).filter((c): c is Car => !!c)
     .filter((c, i, a) => a.findIndex(x => x.name === c.name) === i) })).filter(sc => sc.cars.length);
   if (!scenes.length) {
@@ -494,11 +655,23 @@ export async function tiktokPubTool(input: Record<string, unknown>, actor = 'kou
     id: randomUUID().slice(0, 8), planId: 'pub', title: plan.title, model, status: 'queued', step: 'En file…', progress: 2,
     estimateUsd: est, costUsd: 0, shotsDone: 0, shotsTotal: scenes.length, createdAt: now, updatedAt: now, actor,
   };
-  await launchJob(job, () => renderPub(job, plan, scenes, model, input['my_voice'] === true, slots));
+  const sc = Object.entries(rv.scores).filter(([, v]) => typeof v === 'number');
+  const team = [
+    `🎬 Les choix de l'équipe :`,
+    `• Angle : ${brief.angle.name} — ${brief.angle.how}.`,
+    `• Moment : ${brief.moment.label} (${brief.moment.hints[0]}).`,
+    brief.push[0] ? `• Voiture à pousser : ${brief.push[0].name} — ${brief.push[0].why}.` : '',
+    ...plan.team_notes.map(n => `• ${n}`),
+    sc.length ? `• Note du comité : ${sc.map(([k, v]) => `${k} ${v}/10`).join(' · ')}${rv.verdict ? ` — ${rv.verdict}` : ''}` : '',
+  ].filter(Boolean).join('\n') + '\n';
+  await launchJob(job, () => renderPub(job, plan, scenes, model, input['my_voice'] === true, slots, team));
+  await remember({ at: now, title: plan.title, angle: brief.angle.id, hook: plan.hook, cars: [...new Set(scenes.flatMap(x => x.cars.map(c => c.name)))],
+    decors: scenes.map(x => x.scene.slice(0, 80)), brief: message.slice(0, 300) });
   const prime = slots.find(s => s.prime);
   return `🎬 Pub TikTok lancée (job ${job.id}, ${STUDIO_MODELS[model].label}, ${model === 'gratuit' ? '0 €' : `≈ ${est.toFixed(2)} $`}, prête dans 5 à 12 min sur Telegram + page MONTAGE).
 Hook (1,6 s, sur le moment le plus fort) : « ${plan.hook} »
 Motion design fond noir : ${plan.lines.map(l => `« ${l.text} »`).join(' → ')}
+Angle : ${brief.angle.name} · moment : ${brief.moment.label}${brief.push[0] ? ` · voiture poussée : ${brief.push[0].name} (${brief.push[0].why})` : ''}.
 Scènes vidéo IA (vraies voitures placées dans le décor, qui roulent) : ${scenes.map(sc => `${sc.cars.map(c => c.name).join(' + ')} — ${sc.scene.slice(0, 60)}`).join(' | ')} → CTA « ${plan.cta} » → signature FIK.
 Il recevra : la vidéo, la miniature, la légende + hashtags, le commentaire à épingler, les réponses types et un rappel au meilleur moment${prime ? ` (${prime.label})` : ''}.
 Dis-lui tout ça simplement, sans détails techniques.`;

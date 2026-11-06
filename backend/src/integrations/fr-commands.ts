@@ -324,13 +324,17 @@ async function pubTiktok(raw: string): Promise<Direct | null> {
     .gte('created_at', since).order('created_at', { ascending: false }).limit(8);
   const recent = ((data ?? []) as Array<{ content: string }>).map(r => String(r.content ?? '').replace(/^\s*\[[\s\S]*?\]\s*/, '').trim());
   const tiktokNow = /\b(tiktok|tik tok|reels?|insta)\b/.test(t);
-  const brief = [raw, ...recent].filter(m => m.length >= 60 && /tiktok|tik tok|pub|montage|motion/i.test(m)).sort((a, b) => b.length - a.length)[0];
-  if (!tiktokNow && !brief) return null;                                         // « crée une vidéo » sans contexte TikTok → le cerveau
-  const idea = brief ?? (raw.length >= 40 ? raw : '');
-  if (!idea) return { text: "🎬 Je te fais la pub TikTok complète. Dis-moi juste en une phrase ce qu'elle doit dire (ex. « FIK est de retour, merci aux clients fidèles… »).", direct: true };
-  const { tiktokPubTool } = await import('../marketing/tiktok-pub.js');
+  const { tiktokPubTool, pubHistory } = await import('../marketing/tiktok-pub.js');
+  // un message déjà transformé en pub n'est pas réutilisé tel quel (« crée moi une pub » = une NOUVELLE pub)
+  const usedBriefs = new Set((await pubHistory().catch(() => [])).map(h => h.brief.slice(0, 300)));
+  const brief = [raw, ...recent].filter(m => m.length >= 60 && /tiktok|tik tok|pub|montage|motion/i.test(m) && (m === raw || !usedBriefs.has(m.slice(0, 300))))
+    .sort((a, b) => b.length - a.length)[0];
+  const pubWord = /\bpub\b/.test(t);
+  if (!tiktokNow && !brief && !pubWord) return null;                             // « crée une vidéo » sans contexte TikTok/pub → le cerveau
+  const idea = brief ?? (raw.length >= 40 ? raw : '');                           // vide = PUB LIBRE, l'équipe décide de tout
   const r = await tiktokPubTool({ idea });
   if (r.startsWith('❌')) return { text: r, direct: true };
+  if (!idea) return { text: r.replace(/\nDis-lui tout ça[^\n]*$/, '').replace(/^🎬 Pub TikTok lancée \(job \w+, /, '🎬 Pub libre : mon équipe choisit tout (angle, voiture à pousser, texte) — c\'est parti ('), direct: true };
   return { text: r.replace(/\nDis-lui tout ça[^\n]*$/, '').replace(/^🎬 Pub TikTok lancée \(job \w+, /, '🎬 C\'est parti, je te fais la pub TikTok complète (') , direct: true };
 }
 
