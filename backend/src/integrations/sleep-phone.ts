@@ -18,6 +18,25 @@ const FALL_ASLEEP_MIN = 15;
 const MINBED_K = 'sleep:phone:min_bed';   // 'HH:MM' (défaut 23:00, dit par Kouider)
 const DEFAULT_MIN_BED = '23:00';   // 06/11 21h50 Kouider : « fixe mon coucher à 23:00 minimum sauf si je donne un horaire »
 export async function minBed(): Promise<string> { return (await kvJson<string | null>(MINBED_K, null)) ?? DEFAULT_MIN_BED; }
+/** 06/11 : « bonne nuit » à 21h38 → à 21h45 caisse du jour + carte de la journée quand même. Couché = silence (appels + messages
+ *  non urgents) jusqu'à son heure de réveil de demain : le message / l'appel du réveil part normalement (le silence finit pile à cette heure). */
+async function quietUntilWake(): Promise<string> {
+  const { date, hhmm } = localNow();
+  const d = hhmm >= '12:00' ? new Date(Date.parse(`${date}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10) : date;
+  const wd = new Date(`${d}T12:00:00Z`).getUTCDay();
+  const { getRoutineConfig } = await import('./morning-routine.js');
+  const plan = (await getRoutineConfig().catch(() => null))?.days?.[wd];
+  const wake = plan && plan.kind !== 'none' && plan.wake ? plan.wake : '07:00';
+  const until = localTs(d, wake);
+  if (until - Date.now() < 60 * 60_000 || until - Date.now() > 14 * 3600_000) return '';
+  const dnd = await import('../notifications/dnd.js');
+  const cur = await dnd.getDnd().catch(() => null);
+  if (cur && (cur.untilReply || cur.until >= until)) return '';
+  await dnd.setDnd({ until, why: 'nuit (bonne nuit)' }).catch(() => {});
+  return wake;
+}
+/** « j'ai dit bonne nuit à Ibrahim », « souhaite bonne nuit à Fatima » = pas LUI qui se couche. */
+const OTHER_NIGHT_RE = /\b(dit|dis|dire|souhait\w*|fait)\s+(un\s+)?(bonne nuit|bisous?)\b|bonne nuit\s+(a|à)\s+(?!(?:toi|demain|tout|vous|plus|dzaryx|mon fr[eè]re|khoya)\b)\p{L}/iu;
 /** Heure de coucher à enregistrer maintenant : jamais avant son minimum le soir même. */
 async function bedAtNow(): Promise<{ iso: string; floored: boolean; min: string }> {
   const { date, hhmm } = localNow();
@@ -110,13 +129,15 @@ export async function sleepFromMessage(text: string): Promise<string | null> {
       return `🌙 Noté : coucher compté à ${v} ce soir. Envoie-moi un message au réveil et je calcule ta nuit.`;
     }
   }
-  if ((hhmm >= '19:00' || hhmm < '04:00') && NIGHT_RE.test(t) && !NOT_SLEEP_RE.test(t)) {
+  if ((hhmm >= '19:00' || hhmm < '04:00') && NIGHT_RE.test(t) && !NOT_SLEEP_RE.test(t) && !OTHER_NIGHT_RE.test(t)) {
     const b = await bedAtNow();
-    await kvPut(BED_K, { at: b.iso }, 20 * 3600);
+    await kvPut(BED_K, { at: b.iso, said: new Date().toISOString() }, 20 * 3600);
+    const wake = short ? await quietUntilWake().catch(e => { console.warn('[sleep] silence nuit', e instanceof Error ? e.message : e); return ''; }) : '';
     if (!short) return null;
+    const q = wake ? ` Je ne t'envoie plus rien jusqu'à ${wake} (ton réveil).` : '';
     return b.floored
-      ? `Bonne nuit 🌙 Il est ${hhmm} : je compte ton coucher à ${b.min} (ton heure minimum, tu t'endors rarement avant). Si tu t'endors plus tard, dis-le au réveil (« endormi à 23h30 »).`
-      : `Bonne nuit 🌙 Coucher noté à ${hhmm}. Envoie-moi un message au réveil et je calcule ta nuit.`;
+      ? `Bonne nuit 🌙 Il est ${hhmm} : je compte ton coucher à ${b.min} (ton heure minimum, tu t'endors rarement avant).${q} Si tu t'endors plus tard, dis-le au réveil (« endormi à 23h30 »).`
+      : `Bonne nuit 🌙 Coucher noté à ${hhmm}.${q} Envoie-moi un message au réveil et je calcule ta nuit.`;
   }
   // « couché à 23:30 » le matin (réponse à « je n'ai pas ton heure de coucher ») → nuit calculée par le code, pas par le cerveau
   // (05/11 : le cerveau avait répondu « pour demain (jeudi) » alors qu'on était jeudi)
