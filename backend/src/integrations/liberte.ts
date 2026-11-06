@@ -1068,7 +1068,10 @@ export function parseMedTake(text: string): { n: number; total: boolean; rest?: 
   // rest = il dit AUTRE CHOSE que la prise → le code note, puis le cerveau lui répond vraiment.
   const left = t.replace(m[0], ' ').replace(/[^a-zà-ÿ' ]/g, ' ').split(/[\s']+/)
     .filter(w => w && !/^(je|j|ai|pris|prise|pri|prends|prend|aval[ée]e?|viens|vien|de|d|du|un|une|le|la|les|l|ce|cette|matin|midi|soir|aujourd|hui|en|tout|au|total|depuis|dans|journ[ée]e|encore|l[àa]|[àa]|h|heure|heures|et|demi|demis|ok|voil[àa]|c|est|fait|bien|mon|ma|m[ée]doc|comprim[ée]s?|cachets?|lib[ée]rt[ée])$/.test(w));
-  const rest = left.length >= 3 || /marre|moral|fatigu|triste|stress|angoiss|d[ée]prim|craqu|pleur|seul|[ée]nerv|peux plus|en peux|mal\b|dur\b|travail|boulot|taf|aide/.test(t);
+  // 06/11 contrôle de nuit : « … je dois plus prendre après » = son plan (plus rien aujourd'hui), pas une conversation → réponse directe du code
+  const planOnly = /\b(dois|vais|veux|faut) (plus|pas|rien) (en )?(re)?prendre\b|\bplus rien (apres|après|aujourd)|\bc.?est (la|le) dern/.test(t)
+    && !/marre|moral|fatigu|triste|stress|angoiss|d[ée]prim|craqu|pleur|mal\b|dur\b|travail|boulot|taf|aide|envie/.test(t);
+  const rest = !planOnly && left.length >= 3 || /marre|moral|fatigu|triste|stress|angoiss|d[ée]prim|craqu|pleur|seul|[ée]nerv|peux plus|en peux|mal\b|dur\b|travail|boulot|taf|aide/.test(t);
   return { n, total: /aujourd|aujaurd|auj\b|en tout|au total|depuis ce matin|dans la journ[ée]e/.test(t), rest };
 }
 /** Exécutée par le code (orchestrateur), réponse directe. « aujourd'hui / en tout » = TOTAL du jour → on n'ajoute que la différence. */
