@@ -61,7 +61,9 @@ export async function knownPlaces(): Promise<Array<{ id: Known; lat: number; lng
   knownCache = { at: Date.now(), list };
   return list;
 }
-const placeOf = (p: { lat: number; lng: number }, list: Array<{ id: Known; lat: number; lng: number }>) => list.find(x => km(p, x) < 0.35)?.id;
+// 06/11 : maison et travail à ~450 m → on prend le lieu connu le PLUS PROCHE (avant : le 1er de la liste à < 350 m)
+export const placeOf = (p: { lat: number; lng: number }, list: Array<{ id: Known; lat: number; lng: number }>) =>
+  list.map(x => ({ id: x.id, d: km(p, x) })).filter(x => x.d < 0.35).sort((a, b) => a.d - b.d)[0]?.id;
 const inAlgeria = (p: { lat: number; lng: number }) => p.lat >= 18 && p.lat <= 37.5 && p.lng >= -9 && p.lng <= 12;
 const inFrance = (p: { lat: number; lng: number }) => p.lat >= 42 && p.lat <= 51.1 && p.lng >= -5 && p.lng <= 8.3 && !(p.lat > 49.5 && p.lng > 2.6);
 

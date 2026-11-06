@@ -155,9 +155,23 @@ export async function dayMap(send = true): Promise<string> {
     } catch { /* texte seul */ }
   }
   const dm = Math.round(driveMs / 60_000);
+  // Lieu actuel : dernières positions à < 150 m les unes des autres depuis ≥ 10 min, après le dernier arrêt fermé
+  let here: { label: string; from: number } | null = null;
+  const last = pts[pts.length - 1]!;
+  if (Date.now() - last.t < 30 * 60_000) {
+    let i = pts.length - 1; while (i > 0 && km(pts[i - 1]!, last) < 0.15) i--;
+    const from = pts[i]!.t, lastTo = visits.length ? visits[visits.length - 1]!.to : 0;
+    if (from > lastTo && Date.now() - from >= 10 * 60_000) {
+      const g = await import('./gps-life.js');
+      const id = g.placeOf(last, await g.knownPlaces());
+      here = { label: id ? ({ home: 'Maison', gym: 'Salle de sport', work: 'Travail' } as Record<string, string>)[id]! : 'Arrêt', from };
+    }
+  }
   const text = [`🗺️ Ta journée du ${fmtDay(dayStart + 12 * 3600_000)}`,
     `🚗 ${dist.toFixed(1).replace('.', ',')} km parcourus · ${dm >= 60 ? `${Math.floor(dm / 60)} h ${String(dm % 60).padStart(2, '0')}` : `${dm} min`} au volant${health?.steps ? ` · 👣 ${health.steps.toLocaleString('fr-FR')} pas` : ''}`,
-    ...visits.slice(0, 9).map((v, i) => `${i + 1}. ${v.label ?? 'Arrêt'} — ${hm(v.from)}–${hm(v.to)}`),
+    // 06/11 : « Maison — 18h17–05h49 » = la nuit d'HIER soir → il croyait qu'on parlait de ce soir. Et le lieu où il est (pas encore « fermé ») manquait.
+    ...visits.slice(0, 9).map((v, i) => `${i + 1}. ${v.label ?? 'Arrêt'} — ${v.from < dayStart ? `la nuit, jusqu'à ${hm(v.to)}` : `${hm(v.from)}–${hm(v.to)}`}`),
+    ...(here ? [`${Math.min(visits.length, 9) + 1}. ${here.label} — depuis ${hm(here.from)} (en ce moment)`] : []),
   ].join('\n');
   if (send) await tg(text, img);
   return `${text}${img && send ? '\n(carte envoyée sur Telegram)' : ''}`;
