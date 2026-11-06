@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { get } from './api.ts';
 import { F, card, Ring, LineChart } from './ui.tsx';
-import { BilansCard, DaySheet } from './Bilans.tsx';
+import { BilansCard, DaySheet, GoalCard } from './Bilans.tsx';
 
 // 📊 STATS PRO (31/10) — le meilleur des grosses applis, calculé sur ses vraies données (/api/forme/insights) :
 // anneau objectif semaine (Apple Fitness / Hevy), séries par muscle vs zone utile 10-20 (JEFIT / Alpha Progression),
@@ -47,6 +47,7 @@ export default function Insights() {
     <div>
       <H2>Mes bilans</H2>
       <BilansCard />
+      <GoalCard />
       <DaySheet date={sel} onClose={() => setSel(null)} />
       <H2>Cette semaine</H2>
       <div style={{ ...card, display: 'flex', alignItems: 'center', gap: 16 }}>

@@ -56,6 +56,7 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
 export interface ProgramView { session: (import('../services/api.ts').SportSession & { index: number }) | null; todayPlanned: boolean; doneToday: boolean; week: Array<{ date: string; planned: boolean; done: boolean }>; total: number; sessions: Array<{ label: string; emoji: string; focus: string }>; days: number[] }
 const post = <T,>(path: string, body: unknown) => call<T>(path, { method: 'POST', body: JSON.stringify(body) });
 export const get = <T,>(path: string) => call<T>(path);
+export const postJson = <T,>(path: string, body: unknown) => post<T>(path, body);   // 06/11 bilans : adapter / priorité
 
 export interface MachineEx { id: string | null; name: string; muscles: string[]; tip: string; img: string[]; video: string }
 export interface MachineScan { id: string; at: number; date: string; machine: string; what: string; setup: string; exercises: MachineEx[]; thumb?: string }

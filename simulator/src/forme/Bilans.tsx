@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { get } from './api.ts';
+import { get, postJson } from './api.ts';
 import { F, card, ghostBtn, Sheet, Spinner, Stat } from './ui.tsx';
 
 // 📊 BILANS (06/11, Kouider) : bilan du jour / de la semaine / du mois (notes, points forts/faibles, quoi améliorer, charges à augmenter)
 // + un jour du calendrier en détail (montre, séance, repas, eau, records). Tout vient de /api/forme/report et /api/forme/day.
 type Scores = Partial<Record<'sommeil' | 'activite' | 'entrainement' | 'recuperation' | 'nutrition' | 'hydratation', number>> & { global: number };
 interface ReportData { title: string; text: string; scores: Scores; prevScores?: Scores; strengths: string[]; weaknesses: string[]; actions: string[]; progression: string[] }
+interface GoalData { lines: string[]; ifBehind: string[]; behind: boolean }
 interface DayData {
   day: { date: string; label: string; steps?: number; stepsGoal: number; sleep_h?: number; rhr?: number; hrv?: number; activeKcal?: number; water: number; waterGoal: number; weight?: number;
     eaten?: number; protein?: number; proteinGoal?: number; burned?: number; realDeficit?: number; deficitGoal?: number;
@@ -42,6 +43,29 @@ const List = ({ t, items, color }: { t: string; items: string[]; color: string }
     {items.map((x, i) => <div key={i} style={{ fontSize: 13.5, lineHeight: 1.45, padding: '2px 0' }}>• {x}</div>)}
   </div>
 );
+
+const PRIO = [['dos', 'Dos'], ['pecs', 'Pecs'], ['epaules', 'Épaules'], ['bras', 'Bras'], ['jambes', 'Jambes'], ['abdos', 'Abdos']] as const;
+/** 🎯 Objectif : temps restant + « Adapter mon programme » + priorité d'un muscle (change l'agenda et FORME). */
+export function GoalCard({ toast }: { toast?: (t: string) => void }) {
+  const [g, setG] = useState<GoalData | null>(null);
+  const [busy, setBusy] = useState('');
+  const [msg, setMsg] = useState('');
+  useEffect(() => { get<GoalData>('/api/forme/goal-status').then(setG).catch(() => {}); }, []);
+  const adapt = async () => { setBusy('adapt'); try { const r = await postJson<{ text: string }>('/api/forme/adapt', {}); setMsg(r.text); toast?.('Programme adapté ✅'); } catch { toast?.('Impossible pour le moment'); } setBusy(''); };
+  const prio = async (m: string) => { setBusy(m); try { const r = await postJson<{ text: string }>('/api/forme/priority', { muscles: [m] }); setMsg(r.text); toast?.('Priorité changée ✅'); } catch { toast?.('Impossible pour le moment'); } setBusy(''); };
+  if (!g) return null;
+  return (
+    <div style={{ ...card, marginTop: 10 }}>
+      <div style={{ fontWeight: 700, fontSize: 15.5, marginBottom: 6 }}>🎯 Ton objectif</div>
+      {g.lines.length ? g.lines.map((l, i) => <div key={i} style={{ fontSize: 13.5, lineHeight: 1.45, padding: '2px 0' }}>{l}</div>) : <div style={{ fontSize: 13.5, color: F.muted }}>Fixe ton poids visé dans Objectifs pour voir le temps qu'il te reste.</div>}
+      {!!g.ifBehind.length && <List t="💡 Pour y arriver plus vite" items={g.ifBehind} color={F.accent} />}
+      <button onClick={adapt} disabled={!!busy} style={{ ...ghostBtn, width: '100%', marginTop: 12, fontWeight: 700, color: g.behind ? F.red : F.ink }}>{busy === 'adapt' ? 'Je regarde…' : '🔧 Adapter mon programme (agenda + FORME)'}</button>
+      <div style={{ fontSize: 12.5, color: F.muted, margin: '12px 0 6px' }}>Entraîner en priorité :</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{PRIO.map(([id, l]) => <button key={id} onClick={() => prio(id)} disabled={!!busy} style={{ ...ghostBtn, padding: '8px 12px', fontSize: 13 }}>{busy === id ? '…' : l}</button>)}</div>
+      {msg && <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.45, whiteSpace: 'pre-wrap', background: F.bg, borderRadius: 12, padding: 10 }}>{msg}</div>}
+    </div>
+  );
+}
 
 /** Carte « Mes bilans » : Jour / Semaine / Mois + PDF sur Telegram. */
 export function BilansCard({ toast }: { toast?: (t: string) => void }) {
