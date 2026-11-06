@@ -1,3 +1,7 @@
+## 2026-11-06 ~23h — appel manqué ≠ réplique dans le chat (B058)
+- Appel Dzaryx refusé / pas décroché / muet : son accueil n'apparaît plus comme une réplique dans l'historique (note « appel manqué » à la place) → plus de sujet d'appel qui surgit au milieu d'une tâche business.
+- Plus de « Allô Kouider, c'est Dzaryx. Salut Kouider, c'est Dzaryx » : présentation dite une seule fois (appel, message d'appel manqué, boîte des appels).
+
 ## 2026-11-06 ~22h40 — soirée : bilans FORME, objectif, nuit, agenda, fautes SMS, contrôle de nuit
 - Agenda (30e93172) : location en cours (ni remise ni retour ce jour-là) retirée des plans du jour — plus de « dossier Djillali » samedi.
 - Sommeil (a688cdc6, 5792cb8a) : coucher minimum 23:00 sauf heure donnée ; « bonne nuit » = silence jusqu'au réveil ; « j'ai dit bonne nuit à Ibrahim » ignoré.

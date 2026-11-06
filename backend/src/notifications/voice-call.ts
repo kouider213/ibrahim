@@ -40,10 +40,12 @@ export async function callOwner(reason: string, actor: CallActor = 'kouider', op
     console.log(`[voice-call] ne pas déranger / jour de repos — appel gardé : "${clean.slice(0, 60)}"`);
     return { id: 'held', held: true };
   }
+  // 06/11 : « Allô Kouider, c'est Dzaryx. Salut Kouider, c'est Dzaryx. … » → le motif se présentait déjà : on ne le dit qu'une fois
+  const body = stripSelfIntro(clean);
   const call: PendingCall = {
     id:        randomUUID(),
     reason:    clean,
-    greeting:  `Allô ${firstName(actor)}, c'est Dzaryx. ${clean}`,
+    greeting:  `Allô ${firstName(actor)}, c'est Dzaryx. ${body}`,
     createdAt: new Date().toISOString(),
   };
   await kvSet(PENDING_KEY(actor), JSON.stringify(call), RING_TTL_S);
@@ -64,6 +66,34 @@ export async function callOwner(reason: string, actor: CallActor = 'kouider', op
 
   console.log(`[voice-call] RING ${actor} id=${call.id} reason="${clean.slice(0, 60)}"`);
   return { id: call.id };
+}
+
+/** « Salut Kouider, c'est Dzaryx. X » / « Kouider, c'est Dzaryx, X » → « X » (le décroché dit déjà « Allô Kouider, c'est Dzaryx »). */
+export function stripSelfIntro(text: string): string {
+  const s = text.replace(/^(?:(?:salut|bonjour|allô|allo|coucou|hey)\s+)?(?:[A-ZÀ-Ÿ][\p{L}-]+\s*,\s*)?c'est Dzaryx\s*[.,!]?\s*/iu, '').trim();
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : text;
+}
+
+/** Appel de Dzaryx pas entendu (refusé, pas décroché, son muet) : son accueil avait été écrit dans l'historique comme une
+ *  vraie réplique (answerCall, avant la sonnerie). 06/11 12h30 : un appel programmé refusé apparaissait
+ *  en plein milieu de la pub TikTok et le cerveau enchaînait dessus → la ligne devient une note « appel manqué »,
+ *  hors conversation, que le cerveau ne reprend que si Kouider y répond. */
+export async function markCallUnheard(actor: CallActor, reason: string): Promise<boolean> {
+  const since = new Date(Date.now() - 15 * 60_000).toISOString();
+  const { data } = await supabase.from('conversations').select('id, content, metadata')
+    .eq('session_id', `voice_${actor}`).eq('role', 'assistant').gte('created_at', since)
+    .order('created_at', { ascending: false }).limit(8);
+  const probe = stripSelfIntro(reason).slice(0, 40).toLowerCase();
+  const row = (data ?? []).find(r => (r.metadata as { call?: boolean } | null)?.call && !(r.metadata as { unheard?: boolean }).unheard
+    && (!probe || String(r.content).toLowerCase().includes(probe)));
+  if (!row) return false;
+  const motif = stripSelfIntro(String(row.content).replace(/^Allô [^,]+, c'est Dzaryx\.\s*/, '')).slice(0, 500);
+  const { error } = await supabase.from('conversations').update({
+    content: `(Appel manqué : ${firstName(actor)} n'a pas décroché et n'a rien entendu. Motif envoyé par écrit : « ${motif} ». Ce n'est PAS la conversation en cours : n'y reviens que s'il y répond lui-même.)`,
+    metadata: { ...(row.metadata as Record<string, unknown>), unheard: true },
+  }).eq('id', row.id);
+  if (error) { console.warn('[voice-call] appel manqué → historique:', error.message); return false; }
+  return true;
 }
 
 export async function getPendingCall(actor: CallActor): Promise<PendingCall | null> {

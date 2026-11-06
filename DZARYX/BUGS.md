@@ -7,6 +7,9 @@
 
 ## Bugs Ouverts 🔴
 
+### B058 — Appel manqué recopié comme réplique dans le chat + « Allô Kouider, c'est Dzaryx. Salut Kouider, c'est Dzaryx » (06/11 12h30) ✅ FIXÉ
+L'accueil d'un appel est écrit dans l'historique avant la sonnerie (answerCall) ; appel refusé → il restait comme si Dzaryx l'avait dit dans le chat, en plein milieu d'une tâche business, et le cerveau enchaînait dessus. Désormais /api/call/missed le transforme en note « appel manqué, n'y reviens que s'il y répond » (markCallUnheard) + double présentation retirée (stripSelfIntro).
+
 ### B057 — Impayés jamais relancés quand le client n'a RIEN payé (banc 04/11) ✅ FIXÉ (403553db)
 Les filtres cherchaient payment_status PENDING/PARTIAL ; une résa sans aucun paiement est « UNPAID » → absente des relances, appels, moteur proactif, rapport impayés. UNPAID ajouté aux 7 endroits.
 

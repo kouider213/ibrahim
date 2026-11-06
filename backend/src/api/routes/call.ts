@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { extractBearerToken, validateToken } from '../../auth/tokens.js';
 import { requireMobileAuth } from '../middleware/auth.js';
-import { answerCall, declineCall, getPendingCall, callOwner, type CallActor } from '../../notifications/voice-call.js';
+import { answerCall, declineCall, getPendingCall, callOwner, markCallUnheard, stripSelfIntro, type CallActor } from '../../notifications/voice-call.js';
 import { saveConversationTurn, stripToolTrace } from '../../integrations/supabase.js';
 import { processMessage } from '../../conversation/orchestrator.js';
 import { synthesizeVoice } from '../../notifications/dispatcher.js';
@@ -188,9 +188,11 @@ router.post('/merge', requireMobileAuth, async (req, res) => {
 // why='muet' = il a décroché mais le son ne passait pas (problème technique) → pas de silence, 2e essai normal.
 router.post('/missed', requireMobileAuth, async (req, res) => {
   const { reason: r, why } = req.body as { reason?: string; why?: string };
-  const reason = String(r ?? '').trim();
+  const reason = stripSelfIntro(String(r ?? '').trim());
   const kouider = callActor(req) === 'kouider';
   if (reason && kouider) await addToCallInbox(reason.slice(0, 600)).catch(() => {});
+  // Il n'a rien entendu : l'accueil enregistré dans l'historique ne doit pas passer pour une réplique dite (fuite hors-sujet 06/11)
+  if (reason) await markCallUnheard(callActor(req), reason).catch(() => false);
   const hold = kouider && why !== 'muet';
   if (hold) await setMissedCallDnd('appel pas décroché').catch(() => {});
   res.json({ ok: true, hold });
