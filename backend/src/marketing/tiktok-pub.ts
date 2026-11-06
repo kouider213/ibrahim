@@ -244,9 +244,9 @@ export async function teamBrief(all: Car[], message: string): Promise<TeamBrief>
   push.sort((a, b) => b.score - a.score);
   const used = history.slice(0, 3).map(h => h.angle);
   const t = norm(message);
-  const asked = ANGLES.find(a => (a.id === 'pov_diaspora' && /(pov|diaspora|aeroport|atterri)/.test(t)) || (a.id === 'convoi' && /(convoi|flotte|mariage)/.test(t))
-    || (a.id === 'oran_nuit' && /(nuit|soir)/.test(t)) || (a.id === 'devine' && /devine/.test(t)) || (a.id === 'roadtrip' && /(road ?trip|desert|voyage)/.test(t))
-    || (a.id === 'histoire' && /(retour|excuse|desole|merci|absence|annonce)/.test(t)));
+  const asked = ANGLES.find(a => (a.id === 'pov_diaspora' && /\b(pov|diaspora|aeroport|atterri)/.test(t)) || (a.id === 'convoi' && /\b(convoi|flotte|mariage)/.test(t))
+    || (a.id === 'oran_nuit' && /\b(nuit|soir)\b/.test(t)) || (a.id === 'devine' && /\bdevine/.test(t)) || (a.id === 'roadtrip' && /\b(road ?trip|desert|voyage)/.test(t))
+    || (a.id === 'histoire' && /\b(retour|excuse|desole|merci|absence|annonce)/.test(t)));
   const fresh = ANGLES.filter(a => !used.includes(a.id));
   const angle = asked ?? fresh[Math.floor(Math.random() * fresh.length)] ?? ANGLES[0]!;
   const top = push.slice(0, 3);

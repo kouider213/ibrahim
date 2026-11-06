@@ -90,10 +90,20 @@ const isCreditError = (m: string) => /crédit|refusé|balance|exhausted|locked|4
 /** Kouider 31/10 : d'abord Kling (fal.ai) ; quand le crédit fal est épuisé → Hugging Face gratuit, tout seul. */
 export async function bestModel(): Promise<ModelId> {
   if (!env.FAL_KEY) return FREE_MODEL;
-  return Number((await kvGet(FAL_EMPTY_KEY).catch(() => null)) ?? 0) > Date.now() ? FREE_MODEL : PAID_DEFAULT;
+  if (Number((await kvGet(FAL_EMPTY_KEY).catch(() => null)) ?? 0) <= Date.now()) return PAID_DEFAULT;
+  return (await falUnlocked()) ? PAID_DEFAULT : FREE_MODEL;
+}
+/** 06/11 : Kouider a rechargé fal.ai mais le drapeau « fal vide » (6 h) a fait partir sa pub en gratuit
+ *  → avant de choisir le gratuit, on demande directement à fal si le compte est débloqué. */
+async function falUnlocked(): Promise<boolean> {
+  try {
+    const r = await axios.get<{ is_locked?: boolean }>('https://rest.alpha.fal.ai/users/current', { headers: { Authorization: `Key ${env.FAL_KEY}` }, timeout: 8000 });
+    if (r.data?.is_locked === false) { await kvSet(FAL_EMPTY_KEY, '0', 60).catch(() => {}); console.log('[studio] fal.ai rechargé → retour sur Kling'); return true; }
+  } catch { /* fal injoignable → on garde le gratuit */ }
+  return false;
 }
 export async function falEmptyNow(): Promise<boolean> {
-  return !env.FAL_KEY || Number((await kvGet(FAL_EMPTY_KEY).catch(() => null)) ?? 0) > Date.now();
+  return !env.FAL_KEY || (await bestModel()) === FREE_MODEL;
 }
 export async function markFalEmpty(): Promise<void> {
   await kvSet(FAL_EMPTY_KEY, String(Date.now() + 6 * 3600_000), 7 * 3600).catch(() => {});
