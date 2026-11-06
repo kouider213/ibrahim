@@ -92,6 +92,9 @@ export async function runSelfTest(): Promise<SelfTestReport> {
     const p = await probeProviders(true);
     const claude = p['claude'];
     const backups = Object.entries(p).filter(([k, v]) => k !== 'claude' && v.state === 'ok').map(([k]) => k);
+    // 06/11 : Dzaryx à 0 € (31/10) = Claude volontairement pas utilisé → pas une panne si les secours répondent
+    const free = (await kvGet('brain:free').catch(() => null)) !== '0' && process.env['FREE_BRAIN'] !== '0';
+    if (claude?.state !== 'ok' && free && backups.length) return { ok: true, info: `mode gratuit voulu — cerveaux : ${backups.join(', ')}` };
     if (claude?.state !== 'ok') return { ok: false, info: `Claude ${claude?.state ?? 'absent'}${claude?.error ? ` (${claude.error.slice(0, 80)})` : ''} — secours OK : ${backups.join(', ') || 'aucun'}` };
     return { ok: true, info: `Claude OK (${claude.ms} ms), secours : ${backups.join(', ') || 'aucun'}` };
   }, 60_000));
@@ -128,6 +131,17 @@ export async function runSelfTest(): Promise<SelfTestReport> {
     const { getBilling } = await import('./billing.js');
     const row = (await getBilling()).rows.find(r => r.id === 'anthropic');
     return { ok: !!row && row.state !== 'out' && row.state !== 'soon', info: row?.status ?? 'inconnu' };
+  }));
+  // 06/11 : le démarchage était coupé depuis le 29/10 sans que personne le voie (la tâche « tournait » mais n'envoyait rien)
+  checks.push(await timed('Démarchage', async () => {
+    const { getAutopilot } = await import('./prospects.js');
+    const a = await getAutopilot();
+    const { data } = await supabase.from('prospects').select('last_contacted_at').not('gmail_thread_id', 'is', null)
+      .order('last_contacted_at', { ascending: false }).limit(1);
+    const last = (data?.[0] as { last_contacted_at?: string } | undefined)?.last_contacted_at;
+    if (!a.enabled) return { ok: false, info: `coupé (dernier mail ${last ? `il y a ${Math.round(ageH(last) / 24)} j` : 'jamais'}) — dis « relance le démarchage »` };
+    if (last && ageH(last) > 50) return { ok: false, info: `allumé mais aucun mail depuis ${Math.round(ageH(last) / 24)} j` };
+    return { ok: true, info: `${a.per_day} mails/jour, dernier il y a ${last ? Math.round(ageH(last)) + ' h' : '—'}` };
   }));
   checks.push(await timed('Tâches automatiques', async () => {
     // Dernier passage de chaque tâche ; une tâche jamais lancée (ajoutée aujourd'hui) n'est pas une panne.
