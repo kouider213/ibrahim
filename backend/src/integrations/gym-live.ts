@@ -310,7 +310,9 @@ async function endLive(l: Live, why: string): Promise<string> {
   let volume = 0;
   for (const e of l.exercises) {
     const arr = l.done[e.id] ?? [];
-    if (!arr.length) { improve.push(`${e.name} pas fait${l.skipped.includes(e.id) ? ' (passé)' : ''}`); continue; }
+    // 06/11 : « élévations… n'ont pas été faites » alors qu'il les avait faites — on ne lui demande jamais ses séries,
+    // donc « rien dicté » ≠ « pas fait ». Seul un exercice qu'il a lui-même passé est signalé.
+    if (!arr.length) { if (l.skipped.includes(e.id)) improve.push(`${e.name} passé (machine prise ?)`); continue; }
     volume += arr.reduce((a, s) => a + (s.kg ?? 0) * (s.reps ?? 0), 0);
     const { lo, hi } = range(e.reps);
     const best = Math.max(0, ...arr.filter(z => z.kg && z.reps).map(z => e1rm(z.kg!, z.reps!)));
@@ -321,7 +323,7 @@ async function endLive(l: Live, why: string): Promise<string> {
     if (reps.length && reps.every(x => x >= hi)) improve.push(`${e.name} : tout à ${hi}+ → monte la charge la prochaine fois`);
     else if (reps.length && Math.max(...reps) - Math.min(...reps) >= 4) improve.push(`${e.name} : grosse baisse de reps entre séries → plus de repos ou −5 %`);
     else if (reps.some(x => x < lo)) improve.push(`${e.name} : sous ${lo} reps → garde la charge jusqu'à faire ${lo}-${hi} partout`);
-    if (arr.length < e.sets) improve.push(`${e.name} : ${arr.length}/${e.sets} séries`);
+    // séries non dictées ≠ séries non faites (06/11) → pas de « 2/4 séries »
   }
   const min = Math.round((l.endedAt - l.startedAt) / 60_000);
   const late = l.leaveBy && l.endedAt > l.leaveBy + 3 * 60_000 ? `⚠️ Parti ${minLeft(l.endedAt, l.leaveBy) * -1} min après l'heure prévue.` : '';

@@ -66,6 +66,9 @@ const SLOTS: Record<number, Array<{ h: number; m: number; prime: boolean; why: s
 };
 const DAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 
+/** 06/11 job 775e4b18 : « #noel2024 » en novembre 2026 → toute année passée devient l'année en cours. */
+const fixYear = (t: string) => { const y = new Date().getFullYear(); return t.replace(/(?<!\d)20[12]\d(?!\d)/g, m => (Number(m) < y ? String(y) : m)); };
+
 export function bestPostSlots(now = new Date(), minLeadMin = 40): Array<{ at: Date; label: string; prime: boolean; why: string }> {
   const out: Array<{ at: Date; label: string; prime: boolean; why: string }> = [];
   const alg = new Date(now.getTime() + 3600_000);           // « horloge » d'Alger lue en UTC
@@ -155,7 +158,7 @@ export function shapePlan(raw: Partial<PubPlan>): PubPlan {
     scenes: (raw.scenes ?? []).map(c => ({ cars: (Array.isArray(c?.cars) ? c.cars : [c?.cars]).map(String).filter(Boolean).slice(0, 3), label: String(c?.label ?? '').slice(0, 40),
       scene: String(c?.scene ?? '').slice(0, 500), action: String(c?.action ?? '').slice(0, 500), camera: STUDIO_CAMERAS[String(c?.camera)] ? String(c?.camera) : 'travelling' })).filter(c => c.cars.length).slice(0, 5),
     music_prompt: String(raw.music_prompt ?? 'dark cinematic intro building into energetic modern trap beat, 100 bpm, no vocals').slice(0, 300),
-    caption: String(raw.caption ?? '').slice(0, 300), hashtags: (raw.hashtags ?? []).map(h => `#${String(h).replace(/^#/, '').replace(/\s+/g, '')}`).slice(0, 10),
+    caption: fixYear(String(raw.caption ?? '')).slice(0, 300), hashtags: (raw.hashtags ?? []).map(h => `#${fixYear(String(h)).replace(/^#/, '').replace(/\s+/g, '')}`).slice(0, 10),
     pinned_comment: String(raw.pinned_comment ?? '').slice(0, 300), replies: (raw.replies ?? []).map(String).slice(0, 3),
     cover_text: String(raw.cover_text ?? raw.hook ?? '').slice(0, 40), tips: (raw.tips ?? []).map(String).slice(0, 6),
     angle: String(raw.angle ?? '').slice(0, 40), team_notes: (Array.isArray(raw.team_notes) ? raw.team_notes : []).map(String).map(x => x.slice(0, 220)).slice(0, 6),

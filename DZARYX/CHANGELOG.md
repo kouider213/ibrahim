@@ -3,6 +3,11 @@
 - Pack community manager sur Telegram : vidéo, miniature, légende + hashtags, commentaire à épingler, réponses types, conseils, meilleur créneau (habitudes Algérie) + rappel à l'heure.
 - fr-commands pubTiktok : « crée-moi la vidéo/pub » après un message TikTok → lancé direct (même cerveaux saturés) ; avis/« je vais faire » → cerveau.
 
+## 2026-11-06 ~12h45 — audit des conversations du jour
+- LIBERTÉ : « Je déjà prix 5 demis » et « Je viens de prendre 2 demi je dois plus prendre après » n'étaient PAS notés (« prix » inconnu, « dois » bloquait) alors que Dzaryx répondait « noté » → parseMedTake comprend « prix » et une prise passée même suivie de « je dois / je veux ».
+- Séance live : bilan ne dit plus « X pas fait » pour un exercice simplement non dicté (on ne lui demande jamais ses séries) ; seul un exercice passé est signalé.
+- Pub TikTok : année passée dans la légende/hashtags (« #noel2024 ») → année en cours.
+
 ## 2026-11-06 — Vidéo IA aussi sur Telegram + « si j'ai envie je te ferai signe » ≠ envie
 - tgVideo (tool-executor) : la vidéo partait seulement dans l'app → aussi envoyée sur Telegram (queueTelegramMessage file).
 - craving (fr-commands) : phrase au conditionnel/plan (« si j'ai envie… je te ferai signe ») ne déclenche plus le SOS envie.
