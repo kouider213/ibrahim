@@ -142,6 +142,18 @@ async function rdv(raw: string): Promise<Direct | null> {
 async function dnd(raw: string): Promise<Direct | null> {
   const t = strip(raw);
   const m = /\b((?:ne )?me der[ae]n[gj]e?(?:s|z|r)? pas|der[ae]n[gj]e?[- ]moi pas|pas d'appels?|silence|mode silence|laisse[- ]moi tranquille)\b/.exec(t);
+  // 06/11 banc : « ne me dérange pas jusqu'à demain 9h » → cerveau → « OK » sans rien programmer. « jusqu'à demain HHh » = silence jusque-là.
+  const tmr = /jusqu'?a\s*demain\s*(?:matin\s*)?(?:a\s*)?(\d{1,2})\s*(?:h|:)\s*(\d{2})?/.exec(t);
+  if (m && tmr && raw.length <= 160 && !/\?/.test(raw)) {
+    const now = localNow().hhmm, H = Number(tmr[1]), M = Number(tmr[2] ?? 0);
+    const minutes = 1440 - (Number(now.slice(0, 2)) * 60 + Number(now.slice(3, 5))) + H * 60 + M;
+    if (H <= 23 && M <= 59 && minutes > 0 && minutes <= 1440) {
+      const { executeTool } = await import('./tool-executor.js');
+      const r = await executeTool('pause_calls', { minutes, reason: 'ne pas déranger' }, SID);
+      if (/❌/.test(r)) return { text: r, direct: true };
+      return { text: `🔕 OK, je ne te dérange plus jusqu'à demain ${pad(H)}:${pad(M)} : ni appel, ni message. Ce qui arrive est gardé et te parvient en un seul message après.`, direct: true };
+    }
+  }
   if (!m || raw.length > 160 || /\?/.test(raw) || /\b(demain|ce soir|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|matin)\b/.test(t)) return null;   // plus tard = silence programmé → cerveau (pause_calls day/from_time)
   const { executeTool } = await import('./tool-executor.js');
   let input: Record<string, unknown>;

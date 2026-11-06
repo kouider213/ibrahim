@@ -2,7 +2,10 @@
 - Auto-test du matin (3a7f24d7) : mode gratuit voulu ≠ « Cerveau en panne » ; démarchage coupé ou muet > 50 h signalé (l'arrêt du 29/10 n'avait été vu par personne).
 - Pub TikTok (74be896f) : si une pub est encore en fabrication (< 40 min), « crée moi la pub » ne relance pas un 2e rendu Kling payé (06/11 : 5 rendus ≈ 13 $). « fais une autre pub » / force:true = vraie nouvelle pub.
 - Fautes (a0da1000) : « rapelle moi dan 2h » donnait DEMAIN 02:00 → fixWhenTypos (dan/demin/auj…) dans parseWhen ; « met moi un rappel … » reconnu ; « dapelé » → « appeler » ; Liberté « jé pris 2 demie » ; « ne me derenge pas ».
-- Banc : vrai réveil du jour masqué (sleep:phone:*), tests ajoutés (cash rien, pub en cours, fautes) → 159/159.
+- Silence « ne me dérange pas jusqu'à demain 9h » programmé par le code (avant : cerveau « OK » sans outil).
+- Coach : règle LIBERTÉ — jamais « t'as pris ton médicament ? » ni proposer d'en prendre (banc « j'ai mal au dos » le faisait).
+- Agenda illisible : le cerveau doit commencer par « ⚠️ Je n'ai pas pu lire ton agenda » (banc : emploi du temps présenté comme lu).
+- Banc : vrai réveil du jour masqué (sleep:phone:*), tests ajoutés (cash rien, pub en cours, fautes) → 160/160 ; replay fautes sur le vrai cerveau 12 phrases (2 faux positifs du juge).
 
 ## 2026-11-06 ~20h15 — CarPlay : vocal préparé testé en vrai + retour du travail reconnu
 - 1er vrai test 20h06 : vocal préparé à 19h56 utilisé, son servi en 47 ms (avant : 31 s). Texte préparé en 88 s (quotas Gemini gratuits épuisés ce soir) → sans la préparation, ~2 min de silence.

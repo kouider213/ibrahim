@@ -2364,7 +2364,7 @@ async function listAgendaEventsTool(input: Record<string, unknown>): Promise<str
   const events = await listAgendaRange(start.toISOString(), end.toISOString(), Number(input['max_results'] ?? 50));
   if (events === null) {
     const acc = await agendaAccess();
-    return `❌ Je n'arrive pas à lire l'agenda FIK (${acc.calendar}) : ${acc.reason}. Ne dis pas que l'agenda est vide.`;
+    return `❌ Je n'arrive pas à lire l'agenda FIK (${acc.calendar}) : ${acc.reason}. Ne dis pas que l'agenda est vide, n'écris AUCUN horaire ou RDV comme s'il venait de l'agenda : commence ta réponse par « ⚠️ Je n'ai pas pu lire ton agenda » puis donne seulement ce que tu sais d'ailleurs (routine, locations), en disant d'où ça vient.`;
   }
   const when = (e: { start: { dateTime?: string; date?: string } }) => e.start.dateTime
     ? new Date(e.start.dateTime).toLocaleString('fr-FR', { timeZone: 'Africa/Algiers', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
