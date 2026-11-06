@@ -1,3 +1,9 @@
+## 2026-11-06 ~16h30 — bugs de la journée (captures Kouider)
+- « Envoie moi notre numéro » → « je ne le connais pas » : numéro FIK +32 466 31 14 69 (wa.me/32466311469, celui du site) ajouté au prompt complet ET au prompt court.
+- « Je partager la pub TikTok » → le cerveau a refait un clip Runway de la CLS (50 €/j) et donné un lien .jpeg comme « vidéo », alors que « Le Grand Retour FIK » était prête depuis 13h49. Nouveau raccourci sharePub (partage/publie/poste/renvoie la pub) + publish_to_socials sans id → resendLatestPub : renvoie la dernière pub terminée (vidéo + légende + « numéro en bio » + numéro), rien de régénéré.
+- Le cerveau ne voyait pas l'état des pubs (12h12 « je lance la pub ? » alors que 2 tournaient, 14h25 « je t'envoie dès qu'elle est prête » alors qu'elle était arrivée) → contexte « PUBS TIKTOK DES 12 DERNIÈRES HEURES » (pubStatusContext, 1 lecture si aucune pub récente).
+- La note interne « [note interne, ne pas recopier…] » recopiée par le cerveau (12h32, 15h06) restait dans l'historique (retirée à l'envoi Telegram, mais réapprise) → retirée aussi à l'enregistrement.
+
 ## 2026-11-06 — Pub TikTok complète (video_studio action=pub_tiktok)
 - marketing/tiktok-pub.ts : réalisateur IA (hook + 2 hooks de secours, motion design tiré de son message, 3 voitures, CTA) → hook sur le moment le plus fort mesuré (scene score) → intro motion design fond noir calée sur la voix → voitures (vraie photo → Kling, nom doré + atout) → CTA → signature FIK ; zone sûre TikTok, étalonnage premium, musique baissée sous la voix.
 - Pack community manager sur Telegram : vidéo, miniature, légende + hashtags, commentaire à épingler, réponses types, conseils, meilleur créneau (habitudes Algérie) + rappel à l'heure.

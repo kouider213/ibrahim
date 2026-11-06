@@ -4425,9 +4425,15 @@ async function publishToSocialsTool(input: Record<string, unknown>, sessionId: s
   const { publishVideo, buildSharePackage }                          = await import('../marketing/social-poster.js');
 
   const pendingId = input['pending_id'] as string | undefined;
+  // 06/11 : « partage la pub TikTok » → la dernière pub TikTok terminée (studio), jamais un nouveau clip
+  if (!pendingId) {
+    const { resendLatestPub } = await import('../marketing/tiktok-pub.js');
+    const r = await resendLatestPub().catch(() => null);
+    if (r) return r;
+  }
   const video = pendingId ? getPendingVideoById(pendingId) : getLatestPendingVideo();
 
-  if (!video) return '❌ Aucune vidéo en attente — génère-en une avec `create_marketing_video` d\'abord.';
+  if (!video) return '❌ Aucune pub prête à partager. Ne crée PAS de vidéo toi-même : demande à Kouider s\'il veut une nouvelle pub TikTok (video_studio action=pub_tiktok).';
 
   approveVideo(video.id);
 

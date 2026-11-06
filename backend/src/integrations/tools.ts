@@ -1346,7 +1346,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   // ── Phase 5: Publication multi-plateforme ─────────────────────
   {
     name: 'publish_to_socials',
-    description: 'Publier une vidéo validée sur TikTok. Utiliser quand Kouider dit "publie la vidéo", "poste sur TikTok", "publie", "partage la dernière vidéo". Si pending_id est vide, utilise la dernière vidéo en attente.',
+    description: 'Publier une vidéo validée sur TikTok. Utiliser quand Kouider dit "publie la vidéo", "poste sur TikTok", "publie", "partage la dernière vidéo". Sans pending_id : renvoie sur Telegram la DERNIÈRE PUB TIKTOK TERMINÉE (vidéo + légende + numéro en bio), sinon la dernière vidéo en attente. Ne fabrique JAMAIS une nouvelle vidéo (ni create_marketing_video ni animate_car_photo) pour « partager la pub ».',
     input_schema: {
       type: 'object' as const,
       properties: {

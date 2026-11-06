@@ -755,3 +755,46 @@ Scènes vidéo IA (vraies voitures placées dans le décor, qui roulent) : ${sce
 Il recevra : la vidéo, la miniature, la légende + hashtags, le commentaire à épingler, les réponses types et un rappel au meilleur moment${prime ? ` (${prime.label})` : ''}.
 Dis-lui tout ça simplement, sans détails techniques.`;
 }
+
+/** 📲 06/11 « Je partager la pub TikTok » : le cerveau a refait un clip Runway de la CLS et donné un lien .jpeg comme « vidéo »,
+ *  alors que la pub « Le Grand Retour FIK » était prête depuis 13h45. → On renvoie la DERNIÈRE pub terminée, telle quelle :
+ *  vidéo + légende prête à coller (avec « numéro en bio » et le numéro FIK). Rien n'est régénéré, rien n'est payé. */
+export async function resendLatestPub(maxAgeH = 72): Promise<string | null> {
+  const { listStudioJobs } = await import('./video-studio.js');
+  const { jobs } = await listStudioJobs();
+  const since = Date.now() - maxAgeH * 3600_000;
+  const job = jobs.filter(j => j.status === 'done' && j.url && (j.planId === 'pub' || /\/studio\/pub-/.test(j.url)) && Date.parse(j.createdAt) >= since)
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0];
+  if (!job) return null;
+  const base = (job.caption ?? '').trim();
+  const bio = /\bbio\b/i.test(base) ? '' : '\n\n📲 Notre numéro est en bio.';
+  const caption = `${base}${bio}`.trim();
+  const at = new Date(job.updatedAt).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
+  await queueTelegramMessage(`🎬 Ta pub TikTok « ${job.title} » (prête à ${at}) — à partager telle quelle`, undefined, 'kouider', { url: job.url!, name: 'pub-tiktok-fik.mp4' });
+  await queueTelegramMessage(['✍️ Légende à copier-coller :', '', caption, '', '📞 Numéro FIK à mettre en bio : +32 466 31 14 69 (WhatsApp)'].join('\n'));
+  return `📲 Je te renvoie ta dernière pub TikTok « ${job.title} » (prête à ${at}) + la légende à coller, juste ici sur Telegram.\n` +
+    `TikTok → + → Importer → choisis la vidéo → colle la légende → Publier. Numéro en bio : +32 466 31 14 69.`;
+}
+
+/** 06/11 : 12h12 « tu veux que je lance la pub ? » alors que 2 tournaient déjà, 14h25 « je t'envoie dès qu'elle est prête »
+ *  alors qu'elle était arrivée à 13h55 → le cerveau voit l'état réel des pubs des 12 dernières heures (1 lecture si aucune). */
+export async function pubStatusContext(): Promise<string> {
+  const h = await pubHistory().catch(() => []);
+  if (!h[0] || Date.now() - Date.parse(h[0].at) > 12 * 3600_000) return '';
+  const { getStudioJob } = await import('./video-studio.js');
+  const { kvGet } = await import('../integrations/app-store.js');
+  const ids = (JSON.parse((await kvGet('studio:jobs').catch(() => null)) ?? '[]') as string[]).slice(0, 6);
+  const since = Date.now() - 12 * 3600_000;
+  const fmt = (d: string) => new Date(d).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
+  const jobs = (await Promise.all(ids.map(id => getStudioJob(id).catch(() => null))))
+    .filter((j): j is NonNullable<typeof j> => !!j && j.planId === 'pub' && Date.parse(j.createdAt) >= since);
+  if (!jobs.length) return '';
+  const lines = jobs.map(j => {
+    const stale = j.status !== 'done' && j.status !== 'error' && Date.now() - Date.parse(j.updatedAt) > 45 * 60_000;
+    const st = j.status === 'done' ? `PRÊTE et DÉJÀ ENVOYÉE sur Telegram à ${fmt(j.updatedAt)}`
+      : j.status === 'error' ? `échouée (${(j.error ?? '').slice(0, 60)})`
+      : stale ? 'bloquée (rendu interrompu, ne compte pas dessus)' : `en cours (${j.step})`;
+    return `• « ${j.title} » lancée à ${fmt(j.createdAt)} : ${st}`;
+  });
+  return `🎬 PUBS TIKTOK DES 12 DERNIÈRES HEURES (état réel) :\n${lines.join('\n')}\n→ Ne propose PAS d'en lancer une nouvelle si une est prête ou en cours (sauf s'il le demande). « Partager / publier / renvoyer la pub » = outil publish_to_socials (renvoie la dernière pub prête), JAMAIS create_marketing_video ni animate_car_photo.`;
+}

@@ -444,6 +444,7 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
   const isHouari = actor.ownerKey === 'houari';
   // Jarvis 4 : modes du moment (Oran, bouclier famille, relais, répétition, énergie, humeur)
   const jarvis4Text = isHouari ? '' : await import('../integrations/conscience.js').then(m => m.jarvis4Context()).catch(() => '');
+  const pubText = isHouari ? '' : await import('../marketing/tiktok-pub.js').then(m => m.pubStatusContext()).catch(() => '');
 
   let langDetection = detectLanguage(userMessage);
   // Actor preferred language override
@@ -535,6 +536,7 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     dateInfo,
     moodText,
     biz(jarvis4Text),
+    biz(pubText),
     weatherText,
     biz(fleetText),
     biz(bookingsText),

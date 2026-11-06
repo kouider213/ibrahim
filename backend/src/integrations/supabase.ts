@@ -367,7 +367,8 @@ export async function saveConversationTurn(
 ) {
   const { error } = await supabase
     .from('conversations')
-    .insert({ session_id: sessionId, role, content, metadata });
+    // Le cerveau recopiait parfois la note interne dans sa réponse (06/11) → jamais gardée dans l'historique
+    .insert({ session_id: sessionId, role, content: role === 'assistant' ? stripToolTrace(content) : content, metadata });
   if (error) throw new Error(`Conversation save failed: ${error.message}`);
 }
 

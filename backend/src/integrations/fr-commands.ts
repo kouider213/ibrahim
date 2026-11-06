@@ -310,6 +310,20 @@ async function noSales(raw: string): Promise<Direct | null> {
   return { text: "📒 OK, aucune vente aujourd'hui : rien à noter, je ne te redemande pas ce soir.", direct: true };
 }
 
+/** 📲 06/11 « Je partager la pub TikTok » → le cerveau a refait un clip Runway + lien .jpeg. Partager/publier/renvoyer LA pub
+ *  = renvoyer la dernière pub terminée (vidéo + légende + numéro en bio), jamais en recréer une. */
+async function sharePub(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (t.length > 160 || /\?\s*$/.test(raw)) return null;
+  if (/\b(cree|creer|fais|faire|lance|genere|nouvelle|autre|refai\w*)\b/.test(t)) return null;     // une NOUVELLE pub → pubTiktok / le cerveau
+  const share = /\b(partag\w*|publi\w*|poste|poster|postes|envoie|envoi|renvoie|renvoi|donne|redonne|balance)\b.{0,30}\b(la|ma|notre|cette|ta)\s+(pub|video)\b/.test(t)
+    || /\b(pub|video)\b.{0,20}\b(a|pour)\s+(partager|publier|poster)\b/.test(t);
+  if (!share || !/\b(pub|tiktok|tik tok)\b/.test(t)) return null;
+  const { resendLatestPub } = await import('../marketing/tiktok-pub.js');
+  const r = await resendLatestPub().catch(() => null);
+  return r ? { text: r, direct: true } : null;
+}
+
 /** 🎬 06/11 « Créer moi la vidéo ia stp » (après son message TikTok) → le cerveau gratuit a fait un clip de 5 s de la Clio dans le parking.
  *  Demande claire de créer la pub/vidéo pour TikTok → pub complète tout de suite (video_studio pub_tiktok), avec SON message comme texte. */
 async function pubTiktok(raw: string): Promise<Direct | null> {
@@ -586,7 +600,7 @@ export async function frCommand(raw: string, sessionId = 'telegram_kouider'): Pr
   SID = sessionId;
   const msg = raw.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
   if (!msg) return null;
-  for (const f of [pubTiktok, craving, noSales, carKm, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
+  for (const f of [sharePub, pubTiktok, craving, noSales, carKm, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
     const r = await f(msg).catch(e => ({ text: `❌ ${e instanceof Error ? e.message : e}`, direct: true }));
     if (r) return r;
   }
