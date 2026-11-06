@@ -1,3 +1,9 @@
+## 2026-11-06 ~21h30 — fautes comprises + pub pas payée 2 fois + auto-test
+- Auto-test du matin (3a7f24d7) : mode gratuit voulu ≠ « Cerveau en panne » ; démarchage coupé ou muet > 50 h signalé (l'arrêt du 29/10 n'avait été vu par personne).
+- Pub TikTok (74be896f) : si une pub est encore en fabrication (< 40 min), « crée moi la pub » ne relance pas un 2e rendu Kling payé (06/11 : 5 rendus ≈ 13 $). « fais une autre pub » / force:true = vraie nouvelle pub.
+- Fautes (a0da1000) : « rapelle moi dan 2h » donnait DEMAIN 02:00 → fixWhenTypos (dan/demin/auj…) dans parseWhen ; « met moi un rappel … » reconnu ; « dapelé » → « appeler » ; Liberté « jé pris 2 demie » ; « ne me derenge pas ».
+- Banc : vrai réveil du jour masqué (sleep:phone:*), tests ajoutés (cash rien, pub en cours, fautes) → 159/159.
+
 ## 2026-11-06 ~20h15 — CarPlay : vocal préparé testé en vrai + retour du travail reconnu
 - 1er vrai test 20h06 : vocal préparé à 19h56 utilisé, son servi en 47 ms (avant : 31 s). Texte préparé en 88 s (quotas Gemini gratuits épuisés ce soir) → sans la préparation, ~2 min de silence.
 - Bug : maison et travail à ~450 m → isHomeward testait « < 600 m de chez lui » AVANT « près du travail » → le retour du travail n'était jamais reconnu (discours normal au lieu du discours retour). Ordre corrigé : plus près du travail que de chez lui = retour.
