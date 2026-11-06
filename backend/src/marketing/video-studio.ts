@@ -843,6 +843,8 @@ export async function autoStudioVideo(o: { idea: string; template: string; car: 
   // Kouider 06/11 : s'il a déjà eu une vidéo ces jours-ci, on n'en refait pas une de plus
   const recent = await recentRequestedVideo();
   if (recent) { console.log(`[studio] ${o.label} sautée — vidéo récente « ${recent.title} » (${recent.createdAt})`); return null; }
+  const posted = await (await import('./tiktok-pub.js')).postedPubIds().catch(() => []);
+  if (posted.some(x => Date.now() - Date.parse(x.at) < 3 * 86_400_000)) { console.log(`[studio] ${o.label} sautée — pub publiée sur TikTok ces 3 derniers jours`); return null; }
   const plan = await createStudioPlan({ idea: o.idea, template: o.template, lang: 'fr', seconds: 20, imageUrl: o.car.image_url, carName: o.car.name });
   const model = await bestModel();
   return startStudioRender(plan, { model, nativeAudio: false, voice: !!plan.voiceover, music: !isFree(model), subtitles: true, outro: true }, 'kouider',

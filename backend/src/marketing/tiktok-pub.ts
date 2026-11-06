@@ -786,9 +786,14 @@ export async function markPubPosted(): Promise<string> {
   const job = jobs.filter(j => j.status === 'done' && j.url && (j.planId === 'pub' || /\/studio\/pub-/.test(j.url)) && Date.parse(j.createdAt) >= since)
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0];
   const list = JSON.parse((await kvGet('pub:posted').catch(() => null)) ?? '[]') as Array<{ id?: string; title?: string; at: string }>;
-  if (!(job && list.some(x => x.id === job.id))) list.unshift({ id: job?.id, title: job?.title, at: new Date().toISOString() });
+  // 06/11 : chaque « j'ai partagé une pub » = une NOUVELLE pub publiée. Si la dernière pub du studio est déjà notée,
+  // c'est une autre pub (son propre montage) → nouvelle entrée sans titre ; seul un doublon de moins de 10 min est ignoré.
+  const already = !!job && list.some(x => x.id === job.id);
+  const dup = list[0] && Date.now() - Date.parse(list[0].at) < 10 * 60_000;
+  const entry = already ? { at: new Date().toISOString() } : { id: job?.id, title: job?.title, at: new Date().toISOString() };
+  if (!dup) list.unshift(entry);
   await kvSet('pub:posted', JSON.stringify(list.slice(0, 30)), 30 * 86_400).catch(() => {});
-  const name = job ? ` « ${job.title} »` : '';
+  const name = job && !already ? ` « ${job.title} »` : '';
   return `🔥 Bien joué ! C'est noté : ta pub${name} est en ligne sur TikTok.\n` +
     `👉 La 1re heure compte le plus : réponds vite aux commentaires et épingle celui avec le numéro (+32 466 31 14 69).\n` +
     `Demain envoie-moi une capture des vues, je te dirai ce qui marche.`;
@@ -804,7 +809,11 @@ export async function postedPubIds(): Promise<Array<{ id?: string; title?: strin
  *  alors qu'elle était arrivée à 13h55 → le cerveau voit l'état réel des pubs des 12 dernières heures (1 lecture si aucune). */
 export async function pubStatusContext(): Promise<string> {
   const h = await pubHistory().catch(() => []);
-  if (!h[0] || Date.now() - Date.parse(h[0].at) > 12 * 3600_000) return '';
+  const RULE = `📲 PUBS : Kouider publie ses pubs UNIQUEMENT sur TikTok. Ne lui propose JAMAIS de partager/republier une pub sur WhatsApp (statut, groupes, contacts), Instagram ou Facebook, ni de reposter une pub déjà publiée. (WhatsApp = seulement le contact clients pour réserver.)`;
+  const postedAll = await postedPubIds().catch(() => []);
+  const recentPosted = postedAll.filter(x => Date.now() - Date.parse(x.at) < 72 * 3600_000);
+  const postedLine = recentPosted.length ? `\n📢 Pubs publiées sur TikTok ces 3 derniers jours : ${recentPosted.map(x => `${x.title ? `« ${x.title} » ` : ''}le ${new Date(x.at).toLocaleString('fr-FR', { timeZone: 'Europe/Brussels', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`).join(' · ')} → ne lui pousse pas une autre pub à publier (sauf s'il la demande).` : '';
+  if (!h[0] || Date.now() - Date.parse(h[0].at) > 12 * 3600_000) return RULE + postedLine;
   const { getStudioJob } = await import('./video-studio.js');
   const { kvGet } = await import('../integrations/app-store.js');
   const ids = (JSON.parse((await kvGet('studio:jobs').catch(() => null)) ?? '[]') as string[]).slice(0, 6);
@@ -812,8 +821,8 @@ export async function pubStatusContext(): Promise<string> {
   const fmt = (d: string) => new Date(d).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
   const jobs = (await Promise.all(ids.map(id => getStudioJob(id).catch(() => null))))
     .filter((j): j is NonNullable<typeof j> => !!j && j.planId === 'pub' && Date.parse(j.createdAt) >= since);
-  if (!jobs.length) return '';
-  const posted = await postedPubIds().catch(() => []);
+  if (!jobs.length) return RULE + postedLine;
+  const posted = postedAll;
   const lines = jobs.map(j => {
     const p = posted.find(x => x.id === j.id);
     if (p) return `• « ${j.title} » : PUBLIÉE sur TikTok par Kouider à ${fmt(p.at)} (ne la lui renvoie pas, ne propose pas de la poster)`;
@@ -823,5 +832,5 @@ export async function pubStatusContext(): Promise<string> {
       : stale ? 'bloquée (rendu interrompu, ne compte pas dessus)' : `en cours (${j.step})`;
     return `• « ${j.title} » lancée à ${fmt(j.createdAt)} : ${st}`;
   });
-  return `🎬 PUBS TIKTOK DES 12 DERNIÈRES HEURES (état réel) :\n${lines.join('\n')}\n→ Ne propose PAS d'en lancer une nouvelle si une est prête ou en cours (sauf s'il le demande). « J'ai partagé / je partager / j'ai posté la pub » = INFO (il l'a publiée) → félicite, ne renvoie rien. « Renvoie / envoie-moi / partage-moi la pub » = outil publish_to_socials (renvoie la dernière pub prête), JAMAIS create_marketing_video ni animate_car_photo.`;
+  return `🎬 PUBS TIKTOK DES 12 DERNIÈRES HEURES (état réel) :\n${lines.join('\n')}\n→ Ne propose PAS d'en lancer une nouvelle si une est prête ou en cours (sauf s'il le demande). « J'ai partagé / je partager / j'ai posté la pub » = INFO (il l'a publiée) → félicite, ne renvoie rien. « Renvoie / envoie-moi / partage-moi la pub » = outil publish_to_socials (renvoie la dernière pub prête), JAMAIS create_marketing_video ni animate_car_photo.\n${RULE}${postedLine}`;
 }

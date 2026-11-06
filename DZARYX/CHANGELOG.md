@@ -1,3 +1,6 @@
+## 2026-11-06 ~19h30 — pubs = TikTok uniquement
+- Kouider : « je déjà partagé une pub » = noter une NOUVELLE pub publiée ; ses pubs ne vont QUE sur TikTok, jamais WhatsApp. markPubPosted : chaque annonce = nouvelle entrée pub:posted (même si la dernière pub studio est déjà notée = son propre montage ; doublon < 10 min ignoré). Contexte cerveau (pubStatusContext, toujours présent) : règle TikTok seul, jamais WhatsApp/Insta/FB ni repost, + pubs publiées 3 j → ne pas pousser une autre pub. Vidéos auto lun/mer/ven sautées aussi si une pub a été publiée ces 3 jours.
+
 ## 2026-11-06 ~19h — rappel confirmé sans jargon
 - 09h27 Dzaryx confirmait un rappel avec « ID DB e504982c…, fuseau Europe/Brussels (UTC+01:00) » : la règle de l'outil schedule_reminder l'y obligeait. Désormais le résultat donne say_to_kouider (« ⏰ Rappel programmé aujourd'hui à 14h00 : … ») et interdit les ID/fuseau.
 
