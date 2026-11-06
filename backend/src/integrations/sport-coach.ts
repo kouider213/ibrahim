@@ -544,7 +544,7 @@ export async function sportDepartureNotice(o: { start: number; leaveBy: number; 
   if (p) await queueTelegramMessage(`🏋️ Aujourd'hui : ${sessionText(p.type, p.minutes, await readSportLog(), true, date)}`);
   await sendSportPlaylist(date).catch(() => null);
   if (!st.settings.callBefore || await getPendingCall('kouider') || await routineCalledRecently(15)) return;
-  await callOwner(`C'est l'heure du sport champion ! Aujourd'hui c'est ${label ? `${label.label.toLowerCase()}, ${label.focus.replace(/·/g, ',')}` : 'ta séance'}. Pars à ${sayTime(o.leaveBy)}, il y a ${o.minutes} minutes de route,${o.traffic.replace(/[🔴🟡🟢]/gu, '')}. Je t'ai envoyé le lien Waze de la salle et ta séance sur Telegram. Allez, on y va !`);
+  await callOwner(`C'est l'heure du sport champion ! Aujourd'hui c'est ${label ? (label.focus && label.focus.trim().toLowerCase() !== label.label.trim().toLowerCase() ? `${label.label.toLowerCase()}, ${label.focus.replace(/·/g, ',').toLowerCase()}` : label.label.toLowerCase()) : 'ta séance'}. Pars à ${sayTime(o.leaveBy)}, il y a ${o.minutes} minutes de route,${o.traffic.replace(/[🔴🟡🟢]/gu, '')}. Je t'ai envoyé le lien Waze de la salle et ta séance sur Telegram. Allez, on y va !`);
 }
 
 /** Toutes les 5 min : arrivé à la salle → séance sur Telegram ; séance commencée et GPS loin → appel « tu as oublié ? ». */

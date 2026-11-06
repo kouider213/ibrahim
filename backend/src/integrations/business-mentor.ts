@@ -186,7 +186,19 @@ export async function jobMentorNewsWatch(): Promise<void> {
   let seen: string[] = [];
   try { seen = JSON.parse((await kvGet(ALERTS_KEY)) ?? '[]') as string[]; } catch { /* vide */ }
   const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9à-ÿ]+/g, ' ').trim().slice(0, 60);
-  const fresh = items.filter(i => !seen.includes(norm(i.title))).slice(0, 3);
+  // 06/11 : appel « l'euro a pété un record à 282 » alors que le square était à 274,5 → un chiffre euro/dinar
+  // qui ne colle pas (± 2 %) au vrai taux du square = actu écartée (ni message ni appel)
+  let square = 0;
+  try { square = (await (await import('./gold.js')).goldMarket()).squareEurDzd; } catch { /* pas de contrôle */ }
+  const fxWrong = (i: (typeof items)[number]): boolean => {
+    const t = `${i.title} ${i.what} ${i.spoken}`;
+    if (!square || !/taux|change|square|dinar|dzd|marché noir/i.test(t)) return false;
+    const nums = [...t.matchAll(/\b(2[0-9]{2}|3[0-4][0-9])(?:[.,]\d+)?\b/g)].map(m => Number(m[1]));
+    const bad = nums.length > 0 && nums.every(n => Math.abs(n - square) / square > 0.02);
+    if (bad) console.warn(`[mentor] veille : actu change écartée (${nums.join('/')} ≠ square ${square}) — ${i.title}`);
+    return bad;
+  };
+  const fresh = items.filter(i => !seen.includes(norm(i.title)) && !fxWrong(i)).slice(0, 3);
   if (!fresh.length) return;
   await kvSet(ALERTS_KEY, JSON.stringify([...seen, ...fresh.map(i => norm(i.title))].slice(-60)), 14 * 86_400);
 

@@ -1,3 +1,8 @@
+## 2026-11-06 ~18h45 — relecture des conversations du jour
+- Appel sport « Aujourd'hui c'est épaules, Épaules » : le focus n'est plus répété quand il est identique au nom de la séance (sport-coach.ts).
+- Veille actu : appel 18h « l'euro a pété un record au Square à 282 » alors que le square était à 274,5 → une actu de change dont aucun chiffre ne colle (± 2 %) au vrai taux du square (goldMarket) est écartée, ni message ni appel (business-mentor.ts).
+- Vérifié, déjà corrigé dans la journée : prises Liberté, eau 2 L, numéro FIK, note interne, « je partager la pub », bilan séance. Les 6 pubs lancées = session de réglage du matin. Le bouton « Noter repos à 20h » a bien modifié l'agenda (réponse dans l'app).
+
 ## 2026-11-06 ~18h15 — pas de vidéo auto s'il en a déjà eu une
 - Vendredi 18h la pub auto « Prix Choc » est arrivée alors que Kouider venait d'avoir sa pub TikTok. autoStudioVideo (lundi TikTok / mercredi Lifestyle / vendredi Prix Choc) est sautée si une vidéo demandée (pub, studio, montage ; pas retouche ni auto) existe sur les 3 derniers jours (recentRequestedVideo).
 
