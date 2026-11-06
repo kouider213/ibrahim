@@ -1,3 +1,8 @@
+## 2026-11-06 ~20h — faits vérifiés (veille + toutes les réponses)
+- Veille actu : 03/11 grève carburant 23-25/11 TUNISIENNE annoncée comme algérienne (« fais le plein, appelle les clients ») ; 01/11 seuil 1 000 € présenté comme nouveau (en vigueur depuis janvier). Le JSON de veille demande country + date ; actu d'un autre pays du Maghreb ou de plus de 8 jours = écartée ; le pays est écrit dans le message.
+- Toutes les questions : règle « FAITS DU MONDE » dans le prompt complet ET le prompt court (cerveaux gratuits) → web_search d'abord pour actu/loi/taux/prix/grève/économie/santé, réponse avec pays + date + source, « pas de source sûre » sinon, sûr vs avis séparés. (Les logs du jour : aucun web_search appelé ; Tavily OK sur Railway.)
+- Liberté appel 12h30 : « ton palier descend à 7 demis maximum » au lieu de « tu es descendu à 7 demis » (c'était le palier, pas ses prises).
+
 ## 2026-11-06 ~19h30 — pubs = TikTok uniquement
 - Kouider : « je déjà partagé une pub » = noter une NOUVELLE pub publiée ; ses pubs ne vont QUE sur TikTok, jamais WhatsApp. markPubPosted : chaque annonce = nouvelle entrée pub:posted (même si la dernière pub studio est déjà notée = son propre montage ; doublon < 10 min ignoré). Contexte cerveau (pubStatusContext, toujours présent) : règle TikTok seul, jamais WhatsApp/Insta/FB ni repost, + pubs publiées 3 j → ne pas pousser une autre pub. Vidéos auto lun/mer/ven sautées aussi si une pub a été publiée ces 3 jours.
 

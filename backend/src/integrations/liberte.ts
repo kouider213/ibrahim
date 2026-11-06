@@ -939,7 +939,7 @@ export async function jobLiberte(): Promise<void> {
   if (drop && hhmm >= '12:30' && hhmm < '18:00')
     await autoCall(`liberte-drop-${today}`, drop.max === 0
       ? 'Kouider, c\'est Dzaryx. Jour zéro aujourd\'hui. Je voulais juste entendre ta voix. Comment tu tiens ?'
-      : `Salut Kouider, c'est Dzaryx. Aujourd'hui tu es descendu à ${drop.max} demis. Comment tu te sens ? Le manque, ça va ?`);
+      : `Salut Kouider, c'est Dzaryx. Aujourd'hui ton palier descend à ${drop.max} demis maximum. Comment tu te sens ? Le manque, ça va ?`);
 
   // Jour zéro, le matin : sa lettre + rapporter les boîtes restantes à la pharmacie (elles reprennent les médicaments non utilisés)
   if (drop?.max === 0 && hhmm >= '08:00' && !dnd && await once(`zero:${today}`))

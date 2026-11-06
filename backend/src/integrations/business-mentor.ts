@@ -170,7 +170,9 @@ const ALERT_SYSTEM = `Tu surveilles l'actualité pour Kouider (FIK Conciergerie 
 Cherche sur le web les nouvelles des DERNIÈRES 24-48 HEURES qui changent quelque chose pour son business : lois/décrets (import, change, location, fiscalité), devises euro-dinar, vols/ports/visas/frontières, carburant, sécurité, grève, météo extrême à Oran, gros événement à Oran, concurrent, opportunité qui se ferme vite.
 Cherche AUSSI les occasions de gagner de l'argent, même hors de FIK : un business à lancer, un marché qui s'ouvre, un appel d'offres, une aide ou subvention, une bonne affaire (voiture, local, stock) à saisir.
 Ne remonte QUE ce qui est vraiment important et nouveau. Si rien de tel : {"items":[]}.
-Réponds UNIQUEMENT avec ce JSON : {"items":[{"title":"...","what":"ce qui se passe (2-3 phrases, avec la source)","impact":"risque|opportunite","why_for_kouider":"ce que ça change pour lui","action":"ce qu'il devrait faire","spoken":"3-4 phrases orales pour le lui dire au téléphone","urgent":true|false,"call":true|false}]}
+Réponds UNIQUEMENT avec ce JSON : {"items":[{"title":"...","country":"pays concerné (Algérie, Belgique, France, Europe, Monde…)","date":"date de l'annonce AAAA-MM-JJ","what":"ce qui se passe (2-3 phrases, avec la source)","impact":"risque|opportunite","why_for_kouider":"ce que ça change pour lui","action":"ce qu'il devrait faire","spoken":"3-4 phrases orales pour le lui dire au téléphone","urgent":true|false,"call":true|false}]}
+VÉRIFIE LE PAYS : une grève/loi/hausse en Tunisie, au Maroc ou ailleurs ne concerne PAS l'Algérie (03/11 : grève carburant TUNISIENNE annoncée comme algérienne). Dis le pays dans "spoken".
+NOUVEAU = annoncé dans les 7 derniers jours : une règle en vigueur depuis des mois (ex. seuil devises 1 000 € de la LF 2026) n'est PAS une actu.
 call = true pour une VRAIE occasion de gagner de l'argent, concrète et chiffrable, qui mérite un appel (pas une simple info).`;
 
 /** Veille actu (2×/jour) : un risque/une opportunité URGENTE → appel tout de suite ; le reste par message. */
@@ -179,7 +181,7 @@ export async function jobMentorNewsWatch(): Promise<void> {
   const run = await runReadOnlyAgent(`Nous sommes le ${day}. Fais la veille maintenant (recherche web sur ces derniers jours), puis réponds avec le JSON.`,
     { system: ALERT_SYSTEM, sessionId: 'business_mentor', maxRounds: 8, maxTokens: 2500 });
   const a = run.text.indexOf('{'), z = run.text.lastIndexOf('}');
-  let items: Array<{ title: string; what: string; impact: string; why_for_kouider: string; action: string; spoken: string; urgent: boolean; call?: boolean }> = [];
+  let items: Array<{ title: string; country?: string; date?: string; what: string; impact: string; why_for_kouider: string; action: string; spoken: string; urgent: boolean; call?: boolean }> = [];
   try { items = (JSON.parse(run.text.slice(a, z + 1)).items ?? []).filter((i: { title?: string }) => i?.title); } catch { return; }
   if (!items.length) return;
 
@@ -198,13 +200,23 @@ export async function jobMentorNewsWatch(): Promise<void> {
     if (bad) console.warn(`[mentor] veille : actu change écartée (${nums.join('/')} ≠ square ${square}) — ${i.title}`);
     return bad;
   };
-  const fresh = items.filter(i => !seen.includes(norm(i.title)) && !fxWrong(i)).slice(0, 3);
+  // 06/11 : pays qui ne le concerne pas (grève tunisienne) ou « actu » vieille de plusieurs mois → écartée
+  const offTopic = (i: (typeof items)[number]): boolean => {
+    const c = `${i.country ?? ''}`.toLowerCase();
+    const where = `${c} ${i.title} ${i.what}`.toLowerCase();
+    const foreign = /tunisi|maroc|marocain|libye|egypte|mauritanie|senegal|sénégal/.test(where) && !/alg[ée]ri|oran|belgi|france|europ|monde/.test(c);
+    const d = i.date ? Date.parse(i.date) : NaN;
+    const old = Number.isFinite(d) && Date.now() - d > 8 * 86_400_000;
+    if (foreign || old) console.warn(`[mentor] veille : actu écartée (${foreign ? `pays ${i.country ?? '?'}` : `ancienne ${i.date}`}) — ${i.title}`);
+    return foreign || old;
+  };
+  const fresh = items.filter(i => !seen.includes(norm(i.title)) && !fxWrong(i) && !offTopic(i)).slice(0, 3);
   if (!fresh.length) return;
   await kvSet(ALERTS_KEY, JSON.stringify([...seen, ...fresh.map(i => norm(i.title))].slice(-60)), 14 * 86_400);
 
   let called = false;   // une seule opportunité non urgente appelée par veille (pas de rafale d'appels)
   for (const i of fresh) {
-    const text = `${i.impact === 'risque' ? '⚠️ Risque' : '📈 Opportunité'} — ${i.title}\n\n${i.what}\n\nPour toi : ${i.why_for_kouider}\nÀ faire : ${i.action}`;
+    const text = `${i.impact === 'risque' ? '⚠️ Risque' : '📈 Opportunité'} — ${i.title}${i.country ? ` (${i.country})` : ''}\n\n${i.what}\n\nPour toi : ${i.why_for_kouider}\nÀ faire : ${i.action}`;
     await queueTelegramMessage(text).catch(() => {});
     emitProactive(i.title.slice(0, 100), i.urgent ? 'alert' : 'info', text);
     if (i.urgent && i.spoken) await autoCall(`news:${norm(i.title)}`, `Une actu importante pour toi. ${i.spoken}`, { level: 'urgent' });
