@@ -1,3 +1,10 @@
+## 2026-11-06 ~21h — CarPlay : vocal préparé à l'avance (démarrage plus rapide)
+- Mesure 06/11 11h42 : 31 s avant que Jarvis parle (texte 6,8 s + voix 24,7 s).
+- Nouveau integrations/car-prep.ts + job car-prep (*/5, 4h-22h) : 5 à 12 min avant un départ habituel (routine : départ maison, fin de séance, début/fin du travail, + ses vrais démarrages répétés des 5 dernières semaines), texte + voix Jarvis fabriqués d'avance (max 6/jour).
+- Au démarrage : même mode (retour/famille/normal) et même tranche d'heure → son joué tout de suite ; l'heure est dite arrondie (« un peu plus de 7 heures », choix de Kouider). Sinon chemin direct inchangé. Vacances / avec Houari = toujours direct.
+- Point du trajet préparé : « le travail commence à 13 heures » (jamais « dans X min » ni marge, inconnus d'avance).
+- Logs : [car-prep] et [car-timing] vocal PRÉPARÉ utilisé.
+
 ## 2026-11-06 ~19h30 — recherche internet faite par le CODE (questions du monde)
 - Banc (Tavily autorisé, lecture seule) : la règle FAITS DU MONDE seule était suivie 1 fois sur 2 (banques belges → aucune recherche, grève → requête « novembre 2024 », devises → aucune source).
 - Nouveau integrations/world-facts.ts : question actu/loi/économie/banque/grève… (hors business, Square, or, vols, Liberté) → multiProviderWebSearch(question + mois année) AVANT le cerveau, résultats + consigne pays/date/source posés à côté de la question.

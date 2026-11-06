@@ -21,6 +21,19 @@ import { MED_ALT } from '../config/private-terms.js';
 // 🎙️ Voix « façon Jarvis » : voix de synthèse grave, calme, majordome (pas la voix d'un acteur — imitation d'une vraie voix = non).
 const VOICES = new Map<string, { at: number; p: Promise<Buffer | null> }>();
 const JARVIS_STYLE = 'Lis ce texte en français, comme JARVIS, l\'intelligence artificielle majordome d\'Iron Man : voix masculine grave, calme, posée, élégante, très légèrement ironique, rythme tranquille et assuré, diction parfaite :';
+/** La voix Jarvis d'un texte (une seule synthèse). Utilisée en direct et par car-prep.ts (préparée à l'avance). */
+export function makeJarvisVoice(text: string): Promise<Buffer | null> {
+  const voice = process.env['JARVIS_VOICE'] || 'Charon';
+  return import('./jarvis-audio.js').then(m => m.jarvisCinemaVoice(text, voice, JARVIS_STYLE)).catch(() => null)
+    .then(w => w ?? import('../notifications/dispatcher.js').then(m => m.synthesizeVoiceGemini(text.replace(/\s*\[\[Q:[\d,]+\]\]/g, ''), { voice, style: JARVIS_STYLE })).catch(() => null));
+}
+/** Un son déjà prêt → lien que l'iPhone joue tout de suite. */
+export function readyVoiceUrl(buf: Buffer): string {
+  const id = randomUUID().replace(/-/g, '');
+  VOICES.set(id, { at: Date.now(), p: Promise.resolve(buf) });
+  const base = (process.env['PUBLIC_BACKEND_URL'] || 'https://ibrahim-backend-production.up.railway.app').replace(/\/$/, '');
+  return `${base}/api/jarvis/voice/${id}`;
+}
 function jarvisVoiceUrl(text: string): string {
   for (const [k, v] of VOICES) if (Date.now() - v.at > 15 * 60_000) VOICES.delete(k);
   const id = randomUUID().replace(/-/g, '');
@@ -57,8 +70,17 @@ export async function iphoneEvent(type: string, body: Record<string, unknown>): 
         const full = `${await cco.companyGreeting(who, vac).catch(() => 'Bonjour Kouider.')} ${await cc.carBlessing(false).catch(() => '')}`.trim();
         return { say: full.replace(/\s*\[\[Q:[\d,]+\]\]/g, '').trim(), audio_url: jarvisVoiceUrl(full) };
       }
+      void import('./car-prep.js').then(m => m.recordStart()).catch(() => {});
+      const family = who !== 'seul' && await cc.isFamilyRide(homeward).catch(() => false);
+      // 06/11 : vocal préparé avant le départ habituel (31 s → quelques secondes), heure arrondie ; sinon chemin direct
+      const ready = await import('./car-prep.js').then(m => m.takePrepared(homeward, family)).catch(() => null);
+      if (ready) {
+        void kvPut('car:last-mode', { at: Date.now(), homeward, family, prepared: true });
+        void kvPut('car:last-event', { at: Date.now(), type });
+        return { say: ready.say, audio_url: readyVoiceUrl(ready.buf) };
+      }
       // 04/11 : lundi après le sport / jeudi après le travail = sa femme et son fils sont dans la voiture → mode famille
-      if (who !== 'seul' && await cc.isFamilyRide(homeward).catch(() => false)) {
+      if (family) {
         void kvPut('car:last-mode', { at: Date.now(), homeward, family: true });
         void kvPut('car:last-event', { at: Date.now(), type });
         const full = `${await cc.familyGreeting().catch(() => 'Bonjour à toute la famille.')} ${await cc.carBlessing(false).catch(() => '')}`.trim();
@@ -117,7 +139,7 @@ const PRIVATE_RX = new RegExp(String.raw`libert|m[ée]dicament|demi|prise autori
 export function carPrivacy(t: string): string {
   return t.split(/(?<=[.!?])\s+/).filter(x => !PRIVATE_RX.test(x)).join(' ').trim();
 }
-async function carBrief(body: Record<string, unknown> = {}): Promise<string> {
+export async function carBrief(body: Record<string, unknown> = {}, prep = false): Promise<string> {
   const now = new Date();
   const { date } = localNow();
   const [evs, drafts, dec, promises, scores, books, loc] = await Promise.all([
@@ -169,6 +191,8 @@ async function carBrief(body: Record<string, unknown> = {}): Promise<string> {
       nextStep = { quoi: 'le travail', heure: localNow(w.start).hhmm, dans_minutes: Math.round((w.start - Date.now()) / 60_000), trajet: wTrip };
     }
   }
+  // 06/11 préparé avant le départ : l'heure exacte de départ n'est pas connue → l'heure de l'étape, pas « dans X min » ni la marge
+  if (prep && nextStep) nextStep = { ...nextStep, dans_minutes: null, trajet: nextStep.trajet?.split(',')[0]?.replace(/\s*\(.*\)/, '') ?? null };
   const facts = {
     heure: localNow().hhmm,
     prochaine_etape: nextStep,
@@ -178,7 +202,7 @@ async function carBrief(body: Record<string, unknown> = {}): Promise<string> {
   };
   void dec;
   const said = await ai(`Kouider vient de monter en voiture (CarPlay). Fais-lui son point en 2 à 3 phrases courtes à l'ORAL (12 secondes, 45 mots maximum), comme JARVIS d'Iron Man : calme, précis, élégant, VOUVOIEMENT :
-d'abord sa prochaine étape et COMBIEN DE TEMPS IL LUI RESTE avant (dans_minutes, dit en mots simples : « le travail commence dans 25 minutes », « dans 1 heure 10 »), avec le temps de route et la marge (ou le retard) ; puis ce que veulent les 1-2 clients les plus chauds sur WhatsApp et combien attendent en tout ; puis la location ou la promesse du jour s'il y en a. JAMAIS de « décision » ni de proposition à choisir (resto, soirée…) : il conduit.
+d'abord sa prochaine étape et ${prep ? "À QUELLE HEURE elle commence (« le travail commence à 13 heures »), avec le temps de route ; JAMAIS « dans X minutes » ni de marge ou de retard (ce point est préparé avant son départ)" : "COMBIEN DE TEMPS IL LUI RESTE avant (dans_minutes, dit en mots simples : « le travail commence dans 25 minutes », « dans 1 heure 10 »), avec le temps de route et la marge (ou le retard)"} ; puis ce que veulent les 1-2 clients les plus chauds sur WhatsApp et combien attendent en tout ; puis la location ou la promesse du jour s'il y en a. JAMAIS de « décision » ni de proposition à choisir (resto, soirée…) : il conduit.
 Ne redis PAS l'heure (déjà dite). JAMAIS un mot sur médicament, pharmacie, santé, Liberté ou sevrage (c'est privé). S'il n'y a aucun fait, dis seulement « Rien d'urgent à signaler. Bonne route. ». Uniquement ces faits, n'invente rien. Ce qui est vide ou null : n'en parle PAS du tout (jamais « pas de… »). Pas de « salut », pas de numéro de téléphone, pas d'emoji, pas de liste. Termine par « Bonne route. »
 Faits : ${JSON.stringify(facts)}`, { max: 300, emergency: 'voix' }).catch(() => '');
   if (said) return speakable(said);

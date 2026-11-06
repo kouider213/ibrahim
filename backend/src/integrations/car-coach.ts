@@ -76,6 +76,15 @@ const PROTECT: Array<{ a: string; say: string }> = [
 ];
 /** Fin de chaque démarrage : verset du jour + récitation de protection, annoncés et traduits, puis les vraies récitations
  *  ([[Q:…]] → jarvis-audio.ts les joue après la voix, dans l'ordre). Aussi dit tel quel par « Énoncer » (sans [[ ]]). */
+/** 06/11 vocal préparé à l'avance (Kouider : « heure arrondie ») : l'heure dite sans la minute exacte. */
+export function approxTimePhrase(at: number): string {
+  const [h, m] = localNow(at).hhmm.split(':').map(Number);
+  const hs = (x: number) => { const y = x % 24; return y === 0 ? 'minuit' : y === 12 ? 'midi' : `${y} heure${y > 1 ? 's' : ''}`; };
+  if (m! < 25) return `Il est un peu plus de ${hs(h!)}`;
+  if (m! < 40) return `Il est environ ${hs(h!)} et demie`;
+  return `Il sera bientôt ${hs(h! + 1)}`;
+}
+
 export async function carBlessing(courage = false): Promise<string> {
   const used = await kvJson<number[]>(VUSED_K, []);
   const all = VERSES.map((_, i) => i).filter(i => !courage || VERSES[i]!.courage);
@@ -110,12 +119,12 @@ export async function isFamilyRide(_homeward: boolean): Promise<boolean> {
   if (weekday === 4) return hhmm >= '13:30' && hhmm < '23:00';     // jeudi : à partir de 13h30 (Kouider 04/11), même s'il part plus tôt
   return false;
 }
-export async function familyGreeting(): Promise<string> {
-  const { hhmm } = localNow();
+export async function familyGreeting(approxAt?: number): Promise<string> {
+  const { hhmm } = localNow(approxAt);
   const h = Number(hhmm.slice(0, 2));
   const loc = await import('./location.js').then(m => m.getLocation('kouider')).catch(() => null);
   const meteo = loc ? await import('./forme-runs-pro.js').then(m => m.weatherAt(loc.lat, loc.lng, Date.now())).catch(() => null) : null;
-  const time = `Il est ${hhmm.replace(':', ' heures ').replace(/ 00$/, '')}`;
+  const time = approxAt ? approxTimePhrase(approxAt) : `Il est ${hhmm.replace(':', ' heures ').replace(/ 00$/, '')}`;
   const weather = meteo ? `, ${Math.round(meteo.temp)} degrés dehors, ${meteo.label.toLowerCase()}${meteo.rain ? ', prudence sur la route' : ''}` : '';
   return `${h < 5 || h >= 18 ? 'Bonsoir' : 'Bonjour'} à toute la famille. ${time}${weather}. Protocole famille activé : aujourd'hui, rien d'autre ne compte que vous trois. Profitez de ce moment ensemble.`;
 }
@@ -191,18 +200,18 @@ export async function pickQuote() {   // citations business : gardées pour d'au
 /** Style JARVIS (Kouider 02/11 : « je veux qu'il me parle comme le vrai Jarvis ») : majordome IA calme, précis, élégant,
  *  vouvoiement, une pointe d'humour — heure, météo réelle, état de la journée, puis motivation business et citation.
  *  Court si déjà dit il y a moins de 30 min (arrêt rapide). */
-export async function carGreeting(pos: { lat?: number; lng?: number } = {}, homeward = false): Promise<string> {
-  const { hhmm } = localNow();
+export async function carGreeting(pos: { lat?: number; lng?: number } = {}, homeward = false, prep?: { approxAt: number }): Promise<string> {
+  const { hhmm } = localNow(prep?.approxAt);
   const h = Number(hhmm.slice(0, 2));
   const hello = h < 5 || h >= 18 ? 'Bonsoir Kouider.' : 'Bonjour Kouider.';
   const last = await kvJson<number>(LAST_K, 0);
-  if (Date.now() - last < 30 * 60_000) {
+  if (!prep && Date.now() - last < 30 * 60_000) {
     // 02/11 : même un 2e démarrage = un coup de motivation (Kouider : « il doit aussi me donner des discours motivants »)
     if (homeward) return 'Re-bonjour Kouider. Cap sur la maison, monsieur. La journée est faite, vous avez tenu, le reste peut attendre demain.';
     const pep = REBOOST[Math.floor(Math.random() * REBOOST.length)]!;
     return `Re-bonjour Kouider. ${pep}`;
   }
-  await kvPut(LAST_K, Date.now());
+  if (!prep) await kvPut(LAST_K, Date.now());   // préparé : noté seulement quand il est vraiment dit (car-prep.ts)
   let here: { lat: number; lng: number } | null = Number.isFinite(pos.lat) && pos.lat ? { lat: pos.lat!, lng: pos.lng! } : null;
   if (!here) { const loc = await import('./location.js').then(m => m.getLocation('kouider')).catch(() => null); if (loc && Date.now() - Date.parse(loc.updated_at) < 6 * 3600_000) here = { lat: loc.lat, lng: loc.lng }; }
   const [, off, hard, coach, meteo] = await Promise.all([
@@ -212,7 +221,7 @@ export async function carGreeting(pos: { lat?: number; lng?: number } = {}, home
     import('./grand-coach.js').then(m => m.grandCoachText()).catch(() => ''),
     here ? import('./forme-runs-pro.js').then(m => m.weatherAt(here!.lat, here!.lng, Date.now())).catch(() => null) : Promise.resolve(null),
   ]);
-  const time = `Il est ${hhmm.replace(':', ' heures ').replace(/ 00$/, '')}`;
+  const time = prep ? approxTimePhrase(prep.approxAt) : `Il est ${hhmm.replace(':', ' heures ').replace(/ 00$/, '')}`;
   const weather = meteo ? `, ${Math.round(meteo.temp)} degrés dehors, ${meteo.label.toLowerCase()}${meteo.rain ? ', prudence sur la route' : ''}` : '';
   const boot = bootLine(homeward ? 'retour' : hard ? 'douceur' : off ? 'famille' : new Date().getUTCDay() === 5 && h < 14 ? 'jumua' : h < 12 ? 'matin' : 'mission');
   if (homeward) return `${boot} ${await homewardSpeech(hello, time, weather)}`;

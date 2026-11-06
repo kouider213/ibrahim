@@ -694,6 +694,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'car-prep',
+    cron:  '*/5 4-22 * * *',        // 06/11 vocal CarPlay préparé 5-12 min avant ses départs habituels (car-prep.ts)
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'departure-watch',
     cron:  '*/5 * * * *',           // toutes les 5 min — heure de départ selon le trafic (salle, travail, RDV avec adresse 4h–23h ; aéroport 24h/24 pour les vols tôt)
     tz:    'Europe/Brussels',
@@ -879,6 +884,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'rental-eve-call':         async () => { await jobRentalEveCall(); },
   'morning-routine':         async () => { await jobMorningRoutine(); },
   'departure-watch':         async () => { await jobDepartureWatch(); },
+  'car-prep':                async () => { await import('../integrations/car-prep.js').then(m => m.jobCarPrep()); },
   'trip-reminders':          async () => { await jobTripReminders(); },
   'flight-mail-import':      async () => { await jobFlightMailImport(); },
   'flight-live':             async () => { await (await import('../integrations/flight-live.js')).jobFlightWatch(); },
