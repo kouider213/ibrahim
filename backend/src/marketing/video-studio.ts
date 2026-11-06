@@ -832,7 +832,17 @@ async function renderJob(job: StudioJob, plan: StudioPlan, opts: RenderOptions):
 // ─── Vidéos automatiques de la semaine (mercredi, vendredi, idée TikTok) ───
 
 /** Les tâches planifiées passent par le moteur MONTAGE gratuit : scénario → rendu → Telegram, publication après « Oke ». */
-export async function autoStudioVideo(o: { idea: string; template: string; car: { id: string; name: string; image_url: string | null }; label: string }): Promise<StudioJob> {
+/** Vidéo faite à la demande de Kouider (pub TikTok, studio, montage — pas une retouche photo ni une vidéo auto) ces 3 derniers jours. */
+export async function recentRequestedVideo(days = 3): Promise<StudioJob | null> {
+  const since = Date.now() - days * 86_400_000;
+  const { jobs } = await listStudioJobs().catch(() => ({ jobs: [] as StudioJob[] }));
+  return jobs.find(j => !j.approval && j.planId !== 'ai-edit' && j.status !== 'error' && new Date(j.createdAt).getTime() >= since) ?? null;
+}
+
+export async function autoStudioVideo(o: { idea: string; template: string; car: { id: string; name: string; image_url: string | null }; label: string }): Promise<StudioJob | null> {
+  // Kouider 06/11 : s'il a déjà eu une vidéo ces jours-ci, on n'en refait pas une de plus
+  const recent = await recentRequestedVideo();
+  if (recent) { console.log(`[studio] ${o.label} sautée — vidéo récente « ${recent.title} » (${recent.createdAt})`); return null; }
   const plan = await createStudioPlan({ idea: o.idea, template: o.template, lang: 'fr', seconds: 20, imageUrl: o.car.image_url, carName: o.car.name });
   const model = await bestModel();
   return startStudioRender(plan, { model, nativeAudio: false, voice: !!plan.voiceover, music: !isFree(model), subtitles: true, outro: true }, 'kouider',

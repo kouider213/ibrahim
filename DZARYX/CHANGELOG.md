@@ -1,3 +1,6 @@
+## 2026-11-06 ~18h15 — pas de vidéo auto s'il en a déjà eu une
+- Vendredi 18h la pub auto « Prix Choc » est arrivée alors que Kouider venait d'avoir sa pub TikTok. autoStudioVideo (lundi TikTok / mercredi Lifestyle / vendredi Prix Choc) est sautée si une vidéo demandée (pub, studio, montage ; pas retouche ni auto) existe sur les 3 derniers jours (recentRequestedVideo).
+
 ## 2026-11-06 ~17h — « Je partager la pub TikTok » = J'AI partagé (info)
 - Kouider voulait dire « j'ai partagé la pub » : Dzaryx renvoyait la pub. Phrase au passé (j'ai partagé/posté/publié, je partager, c'est publié) → note kv pub:posted + bravo + conseil 1re heure ; « renvoie/envoie-moi la pub » → renvoi. Contexte cerveau : pub PUBLIÉE par Kouider.
 
