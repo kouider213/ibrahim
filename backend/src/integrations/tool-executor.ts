@@ -170,6 +170,8 @@ async function tgVideo(_chatId: string | number | null, buf: Buffer, caption: st
     });
     const title = caption.replace(/[*_`[\]()]/g, '').slice(0, 80);
     emitProactive(title || 'Vidéo marketing prête', 'info', `${caption.replace(/[*_]/g, '')}\n📹 ${videoUrl}`);
+    // 06/11 : la vidéo Runway de la Clio n'arrivait que dans l'app, jamais sur Telegram (où il l'avait demandée) → aussi sur Telegram
+    await queueTelegramMessage(caption.replace(/[*_]/g, ''), undefined, 'kouider', { url: videoUrl, name: 'dzaryx-video.mp4' }).catch(() => {});
     return true;
   } catch (err) {
     console.error('[tgVideo] cloudinary upload failed:', err instanceof Error ? err.message : err);

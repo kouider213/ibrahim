@@ -317,6 +317,8 @@ async function craving(raw: string): Promise<Direct | null> {
   const med = new RegExp(String.raw`\b(en prendre (un|une|1)|prendre (un|une|1) (demi|cachet|comprime)|un demi|un cachet|un comprime|mes demis?|mon medoc|mes medocs|le medicament${MED_ALT}|reprendre)\b`).test(t);
   // « j'ai encore pris un demi, j'en peux plus » = prise DÉJÀ faite + moral → le cerveau (outil liberte + écoute), pas le SOS envie
   if (/\b(j'?ai|je l'?ai|je les ai)\s+(encore\s+|deja\s+|quand meme\s+)?(pris|repris|craque)\b|\bpris\b/.test(t)) return null;
+  // 06/11 « si j'ai envie d'en reprendre je te ferai signe » = un plan pour plus tard, pas une envie maintenant → le cerveau
+  if (/\bsi (jamais |j'?ai |je |j'?en ai )?(encore |trop )?(envie|besoin)\b|\bquand j'?(aurai|ai) (envie|besoin)\b|\bje te (ferai|ferais|dirai|dirais|previendrai|previendrais|ecrirai|ecrirais)\b/.test(t)) return null;
   if (!want || !med || /\b(voiture|clio|location|louer|resa|client|cafe|the|cigarette|pizza|gateau|sucre|manger)\b/.test(t)) return null;
   const { liberteTool } = await import('./liberte.js');
   const r = await liberteTool({ action: 'envie', note: raw.slice(0, 200) }, SID).catch(() => '');

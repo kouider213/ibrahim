@@ -1,3 +1,7 @@
+## 2026-11-06 — Vidéo IA aussi sur Telegram + « si j'ai envie je te ferai signe » ≠ envie
+- tgVideo (tool-executor) : la vidéo partait seulement dans l'app → aussi envoyée sur Telegram (queueTelegramMessage file).
+- craving (fr-commands) : phrase au conditionnel/plan (« si j'ai envie… je te ferai signe ») ne déclenche plus le SOS envie.
+
 # DZARYX — Changelog
 
 > Format : Date | Commit | Fichiers | Description
