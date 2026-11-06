@@ -1,3 +1,7 @@
+## 2026-11-06 ~20h15 — CarPlay : vocal préparé testé en vrai + retour du travail reconnu
+- 1er vrai test 20h06 : vocal préparé à 19h56 utilisé, son servi en 47 ms (avant : 31 s). Texte préparé en 88 s (quotas Gemini gratuits épuisés ce soir) → sans la préparation, ~2 min de silence.
+- Bug : maison et travail à ~450 m → isHomeward testait « < 600 m de chez lui » AVANT « près du travail » → le retour du travail n'était jamais reconnu (discours normal au lieu du discours retour). Ordre corrigé : plus près du travail que de chez lui = retour.
+
 ## 2026-11-06 ~21h30 — démarchage relancé (5/jour : 3 conciergerie + 2 FIK Sites)
 - Bug : le 29/10 (« je me repose, profite de ma famille ») le cerveau a mis la journée dure ET coupé le démarchage pour de bon → aucun mail du 30/10 au 06/11.
 - Journée dure = pause du jour seulement : runDailyOutreach saute le jour (isHardDay) ; prospect_autopilot off pendant une journée dure ne coupe plus (sauf forever=true, « pour de bon »).

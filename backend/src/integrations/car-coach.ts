@@ -158,8 +158,9 @@ export async function isHomeward(pos: { lat?: number; lng?: number } = {}): Prom
   const a = (await getRoutineConfig()).addresses;
   const [home, work] = await Promise.all([geocode(a.home).catch(() => null), geocode(a.work).catch(() => null)]);
   const dist = (p: { lat: number; lng: number } | null) => (here && p ? haversine([here.lat, here.lng], [p.lat, p.lng]) : Infinity);
+  // 06/11 : maison et travail à ~450 m → le test « < 600 m de chez lui » passait AVANT et cachait toujours le retour du travail
+  if (dist(work) < 2500 && dist(work) < dist(home)) return true;   // il quitte le boulot (plus près du travail que de chez lui)
   if (dist(home) < 600) return false;                      // déjà devant chez lui : il part, il ne rentre pas
-  if (dist(work) < 2500) return true;                      // il quitte le boulot
   const evs = await import('./google-calendar.js').then(m => m.listAgendaRange(new Date().toISOString(), new Date(Date.now() + 4 * 3600_000).toISOString())).catch(() => null);
   const real = ((evs ?? []) as Array<{ summary?: string; start?: { dateTime?: string } }>)
     .filter(e => !/libre|rdv possibles|disponible|🏠|maison|repos|famille|dîner|diner|repas/i.test(e.summary ?? '') && (!e.start?.dateTime || Date.parse(e.start.dateTime) > Date.now()));
