@@ -251,7 +251,9 @@ export async function jobQuotidien(): Promise<string> {
   if (on('montre') && between('19:30', '20:30') && await once('montre', date, async () => '⌚ Mets ta montre en charge maintenant (45 min) : batterie pleine pour mesurer ta nuit et ta récupération demain matin.')) sent.push('montre');
   if (on('charges') && between('20:45', '21:45') && await once('charges', date, () => chargesText(date))) sent.push('charges');
   if (on('sac') && between('21:00', '22:00') && await once('sac', date, () => sacText(date))) sent.push('sac');
-  if (on('caisse') && between('21:15', '22:15') && await workedToday() && await once('caisse', date, async () => '📒 Caisse du jour : combien tu as fait aujourd\'hui ? Réponds juste le chiffre (ex. « 220 »), je le note dans ton argent.')) sent.push('caisse');
+  // 06/11 : « +100€ en cash aujourd'hui » à 20h59, puis « combien tu as fait aujourd'hui ? » à 21h45 → déjà dit = pas redemandé
+  const soldToday = async () => { const { kvJson } = await import('./ai-util.js'); const j = await kvJson<Array<{ d: string; t: string }>>('perso:journal', []).catch(() => []); return Array.isArray(j) && j.some(e => e.d === date && e.t === 'vente'); };
+  if (on('caisse') && between('21:15', '22:15') && await workedToday() && !(await soldToday()) && await once('caisse', date, async () => '📒 Caisse du jour : combien tu as fait aujourd\'hui ? Réponds juste le chiffre (ex. « 220 »), je le note dans ton argent.')) sent.push('caisse');
   return sent.join(', ') || 'rien';
 }
 

@@ -12,7 +12,21 @@ import { MED_ALT } from '../config/private-terms.js';
 
 const MONTHS: Record<string, number> = { janvier: 1, janv: 1, fevrier: 2, fevr: 2, fev: 2, mars: 3, avril: 4, avr: 4, mai: 5, juin: 6, juillet: 7, juil: 7, aout: 8, septembre: 9, sept: 9, octobre: 10, oct: 10, novembre: 11, nov: 11, decembre: 12, dec: 12 };
 const WDAYS: Record<string, number> = { dimanche: 0, lundi: 1, mardi: 2, mercredi: 3, jeudi: 4, vendredi: 5, samedi: 6 };
-const strip = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[’`]/g, "'");
+/** 06/11 (Kouider : « même les fautes d'orthographe il doit les comprendre comme toi ») : écriture SMS / phonétique → forme normale,
+ *  appliquée AVANT toutes les commandes du code (rappels, eau, séance, météo, silence…). Seulement des mots sans autre sens possible. */
+const SMS: Array<[RegExp, string]> = [
+  [/\b(?:kel|kelle|qel|quelle?s?)\b/g, 'quel'], [/\b(?:koi|quoa|kwa)\b/g, 'quoi'], [/\bki\b/g, 'qui'], [/\b(?:cmb|cbn|combi1|conbien|combie)\b/g, 'combien'],
+  [/\b(?:ds|dan)(?=\s+(?:\d|une?\b|deux|trois|quatre|cinq|dix|quinze|vingt|trente|la\b|le\b|l'))/g, 'dans'],
+  [/\b(?:jsui|jsuis|chui|chuis|jss|jsu|j suis|je sui|jui)\b/g, 'je suis'], [/^(?:g|jai|j ai|jé|je)\s+(?=(?:bu|pris|pri|mang|fait|fini|termin|eu|rat|oubli|envie|mal|besoin)\w*)/, "j'ai "],
+  [/\bjai\b/g, "j'ai"], [/\b(?:ojd|auj|aujourdhui|aujourdui|aujordhui|ajd|aujaurdhui|aujourd hui)\b/g, "aujourd'hui"],
+  [/\b(?:mtn|maintenan|mintenant)\b/g, 'maintenant'], [/\b(?:demin|demai|dmain|deman|demian|2main)\b/g, 'demain'], [/\b(?:stp|stpl|svp|sil te plait)\b/g, "s'il te plait"],
+  [/\bpr\b/g, 'pour'], [/\b(?:vai|vé|ve)\b(?=\s+(?:pas|aller|faire|dormir|a\b|au\b))/g, 'vais'], [/\bannul\b/g, 'annule'], [/\bbcp\b/g, 'beaucoup'], [/\b(?:tkt|tqt)\b/g, "t'inquiete"], [/\bseanse|seence|scéance|sceance\b/g, 'seance'],
+  [/\b(?:a la|à la) sale\b/g, 'a la salle'], [/\b(?:temp|tant|tems)\b(?=\s+(?:il fait|qu'il fait|a|à|pour|demain))/g, 'temps'], [/\b(?:rapel|rappel|rapelle|rapell)\s*(?:moi|moa)\b/g, 'rappelle-moi'],
+  [/\bd'?o\b(?=\s*$)/g, "d'eau"], [/\b(?:deau)\b/g, "d'eau"], [/\bfatiguer?\b|\bfatigé\b/g, 'fatigue'],
+];
+const sms = (s: string) => { let t = s; for (const [re, to] of SMS) t = t.replace(re, to); return t; };
+const stripBase = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[’`]/g, "'");
+const strip = (s: string) => sms(s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[’`]/g, "'").replace(/\s+/g, ' ').trim());
 const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 const wdOf = (d: string) => new Date(Date.parse(`${d}T12:00:00Z`)).getUTCDay();
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -23,7 +37,7 @@ export const frDate = (d: string) => `${WD_FR[wdOf(d)]} ${Number(d.slice(8))}${d
 export interface When { date?: string; time?: string; inMinutes?: number; used: string[] }
 
 /** 06/11 banc fautes : « rapelle moi dan 2h » → rappel DEMAIN à 02:00. Fautes de quand courantes → forme correcte (accents gardés). */
-export const fixWhenTypos = (s: string) => s.replace(/\bdan(?=\s+(?:\d|une?\b|deux|trois|quatre|cinq|dix|quinze|vingt|trente))/gi, 'dans').replace(/\b(?:demin|demai|dmain|deman|demian|demmain)\b/gi, 'demain')
+export const fixWhenTypos = (s: string) => s.replace(/\bds\b(?=\s+(?:\d|une?\b))/gi, 'dans').replace(/\bdan(?=\s+(?:\d|une?\b|deux|trois|quatre|cinq|dix|quinze|vingt|trente))/gi, 'dans').replace(/\b(?:demin|demai|dmain|deman|demian|demmain)\b/gi, 'demain')
   .replace(/\b(?:aujourdhui|aujourdui|aujordhui|ojourdhui|auj)\b/gi, "aujourd'hui").replace(/\bapr[eè]s[- ]?dem\w*\b/gi, 'après-demain');
 /** Quand ? dans une phrase française. date = YYYY-MM-DD (Bruxelles), time = HH:MM. */
 export function parseWhen(raw: string, now = localNow()): When {
@@ -94,7 +108,7 @@ let SID = 'telegram_kouider';
 /** « rappelle-moi … » avec une date/heure claire → schedule_reminder. */
 async function reminder(raw: string): Promise<Direct | null> {
   raw = fixWhenTypos(raw);
-  const t = strip(raw);
+  const t = stripBase(raw);   // pas de correcteur SMS ici : on coupe « rappelle-moi » dans le texte brut à la même longueur
   const head = /^(?:stp\s+|s'il te plait\s+)?(rappelle[- ]?moi|r+app?ell?e?s?[- ]?moi|rapp?el(?:le)?\s*(?::|de|d')|(?:mets?|met|fais|fait|programme|cree|ajoute)[- ]?(?:moi\s+)?un\s+r+app?ell?e?(?:\s+(?:pour|a|de))?|fais[- ]moi penser|pense a me rappeler|n'oublie pas de me rappeler|tu me rappelles?)\b/.exec(t);
   if (!head || raw.length > 220 || /\?$/.test(raw.trim())) return null;
   const w = parseWhen(raw);
@@ -458,7 +472,7 @@ async function sportSkip(raw: string): Promise<Direct | null> {
   const t = strip(raw);
   if (t.length > 200 || /\?\s*$/.test(t)) return null;
   const DAY = "(aujourd'hui|ce soir|ce matin|demain|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)";
-  const m = t.match(new RegExp(`\\b(?:(?:je )?(?:vais|irai|peux|pourrai|veux|ferai|fais)\\s+pas\\s+(?:aller\\s+)?(?:a la salle|au sport|a la muscu|a la gym|de sport|de salle|la seance)|pas de (?:sport|salle|seance|muscu)|je (?:saute|zappe|annule|sauterai) (?:la salle|le sport|la seance|ma seance))\\b[^.!]{0,25}?\\b${DAY}\\b`))
+  const m = t.match(new RegExp(`\\b(?:(?:je )?(?:vais|irai|peux|pourrai|veux|ferai|fais)\\s+pas\\s+(?:aller\\s+)?(?:a la salle|au sport|a la muscu|a la gym|de sport|de salle|la seance)|pas de (?:sport|salle|seance|muscu)|(?:je )?(?:saute|zappe|annule|sauterai|decale pas|supprime) (?:la salle|le sport|la seance|ma seance))\\b[^.!]{0,25}?\\b${DAY}\\b`))
     ?? t.match(new RegExp(`\\b${DAY}\\b[^.!]{0,25}?\\b(?:(?:je )?(?:vais|irai|peux|fais|ferai)\\s+pas\\s+(?:aller\\s+)?(?:a la salle|au sport|a la muscu|a la gym|de sport|la seance)|pas de (?:sport|salle|seance|muscu))\\b`));
   if (!m) return null;
   const day = m[1] ?? 'demain';

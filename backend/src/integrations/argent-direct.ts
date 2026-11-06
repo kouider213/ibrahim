@@ -53,7 +53,9 @@ export function parseMoneyCommand(raw: string): MoneyCommand | null {
   let msg = raw;
   for (let i = 0; i < 3; i++) { const m = msg.match(/^\s*\[[\s\S]*?\]\s*/); if (!m) break; msg = msg.slice(m[0].length); }
   msg = msg.replace(/^CONFIRM[ÉE] AU T[ÉE]L[ÉE]PHONE\s*:\s*/i, '').trim();
-  msg = msg.replace(/\bsnu\b/gi, 'snus');   // 05/11 banc : « snu 170 »
+  msg = msg.replace(/\bsnu\b/gi, 'snus');
+  // 06/11 fautes SMS : « cmb jai gagné ojd »
+  msg = msg.replace(/\b(?:cmb|cbn|conbien)\b/gi, 'combien').replace(/\bjai\b/gi, "j'ai").replace(/\b(?:ojd|auj|ajd|aujourdhui|aujaurdhui)\b/gi, "aujourd'hui").replace(/\b(?:gagner|gagne)\b/gi, 'gagné');   // 05/11 banc : « snu 170 »
   if (!msg || msg.length > 300 || !MONEY.test(msg) || OTHER.test(msg)) return null;
   const today = localNow().date;
   const question = /\?|combien|quel(?:le)?s? jours?|meilleur jour|j.en suis|je suis (?:à|a) combien|c.est quoi mon|dis[- ]moi/i.test(msg);
@@ -90,7 +92,12 @@ export function parseMoneyCommand(raw: string): MoneyCommand | null {
   const signed = [...msg.matchAll(/(?:^|[\s(:])([+−–-]|moins|plus)\s*(\d[\d\s.,]*\s*k?)\s*(?:€|euros?)?\s*(?:(?:en|de|du|dans|sur)\s+(?:la\s+|le\s+|mon\s+|ma\s+)?)?(?=cash|caisse|liquide)/giu),
     ...msg.matchAll(/(?:cash|caisse|liquide)\s*:?\s*([+−–-]|moins|plus)\s*(\d[\d\s.,]*\s*k?)/giu)]
     .map(m => ({ v: parseNum(m[2]!), sign: /^(\+|plus)$/i.test(m[1]!) ? 1 : -1 })).filter(x => x.v !== null && x.v >= 1 && x.v <= 1_000_000) as Array<{ v: number; sign: number }>;
-  if (signed.length && !/retomb|redescend|remont|repass|il me reste|je suis (?:à|a)\s+\d/i.test(msg)) return { cashDelta: signed.reduce((t, x) => t + x.sign * x.v, 0) };
+  if (signed.length && !/retomb|redescend|remont|repass|il me reste|je suis (?:à|a)\s+\d/i.test(msg)) {
+    const delta = signed.reduce((t, x) => t + x.sign * x.v, 0);
+    // 06/11 « +100€ en cash aujourd'hui » = il a GAGNÉ 100 aujourd'hui → vente du jour aussi (sinon à 21h45 « combien tu as fait aujourd'hui ? »)
+    const earned = delta > 0 && signed.length === 1 && /aujourd|ce soir|ce matin|\bhier\b/i.test(msg) && !/r[ée]cup|remis|remets|rembours|rends|rendu|d[ée]pos/i.test(msg);
+    return earned ? { cashDelta: delta, sale: { amount: delta, date: dayOf(msg, today) ?? today, cat: 'snus' } } : { cashDelta: delta };
+  }
   const cm = /total|en tout|je suis|j.ai|il me reste|caisse|^\s*(?:mon\s+)?cash\b/i.test(msg) ? (c1 ?? c2) : null;
   if (cm) { const v = parseNum(cm[1]!); if (v !== null && v >= 10 && v <= 1_000_000) { out.cash = Math.round(v); cashPos = cm.index + cm[0].lastIndexOf(cm[1]!); } }
   // Mouvements de caisse (03/11, « je pris 200 € du cash hier donc je suis retombé à 2200 € mais aujourd'hui je récupère 400 € »
