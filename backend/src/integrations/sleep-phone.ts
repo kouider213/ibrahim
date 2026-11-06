@@ -8,11 +8,23 @@
  * Entre 3h et 4h30 (téléphone regardé en pleine nuit) : ignoré.
  */
 import { kvJson, kvPut, tg } from './ai-util.js';
-import { localNow } from './morning-routine.js';
+import { localNow, localTs } from './morning-routine.js';
 
 const BED_K = 'sleep:phone:bed';      // { at: ISO }
 const WOKE_K = 'sleep:phone:woke';    // { date, at }
 const FALL_ASLEEP_MIN = 15;
+// 06/11 (Kouider : « bonne nuit » à 21h38 alors qu'il dort à 90 % vers 23h-23h30 → nuit gonflée d'1 h) :
+// heure de coucher MINIMUM (« enregistre mon sommeil à partir de 22:30 au minimum ») : un « bonne nuit » plus tôt compte à cette heure-là.
+const MINBED_K = 'sleep:phone:min_bed';   // 'HH:MM' (défaut 22:30, dit par Kouider)
+const DEFAULT_MIN_BED = '22:30';
+export async function minBed(): Promise<string> { return (await kvJson<string | null>(MINBED_K, null)) ?? DEFAULT_MIN_BED; }
+/** Heure de coucher à enregistrer maintenant : jamais avant son minimum le soir même. */
+async function bedAtNow(): Promise<{ iso: string; floored: boolean; min: string }> {
+  const { date, hhmm } = localNow();
+  const min = await minBed();
+  if (hhmm >= '17:00' && hhmm < min) return { iso: new Date(localTs(date, min)).toISOString(), floored: true, min };
+  return { iso: new Date().toISOString(), floored: false, min };
+}
 
 const hm = (iso: string) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
 const fmtH = (h: number) => `${Math.floor(h)} h ${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
@@ -25,8 +37,9 @@ export async function phoneSleepMark(kindIn: string): Promise<{ ok: true; say: s
   const kind = /couch|dor|bed|nuit/i.test(kindIn) ? 'couche' : /lev|reveil|réveil|wake/i.test(kindIn) ? 'leve' : night ? 'couche' : morning ? 'leve' : 'rien';
 
   if (kind === 'couche') {
-    await kvPut(BED_K, { at: nowIso }, 20 * 3600);
-    return { ok: true, say: kindIn === 'auto' ? '' : `Bonne nuit 🌙 Coucher noté à ${hm(nowIso)}.` };
+    const b = await bedAtNow();
+    await kvPut(BED_K, { at: b.iso }, 20 * 3600);
+    return { ok: true, say: kindIn === 'auto' ? '' : `Bonne nuit 🌙 Coucher noté à ${hm(b.iso)}${b.floored ? ' (ton heure minimum)' : ''}.` };
   }
   if (kind !== 'leve') return { ok: true, say: '' };
 
@@ -71,13 +84,43 @@ export async function sleepFromMessage(text: string): Promise<string | null> {
   if (!t || t.length > 400) return null;
   const { date, hhmm } = localNow();
   const short = t.split(/\s+/).length <= 6;
+  // Réglages (n'importe quelle heure, fautes comprises : « soleil » = sommeil)
+  const n = t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const SLEEPW = '(?:sommeil|soleil|someil|somail|sommeille|coucher|couche|dodo|nuit|heure de dormir)';
+  const minM = new RegExp(`${SLEEPW}[^\\d]{0,40}?(\\d{1,2})\\s*[h:]\\s*(\\d{2})?`).exec(n);
+  if (minM && /\b(minimum|mini|au plus tot|pas avant|a partir de|apres)\b/.test(n) && /\b(enregistr\w*|not\w*|compt\w*|calcul\w*|met|mets|programm\w*|regl\w*|toujours|jamais)\b/.test(n) && t.length < 200) {
+    const H = Number(minM[1]), M = Number(minM[2] ?? 0);
+    if (H >= 18 && H <= 23 && M <= 59) {
+      const v = `${String(H).padStart(2, '0')}:${String(M).padStart(2, '0')}`;
+      await kvPut(MINBED_K, v, 3650 * 86_400);
+      const bed = await kvJson<{ at: string } | null>(BED_K, null);   // ce soir déjà noté trop tôt → corrigé tout de suite
+      let fix = '';
+      if (bed && Date.now() - Date.parse(bed.at) < 12 * 3600_000 && hm(bed.at) < v && hm(bed.at) >= '17:00') { const iso = new Date(localTs(date, v)).toISOString(); await kvPut(BED_K, { at: iso }, 20 * 3600); fix = ` Ce soir corrigé : coucher compté à ${v}.`; }
+      return `✅ C'est réglé : un « bonne nuit » avant ${v} compte ton coucher à ${v} minimum (après ${v}, l'heure réelle).${fix} Si tu t'endors plus tard, dis-le au réveil (« endormi à 23h30 ») et je corrige la nuit.`;
+    }
+  }
+  // Ce soir seulement : « compte mon coucher à 23h30 », « je dors à 23h ce soir »
+  const tonight = /\b(?:compt\w*|not\w*|enregistr\w*|met|mets)\s+(?:mon\s+|le\s+)?(?:sommeil|soleil|someil|coucher)\s+(?:a|vers|pour)\s*(\d{1,2})\s*[h:]\s*(\d{2})?|\bje (?:dors|vais dormir|me couche)\s+(?:a|vers)\s*(\d{1,2})\s*[h:]\s*(\d{2})?/.exec(n);
+  if (tonight && !/minimum|mini\b|au plus tot|pas avant|a partir/.test(n) && (hhmm >= '17:00' || hhmm < '03:00') && t.length < 160) {
+    const H = Number(tonight[1] ?? tonight[3]), M = Number(tonight[2] ?? tonight[4] ?? 0);
+    if (H <= 23 && M <= 59 && (H >= 18 || H <= 2)) {
+      const d = H <= 2 && hhmm >= '17:00' ? new Date(Date.parse(`${date}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10) : date;
+      const v = `${String(H).padStart(2, '0')}:${String(M).padStart(2, '0')}`;
+      await kvPut(BED_K, { at: new Date(localTs(d, v)).toISOString() }, 20 * 3600);
+      return `🌙 Noté : coucher compté à ${v} ce soir. Envoie-moi un message au réveil et je calcule ta nuit.`;
+    }
+  }
   if ((hhmm >= '19:00' || hhmm < '04:00') && NIGHT_RE.test(t) && !NOT_SLEEP_RE.test(t)) {
-    await kvPut(BED_K, { at: new Date().toISOString() }, 20 * 3600);
-    return short ? `Bonne nuit 🌙 Coucher noté à ${hhmm}. Envoie-moi un message au réveil et je calcule ta nuit.` : null;
+    const b = await bedAtNow();
+    await kvPut(BED_K, { at: b.iso }, 20 * 3600);
+    if (!short) return null;
+    return b.floored
+      ? `Bonne nuit 🌙 Il est ${hhmm} : je compte ton coucher à ${b.min} (ton heure minimum, tu t'endors rarement avant). Si tu t'endors plus tard, dis-le au réveil (« endormi à 23h30 »).`
+      : `Bonne nuit 🌙 Coucher noté à ${hhmm}. Envoie-moi un message au réveil et je calcule ta nuit.`;
   }
   // « couché à 23:30 » le matin (réponse à « je n'ai pas ton heure de coucher ») → nuit calculée par le code, pas par le cerveau
   // (05/11 : le cerveau avait répondu « pour demain (jeudi) » alors qu'on était jeudi)
-  const bedM = /\b(?:je me suis\s+)?couch[ée]e?s?\s+(?:vers\s+|a\s+|à\s+)+(\d{1,2})\s*(?:h|:)\s*(\d{2})?/i.exec(t);
+  const bedM = /\b(?:je me suis\s+|je m'?\s*)?(?:couch[ée]e?s?|endormie?s?|endormi|dormi)\s+(?:vers\s+|a\s+|à\s+)+(\d{1,2})\s*(?:h|:)\s*(\d{2})?/i.exec(t);
   if (bedM && hhmm >= '04:30' && hhmm < '14:00' && t.length < 120) {
     const H = Number(bedM[1]), M = Number(bedM[2] ?? 0);
     if (H > 23 || M > 59) return null;
