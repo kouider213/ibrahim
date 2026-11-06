@@ -238,7 +238,20 @@ export async function createAgendaEvent(
 export async function listAgendaRange(fromIso: string, toIso: string, max = 50): Promise<AgendaEvent[] | null> {
   const res = await calendarRequest<{ items: AgendaEvent[] }>('GET',
     fikPath(`/events?maxResults=${max}&orderBy=startTime&singleEvents=true&timeMin=${encodeURIComponent(fromIso)}&timeMax=${encodeURIComponent(toIso)}`));
-  return res ? (res.items ?? []) : null;
+  if (!res) return null;
+  // 06/11 : une location = UN événement « 🚗 Client — Voiture » du 1er jour 09:00 au dernier jour 18:00. Sur une fenêtre courte (≤ 36 h :
+  // plan de demain, coach, sport, voiture…), la location EN COURS qui a commencé avant ET finit après la fenêtre n'a rien à faire ce jour-là
+  // (« demain samedi : dossier Djillali 09:00-18:00 » alors qu'il rend la Fiat 500 X lundi 09/11) → retirée. Remise / retour gardés.
+  const from = Date.parse(fromIso), to = Date.parse(toIso);
+  const short = to - from <= 36 * 3600_000;
+  const t = (x?: { dateTime?: string; date?: string }) => Date.parse(x?.dateTime ?? x?.date ?? '');
+  // (aussi un RDV horaire de plusieurs jours créé à la main, ex. « Djillali Halfi / Fiat 500 X » : 3 jours avec des heures = une location)
+  return (res.items ?? []).filter(e => {
+    const x = e as { summary?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string } };
+    const s0 = t(x.start), e0 = t(x.end);
+    const rental = /^🚗/.test(String(x.summary ?? '')) || (!!x.start?.dateTime && e0 - s0 > 36 * 3600_000);
+    return !(short && rental && s0 < from && e0 > to);
+  });
 }
 
 // Modifier un RDV : titre, horaires (avec l'heure), lieu, notes — seuls les champs donnés changent
