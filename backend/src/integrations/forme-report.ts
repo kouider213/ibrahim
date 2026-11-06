@@ -163,6 +163,12 @@ function progression(s: Src, to: string): string[] {
       const step = kg < 12 ? 1 : 2.5;
       out.push({ t: `${exName(ex, s)} : ${fr(kg, 1)} kg × ${top[0]!.reps} sur toutes tes séries → passe à ${fr(kg + step, 1)} kg (8-10 reps), puis remonte à 12.`, at: last });
     }
+    // Plateau : même charge max sur les 3 dernières séances sans atteindre 12 reps → changer quelque chose
+    else if (dates.length >= 3) {
+      const maxOf = (d: string) => Math.max(...nums(l.filter(x => x.date === d).map(x => x.kg)), 0);
+      const last3 = dates.slice(-3).map(maxOf);
+      if (last3[0] && last3.every(v => v === last3[0])) out.push({ t: `${exName(ex, s)} : bloqué à ${fr(last3[0], 1)} kg depuis 3 séances → fais 4 séries de 8 avec 1 min 30 de repos, ou change de variante (haltères ↔ machine) pendant 2 semaines.`, at: last });
+    }
   }
   return out.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 6).map(x => x.t);
 }
