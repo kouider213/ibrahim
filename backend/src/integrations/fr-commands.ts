@@ -316,6 +316,13 @@ async function sharePub(raw: string): Promise<Direct | null> {
   const t = strip(raw);
   if (t.length > 160 || /\?\s*$/.test(raw)) return null;
   if (/\b(cree|creer|fais|faire|lance|genere|nouvelle|autre|refai\w*)\b/.test(t)) return null;     // une NOUVELLE pub → pubTiktok / le cerveau
+  // « Je partager / j'ai partagé / c'est posté la pub » = il l'a PUBLIÉE (info) → on note + bravo, on ne renvoie rien
+  const done = /^(ok |bon |voila |ca y est |c'est bon )?(j'ai|jai|j ai|je|je viens de|j'viens de|c'est|cest|elle est|la pub est|pub)\s*(bien |deja |enfin )?(partag\w*|publi\w*|post\w*|mis\w* en ligne|en ligne)\b/.test(t)
+    && !/\b(moi|me|m'|stp|svp|s'il te plait)\b/.test(t) && !/\b(vais|veux|dois|peux|voudrais|demain|ce soir|plus tard|quand)\b/.test(t);
+  if (done && /\b(pub|tiktok|tik tok|video)\b/.test(t)) {
+    const { markPubPosted } = await import('../marketing/tiktok-pub.js');
+    return { text: await markPubPosted(), direct: true };
+  }
   const share = /\b(partag\w*|publi\w*|poste|poster|postes|envoie|envoi|renvoie|renvoi|donne|redonne|balance)\b.{0,30}\b(la|ma|notre|cette|ta)\s+(pub|video)\b/.test(t)
     || /\b(pub|video)\b.{0,20}\b(a|pour)\s+(partager|publier|poster)\b/.test(t);
   if (!share || !/\b(pub|tiktok|tik tok)\b/.test(t)) return null;

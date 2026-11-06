@@ -1,3 +1,6 @@
+## 2026-11-06 ~17h — « Je partager la pub TikTok » = J'AI partagé (info)
+- Kouider voulait dire « j'ai partagé la pub » : Dzaryx renvoyait la pub. Phrase au passé (j'ai partagé/posté/publié, je partager, c'est publié) → note kv pub:posted + bravo + conseil 1re heure ; « renvoie/envoie-moi la pub » → renvoi. Contexte cerveau : pub PUBLIÉE par Kouider.
+
 ## 2026-11-06 ~16h30 — bugs de la journée (captures Kouider)
 - « Envoie moi notre numéro » → « je ne le connais pas » : numéro FIK +32 466 31 14 69 (wa.me/32466311469, celui du site) ajouté au prompt complet ET au prompt court.
 - « Je partager la pub TikTok » → le cerveau a refait un clip Runway de la CLS (50 €/j) et donné un lien .jpeg comme « vidéo », alors que « Le Grand Retour FIK » était prête depuis 13h49. Nouveau raccourci sharePub (partage/publie/poste/renvoie la pub) + publish_to_socials sans id → resendLatestPub : renvoie la dernière pub terminée (vidéo + légende + « numéro en bio » + numéro), rien de régénéré.

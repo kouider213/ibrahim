@@ -776,6 +776,30 @@ export async function resendLatestPub(maxAgeH = 72): Promise<string | null> {
     `TikTok → + → Importer → choisis la vidéo → colle la légende → Publier. Numéro en bio : +32 466 31 14 69.`;
 }
 
+/** 📲 06/11 « Je partager la pub TikTok » voulait dire « J'AI partagé la pub » (info, pas une demande) → on note la pub comme
+ *  publiée (kv pub:posted, 30 j) et on le félicite ; rien n'est renvoyé ni recréé. */
+export async function markPubPosted(): Promise<string> {
+  const { listStudioJobs } = await import('./video-studio.js');
+  const { kvGet, kvSet } = await import('../integrations/app-store.js');
+  const { jobs } = await listStudioJobs().catch(() => ({ jobs: [] as Awaited<ReturnType<typeof listStudioJobs>>['jobs'] }));
+  const since = Date.now() - 72 * 3600_000;
+  const job = jobs.filter(j => j.status === 'done' && j.url && (j.planId === 'pub' || /\/studio\/pub-/.test(j.url)) && Date.parse(j.createdAt) >= since)
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0];
+  const list = JSON.parse((await kvGet('pub:posted').catch(() => null)) ?? '[]') as Array<{ id?: string; title?: string; at: string }>;
+  if (!(job && list.some(x => x.id === job.id))) list.unshift({ id: job?.id, title: job?.title, at: new Date().toISOString() });
+  await kvSet('pub:posted', JSON.stringify(list.slice(0, 30)), 30 * 86_400).catch(() => {});
+  const name = job ? ` « ${job.title} »` : '';
+  return `🔥 Bien joué ! C'est noté : ta pub${name} est en ligne sur TikTok.\n` +
+    `👉 La 1re heure compte le plus : réponds vite aux commentaires et épingle celui avec le numéro (+32 466 31 14 69).\n` +
+    `Demain envoie-moi une capture des vues, je te dirai ce qui marche.`;
+}
+
+/** Pubs déjà publiées par Kouider (ses « j'ai partagé la pub ») — pour le contexte du cerveau. */
+export async function postedPubIds(): Promise<Array<{ id?: string; title?: string; at: string }>> {
+  const { kvGet } = await import('../integrations/app-store.js');
+  return JSON.parse((await kvGet('pub:posted').catch(() => null)) ?? '[]');
+}
+
 /** 06/11 : 12h12 « tu veux que je lance la pub ? » alors que 2 tournaient déjà, 14h25 « je t'envoie dès qu'elle est prête »
  *  alors qu'elle était arrivée à 13h55 → le cerveau voit l'état réel des pubs des 12 dernières heures (1 lecture si aucune). */
 export async function pubStatusContext(): Promise<string> {
@@ -789,12 +813,15 @@ export async function pubStatusContext(): Promise<string> {
   const jobs = (await Promise.all(ids.map(id => getStudioJob(id).catch(() => null))))
     .filter((j): j is NonNullable<typeof j> => !!j && j.planId === 'pub' && Date.parse(j.createdAt) >= since);
   if (!jobs.length) return '';
+  const posted = await postedPubIds().catch(() => []);
   const lines = jobs.map(j => {
+    const p = posted.find(x => x.id === j.id);
+    if (p) return `• « ${j.title} » : PUBLIÉE sur TikTok par Kouider à ${fmt(p.at)} (ne la lui renvoie pas, ne propose pas de la poster)`;
     const stale = j.status !== 'done' && j.status !== 'error' && Date.now() - Date.parse(j.updatedAt) > 45 * 60_000;
     const st = j.status === 'done' ? `PRÊTE et DÉJÀ ENVOYÉE sur Telegram à ${fmt(j.updatedAt)}`
       : j.status === 'error' ? `échouée (${(j.error ?? '').slice(0, 60)})`
       : stale ? 'bloquée (rendu interrompu, ne compte pas dessus)' : `en cours (${j.step})`;
     return `• « ${j.title} » lancée à ${fmt(j.createdAt)} : ${st}`;
   });
-  return `🎬 PUBS TIKTOK DES 12 DERNIÈRES HEURES (état réel) :\n${lines.join('\n')}\n→ Ne propose PAS d'en lancer une nouvelle si une est prête ou en cours (sauf s'il le demande). « Partager / publier / renvoyer la pub » = outil publish_to_socials (renvoie la dernière pub prête), JAMAIS create_marketing_video ni animate_car_photo.`;
+  return `🎬 PUBS TIKTOK DES 12 DERNIÈRES HEURES (état réel) :\n${lines.join('\n')}\n→ Ne propose PAS d'en lancer une nouvelle si une est prête ou en cours (sauf s'il le demande). « J'ai partagé / je partager / j'ai posté la pub » = INFO (il l'a publiée) → félicite, ne renvoie rien. « Renvoie / envoie-moi / partage-moi la pub » = outil publish_to_socials (renvoie la dernière pub prête), JAMAIS create_marketing_video ni animate_car_photo.`;
 }
