@@ -1,3 +1,11 @@
+## 2026-11-06 ~22h40 — soirée : bilans FORME, objectif, nuit, agenda, fautes SMS, contrôle de nuit
+- Agenda (30e93172) : location en cours (ni remise ni retour ce jour-là) retirée des plans du jour — plus de « dossier Djillali » samedi.
+- Sommeil (a688cdc6, 5792cb8a) : coucher minimum 23:00 sauf heure donnée ; « bonne nuit » = silence jusqu'au réveil ; « j'ai dit bonne nuit à Ibrahim » ignoré.
+- Carte journée (a1ed3f5a) : nuit d'hier « la nuit, jusqu'à 05h49 », lieu actuel, lieu connu le plus proche.
+- Fautes (f4471643) : correcteur SMS avant les commandes du code ; « +100€ en cash aujourd'hui » = vente ; caisse pas redemandée.
+- FORME (eff6035d, f4ae7a92, d9947b45, app v246-v247) : bilans jour/semaine/mois + PDF graphiques, objectif (temps restant, quoi faire), adapter le programme, priorité muscle, muscles oubliés ajoutés, plateau.
+- Contrôle de nuit (VPS cron, /root/dzaryx-bench/nightly.sh) : replay des vrais messages d'hier + liste au matin.
+
 ## 2026-11-06 ~21h30 — fautes comprises + pub pas payée 2 fois + auto-test
 - Auto-test du matin (3a7f24d7) : mode gratuit voulu ≠ « Cerveau en panne » ; démarchage coupé ou muet > 50 h signalé (l'arrêt du 29/10 n'avait été vu par personne).
 - Pub TikTok (74be896f) : si une pub est encore en fabrication (< 40 min), « crée moi la pub » ne relance pas un 2e rendu Kling payé (06/11 : 5 rendus ≈ 13 $). « fais une autre pub » / force:true = vraie nouvelle pub.
