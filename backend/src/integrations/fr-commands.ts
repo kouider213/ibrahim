@@ -22,9 +22,12 @@ export const frDate = (d: string) => `${WD_FR[wdOf(d)]} ${Number(d.slice(8))}${d
 
 export interface When { date?: string; time?: string; inMinutes?: number; used: string[] }
 
+/** 06/11 banc fautes : « rapelle moi dan 2h » → rappel DEMAIN à 02:00. Fautes de quand courantes → forme correcte (accents gardés). */
+export const fixWhenTypos = (s: string) => s.replace(/\bdan(?=\s+(?:\d|une?\b|deux|trois|quatre|cinq|dix|quinze|vingt|trente))/gi, 'dans').replace(/\b(?:demin|demai|dmain|deman|demian|demmain)\b/gi, 'demain')
+  .replace(/\b(?:aujourdhui|aujourdui|aujordhui|ojourdhui|auj)\b/gi, "aujourd'hui").replace(/\bapr[eè]s[- ]?dem\w*\b/gi, 'après-demain');
 /** Quand ? dans une phrase française. date = YYYY-MM-DD (Bruxelles), time = HH:MM. */
 export function parseWhen(raw: string, now = localNow()): When {
-  const t = ` ${strip(raw)} `;
+  const t = ` ${strip(fixWhenTypos(raw))} `;
   const used: string[] = [];
   const w: When = { used };
   const take = (re: RegExp) => { const m = re.exec(t); if (m) used.push(m[0].trim()); return m; };
@@ -90,15 +93,17 @@ let SID = 'telegram_kouider';
 
 /** « rappelle-moi … » avec une date/heure claire → schedule_reminder. */
 async function reminder(raw: string): Promise<Direct | null> {
+  raw = fixWhenTypos(raw);
   const t = strip(raw);
-  const head = /^(?:stp\s+|s'il te plait\s+)?(rappelle[- ]?moi|r+app?ell?e?s?[- ]?moi|rapp?el(?:le)?\s*(?::|de|d')|fais[- ]moi penser|pense a me rappeler|n'oublie pas de me rappeler|tu me rappelles?)\b/.exec(t);
+  const head = /^(?:stp\s+|s'il te plait\s+)?(rappelle[- ]?moi|r+app?ell?e?s?[- ]?moi|rapp?el(?:le)?\s*(?::|de|d')|(?:mets?|met|fais|fait|programme|cree|ajoute)[- ]?(?:moi\s+)?un\s+r+app?ell?e?(?:\s+(?:pour|a|de))?|fais[- ]moi penser|pense a me rappeler|n'oublie pas de me rappeler|tu me rappelles?)\b/.exec(t);
   if (!head || raw.length > 220 || /\?$/.test(raw.trim())) return null;
   const w = parseWhen(raw);
   if (!w.date && !w.time && !w.inMinutes) return null;
   // Ce qu'il faut rappeler : la phrase sans « rappelle-moi » ni la date/heure
   let what = raw.slice(head[0].length);
   for (const u of w.used) what = what.replace(new RegExp(u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[ae]/g, '[aàâeéèê]'), 'i'), ' ');
-  what = what.replace(/\b(à|a|le|pour|vers)\s*$/i, '').replace(/^\s*(de|d'|d’|qu'|que|à|a|pour|le|la)\s+/i, '').replace(/\s+/g, ' ').trim().replace(/^(de|d'|d’)\s*/i, '');
+  what = what.replace(/\b(à|a|le|pour|vers)\s*$/i, '').replace(/^\s*(de|d'|d’|qu'|que|à|a|pour|le|la)\s+/i, '').replace(/\s+/g, ' ').trim().replace(/^(de|d'|d’)\s*/i, '')
+    .replace(/^d['’]?app?ell?(?:e|é|er|é)(?![\p{L}])/iu, 'appeler');   // « dapelé le garagiste » → « appeler le garagiste »
   if (what.length < 3) return null;
   const { executeTool } = await import('./tool-executor.js');
   const input: Record<string, unknown> = { message: what.charAt(0).toUpperCase() + what.slice(1), timezone: 'Europe/Brussels' };
@@ -136,7 +141,7 @@ async function rdv(raw: string): Promise<Direct | null> {
 /** « ne me dérange pas jusqu'à 18h / pendant 2 h / 30 min » → silence (appels + messages). */
 async function dnd(raw: string): Promise<Direct | null> {
   const t = strip(raw);
-  const m = /\b((?:ne )?me derange(?:s|z|r)? pas|derange[- ]moi pas|pas d'appels?|silence|mode silence|laisse[- ]moi tranquille)\b/.exec(t);
+  const m = /\b((?:ne )?me der[ae]n[gj]e?(?:s|z|r)? pas|der[ae]n[gj]e?[- ]moi pas|pas d'appels?|silence|mode silence|laisse[- ]moi tranquille)\b/.exec(t);
   if (!m || raw.length > 160 || /\?/.test(raw) || /\b(demain|ce soir|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|matin)\b/.test(t)) return null;   // plus tard = silence programmé → cerveau (pause_calls day/from_time)
   const { executeTool } = await import('./tool-executor.js');
   let input: Record<string, unknown>;
@@ -144,7 +149,7 @@ async function dnd(raw: string): Promise<Direct | null> {
   const dur = /pendant\s+(\d+|une?|deux|trois)\s*(h(?:eures?)?|min(?:utes?)?|mn)\b/.exec(t);
   if (until) input = { until_time: `${pad(Number(until[1]))}:${until[2] ?? '00'}`, reason: 'ne pas déranger' };
   else if (dur) { const n = Number(dur[1]) || ({ un: 1, une: 1, deux: 2, trois: 3 } as Record<string, number>)[dur[1]!] || 1; input = { minutes: /^h/.test(dur[2]!) ? n * 60 : n, reason: 'ne pas déranger' }; }
-  else if (/^\s*(stp\s+)?(ne me derange(?:s|z)? pas|derange[- ]moi pas)\s*(stp|s'il te plait)?\s*[.!]*\s*$/.test(t)) input = { until_reply: true, reason: 'ne pas déranger' };
+  else if (/^\s*(stp\s+)?((?:ne )?me der[ae]n[gj]e?(?:s|z)? pas|der[ae]n[gj]e?[- ]moi pas|me derange plus)\s*(stp|s'il te plait)?\s*[.!]*\s*$/.test(t)) input = { until_reply: true, reason: 'ne pas déranger' };
   else return null;
   const r = await executeTool('pause_calls', input, SID);
   if (/❌/.test(r)) return { text: r, direct: true };

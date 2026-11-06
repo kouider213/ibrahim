@@ -1045,14 +1045,15 @@ const FOOD_RE = /mang|bouff|dattes?|baguette|pain|pizza|kebab|tacos|poulet|riz|p
 export function looksLikeMedText(text: string): boolean {
   const t = text.toLowerCase();
   if (/comprim|cachet|m[ée]doc|m[ée]dicament|traitement|lib[ée]rt[ée]/.test(t)) return true;
-  return /\bdemis?\b/.test(t) && !FOOD_RE.test(t);
+  return /\bdemi(?:e|s|es)?\b/.test(t) && !FOOD_RE.test(t);
 }
 /** « j'ai pris 2 demis », « je pris 6 demi aujourd'hui », « pris un comprimé et demi » → quantité en demis + total du jour ou nouvelle prise. */
 export function parseMedTake(text: string): { n: number; total: boolean; rest?: boolean } | null {
   // 05/11 19h53 : « Je pris 8 demis » précédé de « [Contexte : ne pas déranger…] » → trop long → rien noté, réponse vide
   let raw = text; for (let i = 0; i < 3; i++) { const m = raw.match(/^\s*\[[\s\S]*?\]\s*/); if (!m) break; raw = raw.slice(m[0].length); }
   raw = raw.replace(/^CONFIRM[ÉE] AU T[ÉE]L[ÉE]PHONE\s*:\s*/i, '');
-  const t = raw.toLowerCase().replace(/[’`]/g, "'").trim();
+  // 06/11 banc fautes : « jé pris 2 demie » → pas lu (jé ≠ je, demie ≠ demi) → cerveau
+  const t = raw.toLowerCase().replace(/[’`]/g, "'").trim().replace(/\bj[ée]\s/g, 'je ').replace(/\bjai\b/g, "j'ai").replace(/\bdemies\b/g, 'demis').replace(/\bdemie\b/g, 'demi');
   const medWord = /comprim|cachet|m[ée]doc|m[ée]dicament|traitement|lib[ée]r/.test(t);
   // 06/11 12h32 « Je viens de prendre 2 demi je dois plus prendre après » → rejeté (« dois ») → cerveau « noté » sans rien noter
   const pastTake = /\b(viens|vien|viena) de prendre\b|\bj'ai (d[ée]j[àa] )?(pris|prit|prix)\b|\bd[ée]j[àa] (pris|prit|prix|pri)\b|^je (d[ée]j[àa] )?(pris|prit|prix)\b/.test(t);
