@@ -2778,7 +2778,12 @@ async function prospectAutopilotTool(input: Record<string, unknown>): Promise<st
   const action = String(input['action'] ?? 'status');
   let dropped = '';
   if (action === 'on')  await setAutopilot({ enabled: true });
-  if (action === 'off') await setAutopilot({ enabled: false });
+  if (action === 'off') {
+    // 06/11 : un jour de repos ne coupe pas le démarchage pour de bon (il repart tout seul demain)
+    if (input['forever'] !== true && await import('./kouider-dossier.js').then(m => m.isHardDay()).catch(() => false))
+      return '✅ Démarchage en pause pour AUJOURD\'HUI seulement (journée dure) : il repart tout seul demain à 10h. (S\'il dit vraiment « arrête le démarchage pour de bon » : rappelle avec forever=true.)';
+    await setAutopilot({ enabled: false });
+  }
   if (action === 'set_per_day') {
     const n = Math.round(Number(input['per_day']));
     if (!(n >= 1 && n <= 15)) return '❌ Nombre de mails par jour entre 1 et 15.';
@@ -2786,7 +2791,7 @@ async function prospectAutopilotTool(input: Record<string, unknown>): Promise<st
   }
   if (action === 'set_mode') {
     const m = String(input['mode'] ?? '');
-    if (m !== 'sites' && m !== 'conciergerie' && m !== 'both') return '❌ Mode : sites (commerces sans site web), conciergerie, ou both (moitié-moitié).';
+    if (m !== 'sites' && m !== 'conciergerie' && m !== 'both') return '❌ Mode : sites (commerces sans site web), conciergerie, ou both (3/5 conciergerie, 2/5 sites).';
     await setProspectMode(m);
   }
   if (action === 'set_cities') {
@@ -2813,7 +2818,7 @@ async function prospectAutopilotTool(input: Record<string, unknown>): Promise<st
   const s = await getAutopilot();
   const { count } = await supabase.from('prospects').select('id', { count: 'exact', head: true }).not('gmail_thread_id', 'is', null);
   const mode = await getProspectMode();
-  const modeTxt = mode === 'sites' ? '🌐 commerces SANS SITE WEB (proposition de démo FIK Sites)' : mode === 'both' ? 'moitié commerces sans site web, moitié conciergerie' : 'FIK Conciergerie (entreprises, partenaires)';
+  const modeTxt = mode === 'sites' ? '🌐 commerces SANS SITE WEB (proposition de démo FIK Sites)' : mode === 'both' ? '3/5 conciergerie, 2/5 commerces sans site web (FIK Sites)' : 'FIK Conciergerie (entreprises, partenaires)';
   return dropped + `${s.enabled ? '✅ Démarchage auto ACTIF' : '⏸️ Démarchage auto EN PAUSE'} — ${s.per_day} mail(s)/jour à 10h (heure d\'Oran), ` +
     `nouvelles sociétés uniquement. Cible : ${modeTxt}.` +
     (mode !== 'conciergerie' ? ` Villes : ${(await getSiteCities()).join(' · ')}. La démo n'est faite et envoyée QUE si le commerce répond oui au 1er mail.` : '') +

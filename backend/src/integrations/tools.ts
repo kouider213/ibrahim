@@ -1162,7 +1162,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'prospect_autopilot',
-    description: 'Démarchage automatique quotidien à 10h (jamais 2 fois la même société). Mode « sites » (par défaut) : commerces SANS SITE WEB trouvés sur Google Maps (villes réglables) → 1er mail qui propose une démo gratuite de leur site ; s\'ils répondent oui, Dzaryx fait la démo et l\'envoie tout seul avec la liste de ce qui a été inventé + des créneaux de rendez-vous. Mode « conciergerie » : entreprises/partenaires FIK Conciergerie. « both » = moitié-moitié. Voir l\'état, activer/pause, mails par jour, changer le mode ou les villes, relancer une démo ratée (retry_demo), lancer tout de suite.',
+    description: 'Démarchage automatique quotidien à 10h (jamais 2 fois la même société). Mode « sites » (par défaut) : commerces SANS SITE WEB trouvés sur Google Maps (villes réglables) → 1er mail qui propose une démo gratuite de leur site ; s\'ils répondent oui, Dzaryx fait la démo et l\'envoie tout seul avec la liste de ce qui a été inventé + des créneaux de rendez-vous. Mode « conciergerie » : entreprises/partenaires FIK Conciergerie. « both » = 3/5 conciergerie + 2/5 sites. Un jour de repos (journée dure) met en pause pour la journée seulement : ne JAMAIS faire action off pour ça. Voir l\'état, activer/pause, mails par jour, changer le mode ou les villes, relancer une démo ratée (retry_demo), lancer tout de suite.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -1171,6 +1171,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
         cities:  { type: 'array', items: { type: 'string' }, description: 'Pour set_cities : SEULEMENT les villes que Kouider dicte lui-même, France ou Algérie (ex. « Lyon, France », « Oran, Algérie »). Jamais la Belgique, jamais une liste inventée : ça REMPLACE ses villes.' },
         company: { type: 'string', description: 'Pour retry_demo : nom du commerce' },
         per_day: { type: 'number', description: 'Mails de démarchage par jour (1 à 15) pour set_per_day' },
+        forever: { type: 'boolean', description: 'off uniquement : true seulement s\'il demande d\'arrêter le démarchage POUR DE BON (un jour de repos = pause du jour, sans forever)' },
       },
       required: ['action'],
     },

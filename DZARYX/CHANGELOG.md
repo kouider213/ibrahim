@@ -1,3 +1,8 @@
+## 2026-11-06 ~21h30 — démarchage relancé (5/jour : 3 conciergerie + 2 FIK Sites)
+- Bug : le 29/10 (« je me repose, profite de ma famille ») le cerveau a mis la journée dure ET coupé le démarchage pour de bon → aucun mail du 30/10 au 06/11.
+- Journée dure = pause du jour seulement : runDailyOutreach saute le jour (isHardDay) ; prospect_autopilot off pendant une journée dure ne coupe plus (sauf forever=true, « pour de bon »).
+- Mode both : 2/5 sites, 3/5 conciergerie (Math.round(n*2/5)) ; réglage remis à enabled, per_day 5 (Kouider 06/11).
+
 ## 2026-11-06 ~21h — CarPlay : vocal préparé à l'avance (démarrage plus rapide)
 - Mesure 06/11 11h42 : 31 s avant que Jarvis parle (texte 6,8 s + voix 24,7 s).
 - Nouveau integrations/car-prep.ts + job car-prep (*/5, 4h-22h) : 5 à 12 min avant un départ habituel (routine : départ maison, fin de séance, début/fin du travail, + ses vrais démarrages répétés des 5 dernières semaines), texte + voix Jarvis fabriqués d'avance (max 6/jour).

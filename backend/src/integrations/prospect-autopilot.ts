@@ -431,6 +431,8 @@ export async function writeOutreach(p: Prospect, site: string, link = SITE_URL):
 export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<string> {
   const settings = await getAutopilot();
   if (!settings.enabled && !opts.force) return 'Démarchage automatique en pause.';
+  // 06/11 : journée dure = pause du JOUR seulement (le 29/10 le cerveau avait coupé le démarchage pour de bon, 8 jours sans mail)
+  if (!opts.force && await import('./kouider-dossier.js').then(m => m.isHardDay()).catch(() => false)) return 'Journée dure : démarchage repris demain.';
   if (!(await canSendEmail('pro'))) {
     void reportIncident('gmail-send-perm', 'Le démarchage est bloqué : la boîte fikconciergerie@gmail.com doit être reconnectée pour envoyer.',
       `Démarchage auto bloqué : Dzaryx n'a plus la permission d'envoyer depuis fikconciergerie@gmail.com (envoi en tant que ${PRO_ALIAS}).\nReconnecte la boîte : ${getGmailConnectLink()}`);
@@ -443,9 +445,9 @@ export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<
     .not('gmail_thread_id', 'is', null).gte('last_contacted_at', oranDayStart());
   const sentInBox = await countSentToday('pro').catch(() => 0);
   const toSendAll = Math.min(perDay - (doneToday ?? 0), DAILY_CAP - sentInBox);
-  // Mode (réglable) : « sites » = commerces sans site web (FIK Sites), « conciergerie » = FIK Conciergerie, « both » = moitié-moitié
+  // Mode (réglable) : « sites » = commerces sans site web (FIK Sites), « conciergerie » = FIK Conciergerie, « both » = 3/5 conciergerie, 2/5 sites (Kouider 06/11 : 5 mails = 3 conciergerie + 2 FIK Sites)
   const mode = await getProspectMode();
-  const sitesN = toSendAll <= 0 ? 0 : mode === 'sites' ? toSendAll : mode === 'both' ? Math.ceil(toSendAll / 2) : 0;
+  const sitesN = toSendAll <= 0 ? 0 : mode === 'sites' ? toSendAll : mode === 'both' ? Math.round(toSendAll * 2 / 5) : 0;
   let toSend = Math.max(0, toSendAll - sitesN);
 
   // Un grand compte par jour (avant les petites sociétés → son mail part dans le lot du jour)
