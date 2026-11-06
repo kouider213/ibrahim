@@ -1,3 +1,9 @@
+## 2026-11-06 ~19h30 — recherche internet faite par le CODE (questions du monde)
+- Banc (Tavily autorisé, lecture seule) : la règle FAITS DU MONDE seule était suivie 1 fois sur 2 (banques belges → aucune recherche, grève → requête « novembre 2024 », devises → aucune source).
+- Nouveau integrations/world-facts.ts : question actu/loi/économie/banque/grève… (hors business, Square, or, vols, Liberté) → multiProviderWebSearch(question + mois année) AVANT le cerveau, résultats + consigne pays/date/source posés à côté de la question.
+- Si le code a trouvé des résultats, fastPathGuard (« pas d'outil = inventé ») ne remplace plus la réponse (devises remplacée par « pas accès aux données en temps réel »).
+- Banc f-greve / f-banque / f-loi-devise ✅ (grève 23-25/11 bien dite tunisienne, garantie 100 000 € + avis séparé, 1 000 € + sources).
+
 ## 2026-11-06 ~20h — faits vérifiés (veille + toutes les réponses)
 - Veille actu : 03/11 grève carburant 23-25/11 TUNISIENNE annoncée comme algérienne (« fais le plein, appelle les clients ») ; 01/11 seuil 1 000 € présenté comme nouveau (en vigueur depuis janvier). Le JSON de veille demande country + date ; actu d'un autre pays du Maghreb ou de plus de 8 jours = écartée ; le pays est écrit dans le message.
 - Toutes les questions : règle « FAITS DU MONDE » dans le prompt complet ET le prompt court (cerveaux gratuits) → web_search d'abord pour actu/loi/taux/prix/grève/économie/santé, réponse avec pays + date + source, « pas de source sûre » sinon, sûr vs avis séparés. (Les logs du jour : aucun web_search appelé ; Tavily OK sur Railway.)

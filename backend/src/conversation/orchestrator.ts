@@ -279,6 +279,7 @@ export async function processMessage(
   // « quel jour je gagne le plus ? », « je suis à combien tout confondu ? ») → enregistré / calculé par le CODE sur ses vraies données
   // (le cerveau disait « ✅ Noté » sans rien noter, puis inventait « 7 950 € »)
   // RAPPELS / RDV / NE PAS DÉRANGER / SOMMEIL / SOIRÉE À DEUX en phrase normale (05/11 banc : mauvais outil ou faux « noté »)
+  let worldChecked = false;   // 06/11 : le code a déjà cherché sur internet → la garde « pas d'outil = inventé » ne s'applique pas
   let codeHint = '';   // consigne du code (fr-commands) : remise aussi À CÔTÉ de la question (04/11 : noyée dans le système, ignorée)
   if (actorUserId === 'kouider' && !sandbox) {
     const fc = await (await import('../integrations/fr-commands.js')).frCommand(userMessage, sessionId).catch(() => null);
@@ -372,9 +373,13 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
   if (extraNotes) ctx.systemExtra = `${extraNotes}\n\n${ctx.systemExtra ?? ''}`.trim();
   if (pre.length) ctx.systemExtra = `${pre.join('\n\n')}\n\n${ctx.systemExtra ?? ''}`.trim();
   if (actorUserId === 'kouider' && !(sessionId.startsWith('voice_') && !textOnly)) {
-    const rich = await import('../integrations/rich-answer.js').then(m => m.richAnswerHint(userMessage)).catch(() => '');
+    const [rich, world] = await Promise.all([
+      import('../integrations/rich-answer.js').then(m => m.richAnswerHint(userMessage)).catch(() => ''),
+      import('../integrations/world-facts.js').then(m => m.worldFactsHint(userMessage)).catch(() => ''),   // 06/11 recherche faite par le code
+    ]);
+    worldChecked = /RÉSULTATS RECHERCHE INTERNET/.test(world);
     const last = ctx.messages[ctx.messages.length - 1];
-    const hint = [codeHint, rich].filter(Boolean).join('\n\n');
+    const hint = [codeHint, world, rich].filter(Boolean).join('\n\n');
     if (hint && last && last.role === 'user' && typeof last.content === 'string') last.content = `${last.content}\n\n[Consigne pour ta réponse, pas un message de Kouider :\n${hint}]`;
   }
   if (v2ContextAddition) {
@@ -585,7 +590,7 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
         // une capture qui parle de dispo/dates/montants → on les saute pour la vision.
         const safeText  = oranize(localizeGuardMessage(imageBase64
           ? guarded1
-          : fastPathGuard(phantomGuard(guarded1, [], userMessage, requestId), userMessage, requestId), null, guardLang), actor);
+          : worldChecked ? phantomGuard(guarded1, [], userMessage, requestId) : fastPathGuard(phantomGuard(guarded1, [], userMessage, requestId), userMessage, requestId), null, guardLang), actor);
         if (imageBase64) {
           console.log(`[VISION_RUNTIME] ${fp.key}_status=success chars=${safeText.length}`);
         }
@@ -722,7 +727,7 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
         const skip: string[] = [];
         // 04/11 banc : « je te prépare un programme… je t'envoie le lien tout de suite » sans aucun outil = promesse vide → relance aussi
         const emptyPromise = (t: string) => t.length < 900 && /\b(je (te )?(pr[ée]pare|fais|r[ée]dige|monte|concocte|m'en occupe)|je t'envoie|je reviens (vers toi|avec)|donne[- ]moi (juste )?(une|deux) (petite )?(seconde|minute))/i.test(t) && /\b(tout de suite|maintenant|dans (une|deux|quelques) (seconde|minute)|je t'envoie|lien|google doc|pdf|d[ée]tail propre)/i.test(t);
-        for (let retry = 0; retry < 2 && !agRes.toolsExecuted.length && (fastPathGuard(agRes.text, userMessage, requestId) === FAST_PATH_REFUSAL || emptyPromise(agRes.text)); retry++) {
+        for (let retry = 0; retry < 2 && !agRes.toolsExecuted.length && !worldChecked && (fastPathGuard(agRes.text, userMessage, requestId) === FAST_PATH_REFUSAL || emptyPromise(agRes.text)); retry++) {
           if (agRes.model) skip.push(agRes.model);
           if (emptyPromise(agRes.text)) {
             const again = await runAg(`${agentSystemExtra ?? ''}\n\n[OBLIGATOIRE À CE TOUR : ta réponse précédente PROMETTAIT un travail (« je te prépare… je t'envoie… ») sans le faire. Écris MAINTENANT la réponse complète elle-même dans ce message, ou appelle l'outil qui la produit. Aucune promesse.]`, [...skip]).catch(() => null);
@@ -743,7 +748,7 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
         // Demande d'avis (« quel tarif lui proposer ? », « tu en penses quoi ? ») : un montant conseillé n'est pas une donnée
         // inventée → pas de blocage (22/10 : deux conseils remplacés par « je n'ai pas accès aux données en temps réel »)
         const agAdvice  = /tu en pense|penses?[- ]tu|tu pense|ton avis|conseil|propos|quel (tarif|prix)|combien (je|on) (devrais|peu|doi)|int[ée]ressant/i.test(userMessage);
-        const agChecked = agRes.toolsExecuted.length > 0 || agAdvice ? agPhantom : fastPathGuard(agPhantom, userMessage, requestId);
+        const agChecked = agRes.toolsExecuted.length > 0 || agAdvice || worldChecked ? agPhantom : fastPathGuard(agPhantom, userMessage, requestId);
         const agSafe    = oranize(localizeGuardMessage(agChecked, null, guardLang), actor);
         _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: agSafe });
         saveConversationTurn(sessionId, 'assistant', agSafe, { tools: agRes.toolsExecuted.map(t => `${t.name} ${t.success ? '✅' : '❌'}`) }).catch(() => {});
@@ -778,7 +783,7 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
         const guarded1     = guardResponse(fallbackText, userMessage, requestId);
         // Fallback providers = aucun outil → phantom + fast-path business data guard
         const phantom1     = phantomGuard(guarded1, [], userMessage, requestId);
-        let safeText       = oranize(localizeGuardMessage(fastPathGuard(phantom1, userMessage, requestId), null, guardLang), actor);
+        let safeText       = oranize(localizeGuardMessage(worldChecked ? phantom1 : fastPathGuard(phantom1, userMessage, requestId), null, guardLang), actor);
         // Dernier secours = AUCUN outil : sur une question métier il répondait de tête (28/10 7h32 : « le passeport n'est pas
         // encore enregistré » alors qu'il l'était) → Kouider doit savoir que ce n'est pas vérifié
         // 29/10 : seulement sur une vraie question de données — un message perso (« je suis sous pression, sport en
