@@ -3,6 +3,9 @@
 - Pack community manager sur Telegram : vidéo, miniature, légende + hashtags, commentaire à épingler, réponses types, conseils, meilleur créneau (habitudes Algérie) + rappel à l'heure.
 - fr-commands pubTiktok : « crée-moi la vidéo/pub » après un message TikTok → lancé direct (même cerveaux saturés) ; avis/« je vais faire » → cerveau.
 
+## 2026-11-06 ~13h20 — eau « Je déjà bu 2 litre »
+- Sans le mot « eau », le raccourci ne marchait pas → le cerveau AJOUTAIT 2 L aux 0,6 L déjà notés (« 2,6 L »). Maintenant « bu 2 litres » sans autre boisson = eau, et « déjà / aujourd'hui » = TOTAL du jour (remplace, n'ajoute pas).
+
 ## 2026-11-06 ~13h15 — pub TikTok : conduite comme dans la vraie vie
 - Kouider : « parfois la voiture va en marche arrière, pas dans la même direction que les autres ». Réalisateur + image de départ + prompt Kling : toutes les voitures en marche avant, même sens, même voie, voiture qui reste grande jusqu'à la fin ; negative prompt marche arrière / contresens / demi-tour / dérapage / voiture qui rapetisse.
 - Contrôle après chaque scène (vision 4 images) : COULEUR + MOUVEMENT → 1 nouvel essai, sinon coupe au dernier moment réaliste. Testé sur le job 9f0463ef : Jumpy et Duster repérés, convoi et Jogger OK.

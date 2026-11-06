@@ -445,9 +445,11 @@ async function siteVisits(raw: string): Promise<Direct | null> {
 /** 💧 « je bu 2 litre d'eau » (04/11 : « Bien joué » sans rien noter) → FORME (verres de 25 cl), total du jour vs objectif */
 async function water(raw: string): Promise<Direct | null> {
   const t = strip(raw).replace(/(\d),(\d)/g, '$1.$2');
-  if (t.length > 140 || /\?\s*$/.test(t) || !/\b(bu|bue|bus|bois|boi|boit|avale|pris|corr?ige[rz]?|corr?igez|mets|met|remet[sz]?)\b/.test(t) || !/\bd?eau\b/.test(t)) return null;   // 05/11 banc : « jai bu 1l deau », « je boi 50cl »
-  // 05/11 : 2 L redits à 15h31 → 4 L comptés. « que 2 L / en tout / au total / corrige l'eau à 2 L » = TOTAL du jour, pas un ajout
-  const setTotal = /\bqu(?:e|')?\s*(?:\d|un|une|deux|trois|quatre)|\b(en tout|au total|total|corr?ige[rz]?|corr?igez|mets|met|remet[sz]?)\b/.test(t);  // 05/11 20h41 « Corige l'eau à 2l » (1 r) → cerveau « C'est noté » sans rien changer
+  // 06/11 13h00 « Je déjà bu 2 litre » (sans « eau ») → pas reconnu → le cerveau a AJOUTÉ 2 L aux 0,6 L → « 2,6 L ». « bu 2 litres » sans autre boisson = de l'eau.
+  const otherDrink = /\b(cafe|caf|the|lait|jus|coca|soda|biere|vin|monster|redbull|red bull|energy|boisson|proteine|shaker|smoothie|sirop|limonade)\b/.test(t);
+  if (t.length > 140 || /\?\s*$/.test(t) || !/\b(bu|bue|bus|bois|boi|boit|avale|pris|corr?ige[rz]?|corr?igez|mets|met|remet[sz]?)\b/.test(t) || !(/\bd?eau\b/.test(t) || (!otherDrink && /\b(bu|bue|bus|bois|boi|boit)\b/.test(t) && /\d\s*(litres?|l|cl)\b|\b(un|une|deux|trois)\s+litres?\b/.test(t)))) return null;   // 05/11 banc : « jai bu 1l deau », « je boi 50cl »
+  // 05/11 : 2 L redits à 15h31 → 4 L comptés. « que 2 L / en tout / au total / déjà / corrige l'eau à 2 L » = TOTAL du jour, pas un ajout
+  const setTotal = /\bqu(?:e|')?\s*(?:\d|un|une|deux|trois|quatre)|\b(en tout|au total|total|deja|depuis ce matin|aujourd ?hui|aujaurdhui|corr?ige[rz]?|corr?igez|mets|met|remet[sz]?)\b/.test(t);  // 05/11 20h41 « Corige l'eau à 2l » (1 r) → cerveau « C'est noté » sans rien changer
   const m = t.match(/(\d+(?:\.\d+)?|un|une|deux|trois|quatre|cinq|six)\s*(litres?|l|verres?|bouteilles?|cl|gorgees?)\b/);
   if (!m) return null;
   const W: Record<string, number> = { un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6 };
