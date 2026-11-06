@@ -135,7 +135,10 @@ Règles :
 - 4 scènes (3 à 5) qui ont le potentiel de devenir VIRALES : décors spectaculaires et réels d'Oran/Algérie (corniche au coucher du soleil, front de mer de nuit avec les lumières de la ville, route de Santa Cruz en lacets au-dessus de la mer, port, route du désert…), variés d'une scène à l'autre.
 - AU MOINS une scène avec 2 ou 3 voitures ensemble (convoi, alignées, qui arrivent l'une après l'autre) : c'est la flotte FIK.
 - La scène la plus spectaculaire en PREMIER (elle sert au hook). Chaque voiture apparaît au moins une fois. Noms EXACTS de la liste.
-- Réalisme : pas de cascade impossible, pas de vol, pas de personnes en gros plan ; la voiture garde exactement sa forme et sa couleur.`;
+- Réalisme : pas de cascade impossible, pas de vol, pas de personnes en gros plan ; la voiture garde exactement sa forme et sa couleur.
+- La voiture est GRANDE dans l'image (au moins la moitié de l'écran, proche de la caméra) : jamais un petit point perdu dans un paysage.
+- Une voiture qui roule a TOUJOURS un conducteur au volant (visible à travers le pare-brise, pas en gros plan).
+- Le motion design doit rester NERVEUX : lignes très courtes, la vidéo ne reste jamais plus de 2 s sur un écran noir.`;
   const raw = await askJson<Partial<PubPlan>>(system, user, 2500);
   return shapePlan(raw);
 }
@@ -356,8 +359,19 @@ export async function strongestWindow(file: string, win: number): Promise<{ star
   return best;
 }
 
+/** 06/11 Kouider : la voix disait mal « Renault Duster » → noms de voitures écrits comme on les prononce (voix off seulement, jamais à l'écran). */
+const SAY: Array<[RegExp, string]> = [
+  [/\bdacia\b/gi, 'Datchia'], [/\brenault\b/gi, 'Reno'], [/\bduster\b/gi, 'Dusteur'], [/\bfiat\b/gi, 'Fiatte'], [/\bjogger\b/gi, 'Djogueur'],
+  [/\bjumpy\b/gi, 'Djampi'], [/\bi10\b/gi, 'i dix'], [/\bcls\b/gi, 'C L S'], [/\b500 ?x\b/gi, 'cinq cents X'], [/\b500\b/g, 'cinq cents'],
+  [/\bcreta\b/gi, 'Créta'], [/\bhyundai\b/gi, 'Hyundaï'], [/\bcitro[eë]n\b/gi, 'Citroène'], [/\bmercedes\b/gi, 'Mercédès'],
+];
+export const sayable = (t: string) => SAY.reduce((x, [re, to]) => x.replace(re, to), t);
+/** Voix off un peu plus rapide = plus nerveuse (TikTok). */
+const VOICE_TEMPO = 1.12;
+
 async function tts(text: string, myVoice: boolean): Promise<Buffer | null> {
   if (!text.trim()) return null;
+  text = sayable(text);
   if (myVoice) {
     try { const { speakAsKouider } = await import('../integrations/my-voice.js'); return await speakAsKouider(text, 'fr'); }
     catch (e) { console.warn('[pub] ma voix indisponible → voix studio :', e instanceof Error ? e.message : e); }
@@ -365,11 +379,35 @@ async function tts(text: string, myVoice: boolean): Promise<Buffer | null> {
   return (await synthesizeVoice(text).catch(() => null)) ?? (await synthesizeVoiceGemini(text).catch(() => null)) ?? (await synthesizeVoiceFree(text).catch(() => null));
 }
 
+/** null = la voiture garde sa couleur tout le plan ; sinon la dernière seconde où elle est encore comme au début. */
+export async function colourStableUntil(dir: string, file: string, i: number): Promise<number | null> {
+  try {
+    const dur = (await probe(file)).duration || 5;
+    const ts = [0.3, dur * 0.35, dur * 0.65, dur - 0.25];
+    const shots = ts.map((_, k) => path.join(dir, `chk${i}_${k}.jpg`));
+    for (const [k, t] of ts.entries()) await run(['-ss', t.toFixed(2), '-i', file, '-frames:v', '1', '-vf', 'scale=-2:480', '-y', shots[k]!]);
+    const grid = path.join(dir, `chk${i}.jpg`);
+    await run([...shots.flatMap(x => ['-i', x]), '-filter_complex', 'hstack=inputs=4', '-y', grid]);
+    const { readDocVision } = await import('../integrations/llm-router.js');
+    const ans = await readDocVision(`4 frames of the same video, left to right in time order (1 to 4). Look ONLY at the main car's body paint colour. ` +
+      `Reply with ONE number: the last frame (1-4) where the car still has the SAME paint colour as in frame 1. Reply 4 if it never changes. Lighting changes do not count, only a real colour change (e.g. dark grey becomes white).`,
+      (await fs.readFile(grid)).toString('base64'), 'image/jpeg', 10);
+    const n = Number(/[1-4]/.exec(ans)?.[0] ?? 4);
+    return n >= 4 ? null : ts[n - 1]! + (n === 1 ? 1.2 : 0.4);
+  } catch (e) { console.warn('[pub] contrôle couleur :', e instanceof Error ? e.message : e); return null; }
+}
+
+async function trimClip(file: string, upTo: number): Promise<void> {
+  const tmp = file.replace(/\.mp4$/, '_cut.mp4');
+  await run(['-i', file, '-t', upTo.toFixed(2), '-an', ...ENC, '-y', tmp]);
+  await fs.rename(tmp, file);
+}
+
 async function writeAudio(dir: string, name: string, buf: Buffer | null): Promise<{ file: string; dur: number } | null> {
   if (!buf) return null;
   const f = path.join(dir, `${name}.${buf.subarray(0, 4).toString() === 'RIFF' ? 'wav' : 'mp3'}`);
   await fs.writeFile(f, buf);
-  const dur = (await probe(f)).duration;
+  const dur = (await probe(f)).duration / VOICE_TEMPO;
   return dur > 0 ? { file: f, dur } : null;
 }
 
@@ -393,26 +431,39 @@ export async function buildPubVideo(o: {
         `eq=brightness='if(lt(t,0.12),0.35*(1-t/0.12),0)':eval=frame,ass='${esc(f)}':fontsdir='${esc(FONT_DIR)}'`]);
     }
 
-    // 3b. MOTION DESIGN fond noir, calé sur la voix
+    // 3b. MOTION DESIGN fond noir, calé sur la voix — 06/11 « pas accrocheuse » : entre deux lignes, un flash voiture de 0,7 s
+    //     (on ne reste jamais > ~2 s sur du noir), la voix continue par-dessus.
     const lineW = plan.lines.map(l => l.text.split(/\s+/).length + 1.5);
-    const introDur = Math.max(plan.lines.length * 1.5, (vIntro?.dur ?? 0) + 0.5);
+    const FLASH = 0.7;
+    const nFlash = Math.max(0, plan.lines.length - 1);
+    const textDur = Math.max(plan.lines.length * 0.9, Math.max(plan.lines.length * 1.3, (vIntro?.dur ?? 0) + 0.4) - nFlash * FLASH);
+    const introDur = textDur + nFlash * FLASH;
     {
-      const a = assHeader();
-      ev(a, 0, introDur, 'Small', `{\\an5\\pos(500,420)\\fad(300,0)}FIK CONCIERGERIE`);
-      let t = 0; const sum = lineW.reduce((x, y) => x + y, 0);
-      plan.lines.forEach((l, i) => {
-        const d = (lineW[i]! / sum) * introDur;
-        ev(a, t, t + d, 'Kin', `{\\an5\\pos(500,900)\\fad(90,140)\\blur10\\fscx140\\fscy140\\t(0,240,\\blur0\\fscx100\\fscy100)}${gold(l.text, l.gold)}`);
-        ev(a, t, t + d, 'Kin', goldBar(320, 1040, 360, 120), 1);
-        t += d;
-      });
-      const f = path.join(dir, 'intro.ass'); await fs.writeFile(f, a.join('\n') + '\n');
-      // fond noir vivant : léger halo doré qui respire + grain fin
-      // calculé en 270×480 puis agrandi (geq en 1080×1920 = trop lent)
+      const sum = lineW.reduce((x, y) => x + y, 0);
+      // fond noir vivant : léger halo doré qui respire + grain fin (calculé en 270×480 puis agrandi)
       const G = `exp(-((X-135)*(X-135)+(Y-225)*(Y-225))/(2*(75+15*sin(T*2))*(75+15*sin(T*2))))`;
-      await seg('s1', ['-f', 'lavfi', '-i', `color=c=0x050505:s=270x480:r=${FPS}:d=${introDur.toFixed(2)}`, '-vf',
-        `format=rgb24,geq=r='5+22*${G}':g='5+17*${G}':b='5+5*${G}',scale=${W}:${H}:flags=bicubic,` +
-        `noise=alls=6:allf=t,format=yuv420p,ass='${esc(f)}':fontsdir='${esc(FONT_DIR)}'`]);
+      const others = ok.map((_, j) => j).filter(j => j !== hi);
+      const pool = others.length ? others : [hi];
+      for (const [i, l] of plan.lines.entries()) {
+        const d = (lineW[i]! / sum) * textDur;
+        const a = assHeader();
+        ev(a, 0, d, 'Small', `{\\an5\\pos(500,420)}FIK CONCIERGERIE`);
+        ev(a, 0, d, 'Kin', `{\\an5\\pos(500,900)\\fad(70,90)\\blur10\\fscx140\\fscy140\\t(0,200,\\blur0\\fscx100\\fscy100)}${gold(l.text, l.gold)}`);
+        ev(a, 0, d, 'Kin', goldBar(320, 1040, 360, 120), 1);
+        const f = path.join(dir, `intro${i}.ass`); await fs.writeFile(f, a.join('\n') + '\n');
+        await seg(`s1_${i}`, ['-f', 'lavfi', '-i', `color=c=0x050505:s=270x480:r=${FPS}:d=${d.toFixed(2)}`, '-vf',
+          `format=rgb24,geq=r='5+22*${G}':g='5+17*${G}':b='5+5*${G}',scale=${W}:${H}:flags=bicubic,` +
+          `noise=alls=6:allf=t,format=yuv420p,ass='${esc(f)}':fontsdir='${esc(FONT_DIR)}'`]);
+        if (i < nFlash) {
+          const j = pool[i % pool.length]!;
+          const len = (await probe(ok[j]!.file)).duration || 5;   // fin des plans : pas les mêmes images que dans la partie voitures
+          const st = Math.max(0, len - FLASH - 0.2 - (i % 3) * 1.1);
+          await seg(`s1f_${i}`, ['-ss', st.toFixed(2), '-i', ok[j]!.file, '-vf',
+            `${FIT},${GRADE},tpad=stop_mode=clone:stop_duration=${FLASH},trim=duration=${FLASH},` +
+            `zoompan=z='1.18-0.12*on/${Math.round(FLASH * FPS)}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${W}x${H}:fps=${FPS},` +
+            `eq=brightness='if(lt(t,0.08),0.3*(1-t/0.08),0)':eval=frame`]);
+        }
+      }
     }
 
     // 3c. VOITURES : nom doré + atout, entrée glissée, punch-in lent
@@ -453,7 +504,7 @@ export async function buildPubVideo(o: {
     for (const [v, at] of [[vIntro, HOOK_S + 0.2], [vCars, HOOK_S + introDur + 0.15]] as const) {
       if (!v) continue;
       ins.push('-i', v.file); const ms = Math.round(at * 1000);
-      parts.push(`[${k}:a]aresample=44100,aformat=channel_layouts=stereo,adelay=${ms}|${ms},volume=1.5[v${k}]`); vo.push(`[v${k}]`); k++;
+      parts.push(`[${k}:a]aresample=44100,aformat=channel_layouts=stereo,atempo=${VOICE_TEMPO},adelay=${ms}|${ms},volume=1.5[v${k}]`); vo.push(`[v${k}]`); k++;
     }
     parts.push(`${vo.join('')}amix=inputs=${vo.length}:normalize=0:duration=first[voice]`);
     if (musicFile) {
@@ -487,6 +538,9 @@ export async function keyframe(sc: Scene, allowPaid: boolean): Promise<{ url: st
   const names = sc.cars.map(c => c.name.replace(/\s+—.*$/, '')).join(', ');
   const prompt = `${sc.cars.length > 1 ? `Place these ${sc.cars.length} exact cars (one from each reference photo: ${names}) together` : `Place this exact car (${names})`} in a new scene: ${sc.scene}. ` +
     `Each car must stay IDENTICAL to its reference photo: same make and model, same body colour and finish, same wheels, same headlights and grille, correct proportions. ` +
+    `Keep the exact paint colour of the reference photo (a dark car stays dark, a white car stays white), even if the photo is dusty. ` +
+    `A driver sits behind the wheel of each car, visible through the windshield (natural, not a close-up). ` +
+    `The car(s) are LARGE in the frame, close to the camera, filling at least half of the image. ` +
     `Remove the original parking/garage background completely. Number plates plain without readable text. Photorealistic high-end automotive commercial photograph, natural reflections and shadows on the ground, cinematic lighting, sharp focus, vertical 9:16 framing with the car(s) fully visible, no text, no logos, no people close-up.`;
   if (allowPaid) {
     try {
@@ -524,16 +578,24 @@ async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: 
         const kf = await keyframe(sc, !free && !falEmpty);
         job.costUsd += kf.cost;
         const subject = await describeSubject(kf.url);
-        const shot: StudioShot = { prompt: `${sc.action || 'the car drives slowly toward the camera, headlights on'}. Setting: ${sc.scene}. Ultra realistic automotive commercial, natural motion blur, real physics, vertical 9:16`, camera: sc.camera, duration: 5, use_image: true };
+        const shot: StudioShot = { prompt: `${sc.action || 'the car drives slowly toward the camera, headlights on'}. Setting: ${sc.scene}. A driver is at the wheel, visible through the windshield. The car keeps the SAME paint colour from the first to the last frame. Ultra realistic automotive commercial, natural motion blur, real physics, vertical 9:16`, camera: sc.camera, duration: 5, use_image: true };
         if (!free && !falEmpty) {
           try {
             const { endpoint, input } = shotInput(model, shot, kf.url, false, subject);
-            const res = await falRun(endpoint, input);
-            const url = (res['video'] as { url?: string } | undefined)?.url;
-            if (!url) throw new Error('pas de vidéo');
             const f = path.join(dir, `car${i}.mp4`);
-            await fs.writeFile(f, Buffer.from((await axios.get<ArrayBuffer>(url, { responseType: 'arraybuffer', timeout: 120_000 })).data));
-            clips[i] = f; job.costUsd += 5 * rate;
+            // 06/11 : le Duster passait du gris foncé au blanc en plein plan → on vérifie la couleur, 1 nouvel essai, sinon on garde le début
+            for (let attempt = 0; attempt < 2; attempt++) {
+              const res = await falRun(endpoint, input);
+              const url = (res['video'] as { url?: string } | undefined)?.url;
+              if (!url) throw new Error('pas de vidéo');
+              await fs.writeFile(f, Buffer.from((await axios.get<ArrayBuffer>(url, { responseType: 'arraybuffer', timeout: 120_000 })).data));
+              job.costUsd += 5 * rate;
+              const okAt = await colourStableUntil(dir, f, i);
+              if (okAt === null) break;
+              console.warn(`[pub] ${car.name} : couleur qui change vers ${okAt.toFixed(1)} s (essai ${attempt + 1})`);
+              if (attempt === 1) { await trimClip(f, Math.max(1.8, okAt)); break; }
+            }
+            clips[i] = f;
           } catch (e) {
             const m = e instanceof Error ? e.message : String(e);
             console.error(`[pub] voiture ${car.name}:`, m);
