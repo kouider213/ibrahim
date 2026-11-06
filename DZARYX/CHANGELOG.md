@@ -1,3 +1,6 @@
+## 2026-11-06 ~19h — rappel confirmé sans jargon
+- 09h27 Dzaryx confirmait un rappel avec « ID DB e504982c…, fuseau Europe/Brussels (UTC+01:00) » : la règle de l'outil schedule_reminder l'y obligeait. Désormais le résultat donne say_to_kouider (« ⏰ Rappel programmé aujourd'hui à 14h00 : … ») et interdit les ID/fuseau.
+
 ## 2026-11-06 ~18h45 — relecture des conversations du jour
 - Appel sport « Aujourd'hui c'est épaules, Épaules » : le focus n'est plus répété quand il est identique au nom de la séance (sport-coach.ts).
 - Veille actu : appel 18h « l'euro a pété un record au Square à 282 » alors que le square était à 274,5 → une actu de change dont aucun chiffre ne colle (± 2 %) au vrai taux du square (goldMarket) est écartée, ni message ni appel (business-mentor.ts).

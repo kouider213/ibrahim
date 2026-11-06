@@ -1998,6 +1998,7 @@ async function fetchUrl(input: Record<string, unknown>): Promise<string> {
 
 // Type interne pour le résultat structuré du rappel
 interface ReminderResult {
+  say_to_kouider?: string; note_interne?: string;
   status:            'created' | 'duplicate_blocked' | 'db_failed' | 'TIMEZONE_UNKNOWN';
   idempotency_key?:  string;
   source_channel:    string;
@@ -2180,7 +2181,9 @@ async function scheduleReminder(
     request_id,
     job_id:           jobId,
     db_id:            dbRow.id,
-    // Timezone proof — Claude MUST include these in confirmation
+    // 06/11 : le cerveau recopiait « ID DB / fuseau / UTC+01:00 » à Kouider → phrase toute faite, détails techniques à ne pas citer
+    say_to_kouider:   `⏰ Rappel programmé ${localTimeISO.slice(0, 10) === toLocalISO(new Date(), timezone).slice(0, 10) ? "aujourd'hui" : `le ${localTimeISO.slice(8, 10)}/${localTimeISO.slice(5, 7)}`} à ${localTimeISO.slice(11, 16).replace(':', 'h')} : ${message}`,
+    note_interne:     'Confirme avec say_to_kouider. Ne cite JAMAIS db_id, job_id, request_id, fuseau ni UTC.',
     remind_at_utc:    remindAt.toISOString(),
     local_time:       localTimeISO,
     timezone_used:    timezone,

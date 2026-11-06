@@ -819,8 +819,8 @@ RÈGLES ABSOLUES:
 1. Tu ne peux JAMAIS dire "rappel programmé" sans recevoir status=created + db_id + job_id dans la réponse.
 2. Si status=db_failed → dire "ÉCHEC: rappel non programmé (DB inaccessible)."
 3. Si status=TIMEZONE_UNKNOWN → dire "ÉCHEC: timezone invalide, rappel non programmé."
-4. Si status=duplicate_blocked → dire "Rappel déjà programmé (doublon bloqué), db_id=[existing_db_id]."
-5. Ta confirmation DOIT citer: db_id, local_time, timezone_used, utc_offset.
+4. Si status=duplicate_blocked → dire "Ce rappel est déjà programmé."
+5. Confirme en une phrase simple avec say_to_kouider (heure + objet). Ne cite JAMAIS db_id, job_id, fuseau ni UTC à Kouider.
 
 TIMEZONE: Priorité = explicit > header X-Timezone de l'app > Europe/Brussels.
 JAMAIS Africa/Algiers par défaut — seul l'utilisateur peut le définir.
