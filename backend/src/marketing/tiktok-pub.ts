@@ -339,7 +339,8 @@ export async function fitSize(dir: string, file: string, dur: number, maxMb = 45
 }
 const FIT = `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${FPS},setsar=1`;
 /** Étalonnage « pub premium » : plus de contraste, noirs profonds, vignette → raccord avec le motion design noir. */
-const GRADE = 'eq=contrast=1.14:brightness=-0.035:saturation=1.08,vignette=angle=PI/4.2';
+// 06/11 : étalonnage plus doux + grain fin de vraie caméra (le rendu IA trop lisse fait « faux »)
+const GRADE = 'eq=contrast=1.08:brightness=-0.02:saturation=1.04,vignette=angle=PI/4.6,noise=alls=3:allf=t';
 
 /** Le moment le plus « fort » d'un plan (là où ça bouge le plus), pour les 1,6 premières secondes. */
 export async function strongestWindow(file: string, win: number): Promise<{ start: number; score: number }> {
@@ -541,8 +542,14 @@ export async function keyframe(sc: Scene, allowPaid: boolean): Promise<{ url: st
     `Keep the exact paint colour of the reference photo (a dark car stays dark, a white car stays white), even if the photo is dusty. ` +
     `A driver sits behind the wheel of each car, visible through the windshield (natural, not a close-up). ` +
     `The car(s) are LARGE in the frame, close to the camera, filling at least half of the image. ` +
-    `Remove the original parking/garage background completely. Number plates plain without readable text. Photorealistic high-end automotive commercial photograph, natural reflections and shadows on the ground, cinematic lighting, sharp focus, vertical 9:16 framing with the car(s) fully visible, no text, no logos, no people close-up.`;
+    `Remove the original parking/garage background completely. Number plates plain without readable text. Must look like a REAL photograph, not CGI: shot on a full-frame camera with a 35mm lens, natural light matching the time of day, real contact shadows under the tyres, true reflections of the surroundings in the paint and windows, realistic dust and asphalt texture, real Oran architecture and vegetation, slight natural imperfections, no over-smoothing, no HDR glow, no plastic look. Vertical 9:16 framing with the car(s) fully visible, no text, no logos, no people close-up.`;
   if (allowPaid) {
+    try {
+      // 06/11 : Nano Banana PRO (2K, recherche web = vrais lieux d'Oran) = bien plus photoréaliste ; l'ancien reste en secours
+      const r = await falRun('fal-ai/nano-banana-pro/edit', { prompt, image_urls: sc.cars.map(c => c.url), num_images: 1, output_format: 'jpeg', aspect_ratio: '9:16', resolution: '2K', enable_web_search: true }, 300_000);
+      const u = (r['images'] as Array<{ url: string }> | undefined)?.[0]?.url;
+      if (u) return { url: u, cost: 0.15 };
+    } catch (e) { console.warn('[pub] décor Nano Banana Pro :', e instanceof Error ? e.message : e); }
     try {
       const r = await falRun('fal-ai/nano-banana/edit', { prompt, image_urls: sc.cars.map(c => c.url), num_images: 1, output_format: 'jpeg', aspect_ratio: '9:16' }, 300_000);
       const u = (r['images'] as Array<{ url: string }> | undefined)?.[0]?.url;
@@ -578,10 +585,10 @@ async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: 
         const kf = await keyframe(sc, !free && !falEmpty);
         job.costUsd += kf.cost;
         const subject = await describeSubject(kf.url);
-        const shot: StudioShot = { prompt: `${sc.action || 'the car drives slowly toward the camera, headlights on'}. Setting: ${sc.scene}. A driver is at the wheel, visible through the windshield. The car keeps the SAME paint colour from the first to the last frame. Ultra realistic automotive commercial, natural motion blur, real physics, vertical 9:16`, camera: sc.camera, duration: 5, use_image: true };
+        const shot: StudioShot = { prompt: `${sc.action || 'the car drives slowly toward the camera, headlights on'}. Setting: ${sc.scene}. A driver is at the wheel, visible through the windshield. The car keeps the SAME paint colour from the first to the last frame. Looks like real footage filmed with a cinema camera, not CGI: wheels turning at the right speed, tyres touching the road, true reflections sliding over the paint, natural motion blur, slight real camera shake, real physics, vertical 9:16`, camera: sc.camera, duration: 5, use_image: true };
         if (!free && !falEmpty) {
           try {
-            const { endpoint, input } = shotInput(model, shot, kf.url, false, subject);
+            const { endpoint, input } = shotInput(model, shot, kf.url, false, subject, sc.cars.map(c => c.url).filter(Boolean));
             const f = path.join(dir, `car${i}.mp4`);
             // 06/11 : le Duster passait du gris foncé au blanc en plein plan → on vérifie la couleur, 1 nouvel essai, sinon on garde le début
             for (let attempt = 0; attempt < 2; attempt++) {
@@ -712,7 +719,7 @@ export async function tiktokPubTool(input: Record<string, unknown>, actor = 'kou
   const model = await bestModel();
   const slots = bestPostSlots();
   const now = new Date().toISOString();
-  const est = Math.round((scenes.length * (5 * STUDIO_MODELS[model].perSec + (model === 'gratuit' ? 0 : 0.04)) + (model === 'gratuit' ? 0 : 0.02)) * 100) / 100;
+  const est = Math.round((scenes.length * (5 * STUDIO_MODELS[model].perSec + (model === 'gratuit' ? 0 : 0.15)) + (model === 'gratuit' ? 0 : 0.02)) * 100) / 100;
   const job: StudioJob = {
     id: randomUUID().slice(0, 8), planId: 'pub', title: plan.title, model, status: 'queued', step: 'En file…', progress: 2,
     estimateUsd: est, costUsd: 0, shotsDone: 0, shotsTotal: scenes.length, createdAt: now, updatedAt: now, actor,

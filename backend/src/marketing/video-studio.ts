@@ -306,15 +306,20 @@ function lockedPrompt(shot: StudioShot, img: string | null, subject?: string): s
   return `${lock}${cam ? `${shot.prompt}. Camera: ${cam}.` : shot.prompt}`;
 }
 
-export function shotInput(model: ModelId, shot: StudioShot, imageUrl: string | null, nativeAudio: boolean, subject?: string): { endpoint: string; input: Record<string, unknown> } {
+/** carPhotos : les VRAIES photos des voitures → Kling les garde comme « éléments » (@Element1…) pendant tout le plan = même voiture, même couleur. */
+export function shotInput(model: ModelId, shot: StudioShot, imageUrl: string | null, nativeAudio: boolean, subject?: string, carPhotos: string[] = []): { endpoint: string; input: Record<string, unknown> } {
   const m = STUDIO_MODELS[model];
   const img = shot.use_image && imageUrl ? imageUrl : null;
   const prompt = lockedPrompt(shot, img, subject);
   const d = snapDuration(model, shot.duration);
-  const negative = 'blur, distortion, morphing, warping, changing car colour, paint colour shift, car turning white, empty driver seat, driverless moving car, decoration disappearing, different car, warped hands, extra fingers, text, watermark, logo, low quality, cartoon, CGI, video game look, plastic look';
+  const negative = 'blur, distortion, morphing, warping, changing car colour, paint colour shift, car turning white, empty driver seat, driverless moving car, decoration disappearing, different car, warped hands, extra fingers, text, watermark, logo, low quality, cartoon, CGI, video game look, plastic look, over-smoothed, airbrushed, floating car, wheels not turning, sliding tyres';
   if (model === 'kling3') {
     return img
-      ? { endpoint: m.i2v, input: { start_image_url: img, prompt, duration: String(d), generate_audio: nativeAudio, negative_prompt: negative } }
+      ? { endpoint: m.i2v, input: { start_image_url: img, duration: String(d), generate_audio: nativeAudio, negative_prompt: negative,
+          ...(carPhotos.length ? {
+            prompt: `${carPhotos.map((_, k) => `@Element${k + 1}`).join(', ')} ${carPhotos.length > 1 ? 'are the exact real cars' : 'is the exact real car'} of this shot (same make, model, paint colour, wheels and lights for the whole shot). ${prompt}`.slice(0, 2400),
+            elements: carPhotos.slice(0, 3).map(u => ({ frontal_image_url: u, reference_image_urls: [u] })),
+          } : { prompt }) } }
       : { endpoint: m.t2v, input: { prompt, duration: String(d), aspect_ratio: '9:16', generate_audio: nativeAudio, negative_prompt: negative } };
   }
   if (model === 'seedance2') {
