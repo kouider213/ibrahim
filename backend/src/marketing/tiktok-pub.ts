@@ -43,7 +43,8 @@ interface Car { name: string; url: string; category: string }
 interface PubPlan {
   title: string; hook: string; alt_hooks: string[]; lines: Array<{ text: string; gold: string[] }>;
   voice_intro: string; voice_cars: string; cta: string; cta_sub: string;
-  cars: Array<{ name: string; label: string; prompt: string; camera: string }>;
+  /** Scènes IA : 1 à 3 voitures de la flotte placées dans un VRAI décor, puis animées (elles roulent). */
+  scenes: Array<{ cars: string[]; label: string; scene: string; action: string; camera: string }>;
   music_prompt: string; caption: string; hashtags: string[]; pinned_comment: string; replies: string[];
   cover_text: string; tips: string[];
 }
@@ -82,7 +83,7 @@ export function bestPostSlots(now = new Date(), minLeadMin = 40): Array<{ at: Da
 
 // ─── Réalisateur ──────────────────────────────────────────────
 
-async function fleet(): Promise<Car[]> {
+export async function fleet(): Promise<Car[]> {
   const { data } = await supabase.from('cars').select('name, image_url, category, available').eq('available', true);
   return ((data ?? []) as Array<{ name: string; image_url: string | null; category: string | null }>)
     .filter(c => c.image_url).map(c => ({ name: c.name, url: c.image_url!, category: c.category ?? '' }));
@@ -90,11 +91,12 @@ async function fleet(): Promise<Car[]> {
 
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 function findCar(all: Car[], name: string): Car | undefined {
-  const n = norm(name);
+  const n = norm(name.replace(/\s*\[[^\]]*\]\s*$/, ''));   // le réalisateur recopie « [premium] » de la liste
+  if (!n) return undefined;
   return all.find(c => norm(c.name) === n) ?? all.find(c => norm(c.name).includes(n) || n.includes(norm(c.name)));
 }
 
-async function direct(message: string, cars: Car[], wanted: string[], seconds: number): Promise<PubPlan> {
+export async function direct(message: string, cars: Car[], wanted: string[], seconds: number): Promise<PubPlan> {
   const system = `Tu es à la fois le meilleur réalisateur de pubs TikTok, le meilleur monteur motion design et le meilleur community manager du marché algérien (location de voitures, Oran).
 Tu réponds UNIQUEMENT avec un JSON valide, sans texte autour.`;
   const user = `Entreprise : FIK Conciergerie — location de voitures à Oran (Algérie), clients locaux et diaspora (France).
@@ -102,7 +104,7 @@ Message de Kouider (le patron), à transformer en pub — corrige l'orthographe,
 « ${message} »
 Voitures disponibles (avec vraie photo) : ${cars.map(c => `${c.name} [${c.category}]`).join(' · ')}
 ${wanted.length ? `Voitures imposées par Kouider : ${wanted.join(', ')}.` : 'Choisis 3 voitures qui se complètent (une sportive/premium, une prestige, une familiale ou SUV).'}
-Durée totale visée : ${seconds} s (hook 1,6 s + intro motion design + voitures ${CAR_S} s chacune + CTA ${CTA_S} s).
+Durée totale visée : ${seconds} s (hook 1,6 s + intro motion design + scènes vidéo IA ${CAR_S} s chacune + CTA ${CTA_S} s).
 
 Rends ce JSON :
 {
@@ -114,7 +116,7 @@ Rends ce JSON :
  "voice_cars": "une phrase courte dite pendant les voitures, qui donne envie (≤ 14 mots)",
  "cta": "appel à l'action, 2 à 4 mots, MAJUSCULES",
  "cta_sub": "sous-ligne du CTA, ex. « Oran · WhatsApp · 7j/7 »",
- "cars": [ { "name": "nom EXACT d'une voiture de la liste", "label": "son atout en 2 à 4 mots MAJUSCULES", "prompt": "mouvement en ANGLAIS pour animer sa vraie photo : lumière, reflets, léger mouvement de caméra, réaliste", "camera": "une valeur parmi : ${Object.keys(STUDIO_CAMERAS).join(', ')}" } ],
+ "scenes": [ { "cars": ["nom(s) EXACT(s) de la liste : 1 voiture, ou 2-3 voitures ensemble"], "label": "texte écran 2 à 4 mots MAJUSCULES (atout / nom de la gamme)", "scene": "décor en ANGLAIS où on PLACE la/les voiture(s) : lieu précis, heure, lumière, météo, ambiance (ex. Oran seafront corniche at golden hour, Mediterranean sea, palm trees, wet asphalt reflections)", "action": "ce qui se passe en ANGLAIS, la voiture BOUGE vraiment : roule vers la caméra, convoi, virage, phares qui s'allument, freinage… + mouvement caméra (tracking, low angle…), réaliste", "camera": "une valeur parmi : travelling, low_angle, dolly_in, slowmo, handheld, drone" } ],
  "music_prompt": "musique en anglais : ambiance comeback, cinématique puis rythmée, sans voix, tempo",
  "caption": "légende TikTok (sans hashtags) : 1 phrase qui donne envie + question qui fait commenter",
  "hashtags": ["8 hashtags : 3 gros (#fyp…), 3 locaux (#oran #algerie…), 2 de niche (#locationvoiture…)"],
@@ -127,7 +129,10 @@ Règles :
 - 3 à 5 lignes de motion design, ordre du message : retour → excuses → merci aux clients fidèles → plus fort que jamais.
 - Ton pro et chaleureux, vouvoiement, AUCUN argot (jamais « frérot », « wesh », « la famille »…). « Inshallah » autorisé UNE fois si Kouider l'a écrit.
 - Jamais de prix, jamais de date, jamais de ville belge.
-- 3 voitures (4 maximum), noms EXACTS de la liste.`;
+- 4 scènes (3 à 5) qui ont le potentiel de devenir VIRALES : décors spectaculaires et réels d'Oran/Algérie (corniche au coucher du soleil, front de mer de nuit avec les lumières de la ville, route de Santa Cruz en lacets au-dessus de la mer, port, route du désert…), variés d'une scène à l'autre.
+- AU MOINS une scène avec 2 ou 3 voitures ensemble (convoi, alignées, qui arrivent l'une après l'autre) : c'est la flotte FIK.
+- La scène la plus spectaculaire en PREMIER (elle sert au hook). Chaque voiture apparaît au moins une fois. Noms EXACTS de la liste.
+- Réalisme : pas de cascade impossible, pas de vol, pas de personnes en gros plan ; la voiture garde exactement sa forme et sa couleur.`;
   const raw = await askJson<Partial<PubPlan>>(system, user, 2500);
   const lines = (raw.lines ?? []).map(l => ({ text: String(l?.text ?? '').trim().slice(0, 60), gold: (l?.gold ?? []).map(String).slice(0, 2) })).filter(l => l.text).slice(0, 5);
   if (!lines.length) throw new Error('le réalisateur IA n\'a pas rendu de texte — réessaie dans une minute');
@@ -136,7 +141,8 @@ Règles :
     alt_hooks: (raw.alt_hooks ?? []).map(String).slice(0, 2), lines,
     voice_intro: String(raw.voice_intro ?? lines.map(l => l.text).join('. ')).slice(0, 600), voice_cars: String(raw.voice_cars ?? '').slice(0, 160),
     cta: String(raw.cta ?? 'RÉSERVEZ SUR WHATSAPP').slice(0, 40), cta_sub: String(raw.cta_sub ?? 'FIK Conciergerie · Oran').slice(0, 60),
-    cars: (raw.cars ?? []).map(c => ({ name: String(c?.name ?? ''), label: String(c?.label ?? '').slice(0, 40), prompt: String(c?.prompt ?? '').slice(0, 600), camera: STUDIO_CAMERAS[String(c?.camera)] ? String(c?.camera) : 'dolly_in' })),
+    scenes: (raw.scenes ?? []).map(c => ({ cars: (Array.isArray(c?.cars) ? c.cars : [c?.cars]).map(String).filter(Boolean).slice(0, 3), label: String(c?.label ?? '').slice(0, 40),
+      scene: String(c?.scene ?? '').slice(0, 500), action: String(c?.action ?? '').slice(0, 500), camera: STUDIO_CAMERAS[String(c?.camera)] ? String(c?.camera) : 'travelling' })).filter(c => c.cars.length).slice(0, 5),
     music_prompt: String(raw.music_prompt ?? 'dark cinematic intro building into energetic modern trap beat, 100 bpm, no vocals').slice(0, 300),
     caption: String(raw.caption ?? '').slice(0, 300), hashtags: (raw.hashtags ?? []).map(h => `#${String(h).replace(/^#/, '').replace(/\s+/g, '')}`).slice(0, 10),
     pinned_comment: String(raw.pinned_comment ?? '').slice(0, 300), replies: (raw.replies ?? []).map(String).slice(0, 3),
@@ -318,7 +324,30 @@ export async function buildPubVideo(o: {
     return { final, finalDur, cover };
 }
 
-async function renderPub(job: StudioJob, plan: PubPlan, cars: Car[], model: ModelId, myVoice: boolean, slots: ReturnType<typeof bestPostSlots>): Promise<void> {
+type Scene = { cars: Car[]; label: string; scene: string; action: string; camera: string };
+
+/** Image de départ de la scène : les VRAIES voitures (leurs photos) placées dans le décor (Nano Banana, plusieurs photos à la fois),
+ *  sinon FLUX Kontext gratuit (1 voiture), sinon la photo d'origine. */
+export async function keyframe(sc: Scene, allowPaid: boolean): Promise<{ url: string; cost: number }> {
+  const names = sc.cars.map(c => c.name.replace(/\s+—.*$/, '')).join(', ');
+  const prompt = `${sc.cars.length > 1 ? `Place these ${sc.cars.length} exact cars (one from each reference photo: ${names}) together` : `Place this exact car (${names})`} in a new scene: ${sc.scene}. ` +
+    `Each car must stay IDENTICAL to its reference photo: same make and model, same body colour and finish, same wheels, same headlights and grille, correct proportions. ` +
+    `Remove the original parking/garage background completely. Number plates plain without readable text. Photorealistic high-end automotive commercial photograph, natural reflections and shadows on the ground, cinematic lighting, sharp focus, vertical 9:16 framing with the car(s) fully visible, no text, no logos, no people close-up.`;
+  if (allowPaid) {
+    try {
+      const r = await falRun('fal-ai/nano-banana/edit', { prompt, image_urls: sc.cars.map(c => c.url), num_images: 1, output_format: 'jpeg', aspect_ratio: '9:16' }, 300_000);
+      const u = (r['images'] as Array<{ url: string }> | undefined)?.[0]?.url;
+      if (u) return { url: u, cost: 0.04 };
+    } catch (e) { console.warn('[pub] décor Nano Banana :', e instanceof Error ? e.message : e); }
+  }
+  try {
+    const { editImageUrl } = await import('./ai-edit.js');
+    return { url: (await editImageUrl(sc.cars[0]!.url, prompt, 'gratuit')).url, cost: 0 };
+  } catch (e) { console.warn('[pub] décor gratuit :', e instanceof Error ? e.message : e); }
+  return { url: sc.cars[0]!.url, cost: 0 };
+}
+
+async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: ModelId, myVoice: boolean, slots: ReturnType<typeof bestPostSlots>): Promise<void> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), `pub-${job.id}-`));
   const free = model === 'gratuit';
   const rate = STUDIO_MODELS[model].perSec;
@@ -329,18 +358,21 @@ async function renderPub(job: StudioJob, plan: PubPlan, cars: Car[], model: Mode
     const voiceP = Promise.all([tts(plan.voice_intro, myVoice), tts(plan.voice_cars, myVoice)]);
     const musicP = free ? Promise.resolve(null) : falRun(MUSIC_MODEL, { prompt: plan.music_prompt, duration: 40 }, 240_000)
       .then(r => (r['audio_file'] as { url?: string } | undefined)?.url ?? null).catch(e => { console.warn('[pub] musique:', e.message); return null; });
-    const clips: Array<string | null> = new Array(cars.length).fill(null);
+    const clips: Array<string | null> = new Array(scenes.length).fill(null);
     let falEmpty = false, cursor = 0;
     const worker = async () => {
-      while (cursor < cars.length) {
+      while (cursor < scenes.length) {
         const i = cursor++;
-        const car = cars[i]!;
-        const subject = await describeSubject(car.url);
-        const pc = plan.cars.find(c => norm(c.name) === norm(car.name)) ?? plan.cars[i];
-        const shot: StudioShot = { prompt: pc?.prompt || 'slow cinematic push-in, headlights on, glossy reflections, premium car commercial', camera: pc?.camera ?? 'dolly_in', duration: 5, use_image: true };
+        const sc = scenes[i]!;
+        const car = { name: sc.cars.map(c => c.name).join(' + ') };
+        // 1) les vraies voitures dans le décor  2) elles roulent (Kling)
+        const kf = await keyframe(sc, !free && !falEmpty);
+        job.costUsd += kf.cost;
+        const subject = await describeSubject(kf.url);
+        const shot: StudioShot = { prompt: `${sc.action || 'the car drives slowly toward the camera, headlights on'}. Setting: ${sc.scene}. Ultra realistic automotive commercial, natural motion blur, real physics, vertical 9:16`, camera: sc.camera, duration: 5, use_image: true };
         if (!free && !falEmpty) {
           try {
-            const { endpoint, input } = shotInput(model, shot, car.url, false, subject);
+            const { endpoint, input } = shotInput(model, shot, kf.url, false, subject);
             const res = await falRun(endpoint, input);
             const url = (res['video'] as { url?: string } | undefined)?.url;
             if (!url) throw new Error('pas de vidéo');
@@ -353,13 +385,13 @@ async function renderPub(job: StudioJob, plan: PubPlan, cars: Car[], model: Mode
             if (/crédit|refusé|balance|exhausted|locked|402|403/i.test(m)) { falEmpty = true; await markFalEmpty(); }
           }
         }
-        if (!clips[i]) clips[i] = await freeShot(shot, car.url, dir, i, 7, subject).catch(() => null);
+        if (!clips[i]) clips[i] = await freeShot(shot, kf.url, dir, i, 7, subject).catch(() => null);
         job.shotsDone++; job.progress = 5 + Math.round((job.shotsDone / job.shotsTotal) * 55);
-        job.step = `Voitures : ${job.shotsDone}/${job.shotsTotal}`; await saveJob(job);
+        job.step = `Scènes vidéo IA : ${job.shotsDone}/${job.shotsTotal}`; await saveJob(job);
       }
     };
     await Promise.all(free ? [worker()] : [worker(), worker()]);
-    const ok = cars.map((c, i) => ({ car: c, file: clips[i], label: (plan.cars.find(p => norm(p.name) === norm(c.name)) ?? plan.cars[i])?.label ?? '' }))
+    const ok = scenes.map((sc, i) => ({ car: { name: sc.cars.length > 1 ? 'LA FLOTTE FIK' : sc.cars[0]!.name, url: '', category: '' }, file: clips[i], label: sc.label }))
       .filter((x): x is { car: Car; file: string; label: string } => !!x.file);
     if (!ok.length) throw new Error('aucun plan voiture n\'a pu être généré');
 
@@ -393,8 +425,8 @@ async function renderPub(job: StudioJob, plan: PubPlan, cars: Car[], model: Mode
     await saveJob(job);
 
     const prime = slots.find(s => s.prime) ?? slots[0];
-    const missed = cars.length - ok.length;
-    await queueTelegramMessage(`🎬 Ta pub TikTok « ${plan.title} » est prête — ${Math.round(finalDur)} s, ${free ? '0 €' : `≈ ${job.costUsd.toFixed(2)} $`}${missed ? ` (⚠️ ${missed} voiture(s) ratée(s), montage fait sans)` : ''}`,
+    const missed = scenes.length - ok.length;
+    await queueTelegramMessage(`🎬 Ta pub TikTok « ${plan.title} » est prête — ${Math.round(finalDur)} s, ${free ? '0 €' : `≈ ${job.costUsd.toFixed(2)} $`}${missed ? ` (⚠️ ${missed} scène(s) ratée(s), montage fait sans)` : ''}`,
       undefined, 'kouider', { url, name: 'pub-tiktok-fik.mp4' });
     let cov: string | undefined;
     try { cov = (await fs.readFile(cover)).toString('base64'); } catch { /* pas de miniature */ }
@@ -448,23 +480,26 @@ export async function tiktokPubTool(input: Record<string, unknown>, actor = 'kou
   const wanted = wantedRaw.map(n => findCar(all, n)?.name).filter((x): x is string => !!x);
   const seconds = Math.min(40, Math.max(18, Number(input['seconds']) || 26));
   const plan = await direct(message, all, wanted, seconds);
-  let cars = (wanted.length ? wanted : plan.cars.map(c => c.name)).map(n => findCar(all, n)).filter((c): c is Car => !!c);
-  cars = cars.filter((c, i) => cars.findIndex(x => x.name === c.name) === i).slice(0, 4);
-  if (!cars.length) cars = DEFAULT_CARS.map(n => findCar(all, n)).filter((c): c is Car => !!c);
+  let scenes: Scene[] = plan.scenes.map(sc => ({ ...sc, cars: sc.cars.map(n => findCar(all, n)).filter((c): c is Car => !!c)
+    .filter((c, i, a) => a.findIndex(x => x.name === c.name) === i) })).filter(sc => sc.cars.length);
+  if (!scenes.length) {
+    const cars = (wanted.length ? wanted : DEFAULT_CARS).map(n => findCar(all, n)).filter((c): c is Car => !!c);
+    scenes = cars.map(c => ({ cars: [c], label: c.category.toUpperCase(), scene: 'Oran seafront corniche at golden hour, Mediterranean sea, palm trees', action: 'the car drives slowly toward the camera, headlights on', camera: 'travelling' }));
+  }
   const model = await bestModel();
   const slots = bestPostSlots();
   const now = new Date().toISOString();
-  const est = Math.round((cars.length * 5 * STUDIO_MODELS[model].perSec + (model === 'gratuit' ? 0 : 0.02)) * 100) / 100;
+  const est = Math.round((scenes.length * (5 * STUDIO_MODELS[model].perSec + (model === 'gratuit' ? 0 : 0.04)) + (model === 'gratuit' ? 0 : 0.02)) * 100) / 100;
   const job: StudioJob = {
     id: randomUUID().slice(0, 8), planId: 'pub', title: plan.title, model, status: 'queued', step: 'En file…', progress: 2,
-    estimateUsd: est, costUsd: 0, shotsDone: 0, shotsTotal: cars.length, createdAt: now, updatedAt: now, actor,
+    estimateUsd: est, costUsd: 0, shotsDone: 0, shotsTotal: scenes.length, createdAt: now, updatedAt: now, actor,
   };
-  await launchJob(job, () => renderPub(job, plan, cars, model, input['my_voice'] === true, slots));
+  await launchJob(job, () => renderPub(job, plan, scenes, model, input['my_voice'] === true, slots));
   const prime = slots.find(s => s.prime);
   return `🎬 Pub TikTok lancée (job ${job.id}, ${STUDIO_MODELS[model].label}, ${model === 'gratuit' ? '0 €' : `≈ ${est.toFixed(2)} $`}, prête dans 5 à 12 min sur Telegram + page MONTAGE).
 Hook (1,6 s, sur le moment le plus fort) : « ${plan.hook} »
 Motion design fond noir : ${plan.lines.map(l => `« ${l.text} »`).join(' → ')}
-Voitures : ${cars.map(c => c.name).join(', ')} → CTA « ${plan.cta} » → signature FIK.
+Scènes vidéo IA (vraies voitures placées dans le décor, qui roulent) : ${scenes.map(sc => `${sc.cars.map(c => c.name).join(' + ')} — ${sc.scene.slice(0, 60)}`).join(' | ')} → CTA « ${plan.cta} » → signature FIK.
 Il recevra : la vidéo, la miniature, la légende + hashtags, le commentaire à épingler, les réponses types et un rappel au meilleur moment${prime ? ` (${prime.label})` : ''}.
 Dis-lui tout ça simplement, sans détails techniques.`;
 }

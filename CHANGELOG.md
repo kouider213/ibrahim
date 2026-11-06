@@ -1,3 +1,8 @@
+## 2026-11-06 — Pub TikTok : vraies scènes vidéo IA
+- tiktok-pub.ts : le réalisateur écrit 3-5 SCÈNES (décors réels Oran : corniche, Santa Cruz, centre de nuit, Les Andalouses…), au moins une avec 2-3 voitures ensemble (convoi), la plus spectaculaire en premier (hook).
+- keyframe() : vraies photos de la flotte placées dans le décor (Nano Banana multi-photos 9:16, sinon FLUX Kontext gratuit testé OK 34 s, sinon photo d’origine) → Kling fait rouler la voiture.
+- findCar ignore le suffixe « [premium] » recopié par le réalisateur.
+
 # Changelog — Ibrahim AI Backend
 
 All notable changes are documented here in reverse chronological order.

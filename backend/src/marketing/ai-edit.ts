@@ -61,7 +61,7 @@ async function toEnglish(prompt: string): Promise<string> {
 }
 
 /** Retouche d'une photo → URL d'une image (Hugging Face ou fal). */
-async function editImageUrl(imageUrl: string, promptEn: string, quality: 'gratuit' | 'max'): Promise<{ url: string; cost: number; engine: string }> {
+export async function editImageUrl(imageUrl: string, promptEn: string, quality: 'gratuit' | 'max'): Promise<{ url: string; cost: number; engine: string }> {
   if (quality === 'gratuit' || !env.FAL_KEY) {
     try {
       const out = await hfGradio(HF_KONTEXT, 'infer', [{ path: imageUrl, meta: { _type: 'gradio.FileData' } }, promptEn, 0, true, 2.5, 28], 300_000);
