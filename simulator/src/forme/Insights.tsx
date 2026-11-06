@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { get } from './api.ts';
 import { F, card, Ring, LineChart } from './ui.tsx';
+import { BilansCard, DaySheet } from './Bilans.tsx';
 
 // 📊 STATS PRO (31/10) — le meilleur des grosses applis, calculé sur ses vraies données (/api/forme/insights) :
 // anneau objectif semaine (Apple Fitness / Hevy), séries par muscle vs zone utile 10-20 (JEFIT / Alpha Progression),
@@ -35,6 +36,7 @@ export function WeekGoal() {
 
 export default function Insights() {
   const d = useInsights();
+  const [sel, setSel] = useState<string | null>(null);
   if (!d) return null;
   const max = Math.max(20, ...Object.values(d.sets));
   const last = d.calendar.slice(-35);
@@ -43,6 +45,9 @@ export default function Insights() {
   const h = d.health;
   return (
     <div>
+      <H2>Mes bilans</H2>
+      <BilansCard />
+      <DaySheet date={sel} onClose={() => setSel(null)} />
       <H2>Cette semaine</H2>
       <div style={{ ...card, display: 'flex', alignItems: 'center', gap: 16 }}>
         <Ring value={d.week.done} max={d.week.target} size={86} stroke={9} color={d.week.done >= d.week.target ? F.green : F.accent} track={F.bg2}>
@@ -80,7 +85,7 @@ export default function Insights() {
           <div />{['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((x, i) => <div key={i} style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: F.muted }}>{x}</div>)}
           {cal.map((w, i) => [
             <div key={`l${i}`} style={{ fontSize: 11, color: F.muted }}>{new Date(`${w[0]!.date}T12:00:00Z`).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'UTC' })}</div>,
-            ...w.map(c => <div key={c.date} style={{ aspectRatio: '1', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 600,
+            ...w.map(c => <div key={c.date} role={c.future ? undefined : 'button'} onClick={() => { if (!c.future) setSel(c.date); }} style={{ cursor: c.future ? 'default' : 'pointer', aspectRatio: '1', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 600,
               background: c.done ? F.accent : c.future ? 'transparent' : F.bg2, color: c.done ? '#fff' : c.future ? '#c2bdcc' : F.ink,
               outline: c.date === today ? `2px solid ${F.ink}` : 'none', outlineOffset: 1 }}>{Number(c.date.slice(8))}</div>),
           ])}
@@ -89,6 +94,7 @@ export default function Insights() {
           <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: F.accent, marginRight: 5 }} />séance faite</span>
           <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: F.bg2, marginRight: 5 }} />pas de séance</span>
           <span>▢ = aujourd'hui</span>
+          <span style={{ flexBasis: '100%' }}>👆 Touche un jour pour voir tout le détail (montre, séance, repas, note).</span>
         </div>
       </div>
 
