@@ -141,6 +141,8 @@ Règles :
 - Réalisme : pas de cascade impossible, pas de vol, pas de personnes en gros plan ; la voiture garde exactement sa forme et sa couleur.
 - La voiture est GRANDE dans l'image (au moins la moitié de l'écran, proche de la caméra) : jamais un petit point perdu dans un paysage.
 - Une voiture qui roule a TOUJOURS un conducteur au volant (visible à travers le pare-brise, pas en gros plan).
+- Comme dans la vraie vie : chaque voiture roule en MARCHE AVANT (l'avant devant), toutes dans le MÊME sens, sur la même voie, l'une derrière l'autre pour un convoi. Jamais de marche arrière, jamais deux voitures face à face, jamais de dérapage ni de demi-tour. L'« action » le dit explicitement en anglais (« all cars drive forward in the same direction »).
+- La voiture reste GRANDE jusqu'à la dernière image : elle roule vers la caméra ou la caméra la suit ; elle ne s'éloigne jamais jusqu'à devenir minuscule.
 - Le motion design doit rester NERVEUX : lignes très courtes, la vidéo ne reste jamais plus de 2 s sur un écran noir.`;
   const raw = await askJson<Partial<PubPlan>>(system, user, 2500);
   return shapePlan(raw);
@@ -383,7 +385,8 @@ async function tts(text: string, myVoice: boolean): Promise<Buffer | null> {
   return (await synthesizeVoice(text).catch(() => null)) ?? (await synthesizeVoiceGemini(text).catch(() => null)) ?? (await synthesizeVoiceFree(text).catch(() => null));
 }
 
-/** null = la voiture garde sa couleur tout le plan ; sinon la dernière seconde où elle est encore comme au début. */
+/** null = plan réaliste du début à la fin ; sinon la dernière seconde encore OK.
+ *  06/11 : couleur qui change (Duster gris → blanc) + voiture qui part en marche arrière / à contresens des autres. */
 export async function colourStableUntil(dir: string, file: string, i: number): Promise<number | null> {
   try {
     const dur = (await probe(file)).duration || 5;
@@ -393,12 +396,15 @@ export async function colourStableUntil(dir: string, file: string, i: number): P
     const grid = path.join(dir, `chk${i}.jpg`);
     await run([...shots.flatMap(x => ['-i', x]), '-filter_complex', 'hstack=inputs=4', '-y', grid]);
     const { readDocVision } = await import('../integrations/llm-router.js');
-    const ans = await readDocVision(`4 frames of the same video, left to right in time order (1 to 4). Look ONLY at the main car's body paint colour. ` +
-      `Reply with ONE number: the last frame (1-4) where the car still has the SAME paint colour as in frame 1. Reply 4 if it never changes. Lighting changes do not count, only a real colour change (e.g. dark grey becomes white).`,
-      (await fs.readFile(grid)).toString('base64'), 'image/jpeg', 10);
-    const n = Number(/[1-4]/.exec(ans)?.[0] ?? 4);
+    const ans = await readDocVision(`4 frames of the same video, left to right in time order (1 to 4). Check 2 things and reply EXACTLY in the form "COLOUR=n MOTION=n".\n` +
+      `COLOUR: the last frame (1-4) where the main car still has the SAME paint colour as in frame 1 (4 if it never changes; lighting changes do not count, only a real colour change such as dark grey becoming white).\n` +
+      `MOTION: the last frame (1-4) where every car still drives like real traffic: moving forward front-first, all in the same direction, none reversing (rear first), none facing or driving opposite to the others, none turned sideways, the car not shrunk to a tiny dot far away. Reply 4 if it is realistic in all frames.`,
+      (await fs.readFile(grid)).toString('base64'), 'image/jpeg', 16);
+    const num = (k: string) => Number(new RegExp(`${k}\\s*=\\s*([1-4])`, 'i').exec(ans)?.[1] ?? 4);
+    const n = Math.min(num('COLOUR'), num('MOTION'));
+    if (num('MOTION') < 4) console.warn(`[pub] plan ${i} : mouvement pas réaliste (marche arrière / contresens) vers l'image ${num('MOTION')}`);
     return n >= 4 ? null : ts[n - 1]! + (n === 1 ? 1.2 : 0.4);
-  } catch (e) { console.warn('[pub] contrôle couleur :', e instanceof Error ? e.message : e); return null; }
+  } catch (e) { console.warn('[pub] contrôle réalisme :', e instanceof Error ? e.message : e); return null; }
 }
 
 async function trimClip(file: string, upTo: number): Promise<void> {
@@ -545,6 +551,7 @@ export async function keyframe(sc: Scene, allowPaid: boolean): Promise<{ url: st
     `Keep the exact paint colour of the reference photo (a dark car stays dark, a white car stays white), even if the photo is dusty. ` +
     `A driver sits behind the wheel of each car, visible through the windshield (natural, not a close-up). ` +
     `The car(s) are LARGE in the frame, close to the camera, filling at least half of the image. ` +
+    `Like real traffic: every car is on the road, pointing in the SAME direction of travel along the lane (all fronts facing the same way, one behind the other for a convoy), never a car facing the others or parked across the road. ` +
     `Remove the original parking/garage background completely. Number plates plain without readable text. Must look like a REAL photograph, not CGI: shot on a full-frame camera with a 35mm lens, natural light matching the time of day, real contact shadows under the tyres, true reflections of the surroundings in the paint and windows, realistic dust and asphalt texture, real Oran architecture and vegetation, slight natural imperfections, no over-smoothing, no HDR glow, no plastic look. Vertical 9:16 framing with the car(s) fully visible, no text, no logos, no people close-up.`;
   if (allowPaid) {
     try {
@@ -588,7 +595,7 @@ async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: 
         const kf = await keyframe(sc, !free && !falEmpty);
         job.costUsd += kf.cost;
         const subject = await describeSubject(kf.url);
-        const shot: StudioShot = { prompt: `${sc.action || 'the car drives slowly toward the camera, headlights on'}. Setting: ${sc.scene}. A driver is at the wheel, visible through the windshield. The car keeps the SAME paint colour from the first to the last frame. Looks like real footage filmed with a cinema camera, not CGI: wheels turning at the right speed, tyres touching the road, true reflections sliding over the paint, natural motion blur, slight real camera shake, real physics, vertical 9:16`, camera: sc.camera, duration: 5, use_image: true };
+        const shot: StudioShot = { prompt: `${sc.action || 'the car drives slowly toward the camera, headlights on'}. Setting: ${sc.scene}. A driver is at the wheel, visible through the windshield. Real-life driving: every car moves FORWARD, front first, all in the same direction and the same lane like real traffic, smooth constant speed; no car ever reverses, stops and backs up, turns around or slides sideways; the car stays large in frame until the last frame (it comes toward the camera or the camera follows it). The car keeps the SAME paint colour from the first to the last frame. Looks like real footage filmed with a cinema camera, not CGI: wheels turning at the right speed, tyres touching the road, true reflections sliding over the paint, natural motion blur, slight real camera shake, real physics, vertical 9:16`, camera: sc.camera, duration: 5, use_image: true };
         if (!free && !falEmpty) {
           try {
             const { endpoint, input } = shotInput(model, shot, kf.url, false, subject, sc.cars.map(c => c.url).filter(Boolean));
@@ -602,7 +609,7 @@ async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: 
               job.costUsd += 5 * rate;
               const okAt = await colourStableUntil(dir, f, i);
               if (okAt === null) break;
-              console.warn(`[pub] ${car.name} : couleur qui change vers ${okAt.toFixed(1)} s (essai ${attempt + 1})`);
+              console.warn(`[pub] ${car.name} : couleur ou sens qui déraille vers ${okAt.toFixed(1)} s (essai ${attempt + 1})`);
               if (attempt === 1) { await trimClip(f, Math.max(1.8, okAt)); break; }
             }
             clips[i] = f;

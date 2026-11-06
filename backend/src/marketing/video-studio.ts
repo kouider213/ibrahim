@@ -312,7 +312,7 @@ export function shotInput(model: ModelId, shot: StudioShot, imageUrl: string | n
   const img = shot.use_image && imageUrl ? imageUrl : null;
   const prompt = lockedPrompt(shot, img, subject);
   const d = snapDuration(model, shot.duration);
-  const negative = 'blur, distortion, morphing, warping, changing car colour, paint colour shift, car turning white, empty driver seat, driverless moving car, decoration disappearing, different car, warped hands, extra fingers, text, watermark, logo, low quality, cartoon, CGI, video game look, plastic look, over-smoothed, airbrushed, floating car, wheels not turning, sliding tyres';
+  const negative = 'blur, distortion, morphing, warping, changing car colour, paint colour shift, car turning white, empty driver seat, driverless moving car, decoration disappearing, different car, warped hands, extra fingers, text, watermark, logo, low quality, cartoon, CGI, video game look, plastic look, over-smoothed, airbrushed, floating car, wheels not turning, sliding tyres, car driving in reverse, car moving backwards, rear-first motion, cars driving in opposite directions, car facing the wrong way, U-turn, car spinning, drifting sideways, car shrinking into the distance';
   if (model === 'kling3') {
     return img
       ? { endpoint: m.i2v, input: { start_image_url: img, duration: String(d), generate_audio: nativeAudio, negative_prompt: negative,

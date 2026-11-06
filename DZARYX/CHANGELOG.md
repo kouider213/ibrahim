@@ -3,6 +3,10 @@
 - Pack community manager sur Telegram : vidéo, miniature, légende + hashtags, commentaire à épingler, réponses types, conseils, meilleur créneau (habitudes Algérie) + rappel à l'heure.
 - fr-commands pubTiktok : « crée-moi la vidéo/pub » après un message TikTok → lancé direct (même cerveaux saturés) ; avis/« je vais faire » → cerveau.
 
+## 2026-11-06 ~13h15 — pub TikTok : conduite comme dans la vraie vie
+- Kouider : « parfois la voiture va en marche arrière, pas dans la même direction que les autres ». Réalisateur + image de départ + prompt Kling : toutes les voitures en marche avant, même sens, même voie, voiture qui reste grande jusqu'à la fin ; negative prompt marche arrière / contresens / demi-tour / dérapage / voiture qui rapetisse.
+- Contrôle après chaque scène (vision 4 images) : COULEUR + MOUVEMENT → 1 nouvel essai, sinon coupe au dernier moment réaliste. Testé sur le job 9f0463ef : Jumpy et Duster repérés, convoi et Jogger OK.
+
 ## 2026-11-06 ~12h45 — audit des conversations du jour
 - LIBERTÉ : « Je déjà prix 5 demis » et « Je viens de prendre 2 demi je dois plus prendre après » n'étaient PAS notés (« prix » inconnu, « dois » bloquait) alors que Dzaryx répondait « noté » → parseMedTake comprend « prix » et une prise passée même suivie de « je dois / je veux ».
 - Séance live : bilan ne dit plus « X pas fait » pour un exercice simplement non dicté (on ne lui demande jamais ses séries) ; seul un exercice passé est signalé.
