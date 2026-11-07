@@ -89,7 +89,7 @@ export async function takeTelegramMessages(actor: string): Promise<TgOutMessage[
   const media = keep.filter(h => h.image || h.file || h.album || h.location).map(({ at: _at, ...m }) => m);
   // « (06h19 → 06h19) » quand tout tient dans la même minute : une seule heure (22/10)
   const from = t(keep[0]!.at), to = t(keep[keep.length - 1]!.at);
-  const head = `🔔 Pendant ta pause${from === to ? '' : ` (${from} → ${to})`}, j'ai gardé ça pour toi :`;
+  const head = `🔔 Pendant ton silence${from === to ? '' : ` (${from} → ${to})`}, j'ai gardé ça pour toi :`;
   // Les lignes d'agenda « • 06h20 … » déjà passées au moment de l'envoi sont retirées (le récap arrivait à 6h28 avec 6h20 et 6h30)
   const nowHm = t(Date.now());
   const fresh = (txt: string) => txt.split('\n').filter(l => { const m = /^\s*•\s*(\d{2}h\d{2})\s/.exec(l); return !m || m[1]! >= nowHm; }).join('\n');
@@ -113,7 +113,7 @@ async function clearRecap(raw: string): Promise<string | null> {
     model: 'claude-haiku-5-5', max_tokens: 700,
     system: `Tu es Dzaryx, l'assistant de Kouider. Pendant qu'il ne voulait pas être dérangé, tu as gardé des messages. Il est ${now}. `
       + 'Réécris-les en UN message Telegram court, en français simple, sans markdown (pas de ** ni #) :\n'
-      + '🔔 Pendant ta pause\n\nCe que tu as raté d\'important :\n• …\n\nCe qui compte aujourd\'hui :\n• …\n'
+      + '🔔 Pendant ton silence\n\nCe que tu as raté d\'important :\n• …\n\nCe qui compte aujourd\'hui :\n• …\n'
       + 'Règles : garde chaque info utile (noms, montants, heures, liens) sans rien inventer ; supprime le périmé (heures déjà passées, « je te vois partir », « bien arrivé ») et les doublons ; '
       + 'une section vide est omise ; maximum 10 puces en tout.',
     messages: [{ role: 'user', content: raw.slice(0, 12_000) }],

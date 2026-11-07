@@ -526,12 +526,14 @@ export async function jobFoodCoach(): Promise<string> {
     if (x.left < 120) return null;   // plus de place : on ne pousse pas à manger
     return `🥜 ${label}\n${await coachSay(budgetFacts(x), `Collation de ${label.toLowerCase()} : dis-lui à quoi il a DROIT maintenant (2 idées chiffrées, 150-${Math.min(300, x.left)} kcal, riches en protéines) en gardant assez pour la suite de la journée. 3 lignes max.`, 250)}`;
   };
-  if (at('10:00') && !at('11:30') && await once('snack-am', date, snack('Collation du matin'))) sent.push('collation matin');
-  if (at('13:45') && !at('15:00') && await once('lunch-check', date, async () => {
+  // 07/11 : au travail il n'a AUCUNE pause → pas de collation / rappel de midi / goûter pendant le travail
+  const working = await import('./grand-coach-plus.js').then(m => m.atWorkNow()).catch(() => false);
+  if (!working && at('10:00') && !at('11:30') && await once('snack-am', date, snack('Collation du matin'))) sent.push('collation matin');
+  if (!working && at('13:45') && !at('15:00') && await once('lunch-check', date, async () => {
     const x = await b();
     return x.meals.some(m => m.slot === 'midi') ? null : `📸 Tu as mangé à midi ? Envoie-moi la photo de ton plat (FORME → Repas, ou ici sur Telegram) pour que je garde ton compte juste. Il te reste ${x.left} kcal aujourd'hui.`;
   })) sent.push('rappel midi');
-  if (at('16:00') && !at('17:30') && await once('snack-pm', date, snack('Goûter'))) sent.push('goûter');
+  if (!working && at('16:00') && !at('17:30') && await once('snack-pm', date, snack('Goûter'))) sent.push('goûter');
   if (at('18:30') && !at('20:00') && await once('dinner', date, async () => {
     const x = await b();
     const ask = x.left <= 150

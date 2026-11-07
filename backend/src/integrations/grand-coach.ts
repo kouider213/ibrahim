@@ -314,8 +314,8 @@ async function middayCheck(): Promise<string> {
   const left = b.items.filter(i => !i.done);
   const weekday = localNow().weekday;
   const cercle = [weekday === 2 ? await cercleSuggestion().catch(() => '') : '', ...(await import('./grand-coach-plus.js').then(m => m.middaySections(weekday)).catch(() => [] as string[]))].filter(Boolean).join('\n\n');
-  if (!left.length) return `🕛 Point de midi : tes 3 actions sont déjà faites 🏆 Profite de l'après-midi pour une action bonus ou pour ta famille.${cercle ? `\n\n${cercle}` : ''}`;
-  return `🕛 Point de midi — il te reste ${left.length} action(s) :\n${big3Line(b)}\nLa plus petite d'abord, maintenant, 10 minutes. Réponds « fait 2 » quand c'est fait.${cercle ? `\n\n${cercle}` : ''}`;
+  if (!left.length) return `🕛 Point de midi : tes 3 actions sont déjà faites 🏆 Après le travail : une action bonus ou du temps pour ta famille.${cercle ? `\n\n${cercle}` : ''}`;
+  return `🕛 Point de midi — il te reste ${left.length} action(s) :\n${big3Line(b)}\n${await import('./grand-coach-plus.js').then(m => m.atWorkNow()).catch(() => false) ? 'Tu es au travail (aucune pause là-bas) : rien maintenant. Dès que tu sors, la plus petite d\'abord, 10 minutes.' : 'La plus petite d\'abord, maintenant, 10 minutes.'} Réponds « fait 2 » quand c'est fait.${cercle ? `\n\n${cercle}` : ''}`;
 }
 async function eveningCheck(): Promise<string> {
   const b = await makeBig3();

@@ -6,7 +6,7 @@ import { SAGES } from './grand-coach-sages.js';
 // GRAND COACH + (Kouider 31/10 : « boost au maximum, qu'il m'accompagne toute la journée, 20 trucs auxquels on n'aurait
 // jamais pensé »). Les sections s'ajoutent aux messages existants du Grand Coach (pas de message en plus quand c'est possible).
 //  1 vocal du coach (texte du matin à écouter en voiture)   2 compte à rebours de ta liberté
-//  3 arrivée au travail (GPS) → mission de la pause          4 sas de décompression avant la maison (GPS)
+//  3 arrivée au travail (GPS) → mission d'après le travail         4 sas de décompression avant la maison (GPS)
 //  5 lettre du Kouider de 2036 (1er du mois)                 6 pré-mortem du mardi (inversion de Munger)
 //  7 bocal des victoires (auto + « j'ai gagné… »)            8 anti-procrastination 16h (2 minutes) + report au lendemain
 //  9 score de parole envers toi-même (samedi)               10 technique de négociation du jour (Voss, Cialdini…)
@@ -74,7 +74,8 @@ export async function onGps(here: string | undefined, p: { lat: number; lng: num
     st.work = true; await kvPut(K.gps, st, 2 * 86_400);
     const b = await kvJson<{ items: Array<{ text: string; done?: boolean }> } | null>(`gc:big3:${date}`, null);
     const first = b?.items.find(i => !i.done)?.text;
-    if (await canSpeak()) { await tg(`🏢 Bien arrivé au travail. Ta mission pour la pause : ${first ?? 'une action FIK de 10 minutes'}.\nIci tu gagnes ta sécurité, à Oran tu construis ta liberté. Les deux comptent aujourd'hui. 💪`); await spoke(); }
+    // 07/11 Kouider : « je t'ai dit que je n'ai JAMAIS de pause au travail » → la mission est pour la sortie du travail
+    if (await canSpeak()) { await tg(`🏢 Bien arrivé au travail. Concentre-toi ici. Ta mission pour la sortie du travail : ${first ?? 'une action FIK de 10 minutes'}.\nIci tu gagnes ta sécurité, à Oran tu construis ta liberté. Les deux comptent aujourd'hui. 💪`); await spoke(); }
     return;
   }
   const home = known.find(k => k.id === 'home');
@@ -122,6 +123,13 @@ export async function winsPick(n = 3): Promise<string> {
   return `🫙 Rappelle-toi :\n${pick.map(w => `• ${fmtD(w.date)} — ${w.text}`).join('\n')}`;
 }
 
+/** 07/11 : jour travaillé et pas encore fini (mar/mer/ven/sam avant 20h, jeudi avant 13h) → au travail, AUCUNE pause. */
+export async function atWorkNow(): Promise<boolean> {
+  const m = await import('./kouider-dossier.js').catch(() => null);
+  if (!m) return false;
+  return !(await m.isDayOff().catch(() => false)) && !(await m.isAfterWork().catch(() => false));
+}
+
 // ── 8. Anti-procrastination ──────────────────────────────────────────────────
 export async function antiProcrastination(): Promise<string> {
   const date = localNow().date;
@@ -129,7 +137,8 @@ export async function antiProcrastination(): Promise<string> {
   const stuck = b?.items.find(i => !i.done);
   if (!stuck) return '';
   const step = await ai(`Kouider repousse cette action : « ${stuck.text} »${stuck.carried ? ` (déjà reportée ${stuck.carried} fois)` : ''}. Règle des 2 minutes : donne UNE toute première étape ridicule, faisable en 2 minutes sur son téléphone, qui lance l'action. Une phrase à l'impératif.`, { max: 70 }).catch(() => '');
-  return `⏰ 16h — « ${stuck.text} » attend encore.${stuck.carried ? ` C'est la ${stuck.carried + 1}e journée.` : ''}\nJuste 2 minutes : ${step.trim() || 'ouvre la conversation et écris la première phrase.'}\nLe reste viendra tout seul. Réponds « fait » quand c'est lancé.`;
+  const atWork = await atWorkNow();
+  return `⏰ ${atWork ? 'Pour ta sortie du travail' : '16h'} — « ${stuck.text} » attend encore.${stuck.carried ? ` C'est la ${stuck.carried + 1}e journée.` : ''}\n${atWork ? 'Pas pendant le travail (aucune pause là-bas) : dès que tu sors, juste 2 minutes' : 'Juste 2 minutes'} : ${step.trim() || 'ouvre la conversation et écris la première phrase.'}\nLe reste viendra tout seul. Réponds « fait » quand c'est lancé.`;
 }
 
 // ── 9. Score de parole ───────────────────────────────────────────────────────
@@ -285,7 +294,7 @@ export function baraka(): string {
 // ── 19. Un geste pour ta femme ───────────────────────────────────────────────
 export async function geste(): Promise<string> {
   const t = await ai(`Propose UN petit geste concret pour qu'un mari (Kouider, papa d'un garçon de 1 an et demi, très occupé par son travail et son entreprise) montre aujourd'hui à sa femme qu'il pense à elle : moins de 10 min, sans dépenser beaucoup, pas un cliché. Une phrase à l'impératif. Ne propose pas de lui écrire à sa place.`, { max: 70 }).catch(() => '');
-  return `💌 Geste du jour pour ta femme : ${t.trim() || 'envoie-lui un message à midi juste pour lui dire que tu penses à elle.'}`;
+  return `💌 Geste du jour pour ta femme : ${t.trim() || 'envoie-lui un message avant de commencer le travail juste pour lui dire que tu penses à elle.'}`;
 }
 
 /** Sections ajoutées au message du matin selon le jour (pas de message en plus). */

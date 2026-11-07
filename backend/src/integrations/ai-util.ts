@@ -9,6 +9,8 @@ import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 export { jsonOf } from './media-util.js';
 
 /** emergency : 'voix' (voiture, réveil…) = si TOUS les cerveaux gratuits échouent, secours Claude Haiku (anthropic-compat). */
+export const WORK_FACT = 'FAIT FIXE SUR KOUIDER : au TRAVAIL il n\'a AUCUNE pause (ni repas, ni sieste, ni repos, ni téléphone pour FIK). Ne propose JAMAIS rien « à la pause », « pendant ta pause » ou « à midi au travail » : tout ce qui est FIK, sport, appels, messages se fait AVANT ou APRÈS le travail.';
+
 export async function ai(prompt: string, opts: { system?: string; quality?: boolean; max?: number; images?: Array<{ base64: string; mime: string }>; emergency?: 'voix' | 'chat' } = {}): Promise<string> {
   if (!opts.emergency) return aiOnce(prompt, opts);
   const first = await aiOnce(prompt, opts).catch(e => { console.warn('[ai] gratuit en échec :', e instanceof Error ? e.message.slice(0, 120) : e); return ''; });
@@ -18,6 +20,9 @@ export async function ai(prompt: string, opts: { system?: string; quality?: bool
 }
 
 async function aiOnce(prompt: string, opts: { system?: string; quality?: boolean; max?: number; images?: Array<{ base64: string; mime: string }> }): Promise<string> {
+  // 07/11 Kouider : « je t'ai dit hier que je n'ai JAMAIS de pause au travail, et aujourd'hui il m'en reparle » → fait fixe ajouté
+  // à tous les textes générés qui parlent de lui (coach, mentor, matin, missions…), pas seulement au cerveau principal.
+  if (/kouider/i.test(prompt) || /kouider/i.test(opts.system ?? '')) opts = { ...opts, system: `${opts.system ? `${opts.system}\n\n` : ''}${WORK_FACT}` };
   const content = [
     ...(opts.images ?? []).map(i => ({ type: 'image' as const, source: { type: 'base64' as const, media_type: (/png|webp|gif/.test(i.mime) ? i.mime : 'image/jpeg') as 'image/jpeg', data: i.base64 } })),
     { type: 'text' as const, text: prompt },

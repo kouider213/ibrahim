@@ -1,3 +1,9 @@
+## 2026-11-07 ~07h40 — « au travail AUCUNE pause » appliqué partout
+- 07/11 il a de nouveau reçu « 🏢 Bien arrivé au travail. Ta mission pour la pause » (grand-coach-plus onGps) : la règle du 05-06/11 n'était que dans le cerveau principal + foresight.
+- Arrivée au travail → mission pour la SORTIE du travail. Point de midi 12h30 et rappel 16h : au travail (atWorkNow = pas congé et avant work_end) → « dès que tu sors ». Geste pour sa femme : plus « à midi ».
+- FORME repas : collation 10h, « tu as mangé à midi ? » 13h45 et goûter 16h coupés pendant le travail.
+- ai-util : WORK_FACT ajouté au system de tout texte généré qui parle de Kouider. Récap ne-pas-déranger : « Pendant ton silence » (plus « ta pause »).
+
 ## 2026-11-07 ~07h20 — séance : l'app mène, plus le chrono (app v252)
 - Bug vu 07/11 7h10 : « 🏁 Muscu terminée au chrono » alors qu'il restait 3 exercices (ajoutés par lui) + notifs « exercice suivant » pendant qu'il était encore sur un exercice.
 - L'app FORME envoie sa progression (POST /api/sport/live-app : exercice actuel, ce qui reste, séries) à chaque changement + toutes les 8 min. Tant qu'elle est fraîche (60 min) : gym-live ne fait plus d'enchaînement au chrono, ni « muscu terminée », la montre ne déclare plus la muscu finie ; « terminée » seulement sur Terminer → Enregistrer dans l'app (finished). Départ / appel « pars » et bilan au départ GPS gardés ; « il reste » du rappel départ = liste de l'app. liveNote dit au cerveau que l'app mène.
