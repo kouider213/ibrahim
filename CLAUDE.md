@@ -117,6 +117,7 @@ Alerte Kouider si prix < 1500€. Indépendant du reste de Dzaryx.
 4. git add <fichiers spécifiques> — JAMAIS git add -A ou git add .
 5. Tests obligatoires après changements financiers :
    cd backend && npx tsx --env-file ../.env src/tests/financial-calculations.test.ts
+6. Repo PUBLIC — avant chaque push : node scripts/git-hooks/secret-guard.mjs --range origin/main..HEAD → « ✅ rien »
 ```
 
 ---

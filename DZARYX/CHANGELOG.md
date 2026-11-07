@@ -1,3 +1,10 @@
+## 2026-11-08 nuit — Veille hebdo : garde-fou anti-fuite (repo public)
+- `scripts/git-hooks/secret-guard.mjs` : bloque des lignes ajoutées contenant une vraie valeur des .env (comparaison exacte, jamais affichée, ignorée si déjà dans le repo), un nom PRIVATE_MED_TERMS, une forme de clé connue (Anthropic, OpenAI, GitHub, Google, HF, Replicate, Slack, AWS, JWT, bot Telegram, clé privée) ou un fichier .env/credentials/session. `--test` (auto-test), `--range A..B` (audit). Faux positif : `secret-guard:ok` sur la ligne.
+- Atelier de nuit (night-dev.mjs) : contrôle les commits de chaque chantier avec le garde-fou ; fuite → chantier marqué ÉCHEC + alerte dans le rapport (sans recopier la valeur). Le prompt demande le contrôle avant chaque push.
+- `scripts/git-hooks/pre-commit` fourni mais PAS activé (installation refusée en mode auto) : `git config core.hooksPath scripts/git-hooks` pour l'activer.
+- Audit de tout l'historique : jeton NETLIFY_TOKEN encore ACTIF (API 200, utilisé par FIK Sites) publié depuis mai 2026 dans DZARYX/05_SIMULATEUR_WEB.md et 11_JOURNAL.md → masqué dans les fichiers actuels, MAIS il reste dans l'historique git : à changer par Kouider (nouveau jeton Netlify → Railway + .env, puis supprimer l'ancien).
+- Inspiration : Hermes Agent v0.21 (validation avant écriture des fichiers protégés), Claude Agent SDK hooks `onFailure: "block"`.
+
 ## 2026-11-07 soir — Faux « c'est noté » sur une résa
 - CAUSE des erreurs de la journée : clé Gemini gratuite limitée à 20 requêtes/jour/modèle (GenerateRequestsPerDayPerProjectPerModel-FreeTier = 20), épuisée dès 6h → Haiku secours (6/6 à 19h52) puis Nemotron/petits cerveaux. Solution : plus de clés Gemini (nouveaux projets Google) dans GEMINI_API_KEYS.
 - Gros Gemini RÉSERVÉ aux messages de Kouider : les tâches du planificateur (Conscience, coach, mentor…) passent par Nemotron/autres gratuits puis Gemini lite, gros Gemini en dernier (bg-context.ts ; brain-retry garde le gros cerveau).

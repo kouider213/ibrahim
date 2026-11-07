@@ -75,7 +75,7 @@ function prompt(task) {
     `- Si la demande est dictée à la voix, elle peut contenir des mots mal compris : retrouve le sens le plus probable.`,
     `- Fais-le complètement et proprement, dans le style du code existant. Ajoute ce qui rend la fonction vraiment utile (et ce à quoi Kouider n'aurait pas pensé) tant que ça reste dans le sujet.`,
     `- cd backend && npx tsc --noEmit = 0 erreur ; lance les tests utiles (crash-test sandboxé si ça touche les conversations). Ne démarre JAMAIS un 2e backend local.`,
-    `- Le repo est PUBLIC : aucun secret, aucune donnée de santé ou perso dans le code.`,
+    `- Le repo est PUBLIC : aucun secret, aucune donnée de santé ou perso dans le code. AVANT chaque git push : node scripts/git-hooks/secret-guard.mjs --range origin/main..HEAD doit dire « ✅ rien » (sinon retire la valeur, git commit --amend / nouveau commit, jamais --no-verify).`,
     `- Ne touche pas aux données réelles (clients, réservations, paiements) et n'envoie rien à un client : seulement du code.`,
     `- Commit (git add de fichiers précis), puis mets en ligne en suivant le skill dzaryx-livraison (push Railway, app gh-pages si l'app change, redémarrage pm2 VPS si besoin) et vérifie que c'est bien déployé.`,
     `- APRÈS la mise en ligne, vérifie-toi comme un testeur : déploiement Railway SUCCESS, /health de Railway et du VPS, puis essaie TA nouveauté en vrai dans le bac à sable (scripts/crash-test.ts avec un filtre, ou un petit src/tests/_x.ts) et 2-3 questions de base (réservations de demain, WhatsApp non lus) pour être sûr que rien d'autre n'est cassé. Si quelque chose ne va plus : git revert de tes commits, remets en ligne, et STATUT: ÉCHEC avec l'explication.`,
@@ -173,6 +173,16 @@ async function main() {
     const q2 = await kvGet('dev:queue', []);
     q2.push({ id: Math.random().toString(36).slice(2, 7), text: `ANNULER le chantier n° ${task.id} (serveur KO après mise en ligne)`, source: 'auto', now: true, status: 'todo', at: new Date().toISOString(), kind: 'undo', ...shas });
     await kvSet('dev:queue', q2);
+  }
+  // Garde-fou anti-fuite (veille 07/11, repo PUBLIC) : les commits du chantier ne doivent contenir aucun secret ni nom privé
+  if (shas.from_sha) {
+    const g = spawnSync('node', [`${REPO}/scripts/git-hooks/secret-guard.mjs`, '--range', `${shas.from_sha}..${shas.to_sha}`], { cwd: REPO, encoding: 'utf8' });
+    if (g.status === 1) {
+      ok = false;
+      const found = (g.stdout ?? '').split('\n').filter(l => l.startsWith('  • ')).slice(0, 8).join('\n');
+      report += `\n🛑 FUITE POSSIBLE dans le code mis en ligne (repo public) :\n${found}\n→ change la clé concernée (elle est visible sur GitHub) ; je ne l'ai pas recopiée ici.`;
+      log('secret-guard', found);
+    }
   }
   await updateTask(task.id, { status: ok ? 'done' : 'failed', done_at: new Date().toISOString(), summary: report.slice(0, 600), ...shas });
   const line = `${ok ? '✅' : '❌'} ${task.kind === 'undo' ? '↩️ Annulation' : task.source === 'veille' ? '🔭 Veille' : task.source === 'auto' ? '🐞 Bug repéré seul' : '👤 Ta demande'} : ${task.text.slice(0, 120)}\n${report}${shas.from_sha ? `\n(n° ${task.id} — « annule le chantier ${task.id} » pour revenir en arrière)` : ''}`;

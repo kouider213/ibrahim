@@ -1,0 +1,4 @@
+#!/bin/sh
+# Garde-fou anti-fuite (repo PUBLIC) : bloque un commit qui ajoute un secret ou une donnée de santé.
+# Pas activé automatiquement. Pour l'activer sur une machine (une fois) : git config core.hooksPath scripts/git-hooks
+exec node "$(git rev-parse --show-toplevel)/scripts/git-hooks/secret-guard.mjs"

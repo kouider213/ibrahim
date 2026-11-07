@@ -47,14 +47,14 @@ npm run dev
 
 **Site existant** : https://dzaryx-simulator.netlify.app
 **Site ID** : `4734de84-0223-4bec-ba6c-d3e1eb87217e`
-**Token Netlify** : `nfp_TEgxUYzHhsYxN2cX9L1q2PXqWZGQNjqJ553e`
+**Token Netlify** : `[jeton Netlify masqué — voir .env / Railway]`
 
 ```bash
 cd simulator
 npm run build             # compile vers dist/
 node make-zip.mjs         # crée dist.zip avec POSIX paths (OBLIGATOIRE)
 curl -s -X POST "https://api.netlify.com/api/v1/sites/4734de84-0223-4bec-ba6c-d3e1eb87217e/deploys" \
-  -H "Authorization: Bearer nfp_TEgxUYzHhsYxN2cX9L1q2PXqWZGQNjqJ553e" \
+  -H "Authorization: Bearer [jeton Netlify masqué — voir .env / Railway]" \
   -H "Content-Type: application/zip" \
   --data-binary @dist.zip
 ```

@@ -134,7 +134,7 @@ Sur Windows : `git worktree remove` → "Permission denied" → ignorer, faire `
   ```bash
   node make-zip.mjs  # → dist.zip avec forward slashes
   curl -X POST "https://api.netlify.com/api/v1/sites/4734de84-0223-4bec-ba6c-d3e1eb87217e/deploys" \
-    -H "Authorization: Bearer nfp_TEgxUYzHhsYxN2cX9L1q2PXqWZGQNjqJ553e" \
+    -H "Authorization: Bearer [jeton Netlify masqué — voir .env / Railway]" \
     -H "Content-Type: application/zip" --data-binary @dist.zip
   ```
 
