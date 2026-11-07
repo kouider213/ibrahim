@@ -119,7 +119,10 @@ async function check(p: { t: number; lat: number; lng: number }): Promise<void> 
   for (const k of Object.keys(st.warned)) if (now - st.warned[k]! > 3 * 3600_000) delete st.warned[k];
   const ahead = (await camsAround(p, st))
     .map(c => ({ c, d: km(p, c) }))
-    .filter(x => x.d <= reach && x.d > 0.03 && angle(bearing(p, x.c), head) <= 35 && !(st.warned[camKey(x.c)] && now - st.warned[camKey(x.c)]! < 3600_000))
+    .filter(x => x.d <= reach && x.d > 0.03 && angle(bearing(p, x.c), head) <= 35 && !(st.warned[camKey(x.c)] && now - st.warned[camKey(x.c)]! < 3600_000)
+      // 07/11 : « 📸 Radar » ×3 en 16 s = le même radar saisi plusieurs fois dans OSM à quelques mètres → un radar annoncé
+      // il y a < 10 min à moins de 300 m couvre ses doublons
+      && !Object.entries(st.warned).some(([k, at]) => { const [la, lo] = k.split(',').map(Number); return now - at < 10 * 60_000 && km({ lat: la!, lng: lo! }, x.c) < 0.3; }))
     .sort((a, b) => a.d - b.d)[0];
   if (ahead) {
     st.warned[camKey(ahead.c)] = now;

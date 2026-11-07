@@ -1,4 +1,7 @@
 ## 2026-11-07 soir — Faux « c'est noté » sur une résa
+- CAUSE des erreurs de la journée : clé Gemini gratuite limitée à 20 requêtes/jour/modèle (GenerateRequestsPerDayPerProjectPerModel-FreeTier = 20), épuisée dès 6h → Haiku secours (6/6 à 19h52) puis Nemotron/petits cerveaux. Solution : plus de clés Gemini (nouveaux projets Google) dans GEMINI_API_KEYS.
+- Radar : même radar saisi 2-3 fois dans OSM à quelques mètres → 1 seule alerte (radar annoncé < 10 min à < 300 m couvre ses doublons). Matin 07/11 : 6 « 📸 Radar » en 5 min.
+- « Ne pas déranger » après appel manqué : la consigne « tu étais en ne pas déranger » n'est plus recollée à chaque message (3× à 19h52) ni le délai relancé.
 - « +200 euro en cas> aujourd'hui » : faute sur cash (cas/cach/kash…) comprise par le code → caisse + vente du jour (avant : fortune répondue, rien noté). « en cas de » intact.
 - Djillali : « ramène quand ? » → « le 9 » alors que Kouider avait donné le 10 à 6h (jour offert) : le cerveau avait dit « noté » sans update_booking. phantomGuard bloque maintenant « noté / location prolongée / jour offert noté » sur une résa sans écriture réelle → relance avec le vrai outil.
 

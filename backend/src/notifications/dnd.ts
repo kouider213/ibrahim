@@ -14,7 +14,8 @@ const ACTIVE_KEY = 'kouider:last_active';     // même clé que morning-routine.
 const TALK_WINDOW_MS = 10 * 60_000;
 const PERSONAL_RE = /h[oô]pital|urgence|malade|m[ée]decin|famille|fils|femme|enfant|petit|b[ée]b[ée]|d[ée]c[eè]s|enterrement|accident|bless/i;
 export const FOLLOWUP_KEY = 'kouider:family:followup';   // souci perso pendant un silence → nouvelles demandées le soir (presence / life-coach)
-const REPLY_GRACE_MS = 2 * 60_000;            // il vient de répondre : 2 min pour qu'il donne son heure avant de tout renvoyer
+const REPLY_GRACE_MS = 2 * 60_000;
+const REPLIED = ' — il a répondu';            // il vient de répondre : 2 min pour qu'il donne son heure avant de tout renvoyer
 // Appel pas décroché / refusé : 1 h de silence, puis tout reprend tout seul (Kouider 24/10 : « jusqu'à ta réponse »
 // l'a laissé sans nouvelles de 8h à 12h45 alors qu'il sortait juste de la salle)
 export const MISSED_CALL_DND_MS = 60 * 60_000;
@@ -106,6 +107,8 @@ export async function takeFamilyFollowup(): Promise<string | null> {
 export async function dndOnKouiderMessage(): Promise<string | null> {
   const s = await getDnd();
   if (!s) return null;
+  // 07/11 : 3 messages de suite à 19h52 → le même « tu étais en ne pas déranger » collé 3 fois et le délai relancé à chaque fois
+  if (s.why.endsWith(REPLIED)) return null;
   // Silence pour un souci perso (enfant malade, hôpital…) : Kouider 22/10 « tu m'as même pas demandé ce qu'il avait » (son fils)
   // Une seule fois par silence (29/10 : « Comment tu vas ? » redemandé à chaque message de la soirée)
   const careKey = `dnd:care-asked:${s.since}`;
@@ -118,7 +121,7 @@ export async function dndOnKouiderMessage(): Promise<string | null> {
   }
   const work = ' S\'il dit qu\'il est au travail, ne parle pas de jour de congé : il travaille aujourd\'hui.';
   if (s.untilReply || /^appel (pas décroché|refusé)$/.test(s.why)) {   // appel manqué : il réécrit = il est de retour
-    await setDnd({ until: Date.now() + REPLY_GRACE_MS, why: s.why });
+    await setDnd({ until: Date.now() + REPLY_GRACE_MS, why: s.why + REPLIED });
     return `[Contexte : tu étais en « ne pas déranger » depuis ${hhmm(s.since)} (${s.why}) : plus d'appels ni de messages. Il vient de te répondre. S'il dit à partir de quelle heure il est joignable (« dispo à 15h », « après 14h », « dans 2 heures »), appelle pause_calls (until_time ou minutes). S'il dit qu'il est dispo ou qu'on peut tout débloquer, pause_calls resume:true — et ne confirme qu'après le résultat de l'outil. Sinon : il est de retour, réponds simplement à ce qu'il dit. Ne lui demande PAS « à partir de quelle heure je peux te rappeler » (02/11 : redemandé chaque matin après l'appel réveil, ça l'agace) ; au plus « tout va bien ? » si son message est inquiétant.${care}${work}]`;
   }
   return `[Contexte : il est en « ne pas déranger » jusqu'à ${hhmm(s.until)} (${s.why}) : FAIS ce qu'il demande, outils compris (agenda, séance sport, rappels, notes… : il te parle, donc c'est voulu) ; ne lance juste rien de TOI-MÊME en plus (pas d'appel, pas de proposition). Ne réponds JAMAIS « profite de ta soirée » à une demande : exécute-la (02/11 : « modifie mon agenda » ignoré). S'il dit qu'il est de nouveau dispo ou qu'on peut tout débloquer, pause_calls resume:true — et ne confirme qu'après le résultat de l'outil.${care}${work}]`;
