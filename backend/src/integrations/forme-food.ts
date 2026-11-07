@@ -285,7 +285,7 @@ export async function analyzeMealPhoto(uid: Uid, img: { base64: string; mime: st
 }
 
 /** « J'ai mangé 2 œufs et une tartine » (tool / app) → même calcul, sans photo. */
-export async function logMealText(uid: Uid, text: string, slot?: MealSlot): Promise<{ meal: MealLog; budget: Budget; message: string }> {
+export async function logMealText(uid: Uid, text: string, slot?: MealSlot, date?: string): Promise<{ meal: MealLog; budget: Budget; message: string }> {
   const { ai, jsonOf } = await import('./ai-util.js');
   const raw = await ai(`${VISION_PROMPT(text).replace('Regarde la photo et liste CHAQUE aliment visible.', `Voici ce qu'il a mangé (pas de photo) : « ${text} ». Liste chaque aliment, avec une portion normale si la quantité n'est pas dite.`)}`, { quality: true, max: 1200 });
   const j = jsonOf<RawMeal>(raw);
@@ -295,7 +295,7 @@ export async function logMealText(uid: Uid, text: string, slot?: MealSlot): Prom
   const kcalNew = cleanItems(j.items).reduce((a, x) => a + x.kcal, 0);
   const twin = (await mealsOf(uid)).find(m => m.src === 'texte' && Date.now() - m.at < 5 * 60_000 && kcalNew > 0 && Math.abs(m.kcal - kcalNew) <= Math.max(25, kcalNew * 0.15));
   if (twin) { const b = await foodBudget(uid, twin.date); return { meal: twin, budget: b, message: `ℹ️ Déjà noté à ${twin.time} : ${twin.title} (${twin.kcal} kcal) — PAS compté une 2e fois. Si c'en est vraiment un autre, redis-le dans 5 min.` }; }
-  const meal = await storeMeal(uid, j, { src: 'texte', note: text, slot });
+  const meal = await storeMeal(uid, j, { src: 'texte', note: text, slot, ...(date ? { date } : {}) });   // 07/11 : repas oublié noté après coup sur son jour
   return afterMeal(uid, meal);
 }
 
@@ -462,7 +462,7 @@ export async function morningSleepMessage(force = false): Promise<string | null>
   const yLine = y.meals.length ? `Hier : mangé ${y.eaten.kcal} kcal pour une dépense ${y.activeSource === 'montre' ? 'mesurée' : 'estimée'} de ${y.burn} → ${y.burn - y.eaten.kcal >= 0 ? `déficit réel ${y.burn - y.eaten.kcal} kcal` : `surplus ${y.eaten.kcal - y.burn} kcal`} ; protéines ${y.eaten.p}/${y.proteinGoal} g.` : 'Hier : aucun repas noté dans FORME.';
   // 01/11 : le raccourci part bien à l'alarme mais la case « sleep » arrive vide → le dire tel quel (ce n'est pas la montre)
   const sentEmpty = !t?.sleep_h && t && await kvGet('health:lastraw:any').then(r => /"sleep\\?"\s*:\s*\\?"\\?"/.test(String(r ?? ''))).catch(() => false);
-  const sleepLine = t?.sleep_h ? `Sommeil cette nuit (${(t as { sleep_src?: string }).sleep_src === 'telephone' ? 'estimé par le téléphone : coucher → réveil, sans montre' : 'Apple Watch'}) : ${t.sleep_h} h${usual ? ` (moyenne habituelle ${usual} h)` : ''}${t.hrv ? `, VFC ${t.hrv} ms` : ''}${t.rhr ? `, cœur au repos ${t.rhr}` : ''}.` : sentEmpty ? 'Sommeil de cette nuit : le raccourci Santé a bien envoyé ce matin (cœur, VFC, pas OK) MAIS la case sommeil était VIDE — le réglage « sommeil » du raccourci est à corriger (pas la montre). Demande-lui simplement combien il a dormi (« j\'ai dormi 7 h » suffit).' : 'Sommeil de cette nuit : PAS ENCORE REÇU (le raccourci Santé n\'a rien envoyé ce matin).';
+  const sleepLine = t?.sleep_h ? `Sommeil cette nuit (${(t as { sleep_src?: string }).sleep_src === 'telephone' ? 'estimé par le téléphone : coucher → réveil, sans montre' : (t as { sleep_src?: string }).sleep_src === 'manuel' ? 'noté par lui dans FORME' : 'Apple Watch'}) : ${t.sleep_h} h${usual ? ` (moyenne habituelle ${usual} h)` : ''}${t.hrv ? `, VFC ${t.hrv} ms` : ''}${t.rhr ? `, cœur au repos ${t.rhr}` : ''}.` : sentEmpty ? 'Sommeil de cette nuit : le raccourci Santé a bien envoyé ce matin (cœur, VFC, pas OK) MAIS la case sommeil était VIDE — le réglage « sommeil » du raccourci est à corriger (pas la montre). Demande-lui simplement combien il a dormi (« j\'ai dormi 7 h » suffit).' : 'Sommeil de cette nuit : PAS ENCORE REÇU (le raccourci Santé n\'a rien envoyé ce matin).';
   const week = await import('./sleep-coach.js').then(m => m.sleepContextLine()).catch(() => '');
   const ready = await import('./workout-live.js').then(m => m.readiness()).then(r => r?.line ?? '').catch(() => '');
   // Nuit courte → la séance du jour s'allège toute seule (comme pour le cœur / la VFC)

@@ -722,6 +722,7 @@ export async function logForme(kind: string, b: Record<string, unknown>, date = 
   const n = (v: unknown) => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
   const d = await updateDay(uid, date, d => {
     if (kind === 'water') d.water = Math.max(0, Math.min(30, d.water + (n(b.delta) || 1)));
+    else if (kind === 'water-set') d.water = Math.max(0, Math.min(30, Math.round(n(b.glasses))));
     else if (kind === 'weight' && n(b.kg) > 30) d.weight = Math.round(n(b.kg) * 10) / 10;
     else if (kind === 'meal') d.meals[String(b.key)] = !!b.eaten;
     else if (kind === 'food') d.extra.push({ name: String(b.name ?? 'Aliment').slice(0, 60), kcal: Math.round(n(b.kcal)), p: Math.round(n(b.p)), c: Math.round(n(b.c)), f: Math.round(n(b.f)), at: Date.now(), src: String(b.src ?? 'manuel').slice(0, 20) });
@@ -735,7 +736,20 @@ export async function logForme(kind: string, b: Record<string, unknown>, date = 
     else if (kind === 'steps' && n(b.steps) >= 0) d.steps = Math.min(80000, Math.round(n(b.steps)));
     else if (kind === 'workout') d.workout = { session: n(b.session), label: String(b.label ?? '').slice(0, 40), sets: (Array.isArray(b.sets) ? b.sets as WorkoutLog['sets'] : []).slice(0, 80).map(s => ({ ex: String(s.ex), ...(n(s.kg) > 0 ? { kg: n(s.kg) } : {}), ...(n(s.reps) > 0 ? { reps: n(s.reps) } : {}) })), ...(n(b.durationMin) > 0 ? { durationMin: n(b.durationMin) } : {}), ...(n(b.rpe) > 0 ? { rpe: n(b.rpe) } : {}), at: Date.now() };
   });
-  if (kind === 'weight' && n(b.kg) > 30) await setFormeProfile({ weightKg: n(b.kg) }, uid).catch(() => {});
+  // 07/11 : une pesée oubliée notée après coup ne remplace pas le poids actuel s'il y a une pesée plus récente
+  if (kind === 'weight' && n(b.kg) > 30) {
+    const later = Object.entries(await readDays(uid).catch(() => ({} as Record<string, FormeDay>))).some(([k, x]) => k > date && x.weight);
+    if (!later) await setFormeProfile({ weightKg: n(b.kg) }, uid).catch(() => {});
+  }
+  // 07/11 Kouider : « si j'oublie de noter, je le rajoute plus tard et c'est enregistré partout » → sommeil / pas d'un jour
+  // aussi dans health:daily (coach sommeil, bilans, objectif lisent la montre d'abord) : sa correction l'emporte.
+  if (uid === 'kouider' && ((kind === 'sleep' && n(b.hours) > 0) || (kind === 'steps' && n(b.steps) >= 0))) {
+    const all = JSON.parse((await kvGet('health:daily').catch(() => null)) ?? '[]') as Array<Record<string, unknown> & { date: string }>;
+    let h = all.find(x => x.date === date); if (!h) { h = { date }; all.push(h); }
+    if (kind === 'sleep') { h['sleep_h'] = d.sleep; h['sleep_src'] = 'manuel'; } else h['steps'] = d.steps;
+    all.sort((a, z) => a.date.localeCompare(z.date));
+    await kvSet('health:daily', JSON.stringify(all.slice(-120))).catch(() => {});
+  }
   return d;
 }
 

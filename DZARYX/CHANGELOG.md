@@ -1,3 +1,7 @@
+## 2026-11-07 ~07h — FORME : corriger un jour passé après coup (app v251)
+- Calendrier › un jour (passé ou aujourd'hui) › « ✏️ Ajouter / corriger » : eau (± verre), sommeil, pas, poids, repas oublié (texte, compté sur CE jour), séance cochée / décochée.
+- Enregistré partout : journée FORME + health:daily pour sommeil/pas (sleep_src 'manuel', la montre ne l'écrase plus), repas datés (logMealText date), journal sport (setSessionDone). Une vieille pesée ne remplace plus le poids actuel s'il existe une pesée plus récente. Nouveau kind 'water-set'.
+
 ## 2026-11-07 ~06h40 — FORME : machine scannée ajoutée à la séance + retirer un exercice (app v250)
 - Pendant la séance : tuile 📷 à côté de ＋ → photo de la machine → coche les exercices → ajoutés à la séance (séries, kg, reps, note, enregistrés comme les autres).
 - Écran Scanner hors séance : « Ajouter à ma séance en cours » si une séance est en cours.

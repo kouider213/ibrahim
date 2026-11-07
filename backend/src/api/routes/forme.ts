@@ -137,9 +137,9 @@ router.post('/food/photo', async (req, res) => {
   } catch (err) { fail(res, err, 400); }
 });
 router.post('/food/text', async (req, res) => {
-  const b = req.body as { text?: string; slot?: string };
+  const b = req.body as { text?: string; slot?: string; date?: string };
   if (!b.text?.trim()) { fail(res, 'texte manquant', 400); return; }
-  try { const f = await food(); res.json(await f.logMealText(U(req), b.text.slice(0, 300), b.slot && b.slot in f.SLOT_LABEL ? b.slot as never : undefined)); } catch (err) { fail(res, err, 400); }
+  try { const f = await food(); res.json(await f.logMealText(U(req), b.text.slice(0, 300), b.slot && b.slot in f.SLOT_LABEL ? b.slot as never : undefined, isDate(b.date) && b.date <= new Date().toISOString().slice(0, 10) ? b.date : undefined)); } catch (err) { fail(res, err, 400); }
 });
 router.post('/food/edit', async (req, res) => {
   const b = req.body as { date?: string; id?: string; items?: never; title?: string; slot?: never; scale?: number; del?: boolean };

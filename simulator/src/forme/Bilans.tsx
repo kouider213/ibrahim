@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { get, postJson } from './api.ts';
-import { F, card, ghostBtn, Sheet, Spinner, Stat } from './ui.tsx';
+import { F, card, ghostBtn, btn, input, Sheet, Spinner, Stat } from './ui.tsx';
 
 // 📊 BILANS (06/11, Kouider) : bilan du jour / de la semaine / du mois (notes, points forts/faibles, quoi améliorer, charges à augmenter)
 // + un jour du calendrier en détail (montre, séance, repas, eau, records). Tout vient de /api/forme/report et /api/forme/day.
@@ -94,17 +94,67 @@ export function BilansCard({ toast }: { toast?: (t: string) => void }) {
   );
 }
 
+// ✏️ 07/11 Kouider : « sur le calendrier, les jours passés, si j'ai oublié de noter l'eau ou autre, je dois pouvoir le rajouter
+// plus tard, et ça modifie et c'est enregistré partout — pas que l'eau, tout ce que je fais ce jour-là ».
+// Tout part dans les mêmes stockages que le jour même (journée FORME, montre/Santé, repas, journal des séances) → bilans, objectif, coach suivent.
+function DayEdit({ date, x, onSaved }: { date: string; x: DayData['day']; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState('');
+  const [f, setF] = useState({ sleep: '', steps: '', weight: '', meal: '' });
+  const run = async (k: string, fn: () => Promise<unknown>, ok: string) => {
+    setBusy(k); setMsg('');
+    try { const r = await fn() as { message?: string; msg?: string } | undefined; setMsg(r?.msg ?? (k === 'meal' && r?.message ? r.message.split('\n')[0]! : ok)); setF(v => ({ ...v, [k]: '' })); onSaved(); }
+    catch (e) { setMsg(`❌ ${e instanceof Error ? e.message : String(e)}`); } finally { setBusy(null); }
+  };
+  const num = (v: string) => Number(v.replace(',', '.'));
+  const row = (k: 'sleep' | 'steps' | 'weight', label: string, ph: string, go: () => Promise<unknown>, ok: string, valid: boolean) => (
+    <div style={{ display: 'grid', gridTemplateColumns: '96px 1fr 64px', gap: 8, alignItems: 'center', marginTop: 8 }}>
+      <div style={{ fontSize: 14, fontWeight: 600 }}>{label}</div>
+      <input inputMode="decimal" value={f[k]} onChange={e => setF(v => ({ ...v, [k]: e.target.value }))} placeholder={ph} style={{ ...input, padding: '9px 10px', fontSize: 15 }} />
+      <button disabled={!valid || !!busy} onClick={() => void run(k, go, ok)} style={{ ...btn, padding: '9px 0', fontSize: 14, boxShadow: 'none', opacity: valid ? 1 : 0.4 }}>{busy === k ? '…' : 'OK'}</button>
+    </div>);
+  if (!open) return <button onClick={() => setOpen(true)} style={{ ...ghostBtn, width: '100%', marginTop: 10 }}>✏️ Ajouter / corriger ce que j'ai fait ce jour-là</button>;
+  const glasses = x.water;
+  return (
+    <div style={{ ...card, marginTop: 10 }}>
+      <div style={{ fontWeight: 700, fontSize: 15.5 }}>✏️ Ajouter / corriger ce jour</div>
+      <div style={{ fontSize: 12.5, color: F.muted, marginTop: 2 }}>Enregistré partout : bilans, objectif, coach, calendrier.</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '96px 1fr', gap: 8, alignItems: 'center', marginTop: 10 }}>
+        <div style={{ fontSize: 14, fontWeight: 600 }}>💧 Eau</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button disabled={!!busy || glasses <= 0} onClick={() => void run('water', () => postJson('/api/forme/log', { kind: 'water-set', glasses: glasses - 1, date }), '💧 Eau corrigée')} style={{ ...ghostBtn, padding: '8px 14px' }}>−</button>
+          <div style={{ flex: 1, textAlign: 'center', fontWeight: 700 }}>{busy === 'water' ? '…' : `${glasses} verre${glasses > 1 ? 's' : ''} · ${(glasses * 0.25).toLocaleString('fr-FR')} L`}</div>
+          <button disabled={!!busy} onClick={() => void run('water', () => postJson('/api/forme/log', { kind: 'water-set', glasses: glasses + 1, date }), '💧 Verre ajouté')} style={{ ...ghostBtn, padding: '8px 14px' }}>+</button>
+        </div>
+      </div>
+      {row('sleep', '😴 Sommeil', x.sleep_h ? `${x.sleep_h} h` : 'heures (ex. 7,5)', () => postJson('/api/forme/log', { kind: 'sleep', hours: num(f.sleep), date }), '😴 Sommeil noté', num(f.sleep) > 0 && num(f.sleep) <= 14)}
+      {row('steps', '👣 Pas', x.steps ? String(x.steps) : 'ex. 9000', () => postJson('/api/forme/log', { kind: 'steps', steps: Math.round(num(f.steps)), date }), '👣 Pas notés', num(f.steps) >= 0 && f.steps.trim() !== '')}
+      {row('weight', '⚖️ Poids', x.weight ? `${x.weight} kg` : 'kg', () => postJson('/api/forme/log', { kind: 'weight', kg: num(f.weight), date }), '⚖️ Pesée notée', num(f.weight) > 30 && num(f.weight) < 250)}
+      <div style={{ fontSize: 14, fontWeight: 600, marginTop: 12 }}>🍽️ Repas oublié</div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+        <input value={f.meal} onChange={e => setF(v => ({ ...v, meal: e.target.value }))} placeholder="ex. 200 g de riz + 150 g de poulet" style={{ ...input, padding: '9px 10px', fontSize: 15 }} />
+        <button disabled={!f.meal.trim() || !!busy} onClick={() => void run('meal', () => postJson('/api/forme/food/text', { text: f.meal.trim(), date }), '🍽️ Repas noté')} style={{ ...btn, padding: '9px 14px', fontSize: 14, boxShadow: 'none', opacity: f.meal.trim() ? 1 : 0.4 }}>{busy === 'meal' ? '…' : 'OK'}</button>
+      </div>
+      <button disabled={!!busy} onClick={() => void run('sport', () => postJson('/api/sport/done', { date, done: !x.session }), x.session ? 'Séance décochée' : '✅ Séance cochée')} style={{ ...ghostBtn, width: '100%', marginTop: 12 }}>{busy === 'sport' ? '…' : x.session ? '🏋️ Je n\'ai PAS fait la séance ce jour-là (décocher)' : '🏋️ J\'ai fait ma séance ce jour-là (cocher)'}</button>
+      {msg && <div style={{ marginTop: 10, fontSize: 13.5, fontWeight: 600, color: msg.startsWith('❌') ? F.red : F.green }}>{msg}</div>}
+    </div>
+  );
+}
+
 /** Un jour du calendrier en détail. */
 export function DaySheet({ date, onClose }: { date: string | null; onClose: () => void }) {
   const [d, setD] = useState<DayData | null>(null);
   const [err, setErr] = useState(false);
-  useEffect(() => { if (!date) return; setD(null); setErr(false); get<DayData>(`/api/forme/day?date=${date}`).then(setD).catch(() => setErr(true)); }, [date]);
+  const load = (quiet = false) => { if (!date) return; if (!quiet) setD(null); setErr(false); get<DayData>(`/api/forme/day?date=${date}`).then(setD).catch(() => setErr(true)); };
+  useEffect(() => { load(); }, [date]); // eslint-disable-line react-hooks/exhaustive-deps
   const x = d?.day;
   const title = date ? new Date(`${date}T12:00:00Z`).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }) : '';
   return (
     <Sheet open={!!date} onClose={onClose} title={title.charAt(0).toUpperCase() + title.slice(1)}>
       {err ? <div style={{ padding: 20, color: F.muted }}>Données indisponibles pour ce jour.</div> : !x || !d ? <div style={{ padding: 30, display: 'flex', justifyContent: 'center' }}><Spinner /></div> : <div style={{ paddingTop: 6 }}>
         <div style={{ ...card }}><ScoreBars s={d.scores} /></div>
+        {date && date <= new Date().toLocaleDateString('sv-SE') && <DayEdit date={date} x={x} onSaved={() => load(true)} />}
         <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
           <Stat v={n(x.steps)} l={`pas (obj. ${n(x.stepsGoal)})`} color={x.steps && x.steps >= x.stepsGoal ? F.green : F.ink} />
           <Stat v={x.sleep_h ? `${n(x.sleep_h, 1)} h` : '—'} l="sommeil" color={x.sleep_h && x.sleep_h >= 7 ? F.green : F.ink} />
