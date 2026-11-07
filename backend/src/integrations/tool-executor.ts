@@ -349,7 +349,10 @@ async function bookingByClient(name: string, input: Record<string, unknown>): Pr
   const current = list.filter(b => b.end_date >= today);
   const pick = current.length === 1 ? current[0] : current.length === 0 ? list[0] : null;
   if (!pick) return input;
-  return { ...input, id: pick.id, booking_id: pick.id };
+  // le nom a servi à TROUVER la résa : update_booking ne doit pas renommer « Djillali Halfi » en « Djilali » (07/11)
+  const out: Record<string, unknown> = { ...input, id: pick.id, booking_id: pick.id };
+  if (name === 'update_booking') { delete out['client_name']; delete out['client']; }
+  return out;
 }
 
 const NEXUS_TOOLS = new Set(['ping_nexus', 'send_nexus_command', 'nexus_screenshot', 'wake_nexus', 'restart_nexus', 'update_nexus', 'nexus_full_status']);
@@ -836,8 +839,9 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
       if (cpd != null && fields['final_price'] === undefined && (datesChanged || fields['client_price_per_day'] !== undefined)) fields['final_price'] = Math.round(cpd * days * 100) / 100;
       const opd = fields['owner_price_per_day'] !== undefined ? Number(fields['owner_price_per_day']) : c['owner_price_per_day'] != null ? Number(c['owner_price_per_day']) : null;
       if (cpd != null) fields['client_price_per_day'] = cpd;
-      if (opd != null) fields['owner_total'] = Math.round(opd * days * 100) / 100;
-      fields['profit_kouider'] = cpd != null && opd != null && !/houari/i.test(String(c['rented_by'] ?? '')) ? Math.round((cpd - opd) * days * 100) / 100 : null;
+      // jours offerts : le proprio est quand même payé (par Kouider) → coût proprio sur TOUS les jours, déduit de son bénéfice
+      if (opd != null) fields['owner_total'] = Math.round(opd * realDays * 100) / 100;
+      fields['profit_kouider'] = cpd != null && opd != null && !/houari/i.test(String(c['rented_by'] ?? '')) ? Math.round((cpd * days - opd * realDays) * 100) / 100 : null;
     }
   }
 
@@ -845,7 +849,7 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
   if (error) return `Erreur mise à jour: ${error.message}`;
 
 
-  const offered = freeDays && fields['nb_days'] != null ? `\n🎁 ${freeDays} jour(s) offert(s) : le client paie ${fields['nb_days']} jour(s), total ${fields['final_price'] ?? '?'} € (inchangé pour lui). Le lien d'avis Google partira le lendemain du nouveau retour.` : '';
+  const offered = freeDays && fields['nb_days'] != null ? `\n🎁 ${freeDays} jour(s) offert(s) : le client paie ${fields['nb_days']} jour(s), total ${fields['final_price'] ?? '?'} € (inchangé pour lui). Le proprio est payé pour ${freeDays > 1 ? 'ces jours' : 'ce jour'} par Kouider : coût proprio ${fields['owner_total'] ?? '?'} €, bénéfice Kouider ${fields['profit_kouider'] ?? '?'} €. Le lien d'avis Google partira le lendemain du nouveau retour.` : '';
   return `✅ Réservation ${id} mise à jour: ${JSON.stringify(fields)}${offered}`;
 }
 

@@ -802,11 +802,33 @@ class RealtimeCall:
                 if jpg:   # caméra allumée → le vrai Dzaryx reçoit l'image (état des lieux, documents…), comme dans l'app
                     body.update(image=jpg, imageMime='image/jpeg')
                 waiting = asyncio.create_task(self._say_while_waiting())
+                # 07/11 : « vérifie WhatsApp » = 6 outils PC cloud = 91 s → coupé à 90 s, réponse perdue.
+                # Maintenant : au bout de 60 s on dit qu'on envoie sur Telegram, et la recherche CONTINUE (jusqu'à 4 min) → Telegram.
+                job = asyncio.create_task(self.api('/api/call/turn', body, self.actor, 240))
                 try:
-                    out = await self.api('/api/call/turn', body, self.actor, 90)
+                    out = await asyncio.wait_for(asyncio.shield(job), 60)
+                except asyncio.TimeoutError:
+                    out = None
+                    req = str(args.get('request', ''))[:200]
+
+                    async def _late(j=job, q=req) -> None:
+                        try:
+                            o = await j
+                            txt = (o.get('text') or '').strip()
+                        except Exception as e:
+                            txt = f"Je n'ai pas réussi à finir (« {q} ») : {e or 'trop long'}"
+                        if txt:
+                            outbox = Path(__file__).resolve().parent / 'outbox'
+                            outbox.mkdir(exist_ok=True)
+                            (outbox / f'{int(time.time() * 1000)}-appel.txt').write_text(f'📞 Suite de notre appel — {q}\n\n{txt}', encoding='utf-8')
+                            log.info('ask_dzaryx tardif → Telegram (%d car.)', len(txt))
+                    asyncio.create_task(_late())
                 finally:
                     waiting.cancel()
-                result = out.get('text') or 'Pas de réponse.'
+                result = (out.get('text') or 'Pas de réponse.') if out is not None else (
+                    "Ça prend plus de temps que prévu (le PC cloud ouvre les discussions). Dis-lui en une phrase que tu "
+                    "continues à chercher et que tu lui envoies le résultat sur Telegram dans une minute ou deux. "
+                    "N'invente aucun résultat.")
             except Exception as e:
                 result = f'Erreur technique : {e}. Dis-lui que tu n\'arrives pas à vérifier pour le moment.'
             if not fut.done():

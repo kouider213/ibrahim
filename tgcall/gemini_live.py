@@ -47,7 +47,10 @@ NOISE_RULE = ("\n\nAPPEL TÉLÉPHONIQUE — BRUITS : un bruit, un souffle, des m
               "aucun outil, n'écris jamais « CONFIRMÉ » pour ça. S'il y a un doute, demande simplement « tu peux répéter ? ». "
               "Quand il dit juste « allô » au décroché, continue ta phrase sans recommencer. Ne réponds JAMAIS « allô ? », "
               "« ça va ? » ou « je t'entends plus » à un bruit ou un silence : soit tu continues le sujet, soit tu attends. "
-              "Ne redis pas une phrase que tu viens déjà de dire.")
+              "Ne redis pas une phrase que tu viens déjà de dire. "
+              "LANGUE : tu parles TOUJOURS en français (ou en darija oranaise s'il te parle darija), JAMAIS en espagnol, "
+              "anglais, chinois ou autre. Kouider est souvent au travail entouré de gens : une phrase dans une autre langue "
+              "(« ¿Cómo? », « ¿A cuánto…? ») vient de quelqu'un autour de lui, pas de lui → ignore-la et continue en français.")
 
 
 def clean_heard(t: str) -> str:
@@ -202,7 +205,8 @@ class GeminiLiveWS:
     def _flush_input(self) -> None:
         heard = clean_heard(self.in_text)
         noisy = bool(re.search(r'<[^>]{1,20}>|[\u06F0-\u06F9]', self.in_text))   # « <noise> », chiffres persans = bruit mal transcrit
-        if meaningful(heard) and (not noisy or speaks(heard)) and not lone_noise(heard):   # un bruit (« <noise> », souffle) n'est pas une phrase de Kouider
+        foreign = bool(re.search(r'[¿¡\u3040-\u30ff\u4e00-\u9fff]', self.in_text))   # espagnol/chinois = gens autour de lui au travail (07/11), pas Kouider
+        if meaningful(heard) and not foreign and (not noisy or speaks(heard)) and not lone_noise(heard):   # un bruit (« <noise> », souffle) n'est pas une phrase de Kouider
             self._put({'type': 'input_audio_buffer.committed'})
             self._put({'type': 'conversation.item.input_audio_transcription.completed', 'transcript': heard})
         elif self.in_text.strip():   # pour savoir ce qu'il a VRAIMENT entendu quand Kouider dit « il me comprend pas »

@@ -10,7 +10,7 @@
 
 import { supabase } from './supabase.js';
 import { getPricingForVehicle } from '../config/pricing.js';
-import { rentalDays } from './finance.js';
+import { rentalDays, offeredDays } from './finance.js';
 
 // ── Calcul financier normalisé — SANS fallback catalogue ─────────────────────
 // Règle stricte :
@@ -36,6 +36,7 @@ function resolveFinancials(b: {
   end_date:              string;
   nb_days?:              number | null;
   discount_applied?:     number | null;
+  notes?:                string | null;
 }): ResolvedFinancials {
   const nb_days = rentalDays(b.start_date, b.end_date, b.nb_days);
   const discount_applied = b.discount_applied ?? 0;
@@ -59,11 +60,12 @@ function resolveFinancials(b: {
   const gross_ca   = client_ppd != null
     ? Math.round(client_ppd * nb_days * 100) / 100
     : (b.final_price ?? null);
+  const free       = offeredDays(b.notes);   // jours offerts : proprio payé par Kouider (07/11)
   const owner_cost = owner_ppd != null
-    ? Math.round(owner_ppd * nb_days * 100) / 100
+    ? Math.round(owner_ppd * (nb_days + free) * 100) / 100
     : null;
   const profit     = (client_ppd != null && owner_ppd != null)
-    ? Math.round((client_ppd - owner_ppd) * nb_days * 100) / 100
+    ? Math.round(((client_ppd - owner_ppd) * nb_days - owner_ppd * free) * 100) / 100
     : null;
   const data_complete = client_ppd != null && owner_ppd != null;
 
@@ -215,7 +217,7 @@ export async function getCAReport(
   // Réservations dont la période CHEVAUCHE l'intervalle demandé
   const { data, error } = await supabase
     .from('bookings')
-    .select('id, client_name, final_price, client_price_per_day, owner_price_per_day, nb_days, start_date, end_date, rented_by, status, cars(name)')
+    .select('id, client_name, final_price, client_price_per_day, owner_price_per_day, nb_days, start_date, end_date, rented_by, status, notes, cars(name)')
     .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
     .lte('start_date', endDate)
     .gte('end_date',   startDate)
@@ -429,13 +431,13 @@ export async function getFinancialDashboard(): Promise<string> {
   const [curRes, prevRes, unpaidRes] = await Promise.all([
     supabase
       .from('bookings')
-      .select('final_price, client_price_per_day, owner_price_per_day, paid_amount, payment_status, rented_by, nb_days, start_date, end_date, cars(name)')
+      .select('final_price, client_price_per_day, owner_price_per_day, paid_amount, payment_status, rented_by, nb_days, start_date, end_date, notes, cars(name)')
       .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
       .lte('start_date', curEnd)
       .gte('end_date',   `${year}-${mm}-01`),
     supabase
       .from('bookings')
-      .select('final_price, client_price_per_day, owner_price_per_day, rented_by, nb_days, start_date, end_date, cars(name)')
+      .select('final_price, client_price_per_day, owner_price_per_day, rented_by, nb_days, start_date, end_date, notes, cars(name)')
       .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
       .lte('start_date', prevEnd)
       .gte('end_date',   `${prevYear}-${ppm}-01`),
@@ -518,7 +520,7 @@ export async function checkAnomalies(): Promise<string> {
 
   const { data, error } = await supabase
     .from('bookings')
-    .select('client_name, final_price, client_price_per_day, owner_price_per_day, nb_days, start_date, end_date, rented_by, cars(name)')
+    .select('client_name, final_price, client_price_per_day, owner_price_per_day, nb_days, start_date, end_date, rented_by, notes, cars(name)')
     .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
     .lte('start_date', monthEnd)
     .gte('end_date', monthStart);
@@ -695,12 +697,12 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   const [curRes, prevRes, unpaidRes] = await Promise.all([
     supabase.from('bookings')
-      .select('id, final_price, client_price_per_day, owner_price_per_day, nb_days, paid_amount, payment_status, rented_by, start_date, end_date, cars(name)')
+      .select('id, final_price, client_price_per_day, owner_price_per_day, nb_days, paid_amount, payment_status, rented_by, start_date, end_date, notes, cars(name)')
       .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
       .lte('start_date', curEndDate)
       .gte('end_date',   `${year}-${mm}-01`),
     supabase.from('bookings')
-      .select('final_price, client_price_per_day, owner_price_per_day, nb_days, rented_by, start_date, end_date, cars(name)')
+      .select('final_price, client_price_per_day, owner_price_per_day, nb_days, rented_by, start_date, end_date, notes, cars(name)')
       .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
       .lte('start_date', prevEndDate)
       .gte('end_date',   `${prevYear}-${ppm}-01`),

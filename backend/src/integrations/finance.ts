@@ -80,6 +80,14 @@ export function rentalDays(startDate: string, endDate: string, nbDays?: number |
   return Math.max(1, diff);
 }
 
+/** Jours OFFERTS au client (note « 🎁 N jour(s) offert(s) » posée par update_booking free_days) :
+ *  le client ne les paie pas, mais le propriétaire est payé par Kouider → déduits de SON bénéfice (Kouider 07/11). */
+export function offeredDays(notes?: string | null): number {
+  let n = 0;
+  for (const m of String(notes ?? '').matchAll(/🎁\s*(\d+)\s*jours?\s*offerts?/gi)) n += Number(m[1]);
+  return n;
+}
+
 export function computeBookingFinancials(b: {
   final_price:          number | null;
   client_price_per_day: number | null;
@@ -90,6 +98,7 @@ export function computeBookingFinancials(b: {
   paid_amount?:         number | null;
   rented_by?:           string | null;
   discount_applied?:    number | null;
+  notes?:               string | null;
 }): {
   nb_days:              number;
   client_price_per_day: number | null;
@@ -134,8 +143,9 @@ export function computeBookingFinancials(b: {
     ? Math.round(client_price_per_day * nb_days * 100) / 100
     : (b.final_price ?? null);
 
+  const freeDays = offeredDays(b.notes);   // payés au proprio par Kouider, pas par le client
   const owner_total = owner_price_per_day != null
-    ? Math.round(owner_price_per_day * nb_days * 100) / 100
+    ? Math.round(owner_price_per_day * (nb_days + freeDays) * 100) / 100
     : null;
 
   // Profit Kouider = 0 pour les résa Houari (connu); null si owner_ppd manquant
@@ -143,7 +153,7 @@ export function computeBookingFinancials(b: {
     rentedBy === 'Houari'
       ? 0
       : (client_price_per_day != null && owner_price_per_day != null)
-        ? Math.round((client_price_per_day - owner_price_per_day) * nb_days * 100) / 100
+        ? Math.round(((client_price_per_day - owner_price_per_day) * nb_days - owner_price_per_day * freeDays) * 100) / 100
         : null;
 
   const data_complete = client_price_per_day != null && owner_price_per_day != null;
@@ -175,7 +185,7 @@ export async function getFinancialReport(year: number, month?: number): Promise<
 
   const { data, error } = await supabase
     .from('bookings')
-    .select('id, client_name, start_date, end_date, nb_days, final_price, client_price_per_day, owner_price_per_day, discount_applied, paid_amount, payment_status, rented_by, status, currency, cars(name)')
+    .select('id, client_name, start_date, end_date, nb_days, final_price, client_price_per_day, owner_price_per_day, discount_applied, paid_amount, payment_status, rented_by, status, currency, notes, cars(name)')
     .in('status', ['CONFIRMED', 'COMPLETED', 'ACTIVE'])
     .lte('start_date', endDate)
     .gte('end_date',   startDate)
@@ -187,7 +197,7 @@ export async function getFinancialReport(year: number, month?: number): Promise<
     id: string; client_name: string; start_date: string; end_date: string;
     nb_days?: number | null; final_price: number | null;
     client_price_per_day?: number | null; owner_price_per_day?: number | null;
-    discount_applied?: number | null;
+    discount_applied?: number | null; notes?: string | null;
     paid_amount?: number | null; payment_status?: string | null;
     rented_by?: string | null; status: string; currency?: string | null;
     cars?: { name: string } | { name: string }[] | null;

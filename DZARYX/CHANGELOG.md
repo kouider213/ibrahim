@@ -1,3 +1,9 @@
+## 2026-11-07 — Jour offert payé au proprio par Kouider + appels plus solides
+- Jour offert : le proprio est payé par Kouider → coût proprio sur tous les jours, déduit du bénéfice (offeredDays() dans finance.ts + phase5). Djillali : 348 € proprio, bénéfice 92 €.
+- update_booking trouvé par nom ne renomme plus le client.
+- Appel : ask_dzaryx > 60 s → « je t'envoie sur Telegram », la recherche continue et part sur Telegram (avant : coupée à 90 s, perdue).
+- Appel : jamais de réponse en espagnol/chinois (gens autour de lui) ; transcriptions ¿¡/CJK ignorées.
+
 ## 2026-11-07 — Jour offert sur une résa + nom client tolérant
 - update_booking : free_days (jours offerts, prix total inchangé via nb_days facturés) + return_time (heure de retour notée). Ex. Djillali 9→10/11 offert.
 - list_bookings / résa par nom : « Djilali » retrouve « Djillali » (lettres doublées ignorées).
