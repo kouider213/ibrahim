@@ -1,3 +1,7 @@
+## 2026-11-07 ~08h — radars : vitesse juste (ou rien)
+- « La vitesse à l'approche d'un radar n'est pas correcte » : elle était calculée en ligne droite entre 2 positions Telegram, avec l'heure d'ARRIVÉE au serveur (positions groupées / en retard, jusqu'à 6 min d'écart).
+- tgcall envoie l'heure réelle (edit_date) + précision ; positions > 60 m de précision ignorées, positions en retard ignorées ; vitesse affichée seulement si segments de 3-60 s, médiane des 3 dernières (90 s), arrondie à 5 ; sinon le message ne donne pas de vitesse. « Ralentis » si > limite + 3.
+
 ## 2026-11-07 ~07h40 — « au travail AUCUNE pause » appliqué partout
 - 07/11 il a de nouveau reçu « 🏢 Bien arrivé au travail. Ta mission pour la pause » (grand-coach-plus onGps) : la règle du 05-06/11 n'était que dans le cerveau principal + foresight.
 - Arrivée au travail → mission pour la SORTIE du travail. Point de midi 12h30 et rappel 16h : au travail (atWorkNow = pas congé et avant work_end) → « dès que tu sors ». Geste pour sa femme : plus « à midi ».

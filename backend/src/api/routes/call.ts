@@ -200,7 +200,7 @@ router.post('/missed', requireMobileAuth, async (req, res) => {
 
 // POST /api/call/location { lat, lng } — position GPS partagée sur Telegram (position en direct → mises à jour)
 router.post('/location', requireCallerAuth, async (req, res) => {
-  const { lat, lng } = req.body as { lat?: number; lng?: number };
+  const { lat, lng, t, acc } = req.body as { lat?: number; lng?: number; t?: number; acc?: number };
   if (typeof lat !== 'number' || typeof lng !== 'number') { res.status(400).json({ error: 'lat/lng' }); return; }
   try {
     const who = callActor(req);
@@ -212,7 +212,7 @@ router.post('/location', requireCallerAuth, async (req, res) => {
       await redis.setex(`location:${who}`, 86_400, JSON.stringify({ ...prev, lat, lng, updated_at: new Date().toISOString() }));
     } else await storeLocation(who, lat, lng);
     if (who === 'kouider') void import('../../integrations/presence.js').then(m => m.onLocationUpdate()).catch(() => {});   // assistant GPS
-    if (who === 'kouider') void import('../../integrations/speed-cameras.js').then(m => m.onRadarPoint(lat, lng)).catch(() => {});   // radars devant lui
+    if (who === 'kouider') void import('../../integrations/speed-cameras.js').then(m => m.onRadarPoint(lat, lng, typeof t === 'number' ? t : undefined, typeof acc === 'number' ? acc : undefined)).catch(() => {});   // radars devant lui
     if (who === 'kouider') void import('../../integrations/gps-life.js').then(m => m.onLocationPoint(lat, lng)).catch(() => {});   // ange gardien, parking, mode Oran…
     res.json({ ok: true });
   } catch (err) {

@@ -16,7 +16,7 @@ import { emitProactive } from '../notifications/mobile-push.js';
 
 interface Cam { lat: number; lng: number; max?: number; name?: string; mine?: boolean }
 interface Fine { id: string; at: string; lat?: number; lng?: number; where: string; speed?: number; amount?: number; due?: string; paid?: boolean; asked?: boolean; sent: string[] }
-interface State { off?: boolean; last?: { t: number; lat: number; lng: number; kmh?: number }; warned: Record<string, number>; fines: Fine[] }
+interface State { off?: boolean; last?: { t: number; lat: number; lng: number; kmh?: number }; speeds?: Array<{ t: number; kmh: number }>; warned: Record<string, number>; fines: Fine[] }
 
 const STATE = 'radars:state';
 const TILE = 0.1;   // ~11 km × 7 km en Belgique
@@ -83,10 +83,13 @@ async function camsAround(p: { lat: number; lng: number }, st: State): Promise<C
 
 let busy = false;
 /** Chaque position en direct (appelé par /api/call/location). */
-export function onRadarPoint(lat: number, lng: number): void {
+export function onRadarPoint(lat: number, lng: number, t?: number, acc?: number): void {
   if (busy) return;
+  if (acc && acc > 60) return;   // position imprécise (antenne / Wi-Fi) : ni cap ni vitesse fiables
+  // heure réelle de la position (Telegram) si elle est plausible, sinon l'heure d'arrivée
+  const ts = t && t <= Date.now() + 5_000 && Date.now() - t < 10 * 60_000 ? t : Date.now();
   busy = true;
-  void check({ t: Date.now(), lat, lng }).catch(e => console.warn('[radars]', e instanceof Error ? e.message : e)).finally(() => { busy = false; });
+  void check({ t: ts, lat, lng }).catch(e => console.warn('[radars]', e instanceof Error ? e.message : e)).finally(() => { busy = false; });
 }
 
 async function check(p: { t: number; lat: number; lng: number }): Promise<void> {
@@ -95,9 +98,15 @@ async function check(p: { t: number; lat: number; lng: number }): Promise<void> 
   const prev = st.last;
   const moved = prev ? km(prev, p) : 0;
   if (prev && moved < 0.05 && p.t - prev.t < 5 * 60_000) return;   // GPS qui tremble : on garde l'ancien point pour le cap
+  if (prev && p.t <= prev.t) return;   // position plus ancienne arrivée en retard
   const dt = prev ? (p.t - prev.t) / 3600_000 : 0;
   const kmh = prev && dt > 5 / 3600 && dt < 0.1 ? moved / dt : 0;
   st.last = { t: p.t, lat: p.lat, lng: p.lng, kmh: Math.round(kmh) };
+  // 07/11 Kouider : « la vitesse à l'approche d'un radar n'est pas correcte » → vitesse affichée seulement si elle est fiable :
+  // segment court (3-60 s, la ligne droite ≈ la route) et lissée (médiane des 3 dernières mesures de la dernière minute et demie).
+  const segOk = prev && dt >= 3 / 3600 && dt <= 60 / 3600 && kmh >= 5 && kmh <= 200;
+  st.speeds = [...(st.speeds ?? []).filter(x => p.t - x.t < 90_000), ...(segOk ? [{ t: p.t, kmh }] : [])].slice(-3);
+  const shown = st.speeds.length >= 2 ? [...st.speeds].map(x => x.kmh).sort((a, b) => a - b)[Math.floor(st.speeds.length / 2)]! : null;
   if (!prev || kmh < 25 || kmh > 200) { await saveState(st); return; }
   // 01/11 : fausse alerte au réveil, à la maison (« ~67 km/h ») = saut GPS (position Wi-Fi/antenne → vraie position GPS).
   // → il faut 2 mesures de suite en mouvement (≥ 20 km/h) avant d'alerter, et jamais à moins de 500 m de la maison.
@@ -116,7 +125,7 @@ async function check(p: { t: number; lat: number; lng: number }): Promise<void> 
     st.warned[camKey(ahead.c)] = now;
     const m = Math.round(ahead.d * 1000 / 50) * 50;
     const lim = ahead.c.max ? ` — limite ${ahead.c.max} km/h` : '';
-    const text = `📸 Radar ${ahead.c.mine ? `(là où tu as été flashé${ahead.c.name ? `, ${ahead.c.name}` : ''})` : 'fixe'} dans ${m} m${lim}. Tu roules à ~${Math.round(kmh)} km/h.`;
+    const text = `📸 Radar ${ahead.c.mine ? `(là où tu as été flashé${ahead.c.name ? `, ${ahead.c.name}` : ''})` : 'fixe'} dans ${m} m${lim}.${shown ? ` Tu roules à ~${Math.round(shown / 5) * 5} km/h.` : ''}${ahead.c.max && shown && shown > ahead.c.max + 3 ? ' Ralentis.' : ''}`;
     await tg(text);
     emitProactive('📸 Radar', 'reminder', text, 'kouider', 'route');
   }

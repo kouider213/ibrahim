@@ -1466,7 +1466,14 @@ async def on_raw_geo(client, update, users, chats) -> None:
     if actor is None or not isinstance(geo, raw.types.GeoPoint):
         return
     try:
-        await api('/api/call/location', {'lat': geo.lat, 'lng': geo.long}, actor, 15)
+        # 07/11 : heure RÉELLE de la position (Telegram) + précision → vitesse radar juste (avant : heure d'arrivée au serveur)
+        ts = getattr(m, 'edit_date', None) or getattr(m, 'date', None)
+        body = {'lat': geo.lat, 'lng': geo.long}
+        if ts:
+            body['t'] = int(ts.timestamp() * 1000) if hasattr(ts, 'timestamp') else int(ts) * 1000
+        if getattr(geo, 'accuracy_radius', None):
+            body['acc'] = int(geo.accuracy_radius)
+        await api('/api/call/location', body, actor, 15)
         if isinstance(update, raw.types.UpdateNewMessage):
             live = isinstance(media, raw.types.MessageMediaGeoLive)
             log.info('position %s reçue de %s', 'en direct' if live else 'fixe', actor)
