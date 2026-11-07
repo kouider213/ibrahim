@@ -1,3 +1,8 @@
+## 2026-11-07 — WhatsApp : âge < 35 refusé, 1er message auto aux nouveaux clients, plus de doublon
+- clientAge() lit l'âge du client (« j'ai 24 ans », pas les années de permis) : < 35 → réponse forcée = refus poli, jamais de liste de voitures.
+- Nouveau client (numéro non enregistré, FIK n'a jamais répondu) qui demande une location / dit bonjour / appel WhatsApp manqué → Dzaryx envoie SEUL le 1er message (dates et/ou âge manquants, ou refus si < 35), Kouider prévenu sur Telegram.
+- Récap « Pendant ton silence » : une discussion WhatsApp déjà lue avec Kouider depuis n'est plus renvoyée avec un vieux brouillon (wa:handled:<chat>).
+
 ## 2026-11-07 — Bugs d'appel (suite)
 - Mémoire des appels jamais enregistrée : domaine 'note' refusé par chk_facts_domain → rangé en 'general' ; vraie erreur Supabase loguée.
 - En appel, « vérifie WhatsApp » = un seul unread (plus d'ouverture des discussions/photos une par une).

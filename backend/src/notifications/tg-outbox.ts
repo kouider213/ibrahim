@@ -82,6 +82,9 @@ export async function takeTelegramMessages(actor: string): Promise<TgOutMessage[
   for (const h of held) {
     if (/^(🏋️|⏰ Ta séance|💪)/u.test(h.text) && await isSportSkipped(localNow(h.at).date).catch(() => false)) continue;
     if (!h.image && !h.file && !h.album && !h.location && keep.some(k => k.text === h.text)) continue;
+    // Discussion WhatsApp déjà lue/traitée avec Kouider depuis (07/11 : 2 réponses différentes au même client) → jetée
+    const wa = /^📲 WhatsApp — (.+?)(?: \(\d+ non lus\))?\n/u.exec(h.text);
+    if (wa) { const done = Number(await kvGet(`wa:handled:${wa[1]!.toLowerCase()}`).catch(() => null) ?? 0); if (done > h.at) continue; }
     keep.push(h);
   }
   if (!keep.length) return list;
