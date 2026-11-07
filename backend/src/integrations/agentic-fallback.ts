@@ -12,6 +12,7 @@
  *      (les noms changent tous les mois), sautés 15 min sur quota/panne
  *   4. OpenAI gpt-4o (payant — dernier recours si crédits restants)
  */
+import { backgroundJob } from './bg-context.js';
 import { cleanModelText } from '../utils/clean-text.js';
 import axios from 'axios';
 import type Anthropic from '@anthropic-ai/sdk';
@@ -142,7 +143,9 @@ export function fallbackEndpoints(): FallbackEndpoint[] {
       if (usable(qid)) list.push({ key: 'gemini', name: `Gemini ${model}${k ? ` (clé ${k + 1})` : ''}`, url: GEMINI_URL, model, qid, apiKey, vision: true });
     });
   };
-  gemini(false);
+  // 07/11 : tâche automatique → gros Gemini en DERNIER (son quota de 20/jour/modèle est gardé pour les messages de Kouider)
+  const bgJob = backgroundJob();
+  if (!bgJob) gemini(false);
   for (const p of FREE_PROVIDERS) {
     if (!p.apiKey) continue;
     for (const model of freeModels.get(p.key) ?? [p.fallback]) if (usable(`${p.key}:${model}`)) {
@@ -150,6 +153,7 @@ export function fallbackEndpoints(): FallbackEndpoint[] {
     }
   }
   gemini(true);
+  if (bgJob) gemini(false);
   if (GROQ_KEY)   list.push({ key: 'groq',   name: 'Groq GPT-OSS 120B', url: 'https://api.groq.com/openai/v1/chat/completions', model: 'openai/gpt-oss-120b', apiKey: GROQ_KEY, compact: true });
   // OpenAI = payant → jamais en mode gratuit (Dzaryx à 0 €, 29/10)
   if (OPENAI_KEY && !freeModeOn()) list.push({ key: 'openai', name: 'OpenAI GPT-4o',     url: 'https://api.openai.com/v1/chat/completions',     model: 'gpt-4o',              apiKey: OPENAI_KEY, vision: true });

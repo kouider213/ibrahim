@@ -940,7 +940,7 @@ async function runJob(name: string, slot: string): Promise<void> {
   }
   console.log(`[scheduler] Running: ${name}`);
   try {
-    await handler({ name, id: `${name}:${slot}`, data: {} } as unknown as Job);
+    await (await import('../integrations/bg-context.js')).runInBackground(name, () => handler({ name, id: `${name}:${slot}`, data: {} } as unknown as Job));   // 07/11 : gros Gemini gardé pour Kouider
     console.log(`[scheduler] ✅ ${name} done`);
     void kvDel(`jobfail:${name}`).catch(() => {});
   } catch (err) {

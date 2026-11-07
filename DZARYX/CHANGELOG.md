@@ -1,5 +1,6 @@
 ## 2026-11-07 soir — Faux « c'est noté » sur une résa
 - CAUSE des erreurs de la journée : clé Gemini gratuite limitée à 20 requêtes/jour/modèle (GenerateRequestsPerDayPerProjectPerModel-FreeTier = 20), épuisée dès 6h → Haiku secours (6/6 à 19h52) puis Nemotron/petits cerveaux. Solution : plus de clés Gemini (nouveaux projets Google) dans GEMINI_API_KEYS.
+- Gros Gemini RÉSERVÉ aux messages de Kouider : les tâches du planificateur (Conscience, coach, mentor…) passent par Nemotron/autres gratuits puis Gemini lite, gros Gemini en dernier (bg-context.ts ; brain-retry garde le gros cerveau).
 - Radar : même radar saisi 2-3 fois dans OSM à quelques mètres → 1 seule alerte (radar annoncé < 10 min à < 300 m couvre ses doublons). Matin 07/11 : 6 « 📸 Radar » en 5 min.
 - « Ne pas déranger » après appel manqué : la consigne « tu étais en ne pas déranger » n'est plus recollée à chaque message (3× à 19h52) ni le délai relancé.
 - « +200 euro en cas> aujourd'hui » : faute sur cash (cas/cach/kash…) comprise par le code → caisse + vente du jour (avant : fortune répondue, rien noté). « en cas de » intact.
