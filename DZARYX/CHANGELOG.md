@@ -1,3 +1,7 @@
+## 2026-11-07 ~06h20 — FORME : vrai poids + séances de la montre (cff5e84a, app v248)
+- « Ton objectif » disait 79,4 kg alors qu'il s'est pesé 78 le 06/11 : c'était la tendance lissée. Poids affiché / kg restants / date = dernière vraie pesée ; la tendance sert seulement à la vitesse.
+- Séances vues par la montre (tapis, marche, musculation traditionnelle, renforcement…) : toutes gardées par jour (FormeDay.watch) et affichées dans le bilan du jour, de la semaine, le PDF (« Vu par ta montre ») et le détail du jour de l'app. Avant : seulement 2 noms dans une note, jamais lus par les bilans.
+
 ## 2026-11-06 ~23h — appel manqué ≠ réplique dans le chat (B058)
 - Appel Dzaryx refusé / pas décroché / muet : son accueil n'apparaît plus comme une réplique dans l'historique (note « appel manqué » à la place) → plus de sujet d'appel qui surgit au milieu d'une tâche business.
 - Plus de « Allô Kouider, c'est Dzaryx. Salut Kouider, c'est Dzaryx » : présentation dite une seule fois (appel, message d'appel manqué, boîte des appels).
