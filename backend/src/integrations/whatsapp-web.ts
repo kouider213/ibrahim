@@ -99,6 +99,17 @@ function holdRefusalText(ar: boolean, age: number): string {
   return ar ? `سمحلنا، الكراء غير للسائق روحو: لازم يكون عندو 35 سنة على الأقل ويجي هو بنفسو بالپيرمي و البطاقة تاعو، وهو وحدو اللي يسوق. كيما قلتلنا عندك ${age} سنة، ما نقدروش نكريولك.`
     : `Désolé, la location est réservée au conducteur lui-même : il doit avoir 35 ans minimum, être présent à la remise avec son permis et sa pièce d'identité à son nom, et lui seul conduit. Comme vous nous avez indiqué avoir ${age} ans, nous ne pouvons pas vous louer de véhicule.`;
 }
+// Signaux d'arnaque classiques en location (07/11) : signalés à Kouider avec la réponse proposée, jamais bloquants
+const RED_FLAGS: Array<[RegExp, string]> = [
+  [/(quelqu.un|mon (fr[èe]re|cousin|ami|chauffeur|p[èe]re)|ma (femme|s(œ|oe)ur)|une autre personne)\s.{0,30}(r[ée]cup[ée]r|prendre|chercher|conduir)/i, 'quelqu\'un d\'autre récupère / conduit la voiture'],
+  [/sans\s+(caution|garantie|passeport|papiers?|permis)|pas\s+de\s+(caution|garantie)|caution\s+(plus\s+tard|apr[èe]s)/i, 'veut louer sans caution / sans papiers'],
+  [/(payer|paie|r[ée]gler|virement)\s.{0,20}(apr[èe]s|plus\s+tard|au\s+retour|[àa]\s+la\s+fin)|western|mandat\s*cash|crypto|bitcoin|cheque|chèque/i, 'paiement après / moyen de paiement douteux'],
+  [/capture\s+(du|de)\s+virement|preuve\s+de\s+(virement|paiement)|j.ai\s+(d[ée]j[àa]\s+)?(fait|envoy[ée])\s+le\s+virement/i, 'preuve de virement (vérifie sur ton compte, une capture se truque)'],
+  [/livr(er|aison)\s.{0,40}(autre\s+ville|loin|maroc|tunisie|fronti[èe]re)|sortir\s+(du\s+pays|d.alg[ée]rie)|passer\s+la\s+fronti[èe]re/i, 'livraison loin / sortie du territoire'],
+  [/(un\s+mois|plusieurs\s+mois|longue\s+dur[ée]e|\b[2-9]\s*mois)/i, 'location très longue (vérifie bien le client)'],
+  [/pas\s+(encore\s+)?(de|mon)\s+permis|permis\s+(suspendu|retir[ée]|en\s+cours|provisoire)|j.ai\s+(perdu|oubli[ée])\s+(mon\s+)?permis/i, 'problème de permis'],
+];
+export function redFlags(text: string): string[] { return RED_FLAGS.filter(([re]) => re.test(text)).map(([, l]) => l); }
 /** 1er message à un NOUVEAU client : ce qui manque (dates et/ou âge). */
 function firstContactText(ar: boolean, needDates: boolean, needAge: boolean, missedCall: boolean): string {
   if (ar) return `السلام عليكم، FIK Conciergerie 👋${missedCall ? ' شفنا العيطة تاعك.' : ''}\nباش نشوفولك الدّيسپو، عطينا من فضلك ${[needDates ? 'التواريخ (من وقتاش لوقتاش)' : '', needAge ? 'عمر السائق' : ''].filter(Boolean).join(' و')}.`;
@@ -106,7 +117,10 @@ function firstContactText(ar: boolean, needDates: boolean, needAge: boolean, mis
   return `Bonjour, ici FIK Conciergerie 👋${missedCall ? ' Nous avons vu votre appel, désolé de ne pas avoir pu décrocher.' : ''}\nPour vérifier les disponibilités, pouvez-vous m'indiquer ${what} ?`;
 }
 const who = (m: WaMsg) => !m.me ? 'CLIENT' : isAuto(m) ? 'RÉPONSE AUTO (message d\'accueil automatique, pas Kouider)' : 'TOI (Kouider / FIK)';
-const when = (m: WaMsg) => (m.meta ?? '').replace(/\]\s.*$/, ']').trim();
+// Le Chrome du PC cloud tourne en UTC : les heures WhatsApp sont remises à l'heure de Bruxelles (07/11 : « 14h04 » au lieu de 15h05)
+const brusselsOffsetMin = () => { const d = new Date(); const b = new Date(d.toLocaleString('en-US', { timeZone: 'Europe/Brussels' })); const u = new Date(d.toLocaleString('en-US', { timeZone: 'UTC' })); return Math.round((b.getTime() - u.getTime()) / 60_000); };
+const toLocalHm = (meta: string) => meta.replace(/\b(\d{1,2}):(\d{2})\b/, (_x, h: string, mi: string) => { const t = (Number(h) * 60 + Number(mi) + brusselsOffsetMin() + 1440) % 1440; return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; });
+const when = (m: WaMsg) => toLocalHm((m.meta ?? '').replace(/\]\s.*$/, ']').trim());
 
 /** Discussion lisible pour Dzaryx : du plus ancien au plus récent, qui a écrit, et si le client attend une réponse. */
 export function waConversationText(chat: string, msgs: WaMsg[]): string {
@@ -268,11 +282,13 @@ export async function onWaNew(c: WaChat): Promise<void> {
   }
   // Montant en dinars dans le message → aussi en euros (change du square)
   const money = await import('./dzd-convert.js').then(m => m.dzdLine(preview)).catch(() => '');
+  const flags = redFlags(clientText);
   const text = `📲 WhatsApp — ${name}${c.unread > 1 ? ` (${c.unread} non lus)` : ''}\n« ${preview} »${money ? `\n${money}` : ''}`
+    + (flags.length ? `\n🚩 Attention : ${flags.join(' · ')}.` : '')
     + (translation ? `\n🇫🇷 Traduction : ${translation}` : '')
     + (reply ? `\n\n✍️ Réponse proposée :\n${reply}\n\nRéponds « oui » pour l'envoyer à ${name}${voiceCount ? ', « vocal » pour la lui envoyer en message vocal' : ''}, « non » pour laisser, ou dis-moi quoi changer.` : '');
   // AUTONOMIE PROGRESSIVE : type activé par Kouider → envoyé seul (jamais dispo / réservation / paiement / plainte)
-  const delicateNow = kind === 'plainte' || kind === 'urgence' || isComplaint(preview) || DELICATE_RE.test(preview);
+  const delicateNow = kind === 'plainte' || kind === 'urgence' || isComplaint(preview) || DELICATE_RE.test(preview) || flags.length > 0;
   if (reply && !delicateNow && await import('./autonomy.js').then(m => m.canAutoSend(kind, reply)).catch(() => false)) {
     const sent = await cloudEmit<R>('cloud:wa', { action: 'send', chat: name, text: reply }, 80_000).catch(() => ({ ok: false } as R));
     if (sent.ok) {
@@ -293,7 +309,7 @@ ${reply}`;
   const hour = new Date().toISOString().slice(0, 13);
   if (delicate) {
     await autoCall(`waweb-delicate:${name}:${hour}`, `Situation délicate sur ton WhatsApp. ${name} écrit : ${preview.slice(0, 200)}. Je t'ai préparé une réponse, tu veux que je te la lise ?`, { level: 'urgent' });
-  } else if (kind === 'location' || isBookingRequest(preview)) {
+  } else if ((kind === 'location' || isBookingRequest(preview)) && neverAnswered) {   // 07/11 : Djillali (client en cours) ≠ « nouvelle demande » → 2 appels au travail
     await autoCall(`waweb-booking:${name}:${new Date().toISOString().slice(0, 10)}`, `Nouvelle demande de location sur ton WhatsApp. ${name} : ${summary.slice(0, 200)}. J'ai préparé la réponse, tu veux que je te la lise et que je l'envoie ?`);
   }
 }

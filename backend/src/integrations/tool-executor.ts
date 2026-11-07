@@ -1302,10 +1302,25 @@ export async function scanIdentity(
   const expLine = expired == null ? '' : expired
     ? `\n• ${isPermis ? 'Permis' : 'Document'} EXPIRÉ (${data['date_expiration']}) ⛔`
     : `\n• Valide jusqu'au ${data['date_expiration']} ✅`;
+  // Anti-arnaque (07/11) : mêmes papiers envoyés par un AUTRE numéro, ou numéro déjà refusé pour l'âge → alerte
+  let fraudLine = '';
+  const phoneDigits = String(opts.clientPhone ?? '').replace(/\D/g, '').slice(-9);
+  if (permisNo && phoneDigits.length === 9) {
+    const dk = `doc:seen:${String(permisNo).replace(/\s+/g, '').toUpperCase()}`;
+    const prev = await kvGet(dk).catch(() => null);
+    if (prev && prev !== phoneDigits) fraudLine += `\n• ⚠️ ARNAQUE POSSIBLE : ce ${isPermis ? 'permis' : 'document'} a DÉJÀ été envoyé par un autre numéro (…${prev.slice(-6)}). Vérifie en personne que c'est bien LUI.`;
+    else if (!prev) await kvSet(dk, phoneDigits, 365 * 86_400).catch(() => {});
+  }
+  if (opts.clientPhone) {
+    const wa = await import('./whatsapp-web.js');
+    const ref = await wa.ageRefusal(opts.clientPhone).catch(() => null);
+    if (ref && (age == null || age >= MIN_AGE)) fraudLine += `\n• ⚠️ ARNAQUE POSSIBLE : ce numéro a dit avoir ${ref.age} ans (refusé). Ces papiers sont sûrement ceux d'un proche : ne loue qu'au conducteur, présent avec SES papiers.`;
+    if (age != null && age < MIN_AGE) await wa.markAgeRefused(opts.clientPhone, age).catch(() => {});
+  }
 
   return [
     `📋 ${isPermis ? 'Permis de conduire' : 'Pièce d\'identité'} scanné — **${nom}**`,
-    ageLine + expLine,
+    ageLine + expLine + fraudLine,
     permisNo ? `• N° ${isPermis ? 'permis' : 'document'}: ${permisNo}` : '',
     data['nationalité'] || data['nationalite'] ? `• Nationalité: ${data['nationalité'] ?? data['nationalite']}` : '',
     savedToFile ? `📁 Enregistré dans le dossier de ${nom} (DOCS).` : '',

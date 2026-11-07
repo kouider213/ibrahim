@@ -124,7 +124,8 @@ function buildContractPDF(booking: Record<string, unknown>, contractNumber: stri
       '5. DOMMAGES: En cas de dommages constatés à la restitution du véhicule qui n\'étaient pas présents lors de la remise, les frais de réparation seront à la charge du locataire.',
       '6. PANNE ET ACCIDENT: En cas de panne ou d\'accident, le locataire doit contacter immédiatement l\'agence au numéro fourni lors de la remise des clés. Le véhicule ne doit pas être abandonné sans accord préalable.',
       '7. USAGE DU VÉHICULE: Le véhicule est mis à disposition pour un usage personnel et non professionnel. Toute sous-location est strictement interdite.',
-      '8. JURIDICTION: En cas de litige, les tribunaux d\'Oran sont seuls compétents.',
+      '8. CONDUCTEUR UNIQUE: Seul le locataire signataire, âgé de 35 ans minimum et présent en personne à la remise des clés avec son permis et sa pièce d\'identité originaux, est autorisé à conduire. Le prêt du volant à toute autre personne est interdit : l\'assurance ne couvre alors plus le véhicule et tous les dommages, frais et amendes restent entièrement à la charge du locataire.',
+      '9. JURIDICTION: En cas de litige, les tribunaux d\'Oran sont seuls compétents.',
     ];
 
     for (const clause of cg) {

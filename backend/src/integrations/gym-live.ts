@@ -188,9 +188,11 @@ async function healthLine(): Promise<string> {
 }
 
 /** Démarre le suivi en direct (arrivée GPS à la salle, « je suis à la salle », ou outil). Renvoie le plan minuté. */
-export async function startLive(date = localNow().date, at = Date.now()): Promise<string> {
+export async function startLive(date = localNow().date, at = Date.now(), force = false): Promise<string> {
   const cur = await getLive();
   if (cur && !cur.endedAt) return statusText(cur);
+  // 07/11 : séance déjà finie aujourd'hui → un départ montre / GPS ne relance PAS une 2e séance (coach « fantôme » à 12h55 au travail)
+  if (cur?.endedAt && !force) return '';
   const p = await liveSessionPlan(date);
   const l: Live = { date, startedAt: at, type: p.type, label: p.label, exercises: p.exercises, before: p.before, after: p.after,
     idx: 0, done: {}, skipped: [], nudges: 0, sent: [], ...(await getHomeBy(date, at).then(h => h ? { homeBy: h } : {})) };
@@ -352,7 +354,7 @@ export async function liveTool(input: Record<string, unknown>): Promise<string> 
   const op = String(input['op'] ?? 'status');
   let l = await getLive();
   if (op === 'start' || (!l && op === 'set')) {
-    const txt = await startLive();
+    const txt = await startLive(undefined, undefined, true);
     if (op === 'start') return `${txt}\n\n[Il est à la salle : réponds court et motivant. Ne lui demande JAMAIS ses poids ni ses reps : c'est lui qui les donne s'il veut ; tu suis la séance au chrono et avec sa montre.]`;
     l = await getLive();
   }
@@ -396,6 +398,7 @@ export async function liveTool(input: Record<string, unknown>): Promise<string> 
 export async function liveNote(): Promise<string | null> {
   const l = await getLive().catch(() => null);
   if (!l || l.endedAt) return null;
+  if (Date.now() > l.startedAt + 3 * 3600_000) return null;   // périmée (la clôture auto passe au prochain sport-watch)
   const app = await appProgress();
   if (app) return `[SÉANCE EN COURS À LA SALLE (${l.label}), suivie dans l'app FORME — c'est l'APP qui mène, pas le chrono : ${app.finished ? 'il a terminé sa séance dans l\'app' : `exercice actuel ${app.current ?? '?'}, ${app.done}/${app.total} séries validées, il reste : ${app.left.join(', ') || 'rien'}`}${l.leaveBy ? `, départ à ${hm(l.leaveBy)}` : ''}. Ne dis JAMAIS « muscu terminée » ni « passe à l'exercice suivant » de toi-même. NE LUI DEMANDE JAMAIS son poids ni ses reps. Réponds COURT.]`;
   const e = remaining(l)[0];

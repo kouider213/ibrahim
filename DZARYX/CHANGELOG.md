@@ -1,3 +1,11 @@
+## 2026-11-07 — Bugs du jour + protections anti-arnaque
+- Coach salle « fantôme » à 12h55 au travail : une séance finie n'est plus relancée par la montre/GPS le même jour ; note séance > 3 h ignorée.
+- Djillali (client en cours) appelé 2× comme « nouvelle demande de location » : l'appel location seulement pour une discussion jamais répondue.
+- Heures WhatsApp en UTC (« 14h04 » au lieu de 15h05) → remises à l'heure de Bruxelles.
+- Papiers : même n° de permis/passeport envoyé par un autre numéro → « ⚠️ ARNAQUE POSSIBLE » ; scan < 35 ans → numéro marqué refusé.
+- Messages WhatsApp : 🚩 signaux (quelqu'un d'autre récupère, sans caution, payer après, capture de virement, sortie du territoire, location très longue, problème de permis) → alerte, jamais d'envoi auto.
+- Contrat : clause 8 CONDUCTEUR UNIQUE (35 ans, présent avec ses originaux, prêt du volant interdit).
+
 ## 2026-11-07 — Anti-contournement de l'âge
 - Client refusé (< 35) mémorisé 180 j par numéro (wa:refused:<9 derniers chiffres>). S'il revient avec un autre âge, une date de naissance, « mon père / au nom de… » ou des papiers → refus maintenu proposé + alerte « ⚠️ RISQUE D'ARNAQUE » sur Telegram, rien d'auto.
 - Papiers reçus d'un numéro refusé → avertissement dans le message « Papiers reçus ».
