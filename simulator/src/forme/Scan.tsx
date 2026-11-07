@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { forme, errText, compressImage, vibrate, type MachineScan, type MachineEx } from './api.ts';
 import { F, card, btn, ghostBtn, Spinner } from './ui.tsx';
 import { ExTile, ExerciseSheet } from './Exercises.tsx';
+import { readLive, addToLive } from './Sport.tsx';
 
 // 📷 SCANNER (Kouider 31/10) : il prend une machine de la salle en photo → l'appareil est reconnu, comment le régler,
 // et les exercices à faire dessus EN IMAGES (tuiles comme la bibliothèque) + un lien vidéo YouTube (pas obligé de l'ouvrir).
@@ -85,6 +86,7 @@ export default function ScanScreen({ toast }: { toast: (t: string) => void }) {
             </div>
           ))}
         </div>
+        {readLive() && <button onClick={() => { if (addToLive(scan.exercises.slice(0, 1))) { vibrate(40); toast(`✅ ${scan.exercises[0]!.name} ajouté à ta séance en cours (Entraînement › Reprendre)`); } }} style={{ ...btn, width: '100%', marginTop: 16 }}>＋ Ajouter « {scan.exercises[0]!.name} » à ma séance en cours</button>}
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
           <button onClick={() => cam.current?.click()} style={{ ...btn, flex: 1 }}>📷 Autre machine</button>
           <button onClick={() => { setScan(null); setErr(''); }} style={{ ...ghostBtn }}>Fermer</button>

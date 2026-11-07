@@ -2,7 +2,7 @@ import { DidButton } from './Did.tsx';
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch, type SportOverview, type SportSession, type SportExercise, type SportType } from '../services/api.ts';
-import { errText, SHORT_DAYS, dayOf, vibrate, forme, type ProgramView, type LibItem, type Routine, type RoutineEx, type ExSet } from './api.ts';
+import { errText, SHORT_DAYS, dayOf, vibrate, forme, compressImage, type MachineEx, type MachineScan, type ProgramView, type LibItem, type Routine, type RoutineEx, type ExSet } from './api.ts';
 import { F, card, btn, ghostBtn, input, Sheet, Spinner } from './ui.tsx';
 import { ExerciseSheet, Anim, RecoveryMap, LibraryPicker, COACH_TO_GROUP } from './Exercises.tsx';
 import { TodayForm } from './Watch.tsx';
@@ -178,6 +178,15 @@ async function shareCard(o: { title: string; dur: string; volume: number; sets: 
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'seance.png'; a.click();
 }
 
+// 07/11 : exercice d'une machine scannée → exercice de la séance (séries / kg / reps comme les autres)
+export const fromScan = (x: MachineEx, k: number): PEx => ({ id: `${x.id ?? 'scan'}~${Date.now().toString(36)}${k}`, libId: x.id, name: x.name, muscle: '', sets: 3, reps: '10', rest: 90, tip: x.tip ?? '', alt: [], timed: false, demo: x.img ?? [], video: x.video, suggestion: { kg: null } });
+/** Scanner (hors séance) : ajoute des exercices à la séance en cours gardée sur le téléphone. */
+export function addToLive(items: MachineEx[]): boolean {
+  const live = readLive(); if (!live) return false;
+  const add = items.map((x, k) => fromScan(x, k));
+  const rows = { ...live.rows, ...Object.fromEntries(add.map(e => [e.id, Array.from({ length: e.sets }, () => ({ kg: '', reps: e.reps, done: false, t: 'n' as SetT }))])) };
+  try { localStorage.setItem(LIVE_K, JSON.stringify({ ...live, exs: [...live.exs, ...add], rows, i: live.exs.length, at: Date.now() })); return true; } catch { return false; }
+}
 const fromLib = (x: LibItem, k: number): PEx => ({ id: `${x.id}~${Date.now().toString(36)}${k}`, libId: x.id, name: x.fr, muscle: '', sets: 3, reps: '10', rest: 90, tip: '', alt: [], timed: false, demo: x.img, video: `https://www.youtube.com/results?search_query=${encodeURIComponent(`${x.name} technique musculation`)}`, suggestion: { kg: null } });
 
 // Séance en cours gardée sur le téléphone (Hevy) : appel, écran verrouillé, appli fermée → on la reprend telle quelle.
@@ -198,6 +207,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
   const [rpe, setRpe] = useState(7);
   const [busy, setBusy] = useState(false);
   const [picker, setPicker] = useState<'add' | 'swap' | null>(null);
+  const [scanOpen, setScanOpen] = useState(false);
   const [plates, setPlates] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const [newPrs, setNewPrs] = useState<string[]>([]);
@@ -207,7 +217,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
   const start = useRef(resume?.start ?? Date.now());
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
-  useEffect(() => { if (Object.values(rows).flat().some(r => r.done)) { try { localStorage.setItem(LIVE_K, JSON.stringify({ kind, s, exs, rows, i, start: start.current, feel, at: Date.now() } satisfies LiveState)); } catch { /* */ } } }, [rows, exs, i, feel]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (Object.values(rows).flat().some(r => r.done) || exs.length !== s.exercises.length || exs.some((e, j) => e.id !== s.exercises[j]?.id)) { try { localStorage.setItem(LIVE_K, JSON.stringify({ kind, s, exs, rows, i, start: start.current, feel, at: Date.now() } satisfies LiveState)); } catch { /* */ } } }, [rows, exs, i, feel]); // eslint-disable-line react-hooks/exhaustive-deps
   const [note, setNote] = useState('');
   const ex = exs[Math.min(i, exs.length - 1)];
   useEffect(() => { if (ex) { try { setNote(localStorage.getItem(noteKey(ex)) ?? ''); } catch { setNote(''); } } }, [ex?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -238,6 +248,19 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
     const add = items.map((x, k) => fromLib(x, k));
     setExs(e => [...e, ...add]); setRows(r => ({ ...r, ...Object.fromEntries(add.map(e => [e.id, mkRows(e)])) }));
     setI(exs.length);
+  };
+  const addScanned = (items: MachineEx[]) => {
+    const add = items.map((x, k) => fromScan(x, k));
+    setExs(e => [...e, ...add]); setRows(r => ({ ...r, ...Object.fromEntries(add.map(e => [e.id, mkRows(e)])) }));
+    setI(exs.length); setScanOpen(false);
+  };
+  // 07/11 Kouider : « je dois pouvoir supprimer les autres si je ne les ai pas faits »
+  const removeEx = () => {
+    if (!ex) return;
+    if ((rows[ex.id] ?? []).some(r => r.done) && !confirm(`Retirer « ${ex.name} » ? Ses séries validées ne seront pas enregistrées.`)) return;
+    vibrate(20); setRest(null);
+    setExs(e => e.filter(y => y.id !== ex.id)); setRows(r => { const n = { ...r }; delete n[ex.id]; return n; });
+    setI(j => Math.max(0, Math.min(j, exs.length - 2)));
   };
   const swap = (items: LibItem[]) => {
     const x = items[0]; if (!x || !ex) return;
@@ -303,6 +326,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
               {ok && <span style={{ position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: 9, background: F.green, color: '#fff', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>}
             </button>); })}
           <button onClick={() => setPicker('add')} aria-label="Ajouter un exercice" style={{ flexShrink: 0, borderRadius: 14, border: `2px dashed ${F.line}`, background: 'transparent', width: 54, height: 54, fontSize: 22, color: F.muted, cursor: 'pointer' }}>＋</button>
+          <button onClick={() => setScanOpen(true)} aria-label="Scanner une machine" style={{ flexShrink: 0, borderRadius: 14, border: `2px dashed ${F.line}`, background: 'transparent', width: 54, height: 54, fontSize: 22, color: F.muted, cursor: 'pointer' }}>📷</button>
         </div>
         {!ex ? (
           <div style={{ padding: '30px 20px', textAlign: 'center' }}>
@@ -310,6 +334,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
             <div style={{ fontSize: 18, fontWeight: 700, marginTop: 8 }}>Séance libre</div>
             <div style={{ color: F.muted, fontSize: 14, marginTop: 4 }}>Ajoute les exercices que tu fais, au fur et à mesure.</div>
             <button onClick={() => setPicker('add')} style={{ ...btn, marginTop: 16 }}>＋ Ajouter un exercice</button>
+            <button onClick={() => setScanOpen(true)} style={{ ...ghostBtn, marginTop: 10, display: 'block', marginInline: 'auto' }}>📷 Scanner une machine</button>
           </div>
         ) : (
         <AnimatePresence mode="wait">
@@ -331,6 +356,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
                   <button onClick={warmup} style={tool}>🔥 Échauffement</button>
                   <button onClick={() => setPlates(true)} style={tool}>🧮 Disques</button>
                   <button onClick={() => setPicker('swap')} style={tool}>🔁 Remplacer</button>
+                  <button onClick={removeEx} aria-label="Retirer cet exercice" style={{ ...tool, flex: '0 0 auto', padding: '9px 11px' }}>🗑️</button>
                 </div>
               </div>
               <div style={{ padding: '6px 10px 10px' }}>
@@ -365,6 +391,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
         <ExerciseSheet session={how && ex ? ex : null} onClose={() => setHow(false)} z={70} />
       </>}
       <LibraryPicker open={!!picker} onClose={() => setPicker(null)} multi={picker === 'add'} title={picker === 'swap' ? 'Remplacer par…' : 'Ajouter des exercices'} group={picker === 'swap' && ex ? COACH_TO_GROUP[ex.muscle] ?? null : null} likeId={picker === 'swap' && ex ? libIdOf(ex) : null} onPick={items => picker === 'swap' ? swap(items) : addExs(items)} />
+      <ScanSheet open={scanOpen} onClose={() => setScanOpen(false)} onAdd={addScanned} />
       <PlateCalc open={plates} onClose={() => setPlates(false)} kg0={Number(sets.find(r => r.t !== 'w')?.kg.replace(',', '.')) || 0} />
       <AnimatePresence>{rest && !finish && <RestBar key={rest.key} seconds={rest.n} onDone={endRest} />}</AnimatePresence>
     </div>
@@ -643,6 +670,55 @@ export function ProgramSport({ toast, go }: { toast: (t: string) => void; go?: (
         return '💪 Séance enregistrée';
       }} />}
     </div>
+  );
+}
+
+// 📷 07/11 Kouider : « quand je fais une séance et que je prends une machine en photo, il l'ajoute à ma séance et je note comme les autres »
+function ScanSheet({ open, onClose, onAdd }: { open: boolean; onClose: () => void; onAdd: (x: MachineEx[]) => void }) {
+  const cam = useRef<HTMLInputElement>(null), gal = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [scan, setScan] = useState<MachineScan | null>(null);
+  const [sel, setSel] = useState<number[]>([]);
+  const [err, setErr] = useState('');
+  useEffect(() => { if (!open) { setScan(null); setSel([]); setErr(''); } }, [open]);
+  const go = async (file?: File | null) => {
+    if (!file) return;
+    setErr(''); setScan(null); setBusy(true); vibrate(15);
+    try {
+      const [image, thumb] = await Promise.all([compressImage(file, 1024, 0.8), compressImage(file, 220, 0.6)]);
+      const r = await forme.machine(image, thumb);
+      if (!r.scan.machine || !r.scan.exercises.length) { setErr(r.scan.what || 'Je ne vois pas de machine — reprends la photo avec tout l\'appareil.'); return; }
+      setScan(r.scan); setSel([0]); vibrate(60);
+    } catch (e) { setErr(errText(e)); } finally { setBusy(false); if (cam.current) cam.current.value = ''; if (gal.current) gal.current.value = ''; }
+  };
+  return (
+    <Sheet open={open} onClose={onClose} z={75}>
+      <input ref={cam} type="file" accept="image/*" capture="environment" hidden onChange={e => void go(e.target.files?.[0])} />
+      <input ref={gal} type="file" accept="image/*" hidden onChange={e => void go(e.target.files?.[0])} />
+      <div style={{ fontSize: 20, fontWeight: 700 }}>Scanner une machine</div>
+      {!scan && !busy && <>
+        <div style={{ fontSize: 13.5, color: F.muted, marginTop: 4 }}>Prends la machine en photo : ses exercices s'ajoutent à ta séance, tu notes tes séries comme les autres.</div>
+        <button onClick={() => cam.current?.click()} style={{ ...btn, width: '100%', marginTop: 14 }}>📷 Prendre la photo</button>
+        <button onClick={() => gal.current?.click()} style={{ ...ghostBtn, width: '100%', marginTop: 8 }}>🖼️ Depuis la galerie</button>
+      </>}
+      {busy && <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: 24 }}><Spinner size={28} /><div style={{ fontWeight: 600 }}>Je reconnais la machine…</div><div style={{ fontSize: 12.5, color: F.muted }}>~15 à 25 secondes</div></div>}
+      {err && !busy && <div style={{ color: F.red, fontWeight: 600, marginTop: 12 }}>❌ {err}</div>}
+      {scan && !busy && <>
+        <div style={{ fontWeight: 700, marginTop: 8 }}>{scan.machine}</div>
+        {scan.setup && <div style={{ fontSize: 13, color: F.muted, marginTop: 4, lineHeight: 1.4 }}>⚙️ {scan.setup}</div>}
+        <div style={{ fontSize: 13, fontWeight: 600, marginTop: 12 }}>Coche ce que tu fais :</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+          {scan.exercises.map((x, k) => { const on = sel.includes(k); return (
+            <button key={k} onClick={() => setSel(v => on ? v.filter(y => y !== k) : [...v, k])} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 14, border: on ? `2px solid ${F.accent}` : `2px solid ${F.line}`, background: '#fff', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+              <div style={{ width: 52, height: 52, borderRadius: 10, background: F.tile, overflow: 'hidden', flexShrink: 0 }}>{x.img?.length ? <Anim img={x.img} alt="" h={52} /> : null}</div>
+              <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14.5, color: F.ink }}>{x.name}</div><div style={{ fontSize: 12, color: F.muted }}>{x.muscles.join(', ')}</div></div>
+              <div style={{ width: 26, height: 26, borderRadius: 7, background: on ? F.accent : '#fff', border: on ? 'none' : `2px solid ${F.line}`, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>{on ? '✓' : ''}</div>
+            </button>); })}
+        </div>
+        <button disabled={!sel.length} onClick={() => onAdd(sel.sort((a, b) => a - b).map(k => scan.exercises[k]!))} style={{ ...btn, width: '100%', marginTop: 14, opacity: sel.length ? 1 : 0.5 }}>＋ Ajouter à ma séance{sel.length > 1 ? ` (${sel.length})` : ''}</button>
+        <button onClick={() => cam.current?.click()} style={{ ...ghostBtn, width: '100%', marginTop: 8 }}>📷 Autre machine</button>
+      </>}
+    </Sheet>
   );
 }
 

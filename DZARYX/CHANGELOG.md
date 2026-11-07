@@ -1,3 +1,8 @@
+## 2026-11-07 ~06h40 — FORME : machine scannée ajoutée à la séance + retirer un exercice (app v250)
+- Pendant la séance : tuile 📷 à côté de ＋ → photo de la machine → coche les exercices → ajoutés à la séance (séries, kg, reps, note, enregistrés comme les autres).
+- Écran Scanner hors séance : « Ajouter à ma séance en cours » si une séance est en cours.
+- 🗑️ à côté de Remplacer : retire l'exercice de la séance (confirmation s'il a des séries validées). La liste modifiée est gardée sur le téléphone même sans série validée.
+
 ## 2026-11-07 — FORME : cocher / décocher les séances de la semaine (app v249)
 - « Il note ma séance d'aujourd'hui comme faite alors qu'elle est pas faite » : arrivé à la salle (GPS) = « en cours » (cercle pointillé), faite seulement quand la séance est notée ou l'heure de fin passée.
 - La bande de la semaine va de lundi à dimanche ; en touchant un jour passé ou aujourd'hui → case « faite / pas faite ». Décocher = journal, FORME et arrivée GPS effacés (gardés de côté pour recocher), séance remise dans la rotation, exercices affichés à nouveau ; ni le GPS ni la montre ne la recochent. POST /api/sport/done, setSessionDone/undoneDates (sport-coach.ts), calendrier/objectif FORME suivent.
