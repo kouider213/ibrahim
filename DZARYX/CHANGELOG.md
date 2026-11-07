@@ -1,4 +1,5 @@
 ## 2026-11-07 soir — Faux « c'est noté » sur une résa
+- « +200 euro en cas> aujourd'hui » : faute sur cash (cas/cach/kash…) comprise par le code → caisse + vente du jour (avant : fortune répondue, rien noté). « en cas de » intact.
 - Djillali : « ramène quand ? » → « le 9 » alors que Kouider avait donné le 10 à 6h (jour offert) : le cerveau avait dit « noté » sans update_booking. phantomGuard bloque maintenant « noté / location prolongée / jour offert noté » sur une résa sans écriture réelle → relance avec le vrai outil.
 
 ## 2026-11-07 — Bugs du jour + protections anti-arnaque

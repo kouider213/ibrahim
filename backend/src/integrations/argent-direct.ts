@@ -56,6 +56,8 @@ export function parseMoneyCommand(raw: string): MoneyCommand | null {
   msg = msg.replace(/\bsnu\b/gi, 'snus');
   // 06/11 fautes SMS : « cmb jai gagné ojd »
   msg = msg.replace(/\b(?:cmb|cbn|conbien)\b/gi, 'combien').replace(/\bjai\b/gi, "j'ai").replace(/\b(?:ojd|auj|ajd|aujourdhui|aujaurdhui)\b/gi, "aujourd'hui").replace(/\b(?:gagner|gagne)\b/gi, 'gagné');   // 05/11 banc : « snu 170 »
+  // 07/11 « +200 euro en cas> aujourd'hui » : faute sur cash → rien noté, le cerveau a sorti la fortune. « en cas de » reste intact.
+  msg = msg.replace(/(\d[\d\s.,]*\s*k?\s*(?:€|euros?|e)?\s*(?:en|de|du)\s+)(?:cas|cach|cashe|kash|cahs|csh|cassh)(?![\p{L}]|\s+(?:de|d'|où|ou)\b)[^\p{L}\d\s]*/giu, '$1cash ');
   if (!msg || msg.length > 300 || !MONEY.test(msg) || OTHER.test(msg)) return null;
   const today = localNow().date;
   const question = /\?|combien|quel(?:le)?s? jours?|meilleur jour|j.en suis|je suis (?:à|a) combien|c.est quoi mon|dis[- ]moi/i.test(msg);
