@@ -702,7 +702,14 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
       const { isAgenticFallbackAvailable, runAgenticFallback } = await import('../integrations/agentic-fallback.js');
       // 🚑 05/11 (Kouider « oui ») : gros Gemini épuisés → il ne reste que des petits cerveaux qui répondent mal (photo du
       // matin) → Claude Haiku d'abord, 6 fois/jour max (~20 c). Au-delà, ou si Haiku échoue, les petits cerveaux comme avant.
-      if (actorUserId === 'kouider' && !sandbox && !(await import('../integrations/agentic-fallback.js')).bigGeminiAvailable()) {
+      // 07/11 (Kouider « oui ») : les 6 places sont GARDÉES pour les questions importantes (argent, résas, clients, photos,
+      // conseils…) — avant, « je pars bientôt » et 3 retours de « ne pas déranger » les avaient toutes brûlées, puis les vraies
+      // questions du soir sont tombées sur les petits cerveaux qui ont inventé. Plus de place → on ne devine pas : question gardée.
+      const fbMod = await import('../integrations/agentic-fallback.js');
+      const weakOnly = actorUserId === 'kouider' && !sandbox && !fbMod.bigGeminiAvailable();
+      const important = weakOnly && fbMod.importantAsk(userMessage, !!imageBase64);
+      if (weakOnly && !important) console.log(`[claude-emergency] faible : message banal → petits cerveaux, place Claude gardée session=${sessionId}`);
+      if (important) {
         const compat = await import('../integrations/anthropic-compat.js');
         const em = await compat.runClaudeEmergency(() => chatWithTools(ctx.messages, agentSystemExtra, sessionId, onToolStart, onToolDone, onTextChunk, imageBase64, imageMime, agentRoute.agentTools), 'faible').catch(e => { console.error('[claude-emergency] faible — échec :', e instanceof Error ? e.message : e); return null; });
         if (em?.text) {
@@ -712,6 +719,14 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
           saveConversationTurn(sessionId, 'assistant', emText, { tools: (em.toolsExecuted ?? []).map((t: { name: string; success: boolean }) => `${t.name} ${t.success ? '✅' : '❌'}`) }).catch(() => {});
           _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
           return { text: emText, status: 'done' };
+        }
+        // plus de place Claude (ou Haiku en échec) sur une question importante → gardée, jamais devinée par un petit cerveau
+        const keepTxt = await (await import('../integrations/brain-retry.js')).keepImportant(sessionId, userMessage, Date.now() - 6 * 60_000).catch(() => null);
+        if (keepTxt) {
+          _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: keepTxt });
+          saveConversationTurn(sessionId, 'assistant', keepTxt).catch(() => {});
+          _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+          return { text: keepTxt, status: 'done' };
         }
       }
       if (isAgenticFallbackAvailable()) {

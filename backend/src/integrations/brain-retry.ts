@@ -5,7 +5,7 @@
 import { kvGet, kvSet } from './app-store.js';
 
 const KEY = 'brain:retry-queue';
-interface Q { sessionId: string; message: string; at: number; tries: number }
+interface Q { sessionId: string; message: string; at: number; tries: number; waitBig?: boolean }
 const READ_ONLY = /^(list|get|check|read|search|recall|show|find|fetch|watch|web_search|gold_watch|demain|esprit|travel)/;
 
 async function readQ(): Promise<Q[]> { try { return JSON.parse((await kvGet(KEY)) ?? '[]') as Q[]; } catch { return []; } }
@@ -51,11 +51,28 @@ export async function keepForLater(sessionId: string, message: string, since: nu
   return '⏳ Mes cerveaux gratuits sont saturés là, mais j\'ai gardé ta question : je te réponds ici sur Telegram dès qu\'un cerveau revient (en général moins de 15 min). Pas besoin de la renvoyer.';
 }
 
+/** 07/11 (Kouider « oui ») : question IMPORTANTE, gros Gemini épuisés ET plus de place Claude → on ne laisse pas les petits
+ *  cerveaux inventer. Gardée jusqu'au retour d'un gros Gemini (quota remis vers 9h), 18 h max, puis réponse sur Telegram. */
+export async function keepImportant(sessionId: string, message: string, since: number): Promise<string> {
+  const { redis } = await import('../queue/queue.js');
+  const hist = await redis.lrange(`action:history:${sessionId}`, 0, 30).catch(() => [] as string[]);
+  const wrote = hist.some(h => { try { const x = JSON.parse(h) as { toolName: string; success: boolean; timestamp: number }; return x.timestamp >= since && x.success && !READ_ONLY.test(x.toolName); } catch { return false; } });
+  if (wrote) return keepForLater(sessionId, message, since);
+  const q = (await readQ()).filter(x => Date.now() - x.at < (x.waitBig ? 18 : 6) * 3600_000);
+  const msg = message.slice(0, 2000);
+  if (!q.some(x => x.sessionId === sessionId && x.message === msg)) q.push({ sessionId, message: msg, at: Date.now(), tries: 0, waitBig: true });
+  await kvSet(KEY, JSON.stringify(q.slice(-10)));
+  console.warn(`[brain-retry] question importante gardée : gros Gemini épuisés + plus de place Claude → pas de réponse devinée session=${sessionId}`);
+  return '⏳ Mes gros cerveaux gratuits sont saturés là, et je ne veux pas te répondre au hasard sur une question importante. Je l\'ai gardée : je te réponds ici sur Telegram dès que le bon cerveau revient. Pas besoin de la renvoyer.';
+}
+
 /** Job toutes les 5 min : rejoue la plus ancienne question gardée. */
 export async function jobBrainRetry(): Promise<string> {
-  const q = (await readQ()).filter(x => Date.now() - x.at < 6 * 3600_000 && x.tries < 6);
+  const q = (await readQ()).filter(x => Date.now() - x.at < (x.waitBig ? 18 : 6) * 3600_000 && x.tries < 6);
   if (!q.length) { await kvSet(KEY, '[]').catch(() => {}); return 'rien'; }
   const item = q[0]!;
+  // question importante : rejouée seulement quand un gros Gemini est revenu (sinon les petits cerveaux réinventeraient)
+  if (item.waitBig && !(await import('./agentic-fallback.js')).bigGeminiAvailable()) { await kvSet(KEY, JSON.stringify(q)); return 'attend un gros Gemini'; }
   item.tries++;
   await kvSet(KEY, JSON.stringify(q));
   const { processWithOrchestration } = await import('../orchestrator/orchestrator-engine.js');

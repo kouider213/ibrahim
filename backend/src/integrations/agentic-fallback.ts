@@ -221,6 +221,17 @@ export function textToolCalls(content: unknown, allowed: Set<string>): OAIToolCa
   } catch { return []; }
 }
 
+/** 07/11 (Kouider « oui ») : question IMPORTANTE = mérite une des 6 places Claude/jour quand les gros Gemini sont épuisés.
+ *  Les blocs de contexte « [Contexte : …] » ajoutés par le code sont retirés d'abord (ils faisaient passer « je pars bientôt »
+ *  pour une longue question → 3 places Claude brûlées en 1 min à 19h52). Banal (« ok », « je pars », « merci ») = petits cerveaux. */
+export function importantAsk(text: string, hasImage = false): boolean {
+  if (hasImage) return true;
+  const t = text.replace(/\[[^\]]{40,}\]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!t) return false;
+  return needsDeepThought(t) || /\d+\s*(€|e\b|eur|euro|da\b|dinar|k\b|j\b|jours?)|\b(argent|cash|caisse|vente|gagn|b[ée]n[ée]f|chiffre|combien|prix|tarif|co[uû]t|pay|factur|devis|r[ée]sa|r[ée]serv|location|loue|client|voiture|v[ée]hicule|clio|fiat|peugeot|houari|propri[ée]taire|contrat|caution|mail|envoie|envoy|whatsapp|agenda|rdv|rendez|rappel|vol|billet|banque|salaire|[ée]pargne|imp[oô]t|loi|m[ée]decin|sant[ée]|douleur|sympt|m[ée]dic|programme|s[ée]ance|r[ée]gime|calorie|kcal|poids)/i.test(t)
+    || (t.length > 60 && /\?/.test(t));
+}
+
 /** Demande qui mérite de la réflexion (analyse, plan, calcul, texte à rédiger…) plutôt qu'une réponse éclair. */
 export function needsDeepThought(text: string): boolean {
   return text.length > 220 || /analys|strat[eé]g|business ?plan|calcul|compar|r[eé]dig|pourquoi|expliqu|conseil|optimis|pr[eé]vision|bilan|devis|contrat/i.test(text);

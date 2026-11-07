@@ -6,6 +6,11 @@
 - « +200 euro en cas> aujourd'hui » : faute sur cash (cas/cach/kash…) comprise par le code → caisse + vente du jour (avant : fortune répondue, rien noté). « en cas de » intact.
 - Djillali : « ramène quand ? » → « le 9 » alors que Kouider avait donné le 10 à 6h (jour offert) : le cerveau avait dit « noté » sans update_booking. phantomGuard bloque maintenant « noté / location prolongée / jour offert noté » sur une résa sans écriture réelle → relance avec le vrai outil.
 
+## 07/11/2026 soir — places Claude gardées pour les questions importantes
+- Gros Gemini épuisés : les 6 places Claude Haiku/jour ne sont plus prises par les messages banals (« je pars », « ok », retours de « ne pas déranger », contexte [..] retiré avant le tri) → `importantAsk()` (agentic-fallback.ts).
+- Question importante + plus de place Claude → plus de réponse devinée par un petit cerveau : question gardée (`keepImportant`, brain-retry.ts), rejouée seulement quand un gros Gemini revient (18 h max), réponse sur Telegram.
+- 2 nouvelles clés Gemini (nouveaux projets) ajoutées à GEMINI_API_KEYS sur Railway (5 clés au total).
+
 ## 2026-11-07 — Bugs du jour + protections anti-arnaque
 - Coach salle « fantôme » à 12h55 au travail : une séance finie n'est plus relancée par la montre/GPS le même jour ; note séance > 3 h ignorée.
 - Djillali (client en cours) appelé 2× comme « nouvelle demande de location » : l'appel location seulement pour une discussion jamais répondue.
