@@ -33,7 +33,7 @@ router.get('/', async (_req, res) => {
 
 // POST /api/sport/log { date?, type, sets: [{ ex, kg?, reps? }], durationMin?, rpe?, note? } — fin de séance
 router.post('/log', async (req, res) => {
-  const b = req.body as { date?: string; type?: string; sets?: SetLog[]; durationMin?: number; rpe?: number; note?: string };
+  const b = req.body as { date?: string; type?: string; sets?: SetLog[]; durationMin?: number; rpe?: number; note?: string; names?: Record<string, string>; planned?: number };
   if (!isType(b.type)) { fail(res, 'type de séance invalide', 400); return; }
   try {
     const date = isDate(b.date) ? b.date : localNow().date;
@@ -48,9 +48,20 @@ router.post('/log', async (req, res) => {
     const after = await computeGame().catch(() => null);
     const gained = before && after ? after.total - before.total : 0;
     const levelUp = before && after && after.level > before.level ? `\n🎉 NIVEAU ${after.level} — ${after.title} !` : '';
-    await queueTelegramMessage(`✅ ${s.emoji} ${s.label} terminée${b.durationMin ? ` en ${Math.round(Number(b.durationMin))} min` : ''} — ${sets.length} séries. +${gained} pts 🎮${levelUp}${r.prs.length ? `\n🏆 Nouveau record : ${r.prs.join(', ')} !` : ''}\nBravo champion, ta femme et ton fils peuvent être fiers. 💪 Pense à bien t'étirer et à boire de l'eau.`).catch(() => {});
+    // 07/11 : bilan complet (avis, à améliorer, notes /10, graphique vs la dernière séance pareille) → Telegram + app (GET /review)
+    const extra = `🎮 +${gained} pts${levelUp}${r.prs.length ? `\n🏆 Nouveau record : ${r.prs.join(', ')} !` : ''}\nPense à bien t'étirer et à boire de l'eau. 💪`;
+    const names = b.names && typeof b.names === 'object' ? Object.fromEntries(Object.entries(b.names).slice(0, 60).map(([k, v]) => [String(k).slice(0, 80), String(v).slice(0, 60)])) : undefined;
+    void import('../../integrations/sport-review.js').then(m => m.buildReview(date, { names, planned: Number(b.planned) || undefined, extra }))
+      .then(async rv => { if (!rv) await queueTelegramMessage(`✅ ${s.emoji} ${s.label} terminée — ${sets.length} séries.\n${extra}`); })
+      .catch(() => queueTelegramMessage(`✅ ${s.emoji} ${s.label} terminée — ${sets.length} séries.\n${extra}`).catch(() => {}));
     res.json({ ok: true, ...r, gained, level: after?.level ?? null, levelUp: !!levelUp });
   } catch (err) { fail(res, err); }
+});
+
+// GET /api/sport/review?date= — 07/11 bilan de la séance (null tant qu'il n'est pas prêt)
+router.get('/review', async (req, res) => {
+  const date = isDate(req.query['date']) ? String(req.query['date']) : localNow().date;
+  try { res.json({ review: await import('../../integrations/sport-review.js').then(m => m.getReview(date)) }); } catch (err) { fail(res, err); }
 });
 
 // POST /api/sport/swap { date, type|null } — changer la séance d'un jour

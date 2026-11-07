@@ -1,3 +1,9 @@
+## 2026-11-07 ~09h — bilan de séance complet (notes /10, avis, graphique) (app v253)
+- Fin de séance dans FORME → bilan calculé par le code (sport-review.ts) : volume, séries, records, comparaison avec la dernière séance du même type, notes /10 (progression, volume, intensité, régularité, densité) ; le cerveau gratuit écrit seulement l'avis + conseils à partir de ces chiffres.
+- Envoyé sur Telegram (texte + graphique QuickChart) et visible dans FORME › Entraînement (« Bilan de ta dernière séance », détail + barres vs la dernière fois). GET /api/sport/review.
+- L'app envoie les noms des exercices (plus de « Face pull poulie » pour 3 exercices différents : recherche exacte par id). Densité comparée seulement si les deux séances durent ≥ 25 min.
+- Plus de 2e bilan au départ de la salle si le bilan est déjà fait.
+
 ## 2026-11-07 ~08h — radars : vitesse juste (ou rien)
 - « La vitesse à l'approche d'un radar n'est pas correcte » : elle était calculée en ligne droite entre 2 positions Telegram, avec l'heure d'ARRIVÉE au serveur (positions groupées / en retard, jusqu'à 6 min d'écart).
 - tgcall envoie l'heure réelle (edit_date) + précision ; positions > 60 m de précision ignorées, positions en retard ignorées ; vitesse affichée seulement si segments de 3-60 s, médiane des 3 dernières (90 s), arrondie à 5 ; sinon le message ne donne pas de vitesse. « Ralentis » si > limite + 3.

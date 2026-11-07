@@ -510,14 +510,75 @@ function ResumeBanner({ toast, onDone }: { toast: (t: string) => void; onDone?: 
         <button onClick={() => setPlay(true)} style={{ ...btn, padding: '10px 14px', fontSize: 14 }}>Reprendre</button>
         <button onClick={() => { if (confirm('Abandonner cette séance ?')) { try { localStorage.removeItem(LIVE_K); } catch { /* */ } setLive(null); } }} aria-label="Abandonner" style={{ border: 'none', background: 'none', color: '#fff', opacity: 0.6, fontSize: 18, cursor: 'pointer' }}>✕</button>
       </div>
-      {play && <Player s={live.s} resume={live} kind={live.kind} onClose={() => { setPlay(false); setLive(readLive()); }} onFinished={msg => { setPlay(false); setLive(null); toast(msg); onDone?.(); }} save={async (sets, durationMin, rpe, _e, _r, note) => {
+      {play && <Player s={live.s} resume={live} kind={live.kind} onClose={() => { setPlay(false); setLive(readLive()); }} onFinished={msg => { setPlay(false); setLive(null); toast(msg); onDone?.(); }} save={async (sets, durationMin, rpe, exs, _r, note) => {
         if (live.kind === 'coach') {
-          const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date: live.s.date, type: live.s.type, sets, durationMin, rpe, ...(note ? { note } : {}) }) });
+          const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date: live.s.date, type: live.s.type, sets, durationMin, rpe, names: exNames(exs), planned: exs.length, ...(note ? { note } : {}) }) });
           return `💪 Séance enregistrée${r.prs.length ? ` — 🏆 record : ${r.prs.join(', ')}` : ''} · Dzaryx est prévenu`;
         }
         await forme.log('workout', { session: (live.s as unknown as { index?: number }).index ?? 0, label: live.s.label, sets, durationMin, rpe });
         return `💪 ${live.s.label} enregistrée`;
       }} />}
+    </>
+  );
+}
+
+const exNames = (exs: PEx[]) => Object.fromEntries(exs.map(e => [e.id, e.name]));
+
+interface SessionReviewV { date: string; label: string; emoji: string; totals: { sets: number; volume: number; durationMin: number | null; rpe: number | null };
+  prev: { date: string; sets: number; volume: number } | null; scores: { global: number; progression: number; volume: number; intensite: number; regularite: number; densite: number | null };
+  exercises: Array<{ id: string; name: string; sets: number; volume: number; topKg: number | null; topReps: number | null; prev: { volume: number; topKg: number | null } | null; pr: boolean }>;
+  avis: string; good: string[]; improve: string[]; chartUrl: string | null }
+
+/** 07/11 : bilan de la dernière séance (notes /10, avis, à améliorer, comparaison avec la dernière pareille). */
+function ReviewCard({ dates, bump }: { dates: string[]; bump: number }) {
+  const [r, setR] = useState<SessionReviewV | null>(null);
+  const [open, setOpen] = useState(false);
+  const key = dates.join(',');
+  useEffect(() => {
+    let stop = false; let tries = 0;
+    const run = async () => {
+      for (const dt of dates) {
+        const x = await apiFetch<{ review: SessionReviewV | null }>(`/api/sport/review?date=${dt}`).catch(() => null);
+        if (stop) return;
+        if (x?.review) { setR(x.review); return; }
+      }
+      if (bump && ++tries < 8 && !stop) setTimeout(() => void run(), 6000);   // bilan en préparation juste après la séance
+    };
+    void run();
+    return () => { stop = true; };
+  }, [key, bump]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!r) return null;
+  const col = (n: number) => n >= 8 ? F.accent : n >= 6 ? '#e9a23b' : F.red;
+  const note = (l: string, n: number | null) => n == null ? null : (
+    <div key={l} style={{ flex: '1 1 30%', minWidth: 86 }}><div style={{ fontSize: 12, color: F.muted }}>{l}</div>
+      <div style={{ height: 6, borderRadius: 3, background: F.line, marginTop: 4 }}><div style={{ width: `${n * 10}%`, height: '100%', borderRadius: 3, background: col(n) }} /></div>
+      <div style={{ fontSize: 12.5, fontWeight: 700, marginTop: 2 }}>{n}/10</div></div>);
+  const maxV = Math.max(1, ...r.exercises.map(e => Math.max(e.volume, e.prev?.volume ?? 0)));
+  return (
+    <>
+      <H2>Bilan de ta dernière séance</H2>
+      <div style={{ ...card }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 28, border: `4px solid ${col(r.scores.global)}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18 }}>{r.scores.global}<span style={{ fontSize: 11, color: F.muted }}>/10</span></div>
+          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700 }}>{r.emoji} {r.label} · {r.date.slice(8)}/{r.date.slice(5, 7)}</div>
+            <div style={{ fontSize: 12.5, color: F.muted }}>{r.totals.sets} séries · {r.totals.volume.toLocaleString('fr-FR')} kg{r.totals.durationMin ? ` · ${r.totals.durationMin} min` : ''}{r.prev ? ` · avant : ${r.prev.volume.toLocaleString('fr-FR')} kg` : ''}</div></div>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 12 }}>{[note('Progression', r.scores.progression), note('Volume', r.scores.volume), note('Intensité', r.scores.intensite), note('Régularité', r.scores.regularite), note('Densité', r.scores.densite)]}</div>
+        <div style={{ fontSize: 14, marginTop: 12, lineHeight: 1.45 }}>💬 {r.avis}</div>
+        {open && <>
+          {r.good.length > 0 && <div style={{ marginTop: 10 }}><div style={{ fontWeight: 700, fontSize: 13.5 }}>✅ Points forts</div>{r.good.map((x, i) => <div key={i} style={{ fontSize: 13, marginTop: 3 }}>• {x}</div>)}</div>}
+          {r.improve.length > 0 && <div style={{ marginTop: 10 }}><div style={{ fontWeight: 700, fontSize: 13.5 }}>🎯 À améliorer</div>{r.improve.map((x, i) => <div key={i} style={{ fontSize: 13, marginTop: 3 }}>• {x}</div>)}</div>}
+          <div style={{ marginTop: 12, fontWeight: 700, fontSize: 13.5 }}>📈 Volume par exercice <span style={{ fontWeight: 400, color: F.muted }}>(gris = dernière fois)</span></div>
+          {r.exercises.map(e => (
+            <div key={e.id} style={{ marginTop: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5 }}><span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.pr ? '🏆 ' : ''}{e.name}</span><span style={{ color: F.muted, flexShrink: 0, marginLeft: 8 }}>{e.topKg ? `${e.topKg} kg × ${e.topReps ?? '?'}` : `${e.sets} séries`}{e.prev?.topKg ? ` (avant ${e.prev.topKg})` : ''}</span></div>
+              {e.prev && <div style={{ height: 5, borderRadius: 3, background: '#c7cbd6', width: `${(e.prev.volume / maxV) * 100}%`, marginTop: 3 }} />}
+              <div style={{ height: 7, borderRadius: 3, background: F.accent, width: `${Math.max(2, (e.volume / maxV) * 100)}%`, marginTop: 2 }} />
+            </div>
+          ))}
+        </>}
+        <button onClick={() => setOpen(!open)} style={{ border: 'none', background: F.bg, borderRadius: 10, padding: '9px 12px', marginTop: 12, width: '100%', cursor: 'pointer', fontWeight: 600, color: F.ink }}>{open ? 'Masquer le détail' : 'Voir le détail + graphique'}</button>
+      </div>
     </>
   );
 }
@@ -547,6 +608,7 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
   const [play, setPlay] = useState<SportSession | null>(null);
   const [ex, setEx] = useState<SportExercise | null>(null);
   const [pick, setPick] = useState<string | null>(null);
+  const [bump, setBump] = useState(0);
   const load = useCallback(() => apiFetch<SportOverview>('/api/sport').then(setD).catch(e => setErr(errText(e))), []);
   useEffect(() => { void load(); }, [load]);
   if (err) return <div style={{ padding: 18, color: F.red }}>❌ {err}</div>;
@@ -585,7 +647,7 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
           );
         })}
       </div>
-      <ResumeBanner toast={toast} onDone={() => void load()} />
+      <ResumeBanner toast={toast} onDone={() => { void load(); setBump(b => b + 1); }} />
       <TodayForm />
       {doneToday && !pick && <div style={{ ...card, marginTop: 14, display: 'flex', alignItems: 'center', gap: 12 }}><div style={{ width: 40, height: 40, borderRadius: 20, background: F.green, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 800 }}>✓</div><div><div style={{ fontWeight: 700 }}>Séance du jour faite{d.today?.label ? ` : ${d.today.label}` : ''}</div><div style={{ fontSize: 13, color: F.muted }}>Bravo. Récupère bien — voici la prochaine.</div></div></div>}
       {s ? <SessionCard s={s} kicker={isToday ? (doneToday ? 'Aujourd\'hui · faite ✓' : "Aujourd'hui") : `${pick ? '' : 'Prochaine · '}${SHORT_DAYS[dayOf(s.date)]} ${s.date.slice(8)} · ${new Date(s.start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })}`} onStart={() => setPlay(s)} onEx={setEx} start={isToday ? 'Démarrer l\'entraînement' : 'Voir / faire cette séance'} />
@@ -609,6 +671,7 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
           {d.recovery.map(r => <span key={r.muscle} style={{ fontSize: 12.5, fontWeight: 600, background: F.bg, borderRadius: 999, padding: '5px 10px', color: r.pct >= 100 ? F.green : r.pct >= 60 ? F.gold : F.red }}>{MUSCLE[r.muscle] ?? r.muscle} {r.pct >= 100 ? '✓' : `${r.pct}%`}</span>)}
         </div>
       </div>
+      <ReviewCard dates={[...new Set([...(d.week[0]?.status === 'done' && today ? [today] : []), ...(d.recent ?? []).map(x => x.date)])].slice(0, 3)} bump={bump} />
       <H2>Statistiques</H2>
       <div style={{ display: 'flex', gap: 8 }}>{statTile(d.stats.monthSessions, 'Séances ce mois')}{statTile(d.stats.total, 'Au total')}{statTile(weekVol ? `${Math.round(weekVol / 100) / 10} t` : '—', 'Volume semaine')}</div>
       {d.stats.weeks.length > 1 && <div style={{ ...card, marginTop: 8 }}><div style={{ fontWeight: 600, fontSize: 14 }}>Séances par semaine</div><WeekBars weeks={d.stats.weeks} /></div>}
@@ -636,8 +699,8 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
         </div>
       </>}
       <ExerciseSheet session={ex} onClose={() => setEx(null)} />
-      {play && <Player s={play} prs={prs} onClose={() => setPlay(null)} onFinished={msg => { setPlay(null); toast(msg); void load(); }} save={async (sets, durationMin, rpe, _exs, _rows, note) => {
-        const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date: d.week[0]?.date ?? play.date, type: play.type, sets, durationMin, rpe, ...(note ? { note } : {}) }) });
+      {play && <Player s={play} prs={prs} onClose={() => setPlay(null)} onFinished={msg => { setPlay(null); toast(msg); void load(); setBump(b => b + 1); }} save={async (sets, durationMin, rpe, exs, _rows, note) => {
+        const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date: d.week[0]?.date ?? play.date, type: play.type, sets, durationMin, rpe, names: exNames(exs), planned: exs.length, ...(note ? { note } : {}) }) });
         return `💪 Séance enregistrée${r.prs.length ? ` — 🏆 record : ${r.prs.join(', ')}` : ''} · Dzaryx est prévenu`;
       }} />}
     </div>

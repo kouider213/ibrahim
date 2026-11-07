@@ -419,7 +419,10 @@ export async function liveTick(): Promise<void> {
   const loc = await getLocation('kouider').catch(() => null);
   const fresh = loc && now - Date.parse(loc.updated_at) < 10 * 60_000 ? { lat: loc.lat, lng: loc.lng } : null;
   if ((fresh && gym && km(fresh, gym) > 0.8 && now > l.startedAt + 20 * 60_000) || now > l.startedAt + 3 * 3600_000) {
-    await notify(await endLive(l, fresh ? 'parti de la salle' : 'clôturée'), '🏁 Bilan de ta séance');
+    const txt = await endLive(l, fresh ? 'parti de la salle' : 'clôturée');
+    // 07/11 : bilan complet déjà envoyé à l'enregistrement dans l'app (sport-review) → pas de 2e bilan au départ
+    const reviewed = await import('./sport-review.js').then(m => m.getReview(l.date)).catch(() => null);
+    if (!reviewed) await notify(txt, '🏁 Bilan de ta séance');
     return;
   }
   const app = await appProgress();
