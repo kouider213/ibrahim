@@ -1,3 +1,8 @@
+## 2026-11-07 — Bugs d'appel (suite)
+- Mémoire des appels jamais enregistrée : domaine 'note' refusé par chk_facts_domain → rangé en 'general' ; vraie erreur Supabase loguée.
+- En appel, « vérifie WhatsApp » = un seul unread (plus d'ouverture des discussions/photos une par une).
+- Début d'appel : un « allô » ou un bruit ne coupe plus la phrase d'accueil (coupure seulement sur une vraie phrase).
+
 ## 2026-11-07 — Jour offert payé au proprio par Kouider + appels plus solides
 - Jour offert : le proprio est payé par Kouider → coût proprio sur tous les jours, déduit du bénéfice (offeredDays() dans finance.ts + phase5). Djillali : 348 € proprio, bénéfice 92 €.
 - update_booking trouvé par nom ne renomme plus le client.

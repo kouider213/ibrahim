@@ -202,6 +202,11 @@ class GeminiLiveWS:
     def _put(self, ev: dict) -> None:
         self.queue.put_nowait(ev)
 
+    async def _maybe_barge(self) -> None:
+        await asyncio.sleep(0.7)
+        if speaks(clean_heard(self.in_text)):
+            self._put({'type': 'input_audio_buffer.speech_started'})
+
     def _flush_input(self) -> None:
         heard = clean_heard(self.in_text)
         noisy = bool(re.search(r'<[^>]{1,20}>|[\u06F0-\u06F9]', self.in_text))   # « <noise> », chiffres persans = bruit mal transcrit
@@ -234,8 +239,15 @@ class GeminiLiveWS:
                             self.barged = True
                             self._put({'type': 'input_audio_buffer.speech_started'})
                     if sc.get('interrupted'):
+                        heard_now = clean_heard(self.in_text)
                         self._flush_input()
-                        self._put({'type': 'input_audio_buffer.speech_started'})
+                        # 07/11 : un simple « allô » / un bruit au décroché coupait la phrase d'accueil → Dzaryx recommençait
+                        # (« Je reprends : je… »). On ne coupe la voix que si c'est une vraie phrase (≥ 2 mots / 6 lettres) ;
+                        # sinon on attend 0,7 s la suite de la transcription avant de décider.
+                        if speaks(heard_now):
+                            self._put({'type': 'input_audio_buffer.speech_started'})
+                        else:
+                            asyncio.create_task(self._maybe_barge())
                         self._end_turn()
                     for part in (sc.get('modelTurn') or {}).get('parts') or []:
                         data = (part.get('inlineData') or {}).get('data')

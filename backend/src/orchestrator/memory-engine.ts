@@ -68,7 +68,9 @@ export function computeMemoryKey(content: string, domain: string, userId = 'koui
 }
 
 export async function writeMemory(params: WriteMemoryParams): Promise<WriteMemoryResult> {
-  const { key, value, domain, confidence = 0.9, source = 'orchestrator', userId: userIdParam } = params;
+  const { key, value, confidence = 0.9, source = 'orchestrator', userId: userIdParam } = params;
+  // 'note' n'existe pas dans la contrainte chk_facts_domain de la base → chaque résumé d'appel échouait (07/11)
+  const domain: MemoryDomain = params.domain === 'note' ? 'general' : params.domain;
   const userId = userIdParam ?? 'kouider';
   const dedupKey = buildDedupKey(value, domain, userId);
 
@@ -160,7 +162,7 @@ export async function writeMemory(params: WriteMemoryParams): Promise<WriteMemor
     console.log(`[memory-engine] CREATED domain=${domain} key="${key}" dedup_key=${dedupKey.slice(0, 16)}… source=${source}`);
     return { success: true, id: (inserted as { id: string }).id, operation: 'created' };
   } catch (err) {
-    const error = err instanceof Error ? err.message : String(err);
+    const error = err instanceof Error ? err.message : (err as { message?: string })?.message ?? JSON.stringify(err);
     console.error(`[memory-engine] WRITE FAILED domain=${domain} key="${key}": ${error}`);
     return { success: false, id: null, operation: 'failed', error };
   }
