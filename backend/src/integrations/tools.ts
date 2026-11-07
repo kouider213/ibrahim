@@ -30,7 +30,7 @@ const ALL_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'update_booking',
-    description: 'Modifier une réservation existante dans Supabase (nom, dates, voiture, montant, propriétaire, statut).',
+    description: 'Modifier une réservation existante dans Supabase (nom, dates, voiture, montant, propriétaire, statut). Prolongation offerte/gratuite → end_date + free_days (le client ne paie pas ces jours).',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -48,6 +48,8 @@ const ALL_TOOLS: Anthropic.Tool[] = [
         rented_by:      { type: 'string', enum: ['Kouider','Houari'] },
         client_passport:{ type: 'string', description: 'N° de passeport/pièce d\'identité du client (si donné dans le message)' },
         passport_expiry:{ type: 'string', description: 'Date d\'expiration du passeport YYYY-MM-DD (optionnel)' },
+        free_days:      { type: 'number', description: 'JOURS OFFERTS (gratuits) : Kouider prolonge la location mais le client ne paie PAS ces jours (« il rend le 10 au lieu du 9 mais je lui ai offert, c\'est gratuit »). Donne end_date = nouvelle date de retour + free_days = nombre de jours offerts → le prix total reste le même.' },
+        return_time:    { type: 'string', description: 'Heure du retour HH:MM si Kouider la donne (« à 6h du matin » → 06:00), notée sur la réservation.' },
         notes:          { type: 'string', description: 'Note libre. Quand Kouider dit que la voiture est prête / préparée / lavée pour ce client → notes « ✅ Véhicule prêt » (les rappels de préparation s\'arrêtent). Ne dis jamais « noté » sans avoir appelé cet outil.' },
       },
       required: ['id'],

@@ -1,3 +1,8 @@
+## 2026-11-07 — Jour offert sur une résa + nom client tolérant
+- update_booking : free_days (jours offerts, prix total inchangé via nb_days facturés) + return_time (heure de retour notée). Ex. Djillali 9→10/11 offert.
+- list_bookings / résa par nom : « Djilali » retrouve « Djillali » (lettres doublées ignorées).
+- Vérifié : lien d'avis Google auto sur WhatsApp à 10h30 le lendemain du retour (client-care.ts).
+
 ## 2026-11-07 ~13h — 4 bugs signalés par Kouider (B054)
 - Brief : « travail jusqu'à 21h » → le brief reçoit la vraie fin du travail (kv kouider:work_end, 20:00) ; one-shot `routine:fix:famille-20h` recale dans l'agenda FIK les séries « temps famille » qui commencent après 20h (et « travail » qui finit après) sur mar/mer/ven/sam (résultat dans kv routine:fix:famille-20h:result).
 - « Bien arrivé au travail (12:52) » 1 h après l'arrivée : Telegram n'a envoyé aucune position de 11:30 à 12:47. Vu au travail > 30 min après l'heure du travail (« 12:00 travail ») = arrivée non annoncée.

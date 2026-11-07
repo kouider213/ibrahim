@@ -327,12 +327,22 @@ export function aliasToolInput(name: string, input: Record<string, unknown>): Re
   return out;
 }
 
+/** Nom de client tolérant (07/11 « Djilali » → résa « Djillali Halfi ») : lettres doublées / en plus ignorées → motif ilike %d%j%i%l%a%l%i%. */
+function fuzzyNamePattern(who: string): string | null {
+  const letters = who.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z ]/g, '').replace(/(.)\1+/g, '$1').trim();
+  if (letters.replace(/ /g, '').length < 4) return null;
+  return `%${letters.split(/\s+/).map(w => w.split('').join('%')).join('%')}%`;
+}
+
 /** Outil de résa sans id mais avec un nom de client → sa résa la plus récente/en cours (une seule possible, sinon on laisse l'outil demander). */
 async function bookingByClient(name: string, input: Record<string, unknown>): Promise<Record<string, unknown>> {
   if (!BOOKING_TOOLS.has(name) || name === 'create_booking' || input['id'] || input['booking_id']) return input;
   const who = String(input['client_name'] ?? input['client'] ?? '').trim();
   if (who.length < 3) return input;
-  const { data } = await supabase.from('bookings').select('id, client_name, start_date, end_date, status').ilike('client_name', `%${who}%`).not('status', 'eq', 'REJECTED').order('start_date', { ascending: false }).limit(5);
+  const find = (pat: string) => supabase.from('bookings').select('id, client_name, start_date, end_date, status').ilike('client_name', pat).not('status', 'eq', 'REJECTED').order('start_date', { ascending: false }).limit(5);
+  let { data } = await find(`%${who}%`);
+  const fz = !(data ?? []).length ? fuzzyNamePattern(who) : null;
+  if (fz) ({ data } = await find(fz));
   const list = (data ?? []) as Array<{ id: string; start_date: string; end_date: string }>;
   if (!list.length) return input;
   const today = new Date().toISOString().slice(0, 10);
@@ -695,18 +705,21 @@ async function _dispatch(
 }
 
 async function listBookings(input: Record<string, unknown>): Promise<string> {
-  let query = supabase
-    .from('bookings')
-    .select('id, client_name, client_phone, start_date, end_date, final_price, currency, status, payment_status, paid_amount, rented_by, notes, cars(name)')
-    .order('start_date', { ascending: false })
-    .limit(Number(input['limit'] ?? 20));
-
-  if (input['status'])      query = query.eq('status', input['status'] as string);
-  if (input['client_name']) query = query.ilike('client_name', `%${input['client_name']}%`);
-  // Filtre par acteur (ex: "réservations de Houari") — rented_by stocké 'Houari'/'Kouider'
-  if (input['rented_by'])   query = query.ilike('rented_by', `%${input['rented_by']}%`);
-
-  const { data, error } = await query;
+  const build = (namePat?: string) => {
+    let query = supabase
+      .from('bookings')
+      .select('id, client_name, client_phone, start_date, end_date, final_price, currency, status, payment_status, paid_amount, rented_by, notes, cars(name)')
+      .order('start_date', { ascending: false })
+      .limit(Number(input['limit'] ?? 20));
+    if (input['status'])      query = query.eq('status', input['status'] as string);
+    if (namePat)              query = query.ilike('client_name', namePat);
+    // Filtre par acteur (ex: "réservations de Houari") — rented_by stocké 'Houari'/'Kouider'
+    if (input['rented_by'])   query = query.ilike('rented_by', `%${input['rented_by']}%`);
+    return query;
+  };
+  let { data, error } = await build(input['client_name'] ? `%${input['client_name']}%` : undefined);
+  const fz = input['client_name'] && !error && !(data ?? []).length ? fuzzyNamePattern(String(input['client_name'])) : null;
+  if (fz) ({ data, error } = await build(fz));
   if (error) {
     const { data: fallback, error: err2 } = await supabase
       .from('bookings')
@@ -772,6 +785,18 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
   if (input['rented_by'])    fields['rented_by']    = input['rented_by'];
   if (input['client_passport']) fields['client_passport'] = input['client_passport'];
   if (input['passport_expiry']) fields['passport_expiry'] = input['passport_expiry'];
+  // Jours offerts (Kouider 07/11 : « il rend le 10 au lieu du 9, je lui ai offert ») + heure de retour → note sur la réservation
+  const freeDays = Math.max(0, Math.round(Number(input['free_days'] ?? 0)) || 0);
+  const retTime = input['return_time'] ? String(input['return_time']).trim().replace(/^(\d{1,2})\s*h\s*(\d{0,2})$/i, (_m, h: string, m: string) => `${h.padStart(2, '0')}:${(m || '00').padStart(2, '0')}`) : '';
+  {
+    const extra: string[] = [];
+    const ed = input['end_date'] ? String(input['end_date']).split('-').reverse().slice(0, 2).join('/') : '';
+    if (freeDays) extra.push(`🎁 ${freeDays} jour${freeDays > 1 ? 's' : ''} offert${freeDays > 1 ? 's' : ''} par Kouider (gratuit${ed ? `, retour le ${ed}` : ''}) — le client ne paie pas ${freeDays > 1 ? 'ces jours' : 'ce jour'}`);
+    if (retTime) extra.push(`🕕 Retour${ed ? ` le ${ed}` : ''} à ${retTime}`);
+    const given = String(input['notes'] ?? '');
+    const keep = extra.filter(l => !(l.startsWith('🎁') ? /offert|gratuit/i.test(given) : /retour.*\d{1,2}\s*[:h]/i.test(given)));
+    if (keep.length) input['notes'] = [given, ...keep].filter(Boolean).join('\n');
+  }
   if (input['notes']) {
     // On AJOUTE à la note existante (ex. adresse de livraison du client) au lieu de l'écraser
     const { data: cn } = await supabase.from('bookings').select('notes').eq('id', input['id'] as string).single();
@@ -790,12 +815,18 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
 
   // Dates ou prix changés → jours, part Houari et bénéfice recalculés (sinon l'ancien bénéfice reste)
   if (['start_date', 'end_date', 'final_price', 'client_price_per_day', 'owner_price_per_day'].some(k => fields[k] !== undefined)) {
-    const { data: cur } = await supabase.from('bookings').select('start_date, end_date, final_price, client_price_per_day, owner_price_per_day, rented_by').eq('id', id).single();
+    const { data: cur } = await supabase.from('bookings').select('start_date, end_date, nb_days, final_price, client_price_per_day, owner_price_per_day, rented_by').eq('id', id).single();
     const c = (cur ?? {}) as Record<string, unknown>;
     const sd = String(fields['start_date'] ?? c['start_date'] ?? ''), ed = String(fields['end_date'] ?? c['end_date'] ?? '');
     if (sd && ed && sd > ed) return `❌ Dates incohérentes : ${sd} → ${ed} (rien modifié).`;
     if (sd && ed) {
-      const days = rentalDays(sd, ed);
+      // jours offerts déjà sur la résa (nb_days facturés < jours réels) gardés si les dates bougent encore
+      const prevFree = c['nb_days'] != null && c['start_date'] && c['end_date'] ? Math.max(0, rentalDays(String(c['start_date']), String(c['end_date'])) - Number(c['nb_days'])) : 0;
+      const realDays = rentalDays(sd, ed);
+      const free = freeDays + prevFree;
+      if (free >= realDays) return `❌ ${free} jour(s) offert(s) pour une location de ${realDays} jour(s) : impossible (rien modifié).`;
+      const days = realDays - free;   // jours FACTURÉS
+      if (free > 0 || c['nb_days'] != null) fields['nb_days'] = free > 0 ? days : null;
       const fp = fields['final_price'] !== undefined ? Number(fields['final_price']) : Number(c['final_price'] ?? 0);
       // prix/jour client : donné ; sinon déduit du nouveau total ; sinon l'ancien (dates changées = même prix/jour, total recalculé)
       const datesChanged = fields['start_date'] !== undefined || fields['end_date'] !== undefined;
@@ -814,7 +845,8 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
   if (error) return `Erreur mise à jour: ${error.message}`;
 
 
-  return `✅ Réservation ${id} mise à jour: ${JSON.stringify(fields)}`;
+  const offered = freeDays && fields['nb_days'] != null ? `\n🎁 ${freeDays} jour(s) offert(s) : le client paie ${fields['nb_days']} jour(s), total ${fields['final_price'] ?? '?'} € (inchangé pour lui). Le lien d'avis Google partira le lendemain du nouveau retour.` : '';
+  return `✅ Réservation ${id} mise à jour: ${JSON.stringify(fields)}${offered}`;
 }
 
 async function createBooking(input: Record<string, unknown>, sessionId?: string): Promise<string> {
