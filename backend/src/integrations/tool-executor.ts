@@ -381,6 +381,12 @@ async function _dispatch(
       case 'list_bookings':         return await listBookings(input);
       case 'update_booking':        return await updateBooking(input);
       case 'create_booking': {
+        // Client refusé pour l'âge (< 35) sur ce numéro → bloqué, sauf accord EXPLICITE de Kouider (07/11, anti-contournement)
+        if (input['client_phone'] && input['refus_age_leve'] !== true) {
+          const ref = await import('./whatsapp-web.js').then(m => m.ageRefusal(String(input['client_phone']))).catch(() => null);
+          if (ref) return `❌ Réservation BLOQUÉE : ce numéro (${ref.chat}) a dit avoir ${ref.age} ans sur WhatsApp et a été refusé (assurance 35 ans). `
+            + 'Risque qu\'il loue avec les papiers d\'un proche. Dis-le à Kouider. Seulement s\'il confirme clairement que le VRAI conducteur a 35 ans+ et viendra lui-même → relance create_booking avec refus_age_leve:true.';
+        }
         const risk = await clientRisk(String(input['client_name'] ?? ''), input['client_phone'] as string | undefined).catch(() => null);
         const res = await createBooking(input, sessionId);
         // Anti-regret : prix sous son plancher → rappel (jamais bloquant)

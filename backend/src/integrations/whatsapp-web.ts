@@ -76,6 +76,29 @@ function declineText(ar: boolean): string {
   return ar ? 'شكراً على رسالتك 🙏\nللأسف التأمين تاعنا يفرض عمر 35 سنة على الأقل للكراء. سمحلنا على الإزعاج، ونتمناولك طريق سالمة.'
     : 'Bonjour, merci pour votre message 🙏\nMalheureusement notre assurance impose un âge minimum de 35 ans pour la location. Désolé pour la gêne, et bonne route à vous.';
 }
+// ── Anti-contournement de l'âge (Kouider 07/11) : refusé à 24 ans, il revient avec la date de naissance / les papiers
+// de son père → on ne le croit pas sur parole : refus maintenu proposé + alerte « risque d'arnaque » + réservation bloquée.
+const refusedKey = (chat: string) => `wa:refused:${chat.replace(/\D/g, '').length >= 9 ? chat.replace(/\D/g, '').slice(-9) : chat.toLowerCase()}`;
+export async function markAgeRefused(chat: string, age: number): Promise<void> {
+  if (await kvGet(refusedKey(chat)).catch(() => null)) return;
+  await kvSet(refusedKey(chat), JSON.stringify({ chat, age, at: Date.now() }), 180 * 86_400).catch(() => {});
+}
+export async function ageRefusal(chat: string): Promise<{ chat: string; age: number; at: number } | null> {
+  try { const r = await kvGet(refusedKey(chat)); return r ? JSON.parse(r) as { chat: string; age: number; at: number } : null; } catch { return null; }
+}
+/** Âge tiré d'une date de naissance écrite (« né le 12/03/1968 », « 1968 »). */
+export function birthDateAge(text: string): number | null {
+  const m = /\b(\d{1,2})\s*[\/.-]\s*(\d{1,2})\s*[\/.-]\s*(19\d{2}|20\d{2})\b/.exec(text) ?? /(?:n[ée]e?\s+(?:en|le)?|naissance)\D{0,15}(19\d{2})/i.exec(text);
+  if (!m) return null;
+  const y = Number(m.length > 3 ? m[3] : m[1]);
+  const a = new Date().getFullYear() - y;
+  return a >= 17 && a <= 95 ? a : null;
+}
+const PROXY_RE = /mon\s+(p[èe]re|papa|fr[èe]re|oncle|cousin|ami|pote)|ma\s+(m[èe]re|maman|s(œ|oe)ur|femme|tante)|au\s+nom\s+d|son\s+(permis|nom|passeport|identit)|pour\s+quelqu.un|quelqu.un\s+d.autre|كي?\s*بابا|بويا|خويا|بابا|أبي|والدي/i;
+function holdRefusalText(ar: boolean, age: number): string {
+  return ar ? `سمحلنا، الكراء غير للسائق روحو: لازم يكون عندو 35 سنة على الأقل ويجي هو بنفسو بالپيرمي و البطاقة تاعو، وهو وحدو اللي يسوق. كيما قلتلنا عندك ${age} سنة، ما نقدروش نكريولك.`
+    : `Désolé, la location est réservée au conducteur lui-même : il doit avoir 35 ans minimum, être présent à la remise avec son permis et sa pièce d'identité à son nom, et lui seul conduit. Comme vous nous avez indiqué avoir ${age} ans, nous ne pouvons pas vous louer de véhicule.`;
+}
 /** 1er message à un NOUVEAU client : ce qui manque (dates et/ou âge). */
 function firstContactText(ar: boolean, needDates: boolean, needAge: boolean, missedCall: boolean): string {
   if (ar) return `السلام عليكم، FIK Conciergerie 👋${missedCall ? ' شفنا العيطة تاعك.' : ''}\nباش نشوفولك الدّيسپو، عطينا من فضلك ${[needDates ? 'التواريخ (من وقتاش لوقتاش)' : '', needAge ? 'عمر السائق' : ''].filter(Boolean).join(' و')}.`;
@@ -148,6 +171,29 @@ export async function onWaNew(c: WaChat): Promise<void> {
     emitProactive(`WhatsApp — ${name} : nouveau message`, 'info', text);
     return;
   }
+  const refused = fromClient.length || MISSED_CALL_RE.test(preview) ? await ageRefusal(name) : null;
+  if (refused && !DELICATE_RE.test(preview)) {
+    const newText = fromClient.map(m => m.text).join('\n') || preview;
+    const otherAge = birthDateAge(newText) ?? clientAge(newText);
+    const papers = fromClient.some(m => /^\[(photo|document)\]/.test(m.text));
+    const trick = (otherAge !== null && otherAge >= 35) || PROXY_RE.test(newText) || papers;
+    if (trick || isBookingRequest(newText)) {
+      const draft = holdRefusalText(isArabic(newText), refused.age);
+      const all = await drafts();
+      all[name.toLowerCase()] = { chat: name, preview: newText.slice(0, 600), draft, at: new Date().toISOString() };
+      await kvSet(DRAFTS_KEY, JSON.stringify(all), 3 * 86_400);
+      await kvSet(PENDING_KEY, JSON.stringify({ chat: name, draft, kind: 'plainte' }), 12 * 3600);
+      const day = new Date(refused.at).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', day: '2-digit', month: '2-digit' });
+      const t = `${trick ? '⚠️ RISQUE D\'ARNAQUE' : '🚫 Client déjà refusé'} — WhatsApp ${name}\n« ${newText.slice(0, 400)} »\n\n`
+        + `Le ${day}, il a dit avoir ${refused.age} ans → refusé (assurance 35 ans). `
+        + (trick ? `Là il revient avec ${otherAge !== null && otherAge >= 35 ? `un autre âge (${otherAge} ans)` : papers ? 'des papiers' : 'quelqu\'un d\'autre'} : sûrement les papiers d'un proche pour louer quand même. Celui qui signe doit être celui qui conduit.\n`
+          : 'Il redemande une voiture.\n')
+        + `\n✍️ Réponse proposée (refus maintenu) :\n${draft}\n\nRéponds « oui » pour l'envoyer, « non » pour laisser.`;
+      await queueTelegramMessage(t, undefined, 'kouider', undefined, true).catch(() => {});
+      emitProactive(`⚠️ WhatsApp — ${name} : client refusé qui revient`, 'alert', t);
+      return;
+    }
+  }
   // Kouider 07/11 : NOUVEAU client (numéro pas enregistré, jamais de réponse de FIK) → Dzaryx envoie SEUL le 1er message :
   // âge < 35 → refus poli ; sinon demande des dates et/ou de l'âge manquants. Aussi après un appel WhatsApp manqué.
   const clientText = msgs.filter(m => !m.me).map(m => m.text).join('\n') || preview;
@@ -167,6 +213,7 @@ export async function onWaNew(c: WaChat): Promise<void> {
       const first = declined ? declineText(ar) : firstContactText(ar, needDates, needAge, missedCall);
       const sent = await cloudEmit<R>('cloud:wa', { action: 'send', chat: name, text: first }, 80_000).catch(() => ({ ok: false } as R));
       if (sent.ok) {
+        if (declined) await markAgeRefused(name, age!);
         await kvSet(`wa:first:${name}`, '1', 30 * 86_400);
         await kvSet(`wa:handled:${name.toLowerCase()}`, String(Date.now()), 86_400);
         void import('./foresight.js').then(f => f.logWa(name, 'out', first)).catch(() => {});
@@ -205,7 +252,7 @@ export async function onWaNew(c: WaChat): Promise<void> {
     console.warn('[wa-web] proposition:', err instanceof Error ? err.message : err);
   }
   // Âge < 35 déclaré dans la discussion : JAMAIS de liste de voitures, refus poli (07/11 : « Parfait, t'as l'âge » à un 24 ans)
-  if (age !== null && age < 35 && (kind === 'location' || isBookingRequest(clientText) || reply)) { reply = declineText(isArabic(clientText)); kind = 'location'; }
+  if (age !== null && age < 35 && (kind === 'location' || isBookingRequest(clientText) || reply)) { reply = declineText(isArabic(clientText)); kind = 'location'; await markAgeRefused(name, age); }
   // Règle de Kouider (01/11) : 1re réponse à une demande de location = demander dates + âge (si le cerveau l'a oublié)
   const firstReply = !msgs.some(m => m.me && !isAuto(m));
   if (reply && firstReply && !(age !== null && age < 35) && (kind === 'location' || isBookingRequest(preview)) && !/[âa]ge|عمر/i.test(reply)) {
@@ -440,7 +487,9 @@ function autoScanClientPapers(chat: string): void {
   setTimeout(() => {
     void (async () => {
       const res = await whatsappWebTool({ action: 'save_client', chat, auto: true, force: true }, `wa_papers_${Date.now()}`).catch(() => '');
-      if (res && res.startsWith('✅')) await queueTelegramMessage(`🪪 Papiers reçus sur WhatsApp, rangés tout seuls :\n${res}`).catch(() => {});
+      const ref = await ageRefusal(chat);
+      if (res && res.startsWith('✅')) await queueTelegramMessage(`🪪 Papiers reçus sur WhatsApp, rangés tout seuls :\n${res}`
+        + (ref ? `\n\n⚠️ ATTENTION : ce numéro a dit avoir ${ref.age} ans et a été refusé. Ces papiers sont sûrement ceux d'un proche : ne loue qu'au conducteur, présent en personne avec SES papiers.` : '')).catch(() => {});
     })();
   }, 20_000);   // laisse le PC cloud finir la lecture + la réponse proposée
 }

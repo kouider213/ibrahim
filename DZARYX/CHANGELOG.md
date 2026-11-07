@@ -1,3 +1,8 @@
+## 2026-11-07 — Anti-contournement de l'âge
+- Client refusé (< 35) mémorisé 180 j par numéro (wa:refused:<9 derniers chiffres>). S'il revient avec un autre âge, une date de naissance, « mon père / au nom de… » ou des papiers → refus maintenu proposé + alerte « ⚠️ RISQUE D'ARNAQUE » sur Telegram, rien d'auto.
+- Papiers reçus d'un numéro refusé → avertissement dans le message « Papiers reçus ».
+- create_booking bloqué sur un numéro refusé, sauf refus_age_leve:true après accord explicite de Kouider.
+
 ## 2026-11-07 — WhatsApp : âge < 35 refusé, 1er message auto aux nouveaux clients, plus de doublon
 - clientAge() lit l'âge du client (« j'ai 24 ans », pas les années de permis) : < 35 → réponse forcée = refus poli, jamais de liste de voitures.
 - Nouveau client (numéro non enregistré, FIK n'a jamais répondu) qui demande une location / dit bonjour / appel WhatsApp manqué → Dzaryx envoie SEUL le 1er message (dates et/ou âge manquants, ou refus si < 35), Kouider prévenu sur Telegram.
