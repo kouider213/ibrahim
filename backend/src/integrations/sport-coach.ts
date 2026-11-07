@@ -915,12 +915,14 @@ export async function sportWeeklyReport(send = false): Promise<string> {
   if (send) { const fresh = await getState(); fresh.goal = goal; await saveState(fresh); }   // planSportWeek vient de réécrire le plan
   const game = await (await import('./coach-game.js')).computeGame().catch(() => null);
   const health = await import('./jarvis-hub.js').then(m => m.healthWeekLine()).catch(() => '');
+  const weekScore = await import('./sport-review.js').then(m => m.weekScoreLine(from)).catch(() => '');   // 07/11 : note /10 de la semaine
   const text = [
     `📊 Bilan sport de la semaine`,
     `✅ Séances : ${done.length}/${planned || done.length}${missed.length ? ` (ratée : ${missed.map(fmtD).join(', ')})` : ''}`,
     vol ? `🏋️ Volume soulevé : ${vol.toLocaleString('fr-FR')} kg${prevVol ? ` (${vol >= prevVol ? '+' : ''}${Math.round((vol - prevVol) / prevVol * 100)} % vs semaine d'avant)` : ''}` : '',
     prs.length ? `🏆 Records battus : ${prs.join(' · ')}` : '',
     goalLine,
+    weekScore,
     health,
     '',
     next.length ? `🗓️ Semaine prochaine${inDeload(nextMon) ? ' — 🪶 SEMAINE ALLÉGÉE' : ''} :\n${next.map(x => `- ${fmtD(x.date)} ${hm(Date.parse(x.start))} : ${SESSIONS[x.type].emoji} ${SESSIONS[x.type].label}${x.minutes < 60 ? ` (${x.minutes} min)` : ''}`).join('\n')}` : '🗓️ Pas de séance calée la semaine prochaine.',

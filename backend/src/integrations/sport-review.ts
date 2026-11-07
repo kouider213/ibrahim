@@ -23,6 +23,13 @@ export interface SessionReview {
   exercises: ExCompare[];
   scores: { global: number; progression: number; volume: number; intensite: number; regularite: number; densite: number | null };
   avis: string; good: string[]; improve: string[]; chartUrl: string | null;
+  // 07/11 soir (16 options) : contexte et extras — tous calculés par le code
+  context?: { sleep: number | null; kcalYday: number | null; protYday: number | null; protGoal: number | null; kcalToday: number | null };
+  links?: string[];                                    // sommeil / repas ↔ notes des séances passées
+  rests?: { avgSec: number; plannedSec: number; slow: string[] } | null;
+  challenge?: { name: string; met: boolean } | null;
+  month?: { volume: number; best: { month: string; volume: number } | null } | null;
+  forecast?: Array<{ name: string; target: number; eta: string }>;
 }
 
 /** L'app envoie les noms des exercices (bibliothèque, machines scannées) : gardés pour les bilans suivants. */
@@ -75,7 +82,7 @@ export async function getReview(date: string): Promise<SessionReview | null> {
 }
 
 /** Construit le bilan de la séance du jour `date` (après /api/sport/log), le garde et l'envoie sur Telegram. */
-export async function buildReview(date: string, o: { names?: Record<string, string>; send?: boolean; planned?: number; extra?: string } = {}): Promise<SessionReview | null> {
+export async function buildReview(date: string, o: { names?: Record<string, string>; send?: boolean; planned?: number; extra?: string; rests?: Record<string, number[]>; challenge?: string } = {}): Promise<SessionReview | null> {
   if (o.names) await rememberNames(o.names);
   const names = { ...(JSON.parse((await kvGet(NAMES_K).catch(() => null)) ?? '{}') as Record<string, string>), ...Object.fromEntries(Object.entries(o.names ?? {}).map(([k, v]) => [base(k), v])) };
   const log = await readSportLog();
@@ -129,10 +136,66 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
   if (cur.rpe === 10) improve.push('Effort 10/10 : garde 1-2 reps en réserve sur la plupart des séries, tu progresseras plus longtemps');
   if (o.planned && exercises.length < o.planned) improve.push(`${o.planned - exercises.length} exercice(s) du programme non faits`);
 
+  // ── #5 Repos réel entre les séries (secondes mesurées par l'app) ──
+  let rests: SessionReview['rests'] = null;
+  if (o.rests) {
+    const all: number[] = []; const slow: string[] = []; let planned = 0, nP = 0;
+    for (const [id, arr] of Object.entries(o.rests)) {
+      const v = (arr ?? []).map(Number).filter(x => x >= 15 && x <= 900);
+      if (!v.length) continue;
+      all.push(...v);
+      const ex = findExercise(base(id)); const plan = ex && ex.id.toLowerCase() === base(id).toLowerCase() ? ex.rest : 90;
+      planned += plan; nP++;
+      const m = v.reduce((a, b) => a + b, 0) / v.length;
+      if (m > plan * 1.6 && m - plan > 45) slow.push(`${await nameOf(id, names)} (${fmtS(Math.round(m))} au lieu de ${fmtS(plan)})`);
+    }
+    if (all.length >= 3) rests = { avgSec: Math.round(all.reduce((a, b) => a + b, 0) / all.length), plannedSec: Math.round(planned / Math.max(1, nP)), slow: slow.slice(0, 3) };
+  }
+  if (rests && rests.slow.length) improve.push(`Repos trop longs : ${rests.slow.join(', ')} — garde le chrono du repos`);
+  // ── #10 Défi du jour ──
+  let challenge: SessionReview['challenge'] = null;
+  if (o.challenge) {
+    const e = exercises.find(x => x.id === base(o.challenge!));
+    if (e && e.prev?.e1rm) { const met = !!(e.e1rm && e.prev?.e1rm && e.e1rm > e.prev.e1rm) || e.pr; challenge = { name: e.name, met }; (met ? good : improve).push(met ? `🎯 Défi du jour réussi sur ${e.name}` : `🎯 Défi du jour pas réussi sur ${e.name} — on retente la prochaine fois`); }
+  }
+  // ── #13 Ce mois vs ton meilleur mois (volume) ──
+  const byMonth = new Map<string, number>();
+  for (const l of log) if (l.date <= date) byMonth.set(l.date.slice(0, 7), (byMonth.get(l.date.slice(0, 7)) ?? 0) + l.sets.reduce((a, z) => a + (z.kg ?? 0) * (z.reps ?? 0), 0));
+  const mNow = byMonth.get(date.slice(0, 7)) ?? 0;
+  const bestM = [...byMonth.entries()].filter(([m]) => m !== date.slice(0, 7)).sort((a, b) => b[1] - a[1])[0];
+  const month = { volume: Math.round(mNow), best: bestM ? { month: bestM[0], volume: Math.round(bestM[1]) } : null };
+  if (month.best && mNow > month.best.volume) good.push(`📅 Ce mois bat déjà ton meilleur mois (${month.volume.toLocaleString('fr-FR')} kg)`);
+  // ── #16 Prévision : quand tu passeras le palier suivant (+5 kg) à ce rythme ──
+  const forecast: NonNullable<SessionReview['forecast']> = [];
+  const since42 = new Date(Date.parse(`${date}T12:00:00Z`) - 42 * 86_400_000).toISOString().slice(0, 10);
+  for (const e of exercises.filter(x => x.topKg)) {
+    const pts = log.filter(l => l.date >= since42 && l.date <= date).map(l => ({ t: Date.parse(`${l.date}T12:00:00Z`) / 86_400_000, kg: Math.max(0, ...l.sets.filter(z => base(z.ex) === e.id && z.kg).map(z => z.kg!)) })).filter(x => x.kg > 0);
+    if (pts.length < 3) continue;
+    const n = pts.length, mt = pts.reduce((a, x) => a + x.t, 0) / n, mk = pts.reduce((a, x) => a + x.kg, 0) / n;
+    const slope = pts.reduce((a, x) => a + (x.t - mt) * (x.kg - mk), 0) / Math.max(1e-9, pts.reduce((a, x) => a + (x.t - mt) ** 2, 0));   // kg / jour
+    if (slope <= 0.02) continue;
+    const target = (Math.floor(e.topKg! / 5) + 1) * 5;
+    const days = Math.ceil((target - e.topKg!) / slope);
+    if (days > 120) continue;
+    const eta = new Date(Date.parse(`${date}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+    forecast.push({ name: e.name, target, eta });
+  }
+  forecast.sort((a, b) => a.eta.localeCompare(b.eta));
+  // ── #8 + #9 Sommeil et repas autour de la séance ──
+  const sleepH = await import('./sleep-coach.js').then(m => m.sleepStats(date)).then(x => x.last).catch(() => null);
+  const yday = new Date(Date.parse(`${date}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  const food = await import('./forme-food.js').catch(() => null);
+  const bY = food ? await food.foodBudget('kouider', yday).catch(() => null) : null;
+  const bT = food ? await food.foodBudget('kouider', date).catch(() => null) : null;
+  const context = { sleep: sleepH ?? null, kcalYday: bY?.eaten.kcal || null, protYday: bY?.eaten.p || null, protGoal: bY?.proteinGoal ?? null, kcalToday: bT?.eaten.kcal || null };
+  if (context.sleep != null && context.sleep < 6) improve.push(`Seulement ${context.sleep} h de sommeil cette nuit : ça pèse sur la force`);
+  if (context.protYday && context.protGoal && context.protYday < context.protGoal * 0.7) improve.push(`Protéines hier : ${Math.round(context.protYday)} g sur ${context.protGoal} g — mange plus de protéines la veille`);
+
   const r: SessionReview = {
     date, at: Date.now(), type: cur.type, label: SESSIONS[cur.type].label, emoji: SESSIONS[cur.type].emoji, totals,
     prev: prevS ? { date: prevS.date, sets: prevS.sets.length, volume: Math.round(prevVol), durationMin: prevS.durationMin ?? null } : null,
-    exercises, scores, avis: '', good: good.slice(0, 5), improve: improve.slice(0, 5), chartUrl: null,
+    exercises, scores, avis: '', good: good.slice(0, 6), improve: improve.slice(0, 6), chartUrl: null,
+    context, rests, challenge, month, forecast: forecast.slice(0, 3), links: await linksFor(date, scores.global, context),
   };
   r.chartUrl = chartUrl(r);
 
@@ -141,6 +204,7 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
     seance: r.label, duree_min: dur, effort: cur.rpe ?? null, series: sets, volume_kg: r.totals.volume, derniere_pareille: r.prev,
     exercices: exercises.map(e => ({ nom: e.name, series: e.sets, max: e.topKg ? `${e.topKg} kg × ${e.topReps ?? '?'}` : null, avant: e.prev?.topKg ?? null, record: e.pr })),
     notes_sur_10: scores, points_forts: r.good, a_ameliorer: r.improve, seances_7_jours: week,
+    sommeil_nuit_h: context.sleep, proteines_hier_g: context.protYday, repos_moyen_s: rests?.avgSec ?? null, previsions: r.forecast,
   };
   const out = jsonOf<{ avis?: string; conseils?: string[] }>(await Promise.race([
     ai(`Tu es le coach de musculation de Kouider (objectif : perdre le ventre et du poids, pecs/dos/bras). Voici sa séance d'aujourd'hui, chiffres RÉELS calculés :\n${JSON.stringify(facts)}\n\nRéponds en JSON {"avis": "3 phrases max, en français, tutoiement, honnête et motivant : ce que tu penses de la séance, appuyé sur les chiffres", "conseils": ["2 à 3 conseils concrets pour la prochaine ${r.label} (charge, reps, repos, exercice), seulement s'il y a vraiment quelque chose à améliorer ; sinon liste vide"]}. N'invente AUCUN chiffre absent des données.`, { max: 500 }).catch(() => ''),
@@ -163,6 +227,10 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
       `💬 ${r.avis}`,
       ...(r.good.length ? ['', '✅ Points forts :', ...r.good.map(x => `• ${x}`)] : []),
       ...(r.improve.length ? ['', '🎯 À améliorer :', ...r.improve.map(x => `• ${x}`)] : ['', '🎯 Rien de spécial à corriger, garde ce rythme.']),
+      ...(r.rests ? ['', `⏱️ Repos moyen : ${fmtS(r.rests.avgSec)} (prévu ${fmtS(r.rests.plannedSec)})`] : []),
+      ...(r.forecast?.length ? ['', '🔮 À ce rythme :', ...r.forecast.map(f => `• ${f.name} à ${f.target} kg vers le ${f.eta.slice(8)}/${f.eta.slice(5, 7)}`)] : []),
+      ...(r.links?.length ? ['', '🔗 Ce que disent tes séances :', ...r.links.map(x => `• ${x}`)] : []),
+      ...(r.month?.best ? ['', `📅 Ce mois : ${r.month.volume.toLocaleString('fr-FR')} kg · meilleur mois (${r.month.best.month.slice(5)}/${r.month.best.month.slice(0, 4)}) : ${r.month.best.volume.toLocaleString('fr-FR')} kg`] : []),
       '',
       ...(o.extra ? ['', o.extra] : []),
       '📱 Détail + graphique dans FORME › Entraînement.',
@@ -171,6 +239,46 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
     if (r.chartUrl) {
       await queueTelegramAlbum(`📈 ${r.label} : aujourd'hui (bleu) vs la dernière (gris) — volume par exercice`, [r.chartUrl]).catch(() => {});
     }
+    // #1 Bilan vocal (voix du coach, gratuit) — pas pendant le travail
+    const atWork = await import('./grand-coach-plus.js').then(m => m.atWorkNow()).catch(() => false);
+    if (!atWork) {
+      const voice = `Bilan de ta séance ${r.label} : ${scores.global} sur 10. ${r.avis} ${r.improve[0] ? `Pour la prochaine fois : ${r.improve[0].replace(/\(.*?\)/g, '')}.` : ''}`;
+      await import('./grand-coach-plus.js').then(m => m.sendVoice(voice, '🎧 Bilan de ta séance en audio')).catch(() => false);
+    }
   }
   return r;
+}
+
+const fmtS = (sec: number) => sec >= 60 ? `${Math.floor(sec / 60)} min ${String(sec % 60).padStart(2, '0')}` : `${sec} s`;
+
+/** #8 + #9 : lien sommeil / protéines de la veille ↔ note des séances passées (dès 4 bilans comparables). */
+async function linksFor(date: string, global: number, ctx: NonNullable<SessionReview['context']>): Promise<string[]> {
+  const past: SessionReview[] = [];
+  for (let k = 1; k <= 60; k++) {
+    const d = new Date(Date.parse(`${date}T12:00:00Z`) - k * 86_400_000).toISOString().slice(0, 10);
+    const x = await getReview(d); if (x?.context) past.push(x);
+  }
+  const all = [...past, { scores: { global }, context: ctx } as SessionReview];
+  const out: string[] = [];
+  const cmp = (label: string, good: (r: SessionReview) => boolean | null, yes: string, no: string) => {
+    const a = all.filter(r => good(r) === true).map(r => r.scores.global), b = all.filter(r => good(r) === false).map(r => r.scores.global);
+    if (a.length < 2 || b.length < 2) return;
+    const ma = a.reduce((x, y) => x + y, 0) / a.length, mb = b.reduce((x, y) => x + y, 0) / b.length;
+    if (Math.abs(ma - mb) >= 0.8) out.push(`${label} ${yes} : ${Math.round(ma * 10) / 10}/10 en moyenne, contre ${Math.round(mb * 10) / 10}/10 ${no}`);
+  };
+  cmp('Après 7 h de sommeil ou plus', r => r.context?.sleep == null ? null : r.context.sleep >= 7, 'tes séances valent', 'après une nuit courte');
+  cmp('Quand tu as mangé assez de protéines la veille', r => !r.context?.protYday || !r.context.protGoal ? null : r.context.protYday >= r.context.protGoal * 0.85, 'tes séances valent', 'sinon');
+  return out;
+}
+
+/** #4 : note moyenne /10 de la semaine (bilans de séance) vs la semaine d'avant — pour le bilan du dimanche. */
+export async function weekScoreLine(monday: string): Promise<string> {
+  const avgOf = async (from: string) => {
+    const v: number[] = [];
+    for (let k = 0; k < 7; k++) { const d = new Date(Date.parse(`${from}T12:00:00Z`) + k * 86_400_000).toISOString().slice(0, 10); const r = await getReview(d); if (r) v.push(r.scores.global); }
+    return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length * 10) / 10 : null;
+  };
+  const now = await avgOf(monday), prev = await avgOf(new Date(Date.parse(`${monday}T12:00:00Z`) - 7 * 86_400_000).toISOString().slice(0, 10));
+  if (now == null) return '';
+  return `⭐ Note de la semaine : ${now}/10${prev != null ? ` (${now > prev ? '↑' : now < prev ? '↓' : '='} ${prev}/10 la semaine d'avant)` : ''}`;
 }

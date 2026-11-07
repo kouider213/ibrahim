@@ -33,7 +33,7 @@ router.get('/', async (_req, res) => {
 
 // POST /api/sport/log { date?, type, sets: [{ ex, kg?, reps? }], durationMin?, rpe?, note? } — fin de séance
 router.post('/log', async (req, res) => {
-  const b = req.body as { date?: string; type?: string; sets?: SetLog[]; durationMin?: number; rpe?: number; note?: string; names?: Record<string, string>; planned?: number };
+  const b = req.body as { date?: string; type?: string; sets?: SetLog[]; durationMin?: number; rpe?: number; note?: string; names?: Record<string, string>; planned?: number; rests?: Record<string, number[]>; challenge?: string };
   if (!isType(b.type)) { fail(res, 'type de séance invalide', 400); return; }
   try {
     const date = isDate(b.date) ? b.date : localNow().date;
@@ -51,7 +51,7 @@ router.post('/log', async (req, res) => {
     // 07/11 : bilan complet (avis, à améliorer, notes /10, graphique vs la dernière séance pareille) → Telegram + app (GET /review)
     const extra = `🎮 +${gained} pts${levelUp}${r.prs.length ? `\n🏆 Nouveau record : ${r.prs.join(', ')} !` : ''}\nPense à bien t'étirer et à boire de l'eau. 💪`;
     const names = b.names && typeof b.names === 'object' ? Object.fromEntries(Object.entries(b.names).slice(0, 60).map(([k, v]) => [String(k).slice(0, 80), String(v).slice(0, 60)])) : undefined;
-    void import('../../integrations/sport-review.js').then(m => m.buildReview(date, { names, planned: Number(b.planned) || undefined, extra }))
+    void import('../../integrations/sport-review.js').then(m => m.buildReview(date, { names, planned: Number(b.planned) || undefined, extra, rests: b.rests && typeof b.rests === 'object' ? Object.fromEntries(Object.entries(b.rests).slice(0, 60).map(([k, v]) => [String(k).slice(0, 80), Array.isArray(v) ? v.slice(0, 30).map(Number) : []])) : undefined, challenge: typeof b.challenge === 'string' ? b.challenge.slice(0, 80) : undefined }))
       .then(async rv => { if (!rv) await queueTelegramMessage(`✅ ${s.emoji} ${s.label} terminée — ${sets.length} séries.\n${extra}`); })
       .catch(() => queueTelegramMessage(`✅ ${s.emoji} ${s.label} terminée — ${sets.length} séries.\n${extra}`).catch(() => {}));
     res.json({ ok: true, ...r, gained, level: after?.level ?? null, levelUp: !!levelUp });

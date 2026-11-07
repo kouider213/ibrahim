@@ -1,3 +1,14 @@
+## 2026-11-07 ~10h — 11 options sport autour du bilan (app v254)
+- Bilan vocal de la séance (voix du coach Gemini, gratuit, pas pendant le travail).
+- Bilan : sommeil de la nuit + protéines de la veille ; liens « après 7 h de sommeil tes séances valent X/10 contre Y » dès 2+2 bilans.
+- Repos réel mesuré par l'app (heure de chaque série validée − 30 s) → repos moyen vs prévu, exercices trop lents.
+- Défi du jour : un exercice déjà fait (choisi selon la date), bandeau dans la séance, réussi / raté dans le bilan.
+- Ce mois vs meilleur mois (volume) ; prévision « X à N kg vers le JJ/MM » (tendance 6 semaines, 3 points min).
+- Note /10 de la semaine (moyenne des bilans) dans le bilan sport du dimanche.
+- Séance : 💧 rappel « bois » toutes les 20 min ; carte échauffement général 5 min chronométré avant la 1re série.
+- Carte bilan : bouton 📤 partager (image avec la note /10 et les records).
+- Déjà existants (non refaits) : charge conseillée, courbe de force dans la fiche, séance ratée replacée, séries d'échauffement, rappel photo.
+
 ## 2026-11-07 ~09h — bilan de séance complet (notes /10, avis, graphique) (app v253)
 - Fin de séance dans FORME → bilan calculé par le code (sport-review.ts) : volume, séries, records, comparaison avec la dernière séance du même type, notes /10 (progression, volume, intensité, régularité, densité) ; le cerveau gratuit écrit seulement l'avis + conseils à partir de ces chiffres.
 - Envoyé sur Telegram (texte + graphique QuickChart) et visible dans FORME › Entraînement (« Bilan de ta dernière séance », détail + barres vs la dernière fois). GET /api/sport/review.
