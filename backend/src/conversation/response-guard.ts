@@ -43,6 +43,9 @@ const PHANTOM_ACTION_PATTERNS: RegExp[] = [
   // 03/11 argent : « ✅ **Cash +400 €** enregistré » (gras entre ✅ et le verbe) / « c'est noté, 2 600 € en cash » sans rien écrire
   /✅[^\n]{0,60}(cash|caisse|liquide|[ée]pargne|vente|€)[^\n]{0,40}(enregistr[eé]|not[eé]|mis\s+[aà]\s+jour|ajout[eé])/im,
   /c.est\s+not[eé][^\n]{0,60}(cash|caisse|liquide|[ée]pargne|€)/im,
+  // 07/11 Djillali : « c'est noté, il rend le 10 à 6h, jour offert » sans update_booking → la résa restait au 9
+  /(c.est\s+not[eé]|je\s+(l.)?ai\s+not[eé]|^\s*✅?\s*not[eé](?![a-z])|bien\s+not[eé])[^\n]{0,120}(rend|retour|ram[eè]ne|prolong|offert|gratuit|r[ée]sa|r[ée]servation|location|d[ée]cal)/im,
+  /\b(location|r[ée]servation|r[ée]sa)\s+(bien\s+)?(prolong[ée]e?|d[ée]cal[ée]e?|modifi[ée]e?)\b|\bjour\s+offert\s+(not[ée]|enregistr[ée]|ajout[ée])\b/im,
   /\b(site\s+mis\s+[aà]\s+jour|r[eé]servation\s+cr[eé][eé]e?|paiement\s+enregistr[eé]|agenda\s+mis\s+[aà]\s+jour|envoy[eé]e?\s+sur\s+telegram|fichier\s+modifi[eé]|code\s+corrig[eé]|bug\s+corrig[eé]|d[eé]ploy[eé]\s+sur\s+railway|vid[eé]o\s+cr[eé][eé]e?|image\s+g[eé]n[eé]r[eé]e?|rappel\s+programm[eé])\b/im,
 ];
 

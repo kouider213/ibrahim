@@ -1,3 +1,6 @@
+## 2026-11-07 soir — Faux « c'est noté » sur une résa
+- Djillali : « ramène quand ? » → « le 9 » alors que Kouider avait donné le 10 à 6h (jour offert) : le cerveau avait dit « noté » sans update_booking. phantomGuard bloque maintenant « noté / location prolongée / jour offert noté » sur une résa sans écriture réelle → relance avec le vrai outil.
+
 ## 2026-11-07 — Bugs du jour + protections anti-arnaque
 - Coach salle « fantôme » à 12h55 au travail : une séance finie n'est plus relancée par la montre/GPS le même jour ; note séance > 3 h ignorée.
 - Djillali (client en cours) appelé 2× comme « nouvelle demande de location » : l'appel location seulement pour une discussion jamais répondue.
