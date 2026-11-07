@@ -24,6 +24,7 @@ export async function formeInsights(uid: Uid) {
   for (const s of coach.log) trained.set(s.date, s.type);
   for (const [d, x] of Object.entries(days)) if (x.workout) trained.set(d, trained.get(d) ?? x.workout.label);
   for (const l of Object.values(exlog)) for (const x of l) if (!trained.has(x.date)) trained.set(x.date, 'libre');
+  if (uid === 'kouider') for (const d of await import('./sport-coach.js').then(m => m.undoneDates()).catch(() => new Set<string>())) trained.delete(d);   // décochée « pas faite »
   // Séries par muscle, 7 derniers jours (journal du coach ; fiches seulement les jours sans séance du coach → pas de double compte)
   const since = addDays(today, -6);
   const coachDays = new Set(coach.log.filter(s => s.date >= since).map(s => s.date));

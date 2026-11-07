@@ -1,3 +1,7 @@
+## 2026-11-07 — FORME : cocher / décocher les séances de la semaine (app v249)
+- « Il note ma séance d'aujourd'hui comme faite alors qu'elle est pas faite » : arrivé à la salle (GPS) = « en cours » (cercle pointillé), faite seulement quand la séance est notée ou l'heure de fin passée.
+- La bande de la semaine va de lundi à dimanche ; en touchant un jour passé ou aujourd'hui → case « faite / pas faite ». Décocher = journal, FORME et arrivée GPS effacés (gardés de côté pour recocher), séance remise dans la rotation, exercices affichés à nouveau ; ni le GPS ni la montre ne la recochent. POST /api/sport/done, setSessionDone/undoneDates (sport-coach.ts), calendrier/objectif FORME suivent.
+
 ## 2026-11-07 ~06h20 — FORME : vrai poids + séances de la montre (cff5e84a, app v248)
 - « Ton objectif » disait 79,4 kg alors qu'il s'est pesé 78 le 06/11 : c'était la tendance lissée. Poids affiché / kg restants / date = dernière vraie pesée ; la tendance sert seulement à la vitesse.
 - Séances vues par la montre (tapis, marche, musculation traditionnelle, renforcement…) : toutes gardées par jour (FormeDay.watch) et affichées dans le bilan du jour, de la semaine, le PDF (« Vu par ta montre ») et le détail du jour de l'app. Avant : seulement 2 noms dans une note, jamais lus par les bilans.

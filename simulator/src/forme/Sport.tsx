@@ -515,6 +515,9 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
   const doneToday = d.week[0]?.status === 'done';
   const s = pick ? picked : doneToday ? d.next : d.today ?? d.next;
   const isToday = !!s && s.date === today;
+  // 07/11 : semaine lundi → dimanche (jours passés + à venir), chaque jour cochable « faite / pas faite »
+  const strip = [...(d.past ?? []), ...d.week].slice(0, 7);
+  const statusOf = (date: string) => strip.find(w => w.date === date)?.status ?? null;
   const weekVol = d.stats.weeks[d.stats.weeks.length - 1]?.volume ?? 0;
   const prs = Object.fromEntries(d.stats.prs.map(p => [norm(p.ex), p.kg]));
   const dateLong = new Date().toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -526,14 +529,14 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
         <WeekGoal />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginTop: 12 }}>
-        {d.week.map(w => {
-          const done = w.status === 'done', sel = s?.date === w.date;
+        {strip.map(w => {
+          const done = w.status === 'done', sel = s?.date === w.date, live = w.status === 'en_cours', missed = w.status === 'missed';
           return (
             <button key={w.date} onClick={() => { vibrate(10); setPick(w.type ? w.date : null); }} style={{ background: 'none', border: 'none', padding: 0, cursor: w.type ? 'pointer' : 'default', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, fontFamily: 'inherit' }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: sel ? F.accent : F.muted }}>{SHORT_DAYS[dayOf(w.date)]!.slice(0, 1)}</div>
               <div style={{ width: 38, height: 38, borderRadius: 19, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700,
-                background: done ? F.accent : w.type && !w.skip ? '#fff' : 'transparent', color: done ? '#fff' : F.ink,
-                border: sel ? `2.5px solid ${F.accent}` : w.type && !w.skip ? `1.5px solid ${F.line}` : `1.5px dashed ${F.line}` }}>
+                background: done ? F.accent : w.type && !w.skip ? '#fff' : 'transparent', color: done ? '#fff' : missed ? F.red : F.ink,
+                border: sel ? `2.5px solid ${F.accent}` : live ? `2px dashed ${F.accent}` : w.type && !w.skip ? `1.5px solid ${missed ? F.red : F.line}` : `1.5px dashed ${F.line}` }}>
                 {w.skip ? '·' : done ? '✓' : Number(w.date.slice(8))}
               </div>
             </button>
@@ -545,7 +548,8 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
       {doneToday && !pick && <div style={{ ...card, marginTop: 14, display: 'flex', alignItems: 'center', gap: 12 }}><div style={{ width: 40, height: 40, borderRadius: 20, background: F.green, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 800 }}>✓</div><div><div style={{ fontWeight: 700 }}>Séance du jour faite{d.today?.label ? ` : ${d.today.label}` : ''}</div><div style={{ fontSize: 13, color: F.muted }}>Bravo. Récupère bien — voici la prochaine.</div></div></div>}
       {s ? <SessionCard s={s} kicker={isToday ? (doneToday ? 'Aujourd\'hui · faite ✓' : "Aujourd'hui") : `${pick ? '' : 'Prochaine · '}${SHORT_DAYS[dayOf(s.date)]} ${s.date.slice(8)} · ${new Date(s.start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })}`} onStart={() => setPlay(s)} onEx={setEx} start={isToday ? 'Démarrer l\'entraînement' : 'Voir / faire cette séance'} />
         : <div style={{ ...card, marginTop: 14 }}>Pas de séance prévue cette semaine. Dis à Dzaryx « cale mes séances » 💬</div>}
-      {s && s.date >= (today ?? '') && d.week.find(w => w.date === s.date)?.status !== 'done' && <SwapRow d={d} date={s.date} current={s.type} toast={toast} onD={x => { setD(x); setPick(s.date); }} />}
+      {s && s.date <= (today ?? '') && <DoneToggle date={s.date} label={s.label} done={statusOf(s.date) === 'done'} live={statusOf(s.date) === 'en_cours'} toast={toast} onD={x => { setD(x); setPick(s.date); }} />}
+      {s && s.date >= (today ?? '') && statusOf(s.date) !== 'done' && <SwapRow d={d} date={s.date} current={s.type} toast={toast} onD={x => { setD(x); setPick(s.date); }} />}
       {s && <>
         <H2 right={<span style={{ fontSize: 13, color: F.muted }}>{s.exercises.length}</span>}>Exercices</H2>
         <div style={{ ...card, padding: '4px 14px' }}>{s.exercises.map((e, k) => <div key={e.id} style={{ borderBottom: k < s.exercises.length - 1 ? `1px solid ${F.line}` : 'none' }}><ExRow e={e} onClick={() => setEx(e)} /></div>)}</div>
@@ -639,6 +643,26 @@ export function ProgramSport({ toast, go }: { toast: (t: string) => void; go?: (
         return '💪 Séance enregistrée';
       }} />}
     </div>
+  );
+}
+
+// ✅ Cocher / décocher une séance (Kouider 07/11 : « il note ma séance d'aujourd'hui comme faite alors qu'elle est pas faite ;
+// je dois pouvoir cocher les séances de la semaine ; si je la décoche il me donne les exercices à faire »)
+function DoneToggle({ date, label, done, live, toast, onD }: { date: string; label: string; done: boolean; live: boolean; toast: (t: string) => void; onD: (d: SportOverview) => void }) {
+  const [busy, setBusy] = useState(false);
+  const flip = async () => {
+    setBusy(true); vibrate(15);
+    try { const r = await apiFetch<SportOverview & { msg: string }>('/api/sport/done', { method: 'POST', body: JSON.stringify({ date, done: !done }) }); onD(r); toast(r.msg); } catch (e) { toast(`❌ ${errText(e)}`); } finally { setBusy(false); }
+  };
+  return (
+    <button disabled={busy} onClick={() => void flip()} style={{ ...card, marginTop: 10, width: '100%', display: 'flex', alignItems: 'center', gap: 12, border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', opacity: busy ? 0.6 : 1 }}>
+      <div style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18,
+        background: done ? F.green : '#fff', color: '#fff', border: done ? 'none' : `2px solid ${F.line}` }}>{busy ? '…' : done ? '✓' : ''}</div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 700, color: F.ink }}>{done ? `${label} : faite` : `${label} : pas encore faite`}</div>
+        <div style={{ fontSize: 12.5, color: F.muted }}>{done ? 'Touche pour décocher si tu ne l\'as pas faite' : live ? 'Tu es à la salle : coche quand tu as fini' : 'Touche pour cocher si tu l\'as faite'}</div>
+      </div>
+    </button>
   );
 }
 

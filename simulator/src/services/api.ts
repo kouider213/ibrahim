@@ -165,6 +165,7 @@ export interface SportSession { date: string; type: SportType; label: string; em
 export interface SportOverview {
   today: SportSession | null; next: SportSession | null; planned?: SportSession[]; objective?: string;
   week: Array<{ date: string; type: SportType | null; label: string | null; emoji: string | null; start: string | null; end: string | null; minutes: number | null; skip: string | null; status: string | null }>;
+  past?: SportOverview['week'];   // 07/11 jours passés de la semaine (lundi → hier), pour les cocher / décocher
   recovery: Array<{ muscle: string; pct: number }>;
   stats: { streak: number; monthSessions: number; total: number; weeks: Array<{ from: string; sessions: number; volume: number }>; prs: Array<{ ex: string; kg: number; reps: number | null; date: string }> };
   gym: { address: string; lat?: number; lng?: number; distanceKm?: number | null };
@@ -1170,6 +1171,7 @@ export const business = {
   sportLog: (body: { date: string; type: SportType; sets: Array<{ ex: string; kg?: number; reps?: number }>; durationMin?: number; rpe?: number; note?: string }) =>
     apiFetch<{ ok: boolean; prs: string[]; total: number; gained: number; level: number | null; levelUp: boolean }>('/api/sport/log', { method: 'POST', body: JSON.stringify(body) }),
   sportSwap: (date: string, type: SportType | null) => apiFetch<SportOverview>('/api/sport/swap', { method: 'POST', body: JSON.stringify({ date, type }) }),
+  sportDone: (date: string, done: boolean) => apiFetch<SportOverview & { msg: string }>('/api/sport/done', { method: 'POST', body: JSON.stringify({ date, done }) }),
   sportSkip: (date: string, reason: string | null) => apiFetch<SportOverview>('/api/sport/skip', { method: 'POST', body: JSON.stringify({ date, reason }) }),
   sportSettings: (patch: { callBefore?: boolean; gymCheck?: boolean }) => apiFetch<{ settings: SportOverview['settings'] }>('/api/sport/settings', { method: 'POST', body: JSON.stringify(patch) }),
   coach: () => apiFetch<CoachOverview>('/api/coach'),

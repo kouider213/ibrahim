@@ -84,6 +84,7 @@ export async function trainedDays(uid: Uid, days?: Record<string, { workout?: un
   if (uid === 'kouider') {
     const log = await import('./sport-coach.js').then(m => m.readSportLog()).catch(() => []);
     for (const x of log) if (x.sets.length || x.durationMin == null || x.durationMin >= 5) out.add(x.date);   // une entrée d'1 min sans série = un essai, pas une séance
+    for (const d of await import('./sport-coach.js').then(m => m.undoneDates()).catch(() => new Set<string>())) out.delete(d);
   }
   return out;
 }

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireMobileAuth } from '../middleware/auth.js';
 import {
-  sportOverview, logSportSession, setSportOverride, setSportSkip, setSportSettings, planSportWeek, ROTATION, SESSIONS,
+  sportOverview, logSportSession, setSessionDone, setSportOverride, setSportSkip, setSportSettings, planSportWeek, ROTATION, SESSIONS,
   type SessionType, type SetLog,
 } from '../../integrations/sport-coach.js';
 import { localNow } from '../../integrations/morning-routine.js';
@@ -58,6 +58,13 @@ router.post('/swap', async (req, res) => {
   const b = req.body as { date?: string; type?: string | null };
   if (!isDate(b.date) || (b.type != null && !isType(b.type))) { fail(res, 'date ou type invalide', 400); return; }
   try { await setSportOverride(b.date, b.type ?? null); res.json(await sportOverview()); } catch (err) { fail(res, err); }
+});
+
+// POST /api/sport/done { date, done } — 07/11 cocher / décocher une séance de la semaine
+router.post('/done', async (req, res) => {
+  const b = req.body as { date?: string; done?: boolean };
+  if (!isDate(b.date) || typeof b.done !== 'boolean') { fail(res, 'date ou done invalide', 400); return; }
+  try { const msg = await setSessionDone(b.date, b.done); res.json({ ...(await sportOverview()), msg }); } catch (err) { fail(res, err); }
 });
 
 // POST /api/sport/skip { date, reason|null } — pas de sport ce jour-là

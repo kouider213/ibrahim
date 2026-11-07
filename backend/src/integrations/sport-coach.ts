@@ -237,6 +237,7 @@ interface SportState {
   trainingSince?: string;
   form: Record<string, number>;                   // date → forme au réveil 1-5 (Kouider 21/10)
   goal?: WeekGoal;                                // objectif de la semaine (fixé au bilan du dimanche)
+  undone?: Record<string, number>;                // 07/11 : date → décochée par Kouider dans FORME (« pas faite ») : ni GPS ni montre ne la recochent
 }
 interface WeekGoal { week: string; kind: 'sessions' | 'lift'; target: number; ex?: string; text: string }
 
@@ -258,7 +259,7 @@ async function saveState(s: SportState): Promise<void> {
     const min = addDays(localNow().date, -days);
     for (const k of Object.keys(r)) if (k < min) delete r[k];
   };
-  keep(s.plan, 7); keep(s.overrides, 7); keep(s.skips, 7); keep(s.arrived, 7); keep(s.alerts, 3); keep(s.form, 14); keep(s.history, 180);
+  keep(s.plan, 7); keep(s.overrides, 7); keep(s.skips, 7); keep(s.arrived, 7); keep(s.alerts, 3); keep(s.form, 14); keep(s.history, 180); if (s.undone) keep(s.undone, 21);
   await kvSet(STATE_KEY, JSON.stringify(s));
 }
 
@@ -501,7 +502,7 @@ async function closePastDays(st: SportState): Promise<string[]> {
   for (const [date, p] of Object.entries(st.plan).sort()) {
     if (st.history[date] || date > today || Date.parse(p.end) > now) continue;
     if (st.skips[date]) st.history[date] = 'skip';
-    else if (log.some(l => l.date === date) || st.arrived[date]) { st.history[date] = 'done'; if (!st.overrides[date] || st.overrides[date] === ROTATION[st.next]) st.next = (st.next + 1) % ROTATION.length; }
+    else if (!st.undone?.[date] && (log.some(l => l.date === date) || st.arrived[date])) { st.history[date] = 'done'; if (!st.overrides[date] || st.overrides[date] === ROTATION[st.next]) st.next = (st.next + 1) % ROTATION.length; }
     else { st.history[date] = 'missed'; missed.push(`${SESSIONS[p.type].label} du ${date.slice(8)}/${date.slice(5, 7)}`); }
   }
   return missed;
@@ -687,6 +688,7 @@ export async function logSportSession(entry: Omit<SessionLog, 'at'> & { at?: str
   if (i >= 0) log[i] = merged; else log.push(merged);
   await kvSet(LOG_KEY, JSON.stringify(log.slice(-300)));
   const st = await getState();
+  if (st.undone?.[entry.date]) { delete st.undone[entry.date]; await saveState(st); }
   if (!st.history[entry.date] || st.history[entry.date] === 'missed') {
     if (st.history[entry.date] === 'missed') st.history[entry.date] = 'done';
     await saveState(st);
@@ -707,11 +709,25 @@ export async function sportOverview() {
   if (!st.plannedAt || Date.now() - st.plannedAt > 30 * 60_000) { await planSportWeek(true).catch(() => null); st = await getState(); }
   const log = await readSportLog();
   const today = localNow().date;
+  // 07/11 Kouider : « il note ma séance d'aujourd'hui comme faite alors qu'elle est pas faite » → arrivé à la salle (GPS) = « en cours »,
+  // faite seulement quand la séance est enregistrée / notée, ou une fois l'heure de fin passée ; décochée à la main = jamais faite.
+  const dayStatus = (d: string): 'done' | 'missed' | 'skip' | 'en_cours' | null => {
+    if (st.skips[d]) return 'skip';
+    if (st.undone?.[d]) return d < today ? 'missed' : null;
+    if (log.some(l => l.date === d)) return 'done';
+    if (st.arrived[d]) { const p = st.plan[d]; return !p || Date.parse(p.end) <= Date.now() ? 'done' : 'en_cours'; }
+    return st.history[d] ?? null;
+  };
+  const mon = addDays(today, -((localNow().weekday + 6) % 7));
+  const past = Array.from({ length: 7 }, (_, i) => addDays(mon, i)).filter(d => d < today).map(d => {
+    const p = st.plan[d], t = p?.type ?? (log.find(l => l.date === d)?.type ?? null);
+    return { date: d, type: t, label: t ? SESSIONS[t].label : null, emoji: t ? SESSIONS[t].emoji : null, start: p?.start ?? null, end: p?.end ?? null, minutes: p?.minutes ?? null, skip: st.skips[d] ?? null, status: dayStatus(d) };
+  });
   const week = Array.from({ length: 7 }, (_, i) => addDays(today, i)).map(d => {
     const p = st.plan[d];
     return { date: d, type: p?.type ?? null, label: p ? SESSIONS[p.type].label : null, emoji: p ? SESSIONS[p.type].emoji : null,
       start: p?.start ?? null, end: p?.end ?? null, minutes: p?.minutes ?? null, skip: st.skips[d] ?? null,
-      status: log.some(l => l.date === d) || st.arrived[d] ? 'done' : st.history[d] ?? null };
+      status: dayStatus(d) };
   });
   const sessionOf = (date: string) => {
     const p = st.plan[date];
@@ -752,7 +768,7 @@ export async function sportOverview() {
   const loc = await getLocation('kouider').catch(() => null);
   return {
     today: sessionOf(today), next: nextDate && nextDate !== today ? sessionOf(nextDate) : null, week,
-    planned: week.filter(w => w.type).map(w => sessionOf(w.date)).filter(Boolean),   // toutes les séances de la semaine, pour les voir à l'avance
+    planned: [...past, ...week].filter(w => w.type).map(w => sessionOf(w.date)).filter(Boolean), past,   // toutes les séances de la semaine, pour les voir à l'avance
     objective: 'Perdre le ventre et du poids · pecs, dos, bras · tout le corps',
     recovery, stats: { streak, monthSessions: log.filter(l => l.date.startsWith(month)).length, total: log.length, weeks, prs },
     gym: gym ? { ...gym, distanceKm: loc && Date.now() - Date.parse(loc.updated_at) < 30 * 60_000 ? Math.round(km(loc, gym) * 10) / 10 : null } : { address: cfg.addresses.gym },
@@ -851,6 +867,7 @@ function doneDates(st: SportState, log: SessionLog[], from: string, to: string):
   for (const l of log) if (l.date >= from && l.date <= to) d.add(l.date);
   for (const [k, v] of Object.entries(st.history)) if (v === 'done' && k >= from && k <= to) d.add(k);
   for (const k of Object.keys(st.arrived)) if (k >= from && k <= to) d.add(k);
+  for (const k of Object.keys(st.undone ?? {})) d.delete(k);
   return [...d].sort();
 }
 function goalProgress(st: SportState, log: SessionLog[]): { done: number; reached: boolean } {
@@ -1270,6 +1287,7 @@ export async function markWatchWorkout(date: string, minutes: number, name: stri
   const log = await readSportLog();
   if (log.some(l => l.date === date)) return null;            // déjà notée (par lui ou un envoi précédent)
   const st = await getState();
+  if (st.undone?.[date]) return null;                          // il l'a décochée lui-même dans FORME
   const type: SessionType = st.overrides[date] ?? st.plan[date]?.type ?? (/cardio|course|run|marche|walk|vélo|cycl|elliptique|rameur|row/i.test(name) ? 'cardio' : ROTATION[st.next] ?? 'push');
   await logSportSession({ date, type, ...(minutes > 0 ? { durationMin: Math.round(minutes) } : {}), note: `Apple Watch : ${name}`.slice(0, 80), sets: [] });
   await import('./forme.js').then(f => f.updateDay('kouider', date, d => {
@@ -1309,4 +1327,60 @@ export async function runSportCancel(c: { date: string; reason: string }): Promi
   const removed = await setSportSkip(c.date, c.reason);
   const fmt = new Date(localTs(c.date, '12:00')).toLocaleDateString('fr-FR', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long' });
   return `Séance du ${fmt} annulée (${c.reason}) : pas d'appel ni d'alerte de départ, la séance passe au prochain créneau. Agenda : ${removed.length ? `enlevé ${removed.join(', ')}` : 'rien à enlever (ou agenda injoignable)'}.`;
+}
+
+/** Dates décochées par Kouider (« pas faite ») — pour FORME (calendrier, objectif, bilans). */
+export async function undoneDates(): Promise<Set<string>> {
+  return new Set(Object.keys((await getState()).undone ?? {}));
+}
+
+/** 07/11 Kouider : « je dois pouvoir cocher les séances de la semaine si elles sont faites ou pas ; si je la décoche il me donne
+ *  les exercices à faire ». Décocher = journal, FORME, arrivée GPS effacés (gardés de côté pour recocher), séance remise dans la
+ *  rotation (refaite au prochain créneau). Cocher = séance notée « faite » (ou ce qui avait été effacé remis). */
+export async function setSessionDone(date: string, done: boolean): Promise<string> {
+  const today = localNow().date;
+  if (date > today) return 'On ne peut pas cocher une séance du futur.';
+  const BK = `kouider:sport:undo:${date}`;
+  const st = await getState();
+  const log = await readSportLog();
+  const f = await import('./forme.js');
+  const L = ROTATION.length;
+  const wasDone = st.history[date] === 'done';
+  const type: SessionType = st.plan[date]?.type ?? st.overrides[date] ?? log.find(l => l.date === date)?.type ?? ROTATION[st.next % L] ?? 'push';
+  if (!done) {
+    const days = await f.readDays('kouider').catch(() => ({} as Record<string, { workout?: unknown }>));
+    await kvSet(BK, JSON.stringify({ log: log.filter(l => l.date === date), workout: days[date]?.workout ?? null, arrived: st.arrived[date] ?? null, history: st.history[date] ?? null })).catch(() => {});
+    await kvSet(LOG_KEY, JSON.stringify(log.filter(l => l.date !== date)));
+    await f.updateDay('kouider', date, d => { delete d.workout; }).catch(() => {});
+    delete st.arrived[date];
+    (st.undone ??= {})[date] = Date.now();
+    // elle avait fait avancer la rotation → on recule : c'est elle qui revient au prochain créneau
+    if (wasDone && ROTATION[(st.next - 1 + L) % L] === type) st.next = (st.next - 1 + L) % L;
+    if (date < today) st.history[date] = 'missed'; else delete st.history[date];
+    await saveState(st);
+    await planSportWeek(true).catch(() => null);
+    return `${SESSIONS[type].label} du ${date.slice(8)}/${date.slice(5, 7)} décochée : pas faite. Elle revient au prochain créneau.`;
+  }
+  if (st.undone) delete st.undone[date];
+  await saveState(st);
+  const bk = await kvGet(BK).then(x => JSON.parse(x ?? 'null') as { log: SessionLog[]; workout: unknown; arrived: number | null } | null).catch(() => null);
+  if (bk?.log.length) {
+    const cur = await readSportLog();
+    await kvSet(LOG_KEY, JSON.stringify([...cur.filter(l => l.date !== date), ...bk.log].sort((a, b) => a.date.localeCompare(b.date)).slice(-300)));
+    if (bk.workout) await f.updateDay('kouider', date, d => { (d as { workout?: unknown }).workout = bk.workout; }).catch(() => {});
+  } else {
+    await logSportSession({ date, type, sets: [], note: 'Cochée à la main dans FORME' });
+    await f.updateDay('kouider', date, d => { if (!d.workout) d.workout = { session: 0, label: SESSIONS[type].label, sets: [], at: Date.now() }; }).catch(() => {});
+  }
+  const st2 = await getState();
+  if (bk?.arrived) st2.arrived[date] = bk.arrived;
+  const closed = date < today || (st2.plan[date] && Date.parse(st2.plan[date]!.end) <= Date.now());
+  if (closed && st2.history[date] !== 'done') {
+    if (ROTATION[st2.next % L] === type) st2.next = (st2.next + 1) % L;
+    st2.history[date] = 'done';
+  }
+  await saveState(st2);
+  await kvSet(BK, 'null').catch(() => {});
+  await planSportWeek(true).catch(() => null);
+  return `✅ ${SESSIONS[type].label} du ${date.slice(8)}/${date.slice(5, 7)} cochée : faite.`;
 }
