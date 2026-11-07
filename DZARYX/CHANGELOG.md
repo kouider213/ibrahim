@@ -1,3 +1,9 @@
+## 2026-11-07 ~13h — 4 bugs signalés par Kouider (B054)
+- Brief : « travail jusqu'à 21h » → le brief reçoit la vraie fin du travail (kv kouider:work_end, 20:00) ; one-shot `routine:fix:famille-20h` recale dans l'agenda FIK les séries « temps famille » qui commencent après 20h (et « travail » qui finit après) sur mar/mer/ven/sam (résultat dans kv routine:fix:famille-20h:result).
+- « Bien arrivé au travail (12:52) » 1 h après l'arrivée : Telegram n'a envoyé aucune position de 11:30 à 12:47. Vu au travail > 30 min après l'heure du travail (« 12:00 travail ») = arrivée non annoncée.
+- Rappel dos « debout depuis 2 h » trop tôt : la maison est à ~430 m du travail, un saut GPS à la maison (09:45) passait sous le rayon de 400 m. Maintenant basé sur l'arrivée vue par l'assistant GPS (presence.workPresence).
+- Démarchage : relance vers une adresse déjà rejetée (les rejets arrivent dans la boîte Zoho, que Dzaryx ne lit pas). Contrôle MX avant chaque 1er mail et chaque relance (mailDomainDead / dropIfDeadMail) ; 3 prospects morts passés en stop (Sorfert, La Table Fleurie, Zenata Voyages).
+
 ## 2026-11-07 ~10h — 11 options sport autour du bilan (app v254)
 - Bilan vocal de la séance (voix du coach Gemini, gratuit, pas pendant le travail).
 - Bilan : sommeil de la nuit + protéines de la veille ; liens « après 7 h de sommeil tes séances valent X/10 contre Y » dès 2+2 bilans.

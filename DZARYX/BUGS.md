@@ -28,6 +28,9 @@ Supabase restreint (exceed_egress_quota) → liste des appareils vide → tout r
 ### B052 — « 5 promesses en retard » alors que tout était réglé (01/11) ✅ FIXÉ
 Le détecteur notait des promesses vagues (« objet non précisé », « pour vous », refus déjà donnés, « déjà envoyé »). 10 promesses ouvertes marquées tenues à la demande de Kouider ; filtre + prompt plus stricts (foresight.ts).
 
+### B054 — Brief « travail jusqu'à 21h », arrivée au travail annoncée 1 h tard, rappel dos trop tôt, relance après rejet (07/11) ✅ FIXÉ
+Fin du travail fixe dans le brief + séries famille recalées ; arrivée tardive vue après un trou GPS non annoncée ; dos basé sur l'arrivée GPS (maison à 430 m du travail) ; contrôle MX avant envoi/relance. Reste : les rejets « Undelivered » d'adresses qui ont un serveur mail arrivent dans Zoho (non lu par Dzaryx).
+
 ### B051 — « 1 » sur une notif 🧠 → « Outil inconnu: lister_promesses_dues » (01/11 14h43) ✅ FIXÉ
 L'IA de la Conscience inventait un nom d'outil pour ses boutons. Maintenant : nom inconnu → retiré à la création ; au choix, un bouton sans outil valide est confié au cerveau complet qui fait l'action (ex. affiche les 5 promesses) au lieu d'une erreur. Prompt : vrais noms d'outil uniquement (conscience.ts).
 

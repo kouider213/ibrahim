@@ -89,6 +89,14 @@ export async function dayOffFrom(offsetDays = 0): Promise<string | null> {
   return typeof h === 'string' && /^\d{2}:\d{2}$/.test(h) ? h : null;
 }
 
+/** Fin du travail ce jour-là (« 20:00 » mar/mer/ven/sam), null = pas de fin enregistrée. */
+export async function workEndToday(offsetDays = 0): Promise<string | null> {
+  let map = DEFAULT_WORK_END;
+  try { const v = JSON.parse((await kvGet(WORK_END_KEY)) ?? 'null'); if (v && typeof v === 'object') map = v as Record<string, string>; } catch { /* défaut */ }
+  const end = map[String(brusselsWeekday(offsetDays))];
+  return typeof end === 'string' && /^\d{2}:\d{2}$/.test(end) ? end : null;
+}
+
 /** Soirée libre MAINTENANT : un jour travaillé (mar/mer/ven/sam) après sa fin de travail (20h). */
 export async function isAfterWork(): Promise<boolean> {
   let map = DEFAULT_WORK_END;

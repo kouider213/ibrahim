@@ -18,7 +18,7 @@
  */
 import { kvGet, kvSet } from './app-store.js';
 import { localNow, localTs, getRoutineConfig } from './morning-routine.js';
-import { geocode, km } from './departures.js';
+import { geocode } from './departures.js';
 import { getLocation } from './location.js';
 
 const OPTIONS = ['sac', 'givre', 'pluie', 'voiture', 'ibrahim', 'dos', 'charges', 'montre', 'caisse', 'taux'] as const;
@@ -198,14 +198,15 @@ const DOS = [
   'Pecs dans l\'encadrement de porte : avant-bras sur le cadre, avance doucement, 20 s',
 ];
 async function dosCheck(date: string): Promise<boolean> {
-  const loc = await getLocation('kouider').catch(() => null);
-  if (!loc || Date.now() - Date.parse(loc.updated_at) > 40 * 60_000) return false;
-  const work = await geocode((await getRoutineConfig()).addresses.work).catch(() => null);
-  if (!work || km({ lat: loc.lat, lng: loc.lng }, work) * 1000 > 400) return false;
+  // 07/11 : « debout depuis 2 h » alors qu'il venait d'arriver — la maison est à ~430 m du travail : un saut du GPS à la
+  // maison (09:45) passait sous les 400 m et lançait le chrono. Maintenant : arrivée au travail vue par l'assistant GPS
+  // (la maison passe avant le travail), et le compte part de CETTE arrivée.
+  const at = await import('./presence.js').then(m => m.workPresence()).catch(() => null);
+  if (!at) return false;
   const K = `quotidien:dos:${date}`;
-  const st = JSON.parse((await kvGet(K).catch(() => null)) ?? 'null') as { since: number; n: number } | null;
-  if (!st) { await kvSet(K, JSON.stringify({ since: Date.now(), n: 0 }), 2 * 86_400); return false; }
-  if (st.n >= 2 || Date.now() < st.since + (st.n + 1) * 2 * 3600_000) return false;
+  const st = (JSON.parse((await kvGet(K).catch(() => null)) ?? 'null') as { since: number; n: number } | null) ?? { since: at.since, n: 0 };
+  if (st.since !== at.since) st.since = at.since;   // ancienne valeur (rayon 400 m) ou retour au travail : on repart de l'arrivée
+  if (st.n >= 2 || Date.now() < st.since + (st.n + 1) * 2 * 3600_000) { await kvSet(K, JSON.stringify(st), 2 * 86_400); return false; }
   st.n += 1; await kvSet(K, JSON.stringify(st), 2 * 86_400);
   const n = Math.floor(Date.now() / 86_400_000) * 2 + st.n;
   await tg(`🧘 1 minute pour ton dos (debout depuis ${st.n * 2} h) :\n• ${DOS[n % DOS.length]}\n• ${DOS[(n + 3) % DOS.length]}\n💧 + un verre d'eau.`);

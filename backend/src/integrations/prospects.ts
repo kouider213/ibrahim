@@ -1,5 +1,6 @@
 import { supabase } from './supabase.js';
 import { runSql } from './app-store.js';
+import { promises as dns } from 'dns';
 
 // Prospection B2B de FIK Conciergerie (Oran) : propriétaires d'appartements, loueurs de voitures,
 // agences de voyage, entreprises (TotalEnergies…). Distinct de client_leads (clients qui CHERCHENT un bien).
@@ -261,4 +262,27 @@ export async function listPendingReplies(query?: string): Promise<Prospect[]> {
   const { data, error } = await q;
   if (error) throw new Error(`Réponses prospects: ${error.message}`);
   return (data ?? []) as Prospect[];
+}
+
+/** 07/11 : les rejets « Undelivered » arrivent dans la boîte Zoho de contact@, que Dzaryx ne lit pas → Sorfert relancé alors que
+ *  son adresse avait déjà rejeté le 1er mail (sorfert-algerie.com n'a AUCUN serveur mail). Avant chaque envoi / relance :
+ *  domaine inexistant, sans MX ou « null MX » = adresse morte. Panne DNS / délai dépassé = on n'accuse pas l'adresse. */
+export async function mailDomainDead(email: string): Promise<boolean> {
+  const d = email.split('@')[1]?.trim().toLowerCase();
+  if (!d) return true;
+  try {
+    const mx = await Promise.race([dns.resolveMx(d), new Promise<never>((_, rej) => setTimeout(() => rej(Object.assign(new Error('timeout'), { code: 'ETIMEOUT' })), 6000))]);
+    return !mx.length || mx.every(m => !m.exchange || m.exchange === '.');
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    return code === 'ENOTFOUND' || code === 'ENODATA';
+  }
+}
+
+/** Adresse morte → prospect mis en « stop » avec la raison (plus de mail ni de relance). true = écarté. */
+export async function dropIfDeadMail(p: { id: string; email: string | null; notes: string | null }): Promise<boolean> {
+  if (!p.email || !(await mailDomainDead(p.email))) return false;
+  await updateProspect(p.id, { status: 'stop',
+    notes: [p.notes, `[${new Date().toISOString().slice(0, 10)}] Adresse sans serveur mail (${p.email.split('@')[1]}) — les mails rejetés, plus d'envoi`].filter(Boolean).join('\n') });
+  return true;
 }

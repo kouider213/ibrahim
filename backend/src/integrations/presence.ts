@@ -170,6 +170,8 @@ async function briefFacts(): Promise<string> {
     import('./site-traffic.js').then(m => m.dayTraffic(-1)).catch(() => null),
     supabase.from('car_views').select('cars(name)').gte('created_at', yStart).lt('created_at', tStart),
   ]);
+  // 07/11 : « travail jusqu'à 21h » dans le brief (déduit du « 21:00 temps famille » de l'agenda) alors qu'il finit à 20h
+  const workEnd = await import('./kouider-dossier.js').then(m => m.workEndToday()).catch(() => null);
   const carCount: Record<string, number> = {};
   for (const v of (cv.data ?? []) as Array<{ cars?: { name?: string } | null }>) { const n = v.cars?.name ?? '?'; carCount[n] = (carCount[n] ?? 0) + 1; }
   const topCars = Object.entries(carCount).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n, c]) => `${n} ${c}`).join(', ');
@@ -182,6 +184,7 @@ async function briefFacts(): Promise<string> {
     `- Site web : ${pv ? trafficBriefLine(pv) : 'stats indisponibles'}${topCars ? ` ; voitures les plus vues : ${topCars}` : ''}`,
     prospects?.lines.length ? `- Prospection :\n  ${prospects.lines.join('\n  ')}` : '- Prospection : rien de noté',
     `AUJOURD'HUI :`,
+    workEnd ? `- Travail : il FINIT à ${workEnd} (horaire fixe, plus fort que l'agenda ; le temps famille commence après)` : '',
     `- Agenda : ${evs.length ? evs.join(' ; ') : 'rien de prévu'}`,
     sport?.slot ? `- Sport : ${sport.label} ${hm(Date.parse(sport.slot.start))}${sport.arrived ? ' (déjà à la salle / faite)' : sport.skipped ? ' (annulée)' : ''}` : '',
     `- Locations : départs ${type(departs.data) || 'aucun'} ; retours ${type(returns.data) || 'aucun'}${late.data?.length ? ` ; ⚠️ ${late.data.length} voiture(s) pas rendue(s)` : ''}`,
@@ -229,6 +232,23 @@ export async function briefDoneToday(): Promise<boolean> {
 }
 
 /** Heure de début du travail ce jour-là (« 10:00 Agence FIK, 12:00 travail » → 10:00), null si congé / rien. */
+/** Heure du TRAVAIL lui-même (librairie), sans l'agence FIK du matin : « 10:00 Agence FIK, 12:00 travail » → 12:00. */
+function jobStart(next?: string): string | null {
+  for (const part of (next ?? '').split(',')) {
+    const m = part.match(/(\d{2}:\d{2})\s*(.*)/);
+    if (m && /travail|magasin|ouverture/i.test(m[2]!) && !/cong[ée]/i.test(part)) return m[1]!;
+  }
+  return null;
+}
+
+/** Est-il au travail d'après le GPS (même classement que l'assistant : la maison, à ~430 m du travail, passe avant) ?
+ *  since = heure d'arrivée vue ; null si pas au travail ou si plus aucune position depuis 3 h. */
+export async function workPresence(): Promise<{ since: number } | null> {
+  const st = await getState();
+  if (st.place !== 'work' || !st.since || !st.lastFixAt || Date.now() - st.lastFixAt > 3 * 3600_000) return null;
+  return localNow(st.since).date === localNow().date ? { since: st.since } : null;
+}
+
 function workStart(next?: string): string | null {
   for (const part of (next ?? '').split(',')) {
     const m = part.match(/(\d{2}:\d{2})\s*(.*)/);
@@ -323,6 +343,11 @@ async function onWork(st: PresenceState, now: number): Promise<void> {
     return;
   }
   mark(st, 'work');
+  // 07/11 : « bien arrivé au travail (12:52) » alors qu'il y était depuis presque 1 h — Telegram n'avait envoyé AUCUNE position
+  // entre 11:30 et 12:47 (iPhone immobile). Vu au travail plus de 30 min après l'heure prévue = position en retard, pas une
+  // arrivée : on note sans rien dire (le brief a déjà été proposé avant le travail).
+  const job = jobStart((await getRoutineConfig()).days[localNow(now).weekday]?.next);
+  if (job && now > localTs(localNow(now).date, job) + 30 * 60_000) { console.log(`[presence] travail vu à ${hm(now)} (prévu ${job}) : arrivée non annoncée`); return; }
   const evs = await listAgendaRange(new Date(now).toISOString(), new Date(localTs(localNow(now).date, '23:59')).toISOString(), 20).catch(() => null);
   const list = (evs ?? []).filter(e => e.start.dateTime && !/^(🟢|🚿|⏰|🚗)/u.test(e.summary ?? '')).slice(0, 6)
     .map(e => `• ${hm(Date.parse(e.start.dateTime!))} ${e.summary}`);

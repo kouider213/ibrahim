@@ -5,7 +5,7 @@ import { multiProviderWebSearch, jinaAuthHeaders } from './web-search-provider.j
 import crypto from 'crypto';
 import { sendEmail, canSendEmail, countSentToday, listInboxMessages, readEmail, getMessageIdHeader, getThreadLastMessageId, proSenderAddress, getGmailConnectLink, PRO_ALIAS, SENDER_BLOCKED_RE, markProAliasBlocked, GmailNotConnectedError } from './gmail.js';
 import { reportIncident } from '../notifications/incident-call.js';
-import { addProspect, getAutopilot, updateProspect, optOutEmail, isOptedOut, companyKey, type Prospect, type ProspectSegment, type LinkedinContact, type QuoteDraftLine } from './prospects.js';
+import { addProspect, getAutopilot, updateProspect, optOutEmail, isOptedOut, dropIfDeadMail, companyKey, type Prospect, type ProspectSegment, type LinkedinContact, type QuoteDraftLine } from './prospects.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { autoCall } from '../notifications/auto-call.js';
@@ -490,6 +490,7 @@ export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<
       sites = await pickSites();
     }
     for (const p of sites) {
+      if (await dropIfDeadMail(p).catch(() => false)) { failed.push(`${p.company} (adresse sans serveur mail — écartée)`); continue; }
       try {
         const subject = await sendSiteOutreach(p);
         if (subject) sent.push(`• 🌐 ${p.company} (${p.city}, sans site web) — ${p.email}`);
@@ -513,6 +514,7 @@ export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<
     }
   }
   for (const [i, p] of batch.entries()) {
+    if (await dropIfDeadMail(p).catch(() => false)) { failed.push(`${p.company} (adresse sans serveur mail — écartée)`); continue; }
     try {
       const ref = p.ref_code ?? newRefCode();
       const mail = await writeOutreach(p, site, trackedLink(p, ref));
@@ -631,6 +633,7 @@ export async function runFollowUps(budget: number): Promise<string[]> {
   const lines: string[] = [];
   for (const p of (data ?? []) as Prospect[]) {
     if (isBelgian(p)) continue;  // plus de démarchage en Belgique (Kouider 16/10/2026)
+    if (await dropIfDeadMail(p).catch(() => false)) { console.log(`[prospect-auto] relance annulée ${p.email} : domaine sans serveur mail`); continue; }
     try {
       const ref = p.ref_code ?? newRefCode();
       const isSite = p.segment === 'site_web';

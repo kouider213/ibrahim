@@ -1,7 +1,7 @@
 import { kvGet, kvSet } from './app-store.js';
 import { createAnthropic, QUALITY } from './anthropic-compat.js';
 import { kouiderDossierText, kouiderDossierTool } from './kouider-dossier.js';
-import { createAgendaEvent, deleteAgendaEvent, listAgendaRange, updateAgendaSeries } from './google-calendar.js';
+import { createAgendaEvent, deleteAgendaEvent, listAgendaRange, updateAgendaSeries, shiftAgendaSeries } from './google-calendar.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { callOwner, getPendingCall } from '../notifications/voice-call.js';
@@ -252,6 +252,36 @@ async function sendWakeMessage(cfg: RoutineConfig, plan: DayPlan, date: string, 
 
 // ── Tâche planifiée (toutes les 2 min, 4h–11h Bruxelles) ─────────────────────
 
+const FAMILY_FIX_FLAG = 'routine:fix:famille-20h';
+const BYDAY = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+/** Séries « temps famille » qui commencent APRÈS sa fin de travail (21:00 au lieu de 20:00) → avancées à la fin du travail ;
+ *  séries « travail » qui finissent après → finies à l'heure. Seulement les séries qui ne tombent que sur des jours à 20h. */
+async function alignFamilyToWorkEnd(): Promise<string> {
+  const { workEndToday } = await import('./kouider-dossier.js');
+  const today = localNow().date;
+  const ends: Record<string, string> = {};
+  for (let i = 0; i < 7; i++) { const e = await workEndToday(i); if (e) ends[BYDAY[localNow(localTs(addDays(today, i), '12:00')).weekday]!] = e; }
+  const evs = await listAgendaRange(new Date(localTs(today, '00:00')).toISOString(), new Date(localTs(addDays(today, 8), '00:00')).toISOString(), 250);
+  if (!evs) return 'agenda FIK injoignable';
+  const min = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+  const done = new Set<string>(), out: string[] = [];
+  for (const e of evs) {
+    if (!e.recurringEventId || !e.start.dateTime || !e.end?.dateTime || done.has(e.recurringEventId)) continue;
+    const s0 = localNow(Date.parse(e.start.dateTime)), e0 = localNow(Date.parse(e.end.dateTime));
+    const end = ends[BYDAY[s0.weekday]!];
+    if (!end) continue;
+    const fam = /temps famille/i.test(e.summary ?? ''), work = /travail|librairie|magasin/i.test(e.summary ?? '') && !fam;
+    let ds = 0, de = 0;
+    if (fam && min(s0.hhmm) > min(end) && min(s0.hhmm) - min(end) <= 90) ds = min(end) - min(s0.hhmm);
+    else if (work && e0.date === s0.date && min(e0.hhmm) > min(end) && min(s0.hhmm) < min(end)) de = min(end) - min(e0.hhmm);
+    if (!ds && !de) continue;
+    done.add(e.recurringEventId);
+    const r = await shiftAgendaSeries(e.id!, ds, de, Object.keys(ends));
+    out.push(`${e.summary} ${s0.hhmm}-${e0.hhmm} → ${r === 'ok' ? 'recalé' : r === 'skip' ? 'laissé (autres jours)' : 'échec'}`);
+  }
+  return out.length ? out.join(' ; ') : 'rien à recaler';
+}
+
 /** Une seule fois : séries de l'agenda recréées pour ne commencer qu'après la pause (sport à partir du lundi 19/10). */
 export async function ensureRoutineStart(): Promise<void> {
   // Nouveaux horaires (v4) : appliqués une fois dès le prochain passage (departure-watch, toutes les 5 min, jour et soir)
@@ -265,6 +295,13 @@ export async function ensureRoutineStart(): Promise<void> {
     const r = await syncRoutineCalendar().catch(e => String(e));
     if (/^\d+\/\d+ séries/.test(r) && !r.startsWith('0/')) await kvSet('routine:resync:2026-11-05c', '1', 30 * 86_400).catch(() => {});
     console.log(`[routine] maison à 07:30 (samedi 08:30) : ${r}`);
+  }
+  // 07/11 : « travail jusqu'à 21h, puis temps famille » alors qu'il finit à 20h (mar/mer/ven/sam) → séries recalées une fois
+  if ((await kvGet(FAMILY_FIX_FLAG).catch(() => '1')) !== '1') {
+    const r = await alignFamilyToWorkEnd().catch(e => `erreur : ${e instanceof Error ? e.message : String(e)}`);
+    if (!r.startsWith('agenda') && !r.startsWith('erreur')) await kvSet(FAMILY_FIX_FLAG, '1', 60 * 86_400).catch(() => {});
+    await kvSet('routine:fix:famille-20h:result', r, 30 * 86_400).catch(() => {});
+    console.log(`[routine] temps famille / fin du travail : ${r}`);
   }
   if ((await kvGet(START_FLAG).catch(() => '1')) === '1') return;
   const r = await syncRoutineCalendar().catch(e => String(e));
