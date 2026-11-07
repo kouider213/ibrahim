@@ -8,7 +8,7 @@ import { F, card, darkCard, btn, ghostBtn, input, Ring, Bar, LineChart, Spinner 
 // sur ses vraies données par /api/forme/cut (backend forme-cut.ts), sans IA.
 export interface Cut {
   today: string; start: string; weeksIn: number; deficit: number;
-  weight: { current: number; last: { date: string; kg: number } | null; goalKg: number | null; toLose: number; eta: string | null; rateWeek: number | null; ratePct: number | null; points: Array<{ date: string; kg: number; trend: number }>; loggedToday: boolean };
+  weight: { current: number; trend?: number; last: { date: string; kg: number } | null; goalKg: number | null; toLose: number; eta: string | null; rateWeek: number | null; ratePct: number | null; points: Array<{ date: string; kg: number; trend: number }>; loggedToday: boolean };
   adaptive: { tdee: number; vsWatch: number; days: number } | null; avgEaten: number | null; avgBurnWatch: number | null;
   week: Array<{ date: string; logged: boolean; deficitOk: boolean; proteinOk: boolean }>;
   lifts: Array<{ name: string; now: number; before: number | null; pct: number | null; date: string }>; dropping: string[];
@@ -75,7 +75,7 @@ export default function CutScreen({ toast }: { toast: (t: string) => void }) {
       <div style={card}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           {/* 02/11 : il se pèse 79,4 et voyait 80,1 (la tendance) en gros → le gros chiffre = SA pesée, la tendance en dessous */}
-          <div><div style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-0.02em' }}>{w.last?.kg ?? w.current}<span style={{ fontSize: 16, color: F.muted }}> kg</span></div><div style={{ fontSize: 12, color: F.muted }}>{w.last ? `pesée du ${fmt(w.last.date)} · tendance ${w.current} kg (moyenne qui ignore l'eau du jour)` : 'tendance lissée'}</div></div>
+          <div><div style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-0.02em' }}>{w.last?.kg ?? w.current}<span style={{ fontSize: 16, color: F.muted }}> kg</span></div><div style={{ fontSize: 12, color: F.muted }}>{w.last ? `pesée du ${fmt(w.last.date)} · tendance ${w.trend ?? w.current} kg (moyenne qui ignore l'eau du jour)` : 'tendance lissée'}</div></div>
           <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: rateColor }}>{w.rateWeek != null ? `${w.rateWeek > 0 ? '−' : '+'}${Math.abs(w.rateWeek)} kg/sem` : '—'}</div>
             <div style={{ fontSize: 12, color: F.muted }}>{w.ratePct != null ? `${w.ratePct} %/sem · zone sûre 0,5-1 %` : '5 pesées sur 7 j pour la vitesse'}</div>

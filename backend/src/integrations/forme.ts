@@ -102,6 +102,7 @@ export interface FormeDay {
   workout?: WorkoutLog;
   sleep?: number; steps?: number;
   activeKcal?: number;                  // calories actives de la montre (Raccourci Santé)
+  watch?: Array<{ name: string; min?: number }>;   // 07/11 : TOUTES les séances vues par la montre (tapis, marche, musculation traditionnelle…)
 }
 
 export interface Recipe {

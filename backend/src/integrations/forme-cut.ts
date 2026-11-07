@@ -43,7 +43,9 @@ export async function cutStatus(uid: Uid = 'kouider') {
   const days = await json<Record<string, Day>>(`${uid}:forme:days`, {});
   const weights = Object.entries(days).filter(([, d]) => d.weight).map(([date, d]) => ({ date, kg: d.weight! })).sort((a, b) => a.date.localeCompare(b.date));
   const tr = trendOf(weights);
-  const cur = tr.length ? tr[tr.length - 1]!.trend : p.weightKg;
+  const cur = tr.length ? tr[tr.length - 1]!.trend : p.weightKg;          // tendance lissée → sert seulement à la vitesse
+  // 07/11 Kouider : « il dit 79,4 alors que je me suis pesé à 78 hier » → le poids affiché = sa DERNIÈRE vraie pesée, pas la tendance
+  const real = weights.length ? weights[weights.length - 1]!.kg : p.weightKg;
   const wAgo = trendAt(tr, addDays(today, -7)), w2Ago = trendAt(tr, addDays(today, -14));
   const rateWeek = wAgo != null && weights.length >= 5 && dayDiff(weights[0]!.date, today) >= 7 ? r1((wAgo - cur) * 10) / 10 : null;          // kg perdus / semaine (+ = perte)
   const ratePct = rateWeek != null ? Math.round(rateWeek / cur * 1000) / 10 : null;
@@ -117,8 +119,8 @@ export async function cutStatus(uid: Uid = 'kouider') {
   let start = await kvGet(START_K(uid));
   if (!start) { start = hist.find(x => x.eaten > 0)?.date ?? today; await kvSet(START_K(uid), start).catch(() => {}); }
   const weeksIn = Math.floor(dayDiff(start, today) / 7);
-  const goalKg = p.targetKg && p.targetKg < cur ? p.targetKg : null;
-  const toLose = goalKg ? r1(cur - goalKg) : 0;
+  const goalKg = p.targetKg && p.targetKg < real ? p.targetKg : null;
+  const toLose = goalKg ? r1(real - goalKg) : 0;
   const eta = goalKg && rateWeek && rateWeek > 0.05 ? addDays(today, Math.ceil(toLose / rateWeek * 7)) : null;
   const waist = Object.entries(days).filter(([, d]) => d.measures?.taille).sort(([a], [b]) => a.localeCompare(b)).map(([date, d]) => ({ date, cm: d.measures!.taille! }));
 
@@ -135,7 +137,7 @@ export async function cutStatus(uid: Uid = 'kouider') {
 
   return {
     today, start, weeksIn, deficit: cfg.deficit,
-    weight: { current: r1(cur), last: weights[weights.length - 1] ?? null, goalKg, toLose, eta, rateWeek, ratePct, points: tr.slice(-60), loggedToday: !!days[today]?.weight },
+    weight: { current: r1(real), trend: r1(cur), last: weights[weights.length - 1] ?? null, goalKg, toLose, eta, rateWeek, ratePct, points: tr.slice(-60), loggedToday: !!days[today]?.weight },
     adaptive, avgEaten, avgBurnWatch, week, lifts, dropping: dropping.map(x => x.name),
     score, parts, decision, waist: waist.slice(-12), protein: { goal: t.pGoal, perKg: r1(t.pGoal / cur) },
   };
@@ -151,7 +153,7 @@ export async function applyCutDecision(uid: Uid, deficit: number): Promise<numbe
 /** Ligne pour Dzaryx (dossier, appels) */
 export async function cutText(): Promise<string> {
   const c = await cutStatus('kouider');
-  return `SÈCHE (FORME → Sèche) : semaine ${c.weeksIn + 1}, poids tendance ${c.weight.current} kg${c.weight.rateWeek != null ? ` (${c.weight.rateWeek} kg/sem, ${c.weight.ratePct} %)` : ''}${c.weight.eta ? `, objectif ${c.weight.goalKg} kg vers le ${c.weight.eta}` : ''}. Score du jour ${c.score}/100. ${c.adaptive ? `Vraie dépense mesurée ${c.adaptive.tdee} kcal (montre ${c.adaptive.vsWatch >= 0 ? 'sous-estime' : 'surestime'} de ${Math.abs(c.adaptive.vsWatch)}). ` : ''}${c.dropping.length ? `Force en baisse : ${c.dropping.join(', ')}. ` : ''}Bilan : ${c.decision.text}`;
+  return `SÈCHE (FORME → Sèche) : semaine ${c.weeksIn + 1}, poids ${c.weight.current} kg (dernière pesée)${c.weight.rateWeek != null ? ` (${c.weight.rateWeek} kg/sem, ${c.weight.ratePct} %)` : ''}${c.weight.eta ? `, objectif ${c.weight.goalKg} kg vers le ${c.weight.eta}` : ''}. Score du jour ${c.score}/100. ${c.adaptive ? `Vraie dépense mesurée ${c.adaptive.tdee} kcal (montre ${c.adaptive.vsWatch >= 0 ? 'sous-estime' : 'surestime'} de ${Math.abs(c.adaptive.vsWatch)}). ` : ''}${c.dropping.length ? `Force en baisse : ${c.dropping.join(', ')}. ` : ''}Bilan : ${c.decision.text}`;
 }
 
 // ── 🧠 ÉTAT PHYSIQUE pour TOUS les cerveaux (Kouider 01/11 : « Dzaryx doit utiliser toutes les infos de FORME, aussi
@@ -173,7 +175,7 @@ export async function formeSnapshot(): Promise<string> {
   const bits = [
     sport?.done ? `Sport aujourd'hui : FAIT (${sport.done.note?.startsWith('Fait en vrai') ? sport.done.note.split('·')[0]!.replace('Fait en vrai : ', '') : sport.done.type}${sport.done.durationMin ? `, ${sport.done.durationMin} min` : ''})` : sport?.planned ? `Sport aujourd'hui : prévu, pas encore fait (${String(sport.planned).split('\n')[0]!.slice(0, 80)})` : 'Pas de sport prévu aujourd\'hui',
     ins ? `semaine ${ins.week.done}/${ins.week.target} séances${notTrained.length ? `, muscles pas travaillés en 7 j : ${notTrained.join(', ')}` : ''}` : '',
-    c ? `sèche semaine ${c.weeksIn + 1} : poids tendance ${c.weight.current} kg${c.weight.rateWeek != null ? ` (${c.weight.rateWeek > 0 ? '−' : '+'}${Math.abs(c.weight.rateWeek)} kg/sem)` : ''}, objectif ${c.weight.goalKg ?? '?'} kg${c.weight.eta ? ` vers le ${c.weight.eta}` : ''} ; score du jour ${c.score}/100 (${c.parts.filter(p => !p.ok).map(p => `${p.k} manquant : ${p.hint}`).join(', ') || 'tout bon'})` : '',
+    c ? `sèche semaine ${c.weeksIn + 1} : poids ${c.weight.current} kg (dernière pesée)${c.weight.rateWeek != null ? ` (${c.weight.rateWeek > 0 ? '−' : '+'}${Math.abs(c.weight.rateWeek)} kg/sem)` : ''}, objectif ${c.weight.goalKg ?? '?'} kg${c.weight.eta ? ` vers le ${c.weight.eta}` : ''} ; score du jour ${c.score}/100 (${c.parts.filter(p => !p.ok).map(p => `${p.k} manquant : ${p.hint}`).join(', ') || 'tout bon'})` : '',
     c?.dropping.length ? `force en baisse : ${c.dropping.join(', ')}` : '',
     c?.lifts?.length ? `charges actuelles (1RM estimé) : ${c.lifts.slice(0, 5).map((l: { name: string; now: number; pct: number | null }) => `${l.name} ${l.now} kg${l.pct != null ? ` (${l.pct > 0 ? '+' : ''}${l.pct} % en 2 sem.)` : ''}`).join(', ')}` : '',
     c ? `déficit visé ${c.deficit} kcal/j, protéines visées ${c.protein.goal} g/j` : '',

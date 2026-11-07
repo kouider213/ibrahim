@@ -10,7 +10,7 @@ interface GoalData { lines: string[]; ifBehind: string[]; behind: boolean }
 interface DayData {
   day: { date: string; label: string; steps?: number; stepsGoal: number; sleep_h?: number; rhr?: number; hrv?: number; activeKcal?: number; water: number; waterGoal: number; weight?: number;
     eaten?: number; protein?: number; proteinGoal?: number; burned?: number; realDeficit?: number; deficitGoal?: number;
-    session?: { label: string; sets: number; volume: number; durationMin?: number; rpe?: number; muscles: string[] }; prs: Array<{ ex: string; kg: number; prev: number }> };
+    session?: { label: string; sets: number; volume: number; durationMin?: number; rpe?: number; muscles: string[] }; prs: Array<{ ex: string; kg: number; prev: number }>; watch?: Array<{ name: string; min?: number; kcal?: number }> };
   scores: Scores; strengths: string[]; weaknesses: string[]; actions: string[]; sets: Array<{ ex: string; kg?: number; reps?: number }>; report: string | null;
 }
 const LABEL: Record<string, string> = { sommeil: 'Sommeil', activite: 'Activité', entrainement: 'Entraînement', recuperation: 'Récup', nutrition: 'Nutrition', hydratation: 'Eau' };
@@ -123,6 +123,10 @@ export function DaySheet({ date, onClose }: { date: string | null; onClose: () =
           {d.sets.map((s, i) => <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '3px 0', borderTop: i ? `1px solid ${F.line}` : 'none' }}><span>{s.ex}</span><b>{s.kg ? `${n(s.kg, 1)} kg` : ''}{s.reps ? ` × ${s.reps}` : ''}</b></div>)}
           {!!x.prs.length && <div style={{ marginTop: 8, fontSize: 13, color: F.green, fontWeight: 600 }}>🏆 Record : {x.prs.map(p => `${p.ex} ${n(p.kg, 1)} kg (avant ${n(p.prev, 1)})`).join(', ')}</div>}
         </div> : <div style={{ ...card, marginTop: 10, fontSize: 13.5, color: F.muted }}>Pas de séance ce jour-là.</div>}
+        {!!x.watch?.length && <div style={{ ...card, marginTop: 10 }}>
+          <div style={{ fontWeight: 700, fontSize: 15.5, marginBottom: 6 }}>⌚ Vu par ta montre</div>
+          {x.watch.map((w, i) => <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '3px 0', borderTop: i ? `1px solid ${F.line}` : 'none' }}><span>{w.name}</span><b>{w.min ? `${w.min} min` : ''}{w.kcal ? ` · ${w.kcal} kcal` : ''}</b></div>)}
+        </div>}
         <List t="✅ Points forts" items={d.strengths} color={F.green} />
         <List t="⚠️ À améliorer" items={d.weaknesses} color={F.red} />
         <List t="🎯 Pour la suite" items={d.actions} color={F.accent} />

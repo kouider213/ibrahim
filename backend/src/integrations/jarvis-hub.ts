@@ -119,6 +119,10 @@ export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok
     const per = woDurL.length === workouts.length ? woDurL.map(x => woDurL.reduce((a, b) => a + b, 0) > 600 ? x / 60 : x) : [];
     const cmp = await import('./sport-coach.js').then(m => m.compareWithWatch(date, workouts.map((n, i) => ({ name: n, min: per[i] ?? 0 })))).catch(() => null);
     if (cmp) notes.push(cmp);
+    // 07/11 Kouider : « il dit pas les exercices qu'il voit sur la montre (tapis, marche, renforcement traditionnel…) » → tout est gardé pour les bilans
+    await import('./forme.js').then(f => f.updateDay('kouider', date, x => {
+      x.watch = workouts.slice(0, 12).map((n, i) => ({ name: n.slice(0, 60), ...(per[i] ? { min: Math.round(per[i]!) } : {}) }));
+    })).catch(() => {});
   }
   // FORME : pas, poids, calories actives du jour
   await import('./forme.js').then(async f => {

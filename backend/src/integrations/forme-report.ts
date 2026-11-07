@@ -19,6 +19,7 @@ const r1 = (n: number) => Math.round(n * 10) / 10;
 const avg = (a: number[]) => a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0;
 const nums = (a: Array<number | undefined | null>) => a.filter((x): x is number => typeof x === 'number' && Number.isFinite(x) && x > 0);
 const fr = (n: number, d = 0) => n.toLocaleString('fr-FR', { maximumFractionDigits: d, minimumFractionDigits: 0 }).replace(/[\u202F\u00A0]/g, ' ');   // espace fine : absente des polices PDF (« 20 /270 »)
+const watchTxt = (w: NonNullable<DayStat['watch']>) => w.map(x => `${x.name}${x.min ? ` ${x.min} min` : ''}${x.kcal ? ` (${x.kcal} kcal)` : ''}`).join(', ');
 const MUSCLE_FR: Record<string, string> = { pecs: 'pecs', dos: 'dos', epaules: 'épaules', bras: 'bras', jambes: 'jambes', abdos: 'abdos', biceps: 'biceps', triceps: 'triceps' };
 
 export interface DayStat {
@@ -28,6 +29,7 @@ export interface DayStat {
   eaten?: number; protein?: number; proteinGoal?: number; target?: number; burned?: number; realDeficit?: number; deficitGoal?: number;
   session?: { type: string; label: string; sets: number; volume: number; durationMin?: number; rpe?: number; muscles: string[] };
   prs: Array<{ ex: string; kg: number; prev: number }>;
+  watch?: Array<{ name: string; min?: number; kcal?: number }>;   // séances vues par la montre
 }
 
 interface HealthRow { date: string; steps?: number; sleep_h?: number; rhr?: number; hrv?: number; active_kcal?: number }
@@ -40,7 +42,8 @@ async function sources() {
     import('./sport-coach.js').then(async m => ({ log: await m.readSportLog(), mus: await m.exerciseMuscles(), sess: m.SESSIONS })).catch(() => null),
   ]);
   const exlog = await kvJson<Record<string, Array<{ date: string; kg?: number; reps?: number }>>>('kouider:forme:exlog', {}).catch(() => ({}));
-  return { health: Array.isArray(health) ? health : [], days, profile, sport, exlog };
+  const live = await import('./workout-live.js').then(m => m.readWorkouts()).catch(() => []);
+  return { health: Array.isArray(health) ? health : [], days, profile, sport, exlog, live };
 }
 type Src = Awaited<ReturnType<typeof sources>>;
 
@@ -66,6 +69,10 @@ async function dayStat(date: string, s: Src): Promise<DayStat> {
     steps: h?.steps ?? fd?.steps, stepsGoal: s.profile.stepsGoal || 8000, sleep_h: h?.sleep_h ?? fd?.sleep, rhr: h?.rhr, hrv: h?.hrv,
     activeKcal: h?.active_kcal ?? fd?.activeKcal, water: fd?.water ?? 0, waterGoal: s.profile.waterGoal || 8, weight: fd?.weight, prs: [],
   };
+  // Séances de la montre : suivi en direct (début/fin, kcal) sinon la liste du Raccourci Santé
+  const live = s.live.filter(w => localNow(Date.parse(w.end)).date === date).map(w => ({ name: w.type, min: Math.round(w.min), ...(w.kcal ? { kcal: Math.round(w.kcal) } : {}) }));
+  const wl = live.length ? live : (fd?.watch ?? []);
+  if (wl.length) st.watch = wl;
   // Repas / déficit (seulement si quelque chose a été mangé et noté ce jour-là)
   try {
     const { foodBudget, deficitStatus } = await import('./forme-food.js');
@@ -266,8 +273,10 @@ export function reportText(r: Report): string {
       d.steps ? `👣 ${fr(d.steps)} pas` : '', d.sleep_h ? `😴 ${fr(d.sleep_h, 1)} h` : '', d.rhr ? `❤️ repos ${d.rhr} bpm` : '', d.hrv ? `VFC ${d.hrv} ms` : '',
       d.activeKcal ? `🔥 ${fr(d.activeKcal)} kcal actives` : '', d.eaten ? `🍽️ ${fr(d.eaten)} kcal mangées` : '', d.water ? `💧 ${fr(d.water * 0.25, 2)} L` : '',
       d.session ? `🏋️ ${d.session.label} : ${d.session.sets} séries · ${fr(d.session.volume)} kg` : '',
+      d.watch?.length ? `⌚ Montre : ${watchTxt(d.watch)}` : '',
     ].filter(Boolean).join(' · ') : [
       `🏋️ ${t.sessions}/${t.sessionsTarget} séances · ${t.sets} séries · ${fr(t.volume)} kg${p?.volume ? arrow(t.volume, p.volume) : ''}`,
+      r.days.some(d => d.watch?.length) ? `⌚ Montre : ${r.days.filter(d => d.watch?.length).map(d => `${d.label.split(' ')[0]} ${watchTxt(d.watch!)}`).join(' · ')}` : '',
       t.stepsAvg ? `👣 ${fr(t.stepsAvg)} pas/jour${p?.stepsAvg ? arrow(t.stepsAvg, p.stepsAvg) : ''}` : '',
       t.sleepAvg ? `😴 ${fr(t.sleepAvg, 1)} h/nuit${p?.sleepAvg ? arrow(t.sleepAvg, p.sleepAvg) : ''}${t.sleepDebt ? ` (dette ${fr(t.sleepDebt, 1)} h)` : ''}` : '',
       t.rhrAvg ? `❤️ repos ${t.rhrAvg} bpm${p?.rhrAvg ? arrow(t.rhrAvg, p.rhrAvg, false) : ''} · VFC ${t.hrvAvg || '—'} ms` : '',
@@ -388,6 +397,11 @@ export async function reportPdf(r: Report): Promise<Buffer> {
   if (sess.length) {
     room(60); say('Tes séances', { bold: true, size: 12, color: NAVY });
     for (const d of sess) say(`${d.label} — ${d.session!.label} : ${d.session!.sets} séries, ${fr(d.session!.volume)} kg${d.session!.durationMin ? `, ${d.session!.durationMin} min` : ''}${d.session!.rpe ? `, effort ${d.session!.rpe}/10` : ''}${d.prs.length ? ` — record : ${d.prs.map(p => `${p.ex} ${fr(p.kg, 1)} kg (avant ${fr(p.prev, 1)})`).join(', ')}` : ''}`, { size: 9.5 });
+  }
+  const wd = r.days.filter(d => d.watch?.length);
+  if (wd.length) {
+    room(60); say('Vu par ta montre', { bold: true, size: 12, color: NAVY });
+    for (const d of wd) say(`${d.label} — ${watchTxt(d.watch!)}`, { size: 9.5 });
   }
   doc.end();
   return done;
