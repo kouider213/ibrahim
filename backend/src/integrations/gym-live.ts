@@ -27,6 +27,21 @@ interface Live {
   sent: string[]; health?: string; endedAt?: number; timer?: boolean; warmedUp?: string[];
 }
 
+// 07/11 Kouider : « il me note séance terminée alors que j'ai encore 3 exercices ; il doit noter terminée seulement quand MOI je la
+// termine dans l'app, et il m'envoie des notifs pour changer d'exercice alors que j'étais sur des exercices que j'ai rajoutés ».
+// → Séance ouverte dans FORME = l'app mène : elle envoie où il en est (exercice actuel, ce qui reste, ajouts compris) ; plus
+// d'exercice suivant « au chrono », plus de « muscu terminée » tant qu'il n'a pas appuyé sur Terminer dans l'app.
+const APP_KEY = 'kouider:sport:app';
+export interface AppProgress { at: number; current: string | null; left: string[]; done: number; total: number; finished?: boolean }
+export async function appProgress(): Promise<AppProgress | null> {
+  try { const a = JSON.parse((await kvGet(APP_KEY)) ?? 'null') as AppProgress | null; return a && (a.finished ? Date.now() - a.at < 3 * 3600_000 : Date.now() - a.at < 60 * 60_000) ? a : null; } catch { return null; }
+}
+/** POST /api/sport/live-app : l'app FORME dit où il en est (ou null = séance abandonnée dans l'app). */
+export async function setAppProgress(p: Omit<AppProgress, 'at'> | null): Promise<void> {
+  if (!p) { await kvSet(APP_KEY, 'null').catch(() => {}); return; }
+  await kvSet(APP_KEY, JSON.stringify({ ...p, at: Date.now() }), 4 * 3600).catch(() => {});
+}
+
 const say = (ts: number) => hm(ts).replace('h', ' h ');
 const minLeft = (ts: number, now = Date.now()) => Math.round((ts - now) / 60_000);
 const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ');
@@ -381,6 +396,8 @@ export async function liveTool(input: Record<string, unknown>): Promise<string> 
 export async function liveNote(): Promise<string | null> {
   const l = await getLive().catch(() => null);
   if (!l || l.endedAt) return null;
+  const app = await appProgress();
+  if (app) return `[SÉANCE EN COURS À LA SALLE (${l.label}), suivie dans l'app FORME — c'est l'APP qui mène, pas le chrono : ${app.finished ? 'il a terminé sa séance dans l\'app' : `exercice actuel ${app.current ?? '?'}, ${app.done}/${app.total} séries validées, il reste : ${app.left.join(', ') || 'rien'}`}${l.leaveBy ? `, départ à ${hm(l.leaveBy)}` : ''}. Ne dis JAMAIS « muscu terminée » ni « passe à l'exercice suivant » de toi-même. NE LUI DEMANDE JAMAIS son poids ni ses reps. Réponds COURT.]`;
   const e = remaining(l)[0];
   return `[SÉANCE EN COURS À LA SALLE (${l.label}) : ${phase(l) === 'avant' ? `cardio d'échauffement jusqu'à ${hm(l.startedAt + beforeMin(l) * 60_000)}` : e ? `exercice actuel ${e.name} série ${(l.done[e.id]?.length ?? 0) + 1}/${e.sets}` : 'muscu finie, cardio de fin'}${l.leaveBy ? `, départ à ${hm(l.leaveBy)}` : ''}. S'il donne un poids / des reps (« 60 kg 12 », « 12 à 40 ») → sport_coach action=live op=set (exercise si ce n'est pas l'exercice actuel). « Tapis fini » → op=cardio_done. « J'ai fini l'exercice / je passe » → op=next ; machine prise → op=skip ; « il me reste quoi » → op=status ; « j'ai fini la séance » → op=stop ; « coupe le minuteur » → op=timer on=false. NE LUI DEMANDE JAMAIS son poids ni ses reps (il les donne s'il veut) : tu suis la séance au chrono et avec sa montre (Santé). VIDÉO d'une série → analyse sa TECHNIQUE sur cet exercice (amplitude, tempo, dos, coudes, élan, triche) en 3 points max + note /10, et propose la correction. PHOTO d'une machine ou de la salle → dis quelle machine c'est, le réglage (siège, poignées, charge de départ) et, si elle est prise, l'alternative avec le matériel visible. Réponds COURT.]`;
 }
@@ -405,8 +422,10 @@ export async function liveTick(): Promise<void> {
     await notify(await endLive(l, fresh ? 'parti de la salle' : 'clôturée'), '🏁 Bilan de ta séance');
     return;
   }
+  const app = await appProgress();
   const ph = phase(l, now);
-  if (ph === 'muscu' && !l.liftsAt && once('lifts')) {
+  if (app) { /* l'app mène : pas d'enchaînement au chrono ni de « muscu terminée » (seuls le départ et le bilan restent) */ }
+  else if (ph === 'muscu' && !l.liftsAt && once('lifts')) {
     l.liftsAt = now; l.exAt = now;
     const e = remaining(l)[0];
     if (e) await notify(`✅ ${l.before.map(b => b.name).join(' + ')} terminé ! Place à la muscu.\n${exLine(e, suggestFor(e, await readSportLog(), l.date), needWarm(l, e))}\n${timeline(l, now).line}`, `▶️ ${e.name}`);
@@ -428,7 +447,7 @@ export async function liveTick(): Promise<void> {
   }
   if (l.leaveBy) {
     if (now >= l.leaveBy - 12 * 60_000 && now < l.leaveBy - 5 * 60_000 && once('warn')) {
-      const rest = remaining(l);
+      const rest = app ? (app.finished ? [] : app.left.map(name => ({ name }))) : remaining(l);
       await notify(`⏳ Dans ~10 min tu pars (${hm(l.leaveBy)}) pour être à la maison à ${l.homeBy!.replace(':', 'h')} — ${l.road} min de route, ${l.traffic}.${rest.length ? `\nIl reste ${rest.map(e => e.name).join(', ')} : fais seulement ${rest[0]!.name}, le reste la prochaine fois.` : ' Finis ton cardio tranquillement, 2 min d\'étirements.'}`, `⏳ Départ à ${hm(l.leaveBy)}`);
     }
     if (now >= l.leaveBy - 4 * 60_000 && once('leave')) {
@@ -468,6 +487,9 @@ export async function watchEnded(w: { kind: 'cardio' | 'muscu' | 'autre'; type: 
     const e = remaining(l)[0]!;
     return `✅ Cardio fait. Place à la muscu :\n${exLine(e, suggestFor(e, await readSportLog(), l.date), needWarm(l, e))}`;
   }
+  // séance suivie dans l'app et pas terminée là-bas → la montre ne la déclare pas finie
+  const app = await appProgress();
+  if (app && !app.finished) { await saveLive(l); return ''; }
   // muscu finie et un cardio de fin prévu → on attend la fin de ce cardio pour le bilan
   if (w.kind !== 'cardio' && l.after.length) {
     l.idx = l.exercises.length; l.exAt = now;

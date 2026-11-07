@@ -60,6 +60,16 @@ router.post('/swap', async (req, res) => {
   try { await setSportOverride(b.date, b.type ?? null); res.json(await sportOverview()); } catch (err) { fail(res, err); }
 });
 
+// POST /api/sport/live-app { current, left[], done, total, finished? } | { abandon: true } — 07/11 l'app FORME mène la séance en direct
+router.post('/live-app', async (req, res) => {
+  const b = req.body as { current?: unknown; left?: unknown; done?: unknown; total?: unknown; finished?: unknown; abandon?: unknown };
+  try {
+    const g = await import('../../integrations/gym-live.js');
+    await g.setAppProgress(b.abandon ? null : { current: typeof b.current === 'string' ? b.current.slice(0, 80) : null, left: Array.isArray(b.left) ? b.left.slice(0, 30).map(x => String(x).slice(0, 80)) : [], done: Number(b.done) || 0, total: Number(b.total) || 0, ...(b.finished ? { finished: true } : {}) });
+    res.json({ ok: true });
+  } catch (err) { fail(res, err); }
+});
+
 // POST /api/sport/done { date, done } — 07/11 cocher / décocher une séance de la semaine
 router.post('/done', async (req, res) => {
   const b = req.body as { date?: string; done?: boolean };

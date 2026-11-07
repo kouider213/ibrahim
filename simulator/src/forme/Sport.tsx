@@ -272,6 +272,20 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
   const doneSets = work.filter(r => r.done);
   const volume = exs.reduce((a, e) => a + (rows[e.id] ?? []).filter(r => r.done && r.t !== 'w').reduce((b, r) => b + (Number(r.kg.replace(',', '.')) || 0) * (Number(r.reps) || 0), 0), 0);
   const elapsed = Math.round((now - start.current) / 1000);
+  // 07/11 : l'app dit au coach où il en est (exercice actuel, ce qui reste, ajouts compris) → plus de « exercice suivant » ni de
+  // « muscu terminée » au chrono pendant qu'il est encore sur un exercice ; « terminée » seulement quand il appuie sur Terminer ici.
+  const progKey = `${exs.map(e => e.id).join('|')}#${i}#${doneSets.length}#${work.length}`;
+  useEffect(() => {
+    if (finish) return;
+    const t = setTimeout(() => {
+      const left = exs.filter(e => (rows[e.id] ?? []).some(r => !r.done && r.t !== 'w')).map(e => e.name);
+      void apiFetch('/api/sport/live-app', { method: 'POST', body: JSON.stringify({ current: ex?.name ?? null, left, done: doneSets.length, total: work.length }) }).catch(() => {});
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [progKey, finish]); // eslint-disable-line react-hooks/exhaustive-deps
+  const progRef = useRef<() => void>(() => {});
+  progRef.current = () => { if (finish) return; const left = exs.filter(e => (rows[e.id] ?? []).some(r => !r.done && r.t !== 'w')).map(e => e.name); void apiFetch('/api/sport/live-app', { method: 'POST', body: JSON.stringify({ current: ex?.name ?? null, left, done: doneSets.length, total: work.length }) }).catch(() => {}); };
+  useEffect(() => { const t = setInterval(() => progRef.current(), 8 * 60_000); return () => clearInterval(t); }, []);   // signe de vie (la note expire après 60 min sans nouvelles)
   const save = async () => {
     setBusy(true);
     try {
@@ -282,6 +296,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
       const lib = exs.flatMap(e => { const id = libIdOf(e); return id ? (rows[e.id] ?? []).filter(r => r.done && r.t !== 'w').map(r => ({ id, kg: Number(r.kg.replace(',', '.')) || undefined, reps: Number(r.reps) || undefined, ...(feel[e.id] ? { fb: feel[e.id] } : {}) })) : []; });
       if (lib.length) await forme.exBatch(lib).catch(() => {});
       clearLive();
+      void apiFetch('/api/sport/live-app', { method: 'POST', body: JSON.stringify({ current: null, left: [], done: doneSets.length, total: work.length, finished: true }) }).catch(() => {});
       onFinished(newPrs.length ? `${msg} · 🏆 ${newPrs.join(', ')}` : msg);
     } catch (e) { alert(errText(e)); } finally { setBusy(false); }
   };
@@ -292,7 +307,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: F.bg, overflowY: 'auto', fontFamily: F.sans, color: F.ink, paddingBottom: 'calc(110px + env(safe-area-inset-bottom))' }}>
       <div style={{ position: 'sticky', top: 0, zIndex: 3, background: 'rgba(245,242,250,0.94)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', padding: 'calc(8px + env(safe-area-inset-top)) 14px 10px', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button onClick={() => { if (finish) setFinish(false); else if (!allRows.some(r => r.done) || confirm('Abandonner la séance ? (rien n\'est enregistré)')) { clearLive(); onClose(); } }} aria-label="Fermer" style={{ width: 36, height: 36, border: 'none', background: 'none', fontSize: 22, cursor: 'pointer', color: F.ink }}>{finish ? '‹' : '✕'}</button>
+        <button onClick={() => { if (finish) setFinish(false); else if (!allRows.some(r => r.done) || confirm('Abandonner la séance ? (rien n\'est enregistré)')) { clearLive(); void apiFetch('/api/sport/live-app', { method: 'POST', body: JSON.stringify({ abandon: true }) }).catch(() => {}); onClose(); } }} aria-label="Fermer" style={{ width: 36, height: 36, border: 'none', background: 'none', fontSize: 22, cursor: 'pointer', color: F.ink }}>{finish ? '‹' : '✕'}</button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.label}</div>
           <div style={{ fontSize: 12.5, color: F.muted, fontVariantNumeric: 'tabular-nums' }}>⏱ {fmtTime(elapsed)} · {doneSets.length}/{work.length} séries · {Math.round(volume)} kg</div>

@@ -1,3 +1,7 @@
+## 2026-11-07 ~07h20 — séance : l'app mène, plus le chrono (app v252)
+- Bug vu 07/11 7h10 : « 🏁 Muscu terminée au chrono » alors qu'il restait 3 exercices (ajoutés par lui) + notifs « exercice suivant » pendant qu'il était encore sur un exercice.
+- L'app FORME envoie sa progression (POST /api/sport/live-app : exercice actuel, ce qui reste, séries) à chaque changement + toutes les 8 min. Tant qu'elle est fraîche (60 min) : gym-live ne fait plus d'enchaînement au chrono, ni « muscu terminée », la montre ne déclare plus la muscu finie ; « terminée » seulement sur Terminer → Enregistrer dans l'app (finished). Départ / appel « pars » et bilan au départ GPS gardés ; « il reste » du rappel départ = liste de l'app. liveNote dit au cerveau que l'app mène.
+
 ## 2026-11-07 ~07h — FORME : corriger un jour passé après coup (app v251)
 - Calendrier › un jour (passé ou aujourd'hui) › « ✏️ Ajouter / corriger » : eau (± verre), sommeil, pas, poids, repas oublié (texte, compté sur CE jour), séance cochée / décochée.
 - Enregistré partout : journée FORME + health:daily pour sommeil/pas (sleep_src 'manuel', la montre ne l'écrase plus), repas datés (logMealText date), journal sport (setSessionDone). Une vieille pesée ne remplace plus le poids actuel s'il existe une pesée plus récente. Nouveau kind 'water-set'.
