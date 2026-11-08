@@ -7,6 +7,9 @@
 
 ## Bugs Ouverts 🔴
 
+### B060 — Messages Telegram « sans raison » après un appel (08/11 10h20 et 11h00) ✅ FIXÉ
+La Conscience lisait les demandes reformulées par la voix temps réel comme s'il les avait écrites : réponse à sa place, et « tu as l'air sous pression » sur le ton de la reformulation. Les tours d'appel sont exclus de son humeur et de kouider_a_dit_2h.
+
 ### B059 — Appel : « je suis à combien au total en cash » → gains du mois annoncés comme cash, phrases transcrites en portugais/italien (08/11) ✅ FIXÉ
 Gemini Live transcrivait sans langue imposée et reformulait la demande avant ask_dzaryx, donc le code argent ne reconnaissait plus la phrase. Désormais transcription fr-FR, phrase réelle transmise (`heard`) et testée d'abord par parseMoneyCommand (lecture seule), consigne « gains du mois ≠ cash ». FORME : estimation d'activité du matin recalée sur la valeur de la montre (`active_at`).
 

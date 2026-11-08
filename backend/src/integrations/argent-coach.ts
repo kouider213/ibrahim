@@ -301,6 +301,8 @@ export async function jobArgent(): Promise<void> {
     });
   }
   if (weekday === 0 && between('18:00', '20:00')) await once('semaine', bilanSemaine);
+  // 08/11 : dernier jour du mois, après le travail → récap complet en PDF (une fois, même s'il a trop de messages ce soir-là)
+  if (new Date(Date.parse(`${date}T12:00:00Z`) + 86_400_000).toISOString().endsWith('-01T12:00:00.000Z') && between('21:30', '23:30')) await once('recap-doc', async () => { await import('./argent-recap.js').then(m => m.monthEndRecap()); return ''; }, true);
   if (date.endsWith('-01') && between('09:30', '12:00')) await once('mois', async () => `${await bilanMois()}\n\n${await oran()}`, true);
   const s = await settings();
   if (s.zakatDate && between('10:00', '12:00')) {

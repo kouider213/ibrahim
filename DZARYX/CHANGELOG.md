@@ -1,5 +1,11 @@
+## 2026-11-08 matin (3) — Récap argent en PDF, retraits avec motif, Conscience
+- Conscience : les tours d'appel (reformulations de la voix) ne servent plus ni à l'humeur ni à ses messages ; elle ne répond jamais à une demande à la place de la conversation.
+- `parseCashOut` : « -X pour une commande », « moins X pour les courses », « j'ai pris X du cash pour… » → journal (commande/dépense par catégorie) + caisse.
+- `perso:cash_log` : livre de caisse, chaque mouvement avec le solde après. Doublon de vente = même phrase rejouée en 2 min (deux ventes égales dans la journée sont comptées).
+- `argent-recap.ts` : PDF sans IA (courbe du cash, entrées/sorties, meilleurs jours, calendrier, sources, sorties, cash libre, marge, rythme). « récap de mon argent » + mes_finances 'recap' + envoi le dernier jour du mois (21h30) avec photo du capital.
+
 ## 2026-11-08 matin (2) — Fortune : cash compté deux fois
-- `fortune` ignorait que son cash a déjà une source (perso:finances.sideCash) : de vieilles lignes « Caisse… » s'ajoutaient (+2 600 €). Ces lignes sont ignorées et un `set` de caisse met à jour la vraie caisse.
+- `fortune` ignorait que son cash a déjà une source (perso:finances.sideCash) : de vieilles lignes « Caisse… » s'ajoutaient. Ces lignes sont ignorées et un `set` de caisse met à jour la vraie caisse.
 - L'outil annonce deux chiffres nommés : argent disponible (épargne + cash) et fortune nette (après crédits). « Combien j'ai / au total / mon cash » → mes_finances.
 - Appels : le cerveau reçoit aussi ses mots exacts, en plus de la reformulation de la voix.
 - Après un silence perso : sa demande d'abord, les nouvelles ensuite.
@@ -7,9 +13,9 @@
 ## 2026-11-08 matin — Appels : argent mal compris ; FORME : calories du matin
 - Appels : la voix temps réel reformulait ses demandes (« Fournis le montant total des gains… ») et donnait ses gains du mois pour son cash. `heard` : ses vrais mots passent d'abord au code argent (lecture seule) ; consignes ARGENT → toujours ask_dzaryx avec ses mots exacts.
 - Gemini Live : transcription forcée en français (`languageCodes: ['fr-FR']`, acceptée par 3.8-live, 3.1-flash-live et 2.5 native-audio) + règle « faux portugais/italien qui sonne français = lui ».
-- argent-direct : « au total en cash » = la caisse, « tout confondu » sans « ? » = question, « c'est quoi mon cash » / « quel est mon cash » gérés par le code. « +35 en cash » sans « aujourd'hui » compte aussi comme vente du jour (445 € manquaient au compteur du mois).
+- argent-direct : « au total en cash » = la caisse, « tout confondu » sans « ? » = question, « c'est quoi mon cash » / « quel est mon cash » gérés par le code. « +35 en cash » sans « aujourd'hui » compte aussi comme vente du jour (des ventes manquaient au compteur du mois).
 - mes_finances : cash actuel et total (épargne + cash) écrits clairement, distincts des gains du mois.
-- FORME : dès que la montre a envoyé (`active_at`), l'activité part de SA valeur et n'estime que le temps écoulé depuis. Texte du déficit : la base = ce que le corps brûle seul depuis minuit, même en dormant (d'où ~800 kcal au réveil, c'est normal).
+- FORME : dès que la montre a envoyé (`active_at`), l'activité part de SA valeur et n'estime que le temps écoulé depuis. Texte du déficit : la base = ce que le corps brûle seul depuis minuit, même en dormant (d'où un chiffre déjà élevé au réveil, c'est normal).
 
 ## 2026-11-08 nuit — Veille hebdo : garde-fou anti-fuite (repo public)
 - `scripts/git-hooks/secret-guard.mjs` : bloque des lignes ajoutées contenant une vraie valeur des .env (comparaison exacte, jamais affichée, ignorée si déjà dans le repo), un nom PRIVATE_MED_TERMS, une forme de clé connue (Anthropic, OpenAI, GitHub, Google, HF, Replicate, Slack, AWS, JWT, bot Telegram, clé privée) ou un fichier .env/credentials/session. `--test` (auto-test), `--range A..B` (audit). Faux positif : `secret-guard:ok` sur la ligne.

@@ -186,11 +186,14 @@ export async function shieldTool(input: Record<string, unknown>): Promise<string
 }
 
 // ── Humeur en direct ─────────────────────────────────────────────────────────
+// 08/11 : en appel, ce qui est écrit ici est la REFORMULATION de la voix temps réel, et il a déjà eu sa réponse à l'oral.
+// « Tu as l'air sous pression » et une réponse à une « demande » à 10h20 alors qu'il n'avait rien écrit.
+const typedByHim = <T extends { content: string }>(rows: T[]) => rows.filter(t => !String(t.content).includes('APPEL TÉLÉPHONIQUE EN COURS'));
 interface MoodNow { at: number; stress: number; energy: number; why: string; offered?: boolean }
 async function moodNowTick(): Promise<MoodNow | null> {
   const since = new Date(Date.now() - 90 * 60_000).toISOString();
   const { data } = await supabase.from('conversations').select('content, created_at').eq('session_id', 'voice_kouider').eq('role', 'user').gte('created_at', since).order('created_at').limit(30);
-  const turns = ((data ?? []) as Array<{ content: string; created_at: string }>).map(t => `${localNow(Date.parse(t.created_at)).hhmm} ${String(t.content).replace(/^\[[^\]]{20,}\]\s*/s, '').slice(0, 300)}`);
+  const turns = typedByHim((data ?? []) as Array<{ content: string; created_at: string }>).map(t => `${localNow(Date.parse(t.created_at)).hhmm} ${String(t.content).replace(/^\[[^\]]{20,}\]\s*/s, '').slice(0, 300)}`);
   const prev = await kvJson<MoodNow | null>('mood:now', null);
   if (turns.length < 3) return prev && Date.now() - prev.at < 3 * 3600_000 ? prev : null;
   if (prev && Date.now() - prev.at < 30 * 60_000) return prev;
@@ -336,7 +339,7 @@ export async function snapshot(): Promise<Record<string, unknown>> {
     // Liberté (son médicament) a son propre suivi : la Conscience n'en voit rien et n'en parle jamais (03/11)
     decisions_en_attente: decisions.filter(d => !d.title.startsWith('🕊️')).map(d => d.title.slice(0, 80)),
     salle_de_crise: crisis ? `${crisis.title} — ${crisis.steps.filter(s => !s.done).length} étape(s) restante(s)` : null,
-    kouider_a_dit_2h: ((said ?? []) as Array<{ content: string; created_at: string }>).filter(t => !MED_RE.test(String(t.content))).map(t => `${localNow(Date.parse(t.created_at)).hhmm} ${String(t.content).replace(/^\[[^\]]{20,}\]\s*/s, '').slice(0, 200)}`),
+    kouider_a_dit_2h: typedByHim((said ?? []) as Array<{ content: string; created_at: string }>).filter(t => !MED_RE.test(String(t.content))).map(t => `${localNow(Date.parse(t.created_at)).hhmm} ${String(t.content).replace(/^\[[^\]]{20,}\]\s*/s, '').slice(0, 200)}`),
     deja_envoye_3h: sent.filter(s => Date.now() - s.at < 3 * 3600_000).map(s => s.text.slice(0, 140)),
     // Sujets qu'il a laissés sans réponse : ne pas les relancer (« 3 refus clients » répété 5× en 24 h, 30/10)
     ignores_24h: (await kvJson<Nudge[]>(LOG, [])).filter(n => n.reacted === false && Date.now() - n.at < 86_400_000).map(n => n.text.slice(0, 120)),
@@ -366,6 +369,7 @@ export async function jobConscience(): Promise<string> {
     + `Cherche UNE chose qui vaut VRAIMENT la peine d'être dite maintenant, en CROISANT les infos (ex. client qui atterrit + Houari loin ; rendez-vous dans 40 min + 35 min de route ; promesse due aujourd'hui ; décision qui attend depuis longtemps ; santé mauvaise + grosse journée ; il roule vers un lieu alors qu'un truc l'attend ailleurs). `
     + `Sa position (lieu) est la vérité : « work » = il est à son poste de travail, c'est normal, jamais un retard ; ne lui annonce pas un RDV ailleurs pendant qu'il y est sauf s'il est noté hors travail. `
     + `Les dates sont déjà écrites en relatif (aujourd'hui / hier / demain) : ne dis JAMAIS qu'une chose se passe aujourd'hui si elle est notée « hier ». Une location « EN COURS » est déjà partie : ne parle pas de son départ. Un message WhatsApp reçu hier n'est pas « nouveau ». `
+    + `Tu ne réponds JAMAIS à une question ou demande de kouider_a_dit_2h : il a déjà eu sa réponse, tu n'es pas la conversation. `
     + `Ce que Kouider a dit (kouider_a_dit_2h) PRIME sur l'agenda : s'il a dit qu'il n'a pas de RDV, qu'il est au travail ou que c'est réglé, n'en reparle plus. Son travail n'est jamais un « RDV ». `
     + `Un sujet présent dans ignores_24h (il ne l'a pas relevé) ne se relance PAS, même reformulé, sauf danger réel ou échéance dans moins d'une heure. `
     + `Pas de redite de ce qui a déjà été envoyé ces 3 h. Pas de banalité, pas de motivation creuse, pas de « bonne journée ». Si rien d'utile → speak:false (c'est le cas le plus fréquent).\n`

@@ -212,7 +212,7 @@ export async function jobSelfReport(): Promise<string> {
 // ── Fortune ──────────────────────────────────────────────────────────────────
 interface Asset { id: string; label: string; kind: 'voiture' | 'or' | 'euros' | 'dinars' | 'bien' | 'autre' | 'dette'; value: number; currency: 'EUR' | 'DZD'; growth?: number }
 
-// 08/11 : son cash a UNE seule source (perso:finances.sideCash). De vieilles lignes « Caisse… » ici le comptaient deux fois (8 545 € annoncés au téléphone).
+// 08/11 : son cash a UNE seule source (perso:finances.sideCash). De vieilles lignes « Caisse… » ici le comptaient deux fois (mauvais total annoncé au téléphone).
 const isCashAsset = (a: { label: string; kind?: string }) => a.kind === 'cash' || /\b(caisse|cash|liquide)\b/i.test(a.label);
 
 export async function fortune(): Promise<{ total: number; lines: Array<{ label: string; eur: number; kind: string }>; rate: number; proj: Record<string, number> }> {
