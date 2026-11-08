@@ -290,7 +290,10 @@ router.post('/turn', requireCallerAuth, async (req, res) => {
       const cmd = am.parseMoneyCommand(heard);
       if (cmd?.ask) { res.json({ text: await am.runMoneyCommand(cmd), audio: null }); return; }
     }
-    const said = `${dndNote ? `${dndNote}\n` : ''}${wakeNote ? `${wakeNote}\n` : ''}${gymNote ? `${gymNote}\n` : ''}${gps?.note ? `${gps.note}\n` : ''}${wa?.note ? `${wa.note}\n` : ''}${(message?.trim() || 'Voici une photo.').slice(0, 2000)}`;
+    // 08/11 : le cerveau voit aussi ce qu'il a VRAIMENT dit (« tarifs de la nicotine » : demande inventée par la voix temps réel)
+    const heardNote = heard && who === 'kouider' && channel !== 'message' && !(message ?? '').toLowerCase().includes(heard.toLowerCase())
+      ? `[Ses mots exacts au téléphone : « ${heard} ». La demande ci-dessous est une reformulation de la voix : si elle s'en écarte, ce sont ses mots qui comptent, et si c'est incompréhensible demande-lui de répéter.]\n` : '';
+    const said = `${heardNote}${dndNote ? `${dndNote}\n` : ''}${wakeNote ? `${wakeNote}\n` : ''}${gymNote ? `${gymNote}\n` : ''}${gps?.note ? `${gps.note}\n` : ''}${wa?.note ? `${wa.note}\n` : ''}${(message?.trim() || 'Voici une photo.').slice(0, 2000)}`;
     // Message Telegram écrit (texte/photo) : pas de consigne « appel en cours »
     // Photo écrite (capture d'un billet, d'un document…) : boucle complète avec outils, pas la vision rapide de l'appel vidéo
     // Photo de Kouider : gardée 30 min pour l'outil forme (body_photo) s'il s'agit de son corps

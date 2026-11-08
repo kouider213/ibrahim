@@ -1,3 +1,9 @@
+## 2026-11-08 matin (2) — Fortune : cash compté deux fois
+- `fortune` ignorait que son cash a déjà une source (perso:finances.sideCash) : de vieilles lignes « Caisse… » s'ajoutaient (+2 600 €). Ces lignes sont ignorées et un `set` de caisse met à jour la vraie caisse.
+- L'outil annonce deux chiffres nommés : argent disponible (épargne + cash) et fortune nette (après crédits). « Combien j'ai / au total / mon cash » → mes_finances.
+- Appels : le cerveau reçoit aussi ses mots exacts, en plus de la reformulation de la voix.
+- Après un silence perso : sa demande d'abord, les nouvelles ensuite.
+
 ## 2026-11-08 matin — Appels : argent mal compris ; FORME : calories du matin
 - Appels : la voix temps réel reformulait ses demandes (« Fournis le montant total des gains… ») et donnait ses gains du mois pour son cash. `heard` : ses vrais mots passent d'abord au code argent (lecture seule) ; consignes ARGENT → toujours ask_dzaryx avec ses mots exacts.
 - Gemini Live : transcription forcée en français (`languageCodes: ['fr-FR']`, acceptée par 3.8-live, 3.1-flash-live et 2.5 native-audio) + règle « faux portugais/italien qui sonne français = lui ».

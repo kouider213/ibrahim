@@ -113,7 +113,7 @@ export async function dndOnKouiderMessage(): Promise<string | null> {
   // Une seule fois par silence (29/10 : « Comment tu vas ? » redemandé à chaque message de la soirée)
   const careKey = `dnd:care-asked:${s.since}`;
   const care = PERSONAL_RE.test(s.why) && !(await kvGet(careKey).catch(() => null))
-    ? ` Ce silence était pour une raison perso (${s.why}) : AVANT tout le reste, demande des nouvelles (ce qu'il avait, comment il va maintenant, comment va Kouider lui-même), avec chaleur, sans liste d'actions. Retiens ce qu'il te répond avec remember_info (santé de la famille) pour reprendre des nouvelles plus tard dans la journée.`
+    ? ` Ce silence était pour une raison perso (${s.why}) : S'il te demande ou t'annonce quelque chose, fais-le et réponds-y D'ABORD (08/11 : « Avant de noter ça, comment vas-tu ? » en pleine demande) ; ensuite seulement, demande des nouvelles (ce qu'il avait, comment il va maintenant, comment va Kouider lui-même), avec chaleur, sans liste d'actions. Retiens ce qu'il te répond avec remember_info (santé de la famille) pour reprendre des nouvelles plus tard dans la journée.`
     : '';
   if (care) {
     await kvSet(FOLLOWUP_KEY, JSON.stringify({ why: s.why, at: Date.now() }), 2 * 86_400).catch(() => {});

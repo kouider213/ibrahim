@@ -212,8 +212,11 @@ export async function jobSelfReport(): Promise<string> {
 // ── Fortune ──────────────────────────────────────────────────────────────────
 interface Asset { id: string; label: string; kind: 'voiture' | 'or' | 'euros' | 'dinars' | 'bien' | 'autre' | 'dette'; value: number; currency: 'EUR' | 'DZD'; growth?: number }
 
+// 08/11 : son cash a UNE seule source (perso:finances.sideCash). De vieilles lignes « Caisse… » ici le comptaient deux fois (8 545 € annoncés au téléphone).
+const isCashAsset = (a: { label: string; kind?: string }) => a.kind === 'cash' || /\b(caisse|cash|liquide)\b/i.test(a.label);
+
 export async function fortune(): Promise<{ total: number; lines: Array<{ label: string; eur: number; kind: string }>; rate: number; proj: Record<string, number> }> {
-  const assets = await kvJson<Asset[]>('fortune:assets', []);
+  const assets = (await kvJson<Asset[]>('fortune:assets', [])).filter(a => !isCashAsset(a));
   const g = await import('./gold.js').then(m => m.goldMarket()).catch(() => null);
   const rate = g?.eurDzd ?? 260;
   const lines: Array<{ label: string; kind: string; eur: number }> = assets.map(a => ({ label: a.label, kind: a.kind, eur: (a.kind === 'dette' ? -1 : 1) * (a.currency === 'DZD' ? a.value / rate : a.value) }));
@@ -238,6 +241,10 @@ export async function fortuneTool(input: Record<string, unknown>): Promise<strin
     const label = String(input['label'] ?? '').trim();
     const value = Number(String(input['value'] ?? '').replace(/\s/g, '').replace(',', '.').replace(/[^\d.-]/g, ''));
     if (!label || !Number.isFinite(value)) return '❌ Il me faut quoi (label) et combien (value).';
+    if (isCashAsset({ label, kind: String(input['kind'] ?? '') })) {   // le cash va dans sa caisse, jamais dans une ligne à part
+      const done = await import('./argent-direct.js').then(m => m.moneyToolAction('cash', { amount: value }));
+      if (done) return done;
+    }
     const kind = (String(input['kind'] ?? 'autre') as Asset['kind']);
     const currency = /dzd|da|dinar/i.test(String(input['currency'] ?? '')) ? 'DZD' : 'EUR';
     const old = assets.find(a => a.label.toLowerCase() === label.toLowerCase());
@@ -249,5 +256,7 @@ export async function fortuneTool(input: Record<string, unknown>): Promise<strin
   }
   const f = await fortune();
   if (!f.lines.length) return '💰 Je n\'ai encore rien sur ta fortune. Dis-moi ce que tu possèdes : « 3 000 € sur mon compte », « 600 € d\'or », « la Clio vaut 1,2 million de DA », « appartement à Oran 18 millions »…';
-  return `💰 Ta fortune aujourd'hui : ${f.total.toLocaleString('fr-FR')} € (≈ ${(f.total * f.rate).toLocaleString('fr-FR')} DA au square ${f.rate})\n${f.lines.map(l => `• ${l.label} : ${l.eur.toLocaleString('fr-FR')} €`).join('\n')}\n\n📈 Projection prudente (voitures −12 %/an, or +5 %, biens +3 %, sans nouvelles économies) : ${Object.entries(f.proj).map(([k, v]) => `dans ${k} ${v.toLocaleString('fr-FR')} €`).join(' · ')}`;
+  const dispo = f.lines.filter(l => l.kind === 'épargne').reduce((s, l) => s + l.eur, 0);
+  // 08/11 : quand il demande « au total », il veut épargne + cash ; la fortune nette (après crédits) est un autre chiffre → les deux sont nommés
+  return `💵 Argent que tu as (épargne + cash) : ${dispo.toLocaleString('fr-FR')} €\n💰 Fortune NETTE (biens + créances − crédits restants) : ${f.total.toLocaleString('fr-FR')} € (≈ ${(f.total * f.rate).toLocaleString('fr-FR')} DA au square ${f.rate})\n${f.lines.map(l => `• ${l.label} : ${l.eur.toLocaleString('fr-FR')} €`).join('\n')}\n\n📈 Projection prudente (voitures −12 %/an, or +5 %, biens +3 %, sans nouvelles économies) : ${Object.entries(f.proj).map(([k, v]) => `dans ${k} ${v.toLocaleString('fr-FR')} €`).join(' · ')}`;
 }
