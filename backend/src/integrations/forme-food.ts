@@ -75,10 +75,10 @@ const sumOf = (items: Array<{ kcal: number; p: number; c: number; f: number }>) 
   items.reduce((a, x) => ({ kcal: a.kcal + r0(x.kcal), p: a.p + r0(x.p), c: a.c + r0(x.c), f: a.f + r0(x.f) }), { kcal: 0, p: 0, c: 0, f: 0 });
 
 // ── Dépense du jour (montre) et objectif ────────────────────────────────────
-interface HDay { date: string; active_kcal?: number; steps?: number; sleep_h?: number; rhr?: number; hrv?: number }
-async function activeFor(date: string): Promise<{ kcal: number; source: Budget['activeSource']; today?: number; woK?: number }> {
+interface HDay { date: string; active_kcal?: number; active_at?: string; steps?: number; sleep_h?: number; rhr?: number; hrv?: number }
+async function activeFor(date: string): Promise<{ kcal: number; source: Budget['activeSource']; today?: number; woK?: number; at?: string }> {
   const all = await readJson<HDay[]>('health:daily', []);
-  const today = all.find(x => x.date === date)?.active_kcal ?? 0;
+  const row = all.find(x => x.date === date), today = row?.active_kcal ?? 0, at = row?.active_at;
   // Séances vues par la montre aujourd'hui (début/fin envoyés en direct) → au moins ça + la vie de tous les jours
   const wo = await import('./workout-live.js').then(m => m.readWorkouts()).catch(() => []);
   const woK = wo.filter(w => String(w.at).slice(0, 10) === date).reduce((a, w) => a + (w.kcal ?? 0), 0);
@@ -87,9 +87,9 @@ async function activeFor(date: string): Promise<{ kcal: number; source: Budget['
   // Valeur de la montre = journée complète seulement le soir (envoi 22h) ou un jour passé ; un envoi du matin
   // (réveil) ne compte que quelques kcal → on garde la moyenne tant que la journée n'est pas finie.
   const dayDone = date < localNow().date || localNow().hhmm >= '20:00';
-  if (today > 50 && (dayDone || (med > 0 && today >= med))) return { kcal: r0(today), source: 'montre', today, woK };
-  if (med) return { kcal: r0(Math.max(med, woK + 200, today)), source: 'moyenne', today, woK };
-  return { kcal: r0(Math.max(350, woK + 250, today)), source: 'estimation', today, woK };
+  if (today > 50 && (dayDone || (med > 0 && today >= med))) return { kcal: r0(today), source: 'montre', today, woK, at };
+  if (med) return { kcal: r0(Math.max(med, woK + 200, today)), source: 'moyenne', today, woK, at };
+  return { kcal: r0(Math.max(350, woK + 250, today)), source: 'estimation', today, woK, at };
 }
 
 export const BULK_SURPLUS = { lent: 250, moyen: 350, rapide: 500 } as const;
@@ -141,7 +141,11 @@ export async function foodBudget(uid: Uid = 'kouider', date = localNow().date): 
   const wakeMin = wk?.date === ln.date && wk.hhmm ? Number(wk.hhmm.slice(0, 2)) * 60 + Number(wk.hhmm.slice(3, 5)) : 480;
   const wakeFrac = Math.max(0, Math.min(1, (minNow - wakeMin) / Math.max(240, 1320 - wakeMin)));
   const watchNow = 'today' in act ? (act.today ?? 0) : 0, woNow = 'woK' in act ? (act.woK ?? 0) : 0;
-  const activeNow = !isToday || act.source === 'montre' ? act.kcal + runKcal : r0(Math.max(watchNow, woNow + runKcal, (act.kcal + runKcal) * wakeFrac));
+  // 08/11 (Kouider : « 800 brûlées 10 min après mon réveil ») : la montre disait 55 kcal à 9h20, l'estimation affichait 114.
+  // Dès que la montre a envoyé aujourd'hui, on part de SA valeur et on n'estime que le temps écoulé depuis cet envoi.
+  const watchAt = 'at' in act && act.at ? Number(act.at.slice(0, 2)) * 60 + Number(act.at.slice(3, 5)) : null;
+  const sinceWatch = watchAt !== null && watchNow > 0 ? watchNow + Math.max(0, act.kcal + runKcal - watchNow) * Math.max(0, minNow - watchAt) / Math.max(60, 1320 - watchAt) : null;
+  const activeNow = !isToday || act.source === 'montre' ? act.kcal + runKcal : r0(Math.max(sinceWatch ?? Math.max(watchNow, (act.kcal + runKcal) * wakeFrac), woNow + runKcal));
   const live = { burnedNow: r0(t.bmr * minNow / 1440 + activeNow), activeNow, nowSource: (watchNow > 50 && watchNow >= activeNow ? 'montre' : act.source === 'montre' ? 'montre' : 'estimation') as 'montre' | 'estimation', asOf: isToday ? ln.hhmm : '23:59' };
   // Kouider garde son DÉFICIT même si son objectif sport est « muscle » (recompo) — sauf s'il fait lui-même le questionnaire
   if (p.goal === 'muscle' && (uid !== 'kouider' || p.bulk)) {

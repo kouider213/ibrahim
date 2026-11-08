@@ -154,6 +154,7 @@ class RealtimeCall:
         self.asking: dict[str, tuple[float, asyncio.Future]] = {}   # demandes ask_dzaryx récentes (anti-doublon)
         self.lines: list[dict] = []       # transcription de l'appel (mémoire des appels, envoyée à la fin)
         self.started = time.monotonic()
+        self.last_heard: tuple[float, str] = (0.0, '')   # sa dernière phrase, mot pour mot (Gemini reformule ses demandes)
         self.interpreter = ''             # langue du client en mode interprète ('' = normal)
         # Qui parle ? (reconnaissance de la voix, speaker.py) — 'kouider', un proche (prénom appris), 'inconnu' ou '?'
         self.guarded = False              # voix de Kouider connue → on vérifie avant de parler affaires
@@ -688,6 +689,7 @@ class RealtimeCall:
                 said = (ev.get('transcript') or '').strip()
                 log.info('%s a dit: %r', self.actor, said)
                 if said:
+                    self.last_heard = (time.monotonic(), said)
                     line = {'role': 'user', 'text': said}
                     if self.who not in ('kouider', '?'):
                         line['speaker'] = NAMES.get(self.who) or ('inconnu' if self.who == 'inconnu' else self.who.capitalize())
@@ -798,6 +800,8 @@ class RealtimeCall:
             self.asking[_ask_key(args.get('request', ''))] = (time.monotonic(), fut)
             try:
                 body = {'message': args.get('request', ''), 'textOnly': True}
+                if time.monotonic() - self.last_heard[0] < 20:
+                    body['heard'] = self.last_heard[1]
                 jpg = await asyncio.to_thread(self.snapshot)
                 if jpg:   # caméra allumée → le vrai Dzaryx reçoit l'image (état des lieux, documents…), comme dans l'app
                     body.update(image=jpg, imageMime='image/jpeg')

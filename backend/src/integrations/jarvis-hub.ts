@@ -13,7 +13,7 @@ import { supabase } from './supabase.js';
 import { localNow } from './morning-routine.js';
 
 // ── Santé ────────────────────────────────────────────────────────────────────
-export interface HealthDay { date: string; sleep_h?: number; steps?: number; rhr?: number; hrv?: number; active_kcal?: number; weight?: number; sleep_src?: 'montre' | 'telephone' | 'manuel' }
+export interface HealthDay { date: string; sleep_h?: number; steps?: number; rhr?: number; hrv?: number; active_kcal?: number; active_at?: string; weight?: number; sleep_src?: 'montre' | 'telephone' | 'manuel' }
 const num = (v: unknown) => { const n = Number(String(v ?? '').replace(',', '.').replace(/[^\d.]/g, '')); return Number.isFinite(n) && n > 0 ? n : undefined; };
 
 export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok: true; note: string }> {
@@ -90,6 +90,8 @@ export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok
   // Plusieurs envois le même jour : on complète, on n'efface pas une valeur déjà reçue
   if (same) for (const k of Object.keys(same) as Array<keyof HealthDay>) if ((d as unknown as Record<string, unknown>)[k] === undefined) (d as unknown as Record<string, unknown>)[k] = same[k];
   if (same?.sleep_src === 'manuel' && same.sleep_h) { d.sleep_h = same.sleep_h; d.sleep_src = 'manuel'; }   // 07/11 : sa correction à la main l'emporte
+  // 08/11 : heure de l'envoi de la montre → FORME part de sa vraie valeur au lieu d'une estimation plus haute
+  if (num(body['active_kcal'] ?? body['calories']) !== undefined && date === localNow().date) d.active_at = localNow().hhmm;
   const all = stored.filter(x => x.date !== date);
   all.push(d);
   all.sort((a, b) => a.date.localeCompare(b.date));

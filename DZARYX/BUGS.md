@@ -7,6 +7,9 @@
 
 ## Bugs Ouverts 🔴
 
+### B059 — Appel : « je suis à combien au total en cash » → gains du mois annoncés comme cash, phrases transcrites en portugais/italien (08/11) ✅ FIXÉ
+Gemini Live transcrivait sans langue imposée et reformulait la demande avant ask_dzaryx, donc le code argent ne reconnaissait plus la phrase. Désormais transcription fr-FR, phrase réelle transmise (`heard`) et testée d'abord par parseMoneyCommand (lecture seule), consigne « gains du mois ≠ cash ». FORME : estimation d'activité du matin recalée sur la valeur de la montre (`active_at`).
+
 ### B058 — Appel manqué recopié comme réplique dans le chat + « Allô Kouider, c'est Dzaryx. Salut Kouider, c'est Dzaryx » (06/11 12h30) ✅ FIXÉ
 L'accueil d'un appel est écrit dans l'historique avant la sonnerie (answerCall) ; appel refusé → il restait comme si Dzaryx l'avait dit dans le chat, en plein milieu d'une tâche business, et le cerveau enchaînait dessus. Désormais /api/call/missed le transforme en note « appel manqué, n'y reviens que s'il y répond » (markCallUnheard) + double présentation retirée (stripSelfIntro).
 

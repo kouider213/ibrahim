@@ -50,7 +50,10 @@ NOISE_RULE = ("\n\nAPPEL TÉLÉPHONIQUE — BRUITS : un bruit, un souffle, des m
               "Ne redis pas une phrase que tu viens déjà de dire. "
               "LANGUE : tu parles TOUJOURS en français (ou en darija oranaise s'il te parle darija), JAMAIS en espagnol, "
               "anglais, chinois ou autre. Kouider est souvent au travail entouré de gens : une phrase dans une autre langue "
-              "(« ¿Cómo? », « ¿A cuánto…? ») vient de quelqu'un autour de lui, pas de lui → ignore-la et continue en français.")
+              "(« ¿Cómo? », « ¿A cuánto…? ») vient de quelqu'un autour de lui, pas de lui → ignore-la et continue en français. "
+              "MAIS sa voix est parfois mal transcrite : du faux portugais, italien ou espagnol qui SONNE comme du français et suit "
+              "la conversation, c'est lui (« Ya comió total en caché » = « je suis à combien au total en cash »). Comprends-le en "
+              "français ; si tu n'es pas sûr du sens, demande « tu peux répéter ? ». Ne réponds JAMAIS dans cette autre langue.")
 
 
 def clean_heard(t: str) -> str:
@@ -123,7 +126,7 @@ class GeminiLiveWS:
             'realtimeInputConfig': {'automaticActivityDetection': {
                 'startOfSpeechSensitivity': 'START_SENSITIVITY_HIGH', 'endOfSpeechSensitivity': 'END_SENSITIVITY_HIGH',
                 'prefixPaddingMs': 300, 'silenceDurationMs': 700}},
-            'inputAudioTranscription': {},
+            'inputAudioTranscription': {'languageCodes': ['fr-FR']},   # 08/11 : il parlait français, transcrit en portugais/italien/espagnol
             'outputAudioTranscription': {},
             'contextWindowCompression': {'slidingWindow': {}},   # appels de plus de 15 min
         }

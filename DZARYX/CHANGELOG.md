@@ -1,3 +1,10 @@
+## 2026-11-08 matin — Appels : argent mal compris ; FORME : calories du matin
+- Appels : la voix temps réel reformulait ses demandes (« Fournis le montant total des gains… ») et donnait ses gains du mois pour son cash. `heard` : ses vrais mots passent d'abord au code argent (lecture seule) ; consignes ARGENT → toujours ask_dzaryx avec ses mots exacts.
+- Gemini Live : transcription forcée en français (`languageCodes: ['fr-FR']`, acceptée par 3.8-live, 3.1-flash-live et 2.5 native-audio) + règle « faux portugais/italien qui sonne français = lui ».
+- argent-direct : « au total en cash » = la caisse, « tout confondu » sans « ? » = question, « c'est quoi mon cash » / « quel est mon cash » gérés par le code. « +35 en cash » sans « aujourd'hui » compte aussi comme vente du jour (445 € manquaient au compteur du mois).
+- mes_finances : cash actuel et total (épargne + cash) écrits clairement, distincts des gains du mois.
+- FORME : dès que la montre a envoyé (`active_at`), l'activité part de SA valeur et n'estime que le temps écoulé depuis. Texte du déficit : la base = ce que le corps brûle seul depuis minuit, même en dormant (d'où ~800 kcal au réveil, c'est normal).
+
 ## 2026-11-08 nuit — Veille hebdo : garde-fou anti-fuite (repo public)
 - `scripts/git-hooks/secret-guard.mjs` : bloque des lignes ajoutées contenant une vraie valeur des .env (comparaison exacte, jamais affichée, ignorée si déjà dans le repo), un nom PRIVATE_MED_TERMS, une forme de clé connue (Anthropic, OpenAI, GitHub, Google, HF, Replicate, Slack, AWS, JWT, bot Telegram, clé privée) ou un fichier .env/credentials/session. `--test` (auto-test), `--range A..B` (audit). Faux positif : `secret-guard:ok` sur la ligne.
 - Atelier de nuit (night-dev.mjs) : contrôle les commits de chaque chantier avec le garde-fou ; fuite → chantier marqué ÉCHEC + alerte dans le rapport (sans recopier la valeur). Le prompt demande le contrôle avant chaque push.

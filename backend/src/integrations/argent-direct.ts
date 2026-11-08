@@ -25,7 +25,7 @@ export type MoneyCommand = {
   ask?: { kind: 'total' | 'cash' | 'gains' | 'best'; from?: string; to?: string; title?: string };
 };
 
-const MONEY = /gagn|vend|ventes?\b|encaiss|cash|caisse|liquide|snus|argent|€|euros?\b|capital|fortune|patrimoine|tout confondu|au total|en tout|combien d.argent|j.ai combien\s*\??\s*$|b[ée]n[ée]f|thune|rentr[ée]|[ée]pargne/i;   // 02/11 « j'ai combien au total ? » partait au cerveau (risque de chiffre inventé)
+const MONEY = /tous revenus confondus|montant total|gagn|vend|ventes?\b|encaiss|cash|caisse|liquide|snus|argent|€|euros?\b|capital|fortune|patrimoine|tout confondu|au total|en tout|combien d.argent|j.ai combien\s*\??\s*$|b[ée]n[ée]f|thune|rentr[ée]|[ée]pargne/i;   // 02/11 « j'ai combien au total ? » partait au cerveau (risque de chiffre inventé)
 const OTHER = /calori|kcal|\bpas\b|km\b|kg\b|kilos?|séance|seance|sommeil|dormi|course[s]? (?:à|a) pied/i;
 const FIK_ONLY = /\b(fik|locations?|voitures?|clio|clients?|r[ée]servations?|bookings?|conciergerie|sites?)\b/i;
 
@@ -60,7 +60,9 @@ export function parseMoneyCommand(raw: string): MoneyCommand | null {
   msg = msg.replace(/(\d[\d\s.,]*\s*k?\s*(?:€|euros?|e)?\s*(?:en|de|du)\s+)(?:cas|cach|cashe|kash|cahs|csh|cassh)(?![\p{L}]|\s+(?:de|d'|où|ou)\b)[^\p{L}\d\s]*/giu, '$1cash ');
   if (!msg || msg.length > 300 || !MONEY.test(msg) || OTHER.test(msg)) return null;
   const today = localNow().date;
-  const question = /\?|combien|quel(?:le)?s? jours?|meilleur jour|j.en suis|je suis (?:à|a) combien|c.est quoi mon|dis[- ]moi/i.test(msg);
+  const question0 = /\?|combien|quel(?:le)?s? jours?|meilleur jour|j.en suis|je suis (?:à|a) combien|c.est quoi mon|quel(?:le)? est (?:mon|ma) (?:cash|caisse|liquide)|dis[- ]moi/i.test(msg);
+  // 08/11 appel : « et au total tout confondu depuis le début » (sans « ? » à l'oral, sans chiffre) = une question, pas un enregistrement
+  const question = question0 || (!/\d/.test(msg) && /tout confondu|tous revenus confondus|au total|en tout|montant total/i.test(msg));
   const snus = /snus/i.test(msg);
   if (/combien de (?!fric|thune|sous|argent|cash|liquide)\p{L}/iu.test(msg) && !/gagn|vend|encaiss|€|euros?\b/i.test(msg)) return null;   // « combien de messages/clients au total » ≠ argent
   if (FIK_ONLY.test(msg) && !snus && !/tout confondu/i.test(msg)) return null;
@@ -72,8 +74,8 @@ export function parseMoneyCommand(raw: string): MoneyCommand | null {
 
   if (question) {
     if (/quel(?:le)?s? jours?|meilleur jour|jour o[ùu]/i.test(msg) && /gagn|vend|plus|meilleur|rapport/i.test(msg)) out.ask = { kind: 'best' };
-    else if (/tout confondu|au total|en tout|capital|fortune|patrimoine|[ée]pargne|combien d.argent|j.ai combien|je suis (?:à|a) combien|combien j.ai(?! (?:gagn|vendu|fait|encaiss))/i.test(msg) && !/gagn|vendu|encaiss/i.test(msg)) out.ask = { kind: /cash|caisse|liquide/i.test(msg) && !/tout confondu|au total|capital|patrimoine/i.test(msg) ? 'cash' : 'total' };
-    else if (/combien.{0,25}(cash|caisse|liquide)/i.test(msg) && !/gagn|vendu/i.test(msg)) out.ask = { kind: 'cash' };
+    else if (/tout confondu|tous revenus confondus|montant total|au total|en tout|capital|fortune|patrimoine|[ée]pargne|combien d.argent|j.ai combien|je suis (?:à|a) combien|combien j.ai(?! (?:gagn|vendu|fait|encaiss))/i.test(msg) && (!/gagn|vendu|encaiss/i.test(msg) || /confondu/i.test(msg))) out.ask = { kind: /cash|caisse|liquide/i.test(msg) && !/confondu|capital|patrimoine|(?:au total|en tout)(?!\s+(?:en|de|du)\s+(?:cash|liquide|caisse))/i.test(msg) ? 'cash' : 'total' };   // 08/11 « je suis à combien au total en cash » = la caisse, pas épargne + cash
+    else if (/(?:combien.{0,25}|c.est quoi (?:mon|ma)\s+|quel(?:le)? est (?:mon|ma)\s+)(cash|caisse|liquide)/i.test(msg) && !/gagn|vendu/i.test(msg)) out.ask = { kind: 'cash' };
     else if (/gagn|vend|ventes?\b|encaiss|rentr|b[ée]n[ée]f|fait\b.{0,15}(€|euros?|snus)|snus/i.test(msg)) {
       if (/semaine derni|la semaine pass/i.test(msg)) { const mon = addDays(today, -((wd(today) + 6) % 7) - 7); out.ask = { kind: 'gains', from: mon, to: addDays(mon, 6), title: 'la semaine dernière' }; }
       else if (/cette semaine|la semaine/i.test(msg)) out.ask = { kind: 'gains', from: addDays(today, -((wd(today) + 6) % 7)), to: today, title: 'cette semaine' };
@@ -97,7 +99,8 @@ export function parseMoneyCommand(raw: string): MoneyCommand | null {
   if (signed.length && !/retomb|redescend|remont|repass|il me reste|je suis (?:à|a)\s+\d/i.test(msg)) {
     const delta = signed.reduce((t, x) => t + x.sign * x.v, 0);
     // 06/11 « +100€ en cash aujourd'hui » = il a GAGNÉ 100 aujourd'hui → vente du jour aussi (sinon à 21h45 « combien tu as fait aujourd'hui ? »)
-    const earned = delta > 0 && signed.length === 1 && /aujourd|ce soir|ce matin|\bhier\b/i.test(msg) && !/r[ée]cup|remis|remets|rembours|rends|rendu|d[ée]pos/i.test(msg);
+    // 08/11 : « +35 en cash », « +110 en cash avec le snus » sans le mot « aujourd'hui » = pareil (445 € manquaient au compteur du mois)
+    const earned = delta > 0 && signed.length === 1 && !/r[ée]cup|remis|remets|rembours|rends|rendu|d[ée]pos/i.test(msg);
     return earned ? { cashDelta: delta, sale: { amount: delta, date: dayOf(msg, today) ?? today, cat: 'snus' } } : { cashDelta: delta };
   }
   const cm = /total|en tout|je suis|j.ai|il me reste|caisse|^\s*(?:mon\s+)?cash\b/i.test(msg) ? (c1 ?? c2) : null;

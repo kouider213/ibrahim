@@ -70,7 +70,7 @@ export async function financesText(): Promise<string> {
     f.side ? `- Revenu d'appoint (${f.side.label}) : ${f.side.dailyMin === f.side.dailyMax ? eur(f.side.dailyMin) : `${eur(f.side.dailyMin)} à ${eur(f.side.dailyMax)}`} de ventes par jour, ${f.side.when}${f.side.daysPerWeek ? ` (${f.side.daysPerWeek} j/semaine)` : ''}.${f.side.order ? ` Stock : ${f.side.order.pieces ? `${f.side.order.pieces} pièces pour ` : ''}${eur(f.side.order.cost)}, une commande tous les ${f.side.order.everyDays} jours au minimum (≈ ${eur(f.side.order.cost * 365 / f.side.order.everyDays / 12)}/mois à déduire).` : ''}${f.side.note ? ` ${f.side.note}` : ''}` : '',
     f.savings ? `- Épargne : ${eur(f.savings)}.` : '',
     f.goal ? `- OBJECTIF : ${eur(f.goal.amount)} d'ici ${f.goal.until.slice(5)}/${f.goal.until.slice(0, 4)} (fixé le ${f.goal.set.split('-').reverse().join('/')}) — pour savoir s'il est sur la bonne voie : mes_finances 'projection'.` : '',
-    f.sideCash ? `- Mis de côté grâce à l'appoint : ≈ ${eur(f.sideCash)}.` : '',
+    f.sideCash ? `- CASH ACTUEL (sa caisse, ce qu'il appelle « mon cash ») : ${eur(f.sideCash)}. TOTAL tout confondu = épargne + cash : ${eur((f.savings ?? 0) + f.sideCash)}. Ne confonds jamais avec ses gains du mois (ce qu'il a vendu).` : '',
     ...(f.notes ?? []).slice(-5).map(n => `- ${n}`),
     await import('./argent-coach.js').then(m => m.argentText()).catch(() => ''),
     await import('./projets-business.js').then(m => m.projetsText()).catch(() => ''),
