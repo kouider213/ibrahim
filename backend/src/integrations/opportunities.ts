@@ -84,13 +84,17 @@ export async function generateOpportunities(): Promise<OpportunitiesReport> {
   if (_inFlight) return _inFlight;
   _inFlight = (async () => {
     let text = '';
+    // 09/11 : la veille écrivait « euro à 245-250 DA » le jour où Dzaryx annonçait 278-282 au téléphone (chiffre repris d'un vieil
+    // article). Le taux du square du jour, mesuré par le code (même source que l'or), est imposé au rédacteur.
+    const rate = await import('./gold.js').then(m => m.goldMarket()).then(g => g?.squareEurDzd || g?.eurDzd || 0).catch(() => 0);
+    const rateFact = rate > 100 ? ` TAUX MESURÉ AUJOURD'HUI au marché parallèle (square) : 1 € = ${Math.round(rate)} DA. Pour l'euro/dinar, utilise CE chiffre et aucun autre ; ignore les taux des articles plus anciens.` : '';
     try {
       const msg = await anthropic.messages.create({
         model:      'claude-sonnet-5-5',
         max_tokens: 6000,
         system:     SYSTEM,
         tools:      [{ type: 'web_search_20260209' as any, name: 'web_search', max_uses: 5 } as any],
-        messages:   [{ role: 'user', content: 'Recherche les infos récentes (auto, immo, devises euro/dinar, investissement, aides État, lois — business Algérie/Oran) puis réponds UNIQUEMENT avec le JSON demandé — aucun texte avant ni après.' }],
+        messages:   [{ role: 'user', content: 'Recherche les infos récentes (auto, immo, devises euro/dinar, investissement, aides État, lois — business Algérie/Oran) puis réponds UNIQUEMENT avec le JSON demandé — aucun texte avant ni après.' + rateFact }],
       });
       text = msg.content.filter(b => b.type === 'text').map(b => (b as any).text).join('\n');
     } catch (e) {

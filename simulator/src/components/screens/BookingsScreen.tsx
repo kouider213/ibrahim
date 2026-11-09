@@ -193,7 +193,11 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
     return ccy === 'DZD' ? `${Math.round(n).toLocaleString('fr-FR')} DZD` : `${n}€`;
   };
 
-  const activeCount = bookings.filter(b => b.status === 'active' || b.status === 'confirmed').length;
+  // 09/11 : les statuts arrivent en MAJUSCULES (CONFIRMED) → ce compteur valait toujours 0, même avec une voiture en location.
+  const todayDz = new Date().toLocaleDateString('sv-SE', { timeZone: 'Africa/Algiers' });
+  const live = (b: Booking) => ['active', 'confirmed', 'accepted'].includes((b.status ?? '').toLowerCase());
+  const activeCount = bookings.filter(b => live(b) && (b.end_date ?? '').slice(0, 10) >= todayDz).length;
+  const nowCount = bookings.filter(b => live(b) && (b.start_date ?? '').slice(0, 10) <= todayDz && (b.end_date ?? '').slice(0, 10) >= todayDz).length;
   // CA/marge = résas RÉELLES : on exclut les REJETÉES (comme l'écran Finances) pour
   // que le CA soit identique partout. Sinon une résa refusée gonfle le total.
   const counted     = bookings.filter(b => (b.status ?? '').toUpperCase() !== 'REJECTED');
@@ -254,7 +258,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
       {mode === 'resa' && (
         <>
           <KpiGrid cols={3}>
-            <Kpi value={activeCount} label="En cours" color={T.ok} />
+            <Kpi value={nowCount} label="En cours" color={T.ok} sub={activeCount > nowCount ? `+ ${activeCount - nowCount} à venir` : undefined} />
             {totalRevEur > 0 || !totalRevDzd ? <Kpi value={money(totalRevEur)} label="CA total" color={T.accent} /> : null}
             {totalRevDzd > 0 && <Kpi value={money(totalRevDzd, 'DZD')} label="CA (DA)" color={T.violet} />}
             {!isHouari && (totalRevEur > 0 || !kDzd.length) && <Kpi value={money(marginEur)} label="Ma marge" color={T.warn} sub={covEur < kEur.length ? `${covEur}/${kEur.length} résas` : undefined} />}
@@ -288,7 +292,9 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
           {bookings.map(b => {
             const st = (b.status ?? '').toLowerCase();
             const stCol = ST_COL[st] ?? T.faint;
-            const [payLbl, payCol] = PAY[(b.payment_status ?? '').toUpperCase()] ?? [b.payment_status ?? '—', T.faint];
+            // une demande refusée ou annulée n'est pas « à payer » : on affiche son vrai statut
+            const dead = st === 'rejected' || st === 'cancelled';
+            const [payLbl, payCol] = dead ? [ST_FR[st]!, T.faint] : PAY[(b.payment_status ?? '').toUpperCase()] ?? [b.payment_status ?? '—', T.faint];
             const isExp = expanded === b.id;
             const own = ownerOf(b);
             const ccy = bkgCcy(b);

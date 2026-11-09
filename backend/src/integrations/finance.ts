@@ -167,6 +167,15 @@ export function computeBookingFinancials(b: {
 
 // ── Financial report ──────────────────────────────────────────────────────────
 
+/** Part d'une location qui tombe dans la période (tranches de 24 h, le jour du retour ne compte pas) — même règle que l'outil
+ *  de Dzaryx (phase5-finance periodShare). */
+function shareIn(start: string, end: string, from: string, to: string): number {
+  const d = (x: string) => Date.parse(`${x.slice(0, 10)}T12:00:00Z`) / 86_400_000;
+  const s = d(start), e = Math.max(d(end), d(start) + 1);
+  const inside = Math.max(0, Math.min(e, d(to) + 1) - Math.max(s, d(from)));
+  return e - s > 0 ? Math.min(1, inside / (e - s)) : 1;
+}
+
 export async function getFinancialReport(year: number, month?: number): Promise<FinancialReport> {
   let startDate: string;
   let endDate:   string;
@@ -239,18 +248,25 @@ export async function getFinancialReport(year: number, month?: number): Promise<
   const eur = result.filter(b => b.currency !== 'DZD');
   const dzdList = result.filter(b => b.currency === 'DZD');
 
+  // 09/11 : une location à cheval sur 2 mois (29/10 → 10/11, 440 €) était comptée EN ENTIER dans octobre ET dans novembre sur
+  // l'écran CA de l'app (880 € au total pour 440 €), alors que Dzaryx annonçait 330 € au téléphone (outil au prorata).
+  // Même règle partout : les TOTAUX de la période sont au prorata des jours ; la liste des réservations garde les montants entiers.
+  const sh = new Map(result.map(b => [b.id, shareIn(b.start_date, b.end_date, startDate, endDate)]));
+  const w = (b: FinancialBooking) => sh.get(b.id) ?? 1;
+  const r2 = (x: number) => Math.round(x * 100) / 100;
   const kouiderBookings   = eur.filter(b => b.rented_by !== 'Houari').length;
   const houariBookings    = eur.filter(b => b.rented_by === 'Houari').length;
-  const grossCA           = eur.reduce((s, b) => s + (b.final_price ?? 0), 0);
-  const ownerTotal        = eur.reduce((s, b) => s + (b.owner_total ?? 0), 0);
+  const grossCA           = r2(eur.reduce((s, b) => s + (b.final_price ?? 0) * w(b), 0));
+  const ownerTotal        = r2(eur.reduce((s, b) => s + (b.owner_total ?? 0) * w(b), 0));
   // Houari revenue = owner_total des resas Kouider + CA complet des resas Houari directes
-  const houariRevenue     = eur.reduce((s, b) => {
-    if (b.owner_total != null) return s + b.owner_total;
-    if (b.rented_by === 'Houari') return s + (b.final_price ?? 0);
+  const houariRevenue     = r2(eur.reduce((s, b) => {
+    if (b.owner_total != null) return s + b.owner_total * w(b);
+    if (b.rented_by === 'Houari') return s + (b.final_price ?? 0) * w(b);
     return s;
-  }, 0);
-  const kouiderProfit     = eur.reduce((s, b) => s + (b.kouider_profit ?? 0), 0);
-  const encaisse          = eur.reduce((s, b) => s + b.paid_amount, 0);
+  }, 0));
+  const kouiderProfit     = r2(eur.reduce((s, b) => s + (b.kouider_profit ?? 0) * w(b), 0));
+  const encaisse          = r2(eur.reduce((s, b) => s + b.paid_amount * w(b), 0));
+  // « à encaisser » = ce que le client doit encore, en entier : une dette ne se découpe pas par mois
   const aEncaisser        = eur.reduce((s, b) => s + Math.max(0, (b.final_price ?? 0) - b.paid_amount), 0);
   const missingOwnerPrice = eur.filter(b => b.owner_price_per_day === null && b.rented_by !== 'Houari').length;
   const missingClientPrice = eur.filter(b => b.price_source === 'missing').length;

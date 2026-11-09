@@ -1,3 +1,10 @@
+## 2026-11-09 nuit (5) — App principale : chiffres qui disaient faux (app v259)
+- Balayage en lecture seule des 30 pages de l'app : aucune erreur serveur ni JS ; 4 incohérences de chiffres corrigées.
+- PARC (`FleetScreen.tsx`) : une voiture en location aujourd'hui n'est plus « disponible » (badge « En location → date · client », compteurs). Avant : 15/15 disponibles avec la Fiat 500 X louée.
+- LOCATIONS (`BookingsScreen.tsx`) : « En cours » comptait 0 (statuts en majuscules) ; une demande refusée / annulée n'est plus affichée « À payer ».
+- CA (`finance.ts` getFinancialReport, `revenue-intelligence.ts`) : totaux au prorata des jours dans la période, comme l'outil de Dzaryx — la location 29/10 → 10/11 (440 €) était comptée en entier en octobre ET en novembre. Maintenant 110 € + 330 €.
+- OPPORTUNITÉS (`opportunities.ts`) : le taux du square du jour (mesuré, même source que l'or) est imposé au rédacteur de la veille.
+
 ## 2026-11-09 nuit (4) — Plancher de poids : 75 kg = minimum ET cible
 - `forme-cut.ts` : le poids visé de Kouider est un plancher. À moins de 1,5 kg : décision « déficit 250 ». À 75 kg (pesée ou tendance) : déficit coupé d'office (maintien), message unique sur Telegram, décision « on construit : abdos, bras, pecs ». Sous 74,5 : +200 kcal.
 - `formeSnapshot` : règle de poids ajoutée à l'état physique lu par tous les cerveaux (jamais conseiller de descendre sous 75).

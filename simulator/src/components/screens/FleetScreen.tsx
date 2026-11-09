@@ -30,6 +30,9 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
   const [detail, setDetail] = useState<Car | null>(null);
   const [gallery, setGallery] = useState<{ kind: GalleryKind; id: string; name: string } | null>(null);
   const [counts, setCounts] = useState<{ immo?: number; vente?: number }>({});
+  // 09/11 : la Fiat 500 X était louée et la page disait « 15 / 15 disponibles — tout le parc roule ». Une voiture en location
+  // aujourd'hui (réservation confirmée dont les dates couvrent ce jour) n'est PAS disponible, même si son interrupteur est allumé.
+  const [rented, setRented] = useState<Record<string, { client: string; until: string }>>({});
   const sessionId = useRef(getOrCreateSessionId());
   const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const setMsg = (m: string, ms = 2600) => {
@@ -55,6 +58,17 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
     // Compteurs des onglets Immo / Vente (sans bloquer l'affichage)
     business.fetchProperties().then(r => setCounts(c => ({ ...c, immo: (r.properties ?? []).length }))).catch(() => {});
     business.fetchVehiclesForSale().then(r => setCounts(c => ({ ...c, vente: (r.vehicles ?? []).length }))).catch(() => {});
+    business.fetchBookings().then(r => {
+      const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Africa/Algiers' });
+      const m: Record<string, { client: string; until: string }> = {};
+      for (const b of r.bookings ?? []) {
+        const cid = (b as unknown as { car_id?: string }).car_id;
+        const st = (b.status ?? '').toLowerCase();
+        if (!cid || !['confirmed', 'active', 'accepted'].includes(st)) continue;
+        if ((b.start_date ?? '').slice(0, 10) <= today && (b.end_date ?? '').slice(0, 10) >= today) m[cid] = { client: b.client_name ?? '', until: (b.end_date ?? '').slice(0, 10) };
+      }
+      setRented(m);
+    }).catch(() => {});
   }, []);
 
   const toggle = async (car: Car) => {
@@ -72,12 +86,13 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
     h: isHouari ? (c.houari_base_price ?? null) : (c.base_price ?? null),
     k: isHouari ? (c.houari_resale_price ?? null) : (c.resale_price ?? null),
   });
-  const availCount   = cars.filter(c => c.available).length;
+  const rentedCount  = cars.filter(c => rented[c.id]).length;
+  const availCount   = cars.filter(c => c.available && !rented[c.id]).length;
   const unavailCount = cars.length - availCount;
   const occPct       = intel ? Math.round(intel.occupancy_avg_pct) : null;
   const margins      = cars.map(priceOf).filter(p => p.h != null && p.k != null).map(p => (p.k as number) - (p.h as number));
   const avgMargin    = margins.length ? margins.reduce((a, b) => a + b, 0) / margins.length : null;
-  const shown        = cars.filter(c => filter === 'all' || (filter === 'on' ? c.available : !c.available));
+  const shown        = cars.filter(c => filter === 'all' || (filter === 'on' ? c.available && !rented[c.id] : !c.available || !!rented[c.id]));
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: T.bg, color: T.text, fontFamily: T.font, position: 'relative', overflow: 'hidden' }}>
@@ -115,7 +130,7 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 130px' }}>
         {/* Chiffres clés */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 10, marginBottom: 14 }}>
-          <Kpi value={<>{availCount}<span style={{ fontSize: 15, color: T.faint, fontWeight: 600 }}> / {cars.length}</span></>} label="Disponibles" color={T.ok} sub={unavailCount ? `${unavailCount} indisponible${unavailCount > 1 ? 's' : ''}` : 'Tout le parc roule'} />
+          <Kpi value={<>{availCount}<span style={{ fontSize: 15, color: T.faint, fontWeight: 600 }}> / {cars.length}</span></>} label="Disponibles" color={T.ok} sub={rentedCount || unavailCount ? [rentedCount ? `${rentedCount} en location` : '', unavailCount - rentedCount > 0 ? `${unavailCount - rentedCount} à l'arrêt` : ''].filter(Boolean).join(' · ') : 'Tout le parc est libre'} />
           <Kpi value={occPct != null ? `${occPct} %` : '—'} label="Occupation (30 j)" color={T.warn}
             sub={occPct != null ? <span style={{ display: 'block', height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.07)', marginTop: 6 }}><span style={{ display: 'block', height: '100%', width: `${Math.min(100, occPct)}%`, borderRadius: 2, background: `linear-gradient(90deg, ${tone(T.warn, 0.5)}, ${T.warn})` }} /></span> : undefined} />
           {!isHouari && <Kpi value={avgMargin != null ? `${fmt(avgMargin)} ${cur}` : '—'} label="Marge moyenne / jour" color={T.accent} />}
@@ -144,8 +159,9 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
               const { h, k } = priceOf(car);
               const margin = h != null && k != null ? k - h : null;
               const repair = !car.available && (car.maintenance_note ?? '').startsWith('🔧');
-              const stCol  = car.available ? T.ok : repair ? T.warn : T.bad;
-              const stLbl  = car.available ? 'Disponible' : repair ? 'Au garage' : 'Indisponible';
+              const rent   = car.available ? rented[car.id] : undefined;
+              const stCol  = rent ? T.accent : car.available ? T.ok : repair ? T.warn : T.bad;
+              const stLbl  = rent ? `En location → ${rent.until.slice(8)}/${rent.until.slice(5, 7)}${rent.client ? ` · ${rent.client.split(' ')[0]}` : ''}` : car.available ? 'Disponible' : repair ? 'Au garage' : 'Indisponible';
               const note   = !car.available && car.maintenance_note ? car.maintenance_note.replace(/^🔧\s*/, '') : '';
               return (
                 <div key={car.id} style={{ borderRadius: 22, overflow: 'hidden', background: `linear-gradient(180deg, ${T.surface2}, ${T.surface})`, border: `1px solid ${car.available ? T.line : tone(stCol, 0.35)}`, boxShadow: '0 18px 40px -24px rgba(0,0,0,0.9)' }}>
