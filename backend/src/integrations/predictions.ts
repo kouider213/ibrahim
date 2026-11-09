@@ -54,10 +54,13 @@ async function facts(horizon: number): Promise<string> {
     return out.length ? `• ${c['name']} : ${out.join(', ')}` : '';
   }).filter(Boolean);
   // 5. Clients : retards / impayés passés, et ceux qui reviennent bientôt
-  const unpaid = live.filter(b => Number(b.amount_remaining ?? 0) > 0 && b.end_date < iso(now)).map(b => `${b.client_name} (reste ${b.amount_remaining})`);
+  // 09/11 : la colonne amount_remaining n'est pas remise à zéro quand une location est notée payée → Dzaryx « prédisait » sept
+  // impayés (Sophia, Boufraine…) sur des locations réglées depuis des mois. Un impayé = reste > 0 ET statut de paiement ≠ payé.
+  const owes = (b: { amount_remaining?: number | null; payment_status?: string | null }) => Number(b.amount_remaining ?? 0) > 0 && !/^(paid|pay[ée]|complet)/i.test(b.payment_status ?? '');
+  const unpaid = live.filter(b => owes(b) && b.end_date < iso(now)).map(b => `${b.client_name} (reste ${b.amount_remaining})`);
   const upcoming = live.filter(b => b.start_date >= iso(now) && b.start_date <= to).map(b => {
     const past = all.filter(x => x.client_name === b.client_name && x.start_date < iso(now));
-    return `• ${b.start_date.slice(0, 10)} → ${b.end_date.slice(0, 10)} ${b.cars?.name ?? '?'} — ${b.client_name}${past.length ? ` (déjà ${past.length} location(s)${past.some(x => Number(x.amount_remaining ?? 0) > 0) ? ', a déjà laissé un impayé' : ''})` : ' (nouveau client)'}${b.payment_status ? `, paiement ${b.payment_status}` : ''}`;
+    return `• ${b.start_date.slice(0, 10)} → ${b.end_date.slice(0, 10)} ${b.cars?.name ?? '?'} — ${b.client_name}${past.length ? ` (déjà ${past.length} location(s)${past.some(x => owes(x)) ? ', a déjà laissé un impayé' : ''})` : ' (nouveau client)'}${b.payment_status ? `, paiement ${b.payment_status}` : ''}`;
   });
   const { executeTool } = await import('./tool-executor.js');
   const seasons = await executeTool('get_upcoming_seasons', {}, 'predictions').catch(() => '');

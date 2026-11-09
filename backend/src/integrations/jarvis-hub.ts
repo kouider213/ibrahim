@@ -287,9 +287,12 @@ export async function commandCenter(): Promise<Record<string, unknown>> {
     const next = B.find(b => b['car_id'] === c.id && String(b['start_date']).slice(0, 10) > today);
     return { name: c.name, status: c.available === false ? 'atelier' : now ? (String(now['end_date']).slice(0, 10) === today ? 'retour' : 'louée') : 'libre', client: now ? String(now['client_name']) : '', until: now ? String(now['end_date']).slice(0, 16) : '', next: next ? String(next['start_date']).slice(0, 10) : '' };
   });
+  // 09/11 : le « mois » ne comptait que les locations COMMENCÉES ce mois → 0 € en novembre avec une voiture louée depuis le 29/10
+  // (widget et centre de commande à 0). Même calcul que l'écran CA et que l'outil de Dzaryx : au prorata des jours du mois.
+  const fin = await import('./finance.js').then(m => m.getFinancialReport(Number(today.slice(0, 4)), Number(today.slice(5, 7)))).catch(() => null);
   const month = B.filter(b => String(b['start_date']).slice(0, 10) >= monthStart);
-  const revenue = month.reduce((s, b) => s + Number(b['final_price'] ?? b['total_price'] ?? 0), 0);
-  const profit = month.reduce((s, b) => s + Number(b['profit'] ?? 0), 0);
+  const revenue = fin ? Math.round(fin.grossCA) : month.reduce((s, b) => s + Number(b['final_price'] ?? b['total_price'] ?? 0), 0);
+  const profit = fin ? Math.round(fin.kouiderProfit) : month.reduce((s, b) => s + Number(b['profit'] ?? 0), 0);
   const due = B.filter(b => b['payment_status'] !== 'PAID').reduce((s, b) => s + Number(b['amount_remaining'] ?? 0), 0);
   const [drafts, conn, square, fortune, projects, squad] = await Promise.all([
     import('./whatsapp-web.js').then(m => m.waPendingDrafts()).catch(() => []),
