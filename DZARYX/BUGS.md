@@ -10,6 +10,9 @@
 ### B060 — Messages Telegram « sans raison » après un appel (08/11 10h20 et 11h00) ✅ FIXÉ
 La Conscience lisait les demandes reformulées par la voix temps réel comme s'il les avait écrites : réponse à sa place, et « tu as l'air sous pression » sur le ton de la reformulation. Les tours d'appel sont exclus de son humeur et de kouider_a_dit_2h.
 
+### B063 — Dimanche dès 18h effacé des congés (09/11 18h00) ✅ FIXÉ
+Cause : `kouider_dossier` days_off remplaçait toute la liste et sa description disait « par défaut lundi et jeudi » ; le cerveau a réécrit [1,4]. Fix : ajout/retrait des seuls jours cités, liste vide sans effet.
+
 ### B062 — Appels un lundi de congé + faux « C'est fait » sur l'agenda (09/11) ✅ FIXÉ
 5 appels le lundi : `autoCall` sans niveau passait le filtre congé, l'actu du taux était marquée urgente, et réveil/Liberté appelaient directement. « Abdo et pectoraux » : `plan_day` sans exercices (❌) puis « C'est fait ! », agenda resté Pectoraux & Triceps. Corrigé : jour sans appel (`calls:never_days`, lundi) dans `callOwner`, règle dite en phrase normale (`parseCallRule`), séance composée par muscles (`composeFromMuscles`), garde sur dernier outil en échec.
 

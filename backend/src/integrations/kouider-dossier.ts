@@ -212,8 +212,13 @@ export async function kouiderDossierTool(input: Record<string, unknown>, session
     return `✅ Retenu dans ton dossier : « ${fact} ». Je l'intègre à ton portrait cette nuit.`;
   }
   if (action === 'days_off') {
-    const days = (Array.isArray(input['days']) ? input['days'] : []).map(Number).filter(d => Number.isInteger(d) && d >= 0 && d <= 6);
-    await kvSet(DAYS_OFF_KEY, JSON.stringify([...new Set(days)].sort()));
+    // 09/11 : ne remplace plus la liste (le cerveau avait effacé le dimanche en reparlant du lundi) : on ajoute / retire seulement les jours cités.
+    const pick = (v: unknown) => (Array.isArray(v) ? v : []).map(Number).filter(d => Number.isInteger(d) && d >= 0 && d <= 6);
+    const add = pick(input['days']), remove = pick(input['remove_days']);
+    const current = await getDaysOff();
+    if (!add.length && !remove.length) return `Jours de congé (inchangés) : ${daysOffText(current)}.`;
+    const days = [...new Set([...current, ...add])].filter(d => !remove.includes(d)).sort();
+    await kvSet(DAYS_OFF_KEY, JSON.stringify(days));
     return `✅ Jours de congé : ${daysOffText(days)}. Ces jours-là je n'appelle que pour les urgences, et je ne te mets rien de business dans l'agenda.`;
   }
   return await kouiderDossierText();

@@ -1207,7 +1207,7 @@ export function computeDayMove(evs: AgendaEvent[], newStart: number, hardLimit: 
 }
 
 /** « Cette semaine ma séance à 8h » : séance, trajet, retour, réveil et départ déplacés, seulement ces jours-là. */
-export async function moveSportTime(o: { start: string; date?: string; week?: boolean }): Promise<string> {
+export async function moveSportTime(o: { start: string; date?: string; week?: boolean; weekday?: number }): Promise<string> {
   const m = /^(\d{1,2})[:h](\d{2})?$/.exec(o.start.trim());
   const hhmm = m && Number(m[1]) >= 4 && Number(m[1]) <= 22 ? `${m[1]!.padStart(2, '0')}:${m[2] ?? '00'}` : null;
   if (!hhmm) return `❌ Je n'ai pas compris l'heure « ${o.start} ».`;
@@ -1216,9 +1216,10 @@ export async function moveSportTime(o: { start: string; date?: string; week?: bo
   const { date: today, weekday } = localNow();
   const st = await getState(), cfg = await getRoutineConfig();
   const sunday = addDays(today, (7 - weekday) % 7);
-  const dates = Object.keys(st.plan).sort().filter(d => (o.week ? d >= today && d <= sunday : d === o.date) && Date.parse(st.plan[d]!.start) > Date.now() && !st.skips[d]);
-  if (!dates.length) return `❌ Pas de séance à venir ${o.week ? 'cette semaine' : `le ${o.date}`}.`;
+  const target = o.weekday != null ? addDays(today, (o.weekday - weekday + 7) % 7) : o.date;   // « vendredi » = le prochain vendredi
   const label = (d: string) => new Date(localTs(d, '12:00')).toLocaleDateString('fr-FR', { timeZone: TZ, weekday: 'long', day: 'numeric' });
+  const dates = Object.keys(st.plan).sort().filter(d => (o.week ? d >= today && d <= sunday : d === target) && Date.parse(st.plan[d]!.start) > Date.now() && !st.skips[d]);
+  if (!dates.length) return `❌ Pas de séance à venir ${o.week ? 'cette semaine' : target ? `le ${label(target)}` : ''}.`;
   const done: string[] = [], failed: string[] = [];
   for (const d of dates) {   // un jour après l'autre : Google Agenda refuse les écritures simultanées
     const evs = await listAgendaRange(new Date(localTs(d, '00:00')).toISOString(), new Date(localTs(d, '23:59')).toISOString(), 60).catch(() => null);
@@ -1240,19 +1241,25 @@ export async function moveSportTime(o: { start: string; date?: string; week?: bo
 }
 
 /** Phrase directe : « change ma séance de cette semaine par une séance à 8h », « demain ma séance à 8h30 ». */
-export function parseSportMove(raw: string): { start: string; week?: boolean; tomorrow?: boolean } | null {
+export function parseSportMove(raw: string): { start: string; week?: boolean; tomorrow?: boolean; weekday?: number } | null {
   let t = raw;
   for (let i = 0; i < 3; i++) { const m = t.match(/^\s*\[[\s\S]*?\]\s*/); if (!m) break; t = t.slice(m[0].length); }
   if (t.length > 120 || t.includes('?')) return null;
   const n = norm(t).replace(/\s+/g, ' ').trim();
-  if (!/\b(seances?|sport|muscu|salle)\b/.test(n) || !/\b(change|changer|mets?|mettre|met|deplace|deplacer|decale|decaler|passe|passer|remets?|fais|ferai|veux|avance|recule)\b/.test(n)) return null;
+  const DAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+  const named = DAYS.map((d, i) => (new RegExp(`\\b${d}\\b`).test(n) ? i : -1)).filter(i => i >= 0);
+  const terse = new RegExp(`^(le )?(demain |)(${DAYS.join('|')}|demain) (ma )?(seance|sport|muscu|salle)\\b`).test(n);   // « vendredi sport à 8h »
+  if (!/\b(seances?|sport|muscu|salle)\b/.test(n) || (!terse && !/\b(change|changer|mets?|mettre|met|deplace|deplacer|decale|decaler|passe|passer|remets?|fais|ferai|veux|avance|recule)\b/.test(n))) return null;
   if (/\b(maison|rentre|rentrer|retour|partir|pars|quelle heure)\b/.test(n)) return null;
-  const week = /\bcette semaine\b/.test(n), tomorrow = /\bdemain\b/.test(n);
-  if (week === tomorrow) return null;
+  const tomorrow = /\bdemain\b/.test(n);
+  // 09/11 : un jour précis (un seul), sauf habitude (« chaque vendredi ») ou phrase sur autre chose (« chez Houari après la salle »)
+  const oneDay = !tomorrow && named.length === 1 && !/\b(chaque|tous les|toujours|desormais|apres|avant|rdv|rendez vous|client)\b/.test(n) ? named[0]! : null;
+  const week = oneDay == null && /\bcette semaine\b/.test(n);
+  if (oneDay == null && week === tomorrow) return null;
   const at = /\b(\d{1,2}) ?h ?(\d{2})?\b|\b(\d{1,2}) (\d{2})\b/.exec(n);
   if (!at) return null;
   const start = `${(at[1] ?? at[3])!.padStart(2, '0')}:${at[2] ?? at[4] ?? '00'}`;
-  return { start, ...(week ? { week } : { tomorrow }) };
+  return { start, ...(oneDay != null ? { weekday: oneDay } : week ? { week } : { tomorrow }) };
 }
 
 /** Séance sur mesure pour UN jour (photo + objectif) : remplace les exercices de ce jour-là, agenda réécrit. */

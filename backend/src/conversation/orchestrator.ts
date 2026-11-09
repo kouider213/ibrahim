@@ -335,7 +335,7 @@ export async function processMessage(
   if (sportMove) {   // 09/11 : le changement d'heure de la semaine est fait par le code, réponse = ce qui a vraiment changé
     const sc = await import('../integrations/sport-coach.js');
     const tomorrow = new Date(Date.now() + 86_400_000).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
-    const done = await sc.moveSportTime(sportMove.week ? { start: sportMove.start, week: true } : { start: sportMove.start, date: tomorrow }).catch(e => `❌ échec : ${e instanceof Error ? e.message : e}`);
+    const done = await sc.moveSportTime(sportMove.week ? { start: sportMove.start, week: true } : sportMove.weekday != null ? { start: sportMove.start, weekday: sportMove.weekday } : { start: sportMove.start, date: tomorrow }).catch(e => `❌ échec : ${e instanceof Error ? e.message : e}`);
     _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: done });
     saveConversationTurn(sessionId, 'assistant', done).catch(() => {});
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });

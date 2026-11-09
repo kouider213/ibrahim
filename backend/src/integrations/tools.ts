@@ -2988,13 +2988,14 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'kouider_dossier',
-    description: "Le DOSSIER PERSONNEL de Kouider (qui il est, famille, rythme, habitudes, envies, ambitions, comment lui parler) — Dzaryx tourne autour de lui. action='show' : lire le dossier. 'add' + fact : retenir une info sur lui (« j'aime… », « je ne veux plus… », « mon fils s'appelle… »). 'days_off' + days (0=dimanche…6=samedi) : ses jours de congé (par défaut lundi et jeudi, en famille : seulement les urgences ces jours-là, rien de business dans l'agenda).",
+    description: "Le DOSSIER PERSONNEL de Kouider (qui il est, famille, rythme, habitudes, envies, ambitions, comment lui parler) — Dzaryx tourne autour de lui. action='show' : lire le dossier. 'add' + fact : retenir une info sur lui (« j'aime… », « je ne veux plus… », « mon fils s'appelle… »). 'days_off' : UNIQUEMENT s'il change ses jours de congé (lundi toute la journée, jeudi dès 13h, dimanche dès 18h : déjà enregistrés, seulement les urgences ces jours-là, rien de business dans l'agenda). days = jours à AJOUTER, remove_days = jours à RETIRER (0=dimanche…6=samedi) ; les autres jours ne bougent pas. Ne l'appelle pas s'il parle juste d'appels ou de son planning.",
     input_schema: {
       type: 'object' as const,
       properties: {
         action: { type: 'string', enum: ['show', 'add', 'days_off'] },
         fact: { type: 'string' },
         days: { type: 'array', items: { type: 'number' } },
+        remove_days: { type: 'array', items: { type: 'number' } },
       },
       required: ['action'],
     },

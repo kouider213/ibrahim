@@ -1,3 +1,7 @@
+## 2026-11-09 soir (3) — Congés qui ne s'effacent plus, séance d'un jour précis (B063)
+- `kouider_dossier` days_off : `days` = jours à ajouter, `remove_days` = jours à retirer ; une liste vide ne change rien. Le dimanche dès 18h avait été effacé en reparlant du lundi (remis en base : [0,1,4]).
+- `parseSportMove` : « vendredi sport à 8h », « mets ma séance de mercredi à 7h » faits par le code (`weekday` dans `moveSportTime`, prochain jour de ce nom). Habitude (« chaque vendredi »), plusieurs jours ou autre sujet (« après la salle », rdv) restent au cerveau.
+
 ## 2026-11-09 soir (2) — Changer l'heure de la séance pour la semaine
 - `sport_coach` move_time + phrase directe (`parseSportMove`) : « cette semaine ma séance à 8h », « demain ma séance à 7h ». Séance, trajet, retour, douche déplacés dans l'agenda ; réveil et départ suivent (`kouider:sport:timemove`, `effectiveDay`). RDV ou Agence FIK derrière : séance raccourcie ou jour refusé, dit dans la réponse.
 
