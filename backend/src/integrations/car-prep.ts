@@ -25,12 +25,12 @@ const toMin = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); re
 
 /** Heures (minutes depuis minuit, Bruxelles) où il démarre d'habitude aujourd'hui. */
 export async function expectedStarts(now = Date.now()): Promise<number[]> {
-  const { weekday } = localNow(now);
+  const { date, weekday } = localNow(now);
   const out: number[] = [];
-  const { getRoutineConfig } = await import('./morning-routine.js');
+  const { getRoutineConfig, effectiveDay } = await import('./morning-routine.js');
   const cfg = await getRoutineConfig().catch(() => null);
   const paused = cfg?.pausedUntil && Date.parse(String(cfg.pausedUntil)) > now;
-  const day = cfg?.enabled && !paused ? cfg.days?.[weekday] : undefined;
+  const day = cfg?.enabled && !paused ? await effectiveDay(cfg, date) : undefined;
   if (day?.leave) out.push(toMin(day.leave));                                  // maison → salle / travail
   if (day?.sport?.[1]) out.push(toMin(day.sport[1]));                          // fin de séance → retour
   for (const part of (day?.next ?? '').split(',')) {                           // « 13:00 travail » → départ ~10 min avant

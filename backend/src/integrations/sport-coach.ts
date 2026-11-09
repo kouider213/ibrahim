@@ -2,7 +2,7 @@ import { kvGet, kvSet } from './app-store.js';
 import { listAgendaRange, updateAgendaEvent, deleteAgendaEvent, type AgendaEvent } from './google-calendar.js';
 import { getLocation } from './location.js';
 import { geocode, drive, km } from './departures.js';
-import { getRoutineConfig, routinePausedReason, routineCalledRecently, localNow, localTs, hm, TZ } from './morning-routine.js';
+import { getRoutineConfig, routinePausedReason, routineCalledRecently, localNow, localTs, hm, TZ, setSportTimeMove } from './morning-routine.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { callOwner, getPendingCall } from '../notifications/voice-call.js';
@@ -1131,6 +1131,7 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
   }
   if (action === 'sync') { const r = await planSportWeek(true); return `✅ ${r.slots.length} séance(s) planifiées, ${r.note}.`; }
   if (action === 'program') { await getState(); return sportProgramText(); }
+  if (action === 'move_time') return moveSportTime({ start: String(input['start'] ?? ''), ...(input['week'] ? { week: true } : { date }) });
   if (action === 'plan_day') {
     await loadProgram();
     const arr = <T,>(v: unknown): T[] => { if (typeof v === 'string') { try { v = JSON.parse(v); } catch { return []; } } return Array.isArray(v) ? v as T[] : []; };
@@ -1177,6 +1178,81 @@ export async function nextSessionDate(from = addDays(localNow().date, 1)): Promi
   const plan = (await getState()).plan;
   const d = Object.keys(plan).filter(x => x >= from).sort()[0];
   return d ? { date: d, type: plan[d]!.type } : null;
+}
+
+type DayMove = { ok: true; start: number; end: number; moves: Array<{ id: string; start: number; end: number }>; shortened: boolean } | { ok: false; why: string };
+/** Calcule le déplacement d'un jour (sans rien écrire) : la séance et sa chaîne (trajet, retour, douche), sans empiéter sur ce qui suit. */
+export function computeDayMove(evs: AgendaEvent[], newStart: number, hardLimit: number | null): DayMove {
+  const timed = evs.filter(e => e.id && e.start.dateTime && e.end?.dateTime);
+  const sport = timed.find(e => isSport(e) && e.transparency !== 'transparent');
+  if (!sport) return { ok: false, why: 'pas de créneau sport dans l\'agenda' };
+  const s0 = Date.parse(sport.start.dateTime!), e0 = Date.parse(sport.end.dateTime!), delta = newStart - s0;
+  const span = (e: AgendaEvent) => [Date.parse(e.start.dateTime!), Date.parse(e.end.dateTime!)] as const;
+  const others = timed.filter(e => !CHAIN.test(e.summary ?? '') && e.transparency !== 'transparent');
+  const clash = others.find(e => { const [a, b] = span(e); return a <= newStart && b > newStart; });
+  if (clash) return { ok: false, why: `${clash.summary ?? 'un RDV'} est déjà à cette heure` };
+  const nexts = [...others.map(e => span(e)[0]).filter(a => a > newStart), ...(hardLimit && hardLimit > newStart ? [hardLimit] : [])];
+  const limit = nexts.length ? Math.min(...nexts) - 25 * 60_000 : Infinity;   // 20 min de route + 5 de marge
+  const end = Math.min(newStart + (e0 - s0), limit);
+  if (end - newStart < 45 * 60_000) return { ok: false, why: 'moins de 45 min avant ton prochain engagement' };
+  const moves = [{ id: sport.id!, start: newStart, end }];
+  let retourEnd = end;
+  for (const e of timed.filter(x => /^🚗 Trajet → salle/u.test(x.summary ?? ''))) { const [a, b] = span(e); moves.push({ id: e.id!, start: a + delta, end: b + delta }); }
+  for (const e of timed.filter(x => /^🚗 Retour maison/u.test(x.summary ?? ''))) { const [a, b] = span(e); retourEnd = end + (b - a); moves.push({ id: e.id!, start: end, end: retourEnd }); }
+  for (const e of timed.filter(x => /^🚿 Douche/u.test(x.summary ?? ''))) {
+    const [a, b] = span(e), shift = delta < 0 ? 0 : Math.max(0, retourEnd - a);   // plus tôt : la douche reste à sa place
+    if (shift) moves.push({ id: e.id!, start: a + shift, end: b + shift });
+  }
+  return { ok: true, start: newStart, end, moves, shortened: end < newStart + (e0 - s0) };
+}
+
+/** « Cette semaine ma séance à 8h » : séance, trajet, retour, réveil et départ déplacés, seulement ces jours-là. */
+export async function moveSportTime(o: { start: string; date?: string; week?: boolean }): Promise<string> {
+  const m = /^(\d{1,2})[:h](\d{2})?$/.exec(o.start.trim());
+  const hhmm = m && Number(m[1]) >= 4 && Number(m[1]) <= 22 ? `${m[1]!.padStart(2, '0')}:${m[2] ?? '00'}` : null;
+  if (!hhmm) return `❌ Je n'ai pas compris l'heure « ${o.start} ».`;
+  await loadProgram();
+  await planSportWeek(false);
+  const { date: today, weekday } = localNow();
+  const st = await getState(), cfg = await getRoutineConfig();
+  const sunday = addDays(today, (7 - weekday) % 7);
+  const dates = Object.keys(st.plan).sort().filter(d => (o.week ? d >= today && d <= sunday : d === o.date) && Date.parse(st.plan[d]!.start) > Date.now() && !st.skips[d]);
+  if (!dates.length) return `❌ Pas de séance à venir ${o.week ? 'cette semaine' : `le ${o.date}`}.`;
+  const label = (d: string) => new Date(localTs(d, '12:00')).toLocaleDateString('fr-FR', { timeZone: TZ, weekday: 'long', day: 'numeric' });
+  const done: string[] = [], failed: string[] = [];
+  for (const d of dates) {   // un jour après l'autre : Google Agenda refuse les écritures simultanées
+    const evs = await listAgendaRange(new Date(localTs(d, '00:00')).toISOString(), new Date(localTs(d, '23:59')).toISOString(), 60).catch(() => null);
+    if (!evs) { failed.push(`${label(d)} : agenda injoignable`); continue; }
+    const day = cfg.days[localNow(localTs(d, '12:00')).weekday];
+    const fixed = /(\d{2}:\d{2})\s+(?!petit)/.exec(day?.next ?? '')?.[1];
+    const mv = computeDayMove(evs, localTs(d, hhmm), fixed ? localTs(d, fixed) : null);
+    if (!mv.ok) { failed.push(`${label(d)} : ${mv.why}`); continue; }
+    let ok = true;
+    for (const x of mv.moves) ok = await updateAgendaEvent(x.id, { start: new Date(x.start).toISOString(), end: new Date(x.end).toISOString() }).catch(() => false) && ok;
+    if (!ok) { failed.push(`${label(d)} : l'agenda a refusé une partie du changement`); continue; }
+    const toM = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+    await setSportTimeMove(d, day?.sport ? toM(hhmm) - toM(day.sport[0]) : 0);
+    done.push(`${label(d)} ${hm(mv.start)}–${hm(mv.end)}${mv.shortened ? ' (raccourcie pour ton engagement suivant)' : ''}`);
+  }
+  await planSportWeek(true);
+  if (!done.length) return `❌ Rien n'a changé. ${failed.join(' ; ')}.`;
+  return `✅ Séance déplacée :\n${done.map(x => `• ${x}`).join('\n')}\nRéveil, départ et trajet suivent ces jours-là ; les semaines suivantes ne changent pas.${failed.length ? `\n⚠️ Pas déplacé : ${failed.join(' ; ')}.` : ''}`;
+}
+
+/** Phrase directe : « change ma séance de cette semaine par une séance à 8h », « demain ma séance à 8h30 ». */
+export function parseSportMove(raw: string): { start: string; week?: boolean; tomorrow?: boolean } | null {
+  let t = raw;
+  for (let i = 0; i < 3; i++) { const m = t.match(/^\s*\[[\s\S]*?\]\s*/); if (!m) break; t = t.slice(m[0].length); }
+  if (t.length > 120 || t.includes('?')) return null;
+  const n = norm(t).replace(/\s+/g, ' ').trim();
+  if (!/\b(seances?|sport|muscu|salle)\b/.test(n) || !/\b(change|changer|mets?|mettre|met|deplace|deplacer|decale|decaler|passe|passer|remets?|fais|ferai|veux|avance|recule)\b/.test(n)) return null;
+  if (/\b(maison|rentre|rentrer|retour|partir|pars|quelle heure)\b/.test(n)) return null;
+  const week = /\bcette semaine\b/.test(n), tomorrow = /\bdemain\b/.test(n);
+  if (week === tomorrow) return null;
+  const at = /\b(\d{1,2}) ?h ?(\d{2})?\b|\b(\d{1,2}) (\d{2})\b/.exec(n);
+  if (!at) return null;
+  const start = `${(at[1] ?? at[3])!.padStart(2, '0')}:${at[2] ?? at[4] ?? '00'}`;
+  return { start, ...(week ? { week } : { tomorrow }) };
 }
 
 /** Séance sur mesure pour UN jour (photo + objectif) : remplace les exercices de ce jour-là, agenda réécrit. */

@@ -122,6 +122,26 @@ async function getState(date: string): Promise<DayState> {
 const saveState = (date: string, s: DayState) => kvSet(stateKey(date), JSON.stringify(s), 2 * 86_400);
 
 /** La routine est-elle en pause ce jour-là ? (coupée, vacances, voyage enregistré) — la raison, sinon null. */
+// 09/11 : « cette semaine ma séance à 8h » → réveil, départ et salle décalés seulement ces jours-là (la routine habituelle ne change pas)
+const TIME_MOVE_KEY = 'kouider:sport:timemove';
+export async function sportTimeMoves(): Promise<Record<string, number>> {
+  try { return JSON.parse((await kvGet(TIME_MOVE_KEY)) ?? '{}') as Record<string, number>; } catch { return {}; }
+}
+export async function setSportTimeMove(date: string, min: number): Promise<void> {
+  const all = await sportTimeMoves();
+  if (min) all[date] = min; else delete all[date];
+  const keep = Object.fromEntries(Object.entries(all).filter(([d]) => d >= localNow().date));
+  await kvSet(TIME_MOVE_KEY, JSON.stringify(keep), 30 * 86_400);
+}
+/** Le programme de ce jour-là, séance déplacée comprise. */
+export async function effectiveDay(cfg: RoutineConfig, date: string): Promise<DayPlan | undefined> {
+  const p = cfg.days[localNow(localTs(date, '12:00')).weekday];
+  const min = p?.kind === 'sport' ? (await sportTimeMoves())[date] : 0;
+  if (!p || !min) return p;
+  const at = (t?: string) => { if (!t) return t; const m = toMin(t) + min; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
+  return { ...p, wake: at(p.wake), leave: at(p.leave), ...(p.sport ? { sport: [at(p.sport[0])!, at(p.sport[1])!] as [string, string] } : {}) };
+}
+
 export async function routinePausedReason(date: string, cfg?: RoutineConfig): Promise<string | null> {
   const c = cfg ?? await getRoutineConfig();
   if (!c.enabled) return 'routine coupée';
@@ -147,12 +167,12 @@ export async function lastKouiderActivity(): Promise<number> {
 export async function noteKouiderActivity(message?: string): Promise<string | null> {
   try {
     await kvSet(ACTIVE_KEY, String(Date.now()), 7 * 86_400);
-    const { date, weekday } = localNow();
+    const { date } = localNow();
     const st = await getState(date);
     if (!st.sentAt || st.awakeAt || Date.now() - st.sentAt > 4 * 3600_000) return null;
     st.awakeAt = Date.now();
     await saveState(date, st);
-    const plan = (await getRoutineConfig()).days[weekday];
+    const plan = await effectiveDay(await getRoutineConfig(), date);
     const next = plan?.kind === 'sport' ? `départ pour la salle à ${plan.leave}, sport ${plan.sport?.[0]}–${plan.sport?.[1]}`
       : plan?.leave ? `départ à ${plan.leave} (${plan.next ?? 'travail'})` : plan?.next ?? '';
     // Jour de sport : le message du réveil demande sa forme 1-5 → séance adaptée (Kouider 21/10)
@@ -318,8 +338,8 @@ export async function jobMorningRoutine(): Promise<void> {
     await syncRoutineCalendar().then(r => console.log(`[routine] agenda resynchronisé : ${r}`)).catch(e => console.error('[routine] resync:', e));
   }
   const cfg = await getRoutineConfig();
-  const { date, hhmm, weekday } = localNow();
-  const plan = cfg.days[weekday];
+  const { date, hhmm } = localNow();
+  const plan = await effectiveDay(cfg, date);
   if (!plan || plan.kind === 'none' || !plan.wake) return;
   if (await routinePausedReason(date, cfg)) return;
   // Sport annulé ce jour-là ou « ne me dérange pas demain matin » : pas de message ni d'appel de réveil (Kouider 20/10).

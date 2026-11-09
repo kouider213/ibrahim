@@ -331,6 +331,16 @@ export async function processMessage(
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
     return { text: done, status: 'done' };
   }
+  const sportMove = actorUserId === 'kouider' && !sandbox ? (await import('../integrations/sport-coach.js')).parseSportMove(userMessage) : null;
+  if (sportMove) {   // 09/11 : le changement d'heure de la semaine est fait par le code, réponse = ce qui a vraiment changé
+    const sc = await import('../integrations/sport-coach.js');
+    const tomorrow = new Date(Date.now() + 86_400_000).toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' });
+    const done = await sc.moveSportTime(sportMove.week ? { start: sportMove.start, week: true } : { start: sportMove.start, date: tomorrow }).catch(e => `❌ échec : ${e instanceof Error ? e.message : e}`);
+    _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: done });
+    saveConversationTurn(sessionId, 'assistant', done).catch(() => {});
+    _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+    return { text: done, status: 'done' };
+  }
   // LIBERTÉ en phrase normale (03/11 : « Je pris 6 demi aujourd'hui » → le cerveau a noté 6 DATTES dans le compteur calories)
   // → la prise est notée par le CODE dans Liberté, réponse directe
   const medCmd = actorUserId === 'kouider' && !sandbox ? (await import('../integrations/liberte.js')).parseMedTake(userMessage) : null;

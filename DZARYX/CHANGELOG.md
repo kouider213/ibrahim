@@ -1,3 +1,6 @@
+## 2026-11-09 soir (2) — Changer l'heure de la séance pour la semaine
+- `sport_coach` move_time + phrase directe (`parseSportMove`) : « cette semaine ma séance à 8h », « demain ma séance à 7h ». Séance, trajet, retour, douche déplacés dans l'agenda ; réveil et départ suivent (`kouider:sport:timemove`, `effectiveDay`). RDV ou Agence FIK derrière : séance raccourcie ou jour refusé, dit dans la réponse.
+
 ## 2026-11-09 soir — Lundi sans appel, séances combinées (B062)
 - `calls:never_days` (défaut lundi) : `callOwner` garde tout sauf ce qu'il demande et le vital (accident/panne/police client, son vol). « le lundi tu m'appelles jamais » / « tu peux m'appeler le lundi » traités par le code.
 - `autoCall` sans niveau = non urgent ; actu du mentor jamais urgente ; préparation de RDV sans appel les jours de repos.

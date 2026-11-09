@@ -17,7 +17,7 @@
  * Job : 'quotidien' toutes les 15 min (scheduler.ts). Outil : quotidien (jarvis4-tools.ts). app_kv `quotidien:*`.
  */
 import { kvGet, kvSet } from './app-store.js';
-import { localNow, localTs, getRoutineConfig } from './morning-routine.js';
+import { localNow, localTs, getRoutineConfig, effectiveDay } from './morning-routine.js';
 import { geocode } from './departures.js';
 import { getLocation } from './location.js';
 
@@ -79,7 +79,7 @@ async function sacText(date: string): Promise<string | null> {
   const séance = await sportTomorrow(date);
   if (!séance) return null;
   const tomorrow = addDays(date, 1);
-  const day = (await getRoutineConfig()).days[localNow(localTs(tomorrow, '12:00')).weekday]!;
+  const day = (await effectiveDay(await getRoutineConfig(), tomorrow))!;
   const leave = day.leave ?? '05:30';
   const pos = await homePos();
   const h = pos ? await hourly(pos, tomorrow).catch(() => []) : [];
@@ -93,7 +93,7 @@ async function sacText(date: string): Promise<string | null> {
     `⏰ Réveil ${day.wake?.replace(':', 'h') ?? '5h'} → départ ${leave.replace(':', 'h')}.`].filter(Boolean).join('\n');
 }
 async function givreText(date: string): Promise<string | null> {
-  const day = (await getRoutineConfig()).days[localNow().weekday];
+  const day = await effectiveDay(await getRoutineConfig(), date);
   if (!day?.leave) return null;
   const pos = await homePos();
   const h = pos ? await hourly(pos, date).catch(() => []) : [];
