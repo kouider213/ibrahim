@@ -1017,6 +1017,17 @@ export async function formeTool(input: Record<string, unknown>): Promise<string>
   if (a === 'profile') {
     const patch = input as Partial<FormeProfile> & { dose?: string };
     if (patch.dose) patch.wegovy = { ...(await getFormeProfile()).wegovy, dose: patch.dose };
+    // 🛑 Plancher de poids (Kouider 09/11 : « 75 kg c'est le minimum et le maximum, je veux pas perdre plus »). Au banc, le cerveau
+    // acceptait « je veux descendre à 72 » et changeait l'objectif sans un mot : la règle est maintenant tenue PAR LE CODE.
+    // Il reste maître de sa règle : s'il confirme clairement, le cerveau rappelle l'outil avec floor_change_confirmed: true.
+    if (patch.targetKg != null) {
+      const floor = Number(await kvGet('kouider:forme:floor_kg').catch(() => null)) || 75;
+      const want = Number(patch.targetKg);
+      if (Number.isFinite(want) && want < floor) {
+        if (input['floor_change_confirmed'] !== true) return `🛑 REFUSÉ — rien n'a été changé. Kouider a lui-même fixé ${floor} kg comme poids MINIMUM (« je ne veux pas perdre plus, je veux juste me muscler, rentrer le ventre, abdos, bras, pecs »). Ne fais AUCUN plan pour descendre à ${want} kg. Rappelle-lui sa règle en une phrase, explique que sous ${floor} kg il perdrait du muscle (l'inverse de son but), et propose à la place le plan pour sécher le ventre À poids stable (maintien, protéines, abdos, charges qui montent). S'il insiste et dit clairement qu'il change sa règle, rappelle cet outil avec floor_change_confirmed: true.`;
+        await kvSet('kouider:forme:floor_kg', String(want)).catch(() => {});
+      }
+    }
     await setFormeProfile(patch); return '✅ Profil FORME mis à jour.';
   }
   if (a === 'body_photo') return await bodyFromTelegram({ focus: input.focus ? String(input.focus) : '', pose: input.pose ? String(input.pose) : undefined, adapt: input.adapt !== false });

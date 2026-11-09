@@ -1,3 +1,9 @@
+## 2026-11-09 nuit (6) — Plancher 75 kg tenu par le code, faux impayés, mois du widget
+- `forme.ts` formeTool profile : `targetKg` sous le plancher (app_kv `kouider:forme:floor_kg`, défaut 75) → refus + consigne au cerveau ; passe seulement avec `floor_change_confirmed: true`. Au banc le cerveau avait accepté « objectif 72 kg » malgré la règle écrite.
+- `predictions.ts` : impayé = reste > 0 ET paiement ≠ payé (la colonne `amount_remaining` reste périmée sur des locations payées → « sept impayés » inventés dans le briefing).
+- `jarvis-hub.ts` commandCenter : CA / bénéfice du mois = `getFinancialReport` (prorata) → widget et centre de commande n'affichent plus 0 €.
+- Test de conversation au banc (12 questions, sans Gemini) : 10 « cerveaux saturés » la nuit — normal sans Gemini, réservé aux vrais messages de Kouider ; en réel 1 seule saturation sur 6 jours.
+
 ## 2026-11-09 nuit (5) — App principale : chiffres qui disaient faux (app v259)
 - Balayage en lecture seule des 30 pages de l'app : aucune erreur serveur ni JS ; 4 incohérences de chiffres corrigées.
 - PARC (`FleetScreen.tsx`) : une voiture en location aujourd'hui n'est plus « disponible » (badge « En location → date · client », compteurs). Avant : 15/15 disponibles avec la Fiat 500 X louée.
