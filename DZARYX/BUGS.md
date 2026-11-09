@@ -10,6 +10,9 @@
 ### B060 — Messages Telegram « sans raison » après un appel (08/11 10h20 et 11h00) ✅ FIXÉ
 La Conscience lisait les demandes reformulées par la voix temps réel comme s'il les avait écrites : réponse à sa place, et « tu as l'air sous pression » sur le ton de la reformulation. Les tours d'appel sont exclus de son humeur et de kouider_a_dit_2h.
 
+### B064 — Séance déplacée : retour incomplet + location vue comme un conflit (09/11 20h) ✅ FIXÉ
+Cause : `computeDayMove` ne ramenait jamais la douche ni la durée raccourcie, et comptait la location Fiat 500 X (mardi) comme un RDV à l'heure de la séance. Fix : durée d'origine gardée, douche remise à son heure, locations ignorées.
+
 ### B063 — Dimanche dès 18h effacé des congés (09/11 18h00) ✅ FIXÉ
 Cause : `kouider_dossier` days_off remplaçait toute la liste et sa description disait « par défaut lundi et jeudi » ; le cerveau a réécrit [1,4]. Fix : ajout/retrait des seuls jours cités, liste vide sans effet.
 

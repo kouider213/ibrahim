@@ -1,3 +1,7 @@
+## 2026-11-09 soir (4) — Retour à l'heure habituelle complet, locations sans effet sur la séance (B064)
+- `computeDayMove` : au retour à une heure plus tôt, la douche revient à son heure habituelle (id d'occurrence) ; la durée d'origine est gardée dans `kouider:sport:timemove_full` et rendue à la séance.
+- Une location « 🚗 Client — Voiture » n'est plus ni un conflit ni une limite pour la séance ; les trajets 🚗 comptent toujours.
+
 ## 2026-11-09 soir (3) — Congés qui ne s'effacent plus, séance d'un jour précis (B063)
 - `kouider_dossier` days_off : `days` = jours à ajouter, `remove_days` = jours à retirer ; une liste vide ne change rien. Le dimanche dès 18h avait été effacé en reparlant du lundi (remis en base : [0,1,4]).
 - `parseSportMove` : « vendredi sport à 8h », « mets ma séance de mercredi à 7h » faits par le code (`weekday` dans `moveSportTime`, prochain jour de ce nom). Habitude (« chaque vendredi »), plusieurs jours ou autre sujet (« après la salle », rdv) restent au cerveau.

@@ -1180,30 +1180,36 @@ export async function nextSessionDate(from = addDays(localNow().date, 1)): Promi
   return d ? { date: d, type: plan[d]!.type } : null;
 }
 
-type DayMove = { ok: true; start: number; end: number; moves: Array<{ id: string; start: number; end: number }>; shortened: boolean } | { ok: false; why: string };
+const FULL_KEY = 'kouider:sport:timemove_full';   // durée d'origine (ms) des séances déplacées, par date
+type DayMove = { ok: true; start: number; end: number; moves: Array<{ id: string; start: number; end: number }>; shortened: boolean; full: number } | { ok: false; why: string };
 /** Calcule le déplacement d'un jour (sans rien écrire) : la séance et sa chaîne (trajet, retour, douche), sans empiéter sur ce qui suit. */
-export function computeDayMove(evs: AgendaEvent[], newStart: number, hardLimit: number | null): DayMove {
+export function computeDayMove(evs: AgendaEvent[], newStart: number, hardLimit: number | null, fullMs?: number): DayMove {
   const timed = evs.filter(e => e.id && e.start.dateTime && e.end?.dateTime);
   const sport = timed.find(e => isSport(e) && e.transparency !== 'transparent');
   if (!sport) return { ok: false, why: 'pas de créneau sport dans l\'agenda' };
   const s0 = Date.parse(sport.start.dateTime!), e0 = Date.parse(sport.end.dateTime!), delta = newStart - s0;
   const span = (e: AgendaEvent) => [Date.parse(e.start.dateTime!), Date.parse(e.end.dateTime!)] as const;
-  const others = timed.filter(e => !CHAIN.test(e.summary ?? '') && e.transparency !== 'transparent');
+  // 09/11 : une location (« 🚗 Client — Voiture ») ne l'occupe pas : ni conflit ni limite, seuls les trajets 🚗 comptent
+  const others = timed.filter(e => !CHAIN.test(e.summary ?? '') && e.transparency !== 'transparent' && !/^🚗 (?!Trajet|Retour)/u.test(e.summary ?? ''));
   const clash = others.find(e => { const [a, b] = span(e); return a <= newStart && b > newStart; });
   if (clash) return { ok: false, why: `${clash.summary ?? 'un RDV'} est déjà à cette heure` };
   const nexts = [...others.map(e => span(e)[0]).filter(a => a > newStart), ...(hardLimit && hardLimit > newStart ? [hardLimit] : [])];
   const limit = nexts.length ? Math.min(...nexts) - 25 * 60_000 : Infinity;   // 20 min de route + 5 de marge
-  const end = Math.min(newStart + (e0 - s0), limit);
+  const full = fullMs ?? e0 - s0;   // durée d'origine : une séance raccourcie par un déplacement la retrouve au retour
+  const end = Math.min(newStart + full, limit);
   if (end - newStart < 45 * 60_000) return { ok: false, why: 'moins de 45 min avant ton prochain engagement' };
   const moves = [{ id: sport.id!, start: newStart, end }];
   let retourEnd = end;
   for (const e of timed.filter(x => /^🚗 Trajet → salle/u.test(x.summary ?? ''))) { const [a, b] = span(e); moves.push({ id: e.id!, start: a + delta, end: b + delta }); }
   for (const e of timed.filter(x => /^🚗 Retour maison/u.test(x.summary ?? ''))) { const [a, b] = span(e); retourEnd = end + (b - a); moves.push({ id: e.id!, start: end, end: retourEnd }); }
   for (const e of timed.filter(x => /^🚿 Douche/u.test(x.summary ?? ''))) {
-    const [a, b] = span(e), shift = delta < 0 ? 0 : Math.max(0, retourEnd - a);   // plus tôt : la douche reste à sa place
+    const [a, b] = span(e), shift = delta < 0 ? 0 : Math.max(0, retourEnd - a);   // plus tôt : la douche reste à sa place…
     if (shift) moves.push({ id: e.id!, start: a + shift, end: b + shift });
+    const o = delta < 0 && e.recurringEventId ? /_(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})\d{2}Z$/.exec(e.id!) : null;   // …sauf si un déplacement l'avait repoussée : retour à son heure habituelle (dans l'id de l'occurrence)
+    const back = o ? Math.max(Date.UTC(+o[1]!, +o[2]! - 1, +o[3]!, +o[4]!, +o[5]!), retourEnd) : a;
+    if (back < a) moves.push({ id: e.id!, start: back, end: back + (b - a) });
   }
-  return { ok: true, start: newStart, end, moves, shortened: end < newStart + (e0 - s0) };
+  return { ok: true, start: newStart, end, moves, shortened: end < newStart + full, full };
 }
 
 /** « Cette semaine ma séance à 8h » : séance, trajet, retour, réveil et départ déplacés, seulement ces jours-là. */
@@ -1220,21 +1226,25 @@ export async function moveSportTime(o: { start: string; date?: string; week?: bo
   const label = (d: string) => new Date(localTs(d, '12:00')).toLocaleDateString('fr-FR', { timeZone: TZ, weekday: 'long', day: 'numeric' });
   const dates = Object.keys(st.plan).sort().filter(d => (o.week ? d >= today && d <= sunday : d === target) && Date.parse(st.plan[d]!.start) > Date.now() && !st.skips[d]);
   if (!dates.length) return `❌ Pas de séance à venir ${o.week ? 'cette semaine' : target ? `le ${label(target)}` : ''}.`;
+  const fulls = JSON.parse((await kvGet(FULL_KEY)) ?? '{}') as Record<string, number>;
   const done: string[] = [], failed: string[] = [];
   for (const d of dates) {   // un jour après l'autre : Google Agenda refuse les écritures simultanées
     const evs = await listAgendaRange(new Date(localTs(d, '00:00')).toISOString(), new Date(localTs(d, '23:59')).toISOString(), 60).catch(() => null);
     if (!evs) { failed.push(`${label(d)} : agenda injoignable`); continue; }
     const day = cfg.days[localNow(localTs(d, '12:00')).weekday];
     const fixed = /(\d{2}:\d{2})\s+(?!petit)/.exec(day?.next ?? '')?.[1];
-    const mv = computeDayMove(evs, localTs(d, hhmm), fixed ? localTs(d, fixed) : null);
+    const mv = computeDayMove(evs, localTs(d, hhmm), fixed ? localTs(d, fixed) : null, fulls[d]);
     if (!mv.ok) { failed.push(`${label(d)} : ${mv.why}`); continue; }
     let ok = true;
     for (const x of mv.moves) ok = await updateAgendaEvent(x.id, { start: new Date(x.start).toISOString(), end: new Date(x.end).toISOString() }).catch(() => false) && ok;
     if (!ok) { failed.push(`${label(d)} : l'agenda a refusé une partie du changement`); continue; }
     const toM = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
-    await setSportTimeMove(d, day?.sport ? toM(hhmm) - toM(day.sport[0]) : 0);
+    const min = day?.sport ? toM(hhmm) - toM(day.sport[0]) : 0;
+    await setSportTimeMove(d, min);
+    if (min) fulls[d] ??= mv.full; else delete fulls[d];
     done.push(`${label(d)} ${hm(mv.start)}–${hm(mv.end)}${mv.shortened ? ' (raccourcie pour ton engagement suivant)' : ''}`);
   }
+  await kvSet(FULL_KEY, JSON.stringify(Object.fromEntries(Object.entries(fulls).filter(([d]) => d >= today))), 30 * 86_400);
   await planSportWeek(true);
   if (!done.length) return `❌ Rien n'a changé. ${failed.join(' ; ')}.`;
   return `✅ Séance déplacée :\n${done.map(x => `• ${x}`).join('\n')}\nRéveil, départ et trajet suivent ces jours-là ; les semaines suivantes ne changent pas.${failed.length ? `\n⚠️ Pas déplacé : ${failed.join(' ; ')}.` : ''}`;
