@@ -2,7 +2,15 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : **2026-11-04**.
+> Dernière mise à jour : **2026-11-09**.
+
+---
+
+## ⚡ Session 2026-11-09 (nuit) — Dernière séance Claude Code : FORME en graphiques + Dzaryx autonome (4dd4079b → app v258)
+- FORME : bilans avec graphiques dans l'app (`Charts.tsx`), courbes tactiles + prévision, un seul rythme de poids (`weightPace`), bonnes photos d'exercices (`sameMove`, table `KNOWN`), sommeil estimé sans « bonne nuit », bilan juste en cours de semaine.
+- Plus d'abonnement Claude Code à partir du 10/11 : l'atelier de nuit se met en pause seul (`dev:atelier_off`) et reprend seul ; l'auto-test dit à Kouider quoi faire lui-même (`remedy()`).
+- Banc phase1 : 4 échecs connus = artefacts du banc (date figée, cerveau appelé en fond), pas des bugs de prod.
+- Pas vérifié en vrai : message de pause de l'atelier (se déclenchera au 1er chantier sans abonnement), estimation du coucher au prochain réveil sans « bonne nuit ».
 
 ---
 

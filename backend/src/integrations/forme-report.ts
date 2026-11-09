@@ -187,7 +187,7 @@ function analyse(r: Omit<Report, 'strengths' | 'weaknesses' | 'actions' | 'coach
   if (t.sleepAvg) {
     if (t.sleepAvg >= 7) S.push(`Sommeil : ${fr(t.sleepAvg, 1)} h${one ? '' : ' en moyenne'} — c'est là que le muscle se construit.`);
     else { W.push(`Sommeil court : ${fr(t.sleepAvg, 1)} h${one ? '' : ` en moyenne (dette ${fr(t.sleepDebt, 1)} h)`} pour 7 h 30 visées.`); A.push(`Sommeil : couche-toi 30 min plus tôt ${one ? 'ce soir' : 'la semaine prochaine'} (écran coupé 22 h 30) — +30 min par nuit = meilleure récup et moins de faim.`); }
-  } else if (!one) W.push('Sommeil pas mesuré la plupart des nuits : garde la montre ou dis « bonne nuit » / un message au réveil.');
+  } else if (!one && r.days.length >= 3) W.push('Sommeil pas mesuré la plupart des nuits : garde la montre ou dis « bonne nuit » / un message au réveil.');
   // Pas
   if (t.stepsAvg) {
     const g = r.days[0]?.stepsGoal ?? 8000;
@@ -204,12 +204,17 @@ function analyse(r: Omit<Report, 'strengths' | 'weaknesses' | 'actions' | 'coach
     if (d0?.session) S.push(`Séance ${d0.session.label} faite : ${d0.session.sets} séries, ${fr(d0.session.volume)} kg soulevés${d0.session.durationMin ? ` en ${d0.session.durationMin} min` : ''}.`);
     else if (d0 && isTrainingDay(d0.date)) W.push('Pas de séance notée aujourd\'hui (jour d\'entraînement).');
   } else {
-    if (t.sessions >= t.sessionsTarget && t.sessionsTarget) S.push(`Régularité : ${t.sessions} séances sur ${t.sessionsTarget} prévues.`);
+    // 09/11 : période EN COURS (bilan de la semaine ouvert un lundi, mois ouvert le 9) → on ne compare pas un total partiel à une
+    // période entière (« volume −70 % », « muscles pas travaillés » dès le lundi) : on dit ce qu'il reste à faire.
+    const full = r.kind === 'week' ? 7 : new Date(Date.UTC(Number(r.from.slice(0, 4)), Number(r.from.slice(5, 7)), 0)).getUTCDate();
+    const partial = r.days.length < full;
+    if (t.sessions >= t.sessionsTarget && t.sessionsTarget) S.push(`Régularité : ${t.sessions} séance${t.sessions > 1 ? 's' : ''} sur ${t.sessionsTarget} prévue${t.sessionsTarget > 1 ? 's' : ''}${partial ? ' à ce jour' : ''}.`);
     else if (t.sessionsTarget) { W.push(`Séances : ${t.sessions} sur ${t.sessionsTarget} prévues.`); A.push(`Séances : bloque tes ${t.sessionsTarget} créneaux dans l'agenda dès dimanche soir, sac prêt la veille.`); }
-    if (r.prev && t.volume && r.prev.volume) (t.volume >= r.prev.volume ? S : W).push(`Volume soulevé : ${fr(t.volume)} kg${arrow(t.volume, r.prev.volume)} vs ${r.kind === 'week' ? 'semaine' : 'mois'} d'avant.`);
+    if (!partial && r.prev && t.volume && r.prev.volume) (t.volume >= r.prev.volume ? S : W).push(`Volume soulevé : ${fr(t.volume)} kg${arrow(t.volume, r.prev.volume)} vs ${r.kind === 'week' ? 'semaine' : 'mois'} d'avant.`);
     const zero = ['pecs', 'dos', 'epaules', 'bras', 'jambes'].filter(m => !t.muscleSets[m]);
     const low = Object.entries(t.muscleSets).filter(([m, n]) => n < (r.kind === 'week' ? 10 : 40) && MUSCLE_FR[m]).map(([m]) => m);
-    if (zero.length) { W.push(`Muscles pas travaillés : ${zero.map(m => MUSCLE_FR[m]).join(', ')}.`); A.push(`Ajoute ${zero.map(m => MUSCLE_FR[m]).join(', ')} : 2 exercices × 3 séries chacun dans tes prochaines séances.`); }
+    if (zero.length && partial) { if (r.kind === 'week' && t.sessions) A.push(`Reste à travailler cette semaine : ${zero.map(m => MUSCLE_FR[m]).join(', ')}.`); }
+    else if (zero.length) { W.push(`Muscles pas travaillés : ${zero.map(m => MUSCLE_FR[m]).join(', ')}.`); A.push(`Ajoute ${zero.map(m => MUSCLE_FR[m]).join(', ')} : 2 exercices × 3 séries chacun dans tes prochaines séances.`); }
     else if (low.length && r.kind === 'week') A.push(`Pour grossir : vise 10 à 20 séries par semaine sur ${low.map(m => MUSCLE_FR[m]).join(', ')} (tu es en dessous).`);
   }
   if (t.prs) S.push(`${t.prs} record${t.prs > 1 ? 's' : ''} de charge battu${t.prs > 1 ? 's' : ''} 💪`);
