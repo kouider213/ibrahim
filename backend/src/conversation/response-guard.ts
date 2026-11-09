@@ -63,6 +63,11 @@ export function phantomGuard(
   userMessage:   string,
   requestId:     string,
 ): string {
+  // 09/11 : sport_coach ❌ puis « C'est fait ! » (agenda jamais changé) : le dernier outil a échoué → on dit la vérité
+  const lastTool = toolsExecuted.at(-1);
+  if (lastTool && (!lastTool.success || /^\s*❌/.test(lastTool.result ?? '')) && /^\s*(✅|c.est\s+(fait|bon|ok)\b|voil[aà]\b|termin[eé]\b|parfait\b)/i.test(text)) {
+    return `⚠️ Ça n'a pas marché, rien n'a changé. ${(lastTool.result ?? '').replace(/^\s*❌\s*/, '').slice(0, 300)}`.trim();
+  }
   // Y a-t-il une affirmation d'action dans la réponse ?
   const hasActionClaim = PHANTOM_ACTION_PATTERNS.some(p => p.test(text));
   if (!hasActionClaim) return text;

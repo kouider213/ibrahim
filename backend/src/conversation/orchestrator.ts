@@ -323,6 +323,14 @@ export async function processMessage(
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
     return { text: done, status: 'done' };
   }
+  const callRule = actorUserId === 'kouider' && !sandbox ? (await import('../integrations/kouider-dossier.js')).parseCallRule(userMessage) : null;
+  if (callRule) {   // 09/11 : « le lundi tu m'appelles jamais » → le cerveau avait répondu sur la séance de sport, rien retenu
+    const done = await (await import('../integrations/kouider-dossier.js')).runCallRule(callRule).catch(e => `❌ échec : ${e instanceof Error ? e.message : e}`);
+    _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: done });
+    saveConversationTurn(sessionId, 'assistant', done).catch(() => {});
+    _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+    return { text: done, status: 'done' };
+  }
   // LIBERTÉ en phrase normale (03/11 : « Je pris 6 demi aujourd'hui » → le cerveau a noté 6 DATTES dans le compteur calories)
   // → la prise est notée par le CODE dans Liberté, réponse directe
   const medCmd = actorUserId === 'kouider' && !sandbox ? (await import('../integrations/liberte.js')).parseMedTake(userMessage) : null;

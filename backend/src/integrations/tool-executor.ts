@@ -2278,7 +2278,7 @@ async function callMeTool(input: Record<string, unknown>, sessionId?: string): P
   const task = String(input['task'] ?? '').trim();
   if (task && !later) {   // « fais X et rappelle-moi quand c'est prêt » → travail d'abord, appel ensuite
     const id = await startCallTask(task);
-    void callTaskReason(`[TÂCHE:${id}] ${reason}`).then(r => callOwner(r)).catch(err => console.error('[call_me] tâche:', err));
+    void callTaskReason(`[TÂCHE:${id}] ${reason}`).then(r => callOwner(r, 'kouider', { vital: true })).catch(err => console.error('[call_me] tâche:', err));
     return '✅ Je m\'y mets tout de suite : je t\'appelle dès que c\'est prêt (le détail arrive aussi sur Telegram).';
   }
   if (task) {

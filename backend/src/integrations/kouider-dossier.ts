@@ -76,6 +76,34 @@ export async function isDayOff(offsetDays = 0): Promise<boolean> {
   return !from || now >= from;
 }
 
+// 09/11 : « Le lundi tu m'appelles jamais, je suis en congé, je profite en famille »
+const NO_CALL_KEY = 'calls:never_days', DEFAULT_NO_CALL = [1];
+export async function getNoCallDays(): Promise<number[]> {
+  try { const v = JSON.parse((await kvGet(NO_CALL_KEY)) ?? 'null') as number[] | null; if (Array.isArray(v)) return v; } catch { /* défaut */ }
+  return DEFAULT_NO_CALL;
+}
+export async function isNoCallDay(): Promise<boolean> { return (await getNoCallDays()).includes(brusselsWeekday(0)); }
+
+/** Règle permanente dite en phrase normale : « le lundi tu m'appelles jamais » / « tu peux m'appeler le lundi ». */
+export function parseCallRule(raw: string): { days: number[]; ring: boolean } | null {
+  let t = raw;
+  for (let i = 0; i < 3; i++) { const m = t.match(/^\s*\[[\s\S]*?\]\s*/); if (!m) break; t = t.slice(m[0].length); }
+  t = t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (t.length > 140 || /\d ?h\b|\b(?:il|elle|ils|client|houari)\b/.test(t)) return null;
+  const days = DAY_NAMES.flatMap((d, i) => new RegExp(`\\b(?:le|les|chaque|tous les) ${d}s?\\b`).test(t) ? [i] : []);
+  if (!days.length) return null;
+  if (/\btu peux (?:de nouveau |me |m )*(?:re)?appeler\b/.test(t)) return { days, ring: true };
+  const call = /\btu (?:ne )?(?:m|me) (?:re)?appelles?\b|\bne m (?:re)?appelles?\b|\b(?:re)?appelles? moi\b|\bpas m appeler\b/.test(t);
+  return call && /\b(?:jamais|plus|pas)\b/.test(t) ? { days, ring: false } : null;
+}
+export async function runCallRule(r: { days: number[]; ring: boolean }): Promise<string> {
+  const cur = await getNoCallDays();
+  await kvSet(NO_CALL_KEY, JSON.stringify(r.ring ? cur.filter(d => !r.days.includes(d)) : [...new Set([...cur, ...r.days])]));
+  const names = r.days.map(d => DAY_NAMES[d]).join(' et ');
+  return r.ring ? `✅ Retenu : je peux de nouveau t'appeler le ${names}.`
+    : `✅ Retenu : le ${names}, je ne t'appelle plus. Ce que j'ai pour toi arrive par écrit ou attend ton prochain appel. Seules exceptions : un appel que tu me demandes, un accident, une panne ou la police avec un client, ou ton propre vol.`;
+}
+
 /** Ce jour contient du congé (même seulement l'après-midi) — pour les tâches business d'une journée entière. */
 export async function hasDayOff(offsetDays = 0): Promise<boolean> {
   return (await getDaysOff()).includes(brusselsWeekday(offsetDays)) || await isHardDay(offsetDays);

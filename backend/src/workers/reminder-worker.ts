@@ -23,7 +23,7 @@ async function deliver(row: ReminderRow): Promise<string> {
 
   // Rappel « appelle-moi » → l'app sonne (écran d'appel) au lieu d'une notif texte
   if (row.message.startsWith(CALL_REMINDER_MARK)) {
-    await callOwner(await callTaskReason(row.message.slice(CALL_REMINDER_MARK.length)));   // ordre avec travail → résultat dit à l'oral
+    await callOwner(await callTaskReason(row.message.slice(CALL_REMINDER_MARK.length)), 'kouider', { vital: true });   // ordre avec travail → résultat dit à l'oral
     return 'call';
   }
 

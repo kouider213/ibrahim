@@ -156,6 +156,15 @@ export async function onWaNew(c: WaChat): Promise<void> {
   const r = await cloudEmit<R & { messages?: Array<{ me: boolean; text: string }> }>('cloud:wa', { action: 'read', chat: name, n: 12 }, 70_000)
     .catch(err => ({ ok: false, error: err instanceof Error ? err.message : String(err) } as R));
   const msgs = (r.ok ? r['messages'] as Array<{ me: boolean; text: string }> | undefined : undefined) ?? [];
+  // 09/11 (Djillali, 4 réponses en 1 min) : envoyer une réponse change l'aperçu de la liste, le PC cloud signale alors un « nouveau »
+  // message alors que le client n'a rien écrit. Notre réponse est la dernière de la discussion et son dernier message est déjà traité → stop.
+  const lastIn = [...msgs].reverse().find(m => !m.me), tail = msgs[msgs.length - 1];
+  const inKey = `wa:lastin:${name.toLowerCase()}`, inSig = lastIn ? lastIn.text.slice(0, 200) : '';
+  if (tail?.me && !isAuto(tail) && lastIn && !MISSED_CALL_RE.test(c.preview ?? '')) {
+    const prev = await kvGet(inKey).catch(() => null);
+    if (!prev || prev === inSig) return;
+  }
+  if (lastIn) await kvSet(inKey, inSig, 30 * 86_400).catch(() => {});
   const fromClient = msgs.filter(m => !m.me).slice(-Math.max(1, c.unread || 1));
   // Vocaux : remplacés par leur transcription (le client attend une réponse à ce qu'il a DIT)
   const voiceCount = fromClient.filter(m => m.text.startsWith('[message vocal')).length;
@@ -243,8 +252,12 @@ export async function onWaNew(c: WaChat): Promise<void> {
   if (fromClient.length && await import('./negotiator.js').then(m => m.onNegoMessage(name, preview, convo)).catch(() => false)) return;
   // GARDIEN DE NUIT : Kouider dort → réponse seule (infos, conditions, prix, véhicules ; jamais de dispo, jamais de réservation).
   // Situation délicate (accident, panne, police…) : chemin normal, avec l'appel.
-  if (fromClient.length && !DELICATE_RE.test(preview) && !isComplaint(preview)) {
-    const ng = await import('./night-guard.js').catch(() => null);
+  // 09/11 : client CONNU (contact enregistré, ou Kouider lui a déjà répondu) → jamais de réponse seule : il reçoit le message sur Telegram avec une proposition.
+  const ng = await import('./night-guard.js').catch(() => null);
+  const botSaid = ng ? await ng.nightAnswered(name).catch(() => [] as string[]) : [];
+  const botKey = (t: string) => t.replace(/\s+/g, ' ').trim().slice(0, 40);
+  const humanReplied = msgs.some(m => m.me && !isAuto(m) && !/^(Bonjour, ici FIK Conciergerie|السلام عليكم، FIK Conciergerie)/.test(m.text) && !botSaid.some(x => botKey(x) === botKey(m.text)));
+  if (fromClient.length && !DELICATE_RE.test(preview) && !isComplaint(preview) && unknownNumber && !humanReplied) {
     const t = ng && await ng.nightGuardActive().catch(() => false) ? await ng.nightReply(name, preview, convo).catch(() => null) : null;
     if (t) {
       await queueTelegramMessage(t).catch(() => {});
@@ -308,7 +321,7 @@ ${reply}`;
   emitProactive(`WhatsApp — ${name} : ${preview.slice(0, 70)}`, delicate ? 'alert' : 'info', text);
   const hour = new Date().toISOString().slice(0, 13);
   if (delicate) {
-    await autoCall(`waweb-delicate:${name}:${hour}`, `Situation délicate sur ton WhatsApp. ${name} écrit : ${preview.slice(0, 200)}. Je t'ai préparé une réponse, tu veux que je te la lise ?`, { level: 'urgent' });
+    await autoCall(`waweb-delicate:${name}:${hour}`, `Situation délicate sur ton WhatsApp. ${name} écrit : ${preview.slice(0, 200)}. Je t'ai préparé une réponse, tu veux que je te la lise ?`, { level: 'urgent', vital: kind === 'urgence' || DELICATE_RE.test(preview) });
   } else if ((kind === 'location' || isBookingRequest(preview)) && neverAnswered) {   // 07/11 : Djillali (client en cours) ≠ « nouvelle demande » → 2 appels au travail
     await autoCall(`waweb-booking:${name}:${new Date().toISOString().slice(0, 10)}`, `Nouvelle demande de location sur ton WhatsApp. ${name} : ${summary.slice(0, 200)}. J'ai préparé la réponse, tu veux que je te la lise et que je l'envoie ?`);
   }

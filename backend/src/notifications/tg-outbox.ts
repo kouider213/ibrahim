@@ -25,7 +25,9 @@ async function readHeld(): Promise<Held[]> {
 }
 
 async function push(actor: string, m: TgOutMessage): Promise<void> {
-  if (actor === 'kouider' && !(await dndAllowsMessage())) {
+  // 09/11 : le bouclier famille (automatique) ne retient plus les messages des clients WhatsApp ; « ne me dérange pas » oui
+  const clientDuringShield = /^(📲 WhatsApp|🌙 Gardien de nuit) — /u.test(m.text) && (await getDnd())?.why === 'bouclier famille';
+  if (actor === 'kouider' && !clientDuringShield && !(await dndAllowsMessage())) {
     const held = await readHeld();
     held.push({ ...m, at: Date.now() });
     await kvSet(HELD_KEY, JSON.stringify(held.slice(-15)), 86_400);

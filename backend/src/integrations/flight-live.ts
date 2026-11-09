@@ -370,7 +370,7 @@ async function watchOne(t: Trip, list: Trip[], now: number): Promise<void> {
       if (s.cancelled && !st.cancelled) {
         st.cancelled = true;
         await tell(t, st, 'cancel', `❌ ${name} ${t.from} → ${t.to} est indiqué ANNULÉ${s.source ? ` (source : ${s.source})` : ''}.\nVérifie tout de suite chez la compagnie${t.pnr ? ` (réservation ${t.pnr})` : ''}.`, '❌ Vol annulé');
-        if (mine(t)) await autoCall(`flight-cancel:${t.id}`, `Kouider, attention : ton vol ${t.flightNumber ?? ''} vers ${t.to} est indiqué annulé. Vérifie vite chez la compagnie.`, { level: 'urgent' });
+        if (mine(t)) await autoCall(`flight-cancel:${t.id}`, `Kouider, attention : ton vol ${t.flightNumber ?? ''} vers ${t.to} est indiqué annulé. Vérifie vite chez la compagnie.`, { vital: true, level: 'urgent' });
       }
       if (s.terminal) s.terminal = String(s.terminal).replace(/^\s*terminal\s*/i, '').trim();
       if (s.terminal && s.terminal !== st.terminal) { const old = st.terminal; st.terminal = s.terminal; if (old) await tell(t, st, `term:${s.terminal}`, `🔀 ${name} : changement de terminal → ${s.terminal} (avant ${old}).`); }

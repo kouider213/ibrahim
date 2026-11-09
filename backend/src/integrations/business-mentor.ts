@@ -219,7 +219,7 @@ export async function jobMentorNewsWatch(): Promise<void> {
     const text = `${i.impact === 'risque' ? '⚠️ Risque' : '📈 Opportunité'} — ${i.title}${i.country ? ` (${i.country})` : ''}\n\n${i.what}\n\nPour toi : ${i.why_for_kouider}\nÀ faire : ${i.action}`;
     await queueTelegramMessage(text).catch(() => {});
     emitProactive(i.title.slice(0, 100), i.urgent ? 'alert' : 'info', text);
-    if (i.urgent && i.spoken) await autoCall(`news:${norm(i.title)}`, `Une actu importante pour toi. ${i.spoken}`, { level: 'urgent' });
+    if (i.urgent && i.spoken) await autoCall(`news:${norm(i.title)}`, `Une actu importante pour toi. ${i.spoken}`, { level: 'normal' });   // 09/11 : une actu n'est jamais une urgence (taux de l'euro appelé un lundi)
     else if (i.call && i.impact === 'opportunite' && i.spoken && !called) {
       called = true;
       await autoCall(`news:${norm(i.title)}`, `J'ai repéré une occasion de gagner de l'argent. ${i.spoken}`, { level: 'normal' });

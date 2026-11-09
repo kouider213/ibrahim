@@ -60,7 +60,7 @@ router.post('/webhook', async (req, res) => {
     if (isComplaint(text) || DELICATE_RE.test(text)) {
       void autoCall(`wa-delicate:${from}:${new Date().toISOString().slice(0, 13)}`,
         `Situation délicate sur WhatsApp. Le client ${from.slice(-4).split('').join(' ')} écrit : ${text.slice(0, 220)}. Tu veux que je te prépare une réponse ?`,
-        { level: 'urgent' });
+        { level: 'urgent', vital: DELICATE_RE.test(text) });
     }
 
     // Handoff : prévenir Kouider pour qu'il reprenne le relais.

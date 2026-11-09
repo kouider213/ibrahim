@@ -116,6 +116,11 @@ export async function draftNightReply(chat: string, said: string, convo: string,
   return { reply, asked, needs };
 }
 
+/** Ce que le gardien a déjà répondu à ce client : ces messages ne comptent pas comme une vraie réponse de Kouider. */
+export async function nightAnswered(chat: string): Promise<string[]> {
+  return (await log()).filter(e => e.chat === chat).map(e => e.answered);
+}
+
 /** Message client pendant la nuit → réponse sûre envoyée seul. Retourne le texte pour Telegram, ou null si rien envoyé. */
 export async function nightReply(chat: string, said: string, convo: string): Promise<string | null> {
   if (!isCloudPcOnline()) return null;
@@ -123,7 +128,7 @@ export async function nightReply(chat: string, said: string, convo: string): Pro
   const all = await log();
   const tonight = all.filter(e => e.chat === chat && nightOf(Date.parse(e.at)) === night).length;
   if (tonight >= MAX_PER_CHAT) return null;
-  const { reply, asked, needs } = await draftNightReply(chat, said, convo, tonight === 0);
+  const { reply, asked, needs } = await draftNightReply(chat, said, convo, tonight === 0 && !/assistant IA/i.test(convo));
   const r = await cloudEmit<{ ok: boolean; error?: string }>('cloud:wa', { action: 'send', chat, text: reply }, 80_000)
     .catch(err => ({ ok: false, error: err instanceof Error ? err.message : String(err) }));
   if (!r.ok) { console.warn('[night-guard] envoi:', r.error); return null; }

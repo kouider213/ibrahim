@@ -1,6 +1,6 @@
 import { kvGet, kvSet } from '../integrations/app-store.js';
 import { callOwner, getPendingCall } from './voice-call.js';
-import { isDayOff, isAfterWork } from '../integrations/kouider-dossier.js';
+import { isDayOff, isAfterWork, isNoCallDay } from '../integrations/kouider-dossier.js';
 
 // Appels AUTOMATIQUES de Dzaryx à Kouider (sans qu'il demande) — UNIQUEMENT les moments importants
 // (choix de Kouider) : récap quotidien de 10h, quelqu'un répond à un de ses mails, nouvelle réservation
@@ -79,13 +79,13 @@ export async function removeFromCallInbox(text: string): Promise<void> {
  */
 // Alerte liée à une heure (« ton RDV est à 13h00… il est 13h10 ») : périmée 1 h après, ou 3 h après sa mise en boîte
 function staleTimed(text: string, at?: number): boolean {
-  const m = text.match(/il est (\d{1,2})h(\d{2})?/i);
+  const m = text.match(/il est (\d{1,2}) ?h ?(\d{2})?/i);
   if (m) {
     const { hour } = localNow();
     const minute = Number(new Intl.DateTimeFormat('fr-BE', { timeZone: TZ, minute: '2-digit' }).format(new Date()));
     if (hour * 60 + minute - (Number(m[1]) * 60 + Number(m[2] ?? 0)) > 60) return true;
   }
-  return !!at && Date.now() - at > 3 * 3_600_000 && /\b(rdv|rendez-vous|retard|départ dans)\b|\b\d{1,2}h\d{2}\b/i.test(text);
+  return !!at && Date.now() - at > 3 * 3_600_000 && /\b(rdv|rendez-vous|retard|départ dans)\b|\b\d{1,2} ?h ?\d{2}\b/i.test(text);
 }
 // Même alerte répétée (« ton RDV en Belgique est à 13h00… » ×3) → une seule fois
 const sameTopic = (a: string, b: string) => sameInfo(a, b) || a.trim().toLowerCase().slice(0, 32) === b.trim().toLowerCase().slice(0, 32);
@@ -126,12 +126,12 @@ async function canRingNow(level: AutoCallLevel = 'normal'): Promise<{ ok: boolea
   return { ok: true };
 }
 
-async function ring(reason: string): Promise<void> {
+async function ring(reason: string, vital = false): Promise<void> {
   const { day } = localNow();
   const countKey = `autocall:count:${day}`;
   await kvSet(LAST_KEY, String(Date.now()), 86_400);
   await kvSet(countKey, String(Number((await kvGet(countKey)) ?? 0) + 1), 2 * 86_400);
-  await callOwner(reason, 'kouider');
+  await callOwner(reason, 'kouider', { vital });
 }
 
 /**
@@ -139,7 +139,7 @@ async function ring(reason: string): Promise<void> {
  * @param key    identifiant unique de l'info (ex. `site-booking:<id>`) — n'appelle qu'une fois par 24 h
  * @param spoken phrase dite au décroché, à l'oral, courte, sans emoji ni markdown
  */
-export async function autoCall(key: string, spoken: string, opts: { level?: AutoCallLevel } = {}): Promise<void> {
+export async function autoCall(key: string, spoken: string, opts: { level?: AutoCallLevel; vital?: boolean } = {}): Promise<void> {
   if (process.env['AUTOCALL_DRY_RUN'] === '1') { console.log(`[auto-call] DRY ${key} → ${spoken}`); return; }
   try {
     const dedupe = `autocall:done:${key}`;
@@ -149,7 +149,8 @@ export async function autoCall(key: string, spoken: string, opts: { level?: Auto
     // Appels coupés : rien ne sonne, mais il l'entendra quand il appellera
     if ((await kvGet(OFF_KEY)) === '1') { await addToCallInbox(clean); return; }
     // Jour de congé : on ne dérange pas pour du non urgent → gardé pour le prochain jour travaillé
-    if (opts.level === 'normal' && (await isDayOff().catch(() => false) || await isAfterWork().catch(() => false))) {   // + soirée après 20h (05/11)
+    // 09/11 : sans niveau = non urgent (le RDV du lundi passait à travers) ; jour sans appel (lundi) : seul le vital sonne
+    if ((opts.level !== 'urgent' && (await isDayOff().catch(() => false) || await isAfterWork().catch(() => false))) || (!opts.vital && await isNoCallDay().catch(() => false))) {
       const held = await readList(HELD_KEY);
       if (!held.some(h => sameInfo(h, clean))) held.push(clean);
       await kvSet(HELD_KEY, JSON.stringify(held.slice(-8)), 4 * 86_400);
@@ -159,7 +160,7 @@ export async function autoCall(key: string, spoken: string, opts: { level?: Auto
 
     const check = await canRingNow(opts.level);
     if (check.ok) {
-      await ring(clean);
+      await ring(clean, !!opts.vital);
       console.log(`[auto-call] RING ${key}`);
       return;
     }
@@ -180,6 +181,7 @@ export async function autoCall(key: string, spoken: string, opts: { level?: Auto
 /** Tâche planifiée (toutes les 15 min) : appelle avec les infos mises en file (nuit, appels rapprochés). */
 export async function flushAutoCalls(): Promise<void> {
   await sendDndRecap().catch(e => console.warn('[auto-call] récap fin de silence:', e instanceof Error ? e.message : e));
+  if (await isNoCallDay().catch(() => false)) return;   // 09/11 : le lundi la file attend
   // Fin du congé : ce qui a été gardé (non urgent) rejoint la file, dès 9h le jour travaillé suivant
   const held = await readList(HELD_KEY);
   if (held.length && !(await isDayOff().catch(() => true)) && !(await isAfterWork().catch(() => true)) && localNow().hour >= 9) {

@@ -10,6 +10,12 @@
 ### B060 — Messages Telegram « sans raison » après un appel (08/11 10h20 et 11h00) ✅ FIXÉ
 La Conscience lisait les demandes reformulées par la voix temps réel comme s'il les avait écrites : réponse à sa place, et « tu as l'air sous pression » sur le ton de la reformulation. Les tours d'appel sont exclus de son humeur et de kouider_a_dit_2h.
 
+### B062 — Appels un lundi de congé + faux « C'est fait » sur l'agenda (09/11) ✅ FIXÉ
+5 appels le lundi : `autoCall` sans niveau passait le filtre congé, l'actu du taux était marquée urgente, et réveil/Liberté appelaient directement. « Abdo et pectoraux » : `plan_day` sans exercices (❌) puis « C'est fait ! », agenda resté Pectoraux & Triceps. Corrigé : jour sans appel (`calls:never_days`, lundi) dans `callOwner`, règle dite en phrase normale (`parseCallRule`), séance composée par muscles (`composeFromMuscles`), garde sur dernier outil en échec.
+
+### B061 — WhatsApp : réponses en boucle à un client connu, présentation « assistant IA », message absent de Telegram (08/11 20h33, Djillali) ✅ FIXÉ
+Envoyer une réponse changeait l'aperçu de la liste → le PC cloud signalait un faux nouveau message (4 réponses jusqu'à MAX_PER_CHAT). Le gardien (activé par le bouclier famille) répondait aussi aux clients connus, et le silence du bouclier retenait leurs messages Telegram. Corrigé : `wa:lastin:<chat>`, gardien réservé aux numéros inconnus sans réponse humaine, messages clients transmis pendant le bouclier.
+
 ### B059 — Appel : « je suis à combien au total en cash » → gains du mois annoncés comme cash, phrases transcrites en portugais/italien (08/11) ✅ FIXÉ
 Gemini Live transcrivait sans langue imposée et reformulait la demande avant ask_dzaryx, donc le code argent ne reconnaissait plus la phrase. Désormais transcription fr-FR, phrase réelle transmise (`heard`) et testée d'abord par parseMoneyCommand (lecture seule), consigne « gains du mois ≠ cash ». FORME : estimation d'activité du matin recalée sur la valeur de la montre (`active_at`).
 

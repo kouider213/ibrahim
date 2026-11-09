@@ -951,6 +951,23 @@ export const parseDate = (v: unknown): string => {
   if (d >= 0) return addDays(today, ((d - localNow().weekday + 7) % 7));
   return today;
 };
+// 09/11 : « abdo et pectoraux » tombait sur Pectoraux & Triceps (mot trouvé) → muscles absents de la séance : séance composée pour ce jour
+const MUSCLE_WORDS: Array<[RegExp, Muscle, string]> = [[/pec|poitrine/, 'pecs', 'Pectoraux'], [/\bdos\b/, 'dos', 'Dos'], [/epaule/, 'epaules', 'Épaules'], [/bras|biceps|triceps/, 'bras', 'Bras'], [/jambe|cuisse/, 'jambes', 'Jambes'], [/abdo|gainage/, 'abdos', 'Abdos']];
+const musclesIn = (t: string) => MUSCLE_WORDS.filter(([r]) => r.test(norm(t)));
+function composeFromMuscles(raw: unknown): { label: string; exercises: ProgramExercise[] } | null {
+  if (!programInfo) return null;
+  const text = String(raw ?? ''), wanted = musclesIn(text);
+  if (!wanted.length) return null;
+  const direct = parseType(text);
+  if (direct && wanted.every(([, m]) => musclesIn(SESSIONS[direct].label).some(([, x]) => x === m))) return null;
+  const exercises = wanted.flatMap(([, m]) => {
+    const mine = ROTATION.flatMap(t => SESSIONS[t].exercises).filter(e => e.muscle === m);
+    const pool = mine.length ? mine : DEFAULT_SESSIONS.core.exercises.filter(e => e.muscle === m && !['stretch', 'cat_cow'].includes(e.id));
+    return [...new Map(pool.map(e => [e.name, e])).values()].slice(0, 4).map(e => ({ name: e.name, sets: e.sets, reps: e.reps, rest: e.rest, tip: e.tip, muscle: e.muscle }));
+  });
+  return exercises.length ? { label: wanted.map(w => w[2]).join(' & ').toUpperCase(), exercises } : null;
+}
+
 const parseType = (v: unknown): SessionType | null => {
   const s = norm(String(v ?? ''));
   if (!s.trim()) return null;
@@ -994,6 +1011,9 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
     return (t ? `🏋️ ${fmt(date)} — ${t}${await homeLine(date)}` : `Pas de séance prévue le ${fmt(date)} (jour de repos du programme).`) + week;
   }
   if (action === 'swap') {
+    await loadProgram();   // sinon le 1er appel après redémarrage ne connaît pas encore SES séances
+    const combo = composeFromMuscles(input['type']);
+    if (combo) return planCustomDay({ date, ...combo, source: 'séance demandée par Kouider' });
     const type = parseType(input['type']);
     if (!type) return `❌ Je ne connais pas la séance « ${String(input['type'] ?? '')} ». Séances du programme : ${ROTATION.map(t => `${SESSIONS[t].emoji} ${SESSIONS[t].label}`).join(', ')}. Redemande avec type = le NOM exact d'une de ces séances.`;
     await setSportOverride(date, type);
@@ -1112,7 +1132,12 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
   if (action === 'sync') { const r = await planSportWeek(true); return `✅ ${r.slots.length} séance(s) planifiées, ${r.note}.`; }
   if (action === 'program') { await getState(); return sportProgramText(); }
   if (action === 'plan_day') {
+    await loadProgram();
     const arr = <T,>(v: unknown): T[] => { if (typeof v === 'string') { try { v = JSON.parse(v); } catch { return []; } } return Array.isArray(v) ? v as T[] : []; };
+    if (!arr(input['exercises']).length && !arr(input['before']).length && !arr(input['after']).length) {   // 09/11 : plan_day sans exercices = ❌ puis « C'est fait »
+      const combo = composeFromMuscles(input['label'] ?? input['type']);
+      if (combo) return planCustomDay({ date, ...combo, source: 'séance demandée par Kouider' });
+    }
     return planCustomDay({ date, ...(input['start'] ? { start: String(input['start']) } : {}), ...(input['home_by'] ? { homeBy: String(input['home_by']) } : {}), ...(input['label'] ? { label: String(input['label']) } : {}),
       exercises: arr<ProgramExercise>(input['exercises']), before: arr(input['before']), after: arr(input['after']), ...(input['source'] ? { source: String(input['source']) } : {}) });
   }

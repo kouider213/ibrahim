@@ -124,11 +124,11 @@ async function judgePast(): Promise<void> {
 export async function noteMovement(where: string): Promise<void> {
   const prev = await kvJson<{ where: string; since: number } | null>('conscience:where', null);
   if (prev?.where !== where) await kvPut('conscience:where', { where, since: Date.now() }, 2 * 86_400);
-  if (where !== 'home') await shieldOffIfLeft();
+  if (where === 'gym' || where === 'work') await shieldOffIfLeft();   // 09/11 : ailleurs (route, courses…) le bouclier reste
 }
 
 // ── Bouclier famille ─────────────────────────────────────────────────────────
-interface Shield { on: boolean; since?: number; until?: number; disabled?: boolean; manual?: boolean }
+interface Shield { on: boolean; since?: number; until?: number; disabled?: boolean; manual?: boolean; quiet?: boolean }
 export async function shieldActive(): Promise<boolean> {
   const s = await kvJson<Shield>('family:shield', { on: false });
   return s.on && (!s.until || Date.now() < s.until);
@@ -148,25 +148,41 @@ async function endShield(s: Shield): Promise<void> {
   const feed = await import('./copilot.js').then(m => m.copilotFeed(new Date(s.since ?? Date.now()).toISOString())).catch(() => []);
   const { clearDnd } = await import('../notifications/dnd.js');
   await clearDnd().catch(() => {});
-  await tg(`🛡️ Bouclier famille terminé.${feed.length ? ` Pendant ce temps : ${feed.length} message(s) WhatsApp, ${feed.filter(f => /gardien/.test(f.note ?? '')).length} répondu(s) seul :\n${feed.slice(-6).map(f => `• ${f.chat} : ${f.text.slice(0, 80)}`).join('\n')}` : ' Rien d\'important n\'est arrivé.'}`);
+  if (feed.length) await tg(`🛡️ Bouclier famille terminé.${feed.length ? ` Pendant ce temps : ${feed.length} message(s) WhatsApp, ${feed.filter(f => /gardien/.test(f.note ?? '')).length} répondu(s) seul :\n${feed.slice(-6).map(f => `• ${f.chat} : ${f.text.slice(0, 80)}`).join('\n')}` : ' Rien d\'important n\'est arrivé.'}`);
 }
 /** Heure de début du temps famille selon son agenda type (lun : 18h ; jeu : 18h ; sinon 20h). */
 function familyStart(weekday: number): string { return weekday === 1 || weekday === 4 ? '18:00' : '20:00'; }
 
-async function shieldTick(where: string): Promise<void> {
+// Règle de Kouider (09/11) : bouclier dès qu'il ne travaille pas (maison, famille, dehors), sauf à la salle.
+// La journée il répond juste aux nouveaux clients ; le silence (Telegram gardé, pas d'appels) reste réservé au soir à la maison,
+// parce que tg-outbox jette ce qui est gardé plus de 4 h.
+const SHIELD_FROM = '09:00', SHIELD_TO = '22:00', SHIELD_UNTIL_MIN = 22 * 60 + 30;   // heures de Bruxelles ; 09:00 = après réveil et sport
+async function shieldQuiet(until: number): Promise<void> {
+  const { setDnd } = await import('../notifications/dnd.js');
+  await setDnd({ until, why: 'bouclier famille' }).catch(() => {});
+}
+
+export async function shieldTick(where: string): Promise<void> {
   const s = await kvJson<Shield>('family:shield', { on: false });
   if (s.disabled) return;
   const { hhmm, weekday, date } = localNow();
   if (s.on && s.until && Date.now() >= s.until) { await endShield(s); return; }
-  if (!s.on && where === 'home' && hhmm >= familyStart(weekday) && hhmm < '22:00') {
-    if ((await kvJson<string>('family:shield:day', '')) === date) return;   // levé une fois (il l'a peut-être coupé)
-    await kvPut('family:shield:day', date);
-    const until = new Date(); until.setHours(22, 30, 0, 0);
-    await kvPut('family:shield', { on: true, since: Date.now(), until: until.getTime() });
-    await tg('🛡️ Tu es en famille : bouclier levé jusqu\'à 22h30. Seules les vraies urgences passent, je réponds aux clients (infos, prix, conditions, jamais de dispo), résumé quand tu ressors. Dis « coupe le bouclier » si besoin.');
-    const { setDnd } = await import('../notifications/dnd.js');
-    await setDnd({ until: until.getTime(), why: 'bouclier famille' }).catch(() => {});
+  const evening = where === 'home' && hhmm >= familyStart(weekday);
+  if (s.on) {
+    if (evening && !s.quiet && !s.manual && s.until) { await kvPut('family:shield', { ...s, quiet: true }); await shieldQuiet(s.until); }
+    return;
   }
+  if (where === 'gym' || where === 'work' || hhmm < SHIELD_FROM || hhmm >= SHIELD_TO) return;
+  if (await import('./grand-coach-plus.js').then(m => m.atWorkNow()).catch(() => true)) return;
+  if ((await kvJson<string>('family:shield:day', '')) === date) return;   // il l'a coupé lui-même aujourd'hui
+  const [h, m] = hhmm.split(':').map(Number);
+  const until = Date.now() + (SHIELD_UNTIL_MIN - h! * 60 - m!) * 60_000;   // calcul en heure de Bruxelles : setHours partait en UTC sur Railway (23h30)
+  await kvPut('family:shield', { on: true, since: Date.now(), until, quiet: evening });
+  if ((await kvJson<string>('family:shield:told', '')) !== date) {   // retour de la salle : pas de 2e annonce
+    await kvPut('family:shield:told', date);
+    await tg('🛡️ Tu ne travailles pas : bouclier levé jusqu\'à 22h30 (coupé quand tu es à la salle). Je réponds seul aux nouveaux clients (infos, prix, conditions, jamais de dispo) ; les messages de tes clients connus t\'arrivent ici. Le soir à la maison, seules les vraies urgences t\'appellent. Dis « coupe le bouclier » si besoin.');
+  }
+  if (evening) await shieldQuiet(until);
 }
 
 export async function shieldTool(input: Record<string, unknown>): Promise<string> {
@@ -179,10 +195,10 @@ export async function shieldTool(input: Record<string, unknown>): Promise<string
     await setDnd({ until, why: 'bouclier famille' }).catch(() => {});
     return `🛡️ Bouclier levé jusqu'à ${localNow(until).hhmm}.`;
   }
-  if (a === 'off') { if (s.on) await endShield(s); return 'Bouclier coupé.'; }
-  if (a === 'disable') { await kvPut('family:shield', { on: false, disabled: true }); return 'Bouclier automatique désactivé (plus jamais le soir sans que tu le demandes).'; }
-  if (a === 'enable') { await kvPut('family:shield', { on: false }); return 'Bouclier automatique réactivé : il se lève quand tu es chez toi le soir.'; }
-  return s.on ? `🛡️ Bouclier actif jusqu'à ${s.until ? localNow(s.until).hhmm : '?'}.` : `Bouclier inactif${s.disabled ? ' (automatique désactivé)' : ' — il se lève tout seul quand tu es chez toi le soir'}.`;
+  if (a === 'off') { if (s.on) await endShield(s); await kvPut('family:shield:day', localNow().date); return 'Bouclier coupé.'; }
+  if (a === 'disable') { await kvPut('family:shield', { on: false, disabled: true }); return 'Bouclier automatique désactivé (plus jamais sans que tu le demandes).'; }
+  if (a === 'enable') { await kvPut('family:shield', { on: false }); return 'Bouclier automatique réactivé : il se lève quand tu ne travailles pas, sauf à la salle.'; }
+  return s.on ? `🛡️ Bouclier actif jusqu'à ${s.until ? localNow(s.until).hhmm : '?'}.` : `Bouclier inactif${s.disabled ? ' (automatique désactivé)' : ' — il se lève tout seul quand tu ne travailles pas, sauf à la salle'}.`;
 }
 
 // ── Humeur en direct ─────────────────────────────────────────────────────────

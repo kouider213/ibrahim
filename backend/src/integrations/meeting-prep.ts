@@ -75,7 +75,9 @@ export async function jobMeetingPrep(): Promise<void> {
       const hour = new Date(e.start!.dateTime!).toLocaleTimeString('fr-BE', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
       emitProactive(`📋 RDV ${hour} — ${e.summary ?? ''} : fiche prête`, 'reminder',
         `📋 Préparation du RDV de ${hour} — ${e.summary ?? ''}\n\n${detail}`);
-      if (oral && !/^aucun\b/i.test(oral)) await autoCall(`meetprep:${e.id}`, `Ton rendez-vous de ${hour}, ${e.summary ?? ''}. ${oral}`);
+      // 09/11 : un jour de repos la fiche écrite suffit — gardé pour le lendemain, l'appel serait périmé
+      const resting = await import('./kouider-dossier.js').then(async m => await m.isDayOff() || await m.isAfterWork()).catch(() => false);
+      if (oral && !/^aucun\b/i.test(oral) && !resting) await autoCall(`meetprep:${e.id}`, `Ton rendez-vous de ${hour}, ${e.summary ?? ''}. ${oral}`);
       console.log(`[meeting-prep] ✅ ${e.summary}`);
     } catch (err) {
       console.error('[meeting-prep]', e.summary, err instanceof Error ? err.message : err);

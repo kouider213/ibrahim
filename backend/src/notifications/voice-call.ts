@@ -32,12 +32,19 @@ function firstName(actor: CallActor): string {
 /** Dzaryx appelle Kouider (ou Houari) : sonnerie push + appel en attente côté serveur.
  *  « Ne pas déranger » (dnd.ts) : rien ne sonne, même programmé — l'info attend son prochain appel.
  *  force = c'est lui qui vient de demander « appelle-moi ». */
-export async function callOwner(reason: string, actor: CallActor = 'kouider', opts: { force?: boolean } = {}): Promise<{ id: string; held?: boolean }> {
+export async function callOwner(reason: string, actor: CallActor = 'kouider', opts: { force?: boolean; vital?: boolean } = {}): Promise<{ id: string; held?: boolean }> {
   const clean = cleanModelText(reason).replace(/\s+/g, " ").slice(0, 1200);   // 1200 : place pour le travail préparé (call-tasks)
   if (actor === 'kouider' && !opts.force && (await getDnd() || await restDayReason())) {
     const { addToCallInbox } = await import('./auto-call.js');
     await addToCallInbox(clean.replace(/^\[TÂCHE:[^\]]+\]\s*/, '')).catch(() => {});
     console.log(`[voice-call] ne pas déranger / jour de repos — appel gardé : "${clean.slice(0, 60)}"`);
+    return { id: 'held', held: true };
+  }
+  // 09/11 (« le lundi tu m'appelles jamais ») : réveil, sport, Liberté, conscience… tout passe ici ; seuls ce qu'il demande (force) et le vital sonnent
+  if (actor === 'kouider' && !opts.force && !opts.vital && await import('../integrations/kouider-dossier.js').then(m => m.isNoCallDay()).catch(() => false)) {
+    const { addToCallInbox } = await import('./auto-call.js');
+    await addToCallInbox(clean.replace(/^\[TÂCHE:[^\]]+\]\s*/, '')).catch(() => {});
+    console.log(`[voice-call] jour sans appel — gardé : "${clean.slice(0, 60)}"`);
     return { id: 'held', held: true };
   }
   // 06/11 : « Allô Kouider, c'est Dzaryx. Salut Kouider, c'est Dzaryx. … » → le motif se présentait déjà : on ne le dit qu'une fois

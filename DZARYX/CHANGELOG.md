@@ -1,3 +1,15 @@
+## 2026-11-09 soir — Lundi sans appel, séances combinées (B062)
+- `calls:never_days` (défaut lundi) : `callOwner` garde tout sauf ce qu'il demande et le vital (accident/panne/police client, son vol). « le lundi tu m'appelles jamais » / « tu peux m'appeler le lundi » traités par le code.
+- `autoCall` sans niveau = non urgent ; actu du mentor jamais urgente ; préparation de RDV sans appel les jours de repos.
+- `sport_coach` swap/plan_day : « Pectoraux & Abdos », « Abdos »… séance composée pour ce jour.
+- `phantomGuard` : dernier outil en échec + « C'est fait » → l'échec est dit.
+
+## 2026-11-09 — WhatsApp : fin des réponses en boucle aux clients connus (B061)
+- `onWaNew` : si notre réponse est la dernière de la discussion et que le dernier message client est déjà traité (`wa:lastin:<chat>`), on s'arrête. Un vrai nouveau message ou un appel manqué passe toujours.
+- Gardien de nuit : seulement les numéros non enregistrés sans vraie réponse de Kouider ; une seule présentation (`assistant IA` déjà dans la discussion = plus de présentation).
+- Clients connus : message + réponse proposée sur Telegram, même pendant le bouclier famille (`ne me dérange pas` les retient toujours).
+- Bouclier famille (règle de Kouider 09/11) : levé dès qu'il ne travaille pas (9h-22h, maison ou dehors), coupé à la salle et au travail, relevé au retour. Silence Telegram/appels seulement le soir à la maison. Fin à 22h30 Bruxelles (partait à 23h30, heure UTC de Railway).
+
 ## 2026-11-08 matin (3) — Récap argent en PDF, retraits avec motif, Conscience
 - Conscience : les tours d'appel (reformulations de la voix) ne servent plus ni à l'humeur ni à ses messages ; elle ne répond jamais à une demande à la place de la conversation.
 - `parseCashOut` : « -X pour une commande », « moins X pour les courses », « j'ai pris X du cash pour… » → journal (commande/dépense par catégorie) + caisse.
