@@ -158,7 +158,8 @@ function guessMuscle(name: string, hint?: string): Muscle {
 function toSession(p: ProgramSession, slot: SessionType): typeof SESSIONS[SessionType] {
   const used = new Set<string>();
   const exercises: Exercise[] = p.exercises.slice(0, 15).map(e => {
-    const known = findExerciseIn(Object.values(DEFAULT_SESSIONS).flatMap(x => x.exercises), e.name, 2);
+    const known0 = findExerciseIn(Object.values(DEFAULT_SESSIONS).flatMap(x => x.exercises), e.name, 2);
+    const known = known0 && sameMove(e.name, known0.name) ? known0 : null;   // même mouvement ET même matériel, sinon c'est un autre exercice
     let id = known?.id ?? `${slot}_${slug(e.name)}`;
     if (used.has(id)) id = `${slot}_${slug(e.name)}_${used.size}`;
     used.add(id);
@@ -661,6 +662,22 @@ export async function jobSportPlan(): Promise<void> {
 // ── Notes de séance + stats ─────────────────────────────────────────────────
 
 const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ');
+/** 09/11 — deux noms désignent-ils VRAIMENT le même exercice ? « Développé couché (barre) » était rapproché de « Développé couché
+ *  haltères » (2 mots en commun) → photo d'haltères et historique de charges mélangé ; « Écarté assis machine » prenait la photo du
+ *  développé incliné. Si le matériel, le mouvement ou l'inclinaison sont nommés des deux côtés et diffèrent, ce n'est pas le même. */
+const MOVE_FAMILIES: RegExp[][] = [
+  [/\bbarre\b|barbell/, /haltere|dumbbell/, /machine|convergent/, /poulie|cable|corde/, /elastique|bande/, /smith/, /kettlebell/],
+  [/developpe|press\b/, /ecarte|butterfly|pec deck|fly\b/, /curl/, /tirage|pulldown/, /rowing|\brow\b/, /elevation/, /extension/, /squat/, /fente/, /pompe/, /dips/, /traction/, /planche|gainage/, /crunch/],
+  [/incline/, /decline/, /couche/, /militaire|epaules?\b/],
+];
+export function sameMove(a: string, b: string): boolean {
+  const x = norm(a), y = norm(b);
+  return MOVE_FAMILIES.every(fam => { const i = fam.findIndex(r => r.test(x)), j = fam.findIndex(r => r.test(y)); return i < 0 || j < 0 || i === j; });
+}
+/** Nom d'origine de l'exercice de base qui porte cet identifiant (pour savoir si sa photo convient au nom affiché). */
+const baseNameOf = (id: string): string | null => Object.values(DEFAULT_SESSIONS).flatMap(x => x.exercises).find(e => e.id === id)?.name ?? null;
+const demoFor = (e: { id: string; name: string }): string[] => { const b = baseNameOf(e.id); return b && !sameMove(e.name, b) ? [] : demoOf(e.id); };
+
 function findExerciseIn(list: Exercise[], q: string, minScore = 1): Exercise | null {
   const n = norm(q);
   const byId = list.find(e => e.id === q);
@@ -733,7 +750,7 @@ export async function sportOverview() {
     const p = st.plan[date];
     if (!p) return null;
     const fit = fitSession(p.type, p.minutes, date);
-    return { date, type: p.type, ...SESSIONS[p.type], ...(customMap[date] ? { label: customMap[date]!.label, focus: customMap[date]!.focus, custom: customMap[date]!.why } : {}), deload: fit.deload, low: fit.low, form: st.form[date] ?? null, exercises: fit.exercises.map(e => ({ ...e, suggestion: suggestFor(e, log, date), timed: isTimed(e), demo: demoOf(e.id), video: videoOf(e.name) })),
+    return { date, type: p.type, ...SESSIONS[p.type], ...(customMap[date] ? { label: customMap[date]!.label, focus: customMap[date]!.focus, custom: customMap[date]!.why } : {}), deload: fit.deload, low: fit.low, form: st.form[date] ?? null, exercises: fit.exercises.map(e => ({ ...e, suggestion: suggestFor(e, log, date), timed: isTimed(e), demo: demoFor(e), video: videoOf(e.name) })),
       finisher: fit.finisher ?? null, estMin: fit.estMin, start: p.start, end: p.end, minutes: p.minutes, arrived: st.arrived[date] ?? null };
   };
   const nextDate = week.find(w => w.type && w.status !== 'done' && (w.date > today || Date.parse(w.end!) > Date.now()))?.date;

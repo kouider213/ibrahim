@@ -74,10 +74,35 @@ export async function exerciseDetail(id: string): Promise<LibDetail | null> {
   return { ...base, ...d };
 }
 
+/** 09/11 — exercices courants reconnus PAR LE CODE (du plus précis au plus général) : la bonne photo sort tout de suite, sans IA
+ *  (qui peut être en panne de quota, ou se tromper de matériel : « développé couché barre » montrait des haltères). */
+const KNOWN: Array<[RegExp, string]> = [
+  [/developpe.*incline.*(barre|smith)/, 'Barbell_Incline_Bench_Press_-_Medium_Grip'], [/developpe.*incline.*halter/, 'Incline_Dumbbell_Press'], [/developpe.*incline/, 'Leverage_Incline_Chest_Press'],
+  [/developpe.*decline/, 'Decline_Barbell_Bench_Press'], [/developpe.*couche.*halter/, 'Dumbbell_Bench_Press'], [/developpe.*couche.*smith/, 'Smith_Machine_Bench_Press'],
+  [/developpe.*(couche.*)?(machine|convergent)/, 'Leverage_Chest_Press'], [/developpe.*couche|bench press/, 'Barbell_Bench_Press_-_Medium_Grip'],
+  [/developpe.*(militaire|epaule).*halter|developpe.*halter.*epaule/, 'Dumbbell_Shoulder_Press'], [/developpe.*militaire/, 'Standing_Military_Press'], [/arnold/, 'Arnold_Dumbbell_Press'],
+  [/ecarte.*(poulie|cable|vis a vis)|cable cross/, 'Cable_Crossover'], [/ecarte.*halter/, 'Dumbbell_Flyes'], [/ecarte|butterfly|pec deck|papillon/, 'Butterfly'],
+  [/pompes?\b/, 'Pushups'], [/dips.*banc/, 'Bench_Dips'], [/\bdips\b/, 'Dips_-_Chest_Version'],
+  [/tirage.*(serre|supination)/, 'Close-Grip_Front_Lat_Pulldown'], [/tirage.*(haut|vertical|poitrine|nuque)|lat pulldown/, 'Wide-Grip_Lat_Pulldown'], [/tirage.*(bas|horizontal|assis)|rowing.*(assis|poulie)/, 'Seated_Cable_Rows'],
+  [/rowing.*barre.*t|t bar/, 'T-Bar_Row_with_Handle'], [/rowing.*barre/, 'Bent_Over_Barbell_Row'], [/rowing.*(halter|un bras|1 bras)/, 'One-Arm_Dumbbell_Row'],
+  [/tractions?.*supination|chin up/, 'Chin-Up'], [/tractions?\b/, 'Pullups'], [/face pull/, 'Face_Pull'], [/shrug|haussement/, 'Barbell_Shrug'], [/lombaire|hyperextension|banc a lombaires/, 'Hyperextensions_Back_Extensions'],
+  [/elevations?.*laterale/, 'Side_Lateral_Raise'], [/elevations?.*frontale/, 'Front_Dumbbell_Raise'], [/oiseau|elevations?.*posterieure.*halter/, 'Reverse_Flyes'],
+  [/curl.*(pupitre|larry scott)/, 'Preacher_Curl'], [/curl.*(marteau|hammer)/, 'Hammer_Curls'], [/curl.*concentr/, 'Concentration_Curls'], [/curl.*barre/, 'Barbell_Curl'], [/curl.*halter/, 'Dumbbell_Bicep_Curl'],
+  [/(triceps|poulie haute).*corde|corde.*triceps/, 'Triceps_Pushdown_-_Rope_Attachment'], [/barre au front|skull/, 'EZ-Bar_Skullcrusher'], [/(extension|tirage).*triceps.*(poulie|barre)|pushdown/, 'Triceps_Pushdown'],
+  [/squat.*goblet|goblet/, 'Goblet_Squat'], [/squat.*bulgare|fente.*bulgare/, 'Split_Squat_with_Dumbbells'], [/\bsquat/, 'Barbell_Squat'], [/presse.*(cuisse|jambe)|leg press/, 'Leg_Press'],
+  [/leg extension|extension.*(jambe|cuisse)/, 'Leg_Extensions'], [/leg curl.*allonge|ischio.*allonge/, 'Lying_Leg_Curls'], [/leg curl|ischio/, 'Seated_Leg_Curl'],
+  [/souleve de terre.*(roumain|jambes tendues)/, 'Romanian_Deadlift'], [/souleve de terre|deadlift/, 'Barbell_Deadlift'], [/fentes?\b/, 'Dumbbell_Lunges'], [/hip thrust/, 'Barbell_Hip_Thrust'], [/mollet/, 'Standing_Calf_Raises'],
+  [/planche laterale|gainage lateral/, 'Side_Bridge'], [/planche|gainage/, 'Plank'], [/dead bug/, 'Dead_Bug'], [/pallof/, 'Pallof_Press'], [/releve.*jambes.*(suspendu|barre)/, 'Hanging_Leg_Raise'],
+  [/releve.*jambes/, 'Flat_Bench_Lying_Leg_Raise'], [/crunch.*(poulie|cable)/, 'Cable_Crunch'], [/crunch.*invers/, 'Reverse_Crunch'], [/crunch.*machine/, 'Ab_Crunch_Machine'], [/crunch/, 'Crunches'],
+  [/russian twist|rotation russe/, 'Russian_Twist'], [/roue abdo|ab wheel/, 'Ab_Roller'], [/mountain climber/, 'Mountain_Climbers'],
+];
+
 /** Nom libre d'exercice (« Élévations frontales alternées ») → identifiant de la bibliothèque le plus proche (cache app_kv). */
 export async function matchExerciseId(name: string): Promise<string | null> {
   const key = name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 80);
   if (!key) return null;
+  const known = KNOWN.find(([re]) => re.test(key));
+  if (known) return known[1];
   let map: Record<string, string> = {};
   try { map = JSON.parse((await kvGet(MATCH_K)) ?? '{}') as Record<string, string>; } catch { /* vide */ }
   if (!(key in map)) {

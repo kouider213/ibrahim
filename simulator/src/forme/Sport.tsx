@@ -242,6 +242,8 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
   }, [now]); // eslint-disable-line react-hooks/exhaustive-deps
   // 07/11 : échauffement général chronométré (5 min) avant la 1re série
   const [warm, setWarm] = useState<number | null>(null);
+  // 09/11 : le chrono suit la durée écrite dans la séance (« 8 min cardio facile… ») au lieu d'annoncer toujours 5 min.
+  const warmMin = Math.max(3, Math.min(15, Number(/(\d{1,2})\s*min/.exec(s.warmup ?? '')?.[1] ?? 5)));
   useEffect(() => { if (warm && now >= warm) { setWarm(null); vibrate(200); speak('Échauffement terminé. On attaque !'); } }, [now, warm]);
   useEffect(() => { if (ex) { try { setNote(localStorage.getItem(noteKey(ex)) ?? ''); } catch { setNote(''); } } }, [ex?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ex && !finish) speak(`${i === 0 ? 'On commence' : 'Exercice suivant'} : ${ex.name}. ${ex.sets} séries de ${ex.reps}${ex.suggestion.kg ? `, à ${ex.suggestion.kg} kilos` : ''}.`); }, [ex?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -368,8 +370,8 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
         </div>
         {(warm || !allRows.some(r => r.done)) && <div style={{ ...card, margin: '0 14px 10px', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px' }}>
           <span style={{ fontSize: 22 }}>🔥</span>
-          <div style={{ flex: 1, minWidth: 0, fontSize: 13 }}><div style={{ fontWeight: 700 }}>{warm ? `Échauffement : ${fmtTime(Math.max(0, Math.round((warm - now) / 1000)))}` : 'Échauffement général 5 min'}</div><div style={{ color: F.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.warmup || 'Vélo ou rameur léger, rotations des épaules et des hanches'}</div></div>
-          <button onClick={() => { if (warm) setWarm(null); else { setWarm(Date.now() + 5 * 60_000); speak(`Échauffement 5 minutes. ${s.warmup || ''}`); } }} style={{ ...btn, padding: '8px 12px', fontSize: 13, boxShadow: 'none' }}>{warm ? 'Stop' : '▶ Lancer'}</button>
+          <div style={{ flex: 1, minWidth: 0, fontSize: 13 }}><div style={{ fontWeight: 700 }}>{warm ? `Échauffement : ${fmtTime(Math.max(0, Math.round((warm - now) / 1000)))}` : `Échauffement général ${warmMin} min`}</div><div style={{ color: F.muted, lineHeight: 1.3 }}>{s.warmup || 'Vélo ou rameur léger, rotations des épaules et des hanches'}</div></div>
+          <button onClick={() => { if (warm) setWarm(null); else { setWarm(Date.now() + warmMin * 60_000); speak(`Échauffement ${warmMin} minutes. ${s.warmup || ''}`); } }} style={{ ...btn, padding: '8px 12px', fontSize: 13, boxShadow: 'none' }}>{warm ? 'Stop' : '▶ Lancer'}</button>
         </div>}
         {!ex ? (
           <div style={{ padding: '30px 20px', textAlign: 'center' }}>

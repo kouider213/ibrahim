@@ -1,3 +1,9 @@
+## 2026-11-09 nuit (2) — Sommeil jamais vide, bonnes photos d'exercices (app v257)
+- `sleep-phone.ts` : réveil sans « bonne nuit » la veille → coucher estimé (`estimateBed` : heure habituelle `min_bed`, ou dernier vrai message de la soirée s'il est plus tard), nuit notée et annoncée, corrigeable par « couché à 23h30 ». Avant : nuit vide (5 jours sur 9 début novembre).
+- `sport-coach.ts` : `sameMove()` — un exercice sur mesure ne prend plus l'identifiant, la photo ni l'historique d'un exercice de base au matériel / mouvement différent (« Développé couché (barre) » → haltères). `demoFor()` à l'affichage pour les séances déjà enregistrées.
+- `exercise-lib.ts` : table `KNOWN` (≈ 70 exercices courants) reconnue par le code avant toute IA.
+- Lecteur de séance : le chrono d'échauffement suit la durée écrite dans la séance (8 min), texte sur 2 lignes.
+
 ## 2026-11-09 nuit — FORME : graphiques partout + chiffres cohérents ; atelier de nuit qui survit à la fin de l'abonnement (app v256)
 - **Graphiques dans l'app** (`simulator/src/forme/Charts.tsx`, `Bilans.tsx`) : bilans Jour / Semaine / Mois avec radar des 6 notes, note jour par jour, barres pas / sommeil / volume / calories / mangé-brûlé / protéines / eau (objectif + jours réussis), courbes VFC / cœur / poids, séries par muscle. Serveur : `reportSeries()` dans `forme-report.ts`, renvoyé par `/api/forme/report` (`days`).
 - **`LineChart` refait** (`ui.tsx`) : tactile (doigt = valeur + date), moyenne, Dernier / Moyenne / Mini / Maxi, prévision en pointillés jusqu'à l'objectif (Progrès + Sèche). Bug corrigé : toutes les courbes partageaient le dégradé de la première (id SVG en double).
