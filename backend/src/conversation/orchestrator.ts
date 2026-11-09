@@ -323,6 +323,20 @@ export async function processMessage(
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
     return { text: done, status: 'done' };
   }
+  // 09/11 : apprentissage des refus d'appel — « tu peux m'appeler pour tout » le remet à zéro, « pourquoi tu m'appelles plus » l'explique
+  if (actorUserId === 'kouider' && !sandbox && userMessage.length < 120) {
+    const tt = userMessage.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+    const reset = /\btu peux (?:de nouveau |me |m )*(?:re)?appeler pour tout\b|\b(?:re)?appelle moi pour tout\b|\bremets? tous les appels\b/.test(tt);
+    const why = !reset && /\bpourquoi tu (?:ne )?(?:m |me )?appelles? (?:plus|pas)\b|\bquels? appels? (?:tu as |t as )?coupe/.test(tt);
+    if (reset || why) {
+      const ac = await import('../notifications/auto-call.js');
+      const done = reset ? await ac.resetCallLearning() : `📞 Ce que j'ai appris de tes réponses à mes appels :\n${await ac.callLearningText()}\n\nAprès 3 refus de suite pour un même sujet, je te l'écris au lieu de sonner (jamais pour l'urgent). Dis « tu peux m'appeler pour tout » pour tout remettre.`;
+      _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: done });
+      saveConversationTurn(sessionId, 'assistant', done).catch(() => {});
+      _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+      return { text: done, status: 'done' };
+    }
+  }
   const callRule = actorUserId === 'kouider' && !sandbox ? (await import('../integrations/kouider-dossier.js')).parseCallRule(userMessage) : null;
   if (callRule) {   // 09/11 : « le lundi tu m'appelles jamais » → le cerveau avait répondu sur la séance de sport, rien retenu
     const done = await (await import('../integrations/kouider-dossier.js')).runCallRule(callRule).catch(e => `❌ échec : ${e instanceof Error ? e.message : e}`);

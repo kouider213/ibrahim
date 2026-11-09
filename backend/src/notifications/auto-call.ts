@@ -113,6 +113,73 @@ export async function quietUntil(): Promise<number> {
   return v > Date.now() ? v : 0;
 }
 
+// ── 📵 APPRENTISSAGE DES REFUS (09/11) ───────────────────────────────────────────────────────────────────────────────
+// Constat dans les journaux : du 7 au 9/11, Kouider a refusé ou laissé sonner 10 appels sur 14 (actus, taux de l'euro, analyse
+// snus, check-lists, récap…). Un appel refusé = dérangement + 1 h de silence qui retarde le reste. Dzaryx apprend donc :
+// 3 refus DE SUITE pour un même type d'appel → ce type n'appelle plus, il est ÉCRIT sur Telegram (rien n'est perdu).
+// Un appel décroché remet le compteur à zéro. Jamais coupés : vital, urgent, et la liste ALWAYS_RING (argent dû, client en
+// difficulté, retard de retour, vol, paiement). Au bout de 21 jours un type coupé retente UN appel. « Tu peux m'appeler pour
+// tout » remet tout à zéro (resetCallLearning).
+const STATS_KEY = 'autocall:stats';
+const LASTCAT_KEY = 'autocall:last_cat';
+const MUTE_AFTER = 3, MUTE_DAYS = 21;
+const ALWAYS_RING = /^(billing|late-return|unpaid-urgent|wa-delicate|waweb-delicate|flight-cancel|flight-delay|wa-deposit|car-papers|intention)$/;
+const CAT_LABEL: Record<string, string> = {
+  billing: 'les paiements à faire', 'late-return': 'les retards de retour', 'unpaid-urgent': 'les impayés', 'car-papers': 'les papiers des voitures', intention: 'tes rappels',
+  news: 'les actus et les bons plans', mentor: 'les idées business du jour', 'daily-recap': 'le récap du jour', 'rental-eve': 'le point de la veille sur les locations',
+  'trip-checklist': 'les check-lists des locations', meetprep: 'la préparation de tes rendez-vous', gold: "l'or", mission: 'les missions', goal: 'les objectifs',
+  liberte: 'ton programme Liberté', coach: 'les appels du coach', 'mail-reply': 'les réponses à tes mails', 'prospect-dry': 'le démarchage',
+  'waweb-booking': 'les demandes de location WhatsApp', 'wa-request': 'les demandes de location WhatsApp', 'site-booking': 'les réservations du site', 'service-km': "l'entretien des voitures",
+};
+type CatStat = { a: number; d: number; streak: number; muted?: string; told?: boolean };
+/** Type d'appel = début de la clé, sans date ni identifiant (« liberte-drop-2026-11-09 » → liberte, « news:xyz » → news). */
+export const callCategory = (key: string): string => {
+  const head = key.split(':')[0]!.replace(/-\d[\d-]*$/, '');
+  return /^liberte/.test(head) ? 'liberte' : /^coach/.test(head) ? 'coach' : head;
+};
+async function readStats(): Promise<Record<string, CatStat>> { try { return JSON.parse((await kvGet(STATS_KEY)) ?? '{}') as Record<string, CatStat>; } catch { return {}; } }
+/** tgcall signale la fin d'un appel : décroché et entendu ('answered') ou refusé / pas décroché ('declined'). */
+export async function noteCallOutcome(outcome: 'answered' | 'declined'): Promise<void> {
+  let last: { cat: string; at: number } | null = null;
+  try { last = JSON.parse((await kvGet(LASTCAT_KEY)) ?? 'null') as { cat: string; at: number } | null; } catch { /* rien */ }
+  if (!last || Date.now() - last.at > (outcome === 'answered' ? 20 : 6) * 60_000) return;   // pas un appel automatique récent
+  await kvSet(LASTCAT_KEY, '', 1).catch(() => {});
+  const st = await readStats();
+  const c = st[last.cat] ?? { a: 0, d: 0, streak: 0 };
+  if (outcome === 'answered') { c.a++; c.streak = 0; delete c.muted; c.told = false; }
+  else { c.d++; c.streak++; if (c.streak >= MUTE_AFTER && !c.muted && !ALWAYS_RING.test(last.cat)) c.muted = new Date().toISOString(); }
+  st[last.cat] = c;
+  await kvSet(STATS_KEY, JSON.stringify(st), 400 * 86_400);
+}
+/** « Tu peux m'appeler pour tout » : tous les types d'appel sonnent de nouveau. */
+export async function resetCallLearning(): Promise<string> {
+  const st = await readStats();
+  const muted = Object.entries(st).filter(([, c]) => c.muted).map(([k]) => CAT_LABEL[k] ?? k);
+  for (const c of Object.values(st)) { c.streak = 0; delete c.muted; c.told = false; }
+  await kvSet(STATS_KEY, JSON.stringify(st), 400 * 86_400);
+  return muted.length ? `✅ C'est noté : je peux de nouveau t'appeler pour ${muted.join(', ')}.` : '✅ Aucun type d\'appel n\'était coupé : je t\'appelle déjà pour tout (sauf tes jours et heures sans appel).';
+}
+/** Ce qu'il a appris de ses refus (pour « pourquoi tu ne m'appelles plus ? »). */
+export async function callLearningText(): Promise<string> {
+  const st = await readStats();
+  const rows = Object.entries(st).filter(([, c]) => c.a + c.d > 0);
+  if (!rows.length) return 'Pas encore assez d\'appels pour en tirer une habitude.';
+  return rows.map(([k, c]) => `• ${CAT_LABEL[k] ?? k} : ${c.a} décroché(s), ${c.d} refusé(s)${c.muted ? ' → je te l\'écris au lieu d\'appeler' : ''}`).join('\n');
+}
+/** Ce type d'appel est-il coupé par ses refus ? Si oui : le message part par écrit (et il est prévenu la 1re fois). */
+async function mutedByDeclines(cat: string, clean: string): Promise<boolean> {
+  if (ALWAYS_RING.test(cat)) return false;
+  const st = await readStats();
+  const c = st[cat];
+  if (!c?.muted) return false;
+  if (Date.now() - Date.parse(c.muted) > MUTE_DAYS * 86_400_000) { delete c.muted; c.streak = MUTE_AFTER - 1; c.told = false; await kvSet(STATS_KEY, JSON.stringify(st), 400 * 86_400); return false; }   // on retente UN appel
+  const { queueTelegramMessage } = await import('./tg-outbox.js');
+  const first = !c.told;
+  if (first) { c.told = true; await kvSet(STATS_KEY, JSON.stringify(st), 400 * 86_400); }
+  await queueTelegramMessage(`${clean}${first ? `\n\n📵 Tu as refusé mes ${MUTE_AFTER} derniers appels pour ${CAT_LABEL[cat] ?? cat} : à partir de maintenant je te l'écris au lieu de t'appeler. Dis « tu peux m'appeler pour tout » si tu préfères que je sonne.` : ''}`).catch(() => {});
+  return true;
+}
+
 /** Peut-on faire sonner maintenant ? (heure, pas dispo, écart entre appels, quota, appel déjà en cours) */
 async function canRingNow(level: AutoCallLevel = 'normal'): Promise<{ ok: boolean; why?: string }> {
   if ((await kvGet(OFF_KEY)) === '1') return { ok: false, why: 'off' };
@@ -126,8 +193,9 @@ async function canRingNow(level: AutoCallLevel = 'normal'): Promise<{ ok: boolea
   return { ok: true };
 }
 
-async function ring(reason: string, vital = false): Promise<void> {
+async function ring(reason: string, vital = false, cat = ''): Promise<void> {
   const { day } = localNow();
+  await kvSet(LASTCAT_KEY, cat ? JSON.stringify({ cat, at: Date.now() }) : '', 3600).catch(() => {});
   const countKey = `autocall:count:${day}`;
   await kvSet(LAST_KEY, String(Date.now()), 86_400);
   await kvSet(countKey, String(Number((await kvGet(countKey)) ?? 0) + 1), 2 * 86_400);
@@ -158,9 +226,11 @@ export async function autoCall(key: string, spoken: string, opts: { level?: Auto
       return;
     }
 
+    const cat = callCategory(key);
+    if (!opts.vital && opts.level !== 'urgent' && await mutedByDeclines(cat, clean)) { console.log(`[auto-call] ${key} écrit au lieu d'appeler (type « ${cat} » refusé ${MUTE_AFTER} fois de suite)`); return; }
     const check = await canRingNow(opts.level);
     if (check.ok) {
-      await ring(clean, !!opts.vital);
+      await ring(clean, !!opts.vital, cat);
       console.log(`[auto-call] RING ${key}`);
       return;
     }

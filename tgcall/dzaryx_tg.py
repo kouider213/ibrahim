@@ -860,7 +860,22 @@ async def mute_guard(actor: str, user_id: int, rt: RealtimeCall, greeting: str, 
         return
     if rt.n_in < MUTE_CHECK_S * 50 or rt.rms_max > 0:   # 100 tranches/s attendues ; du son → tout va bien
         return
-    log.warning('appel MUET : %d tranches reçues, volume 0 après %.0f s → je raccroche et j\'écris', rt.n_in, MUTE_CHECK_S)
+    # 09/11 : on raccrochait net à 12 s — le 07/11 en pleine phrase de Dzaryx, le 08/11 avant même qu'il ait parlé. Or Kouider,
+    # lui, ENTEND Dzaryx (seul son micro est bloqué) : on laisse donc Dzaryx finir de dire son message (ou commencer, 40 s max),
+    # on revérifie si le son du téléphone arrive en retard, et on ne raccroche qu'ensuite.
+    waited, last_voiced = 0.0, -1
+    while waited < 40:
+        await asyncio.sleep(2.5)
+        waited += 2.5
+        if rt.closed or active.get(user_id) is None or active[user_id].rt is not rt:
+            return
+        if rt.rms_max > 0:
+            log.warning('appel : le son du téléphone est arrivé en retard (%.0f s après le décroché) → on continue', MUTE_CHECK_S + waited)
+            return
+        if rt.n_voiced > 0 and rt.n_voiced == last_voiced:   # Dzaryx a parlé et n'ajoute plus rien : le message est dit
+            break
+        last_voiced = rt.n_voiced
+    log.warning('appel MUET : %d tranches reçues, volume 0 après %.0f s (message dit : %s) → je raccroche et j\'écris', rt.n_in, MUTE_CHECK_S + waited, 'oui' if rt.n_voiced > 0 else 'non')
     st = active.pop(user_id, None)
     call_ended[user_id] = time.monotonic()
     if not active:

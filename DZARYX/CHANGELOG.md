@@ -1,3 +1,9 @@
+## 2026-11-09 nuit (7) — Appels Telegram : Dzaryx apprend de tes refus, ne raccroche plus en pleine phrase
+- Constat (journaux tgcall 07-09/11) : 14 appels sortants, 10 refusés ou non décrochés, 2 muets.
+- `auto-call.ts` : apprentissage des refus par type d'appel (`callCategory`, app_kv `autocall:stats`). 3 refus de suite → ce type est ÉCRIT sur Telegram au lieu de sonner (prévenu une fois) ; un appel décroché remet à zéro ; retente 1 appel après 21 jours. Jamais coupés : vital, urgent, paiements, retards, impayés, client en difficulté, vols, papiers, rappels demandés. Signaux : `/api/call/missed` (refus) et `/api/call/health-event ok` (décroché).
+- Phrases faites par le code : « tu peux m'appeler pour tout » (remise à zéro), « pourquoi tu m'appelles plus ? » (ce qu'il a appris).
+- `tgcall/dzaryx_tg.py` mute_guard : à 12 s sans son du téléphone, Dzaryx finit d'abord son message (40 s max) et revérifie le son avant de raccrocher. ⚠️ Actif seulement après `pm2 restart dzaryx-tg`.
+
 ## 2026-11-09 nuit (6) — Plancher 75 kg tenu par le code, faux impayés, mois du widget
 - `forme.ts` formeTool profile : `targetKg` sous le plancher (app_kv `kouider:forme:floor_kg`, défaut 75) → refus + consigne au cerveau ; passe seulement avec `floor_change_confirmed: true`. Au banc le cerveau avait accepté « objectif 72 kg » malgré la règle écrite.
 - `predictions.ts` : impayé = reste > 0 ET paiement ≠ payé (la colonne `amount_remaining` reste périmée sur des locations payées → « sept impayés » inventés dans le briefing).

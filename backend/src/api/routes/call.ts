@@ -114,6 +114,7 @@ router.post('/health-event', requireMobileAuth, async (req, res) => {
   if (!['ok', 'muet', 'manque', 'bascule'].includes(kind)) { res.status(400).json({ error: 'kind' }); return; }
   const { recordCallHealth } = await import('../../integrations/self-test.js');
   await recordCallHealth(kind as 'ok').catch(() => {});
+  if (kind === 'ok') await import('../../notifications/auto-call.js').then(m => m.noteCallOutcome('answered')).catch(() => {});   // apprentissage des refus
   res.json({ ok: true });
 });
 
@@ -195,6 +196,7 @@ router.post('/missed', requireMobileAuth, async (req, res) => {
   if (reason) await markCallUnheard(callActor(req), reason).catch(() => false);
   const hold = kouider && why !== 'muet';
   if (hold) await setMissedCallDnd('appel pas décroché').catch(() => {});
+  if (hold) await import('../../notifications/auto-call.js').then(m => m.noteCallOutcome('declined')).catch(() => {});   // 3 refus de suite pour un même type d'appel → écrit au lieu d'appeler
   res.json({ ok: true, hold });
 });
 
