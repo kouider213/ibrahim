@@ -44,7 +44,7 @@ export async function checkTgcallAlive(): Promise<void> {
   emitProactive('⚠️ Appels Telegram en panne.', 'alert',
     `⚠️ Le service d'appels Telegram ne répond plus depuis ${Math.round(ageMin)} min (dernier signe de vie ${new Date(last).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })}).\n` +
     'Tant que ça dure : Dzaryx ne peut ni t\'appeler ni décrocher sur Telegram. Les appels auto passent par l\'app.\n' +
-    'Je te préviens dès que ça remarche. Si ça dure, dis « vérifie le service d\'appels » à Claude Code.', 'kouider');
+    'Je te préviens dès que ça remarche. Mon réparateur automatique le relance tout seul (toutes les 10 min). Si ça dure plus d\'1 h : va dans l\'espace client de ton hébergeur du serveur (VPS) et clique « Redémarrer » — tout se rallume tout seul en 2 min, rien n\'est perdu.', 'kouider');
   // Telegram ne peut pas sonner → l'appel passe par l'app
   void reportIncident('tgcall-down', `Le service d'appels Telegram est coupé depuis ${Math.round(ageMin)} minutes.`, null);
 }

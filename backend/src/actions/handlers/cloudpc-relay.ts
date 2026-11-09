@@ -99,7 +99,7 @@ type Tab = { id: string; title: string; url: string };
 export async function cloudPcTool(input: Record<string, unknown>): Promise<string> {
   const action = String(input['action'] ?? 'status');
   if (!isCloudPcOnline()) {
-    return '❌ Le PC cloud ne répond pas (service dzaryx-cloudpc sur le serveur). Dis « vérifie le PC cloud » à Claude Code.';
+    return '❌ Le PC cloud ne répond pas (service dzaryx-cloudpc sur le serveur). Mon réparateur le relance seul toutes les 10 min ; si ça dure plus d\'1 h, clique « Redémarrer » sur le serveur (VPS) dans l\'espace client de ton hébergeur.';
   }
   try {
     if (action === 'open_url') {

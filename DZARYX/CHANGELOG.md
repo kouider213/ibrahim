@@ -1,3 +1,7 @@
+## 2026-11-09 nuit (3) — Dzaryx autonome sans Claude Code + bilans comparés (app v258)
+- `self-test.ts` : `remedy()` — chaque problème de l'auto-test est suivi de ce que Kouider peut faire lui-même (phrase à dire à Dzaryx, site à ouvrir, redémarrage du VPS). Plus aucun message « demande à Claude Code » (`connections-watch.ts`, `tgcall-watch.ts`, `cloudpc-relay.ts`).
+- Bilans semaine / mois : carte « face à la période d'avant » (`Versus` dans `Bilans.tsx`, `prev` renvoyé par `/api/forme/report`) ; la semaine est toujours tracée du lundi au dimanche.
+
 ## 2026-11-09 nuit (2) — Sommeil jamais vide, bonnes photos d'exercices (app v257)
 - `sleep-phone.ts` : réveil sans « bonne nuit » la veille → coucher estimé (`estimateBed` : heure habituelle `min_bed`, ou dernier vrai message de la soirée s'il est plus tard), nuit notée et annoncée, corrigeable par « couché à 23h30 ». Avant : nuit vide (5 jours sur 9 début novembre).
 - `sport-coach.ts` : `sameMove()` — un exercice sur mesure ne prend plus l'identifiant, la photo ni l'historique d'un exercice de base au matériel / mouvement différent (« Développé couché (barre) » → haltères). `demoFor()` à l'affichage pour les séances déjà enregistrées.

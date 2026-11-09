@@ -244,7 +244,8 @@ export async function reportSeries(kind: Kind, end = localNow().date) {
   const baseRows = s.health.filter(h => h.date < from && h.date >= addDays(from, -21));
   const base = { hrv: avg(nums(baseRows.map(h => h.hrv))) || undefined, rhr: avg(nums(baseRows.map(h => h.rhr))) || undefined };
   const today = localNow().date;
-  const ds = await Promise.all(range(from, p.to).map(d => dayStat(d, s)));
+  const to = kind === 'week' ? addDays(p.from, 6) : p.to;   // semaine : toujours lundi → dimanche (les jours à venir restent vides)
+  const ds = await Promise.all(range(from, to).map(d => dayStat(d, s)));
   return ds.map(d => {
     if (d.date > today) return { date: d.date, volume: 0, stepsGoal: d.stepsGoal, waterGoal: d.waterGoal };   // jours à venir : la place est gardée, vide
     const sc = scores([d], base, sessTarget, 'day');

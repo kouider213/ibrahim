@@ -28,12 +28,12 @@ const CHECKS: Check[] = [
   },
   {
     id: 'cloudpc', label: 'Le PC cloud (WhatsApp, navigateur)', need: 2,
-    how: 'Il redémarre normalement tout seul. Si ça dure, demande à Claude Code de regarder (pm2 dzaryx-cloudpc sur le VPS).',
+    how: 'Mon réparateur automatique le relance tout seul (toutes les 10 min). Si ça dure plus d\'1 h : va dans l\'espace client de ton hébergeur du serveur (VPS) et clique « Redémarrer » — tout se rallume tout seul en 2 min, rien n\'est perdu.',
     test: async () => ({ ok: (await import('../actions/handlers/cloudpc-relay.js')).isCloudPcOnline() }),
   },
   {
     id: 'telegram', label: 'Le service Telegram de Dzaryx (messages et appels)', need: 1,
-    how: 'Je ne peux plus t\'écrire ni t\'appeler sur Telegram : demande à Claude Code de relancer « dzaryx-tg ».',
+    how: 'Je ne peux plus t\'écrire ni t\'appeler sur Telegram (l\'app marche toujours). Mon réparateur automatique le relance tout seul (toutes les 10 min). Si ça dure plus d\'1 h : va dans l\'espace client de ton hébergeur du serveur (VPS) et clique « Redémarrer » — tout se rallume tout seul en 2 min, rien n\'est perdu.',
     test: async () => {
       const beat = await kvGet('tgcall:heartbeat');
       return { ok: !!beat && Date.now() - Date.parse(beat) < 12 * 60_000 };

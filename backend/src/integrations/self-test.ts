@@ -183,8 +183,29 @@ export async function runSelfTest(): Promise<SelfTestReport> {
   return report;
 }
 
+/** 09/11 — plus de Claude Code à partir de demain : chaque problème est suivi de ce que KOUIDER peut faire lui-même, en mots simples.
+ *  (Avant : « demande à Claude Code de regarder ».) Rien à faire de son côté = dit aussi, pour qu'il ne s'inquiète pas. */
+const VPS_REBOOT = 'mon réparateur le relance seul toutes les 10 min ; si ça dure plus d\'1 h, clique « Redémarrer » sur le serveur (VPS) dans l\'espace client de ton hébergeur — tout se rallume seul';
+export function remedy(name: string, info: string): string {
+  if (/Base de données/.test(name)) return 'ouvre supabase.com → ton projet : quota dépassé ou paiement en attente ? (c\'est arrivé le 03/11). Une fois réglé, tout repart seul';
+  if (/Cerveau IA/.test(name)) return 'les cerveaux gratuits se rechargent chaque matin vers 9 h. Si c\'est urgent, écris « utilise Claude pour cette question »';
+  if (/Crédit Claude/.test(name)) return 'pas bloquant (je tourne en gratuit). Pour garder le secours : recharge sur console.anthropic.com → Billing';
+  if (/Sauvegarde Google Drive/.test(name)) return 'dis-moi « reconnecte mes mails » (même compte Google) : la sauvegarde repart la nuit suivante';
+  if (/Sauvegarde VPS/.test(name)) return 'le serveur (VPS) est peut-être éteint : clique « Redémarrer » dans l\'espace client de ton hébergeur';
+  if (/Telegram/.test(name)) return /signe de vie/.test(info) ? VPS_REBOOT : 'rien à faire si mes messages t\'arrivent ; sinon ' + VPS_REBOOT;
+  if (/Appels d'hier/.test(name)) return 'si mes appels sont muets, ferme l\'app Dzaryx sur l\'iPhone avant de décrocher (elle garde le micro), puis rappelle-moi';
+  if (/Démarchage/.test(name)) return 'dis-moi « relance le démarchage »';
+  if (/Tâches automatiques/.test(name)) return 'souvent un redémarrage de Railway au mauvais moment : elles repartent seules le lendemain. Si la même revient 3 jours de suite, vérifie le paiement Railway (page À PAYER)';
+  if (/PC cloud/.test(name)) return VPS_REBOOT;
+  if (/Réservations|Parc|Disponibilités|Impayés|Retards|Dépenses|Papiers|Entretien|finances|Missions|Prospects|Mémoire/.test(name)) return 'c\'est lié à la base : relance « auto-test » dans 10 min ; si ça reste rouge, regarde supabase.com (quota / paiement)';
+  if (/Agenda/i.test(name)) return 'dis-moi « reconnecte mon agenda »';
+  if (/Gmail|Mail|Google/i.test(name)) return 'dis-moi « reconnecte mes mails »';
+  if (/WhatsApp/i.test(name)) return 'dis-moi « connecte mon WhatsApp » : je t\'envoie un code à taper dans WhatsApp Business';
+  return 'relance « auto-test » dans 10 min ; si ça reste rouge, c\'est à noter pour une prochaine session de code';
+}
+
 export function formatSelfTest(r: SelfTestReport, onlyProblems = false): string {
-  const lines = r.checks.filter(c => !onlyProblems || !c.ok).map(c => `${c.ok ? '✅' : '❌'} ${c.name} — ${c.info}`);
+  const lines = r.checks.filter(c => !onlyProblems || !c.ok).map(c => `${c.ok ? '✅' : '❌'} ${c.name} — ${c.info}${c.ok ? '' : `\n   👉 ${remedy(c.name, c.info)}`}`);
   const head = r.failed
     ? `🩺 Auto-test Dzaryx : ${r.failed} problème${r.failed > 1 ? 's' : ''} sur ${r.checks.length} vérifications`
     : `🩺 Auto-test Dzaryx : tout fonctionne (${r.checks.length} vérifications)`;
@@ -196,7 +217,7 @@ export async function jobSelfTest(): Promise<string> {
   const r = await runSelfTest();
   const monday = new Date().getDay() === 1;
   if (r.failed) {
-    const text = `${formatSelfTest(r, true)}\n\nDis « auto-test » pour relancer, ou demande à Claude Code de regarder.`;
+    const text = `${formatSelfTest(r, true)}\n\nDis « auto-test » pour relancer la vérification.`;
     emitProactive(`🩺 Auto-test : ${r.failed} problème${r.failed > 1 ? 's' : ''} détecté${r.failed > 1 ? 's' : ''}.`, 'alert', text, 'kouider');
     // Sur Telegram aussi : c'est là qu'il lit (l'historique de l'app seul, il ne le voyait pas)
     const { queueTelegramMessage } = await import('../notifications/tg-outbox.js');

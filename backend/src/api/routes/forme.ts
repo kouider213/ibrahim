@@ -265,7 +265,7 @@ router.get('/report', async (req, res) => {
     const m = await import('../../integrations/forme-report.js');
     if (req.query['send'] === '1') { res.json({ text: await m.sendReport(kind, undefined, true), sent: true }); return; }
     const r = await m.buildReport(kind, undefined, false);
-    res.json({ title: r.title, text: r.text, scores: r.scores, prevScores: r.prevScores, totals: r.totals, strengths: r.strengths, weaknesses: r.weaknesses, actions: r.actions, progression: r.progression,
+    res.json({ title: r.title, text: r.text, scores: r.scores, prevScores: r.prevScores, totals: r.totals, prev: r.prev, strengths: r.strengths, weaknesses: r.weaknesses, actions: r.actions, progression: r.progression,
       days: await m.reportSeries(kind).catch(() => []) });
   } catch (err) { fail(res, err); }
 });

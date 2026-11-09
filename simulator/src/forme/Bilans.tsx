@@ -7,7 +7,8 @@ import { Radar, DayBars, ScoreStrip } from './Charts.tsx';
 // + un jour du calendrier en détail (montre, séance, repas, eau, records). Tout vient de /api/forme/report et /api/forme/day.
 type Scores = Partial<Record<'sommeil' | 'activite' | 'entrainement' | 'recuperation' | 'nutrition' | 'hydratation', number>> & { global: number };
 interface SeriesDay { date: string; score?: number; steps?: number; stepsGoal?: number; sleep_h?: number; rhr?: number; hrv?: number; activeKcal?: number; volume?: number; session?: string; weight?: number; water?: number; waterGoal?: number; eaten?: number; burned?: number; protein?: number; proteinGoal?: number }
-interface ReportData { title: string; text: string; scores: Scores; prevScores?: Scores; strengths: string[]; weaknesses: string[]; actions: string[]; progression: string[]; days?: SeriesDay[]; totals?: { muscleSets?: Record<string, number> } }
+interface ReportData { title: string; text: string; scores: Scores; prevScores?: Scores; strengths: string[]; weaknesses: string[]; actions: string[]; progression: string[]; days?: SeriesDay[]; totals?: Totals; prev?: Totals }
+interface Totals { muscleSets?: Record<string, number>; sessions?: number; sessionsTarget?: number; sets?: number; volume?: number; stepsAvg?: number; sleepAvg?: number; rhrAvg?: number; hrvAvg?: number; activeKcal?: number; prs?: number; trainMinutes?: number; weightStart?: number; weightEnd?: number }
 interface GoalData { lines: string[]; ifBehind: string[]; behind: boolean }
 interface DayData {
   day: { date: string; label: string; steps?: number; stepsGoal: number; sleep_h?: number; rhr?: number; hrv?: number; activeKcal?: number; water: number; waterGoal: number; weight?: number;
@@ -45,6 +46,42 @@ const List = ({ t, items, color }: { t: string; items: string[]; color: string }
     {items.map((x, i) => <div key={i} style={{ fontSize: 13.5, lineHeight: 1.45, padding: '2px 0' }}>• {x}</div>)}
   </div>
 );
+
+/** Les chiffres clés de la période à côté de ceux d'avant (flèche verte = mieux). Les moyennes sont comparables même en cours de semaine ;
+ *  les totaux (séances, volume) affichent juste « avant : X » tant que la période n'est pas finie. */
+function Versus({ r, kind }: { r: ReportData; kind: 'day' | 'week' | 'month' }) {
+  const t = r.totals, p = r.prev;
+  if (!t || kind === 'day') return null;
+  const cell = (label: string, v: number | undefined, pv: number | undefined, unit: string, d = 0, mode: 'up' | 'down' | 'total' = 'up') => {
+    if (!v) return null;
+    const diff = pv ? v - pv : 0, better = mode === 'down' ? diff < 0 : diff > 0;
+    const flat = !pv || Math.abs(diff) < Math.abs(pv) * 0.02;
+    return (
+      <div key={label} style={{ background: F.bg, borderRadius: 14, padding: '10px 10px 8px' }}>
+        <div style={{ fontSize: 11.5, color: F.muted, fontWeight: 600 }}>{label}</div>
+        <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: '-0.02em', marginTop: 1 }}>{n(v, d)}<span style={{ fontSize: 11.5, fontWeight: 600, color: F.muted }}> {unit}</span></div>
+        <div style={{ fontSize: 11.5, fontWeight: 700, color: mode === 'total' || flat ? F.muted : better ? F.green : F.red, marginTop: 1 }}>
+          {!pv ? '—' : mode === 'total' ? `avant : ${n(pv, d)}` : flat ? `= ${n(pv, d)}` : `${diff > 0 ? '↗' : '↘'} ${diff > 0 ? '+' : '−'}${n(Math.abs(diff), d)} (avant ${n(pv, d)})`}
+        </div>
+      </div>);
+  };
+  const cells = [
+    cell('Séances', t.sessions, p?.sessions, t.sessionsTarget && kind === 'week' ? `/ ${t.sessionsTarget}` : '', 0, 'total'),
+    cell('Volume soulevé', t.volume ? t.volume / 1000 : undefined, p?.volume ? p.volume / 1000 : undefined, 't', 1, 'total'),
+    cell('Pas / jour', t.stepsAvg, p?.stepsAvg, ''),
+    cell('Sommeil moyen', t.sleepAvg, p?.sleepAvg, 'h', 1),
+    cell('Cœur au repos', t.rhrAvg, p?.rhrAvg, 'bpm', 0, 'down'),
+    cell('VFC', t.hrvAvg, p?.hrvAvg, 'ms'),
+    cell('Records battus', t.prs, p?.prs, '', 0, 'total'),
+    cell('Temps de sport', t.trainMinutes, p?.trainMinutes, 'min', 0, 'total'),
+  ].filter(Boolean);
+  if (cells.length < 2) return null;
+  return (
+    <div style={{ ...card, marginTop: 10 }}>
+      <div style={{ fontWeight: 700, fontSize: 14.5, marginBottom: 8 }}>{kind === 'week' ? 'Cette semaine face à la dernière' : 'Ce mois face au précédent'}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>{cells}</div>
+    </div>);
+}
 
 const MUSCLE: Record<string, string> = { pecs: 'Pecs', dos: 'Dos', epaules: 'Épaules', bras: 'Bras', jambes: 'Jambes', abdos: 'Abdos' };
 /** 📊 09/11 — les graphiques du bilan, dans l'app (avant : seulement dans le PDF). Doigt posé sur une barre ou une courbe = la valeur du jour. */
@@ -123,6 +160,7 @@ export function BilansCard({ toast }: { toast?: (t: string) => void }) {
       <Sheet open={!!kind} onClose={() => setKind(null)} title={r?.title ?? 'Bilan'}>
         {!r ? <div style={{ padding: 30, display: 'flex', justifyContent: 'center' }}><Spinner /></div> : <div style={{ paddingTop: 6 }}>
           <div style={{ ...card }}><ScoreBars s={r.scores} prev={r.prevScores} /></div>
+          {kind && <Versus r={r} kind={kind} />}
           {kind && <ReportCharts r={r} kind={kind} />}
           <List t="✅ Points forts" items={r.strengths} color={F.green} />
           <List t="⚠️ À améliorer" items={r.weaknesses} color={F.red} />
