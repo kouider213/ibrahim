@@ -469,7 +469,8 @@ export async function pace(uid: Uid, s: GoalState, days?: Record<string, { worko
   let nx: Pace['next'];
   if (next) {
     const wk = Math.max(0, dayDiff(today, next.date) / 7);
-    const projected = rate != null ? Math.round((cur - rate * wk) * 10) / 10 : undefined;
+    // 09/11 : la projection s'arrête à l'objectif (on n'annonce pas « 61,8 kg » alors qu'il vise 75 : une fois arrivé, il ne continue pas à perdre).
+    const projected = rate != null ? Math.round((rate > 0 && cur > next.value! ? Math.max(next.value!, cur - rate * wk) : cur - rate * wk) * 10) / 10 : undefined;
     const late = projected != null && projected > next.value! + 0.2;
     nx = { title: next.title, date: next.date, ...(projected != null ? { projected } : {}), target: next.value, late };
     if (projected != null) {

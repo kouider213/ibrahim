@@ -230,7 +230,7 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
       {o.tooFast && <div style={{ ...card, marginTop: 10, background: '#fff4e5', fontSize: 13.5, lineHeight: 1.4 }}>⚠️ Tu perds {o.weightRate} kg/semaine : un peu vite. Pour garder ton muscle : atteins tes {o.targets.p} g de protéines chaque jour et ne saute pas la muscu. {o.uid !== 'ami' ? 'Parles-en à ton médecin au prochain contrôle.' : ''}</div>}
       <div style={{ ...card, marginTop: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div style={{ fontWeight: 800 }}>⚖️ Courbe de poids</div>{o.weightRate != null && <div style={{ fontSize: 12.5, color: F.muted, fontWeight: 700 }}>{o.weightRate > 0 ? '−' : '+'}{Math.abs(o.weightRate)} kg/sem.</div>}</div>
-        <LineChart points={o.weights.slice(-30).map(w => ({ x: w.date, y: w.kg }))} goal={o.profile.targetKg} />
+        <LineChart points={o.weights.slice(-30).map(w => ({ x: w.date, y: w.kg }))} goal={o.profile.targetKg} digits={1} forecast={o.eta ? { x: o.eta, y: o.profile.targetKg } : null} />
         <div style={{ display: 'flex', gap: 8 }}>
           <input inputMode="decimal" value={kg} onChange={e => setKg(e.target.value)} placeholder="Poids du jour (kg)" style={input} />
           <button onClick={logKg} style={{ ...btn, padding: '0 18px' }}>OK</button>

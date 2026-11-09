@@ -37,17 +37,28 @@ function trendOf(w: Array<{ date: string; kg: number }>) {
 }
 const trendAt = (tr: Array<{ date: string; trend: number }>, date: string) => [...tr].reverse().find(x => x.date <= date)?.trend ?? null;
 
+/** 09/11 — UN SEUL rythme de perte pour toute l'app (Progrès disait « 2 kg/sem, arrivée le 16/11 », Sèche « 1,17 kg/sem, le 21/11 ») :
+ *  vitesse sur la tendance lissée des 7 derniers jours (l'eau du jour ne compte pas), pas « 1re pesée − dernière pesée ». */
+export function weightPace(weights: Array<{ date: string; kg: number }>, today: string, fallbackKg: number): { rateWeek: number | null; trend: number; real: number } {
+  const tr = trendOf(weights);
+  const cur = tr.length ? tr[tr.length - 1]!.trend : fallbackKg;
+  const wAgo = trendAt(tr, addDays(today, -7));
+  const rateWeek = wAgo != null && weights.length >= 5 && dayDiff(weights[0]!.date, today) >= 7 ? r1((wAgo - cur) * 10) / 10 : null;
+  return { rateWeek, trend: cur, real: weights.length ? weights[weights.length - 1]!.kg : fallbackKg };
+}
+
 export async function cutStatus(uid: Uid = 'kouider') {
   const today = localNow().date;
   const p = await getFormeProfile(uid);
   const days = await json<Record<string, Day>>(`${uid}:forme:days`, {});
   const weights = Object.entries(days).filter(([, d]) => d.weight).map(([date, d]) => ({ date, kg: d.weight! })).sort((a, b) => a.date.localeCompare(b.date));
   const tr = trendOf(weights);
-  const cur = tr.length ? tr[tr.length - 1]!.trend : p.weightKg;          // tendance lissée → sert seulement à la vitesse
+  const pace = weightPace(weights, today, p.weightKg);
+  const cur = pace.trend;          // tendance lissée → sert seulement à la vitesse
   // 07/11 Kouider : « il dit 79,4 alors que je me suis pesé à 78 hier » → le poids affiché = sa DERNIÈRE vraie pesée, pas la tendance
-  const real = weights.length ? weights[weights.length - 1]!.kg : p.weightKg;
+  const real = pace.real;
   const wAgo = trendAt(tr, addDays(today, -7)), w2Ago = trendAt(tr, addDays(today, -14));
-  const rateWeek = wAgo != null && weights.length >= 5 && dayDiff(weights[0]!.date, today) >= 7 ? r1((wAgo - cur) * 10) / 10 : null;          // kg perdus / semaine (+ = perte)
+  const rateWeek = pace.rateWeek;          // kg perdus / semaine (+ = perte)
   const ratePct = rateWeek != null ? Math.round(rateWeek / cur * 1000) / 10 : null;
   const prevRate = w2Ago != null && wAgo != null ? Math.round((w2Ago - wAgo) * 100) / 100 : null;
 
@@ -97,7 +108,7 @@ export async function cutStatus(uid: Uid = 'kouider') {
     l.sort((a, b) => a.date.localeCompare(b.date));
     const last = l[l.length - 1]!;
     const old = [...l].reverse().find(x => dayDiff(x.date, last.date) >= 14) ?? null;
-    return { name, now: r1(last.e1), before: old ? r1(old.e1) : null, pct: old ? Math.round((last.e1 - old.e1) / old.e1 * 1000) / 10 : null, date: last.date, n: l.length };
+    return { name, now: r1(last.e1), before: old ? r1(old.e1) : null, pct: old && Math.abs((last.e1 - old.e1) / old.e1) <= 0.4 ? Math.round((last.e1 - old.e1) / old.e1 * 1000) / 10 : null, date: last.date, n: l.length };
   }).filter(x => dayDiff(x.date, today) <= 35).sort((a, b) => (b as Lift & { n: number }).n - (a as Lift & { n: number }).n).slice(0, 6).map(({ name, now, before, pct, date }) => ({ name, now, before, pct, date }));
   const dropping = lifts.filter(l => l.pct != null && l.pct <= -5);
 

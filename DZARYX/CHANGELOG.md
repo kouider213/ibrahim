@@ -1,3 +1,10 @@
+## 2026-11-09 nuit — FORME : graphiques partout + chiffres cohérents ; atelier de nuit qui survit à la fin de l'abonnement (app v256)
+- **Graphiques dans l'app** (`simulator/src/forme/Charts.tsx`, `Bilans.tsx`) : bilans Jour / Semaine / Mois avec radar des 6 notes, note jour par jour, barres pas / sommeil / volume / calories / mangé-brûlé / protéines / eau (objectif + jours réussis), courbes VFC / cœur / poids, séries par muscle. Serveur : `reportSeries()` dans `forme-report.ts`, renvoyé par `/api/forme/report` (`days`).
+- **`LineChart` refait** (`ui.tsx`) : tactile (doigt = valeur + date), moyenne, Dernier / Moyenne / Mini / Maxi, prévision en pointillés jusqu'à l'objectif (Progrès + Sèche). Bug corrigé : toutes les courbes partageaient le dégradé de la première (id SVG en double).
+- **Un seul rythme de poids** : `weightPace()` (`forme-cut.ts`, tendance lissée) utilisé aussi par `formeOverview` — Progrès disait 2 kg/sem et arrivée le 16/11, Sèche 1,17 kg/sem et le 21/11.
+- **Faux pourcentages** : `sport-review.ts` ne compare plus le volume à une séance notée à moitié (« +439 % ») ; `forme-cut.ts` n'affiche plus un 1RM à +71 % en 2 semaines ; `forme-goals.ts` arrête la projection à l'objectif (« prévu 61,8 kg pour 75 visés »).
+- **Atelier de nuit** (`scripts/night-dev.mjs`, `self-dev.ts`) : sans abonnement Claude Code il se met en pause (`dev:atelier_off`), prévient une fois, garde la file, re-teste 1×/jour et reprend seul. `se_coder` dit la vérité au lieu de promettre « je le code cette nuit ».
+
 ## 2026-11-09 soir (4) — Retour à l'heure habituelle complet, locations sans effet sur la séance (B064)
 - `computeDayMove` : au retour à une heure plus tôt, la douche revient à son heure habituelle (id d'occurrence) ; la durée d'origine est gardée dans `kouider:sport:timemove_full` et rendue à la séance.
 - Une location « 🚗 Client — Voiture » n'est plus ni un conflit ni une limite pour la séance ; les trajets 🚗 comptent toujours.

@@ -28,6 +28,11 @@ export async function addDevTask(text: string, source: DevTask['source'], now = 
   return t;
 }
 
+/** 09/11 — l'atelier se met en pause tout seul quand il n'y a plus d'abonnement Claude Code (scripts/night-dev.mjs, app_kv dev:atelier_off).
+ *  Dzaryx ne promet alors plus « je le code cette nuit » : il dit la vérité et garde la demande. */
+export async function atelierOff(): Promise<{ since: string; reason?: string } | null> { return kvJson<{ since: string; reason?: string } | null>('dev:atelier_off', null); }
+const OFF_NOTE = 'mon atelier de code est en pause (plus d\'abonnement Claude Code)';
+
 const label = (t: DevTask) => `${t.id} ${t.source === 'kouider' ? '👤' : t.source === 'veille' ? '🔭' : '🐞'} ${t.text.slice(0, 160)}`;
 
 export async function selfDevTool(input: Record<string, unknown>): Promise<string> {
@@ -38,12 +43,15 @@ export async function selfDevTool(input: Record<string, unknown>): Promise<strin
     if (!req) return '❌ Il me faut la demande complète (ce qu\'il veut que je code).';
     const now = input['now'] === true;
     const t = await addDevTask(req, 'kouider', now);
+    if (await atelierOff()) return `📝 Gardé dans ma liste (n° ${t.id}), mais je ne peux pas le coder pour l'instant : ${OFF_NOTE}. Je le ferai tout seul le jour où l'abonnement reprend. Dis-le clairement à Kouider, ne promets pas de date.`;
     return now
       ? `🛠️ C'est lancé (n° ${t.id}) : je code ça tout de suite, je teste, je mets en ligne et je t'envoie le rapport sur Telegram dès que c'est fini (en général 10 à 40 min).`
       : `🛠️ Noté (n° ${t.id}) : je le code cette nuit pendant que tu dors, je teste, je mets en ligne, et tu as le rapport au réveil. Dis « fais-le maintenant » si c'est pressé.`;
   }
   if (action === 'list') {
     const open = q.filter(t => t.status === 'todo' || t.status === 'running');
+    const off = await atelierOff();
+    if (off) return open.length ? `📝 En attente (${OFF_NOTE} depuis le ${off.since.slice(8, 10)}/${off.since.slice(5, 7)}) :\n${open.map(t => `• ${label(t)}`).join('\n')}\nRien n'est perdu : je reprends dès qu'un abonnement revient.` : `Rien en attente. À savoir : ${OFF_NOTE}.`;
     return open.length ? `🛠️ À coder :\n${open.map(t => `• ${label(t)}${t.status === 'running' ? ' (en cours)' : t.now ? ' (maintenant)' : ' (cette nuit)'}`).join('\n')}` : 'Rien en attente de code.';
   }
   if (action === 'report') {

@@ -19,7 +19,7 @@ export interface ExCompare { id: string; name: string; sets: number; volume: num
 export interface SessionReview {
   date: string; at: number; type: string; label: string; emoji: string;
   totals: { sets: number; volume: number; durationMin: number | null; rpe: number | null; exercises: number; density: number | null };
-  prev: { date: string; sets: number; volume: number; durationMin: number | null } | null;
+  prev: { date: string; sets: number; volume: number; comparable?: boolean; durationMin: number | null } | null;
   exercises: ExCompare[];
   scores: { global: number; progression: number; volume: number; intensite: number; regularite: number; densite: number | null };
   avis: string; good: string[]; improve: string[]; chartUrl: string | null;
@@ -101,7 +101,11 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
   }
   const volume = exercises.reduce((a, e) => a + e.volume, 0);
   const sets = cur.sets.length;
-  const prevVol = prevS ? prevS.sets.reduce((a, z) => a + (z.kg ?? 0) * (z.reps ?? 0), 0) : 0;
+  const prevVolRaw = prevS ? prevS.sets.reduce((a, z) => a + (z.kg ?? 0) * (z.reps ?? 0), 0) : 0;
+  // 09/11 : « ton volume explose de +439 % » — la séance d'avant n'était notée qu'à moitié (735 kg). Une séance précédente
+  // avec moins de la moitié des séries (ou un volume 2,5× plus petit / plus grand) n'est pas comparable : pas de % annoncé.
+  const prevOk = !!prevS && prevVolRaw > 0 && prevS.sets.length >= sets * 0.5 && sets >= prevS.sets.length * 0.5 && volume / prevVolRaw <= 2.5 && volume / prevVolRaw >= 0.4;
+  const prevVol = prevOk ? prevVolRaw : 0;
   const dur = cur.durationMin ?? null;
   const totals = { sets, volume: Math.round(volume), durationMin: dur, rpe: cur.rpe ?? null, exercises: exercises.length, density: dur ? Math.round(volume / dur) : null };
 
@@ -193,7 +197,7 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
 
   const r: SessionReview = {
     date, at: Date.now(), type: cur.type, label: SESSIONS[cur.type].label, emoji: SESSIONS[cur.type].emoji, totals,
-    prev: prevS ? { date: prevS.date, sets: prevS.sets.length, volume: Math.round(prevVol), durationMin: prevS.durationMin ?? null } : null,
+    prev: prevS ? { date: prevS.date, sets: prevS.sets.length, volume: Math.round(prevVolRaw), comparable: prevOk, durationMin: prevS.durationMin ?? null } : null,
     exercises, scores, avis: '', good: good.slice(0, 6), improve: improve.slice(0, 6), chartUrl: null,
     context, rests, challenge, month, forecast: forecast.slice(0, 3), links: await linksFor(date, scores.global, context),
   };
@@ -217,7 +221,7 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
 
   if (o.send !== false) {
     const bar = (n: number) => `${'●'.repeat(Math.round(n / 2))}${'○'.repeat(5 - Math.round(n / 2))}`;
-    const vsPrev = r.prev ? ` (dernière ${r.label} le ${r.prev.date.slice(8)}/${r.prev.date.slice(5, 7)} : ${r.prev.sets} séries · ${r.prev.volume.toLocaleString('fr-FR')} kg)` : '';
+    const vsPrev = r.prev ? ` (dernière ${r.label} le ${r.prev.date.slice(8)}/${r.prev.date.slice(5, 7)} : ${r.prev.sets} séries · ${r.prev.volume.toLocaleString('fr-FR')} kg${r.prev.comparable === false ? ' — séance notée à moitié, PAS comparable : ne donne aucun pourcentage de volume' : ''})` : '';
     const text = [
       `🏁 Bilan de ta séance ${r.emoji} ${r.label} — ${scores.global}/10`,
       `${sets} séries · ${r.totals.volume.toLocaleString('fr-FR')} kg soulevés${dur ? ` · ${dur} min` : ''}${cur.rpe ? ` · effort ${cur.rpe}/10` : ''}${vsPrev}`,

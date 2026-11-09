@@ -694,8 +694,10 @@ export async function formeOverview(uid: Uid = 'kouider') {
   const lastPhoto = photos[photos.length - 1];
   const photoDue = !lastPhoto || (Date.parse(today) - Date.parse(lastPhoto.date)) / 86_400_000 >= p.photoEveryDays;
   // Perte trop rapide (> 1,2 %/semaine sur 3 semaines) = risque de perdre du muscle → alerte douce
+  // 09/11 : même rythme que l'onglet Sèche (tendance lissée) — avant, « 1re pesée − dernière » sur 21 j donnait 2 kg/sem ici et 1,17 là-bas.
+  const pace = await import('./forme-cut.js').then(m => m.weightPace(weights, today, p.weightKg)).catch(() => null);
   const w21 = weights.filter(w => w.date >= addDays(today, -21));
-  const ratePerWeek = w21.length >= 2 ? (w21[0]!.kg - w21[w21.length - 1]!.kg) / Math.max(1, (Date.parse(w21[w21.length - 1]!.date) - Date.parse(w21[0]!.date)) / 604_800_000) : null;
+  const ratePerWeek = pace?.rateWeek ?? (w21.length >= 2 ? (w21[0]!.kg - w21[w21.length - 1]!.kg) / Math.max(1, (Date.parse(w21[w21.length - 1]!.date) - Date.parse(w21[0]!.date)) / 604_800_000) : null);
   const curW = weights[weights.length - 1]?.kg ?? p.weightKg;
   const badges = [
     { id: 'start', label: 'Premier pas', emoji: '🚀', ok: p.onboarded },
@@ -710,10 +712,10 @@ export async function formeOverview(uid: Uid = 'kouider') {
     uid, today, profile: p, targets: t, day, week7, streak, badges,
     weights, measures, ...(uid === 'ami' ? { injections: [], sides: [], nextInjection: null, doses: [] } : { injections, sides, nextInjection: nextInjection(p, days), doses: WEGOVY_DOSES }),
     photos: shown.map(ph => ({ ...ph, url: urls[ph.id] ?? null })).reverse(), photoDue,
-    weightRate: ratePerWeek != null ? Math.round(ratePerWeek * 10) / 10 : null,
+    weightRate: ratePerWeek != null ? Math.round(ratePerWeek * 100) / 100 : null,
     tooFast: ratePerWeek != null && ratePerWeek > curW * 0.012,
     // Date estimée pour atteindre le poids visé, au rythme des 3 dernières semaines
-    eta: ratePerWeek && ratePerWeek > 0.05 && curW > p.targetKg ? addDays(today, Math.round((curW - p.targetKg) / ratePerWeek * 7)) : null,
+    eta: ratePerWeek && ratePerWeek > 0.05 && curW > p.targetKg ? addDays(today, Math.ceil((curW - p.targetKg) / ratePerWeek * 7)) : null,
     ...(uid === 'kouider' ? { femme: { active: femmeInvite, name: (await getFormeProfile('femme')).name }, ami: { active: amiInvite, name: (await getFormeProfile('ami')).name } } : {}),
   };
 }

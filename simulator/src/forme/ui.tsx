@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { trPair } from './i18n.ts';
@@ -125,23 +125,64 @@ export const Spinner = ({ size = 22, color = F.accent }: { size?: number; color?
 export const Stat = ({ v, l, color = F.ink }: { v: ReactNode; l: string; color?: string }) =>
   <div style={{ ...card, padding: '12px 12px', flex: 1, minWidth: 0 }}><div style={{ fontSize: 22, fontWeight: 800, color, letterSpacing: '-0.02em' }}>{v}</div><div style={{ fontSize: 12, color: F.muted, fontWeight: 600, marginTop: 2 }}>{l}</div></div>;
 
-/** Petite courbe (poids, mensurations) en SVG, sans librairie. */
-export function LineChart({ points, h = 150, color = F.accent, unit = 'kg', goal }: { points: Array<{ x: string; y: number }>; h?: number; color?: string; unit?: string; goal?: number }) {
+/** Courbe SVG sans librairie. 09/11 : tactile (doigt posé = valeur + date), moyenne en pointillés, mini / moy. / maxi sous la courbe,
+ *  prévision en pointillés jusqu'à l'objectif (forecast), dégradé à la bonne couleur (avant : toutes les courbes prenaient celui de la 1re). */
+export function LineChart({ points, h = 150, color = F.accent, unit = 'kg', goal, stats = true, digits, forecast }: { points: Array<{ x: string; y: number }>; h?: number; color?: string; unit?: string; goal?: number; stats?: boolean; digits?: number; forecast?: { x: string; y: number } | null }) {
+  const gid = useId().replace(/[^a-zA-Z0-9]/g, '');
+  const ref = useRef<SVGSVGElement>(null);
+  const [sel, setSel] = useState<number | null>(null);
   if (points.length < 2) return <div style={{ height: h, display: 'flex', alignItems: 'center', justifyContent: 'center', color: F.muted, fontSize: 14, textAlign: 'center' }}>{points.length ? `${points[0]!.y} ${unit} — la courbe apparaît dès la 2e mesure` : 'Pas encore de mesure'}</div>;
   const W = 320, pad = 26;
-  const ys = points.map(p => p.y).concat(goal != null ? [goal] : []);
-  const min = Math.min(...ys) - 0.5, max = Math.max(...ys) + 0.5;
-  const X = (i: number) => pad + i * (W - pad * 2) / (points.length - 1), Y = (v: number) => 12 + (h - 34) * (1 - (v - min) / (max - min));
+  const vals = points.map(p => p.y);
+  const lo = Math.min(...vals), hi = Math.max(...vals), avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const dg = digits ?? (hi >= 1000 ? 0 : hi - lo < 20 && vals.some(v => v % 1 !== 0) ? 1 : 0);
+  const fmtV = (v: number) => v.toLocaleString('fr-FR', { maximumFractionDigits: dg, minimumFractionDigits: 0 });
+  const fmtD = (x: string) => x.slice(5).split('-').reverse().join('/');
+  const ys = vals.concat(goal != null ? [goal] : []);
+  const span = Math.max(...ys) - Math.min(...ys) || 1;
+  const min = Math.min(...ys) - span * 0.08, max = Math.max(...ys) + span * 0.08;
+  // Avec une prévision, la courbe réelle prend ~72 % de la largeur et les pointillés filent jusqu'à l'objectif.
+  const realW = forecast ? (W - pad * 2) * 0.72 : W - pad * 2;
+  const X = (i: number) => pad + i * realW / (points.length - 1), Y = (v: number) => 12 + (h - 34) * (1 - (v - min) / (max - min));
   const d = points.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(p.y).toFixed(1)}`).join(' ');
+  const last = points.length - 1;
+  const pick = (clientX: number) => {
+    const r = ref.current?.getBoundingClientRect(); if (!r) return;
+    const x = (clientX - r.left) / r.width * W;
+    setSel(Math.max(0, Math.min(last, Math.round((x - pad) / (realW / last)))));
+  };
+  const s = sel != null ? points[sel]! : null;
+  const tipX = s ? Math.max(46, Math.min(W - 46, X(sel!))) : 0;
   return (
-    <svg viewBox={`0 0 ${W} ${h}`} style={{ width: '100%', height: h }}>
-      <defs><linearGradient id="lc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={color} stopOpacity="0.25" /><stop offset="1" stopColor={color} stopOpacity="0" /></linearGradient></defs>
-      {goal != null && <><line x1={pad} x2={W - pad} y1={Y(goal)} y2={Y(goal)} stroke={F.green} strokeDasharray="4 4" /><text x={W - pad} y={Y(goal) - 4} fontSize="10" textAnchor="end" fill={F.green} fontWeight="700">objectif {goal}</text></>}
-      <path d={`${d} L${X(points.length - 1)},${h - 22} L${X(0)},${h - 22} Z`} fill="url(#lc)" />
-      <motion.path d={d} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1 }} />
-      {points.map((p, i) => <circle key={i} cx={X(i)} cy={Y(p.y)} r={i === points.length - 1 ? 5 : 3} fill={i === points.length - 1 ? color : '#fff'} stroke={color} strokeWidth="2" />)}
-      <text x={X(0)} y={h - 6} fontSize="10" fill={F.muted}>{points[0]!.x.slice(5).split('-').reverse().join('/')}</text>
-      <text x={X(points.length - 1)} y={h - 6} fontSize="10" fill={F.muted} textAnchor="end">{points[points.length - 1]!.x.slice(5).split('-').reverse().join('/')}</text>
-    </svg>
+    <div>
+      <svg ref={ref} viewBox={`0 0 ${W} ${h}`} style={{ width: '100%', height: h, touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none' }}
+        onPointerDown={e => pick(e.clientX)} onPointerMove={e => { if (e.pointerType === 'mouse' && e.buttons === 0) return; pick(e.clientX); }}
+        onPointerUp={e => { if (e.pointerType !== 'mouse') window.setTimeout(() => setSel(null), 2200); }} onPointerLeave={e => { if (e.pointerType === 'mouse') setSel(null); }}>
+        <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={color} stopOpacity="0.25" /><stop offset="1" stopColor={color} stopOpacity="0" /></linearGradient></defs>
+        {goal != null && <><line x1={pad} x2={W - pad} y1={Y(goal)} y2={Y(goal)} stroke={F.green} strokeDasharray="4 4" /><text x={forecast ? pad : W - pad} y={Y(goal) - 4} fontSize="10" textAnchor={forecast ? 'start' : 'end'} fill={F.green} fontWeight="700">objectif {goal}</text></>}
+        {goal == null && points.length >= 4 && <><line x1={pad} x2={W - pad} y1={Y(avg)} y2={Y(avg)} stroke={color} strokeOpacity="0.45" strokeDasharray="2 5" /><text x={W - pad} y={Y(avg) - 4} fontSize="9.5" textAnchor="end" fill={F.muted} fontWeight="600">moy. {fmtV(avg)}</text></>}
+        <path d={`${d} L${X(last)},${h - 22} L${X(0)},${h - 22} Z`} fill={`url(#${gid})`} />
+        <motion.path d={d} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1 }} />
+        {forecast && <>
+          <line x1={X(last)} y1={Y(points[last]!.y)} x2={W - pad} y2={Y(forecast.y)} stroke={color} strokeWidth="2.2" strokeDasharray="3 5" strokeLinecap="round" />
+          <circle cx={W - pad} cy={Y(forecast.y)} r="5" fill="#fff" stroke={F.green} strokeWidth="2.4" />
+          <text x={W - pad} y={h - 6} fontSize="10" fill={F.green} fontWeight="700" textAnchor="end">{fmtD(forecast.x)} 🎯</text>
+        </>}
+        {points.length <= 45 && points.map((p, i) => <circle key={i} cx={X(i)} cy={Y(p.y)} r={i === last ? 5 : points.length > 20 ? 2 : 3} fill={i === last ? color : '#fff'} stroke={color} strokeWidth={points.length > 20 ? 1.4 : 2} />)}
+        <text x={X(0)} y={h - 6} fontSize="10" fill={F.muted}>{fmtD(points[0]!.x)}</text>
+        <text x={X(last)} y={h - 6} fontSize="10" fill={F.muted} textAnchor={forecast ? 'middle' : 'end'}>{fmtD(points[last]!.x)}</text>
+        {s && <g pointerEvents="none">
+          <line x1={X(sel!)} x2={X(sel!)} y1={10} y2={h - 22} stroke={F.ink} strokeOpacity="0.25" />
+          <circle cx={X(sel!)} cy={Y(s.y)} r="6.5" fill={color} stroke="#fff" strokeWidth="2.5" />
+          <rect x={tipX - 44} y={Y(s.y) > 52 ? Y(s.y) - 44 : Y(s.y) + 12} width="88" height="32" rx="9" fill={F.dark} />
+          <text x={tipX} y={(Y(s.y) > 52 ? Y(s.y) - 44 : Y(s.y) + 12) + 14} fontSize="12" fontWeight="800" fill="#fff" textAnchor="middle">{fmtV(s.y)} {unit}</text>
+          <text x={tipX} y={(Y(s.y) > 52 ? Y(s.y) - 44 : Y(s.y) + 12) + 26} fontSize="9.5" fill="rgba(255,255,255,0.72)" textAnchor="middle">{fmtD(s.x)}</text>
+        </g>}
+      </svg>
+      {stats && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6, margin: '6px 0 10px' }}>
+        {([['Dernier', vals[last]!, color], ['Moyenne', avg, F.ink], ['Mini', lo, F.ink], ['Maxi', hi, F.ink]] as const).map(([l, v, c]) =>
+          <div key={l} style={{ background: F.bg, borderRadius: 10, padding: '6px 4px', textAlign: 'center' }}><div style={{ fontSize: 14.5, fontWeight: 800, color: c, letterSpacing: '-0.01em' }}>{fmtV(v)}</div><div style={{ fontSize: 10.5, color: F.muted, fontWeight: 600 }}>{l}</div></div>)}
+      </div>}
+    </div>
   );
 }

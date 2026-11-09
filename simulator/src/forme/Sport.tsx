@@ -554,7 +554,7 @@ function ResumeBanner({ toast, onDone }: { toast: (t: string) => void; onDone?: 
 const exNames = (exs: PEx[]) => Object.fromEntries(exs.map(e => [e.id, e.name]));
 
 interface SessionReviewV { date: string; label: string; emoji: string; totals: { sets: number; volume: number; durationMin: number | null; rpe: number | null };
-  prev: { date: string; sets: number; volume: number } | null; scores: { global: number; progression: number; volume: number; intensite: number; regularite: number; densite: number | null };
+  prev: { date: string; sets: number; volume: number; comparable?: boolean } | null; scores: { global: number; progression: number; volume: number; intensite: number; regularite: number; densite: number | null };
   exercises: Array<{ id: string; name: string; sets: number; volume: number; topKg: number | null; topReps: number | null; prev: { volume: number; topKg: number | null } | null; pr: boolean }>;
   avis: string; good: string[]; improve: string[]; chartUrl: string | null;
   context?: { sleep: number | null; protYday: number | null; protGoal: number | null } | null; links?: string[];
@@ -594,7 +594,7 @@ function ReviewCard({ dates, bump }: { dates: string[]; bump: number }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 56, height: 56, borderRadius: 28, border: `4px solid ${col(r.scores.global)}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18 }}>{r.scores.global}<span style={{ fontSize: 11, color: F.muted }}>/10</span></div>
           <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700 }}>{r.emoji} {r.label} · {r.date.slice(8)}/{r.date.slice(5, 7)}</div>
-            <div style={{ fontSize: 12.5, color: F.muted }}>{r.totals.sets} séries · {r.totals.volume.toLocaleString('fr-FR')} kg{r.totals.durationMin ? ` · ${r.totals.durationMin} min` : ''}{r.prev ? ` · avant : ${r.prev.volume.toLocaleString('fr-FR')} kg` : ''}</div></div>
+            <div style={{ fontSize: 12.5, color: F.muted }}>{r.totals.sets} séries · {r.totals.volume.toLocaleString('fr-FR')} kg{r.totals.durationMin ? ` · ${r.totals.durationMin} min` : ''}{r.prev && r.prev.comparable !== false ? ` · avant : ${r.prev.volume.toLocaleString('fr-FR')} kg` : ''}</div></div>
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 12 }}>{[note('Progression', r.scores.progression), note('Volume', r.scores.volume), note('Intensité', r.scores.intensite), note('Régularité', r.scores.regularite), note('Densité', r.scores.densite)]}</div>
         <div style={{ fontSize: 14, marginTop: 12, lineHeight: 1.45 }}>💬 {r.avis}</div>
@@ -694,7 +694,7 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
       <ResumeBanner toast={toast} onDone={() => { void load(); setBump(b => b + 1); }} />
       <TodayForm />
       {doneToday && !pick && <div style={{ ...card, marginTop: 14, display: 'flex', alignItems: 'center', gap: 12 }}><div style={{ width: 40, height: 40, borderRadius: 20, background: F.green, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 800 }}>✓</div><div><div style={{ fontWeight: 700 }}>Séance du jour faite{d.today?.label ? ` : ${d.today.label}` : ''}</div><div style={{ fontSize: 13, color: F.muted }}>Bravo. Récupère bien — voici la prochaine.</div></div></div>}
-      {s ? <SessionCard s={s} kicker={isToday ? (doneToday ? 'Aujourd\'hui · faite ✓' : "Aujourd'hui") : `${pick ? '' : 'Prochaine · '}${SHORT_DAYS[dayOf(s.date)]} ${s.date.slice(8)} · ${new Date(s.start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })}`} onStart={() => setPlay(s)} onEx={setEx} start={isToday ? 'Démarrer l\'entraînement' : 'Voir / faire cette séance'} />
+      {s ? <SessionCard s={s} kicker={isToday ? (doneToday ? 'Aujourd\'hui · faite ✓' : "Aujourd'hui") : `${pick ? '' : 'Prochaine · '}${SHORT_DAYS[dayOf(s.date)]} ${s.date.slice(8)} · ${new Date(s.start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' })}`} onStart={() => setPlay(s)} onEx={setEx} start={isToday ? 'Démarrer l\'entraînement' : 'Voir / faire cette séance'} />
         : <div style={{ ...card, marginTop: 14 }}>Pas de séance prévue cette semaine. Dis à Dzaryx « cale mes séances » 💬</div>}
       {s && s.date <= (today ?? '') && <DoneToggle date={s.date} label={s.label} done={statusOf(s.date) === 'done'} live={statusOf(s.date) === 'en_cours'} toast={toast} onD={x => { setD(x); setPick(s.date); }} />}
       {s && s.date >= (today ?? '') && statusOf(s.date) !== 'done' && <SwapRow d={d} date={s.date} current={s.type} toast={toast} onD={x => { setD(x); setPick(s.date); }} />}

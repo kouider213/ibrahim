@@ -49,7 +49,7 @@ export async function goalStatus(): Promise<GoalStatus> {
   }
   if (pc) {
     if (pc.status === 'retard') behind = true;
-    if (pc.next) lines.push(`🏁 Prochaine étape : « ${pc.next.title} » le ${dm(pc.next.date)}${pc.next.projected != null ? ` — prévu ${String(pc.next.projected).replace('.', ',')} kg pour ${pc.next.target} visés${pc.next.late ? ' ⚠️ en retard' : ' ✅'}` : ''}.`);
+    if (pc.next) lines.push(`🏁 Prochaine étape : « ${pc.next.title} » le ${dm(pc.next.date)}${pc.next.projected != null ? (pc.next.projected <= (pc.next.target ?? 0) && !pc.next.late ? ' — à ce rythme tu y es avant la date ✅' : ` — prévu ${String(pc.next.projected).replace('.', ',')} kg pour ${pc.next.target} visés${pc.next.late ? ' ⚠️ en retard' : ' ✅'}`) : ''}.`);
     lines.push(`🏋️ Séances : ${pc.sessions14}/${pc.planned14} sur 14 jours.`);
     if (pc.sessions14 < pc.planned14 * 0.75) ifBehind.push(`Le n°1 qui te freine : les séances manquées (${pc.sessions14}/${pc.planned14}). Même occupé, 3 séances courtes de 35-40 min valent mieux que 2 longues — je peux raccourcir ton programme.`);
   }

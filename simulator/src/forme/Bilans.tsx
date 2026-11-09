@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { get, postJson } from './api.ts';
-import { F, card, ghostBtn, btn, input, Sheet, Spinner, Stat } from './ui.tsx';
+import { F, card, ghostBtn, btn, input, Sheet, Spinner, Stat, LineChart } from './ui.tsx';
+import { Radar, DayBars, ScoreStrip } from './Charts.tsx';
 
 // 📊 BILANS (06/11, Kouider) : bilan du jour / de la semaine / du mois (notes, points forts/faibles, quoi améliorer, charges à augmenter)
 // + un jour du calendrier en détail (montre, séance, repas, eau, records). Tout vient de /api/forme/report et /api/forme/day.
 type Scores = Partial<Record<'sommeil' | 'activite' | 'entrainement' | 'recuperation' | 'nutrition' | 'hydratation', number>> & { global: number };
-interface ReportData { title: string; text: string; scores: Scores; prevScores?: Scores; strengths: string[]; weaknesses: string[]; actions: string[]; progression: string[] }
+interface SeriesDay { date: string; score?: number; steps?: number; stepsGoal?: number; sleep_h?: number; rhr?: number; hrv?: number; activeKcal?: number; volume?: number; session?: string; weight?: number; water?: number; waterGoal?: number; eaten?: number; burned?: number; protein?: number; proteinGoal?: number }
+interface ReportData { title: string; text: string; scores: Scores; prevScores?: Scores; strengths: string[]; weaknesses: string[]; actions: string[]; progression: string[]; days?: SeriesDay[]; totals?: { muscleSets?: Record<string, number> } }
 interface GoalData { lines: string[]; ifBehind: string[]; behind: boolean }
 interface DayData {
   day: { date: string; label: string; steps?: number; stepsGoal: number; sleep_h?: number; rhr?: number; hrv?: number; activeKcal?: number; water: number; waterGoal: number; weight?: number;
@@ -43,6 +45,44 @@ const List = ({ t, items, color }: { t: string; items: string[]; color: string }
     {items.map((x, i) => <div key={i} style={{ fontSize: 13.5, lineHeight: 1.45, padding: '2px 0' }}>• {x}</div>)}
   </div>
 );
+
+const MUSCLE: Record<string, string> = { pecs: 'Pecs', dos: 'Dos', epaules: 'Épaules', bras: 'Bras', jambes: 'Jambes', abdos: 'Abdos' };
+/** 📊 09/11 — les graphiques du bilan, dans l'app (avant : seulement dans le PDF). Doigt posé sur une barre ou une courbe = la valeur du jour. */
+function ReportCharts({ r, kind }: { r: ReportData; kind: 'day' | 'week' | 'month' }) {
+  const ds = r.days ?? [];
+  const axes = Object.entries(LABEL).flatMap(([k, l]) => { const v = r.scores[k as keyof Scores]; const p = r.prevScores?.[k as keyof Scores]; return typeof v === 'number' ? [{ label: l, v, prev: typeof p === 'number' ? p : undefined }] : []; });
+  const pts = (get: (d: SeriesDay) => number | undefined) => ds.flatMap(d => { const y = get(d); return typeof y === 'number' && y > 0 ? [{ x: d.date, y }] : []; });
+  const hrv = pts(d => d.hrv), rhr = pts(d => d.rhr), wt = pts(d => d.weight);
+  const ms = Object.entries(r.totals?.muscleSets ?? {}).filter(([m]) => MUSCLE[m]);
+  const msMax = Math.max(20, ...ms.map(([, n]) => n));
+  const target = kind === 'month' ? 40 : 10;
+  return (
+    <div>
+      {axes.length >= 4 && <div style={{ ...card, marginTop: 10 }}><div style={{ fontWeight: 700, fontSize: 14.5, marginBottom: 2 }}>Ton profil {kind === 'day' ? 'du jour' : kind === 'week' ? 'de la semaine' : 'du mois'}</div><Radar axes={axes} /></div>}
+      {kind === 'day' && ds.length > 1 && <div style={{ fontSize: 12.5, color: F.muted, margin: '14px 4px 0', fontWeight: 600 }}>Tes 7 derniers jours — pose le doigt sur un jour pour voir son chiffre.</div>}
+      <ScoreStrip days={ds} />
+      <DayBars title="👣 Pas" points={ds.map(d => ({ date: d.date, v: d.steps }))} unit="pas" goal={ds[0]?.stepsGoal} />
+      <DayBars title="😴 Sommeil" points={ds.map(d => ({ date: d.date, v: d.sleep_h }))} unit="h" goal={7} digits={1} color={F.violet} />
+      <DayBars title="🏋️ Volume soulevé" points={ds.map(d => ({ date: d.date, v: d.volume, note: d.session }))} unit="kg" color="#6a4c93" />
+      <DayBars title="🔥 Calories actives" points={ds.map(d => ({ date: d.date, v: d.activeKcal }))} unit="kcal" color="#f18f01" />
+      {ds.some(d => d.eaten) && <DayBars title="🍽️ Mangé / brûlé" points={ds.map(d => ({ date: d.date, v: d.eaten, v2: d.eaten ? d.burned : undefined }))} unit="kcal" color={F.gold} color2="#b9c8f5" legend={['mangé', 'brûlé']} />}
+      {ds.some(d => d.protein) && <DayBars title="🥩 Protéines" points={ds.map(d => ({ date: d.date, v: d.protein }))} unit="g" goal={ds.find(d => d.proteinGoal)?.proteinGoal} color="#c8553d" />}
+      <DayBars title="💧 Eau" points={ds.map(d => ({ date: d.date, v: d.water ? d.water * 0.25 : undefined }))} unit="L" goal={ds[0]?.waterGoal ? ds[0].waterGoal * 0.25 : undefined} digits={2} color="#1b998b" />
+      {hrv.length >= 2 && <div style={{ ...card, marginTop: 10 }}><div style={{ fontWeight: 700, fontSize: 14.5 }}>💚 VFC (ms) — plus haut = mieux récupéré</div><LineChart points={hrv} color={F.green} unit="ms" h={120} /></div>}
+      {rhr.length >= 2 && <div style={{ ...card, marginTop: 10 }}><div style={{ fontWeight: 700, fontSize: 14.5 }}>❤️ Cœur au repos (bpm) — plus bas = mieux</div><LineChart points={rhr} color={F.red} unit="bpm" h={120} /></div>}
+      {wt.length >= 2 && <div style={{ ...card, marginTop: 10 }}><div style={{ fontWeight: 700, fontSize: 14.5 }}>⚖️ Poids (kg)</div><LineChart points={wt} color={F.ink} unit="kg" h={120} digits={1} /></div>}
+      {kind !== 'day' && !!ms.length && <div style={{ ...card, marginTop: 10 }}>
+        <div style={{ fontWeight: 700, fontSize: 14.5, marginBottom: 6 }}>💪 Séries par muscle <span style={{ color: F.muted, fontWeight: 600, fontSize: 12 }}>· visé {target}{kind === 'week' ? ' à 20' : '+'}</span></div>
+        {ms.sort((a, b) => b[1] - a[1]).map(([m, n]) => (
+          <div key={m} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 34px', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{MUSCLE[m]}</div>
+            <div style={{ height: 12, background: F.bg, borderRadius: 6, overflow: 'hidden' }}><div style={{ width: `${Math.min(100, n / (kind === 'month' ? Math.max(msMax, 60) : msMax) * 100)}%`, height: '100%', borderRadius: 6, background: n >= target ? F.green : n >= target / 2 ? F.gold : F.red }} /></div>
+            <div style={{ fontSize: 13, fontWeight: 800, textAlign: 'right' }}>{n}</div>
+          </div>))}
+      </div>}
+    </div>
+  );
+}
 
 const PRIO = [['dos', 'Dos'], ['pecs', 'Pecs'], ['epaules', 'Épaules'], ['bras', 'Bras'], ['jambes', 'Jambes'], ['abdos', 'Abdos']] as const;
 /** 🎯 Objectif : temps restant + « Adapter mon programme » + priorité d'un muscle (change l'agenda et FORME). */
@@ -83,11 +123,12 @@ export function BilansCard({ toast }: { toast?: (t: string) => void }) {
       <Sheet open={!!kind} onClose={() => setKind(null)} title={r?.title ?? 'Bilan'}>
         {!r ? <div style={{ padding: 30, display: 'flex', justifyContent: 'center' }}><Spinner /></div> : <div style={{ paddingTop: 6 }}>
           <div style={{ ...card }}><ScoreBars s={r.scores} prev={r.prevScores} /></div>
+          {kind && <ReportCharts r={r} kind={kind} />}
           <List t="✅ Points forts" items={r.strengths} color={F.green} />
           <List t="⚠️ À améliorer" items={r.weaknesses} color={F.red} />
           <List t="🎯 Quoi faire" items={r.actions} color={F.accent} />
           <List t="📈 Charges à augmenter" items={r.progression} color={F.gold} />
-          <button onClick={send} disabled={sending} style={{ ...ghostBtn, width: '100%', marginTop: 16 }}>{sending ? 'Envoi…' : '📄 Recevoir le PDF avec graphiques sur Telegram'}</button>
+          <button onClick={send} disabled={sending} style={{ ...ghostBtn, width: '100%', marginTop: 16 }}>{sending ? 'Envoi…' : '📄 Recevoir aussi le PDF sur Telegram'}</button>
         </div>}
       </Sheet>
     </>

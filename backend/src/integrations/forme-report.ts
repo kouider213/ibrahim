@@ -233,6 +233,27 @@ function periodOf(kind: Kind, end: string): { from: string; to: string; title: s
 }
 const range = (a: string, b: string) => { const o: string[] = []; for (let d = a; d <= b && o.length < 40; d = addDays(d, 1)) o.push(d); return o; };
 
+/** 09/11 — séries jour par jour pour les graphiques de l'app (Kouider : « les bilans manquent de graphiques », ils n'étaient que dans le PDF).
+ *  Bilan du jour → les 7 derniers jours ; semaine / mois → la période. Chaque jour porte sa note globale. */
+export async function reportSeries(kind: Kind, end = localNow().date) {
+  const s = await sources();
+  restDays = s.profile.restDays?.length ? s.profile.restDays : [1, 4];
+  const sessTarget = s.profile.sessionsPerWeek || 4;
+  const p = periodOf(kind, end);
+  const from = kind === 'day' ? addDays(p.to, -6) : p.from;
+  const baseRows = s.health.filter(h => h.date < from && h.date >= addDays(from, -21));
+  const base = { hrv: avg(nums(baseRows.map(h => h.hrv))) || undefined, rhr: avg(nums(baseRows.map(h => h.rhr))) || undefined };
+  const today = localNow().date;
+  const ds = await Promise.all(range(from, p.to).map(d => dayStat(d, s)));
+  return ds.map(d => {
+    if (d.date > today) return { date: d.date, volume: 0, stepsGoal: d.stepsGoal, waterGoal: d.waterGoal };   // jours à venir : la place est gardée, vide
+    const sc = scores([d], base, sessTarget, 'day');
+    const any = d.steps || d.sleep_h || d.session || d.eaten || d.water;
+    return { date: d.date, score: any ? sc.global : undefined, steps: d.steps, stepsGoal: d.stepsGoal, sleep_h: d.sleep_h, rhr: d.rhr, hrv: d.hrv, activeKcal: d.activeKcal,
+      volume: d.session?.volume ?? 0, session: d.session?.label, weight: d.weight, water: d.water, waterGoal: d.waterGoal, eaten: d.eaten, burned: d.burned, protein: d.protein, proteinGoal: d.proteinGoal };
+  });
+}
+
 export async function buildReport(kind: Kind, end = localNow().date, withCoach = true): Promise<Report> {
   const s = await sources();
   restDays = s.profile.restDays?.length ? s.profile.restDays : [1, 4];

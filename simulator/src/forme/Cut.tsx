@@ -81,7 +81,7 @@ export default function CutScreen({ toast }: { toast: (t: string) => void }) {
             <div style={{ fontSize: 12, color: F.muted }}>{w.ratePct != null ? `${w.ratePct} %/sem · zone sûre 0,5-1 %` : '5 pesées sur 7 j pour la vitesse'}</div>
           </div>
         </div>
-        <div style={{ marginTop: 10 }}><LineChart points={w.points.map(p => ({ x: p.date, y: p.trend }))} goal={w.goalKg ?? undefined} color={F.violet} /></div>
+        <div style={{ marginTop: 10 }}><LineChart points={w.points.map(p => ({ x: p.date, y: p.trend }))} goal={w.goalKg ?? undefined} color={F.violet} digits={1} forecast={w.eta && w.goalKg ? { x: w.eta, y: w.goalKg } : null} /></div>
         {w.goalKg && <div style={{ marginTop: 6 }}><div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}><span>Objectif {w.goalKg} kg · encore {Math.max(0, Math.round(((w.last?.kg ?? w.current) - w.goalKg) * 10) / 10)} kg</span><b>{w.eta ? `vers le ${fmt(w.eta)}` : ''}</b></div><Bar value={Math.max(0, (w.points[0]?.trend ?? w.current) - w.current)} max={Math.max(0.1, (w.points[0]?.trend ?? w.current) - w.goalKg)} color={F.violet} track={F.bg2} /></div>}
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
           <input value={kg} onChange={e => setKg(e.target.value)} inputMode="decimal" placeholder={w.loggedToday ? 'Déjà pesé aujourd\'hui ✓' : 'Poids ce matin (kg)'} style={{ ...input, flex: 1 }} />

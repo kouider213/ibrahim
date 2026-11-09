@@ -88,17 +88,33 @@ function prompt(task) {
   ].join('\n');
 }
 
+// 09/11 — Kouider arrête l'abonnement Claude Code. Sans lui, `claude -p` répond « pas connecté / abonnement / limite » au lieu de coder.
+// Avant : chaque tâche partait en ❌ ÉCHEC avec un rapport incompréhensible, 4 fois par nuit. Maintenant : l'atelier se met EN PAUSE
+// (app_kv dev:atelier_off), prévient Kouider UNE fois, garde toutes les demandes dans la file, et re-teste une fois par jour :
+// le jour où un abonnement revient, il reprend tout seul là où il s'était arrêté.
+const OFF_RE = /not logged in|please run \/login|invalid api key|authentication[_ ]error|oauth token|subscription|usage limit|credit balance is too low|unauthorized|\b401\b|\b403\b/i;
+const claudeOff = out => !/STATUT:\s*(OK|ÉCHEC|ECHEC)/i.test(out) && OFF_RE.test(out.slice(-4000));
+function claudeEnv() { return Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^ANTHROPIC_(API_KEY|AUTH_TOKEN)$/.test(k))); }
+function claudeAlive() {
+  const r = spawnSync('claude', ['-p', 'Réponds seulement : OK', '--output-format', 'json'], { cwd: '/root', encoding: 'utf8', timeout: 90_000, env: claudeEnv() });
+  if (r.error) return false;
+  let text = ''; try { text = JSON.parse(r.stdout).result ?? ''; } catch { text = r.stdout ?? ''; }
+  return !claudeOff(`${text}\n${r.stderr ?? ''}`) && /\bOK\b/i.test(text);
+}
+
 function runClaude(task) {
   mkdirSync(LOGS, { recursive: true });
   const r = spawnSync('claude', ['-p', task.kind === 'undo' ? undoPrompt(task) : prompt(task), '--permission-mode', 'auto', '--output-format', 'json'], {
     cwd: '/root', encoding: 'utf8', timeout: TASK_TIMEOUT_MS, maxBuffer: 64 * 1024 * 1024,
     // 04/11 Kouider : le crédit API Claude (10 €) est réservé à Dzaryx → l'atelier passe par l'abonnement Claude Code, jamais par la clé API
-    env: Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^ANTHROPIC_(API_KEY|AUTH_TOKEN)$/.test(k))),
+    env: claudeEnv(),
   });
   writeFileSync(`${LOGS}/${task.id}-${Date.now()}.json`, `${r.stdout ?? ''}\n--- stderr ---\n${r.stderr ?? ''}`);
+  if (r.error?.code === 'ENOENT') return { ok: false, off: true, report: 'Claude Code n\'est plus installé sur le serveur.' };
   if (r.error) return { ok: false, report: `l'atelier s'est arrêté (${r.error.code === 'ETIMEDOUT' ? 'plus de 75 min' : r.error.message}).` };
   let text = '';
   try { text = JSON.parse(r.stdout).result ?? ''; } catch { text = r.stdout ?? ''; }
+  if (claudeOff(`${text}\n${r.stderr ?? ''}`)) return { ok: false, off: true, report: 'abonnement Claude Code terminé ou non connecté.' };
   const ok = /STATUT:\s*OK/i.test(text);
   const report = (text.split(/RAPPORT KOUIDER:\s*/i)[1] ?? text.slice(-600)).trim().slice(0, 1500);
   return { ok, report };
@@ -121,6 +137,17 @@ async function main() {
   if (pending.length && now.hour >= REPORT_HOUR && now.hour < 22 && !night) {
     telegram(`🛠️ Cette nuit je me suis amélioré tout seul (${pending.length} chantier${pending.length > 1 ? 's' : ''}) :\n\n${pending.join('\n\n')}\n\nDis « qu'est-ce que tu as codé ? » pour revoir la liste.`);
     await kvSet('dev:report_pending', []);
+  }
+
+  // Atelier en pause (plus d'abonnement Claude Code) : rien ne tourne, un seul re-test par jour.
+  const off = await kvGet('dev:atelier_off', null);
+  if (off) {
+    if (Date.now() - Date.parse(off.probed_at ?? off.since) < 24 * 3600_000) return;
+    if (!claudeAlive()) { await kvSet('dev:atelier_off', { ...off, probed_at: new Date().toISOString() }); log('atelier toujours en pause'); return; }
+    await kvSet('dev:atelier_off', null);
+    const waiting = (await kvGet('dev:queue', [])).filter(t => t.status === 'todo').length;
+    telegram(`🛠️ Mon atelier de code est de retour (abonnement Claude Code actif).${waiting ? ` Je reprends les ${waiting} demande${waiting > 1 ? 's' : ''} gardée${waiting > 1 ? 's' : ''} en attente, la nuit comme avant.` : ''}`);
+    log('atelier de retour');
   }
 
   let q = await kvGet('dev:queue', []);
@@ -158,7 +185,15 @@ async function main() {
   try { git('pull', '--rebase', '--autostash', 'origin', 'main'); } catch (e) { log('pull', e.message); }
 
   const before = git('rev-parse', 'HEAD');
-  let { ok, report } = runClaude(task);
+  let { ok, report, off: nowOff } = runClaude(task);
+  if (nowOff) {   // la demande n'est PAS perdue : elle retourne dans la file et attend le retour d'un abonnement
+    await updateTask(task.id, { status: 'todo', started_at: undefined, now: false });
+    await kvSet('dev:atelier_off', { since: new Date().toISOString(), probed_at: new Date().toISOString(), reason: report });
+    const waiting = (await kvGet('dev:queue', [])).filter(t => t.status === 'todo').length;
+    telegram(`🛠️ Mon atelier de code est en pause : ${report}\nJe continue à tout faire comme d'habitude (messages, appels, coach, FIK) — je ne peux juste plus me modifier moi-même.\n${waiting} demande${waiting > 1 ? 's' : ''} gardée${waiting > 1 ? 's' : ''} dans ma liste (« qu'est-ce que tu dois coder ? »). Le jour où tu reprends un abonnement Claude Code, je m'y remets tout seul.`);
+    log('atelier mis en pause :', report);
+    return;
+  }
   if (dirty()) {   // travail laissé à moitié : rangé, jamais perdu, et l'arbre redevient libre
     try { git('stash', 'push', '-m', `atelier-${task.id}`); } catch (e) { log('stash', e.message); }
   }
