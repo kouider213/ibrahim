@@ -138,7 +138,26 @@ export async function cutStatus(uid: Uid = 'kouider') {
   // Bilan de la semaine : UNE décision (règles RP Diet / MacroFactor), qu'il applique d'un bouton
   let decision: { text: string; deficit: number | null; level: 'ok' | 'up' | 'down' | 'wait' | 'break' } = { text: '', deficit: null, level: 'wait' };
   const logged7 = week.filter(x => x.logged).length;
-  if (rateWeek == null) decision = { level: 'wait', deficit: null, text: `Pèse-toi chaque matin (à jeun, après les toilettes) : il me faut 5 pesées sur au moins 7 jours pour calculer ta vraie vitesse de sèche (tu en as ${weights.length}).` };
+  // 🛑 09/11 Kouider : « 75 kg c'est le minimum et en même temps le maximum : je veux juste me muscler, rentrer le ventre, abdos, gros bras
+  // et pecs ». Son poids visé est donc un PLANCHER : à l'approche on freine, arrivé on arrête le déficit (maintien) — et ça passe avant
+  // toutes les autres règles. À 75 le déficit est coupé d'office (pas besoin d'appuyer) : une sèche oubliée ne le fait pas maigrir plus.
+  const floor = uid === 'kouider' && p.targetKg ? p.targetKg : null;
+  const lowest = Math.min(real, cur);
+  const atFloor = floor != null && lowest <= floor + 0.3;
+  const nearFloor = floor != null && !atFloor && real <= floor + 1.5;
+  if (atFloor && cfg.deficit > 0) {
+    await f.setFoodCfg({ deficit: 0 }, uid).catch(() => {});
+    cfg.deficit = 0;
+    if (!(await kvGet(`${uid}:forme:cut:floor_told`).catch(() => null))) {
+      await kvSet(`${uid}:forme:cut:floor_told`, today).catch(() => {});
+      await import('./ai-util.js').then(m => m.tg(`🎯 ${floor} kg atteint (pesée ${real} kg) : c'est ton plancher, on ne descend plus.\nJ'ai arrêté le déficit tout seul : tu manges maintenant à ta dépense (maintien), protéines hautes.\nLa suite, c'est de la construction : abdos, bras, pecs — charges qui montent, ventre qui rentre, même poids sur la balance.`)).catch(() => {});
+    }
+  }
+  if (atFloor) decision = { level: 'break', deficit: null, text: real < floor! - 0.5
+    ? `Tu es à ${real} kg, SOUS ton plancher de ${floor} kg : mange 200 kcal de plus par jour (féculents autour de la séance) jusqu'à revenir à ${floor}. Pas de déficit. On construit : abdos, bras, pecs.`
+    : `${floor} kg atteint : c'est ton plancher, on ne descend plus. Déficit arrêté — tu manges à ta dépense, ${t.pGoal} g de protéines, et on construit : abdos, bras, pecs. Le chiffre à suivre maintenant, c'est ton tour de taille et tes charges, plus la balance.` };
+  else if (nearFloor && cfg.deficit > 250) decision = { level: 'up', deficit: 250, text: `Plus que ${r1(real - floor!)} kg avant ton plancher de ${floor} kg : on freine pour arriver en douceur sans perdre de muscle. Déficit ramené à 250 kcal/jour.` };
+  else if (rateWeek == null) decision = { level: 'wait', deficit: null, text: `Pèse-toi chaque matin (à jeun, après les toilettes) : il me faut 5 pesées sur au moins 7 jours pour calculer ta vraie vitesse de sèche (tu en as ${weights.length}).` };
   else if (logged7 < 4) decision = { level: 'wait', deficit: null, text: `Seulement ${logged7} jour(s) noté(s) sur 7 : note tous tes repas (photo) cette semaine, sinon on ne peut pas savoir si c'est le déficit ou les oublis.` };
   else if (weeksIn >= 12 || (dropping.length >= 2 && (ratePct ?? 0) > 0.7)) decision = { level: 'break', deficit: 0, text: weeksIn >= 12 ? `${weeksIn} semaines de sèche : fais 1 semaine de PAUSE DIÈTE au maintien (même sport, même protéines). Ton corps récupère, ta faim se calme, et la perte repart mieux après.` : `Ta force baisse sur ${dropping.length} exercices et tu perds vite : 1 semaine au maintien pour protéger ton muscle.` };
   else if (ratePct != null && ratePct > 1.1) decision = { level: 'up', deficit: Math.max(250, cfg.deficit - 150), text: `Tu perds ${rateWeek} kg/semaine (${ratePct} %) : trop vite, tu risques de perdre du muscle. On mange 150 kcal de plus par jour.` };
@@ -194,7 +213,11 @@ export async function formeSnapshot(): Promise<string> {
     lastPh ? `dernière photo du corps (${lastPh.date}) : ${lastPh.analysis!.summary.slice(0, 160)}` : '',
   ].filter(Boolean);
   const text = `ÉTAT PHYSIQUE (app FORME + montre, à jour) : ${bits.join(' · ')}. UTILISE-LE partout (coach de vie, moral, business, planning) : nuit courte / récupération basse = journée plus douce et pas de grosses décisions le soir ; séance pas faite = propose le meilleur moment ; protéines ou déficit manquants = rappel au bon moment, sans sermon. Jamais de nourriture/repas dans l'agenda.`;
-  snapCache = { at: Date.now(), text };
+  // Plancher de poids (09/11) : dit à TOUS les cerveaux, pour qu'aucun conseil ne le pousse sous son poids visé.
+  const fl = c?.weight.goalKg ?? (await getFormeProfile('kouider').catch(() => null))?.targetKg;
+  const rule = fl ? ` RÈGLE DE POIDS (décidée par Kouider) : ${fl} kg est son MINIMUM et sa cible — ne lui conseille JAMAIS de descendre dessous ni de « perdre encore ». Son but est la forme du corps : ventre plat, abdos visibles, gros bras, pecs. Arrivé à ${fl} kg : maintien des calories, protéines hautes, charges qui montent.` : '';
+  snapCache = { at: Date.now(), text: text + rule };
+  return snapCache.text;
   return text;
 }
 

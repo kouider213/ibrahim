@@ -1,3 +1,8 @@
+## 2026-11-09 nuit (4) — Plancher de poids : 75 kg = minimum ET cible
+- `forme-cut.ts` : le poids visé de Kouider est un plancher. À moins de 1,5 kg : décision « déficit 250 ». À 75 kg (pesée ou tendance) : déficit coupé d'office (maintien), message unique sur Telegram, décision « on construit : abdos, bras, pecs ». Sous 74,5 : +200 kcal.
+- `formeSnapshot` : règle de poids ajoutée à l'état physique lu par tous les cerveaux (jamais conseiller de descendre sous 75).
+- `forme-report.ts` : bilan d'une période en cours sans comparaison injuste (déjà poussé en 54c33d46).
+
 ## 2026-11-09 nuit (3) — Dzaryx autonome sans Claude Code + bilans comparés (app v258)
 - `self-test.ts` : `remedy()` — chaque problème de l'auto-test est suivi de ce que Kouider peut faire lui-même (phrase à dire à Dzaryx, site à ouvrir, redémarrage du VPS). Plus aucun message « demande à Claude Code » (`connections-watch.ts`, `tgcall-watch.ts`, `cloudpc-relay.ts`).
 - Bilans semaine / mois : carte « face à la période d'avant » (`Versus` dans `Bilans.tsx`, `prev` renvoyé par `/api/forme/report`) ; la semaine est toujours tracée du lundi au dimanche.
