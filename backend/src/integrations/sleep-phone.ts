@@ -70,6 +70,21 @@ export async function phoneSleepMark(kindIn: string): Promise<{ ok: true; say: s
   const bed = await kvJson<{ at: string } | null>(BED_K, null);
   const raw = bed ? (Date.now() - Date.parse(bed.at)) / 3_600_000 : 0;
   if (!bed || raw < 2 || raw > 14) {
+    // 09/11 : sans « bonne nuit » la veille, la nuit restait VIDE (5 jours sur 9 début novembre : bilans et récup faussés) et il devait
+    // répondre à une question au réveil. Maintenant : coucher estimé = son heure habituelle (min_bed, 23:00), ou son dernier message
+    // de la soirée s'il était encore debout après. Noté « estimé » ; « couché à 23h30 » le corrige comme avant.
+    const est = await estimateBed(date).catch(() => null);
+    const days0 = await kvJson<Array<{ date: string; sleep_h?: number; sleep_src?: string }>>('health:daily', []);
+    const t0 = days0.find(x => x.date === date);
+    if (t0?.sleep_h && t0.sleep_src !== 'telephone') return { ok: true, say: `Bonjour ☀️ La montre a déjà compté ta nuit : ${fmtH(t0.sleep_h)}.` };
+    const h = est ? (Date.now() - Date.parse(est.iso)) / 3_600_000 - FALL_ASLEEP_MIN / 60 : 0;
+    if (est && h >= 2 && h <= 12) {
+      const sleep_h = Math.round(h * 10) / 10;
+      await import('./jarvis-hub.js').then(m => m.receiveHealth({ date, sleep_h, sleep_src: 'telephone' }));
+      const msg = `☀️ Réveil noté à ${hm(nowIso)}. Pas de « bonne nuit » hier : je compte couché à ${hm(est.iso)} (${est.why}) → environ ${fmtH(h)} de sommeil. Si c'est faux, dis « couché à 23h30 ».`;
+      await tg(msg).catch(() => {});
+      return { ok: true, say: msg };
+    }
     const msg = `☀️ Réveil noté à ${hm(nowIso)}, mais je n'ai pas ton heure de coucher. Dis-moi « j'ai dormi 7 h » ou « couché à 23h30 » et je calcule.`;
     await tg(msg).catch(() => {});
     return { ok: true, say: msg };
@@ -85,6 +100,25 @@ export async function phoneSleepMark(kindIn: string): Promise<{ ok: true; say: s
 
   await import('./jarvis-hub.js').then(m => m.receiveHealth({ date, sleep_h, sleep_src: 'telephone' }));
   return { ok: true, say: `Bonjour ☀️ Couché à ${hm(bed.at)}, levé à ${hm(nowIso)} → environ ${fmtH(sleep)} de sommeil (estimé sans montre).` };
+}
+
+/** Coucher estimé quand il n'a rien dit : heure habituelle (min_bed), repoussée à son dernier message de la soirée s'il écrivait encore après. */
+async function estimateBed(date: string): Promise<{ iso: string; why: string }> {
+  const mb = await minBed();
+  const eve = new Date(Date.parse(`${date}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  // min_bed après minuit (ex. 00:30) = le jour même ; sinon la veille au soir
+  let ts = localTs(mb < '12:00' ? date : eve, mb), why = 'ton heure habituelle';
+  try {
+    const { supabase } = await import('./supabase.js');
+    const { data } = await supabase.from('conversations').select('created_at,content').eq('role', 'user')
+      .gte('created_at', new Date(localTs(eve, '19:00')).toISOString()).lte('created_at', new Date(localTs(date, '03:00')).toISOString())
+      .order('created_at', { ascending: false }).limit(8);
+    // seuls SES vrais messages comptent (pas les tours fabriqués par le système : appels, contexte, rappels)
+    const lim = localTs(date, '03:00');
+    const last = (data ?? []).find(r => Date.parse(r.created_at) <= lim && !/^\s*\[|^\(Appel|APPEL TÉLÉPHONIQUE/i.test(String(r.content ?? '')));
+    if (last && Date.parse(last.created_at) > ts) { ts = Date.parse(last.created_at); why = 'ton dernier message de la soirée'; }
+  } catch { /* base indisponible : heure habituelle */ }
+  return { iso: new Date(ts).toISOString(), why };
 }
 
 /**
