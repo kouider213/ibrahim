@@ -6,6 +6,12 @@
 
 ---
 
+## ⚡ Session 2026-11-10 (nuit) — Appels qui apprennent des refus + réponses plus rapides (a7efd7c2 → 95ad836a)
+- tgcall relancé (pm2 dzaryx-tg) : apprentissage des refus d'appel + plus de raccroché en pleine phrase sur appel muet.
+- Préparation avant le cerveau : dossier de Kouider 8,6 s → 0,4 s (lectures en parallèle : kouider-dossier, formeText, cutStatus, goalsText/pace), sorties vérifiées identiques.
+- Quotas Gemini épuisés gardés dans app_kv `brain:quota_until` (survivent aux redéploiements).
+- À suivre : délai médian réel des réponses (était 17 s, 90 % à 62 s) à remesurer sur quelques jours via conversations Supabase.
+
 ## ⚡ Session 2026-11-09 (nuit) — Dernière séance Claude Code : FORME en graphiques + Dzaryx autonome (4dd4079b → app v258)
 - FORME : bilans avec graphiques dans l'app (`Charts.tsx`), courbes tactiles + prévision, un seul rythme de poids (`weightPace`), bonnes photos d'exercices (`sameMove`, table `KNOWN`), sommeil estimé sans « bonne nuit », bilan juste en cours de semaine.
 - Plus d'abonnement Claude Code à partir du 10/11 : l'atelier de nuit se met en pause seul (`dev:atelier_off`) et reprend seul ; l'auto-test dit à Kouider quoi faire lui-même (`remedy()`).
