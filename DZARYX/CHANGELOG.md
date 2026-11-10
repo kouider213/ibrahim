@@ -1,3 +1,10 @@
+## 2026-11-10 — Réponses plus rapides : le contexte de Kouider se charge en parallèle
+- Mesure (conversations 01-09/11) : délai médian d'une réponse 17 s, 90 % à 62 s.
+- `kouider-dossier.ts` : les 11 modules (forme, finances, coach…) se lisaient l'un après l'autre → `Promise.all`.
+- `forme.ts` (`formeText`) : nourriture/objectifs/course/profil femme en parallèle.
+- `forme-cut.ts` (`cutStatus`) : les 14 jours de calories lus en parallèle (c'était 2 s à lui seul).
+- Résultat banc : dossier 8,6 s → 0,8 s (à chaud), 2,2 s à froid.
+
 ## 2026-11-09 nuit (7) — Appels Telegram : Dzaryx apprend de tes refus, ne raccroche plus en pleine phrase
 - Constat (journaux tgcall 07-09/11) : 14 appels sortants, 10 refusés ou non décrochés, 2 muets.
 - `auto-call.ts` : apprentissage des refus par type d'appel (`callCategory`, app_kv `autocall:stats`). 3 refus de suite → ce type est ÉCRIT sur Telegram au lieu de sonner (prévenu une fois) ; un appel décroché remet à zéro ; retente 1 appel après 21 jours. Jamais coupés : vital, urgent, paiements, retards, impayés, client en difficulté, vols, papiers, rappels demandés. Signaux : `/api/call/missed` (refus) et `/api/call/health-event ok` (décroché).

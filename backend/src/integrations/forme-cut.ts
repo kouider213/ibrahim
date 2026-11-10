@@ -66,11 +66,10 @@ export async function cutStatus(uid: Uid = 'kouider') {
   const f = await import('./forme-food.js');
   const cfg = await f.foodCfg(uid);
   const hist: Array<{ date: string; eaten: number; p: number; burn: number; target: number; pGoal: number; complete: boolean }> = [];
-  for (let i = 13; i >= 0; i--) {
-    const d = addDays(today, -i);
-    const b = await f.foodBudget(uid, d);
-    hist.push({ date: d, eaten: b.eaten.kcal, p: b.eaten.p, burn: b.burn, target: b.target, pGoal: b.proteinGoal, complete: b.meals.length >= 2 });
-  }
+  // 10/11 : les 14 jours se lisaient l'un après l'autre (≈2 s avant chaque réponse du cerveau) → en parallèle, même ordre.
+  const dates = Array.from({ length: 14 }, (_, k) => addDays(today, k - 13));
+  const budgets = await Promise.all(dates.map(d => f.foodBudget(uid, d)));
+  dates.forEach((d, k) => { const b = budgets[k]!; hist.push({ date: d, eaten: b.eaten.kcal, p: b.eaten.p, burn: b.burn, target: b.target, pGoal: b.proteinGoal, complete: b.meals.length >= 2 }); });
   const full = hist.filter(h => h.complete && h.date < today);
   const avgEaten = full.length ? Math.round(full.reduce((a, h) => a + h.eaten, 0) / full.length) : null;
   const avgBurnWatch = full.length ? Math.round(full.reduce((a, h) => a + h.burn, 0) / full.length) : null;

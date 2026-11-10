@@ -783,12 +783,18 @@ export async function formeText(uid: Uid = 'kouider'): Promise<string> {
     `Photos de suivi : ${photos.length}${photos.length ? `, dernière le ${photos[photos.length - 1]!.date}` : ''} (rappel tous les ${p.photoEveryDays} j).`,
   ];
   let out = lines.filter(Boolean).join('\n');
-  if (uid === 'kouider') out += `\n${await import('./forme-food.js').then(m => m.foodText()).catch(() => '')}`;
-  if (uid === 'kouider') { const gt = await import('./forme-goals.js').then(m => m.goalsText('kouider')).catch(() => ''); if (gt) out += `\n${gt}`; }
-  if (uid === 'kouider') { const rt = await import('./forme-runs.js').then(m => m.runText('kouider')).catch(() => ''); if (rt) out += `\n${rt}`; }
   if (uid === 'kouider') {
-    const fp = await getFormeProfile('femme');
-    if (fp.onboarded && fp.shareWithDzaryx) out += `\n${await formeText('femme')}`;
+    // 10/11 : ces 4 lectures se faisaient l'une après l'autre (≈2,2 s avant chaque réponse) → en parallèle.
+    const [ft, gt, rt, fp] = await Promise.all([
+      import('./forme-food.js').then(m => m.foodText()).catch(() => ''),
+      import('./forme-goals.js').then(m => m.goalsText('kouider')).catch(() => ''),
+      import('./forme-runs.js').then(m => m.runText('kouider')).catch(() => ''),
+      getFormeProfile('femme').catch(() => null),
+    ]);
+    out += `\n${ft}`;
+    if (gt) out += `\n${gt}`;
+    if (rt) out += `\n${rt}`;
+    if (fp?.onboarded && fp.shareWithDzaryx) out += `\n${await formeText('femme')}`;
   }
   return out;
 }

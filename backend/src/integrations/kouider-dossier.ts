@@ -147,23 +147,29 @@ export async function kouiderDossierText(): Promise<string> {
     kvGet(DOSSIER_KEY).catch(() => null), readNotes(), getDaysOff(), getDaysOff().then(d => d.includes(brusselsWeekday())),
     import('./life-coach.js').then(m => m.lifeCoachText()).catch(() => ''),   // import dynamique : life-coach → morning-routine → ce fichier
   ]);
-  const offFrom = off ? await dayOffFrom().catch(() => null) : null;
-  const forme = await import('./forme.js').then(m => m.formeText()).catch(() => '');
-  const physique = await import('./forme-cut.js').then(m => m.formeSnapshot()).catch(() => '');   // 01/11 : FORME sert à tous les cerveaux
-  const conns = await import('./connections-watch.js').then(m => m.connectionsText()).catch(() => '');
-  const mood = await import('./brain-plus.js').then(m => m.moodText()).catch(() => '');
-  const liberte = await import('./liberte.js').then(m => m.liberteText()).catch(() => '');   // programme d'arrêt (privé)
-  const vital = await import('./vitalite.js').then(m => m.vitaliteText()).catch(() => '');   // 02/11 désir/testo/couple (privé)
-  const vie = await import('./life-plus.js').then(m => m.lifeText()).catch(() => '');
-  const esprit = await import('./mon-esprit.js').then(m => m.espritText()).catch(() => '');   // 04/11 journal des jours + famille d'abord
-  const gcoach = await import('./grand-coach.js').then(m => m.grandCoachText()).catch(() => '');
-  const fin = await import('./perso-finances.js').then(m => m.financesText()).catch(() => '');
+  // 09/11 : ces onze lectures se faisaient l'une APRÈS l'autre → 3 à 8 s d'attente avant chaque réponse du cerveau (délai médian d'un
+  // message : 17 s). Elles sont indépendantes : toutes en même temps, le dossier est prêt dans le temps de la plus lente.
+  const txt = (p: Promise<string>) => p.catch(() => '');
+  const [offFrom, forme, physique, conns, mood, liberte, vital, vie, esprit, gcoach, fin, hard] = await Promise.all([
+    off ? dayOffFrom().catch(() => null) : Promise.resolve(null),
+    txt(import('./forme.js').then(m => m.formeText())),
+    txt(import('./forme-cut.js').then(m => m.formeSnapshot())),   // 01/11 : FORME sert à tous les cerveaux
+    txt(import('./connections-watch.js').then(m => m.connectionsText())),
+    txt(import('./brain-plus.js').then(m => m.moodText())),
+    txt(import('./liberte.js').then(m => m.liberteText())),   // programme d'arrêt (privé)
+    txt(import('./vitalite.js').then(m => m.vitaliteText())),   // 02/11 désir/testo/couple (privé)
+    txt(import('./life-plus.js').then(m => m.lifeText())),
+    txt(import('./mon-esprit.js').then(m => m.espritText())),   // 04/11 journal des jours + famille d'abord
+    txt(import('./grand-coach.js').then(m => m.grandCoachText())),
+    txt(import('./perso-finances.js').then(m => m.financesText())),
+    isHardDay().catch(() => false),
+  ]);
   return [
     'QUI EST KOUIDER (son dossier — tu tournes autour de lui, tu le connais par cœur) :',
     dossier?.trim() || BASE,
     `Congés : lundi toute la journée, jeudi dès 13h, dimanche dès 18h ; mardi, mercredi, vendredi, samedi il finit à 20h → soirée libre (= quand il n'est pas au travail). Le sport reste à l'horaire déjà enregistré, ne le déplace pas.${off && offFrom ? ` AUJOURD'HUI : il travaille à la LIBRAIRIE jusqu'à ${offFrom}, congé seulement à partir de ${offFrom}. Ne dis jamais « jour de congé » avant ${offFrom}. Dans son temps libre, garde-lui du temps EN FAMILLE (sa femme ET Ibrahim) et du SPORT, pas de business non urgent (Kouider 05/11).` : ''}${off && !offFrom ? " AUJOURD'HUI EST NORMALEMENT UN JOUR DE CONGÉ : sois bref, rien de non urgent, garde-lui du temps en famille (sa femme ET Ibrahim) et pour le sport. MAIS s'il dit être au travail (ou si l'agenda du jour / le GPS le montre au travail), c'est un jour travaillé : ne lui parle pas de congé (22/10 : « comme c'est jeudi, ton jour de congé » alors qu'il bossait depuis 5h)." : ''}`,
     "SA FAMILLE = sa femme ET son fils Ibrahim : quand tu en parles (motivation, « c'est pour eux que… »), cite TOUJOURS les deux, jamais Ibrahim seul (Kouider 05/11 : « il oublie la femme »).",
-    ...(await isHardDay() ? ["AUJOURD'HUI = JOURNÉE DURE (il l'a demandé) : aucune prospection ni idée business, rien de non urgent, propose de décaler ce qui peut l'être, sois doux et bref. « journée normale » / « c'est bon » → family_care action hard_day off:true."] : []),
+    ...(hard ? ["AUJOURD'HUI = JOURNÉE DURE (il l'a demandé) : aucune prospection ni idée business, rien de non urgent, propose de décaler ce qui peut l'être, sois doux et bref. « journée normale » / « c'est bon » → family_care action hard_day off:true."] : []),
     ...(notes.length ? ['Notes récentes de Kouider sur lui-même :', ...notes.slice(-10).map(n => `- ${n}`)] : []),
     ...(coach ? [coach] : []),
     ...(conns ? [conns] : []),
