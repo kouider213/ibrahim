@@ -92,6 +92,10 @@ export async function uploadToDrive(d: BackupDump): Promise<string> {
       const m = body.match(/https:\/\/console\.developers\.google\.com\/apis\/api\/drive\.googleapis\.com\/overview\?project=\d+/);
       throw new Error(`l'API Google Drive n'est pas activée dans le projet Google de Dzaryx — ouvre ${m?.[0] ?? 'console.cloud.google.com → API Google Drive'} et clique « Activer » (copie VPS OK en attendant)`);
     }
+    // 10/11 : compte Google plein (16,15 Go / 16,11) → plus aucune sauvegarde Drive depuis le 05/11, avec un message en anglais illisible.
+    if (/storageQuotaExceeded|storage quota has been exceeded/i.test(body)) {
+      throw new Error('ton espace Google est plein (Gmail + Photos + Drive) : la sauvegarde Drive ne passe plus. Libère de la place sur one.google.com/storage (gros mails, photos) ou prends Google One 100 Go. En attendant la copie VPS continue chaque nuit.');
+    }
     throw new Error(`Drive : ${body.slice(0, 200)}`);
   }
 }

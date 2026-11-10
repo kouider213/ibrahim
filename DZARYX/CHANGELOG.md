@@ -1,3 +1,9 @@
+## 2026-11-10 (2) — Contrôle général de fin de session
+- Prédiction du briefing régénérée (l'ancien texte « sept impayés » restait en mémoire jusqu'au lundi suivant).
+- Sauvegarde Google Drive arrêtée depuis le 05/11 : compte Google plein (16,15 Go / 16,11). `db-backup.ts` dit maintenant clairement quoi faire ; la copie VPS tourne chaque nuit.
+- Banc : phase 1 = 192/197 (5 faux positifs : date figée + cerveau en arrière-plan), outils 23/25 (jour offert réel du 07/11), finances 11/11.
+- Usage réel 04-10/11 : 127 réponses, 1 saturation, 1 erreur.
+
 ## 2026-11-10 — Réponses plus rapides : le contexte de Kouider se charge en parallèle
 - Mesure (conversations 01-09/11) : délai médian d'une réponse 17 s, 90 % à 62 s.
 - `kouider-dossier.ts` : les 11 modules (forme, finances, coach…) se lisaient l'un après l'autre → `Promise.all`.
