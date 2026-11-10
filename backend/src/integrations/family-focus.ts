@@ -7,7 +7,7 @@
  * d'accueil. C'est Dzaryx qui décide : à la maison + hors travail (congé ou soirée libre), de 9h à 22h30.
  * Bonne raison (toilettes, la famille dort, quelque chose à lui montrer) = déblocage 10 min (ou jusqu'à la fin si elle dort), avec son rappel.
  * Temps d'écran : 2 h par jour pendant le mode (compté de « app ouverte » à « app fermée ») ; le blocage ne commence qu'après.
- * Sa règle (10/11) : limite du jour de son programme privé dépassée → tout est bloqué jusqu'au lendemain, sans pause ni raison.
+ * Sa règle (10/11) : limite du jour de son programme privé dépassée → tout est bloqué 2 h (depuis la prise en trop), sans pause ni raison.
  * Soupapes choisies pour qu'il ne coupe pas tout au premier agacement : 3 pauses de 10 min par jour, « je suis seul » = 3 h.
  * Dzaryx ne sait PAS si sa femme est dans la pièce (aucun accès à son téléphone) : la règle est « maison + temps libre ».
  * État : app_kv family:focus (rien de privé dans le code).
@@ -24,7 +24,7 @@ interface Focus {
   tries?: { date: string; n: number; apps: Record<string, number> };
   budgetMin: number;                                      // temps d'écran laissé chaque jour pendant le mode (Kouider : « au moins 2 h »)
   screen?: { date: string; sec: number; open?: { app: string; at: number } };   // compté entre « app ouverte » et « app fermée »
-  medLock: boolean;                                       // sa règle : limite du programme privé dépassée → applis bloquées jusqu'au lendemain
+  medLock: boolean;                                       // sa règle : limite du programme privé dépassée → applis bloquées 2 h
   reasons?: { date: string; list: string[] };            // déblocages « bonne raison » du jour (toilettes, ils dorment, montrer quelque chose)
 }
 const KEY = 'family:focus';
@@ -40,18 +40,26 @@ const hm = (ts: number) => localNow(ts).hhmm.replace(':', 'h');
 
 export interface FocusNow { active: boolean; why: string; until?: number; punished?: boolean }
 
-/** Sa propre règle (10/11) : plus que la limite du jour de son programme privé → applis bloquées jusqu'au lendemain. */
-async function overLimit(): Promise<boolean> {
+/** Sa propre règle (10/11, durée revue le 10/11 : « je veux que la punition dure 2 h ») : plus que la limite du jour de son
+ *  programme privé → applis bloquées 2 h à partir de la prise en trop. Renvoie la fin du blocage, ou null. */
+const PUNISH_MS = 2 * 3600 * 1000;
+async function punishedUntil(): Promise<number | null> {
   try {
     const lib = await import('./liberte.js');
     const s = await lib.getLib();
-    if (!s?.active) return false;
-    const today = localNow().date;
-    return lib.takenOn(await lib.readLibLog(), today) > lib.allowedOn(s, today);
-  } catch { return false; }
+    if (!s?.active) return null;
+    const today = localNow().date, allowed = lib.allowedOn(s, today), log = await lib.readLibLog();
+    if (lib.takenOn(log, today) <= allowed) return null;
+    // heure de la prise qui a fait passer au-dessus de la limite
+    const prises = log.filter(l => l.kind === 'prise' && lib.takenOn([l], today) > 0).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+    let cum = 0, at = Date.now();
+    for (const l of prises) { cum += l.n ?? 1; if (cum > allowed) { at = Date.parse(l.at) || Date.now(); break; } }
+    const until = at + PUNISH_MS;
+    return Date.now() < until ? until : null;
+  } catch { return null; }
 }
 // Affiché en notification sur l'iPhone (écran visible par d'autres) : aucun mot sur le programme lui-même.
-const PUNISH = 'Tu as dépassé ta limite aujourd\'hui : applis bloquées jusqu\'à demain. N\'oublie pas — je fais tout ça pour toi. Demain on repart à zéro, et tu vas tenir.';
+const punishText = (until: number) => `Tu as dépassé ta limite aujourd'hui : applis bloquées jusqu'à ${hm(until)}. N'oublie pas — je fais tout ça pour toi. Tu vas tenir.`;
 const screenOf = (f: Focus, date: string) => (f.screen?.date === date ? f.screen : { date, sec: 0 });
 /** Session restée ouverte (pas de « fermée » reçu) : comptée, plafonnée. */
 function settle(f: Focus, date: string, cap: number): { date: string; sec: number } {
@@ -63,7 +71,8 @@ function settle(f: Focus, date: string, cap: number): { date: string; sec: numbe
 export async function focusNow(): Promise<FocusNow> {
   const f = await read(), now = Date.now();
   if (!f.enabled) return { active: false, why: 'mode présent désactivé' };
-  if (f.medLock && await overLimit()) return { active: true, why: 'limite du jour dépassée — bloqué jusqu\'à demain', punished: true };
+  const pu = f.medLock ? await punishedUntil() : null;
+  if (pu) return { active: true, why: `limite du jour dépassée — bloqué 2 h, jusqu'à ${hm(pu)}`, until: pu, punished: true };
   if (f.offUntil && now < f.offUntil) return { active: false, why: `coupé jusqu'à ${hm(f.offUntil)}` };
   if (f.pass?.until && now < f.pass.until) return { active: false, why: `pause jusqu'à ${hm(f.pass.until)}`, until: f.pass.until };
   if (f.manualUntil && now < f.manualUntil) return { active: true, why: 'tu l\'as demandé', until: f.manualUntil };
@@ -92,7 +101,7 @@ export async function appOpen(app: string): Promise<{ block: boolean; say: strin
   const f = await read(), date = localNow().date, name = app.trim().slice(0, 30) || 'appli';
   const t = f.tries?.date === date ? f.tries : { date, n: 0, apps: {} };
   const blocked = async (say: string) => { t.n++; t.apps[name] = (t.apps[name] ?? 0) + 1; await save({ ...f, tries: t, screen: settle(f, date, SESSION_CAP) }); return { block: true, say }; };
-  if (st.punished) return blocked(PUNISH);
+  if (st.punished && st.until) return blocked(punishText(st.until));
   // Temps d'écran du jour : tant qu'il en reste, l'appli s'ouvre et le compteur tourne jusqu'à sa fermeture.
   const used = settle(f, date, SESSION_CAP), leftMin = Math.floor(f.budgetMin - used.sec / 60);
   if (leftMin > 0) {
@@ -113,8 +122,9 @@ export async function appClose(): Promise<{ say: string }> {
 export async function focusTool(input: Record<string, unknown>): Promise<string> {
   const a = String(input['action'] ?? 'status');
   const f = await read(), now = Date.now(), date = localNow().date;
-  if (['pause', 'raison', 'seul', 'disable'].includes(a) && f.medLock && await overLimit()) {
-    return `Non. ${PUNISH} Si ça ne va pas, parle-moi : je suis là.`;
+  const pu = ['pause', 'raison', 'seul', 'disable'].includes(a) && f.medLock ? await punishedUntil() : null;
+  if (pu) {
+    return `Non. ${punishText(pu)} Si ça ne va pas, parle-moi : je suis là.`;
   }
   if (a === 'budget') {
     const min = Math.round(Number(input['minutes']) || Number(input['hours']) * 60);
