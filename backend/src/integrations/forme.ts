@@ -861,6 +861,14 @@ export async function delExSet(uid: Uid, id: string, at: number): Promise<ExSet[
   return all[id]!;
 }
 
+/** 10/11 — corrige un ancien poids mal noté dans l'historique d'un exercice de la bibliothèque (voir fixSportKg). */
+export async function fixExKg(uid: Uid, id: string, kg: number, o: { date?: string; day?: string }): Promise<import('./sport-coach.js').KgFix> {
+  const { fixKgIn } = await import('./sport-coach.js');
+  const all = await readExLog(uid);
+  const r = fixKgIn(all[id] ?? [], kg, o);
+  if (r.fixed) await kvSet(EXLOG_K(uid), JSON.stringify(all));
+  return r;
+}
 /** Plusieurs séries d'un coup (fin de séance) → historique de chaque exercice de la bibliothèque. */
 export async function addExSets(uid: Uid, sets: Array<{ id: string; kg?: number; reps?: number; fb?: ExSet['fb'] }>, onDate?: string): Promise<number> {
   const all = await readExLog(uid);

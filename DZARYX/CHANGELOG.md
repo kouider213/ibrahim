@@ -1,3 +1,9 @@
+## 2026-11-10 (4) — FORME : corriger un ancien poids mal noté
+- Kouider en séance : « 30 kg » affiché en PRÉCÉDENT au développé incliné haltères (noté le 09/11), jamais fait. Il doit pouvoir le changer lui-même.
+- App v260 : toucher la colonne PRÉCÉDENT → écrire le vrai poids. Si un poids plus lourd reste noté un autre jour, l'app demande s'il est faux aussi. La charge conseillée et le record suivent.
+- Backend : `POST /api/forme/fix-prev` (`fixSportKg` dans `sport-coach.ts`, `fixExKg` dans `forme.ts`).
+- Donnée du 09/11 corrigée à 8 kg (dit par Kouider).
+
 ## 2026-11-10 (3) — Trois petites protections
 - **Espace Google** : nouvel auto-test `Espace Google` (`googleStorage()` dans `db-backup.ts`) — alerte dès 90 % (un rappel par semaine), tous les matins à 98 % et plus. La ligne « Sauvegarde Google Drive » dit la vraie cause quand le compte est plein.
 - **Prédictions** : `guardPredictions()` retire tout prix absent des vraies données (tarifs `resale_price`, impayés) et ramène Facebook / Instagram / statut WhatsApp à TikTok. Les vrais tarifs sont maintenant donnés au cerveau.

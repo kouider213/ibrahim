@@ -250,7 +250,31 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
   const sets = ex ? rows[ex.id] ?? [] : [];
   const upd = (k: number, patch: Partial<SetRow>) => ex && setRows(r => ({ ...r, [ex.id]: r[ex.id]!.map((x, j) => j === k ? { ...x, ...patch } : x) }));
   const endRest = useCallback(() => { setRest(null); speak('C\'est reparti !'); }, []);
-  const best = (e: PEx) => prs[norm(e.name)] ?? 0;
+  // 10/11 : un ancien poids mal noté (« 30 kg » jamais fait) se corrige en touchant la colonne PRÉCÉDENT
+  const [prFix, setPrFix] = useState<Record<string, number>>({});
+  const best = (e: PEx) => prFix[e.id] ?? prs[norm(e.name)] ?? 0;
+  const fixPrev = async () => {
+    if (!ex) return;
+    const m = /à ([\d.,]+) kg \((\d\d)\/(\d\d)\)/.exec(ex.suggestion.last ?? '');
+    if (!m) return;
+    const v = prompt(`Le ${m[2]}/${m[3]}, j'ai noté ${m[1]} kg sur « ${ex.name} ».\nSi c'est faux, écris le vrai poids (kg) :`, '');
+    const kg = Number((v ?? '').replace(',', '.'));
+    if (!(kg > 0) || kg === Number(m[1].replace(',', '.'))) return;
+    const base = { ex: ex.id, ...(libIdOf(ex) ? { libId: libIdOf(ex)! } : {}), kg };
+    try {
+      let r = await forme.fixPrev({ ...base, day: `${m[2]}/${m[3]}` });
+      if (!r.fixed) { setFlash('Je n\'ai pas retrouvé cette séance'); setTimeout(() => setFlash(null), 3000); return; }
+      const fr = (d: string) => `${d.slice(8)}/${d.slice(5, 7)}`;
+      if (r.higher.length && confirm(`Corrigé : ${kg} kg le ${m[2]}/${m[3]}.\n\nIl reste aussi ${r.higher.map(h => `${h.kg} kg le ${fr(h.date)}`).join(', ')}.\nC'est faux aussi ? OK = je les mets à ${kg} kg.`)) {
+        for (const h of r.higher) r = await forme.fixPrev({ ...base, date: h.date });
+      }
+      const old = String(ex.suggestion.kg ?? '');
+      setPrFix(p => ({ ...p, [ex.id]: r.best }));
+      setExs(e => e.map(y => y.id === ex.id ? { ...y, suggestion: { kg, last: (y.suggestion.last ?? '').replace(`à ${m[1]} kg`, `à ${kg} kg`) } } : y));
+      setRows(rw => ({ ...rw, [ex.id]: (rw[ex.id] ?? []).map(x => !x.done && x.t !== 'w' && x.kg === old ? { ...x, kg: String(kg) } : x) }));
+      setFlash(`✅ Corrigé : ${kg} kg`); setTimeout(() => setFlash(null), 3000);
+    } catch (e) { setFlash(errText(e)); setTimeout(() => setFlash(null), 4000); }
+  };
   const validate = (k: number) => {
     if (!ex) return;
     vibrate(25);
@@ -410,7 +434,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
                 {sets.map((r, k) => { const look = r.t !== 'n' ? T_LOOK[r.t] : null; if (r.t === 'n') nNum++; const num = nNum; return (
                   <div key={k} style={{ display: 'grid', gridTemplateColumns: cols, gap: 6, alignItems: 'center', padding: '4px', borderRadius: 10, background: r.done ? '#dff3e7' : 'transparent', transition: 'background .2s' }}>
                     <button onClick={() => upd(k, { t: T_NEXT[r.t] })} title={look?.name ?? 'Série normale — touche pour changer le type'} style={{ fontWeight: 700, textAlign: 'center', border: 'none', background: 'none', cursor: 'pointer', fontSize: 15, color: look?.c ?? F.ink, fontFamily: 'inherit' }}>{look?.l ?? num}</button>
-                    <div style={{ fontSize: 13, color: F.muted, textAlign: 'center' }}>{r.t === 'w' ? '—' : prevOf(ex.suggestion.last, num - 1)}</div>
+                    <button onClick={() => void fixPrev()} disabled={r.t === 'w' || !ex.suggestion.last} title="Touche pour corriger ce poids s'il est faux" style={{ fontSize: 13, color: F.muted, textAlign: 'center', border: 'none', background: 'none', padding: '6px 0', cursor: 'pointer', fontFamily: 'inherit', textDecoration: r.t !== 'w' && ex.suggestion.last ? 'underline dotted' : 'none', textUnderlineOffset: 3 }}>{r.t === 'w' ? '—' : prevOf(ex.suggestion.last, num - 1)}</button>
                     <input inputMode="decimal" value={r.kg} onChange={e => upd(k, { kg: e.target.value })} placeholder="—" style={{ ...cell, background: r.done ? 'transparent' : F.bg }} />
                     <input inputMode="numeric" value={r.reps} onChange={e => upd(k, { reps: e.target.value })} placeholder="—" style={{ ...cell, background: r.done ? 'transparent' : F.bg }} />
                     <button onClick={() => r.done ? upd(k, { done: false }) : validate(k)} aria-label="Série faite" style={{ width: 38, height: 36, borderRadius: 10, border: 'none', background: r.done ? F.green : F.bg2, color: r.done ? '#fff' : F.muted, fontSize: 17, fontWeight: 700, cursor: 'pointer' }}>✓</button>
@@ -423,7 +447,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
                   <div style={{ fontSize: 12.5, fontWeight: 600, color: F.muted, textAlign: 'center', marginBottom: 6 }}>Ton ressenti ? (la charge s'adapte la prochaine fois)</div>
                   <div style={{ display: 'flex', gap: 6 }}>{FEEL.map(f => <button key={f.id} onClick={() => { vibrate(15); setFeel(x => ({ ...x, [ex.id]: f.id })); if (i < exs.length - 1) setTimeout(() => setI(i + 1), 500); }} style={{ ...tool, fontSize: 13.5, padding: 10, background: feel[ex.id] === f.id ? F.accent : F.bg, color: feel[ex.id] === f.id ? '#fff' : F.ink }}>{f.e} {f.l}</button>)}</div>
                 </div>}
-                <div style={{ fontSize: 11.5, color: F.muted, textAlign: 'center', marginTop: 6 }}>Touche le n° de série : W échauffement · D dégressive · F échec</div>
+                <div style={{ fontSize: 11.5, color: F.muted, textAlign: 'center', marginTop: 6 }}>Touche le n° de série : W échauffement · D dégressive · F échec · touche PRÉCÉDENT pour corriger un ancien poids</div>
                 <input value={note} onChange={e => { setNote(e.target.value); try { localStorage.setItem(noteKey(ex), e.target.value); } catch { /* */ } }} placeholder="📝 Note (ex. siège cran 4, prise serrée…) — gardée pour la prochaine fois" style={{ ...input, marginTop: 10, fontSize: 14, padding: '10px 12px', background: F.bg, border: 'none' }} />
               </div>
             </div>

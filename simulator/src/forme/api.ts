@@ -119,6 +119,7 @@ export const forme = {
   saveRoutine: (r: { id?: string; name: string; exercises: RoutineEx[] }) => post<{ routines: Routine[] }>('/api/forme/routines', r),
   delRoutine: (id: string) => call<{ routines: Routine[] }>(`/api/forme/routines/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   exBatch: (sets: Array<{ id: string; kg?: number; reps?: number; fb?: 'easy' | 'ok' | 'hard' }>) => post<{ n: number }>('/api/forme/exlog-batch', { sets }),
+  fixPrev: (b: { ex: string; libId?: string; kg: number; day?: string; date?: string }) => post<{ fixed: number; date: string | null; best: number; higher: Array<{ date: string; kg: number }> }>('/api/forme/fix-prev', b),
   exLast: (ids: string[]) => call<{ last: Record<string, ExSet[]> }>(`/api/forme/exlast?ids=${encodeURIComponent(ids.join(','))}`),
   machine: (image: string, thumb?: string) => post<{ scan: MachineScan }>('/api/forme/machine', { image, thumb }),
   machines: () => call<{ machines: MachineScan[] }>('/api/forme/machines'),

@@ -90,6 +90,25 @@ router.post('/exlog-batch', async (req, res) => {
   const sets = Array.isArray((req.body as { sets?: unknown }).sets) ? (req.body as { sets: Array<{ id: string; kg?: number; reps?: number; fb?: 'easy' | 'ok' | 'hard' }> }).sets : [];
   try { res.json({ n: await addExSets(U(req), sets.map(x => ({ id: String(x.id ?? '').slice(0, 100), kg: Number(x.kg) || undefined, reps: Number(x.reps) || undefined, fb: x.fb }))) }); } catch (err) { fail(res, err); }
 });
+// POST /api/forme/fix-prev { ex, libId?, kg, day?: 'jj/mm', date? } — 10/11 : corriger un ancien poids mal noté (colonne PRÉCÉDENT)
+router.post('/fix-prev', async (req, res) => {
+  const b = req.body as { ex?: string; libId?: string; kg?: number; day?: string; date?: string };
+  const kg = Math.round(Number(b.kg) * 10) / 10;
+  if (!(kg > 0 && kg < 600) || !b.ex) { fail(res, 'poids ou exercice manquant', 400); return; }
+  const o = { ...(typeof b.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.date) ? { date: b.date } : {}), ...(typeof b.day === 'string' ? { day: b.day } : {}) };
+  try {
+    const uid = U(req);
+    const { fixExKg } = await import('../../integrations/forme.js');
+    const parts = [
+      uid === 'kouider' ? await (await import('../../integrations/sport-coach.js')).fixSportKg(String(b.ex).slice(0, 100), kg, o) : null,
+      b.libId ? await fixExKg(uid, String(b.libId).slice(0, 100), kg, o) : null,
+    ].filter((x): x is NonNullable<typeof x> => !!x);
+    const higher = new Map<string, number>();
+    for (const p of parts) for (const h of p.higher) higher.set(h.date, Math.max(higher.get(h.date) ?? 0, h.kg));
+    res.json({ fixed: parts.reduce((a, p) => a + p.fixed, 0), date: parts.find(p => p.fixed)?.date ?? null, best: Math.max(0, ...parts.map(p => p.best)),
+      higher: [...higher].sort(([a], [c]) => a.localeCompare(c)).map(([date, k]) => ({ date, kg: k })) });
+  } catch (err) { fail(res, err); }
+});
 router.get('/exlast', async (req, res) => {
   try { res.json({ last: await exLast(U(req), String(req.query.ids ?? '').split(',').filter(Boolean).slice(0, 30)) }); } catch (err) { fail(res, err); }
 });

@@ -719,6 +719,31 @@ export async function logSportSession(entry: Omit<SessionLog, 'at'> & { at?: str
   return { prs, total: merged.sets.length };
 }
 
+/**
+ * 10/11 — corriger un ancien poids mal noté (Kouider : « 30 kg » le 09/11 au développé incliné, jamais fait → il doit pouvoir
+ * le changer lui-même depuis la colonne PRÉCÉDENT). Toutes les séries de CET exercice, CE jour-là, passent au vrai poids.
+ * `day` = « jj/mm » (ce que l'app affiche) ; sans date = la dernière séance où l'exercice a un poids.
+ * `higher` = autres jours où un poids plus lourd reste noté (l'app demande s'ils sont faux aussi) ; `best` = record restant.
+ */
+export interface KgFix { date: string | null; fixed: number; higher: Array<{ date: string; kg: number }>; best: number }
+export function fixKgIn<T extends { date: string; kg?: number }>(sets: T[], kg: number, o: { date?: string; day?: string }): KgFix {
+  const withKg = sets.filter(x => x.kg != null);
+  const md = o.day && /^\d\d\/\d\d$/.test(o.day) ? `-${o.day.slice(3)}-${o.day.slice(0, 2)}` : null;
+  const date = o.date ?? [...withKg].reverse().find(x => !md || x.date.endsWith(md))?.date ?? null;
+  let fixed = 0;
+  if (date) for (const x of withKg) if (x.date === date && x.kg !== kg) { x.kg = kg; fixed++; }
+  const tops = new Map<string, number>();
+  for (const x of withKg) tops.set(x.date, Math.max(tops.get(x.date) ?? 0, x.kg!));
+  return { date, fixed, higher: [...tops].filter(([d, k]) => d !== date && k > kg).map(([d, k]) => ({ date: d, kg: k })), best: Math.max(0, ...tops.values()) };
+}
+export async function fixSportKg(ex: string, kg: number, o: { date?: string; day?: string }): Promise<KgFix> {
+  const log = await readSportLog();
+  const flat = log.flatMap(l => l.sets.filter(x => x.ex === ex).map(x => ({ date: l.date, kg: x.kg, ref: x })));
+  const r = fixKgIn(flat, kg, o);
+  if (r.fixed) { for (const f of flat) if (f.kg != null) f.ref.kg = f.kg; await kvSet(LOG_KEY, JSON.stringify(log.slice(-300))); }
+  return r;
+}
+
 const RECOVERY_H: Record<Muscle, number> = { pecs: 72, dos: 72, jambes: 72, epaules: 48, bras: 48, abdos: 24, cardio: 24 };
 
 export async function sportOverview() {
