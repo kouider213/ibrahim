@@ -157,6 +157,14 @@ async function rdv(raw: string): Promise<Direct | null> {
 async function present(raw: string): Promise<Direct | null> {
   const t = strip(raw);
   if (raw.length > 90) return null;
+  const why = /\b(?:toilettes?|wc|aux chiottes)\b/.test(t) ? 'aux toilettes'
+    : /\b(?:ma famille|ma femme|elle|ils|tout le monde|ibrahim et (?:elle|ma femme))\b.{0,20}\b(?:dor[mst]\w*|couche\w*|au lit)\b/.test(t) ? 'ma famille dort'
+    : /\b(?:lui|leur) montr\w+\b|\bmontr\w+ (?:quelque chose|un truc|une video|une photo) a ma femme\b/.test(t) ? 'quelque chose à lui montrer' : null;
+  if (why) {
+    const st = await import('./family-focus.js').then(m => m.focusNow());
+    if (!st.active) return null;
+    return { text: await import('./family-focus.js').then(m => m.focusTool({ action: 'raison', reason: why })), direct: true };
+  }
   const a = /^(?:fais |une |donne[- ]moi une |je veux une )?(?:petite )?pause(?: (?:de )?\d+ ?min(?:utes?)?)?(?: s'il te plait)?$|\bdebloque\b/.test(t) ? 'pause'
     : /\bje suis (?:tout )?seul\b.*\b(?:maison|chez moi)\b|\b(?:ma femme|elle|ils) (?:n'est|est|sont|ne sont) pas la\b/.test(t) ? 'seul'
     : /\b(?:desactive|arrete|coupe|enleve|stop)\b.*\bmode present\b/.test(t) ? 'disable'

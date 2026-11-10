@@ -5,6 +5,7 @@
  * Ce que Dzaryx peut vraiment faire sur un iPhone : une automatisation Raccourcis « quand j'ouvre TikTok / Instagram / … »
  * appelle POST /api/jarvis/event { type: 'app_open', app } ; si la réponse dit block:true, le raccourci renvoie à l'écran
  * d'accueil. C'est Dzaryx qui décide : à la maison + hors travail (congé ou soirée libre), de 9h à 22h30.
+ * Bonne raison (toilettes, la famille dort, quelque chose à lui montrer) = déblocage 10 min (ou jusqu'à la fin si elle dort), avec son rappel.
  * Soupapes choisies pour qu'il ne coupe pas tout au premier agacement : 3 pauses de 10 min par jour, « je suis seul » = 3 h.
  * Dzaryx ne sait PAS si sa femme est dans la pièce (aucun accès à son téléphone) : la règle est « maison + temps libre ».
  * État : app_kv family:focus (rien de privé dans le code).
@@ -19,6 +20,7 @@ interface Focus {
   offUntil?: number;                                      // « je suis seul » / coupé pour un moment
   pass?: { date: string; n: number; until?: number };     // pauses du jour
   tries?: { date: string; n: number; apps: Record<string, number> };
+  reasons?: { date: string; list: string[] };            // déblocages « bonne raison » du jour (toilettes, ils dorment, montrer quelque chose)
 }
 const KEY = 'family:focus';
 const PASS_MAX = 3, PASS_MIN = 10;
@@ -65,7 +67,7 @@ export async function appOpen(app: string): Promise<{ block: boolean; say: strin
   t.n++; t.apps[name] = (t.apps[name] ?? 0) + 1;
   await save({ ...f, tries: t });
   const left = PASS_MAX - (f.pass?.date === date ? f.pass.n : 0);
-  return { block: true, say: `${LINES[t.n % LINES.length]} (${t.n}e essai aujourd'hui${left > 0 ? ` — vraiment besoin ? écris « pause » à Dzaryx : ${left} pause${left > 1 ? 's' : ''} de ${PASS_MIN} min` : ' — plus de pause aujourd\'hui'})` };
+  return { block: true, say: `${LINES[t.n % LINES.length]} (${t.n}e essai aujourd'hui${left > 0 ? ` — écris « pause » à Dzaryx (${left} de ${PASS_MIN} min)` : ''} — une bonne raison ? dis-la à Dzaryx)` };
 }
 
 export async function focusTool(input: Record<string, unknown>): Promise<string> {
@@ -82,6 +84,17 @@ export async function focusTool(input: Record<string, unknown>): Promise<string>
     const until = now + PASS_MIN * 60_000;
     await save({ ...f, pass: { date, n: n + 1, until } });
     return `⏳ Pause de ${PASS_MIN} min, jusqu'à ${hm(until)} (${n + 1}/${PASS_MAX} aujourd'hui). Après, je rebloque.`;
+  }
+  // 10/11 (Kouider) : avec une bonne raison il a le droit de débloquer — sans toucher aux 3 pauses — mais TOUJOURS avec son rappel.
+  if (a === 'raison') {
+    const why = String(input['reason'] ?? '').trim().slice(0, 80) || 'raison non précisée';
+    const sleep = /dor[mst]|couch|au lit/i.test(why);
+    const { hhmm } = localNow();
+    const [th, tm] = f.to.split(':').map(Number), [h, m] = hhmm.split(':').map(Number);
+    const until = sleep ? now + Math.max(10, (th! * 60 + tm!) - (h! * 60 + m!)) * 60_000 : now + PASS_MIN * 60_000;
+    const r = f.reasons?.date === date ? f.reasons.list : [];
+    await save({ ...f, pass: { date, n: f.pass?.date === date ? f.pass.n : 0, until }, reasons: { date, list: [...r, `${hhmm} ${why}`].slice(-20) } });
+    return `🔓 Débloqué jusqu'à ${hm(until)} (${why}).\n⚠️ N'oublie pas : si tu mens, c'est ta relation avec ta famille que tu tues. Passe plus de temps avec eux.${r.length >= 2 ? `\nC'est ta ${r.length + 1}e raison aujourd'hui.` : ''}`;
   }
   if (a === 'seul') {
     const until = now + 3 * 3_600_000;
@@ -104,5 +117,6 @@ export async function focusTool(input: Record<string, unknown>): Promise<string>
     `Règle : à la maison et hors travail, de ${f.from.replace(':', 'h')} à ${f.to.replace(':', 'h')}.`,
     t ? `Aujourd'hui : ${t.n} ouverture(s) bloquée(s) — ${Object.entries(t.apps).sort((x, y) => y[1] - x[1]).map(([k, v]) => `${k} ×${v}`).join(', ')}.` : 'Aujourd\'hui : aucune ouverture bloquée.',
     `Pauses : ${used}/${PASS_MAX} utilisées.`,
-  ].join('\n');
+    f.reasons?.date === date && f.reasons.list.length ? `Déblocages avec raison : ${f.reasons.list.join(' · ')}.` : '',
+  ].filter(Boolean).join('\n');
 }

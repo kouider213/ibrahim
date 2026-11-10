@@ -1,3 +1,7 @@
+## 2026-11-10 (7) — Mode présent : déblocage avec une bonne raison
+- Kouider : toilettes, famille qui dort, quelque chose d'important à montrer → il a le droit de débloquer, mais avec un rappel à chaque fois.
+- `focusTool` action `raison` : 10 min (jusqu'à la fin de la plage si la famille dort), ne compte pas dans les 3 pauses, rappel « si tu mens… », raisons du jour listées dans le statut. Commande directe dans `fr-commands.ts`.
+
 ## 2026-11-10 (6) — Mode présent : moins de téléphone en famille
 - Demande de Kouider : être obligé de lâcher le téléphone quand il est à la maison avec sa femme et son fils.
 - `family-focus.ts` : actif à la maison + hors travail (congé ou soirée libre), 9h–22h30. Une automatisation iPhone « à l'ouverture de l'app » appelle `POST /api/jarvis/event {type:'app_open', app}` ; `block:true` → le raccourci renvoie à l'écran d'accueil.
