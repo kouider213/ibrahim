@@ -59,7 +59,26 @@ async function punishedUntil(): Promise<number | null> {
   } catch { return null; }
 }
 // Affiché en notification sur l'iPhone (écran visible par d'autres) : aucun mot sur le programme lui-même.
-const punishText = (until: number) => `Tu as dépassé ta limite aujourd'hui : applis bloquées jusqu'à ${hm(until)}. N'oublie pas — je fais tout ça pour toi. Tu vas tenir.`;
+// 10/11 Kouider : « fais en sorte que le message change à chaque fois, et le message de motivation aussi ».
+const PUNISH_HEAD = [
+  'Tu as dépassé ta limite aujourd\'hui',
+  'Limite du jour dépassée',
+  'Aujourd\'hui tu es allé au-delà de ta limite',
+  'Tu as passé ta limite',
+  'Ta limite du jour est dépassée',
+];
+const PUNISH_MOTIV = [
+  'N\'oublie pas — je fais tout ça pour toi. Tu vas tenir.',
+  'Je fais tout ça pour toi. Un écart n\'efface pas tout le chemin fait.',
+  'Respire. Ta femme et Ibrahim méritent l\'homme fort que tu es en train de devenir.',
+  'Tu n\'as pas échoué, tu as glissé. On se relève et on continue.',
+  'Chaque jour tenu te rend plus libre. Celui-ci compte aussi : reprends maintenant.',
+  'Je suis là. Ce n\'est pas une punition contre toi, c\'est pour toi.',
+  'Pense à Ibrahim : il grandit avec un père qui se bat. Continue.',
+  'Le Kouider de demain te remerciera pour ces deux heures.',
+];
+const punishText = (until: number, n = 0) =>
+  `${PUNISH_HEAD[n % PUNISH_HEAD.length]} : applis bloquées jusqu'à ${hm(until)}. ${PUNISH_MOTIV[(n * 3 + Math.floor(Date.now() / 60000)) % PUNISH_MOTIV.length]}`;
 const screenOf = (f: Focus, date: string) => (f.screen?.date === date ? f.screen : { date, sec: 0 });
 /** Session restée ouverte (pas de « fermée » reçu) : comptée, plafonnée. */
 function settle(f: Focus, date: string, cap: number): { date: string; sec: number } {
@@ -101,7 +120,7 @@ export async function appOpen(app: string): Promise<{ block: boolean; say: strin
   const f = await read(), date = localNow().date, name = app.trim().slice(0, 30) || 'appli';
   const t = f.tries?.date === date ? f.tries : { date, n: 0, apps: {} };
   const blocked = async (say: string) => { t.n++; t.apps[name] = (t.apps[name] ?? 0) + 1; await save({ ...f, tries: t, screen: settle(f, date, SESSION_CAP) }); return { block: true, say }; };
-  if (st.punished && st.until) return blocked(punishText(st.until));
+  if (st.punished && st.until) return blocked(punishText(st.until, t.n));
   // Temps d'écran du jour : tant qu'il en reste, l'appli s'ouvre et le compteur tourne jusqu'à sa fermeture.
   const used = settle(f, date, SESSION_CAP), leftMin = Math.floor(f.budgetMin - used.sec / 60);
   if (leftMin > 0) {
