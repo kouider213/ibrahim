@@ -1,3 +1,10 @@
+## 2026-11-10 (6) — Mode présent : moins de téléphone en famille
+- Demande de Kouider : être obligé de lâcher le téléphone quand il est à la maison avec sa femme et son fils.
+- `family-focus.ts` : actif à la maison + hors travail (congé ou soirée libre), 9h–22h30. Une automatisation iPhone « à l'ouverture de l'app » appelle `POST /api/jarvis/event {type:'app_open', app}` ; `block:true` → le raccourci renvoie à l'écran d'accueil.
+- Soupapes : 3 pauses de 10 min par jour (refus ensuite), « je suis seul » = 3 h. Outil `mode_present` + commandes directes (« mode présent », « pause », « mode présent ? »).
+- Limite : Dzaryx ne sait pas si sa femme est dans la pièce ; la règle est « maison + temps libre ».
+- Programme privé : nouveau plan de paliers enregistré via l'API (données en base seulement).
+
 ## 2026-11-10 (5) — FORME : scan de machine 50 s → 6 s
 - Kouider : « quand je prends une machine en photo ça marche pas ». Journaux Railway : les scans réussissaient mais en 35-50 s (`POST /machine 200 +50225ms`) — la consigne longue (liste des exercices) déclenchait la réflexion « medium » du cerveau gratuit.
 - `anthropic-compat.ts` : option `FAST` (en-tête `x-dz-fast`) → pas de réflexion longue ; `vision(..., { fast: true })` utilisé par `scanMachine`. Test : 6,5 s, bonne machine.

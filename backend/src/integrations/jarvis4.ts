@@ -50,7 +50,7 @@ function jarvisVoiceUrl(text: string): string {
 }
 export async function jarvisVoice(id: string): Promise<Buffer | null> { return (await VOICES.get(id)?.p) ?? null; }
 
-export async function iphoneEvent(type: string, body: Record<string, unknown>): Promise<{ say: string; audio_url?: string; url?: string; focus?: boolean; menu?: string[] }> {
+export async function iphoneEvent(type: string, body: Record<string, unknown>): Promise<{ say: string; audio_url?: string; url?: string; focus?: boolean; menu?: string[]; block?: boolean }> {
   const lat = Number(body['lat'] ?? body['latitude']), lng = Number(body['lng'] ?? body['longitude']);
   const hasPos = Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0;
   if (hasPos) void import('./gps-life.js').then(m => m.onLocationPoint(lat, lng)).catch(() => {});
@@ -120,6 +120,11 @@ export async function iphoneEvent(type: string, body: Record<string, unknown>): 
     case 'decide': {
       const { chooseDecision } = await import('./conscience.js');
       return { say: (await chooseDecision(String(body['id'] ?? '') || null, Number(body['choice']) || 1)).replace(/[✅❌]/gu, '').slice(0, 400) };
+    }
+    // 10/11 mode présent : automatisation « à l'ouverture de TikTok / Instagram… » → block:true = retour à l'écran d'accueil
+    case 'app_open': case 'app': {
+      const r = await import('./family-focus.js').then(m => m.appOpen(String(body['app'] ?? body['name'] ?? '')));
+      return { say: r.say, block: r.block };
     }
     default: return { say: '' };
   }

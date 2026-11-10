@@ -153,6 +153,24 @@ async function rdv(raw: string): Promise<Direct | null> {
 }
 
 /** « ne me dérange pas jusqu'à 18h / pendant 2 h / 30 min » → silence (appels + messages). */
+/** 10/11 mode présent (téléphone bloqué en famille) : réponses par le code, pas de négociation avec un cerveau gratuit. */
+async function present(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (raw.length > 90) return null;
+  const a = /^(?:fais |une |donne[- ]moi une |je veux une )?(?:petite )?pause(?: (?:de )?\d+ ?min(?:utes?)?)?(?: s'il te plait)?$|\bdebloque\b/.test(t) ? 'pause'
+    : /\bje suis (?:tout )?seul\b.*\b(?:maison|chez moi)\b|\b(?:ma femme|elle|ils) (?:n'est|est|sont|ne sont) pas la\b/.test(t) ? 'seul'
+    : /\b(?:desactive|arrete|coupe|enleve|stop)\b.*\bmode present\b/.test(t) ? 'disable'
+    : /\b(?:active|remets|reactive)\b.*\bmode present\b/.test(t) ? 'enable'
+    : /\bmode present\b.*\b(?:ou j'en suis|etat|bilan|statut|status)\b|^mode present \?$/.test(t) ? 'status'
+    : /^(?:mets[- ]moi en |lance (?:le )?|passe en )?mode present(?: maintenant)?$|\b(?:je suis|on est) (?:en famille|avec ma femme)\b.*\bbloque\b/.test(t) ? 'on' : null;
+  if (!a) return null;
+  if (a === 'pause' || a === 'seul') {   // « pause » n'a de sens que si le mode est en train de bloquer (sinon : séance, travail…)
+    const st = await import('./family-focus.js').then(m => m.focusNow());
+    if (!st.active && !/pause jusqu/.test(st.why)) return null;
+  }
+  return { text: await import('./family-focus.js').then(m => m.focusTool({ action: a })), direct: true };
+}
+
 async function dnd(raw: string): Promise<Direct | null> {
   const t = strip(raw);
   const m = /\b((?:ne )?me der[ae]n[gj]e?(?:s|z|r)? pas|der[ae]n[gj]e?[- ]moi pas|pas d'appels?|silence|mode silence|laisse[- ]moi tranquille)\b/.exec(t);
@@ -669,7 +687,7 @@ export async function frCommand(raw: string, sessionId = 'telegram_kouider'): Pr
   SID = sessionId;
   const msg = raw.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
   if (!msg) return null;
-  for (const f of [sharePub, pubTiktok, craving, noSales, carKm, formeBilan, formeProgram, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
+  for (const f of [sharePub, pubTiktok, craving, noSales, carKm, formeBilan, formeProgram, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, present, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
     const r = await f(msg).catch(e => ({ text: `❌ ${e instanceof Error ? e.message : e}`, direct: true }));
     if (r) return r;
   }
