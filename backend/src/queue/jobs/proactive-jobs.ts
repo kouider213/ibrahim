@@ -208,6 +208,10 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
   const recap = await buildYesterdayRecap().catch(err => { console.error('[job:morning-briefing] récap:', err); return null; });
   if (recap) { lines.push(...recap.lines); lines.push(``); }
 
+  // 10/11 — vitesse de mes réponses hier : Kouider voit lui-même chaque matin si ça se dégrade
+  const delay = await import('../../integrations/self-test.js').then(m => m.replyDelayYesterday().then(d => (d ? m.replyDelayText(d) : null))).catch(() => null);
+  if (delay) { lines.push(`⚡ *Mes réponses hier:* ${delay}`); lines.push(``); }
+
   // Conseil du jour
   const conseil = getDailyTip(now.getDay(), actives.length, upcoming.length);
   if (conseil) {

@@ -6,7 +6,7 @@ import { supabase } from './supabase.js';
 import { kvGet, kvSet } from './app-store.js';
 import { executeTool, isToolFailureResult } from './tool-executor.js';
 import { probeProviders } from './fallback-probe.js';
-import { lastBackup } from './db-backup.js';
+import { lastBackup, googleStorage } from './db-backup.js';
 import { getNexusStatus } from '../actions/handlers/nexus-relay.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 
@@ -61,6 +61,35 @@ function readTools(): Array<[string, string, Record<string, unknown>]> {
   ];
 }
 
+/**
+ * Délai de réponse de la veille (10/11) : temps entre un message de Kouider et ma réponse, sur Telegram / app.
+ * Sert à l'auto-test (alerte si ça se dégrade) et au briefing du matin (une ligne chaque jour) — il voit lui-même la vitesse.
+ * Une réponse arrivée plus de 15 min après = question gardée pour plus tard (cerveaux saturés), comptée à part.
+ */
+export interface ReplyDelay { n: number; median: number; p90: number; late: number }
+export async function replyDelayYesterday(): Promise<ReplyDelay | null> {
+  const day = brusselsDay(Date.now() - 86_400_000);
+  const { data, error } = await supabase.from('conversations').select('role, created_at').eq('session_id', 'voice_kouider')
+    .in('role', ['user', 'assistant']).gte('created_at', new Date(Date.now() - 50 * 3_600_000).toISOString()).order('created_at').limit(3000);
+  if (error) throw new Error(error.message);
+  const rows = ((data ?? []) as Array<{ role: string; created_at: string }>).filter(r => brusselsDay(Date.parse(r.created_at)) === day);
+  const secs: number[] = [];
+  let late = 0;
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i]!.role !== 'assistant' || rows[i - 1]!.role !== 'user') continue;
+    const s = (Date.parse(rows[i]!.created_at) - Date.parse(rows[i - 1]!.created_at)) / 1000;
+    if (s > 900) late++; else secs.push(s);
+  }
+  if (!secs.length && !late) return null;
+  secs.sort((a, b) => a - b);
+  const at = (q: number) => Math.round(secs[Math.min(secs.length - 1, Math.floor(q * secs.length))] ?? 0);
+  return { n: secs.length + late, median: at(0.5), p90: at(0.9), late };
+}
+const secTxt = (s: number) => (s < 90 ? `${s} s` : `${Math.round(s / 60)} min`);
+export function replyDelayText(d: ReplyDelay): string {
+  return `${secTxt(d.median)} en général, 9 fois sur 10 en moins de ${secTxt(d.p90)} (${d.n} message${d.n > 1 ? 's' : ''}${d.late ? `, dont ${d.late} répondu${d.late > 1 ? 's' : ''} plus tard` : ''})`;
+}
+
 async function timed(name: string, fn: () => Promise<{ ok: boolean; info: string }>, timeoutMs = 45_000): Promise<Check> {
   const t0 = Date.now();
   try {
@@ -112,9 +141,34 @@ export async function runSelfTest(): Promise<SelfTestReport> {
       const b = await lastBackup(kind);
       if (!b) return { ok: false, info: 'aucune sauvegarde enregistrée' };
       const h = ageH(b.at);
+      // Compte Google plein = la vraie cause (05→10/11) : le dire, sinon le conseil « reconnecte mes mails » ne sert à rien
+      if (kind === 'drive' && h >= 30 && ((await googleStorage().catch(() => null))?.pct ?? 0) >= 98) {
+        return { ok: false, info: `arrêtée depuis ${Math.round(h / 24)} j parce que ton espace Google est plein (la copie VPS continue)` };
+      }
       return { ok: h < 30 && b.failed === 0, info: `il y a ${Math.round(h)} h — ${b.tables} tables, ${b.rows} lignes${b.failed ? `, ${b.failed} tables illisibles` : ''}` };
     }));
   }
+
+  // Espace Google : prévenir à 90 %, AVANT que la sauvegarde Drive (et les mails) bloquent.
+  checks.push(await timed('Espace Google', async () => {
+    const g = await googleStorage();
+    if (!g) return { ok: true, info: 'non mesurable (compte pas autorisé) — rien à signaler' };
+    const info = `${g.pct} % utilisé (${g.usedGb.toFixed(1).replace('.', ',')} Go sur ${g.limitGb.toFixed(1).replace('.', ',')})`;
+    if (g.pct < 90) return { ok: true, info };
+    if (g.pct >= 98) return { ok: false, info: `plein — ${info} : sauvegarde Drive bloquée, les nouveaux mails peuvent être refusés` };
+    // Entre 90 et 97 % : un seul rappel par semaine (sinon le même message tous les matins pendant des mois)
+    if (await kvGet('gstorage:warned').catch(() => null)) return { ok: true, info: `${info} — bientôt plein, déjà signalé cette semaine` };
+    await kvSet('gstorage:warned', '1', 7 * 86_400);
+    return { ok: false, info: `bientôt plein — ${info}` };
+  }));
+
+  checks.push(await timed('Délai de réponse hier', async () => {
+    const d = await replyDelayYesterday();
+    if (!d) return { ok: true, info: 'aucun message hier' };
+    // Repère : médiane 17 s mesurée du 01 au 09/11. Lent = plus du double, sur assez de messages pour que ça veuille dire quelque chose.
+    const slow = d.n >= 5 && (d.median > 40 || d.late / d.n > 0.2);
+    return { ok: !slow, info: `${slow ? 'plus lent que d\'habitude — ' : ''}${replyDelayText(d)}` };
+  }));
 
   checks.push(await timed('Service appels/messages Telegram', async () => {
     const beat = await kvGet('tgcall:heartbeat');
@@ -190,6 +244,8 @@ export function remedy(name: string, info: string): string {
   if (/Base de données/.test(name)) return 'ouvre supabase.com → ton projet : quota dépassé ou paiement en attente ? (c\'est arrivé le 03/11). Une fois réglé, tout repart seul';
   if (/Cerveau IA/.test(name)) return 'les cerveaux gratuits se rechargent chaque matin vers 9 h. Si c\'est urgent, écris « utilise Claude pour cette question »';
   if (/Crédit Claude/.test(name)) return 'pas bloquant (je tourne en gratuit). Pour garder le secours : recharge sur console.anthropic.com → Billing';
+  if (/Espace Google/.test(name) || /espace Google est plein/.test(info)) return 'ouvre one.google.com/storage : supprime les gros mails et les photos/vidéos lourdes, vide la corbeille — ou prends Google One 100 Go. La sauvegarde Drive repart seule la nuit suivante';
+  if (/Délai de réponse/.test(name)) return 'ce sont les cerveaux gratuits qui saturent : ça revient seul le lendemain matin vers 9 h. Pour une question pressée, écris « utilise Claude pour cette question ». Si c\'est lent 3 jours de suite, c\'est à noter pour une session de code';
   if (/Sauvegarde Google Drive/.test(name)) return 'dis-moi « reconnecte mes mails » (même compte Google) : la sauvegarde repart la nuit suivante';
   if (/Sauvegarde VPS/.test(name)) return 'le serveur (VPS) est peut-être éteint : clique « Redémarrer » dans l\'espace client de ton hébergeur';
   if (/Telegram/.test(name)) return /signe de vie/.test(info) ? VPS_REBOOT : 'rien à faire si mes messages t\'arrivent ; sinon ' + VPS_REBOOT;

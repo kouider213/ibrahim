@@ -1,3 +1,8 @@
+## 2026-11-10 (3) — Trois petites protections
+- **Espace Google** : nouvel auto-test `Espace Google` (`googleStorage()` dans `db-backup.ts`) — alerte dès 90 % (un rappel par semaine), tous les matins à 98 % et plus. La ligne « Sauvegarde Google Drive » dit la vraie cause quand le compte est plein.
+- **Prédictions** : `guardPredictions()` retire tout prix absent des vraies données (tarifs `resale_price`, impayés) et ramène Facebook / Instagram / statut WhatsApp à TikTok. Les vrais tarifs sont maintenant donnés au cerveau.
+- **Délai de réponse** : `replyDelayYesterday()` — ligne « ⚡ Mes réponses hier » dans le briefing de 7h30 + auto-test `Délai de réponse hier` (alerte si médiane > 40 s ou plus de 20 % de réponses différées).
+
 ## 2026-11-10 (2) — Contrôle général de fin de session
 - Prédiction du briefing régénérée (l'ancien texte « sept impayés » restait en mémoire jusqu'au lundi suivant).
 - Sauvegarde Google Drive arrêtée depuis le 05/11 : compte Google plein (16,15 Go / 16,11). `db-backup.ts` dit maintenant clairement quoi faire ; la copie VPS tourne chaque nuit.

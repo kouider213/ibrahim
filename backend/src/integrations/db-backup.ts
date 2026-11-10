@@ -83,6 +83,20 @@ async function driveFolder(headers: Record<string, string>): Promise<string> {
   return id;
 }
 
+/** Espace du compte Google pro (Gmail + Photos + Drive). null = pas autorisé ou Google ne répond pas.
+ *  10/11 : le compte était plein depuis 5 jours sans que personne le voie → l'auto-test prévient dès 90 %. */
+export async function googleStorage(): Promise<{ usedGb: number; limitGb: number; pct: number } | null> {
+  const t = await driveToken();
+  if (!t) return null;
+  const { data } = await axios.get('https://www.googleapis.com/drive/v3/about', {
+    headers: { Authorization: `Bearer ${t}` }, params: { fields: 'storageQuota' }, timeout: 15_000,
+  });
+  const q = (data as { storageQuota?: { limit?: string; usage?: string } }).storageQuota;
+  const limit = Number(q?.limit), usage = Number(q?.usage);
+  if (!(limit > 0) || !Number.isFinite(usage)) return null; // pas de limite (compte illimité) = rien à surveiller
+  return { usedGb: usage / 2 ** 30, limitGb: limit / 2 ** 30, pct: Math.round((usage / limit) * 100) };
+}
+
 export async function uploadToDrive(d: BackupDump): Promise<string> {
   try {
     return await uploadToDriveRaw(d);

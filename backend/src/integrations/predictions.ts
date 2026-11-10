@@ -13,10 +13,10 @@ const DAY = 86_400_000;
 const iso = (t: number) => new Date(t).toISOString().slice(0, 10);
 const daysUntil = (d?: string | null) => d ? Math.round((Date.parse(d) - Date.now()) / DAY) : null;
 
-async function facts(horizon: number): Promise<string> {
+async function facts(horizon: number): Promise<{ text: string; amounts: number[] }> {
   const now = Date.now(), to = iso(now + horizon * DAY);
   const [{ data: cars }, { data: bookings }] = await Promise.all([
-    supabase.from('cars').select('id, name, available, current_km, last_service_km, next_service_km, next_service_date, service_interval_km, insurance_expiry, technical_expiry, vignette_expiry, last_service_date'),
+    supabase.from('cars').select('id, name, available, resale_price, currency, current_km, last_service_km, next_service_km, next_service_date, service_interval_km, insurance_expiry, technical_expiry, vignette_expiry, last_service_date'),
     supabase.from('bookings').select('car_id, client_name, client_phone, start_date, end_date, status, payment_status, amount_remaining, created_at, cars(name)').order('start_date'),
   ]);
   const fleet = (cars ?? []) as Array<Record<string, unknown>>;
@@ -64,7 +64,11 @@ async function facts(horizon: number): Promise<string> {
   });
   const { executeTool } = await import('./tool-executor.js');
   const seasons = await executeTool('get_upcoming_seasons', {}, 'predictions').catch(() => '');
-  return [
+  // 10/11 : sans les vrais tarifs sous les yeux, le cerveau gratuit en inventait un (« 35 000 DA/jour »).
+  const priced = fleet.filter(c => Number(c['resale_price']) > 0);
+  const tariffs = priced.map(c => `• ${c['name']} : ${Number(c['resale_price'])} ${c['currency'] === 'DZD' || c['currency'] === 'DA' ? 'DA' : '€'} par jour`);
+  const amounts = [...priced.map(c => Number(c['resale_price'])), ...live.filter(owes).map(b => Number(b.amount_remaining))];
+  const text = [
     `Aujourd'hui ${iso(now)}, horizon ${horizon} jours. Flotte : ${fleet.length} voitures (${usable} utilisables). Historique : ${all.length} réservation(s) en tout (${live.length} valides).`,
     `Réservations à venir :\n${upcoming.join('\n') || '(aucune)'}`,
     `Jours tendus (≥ 80 % de la flotte prise) :\n${tight.join('\n') || '(aucun pour le moment)'}`,
@@ -72,12 +76,41 @@ async function facts(horizon: number): Promise<string> {
     `Même période les années précédentes : ${ly.length} location(s).`,
     `Entretien / papiers :\n${upkeep.join('\n') || '(rien de proche, ou km pas renseignés)'}`,
     `Impayés passés : ${unpaid.join(', ') || 'aucun'}.`,
+    `Tarifs client actuels (les SEULS prix que tu as le droit de citer) :\n${tariffs.join('\n') || '(inconnus)'}`,
     `Saisons / fêtes qui arrivent :\n${String(seasons).slice(0, 1500)}`,
   ].join('\n\n');
+  return { text, amounts };
+}
+
+/**
+ * Garde-fou (10/11) — le texte régénéré cette nuit contenait un prix inventé (« 35 000 DA/jour ») et « Facebook/Insta »
+ * alors que les pubs de Kouider sont sur TikTok uniquement. Une consigne ne suffit pas avec les cerveaux gratuits :
+ * le code retire tout montant qui ne vient pas des vraies données et ramène les réseaux à TikTok.
+ */
+const money = (raw: string, k?: string): number => {
+  const t = raw.replace(/[\s\u00a0\u202f]/g, '');
+  const n = /^\d{1,3}([.,]\d{3})+$/.test(t) ? Number(t.replace(/[.,]/g, '')) : Number(t.replace(',', '.'));
+  return k ? n * 1000 : n;
+};
+const PRICE = /(?:[≈~]\s*)?(\d[\d\u00a0\u202f .,]*\d|\d)\s*(k)?\s*(?:DA|DZD|dinars?|€|euros?)(?![A-Za-zÀ-ÿ])(?:\s*(?:\/|par)\s*(?:jours?|j|semaines?|mois)(?![A-Za-zÀ-ÿ]))?/gi;
+const NET = '(?:Facebook(?:\\s+(?:Marketplace|Ads))?|Instagram|Insta|Snapchat|Meta(?:\\s+Ads)?)';
+export function guardPredictions(text: string, amounts: number[]): { text: string; removed: string[] } {
+  const ok = new Set(amounts.map(a => Math.round(a * 100)));
+  const removed: string[] = [];
+  let out = text.replace(PRICE, (m: string, num: string, k?: string) => {
+    if (ok.has(Math.round(money(num, k) * 100))) return m;
+    removed.push(m.trim());
+    return 'un montant à fixer toi-même';
+  });
+  out = out
+    .replace(/(?:en\s+)?(?<![A-Za-zÀ-ÿ])statuts?\s+WhatsApp/gi, 'sur TikTok')
+    .replace(new RegExp(`(?<![A-Za-zÀ-ÿ])${NET}(?![A-Za-zÀ-ÿ])`, 'gi'), 'TikTok')
+    .replace(/TikTok(?:\s*(?:\/|,|et|ou|&|\+)\s*TikTok)+/gi, 'TikTok');
+  return { text: out, removed };
 }
 
 export async function buildPredictions(horizon = 30): Promise<string> {
-  const f = await facts(horizon);
+  const { text: f, amounts } = await facts(horizon);
   const r = await createAnthropic().messages.create({
     model: CLAUDE_MAIN, max_tokens: 1200, messages: [{ role: 'user', content:
 `Tu es Dzaryx, l'associé de Kouider (FIK Conciergerie, location de voitures à Oran). Voici les VRAIES données :
@@ -87,9 +120,11 @@ ${f}
 Donne 3 à 6 PRÉDICTIONS utiles pour les ${horizon} prochains jours, de la plus importante à la moins importante. Pour chacune :
 🔮 ce qui va probablement arriver (avec une date ou un délai) — « parce que » + le chiffre qui le montre — 👉 l'action à faire maintenant.
 Types : voitures qui vont manquer (demande vs flotte, saisons MRE / Aïd / vacances), entretien ou papiers qui tombent, client à risque (retard, impayé), creux à remplir (offre flash), prix à monter les jours tendus.
-Règles : n'invente aucun chiffre ; si l'historique est trop mince pour une prédiction, dis-le en une phrase plutôt que d'inventer. Tutoie-le, français simple, pas de tableau.` }],
+Règles : n'invente aucun chiffre ; aucun prix en € ou en DA qui ne soit pas écrit tel quel dans les données ci-dessus (pour une hausse ou une offre, parle en pourcentage ou laisse Kouider fixer le montant) ; ses pubs passent sur TikTok UNIQUEMENT — jamais Facebook, Instagram ni statut WhatsApp ; si l'historique est trop mince pour une prédiction, dis-le en une phrase plutôt que d'inventer. Tutoie-le, français simple, pas de tableau.` }],
   }, QUALITY);
-  return r.content.map(b => (b.type === 'text' ? b.text : '')).join('').trim();
+  const g = guardPredictions(r.content.map(b => (b.type === 'text' ? b.text : '')).join('').trim(), amounts);
+  if (g.removed.length) console.warn('[predictions] montants inventés retirés :', g.removed.join(' | '));
+  return g.text;
 }
 
 /** Lundi 9h : les prédictions de la semaine sur Telegram. */
