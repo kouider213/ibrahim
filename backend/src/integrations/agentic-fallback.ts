@@ -74,7 +74,27 @@ const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-3-flash-preview', 'gemini-3.6
 
 // Modèle à quota épuisé (429), surchargé (503) ou figé → sauté 15 min au lieu d'être réessayé à chaque message
 const quotaUntil = new Map<string, number>();
-export function markQuotaExhausted(model: string, ms = 15 * 60_000): void { quotaUntil.set(model, Date.now() + ms); }
+export function markQuotaExhausted(model: string, ms = 15 * 60_000): void { quotaUntil.set(model, Date.now() + ms); persistQuota(); }
+// 10/11 : cette liste ne vivait qu'en mémoire → remise à zéro à chaque redéploiement Railway (10 le 09/11 au soir) et
+// les messages suivants refaisaient le tour de tous les Gemini déjà épuisés avant de répondre. Gardée dans app_kv.
+const QUOTA_KV = 'brain:quota_until';
+let quotaSaveT: ReturnType<typeof setTimeout> | null = null;
+function persistQuota(): void {
+  if (quotaSaveT) return;
+  quotaSaveT = setTimeout(() => {
+    quotaSaveT = null;
+    const now = Date.now();
+    const o = Object.fromEntries([...quotaUntil].filter(([, t]) => t > now));
+    import('./app-store.js').then(m => m.kvSet(QUOTA_KV, JSON.stringify(o), 26 * 3600)).catch(() => {});
+  }, 2000);
+  quotaSaveT.unref?.();
+}
+import('./app-store.js').then(m => m.kvGet(QUOTA_KV)).then(v => {
+  const now = Date.now();
+  for (const [k, t] of Object.entries(JSON.parse(v ?? '{}') as Record<string, unknown>)) {
+    if (typeof t === 'number' && t > now && t > (quotaUntil.get(k) ?? 0)) quotaUntil.set(k, t);
+  }
+}).catch(() => {});
 /** Modèle absent du compte (404) ou retiré (410) : sauté 24 h au lieu de coûter un appel à chaque message (Kimi, 29/10). */
 // 29/10 : quota gratuit Gemini = 20 requêtes/jour/modèle, Google dit quand il revient (« Please retry in 20h3m43s »).
 // Avant : sauté 15 min puis réessayé à chaque message toute la journée (une requête perdue par message).
