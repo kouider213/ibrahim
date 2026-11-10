@@ -1,3 +1,7 @@
+## 2026-11-10 (8) — Mode présent : 2 h d'écran par jour + blocage si limite dépassée
+- Kouider : « au moins 2 h de temps d'écran » → les applis s'ouvrent tant que les 2 h du jour ne sont pas utilisées (compteur entre les événements `app_open` et `app_close`), blocage ensuite. Réglable (`budget`).
+- Sa règle : limite du jour de son programme privé dépassée → applis bloquées partout jusqu'au lendemain, sans pause ni raison, avec un message d'encouragement discret (rien de privé dans la notification).
+
 ## 2026-11-10 (7) — Mode présent : déblocage avec une bonne raison
 - Kouider : toilettes, famille qui dort, quelque chose d'important à montrer → il a le droit de débloquer, mais avec un rappel à chaque fois.
 - `focusTool` action `raison` : 10 min (jusqu'à la fin de la plage si la famille dort), ne compte pas dans les 3 pauses, rappel « si tu mens… », raisons du jour listées dans le statut. Commande directe dans `fr-commands.ts`.

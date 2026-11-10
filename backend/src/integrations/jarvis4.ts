@@ -126,6 +126,7 @@ export async function iphoneEvent(type: string, body: Record<string, unknown>): 
       const r = await import('./family-focus.js').then(m => m.appOpen(String(body['app'] ?? body['name'] ?? '')));
       return { say: r.say, block: r.block };
     }
+    case 'app_close': return import('./family-focus.js').then(m => m.appClose());
     default: return { say: '' };
   }
 }
