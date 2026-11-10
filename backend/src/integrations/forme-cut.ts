@@ -49,8 +49,12 @@ export function weightPace(weights: Array<{ date: string; kg: number }>, today: 
 
 export async function cutStatus(uid: Uid = 'kouider') {
   const today = localNow().date;
-  const p = await getFormeProfile(uid);
-  const days = await json<Record<string, Day>>(`${uid}:forme:days`, {});
+  // 10/11 : toutes les lectures indépendantes partent en même temps (avant : ~10 lectures en file → ~0,8 s par réponse).
+  const logP = uid === 'kouider' ? import('./sport-coach.js').then(m => m.readSportLog()).catch(() => []) : Promise.resolve([]);
+  const exlogP = json<Record<string, Array<{ date: string; kg?: number; reps?: number; name?: string }>>>(`${uid}:forme:exlog`, {});
+  const healthP = json<Array<{ date: string; steps?: number; sleep_h?: number }>>('health:daily', []);
+  const startP = kvGet(START_K(uid)).catch(() => null);
+  const [p, days] = await Promise.all([getFormeProfile(uid), json<Record<string, Day>>(`${uid}:forme:days`, {})]);
   const weights = Object.entries(days).filter(([, d]) => d.weight).map(([date, d]) => ({ date, kg: d.weight! })).sort((a, b) => a.date.localeCompare(b.date));
   const tr = trendOf(weights);
   const pace = weightPace(weights, today, p.weightKg);
@@ -64,11 +68,11 @@ export async function cutStatus(uid: Uid = 'kouider') {
 
   // Mangé + dépense des 14 derniers jours (jours où il a noté au moins 2 repas = jour « complet »)
   const f = await import('./forme-food.js');
-  const cfg = await f.foodCfg(uid);
+  const cfgP = f.foodCfg(uid);
   const hist: Array<{ date: string; eaten: number; p: number; burn: number; target: number; pGoal: number; complete: boolean }> = [];
   // 10/11 : les 14 jours se lisaient l'un après l'autre (≈2 s avant chaque réponse du cerveau) → en parallèle, même ordre.
   const dates = Array.from({ length: 14 }, (_, k) => addDays(today, k - 13));
-  const budgets = await Promise.all(dates.map(d => f.foodBudget(uid, d)));
+  const [cfg, ...budgets] = await Promise.all([cfgP, ...dates.map(d => f.foodBudget(uid, d))]);
   dates.forEach((d, k) => { const b = budgets[k]!; hist.push({ date: d, eaten: b.eaten.kcal, p: b.eaten.p, burn: b.burn, target: b.target, pGoal: b.proteinGoal, complete: b.meals.length >= 2 }); });
   const full = hist.filter(h => h.complete && h.date < today);
   const avgEaten = full.length ? Math.round(full.reduce((a, h) => a + h.eaten, 0) / full.length) : null;
@@ -98,10 +102,10 @@ export async function cutStatus(uid: Uid = 'kouider') {
     if (same) same.e1 = Math.max(same.e1, e1); else l.push({ date, e1 }); best.set(name, l);
   };
   if (uid === 'kouider') {
-    const log = await import('./sport-coach.js').then(m => m.readSportLog()).catch(() => []);
+    const log = await logP;
     for (const s of log) for (const x of s.sets ?? []) push(x.ex, s.date, x.kg, x.reps);
   }
-  const exlog = await json<Record<string, Array<{ date: string; kg?: number; reps?: number; name?: string }>>>(`${uid}:forme:exlog`, {});
+  const exlog = await exlogP;
   for (const [id, l] of Object.entries(exlog)) for (const x of l) push(x.name ?? id.replace(/_/g, ' '), x.date, x.kg, x.reps);
   const lifts: Lift[] = [...best.entries()].map(([name, l]) => {
     l.sort((a, b) => a.date.localeCompare(b.date));
@@ -112,10 +116,10 @@ export async function cutStatus(uid: Uid = 'kouider') {
   const dropping = lifts.filter(l => l.pct != null && l.pct <= -5);
 
   // Score du jour (0-100) : déficit 30, protéines 25, muscu ou 8 000 pas 20, sommeil 15, pesée 10
-  const health = await json<Array<{ date: string; steps?: number; sleep_h?: number }>>('health:daily', []);
+  const health = await healthP;
   const h = health.find(x => x.date === today);
   const t = hist[hist.length - 1]!;
-  const trained = !!days[today]?.workout || (uid === 'kouider' && await import('./sport-coach.js').then(m => m.readSportLog()).then(l => l.some(s => s.date === today)).catch(() => false));
+  const trained = !!days[today]?.workout || (uid === 'kouider' && (await logP).some(s => s.date === today));
   const parts = [
     { k: 'Déficit', ok: t.eaten > 0 && t.eaten <= t.target + 50, pts: 30, hint: t.eaten ? `${t.eaten}/${t.target} kcal` : 'aucun repas noté' },
     { k: 'Protéines', ok: t.p >= t.pGoal * 0.9, pts: 25, hint: `${t.p}/${t.pGoal} g` },
@@ -126,7 +130,7 @@ export async function cutStatus(uid: Uid = 'kouider') {
   const score = parts.reduce((a, x) => a + (x.ok ? x.pts : 0), 0);
 
   // Début de la sèche (1er repas noté, ou réglé à la main) → durée, pause diète
-  let start = await kvGet(START_K(uid));
+  let start = await startP;
   if (!start) { start = hist.find(x => x.eaten > 0)?.date ?? today; await kvSet(START_K(uid), start).catch(() => {}); }
   const weeksIn = Math.floor(dayDiff(start, today) / 7);
   const goalKg = p.targetKg && p.targetKg < real ? p.targetKg : null;

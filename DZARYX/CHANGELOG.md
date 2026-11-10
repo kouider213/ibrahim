@@ -4,6 +4,7 @@
 - `forme.ts` (`formeText`) : nourriture/objectifs/course/profil femme en parallèle.
 - `forme-cut.ts` (`cutStatus`) : les 14 jours de calories lus en parallèle (c'était 2 s à lui seul).
 - Résultat banc : dossier 8,6 s → 0,8 s (à chaud), 2,2 s à froid.
+- Suite : `cutStatus` (profil, jours, séances lues 2×, exercices, santé, début de sèche) et `goalsText`/`pace` en parallèle, sortie vérifiée identique à l'ancienne version → dossier 0,8 s → 0,4 s.
 
 ## 2026-11-09 nuit (7) — Appels Telegram : Dzaryx apprend de tes refus, ne raccroche plus en pleine phrase
 - Constat (journaux tgcall 07-09/11) : 14 appels sortants, 10 refusés ou non décrochés, 2 muets.

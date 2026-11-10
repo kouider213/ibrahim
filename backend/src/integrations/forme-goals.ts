@@ -375,9 +375,8 @@ export async function challengeAction(uid: Uid, b: { action?: string; id?: strin
 
 /** Pour Dzaryx (dossier, coach) : une ligne sur l'objectif physique et les défis. */
 export async function goalsText(uid: Uid = 'kouider'): Promise<string> {
-  const s = await read(uid);
+  const [s, days] = await Promise.all([read(uid), readDays(uid)]);
   if (!s.plan) return '';
-  const days = await readDays(uid);
   const next = s.plan.milestones.find(m => !m.done);
   const pc = await pace(uid, s, days).catch(() => null);
   return `${pc ? `Suivi objectif : ${pc.text} ` : ''}Objectif physique : ${s.plan.zones.map(z => `${z.label} ${z.now ?? '?'}/100`).join(', ')} → arrivée ~${s.plan.eta}${next ? ` ; prochain jalon ${next.date} : ${next.title}` : ''}. Défis : ${s.challenges.map(c => challengeView(c, days, {}, new Set())).filter(c => !c.finished && !c.autoFill?.includes('séances')).map(c => `${c.title} (${c.label})`).join(' ; ') || 'aucun'}.`;
@@ -455,10 +454,12 @@ export interface Pace { status: AutoLog['status']; text: string; rateWeek: numbe
 
 /** Avance ou retard : vraie vitesse de perte (module Sèche, moyenne lissée) + séances faites vs prévues, comparées aux deadlines. */
 export async function pace(uid: Uid, s: GoalState, days?: Record<string, { workout?: unknown }>, trained?: Set<string>): Promise<Pace> {
+  // 10/11 : lectures indépendantes en parallèle (avant : en file, ~0,5 s de plus par réponse)
+  const cutP = import('./forme-cut.js').then(m => m.cutStatus(uid));
+  const progP = getProgram(uid).catch(() => null);
+  cutP.catch(() => {});   // l'erreur éventuelle remonte au await plus bas, pas en « unhandled »
   const d = days ?? await readDays(uid);
-  const tr = trained ?? await trainedDays(uid, d);
-  const cut = await import('./forme-cut.js').then(m => m.cutStatus(uid));
-  const prog = await getProgram(uid).catch(() => null);
+  const [tr, cut, prog] = await Promise.all([trained ? Promise.resolve(trained) : trainedDays(uid, d), cutP, progP]);
   const today = localNow().date;
   const sessions14 = [...tr].filter(k => k > addDays(today, -14)).length;
   const planned14 = Math.max(1, (prog?.days.length ?? 4) * 2);
