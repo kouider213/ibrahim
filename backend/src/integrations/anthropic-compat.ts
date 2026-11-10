@@ -272,14 +272,15 @@ export function factualQuestion(text: string): boolean {
   return /\b(histoire|historique|guerre|si[eè]cle|r[ée]volution|ind[ée]pendance|colonis|empire|roi|pr[ée]sident|religion|islam|coran|hadith|proph[eè]te|sourate|imam|ramadan|loi|droit|juridique|l[ée]gal|tribunal|code (civil|p[ée]nal|de la route)|amende|imp[oô]ts?|sant[ée]|maladie|sympt[oô]me|vaccin|grossesse|b[ée]b[ée]|traduis|tradui[st]|traduction|diff[ée]rence entre|c'?est quoi|qu'?est-ce que|qui (a|est|était|etait)|quand (a|est|était|etait)|en quelle ann[ée]e|capitale|g[ée]ograph|science|physique|chimie|biologie|grammaire|conjug|orthograph|synonyme|d[ée]finition|signifie|veut dire)\b/i.test(text);
 }
 
-async function freeBrain(body: Body, quality = false, strongOnly = false): Promise<Response | null> {
+async function freeBrain(body: Body, quality = false, strongOnly = false, fast = false): Promise<Response | null> {
   const { fallbackEndpoints, pickFallbackTools: pick, markFailure, hedgedRace, visionFirst, needsDeepThought, textToolCalls: ttc } = await import('./agentic-fallback.js');
   pickFallbackTools = pick;
   textToolCalls = ttc;
   const msgs = (body.messages ?? []) as Array<{ role: string; content: unknown }>;
   const hasImage = msgs.some(m => Array.isArray(m.content) && (m.content as Block[]).some(b => b.type === 'image'));
   const lastUser = blockText([...msgs].reverse().find(m => m.role === 'user')?.content);
-  const deep = quality || needsDeepThought(lastUser);
+  // 10/11 : FAST (scan de machine FORME) — une consigne longue n'est pas une demande de réflexion : 50 s d'attente à la salle
+  const deep = !fast && (quality || needsDeepThought(lastUser));
   // Course relais (29/10) : un cerveau lent ou en panne est doublé par le suivant, le 1er qui répond gagne
   // Tâche de fond simple sans outils (résumé, tri, classement) : Gemini « lite » d'abord → les gros Gemini gardent
   // leur quota du jour pour les conversations avec Kouider (29/10 : quota vide dès 8 h)
@@ -335,6 +336,8 @@ async function freeBrain(body: Body, quality = false, strongOnly = false): Promi
 // (mails aux prospects, conseiller business, inspections photo). Le chat (streamé) garde Sonnet.
 // Interrupteur : app_kv « billing:eco » ('0' = coupé), page À PAYER. Activé par défaut.
 export const QUALITY = { headers: { 'x-dz-quality': 'high' } } as const;
+/** Reconnaissance simple où Kouider attend devant l'écran (photo de machine) : pas de réflexion longue, réponse en quelques secondes. */
+export const FAST = { headers: { 'x-dz-fast': '1' } } as const;
 let ecoCache: { on: boolean; at: number } = { on: true, at: 0 };
 export let ecoDowngrades = 0;
 async function ecoOn(): Promise<boolean> {
@@ -368,12 +371,15 @@ export const compatFetch: typeof fetch = async (input, init) => {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
   let parsed: Body | null = null;
   let quality = false;
+  let fast = false;
   if (init?.body && typeof init.body === 'string' && /\/v1\/messages(\/count_tokens)?(\?|$)/.test(url)) {
     try {
       const body = JSON.parse(init.body) as Body;
       const headers = new Headers(init.headers);
       quality = headers.get('x-dz-quality') === 'high';
       headers.delete('x-dz-quality');
+      fast = headers.get('x-dz-fast') === '1';
+      headers.delete('x-dz-fast');
       if (!url.includes('count_tokens') && !body.stream && !quality && typeof body.model === 'string'
           && (MODEL_MAP[body.model] ?? body.model) === CLAUDE_MAIN && ecoSafe(body) && await ecoOn()) {
         body.model = CLAUDE_FAST;
@@ -392,13 +398,13 @@ export const compatFetch: typeof fetch = async (input, init) => {
     if (url.includes('count_tokens')) return json(200, { input_tokens: Math.ceil(String(init?.body ?? '').length / 3.5) });
     const lastU = parsed ? blockText([...((parsed.messages ?? []) as Array<{ role: string; content: unknown }>)].reverse().find(m => m.role === 'user')?.content) : '';
     const factual = !!parsed && factualQuestion(lastU);
-    let r = parsed ? await freeBrain(parsed, quality, factual) : null;
+    let r = parsed ? await freeBrain(parsed, quality, factual && !fast, fast) : null;
     if (r) return parsed!.stream ? toSSE(await r.json() as Body) : r;
     // 🚑 04/11 soir : tout le gratuit est mort → Claude Haiku prend le relais sur TOUT (quota 'tout'), sinon 503 comme avant
     // (question de culture générale : gros Gemini saturé → Haiku ; sans secours possible, petits cerveaux en dernier recours)
     const rescue = !!parsed && await takeClaudeEmergency('tout');
     if (!rescue && factual) {
-      r = await freeBrain(parsed!, quality);
+      r = await freeBrain(parsed!, quality, false, fast);
       if (r) return parsed!.stream ? toSSE(await r.json() as Body) : r;
     }
     if (!rescue || !parsed) {

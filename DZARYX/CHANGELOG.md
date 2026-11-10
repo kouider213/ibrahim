@@ -1,3 +1,8 @@
+## 2026-11-10 (5) — FORME : scan de machine 50 s → 6 s
+- Kouider : « quand je prends une machine en photo ça marche pas ». Journaux Railway : les scans réussissaient mais en 35-50 s (`POST /machine 200 +50225ms`) — la consigne longue (liste des exercices) déclenchait la réflexion « medium » du cerveau gratuit.
+- `anthropic-compat.ts` : option `FAST` (en-tête `x-dz-fast`) → pas de réflexion longue ; `vision(..., { fast: true })` utilisé par `scanMachine`. Test : 6,5 s, bonne machine.
+- Séance du 23/10 (développé incliné 17,5 kg, faux) corrigée à 8 kg à sa demande.
+
 ## 2026-11-10 (4) — FORME : corriger un ancien poids mal noté
 - Kouider en séance : « 30 kg » affiché en PRÉCÉDENT au développé incliné haltères (noté le 09/11), jamais fait. Il doit pouvoir le changer lui-même.
 - App v260 : toucher la colonne PRÉCÉDENT → écrire le vrai poids. Si un poids plus lourd reste noté un autre jour, l'app demande s'il est faux aussi. La charge conseillée et le record suivent.

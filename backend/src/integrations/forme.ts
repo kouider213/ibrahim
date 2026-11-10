@@ -820,7 +820,7 @@ export async function scanMachine(uid: Uid, img: Img, thumb?: string): Promise<M
 2) Choisis de 4 à 8 exercices qu'on peut faire DESSUS (ou avec), du plus classique au plus avancé. Pour chacun, prends l'identifiant EXACT le plus proche dans cette liste (même mouvement, même matériel), ou null s'il n'y en a pas :
 ${ids}
 Tutoie (« règle », « place-toi »). Réponds UNIQUEMENT en JSON : {"machine":"nom de l'appareil","what":"à quoi il sert en 1 phrase","setup":"comment le régler / se placer en 1-2 phrases (siège, coussins, poids, prise)","exercises":[{"id":"Identifiant_Exact ou null","name":"nom ${lang === 'ar' ? 'en arabe' : 'en français'} comme on le dit en salle","muscles":["muscles principaux${lang === 'ar' ? ' en arabe' : ' en français'}"],"tip":"le conseil clé en 1 phrase"}]}
-Si la photo ne montre aucun matériel de sport : {"machine":"","what":"pas de matériel de sport visible","setup":"","exercises":[]}`, { maxTokens: 1500 });
+Si la photo ne montre aucun matériel de sport : {"machine":"","what":"pas de matériel de sport visible","setup":"","exercises":[]}`, { maxTokens: 1500, fast: true });
   const j = jsonOf<{ machine?: string; what?: string; setup?: string; exercises?: Array<{ id?: string | null; name?: string; muscles?: string[]; tip?: string }> }>(raw);
   if (!j) throw new Error('Je n\'ai pas réussi à lire la photo — réessaie de plus près, avec toute la machine dans le cadre.');
   const byId = new Map(lib.map(e => [e.id, e]));

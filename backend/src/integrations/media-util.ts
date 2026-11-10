@@ -3,7 +3,7 @@ import { spawn } from 'child_process';
 import { existsSync } from 'fs';
 // @ts-ignore — ffmpeg-static n'a pas de types
 import ffmpegStatic from 'ffmpeg-static';
-import { createAnthropic, CLAUDE_FAST, CLAUDE_MAIN, QUALITY } from './anthropic-compat.js';
+import { createAnthropic, CLAUDE_FAST, CLAUDE_MAIN, QUALITY, FAST } from './anthropic-compat.js';
 
 const anthropic = createAnthropic();
 const bin = (): string => (ffmpegStatic as string | null) && existsSync(ffmpegStatic as string) ? ffmpegStatic as string : 'ffmpeg';
@@ -43,7 +43,7 @@ export function hashDistance(a: string, b: string): number {
 export type Img = { base64: string; mime: string };
 
 /** Vision Claude → texte (JSON demandé dans le prompt). quality = Sonnet, sinon Haiku. Secours gratuit via compatFetch. */
-export async function vision(images: Img[], prompt: string, opts: { quality?: boolean; system?: string; maxTokens?: number } = {}): Promise<string> {
+export async function vision(images: Img[], prompt: string, opts: { quality?: boolean; fast?: boolean; system?: string; maxTokens?: number } = {}): Promise<string> {
   const content = [
     ...images.map(i => ({ type: 'image' as const, source: { type: 'base64' as const, media_type: (/png|webp|gif/.test(i.mime) ? i.mime : 'image/jpeg') as 'image/jpeg', data: i.base64 } })),
     { type: 'text' as const, text: prompt },
@@ -52,7 +52,7 @@ export async function vision(images: Img[], prompt: string, opts: { quality?: bo
     model: opts.quality ? CLAUDE_MAIN : CLAUDE_FAST, max_tokens: opts.maxTokens ?? 900,
     ...(opts.system ? { system: opts.system } : {}),
     messages: [{ role: 'user', content }],
-  }, opts.quality ? QUALITY : undefined);
+  }, opts.quality ? QUALITY : opts.fast ? FAST : undefined);
   return r.content.map(b => (b.type === 'text' ? b.text : '')).join('').trim();
 }
 
