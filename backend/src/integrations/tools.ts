@@ -943,7 +943,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   // ─── AGENDA DE KOUIDER = agenda FIK (fikconciergerie@gmail.com) — jamais l'agenda perso ──
   {
     name: 'create_agenda_event',
-    description: 'Ajouter un RDV avec heure dans l\'agenda de Kouider = agenda FIK (fikconciergerie@gmail.com) : RDV client, garage, banque, aéroport, appel prospect, voyage, rappel… Utiliser quand Kouider dit "mets dans mon agenda", "ajoute un RDV", "note ce rendez-vous". Mets le lieu dans location quand il le donne ; s\'il ne le donne pas et que c\'est un lieu physique, crée quand même le RDV et propose en une phrase de l\'ajouter (jamais obligatoire) : avec une adresse, Dzaryx le prévient tout seul de l\'heure de départ avec le trafic + Waze. Dzaryx n\'a PAS accès à l\'agenda perso de Kouider (kouiderpablo@gmail.com) et ne doit jamais y toucher. Pour une RÉSERVATION de voiture : create_calendar_event.',
+    description: 'Ajouter un RDV avec heure dans l\'agenda de Kouider = agenda FIK (fikconciergerie@gmail.com) : RDV client, garage, banque, aéroport, appel prospect, voyage, rappel… Utiliser quand Kouider dit "mets dans mon agenda", "ajoute un RDV", "note ce rendez-vous". N\'IMPORTE QUEL événement aussi (11/11 Kouider) : sortie d\'un jeu / film, match, fête, échéance, anniversaire (repeat yearly, all_day). Date inconnue → web_search D\'ABORD, puis crée avec la date officielle la plus récente et dis la source ; jour exact pas annoncé → ne crée rien et dis-le. Mets le lieu dans location quand il le donne ; s\'il ne le donne pas et que c\'est un lieu physique, crée quand même le RDV et propose en une phrase de l\'ajouter (jamais obligatoire) : avec une adresse, Dzaryx le prévient tout seul de l\'heure de départ avec le trafic + Waze. Dzaryx n\'a PAS accès à l\'agenda perso de Kouider (kouiderpablo@gmail.com) et ne doit jamais y toucher. Pour une RÉSERVATION de voiture : create_calendar_event.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -953,6 +953,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
         description:    { type: 'string', description: 'Détails/notes optionnels' },
         location:       { type: 'string', description: 'Lieu / adresse du RDV (optionnel)' },
         all_day:        { type: 'boolean', description: 'true = événement journée entière (pas d\'heure précise)' },
+        repeat:         { type: 'string', enum: ['yearly', 'monthly', 'weekly'], description: 'Se répète (anniversaire = yearly)' },
       },
       required: ['title', 'start_datetime', 'end_datetime'],
     },

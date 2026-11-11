@@ -1,3 +1,8 @@
+## 2026-11-11 (2) — Agenda : « ajoute n'importe quoi »
+- Kouider : « je dois pouvoir lui demander tout et n'importe quoi : la date de sortie de GTA 6, l'anniversaire d'un client… ».
+- Commande directe `agendaAnything` (fr-commands) : date dite → ajout ; anniversaire d'un client → date de naissance de sa pièce scannée (client_documents), chaque année ; sinon recherche internet + date officielle la plus récente, ajout seulement si le jour exact est sûr (source dans la note).
+- `create_agenda_event` : tout type d'événement + `repeat` yearly/monthly/weekly ; journée entière = fin le lendemain.
+
 ## 2026-11-11 — Bugs de la conversation du 10/11
 - Gardien de nuit dès 22h30 (B065) · plus de faux RDV « Agence FIK » (B066) · `sport_coach move_day` + commande directe, un seul jour changé (B067) · écriture d'agenda ratée jamais confirmée (B067) · SOS envie élargi (B068).
 

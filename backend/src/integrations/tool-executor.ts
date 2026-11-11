@@ -2401,7 +2401,12 @@ async function createAgendaEventTool(input: Record<string, unknown>): Promise<st
   if (!title || !startDatetime || !endDatetime)
     return '❌ title, start_datetime, end_datetime sont requis';
 
-  const eventId = await createAgendaEvent(title, startDatetime, endDatetime, description, allDay, input['location'] as string | undefined);
+  const rep = String(input['repeat'] ?? '').toUpperCase();
+  // journée entière : Google veut une fin le lendemain (exclusive), sinon l'événement est refusé
+  const endFix = allDay && endDatetime.slice(0, 10) <= startDatetime.slice(0, 10)
+    ? new Date(Date.parse(`${startDatetime.slice(0, 10)}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10) : endDatetime;
+  const eventId = await createAgendaEvent(title, startDatetime, endFix, description, allDay, input['location'] as string | undefined,
+    /^(YEARLY|MONTHLY|WEEKLY)$/.test(rep) ? { recurrence: [`RRULE:FREQ=${rep}`] } : {});
   if (!eventId) { const acc = await agendaAccess(); return `❌ Impossible d'ajouter le RDV à l'agenda FIK${acc.ok ? '' : ` : ${acc.reason}`}.`; }
   await redis.set('agenda:last_created', eventId, 'EX', 7 * 86_400).catch(() => {});
   return `✅ RDV ajouté dans l'agenda FIK !\n📅 ${title}\n🗓️ ${startDatetime} → ${endDatetime}${description ? `\n📝 ${description}` : ''}\n🔗 Event ID: ${eventId}`;

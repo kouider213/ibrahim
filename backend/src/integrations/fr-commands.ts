@@ -152,6 +152,73 @@ async function rdv(raw: string): Promise<Direct | null> {
   return { text: `✅ Ajouté à l'agenda FIK : ${title.replace('📅 ', '')} — ${frDate(w.date)} à ${w.time} (heure de Bruxelles).`, direct: true };
 }
 
+/**
+ * 11/11 Kouider : « je dois pouvoir lui demander tout et n'importe quoi : rajoute dans l'agenda la date de sortie de GTA 6,
+ * l'anniversaire d'un client… ». Le code fait tout : date dite → ajout ; anniversaire d'un client → sa date de naissance
+ * (pièce scannée dans son dossier), chaque année ; sinon → recherche internet de la date, ajout seulement si le jour est sûr.
+ */
+async function agendaAnything(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (raw.length > 260 || /\?\s*$/.test(raw.trim())) return null;
+  if (!/\b(ajoute|rajoute|mets?|note|inscris|enregistre|programme|cale)\b[^.!?]{0,70}\b(agenda|calendrier)\b|\b(agenda|calendrier)\b[^.!?]{0,15}\b(ajoute|rajoute|mets?|note|inscris)\b/.test(t)) return null;
+  if (/\b(annule|supprime|enleve|retire|decale|deplace|change|modifie|bouge)\b|\b(seance|sport|salle|muscu|rdv|rendez[- ]vous|location|reservation|resa)\b/.test(t)) return null;
+  const what = raw.replace(/\b(ajoute|rajoute|mets?|note|inscris|enregistre|programme|cale)[sz]?\b|\b(moi|stp|svp|s'il te pla[iî]t|aussi|est|et)\b(?=\s|$)|\b(dans|à|a|sur|au)\s+(l'|l’|mon\s+|ton\s+|le\s+)?(agenda|calendrier)(\s+fik)?\b/gi, ' ')
+    .replace(/^\s*(la|le|les|l'|l’)\s+/i, '').replace(/\s+/g, ' ').trim();
+  if (what.length < 3) return null;
+  const birthday = /\banniv/.test(t);
+  const add = async (title: string, date: string, time: string | null, desc: string, yearly: boolean): Promise<Direct> => {
+    const { createAgendaEvent } = await import('./google-calendar.js');
+    const end = time ? `${date}T${pad((Number(time.slice(0, 2)) + 1) % 24)}:${time.slice(3)}:00` : addDays(date, 1);
+    const id = await createAgendaEvent(title, time ? `${date}T${time}:00` : date, end, desc, !time, undefined, yearly ? { recurrence: ['RRULE:FREQ=YEARLY'] } : {}).catch(() => null);
+    if (!id) return { text: `❌ Pas ajouté : l'agenda FIK ne répond pas. Rien n'a changé.`, direct: true };
+    return { text: `✅ Ajouté à l'agenda FIK : ${title} — ${frDate(date)}${time ? ` à ${time}` : ' (journée entière)'}${yearly ? ', tous les ans' : ''}.${desc ? `\n${desc}` : ''}`, direct: true };
+  };
+  // 1) date dite dans la phrase
+  const w = parseWhen(raw);
+  if (w.date) {
+    let title = what;
+    for (const u of w.used) title = title.replace(new RegExp(u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[ae]/g, '[aàâeéèê]'), 'i'), ' ');
+    title = title.replace(/\s+(le|à|a|pour|du)\s*$/i, '').replace(/\s+/g, ' ').trim();
+    return add(`${birthday ? '🎂' : '📅'} ${title.charAt(0).toUpperCase()}${title.slice(1)}`, w.date, w.time ?? null, '', birthday);
+  }
+  // 2) anniversaire d'un client : date de naissance de sa pièce d'identité
+  if (birthday && /\b(client|cliente)\b/.test(t) || birthday && !/\b(sortie|fete|jour|evenement)\b/.test(t)) {
+    const name = what.replace(/^.*?\banniversaire\s+(de|d'|du|des)\s*/i, '').replace(/\b(mon|ma|le|la|notre)\s+(client|cliente)\s*/i, '').trim();
+    if (name.length >= 2) {
+      const { supabase } = await import('./supabase.js');
+      const { data } = await supabase.from('client_documents').select('client_name, extracted_data').ilike('client_name', `%${name.split(' ')[0]}%`).limit(10);
+      const rows = ((data ?? []) as Array<{ client_name: string; extracted_data: Record<string, string> | null }>)
+        .map(r => ({ n: r.client_name, d: String(r.extracted_data?.['date_naissance'] ?? r.extracted_data?.['birth_date'] ?? '') })).filter(r => r.d);
+      const names = [...new Set(rows.map(r => r.n))];
+      if (names.length > 1) return { text: `Plusieurs clients s'appellent comme ça : ${names.join(', ')}. Lequel ?`, direct: true };
+      const m = rows[0] && (/(\d{1,2})[./ -](\d{1,2})[./ -](\d{4})/.exec(rows[0].d) ?? null);
+      const iso = rows[0] && /(\d{4})-(\d{2})-(\d{2})/.exec(rows[0].d);
+      const dd = m ? pad(Number(m[1])) : iso?.[3], mm = m ? pad(Number(m[2])) : iso?.[2], yyyy = m ? m[3] : iso?.[1];
+      if (dd && mm && yyyy) {
+        const y = localNow().date.slice(0, 4);
+        const next = `${y}-${mm}-${dd}` >= localNow().date ? `${y}-${mm}-${dd}` : `${Number(y) + 1}-${mm}-${dd}`;
+        return add(`🎂 Anniversaire ${rows[0]!.n}`, next, null, `Né(e) le ${dd}/${mm}/${yyyy} (pièce d'identité de son dossier client).`, true);
+      }
+      if (/\b(client|cliente)\b/.test(t)) return { text: `Je n'ai pas la date de naissance de ${name} : aucune pièce d'identité scannée dans son dossier. Donne-moi la date (« anniversaire de ${name} le 3 mars ») et je l'ajoute tous les ans.`, direct: true };
+      return null;   // un proche : le cerveau demande la date
+    }
+  }
+  // 3) une date du monde (sortie d'un jeu, d'un film, un match, une fête…) : recherche internet par le code
+  const { multiProviderWebSearch } = await import('./web-search-provider.js');
+  const r = await Promise.race([multiProviderWebSearch(`${what} date officielle`, 'agenda-anything').catch(() => null), new Promise<null>(res => setTimeout(() => res(null), 12000))]);
+  if (!r || !r.results_count || /^NO_DATA/.test(r.text)) return { text: `🔎 Je n'ai rien trouvé de sûr sur internet pour « ${what} ». Donne-moi la date et je l'ajoute.`, direct: true };
+  const { ai } = await import('./ai-util.js');
+  const { jsonOf } = await import('./media-util.js');
+  const j = jsonOf<{ title?: string; date?: string | null; time?: string | null; precision?: string; source?: string; note?: string }>(await ai(
+    `Nous sommes le ${localNow().date}. Kouider veut mettre dans son agenda : « ${what} ».\nRÉSULTATS INTERNET :\n${r.text.slice(0, 3500)}\n\n`
+    + `Trouve la date OFFICIELLE la plus récente (un report annule l'ancienne date). N'invente rien : si les résultats ne donnent pas le jour exact, precision = "mois" ou "inconnue".\n`
+    + `Réponds UNIQUEMENT : {"title":"titre court avec un emoji","date":"AAAA-MM-JJ ou null","time":"HH:MM heure de Bruxelles ou null","precision":"jour|mois|inconnue","source":"nom du site","note":"une phrase : ce qui est sûr"}`, { max: 300 }).catch(() => ''));
+  if (!j) return { text: `🔎 J'ai cherché « ${what} » mais je n'arrive pas à lire une date sûre. Donne-moi la date et je l'ajoute.`, direct: true };
+  if (j.precision !== 'jour' || !j.date || !/^\d{4}-\d{2}-\d{2}$/.test(j.date)) return { text: `🔎 ${j.note ?? 'Pas de jour exact annoncé.'}${j.source ? ` (source : ${j.source})` : ''}\nPas encore de jour exact, donc je n'ajoute rien. Dis « mets-le quand même le … » si tu veux.`, direct: true };
+  if (j.date < localNow().date) return { text: `🔎 ${j.note ?? ''} C'est déjà passé (${frDate(j.date)}), je n'ajoute rien.`, direct: true };
+  return add(String(j.title ?? `📅 ${what}`).slice(0, 80), j.date, j.time && /^\d{2}:\d{2}$/.test(j.time) ? j.time : null, `${j.note ?? ''}${j.source ? ` (source : ${j.source})` : ''}`.trim(), false);
+}
+
 /** « ne me dérange pas jusqu'à 18h / pendant 2 h / 30 min » → silence (appels + messages). */
 /** 10/11 mode présent (téléphone bloqué en famille) : réponses par le code, pas de négociation avec un cerveau gratuit. */
 async function present(raw: string): Promise<Direct | null> {
@@ -712,7 +779,7 @@ export async function frCommand(raw: string, sessionId = 'telegram_kouider'): Pr
   SID = sessionId;
   const msg = raw.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
   if (!msg) return null;
-  for (const f of [sharePub, pubTiktok, craving, noSales, carKm, formeBilan, formeProgram, sportMoveDay, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, present, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
+  for (const f of [sharePub, pubTiktok, craving, noSales, carKm, formeBilan, formeProgram, sportMoveDay, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, agendaAnything, present, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
     const r = await f(msg).catch(e => ({ text: `❌ ${e instanceof Error ? e.message : e}`, direct: true }));
     if (r) return r;
   }
