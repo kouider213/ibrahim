@@ -410,13 +410,15 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
   if (extraNotes) ctx.systemExtra = `${extraNotes}\n\n${ctx.systemExtra ?? ''}`.trim();
   if (pre.length) ctx.systemExtra = `${pre.join('\n\n')}\n\n${ctx.systemExtra ?? ''}`.trim();
   if (actorUserId === 'kouider' && !(sessionId.startsWith('voice_') && !textOnly)) {
-    const [rich, world] = await Promise.all([
+    const [rich, world, health] = await Promise.all([
       import('../integrations/rich-answer.js').then(m => m.richAnswerHint(userMessage)).catch(() => ''),
+      // 11/11 « quelle protéine / créatine prendre, quel complément pour moi » → tout son dossier santé à côté de la question
+      import('../integrations/health-advisor.js').then(m => m.healthAdvisorHint(userMessage)).catch(() => ''),
       import('../integrations/world-facts.js').then(m => m.worldFactsHint(userMessage)).catch(() => ''),   // 06/11 recherche faite par le code
     ]);
     worldChecked = /RÉSULTATS RECHERCHE INTERNET/.test(world);
     const last = ctx.messages[ctx.messages.length - 1];
-    const hint = [codeHint, world, rich].filter(Boolean).join('\n\n');
+    const hint = [codeHint, world, health, rich].filter(Boolean).join('\n\n');
     if (hint && last && last.role === 'user' && typeof last.content === 'string') last.content = `${last.content}\n\n[Consigne pour ta réponse, pas un message de Kouider :\n${hint}]`;
   }
   if (v2ContextAddition) {

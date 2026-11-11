@@ -2,6 +2,10 @@
 - Kouider : « avec la localisation il sait qu'il doit mettre le bouclier ; si ça fait 1 h que notre client n'a pas de réponse, donne-lui les conditions, demande date et âge, sans rien réserver, en disant qu'on reviendra vers lui ».
 - Pendant le bouclier (levé par le GPS) ou la nuit, un client sans réponse seule (client CONNU…) est noté en attente (`wa:waiting`) ; job `client-waiting-reply` */10 : 1 h sans réponse de FIK → réponse de l'assistant IA (draftNightReply : conditions, dates + âge, jamais de dispo ni de réservation, « une personne de FIK reviendra vers vous »), 1 fois / 6 h par client, Telegram prévenu. Envoi par Kouider → attente effacée.
 
+## 11/11/2026 — Conseiller santé & compléments personnel
+- `health-advisor.ts` : question santé / compléments (créatine, whey, vitamines, magnésium, analyses, symptômes…) → tout son dossier santé posé à côté de la question : profil FORME, sèche + plancher 75 kg, protéines visées, charges, récupération, sommeil, dernière prise de sang (normes du labo), traitement en baisse + interactions (sérotoninergiques, sédatifs), halal, dos.
+- Consigne : réponse directe puis « Pour toi » chiffré, forme/dose/moment/preuve/prix, ce qui est inutile, web_search pour marques/prix en Belgique, « à demander au pharmacien » si risque.
+
 ## 11/11/2026 — Revue complète de la semaine 04→11/11 (276 messages relus)
 - Liberté : « je rajoute un demi », « je reprends un demi », « rajoute 1 demi » = prise EN PLUS lue par le code.
 - Argent : « aucun / rien gagné aujourd'hui » → réponse directe (05/11 : « ⚠️ Je n'ai pas exécuté cette action »).
