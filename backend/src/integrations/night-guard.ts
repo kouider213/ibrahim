@@ -84,7 +84,7 @@ Tu donnes : les informations, TOUTES les conditions (location, vente, immobilier
 RÈGLES ABSOLUES :
 1. JAMAIS de disponibilité : tu ne dis jamais qu'une voiture ou un bien est libre, disponible, pris, loué ou réservable à des dates.
 2. JAMAIS de réservation ni de décision : tu ne confirmes rien, tu ne bloques rien, pas de remise, pas de prix spécial, pas de geste commercial, pas d'accord sur un paiement, une livraison ou une exception.
-3. Pour TOUT ce qui est important (confirmer une réservation, une disponibilité, un prix spécial, un paiement, une réclamation, une exception, une visite, un achat) : dis clairement que tu es l'assistant IA de Kouider, que tu ne peux pas prendre ce genre de décision, et qu'une vraie personne va lui répondre dans les plus brefs délais — merci de patienter. Tu peux demander ses dates, la voiture qui l'intéresse et son âge pour que tout soit prêt.
+3. Pour TOUT ce qui est important (confirmer une réservation, une disponibilité, un prix spécial, un paiement, une réclamation, une exception, une visite, un achat) : dis clairement que tu es l'assistant IA de Kouider, que tu ne peux pas prendre ce genre de décision, et qu'une vraie personne va lui répondre dans les plus brefs délais — merci de patienter. Termine TOUJOURS ta réponse en disant qu'une personne de FIK reviendra vers lui très vite. Tu peux demander ses dates, la voiture qui l'intéresse et son âge pour que tout soit prêt.
 4. Oriente vers le SITE quand c'est utile (choisir une voiture, voir les photos, préparer sa demande, lire les conditions) : ${SITE} — réservation : ${SITE}/reservation — conditions : ${SITE}/conditions — questions fréquentes : ${SITE}/faq — packs séjour : ${SITE}/packs. Un seul lien par message, le plus utile.
 5. N'invente rien : seulement ce qui est écrit ci-dessous. Si tu ne sais pas → une vraie personne lui répond très vite.
 6. Langue du client (français, darija, arabe, anglais). En darija : darija ALGÉRIENNE d'Oran (تاع، ضرك، واش، بزاف، نتاع) — jamais marocaine (pas de ديال، دابا). Court : 2 à 5 phrases, chaleureux et poli. Ne dis jamais que Kouider dort ni où il est.
@@ -180,4 +180,57 @@ export async function nightGuardTool(input: Record<string, unknown>): Promise<st
   }
   return `🌙 Gardien de nuit ${c.enabled ? 'ACTIVÉ' : 'désactivé'} — de ${c.from.replace(':', 'h')} à ${c.to.replace(':', 'h')}.\n`
     + 'Il se présente comme ton assistant IA, répond seul aux clients WhatsApp avec les infos, toutes les conditions du site, les prix et nos véhicules, et renvoie vers fikconciergerie.com. Jamais de disponibilité, jamais de réservation ni de décision : pour tout ce qui est important il dit qu\'une vraie personne répond très vite. Récap sur Telegram au réveil.';
+}
+
+// ── 11/11 (Kouider) : « si ça fait 1 h que notre client n'a pas de réponse, donne-lui les conditions, demande dates et âge,
+// sans rien réserver, en disant qu'on reviendra vers lui ». Pendant le bouclier (levé par le GPS) ou la nuit, un client
+// (même CONNU, que le gardien ne touche pas tout de suite) qui attend depuis 1 h sans réponse reçoit la réponse de l'assistant IA.
+const WAIT_KEY = 'wa:waiting', WAIT_MIN = 60;
+type Wait = { chat: string; at: number; said: string };
+async function waits(): Promise<Record<string, Wait>> {
+  try { return JSON.parse((await kvGet(WAIT_KEY)) ?? '{}') as Record<string, Wait>; } catch { return {}; }
+}
+/** Message client resté sans réponse automatique pendant le bouclier / la nuit → l'horloge d'1 h démarre (au 1er message). */
+export async function noteClientWaiting(chat: string, said: string): Promise<void> {
+  const all = await waits(), k = chat.toLowerCase();
+  all[k] = { chat, at: all[k]?.at ?? Date.now(), said: `${all[k] ? `${all[k]!.said}\n` : ''}${said}`.slice(-1200) };
+  await kvSet(WAIT_KEY, JSON.stringify(all), 86_400);
+}
+/** Kouider (ou Dzaryx pour lui) a répondu à ce client → plus d'attente. */
+export async function clearClientWaiting(chat: string): Promise<void> {
+  const all = await waits(), k = chat.toLowerCase();
+  if (!all[k]) return;
+  delete all[k];
+  await kvSet(WAIT_KEY, JSON.stringify(all), 86_400);
+}
+/** Toutes les 10 min : client qui attend depuis 1 h → l'assistant IA répond (conditions, dates + âge, rien de réservé). */
+export async function jobClientWaitingReply(): Promise<string> {
+  const all = await waits();
+  const due = Object.entries(all).filter(([, w]) => Date.now() - w.at >= WAIT_MIN * 60_000);
+  if (!due.length) return 'personne n\'attend';
+  if (!isCloudPcOnline()) return 'PC cloud hors ligne';
+  const done: string[] = [];
+  for (const [k, w] of due) {
+    delete all[k];
+    if (Date.now() - w.at > 6 * 3600_000) continue;                                // trop vieux : Kouider l'a vu sur Telegram
+    if (await kvGet(`wa:hold:${k}`).catch(() => null)) continue;                    // déjà fait il y a moins de 6 h
+    const r = await cloudEmit<{ ok: boolean; messages?: Array<{ me: boolean; text: string }> }>('cloud:wa', { action: 'read', chat: w.chat, n: 12 }, 70_000)
+      .catch(() => ({ ok: false } as { ok: boolean; messages?: Array<{ me: boolean; text: string }> }));
+    const msgs = r.ok ? r.messages ?? [] : [];
+    if (!msgs.length) continue;
+    if (msgs[msgs.length - 1]!.me) continue;                                        // quelqu'un lui a répondu entre-temps
+    const convo = msgs.map(m => `${m.me ? 'FIK' : 'Client'} : ${m.text}`).join('\n').slice(-2500);
+    const { reply, asked, needs } = await draftNightReply(w.chat, w.said, convo, !/assistant IA/i.test(convo));
+    const sent = await cloudEmit<{ ok: boolean; error?: string }>('cloud:wa', { action: 'send', chat: w.chat, text: reply }, 80_000)
+      .catch(err => ({ ok: false, error: err instanceof Error ? err.message : String(err) }));
+    if (!sent.ok) { console.warn('[client-wait] envoi:', sent.error); continue; }
+    await kvSet(`wa:hold:${k}`, '1', 6 * 3600);
+    const l = await log();
+    l.push({ at: new Date().toISOString(), chat: w.chat, asked, answered: reply, needs });
+    await kvSet(LOG_KEY, JSON.stringify(l.slice(-80)), 4 * 86_400);
+    await queueTelegramMessage(`⏱️ WhatsApp — ${w.chat} attendait depuis 1 h sans réponse : l'assistant IA lui a répondu (conditions, dates et âge demandés, rien de réservé) :\n${reply}${needs ? `\n📌 À toi : ${needs}` : ''}`).catch(() => {});
+    done.push(w.chat);
+  }
+  await kvSet(WAIT_KEY, JSON.stringify(all), 86_400);
+  return done.length ? `répondu à ${done.join(', ')}` : 'rien envoyé';
 }

@@ -1,3 +1,7 @@
+## 2026-11-11 (5) — Client sans réponse depuis 1 h → l'assistant IA répond
+- Kouider : « avec la localisation il sait qu'il doit mettre le bouclier ; si ça fait 1 h que notre client n'a pas de réponse, donne-lui les conditions, demande date et âge, sans rien réserver, en disant qu'on reviendra vers lui ».
+- Pendant le bouclier (levé par le GPS) ou la nuit, un client sans réponse seule (client CONNU…) est noté en attente (`wa:waiting`) ; job `client-waiting-reply` */10 : 1 h sans réponse de FIK → réponse de l'assistant IA (draftNightReply : conditions, dates + âge, jamais de dispo ni de réservation, « une personne de FIK reviendra vers vous »), 1 fois / 6 h par client, Telegram prévenu. Envoi par Kouider → attente effacée.
+
 ## 2026-11-11 (4) — Revue de tout depuis dimanche
 - Moins d'appels (Kouider « oui ») : actus de la veille, opportunités, idée du mentor et récap du jour = MESSAGE seulement (18 appels 08-10/11, 11 refusés). Appels gardés : réveil, sport, RDV clients, urgences ; appel manqué → message (déjà le cas).
 - Fichier (PDF…) gardé pendant « ne pas déranger » : lien valable 26 h au lieu de 30 min (08/11 23h30 : 404, jamais reçu).

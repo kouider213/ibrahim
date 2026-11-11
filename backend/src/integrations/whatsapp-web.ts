@@ -266,6 +266,9 @@ export async function onWaNew(c: WaChat): Promise<void> {
       return;
     }
   }
+  // 11/11 : bouclier / nuit et pas de réponse seule (client connu…) → si personne ne lui répond en 1 h, l'assistant IA le fera
+  if (fromClient.length && ng && !DELICATE_RE.test(preview) && !isComplaint(preview) && await ng.nightGuardActive().catch(() => false))
+    await ng.noteClientWaiting(name, preview).catch(() => {});
   let summary = preview, reply = '', kind = 'autre', translation = '';
   try {
     const run = await runReadOnlyAgent(`Client WhatsApp « ${name} » (${c.unread} message(s) non lu(s)). Nouveau(x) message(s) du client :\n« ${preview} »`
@@ -384,6 +387,7 @@ export async function handleWaYesNo(message: string): Promise<{ reply?: string; 
   if (!r.ok) return { reply: `❌ Pas envoyé à ${p.chat} : ${r.error ?? 'erreur'}` };
   void import('./foresight.js').then(m => m.logWa(p.chat, 'out', p.draft)).catch(() => {});
   const d = await drafts(); delete d[p.chat.toLowerCase()]; await kvSet(DRAFTS_KEY, JSON.stringify(d), 3 * 86_400);
+  void import('./night-guard.js').then(m => m.clearClientWaiting(p.chat)).catch(() => {});
   return { reply: `✅ Envoyé sur WhatsApp à ${r['chat'] || p.chat}.` };
 }
 
@@ -673,6 +677,7 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
       await kvSet(PENDING_KEY, '', 60);   // déjà parti : un « oui » plus tard ne doit pas le renvoyer
       const d = await drafts(); delete d[chat.toLowerCase()]; await kvSet(DRAFTS_KEY, JSON.stringify(d), 3 * 86_400);
       void import('./foresight.js').then(m => m.logWa(String(r['chat'] || chat), 'out', text)).catch(() => {});
+      void import('./night-guard.js').then(m => m.clearClientWaiting(chat)).catch(() => {});
       return `✅ Envoyé sur WhatsApp à ${r['chat'] || chat}.`;
     }
     if (action === 'send_file') {
