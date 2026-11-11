@@ -67,8 +67,16 @@ export async function setHardDay(on: boolean, why = ''): Promise<void> {
 
 /** Congé MAINTENANT (aujourd'hui) : le jeudi avant 13h / le dimanche avant 18h il est au travail → false.
  *  Pour un autre jour (offset ≠ 0) : true si ce jour contient du congé. */
+// 11/11 : « enlève mon jour de travail jeudi » = congé ce jour-là seulement (la semaine type ne change pas)
+const DATE_OFF_KEY = (d: string) => `kouider:dayoff:${d}`;
+export async function setDateOff(date: string, why: string | null): Promise<void> {
+  await kvSet(DATE_OFF_KEY(date), why ? why.slice(0, 80) : '', why ? 10 * 86_400 : 60);
+}
+async function isDateOff(offsetDays = 0): Promise<boolean> {
+  return !!(await kvGet(DATE_OFF_KEY(brusselsDate(offsetDays))).catch(() => null));
+}
 export async function isDayOff(offsetDays = 0): Promise<boolean> {
-  if (await isHardDay(offsetDays)) return true;
+  if (await isHardDay(offsetDays) || await isDateOff(offsetDays)) return true;
   if (!(await getDaysOff()).includes(brusselsWeekday(offsetDays))) return false;
   if (offsetDays !== 0) return true;
   const from = await dayOffFrom(0);
@@ -106,7 +114,7 @@ export async function runCallRule(r: { days: number[]; ring: boolean }): Promise
 
 /** Ce jour contient du congé (même seulement l'après-midi) — pour les tâches business d'une journée entière. */
 export async function hasDayOff(offsetDays = 0): Promise<boolean> {
-  return (await getDaysOff()).includes(brusselsWeekday(offsetDays)) || await isHardDay(offsetDays);
+  return (await getDaysOff()).includes(brusselsWeekday(offsetDays)) || await isHardDay(offsetDays) || await isDateOff(offsetDays);
 }
 
 /** Heure à partir de laquelle le jour de congé commence (ex. « 13:00 » le jeudi), null = toute la journée. */

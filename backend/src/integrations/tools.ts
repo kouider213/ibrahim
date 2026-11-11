@@ -3089,7 +3089,10 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     input_schema: {
       type: 'object' as const,
       properties: {
-        action: { type: 'string', enum: ['week', 'session', 'swap', 'did', 'skip', 'unskip', 'rest', 'rest_off', 'deload', 'playlist', 'form', 'weekly', 'log', 'progress', 'settings', 'sync', 'program', 'set_program', 'edit_session', 'reset_program', 'plan_day', 'live', 'home_by', 'move_time'] },
+        action: { type: 'string', enum: ['week', 'session', 'swap', 'did', 'skip', 'unskip', 'rest', 'rest_off', 'deload', 'playlist', 'form', 'weekly', 'log', 'progress', 'settings', 'sync', 'program', 'set_program', 'edit_session', 'reset_program', 'plan_day', 'live', 'home_by', 'move_time', 'move_day'], description: "move_day = DÉPLACER la séance d'un jour à un AUTRE jour (« déplace ma séance de demain à jeudi ») : from + to (AAAA-MM-JJ / 'demain' / 'jeudi'), no_work:true s'il dit qu'il ne travaille pas ce jour-là (« enlève mon jour de travail jeudi ») — UN SEUL appel fait tout : séance enlevée du 1er jour, mise au 2e, travail enlevé, réveil et agenda recalés pour CE jour-là seulement. Jamais update_agenda_event / morning_routine set_day pour ça (set_day change TOUTES les semaines)." },
+        from: { type: 'string', description: 'move_day : jour où la séance était prévue' },
+        to: { type: 'string', description: 'move_day : nouveau jour de la séance' },
+        no_work: { type: 'boolean', description: "move_day : true = il ne travaille pas ce jour-là (congé pour cette date seulement)" },
         week: { type: 'boolean', description: 'move_time : true = toutes les séances restantes de cette semaine' },
         op: { type: 'string', enum: ['start', 'set', 'status', 'next', 'skip', 'cardio_done', 'stop', 'timer'], description: 'live : start (il arrive à la salle), set (une série : exercise? + kg + reps + rpe?), status (« il me reste quoi ? »), next (exercice fini), skip (machine prise), cardio_done (« tapis fini »), stop (séance finie → bilan), timer + on (minuteur de repos on/off)' },
         on: { type: 'boolean', description: 'live op=timer : true = minuteur de repos activé, false = coupé' },

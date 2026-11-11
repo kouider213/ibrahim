@@ -419,8 +419,9 @@ async function pubTiktok(raw: string): Promise<Direct | null> {
 async function craving(raw: string): Promise<Direct | null> {
   const t = strip(raw);
   if (raw.length > 240 || /\?/.test(raw) && !/\bje (peux|dois)\b/.test(t)) return null;
-  const want = /\b(envie|besoin|je craque|ca me demange|je vais craquer|je tiens plus|j'en peux plus)\b/.test(t);
-  const med = new RegExp(String.raw`\b(en prendre (un|une|1)|prendre (un|une|1) (demi|cachet|comprime)|un demi|un cachet|un comprime|mes demis?|mon medoc|mes medocs|le medicament${MED_ALT}|reprendre)\b`).test(t);
+  // 10/11 17h49 « je veut prendre encore des médicament je me bat pour pas prendre encore un dose » ratée → gros cerveau, 3 min sans réponse
+  const want = /\b(envie|besoin|je craque|ca me demange|je vais craquer|je tiens plus|j'en peux plus|je (me )?bat[st]?|je lutte|je resiste|je veu[xt] (en )?(re)?prendre|pour (ne )?pas (en )?(re)?prendre)\b/.test(t);
+  const med = new RegExp(String.raw`\b(en prendre (un|une|1)|prendre (un|une|1) (demi|cachet|comprime)|un demi|un cachet|un comprime|mes demis?|mon medoc|mes medocs|le medicament${MED_ALT}|reprendre|(des|du|de|mes|un|une|encore) (medicaments?|medocs?|demis?|doses?|cachets?|comprimes?))\b`).test(t);
   // « j'ai encore pris un demi, j'en peux plus » = prise DÉJÀ faite + moral → le cerveau (outil liberte + écoute), pas le SOS envie
   if (/\b(j'?ai|je l'?ai|je les ai)\s+(encore\s+|deja\s+|quand meme\s+)?(pris|repris|craque)\b|\bpris\b/.test(t)) return null;
   // 06/11 « si j'ai envie d'en reprendre je te ferai signe » = un plan pour plus tard, pas une envie maintenant → le cerveau
@@ -523,6 +524,22 @@ async function formeProgram(raw: string): Promise<Direct | null> {
     return { text: [...g.lines, ...(g.ifBehind.length ? ['', '💡 Pour y arriver plus vite :', ...g.ifBehind.map(x => `• ${x}`), '', '👉 Dis « adapte mon programme » et je change tout (agenda + FORME).'] : [])].join('\n'), direct: true };
   }
   return null;
+}
+
+/** 11/11 : « déplace ma séance de demain à jeudi (et enlève mon jour de travail jeudi) » — 10/11 redit 4 fois au cerveau. */
+async function sportMoveDay(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (t.length > 240 || /\?\s*$/.test(t)) return null;
+  if (!/\b(seance|sport|salle|muscu|entrainement)\b/.test(t) || !/\b(deplace|decale|bouge|met|mets|passe|change|reporte|remets?)\b/.test(t)) return null;
+  const DAYS = ["aujourd'hui", 'demain', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+  const found = [...t.matchAll(/\b(aujourd'hui|demain|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)\b/g)].map(m => m[1]!);
+  const uniq = found.filter((d, i) => found.indexOf(d) === i && DAYS.includes(d));
+  if (uniq.length < 2) return null;
+  const from = uniq[0]!, to = uniq[1]!;
+  const noWork = /\b(enleve|retire|supprime|annule|vire)\w*\b[^.!]{0,25}\b(jours?|journee|creneau)\s+de\s+(travail|boulot|taf)\b|\bje (ne )?(travaille|bosse) pas\b|\bpas de (travail|boulot)\b|\b(conge|off)\b/.test(t);
+  const { sportCoachTool } = await import('./sport-coach.js');
+  const r = await sportCoachTool({ action: 'move_day', from: from === "aujourd'hui" ? localNow().date : from, to: to === "aujourd'hui" ? localNow().date : to, no_work: noWork });
+  return { text: r, direct: true };
 }
 
 async function sportSkip(raw: string): Promise<Direct | null> {
@@ -695,7 +712,7 @@ export async function frCommand(raw: string, sessionId = 'telegram_kouider'): Pr
   SID = sessionId;
   const msg = raw.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
   if (!msg) return null;
-  for (const f of [sharePub, pubTiktok, craving, noSales, carKm, formeBilan, formeProgram, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, present, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
+  for (const f of [sharePub, pubTiktok, craving, noSales, carKm, formeBilan, formeProgram, sportMoveDay, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, present, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
     const r = await f(msg).catch(e => ({ text: `❌ ${e instanceof Error ? e.message : e}`, direct: true }));
     if (r) return r;
   }

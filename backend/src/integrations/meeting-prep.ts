@@ -26,7 +26,8 @@ function isBookingOrNoise(e: Ev): boolean {
 
 // Créneaux perso / blocs d'organisation de Kouider : pas de fiche ni d'appel (vu le 14-17/10 : appels pour « Temps famille »,
 // « Libre — RDV possibles », « Belgique — travail », « Agence FIK — business Algérie » sans aucun interlocuteur).
-const PERSONAL_RE = /\b(libre|dispo(nible)?s?|famille|perso(nnel)?|travail|boulot|belgique|sport|salle|gym|repos|pause|d[ée]jeuner|d[îi]ner|focus|bloqu[ée]|trajet|route|vol|avion|cong[ée]|vacances|off|sieste|pri[èe]re|mosqu[ée]e|courses|m[ée]decin|dentiste|enfants?|[ée]cole)\b/i;
+// 11/11 : « Agence FIK — business Algérie » (bloc de travail de la routine) passait → appel avec un RDV inventé (Keyin-DZ, IOM…)
+const PERSONAL_RE = /\b(agence\s+fik|business\s+alg[ée]rie|libre|dispo(nible)?s?|famille|perso(nnel)?|travail|boulot|belgique|sport|salle|gym|repos|pause|d[ée]jeuner|d[îi]ner|focus|bloqu[ée]|trajet|route|vol|avion|cong[ée]|vacances|off|sieste|pri[èe]re|mosqu[ée]e|courses|m[ée]decin|dentiste|enfants?|[ée]cole)\b/i;
 function isPersonalBlock(e: Ev): boolean {
   if (/^(🍳|🍽️|🥜|🍲|🧠|😴|🏋️)/u.test(e.summary ?? '')) return true;      // repas / mental / coucher / sport posés par le coach
   const others = (e.attendees ?? []).filter(a => !a.self);

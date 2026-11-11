@@ -105,7 +105,8 @@ const addDays = (date: string, n: number) => new Date(Date.parse(`${date}T12:00:
 
 // ── Config + état du jour ────────────────────────────────────────────────────
 
-export async function getRoutineConfig(): Promise<RoutineConfig> {
+/** La routine HABITUELLE (semaine type), sans les changements d'un seul jour. À utiliser pour la modifier / l'enregistrer. */
+async function rawRoutineConfig(): Promise<RoutineConfig> {
   try {
     const raw = await kvGet(CONFIG_KEY);
     if (raw) return { ...DEFAULT_CONFIG, ...(JSON.parse(raw) as Partial<RoutineConfig>) };
@@ -113,6 +114,33 @@ export async function getRoutineConfig(): Promise<RoutineConfig> {
   return DEFAULT_CONFIG;
 }
 const saveConfig = (c: RoutineConfig) => kvSet(CONFIG_KEY, JSON.stringify(c));
+
+// 11/11 (Kouider, 10/11 : « déplace ma séance de demain à jeudi et enlève mon jour de travail jeudi », répété 4 fois) :
+// un changement pour UNE date (séance déplacée, jour de travail enlevé) sans toucher la semaine type. Avant, le seul moyen
+// était set_day (permanent) : jeudi restait « travail » (réveil 05:15 pour le magasin) et les séries recréées effaçaient
+// les retouches faites à la main dans l'agenda.
+const DATE_PLAN_KEY = 'kouider:routine:dates';
+export async function datePlans(): Promise<Record<string, DayPlan>> {
+  try { return JSON.parse((await kvGet(DATE_PLAN_KEY)) ?? '{}') as Record<string, DayPlan>; } catch { return {}; }
+}
+export async function setDatePlan(date: string, plan: DayPlan | null): Promise<void> {
+  const all = await datePlans();
+  if (plan) all[date] = plan; else delete all[date];
+  const today = localNow().date;
+  await kvSet(DATE_PLAN_KEY, JSON.stringify(Object.fromEntries(Object.entries(all).filter(([d]) => d >= today))), 30 * 86_400);
+}
+/** La routine des 7 prochains jours : semaine type + changements d'un seul jour (days[weekday] = ce jour-là). */
+export async function getRoutineConfig(): Promise<RoutineConfig> {
+  const c = await rawRoutineConfig();
+  const o = await datePlans().catch(() => ({} as Record<string, DayPlan>));
+  if (!Object.keys(o).length) return c;
+  const today = localNow().date, days = [...c.days];
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(today, i);
+    if (o[d]) days[localNow(localTs(d, '12:00')).weekday] = o[d]!;
+  }
+  return { ...c, days };
+}
 
 interface DayState { sentAt?: number; awakeAt?: number; calls: number; lastCallAt?: number }
 const stateKey = (date: string) => `routine:day:${date}`;
@@ -306,7 +334,7 @@ async function alignFamilyToWorkEnd(): Promise<string> {
 export async function ensureRoutineStart(): Promise<void> {
   // Nouveaux horaires (v4) : appliqués une fois dès le prochain passage (departure-watch, toutes les 5 min, jour et soir)
   if ((await kvGet(CALENDAR_FLAG).catch(() => '0')) === '1' && (await kvGet(DAYS_V2_FLAG).catch(() => '1')) !== '1') {
-    const r = await syncRoutineCalendar({ ...(await getRoutineConfig()), days: DEFAULT_CONFIG.days }).catch(e => String(e));
+    const r = await syncRoutineCalendar({ ...(await rawRoutineConfig()), days: DEFAULT_CONFIG.days }).catch(e => String(e));
     if (/^\d+\/\d+ séries/.test(r) && !r.startsWith('0/')) await kvSet(DAYS_V2_FLAG, '1');
     console.log(`[routine] horaires v4 (réveil 6h40, départ 7h, sauf jeudi) : ${r}`);
   }
@@ -398,7 +426,7 @@ function nextDateFor(weekday: number, pausedUntil?: string | null): string {
 
 /** (Re)crée dans l'agenda FIK les séries de la routine à partir de la config (en supprimant les anciennes). */
 export async function syncRoutineCalendar(cfg?: RoutineConfig): Promise<string> {
-  const c = cfg ?? await getRoutineConfig();
+  const c = cfg ?? await rawRoutineConfig();
   // Séries connues + toute série de la routine retrouvée par son titre (ids perdus) — sans agenda joignable, on ne touche à rien.
   const { date: today } = localNow();
   const evs = await listAgendaRange(new Date(localTs(today, '00:00')).toISOString(), new Date(localTs(addDays(today, 15), '00:00')).toISOString(), 250);
@@ -449,12 +477,48 @@ export async function syncRoutineCalendar(cfg?: RoutineConfig): Promise<string> 
   return `${ids.length}/${blocks.size} séries créées dans l'agenda FIK`;
 }
 
+const WORK_RE = /\b(travail|boulot|magasin|librairie|ouverture|shift)\b|^⏰ Réveil, douche, petit-déj/iu;
+/**
+ * 11/11 : programme d'UN seul jour (séance déplacée, jour de travail enlevé). La semaine type ne change pas.
+ * Agenda de ce jour-là : blocs de la routine (et du travail si noWork) retirés, puis trajet / séance / retour / douche recréés
+ * comme une séance normale (le coach sport y met ensuite le nom de la séance).
+ */
+export async function setOneDay(date: string, plan: DayPlan, noWork: boolean): Promise<{ removed: string[]; created: string[]; ok: boolean }> {
+  await setDatePlan(date, plan);
+  const evs = await listAgendaRange(new Date(localTs(date, '00:00')).toISOString(), new Date(localTs(date, '23:59')).toISOString(), 60);
+  if (!evs) return { removed: [], created: [], ok: false };
+  const removed: string[] = [], created: string[] = [];
+  for (const e of evs) {
+    if (!e.id || !e.start.dateTime) continue;
+    const t = e.summary ?? '';
+    if (/Booking ID|Réservation|client/i.test(`${t} ${e.description ?? ''}`)) continue;
+    if (!ROUTINE_TITLE.test(t) && !/^🏋️/u.test(t) && !(noWork && WORK_RE.test(t))) continue;
+    if (await deleteAgendaEvent(e.id).catch(() => false)) removed.push(`${t.split(' — ')[0]} ${hm(Date.parse(e.start.dateTime))}`);
+  }
+  const c = await rawRoutineConfig();
+  const after = (hhmm: string, min: number) => { const x = toMin(hhmm) + min; return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`; };
+  const mk = async (title: string, a: string, b: string, desc: string, loc = '') => {
+    if (toMin(b) <= toMin(a)) return;
+    if (await createAgendaEvent(title, `${date}T${a}:00`, `${date}T${b}:00`, desc, false, loc, { timeZone: TZ }).catch(() => null)) created.push(`${title} ${a}`);
+  };
+  if (plan.kind === 'sport' && plan.sport) {
+    const homeBy = localNow(localTs(date, '12:00')).weekday === 6 ? '08:30' : '07:30';
+    const end = after(homeBy, -25);
+    const sEnd = toMin(end) > toMin(plan.sport[0]) ? end : plan.sport[1];
+    if (plan.leave) await mk('🚗 Trajet → salle de Wemmel', plan.leave, plan.sport[0], 'Temps de trajet maison → salle (Dzaryx te prévient si le trafic l\'allonge).');
+    await mk('🏋️ Sport — salle de Wemmel', plan.sport[0], sEnd, `Réveil ${plan.wake} · départ ${plan.leave} (séance déplacée à ce jour-là).`, c.addresses.gym);
+    await mk('🚗 Retour maison', sEnd, homeBy, 'Temps de trajet salle → maison.');
+    if (plan.shower && plan.eat) await mk(/famille/i.test(plan.next ?? '') ? '🚿 Douche (puis petit-déj en famille)' : '🚿 Douche + 🍳 petit-déj', plan.shower, /famille/i.test(plan.next ?? '') ? plan.eat : after(plan.eat, 25), `Ensuite : ${plan.next ?? ''}`, c.addresses.home);
+  }
+  return { removed, created, ok: true };
+}
+
 /** Une seule fois : séries de la routine + adresses sur « travail » et « maison » + famille dans le dossier. */
 export async function setupRoutineCalendar(): Promise<string> {
   if ((await kvGet(CALENDAR_FLAG)) === '1') return 'déjà fait';
   if ((await kvGet('routine:calendar:lock')) === '1') return 'en cours';
   await kvSet('routine:calendar:lock', '1', 600);
-  const cfg = await getRoutineConfig();
+  const cfg = await rawRoutineConfig();
   const created = await syncRoutineCalendar(cfg);
   if (!created.startsWith('0/')) {
     const { date } = localNow();
@@ -507,7 +571,7 @@ function describe(c: RoutineConfig): string {
 export async function morningRoutineTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   if (/houari/i.test(sessionId ?? '')) return '❌ Réservé à Kouider.';
   const action = String(input['action'] ?? 'status');
-  const c = await getRoutineConfig();
+  const c = await rawRoutineConfig();
   const { date } = localNow();
 
   if (action === 'pause') {

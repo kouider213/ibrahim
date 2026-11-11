@@ -7,6 +7,18 @@
 
 ## Bugs Ouverts 🔴
 
+### B065 — Client WhatsApp sans réponse à 22h34 (10/11) ✅ FIXÉ
+Bouclier du soir fini à 22h30, gardien de nuit à 23h00 : trou de 30 min. Le gardien prend le relais dès 22h30 (`night-guard.ts`).
+
+### B066 — Faux rendez-vous « Agence FIK — business Algérie » (09/11 15h, 10/11 10h) ✅ FIXÉ
+Bloc de routine pris pour un RDV : la préparation inventait un interlocuteur (Keyin-DZ, IOM, SIAHA). `meeting-prep.ts` ignore ces blocs.
+
+### B067 — « Déplace ma séance à jeudi + enlève mon travail jeudi » redit 4 fois (10/11 19h58-20h47) ✅ FIXÉ
+Pas d'outil pour un seul jour : update_agenda_event ❌ puis « C'est fait », set_day hebdo gardait jeudi « travail » et recréait les séries (retouches effacées), ÉPAULES 6h30-13h. Fix : `sport_coach move_day` (from, to, no_work) + commande directe, programme d'une date (`kouider:routine:dates`), congé d'une date (`kouider:dayoff:<date>`), garde-fou écriture d'agenda ratée.
+
+### B068 — SOS envie sans réponse pendant 3 min (10/11 17h49) ✅ FIXÉ
+Phrase non reconnue par le SOS direct → gros cerveau > 180 s (TimeoutError tgcall) puis 3 réponses d'affilée. Détection élargie.
+
 ### B060 — Messages Telegram « sans raison » après un appel (08/11 10h20 et 11h00) ✅ FIXÉ
 La Conscience lisait les demandes reformulées par la voix temps réel comme s'il les avait écrites : réponse à sa place, et « tu as l'air sous pression » sur le ton de la reformulation. Les tours d'appel sont exclus de son humeur et de kouider_a_dit_2h.
 

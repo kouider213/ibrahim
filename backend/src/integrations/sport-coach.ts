@@ -1173,6 +1173,33 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
   }
   if (action === 'sync') { const r = await planSportWeek(true); return `✅ ${r.slots.length} séance(s) planifiées, ${r.note}.`; }
   if (action === 'program') { await getState(); return sportProgramText(); }
+  // 11/11 (10/11 : « déplace ma séance de demain à jeudi et enlève mon jour de travail jeudi », redit 4 fois, « je le vois pas »)
+  if (action === 'move_day') {
+    const from = parseDate(input['from'] ?? input['date']);
+    const to = input['to'] ? parseDate(input['to']) : '';
+    if (!to || to === from) return '❌ Il manque le jour d\'arrivée : sport_coach move_day avec from (jour de la séance) et to (nouveau jour).';
+    if (to < localNow().date) return '❌ Ce jour-là est déjà passé.';
+    const { setOneDay } = await import('./morning-routine.js');
+    const cfg = await getRoutineConfig();
+    const wd = (d: string) => localNow(localTs(d, '12:00')).weekday;
+    const toPlan = cfg.days[wd(to)], fromPlan = cfg.days[wd(from)];
+    const noWork = input['no_work'] === true;
+    if (toPlan?.kind === 'work' && !noWork) return `❓ Le ${fmt(to)} est un jour de TRAVAIL (${toPlan.next ?? 'magasin'}). Rien n'est changé. Demande-lui s'il travaille ce jour-là ; s'il a dit qu'il ne travaille pas (« enlève mon jour de travail »), rappelle move_day avec no_work:true.`;
+    const tpl = fromPlan?.kind === 'sport' && fromPlan.sport ? fromPlan : cfg.days.find(d => d.kind === 'sport' && d.sport);
+    if (!tpl) return '❌ Aucune séance type dans sa routine.';
+    const st = await getState();
+    const type = st.plan[from]?.type ?? st.overrides[from] ?? null;
+    await setSportSkip(from, `séance déplacée au ${fmt(to)}`);
+    if (noWork) await import('./kouider-dossier.js').then(m => m.setDateOff(to, 'jour de travail enlevé par Kouider')).catch(() => {});
+    const next = noWork ? '09:35 petit-déj en famille (jour de congé)' : (toPlan?.kind === 'sport' ? toPlan.next : tpl.next);
+    const r = await setOneDay(to, { ...tpl, kind: 'sport', next }, noWork);
+    if (type) await setSportOverride(to, type); else await planSportWeek(true);
+    const slot = (await getState()).plan[to];
+    if (!r.ok) return `⚠️ Séance enlevée le ${fmt(from)} et réveil du ${fmt(to)} recalé, MAIS l'agenda FIK ne répond pas : rien n'a changé dans l'agenda. Dis-lui-le franchement.`;
+    return `✅ Séance déplacée : plus de sport le ${fmt(from)} (pas de réveil salle ce jour-là) → ${fmt(to)} : ${slot ? slot.title.replace(/ — .*/, '') : 'séance'} ${tpl.sport![0]}, réveil ${tpl.wake}, départ ${tpl.leave}.`
+      + `${noWork ? `\n🏖️ ${fmt(to)} = jour de congé (une seule fois, la semaine type ne change pas) : travail enlevé de l'agenda.` : ''}`
+      + `\nAgenda : enlevé ${r.removed.join(', ') || 'rien'} ; ajouté ${r.created.join(', ') || 'rien'}.`;
+  }
   if (action === 'move_time') return moveSportTime({ start: String(input['start'] ?? ''), ...(input['week'] ? { week: true } : { date }) });
   if (action === 'plan_day') {
     await loadProgram();

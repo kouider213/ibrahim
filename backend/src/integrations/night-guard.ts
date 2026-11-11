@@ -37,8 +37,14 @@ export async function nightGuardActive(): Promise<boolean> {
   if (await import('./brain-plus.js').then(m => m.vacationActive()).catch(() => false)) return true;   // mode vacances : 24 h/24
   if (await import('./conscience.js').then(m => m.guardOnDuty()).catch(() => false)) return true;     // bouclier famille / relais (Jarvis 4)
   const c = await nightCfg();
-  return c.enabled && inWindow(localNow().hhmm, c);
+  if (!c.enabled) return false;
+  const hhmm = localNow().hhmm;
+  // 11/11 (Kouider) : le bouclier du soir s'arrête à 22h30 et la nuit commençait à 23h → un client écrit à 22h34 le 10/11,
+  // personne ne lui a répondu. Le gardien prend le relais dès la fin du bouclier, sans trou.
+  if (c.from > EVENING_RELAY && hhmm >= EVENING_RELAY && hhmm < c.from) return true;
+  return inWindow(hhmm, c);
 }
+const EVENING_RELAY = '22:30';   // = fin du bouclier famille (SHIELD_UNTIL_MIN dans conscience.ts)
 
 async function log(): Promise<Entry[]> {
   try { return JSON.parse((await kvGet(LOG_KEY)) ?? '[]') as Entry[]; } catch { return []; }

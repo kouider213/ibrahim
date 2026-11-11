@@ -68,6 +68,14 @@ export function phantomGuard(
   if (lastTool && (!lastTool.success || /^\s*❌/.test(lastTool.result ?? '')) && /^\s*(✅|c.est\s+(fait|bon|ok)\b|voil[aà]\b|termin[eé]\b|parfait\b)/i.test(text)) {
     return `⚠️ Ça n'a pas marché, rien n'a changé. ${(lastTool.result ?? '').replace(/^\s*❌\s*/, '').slice(0, 300)}`.trim();
   }
+  // 10/11 19h59 : update_agenda_event ❌ puis 3 lectures ✅ → « C'est fait » ; l'agenda n'avait pas bougé (redit 4 fois).
+  // Une écriture d'agenda ratée et jamais réussie ensuite = on ne dit pas « fait » sans le dire.
+  const AGENDA_W = /^(create|update|delete)_agenda_event$/;
+  const lastAgendaW = [...toolsExecuted].reverse().find(t => AGENDA_W.test(t.name));
+  if (lastAgendaW && (!lastAgendaW.success || /^\s*❌/.test(lastAgendaW.result ?? ''))
+    && /c.est\s+(fait|bon|corrig)|✅|d[ée]plac[ée]|mis\s+[àa]\s+jour|enlev[ée]|retir[ée]|ajout[ée]|modifi[ée]/i.test(text)) {
+    return `${text.trim()}\n\n⚠️ Attention : la modification dans l'agenda FIK n'a PAS marché (${(lastAgendaW.result ?? 'erreur').replace(/^\s*❌\s*/, '').slice(0, 160)}). Vérifie dans l'agenda ou redis-le-moi.`;
+  }
   // Y a-t-il une affirmation d'action dans la réponse ?
   const hasActionClaim = PHANTOM_ACTION_PATTERNS.some(p => p.test(text));
   if (!hasActionClaim) return text;

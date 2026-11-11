@@ -1,3 +1,6 @@
+## 2026-11-11 — Bugs de la conversation du 10/11
+- Gardien de nuit dès 22h30 (B065) · plus de faux RDV « Agence FIK » (B066) · `sport_coach move_day` + commande directe, un seul jour changé (B067) · écriture d'agenda ratée jamais confirmée (B067) · SOS envie élargi (B068).
+
 ## 2026-11-10 (8) — Mode présent : 2 h d'écran par jour + blocage si limite dépassée
 - Kouider : « au moins 2 h de temps d'écran » → les applis s'ouvrent tant que les 2 h du jour ne sont pas utilisées (compteur entre les événements `app_open` et `app_close`), blocage ensuite. Réglable (`budget`).
 - Sa règle : limite du jour de son programme privé dépassée → applis bloquées partout jusqu'au lendemain, sans pause ni raison, avec un message d'encouragement discret (rien de privé dans la notification).
