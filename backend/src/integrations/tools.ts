@@ -2942,12 +2942,13 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'morning_routine',
-    description: "ROUTINE DU MATIN de Kouider (sport chaque matin sauf le jeudi où il ouvre le magasin à 6h30, douche + petit-déj avant le travail). Chaque matin à l'heure du réveil Dzaryx envoie un message de motivation (Fatima, Ibrahim, santé, business, mental, citation) et demande s'il est réveillé ; sans réponse → appel. Les départs (salle, travail) sont suivis avec le trafic. action='status' : horaires et état. 'pause' (+ until YYYY-MM-DD ou days, reason) : vacances / repos — « je suis en vacances jusqu'au 3 », « pas de réveil demain ». 'resume' / 'on' : réactiver. 'off' : couper. 'set_day' (day + wake/leave/sport_start/sport_end/shower/eat/kind/next, heures HH:MM) : changer un jour (l'agenda suit). 'set_addresses' (home/work/gym). 'set_call_delay' (minutes avant l'appel). 'test' : envoyer le message du matin maintenant. 'sync_calendar' : recréer les séries dans l'agenda.",
+    description: "ROUTINE DU MATIN de Kouider (sport chaque matin sauf le jeudi où il ouvre le magasin à 6h30, douche + petit-déj avant le travail). Chaque matin à l'heure du réveil Dzaryx envoie un message de motivation (Fatima, Ibrahim, santé, business, mental, citation) et demande s'il est réveillé ; sans réponse → appel. Les départs (salle, travail) sont suivis avec le trafic. action='status' : horaires et état. 'pause' (+ until YYYY-MM-DD ou days, reason) : vacances / repos SANS sport — « je suis en vacances jusqu'au 3 », « pas de réveil demain ». 'no_work' (+ from, until YYYY-MM-DD ou days) : il ne TRAVAILLE PAS ces jours-là (« cette semaine je travaille pas », « enlève tous les trucs du travail ») → congé jour par jour, travail retiré de l'agenda, séances de sport GARDÉES — jamais 'pause' pour ça. 'resume' / 'on' : réactiver. 'off' : couper. 'set_day' (day + wake/leave/sport_start/sport_end/shower/eat/kind/next, heures HH:MM) : changer un jour (l'agenda suit). 'set_addresses' (home/work/gym). 'set_call_delay' (minutes avant l'appel). 'test' : envoyer le message du matin maintenant. 'sync_calendar' : recréer les séries dans l'agenda.",
     input_schema: {
       type: 'object' as const,
       properties: {
-        action: { type: 'string', enum: ['status', 'pause', 'resume', 'on', 'off', 'set_day', 'set_addresses', 'set_call_delay', 'test', 'sync_calendar'] },
-        until: { type: 'string', description: 'YYYY-MM-DD (pause, inclus)' },
+        action: { type: 'string', enum: ['status', 'pause', 'no_work', 'resume', 'on', 'off', 'set_day', 'set_addresses', 'set_call_delay', 'test', 'sync_calendar'] },
+        until: { type: 'string', description: 'YYYY-MM-DD (pause / no_work, inclus)' },
+        from: { type: 'string', description: 'YYYY-MM-DD (no_work : 1er jour, défaut aujourd\'hui)' },
         days: { type: 'number', description: 'pause : nombre de jours à partir d\'aujourd\'hui' },
         reason: { type: 'string' },
         day: { type: 'string', description: 'lundi…dimanche (set_day)' },

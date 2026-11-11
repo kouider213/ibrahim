@@ -585,6 +585,36 @@ export async function morningRoutineTool(input: Record<string, unknown>, session
     await saveConfig({ ...c, pausedUntil: until, pauseReason: String(input['reason'] ?? '').slice(0, 80) || undefined });
     return `⏸️ Routine du matin en pause jusqu'au ${until} inclus : pas de message de réveil, pas d'appel, pas d'alerte de départ pour la salle ou le travail. Elle reprend toute seule le lendemain. Repose-toi bien !`;
   }
+  // 11/11 : « cette semaine je travaille pas, enlève tous les trucs du travail » → le cerveau avait mis TOUTE la routine en pause
+  // jusqu'au 17 (plus de réveil ni de séance, même celle déplacée à jeudi). Pas de travail = congé jour par jour, sport gardé.
+  if (action === 'no_work' || (action === 'pause' && /travail|boulot|taf|bosse|cong[ée]/i.test(String(input['reason'] ?? '')))) {
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(String(input['from'] ?? '')) && String(input['from']) >= date ? String(input['from']) : date;
+    const until = /^\d{4}-\d{2}-\d{2}$/.test(String(input['until'] ?? '')) ? String(input['until'])
+      : input['days'] ? addDays(from, Math.max(1, Number(input['days'])) - 1) : from;
+    if (until < from || until > addDays(from, 30)) return '❌ Période invalide (from / until en AAAA-MM-JJ, 31 jours max).';
+    const { setDateOff } = await import('./kouider-dossier.js');
+    if (action === 'pause' && c.pausedUntil) await saveConfig({ ...c, pausedUntil: null, pauseReason: undefined });
+    const out: string[] = []; let agendaKo = false;
+    const dp = await datePlans();   // séance déjà déplacée à ce jour-là (move_day) → gardée
+    for (let d = from; d <= until; d = addDays(d, 1)) {
+      const p = dp[d] ?? c.days[localNow(localTs(d, '12:00')).weekday];
+      await setDateOff(d, 'pas de travail (Kouider)');
+      if (p?.kind === 'sport') await setDatePlan(d, { ...p, next: '09:35 petit-déj en famille (jour de congé)' });
+      else await setDatePlan(d, { kind: 'none', next: 'jour de congé' });
+      const evs = await listAgendaRange(new Date(localTs(d, '00:00')).toISOString(), new Date(localTs(d, '23:59')).toISOString(), 60);
+      if (!evs) agendaKo = true;
+      const gone: string[] = [];
+      for (const e of evs ?? []) {
+        const t = e.summary ?? '';
+        if (!e.id || /Booking ID|Réservation|client/i.test(`${t} ${e.description ?? ''}`)) continue;
+        if (/\b(travail|boulot|magasin|librairie|ouverture|shift)\b/iu.test(t) || (p?.kind === 'work' && ROUTINE_TITLE.test(t)))
+          if (await deleteAgendaEvent(e.id).catch(() => false)) gone.push(t.split(' — ')[0]!);
+      }
+      out.push(`- ${d} : congé${p?.kind === 'sport' ? ` · séance gardée ${p.sport?.[0] ?? ''} (réveil ${p.wake})` : ' · pas de réveil'}${gone.length ? ` · enlevé ${gone.join(', ')}` : ''}`);
+    }
+    return [`🏖️ Pas de travail du ${from} au ${until} : congé ces jours-là (la semaine type ne change pas), le SPORT est gardé.`, ...out,
+      agendaKo ? '⚠️ L\'agenda FIK ne répond pas : les créneaux de travail n\'ont peut-être pas été enlevés, dis-le-lui.' : ''].filter(Boolean).join('\n');
+  }
   if (action === 'resume' || action === 'on') {
     await saveConfig({ ...c, enabled: true, pausedUntil: null, pauseReason: undefined });
     return '▶️ Routine du matin réactivée — je te réveille demain à l\'heure prévue.';

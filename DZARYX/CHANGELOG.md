@@ -2,6 +2,11 @@
 - Kouider : « avec la localisation il sait qu'il doit mettre le bouclier ; si ça fait 1 h que notre client n'a pas de réponse, donne-lui les conditions, demande date et âge, sans rien réserver, en disant qu'on reviendra vers lui ».
 - Pendant le bouclier (levé par le GPS) ou la nuit, un client sans réponse seule (client CONNU…) est noté en attente (`wa:waiting`) ; job `client-waiting-reply` */10 : 1 h sans réponse de FIK → réponse de l'assistant IA (draftNightReply : conditions, dates + âge, jamais de dispo ni de réservation, « une personne de FIK reviendra vers vous »), 1 fois / 6 h par client, Telegram prévenu. Envoi par Kouider → attente effacée.
 
+## 11/11/2026 — Fix « cette semaine je travaille pas » = routine en pause
+- Bug : le cerveau a utilisé `morning_routine pause` jusqu'au 17/11 → plus de réveil ni de séance (même celle déplacée à jeudi).
+- Nouvelle action `morning_routine no_work` (from/until/days) : congé jour par jour (`kouider:dayoff:*`), travail retiré de l'agenda, sport gardé (plans du jour déjà déplacés respectés). `pause` avec raison travail/congé → redirigé vers no_work.
+- Données corrigées : pause levée, congé 11→15/11, séances gardées (jeudi 12, vendredi 13, samedi 14).
+
 ## 11/11/2026 — Voix CarPlay : ciblée / coupée / toujours
 - `car-voice-mode.ts` : kv `car:voice:mode` = `cible` (défaut) | `off` | `toujours`. Ciblé = parle seulement au départ maison → salle (heure de départ routine ±40 min) et en quittant le travail ; sinon son muet (WAV 0,3 s, le raccourci iPhone ne plante pas).
 - Arrivée (carplay_off) muette si coupé ou si le départ n'a pas parlé ; vocal préparé (car-prep) sauté pour les trajets muets.
