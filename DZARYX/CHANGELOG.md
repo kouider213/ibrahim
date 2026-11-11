@@ -2,6 +2,15 @@
 - Kouider : « avec la localisation il sait qu'il doit mettre le bouclier ; si ça fait 1 h que notre client n'a pas de réponse, donne-lui les conditions, demande date et âge, sans rien réserver, en disant qu'on reviendra vers lui ».
 - Pendant le bouclier (levé par le GPS) ou la nuit, un client sans réponse seule (client CONNU…) est noté en attente (`wa:waiting`) ; job `client-waiting-reply` */10 : 1 h sans réponse de FIK → réponse de l'assistant IA (draftNightReply : conditions, dates + âge, jamais de dispo ni de réservation, « une personne de FIK reviendra vers vous »), 1 fois / 6 h par client, Telegram prévenu. Envoi par Kouider → attente effacée.
 
+## 11/11/2026 — Revue complète de la semaine 04→11/11 (276 messages relus)
+- Liberté : « je rajoute un demi », « je reprends un demi », « rajoute 1 demi » = prise EN PLUS lue par le code.
+- Argent : « aucun / rien gagné aujourd'hui » → réponse directe (05/11 : « ⚠️ Je n'ai pas exécuté cette action »).
+- Vidéo studio : vidéo compressée avant envoi (06/11 : 1re pub perdue « object exceeded the maximum allowed size » → 5 relances, ≈ 9 $ Kling).
+- Cerveau : numéro WhatsApp FIK +32 466 31 14 69 connu (06/11 : « je ne connais pas ton numéro »).
+- Grand Coach futur : bénéfice recalculé (client − propriétaire) × jours au lieu de la colonne `profit` (0 sur Djillali, réel 121 €).
+- FORME : plus la même séance 2 jours de suite autour du samedi (13 et 14/11 = DOS & BICEPS) ; bilan de séance avec le nom de la séance demandée (10/11 « PECTORAUX & ABDOS » titré « PECTORAUX & TRICEPS »).
+- Déjà corrigés pendant la semaine (vérifiés sur le code) : « dispo à 6:30 », eau + demis dans le même message, « je viens de prendre 2 demi », « +200 euro en cas> », séance fantôme dans le brief, SOS envie du 10/11, « je prie » = pris.
+
 ## 11/11/2026 — Fix « cette semaine je travaille pas » = routine en pause
 - Bug : le cerveau a utilisé `morning_routine pause` jusqu'au 17/11 → plus de réveil ni de séance (même celle déplacée à jeudi).
 - Nouvelle action `morning_routine no_work` (from/until/days) : congé jour par jour (`kouider:dayoff:*`), travail retiré de l'agenda, sport gardé (plans du jour déjà déplacés respectés). `pause` avec raison travail/congé → redirigé vers no_work.

@@ -29,6 +29,8 @@ export type MoneyCommand = {
   ask?: { kind: 'total' | 'cash' | 'gains' | 'best' | 'recap'; from?: string; to?: string; title?: string };
   /** Argent sorti de la caisse avec un motif : « -900 pour une commande », « j'ai pris 60 pour les courses » */
   out?: { amount: number; kind: 'achat' | 'depense'; cat: string; date: string; left?: number };
+  /** 11/11 : « aucun / rien gagné aujourd'hui, pas eu le temps » → journée à 0 € (05/11 : « ⚠️ Je n'ai pas exécuté cette action ») */
+  zero?: { date: string };
 };
 
 const MONEY = /tous revenus confondus|montant total|gagn|vend|ventes?\b|encaiss|cash|caisse|liquide|snus|argent|€|euros?\b|capital|fortune|patrimoine|tout confondu|au total|en tout|combien d.argent|j.ai combien\s*\??\s*$|b[ée]n[ée]f|thune|rentr[ée]|[ée]pargne/i;   // 02/11 « j'ai combien au total ? » partait au cerveau (risque de chiffre inventé)
@@ -109,6 +111,8 @@ export function parseMoneyCommand(raw: string): MoneyCommand | null {
   // 07/11 « +200 euro en cas> aujourd'hui » : faute sur cash → rien noté, le cerveau a sorti la fortune. « en cas de » reste intact.
   msg = msg.replace(/(\d[\d\s.,]*\s*k?\s*(?:€|euros?|e)?\s*(?:en|de|du)\s+)(?:cas|cach|cashe|kash|cahs|csh|cassh)(?![\p{L}]|\s+(?:de|d'|où|ou)\b)[^\p{L}\d\s]*/giu, '$1cash ');
   const today = localNow().date;
+  if (msg.length <= 160 && !/\?|[1-9]/.test(msg) && /\b(aucun|aucune|rien|z[ée]ro|0|pas)\b/i.test(msg)
+    && /\b(gagn[ée]?\w*|vendu|vente|encaiss\w*)\b/i.test(msg) && !/\b(demain|hier|semaine|mois)\b/i.test(msg)) return { zero: { date: today } };
   const cashOut = msg ? parseCashOut(msg, today) : null;
   if (cashOut) return { out: cashOut };
   // 08/11 « fais-moi le récap de mon argent depuis le début », « bilan de mon cash du mois »
@@ -253,6 +257,7 @@ export async function totalText(): Promise<string> {
 
 // ── Exécution ──
 export async function runMoneyCommand(c: MoneyCommand): Promise<string> {
+  if (c.zero) { const g = await gainsText(c.zero.date, c.zero.date, "aujourd'hui").catch(() => ''); return `✅ Noté : rien gagné aujourd'hui, aucune vente ajoutée. Pas grave, ça arrive — demain on remet ça.${g ? `\n${g}` : ''}`; }
   if (c.ask) {
     if (c.ask.kind === 'total') return totalText();
     if (c.ask.kind === 'best') return bestDayText();

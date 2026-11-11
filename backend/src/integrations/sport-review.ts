@@ -195,8 +195,10 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
   if (context.sleep != null && context.sleep < 6) improve.push(`Seulement ${context.sleep} h de sommeil cette nuit : ça pèse sur la force`);
   if (context.protYday && context.protGoal && context.protYday < context.protGoal * 0.7) improve.push(`Protéines hier : ${Math.round(context.protYday)} g sur ${context.protGoal} g — mange plus de protéines la veille`);
 
+  // 11/11 : séance « PECTORAUX & ABDOS » demandée le 10/11 → bilan titré « PECTORAUX & TRICEPS » (nom de la séance type)
+  const custom = (JSON.parse((await kvGet('kouider:sport:custom').catch(() => null)) ?? '{}') as Record<string, { label?: string; emoji?: string }>)[date];
   const r: SessionReview = {
-    date, at: Date.now(), type: cur.type, label: SESSIONS[cur.type].label, emoji: SESSIONS[cur.type].emoji, totals,
+    date, at: Date.now(), type: cur.type, label: custom?.label ?? SESSIONS[cur.type].label, emoji: custom?.emoji ?? SESSIONS[cur.type].emoji, totals,
     prev: prevS ? { date: prevS.date, sets: prevS.sets.length, volume: Math.round(prevVolRaw), comparable: prevOk, durationMin: prevS.durationMin ?? null } : null,
     exercises, scores, avis: '', good: good.slice(0, 6), improve: improve.slice(0, 6), chartUrl: null,
     context, rests, challenge, month, forecast: forecast.slice(0, 3), links: await linksFor(date, scores.global, context),

@@ -792,7 +792,9 @@ async function renderJob(job: StudioJob, plan: StudioPlan, opts: RenderOptions):
 
     // ── 6. Upload + livraison ──
     job.step = 'Envoi…'; job.progress = 96; await saveJob(job);
-    const buf = await fs.readFile(final);
+    // 11/11 : 06/11 « The object exceeded the maximum allowed size » → rendu payé perdu ; même compression que la pub TikTok
+    const sendable = await import('./tiktok-pub.js').then(m => m.fitSize(dir, final, total)).catch(() => final);
+    const buf = await fs.readFile(sendable);
     const name = `studio/${job.id}.mp4`;
     const { error } = await supabase.storage.from('videos').upload(name, buf, { contentType: 'video/mp4', upsert: true, cacheControl: '3600' });
     if (error) throw new Error(`upload Supabase : ${error.message}`);

@@ -1058,7 +1058,8 @@ export function parseMedTake(text: string): { n: number; total: boolean; rest?: 
   // 06/11 12h32 « Je viens de prendre 2 demi je dois plus prendre après » → rejeté (« dois ») → cerveau « noté » sans rien noter
   const pastTake = /\b(viens|vien|viena) de prendre\b|\bj'ai (d[ée]j[àa] )?(pris|prit|prix)\b|\bd[ée]j[àa] (pris|prit|prix|pri)\b|^je (d[ée]j[àa] )?(pris|prit|prix)\b/.test(t);
   if (t.length > 200 || (FOOD_RE.test(t) && !medWord) || /\?|combien|est-ce|je peux|puis-je/.test(t) || (!pastTake && /dois|vais|veux|envie|faut|faudr|oubli|devrai/.test(t))) return null;
-  if (!/\b(pris|repris|prise|pri|prit|prix|prie|pries|prends|prend|prendre|aval[ée])\b/.test(t)) return null;   // 06/11 « Je déjà prix 5 demis » (prix = pris)   // 05/11 banc : « je viens de prendre », « j'ai prit »
+  // 11/11 12h52 « Je rajoute un demi » → pas lu → le cerveau a dit « 4 au total » sans rien noter
+  if (!/\b(pris|repris|prise|pri|prit|prix|prie|pries|prends|prend|prendre|reprends?|rajout\w*|ajout\w*|aval[ée])\b/.test(t)) return null;   // 06/11 « Je déjà prix 5 demis » (prix = pris)   // 05/11 banc : « je viens de prendre », « j'ai prit »
   const m = /(\d+(?:[.,]5)?|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|onze|douze)\s*(?:demi(?:-|\s)?(?:comprim[ée]s?|cachets?)?s?(?![a-zé])|demis(?![a-zé])|(comprim[ée]s?|cachets?|cp)(?![a-zé])(\s*et\s*demi)?)/.exec(t);
   if (!m) return null;
   const v = Number(String(m[1]).replace(',', '.')) || NUM_WORDS[m[1]!] || 0;
@@ -1067,13 +1068,13 @@ export function parseMedTake(text: string): { n: number; total: boolean; rest?: 
   // 04/11 « J'en ai marre moralement, je suis au travail, j'ai encore pris un demi… » → seul « ✅ Noté » partait, son moral ignoré.
   // rest = il dit AUTRE CHOSE que la prise → le code note, puis le cerveau lui répond vraiment.
   const left = t.replace(m[0], ' ').replace(/[^a-zà-ÿ' ]/g, ' ').split(/[\s']+/)
-    .filter(w => w && !/^(je|j|ai|pris|prise|pri|prends|prend|aval[ée]e?|viens|vien|de|d|du|un|une|le|la|les|l|ce|cette|matin|midi|soir|aujourd|hui|en|tout|au|total|depuis|dans|journ[ée]e|encore|l[àa]|[àa]|h|heure|heures|et|demi|demis|ok|voil[àa]|c|est|fait|bien|mon|ma|m[ée]doc|comprim[ée]s?|cachets?|lib[ée]rt[ée])$/.test(w));
+    .filter(w => w && !/^(je|j|ai|pris|prise|pri|prends|prend|reprends?|rajout\w*|ajout\w*|aval[ée]e?|viens|vien|de|d|du|un|une|le|la|les|l|ce|cette|matin|midi|soir|aujourd|hui|en|tout|au|total|depuis|dans|journ[ée]e|encore|l[àa]|[àa]|h|heure|heures|et|demi|demis|ok|voil[àa]|c|est|fait|bien|mon|ma|m[ée]doc|comprim[ée]s?|cachets?|lib[ée]rt[ée])$/.test(w));
   // 06/11 contrôle de nuit : « … je dois plus prendre après » = son plan (plus rien aujourd'hui), pas une conversation → réponse directe du code
   const planOnly = /\b(dois|vais|veux|faut) (plus|pas|rien) (en )?(re)?prendre\b|\bplus rien (apres|après|aujourd)|\bc.?est (la|le) dern/.test(t)
     && !/marre|moral|fatigu|triste|stress|angoiss|d[ée]prim|craqu|pleur|mal\b|dur\b|travail|boulot|taf|aide|envie/.test(t);
   const rest = !planOnly && left.length >= 3 || /marre|moral|fatigu|triste|stress|angoiss|d[ée]prim|craqu|pleur|seul|[ée]nerv|peux plus|en peux|mal\b|dur\b|travail|boulot|taf|aide/.test(t);
   // 11/11 : « j'en ai repris 2 en plus » = vraie prise EN PLUS (pas le doublon d'une prise dont il reparle)
-  const extra = /\ben plus\b|\brepris\b|\bnouvelle prise\b|\bune autre\b|\bencore (un|une|\d)/.test(t);
+  const extra = /\ben plus\b|\brepris\b|\breprends?\b|\brajout\w*|\bajout\w*|\bnouvelle prise\b|\bune autre\b|\bencore (un|une|\d)/.test(t);
   return { n, total: /aujourd|aujaurd|auj\b|en tout|au total|depuis ce matin|dans la journ[ée]e/.test(t), rest, ...(extra ? { extra } : {}) };
 }
 /** Exécutée par le code (orchestrateur), réponse directe. « aujourd'hui / en tout » = TOTAL du jour → on n'ajoute que la différence. */

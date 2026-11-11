@@ -463,6 +463,8 @@ export async function planSportWeek(write = true): Promise<{ slots: Array<PlanSl
       const other = elsewhere ? undefined : Object.keys(plan).find(d => d !== sat && !fixed[d] && d >= today && plan[d]!.type === big);
       plan[sat]!.type = big;
       if (other) plan[other]!.type = displaced;
+      // 11/11 : vendredi 13 ET samedi 14 = DOS & BICEPS (2 jours de suite, zéro récup) → la veille / le lendemain prend la séance remplacée
+      for (const nb of [addDays(sat, -1), addDays(sat, 1)]) if (plan[nb] && !fixed[nb] && plan[nb]!.type === big) plan[nb]!.type = displaced;
     }
   }
   // 06/11 Kouider : « s'il voit que je fais moins souvent un truc il le met dans le programme » → muscle pas travaillé depuis 10 jours

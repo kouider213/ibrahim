@@ -26,13 +26,16 @@ async function piliers(): Promise<Record<string, number>> {
 export async function monthly(): Promise<{ months: Array<{ m: string; ca: number; pr: number }>; ca12: number; pr12: number; withData: number; firstMonth: string }> {
   const now = localNow().date;
   const from = new Date(Date.UTC(+now.slice(0, 4) - 1, +now.slice(5, 7), 1)).toISOString().slice(0, 7);
-  const { data } = await supabase.from('bookings').select('start_date, final_price, total_price, profit, profit_kouider, status').gte('start_date', `${from}-01`);
+  // 11/11 : la colonne `profit` vaut 0 sur des résas réelles (Djillali : (40−29)×11 = 121 €) → bénéfice recalculé (finance.ts, règle FIK)
+  const { data } = await supabase.from('bookings').select('start_date, end_date, nb_days, final_price, total_price, client_price_per_day, owner_price_per_day, paid_amount, rented_by, discount_applied, notes, status').gte('start_date', `${from}-01`);
+  const { computeBookingFinancials } = await import('./finance.js');
+  const prof = (b: Row) => { try { return N(computeBookingFinancials(b as unknown as Parameters<typeof computeBookingFinancials>[0]).kouider_profit); } catch { return 0; } };
   const B = ((data ?? []) as Row[]).filter(b => !/REJECT|CANCEL/i.test(S(b['status'])));
   const months: Array<{ m: string; ca: number; pr: number }> = [];
   for (let i = 0; i < 12; i++) {
     const m = new Date(Date.UTC(+from.slice(0, 4), +from.slice(5, 7) - 1 + i, 1)).toISOString().slice(0, 7);
     const l = B.filter(b => S(b['start_date']).slice(0, 7) === m);
-    months.push({ m, ca: l.reduce((s, b) => s + N(b['final_price'] ?? b['total_price']), 0), pr: l.reduce((s, b) => s + N(b['profit_kouider'] ?? b['profit']), 0) });
+    months.push({ m, ca: l.reduce((s, b) => s + N(b['final_price'] ?? b['total_price']), 0), pr: l.reduce((s, b) => s + prof(b), 0) });
   }
   const first = months.find(x => x.ca > 0)?.m ?? now.slice(0, 7);
   const withData = months.filter(x => x.m >= first).length;
