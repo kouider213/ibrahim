@@ -185,7 +185,7 @@ router.get('/globe/:kind', requireMobileAuth, async (req, res) => {
 // GET /api/nexus/journal — ce que Nexus a fait (démarrage, captures, alertes…), plus récent d'abord
 router.get('/journal', requireMobileAuth, (_req, res) => { res.json({ ok: true, items: getNexusJournal() }); });
 
-// GET /api/nexus/tmpfile/:id — fichier du PC envoyé sur Telegram (lien aléatoire, 30 min) que tgcall récupère
+// GET /api/nexus/tmpfile/:id — fichier du PC envoyé sur Telegram (lien aléatoire, 26 h) que tgcall récupère
 router.get('/tmpfile/:id', (req, res) => {
   const f = /^[0-9a-f]{32}$/.test(String(req.params['id'])) ? takeTmpFile(String(req.params['id'])) : null;
   if (!f) { res.status(404).send('Expiré'); return; }

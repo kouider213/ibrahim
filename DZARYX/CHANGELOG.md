@@ -1,4 +1,5 @@
 ## 2026-11-11 (4) — Revue de tout depuis dimanche
+- Fichier (PDF…) gardé pendant « ne pas déranger » : lien valable 26 h au lieu de 30 min (08/11 23h30 : 404, jamais reçu).
 - Liberté : le doublon « Déjà noté » ne lui montre plus la consigne interne du cerveau (« rappelle liberte prise avec nouvelle:true ») → « Si c'est une prise EN PLUS, écris « j'en ai repris N demis en plus » » ; « repris / en plus / nouvelle prise » = vraie prise en plus.
 - « je prie 5 demis » (faute pour « pris ») corrigé avant tout cerveau : plus de « qu'Allah accepte ta prière » (10/11 05h50).
 - Relance de réveil : plus de « tu pars à 05 h 30 » à 06h10 → « ton départ était à 05 h 30, pars dès que tu peux ou dis « pas de sport aujourd'hui » » ; plus d'appel de réveil une fois la séance finie.

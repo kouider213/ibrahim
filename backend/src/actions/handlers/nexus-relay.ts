@@ -1038,11 +1038,15 @@ async function _sendTelegram(text: string): Promise<void> {
 const _tmpFiles = new Map<string, { buf: Buffer; name: string; at: number }>();
 export function takeTmpFile(id: string): { buf: Buffer; name: string } | null {
   const f = _tmpFiles.get(id);
-  return f && Date.now() - f.at < 30 * 60_000 ? f : null;
+  return f && Date.now() - f.at < TMP_TTL ? f : null;
 }
+// 08/11 23h30 : un PDF gardé pendant « ne pas déranger » est parti après la fin du silence → lien expiré (404), jamais reçu.
+// Le message attendu peut rester gardé des heures : le fichier vit 26 h (40 fichiers max en mémoire).
+const TMP_TTL = 26 * 3600_000;
 export async function queueTelegramFile(base64: string, filename: string, caption: string): Promise<void> {
   const { randomBytes } = await import('crypto');
-  for (const [k, v] of _tmpFiles) if (Date.now() - v.at > 30 * 60_000) _tmpFiles.delete(k);
+  for (const [k, v] of _tmpFiles) if (Date.now() - v.at > TMP_TTL) _tmpFiles.delete(k);
+  while (_tmpFiles.size >= 40) _tmpFiles.delete(_tmpFiles.keys().next().value!);
   const id = randomBytes(16).toString('hex');
   _tmpFiles.set(id, { buf: Buffer.from(base64, 'base64'), name: filename, at: Date.now() });
   const api = process.env['PUBLIC_API_URL'] ?? 'https://ibrahim-backend-production.up.railway.app';
