@@ -191,6 +191,9 @@ export async function processMessage(
     if (hint) userMessage = `${hint}\n${userMessage}`.trim();
   }
 
+  // 10/11 05h50 « je prie 5 demis déjà » (= pris) → « qu'Allah accepte ta prière » : faute de frappe corrigée avant tout cerveau
+  userMessage = userMessage.replace(/\b(je|j'ai|j’ai)(\s+d[ée]j[àa])?\s+(prie|pri|prix|prit)\b(?=[^.?!\n]{0,25}?\b(\d+|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix)\s*(demi|comprim|cachet|m[ée]doc))/gi, '$1$2 pris');
+
   // 1. Notifier "thinking" immédiatement
   _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId });
 
@@ -378,7 +381,7 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
         return { text, status: 'done' };
       }
     }
-    pre.unshift(`DÉJÀ FAIT PAR LE CODE pour ce message (ne rappelle PAS liberte prise) : ${done}\nDis-le en une demi-phrase au plus (sans chiffres en liste), puis réponds VRAIMENT à ce qu'il dit d'autre : son moral, sa fatigue, son travail. Comme un ami proche, chaleureux, sans juger ni faire la morale sur le comprimé : montre que tu as compris ce qu'il ressent, une phrase de soutien concrète, et une seule question pour qu'il en parle. Court, pas de liste, pas de titre. NE DRAMATISE PAS (04/11 banc : « rentre chez toi », « on appelle quelqu'un pour venir te chercher ») : il est au travail et va finir sa journée ; pas de conseil de partir, pas d'appel à la famille, aucun outil (ni family_care ni pause) sauf s'il le demande ; 3-4 phrases max.`);
+    pre.unshift(`DÉJÀ FAIT PAR LE CODE pour ce message (ne rappelle PAS liberte prise) : ${done}\n« prie / pri / prix / prit » dans son message = il a PRIS (faute de frappe), JAMAIS une prière. Dis-le en une demi-phrase au plus (sans chiffres en liste), puis réponds VRAIMENT à ce qu'il dit d'autre : son moral, sa fatigue, son travail. Comme un ami proche, chaleureux, sans juger ni faire la morale sur le comprimé : montre que tu as compris ce qu'il ressent, une phrase de soutien concrète, et une seule question pour qu'il en parle. Court, pas de liste, pas de titre. NE DRAMATISE PAS (04/11 banc : « rentre chez toi », « on appelle quelqu'un pour venir te chercher ») : il est au travail et va finir sa journée ; pas de conseil de partir, pas d'appel à la famille, aucun outil (ni family_care ni pause) sauf s'il le demande ; 3-4 phrases max.`);
   } else if (medCmd) {
     const done = await (await import('../integrations/liberte.js')).runMedTake(medCmd).catch(e => `❌ échec : ${e instanceof Error ? e.message : e}`);
     _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: done });

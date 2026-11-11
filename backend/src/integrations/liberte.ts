@@ -1048,7 +1048,7 @@ export function looksLikeMedText(text: string): boolean {
   return /\bdemi(?:e|s|es)?\b/.test(t) && !FOOD_RE.test(t);
 }
 /** « j'ai pris 2 demis », « je pris 6 demi aujourd'hui », « pris un comprimé et demi » → quantité en demis + total du jour ou nouvelle prise. */
-export function parseMedTake(text: string): { n: number; total: boolean; rest?: boolean } | null {
+export function parseMedTake(text: string): { n: number; total: boolean; rest?: boolean; extra?: boolean } | null {
   // 05/11 19h53 : « Je pris 8 demis » précédé de « [Contexte : ne pas déranger…] » → trop long → rien noté, réponse vide
   let raw = text; for (let i = 0; i < 3; i++) { const m = raw.match(/^\s*\[[\s\S]*?\]\s*/); if (!m) break; raw = raw.slice(m[0].length); }
   raw = raw.replace(/^CONFIRM[ÉE] AU T[ÉE]L[ÉE]PHONE\s*:\s*/i, '');
@@ -1058,7 +1058,7 @@ export function parseMedTake(text: string): { n: number; total: boolean; rest?: 
   // 06/11 12h32 « Je viens de prendre 2 demi je dois plus prendre après » → rejeté (« dois ») → cerveau « noté » sans rien noter
   const pastTake = /\b(viens|vien|viena) de prendre\b|\bj'ai (d[ée]j[àa] )?(pris|prit|prix)\b|\bd[ée]j[àa] (pris|prit|prix|pri)\b|^je (d[ée]j[àa] )?(pris|prit|prix)\b/.test(t);
   if (t.length > 200 || (FOOD_RE.test(t) && !medWord) || /\?|combien|est-ce|je peux|puis-je/.test(t) || (!pastTake && /dois|vais|veux|envie|faut|faudr|oubli|devrai/.test(t))) return null;
-  if (!/\b(pris|prise|pri|prit|prix|prie|pries|prends|prend|prendre|aval[ée])\b/.test(t)) return null;   // 06/11 « Je déjà prix 5 demis » (prix = pris)   // 05/11 banc : « je viens de prendre », « j'ai prit »
+  if (!/\b(pris|repris|prise|pri|prit|prix|prie|pries|prends|prend|prendre|aval[ée])\b/.test(t)) return null;   // 06/11 « Je déjà prix 5 demis » (prix = pris)   // 05/11 banc : « je viens de prendre », « j'ai prit »
   const m = /(\d+(?:[.,]5)?|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|onze|douze)\s*(?:demi(?:-|\s)?(?:comprim[ée]s?|cachets?)?s?(?![a-zé])|demis(?![a-zé])|(comprim[ée]s?|cachets?|cp)(?![a-zé])(\s*et\s*demi)?)/.exec(t);
   if (!m) return null;
   const v = Number(String(m[1]).replace(',', '.')) || NUM_WORDS[m[1]!] || 0;
@@ -1072,10 +1072,12 @@ export function parseMedTake(text: string): { n: number; total: boolean; rest?: 
   const planOnly = /\b(dois|vais|veux|faut) (plus|pas|rien) (en )?(re)?prendre\b|\bplus rien (apres|après|aujourd)|\bc.?est (la|le) dern/.test(t)
     && !/marre|moral|fatigu|triste|stress|angoiss|d[ée]prim|craqu|pleur|mal\b|dur\b|travail|boulot|taf|aide|envie/.test(t);
   const rest = !planOnly && left.length >= 3 || /marre|moral|fatigu|triste|stress|angoiss|d[ée]prim|craqu|pleur|seul|[ée]nerv|peux plus|en peux|mal\b|dur\b|travail|boulot|taf|aide/.test(t);
-  return { n, total: /aujourd|aujaurd|auj\b|en tout|au total|depuis ce matin|dans la journ[ée]e/.test(t), rest };
+  // 11/11 : « j'en ai repris 2 en plus » = vraie prise EN PLUS (pas le doublon d'une prise dont il reparle)
+  const extra = /\ben plus\b|\brepris\b|\bnouvelle prise\b|\bune autre\b|\bencore (un|une|\d)/.test(t);
+  return { n, total: /aujourd|aujaurd|auj\b|en tout|au total|depuis ce matin|dans la journ[ée]e/.test(t), rest, ...(extra ? { extra } : {}) };
 }
 /** Exécutée par le code (orchestrateur), réponse directe. « aujourd'hui / en tout » = TOTAL du jour → on n'ajoute que la différence. */
-export async function runMedTake(c: { n: number; total: boolean }): Promise<string> {
+export async function runMedTake(c: { n: number; total: boolean; extra?: boolean }): Promise<string> {
   const s = await getLib();
   if (!s) return 'Programme LIBERTÉ pas encore commencé.';
   const today = localNow().date;
@@ -1085,6 +1087,8 @@ export async function runMedTake(c: { n: number; total: boolean }): Promise<stri
     add = c.n - already;
     if (add <= 0) return `✅ Déjà noté : ${halvesShort(already)} aujourd'hui${add < 0 ? ` (tu dis ${halvesShort(c.n)} — dis-moi « corrige liberté » si mon compte est faux)` : ''}. Rien ajouté.`;
   }
-  const r = await liberteTool({ action: 'prise', n: add, nouvelle: c.total ? true : undefined }, 'kouider');
-  return r.replace(/\s*Félicite-le d'avoir noté\.?/, '').replace(/ Réponds sans juger.*$/s, '').trim() + (c.total && add !== c.n ? `\n(Total du jour : ${halvesShort(c.n)}, j'ai ajouté ${halvesShort(add)}.)` : '');
+  const r = await liberteTool({ action: 'prise', n: add, nouvelle: c.total || c.extra ? true : undefined }, 'kouider');
+  // 10/11 05h53 : la consigne du cerveau (« demande-lui de confirmer puis rappelle liberte prise avec nouvelle:true ») lui était affichée telle quelle
+  return r.replace(/ Si c'est vraiment une NOUVELLE prise en plus, demande-lui de confirmer puis rappelle liberte prise avec nouvelle:true\./, ` Si c'est une prise EN PLUS, écris « j'en ai repris ${halvesShort(add)} en plus ».`)
+    .replace(/\s*Félicite-le d'avoir noté\.?/, '').replace(/ Réponds sans juger.*$/s, '').trim() + (c.total && add !== c.n ? `\n(Total du jour : ${halvesShort(c.n)}, j'ai ajouté ${halvesShort(add)}.)` : '');
 }

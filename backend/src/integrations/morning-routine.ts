@@ -405,9 +405,14 @@ export async function jobMorningRoutine(): Promise<void> {
   if (await getPendingCall('kouider')) return;     // un appel sonne déjà
   st.calls += 1; st.lastCallAt = Date.now();
   await saveState(date, st);
+  // 09/11 06h10 : relance « Tu pars à la salle à 05 h 30 » alors que 05h30 était passé → l'heure réelle compte
+  const late = !!plan.leave && hhmm > plan.leave;
+  if (plan.kind === 'sport' && plan.sport?.[1] && hhmm >= plan.sport[1]) return;   // séance déjà finie : plus d'appel de réveil
   const what = plan.kind === 'sport'
-    ? `Tu pars à la salle à ${plan.leave?.replace(':', ' h ')}, sport à ${plan.sport?.[0].replace(':', ' h ')}.`
-    : `Tu ouvres le magasin, départ à ${plan.leave?.replace(':', ' h ')}.`;
+    ? late ? `Ton départ pour la salle était à ${plan.leave!.replace(':', ' h ')} : pars dès que tu peux, ou dis-moi « pas de sport aujourd'hui ».`
+      : `Tu pars à la salle à ${plan.leave?.replace(':', ' h ')}, sport à ${plan.sport?.[0].replace(':', ' h ')}.`
+    : late ? `Ton départ pour le magasin était à ${plan.leave!.replace(':', ' h ')} : file vite !`
+      : `Tu ouvres le magasin, départ à ${plan.leave?.replace(':', ' h ')}.`;
   await callOwner(st.calls === 1
     ? `Debout champion, il est ${hm(Date.now()).replace('h', ' h ')} ! Je t'ai écrit et tu n'as pas répondu. ${what} Fais-le pour ta femme et ton fils. Dis-moi que tu es bien réveillé.`
     : `Kouider, c'est encore Dzaryx : tu ne m'as toujours pas répondu. Lève-toi maintenant, ${what} Allez, on y va !`);

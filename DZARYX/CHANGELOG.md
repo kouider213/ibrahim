@@ -1,3 +1,9 @@
+## 2026-11-11 (4) — Revue de tout depuis dimanche
+- Liberté : le doublon « Déjà noté » ne lui montre plus la consigne interne du cerveau (« rappelle liberte prise avec nouvelle:true ») → « Si c'est une prise EN PLUS, écris « j'en ai repris N demis en plus » » ; « repris / en plus / nouvelle prise » = vraie prise en plus.
+- « je prie 5 demis » (faute pour « pris ») corrigé avant tout cerveau : plus de « qu'Allah accepte ta prière » (10/11 05h50).
+- Relance de réveil : plus de « tu pars à 05 h 30 » à 06h10 → « ton départ était à 05 h 30, pars dès que tu peux ou dis « pas de sport aujourd'hui » » ; plus d'appel de réveil une fois la séance finie.
+- Vérifié, déjà réglé : SOS envie direct (17h49 du 10/11), séance à 8h/6h + location, lundi sans appel, faux RDV Agence FIK, séance déplacée jeudi 12/11.
+
 ## 2026-11-11 (3) — Vitalité : analyse de la prise de sang
 - Kouider : « si je lui envoie ma prise de sang il doit pouvoir l'examiner et modifier ce qu'il doit modifier ».
 - `vitalite action analyse_labo` + détection directe (légende « prise de sang » ou PDF texte avec ≥ 3 analyses) : toutes les valeurs lues avec les normes IMPRIMÉES par le labo, rangées dans app_kv (`kouider:vitalite:labs`, jamais dans le dépôt), plusieurs photos = même bilan complété page par page.
