@@ -2,6 +2,11 @@
 - Kouider : « avec la localisation il sait qu'il doit mettre le bouclier ; si ça fait 1 h que notre client n'a pas de réponse, donne-lui les conditions, demande date et âge, sans rien réserver, en disant qu'on reviendra vers lui ».
 - Pendant le bouclier (levé par le GPS) ou la nuit, un client sans réponse seule (client CONNU…) est noté en attente (`wa:waiting`) ; job `client-waiting-reply` */10 : 1 h sans réponse de FIK → réponse de l'assistant IA (draftNightReply : conditions, dates + âge, jamais de dispo ni de réservation, « une personne de FIK reviendra vers vous »), 1 fois / 6 h par client, Telegram prévenu. Envoi par Kouider → attente effacée.
 
+## 11/11/2026 — Voix CarPlay : ciblée / coupée / toujours
+- `car-voice-mode.ts` : kv `car:voice:mode` = `cible` (défaut) | `off` | `toujours`. Ciblé = parle seulement au départ maison → salle (heure de départ routine ±40 min) et en quittant le travail ; sinon son muet (WAV 0,3 s, le raccourci iPhone ne plante pas).
+- Arrivée (carplay_off) muette si coupé ou si le départ n'a pas parlé ; vocal préparé (car-prep) sauté pour les trajets muets.
+- Commandes directes Telegram/app : « coupe le CarPlay », « réactive le CarPlay », « CarPlay à chaque démarrage ».
+
 ## 2026-11-11 (4) — Revue de tout depuis dimanche
 - Moins d'appels (Kouider « oui ») : actus de la veille, opportunités, idée du mentor et récap du jour = MESSAGE seulement (18 appels 08-10/11, 11 refusés). Appels gardés : réveil, sport, RDV clients, urgences ; appel manqué → message (déjà le cas).
 - Fichier (PDF…) gardé pendant « ne pas déranger » : lien valable 26 h au lieu de 30 min (08/11 23h30 : 404, jamais reçu).

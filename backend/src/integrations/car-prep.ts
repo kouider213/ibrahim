@@ -57,6 +57,8 @@ export async function jobCarPrep(): Promise<void> {
   const target = (await expectedStarts(now)).find(t => t - cur >= 5 && t - cur <= 12);
   if (target === undefined) return;
   const forAt = now + (target - cur) * 60_000;
+  // 11/11 : pas de vocal préparé pour un départ où la voix restera muette (coupée / trajet ordinaire)
+  if (!(await import('./car-voice-mode.js').then(m => m.shouldSpeak({}, forAt)).then(g => g.speak).catch(() => true))) return;
   if (PREP && Math.abs(PREP.forAt - forAt) < 20 * 60_000 && now - PREP.madeAt < 40 * 60_000) return;
   const n = await kvJson<number>(COUNT_K(ln.date), 0);
   if (n >= MAX_PER_DAY) return;

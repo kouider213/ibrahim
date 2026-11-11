@@ -59,6 +59,18 @@ export async function iphoneEvent(type: string, body: Record<string, unknown>): 
       // 02/11 : « Bonjour Kouider » + discours de coach business + citation, puis le point pratique
       // 03/11 : en RETOUR à la maison → pas de point « à faire », seulement du courage (car-coach.ts isHomeward)
       const cc = await import('./car-coach.js');
+      // 11/11 : la voix ne parle que pour le départ à la salle et le retour du travail (ou jamais / toujours) — car-voice-mode.ts
+      const cvm = await import('./car-voice-mode.js');
+      const gate = await cvm.shouldSpeak(hasPos ? { lat, lng } : {}).catch(() => ({ speak: true, why: 'erreur' }));
+      if (!gate.speak) {
+        void cvm.markSpoke(false);
+        void kvPut('car:last-event', { at: Date.now(), type });
+        void kvPut('car:last-mode', { at: Date.now(), silent: gate.why });
+        void import('./car-prep.js').then(m => m.recordStart()).catch(() => {});
+        console.log(`[car-voice] muet : ${gate.why}`);
+        return { say: '', audio_url: readyVoiceUrl(cvm.silentWav()) };
+      }
+      void cvm.markSpoke(true);
       const homeward = await cc.isHomeward(hasPos ? { lat, lng } : {}).catch(() => false);
       // 04/11 (6) : vacances (voyage, > 300 km, « je suis en vacances ») et « je suis avec Houari / en famille / seul »
       const cco = await import('./car-company.js');
@@ -101,6 +113,10 @@ export async function iphoneEvent(type: string, body: Record<string, unknown>): 
     case 'carplay_off': case 'parked': {
       void kvPut('car:last-off', { at: Date.now(), type });
       if (hasPos) await import('./gps-life.js').then(m => m.setParking(lat, lng));
+      // 11/11 : arrivée muette si la voix est coupée, ou si le départ n'a pas parlé (mode ciblé)
+      if (!(await import('./car-voice-mode.js').then(m => m.arrivalAllowed()).catch(() => true))) {
+        return { say: '', audio_url: readyVoiceUrl((await import('./car-voice-mode.js')).silentWav()) };
+      }
       // 04/11 : discours d'arrivée façon Jarvis (maison = bienvenue + demain ; ailleurs = phrase courte), avec la voix Jarvis
       const said = await import('./car-widget-plus.js').then(m => m.arrivalSpeech(hasPos ? { lat, lng } : null)).catch(() => 'Vous êtes arrivé, Monsieur.');
       const say = speakable(carPrivacy(said)) || 'Vous êtes arrivé, Monsieur.';

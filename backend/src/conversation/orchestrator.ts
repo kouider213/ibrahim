@@ -260,7 +260,9 @@ export async function processMessage(
   }
   // 🚗 Qui est dans la voiture / vacances (04/11) : « je suis avec Houari », « on est en famille », « je suis en vacances »
   if (actorUserId === 'kouider' && !sandbox) {
-    const car = await (await import('../integrations/car-company.js')).companyFromMessage(userMessage).catch(() => null);
+    // 11/11 : « coupe le CarPlay » / « réactive le CarPlay » / « CarPlay à chaque démarrage »
+    const car = await (await import('../integrations/car-voice-mode.js')).carVoiceCommand(userMessage).catch(() => null)
+      ?? await (await import('../integrations/car-company.js')).companyFromMessage(userMessage).catch(() => null);
     if (car?.direct) {
       _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: car.reply });
       saveConversationTurn(sessionId, 'assistant', car.reply).catch(() => {});
