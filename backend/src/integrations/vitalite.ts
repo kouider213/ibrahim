@@ -144,7 +144,9 @@ export async function vitaliteState(): Promise<VitState> {
   if (sleep?.avg7 != null && sleep.avg7 < 7) levers.push({ k: 'sleep', title: 'Dormir 7 h 30 et plus', why: `Moyenne de la montre sur 7 nuits : ${sleep.avg7} h (dette ${sleep.debt} h).`, todo: 'Coucher 30 min plus tôt, pas d\'écran au lit, réveil fixe.', fact: 'sommeil' });
   if (cut?.weight.ratePct != null && cut.weight.ratePct > 1.1) levers.push({ k: 'deficit', title: 'Déficit un peu moins fort', why: `Tu perds ${cut.weight.ratePct} % de ton poids par semaine (au-dessus de 1 %).`, todo: 'Remonter de 150 kcal/jour (bouton dans FORME → Sèche).', fact: 'deficit' });
   if (ins && ins.week.done < 3 && ins.week.target >= 3) levers.push({ k: 'sport', title: '3 séances de muscu par semaine', why: `${ins.week.done}/${ins.week.target} séances cette semaine.`, todo: 'Caler les séances qui restent dans l\'agenda (FORME).', fact: 'sport' });
-  if (!labo && set.labDate && set.labDate >= today) levers.push({ k: 'labo-prevue', title: `Prise de sang prévue le ${set.labDate.split('-').reverse().join('/')}`, why: 'Elle dira ton vrai niveau de testostérone et vérifiera le reste.', todo: 'Le matin avant 10 h, à jeun, après une bonne nuit. Demander : testostérone totale, LH, FSH, prolactine, SHBG, TSH, ferritine, vitamine D, HbA1c.', fact: 'prise-sang' });
+  const hasPanel = (await readLabs().catch(() => [] as LabPanel[])).length > 0;
+  if (hasPanel) { /* prise de sang reçue : leviers plus bas */ }
+  else if (!labo && set.labDate && set.labDate >= today) levers.push({ k: 'labo-prevue', title: `Prise de sang prévue le ${set.labDate.split('-').reverse().join('/')}`, why: 'Elle dira ton vrai niveau de testostérone et vérifiera le reste.', todo: 'Le matin avant 10 h, à jeun, après une bonne nuit. Demander : testostérone totale, LH, FSH, prolactine, SHBG, TSH, ferritine, vitamine D, HbA1c.', fact: 'prise-sang' });
   else if (!labo) levers.push({ k: 'labo', title: 'Faire une prise de sang le matin', why: 'Sans ça, personne ne peut te dire ton vrai niveau de testostérone.', todo: 'Demander à ton médecin : testostérone totale avant 10 h, LH, FSH, prolactine, SHBG, TSH, ferritine, vitamine D, HbA1c. Puis me donner les chiffres.', fact: 'prise-sang' });
   if ((lib?.phq2 ?? 0) >= 3 || (moods.length >= 2 && avg(moods)! <= 4)) levers.push({ k: 'moral', title: 'Soigner le moral', why: 'Ton moral noté est bas ces derniers temps.', todo: 'Psychologue de 1re ligne (11 € la séance) — le désir suit souvent le moral.', fact: 'moral' });
   // Causes qu'il a lui-même nommées → leviers en tête (même si la montre ne voit pas encore de dette de sommeil)
@@ -152,10 +154,23 @@ export async function vitaliteState(): Promise<VitState> {
   if (set.causes && /stress|travail|boulot|fatigu/i.test(set.causes)) levers.splice(levers.findIndex(l => l.k === 'sleep') + 1, 0, { k: 'stress', title: 'Faire baisser le stress', why: `Tu l'as dit toi-même : ${set.causes}.`, todo: 'Une vraie coupure par jour, et décharger ce que Dzaryx peut faire à ta place.', fact: 'moral' });
   levers.push({ k: 'couple', title: 'Du temps à deux, protégé', why: `Objectif : ${set.goalPerWeek[0]} à ${set.goalPerWeek[1]} fois par semaine${avg4 != null ? ` (moyenne actuelle ${avg4})` : ''}.`, todo: '2 soirs par semaine sans téléphone après 21 h, tendresse sans pression, et le dire simplement à ta femme.', fact: 'couple' });
 
+  // 11/11 : prise de sang complète → leviers selon SES valeurs hors normes (normes du labo)
+  const panel = (await readLabs().catch(() => [] as LabPanel[])).at(-1);
+  if (panel) {
+    const bad = (k: string, f: 'bas' | 'haut') => panel.items.find(i => i.key === k && i.flag === f);
+    const at = (k: string) => { const i = panel.items.find(x => x.key === k); return i ? `${i.value} ${i.unit} (labo : ${i.ref})` : ''; };
+    const pos = Math.min(1, levers.length);
+    if (bad('testo', 'bas')) levers.splice(pos, 0, { k: 'testo-bas', title: 'Testostérone basse : refaire + médecin', why: `Prise de sang du ${panel.date} : ${at('testo')}.`, todo: 'La refaire un autre matin avant 10 h (une seule valeur ne suffit pas), puis RDV médecin avec LH, FSH, prolactine. Sommeil + baisse du médicament restent les leviers n°1.', fact: 'prise-sang' });
+    if (bad('vitd', 'bas')) levers.push({ k: 'vitd', title: 'Vitamine D basse (manque prouvé)', why: `${at('vitd')}.`, todo: 'Demander au médecin la dose de vitamine D à prendre (là, le complément a un sens).', fact: 'vitd-zinc' });
+    if (bad('ferritine', 'bas')) levers.push({ k: 'fer', title: 'Fer bas', why: `Ferritine ${at('ferritine')}.`, todo: 'En parler au médecin (fatigue, énergie) ; viande rouge / lentilles dans la semaine.', fact: 'prise-sang' });
+    if (bad('ldl', 'haut') || bad('chol_total', 'haut') || bad('trig', 'haut') || bad('hdl', 'bas')) levers.push({ k: 'chol', title: 'Cholestérol à faire baisser', why: [at('chol_total') && `total ${at('chol_total')}`, at('ldl') && `LDL ${at('ldl')}`, at('hdl') && `HDL ${at('hdl')}`, at('trig') && `triglycérides ${at('trig')}`].filter(Boolean).join(', '), todo: 'Moins de friture, charcuterie et pâtisseries ; poisson 2×/sem, légumes, avoine ; cardio en plus de la muscu. À recontrôler avec le médecin.', fact: 'sport' });
+    if (bad('hba1c', 'haut') || bad('glycemie', 'haut')) levers.push({ k: 'sucre', title: 'Sucre dans le sang un peu haut', why: [at('glycemie'), at('hba1c')].filter(Boolean).join(' · '), todo: 'Moins de sucre rapide et de boissons sucrées ; montrer au médecin.', fact: 'poids' });
+    if (bad('tsh', 'haut') || bad('tsh', 'bas') || bad('prolactine', 'haut') || bad('lh', 'bas') || bad('lh', 'haut')) levers.splice(pos, 0, { k: 'hormones', title: 'Hormone hors norme : à montrer au médecin', why: ['tsh', 'prolactine', 'lh'].map(k => panel.items.find(i => i.key === k && i.flag !== 'normal' && i.flag !== '?')).filter(Boolean).map(i => `${i!.name} ${i!.value} ${i!.unit} (labo : ${i!.ref})`).join(' · '), todo: 'Prendre RDV chez le médecin avec ces résultats : c\'est lui qui cherche la cause.', fact: 'prise-sang' });
+  }
   const missing: string[] = [];
   if (!lastI) missing.push('questionnaire désir (2 questions, 30 s)');
   if (!lastM) missing.push('érections du matin cette semaine (sur 7)');
-  if (!labo) missing.push('prise de sang (testostérone)');
+  if (!labo && !(await readLabs().catch(() => [])).length) missing.push('prise de sang (testostérone)');
   if (!log.some(l => l.kind === 'rapport')) missing.push('rapports : dis-moi juste « on l\'a fait » à chaque fois');
 
   return {
@@ -253,6 +268,99 @@ export function planText(s: VitState): string {
   ].filter(x => x !== '').join('\n');
 }
 
+// ── 🧪 PRISE DE SANG COMPLÈTE (Kouider 11/11 : « si je lui envoie ma prise de sang il doit pouvoir l'examiner et modifier
+// ce qu'il doit modifier ») : photo / PDF du labo → toutes les valeurs (testostérone, cholestérol, glycémie, thyroïde…),
+// comparées aux normes IMPRIMÉES PAR LE LABO (jamais inventées), rangées dans app_kv, et les leviers du plan recalculés.
+const LABS_K = 'kouider:vitalite:labs';
+export interface LabItem { key: string; name: string; value: number | null; unit: string; low: number | null; high: number | null; ref: string; flag: 'bas' | 'haut' | 'normal' | '?' }
+export interface LabPanel { at: string; date: string; heure?: string; items: LabItem[] }
+export async function readLabs(): Promise<LabPanel[]> { return parse<LabPanel[]>(await kvGet(LABS_K).catch(() => null), []); }
+const LAB_KEYS: Array<[string, RegExp]> = [
+  ['testo_libre', /testost[ée]rone\s+(libre|biodisponible)|free\s+testo/i], ['testo', /testost[ée]rone/i], ['shbg', /shbg|sex hormone/i],
+  ['lh', /^\s*lh\b|hormone lut[ée]ini/i], ['fsh', /\bfsh\b|folliculo/i], ['prolactine', /prolactine/i], ['oestradiol', /[œoe]stradiol|estradiol/i],
+  ['tsh', /\btsh\b|thyr[ée]ostimul/i], ['t4', /\bt4\b|thyroxine/i], ['vitd', /vitamine\s*d|25.?oh/i], ['ferritine', /ferritine/i],
+  ['hba1c', /hba1c|h[ée]moglobine\s+glyqu|glyco/i], ['glycemie', /glyc[ée]mie|glucose/i],
+  ['chol_total', /cholest[ée]rol\s+total|^\s*cholest[ée]rol\s*$/i], ['ldl', /\bldl\b/i], ['hdl', /\bhdl\b/i], ['trig', /triglyc/i],
+  ['crp', /\bcrp\b|prot[ée]ine\s+c/i], ['alat', /alat|\balt\b|gpt/i], ['asat', /asat|\bast\b|got/i], ['ggt', /\bggt|gamma/i],
+  ['creat', /cr[ée]atinine/i], ['hemoglobine', /^\s*h[ée]moglobine\s*$/i], ['b12', /b12|cobalamine/i],
+];
+const keyOf = (name: string) => LAB_KEYS.find(([, r]) => r.test(name))?.[0] ?? name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').slice(0, 30);
+
+/** Légende « ma prise de sang », ou texte de PDF avec au moins 3 analyses de labo. */
+export function looksLikeLab(text: string, hasImage: boolean): boolean {
+  const t = text.toLowerCase();
+  if (hasImage) return /prise de sang|bilan sanguin|analyses? (de sang|sanguine|du labo)|r[ée]sultats? (de (la |ma )?(prise de sang|analyse|labo))|\blabo\b|testost/.test(t) && t.length < 600;
+  const hits = ['testost', 'cholest', 'ldl', 'hdl', 'triglyc', 'glyc', 'hba1c', 'tsh', 'ferritine', 'créatinine', 'creatinine', 'prolactine', 'shbg', 'hémoglobine', 'hemoglobine', 'leucocytes', 'plaquettes']
+    .filter(k => t.includes(k)).length;
+  return hits >= 3 && /(mg\/dl|g\/l|nmol\/l|ng\/ml|mmol\/l|µui\/ml|ui\/l|%)/.test(t);
+}
+const PAGES_K = 'kouider:vitalite:pages';
+/** Album Telegram (plusieurs pages) gardé 30 min, pour lire chaque page séparément. */
+export async function stashLabPages(b64s: string[]): Promise<void> {
+  const keep = b64s.filter(b => b.length < 4_000_000).slice(0, 6);
+  if (keep.length) await kvSet(PAGES_K, JSON.stringify(keep), 1800);
+}
+export async function analyseLab(o: { text?: string; image?: { b64: string; mime: string } | null; pages?: Array<{ b64: string; mime: string }> }): Promise<string> {
+  const pages = o.pages?.length ? o.pages : o.image ? [o.image] : [];
+  if (pages.length > 1) {   // une page à la fois : chaque page complète le même bilan, réponse finale = la dernière
+    let last = '';
+    for (const p of pages) { const r = await analyseLab({ image: p }); if (!r.startsWith('❌')) last = r; }
+    return last || "❌ Je n'arrive pas à lire les valeurs. Renvoie une photo bien nette, à plat, page par page (ou le PDF du labo).";
+  }
+  o = { ...o, image: pages[0] ?? null };
+  if (!o.text?.trim() && !o.image) return '❌ Envoie-moi la photo ou le PDF de ta prise de sang (toutes les pages), ou recopie les chiffres.';
+  const { ai } = await import('./ai-util.js');
+  const { jsonOf } = await import('./media-util.js');
+  const prompt = `Résultats d'une PRISE DE SANG (labo). Recopie EXACTEMENT chaque analyse imprimée : nom, valeur, unité, et les valeurs de référence IMPRIMÉES par le labo (jamais celles que tu connais). Valeur illisible → null. N'ajoute aucune analyse absente.\n`
+    + `Réponds UNIQUEMENT en JSON : {"date":"AAAA-MM-JJ du prélèvement ou null","heure":"HH:MM du prélèvement ou null","items":[{"name":"Testostérone totale","value":4.1,"unit":"ng/mL","low":2.5,"high":8.4,"ref":"2,49 - 8,36"}]}`
+    + (o.text ? `\n\nTEXTE DU DOCUMENT :\n${o.text.slice(0, 12000)}` : '');
+  const raw = await ai(prompt, { quality: true, max: 3000, ...(o.image ? { images: [{ base64: o.image.b64, mime: o.image.mime }] } : {}) }).catch(() => '');
+  const j = jsonOf<{ date?: string | null; heure?: string | null; items?: Array<{ name?: string; value?: number | string | null; unit?: string; low?: number | string | null; high?: number | string | null; ref?: string }> }>(raw);
+  const n = (v: unknown) => { if (v == null || v === '') return null; const x = Number(String(v).replace(',', '.').replace(/[^\d.\-]/g, '')); return Number.isFinite(x) ? x : null; };
+  const items: LabItem[] = (j?.items ?? []).filter(i => i?.name).map(i => {
+    const value = n(i.value), low = n(i.low), high = n(i.high);
+    const flag: LabItem['flag'] = value == null || (low == null && high == null) ? '?' : low != null && value < low ? 'bas' : high != null && value > high ? 'haut' : 'normal';
+    return { key: keyOf(String(i.name)), name: String(i.name).slice(0, 60), value, unit: String(i.unit ?? '').slice(0, 15), low, high, ref: String(i.ref ?? '').slice(0, 40), flag };
+  });
+  if (items.filter(i => i.value != null).length < 2) return "❌ Je n'arrive pas à lire les valeurs. Renvoie une photo bien nette, à plat, page par page (ou le PDF du labo).";
+  const today = localNow().date;
+  const date = j?.date && /^\d{4}-\d{2}-\d{2}$/.test(j.date) ? j.date : ((await settings()).labDate ?? today);
+  const heure = j?.heure && /^\d{1,2}:\d{2}$/.test(j.heure) ? j.heure.padStart(5, '0') : undefined;
+  // Même prise de sang envoyée en plusieurs photos → on complète le même bilan
+  const labs = await readLabs();
+  const same = labs.find(l => l.date === date);
+  if (same) { for (const it of items) { const k = same.items.findIndex(x => x.key === it.key); if (k >= 0) same.items[k] = it; else same.items.push(it); } if (heure) same.heure = heure; }
+  else labs.push({ at: new Date().toISOString(), date, heure, items });
+  await kvSet(LABS_K, JSON.stringify(labs.slice(-12)));
+  const panel = same ?? labs.at(-1)!;
+  // Testostérone → l'entrée « labo » existante (affichage, plage, heure du prélèvement)
+  const g = (k: string) => panel.items.find(i => i.key === k && i.value != null);
+  const t = g('testo');
+  if (t) {
+    const u = t.unit.toLowerCase();
+    const ng = u.includes('nmol') ? { v: t.value!, unit: 'nmol/L' as const } : u.includes('ng/ml') ? { v: Math.round(t.value! * 1000) / 10, unit: 'ng/dL' as const } : { v: t.value!, unit: t.value! < 60 ? 'nmol/L' as const : 'ng/dL' as const };
+    const log = await readVitLog();
+    const i = log.findIndex(l => l.kind === 'labo' && l.date === date);
+    const e: VitLog = { at: new Date().toISOString(), date, kind: 'labo', testo: ng.v, unit: ng.unit, heure, shbg: g('shbg')?.value ?? undefined, lh: g('lh')?.value ?? undefined, prolactine: g('prolactine')?.value ?? undefined, vitd: g('vitd')?.value ?? undefined, ferritine: g('ferritine')?.value ?? undefined };
+    if (i >= 0) log[i] = e; else log.push(e);
+    await writeLog(log);
+  }
+  textCache = null;
+  const s = await vitaliteState();
+  const out = panel.items.filter(i => i.flag === 'bas' || i.flag === 'haut');
+  const fmt = (i: LabItem) => `${i.name} : ${i.value ?? '?'} ${i.unit}${i.ref ? ` (labo : ${i.ref})` : ''}`;
+  const explain = out.length ? await ai(`Prise de sang d'un homme suivi pour sa vitalité (désir, testostérone, sèche sportive, arrêt progressif d'un antidouleur suivi par son médecin). Valeurs HORS des normes du labo :\n${out.map(fmt).join('\n')}\n\n`
+    + `Pour chacune, UNE phrase simple en français (tutoiement) : ce que ça mesure et ce que ça veut dire en général, sans diagnostic, sans médicament, sans chiffre inventé. Termine par une phrase : quoi demander au médecin. Pas de titre, pas de markdown.`, { max: 600 }).catch(() => '') : '';
+  return [
+    `🔒 Privé — 🧪 Prise de sang du ${date.split('-').reverse().join('/')}${heure ? ` à ${heure}` : ''} : ${panel.items.length} analyses rangées.`,
+    `🧪 Testostérone : ${s.testoTxt}`,
+    out.length ? `\n⚠️ Hors des normes du labo :\n${out.map(i => `• ${fmt(i)} → ${i.flag === 'bas' ? 'BAS' : 'HAUT'}`).join('\n')}` : '\n✅ Tout le reste est dans les normes du labo.',
+    explain ? `\n${explain.trim()}` : '',
+    `\nCe que je change dans ton plan :\n${(() => { const LAB = new Set(['testo-bas', 'hormones', 'vitd', 'fer', 'chol', 'sucre']); const l = [...s.levers.filter(x => LAB.has(x.k)), ...s.levers.filter(x => !LAB.has(x.k)).slice(0, 2)]; return l.map((x, i) => `${i + 1}. ${x.title}${LAB.has(x.k) ? ' 🆕' : ''} — ${x.todo}`).join('\n'); })()}`,
+    `\nC'est ton médecin qui interprète l'ensemble : montre-lui ces résultats. Il manque une page ? Envoie-la, je complète.`,
+  ].filter(Boolean).join('\n');
+}
+
 // ── 🛠️ Outil (chat, Telegram, appels, app) ──────────────────────────────────────────────────────────────────────
 export async function vitaliteTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   if (/houari|femme|client/i.test(sessionId ?? '')) return '❌ Réservé à Kouider.';
@@ -299,6 +407,15 @@ export async function vitaliteTool(input: Record<string, unknown>, sessionId?: s
       await push({ kind: 'iief', q1, q2 });
       const s = await vitaliteState();
       return `🧠 Désir (IIEF) : ${q1 + q2}/10${s.iief.prev != null ? ` (avant ${s.iief.prev}/10)` : ''}. Il n'y a pas de « bon chiffre officiel pour ton âge » : on suit TON évolution — le but, c'est qu'il monte vers 8-10 au fil des paliers.`;
+    }
+    case 'analyse_labo': {
+      // texte (PDF du labo) ou dernière photo envoyée sur Telegram
+      const text = input['text'] ? String(input['text']) : '';
+      if (text) return analyseLab({ text });
+      const album = parse<string[]>(await kvGet(PAGES_K).catch(() => null), []);
+      if (album.length > 1) return analyseLab({ pages: album.map(b64 => ({ b64, mime: 'image/jpeg' })) });
+      const ph = await import('./forme.js').then(m => m.lastTelegramPhoto()).catch(() => null);
+      return analyseLab({ image: ph ? { b64: ph.b64, mime: ph.mime } : null });
     }
     case 'labo': {
       const testo = num('testo', 0.5, 2000);
@@ -355,7 +472,7 @@ export async function vitaliteTool(input: Record<string, unknown>, sessionId?: s
     case 'jour': return (await dailyText()) ?? 'Rien à proposer aujourd\'hui.';
     case 'faits': return (await factsFor()).map(f => `• ${f.fait}\n  (${f.source})`).join('\n');
   }
-  return '❌ action : etat | question | rapport | annuler | bilan | iief | labo | objectif | rappel | causes | prise_de_sang | regles | idee | avant | jour | faits';
+  return '❌ action : etat | question | rapport | annuler | bilan | iief | labo | analyse_labo | objectif | rappel | causes | prise_de_sang | regles | idee | avant | jour | faits';
 }
 
 // ── 🔁 Rappel du soir (03/11) : UN geste concret par jour, tiré de SES leviers + des FAITS (rien d'inventé, sans IA) ──
@@ -462,7 +579,7 @@ export async function jobVitalite(): Promise<void> {
     if (date === lab && time >= '06:00' && time < '11:00') await once('jour', `🔒 Privé — c'est ce matin : prise de sang avant 10 h, à jeun.
 À demander : ${LIST}.
 Dis au médecin / au labo les traitements que tu prends. Quand tu as les résultats, envoie-moi la photo ou les chiffres.`);
-    const hasLabo = (await readVitLog()).some(l => l.kind === 'labo' && l.date >= lab);
+    const hasLabo = (await readVitLog()).some(l => l.kind === 'labo' && l.date >= lab) || (await readLabs()).some(l => l.date >= lab);
     if (!hasLabo && (date === addDays(lab, 3) || date === addDays(lab, 6)) && time >= '19:00') await once(`res:${date}`, `🔒 Privé — tu as reçu les résultats de ta prise de sang du ${fr} ? Envoie-moi la photo ou les chiffres (testostérone + unité), je les range et je t'explique — c'est ton médecin qui interprète.`);
   }
   if (!st.weekly) return;

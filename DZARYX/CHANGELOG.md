@@ -1,3 +1,9 @@
+## 2026-11-11 (3) — Vitalité : analyse de la prise de sang
+- Kouider : « si je lui envoie ma prise de sang il doit pouvoir l'examiner et modifier ce qu'il doit modifier ».
+- `vitalite action analyse_labo` + détection directe (légende « prise de sang » ou PDF texte avec ≥ 3 analyses) : toutes les valeurs lues avec les normes IMPRIMÉES par le labo, rangées dans app_kv (`kouider:vitalite:labs`, jamais dans le dépôt), plusieurs photos = même bilan complété page par page.
+- Plan recalculé : testostérone basse (refaire + médecin), hormones hors norme, vitamine D / fer bas, cholestérol, sucre → nouveaux leviers ; plus de relance « fais ta prise de sang ».
+- tgcall : PDF scanné → jusqu'à 6 pages envoyées (avant : la 1re seulement).
+
 ## 2026-11-11 (2) — Agenda : « ajoute n'importe quoi »
 - Kouider : « je dois pouvoir lui demander tout et n'importe quoi : la date de sortie de GTA 6, l'anniversaire d'un client… ».
 - Commande directe `agendaAnything` (fr-commands) : date dite → ajout ; anniversaire d'un client → date de naissance de sa pièce scannée (client_documents), chaque année ; sinon recherche internet + date officielle la plus récente, ajout seulement si le jour exact est sûr (source dans la note).

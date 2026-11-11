@@ -1233,15 +1233,22 @@ async def on_message(_, msg: Message) -> None:
                 out = await api('/api/call/turn', {'message': body, 'textOnly': True, 'channel': 'message'}, actor, 120)
             else:   # PDF scanné (photo d'un menu…) : la 1re page part en image, Claude la lit
                 path = await msg.download(file_name=tempfile.mktemp(prefix='dzpdf_', suffix='.pdf'))
+                # 11/11 : toutes les pages (max 6) — une prise de sang scannée tient souvent sur 3-4 pages
+                pages = []
                 try:
-                    subprocess.run(['pdftoppm', '-r', '110', '-l', '1', '-jpeg', '-singlefile', path, path[:-4]], timeout=60, check=True)
-                    b64 = base64.b64encode(Path(path[:-4] + '.jpg').read_bytes()).decode()
+                    subprocess.run(['pdftoppm', '-r', '130', '-l', '6', '-jpeg', path, path[:-4]], timeout=90, check=True)
+                    for f in sorted(Path(path).parent.glob(Path(path[:-4]).name + '-*.jpg')):
+                        pages.append(base64.b64encode(f.read_bytes()).decode())
+                        f.unlink()
                 finally:
-                    for f in (path, path[:-4] + '.jpg'):
-                        if os.path.exists(f):
-                            os.unlink(f)
-                out = await api('/api/call/turn', {'message': body + '(PDF scanné : voici sa 1re page en image)', 'image': b64,
-                                                   'imageMime': 'image/jpeg', 'textOnly': True, 'channel': 'message'}, actor, 120)
+                    if os.path.exists(path):
+                        os.unlink(path)
+                body_pdf = {'message': body + f'(PDF scanné : {len(pages)} page(s) en image)', 'textOnly': True, 'channel': 'message'}
+                if len(pages) > 1:
+                    body_pdf['images'] = [{'b64': b, 'mime': 'image/jpeg'} for b in pages]
+                elif pages:
+                    body_pdf.update({'image': pages[0], 'imageMime': 'image/jpeg'})
+                out = await api('/api/call/turn', body_pdf, actor, 180)
             await reply_out(msg, out)
             return
         if msg.document and (msg.document.file_name or '').lower().endswith(OFFICE_EXT):
