@@ -1,4 +1,5 @@
 ## 2026-11-11 (4) — Revue de tout depuis dimanche
+- Moins d'appels (Kouider « oui ») : actus de la veille, opportunités, idée du mentor et récap du jour = MESSAGE seulement (18 appels 08-10/11, 11 refusés). Appels gardés : réveil, sport, RDV clients, urgences ; appel manqué → message (déjà le cas).
 - Fichier (PDF…) gardé pendant « ne pas déranger » : lien valable 26 h au lieu de 30 min (08/11 23h30 : 404, jamais reçu).
 - Liberté : le doublon « Déjà noté » ne lui montre plus la consigne interne du cerveau (« rappelle liberte prise avec nouvelle:true ») → « Si c'est une prise EN PLUS, écris « j'en ai repris N demis en plus » » ; « repris / en plus / nouvelle prise » = vraie prise en plus.
 - « je prie 5 demis » (faute pour « pris ») corrigé avant tout cerveau : plus de « qu'Allah accepte ta prière » (10/11 05h50).

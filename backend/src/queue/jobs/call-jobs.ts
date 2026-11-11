@@ -2,6 +2,14 @@ import { supabase } from '../../integrations/supabase.js';
 import { listInboxMessages, isReplyToUs, type GmailAccount } from '../../integrations/gmail.js';
 import { buildYesterdayRecap } from '../../integrations/prospect-autopilot.js';
 import { autoCall } from '../../notifications/auto-call.js';
+import { queueTelegramMessage } from '../../notifications/tg-outbox.js';
+import { kvGet, kvSet } from '../../integrations/app-store.js';
+/** 11/11 (Kouider « oui ») : le récap du jour part en MESSAGE, plus en appel (jamais décroché 08-10/11). Une seule fois par clé. */
+async function messageOnce(key: string, text: string): Promise<void> {
+  if (await kvGet(`msgonce:${key}`).catch(() => null)) return;
+  await kvSet(`msgonce:${key}`, '1', 2 * 86_400);
+  await queueTelegramMessage(`📋 ${text}`);
+}
 import { paperWarning } from '../../integrations/car-papers.js';
 import { isDayOff } from '../../integrations/kouider-dossier.js';
 
@@ -39,7 +47,7 @@ export async function jobDailyRecapCall(): Promise<void> {
     if (returns.data?.length) urgent.push(`Retours aujourd'hui : ${list(returns.data)}.`);
     if (late.data?.length)    urgent.push(`${plural(late.data.length, 'voiture')} pas encore rendue${late.data.length > 1 ? 's' : ''}.`);
     if (!urgent.length) return;
-    await autoCall(`daily-recap:${today}`, `C'est ton jour en famille, je fais court. ${urgent.join(' ')} Houari gère, le reste attend demain. Bonne journée !`);
+    await messageOnce(`daily-recap:${today}`, `C'est ton jour en famille, je fais court. ${urgent.join(' ')} Houari gère, le reste attend demain. Bonne journée !`);
     return;
   }
 
@@ -54,7 +62,7 @@ export async function jobDailyRecapCall(): Promise<void> {
   if (recap?.short)          parts.push(recap.short);
   parts.push('Tu veux que je détaille quelque chose ?');
 
-  await autoCall(`daily-recap:${today}`, parts.join(' '));
+  await messageOnce(`daily-recap:${today}`, parts.join(' ').replace('Tu veux que je détaille quelque chose ?', 'Tu veux que je détaille quelque chose ? Réponds-moi ici.'));
 }
 
 /** Réponses à SES mails (conversation où la boîte a envoyé un mail avant). Les prospects sont gérés par checkProspectReplies. */

@@ -5,7 +5,6 @@ import { kouiderDossierText, hasDayOff } from './kouider-dossier.js';
 import { getAutoOpportunities } from './opportunities.js';
 import { startDossierJob, writeDossier } from './pro-doc.js';
 import { createMissionTool } from './missions.js';
-import { autoCall } from '../notifications/auto-call.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 
@@ -143,7 +142,8 @@ async function deliver(idea: MentorIdea, callKey: string): Promise<void> {
   const text = ideaText(idea);
   await queueTelegramMessage(text).catch(() => {});
   emitProactive(`${idea.title}`.slice(0, 100), idea.urgency === 'urgent' ? 'alert' : 'info', text);
-  await autoCall(callKey, idea.spoken, { level: idea.urgency });
+  // 11/11 (Kouider « oui ») : l'idée du mentor arrive par MESSAGE seulement, même « urgente » (10/11 11h30 « Noël à 0 % » refusé)
+  void callKey;
 }
 
 /** Tâche quotidienne (11h Bruxelles) : l'appel « conseiller » du jour. Pas les jours de congé. */
@@ -214,16 +214,11 @@ export async function jobMentorNewsWatch(): Promise<void> {
   if (!fresh.length) return;
   await kvSet(ALERTS_KEY, JSON.stringify([...seen, ...fresh.map(i => norm(i.title))].slice(-60)), 14 * 86_400);
 
-  let called = false;   // une seule opportunité non urgente appelée par veille (pas de rafale d'appels)
+  // 11/11 (Kouider « oui ») : les actus et opportunités arrivent PAR MESSAGE seulement, plus jamais en appel (refusés à chaque fois 08-10/11)
   for (const i of fresh) {
     const text = `${i.impact === 'risque' ? '⚠️ Risque' : '📈 Opportunité'} — ${i.title}${i.country ? ` (${i.country})` : ''}\n\n${i.what}\n\nPour toi : ${i.why_for_kouider}\nÀ faire : ${i.action}`;
     await queueTelegramMessage(text).catch(() => {});
     emitProactive(i.title.slice(0, 100), i.urgent ? 'alert' : 'info', text);
-    if (i.urgent && i.spoken) await autoCall(`news:${norm(i.title)}`, `Une actu importante pour toi. ${i.spoken}`, { level: 'normal' });   // 09/11 : une actu n'est jamais une urgence (taux de l'euro appelé un lundi)
-    else if (i.call && i.impact === 'opportunite' && i.spoken && !called) {
-      called = true;
-      await autoCall(`news:${norm(i.title)}`, `J'ai repéré une occasion de gagner de l'argent. ${i.spoken}`, { level: 'normal' });
-    }
   }
   console.log(`[mentor] veille : ${fresh.length} nouvelle(s)`);
 }
