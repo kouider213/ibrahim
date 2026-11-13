@@ -1,3 +1,8 @@
+## 13/11/2026 (7) — Quotas cerveaux + vraies stats du site
+- Vérif logs Railway 13/11 : les vrais messages de Kouider sont servis par le gros Gemini (gemini-3.5-flash) ; la « saturation » du contrôle de nuit vient du banc lancé exprès SANS clés Gemini → pas un problème en vrai.
+- OpenRouter « free-models-per-day » (429 sans délai) n'était pas reconnu comme quota du jour → réessayé toutes les 15 min (2 appels perdus/heure par les tâches auto). Maintenant sauté jusqu'à 00:01 UTC.
+- get_site_analytics comptait les robots comme vrais visiteurs (30 j : 351 « sessions » dont 254 ordinateurs Chine/Singapour/USA sans aucun geste) → seules les visites avec #event:engaged comptent (comme le rapport de 21h), les #event: ne sont plus des « pages ». Réel : ≈ 2 humains/jour ; la réservation n'est pas le point de fuite, c'est le volume.
+
 ## 13/11/2026 (6) — Fiabilité + site 100 % depuis Telegram
 - Secours : réponse VIDE d'un cerveau (Gemini 12/11 22h31, après 6 outils) → le suivant reprend avec les résultats (avant : tout le secours abandonnait → Groq sans outils, « réponse NON vérifiée »).
 - Anti « c'est fait » mensonger : phantomGuard reconnaît « c'est fait / c'est parti », « a été envoyé au… », « message/mail/pdf … envoyé » sans vrai envoi (testé 7/7).

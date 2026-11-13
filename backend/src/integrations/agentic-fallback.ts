@@ -103,6 +103,11 @@ export function markFailure(qid: string, status?: number, detail?: string): void
   const m = detail?.match(/retry in (?:(\d+)h)?(?:(\d+)m)?(?:([\d.]+)s)?/i);
   const ms = m ? ((+(m[1] ?? 0)) * 3600 + (+(m[2] ?? 0)) * 60 + (+(m[3] ?? 0))) * 1000 : 0;
   if (status === 429 && /PerDay/i.test(detail ?? '')) return markQuotaExhausted(qid, Math.min(Math.max(ms, 3600_000), 24 * 3600_000));
+  // 13/11 : OpenRouter dit « free-models-per-day » (sans délai) → réessayé toutes les 15 min pour un 429 sûr ; revient à 00:00 UTC
+  if (status === 429 && /per-day/i.test(detail ?? '')) {
+    const midnight = new Date(); midnight.setUTCHours(24, 1, 0, 0);
+    return markQuotaExhausted(qid, Math.max(midnight.getTime() - Date.now(), 15 * 60_000));
+  }
   markQuotaExhausted(qid, Math.min(Math.max(ms, 15 * 60_000), 24 * 3600_000));
 }
 /** Gemini : « minimal » = rapide, mais gemini-flash-latest le refuse (400 « Thinking level MINIMAL is not supported »). */

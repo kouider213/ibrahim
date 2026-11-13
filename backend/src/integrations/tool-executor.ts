@@ -7061,7 +7061,12 @@ async function getSiteAnalyticsTool(input: Record<string, unknown>): Promise<str
     ]);
 
     // Sans nous (équipe, Dzaryx, PC cloud) ni les robots — les visites d'avant le tri (visitor vide) restent comptées
-    const pv      = ((pvRes.data || []) as Array<{ visitor?: string | null }>).filter(v => !v.visitor || v.visitor === 'visiteur') as any[];
+    const pvAll   = ((pvRes.data || []) as Array<{ visitor?: string | null; page?: string; session_id?: string | null; created_at: string }>).filter(v => !v.visitor || v.visitor === 'visiteur');
+    // 13/11 : comme le rapport de 21h — depuis le 24/10 le site envoie « #event:engaged » au 1er geste humain ;
+    // une visite sans ce geste = robot (254 sessions sur 351 en 30 j : ordinateurs Chine/Singapour/USA, une page, rien d'autre).
+    const engagedSids = new Set(pvAll.filter(v => v.page === '#event:engaged').map(v => v.session_id));
+    const pv = pvAll.filter(v => !String(v.page ?? '').startsWith('#event:')
+      && (v.created_at < '2026-10-25' || engagedSids.has(v.session_id))) as any[];
     const { dayTraffic, formatTraffic } = await import('./site-traffic.js');
     const todaySplit = formatTraffic(await dayTraffic(0), "aujourd'hui");
     const cv      = cvRes.data   || [];
