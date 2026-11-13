@@ -1,3 +1,8 @@
+## 13/11/2026 — FORME : le cardio n'est plus une série
+- Kouider : « marche sur le tapis, il le considère en série, c'est pas correct ».
+- Mode séance (Sport.tsx) : tapis / vélo / elliptique / rameur / escalier / corde / exercice cardio = une seule ligne ⏱ minutes + ✓ (pas de KG, PRÉCÉDENT, Disques, Échauffement, repos) ; hors du compteur séries/volume ; noté « Cardio — … min » dans la note de la séance (2a24d159).
+- Site : accepter une demande écrit CONFIRMED (la base refuse ACCEPTED, erreur bookings_status_check) — autolux 197a3e1.
+
 ## 2026-11-11 (5) — Client sans réponse depuis 1 h → l'assistant IA répond
 - Kouider : « avec la localisation il sait qu'il doit mettre le bouclier ; si ça fait 1 h que notre client n'a pas de réponse, donne-lui les conditions, demande date et âge, sans rien réserver, en disant qu'on reviendra vers lui ».
 - Pendant le bouclier (levé par le GPS) ou la nuit, un client sans réponse seule (client CONNU…) est noté en attente (`wa:waiting`) ; job `client-waiting-reply` */10 : 1 h sans réponse de FIK → réponse de l'assistant IA (draftNightReply : conditions, dates + âge, jamais de dispo ni de réservation, « une personne de FIK reviendra vers vous »), 1 fois / 6 h par client, Telegram prévenu. Envoi par Kouider → attente effacée.
