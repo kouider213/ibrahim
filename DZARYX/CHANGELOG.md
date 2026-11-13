@@ -1,3 +1,10 @@
+## 13/11/2026 (11) — Heure d'arrivée client, photo analysée par le code, liens compléments
+- Belarbi : résa « arrivée 18:05 » mais fiche d'arrivée à 10:00 (trips.ts forçait 10:00 à chaque synchro). bookingTimes(notes) lit l'arrivée / le retour (dernière mention gagne) → fiche d'arrivée / de retour à la bonne heure.
+- update_booking arrival_time (+ arrival_flight) : l'ancienne heure d'arrivée est remplacée dans la note ; l'agenda 🚗 de la location suit (début = arrivée, fin = retour). Heure donnée par le client sur WhatsApp (texte / photo billet) → arrival_time.
+- Photo + légende sur son corps (veines, bras, dos, ventre, pecs…) : forme body_photo lancé par le CODE avant le cerveau (le cerveau répondait des généralités sans analyse).
+- Compléments : liens DuckDuckGo décodés, panier obligatoirement avec liens cliquables (sinon lien de recherche Google).
+- Conseils corps : la proposition « mets … en priorité » reprend les zones dont il parle (plus « dos et pecs » pour une question sur les veines).
+
 ## 13/11/2026 (10) — Coach de semaine, travail, photos de zones, panier compléments
 - « mauvaise semaine / pas beaucoup entraîné / adapte la semaine prochaine à partir de lundi » → coach-week.ts : le CODE garde l'histoire de la semaine (kv kouider:week:story:<lundi>), met une reprise en douceur lun→mer si ≤ 1 séance faite (setReprise), replanifie la semaine (planSportWeek) ; le cerveau répond en coach de vie + sport (semaine, tête, corps, plan, pourquoi). fr-commands laisse passer ces phrases.
 - Travail (librairie de Jette fermée par la police, « je m'y sens mal ») : ressenti gardé (kv kouider:work:feelings), article cherché par le code (Le Soir / La Libre 12/11 trouvés), conseils prudents (aucune supposition, droits du salarié).

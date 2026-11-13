@@ -178,14 +178,31 @@ export async function kouiderAwayOn(date: string): Promise<string | null> {
   return t ? `${t.to}, retour le ${t.pauseTo}` : null;
 }
 
+/** 13/11 (Belarbi : « arrivée 18:05 » dans la résa mais fiche d'arrivée à 10:00) : heures d'arrivée / de retour lues dans les notes
+ *  de la réservation — la DERNIÈRE mention gagne (une correction est ajoutée à la fin). */
+export function bookingTimes(notes: string | null | undefined): { start?: string; end?: string } {
+  const last = (re: RegExp) => {
+    let out: string | undefined;
+    for (const m of (notes ?? '').matchAll(re)) {
+      const h = Number(m[1]), mi = Number(m[2] ?? 0);
+      if (h <= 23 && mi <= 59) out = `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`;
+    }
+    return out;
+  };
+  return {
+    start: last(/(?:arriv\w*|atterri\w*|prise|r[ée]cup[ée]ration|remise)(?:[^\n\d]{0,25}?\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)?[^\n\d]{0,25}?(\d{1,2})\s*[:h]\s*(\d{2})?(?![\d/])/gi),
+    end: last(/(?:retour|rend|restitution|d[ée]part du client|vol retour)(?:[^\n\d]{0,25}?\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)?[^\n\d]{0,25}?(\d{1,2})\s*[:h]\s*(\d{2})?(?![\d/])/gi),
+  };
+}
+
 // ── Client : check-lists d'arrivée / de départ créées depuis les réservations ─
 
 async function syncClientChecklists(): Promise<void> {
   const today = localNow(Date.now(), 'Africa/Algiers').date;
   const plus = (n: number) => new Date(Date.parse(`${today}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
   type B = { id: string; client_name: string; start_date: string; end_date: string; status: string; amount_remaining: number | null;
-    payment_status: string | null; client_passport: string | null; review_request_sent_at: string | null; cars?: { name?: string } | null };
-  const cols = 'id, client_name, start_date, end_date, status, amount_remaining, payment_status, client_passport, review_request_sent_at, cars(name)';
+    payment_status: string | null; client_passport: string | null; review_request_sent_at: string | null; notes?: string | null; cars?: { name?: string } | null };
+  const cols = 'id, client_name, start_date, end_date, status, amount_remaining, payment_status, client_passport, review_request_sent_at, notes, cars(name)';
   const [{ data: starts }, { data: ends }] = await Promise.all([
     supabase.from('bookings').select(cols).gte('start_date', today).lte('start_date', plus(REMIND_FROM_DAYS)).in('status', ['PENDING', 'CONFIRMED']),
     supabase.from('bookings').select(cols).gte('end_date', today).lte('end_date', plus(3)).in('status', ['PENDING', 'CONFIRMED', 'ACTIVE']),
@@ -202,18 +219,20 @@ async function syncClientChecklists(): Promise<void> {
     const id = `${kind === 'booking-start' ? 'bs' : 'be'}-${b.id}`;
     let t = list.find(x => x.id === id);
     const date = kind === 'booking-start' ? b.start_date : b.end_date;
+    const bt = bookingTimes(b.notes);
+    const at = (kind === 'booking-start' ? bt.start : bt.end) ?? '10:00';
     if (!t) {
       const tpl = kind === 'booking-start' ? CLIENT_START : CLIENT_END;
       t = {
         id, who: 'client', kind, bookingId: b.id, clientName: b.client_name,
         title: `${kind === 'booking-start' ? 'Arrivée' : 'Retour'} de ${b.client_name} (${b.cars?.name ?? 'voiture'})`,
-        departAt: localTs(date, '10:00', 'Africa/Algiers'), tz: 'Africa/Algiers',
+        departAt: localTs(date, at, 'Africa/Algiers'), tz: 'Africa/Algiers',
         checklist: tpl.map(([label, auto]) => ({ label, done: false, ...(auto ? { auto } : {}) })),
         validated: false, calendarIds: [], createdAt: new Date().toISOString(), source: 'réservation',
       };
       list.push(t);
     }
-    t.departAt = localTs(date, '10:00', 'Africa/Algiers');
+    t.departAt = localTs(date, at, 'Africa/Algiers');
     const now = new Date().toISOString();
     for (const i of t.checklist) {
       const ok = i.auto === 'contract' ? signed.has(b.id) : i.auto === 'paid' ? paid(b) : i.auto === 'passport' ? !!b.client_passport

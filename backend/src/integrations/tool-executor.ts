@@ -852,12 +852,42 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
     }
   }
 
+  // 13/11 Belarbi : « il arrive à Oran vers 18h » → l'heure d'arrivée ne pouvait pas être changée (fiche d'arrivée à 10:00).
+  // arrival_time : l'ancienne heure d'arrivée est REMPLACÉE dans la note (pas ajoutée à côté), puis l'agenda suit.
+  const hhmm = (v: unknown) => { const m = String(v ?? '').trim().match(/^(\d{1,2})\s*(?:[:h]\s*(\d{2})?)?$/i); return m && Number(m[1]) <= 23 ? `${m[1]!.padStart(2, '0')}:${(m[2] ?? '00').padStart(2, '0')}` : ''; };
+  const arrTime = hhmm(input['arrival_time']);
+  if (input['arrival_time'] && !arrTime) return `❌ arrival_time illisible (« ${input['arrival_time']} ») — format HH:MM`;
+  if (arrTime) {
+    const { data: cn } = await supabase.from('bookings').select('notes').eq('id', id).single();
+    let n = String(fields['notes'] ?? (cn as { notes?: string | null } | null)?.notes ?? '');
+    const re = /(arriv[ée]e[^\n\d]{0,25}?)(\d{1,2})\s*[:h]\s*(\d{2})?(?!\d)/gi;
+    const flight = input['arrival_flight'] ? ` (vol ${String(input['arrival_flight']).toUpperCase().slice(0, 12)})` : '';
+    n = re.test(n) ? n.replace(re, (_m, pre: string) => `${pre}${arrTime}`) : `${n}${n ? '\n' : ''}🛬 Arrivée à ${arrTime}${flight}`;
+    if (flight && !n.includes(flight.trim())) n += flight;
+    fields['notes'] = n;
+  }
+
   const { error } = await supabase.from('bookings').update(fields).eq('id', id);
   if (error) return `Erreur mise à jour: ${error.message}`;
+  // Agenda de la location (🚗 Client — Voiture) : heure d'arrivée = début, heure de retour = fin
+  let agendaNote = '';
+  if (arrTime || retTime || fields['start_date'] || fields['end_date']) {
+    try {
+      const { data: b } = await supabase.from('bookings').select('start_date, end_date, notes').eq('id', id).single();
+      const { data: ce } = await supabase.from('calendar_events').select('google_event_id').eq('booking_id', id).neq('status', 'deleted').limit(1);
+      const gid = (ce as Array<{ google_event_id: string }> | null)?.[0]?.google_event_id;
+      if (b && gid) {
+        const { bookingTimes } = await import('./trips.js');
+        const t = bookingTimes((b as { notes?: string }).notes);
+        const ok = await updateAgendaEvent(gid, { start: `${(b as { start_date: string }).start_date}T${t.start ?? '09:00'}:00`, end: `${(b as { end_date: string }).end_date}T${t.end ?? '18:00'}:00` });
+        agendaNote = ok ? `\n📅 Agenda FIK : début ${t.start ?? '09:00'}, fin ${t.end ?? '18:00'} (heure d'Oran).` : '\n⚠️ Agenda FIK pas mis à jour (erreur Google) : dis-le à Kouider.';
+      }
+    } catch { agendaNote = '\n⚠️ Agenda FIK pas mis à jour : dis-le à Kouider.'; }
+  }
 
 
   const offered = freeDays && fields['nb_days'] != null ? `\n🎁 ${freeDays} jour(s) offert(s) : le client paie ${fields['nb_days']} jour(s), total ${fields['final_price'] ?? '?'} € (inchangé pour lui). Le proprio est payé pour ${freeDays > 1 ? 'ces jours' : 'ce jour'} par Kouider : coût proprio ${fields['owner_total'] ?? '?'} €, bénéfice Kouider ${fields['profit_kouider'] ?? '?'} €. Le lien d'avis Google partira le lendemain du nouveau retour.` : '';
-  return `✅ Réservation ${id} mise à jour: ${JSON.stringify(fields)}${offered}`;
+  return `✅ Réservation ${id} mise à jour: ${JSON.stringify(fields)}${offered}${arrTime ? `\n🛬 Heure d'arrivée du client : ${arrTime} (fiche d'arrivée et rappels recalés).` : ''}${agendaNote}`;
 }
 
 async function createBooking(input: Record<string, unknown>, sessionId?: string): Promise<string> {

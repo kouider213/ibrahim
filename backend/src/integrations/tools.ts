@@ -30,7 +30,7 @@ const ALL_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'update_booking',
-    description: 'Modifier une réservation existante dans Supabase (nom, dates, voiture, montant, propriétaire, statut). Prolongation offerte/gratuite → end_date + free_days (le client ne paie pas ces jours).',
+    description: 'Modifier une réservation existante dans Supabase (nom, dates, voiture, montant, propriétaire, statut, HEURE D\'ARRIVÉE arrival_time, heure de retour return_time). Prolongation offerte/gratuite → end_date + free_days (le client ne paie pas ces jours). Heure donnée par le client sur WhatsApp (texte ou photo du billet) → arrival_time / return_time, jamais une heure inventée.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -50,6 +50,8 @@ const ALL_TOOLS: Anthropic.Tool[] = [
         passport_expiry:{ type: 'string', description: 'Date d\'expiration du passeport YYYY-MM-DD (optionnel)' },
         free_days:      { type: 'number', description: 'JOURS OFFERTS (gratuits) : Kouider prolonge la location mais le client ne paie PAS ces jours (« il rend le 10 au lieu du 9 mais je lui ai offert, c\'est gratuit »). Donne end_date = nouvelle date de retour + free_days = nombre de jours offerts → le prix total reste le même.' },
         return_time:    { type: 'string', description: 'Heure du retour HH:MM si Kouider la donne (« à 6h du matin » → 06:00), notée sur la réservation.' },
+        arrival_time:   { type: 'string', description: "HEURE D'ARRIVÉE / de prise de la voiture HH:MM (« il arrive à Oran vers 18h » → 18:00). Aussi quand le CLIENT la donne sur WhatsApp, par écrit ou en photo de son billet / carte d'embarquement (heure d'ATTERRISSAGE à Oran, pas de décollage). Remplace l'ancienne heure ; l'agenda et la fiche d'arrivée suivent." },
+        arrival_flight: { type: 'string', description: 'Numéro du vol du client si connu (ex. TO7258)' },
         notes:          { type: 'string', description: 'Note libre. Quand Kouider dit que la voiture est prête / préparée / lavée pour ce client → notes « ✅ Véhicule prêt » (les rappels de préparation s\'arrêtent). Ne dis jamais « noté » sans avoir appelé cet outil.' },
       },
       required: ['id'],
