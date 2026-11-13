@@ -609,6 +609,21 @@ async function sportMoveDay(raw: string): Promise<Direct | null> {
   return { text: r, direct: true };
 }
 
+/** 13/11 « remets mes horaires de travail, je recommence à travailler demain à la librairie » → morning_routine work_back. */
+async function workBack(raw: string): Promise<Direct | null> {
+  const t = strip(raw);
+  if (t.length > 240 || /\?\s*$/.test(t)) return null;
+  const ok = /\b(remet\w*|reactiv\w*|rajout\w*|reprogramm\w*)\b[^.!]{0,40}\b(horaires?|jours?|creneaux?|planning)\s+(de |du )?(travail|boulot|taf|librairie|magasin)\b/.test(t)
+    || /\b(je )?(recommence|reprend\w*|retourne|retravaill\w*)\b[^.!]{0,25}\b(a travailler|le travail|le boulot|au travail|au boulot|a la librairie|au magasin|a bosser)\b/.test(t)
+    || /\b(librairie|magasin)\b[^.!]{0,20}\b(rouvr\w*|reouv\w*)\b/.test(t);
+  if (!ok) return null;
+  const from = /\bdemain\b/.test(t) ? addDaysStr(localNow().date, 1) : /\blundi\b/.test(t) ? nextWeekday(1) : localNow().date;
+  const { morningRoutineTool } = await import('./morning-routine.js');
+  return { text: await morningRoutineTool({ action: 'work_back', from }), direct: true };
+}
+function addDaysStr(d: string, n: number): string { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
+function nextWeekday(wd: number): string { const { date } = localNow(); const cur = new Date(`${date}T12:00:00Z`).getUTCDay(); return addDaysStr(date, ((wd - cur + 7) % 7) || 7); }
+
 async function sportSkip(raw: string): Promise<Direct | null> {
   const t = strip(raw);
   if (t.length > 200 || /\?\s*$/.test(t)) return null;
@@ -779,7 +794,7 @@ export async function frCommand(raw: string, sessionId = 'telegram_kouider'): Pr
   SID = sessionId;
   const msg = raw.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
   if (!msg) return null;
-  for (const f of [sharePub, pubTiktok, craving, noSales, carKm, formeBilan, formeProgram, sportMoveDay, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, agendaAnything, present, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
+  for (const f of [sharePub, pubTiktok, craving, noSales, carKm, formeBilan, formeProgram, workBack, sportMoveDay, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, agendaAnything, present, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
     const r = await f(msg).catch(e => ({ text: `❌ ${e instanceof Error ? e.message : e}`, direct: true }));
     if (r) return r;
   }

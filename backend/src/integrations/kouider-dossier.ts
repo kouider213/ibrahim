@@ -72,6 +72,9 @@ const DATE_OFF_KEY = (d: string) => `kouider:dayoff:${d}`;
 export async function setDateOff(date: string, why: string | null): Promise<void> {
   await kvSet(DATE_OFF_KEY(date), why ? why.slice(0, 80) : '', why ? 10 * 86_400 : 60);
 }
+export async function getDateOff(date: string): Promise<string | null> {
+  return (await kvGet(DATE_OFF_KEY(date)).catch(() => null)) || null;
+}
 async function isDateOff(offsetDays = 0): Promise<boolean> {
   return !!(await kvGet(DATE_OFF_KEY(brusselsDate(offsetDays))).catch(() => null));
 }

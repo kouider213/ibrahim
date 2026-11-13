@@ -1,7 +1,7 @@
 import { kvGet, kvSet } from './app-store.js';
 import { createAnthropic, QUALITY } from './anthropic-compat.js';
 import { kouiderDossierText, kouiderDossierTool } from './kouider-dossier.js';
-import { createAgendaEvent, deleteAgendaEvent, listAgendaRange, updateAgendaSeries, shiftAgendaSeries } from './google-calendar.js';
+import { createAgendaEvent, deleteAgendaEvent, listAgendaRange, updateAgendaSeries, shiftAgendaSeries, restoreAgendaRange } from './google-calendar.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { callOwner, getPendingCall } from '../notifications/voice-call.js';
@@ -614,6 +614,30 @@ export async function morningRoutineTool(input: Record<string, unknown>, session
     }
     return [`🏖️ Pas de travail du ${from} au ${until} : congé ces jours-là (la semaine type ne change pas), le SPORT est gardé.`, ...out,
       agendaKo ? '⚠️ L\'agenda FIK ne répond pas : les créneaux de travail n\'ont peut-être pas été enlevés, dis-le-lui.' : ''].filter(Boolean).join('\n');
+  }
+  // 13/11 21h47 : « tu peux remettre aussi mes horaires de travail je recommence à travailler demain à la librairie » → aucun outil
+  // pour défaire no_work, le cerveau a dit « c'est fait » et le garde-fou a bloqué. work_back = congés no_work annulés + travail remis.
+  if (action === 'work_back') {
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(String(input['from'] ?? '')) && String(input['from']) >= date ? String(input['from']) : date;
+    const until = /^\d{4}-\d{2}-\d{2}$/.test(String(input['until'] ?? '')) ? String(input['until']) : addDays(from, 30);
+    const { setDateOff, getDateOff } = await import('./kouider-dossier.js');
+    const dp = await datePlans();
+    const back: string[] = [];
+    for (let d = from; d <= until; d = addDays(d, 1)) {
+      const off = await getDateOff(d);
+      if (off && /travail/i.test(off)) { await setDateOff(d, null); back.push(d); }
+      if (dp[d] && /cong[ée]/i.test(dp[d]!.next ?? '')) { await setDatePlan(d, null); if (!back.includes(d)) back.push(d); }
+    }
+    const restored = await restoreAgendaRange(new Date(localTs(from, '00:00')).toISOString(), new Date(localTs(addDays(until, 1), '00:00')).toISOString(),
+      /\b(travail|boulot|magasin|librairie|ouverture|shift)\b|^⏰ Réveil, douche, petit-déj/iu);
+    const c2 = await getRoutineConfig();
+    const next = [0, 1, 2, 3, 4, 5, 6].map(i => addDays(from, i)).map(d => ({ d, p: c2.days[localNow(localTs(d, '12:00')).weekday] }))
+      .filter(x => x.p?.kind === 'work' || /travail|magasin/i.test(x.p?.next ?? '')).slice(0, 4)
+      .map(x => `- ${x.d} : ${x.p!.next ?? 'travail'}`);
+    return [`✅ Travail remis à partir du ${from}${back.length ? ` (congés annulés : ${back.join(', ')})` : ' (il n\'y avait plus de congé enregistré)'} — la semaine type reprend.`,
+      ...next,
+      restored === null ? '⚠️ L\'agenda FIK ne répond pas : les créneaux de travail effacés n\'ont peut-être pas été remis, dis-le-lui.'
+        : restored.length ? `Agenda : ${restored.length} créneau(x) de travail remis.` : ''].filter(Boolean).join('\n');
   }
   if (action === 'resume' || action === 'on') {
     await saveConfig({ ...c, enabled: true, pausedUntil: null, pauseReason: undefined });

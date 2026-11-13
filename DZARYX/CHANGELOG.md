@@ -1,3 +1,7 @@
+## 13/11/2026 (9) — « Remets mes horaires de travail » marchait pas
+- 21h47 « tu peux remettre aussi mes horaires de travail je recommence à travailler demain à la librairie » → ⚠️ « Je n'ai pas exécuté cette action » : no_work n'avait pas d'inverse, le cerveau a inventé « c'est fait » et le garde-fou l'a bloqué.
+- Nouvelle action morning_routine work_back (+ phrase directe workBack : « remets mes horaires de travail », « je reprends le boulot lundi », « la librairie rouvre ») : congés no_work annulés à partir de la date, plans « jour de congé » retirés, créneaux de travail effacés de l'agenda FIK remis (restoreAgendaRange, occurrences annulées → confirmed).
+
 ## 13/11/2026 (8) — Site → Dzaryx réparé + titres Google
 - Le site n'a jamais pu prévenir Dzaryx (« //api/fik-site/notify » 404 : IBRAHIM_BACKEND_URL finit par « / ») → corrigé côté site (autolux 40e74db). Contrôle client + appel « tu l'acceptes ? » reviennent ; le texte Telegram n'est plus doublé (le site l'envoie déjà avec les boutons) ; avis / changement de statut fait par Kouider : pas de doublon.
 - SEO site : 12 pages sans <title> (voitures, vente, immo, packs, blog, pages légales) → titres rendus ; voiture = « Location X à Oran — prix/jour, sans caution | Fik ».

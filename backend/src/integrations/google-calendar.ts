@@ -311,6 +311,27 @@ export async function listFreeWindows(fromIso: string, toIso: string): Promise<A
     .map(e => ({ start: new Date(e.start.dateTime!).getTime(), end: new Date(e.end.dateTime!).getTime() }));
 }
 
+/** 13/11 « remets mes horaires de travail » : remet les occurrences EFFACÉES (annulées) dont le titre correspond, sur une période.
+ *  Une occurrence d'une série effacée garde son id ; on la repasse en « confirmed ». Retourne les titres remis (null = pas d'accès). */
+export async function restoreAgendaRange(fromIso: string, toIso: string, match: RegExp): Promise<string[] | null> {
+  const res = await calendarRequest<{ items: Array<AgendaEvent & { status?: string }> }>('GET',
+    fikPath(`/events?maxResults=250&singleEvents=true&showDeleted=true&timeMin=${encodeURIComponent(fromIso)}&timeMax=${encodeURIComponent(toIso)}`));
+  if (!res) return null;
+  const masters = new Map<string, string>();
+  const out: string[] = [];
+  for (const e of res.items ?? []) {
+    if (e.status !== 'cancelled' || !e.id) continue;
+    let title = e.summary ?? '';
+    if (!title && e.recurringEventId) {
+      if (!masters.has(e.recurringEventId)) masters.set(e.recurringEventId, (await calendarRequest<AgendaEvent>('GET', fikPath(`/events/${encodeURIComponent(e.recurringEventId)}`)))?.summary ?? '');
+      title = masters.get(e.recurringEventId)!;
+    }
+    if (!match.test(title)) continue;
+    if (await calendarRequest('PATCH', fikPath(`/events/${encodeURIComponent(e.id)}`), { status: 'confirmed' }) !== null) out.push(title);
+  }
+  return out;
+}
+
 export async function deleteAgendaEvent(googleEventId: string): Promise<boolean> {
   const r = await calendarRequest('DELETE', fikPath(`/events/${encodeURIComponent(googleEventId)}`));
   if (r !== null) await supabase.from('calendar_events').update({ status: 'deleted', updated_at: new Date().toISOString() }).eq('google_event_id', googleEventId);
