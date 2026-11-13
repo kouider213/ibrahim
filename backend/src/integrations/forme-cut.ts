@@ -19,6 +19,7 @@ const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T12:00:00Z`) 
 const dayDiff = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86_400_000);
 const json = async <T,>(k: string, f: T): Promise<T> => { try { return (JSON.parse((await kvGet(k)) ?? 'null') as T) ?? f; } catch { return f; } };
 const r1 = (n: number) => Math.round(n * 10) / 10;
+const frN = (n: number | null) => n == null ? '?' : String(Number(n.toFixed(2))).replace('.', ',');
 const START_K = (u: Uid) => `${u}:forme:cutstart`;
 
 interface Day { weight?: number; measures?: Record<string, number>; workout?: { label: string } }
@@ -31,7 +32,7 @@ function trendOf(w: Array<{ date: string; kg: number }>) {
   for (const x of w) {
     if (!last) t = x.kg;
     else { const gap = Math.max(1, dayDiff(last, x.date)); const a = 1 - Math.pow(0.9, gap); t = t + a * (x.kg - t); }
-    out.push({ ...x, trend: r1(t * 10) / 10 }); last = x.date;
+    out.push({ ...x, trend: Number(t.toFixed(2)) }); last = x.date;   // 13/11 : r1(t*10)/10 donnait des 78.60999999
   }
   return out;
 }
@@ -43,7 +44,7 @@ export function weightPace(weights: Array<{ date: string; kg: number }>, today: 
   const tr = trendOf(weights);
   const cur = tr.length ? tr[tr.length - 1]!.trend : fallbackKg;
   const wAgo = trendAt(tr, addDays(today, -7));
-  const rateWeek = wAgo != null && weights.length >= 5 && dayDiff(weights[0]!.date, today) >= 7 ? r1((wAgo - cur) * 10) / 10 : null;
+  const rateWeek = wAgo != null && weights.length >= 5 && dayDiff(weights[0]!.date, today) >= 7 ? Number((wAgo - cur).toFixed(2)) : null;   // 13/11 : « 0.8099999999999999 kg/semaine » affiché
   return { rateWeek, trend: cur, real: weights.length ? weights[weights.length - 1]!.kg : fallbackKg };
 }
 
@@ -163,10 +164,10 @@ export async function cutStatus(uid: Uid = 'kouider') {
   else if (rateWeek == null) decision = { level: 'wait', deficit: null, text: `Pèse-toi chaque matin (à jeun, après les toilettes) : il me faut 5 pesées sur au moins 7 jours pour calculer ta vraie vitesse de sèche (tu en as ${weights.length}).` };
   else if (logged7 < 4) decision = { level: 'wait', deficit: null, text: `Seulement ${logged7} jour(s) noté(s) sur 7 : note tous tes repas (photo) cette semaine, sinon on ne peut pas savoir si c'est le déficit ou les oublis.` };
   else if (weeksIn >= 12 || (dropping.length >= 2 && (ratePct ?? 0) > 0.7)) decision = { level: 'break', deficit: 0, text: weeksIn >= 12 ? `${weeksIn} semaines de sèche : fais 1 semaine de PAUSE DIÈTE au maintien (même sport, même protéines). Ton corps récupère, ta faim se calme, et la perte repart mieux après.` : `Ta force baisse sur ${dropping.length} exercices et tu perds vite : 1 semaine au maintien pour protéger ton muscle.` };
-  else if (ratePct != null && ratePct > 1.1) decision = { level: 'up', deficit: Math.max(250, cfg.deficit - 150), text: `Tu perds ${rateWeek} kg/semaine (${ratePct} %) : trop vite, tu risques de perdre du muscle. On mange 150 kcal de plus par jour.` };
-  else if (ratePct != null && ratePct < 0.25 && prevRate != null && prevRate < cur * 0.0025 && logged7 >= 5) decision = { level: 'down', deficit: Math.min(750, cfg.deficit + 100), text: `Ça stagne depuis 2 semaines (${rateWeek ?? 0} kg/sem) alors que tu notes bien : −100 kcal par jour OU +2 000 pas par jour (ton choix).` };
+  else if (ratePct != null && ratePct > 1.1) decision = { level: 'up', deficit: Math.max(250, cfg.deficit - 150), text: `Tu perds ${frN(rateWeek)} kg/semaine (${frN(ratePct)} %) : trop vite, tu risques de perdre du muscle. On mange 150 kcal de plus par jour.` };
+  else if (ratePct != null && ratePct < 0.25 && prevRate != null && prevRate < cur * 0.0025 && logged7 >= 5) decision = { level: 'down', deficit: Math.min(750, cfg.deficit + 100), text: `Ça stagne depuis 2 semaines (${frN(rateWeek ?? 0)} kg/sem) alors que tu notes bien : −100 kcal par jour OU +2 000 pas par jour (ton choix).` };
   else if (dropping.length) decision = { level: 'ok', deficit: null, text: `Bonne vitesse, mais ${dropping[0]!.name} baisse (${dropping[0]!.pct} %) : garde les charges lourdes, 2 g de protéines/kg, dors 7 h+. On ne touche pas aux calories.` };
-  else decision = { level: 'ok', deficit: null, text: rateWeek != null ? `Parfait : ${rateWeek} kg/semaine (${ratePct} %), dans la zone 0,5-1 %. On ne change rien, continue.` : 'Continue comme ça cette semaine.' };
+  else decision = { level: 'ok', deficit: null, text: rateWeek != null ? `Parfait : ${frN(rateWeek)} kg/semaine (${frN(ratePct)} %), dans la zone 0,5-1 %. On ne change rien, continue.` : 'Continue comme ça cette semaine.' };
 
   return {
     today, start, weeksIn, deficit: cfg.deficit,
