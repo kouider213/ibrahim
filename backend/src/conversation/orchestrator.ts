@@ -284,6 +284,7 @@ export async function processMessage(
   // « quel jour je gagne le plus ? », « je suis à combien tout confondu ? ») → enregistré / calculé par le CODE sur ses vraies données
   // (le cerveau disait « ✅ Noté » sans rien noter, puis inventait « 7 950 € »)
   // RAPPELS / RDV / NE PAS DÉRANGER / SOMMEIL / SOIRÉE À DEUX en phrase normale (05/11 banc : mauvais outil ou faux « noté »)
+  const codeActions: Array<{ name: string; success: boolean; result: string }> = [];   // 13/11 : actions faites par le CODE avant le cerveau → la garde « c'est fait sans outil » ne les bloque pas
   let worldChecked = false;   // 06/11 : le code a déjà cherché sur internet → la garde « pas d'outil = inventé » ne s'applique pas
   let codeHint = '';   // consigne du code (fr-commands) : remise aussi À CÔTÉ de la question (04/11 : noyée dans le système, ignorée)
   if (actorUserId === 'kouider' && !sandbox) {
@@ -400,6 +401,7 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
   const sportCancel = actorUserId === 'kouider' && !sandbox ? (await import('../integrations/sport-coach.js')).parseSportCancel(userMessage) : null;
   if (sportCancel) {
     const r = await (await import('../integrations/sport-coach.js')).runSportCancel(sportCancel).catch(e => `❌ échec de l'annulation : ${e instanceof Error ? e.message : e}`);
+    if (!/^❌/.test(r)) codeActions.push({ name: 'sport_coach', success: true, result: `✅ ${r}` });
     pre.unshift(`DÉJÀ FAIT PAR LE CODE pour ce message (ne rappelle PAS sport_coach skip/rest pour ce jour) : ${r}\nConfirme-le-lui en une phrase avec CE résultat exact, puis réponds au reste de son message.`);
   }
   // 03/11 question de conseil → réponse « comme ChatGPT » (personnalisée FORME, illustrée, format Telegram propre). La consigne
@@ -410,15 +412,18 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
   if (extraNotes) ctx.systemExtra = `${extraNotes}\n\n${ctx.systemExtra ?? ''}`.trim();
   if (pre.length) ctx.systemExtra = `${pre.join('\n\n')}\n\n${ctx.systemExtra ?? ''}`.trim();
   if (actorUserId === 'kouider' && !(sessionId.startsWith('voice_') && !textOnly)) {
-    const [rich, world, health] = await Promise.all([
+    const [rich, world, health, week] = await Promise.all([
       import('../integrations/rich-answer.js').then(m => m.richAnswerHint(userMessage)).catch(() => ''),
       // 11/11 « quelle protéine / créatine prendre, quel complément pour moi » → tout son dossier santé à côté de la question
       import('../integrations/health-advisor.js').then(m => m.healthAdvisorHint(userMessage)).catch(() => ''),
       import('../integrations/world-facts.js').then(m => m.worldFactsHint(userMessage)).catch(() => ''),   // 06/11 recherche faite par le code
+      // 13/11 « mauvaise semaine, adapte la semaine prochaine », « la librairie fermée par la police, je m'y sens mal » → semaine replanifiée + coach + article
+      import('../integrations/coach-week.js').then(m => m.weekCoachHint(userMessage, { sandbox })).catch(() => ({ hint: '', acted: false })),
     ]);
+    if (week.acted) codeActions.push({ name: 'sport_coach', success: true, result: '✅ semaine prochaine replanifiée par le code' });
     worldChecked = /RÉSULTATS RECHERCHE INTERNET/.test(world);
     const last = ctx.messages[ctx.messages.length - 1];
-    const hint = [codeHint, world, health, rich].filter(Boolean).join('\n\n');
+    const hint = [codeHint, week.hint, world, health, rich].filter(Boolean).join('\n\n');
     if (hint && last && last.role === 'user' && typeof last.content === 'string') last.content = `${last.content}\n\n[Consigne pour ta réponse, pas un message de Kouider :\n${hint}]`;
   }
   if (v2ContextAddition) {
@@ -569,7 +574,7 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
     try {
       const report = await runMultiAgent(effectiveMessage, ctx.systemExtra, agentIds, requestId);
       const multiText = guardResponse(report.fusedResponse, effectiveMessage, requestId);
-      const safeMulti = phantomGuard(multiText, [], effectiveMessage, requestId);
+      const safeMulti = phantomGuard(multiText, codeActions, effectiveMessage, requestId);
 
       // Execution trace
       console.log(`[multi-agent-trace] request_id=${requestId} agents=${agentIds.length} succeeded=${report.agentsSucceeded} cost=$${report.totalCostUsd.toFixed(6)} ms=${report.totalLatencyMs}`);
@@ -629,7 +634,7 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
         // une capture qui parle de dispo/dates/montants → on les saute pour la vision.
         const safeText  = oranize(localizeGuardMessage(imageBase64
           ? guarded1
-          : worldChecked ? phantomGuard(guarded1, [], userMessage, requestId) : fastPathGuard(phantomGuard(guarded1, [], userMessage, requestId), userMessage, requestId), null, guardLang), actor);
+          : worldChecked ? phantomGuard(guarded1, codeActions, userMessage, requestId) : fastPathGuard(phantomGuard(guarded1, codeActions, userMessage, requestId), userMessage, requestId), null, guardLang), actor);
         if (imageBase64) {
           console.log(`[VISION_RUNTIME] ${fp.key}_status=success chars=${safeText.length}`);
         }
@@ -753,7 +758,7 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
         const em = await compat.runClaudeEmergency(() => chatWithTools(ctx.messages, agentSystemExtra, sessionId, onToolStart, onToolDone, onTextChunk, imageBase64, imageMime, agentRoute.agentTools), 'faible').catch(e => { console.error('[claude-emergency] faible — échec :', e instanceof Error ? e.message : e); return null; });
         if (em?.text) {
           console.warn(`[claude-emergency] faible : gros Gemini épuisés → réponse Claude Haiku session=${sessionId}`);
-          const emText = oranize(localizeGuardMessage(phantomGuard(guardResponse(em.text, userMessage, requestId), em.toolsExecuted ?? [], userMessage, requestId), null, guardLang), actor);
+          const emText = oranize(localizeGuardMessage(phantomGuard(guardResponse(em.text, userMessage, requestId), [...(em.toolsExecuted ?? []), ...codeActions], userMessage, requestId), null, guardLang), actor);
           _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: emText });
           saveConversationTurn(sessionId, 'assistant', emText, { tools: (em.toolsExecuted ?? []).map((t: { name: string; success: boolean }) => `${t.name} ${t.success ? '✅' : '❌'}`) }).catch(() => {});
           _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
@@ -797,7 +802,7 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
         redis.incr(`provider:fallback:${today}:agentic-${agRes.provider}:success`).catch(() => {});
         console.warn(`[MOBILE_RUNTIME] channel=${source_channel} session=${sessionId} provider=agentic-${agRes.provider} fast_path=false fallback=true router_used=true legacy=false`);
         const agGuarded = guardResponse(agRes.text, userMessage, requestId);
-        const agPhantom = phantomGuard(agGuarded, agRes.toolsExecuted, userMessage, requestId);
+        const agPhantom = phantomGuard(agGuarded, [...agRes.toolsExecuted, ...codeActions], userMessage, requestId);
         // fastPathGuard = « aucun outil n'a tourné » : ici les vrais outils ont lu Supabase, ne pas bloquer leur réponse
         // Demande d'avis (« quel tarif lui proposer ? », « tu en penses quoi ? ») : un montant conseillé n'est pas une donnée
         // inventée → pas de blocage (22/10 : deux conseils remplacés par « je n'ai pas accès aux données en temps réel »)
@@ -836,7 +841,7 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
         console.warn(`[MOBILE_RUNTIME] channel=${source_channel} session=${sessionId} provider=${fb.key} fast_path=false fallback=true router_used=true legacy=false`);
         const guarded1     = guardResponse(fallbackText, userMessage, requestId);
         // Fallback providers = aucun outil → phantom + fast-path business data guard
-        const phantom1     = phantomGuard(guarded1, [], userMessage, requestId);
+        const phantom1     = phantomGuard(guarded1, codeActions, userMessage, requestId);
         let safeText       = oranize(localizeGuardMessage(worldChecked ? phantom1 : fastPathGuard(phantom1, userMessage, requestId), null, guardLang), actor);
         // Dernier secours = AUCUN outil : sur une question métier il répondait de tête (28/10 7h32 : « le passeport n'est pas
         // encore enregistré » alors qu'il l'était) → Kouider doit savoir que ce n'est pas vérifié
@@ -867,7 +872,7 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
       const compat = await import('../integrations/anthropic-compat.js');
       const em = await compat.runClaudeEmergency(() => chatWithTools(ctx.messages, agentSystemExtra, sessionId, onToolStart, onToolDone, onTextChunk, imageBase64, imageMime, agentRoute.agentTools)).catch(e => { console.error('[claude-emergency] échec :', e instanceof Error ? e.message : e); return null; });
       if (em?.text) {
-        const emText = oranize(localizeGuardMessage(phantomGuard(guardResponse(em.text, userMessage, requestId), em.toolsExecuted ?? [], userMessage, requestId), null, guardLang), actor);
+        const emText = oranize(localizeGuardMessage(phantomGuard(guardResponse(em.text, userMessage, requestId), [...(em.toolsExecuted ?? []), ...codeActions], userMessage, requestId), null, guardLang), actor);
         _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: emText });
         saveConversationTurn(sessionId, 'assistant', emText, { tools: (em.toolsExecuted ?? []).map((t: { name: string; success: boolean }) => `${t.name} ${t.success ? '✅' : '❌'}`) }).catch(() => {});
         _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
@@ -892,7 +897,7 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
   const runGuards = (resp: typeof response) => {
     const g1 = guardResponse(resp.text, userMessage, requestId);
     const g2 = applyScopeGuard(g1, userMessage, requestId);
-    const g3 = phantomGuard(g2, resp.toolsExecuted, userMessage, requestId);
+    const g3 = phantomGuard(g2, [...resp.toolsExecuted, ...codeActions], userMessage, requestId);
     // Quand le context-builder a pré-injecté de VRAIES données (finance / flotte / résas),
     // on les traite comme des appels d'outils réussis → pas de faux blocage anti-hallu
     // sur un résumé qui cite la flotte ou les réservations déjà fournies dans le contexte.

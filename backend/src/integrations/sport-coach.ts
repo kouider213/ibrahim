@@ -922,6 +922,25 @@ function goalProgress(st: SportState, log: SessionLog[]): { done: number; reache
   return { done: best, reached: best >= g.target };
 }
 
+/** 13/11 : ce qui s'est passé cette semaine (faites / ratées / annulées avec la raison) — pour adapter la suivante. */
+export async function weekAttendance(from: string, to: string): Promise<{ done: string[]; missed: string[]; skipped: Array<[string, string]> }> {
+  const st = await getState();
+  const log = await readSportLog();
+  return {
+    done: doneDates(st, log, from, to),
+    missed: Object.entries(st.history).filter(([d, v]) => v === 'missed' && d >= from && d <= to).map(([d]) => d),
+    skipped: Object.entries(st.skips).filter(([d]) => d >= from && d <= to),
+  };
+}
+/** Reprise en douceur après une semaine coupée : les premiers jours en mode allégé (moins de séries, charges −10 %). */
+export async function setReprise(start: string, end: string, why: string): Promise<boolean> {
+  const st = await getState();
+  if (st.deload && st.deload.end >= start) return false;
+  st.deload = { start, end, why: why.slice(0, 60) };
+  await saveState(st); deloadWin = st.deload;
+  return true;
+}
+
 export async function sportWeeklyReport(send = false): Promise<string> {
   const st = await getState();
   const log = await readSportLog();

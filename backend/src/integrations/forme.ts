@@ -389,7 +389,7 @@ export const imgBlock = (i: Img) => ({ type: 'image' as const, source: { type: '
 
 export interface Zone { label: string; x: number; y: number; r: number; bx?: number; by?: number; br?: number; trend: 'mieux' | 'pareil' | 'à travailler'; note: string }
 export interface BodyAnalysis { at: number; vs: string | null; summary: string; zones: Zone[]; advice: string[]; focus: string[]; score: number; visible?: 'oui' | 'partiel' | 'non'; seen?: string }
-export interface BodyPhoto { id: string; date: string; pose: 'face' | 'profil' | 'dos'; path: string; weight?: number; analysis?: BodyAnalysis }
+export interface BodyPhoto { id: string; date: string; pose: 'face' | 'profil' | 'dos' | 'bras' | 'ventre' | 'pecs'; path: string; weight?: number; analysis?: BodyAnalysis }
 
 async function ensureBucket() { await supabase.storage.createBucket(BUCKET, { public: false }).catch(() => {}); }
 
@@ -463,9 +463,11 @@ VÉRITÉ AVANT TOUT (Kouider 01/11 : « une vraie analyse, pas une invention »)
 2) "body_visible" : "oui" (torse nu / tenue moulante, corps visible), "partiel" (une partie seulement), "non" (habillé large, veste, cadrage visage, flou, pas une personne).
 3) Tu ne parles QUE de ce qui est visible : une zone couverte par des vêtements = tu n'en dis RIEN (ni gras, ni muscle, ni « sangle abdominale »). Si "non" : zones = [], focus = [], score 50, summary = ce qui empêche de juger + comment refaire la photo.
 4) Comparaison avant/maintenant seulement si même pose, tenue et cadrage comparables ; sinon dis-le et score 50. Le score ne reflète QUE des différences réellement visibles. Jamais de chiffre inventé (pas de % de gras, pas de kg de muscle). Jamais de phrase générique qui irait à n'importe qui.
+GROS PLAN (13/11, Kouider : « je lui montre mon bras pour les veines, une partie de mon dos, le ventre, les pecs ») : une photo d'UNE partie (bras, dos, ventre, côtés, pecs) est valable → body_visible "partiel" et tu analyses À FOND cette partie : muscle visible (forme, séparation, volume) vs gras qui la couvre (pli, ventre qui déborde, côtés, gras sous les pecs), et ce qui manque pour qu'elle devienne « du muscle et plus du gras ».
+VEINES : s'il parle de veines / vascularité, dis honnêtement ce qui se voit (veines visibles ou non sur l'avant-bras, le biceps, l'épaule) et donne les vrais leviers : 1) moins de gras sous la peau = le levier n°1 (sa sèche, déficit raisonnable), 2) plus de muscle sur avant-bras / biceps / triceps (curls marteau, curls inversés, flexions de poignets, tractions, farmer walk), 3) la congestion : séries longues (15-20 reps) en fin de séance, 4) bien hydraté, assez de glucides autour de la séance, sel normal. JAMAIS de diurétique, de déshydratation volontaire ni de produit dopant.
 Analyse objectivement et avec bienveillance ce qui a changé : épaules, bras, ventre/taille, dos, hanches, jambes, posture. Ne commente jamais le visage. Pas de jugement sur le corps, juste du concret et motivant.
 Réponds UNIQUEMENT en JSON :
-{"seen":"ce que tu vois vraiment (1-2 phrases)","body_visible":"oui|partiel|non","pose":"face|profil|dos","summary":"2-3 phrases : ce qui a changé (ou point de départ)","score":0-100 (progression visible, 50 = pareil),
+{"seen":"ce que tu vois vraiment (1-2 phrases)","body_visible":"oui|partiel|non","pose":"face|profil|dos|bras|ventre|pecs","summary":"2-3 phrases : ce qui a changé (ou point de départ)","score":0-100 (progression visible, 50 = pareil),
  "zones":[{"label":"Ventre","x":0.5,"y":0.55,"r":0.12,"bx":0.5,"by":0.55,"br":0.13,"trend":"mieux|pareil|à travailler","note":"≤ 90 car."}],
  "advice":["conseil d'entraînement ou d'habitude précis (≤ 120 car.)", "..."],"focus":["muscles à travailler en priorité"]}
 Les photos portent une GRILLE cyan graduée .1 à .9 (horizontal = x, vertical = y) : sers-t'en pour placer chaque cercle EXACTEMENT sur la partie du corps (ventre = sous la poitrine au niveau du nombril, pas sur le fond ni la tête). x,y = centre du cercle sur la photo MAINTENANT (fractions 0-1 de la largeur/hauteur), r = rayon en fraction de la largeur, PETIT (0,04 à 0,12 : le cercle entoure juste la zone) ; bx,by,br = même zone sur la photo AVANT (omet-les s'il n'y a qu'une photo). 3 à 5 zones qui ne se chevauchent pas, JAMAIS sur le visage ni la tête (épaules = au bord des épaules). Le champ "trend" reste TOUJOURS en français (mieux / pareil / à travailler).${uid === 'kouider' ? ' Conseils compatibles avec un dos à ménager.' : ''}${LANG_RULE(p.lang)}`;
@@ -570,7 +572,9 @@ export async function bodyFromTelegram(o: { focus?: string; pose?: string; adapt
   const raw = await kvGet(TG_PHOTO_KEY);
   if (!raw) return '❌ Je n\'ai pas de photo récente (30 min max) : renvoie-moi ta photo.';
   const stash = JSON.parse(raw) as { b64: string; mime: string; photoId?: string; pose?: string };
-  const pose = (['face', 'profil', 'dos'].includes(String(o.pose)) ? o.pose : 'face') as BodyPhoto['pose'];
+  // 13/11 : gros plan d'une partie (bras pour les veines, ventre, pecs) = sa propre « pose » → comparé au gros plan d'avant, pas au corps entier
+  const guess = /veine|bras|biceps|avant-bras|triceps/i.test(o.focus ?? '') ? 'bras' : /ventre|abdo|poign[ée]es? d'amour|c[ôo]t[ée]s?/i.test(o.focus ?? '') ? 'ventre' : /pecs?|pectoraux|poitrine/i.test(o.focus ?? '') ? 'pecs' : /\bdos\b/i.test(o.focus ?? '') ? 'dos' : 'face';
+  const pose = (['face', 'profil', 'dos', 'bras', 'ventre', 'pecs'].includes(String(o.pose)) ? o.pose : guess) as BodyPhoto['pose'];
   // 05/11 : la photo était effacée AVANT l'analyse → l'analyse plante, le 2e essai disait « pas de photo récente ».
   // Maintenant : rangée une seule fois dans FORME, et gardée 30 min tant que l'analyse n'a pas réussi.
   const ph = stash.photoId ? { id: stash.photoId } : await addBodyPhoto('kouider', { media: (/png|webp/.test(stash.mime) ? stash.mime : 'image/jpeg') as Img['media'], data: stash.b64 }, pose);

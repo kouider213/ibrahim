@@ -1,3 +1,11 @@
+## 13/11/2026 (10) — Coach de semaine, travail, photos de zones, panier compléments
+- « mauvaise semaine / pas beaucoup entraîné / adapte la semaine prochaine à partir de lundi » → coach-week.ts : le CODE garde l'histoire de la semaine (kv kouider:week:story:<lundi>), met une reprise en douceur lun→mer si ≤ 1 séance faite (setReprise), replanifie la semaine (planSportWeek) ; le cerveau répond en coach de vie + sport (semaine, tête, corps, plan, pourquoi). fr-commands laisse passer ces phrases.
+- Travail (librairie de Jette fermée par la police, « je m'y sens mal ») : ressenti gardé (kv kouider:work:feelings), article cherché par le code (Le Soir / La Libre 12/11 trouvés), conseils prudents (aucune supposition, droits du salarié).
+- Garde anti-invention : les actions faites par le CODE (semaine replanifiée, séance annulée) comptent comme outils réussis (codeActions) → plus de ⚠️ à tort.
+- Photos du corps : gros plans bras / ventre / pecs (nouvelles poses, devinées depuis le focus), comparés au même gros plan ; veines = leviers réels (gras, muscle avant-bras, congestion, hydratation), jamais diurétique.
+- Conseils corps : « je fais quoi pour… », « pas de changement au dos… je veux me métamorphoser » déclenchent la réponse personnalisée + proposition priorité / photo de la zone.
+- Compléments « les meilleurs pas chers, tous au même endroit » : recherche boutiques/prix par le code, réponse = UNE boutique, panier, total/mois, quoi demander au médecin.
+
 ## 13/11/2026 (9) — « Remets mes horaires de travail » marchait pas
 - 21h47 « tu peux remettre aussi mes horaires de travail je recommence à travailler demain à la librairie » → ⚠️ « Je n'ai pas exécuté cette action » : no_work n'avait pas d'inverse, le cerveau a inventé « c'est fait » et le garde-fou l'a bloqué.
 - Nouvelle action morning_routine work_back (+ phrase directe workBack : « remets mes horaires de travail », « je reprends le boulot lundi », « la librairie rouvre ») : congés no_work annulés à partir de la date, plans « jour de congé » retirés, créneaux de travail effacés de l'agenda FIK remis (restoreAgendaRange, occurrences annulées → confirmed).

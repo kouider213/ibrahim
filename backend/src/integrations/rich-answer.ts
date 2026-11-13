@@ -6,6 +6,8 @@
 const HOWTO = /comment (?:faire|avoir|rendre|gagner|perdre|prendre|devenir|am[ée]liorer|augmenter|r[ée]duire|muscler|travailler|progresser|bien|on fait|je fais|je peux)|tu me conseill|des conseils|conseille[- ]moi|quels? (?:exercices?|aliments?|conseils?)|qu.est[- ]ce qu.il faut|c.est quoi le mieux|explique[- ]moi|pourquoi (?:je|mes|mon|ma)|astuces?|m[ée]thode pour|programme pour|plan pour|c.est quoi (?:la|le|les|un|une|l.)|qu.est[- ]ce que (?:c.est|la|le|les|l.)|pourquoi |quelle (?:est la )?diff[ée]rence|vaut[- ]il mieux|lequel (?:est|choisir)|compare[sr]? |recette|r[ée]sume[- ]moi|traduis|d[ée]finition|qui (?:est|était|a invent|a gagn)|quand (?:est|a eu lieu|commence)|combien (?:co[uû]te|vaut|de temps)|quel (?:est le )?prix/i;
 // Demandes de travail (FIK, outils) : réponse courte et action, pas un cours
 const WORK = /\bmon (?:solde|cash|[ée]pargne|programme|planning|agenda)|programme (?:de )?demain|ma s[ée]ance|r[ée]serv|client|factur|devis|voiture|clio|location|mail|whatsapp|agenda|rendez|rdv|appel|message|envoi|envoy|houari|site|prospect|paiement|caution|contrat|dzaryx|appli|widget/i;
+const HOWTO2 = /\b(je fais|on fait|il faut faire|faut faire|je dois faire) quoi\b|\bque (dois|faut)[- ]|\bce que (je dois|il faut) faire\b|\bquoi faire pour\b|\bdonne[- ]moi (des )?(conseils?|astuces?)\b/i;
+const BODY_TALK = /pas de changement|aucun changement|rien ne change|[çc]a (ne )?bouge pas|toujours (rempli|plein|gras)|m[ée]ta?r?mo?r?pho|me transformer|transformation|je veux (vraiment )?(me )?(muscl|s[ée]ch|perdre|enlever|avoir)|devien(ne|t) du muscle|plus visibles?/i;
 const BODY = /veine|vascular|muscl|bras|biceps|triceps|avant[- ]bras|pecs?\b|pectora|[ée]paules?|dos\b|abdos?|ventre|jambes?|cuisses?|fessiers?|mollets?|s[èe]che|gras|graisse|maigrir|perdre du poids|prise de masse|abdominaux|force|endurance|cardio|courir|course|sport|salle|entra[iî]n|r[ée]cup[ée]r|sommeil|dormir|prot[ée]ine|calorie|physique|corps|posture|souplesse/i;
 
 // Exercices classiques choisis à la main (free-exercise-db) par zone citée — les « premiers de la liste » donnaient
@@ -34,7 +36,9 @@ async function exerciseImages(q: string): Promise<Array<{ fr: string; url: strin
 /** Consigne ajoutée au contexte du cerveau (canal texte uniquement), '' si ce n'est pas une question de conseil. */
 export async function richAnswerHint(userMessage: string): Promise<string> {
   const q = userMessage.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
-  if (q.length < 12 || q.length > 400 || !HOWTO.test(q) || WORK.test(q)) return '';
+  // 13/11 : « je fais quoi pour rendre les veines de mon bras plus visibles », « pas de changement au dos, toujours rempli de graisse,
+  // je veux me métamorphoser » → aucun conseil personnalisé (HOWTO ne connaissait pas ces tournures, 400 car. max)
+  if (q.length < 12 || q.length > 900 || !(HOWTO.test(q) || HOWTO2.test(q) || (BODY.test(q) && BODY_TALK.test(q))) || WORK.test(q)) return '';
   const body = BODY.test(q);
   const [physique, imgs] = body
     ? await Promise.all([
@@ -50,6 +54,7 @@ export async function richAnswerHint(userMessage: string): Promise<string> {
     body ? `• Dans CHAQUE section, au moins une puce qui part de SES données ci-dessous (ses charges, ses séances de la semaine, muscles pas travaillés, protéines du jour, sommeil, récupération) — pas seulement la phrase d'intro. Tiens compte de son DOS (exercices sans risque pour le dos).` : '',
     body ? `• Ajoute **À quoi tu n'as peut-être pas pensé** : 1-2 points tirés de ses données qu'il n'a pas demandés (ex. protéines en retard aujourd'hui, nuit courte, un muscle oublié depuis 7 jours, charge qui stagne) avec l'action précise.` : '',
     `• Finis par **Ton plan** : 3-4 actions précises pour cette semaine, adaptées à lui.`,
+    body && BODY_TALK.test(q) ? `• Il trouve que ça ne change pas assez (dos, côtés du ventre, pecs, veines…) : dis-lui honnêtement POURQUOI avec ses chiffres (gras qui part en dernier à ces endroits, rythme de sa sèche, séances faites), puis termine par 2 propositions en une ligne chacune : « Dis « mets le dos et les pecs en priorité » et je change ton programme » et « Envoie-moi une photo de la zone (même endroit, même lumière) : je la compare à la prochaine pour voir le vrai changement ».` : '',
     `• Si la réponse dépend de l'actualité, d'un prix, d'un score, d'une date récente ou d'un fait que tu n'es pas sûr de connaître : appelle web_search AVANT de répondre (requête précise, 1 à 2 recherches), puis cite 1-2 sources (nom du site) à la fin. Ne dis jamais « je n'ai pas d'info » sans avoir cherché.`,
     `• Question simple (une date, un nom, un score) = réponse directe en 1-3 lignes + source, pas de plan en sections.`,
     `• Tutoie Kouider (jamais « vous »). N'invente AUCUN chiffre de FIK (prix, marges, tarifs, CA) pour illustrer : exemples génériques (« une voiture louée 40 €/jour ») ou ses vrais chiffres donnés par un outil.`,

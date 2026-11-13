@@ -794,6 +794,8 @@ export async function frCommand(raw: string, sessionId = 'telegram_kouider'): Pr
   SID = sessionId;
   const msg = raw.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
   if (!msg) return null;
+  // 13/11 : « mauvaise semaine, adapte la semaine prochaine » → coach de semaine dans l'orchestrateur (action + conseils), pas une commande courte
+  if ((await import('./coach-week.js')).isWeekTalk(msg)) return null;
   for (const f of [sharePub, pubTiktok, craving, noSales, carKm, formeBilan, formeProgram, workBack, sportMoveDay, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, agendaAnything, present, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
     const r = await f(msg).catch(e => ({ text: `❌ ${e instanceof Error ? e.message : e}`, direct: true }));
     if (r) return r;

@@ -50,16 +50,31 @@ export async function healthDossier(): Promise<string> {
   return lines.join('\n');
 }
 
+// 13/11 Kouider : « les compléments que je dois prendre, trouve-moi les meilleurs et pas chers, que je puisse tous les commander au même endroit
+// et commencer » → le code cherche les boutiques / prix AVANT le cerveau (le gratuit oubliait web_search) ; réponse = UN panier dans UNE boutique.
+const BUY = /command|achet|acheter|o[ùu] (les )?(trouver|prendre|acheter)|pas ch[eè]re?s?|moins ch[eè]re?s?|meilleur prix|prix|budget|m[êe]me endroit|m[êe]me site|m[êe]me magasin|un seul (site|magasin|endroit)|panier|livr|commencer/i;
+async function shopSearch(): Promise<string> {
+  const { multiProviderWebSearch } = await import('./web-search-provider.js');
+  const y = localNow().date.slice(0, 4);
+  const qs = [`site pas cher compléments sport livraison Belgique créatine monohydrate whey isolat vitamine D3 prix ${y}`,
+    `créatine monohydrate whey isolat vitamine D3 magnésium oméga 3 halal prix comparatif Belgique ${y}`];
+  const rs = await Promise.all(qs.map(q => Promise.race([multiProviderWebSearch(q, 'health-shop').catch(() => null), new Promise<null>(r => setTimeout(() => r(null), 9000))])));
+  return rs.filter(r => r && r.results_count > 0 && !/^NO_DATA/.test(r.text)).map(r => r!.text.slice(0, 1800)).join('\n---\n');
+}
+
 export async function healthAdvisorHint(userMessage: string): Promise<string> {
   if (!isHealthQuestion(userMessage)) return '';
-  const dossier = await healthDossier().catch(() => '');
   const supp = SUPP.test(userMessage);
+  const buy = supp && BUY.test(userMessage);
+  const [dossier, shops] = await Promise.all([healthDossier().catch(() => ''), buy ? shopSearch().catch(() => '') : Promise.resolve('')]);
   return [
     `CONSEILLER SANTÉ PERSONNEL (Kouider veut une réponse PARFAITE et faite pour LUI, pas un article générique) :`,
     `• Réponds d'abord DIRECTEMENT à sa question en 1-2 phrases (ex. « Oui, prends de la créatine monohydrate, 3 à 5 g par jour »).`,
     `• Puis « **Pour toi** » : relie CHAQUE conseil à SES données ci-dessous (poids, sèche et plancher de poids, protéines visées, séances, sommeil, valeurs de SA prise de sang, son traitement). Cite ses vrais chiffres. N'invente aucune valeur absente.`,
     supp ? `• Compléments : pour chacun → forme exacte (ex. créatine MONOHYDRATE, whey ISOLAT), dose en g ou mg, moment de prise, durée, ce que ça apporte VRAIMENT (niveau de preuve : solide / moyen / faible), prix indicatif, et ce qu'il faut vérifier sur l'étiquette (certifié halal, gélules végétales, label anti-dopage type Informed Sport si possible). Calcule les doses avec SON poids (ex. protéines : ses grammes visés par jour du dossier − ce qu'il mange déjà → combien de doses de whey). Dis aussi clairement ce qui est INUTILE pour lui (boosters de testo, brûleurs de graisse, BCAA si protéines suffisantes…) et pourquoi.` : '',
     `• S'il demande où acheter / quelle marque / un prix actuel : appelle web_search (Belgique, magasins ou sites qui livrent en Belgique) et donne 2-3 options concrètes avec prix et source — jamais de marque inventée.`,
+    buy ? `• IL VEUT COMMANDER : fais SA liste de compléments utiles POUR LUI (pas plus de 4-5, d'abord ce qui corrige sa prise de sang et sert sa sèche ; rien d'inutile), puis choisis UNE SEULE boutique (site qui livre en Belgique) où il trouve TOUT, la moins chère parmi les sérieuses d'après les RÉSULTATS ci-dessous. Donne le **panier** : produit exact (forme, dosage, taille du pot), prix unitaire, combien de temps dure le pot, TOTAL du panier et coût par mois, lien de la boutique, et s'il existe un code promo / une promo visible dans les résultats. Un prix absent des résultats = « prix à vérifier sur le site », jamais inventé. Termine par « **Pour commencer** » : quoi prendre dès la réception, à quelle heure, avec quoi (repas, eau), et ce qu'il doit demander à son médecin AVANT (vit D à haute dose, tout ce qui touche à la testostérone, interactions avec son traitement).` : '',
+    buy ? (shops ? `RÉSULTATS RECHERCHE BOUTIQUES / PRIX (faite par le code — n'utilise que ça pour les prix et les noms de boutique ; relance web_search si un produit manque) :\n${shops}` : `RECHERCHE BOUTIQUES : rien trouvé. Appelle web_search (« créatine monohydrate prix Belgique », etc.) avant de citer une boutique ou un prix.`) : '',
     `• Sécurité : vérifie chaque conseil contre SON TRAITEMENT et SA prise de sang ; si un produit peut interagir ou si une valeur est hors normes, dis-le clairement et ajoute « **À demander à ton pharmacien / médecin** » avec la question exacte à poser. Jamais de produit dopant, de diurétique, ni de dose au-dessus des limites officielles.`,
     `• Document médical, analyse, symptôme : explique simplement ce que veulent dire SES valeurs (normes du labo), ce qui est bien, ce qui est à surveiller, et quoi faire concrètement (alimentation, sport, sommeil, quand consulter). Si c'est urgent (douleur thoracique, essoufflement, sang, malaise) → dis-lui d'appeler le 112 / son médecin tout de suite.`,
     `• Finis par **Ton plan** : 3-4 actions précises (quoi acheter, quand prendre, quoi suivre dans FORME) + sources sérieuses (ISSN, EFSA, HAS, études) en fin de message.`,
