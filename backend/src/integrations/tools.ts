@@ -109,6 +109,26 @@ const ALL_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'site_admin',
+    description: "GÉRER LE SITE fikconciergerie.com DEPUIS TELEGRAM (Kouider, 13/11 : « gérer le site à 100 % depuis Telegram »). action='pending' : demandes de réservation en attente. 'accept' + client (nom) [+ price = prix TOTAL final] : accepte la demande comme le bouton du site → statut confirmé, email de confirmation au client, événement Google Agenda (« accepte Belarbi », « on a accepté la réservation de X »). 'reject' + client : refuse (email « indisponible »). 'settings' : voir les réglages ; 'set_setting' + field (annonce, whatsapp, whatsapp2, whatsapp3, telephone, email, adresse, maps, titre, sous_titre, acompte, instagram, tiktok, facebook) + value : changer le site (« mets l'annonce : -10 % ce week-end », « enlève l'annonce » = value vide, « acompte à 30 % »). FAQ : faq_list / faq_add (question + answer, l'arabe est fait tout seul) / faq_delete (id). Conditions : conditions_list / conditions_add (section + text) / conditions_delete (id). Blog : blog_list / blog_add (title + body [+ excerpt] [+ publish:true]) / blog_publish (id, published) / blog_delete (id). Newsletter : 'newsletter' + title + body (relecture d'abord, test:true = email de test, puis confirmed:true après son oui). Dossiers / import : 'dossiers' (liste) / 'dossier_status' (id + status). Les voitures, photos, packs, biens, véhicules à vendre, avis, prospects, paiements ont déjà leurs outils (update_car, add_car, list_packs, update_property, approve_review, record_payment…).",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action:    { type: 'string', enum: ['pending', 'accept', 'reject', 'settings', 'set_setting', 'faq_list', 'faq_add', 'faq_delete', 'conditions_list', 'conditions_add', 'conditions_delete', 'blog_list', 'blog_add', 'blog_publish', 'blog_delete', 'newsletter', 'dossiers', 'dossier_status'] },
+        client:    { type: 'string', description: 'accept/reject : nom du client' },
+        id:        { type: 'string', description: 'id (réservation, question FAQ, condition, article, dossier)' },
+        price:     { type: 'number', description: 'accept : prix TOTAL final de la location (pas par jour)' },
+        field:     { type: 'string' }, value: { type: 'string' },
+        question:  { type: 'string' }, answer: { type: 'string' },
+        section:   { type: 'string' }, text: { type: 'string' },
+        title:     { type: 'string' }, body: { type: 'string' }, excerpt: { type: 'string' },
+        publish:   { type: 'boolean' }, published: { type: 'boolean' },
+        status:    { type: 'string' }, test: { type: 'boolean' }, confirmed: { type: 'boolean' },
+      },
+      required: ['action'],
+    },
+  },
+  {
     name: 'get_financial_report',
     description: "Rapport financier: bénéfice Kouider et revenu Houari par mois/année + SON BÉNÉFICE RÉEL (même chiffre que le tableau de bord du site) : « gagné depuis le début » et « à récupérer » (repart à zéro à chaque récupération). action='ledger' : « combien j'ai à récupérer ? », « j'ai gagné combien depuis le début ? ». action='collected' : « j'ai récupéré mon argent / mon bénéfice » → la case à récupérer repart à zéro (demande confirmation du montant avant si pas clair). action='set_profit' + client + amount : bénéfice réel d'une location (« Belarbi bnf 1250000 » = centimes → 12 500 DA, « Djillali c'est 15000 DA », « 54 € »).",
     input_schema: {

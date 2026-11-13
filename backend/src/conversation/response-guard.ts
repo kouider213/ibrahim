@@ -30,11 +30,15 @@ const ACTION_TOOLS = new Set([
   'send_doc_pdf', 'create_presentation_doc', 'create_google_doc', 'create_google_sheet', 'export_excel',
   'get_car_photo', 'send_photos', 'get_client_document', 'partners', 'family_care', 'papa_time', 'forme', 'update_car', 'add_car', 'delete_car', 'business_mentor', 'kouider_dossier',
   // Jarvis : outils qui lancent un vrai travail (escouade, atelier…) et répondent « 🏭 … lancée » (30/10 : usine_business bloqué à tort)
-  'usine_business', 'atelier', 'se_coder', 'chasseur_voitures', 'commercial', 'radar_concurrence', 'auto_amelioration', 'autonomie', 'liberte', 'vitalite', 'vie', 'grand_coach', 'sport_coach', 'esprit',
+  'site_admin', 'usine_business', 'atelier', 'se_coder', 'chasseur_voitures', 'commercial', 'radar_concurrence', 'auto_amelioration', 'autonomie', 'liberte', 'vitalite', 'vie', 'grand_coach', 'sport_coach', 'esprit',
 ]);
 
 // Patterns qui indiquent que Claude prétend avoir exécuté une action write
 const PHANTOM_ACTION_PATTERNS: RegExp[] = [
+  // 13/11 : 11/11 18h07 « C'est fait, le message a été envoyé au client. ✅ » alors que whatsapp_web n'avait fait qu'une relecture
+  /^\s*(✅\s*)?c.est\s+(fait|parti|envoy[ée])\b/im,
+  /\b(a|ont|est|sont)\s+(bien\s+)?(été\s+)?(envoy[ée]e?s?|parti?e?s?)\s+(au|à|a|aux|chez|sur|par)\s/im,
+  /\b(message|mail|e-?mail|whatsapp|vocal|sms|photo|pdf|devis|contrat|facture)\s+(est\s+|a\s+été\s+)?(bien\s+)?(parti|envoy[ée])/im,
   // ✅ + verbe d'action write (début de réponse ou de paragraphe)
   /^\s*✅\s*(corrig[eé]|modifi[eé]|cr[eé][eé]|envoy[eé]|supprim[eé]|annul[eé]|mis\s+[aà]\s+jour|ajout[eé]|publi[eé]|r[eé]par[eé]|g[eé]n[eé]r[eé]|lanc[eé]|ex[eé]cut[eé]|fix[eé]|d[eé]ploy[eé]|push[eé]|commit[eé]|enregistr[eé]|planifi[eé]|programm[eé]|effac[eé])/im,
   // j'ai + verbe write

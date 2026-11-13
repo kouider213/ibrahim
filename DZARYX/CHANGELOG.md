@@ -1,3 +1,10 @@
+## 13/11/2026 (6) — Fiabilité + site 100 % depuis Telegram
+- Secours : réponse VIDE d'un cerveau (Gemini 12/11 22h31, après 6 outils) → le suivant reprend avec les résultats (avant : tout le secours abandonnait → Groq sans outils, « réponse NON vérifiée »).
+- Anti « c'est fait » mensonger : phantomGuard reconnaît « c'est fait / c'est parti », « a été envoyé au… », « message/mail/pdf … envoyé » sans vrai envoi (testé 7/7).
+- Outil site_admin (toujours disponible) : demandes en attente, accept/reject avec effets du site (email client + Google Agenda), réglages (annonce, WhatsApp, acompte, titre…), FAQ, conditions (arabe auto), blog, newsletter (relecture + test), dossiers/import.
+- SÉCURITÉ site (autolux 4e1cde7) : 9 routes /api d'administration étaient ouvertes au public (accepter/refuser, modifier résa, pages légales, uploads, dossiers, import, contrats, état des lieux) → session admin ou jeton interne (INTERNAL_API_TOKEN) ; pages admin via adminFetch. Vérifié : 401 sans jeton, OK avec.
+- Notif Telegram nouvelle réservation : « dis à Dzaryx : accepte <nom> ».
+
 ## 13/11/2026 (5) — FORME : bugs poids + « plus boosté »
 - Bug : « 0.8099999999999999 kg/semaine » (arrondi r1(x*10)/10) → toFixed(2) + virgule française ; courbe et cases Dernier/Mini/Maxi = vraies pesées (affichaient la tendance 78,6 alors que la pesée était 77).
 - Courbe double (pesées + tendance verte) comme Happy Scale / Libra.

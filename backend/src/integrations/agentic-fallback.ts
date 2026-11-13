@@ -458,9 +458,9 @@ export async function runAgenticFallback(
     // 29/10 11h42 : Gemini lance un outil puis prend un 429 au tour suivant → tout le secours abandonnait et Groq
     // répondait sans données (« ⚠️ Réponse de secours NON vérifiée »). Désormais le cerveau suivant REPREND le tour
     // avec les résultats d'outils déjà obtenus (rien n'est relancé, donc pas de doublon).
-    const takeOver = async (): Promise<void> => {
+    const takeOver = async (skipCurrent = false): Promise<void> => {
       for (;;) {
-        try { data = await call(ep, history, oaiTools); return; } catch (err) {
+        try { if (skipCurrent) { skipCurrent = false; throw new Error(`${ep.name} réponse vide`); } data = await call(ep, history, oaiTools); return; } catch (err) {
           noteFailure(ep, err);
           const to = rest.shift();
           if (!to) throw err;
@@ -475,8 +475,10 @@ export async function runAgenticFallback(
     };
     const seenCalls = new Map<string, string>();
     try {
+      let fresh = false;   // réponse déjà obtenue par la reprise (réponse vide) → ne pas rappeler le cerveau
       for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-        if (round > 0) await takeOver();
+        if (round > 0 && !fresh) await takeOver();
+        fresh = false;
         const msg = data.choices?.[0]?.message as OAIMessage | undefined;
         if (!msg) throw new Error(`${ep.name} empty choice`);
 
@@ -487,6 +489,9 @@ export async function runAgenticFallback(
         }
         if (toolCalls.length === 0 || round === MAX_TOOL_ROUNDS) {
           const text = cleanModelText(String(msg.content ?? ''));
+          // 13/11 : 12/11 22h31 Gemini a fait 6 outils puis une réponse VIDE → tout le secours abandonnait et Groq répondait
+          // SANS outils (« réponse de secours NON vérifiée »). Le cerveau suivant reprend avec les résultats déjà obtenus.
+          if (!text && rest.length && round < MAX_TOOL_ROUNDS) { await takeOver(true); fresh = true; round--; continue; }
           if (!text) throw new Error(`${ep.name} empty final response`);
           console.log(`[agentic-fallback] ✅ ${ep.key}/${ep.model} — ${toolsExecuted.length} outils, ${text.length} chars${deep ? ' (réflexion)' : ''}`);
           return { text, toolsExecuted, provider: ep.key, model: ep.model };

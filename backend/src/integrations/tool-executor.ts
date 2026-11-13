@@ -398,6 +398,7 @@ async function _dispatch(
       case 'cancel_booking':        return await cancelBooking(input);
       case 'delete_booking':        return await deleteBooking(input);
       case 'get_financial_report':  return await financialReport(input);
+      case 'site_admin':            return await import('./site-admin.js').then(m => m.siteAdminTool(input));
       case 'store_document':        return await storeDocument(input);
       case 'get_client_document':   return await getClientDocument({ ...input, ...(/houari/i.test(sessionId ?? '') ? { _houari: true } : {}), ...(sessionId && docReadOnly.has(sessionId) ? { send: false } : {}) });
       case 'read_site_file':        return await readSiteFile(input);
