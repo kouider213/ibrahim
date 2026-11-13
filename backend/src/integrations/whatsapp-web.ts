@@ -357,7 +357,7 @@ export async function sendWaVoice(chat: string, text: string, own = false): Prom
 
 /** Message écrit de Kouider juste après une réponse WhatsApp proposée : « oui » → envoi, « non » → on laisse.
  *  Tout autre message annule l'attente (il passe à Dzaryx normalement, le brouillon reste disponible). null = pas concerné. */
-export async function handleWaYesNo(message: string): Promise<{ reply?: string; note?: string } | null> {
+export async function handleWaYesNo(message: string): Promise<{ reply?: string; note?: string; chat?: string } | null> {
   const raw = await kvGet(PENDING_KEY).catch(() => null);
   // « montre-moi le message » (même mal tapé : « monte moi ») → le brouillon tel quel, sans IA (01/11 : 2 × « pas accès aux données »)
   if (SHOW_RE.test(message) && message.trim().length <= 60) {
@@ -379,7 +379,7 @@ export async function handleWaYesNo(message: string): Promise<{ reply?: string; 
   // Autonomie progressive : on compte les « oui » sans changement, par type de message
   if (p.kind) void import('./autonomy.js').then(m => m.noteDecision(p.kind!, yes ? 'yes' : no ? 'no' : 'edit')).catch(() => {});
   if (short && VOICE_RE.test(message)) return { reply: await sendWaVoice(p.chat, p.draft) };
-  if (!yes && !no) return { note: `[Contexte : tu viens de lui proposer cette réponse WhatsApp pour ${p.chat} : « ${p.draft} ». S'il demande un changement, réécris-la puis outil whatsapp_web send (relecture, puis confirmed:true après son oui).]` };
+  if (!yes && !no) return { chat: p.chat, note: `[Contexte : tu viens de lui proposer cette réponse WhatsApp pour ${p.chat} : « ${p.draft} ». S'il demande un changement, réécris-la puis outil whatsapp_web send (relecture, puis confirmed:true après son oui).]` };
   if (no) return { reply: `👍 Je n'envoie rien à ${p.chat}. La réponse reste prête si tu changes d'avis (« envoie la réponse à ${p.chat} »).` };
   if (!isCloudPcOnline()) return { reply: '❌ Le PC cloud ne répond pas : WhatsApp injoignable, rien n\'est parti. Réessaie dans un moment.' };
   const r = await cloudEmit<R & { chat?: string }>('cloud:wa', { action: 'send', chat: p.chat, text: p.draft }, 80_000)
@@ -389,6 +389,19 @@ export async function handleWaYesNo(message: string): Promise<{ reply?: string; 
   const d = await drafts(); delete d[p.chat.toLowerCase()]; await kvSet(DRAFTS_KEY, JSON.stringify(d), 3 * 86_400);
   void import('./night-guard.js').then(m => m.clearClientWaiting(p.chat)).catch(() => {});
   return { reply: `✅ Envoyé sur WhatsApp à ${r['chat'] || p.chat}.` };
+}
+
+/** 13/11 : le cerveau (surtout le gratuit) réécrit le brouillon dans sa réponse SANS appeler send → le « oui » suivant ne trouvait
+ *  plus rien à envoyer et il disait « c'est fait » (11/11 17h07, Belarbi). Le texte montré à Kouider redevient le brouillon en attente. */
+export async function captureWaRewrite(chat: string, reply: string): Promise<void> {
+  if (!/je (l'|le |lui )?envoie|j'envoie|on envoie|je lui envoie/i.test(reply)) return;
+  if ((await kvGet(PENDING_KEY).catch(() => null))) return;   // l'outil send a déjà mis la bonne version en attente
+  const quoted = /«\s*([\s\S]{15,1500}?)\s*»/.exec(reply)?.[1]
+    ?? reply.split('\n').filter(l => /^\s*>/.test(l)).map(l => l.replace(/^\s*>\s?/, '')).join('\n').trim();
+  const draft = (quoted || '').replace(/^\s*>\s?/gm, '').replace(/\*\*/g, '').replace(/^[«"\s]+|[»"\s]+$/g, '').trim();
+  if (draft.length < 15) return;
+  await kvSet(PENDING_KEY, JSON.stringify({ chat, draft }), 12 * 3600).catch(() => {});
+  await saveWaDraft(chat, (await drafts())[chat.toLowerCase()]?.preview ?? '', draft).catch(() => {});
 }
 
 /** Réponse proposée (ex. suite à un mail de démarchage) : « envoie la réponse à <chat> » la retrouve. */
@@ -659,9 +672,11 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
       // Signature tolérante : numéro → chiffres seuls ; texte sans guillemets ni espaces multiples
       const digits = chat.replace(/\D/g, '');
       const chatKey = digits.length >= 9 && /^[+\d\s().-]+$/.test(chat) ? digits : chat.toLowerCase();
-      const sig = `${chatKey}|${text.replace(/[«»"“”]/g, '').replace(/\s+/g, ' ').trim()}`;
+      // 13/11 : gras / citations markdown ignorés (le texte montré avait des ** → « oui » refusé en silence)
+      const sig = `${chatKey}|${text.replace(/[«»"“”*_`>]/g, '').replace(/\s+/g, ' ').trim()}`;
       const shown = await kvGet(PREVIEW_KEY).catch(() => null);
       if (input['confirmed'] !== true || shown !== sig) {
+        const refused = input['confirmed'] === true;
         await kvSet(PREVIEW_KEY, sig, 20 * 60);
         // Le texte relu devient LE brouillon en attente : « montre-moi le message » / « oui » portent sur la dernière version
         await kvSet(PENDING_KEY, JSON.stringify({ chat, draft: text }), 12 * 3600).catch(() => {});
@@ -669,7 +684,7 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
         // Anti-regret (Jarvis 4) : message écrit sous l'énervement → version calme proposée, il choisit
         const calm = await import('./foresight.js').then(m => m.calmVersion(text)).catch(() => null);
         if (calm) return `📝 À envoyer sur WhatsApp à ${chat} :\n« ${text} »\n\n🧯 ANTI-REGRET : ce message risque de braquer. Version calme, même fond :\n« ${calm} »\n\nDEMANDE À KOUIDER : « J'envoie la tienne ou la version calme ? ». Envoie celle qu'il choisit (même outil, même chat, le texte choisi ; montre-le s'il change, puis confirmed:true après son oui). Ne bloque jamais.`;
-        return `📝 À envoyer sur WhatsApp à ${chat} :\n« ${text} »\n\nDEMANDE À KOUIDER : « Je l'envoie ? ». Seulement après son oui clair → même outil, même chat, même texte, confirmed:true.`;
+        return `${refused ? '⛔ PAS ENVOYÉ (ce texte n\'est pas celui qu\'il a relu) — ne dis SURTOUT PAS « envoyé » ou « c\'est fait ».\n' : ''}📝 À envoyer sur WhatsApp à ${chat} :\n« ${text} »\n\nDEMANDE À KOUIDER : « Je l'envoie ? ». Seulement après son oui clair → même outil, même chat, même texte, confirmed:true.`;
       }
       const r = await cloudEmit<R & { chat?: string }>('cloud:wa', { action: 'send', chat, text }, 80_000);
       if (!r.ok) return `❌ Pas envoyé : ${r.error}`;

@@ -1,3 +1,10 @@
+## 13/11/2026 (4) — Revue des discussions 11→13/11 (47 messages)
+- WhatsApp 11/11 18h07 : « Oui » → Dzaryx a dit « envoyé » mais rien n'était parti (cerveau gratuit : brouillon réécrit sans relecture, puis confirmation refusée en silence). Fix : le texte réécrit montré à Kouider redevient le brouillon en attente (captureWaRewrite, call.ts) ; signature tolérante au gras/citations ; confirmation refusée = « ⛔ PAS ENVOYÉ » dans le résultat de l'outil.
+- Sport 12/11 : « demain on reprend les Épaules » alors que le planning disait Dos & Biceps → skip renvoie la VRAIE prochaine séance.
+- Santé 11/11 : « Quel protéine je dois prendre ? » pas reconnu comme question compléments (réponse sans dossier, « achète en Algérie ») → SUPP élargi.
+- 12/11 22h29 « cerveau hors service » = Gemini saturé (503) + quota Gemini et OpenRouter du jour épuisés : externe, pas de code.
+- Vérifié OK : prise de sang du 9/11 réelle (vit D 20, testo 6,96), demis 3+1+1 = 5/5, séances lun+mar, retour Djillali, brief du matin, améliorations de nuit.
+
 ## 13/11/2026 (3) — Bénéfice réel : site + Dzaryx = même chiffre
 - Kouider : « gagné depuis le début » + « à récupérer » qui repart à zéro quand il récupère ; tout avant Djillali (29/10) déjà récupéré ; bénéfice réel en DA (Djillali 15 000 DA, Belarbi 12 500 DA).
 - Site (autolux ca9c9c3, 48ed22f) : section « Mon bénéfice » ; source = site_settings.content.profit {rate, cutoff, items{id:{da|eur,collected}}}.
