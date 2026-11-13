@@ -1139,8 +1139,14 @@ async function deleteBooking(input: Record<string, unknown>): Promise<string> {
 async function financialReport(input: Record<string, unknown>): Promise<string> {
   const year  = Number(input['year']  ?? new Date().getFullYear());
   const month = input['month'] ? Number(input['month']) : undefined;
+  const rp = await import('./real-profit.js');
+  const action = String(input['action'] ?? 'report');
+  if (action === 'collected') return await rp.markAllCollected();
+  if (action === 'set_profit') return await rp.setRealProfit(String(input['client'] ?? ''), String(input['amount'] ?? ''));
+  if (action === 'ledger') return await rp.formatLedger();
   const report = await getFinancialReport(year, month);
-  return formatFinancialReport(report);
+  const ledger = await rp.formatLedger().catch(() => '');
+  return `${formatFinancialReport(report)}${ledger ? `\n\n${ledger}` : ''}`;
 }
 
 const OCR_DOC_TYPES = /passeport|passport|permis|license|licence|cin|carte.identit/i;

@@ -212,6 +212,11 @@ export async function getFinancialReport(year: number, month?: number): Promise<
     cars?: { name: string } | { name: string }[] | null;
   }>;
 
+  // 13/11 (Kouider) : bénéfice réel noté à la main sur le site (ex. 15 000 DA) = le bénéfice que Dzaryx utilise aussi
+  const rp = await import('./real-profit.js').catch(() => null);
+  const pcfg = rp ? await rp.profitCfg().catch(() => null) : null;
+  const manualById = new Map<string, number>();
+  if (rp && pcfg) for (const b of raw) { const m = rp.manualProfitEur(pcfg, b.id); if (m != null) manualById.set(b.id, m); }
   const result: FinancialBooking[] = raw.map(b => {
     const carObj = Array.isArray(b.cars) ? b.cars[0] : b.cars;
     const calc   = computeBookingFinancials({
@@ -235,7 +240,7 @@ export async function getFinancialReport(year: number, month?: number): Promise<
       status:               b.status,
       payment_status:       b.payment_status ?? 'PENDING',
       paid_amount:          calc.paid_amount,
-      kouider_profit:       calc.kouider_profit,
+      kouider_profit:       manualById.get(b.id) ?? calc.kouider_profit,
       discount_applied:     calc.discount_applied,
       price_source:         calc.price_source,
       data_complete:        calc.data_complete,

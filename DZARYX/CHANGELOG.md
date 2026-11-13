@@ -1,3 +1,8 @@
+## 13/11/2026 (3) — Bénéfice réel : site + Dzaryx = même chiffre
+- Kouider : « gagné depuis le début » + « à récupérer » qui repart à zéro quand il récupère ; tout avant Djillali (29/10) déjà récupéré ; bénéfice réel en DA (Djillali 15 000 DA, Belarbi 12 500 DA).
+- Site (autolux ca9c9c3, 48ed22f) : section « Mon bénéfice » ; source = site_settings.content.profit {rate, cutoff, items{id:{da|eur,collected}}}.
+- Dzaryx : real-profit.ts lit la même source ; getFinancialReport utilise le bénéfice noté à la main ; get_financial_report + action ledger / collected (« j'ai récupéré mon argent ») / set_profit (« Belarbi bnf 1250000 »).
+
 ## 13/11/2026 (2) — Bouclier WhatsApp : plus jamais 2 fois le même message
 - Kouider : l'assistant IA a renvoyé à Belarbi le même message tout fait (« je ne peux pas prendre ce genre de décision… ») à 19h00 puis à 20h10, en réponse à « Merci beaucoup / Également ».
 - night-guard.ts : simple merci / au revoir / ok après un 1er message IA → rien envoyé ; déjà présenté → réponse NOUVELLE à sa question (conditions, papiers…) avec un court rappel « assistant IA » + « une personne revient vers vous » ; cerveau en panne → 2e essai rapide puis message court différent (« Bien reçu 👍… ») ; texte déjà envoyé à ce client → jamais renvoyé.

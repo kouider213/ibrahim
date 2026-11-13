@@ -110,10 +110,13 @@ const ALL_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'get_financial_report',
-    description: 'Rapport financier: bénéfice Kouider et revenu Houari par mois/année.',
+    description: "Rapport financier: bénéfice Kouider et revenu Houari par mois/année + SON BÉNÉFICE RÉEL (même chiffre que le tableau de bord du site) : « gagné depuis le début » et « à récupérer » (repart à zéro à chaque récupération). action='ledger' : « combien j'ai à récupérer ? », « j'ai gagné combien depuis le début ? ». action='collected' : « j'ai récupéré mon argent / mon bénéfice » → la case à récupérer repart à zéro (demande confirmation du montant avant si pas clair). action='set_profit' + client + amount : bénéfice réel d'une location (« Belarbi bnf 1250000 » = centimes → 12 500 DA, « Djillali c'est 15000 DA », « 54 € »).",
     input_schema: {
       type: 'object' as const,
       properties: {
+        action: { type: 'string', enum: ['report', 'ledger', 'collected', 'set_profit'], description: 'report (défaut) | ledger | collected | set_profit' },
+        client: { type: 'string', description: 'set_profit : nom du client de la location' },
+        amount: { type: 'string', description: 'set_profit : montant tel qu\'il le dit (« 1250000 », « 15000 DA », « 54 € »)' },
         year:  { type: 'number', description: 'Année (défaut: année courante)' },
         month: { type: 'number', description: 'Mois 1-12 (défaut: mois courant)' },
       },
