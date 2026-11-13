@@ -99,6 +99,9 @@ type PEx = SportExercise & { libId?: string | null };
 type SaveFn = (sets: Array<{ ex: string; kg?: number; reps?: number }>, durationMin: number, rpe: number, exs: PEx[], rows: Record<string, SetRow[]>, note: string) => Promise<string>;
 const T_NEXT: Record<SetT, SetT> = { n: 'w', w: 'd', d: 'f', f: 'n' };
 const T_LOOK: Record<Exclude<SetT, 'n'>, { l: string; c: string; name: string }> = { w: { l: 'W', c: '#e08a00', name: 'Échauffement' }, d: { l: 'D', c: '#7b5cf0', name: 'Dégressive' }, f: { l: 'F', c: '#e5322d', name: 'Échec' } };
+// 13/11 Kouider : le tapis (vélo, elliptique…) n'est pas une série × kg × reps → une seule ligne en MINUTES, hors séries/volume
+const isCardioEx = (e: PEx) => e.muscle === 'cardio' || (/tapis|treadmill|ellipti|stepper|escalier|corde [àa] sauter|^(marche|course|v[ée]lo|rameur)\b|cardio/i.test(e.name) && !/fermier|farmer|crunch/i.test(e.name));
+const cardioMin = (e: PEx) => Number(/(\d{1,3})\s*min/.exec(e.reps)?.[1] ?? /(\d{1,3})\s*min/.exec(e.tip)?.[1] ?? 10);
 const libIdOf = (e: PEx) => e.libId ?? (/\/exercises\/([^/]+)\/\d\.jpg/.exec(e.demo?.[0] ?? '')?.[1] ?? null);
 const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 const r25 = (x: number) => Math.round(x / 2.5) * 2.5;
@@ -210,7 +213,7 @@ const clearLive = () => { try { localStorage.removeItem(LIVE_K); } catch { /* */
 const noteKey = (e: PEx) => `forme:exnote:${libIdOf(e) ?? norm(e.name)}`;
 
 function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach', resume }: { s: SportSession; onClose: () => void; onFinished: (msg: string) => void; save: SaveFn; prs?: Record<string, number>; kind?: 'coach' | 'routine'; resume?: LiveState | null }) {
-  const mkRows = (e: PEx): SetRow[] => Array.from({ length: e.sets }, () => ({ kg: e.suggestion.kg ? String(e.suggestion.kg) : '', reps: String(parseInt(e.reps) || ''), done: false, t: 'n' as SetT }));
+  const mkRows = (e: PEx): SetRow[] => isCardioEx(e) ? [{ kg: '', reps: String(cardioMin(e)), done: false, t: 'n' as SetT }] : Array.from({ length: e.sets }, () => ({ kg: e.suggestion.kg ? String(e.suggestion.kg) : '', reps: String(parseInt(e.reps) || ''), done: false, t: 'n' as SetT }));
   const [exs, setExs] = useState<PEx[]>(() => resume?.exs ?? s.exercises.map(e => ({ ...e })));
   const [i, setI] = useState(resume?.i ?? 0);
   const [how, setHow] = useState(false);
@@ -246,7 +249,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
   const warmMin = Math.max(3, Math.min(15, Number(/(\d{1,2})\s*min/.exec(s.warmup ?? '')?.[1] ?? 5)));
   useEffect(() => { if (warm && now >= warm) { setWarm(null); vibrate(200); speak('Échauffement terminé. On attaque !'); } }, [now, warm]);
   useEffect(() => { if (ex) { try { setNote(localStorage.getItem(noteKey(ex)) ?? ''); } catch { setNote(''); } } }, [ex?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (ex && !finish) speak(`${i === 0 ? 'On commence' : 'Exercice suivant'} : ${ex.name}. ${ex.sets} séries de ${ex.reps}${ex.suggestion.kg ? `, à ${ex.suggestion.kg} kilos` : ''}.`); }, [ex?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (ex && !finish) speak(`${i === 0 ? 'On commence' : 'Exercice suivant'} : ${ex.name}. ${isCardioEx(ex) ? `${rows[ex.id]?.[0]?.reps || cardioMin(ex)} minutes` : `${ex.sets} séries de ${ex.reps}`}${ex.suggestion.kg ? `, à ${ex.suggestion.kg} kilos` : ''}.`); }, [ex?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const sets = ex ? rows[ex.id] ?? [] : [];
   const upd = (k: number, patch: Partial<SetRow>) => ex && setRows(r => ({ ...r, [ex.id]: r[ex.id]!.map((x, j) => j === k ? { ...x, ...patch } : x) }));
   const endRest = useCallback(() => { setRest(null); speak('C\'est reparti !'); }, []);
@@ -283,6 +286,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
     if (r0.t !== 'w' && kg > 0 && best(ex) > 0 && kg > best(ex) && !newPrs.includes(ex.name)) { setNewPrs(p => [...p, ex.name]); setFlash(`🏆 Nouveau record : ${kg} kg !`); vibrate(300); setTimeout(() => setFlash(null), 3500); }
     setRows(r => ({ ...r, [ex.id]: r[ex.id]!.map((x, j) => j === k ? { ...x, done: true, at: Date.now() } : j === k + 1 && !x.done ? { ...x, kg: x.kg || r0.kg } : x) }));
     const last = sets.every((x, j) => j === k || x.done);
+    if (isCardioEx(ex)) { speak('Cardio noté. Bien joué !'); if (i < exs.length - 1) setTimeout(() => setI(i + 1), 600); return; }
     // Plus de passage automatique : il donne d'abord son ressenti (qui, lui, passe à l'exercice suivant)
     if (!(last && i === exs.length - 1)) setRest({ n: r0.t === 'w' ? Math.min(60, ex.rest) : ex.rest, key: Date.now() });
   };
@@ -317,9 +321,11 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
     setExs(e => e.map((y, j) => j === i ? ne : y)); setRows(r => ({ ...r, [ne.id]: mkRows(ne) }));
   };
   const allRows = exs.flatMap(e => rows[e.id] ?? []);
-  const work = allRows.filter(r => r.t !== 'w');
+  const lifts = exs.filter(e => !isCardioEx(e));
+  const work = lifts.flatMap(e => rows[e.id] ?? []).filter(r => r.t !== 'w');
+  const cardioDone = exs.filter(e => isCardioEx(e) && rows[e.id]?.[0]?.done).map(e => `${e.name} ${Number(rows[e.id]![0]!.reps) || cardioMin(e)} min`);
   const doneSets = work.filter(r => r.done);
-  const volume = exs.reduce((a, e) => a + (rows[e.id] ?? []).filter(r => r.done && r.t !== 'w').reduce((b, r) => b + (Number(r.kg.replace(',', '.')) || 0) * (Number(r.reps) || 0), 0), 0);
+  const volume = lifts.reduce((a, e) => a + (rows[e.id] ?? []).filter(r => r.done && r.t !== 'w').reduce((b, r) => b + (Number(r.kg.replace(',', '.')) || 0) * (Number(r.reps) || 0), 0), 0);
   const elapsed = Math.round((now - start.current) / 1000);
   // 07/11 : l'app dit au coach où il en est (exercice actuel, ce qui reste, ajouts compris) → plus de « exercice suivant » ni de
   // « muscu terminée » au chrono pendant qu'il est encore sur un exercice ; « terminée » seulement quand il appuie sur Terminer ici.
@@ -327,22 +333,23 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
   useEffect(() => {
     if (finish) return;
     const t = setTimeout(() => {
-      const left = exs.filter(e => (rows[e.id] ?? []).some(r => !r.done && r.t !== 'w')).map(e => e.name);
+      const left = exs.filter(e => isCardioEx(e) ? !rows[e.id]?.[0]?.done : (rows[e.id] ?? []).some(r => !r.done && r.t !== 'w')).map(e => e.name);
       void apiFetch('/api/sport/live-app', { method: 'POST', body: JSON.stringify({ current: ex?.name ?? null, left, done: doneSets.length, total: work.length }) }).catch(() => {});
     }, 1500);
     return () => clearTimeout(t);
   }, [progKey, finish]); // eslint-disable-line react-hooks/exhaustive-deps
   const progRef = useRef<() => void>(() => {});
-  progRef.current = () => { if (finish) return; const left = exs.filter(e => (rows[e.id] ?? []).some(r => !r.done && r.t !== 'w')).map(e => e.name); void apiFetch('/api/sport/live-app', { method: 'POST', body: JSON.stringify({ current: ex?.name ?? null, left, done: doneSets.length, total: work.length }) }).catch(() => {}); };
+  progRef.current = () => { if (finish) return; const left = exs.filter(e => isCardioEx(e) ? !rows[e.id]?.[0]?.done : (rows[e.id] ?? []).some(r => !r.done && r.t !== 'w')).map(e => e.name); void apiFetch('/api/sport/live-app', { method: 'POST', body: JSON.stringify({ current: ex?.name ?? null, left, done: doneSets.length, total: work.length }) }).catch(() => {}); };
   useEffect(() => { const t = setInterval(() => progRef.current(), 8 * 60_000); return () => clearInterval(t); }, []);   // signe de vie (la note expire après 60 min sans nouvelles)
   const save = async () => {
     setBusy(true);
     try {
-      const out = exs.flatMap(e => (rows[e.id] ?? []).filter(r => r.done && r.t !== 'w').map(r => ({ ex: e.id, kg: Number(r.kg.replace(',', '.')) || undefined, reps: Number(r.reps) || undefined })));
+      const out = lifts.flatMap(e => (rows[e.id] ?? []).filter(r => r.done && r.t !== 'w').map(r => ({ ex: e.id, kg: Number(r.kg.replace(',', '.')) || undefined, reps: Number(r.reps) || undefined })));
       const fb = exs.filter(e => feel[e.id]).map(e => `${e.name} : ${FEEL.find(f => f.id === feel[e.id])!.l.toLowerCase()}`);
-      const msg = await saveFn(out, Math.round(elapsed / 60), rpe, exs, rows, fb.length ? `Ressenti — ${fb.join(' ; ')}` : '');
+      const notes = [cardioDone.length ? `Cardio — ${cardioDone.join(' ; ')}` : '', fb.length ? `Ressenti — ${fb.join(' ; ')}` : ''].filter(Boolean).join(' · ');
+      const msg = await saveFn(out, Math.round(elapsed / 60), rpe, lifts, rows, notes);
       // Historique de chaque exercice de la bibliothèque (fiche → Historique / Progrès)
-      const lib = exs.flatMap(e => { const id = libIdOf(e); return id ? (rows[e.id] ?? []).filter(r => r.done && r.t !== 'w').map(r => ({ id, kg: Number(r.kg.replace(',', '.')) || undefined, reps: Number(r.reps) || undefined, ...(feel[e.id] ? { fb: feel[e.id] } : {}) })) : []; });
+      const lib = lifts.flatMap(e => { const id = libIdOf(e); return id ? (rows[e.id] ?? []).filter(r => r.done && r.t !== 'w').map(r => ({ id, kg: Number(r.kg.replace(',', '.')) || undefined, reps: Number(r.reps) || undefined, ...(feel[e.id] ? { fb: feel[e.id] } : {}) })) : []; });
       if (lib.length) await forme.exBatch(lib).catch(() => {});
       clearLive();
       void apiFetch('/api/sport/live-app', { method: 'POST', body: JSON.stringify({ current: null, left: [], done: doneSets.length, total: work.length, finished: true }) }).catch(() => {});
@@ -373,18 +380,19 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
           </div>
           {newPrs.length > 0 && <div style={{ ...card, marginTop: 10, background: '#fff6df', fontWeight: 600 }}>🏆 Record{newPrs.length > 1 ? 's' : ''} battu{newPrs.length > 1 ? 's' : ''} : {newPrs.join(', ')}</div>}
           <div style={{ ...card, marginTop: 10, textAlign: 'start', padding: '4px 14px' }}>
-            {exs.filter(e => (rows[e.id] ?? []).some(r => r.done && r.t !== 'w')).map((e, k, arr) => { const d = rows[e.id]!.filter(r => r.done && r.t !== 'w'); const top = d.reduce((a, r) => (Number(r.kg) || 0) > (Number(a.kg) || 0) ? r : a, d[0]!); return (
+            {lifts.filter(e => (rows[e.id] ?? []).some(r => r.done && r.t !== 'w')).map((e, k, arr) => { const d = rows[e.id]!.filter(r => r.done && r.t !== 'w'); const top = d.reduce((a, r) => (Number(r.kg) || 0) > (Number(a.kg) || 0) ? r : a, d[0]!); return (
               <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '10px 0', borderBottom: k < arr.length - 1 ? `1px solid ${F.line}` : 'none', fontSize: 14 }}><span style={{ fontWeight: 600 }}>{d.length} × {e.name}</span><span style={{ color: F.muted, whiteSpace: 'nowrap' }}>{top.kg ? `${top.kg} kg × ${top.reps}` : `${top.reps} reps`}</span></div>); })}
           </div>
+          {cardioDone.length > 0 && <div style={{ ...card, marginTop: 10, textAlign: 'start', fontSize: 14, fontWeight: 600 }}>🏃 {cardioDone.join(' · ')}</div>}
           <div style={{ fontWeight: 600, marginTop: 22 }}>C'était dur comment ?</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, marginTop: 10 }}>{[5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => setRpe(n)} style={{ ...ghostBtn, borderRadius: 12, padding: '13px 0', background: rpe === n ? F.accent : '#fff', color: rpe === n ? '#fff' : F.ink }}>{n}</button>)}</div>
           <div style={{ fontSize: 12.5, color: F.muted, marginTop: 6 }}>5 = facile · 9 = à fond</div>
-          <button disabled={busy || !doneSets.length} onClick={save} style={{ ...btn, width: '100%', marginTop: 22, opacity: doneSets.length ? 1 : 0.5 }}>{busy ? 'Enregistrement…' : doneSets.length ? 'Enregistrer ma séance' : 'Aucune série validée'}</button>
+          <button disabled={busy || !(doneSets.length || cardioDone.length)} onClick={save} style={{ ...btn, width: '100%', marginTop: 22, opacity: doneSets.length || cardioDone.length ? 1 : 0.5 }}>{busy ? 'Enregistrement…' : doneSets.length || cardioDone.length ? 'Enregistrer ma séance' : 'Aucune série validée'}</button>
           {doneSets.length > 0 && <button onClick={() => void shareCard({ title: s.label, dur: fmtTime(elapsed), volume, sets: doneSets.length, prs: newPrs, lines: exs.filter(e => (rows[e.id] ?? []).some(r => r.done && r.t !== 'w')).map(e => { const d = rows[e.id]!.filter(r => r.done && r.t !== 'w'); const top = Math.max(...d.map(r => Number(r.kg.replace(',', '.')) || 0)); return `${d.length} × ${e.name}${top ? ` · ${top} kg` : ''}`; }) })} style={{ ...ghostBtn, width: '100%', marginTop: 10 }}>📤 Partager ma séance (image)</button>}
         </div>
       ) : <>
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '2px 14px 8px', scrollbarWidth: 'none' }}>
-          {exs.map((e, j) => { const ok = (rows[e.id] ?? []).length > 0 && rows[e.id]!.every(r => r.done); return (
+          {exs.map((e, j) => { const ok = isCardioEx(e) ? !!rows[e.id]?.[0]?.done : (rows[e.id] ?? []).length > 0 && rows[e.id]!.every(r => r.done); return (
             <button key={e.id} onClick={() => setI(j)} style={{ flexShrink: 0, border: j === i ? `2px solid ${F.accent}` : '2px solid transparent', borderRadius: 14, background: ok ? '#dff3e7' : F.tile, width: 54, height: 54, padding: 3, cursor: 'pointer', position: 'relative' }}>
               {e.demo.length ? <Anim img={e.demo} alt="" h={44} /> : '🏋️'}
               {ok && <span style={{ position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: 9, background: F.green, color: '#fff', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>}
@@ -414,7 +422,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
               <div style={{ padding: '12px 14px 4px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: F.accent }}>{i + 1}/{exs.length}{ex.muscle ? ` · ${MUSCLE[ex.muscle] ?? ex.muscle}` : ''} · repos {ex.rest}s{best(ex) ? ` · record ${best(ex)} kg` : ''}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: F.accent }}>{i + 1}/{exs.length}{ex.muscle ? ` · ${MUSCLE[ex.muscle] ?? ex.muscle}` : ''}{isCardioEx(ex) ? ' · cardio' : ` · repos ${ex.rest}s`}{best(ex) ? ` · record ${best(ex)} kg` : ''}</div>
                     <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em', marginTop: 2 }}>{ex.name}</div>
                   </div>
                   <button onClick={() => setHow(true)} aria-label="Comment faire" style={{ width: 34, height: 34, borderRadius: 17, border: `1px solid ${F.line}`, background: '#fff', cursor: 'pointer', fontWeight: 700, color: F.accent, flexShrink: 0 }}>i</button>
@@ -423,12 +431,22 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
                 {ex.suggestion.up && <div style={{ fontSize: 13, fontWeight: 600, marginTop: 6, color: F.green }}>↑ On monte à {ex.suggestion.kg} kg aujourd'hui</div>}
                 {chal === ex.id && <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, padding: '8px 10px', borderRadius: 10, background: '#fff6df' }}>🎯 Défi du jour : fais mieux que la dernière fois ({ex.suggestion.last}) — 1 rep ou 1 kg de plus</div>}
                 <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-                  <button onClick={warmup} style={tool}>🔥 Échauffement</button>
-                  <button onClick={() => setPlates(true)} style={tool}>🧮 Disques</button>
+                  {!isCardioEx(ex) && <button onClick={warmup} style={tool}>🔥 Échauffement</button>}
+                  {!isCardioEx(ex) && <button onClick={() => setPlates(true)} style={tool}>🧮 Disques</button>}
                   <button onClick={() => setPicker('swap')} style={tool}>🔁 Remplacer</button>
                   <button onClick={removeEx} aria-label="Retirer cet exercice" style={{ ...tool, flex: '0 0 auto', padding: '9px 11px' }}>🗑️</button>
                 </div>
               </div>
+              {isCardioEx(ex) ? (() => { const r = sets[0] ?? { kg: '', reps: String(cardioMin(ex)), done: false, t: 'n' as SetT }; return (
+              <div style={{ padding: '10px 14px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12, background: r.done ? '#dff3e7' : F.bg }}>
+                  <div style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>⏱ Durée</div>
+                  <input inputMode="numeric" value={r.reps} onChange={e => upd(0, { reps: e.target.value })} style={{ ...cell, width: 70, background: r.done ? 'transparent' : '#fff' }} />
+                  <span style={{ fontWeight: 600, color: F.muted }}>min</span>
+                  <button onClick={() => r.done ? upd(0, { done: false }) : validate(0)} aria-label="Cardio fait" style={{ width: 44, height: 40, borderRadius: 10, border: 'none', background: r.done ? F.green : F.bg2, color: r.done ? '#fff' : F.muted, fontSize: 18, fontWeight: 700, cursor: 'pointer' }}>✓</button>
+                </div>
+                <div style={{ fontSize: 11.5, color: F.muted, textAlign: 'center', marginTop: 8 }}>Cardio : pas de séries ni de kg — mets juste tes minutes et valide ✓</div>
+              </div>); })() : (
               <div style={{ padding: '6px 10px 10px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 6, fontSize: 11, fontWeight: 600, color: F.muted, padding: '6px 4px', textAlign: 'center' }}><div>SÉRIE</div><div>PRÉCÉDENT</div><div>KG</div><div>{ex.timed ? 'SEC' : 'REPS'}</div><div>✓</div></div>
                 {sets.map((r, k) => { const look = r.t !== 'n' ? T_LOOK[r.t] : null; if (r.t === 'n') nNum++; const num = nNum; return (
@@ -449,7 +467,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
                 </div>}
                 <div style={{ fontSize: 11.5, color: F.muted, textAlign: 'center', marginTop: 6 }}>Touche le n° de série : W échauffement · D dégressive · F échec · touche PRÉCÉDENT pour corriger un ancien poids</div>
                 <input value={note} onChange={e => { setNote(e.target.value); try { localStorage.setItem(noteKey(ex), e.target.value); } catch { /* */ } }} placeholder="📝 Note (ex. siège cran 4, prise serrée…) — gardée pour la prochaine fois" style={{ ...input, marginTop: 10, fontSize: 14, padding: '10px 12px', background: F.bg, border: 'none' }} />
-              </div>
+              </div>)}
             </div>
             {ex.alt.length > 0 && <div style={{ fontSize: 13, color: F.muted, margin: '10px 4px 0' }}>Machine prise ? Remplace par : {ex.alt.join(' · ')}</div>}
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
