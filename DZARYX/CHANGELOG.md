@@ -1,3 +1,7 @@
+## 13/11/2026 (2) — Bouclier WhatsApp : plus jamais 2 fois le même message
+- Kouider : l'assistant IA a renvoyé à Belarbi le même message tout fait (« je ne peux pas prendre ce genre de décision… ») à 19h00 puis à 20h10, en réponse à « Merci beaucoup / Également ».
+- night-guard.ts : simple merci / au revoir / ok après un 1er message IA → rien envoyé ; déjà présenté → réponse NOUVELLE à sa question (conditions, papiers…) avec un court rappel « assistant IA » + « une personne revient vers vous » ; cerveau en panne → 2e essai rapide puis message court différent (« Bien reçu 👍… ») ; texte déjà envoyé à ce client → jamais renvoyé.
+
 ## 13/11/2026 — FORME : le cardio n'est plus une série
 - Kouider : « marche sur le tapis, il le considère en série, c'est pas correct ».
 - Mode séance (Sport.tsx) : tapis / vélo / elliptique / rameur / escalier / corde / exercice cardio = une seule ligne ⏱ minutes + ✓ (pas de KG, PRÉCÉDENT, Disques, Échauffement, repos) ; hors du compteur séries/volume ; noté « Cardio — … min » dans la note de la séance (2a24d159).
