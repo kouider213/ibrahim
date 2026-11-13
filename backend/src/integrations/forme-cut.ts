@@ -138,6 +138,22 @@ export async function cutStatus(uid: Uid = 'kouider') {
   const toLose = goalKg ? r1(real - goalKg) : 0;
   const eta = goalKg && rateWeek && rateWeek > 0.05 ? addDays(today, Math.ceil(toLose / rateWeek * 7)) : null;
   const waist = Object.entries(days).filter(([, d]) => d.measures?.taille).sort(([a], [b]) => a.localeCompare(b)).map(([date, d]) => ({ date, cm: d.measures!.taille! }));
+  // 13/11 Kouider « plus booster » : % de graisse estimé (méthode US Navy : taille + cou + hauteur, ±3 %) et quand les abdos se voient (~12 %).
+  const neck = Object.entries(days).filter(([, d]) => d.measures?.cou).sort(([a], [b]) => a.localeCompare(b)).map(([, d]) => d.measures!.cou!).pop() ?? null;
+  const hcm = Number(p.heightCm) || null, wcm = waist.length ? waist[waist.length - 1]!.cm : null;
+  let fat: { pct: number; fatKg: number; leanKg: number; absKg: number; atFloorPct: number | null; absEta: string | null; neck: number } | null = null;
+  if (neck && hcm && wcm && wcm - neck > 5) {
+    const pct = Math.round((495 / (1.0324 - 0.19077 * Math.log10(wcm - neck) + 0.15456 * Math.log10(hcm)) - 450) * 10) / 10;
+    if (pct > 3 && pct < 50) {
+      const kgNow = real, leanKg = r1(kgNow * (1 - pct / 100)), fatKg = r1(kgNow - leanKg);
+      const absKg = r1(leanKg / 0.88);                       // poids où il serait à 12 % (abdos visibles) en gardant son muscle
+      const floor = goalKg ?? 75;
+      const atFloorPct = absKg < floor ? Math.round((1 - leanKg / floor) * 1000) / 10 : null;   // plancher 75 kg : % de gras à 75 kg
+      const toGo = Math.max(0, kgNow - Math.max(absKg, floor));
+      const absEta = atFloorPct == null && rateWeek && rateWeek > 0 ? addDays(today, Math.ceil(toGo / rateWeek * 7)) : null;
+      fat = { pct, fatKg, leanKg, absKg, atFloorPct, absEta, neck };
+    }
+  }
 
   // Bilan de la semaine : UNE décision (règles RP Diet / MacroFactor), qu'il applique d'un bouton
   let decision: { text: string; deficit: number | null; level: 'ok' | 'up' | 'down' | 'wait' | 'break' } = { text: '', deficit: null, level: 'wait' };
@@ -173,7 +189,7 @@ export async function cutStatus(uid: Uid = 'kouider') {
     today, start, weeksIn, deficit: cfg.deficit,
     weight: { current: r1(real), trend: r1(cur), last: weights[weights.length - 1] ?? null, goalKg, toLose, eta, rateWeek, ratePct, points: tr.slice(-60), loggedToday: !!days[today]?.weight },
     adaptive, avgEaten, avgBurnWatch, week, lifts, dropping: dropping.map(x => x.name),
-    score, parts, decision, waist: waist.slice(-12), protein: { goal: t.pGoal, perKg: r1(t.pGoal / cur) },
+    score, parts, decision, waist: waist.slice(-12), fat, neck, protein: { goal: t.pGoal, perKg: r1(t.pGoal / cur) },
   };
 }
 export type CutStatus = Awaited<ReturnType<typeof cutStatus>>;

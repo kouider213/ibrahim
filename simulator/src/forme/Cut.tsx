@@ -15,6 +15,7 @@ export interface Cut {
   score: number; parts: Array<{ k: string; ok: boolean; pts: number; hint: string }>;
   decision: { text: string; deficit: number | null; level: 'ok' | 'up' | 'down' | 'wait' | 'break' };
   waist: Array<{ date: string; cm: number }>; protein: { goal: number; perKg: number };
+  fat?: { pct: number; fatKg: number; leanKg: number; absKg: number; atFloorPct: number | null; absEta: string | null; neck: number } | null; neck?: number | null;
 }
 const H2 = ({ children }: { children: string }) => <div style={{ fontSize: 19, fontWeight: 700, margin: '22px 2px 10px' }}>{children}</div>;
 const fmt = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'UTC' });
@@ -25,6 +26,7 @@ export default function CutScreen({ toast }: { toast: (t: string) => void }) {
   const [err, setErr] = useState('');
   const [kg, setKg] = useState('');
   const [cm, setCm] = useState('');
+  const [neck, setNeck] = useState('');
   const [busy, setBusy] = useState(false);
   const load = () => get<Cut>('/api/forme/cut').then(setC).catch(e => setErr(errText(e)));
   useEffect(() => { void load(); }, []);
@@ -36,6 +38,10 @@ export default function CutScreen({ toast }: { toast: (t: string) => void }) {
   const logWaist = async () => {
     const v = Number(cm.replace(',', '.')); if (!(v > 40 && v < 200)) return toast('Tour de taille invalide');
     setBusy(true); try { await forme.log('measures', { measures: { taille: v } }); setCm(''); toast('📏 Tour de taille noté'); await load(); } catch (e) { toast(errText(e)); } finally { setBusy(false); }
+  };
+  const logNeck = async () => {
+    const v = Number(neck.replace(',', '.')); if (!(v > 25 && v < 60)) return toast('Tour de cou invalide (cm)');
+    setBusy(true); try { await forme.log('measures', { measures: { cou: v } }); setNeck(''); toast('📏 Tour de cou noté'); await load(); } catch (e) { toast(errText(e)); } finally { setBusy(false); }
   };
   const apply = async (d: number) => {
     setBusy(true);
@@ -81,7 +87,7 @@ export default function CutScreen({ toast }: { toast: (t: string) => void }) {
             <div style={{ fontSize: 12, color: F.muted }}>{w.ratePct != null ? `${w.ratePct} %/sem · zone sûre 0,5-1 %` : '5 pesées sur 7 j pour la vitesse'}</div>
           </div>
         </div>
-        <div style={{ marginTop: 10 }}><LineChart points={w.points.map(p => ({ x: p.date, y: p.kg ?? p.trend }))} goal={w.goalKg ?? undefined} color={F.violet} digits={1} forecast={w.eta && w.goalKg ? { x: w.eta, y: w.goalKg } : null} /></div>
+        <div style={{ marginTop: 10 }}><LineChart points={w.points.map(p => ({ x: p.date, y: p.kg ?? p.trend }))} trend={w.points.map(p => ({ x: p.date, y: p.trend }))} goal={w.goalKg ?? undefined} color={F.violet} digits={1} forecast={w.eta && w.goalKg ? { x: w.eta, y: w.goalKg } : null} /></div>
         {w.goalKg && <div style={{ marginTop: 6 }}><div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}><span>Objectif {w.goalKg} kg · encore {Math.max(0, Math.round(((w.last?.kg ?? w.current) - w.goalKg) * 10) / 10)} kg</span><b>{w.eta ? `vers le ${fmt(w.eta)}` : ''}</b></div><Bar value={Math.max(0, (w.points[0]?.trend ?? w.current) - w.current)} max={Math.max(0.1, (w.points[0]?.trend ?? w.current) - w.goalKg)} color={F.violet} track={F.bg2} /></div>}
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
           <input value={kg} onChange={e => setKg(e.target.value)} inputMode="decimal" placeholder={w.loggedToday ? 'Déjà pesé aujourd\'hui ✓' : 'Poids ce matin (kg)'} style={{ ...input, flex: 1 }} />
@@ -128,6 +134,31 @@ export default function CutScreen({ toast }: { toast: (t: string) => void }) {
         <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
           <input value={cm} onChange={e => setCm(e.target.value)} inputMode="decimal" placeholder="Tour de taille (cm)" style={{ ...input, flex: 1 }} />
           <button disabled={busy || !cm} onClick={() => void logWaist()} style={{ ...btn, padding: '12px 18px' }}>📏</button>
+        </div>
+      </div>
+
+      {/* 13/11 : % de graisse (US Navy) + quand les abdos se voient */}
+      <H2>Gras & abdos</H2>
+      <div style={card}>
+        {c.fat ? <>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 34, fontWeight: 800 }}>{String(c.fat.pct).replace('.', ',')} <span style={{ fontSize: 16, color: F.muted }}>% de gras</span></div>
+            <div style={{ fontSize: 13, color: F.muted }}>{String(c.fat.fatKg).replace('.', ',')} kg de gras · {String(c.fat.leanKg).replace('.', ',')} kg de muscle, os, eau</div>
+          </div>
+          <div style={{ height: 10, borderRadius: 5, background: `linear-gradient(90deg, ${F.green} 0%, ${F.green} 24%, #f5c542 24%, #f5c542 40%, #f08a5d 40%)`, position: 'relative', marginTop: 12 }}>
+            <div style={{ position: 'absolute', left: `${Math.min(98, Math.max(0, c.fat.pct / 50 * 100))}%`, top: -4, width: 4, height: 18, borderRadius: 2, background: F.ink }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: F.muted, marginTop: 4 }}><span>abdos visibles ≤ 12 %</span><span>20 %</span><span>50 %</span></div>
+          <div style={{ fontSize: 14, lineHeight: 1.45, marginTop: 10 }}>
+            {c.fat.pct <= 12 ? '🔥 Abdos visibles : tu y es. Maintenant on construit (pecs, bras) sans reprendre de gras.'
+              : c.fat.atFloorPct != null ? <>🎯 À <b>75 kg</b> (ton plancher) tu seras vers <b>{String(c.fat.atFloorPct).replace('.', ',')} %</b>. Pour descendre à 12 % sans passer sous 75 kg : <b>recomposition</b> — muscle en plus, gras en moins, à poids stable.</>
+              : <>🎯 Abdos visibles (~12 %) vers <b>{String(c.fat.absKg).replace('.', ',')} kg</b>{c.fat.absEta ? <> — à ton rythme, vers le <b>{fmt(c.fat.absEta)}</b></> : ''}, si tu gardes tes charges.</>}
+          </div>
+          <div style={{ fontSize: 11.5, color: F.muted, marginTop: 6 }}>Estimation méthode US Navy (taille + cou + hauteur), précision ±3 %. Mesure taille au nombril, cou sous la pomme d'Adam.</div>
+        </> : <div style={{ fontSize: 14, color: F.muted, lineHeight: 1.45 }}>{c.waist.length ? 'Il me manque ton tour de cou (sous la pomme d\'Adam) pour calculer ton % de gras et la date de tes abdos visibles.' : 'Note ton tour de taille ci-dessus et ton tour de cou ici : je calcule ton % de gras et quand tes abdos se verront.'}</div>}
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <input value={neck} onChange={e => setNeck(e.target.value)} inputMode="decimal" placeholder={c.neck ? `Tour de cou (dernier : ${c.neck} cm)` : 'Tour de cou (cm)'} style={{ ...input, flex: 1 }} />
+          <button disabled={busy || !neck} onClick={() => void logNeck()} style={{ ...btn, padding: '12px 18px' }}>📏</button>
         </div>
       </div>
 

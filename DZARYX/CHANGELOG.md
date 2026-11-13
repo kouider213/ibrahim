@@ -1,3 +1,10 @@
+## 13/11/2026 (5) — FORME : bugs poids + « plus boosté »
+- Bug : « 0.8099999999999999 kg/semaine » (arrondi r1(x*10)/10) → toFixed(2) + virgule française ; courbe et cases Dernier/Mini/Maxi = vraies pesées (affichaient la tendance 78,6 alors que la pesée était 77).
+- Courbe double (pesées + tendance verte) comme Happy Scale / Libra.
+- Gras & abdos : % de gras méthode US Navy (taille + cou + hauteur), kg de gras / muscle, poids des abdos visibles (~12 %) et date ; plancher 75 kg respecté (sinon → recomposition). Mesure « cou » ajoutée.
+- Supersets (🔗) dans le mode séance : A → B sans repos, repos puis retour sur A.
+- Hors ligne : séance gardée sans réseau, envoi automatique au retour du réseau ; page FORME mise en cache par le service worker (v261) et enregistrée depuis FORME.
+
 ## 13/11/2026 (4) — Revue des discussions 11→13/11 (47 messages)
 - WhatsApp 11/11 18h07 : « Oui » → Dzaryx a dit « envoyé » mais rien n'était parti (cerveau gratuit : brouillon réécrit sans relecture, puis confirmation refusée en silence). Fix : le texte réécrit montré à Kouider redevient le brouillon en attente (captureWaRewrite, call.ts) ; signature tolérante au gras/citations ; confirmation refusée = « ⛔ PAS ENVOYÉ » dans le résultat de l'outil.
 - Sport 12/11 : « demain on reprend les Épaules » alors que le planning disait Dos & Biceps → skip renvoie la VRAIE prochaine séance.

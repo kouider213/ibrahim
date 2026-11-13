@@ -207,7 +207,7 @@ const fromLib = (x: LibItem, k: number): PEx => ({ id: `${x.id}~${Date.now().toS
 
 // Séance en cours gardée sur le téléphone (Hevy) : appel, écran verrouillé, appli fermée → on la reprend telle quelle.
 export const LIVE_K = 'forme:live';
-export interface LiveState { kind: 'coach' | 'routine'; s: SportSession; exs: PEx[]; rows: Record<string, SetRow[]>; i: number; start: number; feel: Record<string, Feel>; at: number }
+export interface LiveState { kind: 'coach' | 'routine'; s: SportSession; exs: PEx[]; rows: Record<string, SetRow[]>; i: number; start: number; feel: Record<string, Feel>; at: number; ss?: Record<string, boolean> }
 export function readLive(): LiveState | null { try { const v = JSON.parse(localStorage.getItem(LIVE_K) ?? 'null') as LiveState | null; return v && Date.now() - v.at < 8 * 3600_000 ? v : null; } catch { return null; } }
 const clearLive = () => { try { localStorage.removeItem(LIVE_K); } catch { /* */ } };
 const noteKey = (e: PEx) => `forme:exnote:${libIdOf(e) ?? norm(e.name)}`;
@@ -228,12 +228,18 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
   const [flash, setFlash] = useState<string | null>(null);
   const [newPrs, setNewPrs] = useState<string[]>([]);
   const [feel, setFeel] = useState<Record<string, Feel>>(resume?.feel ?? {});
+  // 13/11 : SUPERSETS (Hevy) — ss[idA] = A enchaîné avec l'exercice suivant, sans repos entre les deux
+  const [ss, setSs] = useState<Record<string, boolean>>(resume?.ss ?? {});
+  // 13/11 : HORS LIGNE (sous-sol de la salle) — tout reste sur le téléphone, l'envoi repart tout seul quand le réseau revient
+  const [online, setOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine !== false);
+  const [pendingSave, setPendingSave] = useState(false);
+  useEffect(() => { const on = () => setOnline(true), off = () => setOnline(false); window.addEventListener('online', on); window.addEventListener('offline', off); return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); }; }, []);
   const [voice, setVoice] = useState(() => { try { return localStorage.getItem(VOICE_K) !== '0'; } catch { return true; } });
   const toggleVoice = () => { const v = !voice; setVoice(v); try { localStorage.setItem(VOICE_K, v ? '1' : '0'); } catch { /* */ } if (v) speak('Coach vocal activé'); else speechSynthesis.cancel(); };
   const start = useRef(resume?.start ?? Date.now());
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
-  useEffect(() => { if (Object.values(rows).flat().some(r => r.done) || exs.length !== s.exercises.length || exs.some((e, j) => e.id !== s.exercises[j]?.id)) { try { localStorage.setItem(LIVE_K, JSON.stringify({ kind, s, exs, rows, i, start: start.current, feel, at: Date.now() } satisfies LiveState)); } catch { /* */ } } }, [rows, exs, i, feel]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (Object.values(rows).flat().some(r => r.done) || exs.length !== s.exercises.length || exs.some((e, j) => e.id !== s.exercises[j]?.id)) { try { localStorage.setItem(LIVE_K, JSON.stringify({ kind, s, exs, rows, i, start: start.current, feel, at: Date.now(), ss } satisfies LiveState)); } catch { /* */ } } }, [rows, exs, i, feel, ss]); // eslint-disable-line react-hooks/exhaustive-deps
   const [note, setNote] = useState('');
   const ex = exs[Math.min(i, exs.length - 1)];
   const chal = useRef(kind === 'coach' ? challengeOf(s.exercises, s.date) : null).current;
@@ -287,6 +293,13 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
     setRows(r => ({ ...r, [ex.id]: r[ex.id]!.map((x, j) => j === k ? { ...x, done: true, at: Date.now() } : j === k + 1 && !x.done ? { ...x, kg: x.kg || r0.kg } : x) }));
     const last = sets.every((x, j) => j === k || x.done);
     if (isCardioEx(ex)) { speak('Cardio noté. Bien joué !'); if (i < exs.length - 1) setTimeout(() => setI(i + 1), 600); return; }
+    if (r0.t !== 'w') {
+      const nx = exs[i + 1], pv = exs[i - 1];
+      // A d'un superset → B tout de suite, sans repos
+      if (ss[ex.id] && nx && (rows[nx.id] ?? []).some(x => !x.done && x.t !== 'w')) { setFlash(`🔗 Enchaîne : ${nx.name}`); setTimeout(() => setFlash(null), 2200); speak(`Sans repos : ${nx.name}`); setI(i + 1); return; }
+      // B d'un superset → repos puis retour sur A s'il lui reste des séries
+      if (pv && ss[pv.id] && (rows[pv.id] ?? []).some(x => !x.done && x.t !== 'w')) { setRest({ n: Math.max(ex.rest, pv.rest), key: Date.now() }); setI(i - 1); return; }
+    }
     // Plus de passage automatique : il donne d'abord son ressenti (qui, lui, passe à l'exercice suivant)
     if (!(last && i === exs.length - 1)) setRest({ n: r0.t === 'w' ? Math.min(60, ex.rest) : ex.rest, key: Date.now() });
   };
@@ -353,9 +366,15 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
       if (lib.length) await forme.exBatch(lib).catch(() => {});
       clearLive();
       void apiFetch('/api/sport/live-app', { method: 'POST', body: JSON.stringify({ current: null, left: [], done: doneSets.length, total: work.length, finished: true }) }).catch(() => {});
+      setPendingSave(false);
       onFinished(newPrs.length ? `${msg} · 🏆 ${newPrs.join(', ')}` : msg);
-    } catch (e) { alert(errText(e)); } finally { setBusy(false); }
+    } catch (e) {
+      // Pas de réseau : rien n'est perdu (séance gardée sur le téléphone), envoi automatique au retour du réseau
+      if (!navigator.onLine || /fetch|network|r[ée]seau|load failed|timeout|abort/i.test(String((e as Error)?.message ?? e))) { setPendingSave(true); setFlash('📴 Pas de réseau : séance gardée, je l\'envoie dès que le réseau revient'); setTimeout(() => setFlash(null), 4000); }
+      else alert(errText(e));
+    } finally { setBusy(false); }
   };
+  useEffect(() => { if (online && pendingSave && !busy) void save(); }, [online, pendingSave]); // eslint-disable-line react-hooks/exhaustive-deps
   const cell: CSSProperties = { background: F.bg, border: 'none', borderRadius: 9, padding: '9px 4px', fontSize: 16, fontWeight: 600, width: '100%', boxSizing: 'border-box', fontFamily: F.sans, textAlign: 'center', color: F.ink };
   const cols = '34px 1fr 64px 56px 42px';
   const tool: CSSProperties = { flex: 1, border: 'none', background: F.bg, borderRadius: 10, padding: '9px 4px', fontWeight: 600, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit', color: F.ink, whiteSpace: 'nowrap' };
@@ -366,7 +385,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
         <button onClick={() => { if (finish) setFinish(false); else if (!allRows.some(r => r.done) || confirm('Abandonner la séance ? (rien n\'est enregistré)')) { clearLive(); void apiFetch('/api/sport/live-app', { method: 'POST', body: JSON.stringify({ abandon: true }) }).catch(() => {}); onClose(); } }} aria-label="Fermer" style={{ width: 36, height: 36, border: 'none', background: 'none', fontSize: 22, cursor: 'pointer', color: F.ink }}>{finish ? '‹' : '✕'}</button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.label}</div>
-          <div style={{ fontSize: 12.5, color: F.muted, fontVariantNumeric: 'tabular-nums' }}>⏱ {fmtTime(elapsed)} · {doneSets.length}/{work.length} séries · {Math.round(volume)} kg</div>
+          <div style={{ fontSize: 12.5, color: F.muted, fontVariantNumeric: 'tabular-nums' }}>⏱ {fmtTime(elapsed)} · {doneSets.length}/{work.length} séries · {Math.round(volume)} kg{!online ? ' · 📴 hors ligne (tout est gardé)' : ''}</div>
         </div>
         {!finish && <button onClick={toggleVoice} aria-label="Coach vocal" style={{ width: 36, height: 36, borderRadius: 18, border: 'none', background: voice ? F.soft : F.bg2, cursor: 'pointer', fontSize: 16 }}>{voice ? '🔊' : '🔇'}</button>}
         {!finish && <button onClick={() => { setRest(null); setFinish(true); speak('Séance terminée. Bravo !'); }} style={{ ...btn, padding: '9px 16px', fontSize: 14, boxShadow: 'none' }}>Terminer</button>}
@@ -387,7 +406,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
           <div style={{ fontWeight: 600, marginTop: 22 }}>C'était dur comment ?</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, marginTop: 10 }}>{[5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => setRpe(n)} style={{ ...ghostBtn, borderRadius: 12, padding: '13px 0', background: rpe === n ? F.accent : '#fff', color: rpe === n ? '#fff' : F.ink }}>{n}</button>)}</div>
           <div style={{ fontSize: 12.5, color: F.muted, marginTop: 6 }}>5 = facile · 9 = à fond</div>
-          <button disabled={busy || !(doneSets.length || cardioDone.length)} onClick={save} style={{ ...btn, width: '100%', marginTop: 22, opacity: doneSets.length || cardioDone.length ? 1 : 0.5 }}>{busy ? 'Enregistrement…' : doneSets.length || cardioDone.length ? 'Enregistrer ma séance' : 'Aucune série validée'}</button>
+          <button disabled={busy || !(doneSets.length || cardioDone.length)} onClick={save} style={{ ...btn, width: '100%', marginTop: 22, opacity: doneSets.length || cardioDone.length ? 1 : 0.5 }}>{busy ? 'Enregistrement…' : pendingSave ? '📴 En attente du réseau… (touche pour réessayer)' : doneSets.length || cardioDone.length ? 'Enregistrer ma séance' : 'Aucune série validée'}</button>
           {doneSets.length > 0 && <button onClick={() => void shareCard({ title: s.label, dur: fmtTime(elapsed), volume, sets: doneSets.length, prs: newPrs, lines: exs.filter(e => (rows[e.id] ?? []).some(r => r.done && r.t !== 'w')).map(e => { const d = rows[e.id]!.filter(r => r.done && r.t !== 'w'); const top = Math.max(...d.map(r => Number(r.kg.replace(',', '.')) || 0)); return `${d.length} × ${e.name}${top ? ` · ${top} kg` : ''}`; }) })} style={{ ...ghostBtn, width: '100%', marginTop: 10 }}>📤 Partager ma séance (image)</button>}
         </div>
       ) : <>
@@ -427,6 +446,8 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
                   </div>
                   <button onClick={() => setHow(true)} aria-label="Comment faire" style={{ width: 34, height: 34, borderRadius: 17, border: `1px solid ${F.line}`, background: '#fff', cursor: 'pointer', fontWeight: 700, color: F.accent, flexShrink: 0 }}>i</button>
                 </div>
+                {(ss[ex.id] && exs[i + 1]) ? <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, color: F.accent }}>🔗 Superset avec « {exs[i + 1]!.name} » : 1 série ici → direct l'autre, puis repos</div>
+                  : (exs[i - 1] && ss[exs[i - 1]!.id]) ? <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, color: F.accent }}>🔗 Superset avec « {exs[i - 1]!.name} » : après ta série, repos puis retour dessus</div> : null}
                 {ex.tip && <div style={{ fontSize: 13.5, color: F.muted, marginTop: 6, lineHeight: 1.4 }}>💡 {ex.tip}</div>}
                 {ex.suggestion.up && <div style={{ fontSize: 13, fontWeight: 600, marginTop: 6, color: F.green }}>↑ On monte à {ex.suggestion.kg} kg aujourd'hui</div>}
                 {chal === ex.id && <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, padding: '8px 10px', borderRadius: 10, background: '#fff6df' }}>🎯 Défi du jour : fais mieux que la dernière fois ({ex.suggestion.last}) — 1 rep ou 1 kg de plus</div>}
@@ -434,6 +455,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
                   {!isCardioEx(ex) && <button onClick={warmup} style={tool}>🔥 Échauffement</button>}
                   {!isCardioEx(ex) && <button onClick={() => setPlates(true)} style={tool}>🧮 Disques</button>}
                   <button onClick={() => setPicker('swap')} style={tool}>🔁 Remplacer</button>
+                  {!isCardioEx(ex) && exs[i + 1] && !isCardioEx(exs[i + 1]!) && <button onClick={() => { vibrate(15); setSs(x => ({ ...x, [ex.id]: !x[ex.id] })); }} aria-label="Superset avec l'exercice suivant" style={{ ...tool, flex: '0 0 auto', padding: '9px 11px', background: ss[ex.id] ? F.accent : F.bg, color: ss[ex.id] ? '#fff' : F.ink }}>🔗</button>}
                   <button onClick={removeEx} aria-label="Retirer cet exercice" style={{ ...tool, flex: '0 0 auto', padding: '9px 11px' }}>🗑️</button>
                 </div>
               </div>

@@ -96,7 +96,7 @@ export interface FormeDay {
   meals: Record<string, boolean>;       // `${recipeId}:${slot}` → mangé
   extra: FoodItem[];
   water: number; weight?: number;
-  measures?: Partial<Record<'taille' | 'hanches' | 'poitrine' | 'bras' | 'cuisse', number>>;
+  measures?: Partial<Record<'taille' | 'hanches' | 'poitrine' | 'bras' | 'cuisse' | 'cou', number>>;
   injection?: { at: number; site: string; dose?: string };
   sides?: Array<{ what: string; level: number; at: number }>;
   workout?: WorkoutLog;
@@ -730,7 +730,7 @@ export async function logForme(kind: string, b: Record<string, unknown>, date = 
     else if (kind === 'food') d.extra.push({ name: String(b.name ?? 'Aliment').slice(0, 60), kcal: Math.round(n(b.kcal)), p: Math.round(n(b.p)), c: Math.round(n(b.c)), f: Math.round(n(b.f)), at: Date.now(), src: String(b.src ?? 'manuel').slice(0, 20) });
     else if (kind === 'food-del') d.extra.splice(n(b.index), 1);
     else if (kind === 'protein') d.extra.push({ name: String(b.name ?? 'Protéines').slice(0, 60), kcal: Math.round(n(b.p) * 4.5), p: Math.round(n(b.p)), c: 0, f: 0, at: Date.now(), src: 'rapide' });
-    else if (kind === 'measures') d.measures = { ...(d.measures ?? {}), ...Object.fromEntries(Object.entries(b.measures as Record<string, unknown> ?? {}).filter(([k, v]) => ['taille', 'hanches', 'poitrine', 'bras', 'cuisse'].includes(k) && n(v) > 10).map(([k, v]) => [k, n(v)])) };
+    else if (kind === 'measures') d.measures = { ...(d.measures ?? {}), ...Object.fromEntries(Object.entries(b.measures as Record<string, unknown> ?? {}).filter(([k, v]) => ['taille', 'hanches', 'poitrine', 'bras', 'cuisse', 'cou'].includes(k) && n(v) > 10).map(([k, v]) => [k, n(v)])) };
     else if (kind === 'injection' && uid !== 'ami') d.injection = { at: Date.now(), site: String(b.site ?? '').slice(0, 30), ...(b.dose ? { dose: String(b.dose).slice(0, 20) } : {}) };
     else if (kind === 'injection-del') delete d.injection;
     else if (kind === 'side') (d.sides ??= []).push({ what: String(b.what ?? '').slice(0, 40), level: Math.min(3, Math.max(1, n(b.level) || 1)), at: Date.now() });

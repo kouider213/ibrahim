@@ -1,4 +1,4 @@
-const CACHE = 'dzaryx-v260';
+const CACHE = 'dzaryx-v261';
 const APP_URL = 'https://kouider213.github.io/ibrahim/';
 const STATIC = [
   '/ibrahim/',
@@ -33,10 +33,13 @@ self.addEventListener('fetch', e => {
 
   // Network-first for HTML (fresh app shell)
   if (e.request.mode === 'navigate') {
+    // 13/11 : la page (FORME comprise) est gardée à chaque ouverture → elle s'ouvre aussi sans réseau (sous-sol de la salle)
+    const shell = url.pathname.startsWith('/ibrahim/forme') ? '/ibrahim/forme/index.html' : '/ibrahim/index.html';
     e.respondWith(
-      fetch(e.request).catch(() =>
-        caches.match(url.pathname.startsWith('/ibrahim/forme') ? '/ibrahim/forme/index.html' : '/ibrahim/index.html').then(r => r ?? fetch(e.request))
-      )
+      fetch(e.request).then(res => {
+        if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(shell, copy)).catch(() => {}); }
+        return res;
+      }).catch(() => caches.match(shell).then(r => r ?? caches.match(e.request)).then(r => r ?? fetch(e.request)))
     );
     return;
   }

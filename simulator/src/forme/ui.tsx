@@ -127,7 +127,7 @@ export const Stat = ({ v, l, color = F.ink }: { v: ReactNode; l: string; color?:
 
 /** Courbe SVG sans librairie. 09/11 : tactile (doigt posé = valeur + date), moyenne en pointillés, mini / moy. / maxi sous la courbe,
  *  prévision en pointillés jusqu'à l'objectif (forecast), dégradé à la bonne couleur (avant : toutes les courbes prenaient celui de la 1re). */
-export function LineChart({ points, h = 150, color = F.accent, unit = 'kg', goal, stats = true, digits, forecast }: { points: Array<{ x: string; y: number }>; h?: number; color?: string; unit?: string; goal?: number; stats?: boolean; digits?: number; forecast?: { x: string; y: number } | null }) {
+export function LineChart({ points, h = 150, color = F.accent, unit = 'kg', goal, stats = true, digits, forecast, trend }: { points: Array<{ x: string; y: number }>; h?: number; color?: string; unit?: string; goal?: number; stats?: boolean; digits?: number; forecast?: { x: string; y: number } | null; trend?: Array<{ x: string; y: number }> }) {
   const gid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const ref = useRef<SVGSVGElement>(null);
   const [sel, setSel] = useState<number | null>(null);
@@ -138,7 +138,8 @@ export function LineChart({ points, h = 150, color = F.accent, unit = 'kg', goal
   const dg = digits ?? (hi >= 1000 ? 0 : hi - lo < 20 && vals.some(v => v % 1 !== 0) ? 1 : 0);
   const fmtV = (v: number) => v.toLocaleString('fr-FR', { maximumFractionDigits: dg, minimumFractionDigits: 0 });
   const fmtD = (x: string) => x.slice(5).split('-').reverse().join('/');
-  const ys = vals.concat(goal != null ? [goal] : []);
+  const tr = trend && trend.length === points.length ? trend : null;   // 13/11 : vraies pesées (points) + tendance (ligne) comme Happy Scale
+  const ys = vals.concat(goal != null ? [goal] : [], tr ? tr.map(t => t.y) : []);
   const span = Math.max(...ys) - Math.min(...ys) || 1;
   const min = Math.min(...ys) - span * 0.08, max = Math.max(...ys) + span * 0.08;
   // Avec une prévision, la courbe réelle prend ~72 % de la largeur et les pointillés filent jusqu'à l'objectif.
@@ -162,7 +163,8 @@ export function LineChart({ points, h = 150, color = F.accent, unit = 'kg', goal
         {goal != null && <><line x1={pad} x2={W - pad} y1={Y(goal)} y2={Y(goal)} stroke={F.green} strokeDasharray="4 4" /><text x={forecast ? pad : W - pad} y={Y(goal) - 4} fontSize="10" textAnchor={forecast ? 'start' : 'end'} fill={F.green} fontWeight="700">objectif {goal}</text></>}
         {goal == null && points.length >= 4 && <><line x1={pad} x2={W - pad} y1={Y(avg)} y2={Y(avg)} stroke={color} strokeOpacity="0.45" strokeDasharray="2 5" /><text x={W - pad} y={Y(avg) - 4} fontSize="9.5" textAnchor="end" fill={F.muted} fontWeight="600">moy. {fmtV(avg)}</text></>}
         <path d={`${d} L${X(last)},${h - 22} L${X(0)},${h - 22} Z`} fill={`url(#${gid})`} />
-        <motion.path d={d} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1 }} />
+        <motion.path d={d} fill="none" stroke={color} strokeWidth={tr ? 1.6 : 3} strokeOpacity={tr ? 0.55 : 1} strokeLinecap="round" strokeLinejoin="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1 }} />
+        {tr && <path d={tr.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(p.y).toFixed(1)}`).join(' ')} fill="none" stroke={F.green} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
         {forecast && <>
           <line x1={X(last)} y1={Y(points[last]!.y)} x2={W - pad} y2={Y(forecast.y)} stroke={color} strokeWidth="2.2" strokeDasharray="3 5" strokeLinecap="round" />
           <circle cx={W - pad} cy={Y(forecast.y)} r="5" fill="#fff" stroke={F.green} strokeWidth="2.4" />
@@ -179,6 +181,7 @@ export function LineChart({ points, h = 150, color = F.accent, unit = 'kg', goal
           <text x={tipX} y={(Y(s.y) > 52 ? Y(s.y) - 44 : Y(s.y) + 12) + 26} fontSize="9.5" fill="rgba(255,255,255,0.72)" textAnchor="middle">{fmtD(s.x)}</text>
         </g>}
       </svg>
+      {tr && <div style={{ display: 'flex', gap: 14, justifyContent: 'center', fontSize: 11.5, color: F.muted, marginTop: 2 }}><span><span style={{ color }}>●</span> tes pesées</span><span><span style={{ color: F.green, fontWeight: 900 }}>━</span> tendance (vrai gras perdu)</span></div>}
       {stats && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6, margin: '6px 0 10px' }}>
         {([['Dernier', vals[last]!, color], ['Moyenne', avg, F.ink], ['Mini', lo, F.ink], ['Maxi', hi, F.ink]] as const).map(([l, v, c]) =>
           <div key={l} style={{ background: F.bg, borderRadius: 10, padding: '6px 4px', textAlign: 'center' }}><div style={{ fontSize: 14.5, fontWeight: 800, color: c, letterSpacing: '-0.01em' }}>{fmtV(v)}</div><div style={{ fontSize: 10.5, color: F.muted, fontWeight: 600 }}>{l}</div></div>)}
