@@ -36,8 +36,8 @@ router.post('/notify', async (req, res) => {
       ].filter(Boolean).join('\n');
 
       const risk = await clientRisk(String(data['client_name'] ?? ''), data['client_phone'] as string | undefined).catch(() => null);
-      const full = risk?.text ? `${msg}\n\n${risk.text}` : msg;
-      emitProactive(full, 'alert', full, 'kouider');
+      // 13/11 : le site envoie déjà la notif Telegram (boutons Accepter/Refuser) → ici seulement ce que Dzaryx ajoute
+      if (risk?.text) emitProactive(`${msg}\n\n${risk.text}`, 'alert', risk.text, 'kouider');
       void autoCall(`site-booking:${data['client_name']}:${data['start_date']}:${data['car_name']}`,
         `Nouvelle réservation sur le site : ${data['client_name']}, ${data['car_name']}, du ${data['start_date']} au ${data['end_date']}, ${data['total']} euros.${risk?.spoken ? ` ${risk.spoken}` : ''} Tu l'acceptes ?`);
     } else if (type === 'new_review') {
@@ -47,10 +47,10 @@ router.post('/notify', async (req, res) => {
         `→ Dzaryx: "approuve l'avis de ${data['client_name']}" pour le publier`,
       ].filter(Boolean).join('\n');
 
-      emitProactive(msg, 'info', msg, 'kouider');
+      void msg;   // 13/11 : notif Telegram déjà envoyée par le site (submit-review) → pas de doublon
     } else if (type === 'booking_status') {
-      const msg = `📋 Réservation ${data['car_name']} / ${data['client_name']} → ${data['status']}`;
-      emitProactive(msg, 'info', msg, 'kouider');
+      // 13/11 : changé par Kouider lui-même (bouton Telegram / admin) → pas besoin de le lui redire
+      if (!data['via']) { const msg = `📋 Réservation ${data['car_name']} / ${data['client_name']} → ${data['status']}`; emitProactive(msg, 'info', msg, 'kouider'); }
     } else {
       const msg = String(data['message'] ?? JSON.stringify(data));
       emitProactive(msg, 'info', msg, 'kouider');

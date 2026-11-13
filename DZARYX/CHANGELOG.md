@@ -1,3 +1,8 @@
+## 13/11/2026 (8) — Site → Dzaryx réparé + titres Google
+- Le site n'a jamais pu prévenir Dzaryx (« //api/fik-site/notify » 404 : IBRAHIM_BACKEND_URL finit par « / ») → corrigé côté site (autolux 40e74db). Contrôle client + appel « tu l'acceptes ? » reviennent ; le texte Telegram n'est plus doublé (le site l'envoie déjà avec les boutons) ; avis / changement de statut fait par Kouider : pas de doublon.
+- SEO site : 12 pages sans <title> (voitures, vente, immo, packs, blog, pages légales) → titres rendus ; voiture = « Location X à Oran — prix/jour, sans caution | Fik ».
+- Search Console jamais connectée (gscReport = null) → lien à cliquer par Kouider.
+
 ## 13/11/2026 (7) — Quotas cerveaux + vraies stats du site
 - Vérif logs Railway 13/11 : les vrais messages de Kouider sont servis par le gros Gemini (gemini-3.5-flash) ; la « saturation » du contrôle de nuit vient du banc lancé exprès SANS clés Gemini → pas un problème en vrai.
 - OpenRouter « free-models-per-day » (429 sans délai) n'était pas reconnu comme quota du jour → réessayé toutes les 15 min (2 appels perdus/heure par les tâches auto). Maintenant sauté jusqu'à 00:01 UTC.
