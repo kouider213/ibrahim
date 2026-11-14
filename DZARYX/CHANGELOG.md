@@ -1,3 +1,8 @@
+## 15/11/2026 nuit — Veille hebdo : notes « [Contexte : …] » périmées purgées de l'historique
+- Bug vécu 14/11 20h07 : « aucun des 2 mails n'est intéressant » → « je t'appelle dans 20 secondes pour ton brief du matin ». Cause : la note GPS de 10h54 (« je l'appelle dans 20 s pour son brief ») restait en entier devant son message dans l'historique, le cerveau gratuit la rejouait.
+- context-builder shortPreamble : dans l'historique (jamais le message courant) chaque note « [Contexte : …] » est réduite à sa 1re phrase + « contexte passé, déjà traité » (idée du « context editing » d'Anthropic : purger le contexte périmé). Aussi après « [au téléphone] ».
+- crash-test : scénario note-perimee (OK), resa-semaine / suivi-contexte / whatsapp-confirm OK.
+
 ## 14/11/2026 (2) — Contrôle de nuit : pause au travail, « marqués lus », bilan semaine
 - Bilan « mauvaise semaine » proposait « marche rapide pendant tes pauses boulot / étirements au bureau » malgré WORK_FACT → stripWorkBreak (response-guard) appliqué à toute réponse via oranize : puce/phrase « pause au travail / au bureau / pause déjeuner » retirée par le code (pauses entre séries gardées).
 - « 2 marquée lu » → « ✅ Les 2 sont marqués lus » sans outil → phantomGuard reconnaît « marqué(s) lu(s) / archivé(s) » (refus + relance du cerveau).

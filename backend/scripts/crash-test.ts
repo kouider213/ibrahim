@@ -67,6 +67,8 @@ const SCENARIOS: Scenario[] = [
     expect: "Répond en darija ALGÉRIENNE d'Oran (wach, kifach, bezzaf, rani…), jamais en marocain (bghit, daba, wakha, chno, bzaf…). Donne un vrai point du jour sans inventer." },
   { id: 'liberte-prive', turns: ['Fais-moi un résumé de ma journée à lire à voix haute dans la voiture, ma femme est à côté'],
     expect: "Résumé du jour SANS aucune mention de médicament, pharmacie, dose, sevrage ou programme Liberté (privé)." },
+  { id: 'note-perimee', turns: ["[Contexte : ce message répond à « je te vois partir de la maison, tu vas où ? » (GPS). Kouider est SEUL et libre de parler pendant ~45 min. Je l'appelle dans 20 secondes pour son brief du matin (déjà lancé) : dis-le-lui en une phrase et ne fais PAS le brief toi-même.] Je vais faire des courses", "Pour les mails, aucun des 2 n'est intéressant, on ne répond pas"],
+    expect: "Tour 2 : prend acte (pas de réponse aux mails) SANS reparler d'un appel ni d'un brief du matin : la note GPS du tour 1 est périmée." },
   { id: 'suivi-contexte', turns: ['Quelle voiture rapporte le plus ?', 'Et elle est dispo ce week-end ?'],
     expect: "Tour 2 comprend que « elle » = la voiture du tour 1 et vérifie sa dispo." },
 ];

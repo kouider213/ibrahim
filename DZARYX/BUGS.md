@@ -425,3 +425,5 @@ Cause : motif argent du fastPathGuard sans chiffre obligatoire (« dans », « d
 ### B053 — Question Telegram sans réponse : redémarrage Railway pendant le tour (04/11 10h57, « veines des bras ») ✅ FIXÉ
 Cause : déploiement à 09:58 UTC pendant que le cerveau de secours (Gemini 503) traitait ; tgcall disait « renvoie-le ». Fix : turn_with_resume (tgcall) attend /health et renvoie avec turnId ; /api/call/turn redonne la réponse en cache si déjà faite.
 
+### B054 — Vieille note GPS rejouée : « je t'appelle dans 20 s pour ton brief du matin » à 20h07 (14/11) ✅ FIXÉ
+Cause : notes « [Contexte : …] » gardées en entier dans l'historique. Fix : shortPreamble (context-builder) les réduit à « contexte passé, déjà traité » sauf pour le message courant (CHANGELOG 15/11).

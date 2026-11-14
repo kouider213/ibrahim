@@ -67,8 +67,18 @@ export interface ConversationContext {
 // Consignes Siri / appel (2 à 3 000 caractères) répétées dans chaque vieux message : l'historique dépassait le seuil
 // et relançait un résumé à CHAQUE tour (+5 s, Siri coupé, 28/10). Le message courant garde sa consigne complète.
 const PREAMBLE_RE = /^\s*\[(SIRI|APPEL T[ÉE]L[ÉE]PHONIQUE)[\s\S]*?\]\s*/;
+// Notes « [Contexte : …] » collées devant ses messages (GPS, brouillon WhatsApp, ne pas déranger…) : valables UNE fois.
+// Gardées en entier dans l'historique, le cerveau les rejouait des heures après (14/11 : note GPS de 10h54 « je l'appelle
+// dans 20 secondes pour ton brief du matin » ressortie à 20h07 sur un message à propos de mails). Idée reprise du
+// « context editing » d'Anthropic (purge du contexte périmé) : dans l'historique il n'en reste que le début, marqué périmé.
+const CONTEXT_NOTE_RE = /^(\s*\[(?:au téléphone|via Siri)\]\s*)?((?:\s*\[Contexte\s*:[\s\S]*?\]\s*)+)/i;
 function shortPreamble(content: string): string {
-  return content.replace(PREAMBLE_RE, (_m, k: string) => k === 'SIRI' ? '[via Siri] ' : '[au téléphone] ');
+  return content
+    .replace(PREAMBLE_RE, (_m, k: string) => k === 'SIRI' ? '[via Siri] ' : '[au téléphone] ')
+    .replace(CONTEXT_NOTE_RE, (_m: string, pre: string | undefined, m: string) => {
+      const head = m.replace(/^\s*\[Contexte\s*:\s*/i, '').split(/(?<=[.:;])\s/)[0]!.replace(/\]\s*$/, '').slice(0, 110).trim();
+      return `${pre ?? ''}[contexte passé, déjà traité : ${head}…] `;
+    });
 }
 
 // ── Intent detection: action requests need minimal history (avoids echoing old confirmations) ──
