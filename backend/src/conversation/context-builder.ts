@@ -77,7 +77,7 @@ function shortPreamble(content: string): string {
     .replace(PREAMBLE_RE, (_m, k: string) => k === 'SIRI' ? '[via Siri] ' : '[au téléphone] ')
     .replace(CONTEXT_NOTE_RE, (_m: string, pre: string | undefined, m: string) => {
       const head = m.replace(/^\s*\[Contexte\s*:\s*/i, '').split(/(?<=[.:;])\s/)[0]!.replace(/\]\s*$/, '').slice(0, 110).trim();
-      return `${pre ?? ''}[contexte passé, déjà traité : ${head}…] `;
+      return `${pre ?? ''}[contexte périmé, déjà traité — n'y reviens pas : ${head}…] `;
     });
 }
 
