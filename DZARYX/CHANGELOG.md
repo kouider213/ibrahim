@@ -1,3 +1,7 @@
+## 14/11/2026 (1) — Panier compléments : vrais liens produit
+- Kouider : « il m'envoie que le lien du site, pas des articles ». La recherche ne rendait que des pages d'accueil → le cerveau mettait https://fr.myprotein.com ou un lien Google.
+- health-advisor fixBasketLinks : après la réponse (wrapper processMessage, questions « compléments + acheter »), chaque lien accueil/Google du panier → vraie page produit trouvée par « site:<boutique> <produit> » (DDG lite + Yahoo via r.jina.ai, texte complet). Testé sur la réponse du 14/11 : 4/4 liens produit (~14 s).
+
 ## 13/11/2026 (11) — Heure d'arrivée client, photo analysée par le code, liens compléments
 - Belarbi : résa « arrivée 18:05 » mais fiche d'arrivée à 10:00 (trips.ts forçait 10:00 à chaque synchro). bookingTimes(notes) lit l'arrivée / le retour (dernière mention gagne) → fiche d'arrivée / de retour à la bonne heure.
 - update_booking arrival_time (+ arrival_flight) : l'ancienne heure d'arrivée est remplacée dans la note ; l'agenda 🚗 de la location suit (début = arrivée, fin = retour). Heure donnée par le client sur WhatsApp (texte / photo billet) → arrival_time.

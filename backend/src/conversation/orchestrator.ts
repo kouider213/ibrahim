@@ -176,6 +176,23 @@ export async function processMessage(
   imageMime   = 'image/jpeg',
   actor:        OrgMember = DEFAULT_MEMBER,
 ): Promise<OrchestratorResponse> {
+  const res = await processMessageInner(userMessage, sessionId, textOnly, imageBase64, imageMime, actor);
+  // 14/11 panier de compléments : liens accueil/Google → vraies pages produit (le code répare, le cerveau n'avait que l'accueil)
+  try {
+    const ha = await import('../integrations/health-advisor.js');
+    if (res?.text && actor.ownerKey !== 'houari' && !sessionId.toLowerCase().includes('houari') && ha.isSupplementBuy(userMessage)) res.text = await ha.fixBasketLinks(res.text);
+  } catch { /* garde la réponse telle quelle */ }
+  return res;
+}
+
+async function processMessageInner(
+  userMessage:  string,
+  sessionId:    string,
+  textOnly    = false,
+  imageBase64?: string,
+  imageMime   = 'image/jpeg',
+  actor:        OrgMember = DEFAULT_MEMBER,
+): Promise<OrchestratorResponse> {
 
   const requestId     = nextRequestId();
   const source_channel = detectSourceChannel(sessionId);

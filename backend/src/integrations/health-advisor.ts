@@ -84,3 +84,62 @@ export async function healthAdvisorHint(userMessage: string): Promise<string> {
     dossier ? `\nSON DOSSIER SANTÉ (données réelles, à utiliser) :\n${dossier}` : '',
   ].filter(Boolean).join('\n');
 }
+
+// 14/11 Kouider : « pour les liens des compléments il m'envoie que le lien du site, pas des articles » → la recherche ne
+// rendait que des pages d'accueil, le cerveau mettait https://fr.myprotein.com ou un lien Google. Ici le CODE répare le panier :
+// chaque lien = accueil de la boutique ou recherche Google → vraie page produit trouvée par « site:<boutique> <produit> ».
+export function isSupplementBuy(q: string): boolean {
+  return isHealthQuestion(q) && SUPP.test(q) && BUY.test(q);
+}
+
+function hostOf(u: string): string { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } }
+
+async function findProductUrl(domain: string, product: string): Promise<string | null> {
+  // DuckDuckGo/Yahoo lus via r.jina.ai (appel direct = page anti-robot) ; texte COMPLET, pas la coupe à 4000 car. remplie de pubs
+  const { default: axios } = await import('axios');
+  const base = domain.split('.').slice(-2).join('.');
+  const q = `site:${domain} ${product}`;
+  const h: Record<string, string> = { Accept: 'text/plain', 'X-Retain-Images': 'none' };
+  if (process.env.JINA_API_KEY) h.Authorization = `Bearer ${process.env.JINA_API_KEY}`;
+  const pages = await Promise.all([`https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(q)}&kl=fr-fr`, `https://search.yahoo.com/search?p=${encodeURIComponent(q)}`]
+    .map(u => axios.get(`https://r.jina.ai/${encodeURIComponent(u)}`, { headers: h, timeout: 14_000 }).then(r => String(r.data)).catch(() => '')));
+  const dec = (u: string) => { try { return decodeURIComponent(u); } catch { return u; } };
+  const text = pages.join('\n').replace(/uddg=([^&)\s]+)/g, (_m, u: string) => ` ${dec(u)} `).replace(/RU=([^/)\s]+)/g, (_m, u: string) => ` ${dec(u)} `);
+  const urls = [...new Set([...text.matchAll(/https?:\/\/[^\s)\]<>"']+/g)].map(m => m[0].replace(/[.,;]+$/, '')))];
+  const words = product.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter(w => w.length > 2 && !/^(gelules?|poudre|vegetales?|pour|avec|les|des)$/.test(w));
+  const cands = urls.filter(u => { const hh = hostOf(u); let p = ''; try { p = new URL(u).pathname; } catch { return false; }
+    return (hh === base || hh.endsWith(`.${base}`)) && p.length > 1 && !/\/(search|recherche|cart|panier|account|login|blog|thezone|c|offers?|promo|voucher)(\/|$)/i.test(p); });
+  const score = (u: string) => { const s = u.toLowerCase(); return words.filter(w => s.includes(w)).length * 2 + (/\/p\/|\d{5,}|\.html|\/product/i.test(u) ? 1 : 0); };
+  cands.sort((x, y) => score(y) - score(x));
+  return cands[0] && score(cands[0]) >= 2 ? cands[0] : null;
+}
+
+export async function fixBasketLinks(text: string): Promise<string> {
+  const links = [...text.matchAll(/\[([^\]]{2,120})\]\((https?:\/\/[^)\s]+)\)/g)];
+  if (!links.length) return text;
+  // la boutique = le domaine le plus cité hors Google
+  const count = new Map<string, number>();
+  for (const l of links) { const h = hostOf(l[2]!); if (h && !/google\./.test(h)) count.set(h, (count.get(h) ?? 0) + 1); }
+  const domain = [...count.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  if (!domain) return text;
+  const shopWord = domain.split('.').slice(-2, -1)[0] ?? '';
+  const bad = links.filter(l => {
+    const u = l[2]!; const h = hostOf(u);
+    if (/google\./.test(h) && /\/search/.test(u)) return true;
+    try { return h === domain && new URL(u).pathname.replace(/\/+$/, '') === '' && !/boutique|site|accueil|retenu|^\s*my\w*\s*(fr|be)?\s*$/i.test(l[1]!) && text.slice(Math.max(0, l.index! - 40), l.index!).search(/Site retenu|page d'accueil|Code promo|Offre/i) < 0; } catch { return false; }
+  });
+  if (!bad.length) return text;
+  const jobs = bad.map(async l => {
+    let product = l[1]!;
+    if (/^voir sur/i.test(product)) {
+      try { product = new URL(l[2]!).searchParams.get('q') ?? ''; } catch { product = ''; }
+      if (!product) { const line = text.slice(text.lastIndexOf('\n', l.index!) + 1, l.index!); product = line.replace(/[*•:—-]/g, ' ').trim(); }
+    }
+    product = product.replace(new RegExp(shopWord, 'ig'), '').replace(/\+/g, ' ').replace(/\s+/g, ' ').trim();
+    const url = product ? await findProductUrl(domain, product).catch(() => null) : null;
+    return { full: l[0], label: /^voir sur/i.test(l[1]!) ? product : l[1]!, url };
+  });
+  let out = text;
+  for (const j of await Promise.all(jobs)) if (j.url) out = out.replace(j.full, `[${j.label}](${j.url})`);
+  return out;
+}
