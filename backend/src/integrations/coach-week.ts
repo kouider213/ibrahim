@@ -75,6 +75,8 @@ async function adaptNextWeek(msg: string): Promise<{ text: string; done: number;
   await kvSet(key, `${prev ? `${prev}\n` : ''}${today} : ${msg.replace(/^\s*\[[\s\S]*?\]\s*/, '').replace(/\s+/g, ' ').slice(0, 700)}`.slice(-2500), 21 * 86_400);
   const lines: string[] = [];
   lines.push(`Cette semaine (depuis lundi ${from.slice(8)}/${from.slice(5, 7)}) : ${done} séance${done > 1 ? 's' : ''} faite${done > 1 ? 's' : ''}${att.done.length ? ` (${att.done.map(fmtD).join(', ')})` : ''}${att.skipped.length ? ` · annulées : ${att.skipped.map(([d, r]) => `${fmtD(d)}${r ? ` (${r})` : ''}`).join(', ')}` : ''}${att.missed.length ? ` · ratées : ${att.missed.map(fmtD).join(', ')}` : ''}.`);
+  // 14/11 : « annulée mercredi, déplacée au jeudi » + jeudi compté « jour de repos » → le cerveau se contredisait
+  if (att.skipped.length || att.missed.length) lines.push('(Une séance annulée, déplacée ou ratée qui n\'est PAS dans les séances faites n\'a PAS été faite ni rattrapée. Ne compte JAMAIS le jour où elle avait été déplacée comme « jour de repos » : dis simplement qu\'elle n\'a pas eu lieu.)');
   // Semaine coupée (0-1 séance) → les 3 premiers jours en reprise allégée : moins de séries, charges −10 %, pas de blessure au retour
   if (done <= 1) {
     const ok = await sport.setReprise(nextMon, addDays(nextMon, 2), 'reprise après une semaine coupée').catch(() => false);

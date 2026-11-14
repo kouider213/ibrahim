@@ -1,3 +1,8 @@
+## 14/11/2026 (2) — Contrôle de nuit : pause au travail, « marqués lus », bilan semaine
+- Bilan « mauvaise semaine » proposait « marche rapide pendant tes pauses boulot / étirements au bureau » malgré WORK_FACT → stripWorkBreak (response-guard) appliqué à toute réponse via oranize : puce/phrase « pause au travail / au bureau / pause déjeuner » retirée par le code (pauses entre séries gardées).
+- « 2 marquée lu » → « ✅ Les 2 sont marqués lus » sans outil → phantomGuard reconnaît « marqué(s) lu(s) / archivé(s) » (refus + relance du cerveau).
+- coach-week : une séance annulée/déplacée/ratée non faite n'est jamais comptée comme « jour de repos » (le cerveau se contredisait).
+
 ## 14/11/2026 (1) — Panier compléments : vrais liens produit
 - Kouider : « il m'envoie que le lien du site, pas des articles ». La recherche ne rendait que des pages d'accueil → le cerveau mettait https://fr.myprotein.com ou un lien Google.
 - health-advisor fixBasketLinks : après la réponse (wrapper processMessage, questions « compléments + acheter »), chaque lien accueil/Google du panier → vraie page produit trouvée par « site:<boutique> <produit> » (DDG lite + Yahoo via r.jina.ai, texte complet). Testé sur la réponse du 14/11 : 4/4 liens produit (~14 s).

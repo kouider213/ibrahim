@@ -8,7 +8,7 @@ import { proceduresContext }                      from '../integrations/procedur
 import { openTasksContext }                       from '../integrations/team-tasks.js';
 import { trackEpisode }                           from './episode-tracker.js';
 import { type OrgMember, DEFAULT_MEMBER }        from '../orchestrator/org-resolver.js';
-import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL, earlyToolAvailabilityCheck } from './response-guard.js';
+import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL, earlyToolAvailabilityCheck, stripWorkBreak } from './response-guard.js';
 import { checkAntiHallucination, fastPathGuard, localizeGuard, FAST_PATH_REFUSAL, type HallucinationCheck, type GuardLang } from '../orchestrator/anti-hallucination.js';
 import { detectLanguage } from './language-detector.js';
 
@@ -1100,5 +1100,5 @@ function oranize(text: string, _actor?: { ownerKey?: string }): string {
     .replace(/\bdyal\b/gi, 'ta3')
     .replace(/\bwakha\b/gi, 'yesah');
   for (const [ma, dz] of MOROCCAN_AR) out = out.replace(new RegExp(`(^|[^\\u0600-\\u06FF])${ma}(?![\\u0600-\\u06FF])`, 'g'), `$1${dz}`);
-  return out;
+  return stripWorkBreak(out);
 }

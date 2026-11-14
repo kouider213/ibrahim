@@ -50,6 +50,8 @@ const PHANTOM_ACTION_PATTERNS: RegExp[] = [
   // 07/11 Djillali : « c'est noté, il rend le 10 à 6h, jour offert » sans update_booking → la résa restait au 9
   /(c.est\s+not[eé]|je\s+(l.)?ai\s+not[eé]|^\s*✅?\s*not[eé](?![a-z])|bien\s+not[eé])[^\n]{0,120}(rend|retour|ram[eè]ne|prolong|offert|gratuit|r[ée]sa|r[ée]servation|location|d[ée]cal)/im,
   /\b(location|r[ée]servation|r[ée]sa)\s+(bien\s+)?(prolong[ée]e?|d[ée]cal[ée]e?|modifi[ée]e?)\b|\bjour\s+offert\s+(not[ée]|enregistr[ée]|ajout[ée])\b/im,
+  // 14/11 : « 2 marquée lu » → « Noté. ✅ Les 2 sont marqués lus. » sans aucun outil
+  /(✅|\bsont|\best|\bj.ai|\bont\s+été|\ba\s+été)[^\n]{0,40}\b(marqu[ée]e?s?\s+(comme\s+)?(non[\s-])?lue?s?|archiv[ée]e?s?)\b/im,
   /\b(site\s+mis\s+[aà]\s+jour|r[eé]servation\s+cr[eé][eé]e?|paiement\s+enregistr[eé]|agenda\s+mis\s+[aà]\s+jour|envoy[eé]e?\s+sur\s+telegram|fichier\s+modifi[eé]|code\s+corrig[eé]|bug\s+corrig[eé]|d[eé]ploy[eé]\s+sur\s+railway|vid[eé]o\s+cr[eé][eé]e?|image\s+g[eé]n[eé]r[eé]e?|rappel\s+programm[eé])\b/im,
 ];
 
@@ -326,4 +328,21 @@ export function applyScopeGuard(
   const result = kept.join('\n\n').trim();
   console.log(`[scope-guard:${requestId}] intent=${intent} removed ${removed}/${paragraphs.length} paragraphs`);
   return result || text; // Never return empty
+}
+
+// 14/11 : bilan « semaine ratée » → « marche rapide 10 min pendant tes pauses boulot, étirements au bureau ».
+// Au travail Kouider n'a AUCUNE pause (WORK_FACT) : le cerveau l'oublie parfois → le CODE retire la phrase/la puce.
+const WORK_BREAK_RE = /(pendant\s+(tes|ta|les|une)\s+pauses?|[àa]\s+(la|ta)\s+pause|pauses?\s+(boulot|au\s+(travail|boulot|taf)|d[ée]j(eu|eû)ner|de\s+midi|caf[ée])|au\s+bureau|[àa]\s+midi\s+au\s+(travail|boulot)|sur\s+ton\s+lieu\s+de\s+travail)/i;
+const WORK_BREAK_SAFE = /s[ée]ries?|r[ée]cup|entre\s+(deux|les)\s+(s[ée]ries|exercices)|aucune\s+pause|pas\s+de\s+pause/i;
+export function stripWorkBreak(text: string): string {
+  if (!text || !WORK_BREAK_RE.test(text)) return text;
+  const lines = text.split('\n').flatMap(line => {
+    if (!WORK_BREAK_RE.test(line)) return [line];
+    if (/^\s*([-•*·]|\d+[.)])\s/.test(line)) return WORK_BREAK_SAFE.test(line) ? [line] : [];   // puce entière
+    const kept = line.split(/(?<=[.!?])\s+/).filter(s => !WORK_BREAK_RE.test(s) || WORK_BREAK_SAFE.test(s)).join(' ');
+    return kept.trim() ? [kept] : [];
+  });
+  const out = lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (out !== text.trim()) console.log('[work-break-guard] phrase « pause au travail » retirée');
+  return out || text;
 }
