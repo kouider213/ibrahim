@@ -1,3 +1,7 @@
+## 15/11/2026 (2) — Vrais boutons sous les choix de Dzaryx
+- Kouider : « ajoute le bouton comme sur les notifs FIK, on clique au lieu de mettre 1 ou 2 ». Les décisions (createDecision, conscience.ts) partent maintenant par le bot des notifs FIK avec un bouton par choix (seuls les bots Telegram ont des boutons). Clic → site /api/telegram-notif (dz:id:n) → Railway POST /api/jarvis/decisions-button (jeton interne) → choix exécuté, résultat dans la conversation Dzaryx. Répondre « 1 » à Dzaryx marche toujours ; si le bot échoue → ancien texte. DECISION_BUTTONS=0 coupe.
+- Liberté : palier gardé à 5 demis jusqu'au médecin (RDV 20/11) à sa demande, prochaine baisse 21/11.
+
 ## 15/11/2026 — Revue des échanges 14-15/11 : conseils Belgique/Algérie, douleur, moral, appel démarchage
 - « Rester en Belgique ou partir vivre en Algérie, quand ? » → le cerveau inventait ses seuils (15-20 k€, 1 500 €/mois, « été prochain »). algerieAdviceHint (algerie-plan.ts) : son plan calculé (maison + voiture payées, date de départ) mis à côté de la question. Rejoué : date déc. 2029 / janv. 2032 citée, plus rien d'inventé.
 - Douleur au flanc : « problème de rein très peu probable » à cause de la prise de sang. health-advisor : une prise de sang normale n'exclut pas calcul/infection/appendicite + signes qui imposent le médecin le jour même. Rejoué OK.

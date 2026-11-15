@@ -39,11 +39,37 @@ export async function createDecision(title: string, options: DecisionOption[], s
   list.push(d);
   await kvPut(DEC_KEY, list.slice(-20));
   if (send) {
-    await tg(`🔘 ${d.title}\n${d.options.map((o, i) => `${i + 1}️⃣ ${o.label}`).join('\n')}\nRéponds juste le chiffre.`);
+    // 15/11 Kouider : « des boutons comme sur les notifs FIK, pour cliquer au lieu de taper 1 ou 2 » → envoyé par le bot
+    // des notifs (seuls les bots ont des boutons), clic → site → Railway. Si le bot échoue : texte Dzaryx comme avant.
+    if (!(await sendDecisionButtons(d).catch(() => false)))
+      await tg(`🔘 ${d.title}\n${d.options.map((o, i) => `${i + 1}️⃣ ${o.label}`).join('\n')}\nRéponds juste le chiffre.`);
     const { emitProactive } = await import('../notifications/mobile-push.js');
     emitProactive(`🔘 ${d.title.slice(0, 80)}`, 'reminder', d.options.map((o, i) => `${i + 1}. ${o.label}`).join(' · '));
   }
   return d;
+}
+
+async function sendDecisionButtons(d: Decision): Promise<boolean> {
+  const token = process.env['INTERNAL_API_TOKEN'];
+  if (!token || process.env['DECISION_BUTTONS'] === '0') return false;
+  const r = await fetch('https://fikconciergerie.com/api/dzaryx-buttons', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-internal-token': token },
+    body: JSON.stringify({ text: `🔘 ${d.title.replace(/\*\*/g, '')}\n\n(ou réponds le chiffre à Dzaryx)`, buttons: d.options.map((o, i) => ({ text: `${i + 1}️⃣ ${o.label}`.slice(0, 60), data: `dz:${d.id}:${i + 1}` })) }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  return r.ok && (await r.json().catch(() => ({})) as { ok?: boolean }).ok === true;
+}
+
+/** Clic sur un bouton (bot des notifs → site → ici) : rend tout de suite le libellé, le résultat arrive sur Telegram. */
+export async function chooseDecisionByButton(id: string, n: number): Promise<{ label: string } | { error: string }> {
+  const d = (await kvJson<Decision[]>(DEC_KEY, [])).find(x => x.id === id);
+  if (!d) return { error: 'Choix introuvable (trop ancien)' };
+  if (d.done) return { error: `Déjà choisi : ${d.done}` };
+  const o = d.options[n - 1];
+  if (!o) return { error: 'Bouton inconnu' };
+  void chooseDecision(id, n).then(r => import('../notifications/tg-outbox.js').then(m => m.queueTelegramMessage(r, undefined, 'kouider', undefined, true)))
+    .catch(e => console.warn('[conscience] bouton', e instanceof Error ? e.message : e));
+  return { label: o.label };
 }
 
 /** Marque comme réglées les décisions ouvertes dont le titre correspond (ex. rappel de prise Liberté déjà répondu autrement). */

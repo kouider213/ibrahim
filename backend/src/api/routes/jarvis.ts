@@ -27,6 +27,13 @@ router.get('/voice/:id', async (req, res) => {
   if (!wav) { res.status(404).end(); return; }
   res.setHeader('Content-Type', 'audio/wav'); res.setHeader('Content-Disposition', 'inline; filename="jarvis.wav"'); res.end(wav);
 });
+// 15/11 : bouton cliqué sous une décision (bot des notifs FIK → site → ici), jeton interne du site
+router.post('/decisions-button', async (req, res) => {
+  const tok = process.env['INTERNAL_API_TOKEN'];
+  if (!tok || req.headers['x-internal-token'] !== tok) { res.status(401).json({ error: 'non autorisé' }); return; }
+  const b = (req.body ?? {}) as { id?: string; n?: number };
+  try { res.json(await import('../../integrations/conscience.js').then(m => m.chooseDecisionByButton(String(b.id ?? ''), Number(b.n) || 0))); } catch (e) { fail(res, e); }
+});
 router.use(requireOwner);
 
 const fail = (res: Response, e: unknown) => res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
