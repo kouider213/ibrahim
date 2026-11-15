@@ -170,7 +170,7 @@ export default function DevisScreen() {
         </Card>
       )}
 
-      <Btn onClick={() => void sendWhatsApp()} disabled={pdfBusy} style={{ width: '100%', background: '#25D366', color: '#04210f', border: 'none', marginBottom: 8, minHeight: 50 }}>{pdfBusy ? 'Préparation…' : '💬 Envoyer sur WhatsApp (avec PDF)'}</Btn>
+      <Btn onClick={() => void sendWhatsApp()} disabled={pdfBusy} style={{ width: '100%', background: '#25D366', color: '#ffffff', border: 'none', marginBottom: 8, minHeight: 50 }}>{pdfBusy ? 'Préparation…' : '💬 Envoyer sur WhatsApp (avec PDF)'}</Btn>
       <Btn color={T.warn} onClick={() => void makePdf()} disabled={pdfBusy} style={{ width: '100%' }}>📄 Voir le PDF seulement</Btn>
 
       {history.length > 0 && (

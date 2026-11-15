@@ -173,7 +173,7 @@ export default function Phone() {
   const notifTimerRef         = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const session = getSavedSession();
-  const [simState, setSimState]         = useState<SimState>(session ? 'app' : 'locked');
+  const [simState, setSimState]         = useState<SimState>(session ? 'app' : 'login');
   const [powering, setPowering]         = useState(false);
   const [loggedActor, setLoggedActor]   = useState<Actor | null>(session?.actor ?? null);
   const [loginUser, setLoginUser]       = useState('');
@@ -305,7 +305,7 @@ export default function Phone() {
       setLoggedActor(null);
       setLoginUser('');
       setLoginPass('');
-      setSimState('locked');
+      setSimState('login');
       setPowering(false);
     }, 900);
   };
@@ -336,7 +336,7 @@ export default function Phone() {
       setDeviceToken(null);
       localStorage.removeItem('dzaryx_session');
       setLoggedActor(null);
-      setSimState('locked');
+      setSimState('login');
     };
     window.addEventListener('dz:auth-expired', onExpired);
     return () => window.removeEventListener('dz:auth-expired', onExpired);
@@ -405,7 +405,7 @@ export default function Phone() {
     }
   };
 
-  const actorCol  = actor === 'houari' ? '#7c3aed' : '#9b8cff';
+  const actorCol  = actor === 'houari' ? '#7a3cff' : '#2f5bff';
   const actorInit = actor === 'houari' ? 'H' : 'K';
 
   return (
@@ -414,7 +414,7 @@ export default function Phone() {
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      background: '#060609',
+      background: 'var(--dz-bg)',
       position: 'relative',
     }}>
       {simState === 'locked' && (
@@ -451,14 +451,14 @@ export default function Phone() {
       {powering && (
         <div style={{
           position: 'absolute', inset: 0, zIndex: 20,
-          background: '#000',
+          background: 'var(--dz-bg)',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           gap: 16,
           animation: 'fadeIn 0.3s ease',
         }}>
           <DzaryxIcon size={64} glow />
-          <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 12, color: '#9b8cff88', letterSpacing: '0.3em' }}>
-            DÉCONNEXION…
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 600, color: 'var(--dz-muted)' }}>
+            Déconnexion…
           </div>
         </div>
       )}
@@ -468,52 +468,41 @@ export default function Phone() {
         <CallOverlay reason={ringing.reason} onAnswer={answerCall} onDecline={declineCall} />
       )}
 
-      {/* Notification banner */}
+      {/* Notification banner : pastille blanche flottante */}
       {notif && simState === 'app' && (
         <div style={{
-          position: 'absolute', top: 38, left: 8, right: 8, zIndex: 30,
-          background: 'rgba(2,8,20,0.97)',
-          border: '1px solid #9b8cff44',
-          borderRadius: 12,
-          padding: '10px 12px',
-          display: 'flex', alignItems: 'center', gap: 10,
-          boxShadow: '0 4px 24px rgba(155,140,255,0.2)',
+          position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 8px)', left: 10, right: 10, zIndex: 30,
+          background: 'var(--dz-surface)', borderRadius: 22, padding: '12px 12px 12px 14px',
+          display: 'flex', alignItems: 'center', gap: 12,
+          boxShadow: '0 2px 4px rgba(var(--dz-shadow-rgb),0.06), 0 24px 50px -18px rgba(var(--dz-shadow-rgb),0.4)',
           animation: 'fadeIn 0.25s ease',
-          backdropFilter: 'blur(12px)',
         }}>
-          <div style={{ fontSize: 16, flexShrink: 0 }}>
+          <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'var(--dz-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, flexShrink: 0 }}>
             {notif.text.startsWith('🚨') || notif.text.startsWith('🔴') ? '🚨'
               : notif.text.startsWith('💰') ? '💰'
               : notif.text.startsWith('☀️') ? '☀️'
               : '🔔'}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 11, color: '#9b8cff', letterSpacing: '0.15em', marginBottom: 3 }}>
-              DZARYX
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 700, color: '#2f5bff', marginBottom: 2 }}>
+              Dzaryx
             </div>
-            <div style={{ fontFamily: 'Inter, system-ui, sans-serif', fontSize: 14, color: '#e6f4ff', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+            <div style={{ fontFamily: 'Inter, system-ui, sans-serif', fontSize: 14.5, fontWeight: 600, color: 'var(--dz-text)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
               {notif.text.replace(/^[^\s]+\s/, '').slice(0, 60)}
             </div>
           </div>
           {notif.deepLink && (
             <button
               onClick={() => { setPage(notif.deepLink!); setNotif(null); }}
-              style={{
-                background: 'rgba(155,140,255,0.12)', border: '1px solid #9b8cff55',
-                borderRadius: 10, padding: '0 14px', minHeight: 40, cursor: 'pointer',
-                fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 11, color: '#9b8cff', letterSpacing: '0.12em',
-                flexShrink: 0,
-              }}
+              style={{ background: 'var(--dz-ink)', border: 'none', borderRadius: 99, padding: '0 16px', minHeight: 40, cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: 13.5, fontWeight: 700, color: '#ffffff', flexShrink: 0 }}
             >
-              VOIR
+              Voir
             </button>
           )}
           <button
             onClick={() => setNotif(null)}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: '#ffffff33', fontSize: 12, padding: '0 2px', flexShrink: 0,
-            }}
+            aria-label="Fermer"
+            style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(var(--dz-ink-rgb),0.06)', border: 'none', cursor: 'pointer', color: 'var(--dz-muted)', fontSize: 15, flexShrink: 0 }}
           >
             ×
           </button>
@@ -531,7 +520,7 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
       onClick={onUnlock}
       style={{
         flex: 1,
-        background: 'radial-gradient(ellipse at 50% 30%, #050e22 0%, #0a0a0c 50%, #000000 100%)',
+        background: 'radial-gradient(ellipse at 50% 30%, var(--dz-surface) 0%, var(--dz-bg) 50%, #000000 100%)',
         display: 'flex', flexDirection: 'column', alignItems: 'center',
         cursor: 'pointer', position: 'relative', overflow: 'hidden',
         userSelect: 'none',
@@ -543,8 +532,8 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
       <div style={{
         position: 'absolute', inset: 0, zIndex: 0,
         backgroundImage: `
-          linear-gradient(rgba(155,140,255,0.035) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(155,140,255,0.035) 1px, transparent 1px)
+          linear-gradient(rgba(47,91,255,0.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(47,91,255,0.035) 1px, transparent 1px)
         `,
         backgroundSize: '44px 44px',
         maskImage: 'radial-gradient(ellipse 70% 70% at 50% 40%, black 20%, transparent 100%)',
@@ -554,7 +543,7 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
         position: 'absolute', top: '28%', left: '50%',
         transform: 'translate(-50%, -50%)',
         width: 300, height: 300,
-        background: 'radial-gradient(circle, rgba(155,140,255,0.07) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, rgba(47,91,255,0.07) 0%, transparent 70%)',
         zIndex: 0,
       }} />
 
@@ -562,15 +551,15 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
         {/* Time */}
         <div style={{ textAlign: 'center' }}>
           <div style={{
-            fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 72, fontWeight: 700,
-            color: '#ffffff', letterSpacing: '-0.03em', lineHeight: 1,
-            textShadow: '0 0 40px rgba(155,140,255,0.25)',
+            fontFamily: 'Manrope, Inter, sans-serif', fontSize: 72, fontWeight: 700,
+            color: 'var(--dz-text)', letterSpacing: '-0.03em', lineHeight: 1,
+            textShadow: '0 0 40px rgba(47,91,255,0.113)',
           }}>
             {getTime()}
           </div>
           <div style={{
             fontFamily: 'Inter', fontSize: 13, fontWeight: 400,
-            color: 'rgba(255,255,255,0.35)', marginTop: 10, letterSpacing: '0.06em',
+            color: 'rgba(var(--dz-ink-rgb),0.35)', marginTop: 10, letterSpacing: '0.06em',
           }}>
             {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
           </div>
@@ -580,14 +569,14 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{
             position: 'absolute', width: 140, height: 140, borderRadius: '50%',
-            border: '1px solid rgba(155,140,255,0.12)',
+            border: '1px solid rgba(47,91,255,0.12)',
             animation: 'halo-breathe 3s ease-in-out infinite',
             top: '50%', left: '50%',
             transform: 'translate(-50%, -50%)',
           }} />
           <div style={{
             position: 'absolute', width: 110, height: 110, borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(155,140,255,0.08) 0%, transparent 70%)',
+            background: 'radial-gradient(circle, rgba(47,91,255,0.08) 0%, transparent 70%)',
             top: '50%', left: '50%',
             transform: 'translate(-50%, -50%)',
             animation: 'halo-breathe 3s ease-in-out infinite',
@@ -597,7 +586,7 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
 
         <div style={{
           fontFamily: 'Inter', fontSize: 11, fontWeight: 500,
-          color: 'rgba(155,140,255,0.4)', letterSpacing: '0.3em',
+          color: 'rgba(47,91,255,0.4)', letterSpacing: '0.3em',
           textTransform: 'uppercase',
         }}>
           Appuyer pour continuer
@@ -605,7 +594,7 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
       </div>
 
       <div style={{ paddingBottom: 28, zIndex: 1 }}>
-        <div style={{ width: 40, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.15)' }} />
+        <div style={{ width: 40, height: 5, borderRadius: 3, background: 'rgba(var(--dz-ink-rgb),0.112)' }} />
       </div>
     </div>
   );
@@ -617,7 +606,7 @@ function HomeScreen({ onOpenApp }: { onOpenApp: () => void }) {
   return (
     <div style={{
       flex: 1,
-      background: 'radial-gradient(ellipse at 50% 25%, #050e22 0%, #0a0a0c 55%, #000 100%)',
+      background: 'radial-gradient(ellipse at 50% 25%, var(--dz-surface) 0%, var(--dz-bg) 55%, #000 100%)',
       display: 'flex', flexDirection: 'column',
       position: 'relative', overflow: 'hidden',
       paddingTop: 'env(safe-area-inset-top, 0px)',
@@ -626,8 +615,8 @@ function HomeScreen({ onOpenApp }: { onOpenApp: () => void }) {
       <div style={{
         position: 'absolute', inset: 0, zIndex: 0,
         backgroundImage: `
-          linear-gradient(rgba(155,140,255,0.03) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(155,140,255,0.03) 1px, transparent 1px)
+          linear-gradient(rgba(47,91,255,0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(47,91,255,0.03) 1px, transparent 1px)
         `,
         backgroundSize: '48px 48px',
         maskImage: 'radial-gradient(ellipse 80% 60% at 50% 30%, black 10%, transparent 100%)',
@@ -635,10 +624,10 @@ function HomeScreen({ onOpenApp }: { onOpenApp: () => void }) {
 
       {/* Top time */}
       <div style={{ textAlign: 'center', paddingTop: 24, zIndex: 1 }}>
-        <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 40, fontWeight: 700, color: '#fff', textShadow: '0 0 24px rgba(155,140,255,0.2)' }}>
+        <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 40, fontWeight: 700, color: 'var(--dz-text)', textShadow: '0 0 24px rgba(47,91,255,0.09)' }}>
           {getTime()}
         </div>
-        <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 400, color: 'rgba(255,255,255,0.3)', marginTop: 6, letterSpacing: '0.04em' }}>
+        <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 400, color: 'rgba(var(--dz-ink-rgb),0.34)', marginTop: 6, letterSpacing: '0.04em' }}>
           {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
         </div>
       </div>
@@ -653,22 +642,22 @@ function HomeScreen({ onOpenApp }: { onOpenApp: () => void }) {
             <div style={{ position: 'relative' }}>
               <div style={{
                 position: 'absolute', inset: -16, borderRadius: '50%',
-                background: 'radial-gradient(circle, rgba(155,140,255,0.12) 0%, transparent 70%)',
+                background: 'radial-gradient(circle, rgba(47,91,255,0.12) 0%, transparent 70%)',
                 animation: 'halo-breathe 3s ease-in-out infinite',
               }} />
               <div style={{
                 borderRadius: 28, overflow: 'hidden',
-                boxShadow: '0 0 30px rgba(155,140,255,0.3), 0 0 60px rgba(155,140,255,0.1), 0 8px 32px rgba(0,0,0,0.6)',
-                border: '1px solid rgba(155,140,255,0.25)',
+                boxShadow: '0 0 30px rgba(47,91,255,0.135), 0 0 60px rgba(47,91,255,0.045), 0 8px 32px rgba(15,17,30,0.132)',
+                border: '1px solid rgba(47,91,255,0.25)',
               }}>
                 <DzaryxIcon size={108} />
               </div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 14, fontWeight: 700, color: 'rgba(255,255,255,0.9)', letterSpacing: '0.3em' }}>
+              <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 14, fontWeight: 700, color: 'rgb(12,14,26)', letterSpacing: '0.3em' }}>
                 DZARYX
               </div>
-              <div style={{ fontFamily: 'Inter', fontSize: 11, color: 'rgba(155,140,255,0.5)', marginTop: 3, letterSpacing: '0.08em' }}>
+              <div style={{ fontFamily: 'Inter', fontSize: 11, color: 'rgba(47,91,255,0.5)', marginTop: 3, letterSpacing: '0.08em' }}>
                 Assistant IA · Fik Conciergerie
               </div>
             </div>
@@ -677,7 +666,7 @@ function HomeScreen({ onOpenApp }: { onOpenApp: () => void }) {
       </div>
 
       <div style={{ paddingBottom: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 1 }}>
-        <div style={{ width: 40, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.15)' }} />
+        <div style={{ width: 40, height: 5, borderRadius: 3, background: 'rgba(var(--dz-ink-rgb),0.112)' }} />
       </div>
     </div>
   );
@@ -693,83 +682,37 @@ function LoginScreen({
   onLogin: () => void; loading: boolean; error: string;
   passRef: React.RefObject<HTMLInputElement | null>;
 }) {
+  const ready = !!user && !!pass && !loading;
+  const label: React.CSSProperties = { fontFamily: 'Inter', fontSize: 13, fontWeight: 600, color: 'var(--dz-muted)' };
   return (
     <div style={{
-      flex: 1,
-      background: 'radial-gradient(ellipse at 50% 40%, #050e22 0%, #0a0a0c 60%, #000 100%)',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      gap: 0, padding: '0 28px',
-      position: 'relative', overflow: 'hidden',
-      paddingTop: 'env(safe-area-inset-top, 0px)',
-      paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+      flex: 1, background: 'var(--dz-bg)', display: 'flex', flexDirection: 'column', justifyContent: 'center',
+      padding: '0 24px', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)',
     }}>
-      {/* Background grid */}
-      <div style={{
-        position: 'absolute', inset: 0, zIndex: 0,
-        backgroundImage: `
-          linear-gradient(rgba(155,140,255,0.03) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(155,140,255,0.03) 1px, transparent 1px)
-        `,
-        backgroundSize: '40px 40px',
-        maskImage: 'radial-gradient(ellipse 90% 90% at 50% 50%, black 20%, transparent 100%)',
-      }} />
-      {/* Center glow */}
-      <div style={{
-        position: 'absolute', top: '40%', left: '50%',
-        transform: 'translate(-50%, -50%)',
-        width: 320, height: 320,
-        background: 'radial-gradient(circle, rgba(155,140,255,0.06) 0%, transparent 70%)',
-        zIndex: 0,
-      }} />
-
-      <div style={{ zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 32, width: '100%', maxWidth: 360, animation: 'fadeUp 0.5s ease both' }}>
-        {/* Brand */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-          <div style={{ position: 'relative' }}>
-            <div style={{
-              position: 'absolute', inset: -12, borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(155,140,255,0.1) 0%, transparent 70%)',
-              animation: 'halo-breathe 3s ease-in-out infinite',
-            }} />
-            <DzaryxIcon size={80} glow />
-          </div>
-          <div>
-            <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 22, fontWeight: 900, color: '#9b8cff', letterSpacing: '0.4em', textShadow: '0 0 20px rgba(155,140,255,0.4)', textAlign: 'center' }}>
-              DZARYX
-            </div>
-            <div style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.15em', textAlign: 'center', marginTop: 4 }}>
-              FIK CONCIERGERIE · ORAN
-            </div>
-          </div>
+      <div style={{ width: '100%', maxWidth: 400, margin: '0 auto', animation: 'fadeUp 0.5s ease both' }}>
+        <DzaryxIcon size={64} glow />
+        <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 34, fontWeight: 800, color: 'var(--dz-text)', letterSpacing: '-0.045em', lineHeight: 1.05, marginTop: 26 }}>
+          Bon retour<br />sur Dzaryx
+        </div>
+        <div style={{ fontFamily: 'Inter', fontSize: 15, color: 'var(--dz-muted)', marginTop: 10 }}>
+          FIK Conciergerie · Oran
         </div>
 
-        {/* Form card */}
-        <div style={{
-          width: '100%',
-          background: 'rgba(7,17,31,0.6)',
-          border: '1px solid rgba(155,140,255,0.12)',
-          borderRadius: 20,
-          padding: '24px 20px',
-          display: 'flex', flexDirection: 'column', gap: 16,
-          backdropFilter: 'blur(20px)',
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontFamily: 'Inter', fontSize: 11.5, fontWeight: 600, color: 'rgba(155,140,255,0.5)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-              Identifiant
-            </label>
+        <div style={{ marginTop: 30, background: 'var(--dz-surface)', borderRadius: 28, padding: '22px 18px 18px', display: 'flex', flexDirection: 'column', gap: 14, boxShadow: '0 1px 2px rgba(var(--dz-shadow-rgb),0.04), 0 20px 44px -24px rgba(var(--dz-shadow-rgb),0.25)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            <label style={label}>Identifiant</label>
             <input
               value={user}
               onChange={e => onUser(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') passRef.current?.focus(); }}
               placeholder="kouider / houari"
               autoComplete="username"
+              autoCapitalize="none"
               style={loginInputStyle}
             />
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontFamily: 'Inter', fontSize: 11.5, fontWeight: 600, color: 'rgba(155,140,255,0.5)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-              Mot de passe
-            </label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            <label style={label}>Mot de passe</label>
             <input
               ref={passRef as React.RefObject<HTMLInputElement>}
               type="password"
@@ -783,27 +726,23 @@ function LoginScreen({
           </div>
 
           {error && (
-            <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 500, color: '#ff3366', textAlign: 'center', animation: 'fadeIn 0.2s ease' }}>
+            <div style={{ fontFamily: 'Inter', fontSize: 13.5, fontWeight: 600, color: '#e0304f', background: 'rgba(224,48,79,0.08)', borderRadius: 14, padding: '11px 14px', animation: 'fadeIn 0.2s ease' }}>
               {error}
             </div>
           )}
 
           <button
             onClick={onLogin}
-            disabled={loading || !user || !pass}
+            disabled={!ready}
             style={{
-              marginTop: 4, padding: '15px',
-              background: loading ? 'rgba(155,140,255,0.12)' : (!user || !pass ? 'rgba(155,140,255,0.06)' : 'linear-gradient(135deg, rgba(155,140,255,0.18) 0%, rgba(0,180,220,0.12) 100%)'),
-              border: `1.5px solid ${!user || !pass ? 'rgba(155,140,255,0.15)' : 'rgba(155,140,255,0.45)'}`,
-              borderRadius: 14,
-              fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 11, fontWeight: 700, color: !user || !pass ? 'rgba(155,140,255,0.3)' : '#9b8cff',
-              cursor: loading || !user || !pass ? 'default' : 'pointer',
-              letterSpacing: '0.2em',
-              boxShadow: !user || !pass ? 'none' : '0 0 20px rgba(155,140,255,0.2)',
-              transition: 'all 0.2s ease',
+              marginTop: 4, minHeight: 54, border: 'none', borderRadius: 99,
+              background: 'var(--dz-ink)', opacity: ready ? 1 : 0.35,
+              fontFamily: 'Inter, sans-serif', fontSize: 16, fontWeight: 700, color: '#ffffff',
+              cursor: ready ? 'pointer' : 'default',
+              boxShadow: ready ? '0 14px 28px -14px rgba(var(--dz-ink-rgb),0.6)' : 'none',
             }}
           >
-            {loading ? 'CONNEXION…' : 'SE CONNECTER'}
+            {loading ? 'Connexion…' : 'Se connecter'}
           </button>
         </div>
       </div>
@@ -812,13 +751,11 @@ function LoginScreen({
 }
 
 const loginInputStyle: React.CSSProperties = {
-  width: '100%', boxSizing: 'border-box',
-  background: 'rgba(0,0,0,0.4)',
-  border: '1px solid rgba(155,140,255,0.18)',
-  borderRadius: 12, padding: '13px 16px',
-  fontFamily: 'Inter', fontSize: 15, fontWeight: 400,
-  color: 'rgba(255,255,255,0.88)', outline: 'none',
-  transition: 'border-color 0.2s ease',
+  width: '100%', boxSizing: 'border-box', minHeight: 52,
+  background: 'var(--dz-surface2)', border: '1px solid rgba(var(--dz-ink-rgb),0.08)',
+  borderRadius: 16, padding: '0 16px',
+  fontFamily: 'Inter', fontSize: 16, fontWeight: 500,
+  color: 'var(--dz-text)', outline: 'none',
 };
 
 // ─── Offline Banner ───────────────────────────────────────────────────────────
@@ -839,7 +776,7 @@ function OfflineBanner() {
   }, []);
   if (!offline) return null;
   return (
-    <div style={{ background: 'rgba(255,179,71,0.16)', borderBottom: '1px solid rgba(255,179,71,0.3)', color: '#ffb347', fontSize: 11, fontWeight: 700, fontFamily: 'Inter, sans-serif', textAlign: 'center', padding: '5px 8px', flexShrink: 0 }}>
+    <div style={{ background: 'rgba(184,110,0,0.16)', borderBottom: '1px solid rgba(184,110,0,0.3)', color: '#b86e00', fontSize: 11, fontWeight: 700, fontFamily: 'Inter, sans-serif', textAlign: 'center', padding: '5px 8px', flexShrink: 0 }}>
       ⚠️ Hors ligne — données de la dernière synchro
     </div>
   );
@@ -847,111 +784,59 @@ function OfflineBanner() {
 
 // ─── Status Bar ───────────────────────────────────────────────────────────────
 
-function StatusBar({ wsOk, page, actorCol, actorInit, onLogout, onBack }: {
+function StatusBar({ wsOk, page, actorCol: _actorCol, actorInit, onLogout, onBack }: {
   wsOk: boolean; page: Page;
   actorCol: string; actorInit: string; onLogout: () => void; onBack?: () => void;
 }) {
   const tab = TABS.find(t => t.id === page);
   const [showMenu, setShowMenu] = useState(false);
+  const round: React.CSSProperties = { width: 40, height: 40, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 };
 
   return (
-    <div style={{
-      width: '100%',
-      background: 'rgba(9,9,13,0.78)',
-      backdropFilter: 'blur(18px) saturate(1.4)', WebkitBackdropFilter: 'blur(18px) saturate(1.4)',
-      borderBottom: '1px solid rgba(255,255,255,0.06)',
-      flexShrink: 0,
-      position: 'relative', zIndex: 5,
-    }}>
+    <div style={{ width: '100%', background: 'var(--dz-bg)', flexShrink: 0, position: 'relative', zIndex: 5 }}>
       {/* Safe-area spacer */}
       <div style={{ height: 'env(safe-area-inset-top, 0px)' }} />
 
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 14px', height: 50,
-      }}>
-        {/* Retour (sous-pages) ou marque : emblème + DZARYX + état de la liaison */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', height: 56 }}>
+        {/* Retour (sous-pages) ou marque : emblème + Dzaryx + état de la liaison */}
         {onBack ? (
-          <button onClick={onBack} aria-label="Retour" style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 92, height: 40, padding: '0 10px 0 4px', marginLeft: -4, borderRadius: 12, border: 'none', background: 'transparent', color: '#9b8cff', fontFamily: 'Inter, sans-serif', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
-            Retour
-          </button>
-        ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 92 }}>
-          <DzaryxIcon size={30} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <span style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 17, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1, background: 'linear-gradient(120deg, #ffffff 40%, #e2d9ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Dzaryx</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Inter, sans-serif', fontSize: 10.5, fontWeight: 600, lineHeight: 1, color: wsOk ? '#3ee39b' : '#a6a3b8' }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: wsOk ? '#3ee39b' : '#ffc061', boxShadow: wsOk ? '0 0 8px #3ee39b' : 'none' }} />
-              {wsOk ? 'En ligne' : 'Connexion…'}
+          <>
+            <button onClick={onBack} aria-label="Retour" title="Retour" style={{ ...round, background: 'var(--dz-surface)', color: 'var(--dz-text)', boxShadow: '0 1px 2px rgba(var(--dz-shadow-rgb),0.06), 0 6px 16px -8px rgba(var(--dz-shadow-rgb),0.2)' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+            </button>
+            <span style={{ flex: 1, minWidth: 0, textAlign: 'center', fontFamily: 'Manrope, Inter, sans-serif', fontSize: 15.5, fontWeight: 800, color: 'var(--dz-text)', letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {(() => { const n = TOOL_INFO[page]?.name; if (n) return n; const l = tab?.label ?? page; return l.charAt(0).toUpperCase() + l.slice(1).toLowerCase(); })()}
             </span>
+          </>
+        ) : (
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <DzaryxIcon size={36} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <span style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 18, fontWeight: 800, letterSpacing: '-0.035em', lineHeight: 1, color: 'var(--dz-text)' }}>Dzaryx</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, lineHeight: 1, color: wsOk ? '#0a9a5e' : 'var(--dz-faint)' }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: wsOk ? '#0a9a5e' : '#f5a524' }} />
+                {wsOk ? 'En ligne' : 'Connexion…'}
+              </span>
+            </div>
           </div>
-        </div>
         )}
 
-        {/* Page courante */}
-        <span style={{
-          fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 14, fontWeight: 700, color: '#f7f5ff', letterSpacing: '-0.01em', opacity: onBack ? 1 : 0,
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 150,
-        }}>
-          {(() => { const n = TOOL_INFO[page]?.name; if (n) return n; const l = tab?.label ?? page; return l.charAt(0).toUpperCase() + l.slice(1).toLowerCase(); })()}
-        </span>
-
         {/* Avatar — tap = menu déconnexion */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', minWidth: 92 }}>
-          <button
-            onClick={() => setShowMenu(m => !m)}
-            style={{
-              cursor: 'pointer', padding: 0,
-              width: 32, height: 32, borderRadius: '50%',
-              background: `radial-gradient(circle at 35% 30%, ${actorCol}40, ${actorCol}10)`,
-              border: `1.5px solid ${actorCol}77`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 11, fontWeight: 700, color: actorCol,
-              boxShadow: `0 0 12px ${actorCol}33`,
-            }}
-          >
-            {actorInit}
-          </button>
-        </div>
+        <button onClick={() => setShowMenu(m => !m)} aria-label="Mon compte" style={{ ...round, background: 'var(--dz-ink)', color: '#ffffff', fontFamily: 'Manrope, Inter, sans-serif', fontSize: 14, fontWeight: 800 }}>
+          {actorInit}
+        </button>
       </div>
 
       {/* Dropdown menu */}
       {showMenu && (
         <>
-          {/* Backdrop */}
-          <div
-            onClick={() => setShowMenu(false)}
-            style={{ position: 'fixed', inset: 0, zIndex: 98 }}
-          />
-          <div style={{
-            position: 'absolute', top: '100%', right: 12, zIndex: 99,
-            background: 'rgba(8,8,12,0.97)',
-            border: '1px solid rgba(155,140,255,0.15)',
-            borderRadius: 12,
-            overflow: 'hidden',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-            minWidth: 160,
-          }}>
-            <div style={{
-              padding: '8px 14px',
-              borderBottom: '1px solid rgba(155,140,255,0.08)',
-              fontFamily: 'Inter', fontSize: 11, fontWeight: 600,
-              color: 'rgba(255,255,255,0.25)', letterSpacing: '0.1em', textTransform: 'uppercase',
-            }}>
-              Connecté en tant que {actorInit === 'K' ? 'Kouider' : 'Houari'}
+          <div onClick={() => setShowMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 98 }} />
+          <div style={{ position: 'absolute', top: '100%', right: 14, zIndex: 99, background: 'var(--dz-surface)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 2px 4px rgba(var(--dz-shadow-rgb),0.06), 0 24px 50px -18px rgba(var(--dz-shadow-rgb),0.35)', minWidth: 210 }}>
+            <div style={{ padding: '14px 16px 10px', fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: 'var(--dz-faint)' }}>
+              Connecté en tant que
+              <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 16, fontWeight: 800, color: 'var(--dz-text)', marginTop: 2 }}>{actorInit === 'K' ? 'Kouider' : 'Houari'}</div>
             </div>
-            <button
-              onClick={() => { setShowMenu(false); onLogout(); }}
-              style={{
-                width: '100%', padding: '12px 14px',
-                background: 'none', border: 'none', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 10,
-                fontFamily: 'Inter', fontSize: 13, fontWeight: 500,
-                color: '#ff3366',
-                textAlign: 'left',
-              }}
-            >
+            <button onClick={() => { setShowMenu(false); onLogout(); }} style={{ width: '100%', padding: '13px 16px', background: 'none', border: 'none', borderTop: '1px solid rgba(var(--dz-ink-rgb),0.07)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, fontFamily: 'Inter', fontSize: 14, fontWeight: 600, color: '#e0304f', textAlign: 'left' }}>
               <span style={{ fontSize: 16 }}>⏻</span>
               Se déconnecter
             </button>
@@ -982,40 +867,34 @@ function NavIcon({ id, col }: { id: Page; col: string }) {
 }
 
 function NavBar({ page, onPage, actor }: { page: Page; onPage: (p: Page) => void; actor: string }) {
-  const accent = actor === 'houari' ? '#a78bfa' : '#ffffff';
   const primary = (PRIMARY[actor] ?? PRIMARY.kouider)!;
   const tabs = primary.map(id => TABS.find(t => t.id === id)).filter((t): t is (typeof TABS)[number] => !!t);
   const onPlus = !primary.includes(page);
   const item = (id: Page, label: string, active: boolean) => (
     <button key={id} onClick={() => onPage(id)} style={{
-      flex: 1, height: 52, margin: '0 2px', borderRadius: 18, border: 'none', cursor: 'pointer', position: 'relative',
-      background: active ? 'linear-gradient(160deg, rgba(255,255,255,0.13), rgba(255,255,255,0.04))' : 'transparent',
-      boxShadow: active ? 'inset 0 1px 0 rgba(255,255,255,0.12)' : 'none',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+      flex: 1, height: 56, border: 'none', cursor: 'pointer', background: 'transparent', padding: 0,
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
     }}>
-      <div style={{ display: 'flex' }}>
-        <NavIcon id={id} col={active ? '#ffffff' : '#8e8aa3'} />
-      </div>
-      <span style={{ fontFamily: 'Inter', fontSize: 10.5, fontWeight: active ? 700 : 500, color: active ? '#ffffff' : '#8e8aa3' }}>{label}</span>
+      <NavIcon id={id} col={active ? '#0c0e1a' : '#a3a6b4'} />
+      <span style={{ fontFamily: 'Inter', fontSize: 10.5, fontWeight: active ? 700 : 600, color: active ? 'var(--dz-text)' : '#a3a6b4' }}>{label}</span>
+      <span style={{ width: 4, height: 4, borderRadius: '50%', background: active ? '#2f5bff' : 'transparent', marginTop: -1 }} />
     </button>
   );
   const voiceActive = page === 'voice';
-  const half = Math.ceil(tabs.filter(t => t.id !== 'voice').length / 2);
   const side = tabs.filter(t => t.id !== 'voice');
+  const half = Math.ceil(side.length / 2);
   const label = (t: (typeof TABS)[number]) => t.label.charAt(0) + t.label.slice(1).toLowerCase();
   return (
-    <div style={{ width: '100%', flexShrink: 0, position: 'relative', zIndex: 5, background: 'linear-gradient(0deg, #09090d 60%, rgba(9,9,13,0))', padding: '6px 12px calc(8px + env(safe-area-inset-bottom, 0px))' }}>
-      {/* Barre flottante en verre, micro au centre (dégradé signature) */}
-      <div style={{ display: 'flex', alignItems: 'center', height: 64, borderRadius: 26, padding: '0 6px',
-        background: 'linear-gradient(160deg, rgba(40,37,54,0.86), rgba(20,19,28,0.92))', backdropFilter: 'blur(24px) saturate(1.5)', WebkitBackdropFilter: 'blur(24px) saturate(1.5)',
-        border: '1px solid rgba(255,255,255,0.09)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.09), 0 18px 40px -12px rgba(0,0,0,0.9)' }}>
+    <div style={{ width: '100%', flexShrink: 0, position: 'relative', zIndex: 5, background: 'var(--dz-surface)', borderTop: '1px solid rgba(var(--dz-ink-rgb),0.07)', padding: '4px 8px calc(4px + env(safe-area-inset-bottom, 0px))' }}>
+      {/* Barre blanche pleine largeur, bouton micro rond à l'encre au centre */}
+      <div style={{ display: 'flex', alignItems: 'center', height: 60 }}>
         {side.slice(0, half).map(t => item(t.id, label(t), page === t.id))}
         <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
           <button onClick={() => onPage('voice')} aria-label="Voix" style={{
-            width: 56, height: 56, marginTop: -26, borderRadius: 20, position: 'relative', zIndex: 1, cursor: 'pointer', padding: 0, border: 'none',
-            background: 'linear-gradient(135deg, #8a7bff 0%, #c86bff 50%, #ff7aa8 100%)',
-            boxShadow: voiceActive ? '0 0 0 4px rgba(200,107,255,0.25), 0 14px 30px -6px rgba(200,107,255,0.9)' : '0 12px 26px -8px rgba(200,107,255,0.85), inset 0 1px 0 rgba(255,255,255,0.4)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', transform: 'rotate(0deg)',
+            width: 60, height: 60, marginTop: -30, borderRadius: '50%', position: 'relative', zIndex: 1, cursor: 'pointer', padding: 0,
+            border: '5px solid #ffffff', background: voiceActive ? '#2f5bff' : 'var(--dz-ink)',
+            boxShadow: voiceActive ? '0 14px 28px -10px rgba(47,91,255,0.7)' : '0 14px 28px -10px rgba(var(--dz-ink-rgb),0.55)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
               <rect x="9" y="3" width="6" height="11" rx="3" fill="#fff" />
@@ -1079,56 +958,57 @@ function ToolsGrid({ onOpen, actor }: { onOpen: (p: Page) => void; actor: string
     (!t.kouiderOnly || actor === 'kouider') &&
     (!t.houariOnly  || actor === 'houari')
   );
-  const accent = actor === 'houari' ? '#a78bfa' : '#9b8cff';
-  const norm = (x: string) => x.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const norm = (x: string) => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const info = (t: (typeof TABS)[number]) => TOOL_INFO[t.id] ?? { name: t.label.charAt(0) + t.label.slice(1).toLowerCase(), hint: '', cat: 'Perso & PC' };
   const shown = visible.filter(t => { const i = info(t); return !q || norm(`${i.name} ${i.hint} ${t.label}`).includes(norm(q)); });
-  // Une couleur par thème : on repère les outils d'un coup d'œil
-  const CAT_COL: Record<string, string> = { 'Activité': '#9b8cff', 'Clients & ventes': '#34d399', 'Marketing': '#f472b6', 'Pilotage': '#fbbf24', 'Perso & PC': '#a78bfa' };
-  const tile = (t: (typeof TABS)[number]) => {
+  // Une teinte par thème : on repère les outils d'un coup d'œil
+  const CAT_COL: Record<string, string> = { 'Activité': '#2f5bff', 'Clients & ventes': '#0a9a5e', 'Marketing': '#d6338a', 'Pilotage': '#f5a524', 'Perso & PC': '#7a3cff' };
+  const ink = 'var(--dz-text)';
+  // Ligne d'outil : pastille teintée, nom, explication, chevron
+  const row = (t: (typeof TABS)[number], last: boolean) => {
     const i = info(t);
-    const c = actor === 'houari' ? accent : (CAT_COL[i.cat] ?? accent);
+    const c = CAT_COL[i.cat] ?? '#2f5bff';
     return (
       <button key={t.id} onClick={() => onOpen(t.id)} style={{
-        position: 'relative', overflow: 'hidden',
-        background: `radial-gradient(120% 100% at 0% 0%, ${c}1c, transparent 55%), linear-gradient(155deg, rgba(30,28,42,0.82), rgba(15,14,21,0.94))`,
-        border: `1px solid ${c}2e`, borderRadius: 18, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07), 0 12px 28px -20px rgba(0,0,0,0.9)',
-        padding: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 11, textAlign: 'left', minHeight: 68, minWidth: 0,
+        width: '100%', background: 'transparent', border: 'none', padding: '0 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, textAlign: 'left', minHeight: 62,
         fontFamily: 'Inter, -apple-system, "Segoe UI", Roboto, sans-serif',
       }}>
-        <span style={{ width: 42, height: 42, borderRadius: 13, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 21,
-          background: `radial-gradient(circle at 35% 25%, ${c}55, ${c}12 70%)`, border: `1px solid ${c}55`, boxShadow: `0 8px 18px -8px ${c}aa, inset 0 1px 0 rgba(255,255,255,0.2)` }}>{t.icon}</span>
-        <span style={{ minWidth: 0 }}>
-          <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#f4f7ff', lineHeight: 1.2 }}>{i.name}</span>
-          {i.hint && <span style={{ display: 'block', fontSize: 12, color: '#a6a3b8', marginTop: 2, lineHeight: 1.25 }}>{i.hint}</span>}
+        <span style={{ width: 42, height: 42, borderRadius: 14, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, background: `color-mix(in srgb, ${c} 9%, transparent)` }}>{t.icon}</span>
+        <span style={{ flex: 1, minWidth: 0, alignSelf: 'stretch', display: 'flex', alignItems: 'center', gap: 8, borderBottom: last ? 'none' : '1px solid rgba(var(--dz-ink-rgb),0.06)' }}>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: 'block', fontSize: 15.5, fontWeight: 700, color: ink, lineHeight: 1.2, letterSpacing: '-0.01em' }}>{i.name}</span>
+            {i.hint && <span style={{ display: 'block', fontSize: 12.5, color: '#7b7f90', marginTop: 2, lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{i.hint}</span>}
+          </span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c3c5cf" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M9 6l6 6-6 6" /></svg>
         </span>
       </button>
     );
   };
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: 'radial-gradient(120% 60% at 50% 0%, #14121f 0%, #09090d 60%)', color: '#e8f0ff', fontFamily: 'Inter, -apple-system, "Segoe UI", Roboto, sans-serif', padding: '18px 16px 130px' }}>
-      <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 11, letterSpacing: '0.26em', color: accent, fontWeight: 600 }}>OUTILS</div>
-      <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.035em', marginTop: 6, background: 'linear-gradient(120deg, #ffffff 30%, #efe6ff 75%, #ffb3d9)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Tout Dzaryx</div>
-      <div style={{ fontSize: 13, color: '#a6a3b8', marginTop: 4 }}>{visible.length} outils · touche pour ouvrir, ‹ Retour pour revenir ici</div>
-      <div style={{ position: 'relative', margin: '14px 0 4px' }}>
-        <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', fontSize: 14, opacity: 0.5 }}>🔍</span>
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Chercher un outil…" style={{ width: '100%', boxSizing: 'border-box', minHeight: 48, background: '#131319', border: '1px solid rgba(200,190,255,0.14)', borderRadius: 999, padding: '0 16px 0 42px', color: '#f4f7ff', fontFamily: 'inherit', fontSize: 16, outline: 'none' }} />
+    <div className="dz-scroll" style={{ height: '100%', overflowY: 'auto', background: 'var(--dz-bg)', color: ink, fontFamily: 'Inter, -apple-system, "Segoe UI", Roboto, sans-serif', padding: '8px 16px 130px' }}>
+      <div style={{ padding: '0 4px' }}>
+        <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 32, fontWeight: 800, letterSpacing: '-0.04em', color: ink }}>Tous les outils</div>
+        <div style={{ fontSize: 14, color: 'var(--dz-muted)', marginTop: 4 }}>{visible.length} outils rangés par thème</div>
+      </div>
+      <div style={{ position: 'relative', margin: '16px 0 4px' }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9195a6" strokeWidth="2.2" strokeLinecap="round" style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Chercher un outil…" style={{ width: '100%', boxSizing: 'border-box', minHeight: 50, background: 'var(--dz-surface)', border: '1px solid rgba(var(--dz-ink-rgb),0.06)', borderRadius: 999, padding: '0 16px 0 44px', color: ink, fontFamily: 'inherit', fontSize: 16, outline: 'none', boxShadow: '0 1px 2px rgba(var(--dz-shadow-rgb),0.04)' }} />
       </div>
       {TOOL_CATS.map(cat => {
         const items = shown.filter(t => info(t).cat === cat);
         if (!items.length) return null;
         return (
           <div key={cat}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0 10px' }}>
-              <span style={{ width: 6, height: 6, borderRadius: 2, background: actor === 'houari' ? accent : (CAT_COL[cat] ?? accent), boxShadow: `0 0 8px ${actor === 'houari' ? accent : (CAT_COL[cat] ?? accent)}` }} />
-              <span style={{ fontSize: 12, fontWeight: 800, color: '#bcb9cc', letterSpacing: '0.14em', textTransform: 'uppercase' }}>{cat}</span>
-              <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${(actor === 'houari' ? accent : (CAT_COL[cat] ?? accent))}55, transparent)` }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '22px 6px 10px' }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: CAT_COL[cat] ?? '#2f5bff' }} />
+              <span style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 17, fontWeight: 800, color: ink, letterSpacing: '-0.02em' }}>{cat}</span>
+              <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--dz-faint)' }}>{items.length}</span>
             </div>
-            <div className="dz-in" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 160px), 1fr))', gap: 9 }}>{items.map(tile)}</div>
+            <div style={{ background: 'var(--dz-surface)', borderRadius: 24, overflow: 'hidden', boxShadow: '0 1px 2px rgba(var(--dz-shadow-rgb),0.04), 0 10px 28px -16px rgba(var(--dz-shadow-rgb),0.16)' }}>{items.map((t, k) => row(t, k === items.length - 1))}</div>
           </div>
         );
       })}
-      {!shown.length && <div style={{ textAlign: 'center', color: '#a6a3b8', fontSize: 14, marginTop: 30 }}>Aucun outil ne correspond.</div>}
+      {!shown.length && <div style={{ textAlign: 'center', color: 'var(--dz-muted)', fontSize: 14, marginTop: 30 }}>Aucun outil ne correspond.</div>}
     </div>
   );
 }
@@ -1137,25 +1017,25 @@ function ToolsGrid({ onOpen, actor }: { onOpen: (p: Page) => void; actor: string
 function Onboarding({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState(0);
   const slides = [
-    { icon: '🔮', title: 'Bienvenue sur Dzaryx', text: "Ton assistant IA qui gère toute ta conciergerie : voitures, immo, demandes, finances — depuis ton téléphone." },
+    { icon: '👋', title: 'Bienvenue sur Dzaryx', text: "Ton assistant qui gère toute ta conciergerie : voitures, immo, demandes, finances — depuis ton téléphone." },
     { icon: '💬', title: 'Parle, écris, demande', text: 'Vocal ou chat : crée une résa, un devis, une réponse client dans sa langue. Dzaryx fait le reste.' },
     { icon: '⚡', title: 'Tout est synchronisé', text: 'Ton site et l\'app partagent les mêmes données. Réservations, agenda Google, avis, newsletter — automatique.' },
   ];
   const s = slides[step];
   const last = step === slides.length - 1;
   return (
-    <div style={{ position: 'absolute', inset: 0, zIndex: 40, background: 'radial-gradient(120% 100% at 50% 0%, #14121f, #060609)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 28px', textAlign: 'center' }}>
-      <div style={{ marginBottom: 24 }}><DzaryxIcon size={96} glow /></div>
-      <div style={{ fontSize: 40, marginBottom: 14 }}>{s.icon}</div>
-      <div style={{ fontSize: 24, fontWeight: 800, color: '#fff', marginBottom: 12, letterSpacing: '-0.02em' }}>{s.title}</div>
-      <div style={{ fontSize: 14.5, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, maxWidth: 320, marginBottom: 30 }}>{s.text}</div>
+    <div style={{ position: 'absolute', inset: 0, zIndex: 40, background: 'var(--dz-bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 28px', textAlign: 'center', fontFamily: 'Inter, sans-serif' }}>
+      <div style={{ marginBottom: 28 }}><DzaryxIcon size={84} glow /></div>
+      <div style={{ width: 76, height: 76, borderRadius: '50%', background: 'var(--dz-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36, marginBottom: 18, boxShadow: '0 10px 28px -16px rgba(var(--dz-shadow-rgb),0.3)' }}>{s.icon}</div>
+      <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 26, fontWeight: 800, color: 'var(--dz-text)', marginBottom: 12, letterSpacing: '-0.035em' }}>{s.title}</div>
+      <div style={{ fontSize: 15, color: 'var(--dz-muted)', lineHeight: 1.6, maxWidth: 320, marginBottom: 30 }}>{s.text}</div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 26 }}>
         {slides.map((_, i) => (
-          <div key={i} style={{ width: i === step ? 22 : 7, height: 7, borderRadius: 4, background: i === step ? '#34f5e0' : 'rgba(255,255,255,0.2)', transition: 'all .2s' }} />
+          <div key={i} style={{ width: i === step ? 22 : 7, height: 7, borderRadius: 4, background: i === step ? 'var(--dz-ink)' : 'rgba(var(--dz-ink-rgb),0.16)', transition: 'all .2s' }} />
         ))}
       </div>
-      <button onClick={() => last ? onDone() : setStep(step + 1)} style={{ width: '100%', maxWidth: 320, padding: '15px', borderRadius: 14, border: 'none', background: 'linear-gradient(120deg, #13b9c9, #34f5e0)', color: '#04201f', fontFamily: 'Inter', fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>{last ? 'Commencer 🚀' : 'Suivant'}</button>
-      {!last && <button onClick={onDone} style={{ marginTop: 12, background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter', fontSize: 13, cursor: 'pointer' }}>Passer</button>}
+      <button onClick={() => last ? onDone() : setStep(step + 1)} style={{ width: '100%', maxWidth: 320, minHeight: 54, borderRadius: 99, border: 'none', background: 'var(--dz-ink)', color: '#ffffff', fontFamily: 'Inter', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>{last ? 'Commencer' : 'Suivant'}</button>
+      {!last && <button onClick={onDone} style={{ marginTop: 12, minHeight: 40, background: 'none', border: 'none', color: 'var(--dz-faint)', fontFamily: 'Inter', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Passer</button>}
     </div>
   );
 }

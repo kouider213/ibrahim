@@ -57,13 +57,13 @@ export default function DocumentsScreen() {
     <Screen header={<PageHeader eyebrow="Base clients" title="Documents" subtitle="Pièces d'identité, contrats PDF, lecture automatique" />}>
       {/* Visionneuse plein écran */}
       {viewDoc && createPortal(
-        <div onClick={() => setViewDoc(null)} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: '#000', display: 'flex', flexDirection: 'column', fontFamily: T.font, color: T.text }}>
+        <div onClick={() => setViewDoc(null)} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'var(--dz-bg)', display: 'flex', flexDirection: 'column', fontFamily: T.font, color: T.text }}>
           <div onClick={e => e.stopPropagation()} style={{ padding: 'calc(12px + env(safe-area-inset-top)) 14px 10px', display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 15, fontWeight: 700 }}>{TYPE_FR[viewDoc.type] ?? viewDoc.type} · {viewDoc.client_name}</div>
               <div style={{ fontSize: 13, color: T.muted }}>{new Date(viewDoc.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}{viewDoc.notes ? ` · ${viewDoc.notes}` : ''}</div>
             </div>
-            <button onClick={() => setViewDoc(null)} aria-label="Fermer" style={{ width: 40, height: 40, borderRadius: 12, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: 17, cursor: 'pointer' }}>✕</button>
+            <button onClick={() => setViewDoc(null)} aria-label="Fermer" style={{ width: 40, height: 40, borderRadius: 12, border: '1px solid rgba(var(--dz-ink-rgb),0.16)', background: 'rgba(var(--dz-ink-rgb),0.06)', color: 'var(--dz-text)', fontSize: 17, cursor: 'pointer' }}>✕</button>
           </div>
           <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
             <img src={viewDoc.file_url} alt={viewDoc.type} onClick={e => e.stopPropagation()} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 10 }} />
@@ -86,7 +86,7 @@ export default function DocumentsScreen() {
             return (
               <button key={key} onClick={() => void fetchDocs(key)} disabled={loading} style={{
                 minHeight: 72, borderRadius: 14, cursor: loading ? 'wait' : 'pointer', fontFamily: T.font,
-                background: on ? tone(T.accent, 0.16) : 'rgba(255,255,255,0.03)', border: `1px solid ${on ? tone(T.accent, 0.6) : T.line}`,
+                background: on ? tone(T.accent, 0.16) : 'rgba(var(--dz-ink-rgb),0.022)', border: `1px solid ${on ? tone(T.accent, 0.6) : T.line}`,
                 color: on ? T.accent : T.text, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
               }}>
                 <span style={{ fontSize: 22 }}>{icon}</span>
@@ -107,7 +107,7 @@ export default function DocumentsScreen() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ fontSize: 13, color: T.muted }}>{docs.length} document{docs.length > 1 ? 's' : ''} trouvé{docs.length > 1 ? 's' : ''}</div>
                 {docs.map(doc => (
-                  <button key={doc.id} onClick={() => setViewDoc(doc)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 10, borderRadius: 14, cursor: 'pointer', fontFamily: T.font, textAlign: 'left', background: 'rgba(255,255,255,0.03)', border: `1px solid ${T.line}`, color: T.text }}>
+                  <button key={doc.id} onClick={() => setViewDoc(doc)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 10, borderRadius: 14, cursor: 'pointer', fontFamily: T.font, textAlign: 'left', background: 'rgba(var(--dz-ink-rgb),0.022)', border: `1px solid ${T.line}`, color: T.text }}>
                     <img src={doc.file_url} alt={doc.type} style={{ width: 56, height: 56, borderRadius: 10, objectFit: 'cover', flexShrink: 0, background: T.surface2 }} />
                     <span style={{ flex: 1, minWidth: 0 }}>
                       <span style={{ display: 'block', fontSize: 15, fontWeight: 700 }}>{TYPE_FR[doc.type] ?? doc.type}</span>
@@ -144,7 +144,7 @@ export default function DocumentsScreen() {
           <span style={{ fontSize: 14.5, fontWeight: 700 }}>{scanning ? `Analyse en cours… ${scanProgress} %` : scanFile ? 'Scanner une autre photo' : 'Prendre ou choisir une photo'}</span>
         </button>
         {scanning && (
-          <div style={{ height: 5, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden', marginTop: 10 }}>
+          <div style={{ height: 5, background: 'rgba(var(--dz-ink-rgb),0.045)', borderRadius: 3, overflow: 'hidden', marginTop: 10 }}>
             <div style={{ height: '100%', width: `${scanProgress}%`, background: `linear-gradient(90deg, ${tone(T.warn, 0.5)}, ${T.warn})`, transition: 'width .15s linear' }} />
           </div>
         )}

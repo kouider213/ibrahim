@@ -33,7 +33,7 @@ interface Overview {
 }
 const eur = (n: number) => `${n.toFixed(1).replace('.', ',').replace(',0', '')} €`;
 
-const DOVE = '#7dd3fc';
+const DOVE = '#2f5bff';
 const fmt = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 const demis = (n: number) => `${String(n).replace('.', ',')} demi${n > 1 ? 's' : ''}`;
 const TRIGGERS = ['réveil', 'stress', 'travail', 'fatigue', 'ennui', 'tristesse', 'douleur', 'dispute', 'habitude'];
@@ -89,7 +89,7 @@ export default function LiberteScreen() {
         {o.allowed > 0 && (
           <div style={{ display: 'flex', gap: 6, marginTop: 14, flexWrap: 'wrap' }}>
             {(() => { let cum = 0; return o.plan.map(p => { cum += p.n; const done = p.n > 0 && o.taken >= cum; return (
-              <div key={p.time} style={{ flex: '1 1 60px', textAlign: 'center', padding: '8px 4px', borderRadius: 12, background: p.n ? tone(done ? T.ok : DOVE, 0.12) : 'rgba(255,255,255,0.03)', border: `1px solid ${p.n ? tone(done ? T.ok : DOVE, 0.35) : T.line}`, opacity: p.n ? 1 : 0.45 }}>
+              <div key={p.time} style={{ flex: '1 1 60px', textAlign: 'center', padding: '8px 4px', borderRadius: 12, background: p.n ? tone(done ? T.ok : DOVE, 0.12) : 'rgba(var(--dz-ink-rgb),0.022)', border: `1px solid ${p.n ? tone(done ? T.ok : DOVE, 0.35) : T.line}`, opacity: p.n ? 1 : 0.45 }}>
                 <div style={{ fontSize: 12, color: T.muted }}>{p.time}</div>
                 <div style={{ fontSize: 15, fontWeight: 700 }}>{p.n ? `${done ? '✓ ' : ''}${p.n} × ½` : '—'}</div>
               </div>); }); })()}
@@ -150,7 +150,7 @@ export default function LiberteScreen() {
           {(() => { const next = s.rewards?.find(r => !r.at); return next ? (
             <div style={{ marginTop: 10 }}>
               <div style={{ fontSize: 12.5, color: T.muted, marginBottom: 4 }}>🎁 {next.name} — {eur(Math.min(o.bank.balance, next.cost))} / {next.cost} €</div>
-              <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.06)' }}><div style={{ width: `${Math.min(100, (o.bank.balance / next.cost) * 100)}%`, height: '100%', borderRadius: 3, background: T.warn }} /></div>
+              <div style={{ height: 6, borderRadius: 3, background: 'rgba(var(--dz-ink-rgb),0.045)' }}><div style={{ width: `${Math.min(100, (o.bank.balance / next.cost) * 100)}%`, height: '100%', borderRadius: 3, background: T.warn }} /></div>
             </div>) : null; })()}
         </Card>
       )}
@@ -173,7 +173,7 @@ export default function LiberteScreen() {
       {/* Le chemin */}
       <SectionTitle right={<button onClick={() => setSheet('plan')} style={{ background: 'none', border: 'none', color: T.accent, fontSize: 13, cursor: 'pointer' }}>Détails</button>}>Le chemin</SectionTitle>
       <Card style={{ marginBottom: 12 }}>
-        <div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+        <div style={{ height: 8, borderRadius: 4, background: 'rgba(var(--dz-ink-rgb),0.045)', overflow: 'hidden' }}>
           <div style={{ width: `${pct}%`, height: '100%', background: `linear-gradient(90deg, ${DOVE}, ${T.ok})` }} />
         </div>
         <Stairs steps={s.steps} today={o.today} />
@@ -253,7 +253,7 @@ function Ring({ taken, allowed }: { taken: number; allowed: number }) {
   const col = taken > allowed ? T.bad : DOVE;
   return (
     <svg width="84" height="84" viewBox="0 0 84 84" style={{ flexShrink: 0 }}>
-      <circle cx="42" cy="42" r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
+      <circle cx="42" cy="42" r={r} fill="none" stroke="rgba(var(--dz-ink-rgb),0.34)" strokeWidth="8" />
       <circle cx="42" cy="42" r={r} fill="none" stroke={col} strokeWidth="8" strokeLinecap="round" strokeDasharray={`${c * p} ${c}`} transform="rotate(-90 42 42)" />
       <text x="42" y="48" textAnchor="middle" fontSize="20" fontWeight="800" fill={T.text}>{allowed ? Math.max(0, allowed - taken) : '🕊'}</text>
     </svg>
@@ -270,7 +270,7 @@ function Stairs({ steps, today }: { steps: Step[]; today: string }) {
         return (
           <div key={st.from} title={`${fmt(st.from)} : ${st.max}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
             <div style={{ fontSize: 10, color: cur ? DOVE : T.faint, marginBottom: 2 }}>{st.max || '🕊'}</div>
-            <div style={{ width: '100%', height: `${Math.max(6, (st.max / top) * 52)}px`, borderRadius: 4, background: cur ? DOVE : past ? tone(T.ok, 0.5) : 'rgba(255,255,255,0.08)', boxShadow: cur ? `0 0 12px ${tone(DOVE, 0.6)}` : undefined }} />
+            <div style={{ width: '100%', height: `${Math.max(6, (st.max / top) * 52)}px`, borderRadius: 4, background: cur ? DOVE : past ? tone(T.ok, 0.5) : 'rgba(var(--dz-ink-rgb),0.06)', boxShadow: cur ? `0 0 12px ${tone(DOVE, 0.6)}` : undefined }} />
           </div>
         );
       })}

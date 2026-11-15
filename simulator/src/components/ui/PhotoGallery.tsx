@@ -126,7 +126,7 @@ export default function PhotoGallery({ kind, id, name, onClose, onChanged, fixed
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
           {photos.map((url, i) => (
             <button key={url} onClick={() => setView(i)} style={{ position: 'relative', aspectRatio: '1', borderRadius: 13, overflow: 'hidden', border: url === cover ? `2px solid ${T.warn}` : `1px solid ${T.line}`, background: `${T.surface2} url(${url}) center/cover`, cursor: 'pointer', padding: 0 }}>
-              {url === cover && <span style={{ position: 'absolute', top: 5, left: 5, fontSize: 11, fontWeight: 800, padding: '2px 7px', borderRadius: 8, background: T.warn, color: '#1a1300' }}>⭐ Site</span>}
+              {url === cover && <span style={{ position: 'absolute', top: 5, left: 5, fontSize: 11, fontWeight: 800, padding: '2px 7px', borderRadius: 8, background: T.warn, color: '#ffffff' }}>⭐ Site</span>}
               {busy === url && <span style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>⏳</span>}
             </button>
           ))}
@@ -138,10 +138,10 @@ export default function PhotoGallery({ kind, id, name, onClose, onChanged, fixed
         <div onClick={() => setView(null)}
           onTouchStart={e => { touchX.current = e.touches[0].clientX; }}
           onTouchEnd={e => { if (touchX.current == null) return; const dx = e.changedTouches[0].clientX - touchX.current; if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1); touchX.current = null; }}
-          style={{ position: 'fixed', inset: 0, zIndex: 2000, background: '#000', display: 'flex', flexDirection: 'column', fontFamily: T.font }}>
+          style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'var(--dz-bg)', display: 'flex', flexDirection: 'column', fontFamily: T.font }}>
           <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 'calc(12px + env(safe-area-inset-top)) 14px 10px' }}>
-            <div style={{ flex: 1, color: '#fff', fontSize: 15, fontWeight: 700 }}>{view + 1} / {photos.length}{photos[view] === cover ? ' · ⭐ photo du site' : ''}</div>
-            <button onClick={() => setView(null)} aria-label="Fermer" style={{ width: 40, height: 40, borderRadius: 12, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: 17, cursor: 'pointer' }}>✕</button>
+            <div style={{ flex: 1, color: 'var(--dz-text)', fontSize: 15, fontWeight: 700 }}>{view + 1} / {photos.length}{photos[view] === cover ? ' · ⭐ photo du site' : ''}</div>
+            <button onClick={() => setView(null)} aria-label="Fermer" style={{ width: 40, height: 40, borderRadius: 12, border: '1px solid rgba(var(--dz-ink-rgb),0.16)', background: 'rgba(var(--dz-ink-rgb),0.06)', color: 'var(--dz-text)', fontSize: 17, cursor: 'pointer' }}>✕</button>
           </div>
           <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0 }}>
             <img src={photos[view]} alt={`${name} ${view + 1}`} onClick={e => e.stopPropagation()} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
@@ -164,5 +164,5 @@ export default function PhotoGallery({ kind, id, name, onClose, onChanged, fixed
 
 const navBtn = (side: 'left' | 'right') => ({
   position: 'absolute' as const, [side]: 10, top: '50%', transform: 'translateY(-50%)', width: 46, height: 46, borderRadius: '50%',
-  border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: 26, cursor: 'pointer',
+  border: '1px solid rgba(var(--dz-ink-rgb),0.16)', background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: 26, cursor: 'pointer',
 });

@@ -7,17 +7,17 @@ import { InspectionModal } from './FleetScreen.tsx';
 
 // ── Palette sombre premium (cartes sur obsidian + accent bleu) ──
 const C = {
-  bg:      '#09090d',
-  surface: '#131319',
-  surface2:'#1b1b23',
-  border:  'rgba(255,255,255,0.07)',
-  gold:    '#9b8cff',
-  goldSoft:'#34d399',
-  text:    '#f5f5f7',
-  muted:   '#a6a3b8',
-  green:   '#34d399',
-  blue:    '#34d399',
-  red:     '#fb7185',
+  bg:      'var(--dz-bg)',
+  surface: 'var(--dz-surface)',
+  surface2:'var(--dz-surface2)',
+  border: 'rgba(var(--dz-ink-rgb),0.07)',
+  gold:    '#2f5bff',
+  goldSoft:'#0a9a5e',
+  text:    'var(--dz-text)',
+  muted:   'var(--dz-muted)',
+  green:   '#0a9a5e',
+  blue:    '#0a9a5e',
+  red:     '#e0304f',
   font:    '-apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
 };
 
@@ -29,7 +29,7 @@ const STATUS_META: Record<string, { label: string; col: string }> = {
   'loué':     { label: 'Loué',       col: C.gold },
   vendu:      { label: 'Vendu',      col: C.blue },
   coming_soon:{ label: 'Bientôt',    col: C.muted },
-  en_travaux: { label: 'Travaux',    col: '#fb923c' },
+  en_travaux: { label: 'Travaux',    col: '#c2570c' },
 };
 
 const TYPE_ICON: Record<string, string> = {
@@ -182,7 +182,7 @@ export default function ImmoProScreen() {
           return (
             <div key={p.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 18, overflow: 'hidden' }}>
               <div style={{ display: 'flex', gap: 12, padding: 12 }}>
-                <div style={{ width: 66, height: 66, borderRadius: 13, flexShrink: 0, background: p.image_url ? `url(${p.image_url}) center/cover` : `linear-gradient(135deg, ${C.surface2}, #0e0e12)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, border: `1px solid ${C.border}` }}>
+                <div style={{ width: 66, height: 66, borderRadius: 13, flexShrink: 0, background: p.image_url ? `url(${p.image_url}) center/cover` : `linear-gradient(135deg, ${C.surface2}, #ffffff)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, border: `1px solid ${C.border}` }}>
                   {!p.image_url && (TYPE_ICON[(p.type || '').toLowerCase()] ?? '🏠')}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -193,7 +193,7 @@ export default function ImmoProScreen() {
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
-                  <span style={{ fontSize: 13.5, fontWeight: 700, color: sm.col, background: `${sm.col}1f`, padding: '3px 9px', borderRadius: 20 }}>{sm.label}</span>
+                  <span style={{ fontSize: 13.5, fontWeight: 700, color: sm.col, background: `color-mix(in srgb, ${sm.col} 12%, transparent)`, padding: '3px 9px', borderRadius: 20 }}>{sm.label}</span>
                   <span style={{ fontSize: 13, color: isVente ? C.blue : C.gold }}>{isVente ? 'Vente' : 'Location'}</span>
                 </div>
               </div>
@@ -226,7 +226,7 @@ export default function ImmoProScreen() {
             <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>Nouveau bien</div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
               {(['location', 'vente'] as const).map(t => (
-                <button key={t} onClick={() => setForm(s => ({ ...s, transaction: t }))} style={{ flex: 1, padding: '10px 0', borderRadius: 12, border: `1px solid ${form.transaction === t ? C.gold : C.border}`, background: form.transaction === t ? `${C.gold}1c` : 'transparent', color: form.transaction === t ? C.goldSoft : C.muted, fontFamily: C.font, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{t === 'location' ? 'À louer' : 'À vendre'}</button>
+                <button key={t} onClick={() => setForm(s => ({ ...s, transaction: t }))} style={{ flex: 1, padding: '10px 0', borderRadius: 12, border: `1px solid ${form.transaction === t ? C.gold : C.border}`, background: form.transaction === t ? `color-mix(in srgb, ${C.gold} 11%, transparent)` : 'transparent', color: form.transaction === t ? C.goldSoft : C.muted, fontFamily: C.font, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{t === 'location' ? 'À louer' : 'À vendre'}</button>
               ))}
             </div>
             <Field label="Titre"><input value={form.title} onChange={e => setForm(s => ({ ...s, title: e.target.value }))} placeholder="Ex: F3 Hay Badr" style={inp} /></Field>
@@ -267,18 +267,18 @@ export default function ImmoProScreen() {
                     <div key={i} style={{ position: 'relative', width: 56, height: 56, borderRadius: 9, overflow: 'hidden', border: `1px solid ${C.border}` }}>
                       <img src={u} alt={`p${i}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       {i === 0 && <span style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: C.goldSoft, fontSize: 12, textAlign: 'center' }}>Principale</span>}
-                      <button onClick={() => setPhotos(p => p.filter((_, j) => j !== i))} style={{ position: 'absolute', top: 2, right: 2, width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'rgba(255,51,102,0.85)', color: '#fff', fontSize: 13.5, lineHeight: '14px', cursor: 'pointer', padding: 0 }}>✕</button>
+                      <button onClick={() => setPhotos(p => p.filter((_, j) => j !== i))} style={{ position: 'absolute', top: 2, right: 2, width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'rgba(224,48,79,0.85)', color: '#fff', fontSize: 13.5, lineHeight: '14px', cursor: 'pointer', padding: 0 }}>✕</button>
                     </div>
                   ))}
                 </div>
               )}
               <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => { const arr = Array.from(e.target.files ?? []); e.target.value = ''; void addFiles(arr); }} />
-              <button onClick={() => fileRef.current?.click()} style={{ width: '100%', padding: '10px 0', borderRadius: 11, border: `1px dashed ${C.gold}55`, background: `${C.gold}10`, color: C.goldSoft, fontFamily: C.font, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>🖼️ Ajouter des photos</button>
+              <button onClick={() => fileRef.current?.click()} style={{ width: '100%', padding: '10px 0', borderRadius: 11, border: `1px dashed color-mix(in srgb, ${C.gold} 33%, transparent)`, background: `color-mix(in srgb, ${C.gold} 6%, transparent)`, color: C.goldSoft, fontFamily: C.font, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>🖼️ Ajouter des photos</button>
             </Field>
 
             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
               <button onClick={() => { setShow(false); setForm(EMPTY); setPhotos([]); }} style={{ flex: 1, padding: 13, borderRadius: 13, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, fontFamily: C.font, fontSize: 14, cursor: 'pointer' }}>Annuler</button>
-              <button onClick={() => void add()} disabled={saving || !form.title.trim()} style={{ flex: 2, padding: 13, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${C.gold}, ${C.goldSoft})`, color: '#ffffff', fontFamily: C.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: saving || !form.title.trim() ? 0.5 : 1 }}>{saving ? 'Publication…' : 'Publier sur le site'}</button>
+              <button onClick={() => void add()} disabled={saving || !form.title.trim()} style={{ flex: 2, padding: 13, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${C.gold}, ${C.goldSoft})`, color: 'var(--dz-text)', fontFamily: C.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: saving || !form.title.trim() ? 0.5 : 1 }}>{saving ? 'Publication…' : 'Publier sur le site'}</button>
             </div>
           </div>
         </div>
@@ -329,7 +329,7 @@ function AddressInput({ value, onChange }: { value: string; onChange: (v: string
     <div style={{ position: 'relative' }}>
       <input value={value} onChange={e => onType(e.target.value)} placeholder="Ex: Rue Larbi Ben M'hidi, Oran" style={inp} />
       {open && sugs.length > 0 && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 5, marginTop: 4, background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 11, overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 5, marginTop: 4, background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 11, overflow: 'hidden', boxShadow: '0 10px 30px rgba(15,17,30,0.11)' }}>
           {sugs.map(s => (
             <button key={s.place_id} onClick={() => { onChange(s.label); setOpen(false); setSugs([]); }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', border: 'none', borderBottom: `1px solid ${C.border}`, background: 'transparent', color: C.text, fontFamily: C.font, fontSize: 12.5, cursor: 'pointer' }}>📍 {s.label}</button>
           ))}

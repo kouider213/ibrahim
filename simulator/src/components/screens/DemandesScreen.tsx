@@ -57,10 +57,10 @@ const nextStage = (d: Demande): Stage | null => {
 };
 
 const SRC: Record<Demande['source'], { label: string; color: string; icon: string }> = {
-  lead:    { label: 'Lead',        color: '#f59e0b', icon: '🔔' },
-  dossier: { label: 'Dossier',     color: '#8b5cf6', icon: '📁' },
-  import:  { label: 'Importation', color: '#8a7bff', icon: '🛳️' },
-  booking: { label: 'Réservation', color: '#22c55e', icon: '🚗' },
+  lead:    { label: 'Lead',        color: '#b86e00', icon: '🔔' },
+  dossier: { label: 'Dossier',     color: '#2f5bff', icon: '📁' },
+  import:  { label: 'Importation', color: '#2f5bff', icon: '🛳️' },
+  booking: { label: 'Réservation', color: '#0a9a5e', icon: '🚗' },
 };
 const LANG_FLAG: Record<string, string> = { fr: '🇫🇷', ar: '🇩🇿', en: '🇬🇧' };
 const SITE = 'https://fikconciergerie.com';
@@ -243,7 +243,7 @@ export default function DemandesScreen() {
                 {flow && d.status !== 'CANCELLED' && (
                   <div style={{ marginTop: 14 }}>
                     <div style={{ display: 'flex', gap: 4, marginBottom: 7 }}>
-                      {flow.map((st, i) => <div key={st.key} title={st.fr} style={{ flex: 1, height: 5, borderRadius: 3, background: i <= stepIdx ? s.color : 'rgba(255,255,255,0.08)', boxShadow: i === stepIdx ? `0 0 8px ${s.color}` : 'none' }} />)}
+                      {flow.map((st, i) => <div key={st.key} title={st.fr} style={{ flex: 1, height: 5, borderRadius: 3, background: i <= stepIdx ? s.color: 'rgba(var(--dz-ink-rgb),0.06)', boxShadow: i === stepIdx ? `0 0 8px ${s.color}` : 'none' }} />)}
                     </div>
                     <div style={{ fontSize: 13, color: T.muted }}>Étape {Math.max(1, stepIdx + 1)}/{flow.length} : <b style={{ color: s.color }}>{stageLabel(d, d.status)}</b></div>
                   </div>

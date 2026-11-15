@@ -5,8 +5,8 @@ import { business } from '../../services/api.ts';
 // journal de Nexus, agents spécialisés et outils de dev. Les commandes « parlées » passent par onSay (même cerveau que le PC).
 
 const C = {
-  surface: '#131319', inner: 'rgba(5,12,28,0.6)', border: 'rgba(200,190,255,0.16)', accent: '#9b8cff',
-  red: '#f87171', gold: '#fbbf24', text: '#f5f5f7', muted: '#a6a3b8', font: '-apple-system, "Segoe UI", Roboto, sans-serif',
+  surface: 'var(--dz-surface)', inner: 'rgba(var(--dz-surface-rgb),0.6)', border: 'rgba(var(--dz-ink-rgb),0.16)', accent: '#2f5bff',
+  red: '#e0304f', gold: '#b86e00', text: 'var(--dz-text)', muted: 'var(--dz-muted)', font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 
 type Entry = { name: string; type: string; size?: number | null; modified?: string; path?: string };
@@ -125,7 +125,7 @@ export default function NexusTools({ online, busy, onSay, flash }: {
               return (
                 <div key={full} style={{ borderBottom: `1px solid ${C.border}` }}>
                   <button onClick={() => { if (isDir) void openDir(full); else setPicked(picked === full ? null : full); }} style={{
-                    display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 11px', background: picked === full ? 'rgba(155,140,255,0.08)' : 'transparent',
+                    display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 11px', background: picked === full ? 'rgba(47,91,255,0.08)' : 'transparent',
                     border: 'none', color: C.text, fontFamily: C.font, fontSize: 13, textAlign: 'left', cursor: 'pointer',
                   }}>
                     <span style={{ width: 18, textAlign: 'center', color: isDir ? C.gold : C.accent }}>{isDir ? '▸' : '•'}</span>
@@ -205,7 +205,7 @@ export default function NexusTools({ online, busy, onSay, flash }: {
           <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
             {journal.slice(0, 60).map((j, i) => (
               <div key={`${j.at}-${i}`} style={{ display: 'flex', gap: 10, fontSize: 12.5, lineHeight: 1.4, padding: '6px 2px', borderBottom: `1px solid ${C.border}` }}>
-                <span style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 13.5, color: C.accent, flexShrink: 0, paddingTop: 2 }}>
+                <span style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 13.5, color: C.accent, flexShrink: 0, paddingTop: 2 }}>
                   {new Date(j.at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                 </span>
                 <span style={{ color: C.text, wordBreak: 'break-word' }}>{j.text}</span>
@@ -219,7 +219,7 @@ export default function NexusTools({ online, busy, onSay, flash }: {
 }
 
 const inp: React.CSSProperties = {
-  flex: 1, minWidth: 0, padding: '10px 12px', borderRadius: 10, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.04)',
+  flex: 1, minWidth: 0, padding: '10px 12px', borderRadius: 10, border: `1px solid ${C.border}`, background: 'rgba(var(--dz-ink-rgb),0.03)',
   color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none',
 };
 const ghost: React.CSSProperties = { borderRadius: 8, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, fontFamily: C.font, cursor: 'pointer' };
@@ -241,7 +241,7 @@ function Muted({ children, pad }: { children: React.ReactNode; pad?: boolean }) 
 function Chip({ label, onClick, on, disabled }: { label: string; onClick: () => void; on?: boolean; disabled?: boolean }) {
   return (
     <button onClick={onClick} disabled={disabled} style={{
-      padding: '7px 11px', borderRadius: 999, border: `1px solid ${on ? C.accent : C.border}`, background: on ? 'rgba(155,140,255,0.16)' : 'rgba(255,255,255,0.04)',
+      padding: '7px 11px', borderRadius: 999, border: `1px solid ${on ? C.accent : C.border}`, background: on ? 'rgba(47,91,255,0.16)' : 'rgba(var(--dz-ink-rgb),0.03)',
       color: on ? C.accent : C.text, fontSize: 12, fontFamily: C.font, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1, whiteSpace: 'nowrap',
     }}>{label}</button>
   );
@@ -249,7 +249,7 @@ function Chip({ label, onClick, on, disabled }: { label: string; onClick: () => 
 function Btn({ label, onClick, disabled, color = C.accent }: { label: string; onClick: () => void; disabled?: boolean; color?: string }) {
   return (
     <button onClick={onClick} disabled={disabled} style={{
-      padding: '9px 12px', borderRadius: 10, border: `1px solid ${color}55`, background: `${color}1a`, color, fontSize: 12.5, fontWeight: 600,
+      padding: '9px 12px', borderRadius: 10, border: `1px solid color-mix(in srgb, ${color} 33%, transparent)`, background: `color-mix(in srgb, ${color} 10%, transparent)`, color, fontSize: 12.5, fontWeight: 600,
       fontFamily: C.font, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1, flexShrink: 0, whiteSpace: 'nowrap',
     }}>{label}</button>
   );
@@ -258,7 +258,7 @@ function Big({ label, sub, onClick, disabled }: { label: string; sub: string; on
   return (
     <button onClick={onClick} disabled={disabled} style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '12px 4px 9px', borderRadius: 12, border: `1px solid ${C.border}`,
-      background: 'rgba(155,140,255,0.05)', color: C.text, fontFamily: C.font, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1,
+      background: 'rgba(47,91,255,0.05)', color: C.text, fontFamily: C.font, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1,
     }}>
       <span style={{ fontSize: 20, color: C.accent }}>{label}</span>
       <span style={{ fontSize: 13.5, color: C.muted }}>{sub}</span>

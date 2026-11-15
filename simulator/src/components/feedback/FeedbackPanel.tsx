@@ -217,8 +217,8 @@ export default function FeedbackPanel({ onClose }: Props) {
   return (
     <div style={{
       height: '100%',
-      background: 'rgba(3,5,15,0.97)',
-      borderLeft: '1px solid #b18cff22',
+      background: 'rgba(var(--dz-surface-rgb),0.97)',
+      borderLeft: '1px solid #2f5bff22',
       display: 'flex', flexDirection: 'column',
       fontFamily: 'Exo 2, system-ui',
       backdropFilter: 'blur(10px)',
@@ -226,17 +226,17 @@ export default function FeedbackPanel({ onClose }: Props) {
       {/* Header */}
       <div style={{
         padding: '16px 16px 0',
-        borderBottom: '1px solid #b18cff1a',
+        borderBottom: '1px solid #2f5bff1a',
         flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <span style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 10, color: '#b18cff', letterSpacing: '0.2em' }}>
+          <span style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 10, color: '#2f5bff', letterSpacing: '0.2em' }}>
             PANEL QUALITÉ
           </span>
           <div style={{ flex: 1 }} />
           <button onClick={onClose} style={{
-            background: 'none', border: '1px solid #ff336633', borderRadius: 6,
-            padding: '3px 8px', cursor: 'pointer', color: '#ff3366aa',
+            background: 'none', border: '1px solid #e0304f33', borderRadius: 6,
+            padding: '3px 8px', cursor: 'pointer', color: '#e0304faa',
             fontFamily: 'Share Tech Mono', fontSize: 9,
           }}>✕</button>
         </div>
@@ -248,8 +248,8 @@ export default function FeedbackPanel({ onClose }: Props) {
               onClick={() => setTab(t)}
               style={{
                 flex: 1, padding: '6px 4px', background: 'none',
-                border: 'none', borderBottom: `2px solid ${tab === t ? '#b18cff' : 'transparent'}`,
-                cursor: 'pointer', color: tab === t ? '#b18cff' : '#ffffff44',
+                border: 'none', borderBottom: `2px solid ${tab === t ? '#2f5bff' : 'transparent'}`,
+                cursor: 'pointer', color: tab === t ? '#2f5bff' : 'rgba(var(--dz-ink-rgb),0.16)',
                 fontFamily: 'Share Tech Mono', fontSize: 9, letterSpacing: '0.1em',
                 textTransform: 'uppercase', transition: 'all 0.2s ease',
               }}
@@ -312,9 +312,9 @@ function FeedbackTab({
               onClick={() => onCategory(c)}
               style={{
                 padding: '4px 10px', borderRadius: 20,
-                background: category === c ? 'rgba(0,212,255,0.15)' : 'transparent',
-                border: `1px solid ${category === c ? '#b18cff66' : '#ffffff22'}`,
-                color: category === c ? '#b18cff' : '#ffffff55',
+                background: category === c ? 'rgba(47,91,255,0.15)' : 'transparent',
+                border: `1px solid ${category === c ? '#2f5bff66' : 'rgba(var(--dz-ink-rgb),0.12)'}`,
+                color: category === c ? '#2f5bff' : 'rgba(var(--dz-ink-rgb),0.33)',
                 fontFamily: 'Exo 2', fontSize: 10, cursor: 'pointer',
                 transition: 'all 0.15s ease',
               }}
@@ -331,9 +331,9 @@ function FeedbackTab({
           placeholder="Décris le problème ou la suggestion..."
           rows={5}
           style={{
-            width: '100%', marginTop: 6, background: 'rgba(0,212,255,0.04)',
-            border: '1px solid #b18cff22', borderRadius: 8, padding: '10px 12px',
-            color: '#fff', fontFamily: 'Exo 2', fontSize: 11, resize: 'vertical',
+            width: '100%', marginTop: 6, background: 'rgba(47,91,255,0.04)',
+            border: '1px solid #2f5bff22', borderRadius: 8, padding: '10px 12px',
+            color: 'var(--dz-text)', fontFamily: 'Exo 2', fontSize: 11, resize: 'vertical',
             outline: 'none', lineHeight: 1.6, boxSizing: 'border-box',
           }}
         />
@@ -345,11 +345,11 @@ function FeedbackTab({
         style={{
           padding: '10px 16px', borderRadius: 8, cursor: text.trim() ? 'pointer' : 'default',
           background: sent
-            ? 'rgba(0,230,118,0.15)'
-            : text.trim() ? 'rgba(0,212,255,0.1)' : 'transparent',
-          border: `1px solid ${sent ? '#00e67666' : text.trim() ? '#b18cff44' : '#ffffff22'}`,
-          color: sent ? '#00e676' : text.trim() ? '#b18cff' : '#ffffff33',
-          fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 9, letterSpacing: '0.2em',
+            ? 'rgba(10,154,94,0.15)'
+            : text.trim() ? 'rgba(47,91,255,0.1)' : 'transparent',
+          border: `1px solid ${sent ? '#0a9a5e66' : text.trim() ? '#2f5bff44' : 'rgba(var(--dz-ink-rgb),0.13)'}`,
+          color: sent ? '#0a9a5e' : text.trim() ? '#2f5bff' : 'rgba(var(--dz-ink-rgb),0.34)',
+          fontFamily: 'Manrope, Inter, sans-serif', fontSize: 9, letterSpacing: '0.2em',
           transition: 'all 0.2s ease',
         }}
       >
@@ -357,10 +357,10 @@ function FeedbackTab({
       </button>
 
       <div style={{
-        marginTop: 8, padding: 12, background: 'rgba(255,107,0,0.05)',
-        border: '1px solid #ff6b0022', borderRadius: 8,
+        marginTop: 8, padding: 12, background: 'rgba(194,87,12,0.05)',
+        border: '1px solid #c2570c22', borderRadius: 8,
       }}>
-        <p style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: '#ff6b0066', margin: 0, lineHeight: 1.8 }}>
+        <p style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: '#c2570c66', margin: 0, lineHeight: 1.8 }}>
           INFO: Le feedback est stocké dans Supabase et notifié via Railway.
           Les screenshots nécessitent l'autorisation du navigateur.
         </p>
@@ -386,19 +386,19 @@ function ChecklistTab({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {/* Score bar */}
-      <div style={{ background: 'rgba(0,212,255,0.05)', borderRadius: 8, padding: 12 }}>
+      <div style={{ background: 'rgba(47,91,255,0.05)', borderRadius: 8, padding: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 9, color: '#b18cff', letterSpacing: '0.2em' }}>
+          <span style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 9, color: '#2f5bff', letterSpacing: '0.2em' }}>
             PROGRESSION {pct}%
           </span>
           <div style={{ display: 'flex', gap: 10 }}>
-            <Stat label="✅" val={score.ok} col="#00e676" />
-            <Stat label="⚠️" val={score.partial} col="#f39c12" />
-            <Stat label="❌" val={score.fail} col="#ff3366" />
+            <Stat label="✅" val={score.ok} col="#0a9a5e" />
+            <Stat label="⚠️" val={score.partial} col="#b86e00" />
+            <Stat label="❌" val={score.fail} col="#e0304f" />
           </div>
         </div>
-        <div style={{ height: 4, background: '#b18cff15', borderRadius: 2 }}>
-          <div style={{ height: '100%', width: `${pct}%`, background: '#b18cff', borderRadius: 2, transition: 'width 0.3s ease' }} />
+        <div style={{ height: 4, background: '#2f5bff15', borderRadius: 2 }}>
+          <div style={{ height: '100%', width: `${pct}%`, background: '#2f5bff', borderRadius: 2, transition: 'width 0.3s ease' }} />
         </div>
       </div>
 
@@ -408,8 +408,8 @@ function ChecklistTab({
         onChange={e => onSearch(e.target.value)}
         placeholder="Rechercher une fonctionnalité..."
         style={{
-          background: 'rgba(255,255,255,0.04)', border: '1px solid #ffffff22',
-          borderRadius: 8, padding: '7px 12px', color: '#fff',
+          background: 'rgba(var(--dz-ink-rgb),0.03)', border: '1px solid rgba(var(--dz-ink-rgb),0.13)',
+          borderRadius: 8, padding: '7px 12px', color: 'var(--dz-text)',
           fontFamily: 'Exo 2', fontSize: 10, outline: 'none', width: '100%',
           boxSizing: 'border-box',
         }}
@@ -430,26 +430,26 @@ function ChecklistTab({
 
           return (
             <div key={group.title} style={{
-              border: '1px solid #b18cff1a', borderRadius: 8, overflow: 'hidden',
+              border: '1px solid #2f5bff1a', borderRadius: 8, overflow: 'hidden',
             }}>
               <button
                 onClick={() => setExpanded(e =>
                   e.includes(group.title) ? e.filter(x => x !== group.title) : [...e, group.title]
                 )}
                 style={{
-                  width: '100%', background: 'rgba(0,212,255,0.04)',
+                  width: '100%', background: 'rgba(47,91,255,0.04)',
                   border: 'none', padding: '9px 12px', cursor: 'pointer',
                   display: 'flex', alignItems: 'center', gap: 8,
                 }}
               >
                 <span style={{ fontSize: 12 }}>{group.icon}</span>
-                <span style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#b18cffcc', letterSpacing: '0.1em', flex: 1, textAlign: 'left' }}>
+                <span style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#2f5bffcc', letterSpacing: '0.1em', flex: 1, textAlign: 'left' }}>
                   {group.title}
                 </span>
-                <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: '#00e676aa' }}>
+                <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: '#0a9a5eaa' }}>
                   {groupOk}/{group.items.length}
                 </span>
-                <span style={{ color: '#b18cff66', fontSize: 10 }}>{isExp ? '▲' : '▼'}</span>
+                <span style={{ color: '#2f5bff66', fontSize: 10 }}>{isExp ? '▲' : '▼'}</span>
               </button>
               {isExp && (
                 <div style={{ padding: '4px 0' }}>
@@ -468,10 +468,10 @@ function ChecklistTab({
         onClick={onExport}
         style={{
           padding: '10px 16px', borderRadius: 8, cursor: 'pointer',
-          background: 'rgba(255,107,0,0.08)',
-          border: '1px solid #ff6b0033',
-          color: '#ff6b00aa',
-          fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 9, letterSpacing: '0.2em',
+          background: 'rgba(194,87,12,0.08)',
+          border: '1px solid #c2570c33',
+          color: '#c2570caa',
+          fontFamily: 'Manrope, Inter, sans-serif', fontSize: 9, letterSpacing: '0.2em',
           marginTop: 4,
         }}
       >
@@ -488,11 +488,11 @@ function CheckRow({ item, onCycle, onNote }: {
 }) {
   const [noteOpen, setNoteOpen] = useState(false);
   const statusCol: Record<CheckStatus, string> = {
-    '✅': '#00e676', '⚠️': '#f39c12', '❌': '#ff3366', '☐': '#ffffff33',
+    '✅': '#0a9a5e', '⚠️': '#b86e00', '❌': '#e0304f', '☐': 'rgba(var(--dz-ink-rgb),0.16)',
   };
 
   return (
-    <div style={{ borderBottom: '1px solid #b18cff0a' }}>
+    <div style={{ borderBottom: '1px solid #2f5bff0a' }}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8,
         padding: '7px 12px', cursor: 'pointer',
@@ -509,7 +509,7 @@ function CheckRow({ item, onCycle, onNote }: {
           onClick={() => setNoteOpen(n => !n)}
           style={{
             flex: 1, fontFamily: 'Exo 2', fontSize: 10,
-            color: item.status === '☐' ? '#ffffff55' : '#ffffffcc',
+            color: item.status === '☐' ? 'rgba(var(--dz-ink-rgb),0.33)' : 'rgba(var(--dz-ink-rgb),0.80)',
             cursor: 'pointer',
           }}
         >{item.label}</span>
@@ -518,7 +518,7 @@ function CheckRow({ item, onCycle, onNote }: {
             onClick={() => setNoteOpen(n => !n)}
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              fontSize: 9, color: '#ffffff33',
+              fontSize: 9, color: 'rgba(var(--dz-ink-rgb),0.34)',
             }}
           >📝</button>
         )}
@@ -530,9 +530,9 @@ function CheckRow({ item, onCycle, onNote }: {
             onChange={e => onNote(item.id, e.target.value)}
             placeholder="Note sur ce point..."
             style={{
-              width: '100%', background: 'rgba(255,255,255,0.04)',
-              border: '1px solid #ffffff11', borderRadius: 6,
-              padding: '5px 8px', color: '#ffffffcc',
+              width: '100%', background: 'rgba(var(--dz-ink-rgb),0.03)',
+              border: '1px solid rgba(var(--dz-ink-rgb),0.07)', borderRadius: 6,
+              padding: '5px 8px', color: 'rgba(var(--dz-ink-rgb),0.80)',
               fontFamily: 'Exo 2', fontSize: 9, outline: 'none',
               boxSizing: 'border-box',
             }}
@@ -544,29 +544,29 @@ function CheckRow({ item, onCycle, onNote }: {
 }
 
 function HistoryTab({ history }: { history: HistoryEntry[] }) {
-  const statusCol = { done: '#00e676', partial: '#f39c12', planned: '#b18cff' };
+  const statusCol = { done: '#0a9a5e', partial: '#b86e00', planned: '#2f5bff' };
   const statusLabel = { done: '✅ FAIT', partial: '⚠️ PARTIEL', planned: '📋 PRÉVU' };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 9, color: '#b18cff88', letterSpacing: '0.2em', marginBottom: 4 }}>
+      <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 9, color: '#2f5bff88', letterSpacing: '0.2em', marginBottom: 4 }}>
         JOURNAL DÉVELOPPEMENT
       </div>
       {history.map((entry, i) => (
         <div key={i} style={{
           padding: '10px 12px',
-          background: 'rgba(0,212,255,0.03)',
+          background: 'rgba(47,91,255,0.03)',
           border: `1px solid ${statusCol[entry.status]}22`,
           borderLeft: `3px solid ${statusCol[entry.status]}66`,
           borderRadius: '0 8px 8px 0',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: '#ffffff55' }}>{entry.date}</span>
+            <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: 'rgba(var(--dz-ink-rgb),0.34)' }}>{entry.date}</span>
             <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: statusCol[entry.status] }}>
               {statusLabel[entry.status]}
             </span>
           </div>
-          <p style={{ fontFamily: 'Exo 2', fontSize: 10, color: '#ffffffcc', margin: 0, lineHeight: 1.5 }}>
+          <p style={{ fontFamily: 'Exo 2', fontSize: 10, color: 'rgba(var(--dz-ink-rgb),0.80)', margin: 0, lineHeight: 1.5 }}>
             {entry.description}
           </p>
         </div>
@@ -584,6 +584,6 @@ function Stat({ label, val, col }: { label: string; val: number; col: string }) 
 }
 
 const labelStyle: React.CSSProperties = {
-  fontFamily: 'Share Tech Mono', fontSize: 8, color: '#b18cff88', letterSpacing: '0.2em',
+  fontFamily: 'Share Tech Mono', fontSize: 8, color: '#2f5bff88', letterSpacing: '0.2em',
   textTransform: 'uppercase',
 };

@@ -8,13 +8,13 @@ import { Hero, StatCard, SkeletonCards } from '../ui/Premium.tsx';
 // muscles, records et réglages des rappels (appel + point GPS au départ, « tu as oublié ? » si le GPS est loin).
 
 const C = {
-  surface: '#131319', border: 'rgba(200,190,255,0.16)', accent: '#fb7185', cyan: '#9b8cff', gold: '#fbbf24', green: '#34d399',
-  text: '#f5f5f7', muted: '#a6a3b8', font: '-apple-system, "Segoe UI", Roboto, sans-serif',
+  surface: 'var(--dz-surface)', border: 'rgba(var(--dz-ink-rgb),0.16)', accent: '#e0304f', cyan: '#2f5bff', gold: '#b86e00', green: '#0a9a5e',
+  text: 'var(--dz-text)', muted: 'var(--dz-muted)', font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 14, marginBottom: 12 } as const;
 const btn = (bg: string, color = '#09090d') => ({ background: bg, color, border: 'none', borderRadius: 12, padding: '11px 14px', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: C.font } as const);
-const ghost = { ...btn('rgba(255,255,255,0.06)', C.text), border: `1px solid ${C.border}` } as const;
-const section = (t: string) => <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 2px 10px' }}><span style={{ width: 4, height: 14, borderRadius: 2, background: C.accent }} /><span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted }}>{t}</span><span style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, rgba(200,190,255,0.14), transparent)' }} /></div>;
+const ghost = { ...btn('rgba(var(--dz-ink-rgb),0.054)', C.text), border: `1px solid ${C.border}` } as const;
+const section = (t: string) => <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 2px 10px' }}><span style={{ width: 4, height: 14, borderRadius: 2, background: C.accent }} /><span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted }}>{t}</span><span style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, rgba(var(--dz-ink-rgb),0.105), transparent)' }} /></div>;
 const MUSCLE: Record<string, string> = { pecs: 'Pecs', dos: 'Dos', epaules: 'Épaules', bras: 'Bras', jambes: 'Jambes', abdos: 'Abdos', cardio: 'Cardio' };
 const hm = (iso: string) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }).replace(':', 'h');
 const dayName = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'short' }).replace('.', '');
@@ -73,19 +73,19 @@ export default function SportScreen({ embedded = false, onLive }: { embedded?: b
 
   const s = data?.today ?? data?.next ?? null;
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: embedded ? 'transparent' : 'radial-gradient(120% 60% at 50% 0%, #2a0b1d 0%, #09090d 55%)', color: C.text, fontFamily: C.font, paddingBottom: 30, paddingTop: embedded ? 12 : 0 }}>
+    <div style={{ height: '100%', overflowY: 'auto', background: embedded ? 'transparent' : 'radial-gradient(120% 60% at 50% 0%, #ffffff 0%, #f2f2f5 55%)', color: C.text, fontFamily: C.font, paddingBottom: 30, paddingTop: embedded ? 12 : 0 }}>
       {!embedded && <Hero eyebrow="Coach sportif · Dzaryx" title="SPORT" accent={C.accent}
         subtitle={data ? `🔥 ${data.stats.streak} séance(s) d'affilée · ${data.stats.monthSessions} ce mois` : 'Ton programme calé sur ton agenda'} />}
       <div style={{ padding: '0 14px' }}>
-        {err && <div style={{ ...card, color: '#f87171' }}>❌ {err}</div>}
+        {err && <div style={{ ...card, color: '#e0304f' }}>❌ {err}</div>}
         {!data && !err && <SkeletonCards count={4} height={90} />}
         {data && <>
           {/* ── Séance du jour / prochaine ── */}
           {s ? (
-            <div style={{ ...card, padding: 16, background: 'linear-gradient(150deg, #3a0f27, #131319 70%)', border: `1px solid ${C.accent}55` }}>
+            <div style={{ ...card, padding: 16, background: 'linear-gradient(150deg, var(--dz-surface), var(--dz-surface) 70%)', border: `1px solid color-mix(in srgb, ${C.accent} 33%, transparent)` }}>
               <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: 0.5 }}>{s.date === data.week[0]?.date ? "AUJOURD'HUI" : `PROCHAINE SÉANCE · ${dayName(s.date).toUpperCase()}`} · {hm(s.start)}–{hm(s.end)}</div>
               <div style={{ fontSize: 30, fontWeight: 900, margin: '6px 0 2px', letterSpacing: '-0.02em' }}>{s.emoji} {s.label}</div>
-              <div style={{ fontSize: 13, color: '#fda4af' }}>{s.focus}</div>
+              <div style={{ fontSize: 13, color: '#e0304f' }}>{s.focus}</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '10px 0' }}>
                 <span style={pill}>⏱ ~{s.estMin} min</span>
                 <span style={pill}>🏋️ {s.exercises.length} exercices</span>
@@ -116,8 +116,8 @@ export default function SportScreen({ embedded = false, onLive }: { embedded?: b
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
             {data.week.map(w => (
               <button key={w.date} onClick={() => setSheet(w.date)} style={{
-                background: w.status === 'done' ? 'rgba(52,211,153,0.14)' : w.type ? 'rgba(251,113,133,0.12)' : 'rgba(255,255,255,0.03)',
-                border: `1px solid ${w.status === 'done' ? C.green : w.type ? `${C.accent}55` : C.border}`, borderRadius: 12, padding: '8px 2px',
+                background: w.status === 'done' ? 'rgba(10,154,94,0.14)' : w.type ? 'rgba(224,48,79,0.12)' : 'rgba(var(--dz-ink-rgb),0.027)',
+                border: `1px solid ${w.status === 'done' ? C.green : w.type ? `color-mix(in srgb, ${C.accent} 33%, transparent)` : C.border}`, borderRadius: 12, padding: '8px 2px',
                 color: C.text, cursor: 'pointer', fontFamily: C.font, minHeight: 78,
               }}>
                 <div style={{ fontSize: 13.5, color: C.muted, textTransform: 'capitalize' }}>{dayName(w.date)}</div>
@@ -134,7 +134,7 @@ export default function SportScreen({ embedded = false, onLive }: { embedded?: b
             {data.recovery.map(r => (
               <div key={r.muscle} style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '6px 0' }} title={`${MUSCLE[r.muscle]} : ${r.pct}% récupéré`}>
                 <span style={{ width: 62, fontSize: 12, color: C.muted }}>{MUSCLE[r.muscle]}</span>
-                <div style={{ flex: 1, height: 8, background: 'rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden' }}>
+                <div style={{ flex: 1, height: 8, background: 'rgba(var(--dz-ink-rgb),0.045)', borderRadius: 4, overflow: 'hidden' }}>
                   <div style={{ width: `${r.pct}%`, height: '100%', borderRadius: 4, background: r.pct >= 90 ? C.green : r.pct >= 50 ? C.gold : C.accent }} />
                 </div>
                 <span style={{ width: 70, fontSize: 11, textAlign: 'right' }}>{r.pct >= 90 ? '✅ prêt' : r.pct >= 50 ? '🟡 ' : '🔴 '}{r.pct < 90 ? `${r.pct}%` : ''}</span>
@@ -180,7 +180,7 @@ export default function SportScreen({ embedded = false, onLive }: { embedded?: b
       {/* ── Feuille : changer la séance d'un jour ── */}
       {sheet && data && (
         <div onClick={() => setSheet(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 50, display: 'flex', alignItems: 'flex-end' }}>
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', background: '#0a1428', borderRadius: '20px 20px 0 0', padding: 16, border: `1px solid ${C.border}` }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', background: 'var(--dz-surface)', borderRadius: '20px 20px 0 0', padding: 16, border: `1px solid ${C.border}` }}>
             <div style={{ fontWeight: 800, marginBottom: 10, textTransform: 'capitalize' }}>{new Date(`${sheet}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
             {!data.week.find(w => w.date === sheet)?.start && !data.week.find(w => w.date === sheet)?.skip
               ? <div style={{ fontSize: 13, color: C.muted, marginBottom: 10 }}>Pas de créneau sport ce jour-là dans l'agenda. Demande à Dzaryx : « ajoute du sport ce jour-là à 18h ».</div>
@@ -201,17 +201,17 @@ export default function SportScreen({ embedded = false, onLive }: { embedded?: b
       )}
       {demo && (
         <div onClick={() => setDemo(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 55, display: 'flex', alignItems: 'flex-end' }}>
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', background: '#0a1428', borderRadius: '20px 20px 0 0', padding: 16, border: `1px solid ${C.border}` }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', background: 'var(--dz-surface)', borderRadius: '20px 20px 0 0', padding: 16, border: `1px solid ${C.border}` }}>
             <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4 }}>{demo.name}</div>
             <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 10 }}>{demo.sets} × {demo.reps} · repos {demo.rest ? `${demo.rest} s` : '—'} · {MUSCLE[demo.muscle]}</div>
             <ExerciseDemo e={demo} />
-            <div style={{ fontSize: 12.5, color: '#fda4af', margin: '10px 0', lineHeight: 1.5 }}>💡 {demo.tip}</div>
+            <div style={{ fontSize: 12.5, color: '#e0304f', margin: '10px 0', lineHeight: 1.5 }}>💡 {demo.tip}</div>
             {demo.alt.length > 0 && <div style={{ fontSize: 11.5, color: C.muted }}>Remplacement : {demo.alt.join(' · ')}</div>}
             <button style={{ ...ghost, width: '100%', marginTop: 12 }} onClick={() => setDemo(null)}>Fermer</button>
           </div>
         </div>
       )}
-      {toast && <div style={{ position: 'fixed', left: 16, right: 16, bottom: 90, background: '#111c36', border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, fontSize: 13, zIndex: 60 }}>{toast}</div>}
+      {toast && <div style={{ position: 'fixed', left: 16, right: 16, bottom: 90, background: 'var(--dz-surface)', border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, fontSize: 13, zIndex: 60 }}>{toast}</div>}
     </div>
   );
 }
@@ -224,25 +224,25 @@ export function ExerciseDemo({ e, height = 190 }: { e: SportExercise; height?: n
   return (
     <div>
       {e.demo.length > 0 && ok && (
-        <div style={{ position: 'relative', height, background: '#fff', borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ position: 'relative', height, background: 'var(--dz-surface)', borderRadius: 14, overflow: 'hidden' }}>
           {e.demo.map((src, i) => <img key={src} src={src} alt={e.name} onError={() => setOk(false)} loading="lazy"
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', opacity: f === i ? 1 : 0, transition: 'opacity .35s' }} />)}
-          <span style={{ position: 'absolute', left: 8, bottom: 6, fontSize: 13, color: '#667', background: 'rgba(255,255,255,0.8)', borderRadius: 6, padding: '1px 5px' }}>démo · {f === 0 ? 'départ' : 'arrivée'}</span>
+          <span style={{ position: 'absolute', left: 8, bottom: 6, fontSize: 13, color: 'var(--dz-faint)', background: 'rgba(var(--dz-surface-rgb),0.8)', borderRadius: 6, padding: '1px 5px' }}>démo · {f === 0 ? 'départ' : 'arrivée'}</span>
         </div>
       )}
-      <a href={e.video} target="_blank" rel="noreferrer" style={{ ...btn('#ef4444', '#fff'), display: 'block', textAlign: 'center', textDecoration: 'none', marginTop: 8, padding: 10 }}>▶ Voir la vidéo de l'exercice</a>
+      <a href={e.video} target="_blank" rel="noreferrer" style={{ ...btn('#e0304f', '#0c0e1a'), display: 'block', textAlign: 'center', textDecoration: 'none', marginTop: 8, padding: 10 }}>▶ Voir la vidéo de l'exercice</a>
     </div>
   );
 }
 
-const pill = { fontSize: 11, padding: '4px 9px', borderRadius: 999, background: 'rgba(255,255,255,0.07)', fontWeight: 700 } as const;
+const pill = { fontSize: 11, padding: '4px 9px', borderRadius: 999, background: 'rgba(var(--dz-ink-rgb),0.053)', fontWeight: 700 } as const;
 
 function Toggle({ on, onChange, title, sub }: { on: boolean; onChange: (v: boolean) => void; title: string; sub: string }) {
   return (
     <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '8px 0' }}>
       <div style={{ flex: 1 }}><div style={{ fontSize: 13.5, fontWeight: 700 }}>{title}</div><div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>{sub}</div></div>
-      <button onClick={() => onChange(!on)} aria-pressed={on} style={{ width: 50, height: 28, borderRadius: 14, border: 'none', cursor: 'pointer', background: on ? C.green : 'rgba(255,255,255,0.15)', position: 'relative', flexShrink: 0 }}>
-        <span style={{ position: 'absolute', top: 3, left: on ? 25 : 3, width: 22, height: 22, borderRadius: '50%', background: '#fff', transition: 'left .2s' }} />
+      <button onClick={() => onChange(!on)} aria-pressed={on} style={{ width: 50, height: 28, borderRadius: 14, border: 'none', cursor: 'pointer', background: on ? C.green : 'rgba(var(--dz-ink-rgb),0.112)', position: 'relative', flexShrink: 0 }}>
+        <span style={{ position: 'absolute', top: 3, left: on ? 25 : 3, width: 22, height: 22, borderRadius: '50%', background: 'var(--dz-surface)', transition: 'left .2s' }} />
       </button>
     </div>
   );
@@ -255,7 +255,7 @@ function VolumeBars({ weeks }: { weeks: SportOverview['stats']['weeks'] }) {
     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 90 }}>
       {weeks.map((w, i) => (
         <div key={w.from} title={`Semaine du ${w.from.slice(8)}/${w.from.slice(5, 7)} : ${w.volume} kg · ${w.sessions} séance(s)`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, height: '100%', justifyContent: 'flex-end' }}>
-          <div style={{ width: '70%', height: `${Math.max(2, w.volume / max * 70)}px`, background: i === weeks.length - 1 ? C.accent : '#7f4a63', borderRadius: '4px 4px 0 0' }} />
+          <div style={{ width: '70%', height: `${Math.max(2, w.volume / max * 70)}px`, background: i === weeks.length - 1 ? C.accent : '#9195a6', borderRadius: '4px 4px 0 0' }} />
           <span style={{ fontSize: 13, color: C.muted }}>{i === weeks.length - 1 ? 'cette' : `S-${weeks.length - 1 - i}`}</span>
         </div>
       ))}
@@ -326,7 +326,7 @@ function LiveWorkout({ s, live, onChange, onQuit, onDone }: { s: SportSession; l
   const ring = (frac: number, size: number, color: string, label: string, sub: string) => (
     <div style={{ position: 'relative', width: size, height: size }}>
       <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx={size / 2} cy={size / 2} r={size / 2 - 8} stroke="rgba(255,255,255,0.08)" strokeWidth="8" fill="none" />
+        <circle cx={size / 2} cy={size / 2} r={size / 2 - 8} stroke="rgba(var(--dz-ink-rgb),0.34)" strokeWidth="8" fill="none" />
         <circle cx={size / 2} cy={size / 2} r={size / 2 - 8} stroke={color} strokeWidth="8" fill="none" strokeLinecap="round"
           strokeDasharray={2 * Math.PI * (size / 2 - 8)} strokeDashoffset={2 * Math.PI * (size / 2 - 8) * (1 - frac)} />
       </svg>
@@ -337,24 +337,24 @@ function LiveWorkout({ s, live, onChange, onQuit, onDone }: { s: SportSession; l
   );
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: 'radial-gradient(120% 50% at 50% 0%, #3a0f27 0%, #09090d 60%)', color: C.text, fontFamily: C.font, padding: '14px 14px 30px' }}>
+    <div style={{ height: '100%', overflowY: 'auto', background: 'radial-gradient(120% 50% at 50% 0%, var(--dz-surface) 0%, var(--dz-bg) 60%)', color: C.text, fontFamily: C.font, padding: '14px 14px 30px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button style={{ ...ghost, padding: '7px 11px', fontSize: 12 }} onClick={() => { if (confirm('Quitter la séance sans l\'enregistrer ?')) onQuit(); }}>✕</button>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 13.5, letterSpacing: '0.2em', color: C.accent }}>{s.emoji} {s.label}</div>
+          <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 13.5, letterSpacing: '0.2em', color: C.accent }}>{s.emoji} {s.label}</div>
           <div style={{ fontSize: 22, fontWeight: 900, fontVariantNumeric: 'tabular-nums' }}>{mmss(elapsed)}</div>
           <div style={{ fontSize: 13.5, color: C.gold, fontWeight: 800 }}>🎮 +{100 + doneCount * 5} pts en jeu</div>
         </div>
         <button style={{ ...btn(C.green), padding: '7px 11px', fontSize: 12 }} onClick={() => setFinish(true)}>Fin ✓</button>
       </div>
-      <div style={{ height: 6, background: 'rgba(255,255,255,0.07)', borderRadius: 3, margin: '12px 0' }}>
+      <div style={{ height: 6, background: 'rgba(var(--dz-ink-rgb),0.053)', borderRadius: 3, margin: '12px 0' }}>
         <div style={{ width: `${allSets.length ? doneCount / allSets.length * 100 : 0}%`, height: '100%', background: C.accent, borderRadius: 3, transition: 'width .3s' }} />
       </div>
       <div style={{ display: 'flex', gap: 5, overflowX: 'auto', paddingBottom: 6 }}>
         {s.exercises.map((x, i) => {
           const d = (live.sets[x.id] ?? []).every(st => st.done);
           return <button key={x.id} onClick={() => onChange({ ...live, idx: i })} style={{ flexShrink: 0, ...ghost, padding: '6px 10px', fontSize: 11,
-            background: i === live.idx ? C.accent : d ? 'rgba(52,211,153,0.18)' : 'rgba(255,255,255,0.05)', color: i === live.idx ? '#09090d' : C.text }}>{d ? '✓' : i + 1}</button>;
+            background: i === live.idx ? C.accent : d ? 'rgba(10,154,94,0.18)' : 'rgba(var(--dz-ink-rgb),0.045)', color: i === live.idx ? '#f2f2f5' : C.text }}>{d ? '✓' : i + 1}</button>;
         })}
       </div>
 
@@ -375,7 +375,7 @@ function LiveWorkout({ s, live, onChange, onQuit, onDone }: { s: SportSession; l
           <div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>EXERCICE {live.idx + 1}/{s.exercises.length} · {MUSCLE[e.muscle]?.toUpperCase()}</div>
           <div style={{ fontSize: 22, fontWeight: 900, margin: '4px 0 6px', lineHeight: 1.15 }}>{name}</div>
           <div style={{ fontSize: 13 }}><b>{e.sets} × {e.reps}</b> · repos {e.rest ? `${e.rest} s` : '—'}</div>
-          <div style={{ fontSize: 12, color: '#fda4af', margin: '8px 0', lineHeight: 1.45 }}>💡 {e.tip}</div>
+          <div style={{ fontSize: 12, color: '#e0304f', margin: '8px 0', lineHeight: 1.45 }}>💡 {e.tip}</div>
           {!work && <ExerciseDemo e={e} height={150} />}
           {e.suggestion.last && <div style={{ fontSize: 11.5, color: C.muted }}>La dernière fois : {e.suggestion.last}{e.suggestion.up ? <b style={{ color: C.green }}> → on monte à {e.suggestion.kg} kg ⬆️</b> : ''}</div>}
           {e.alt.length > 0 && <button style={{ ...ghost, padding: '6px 10px', fontSize: 11.5, marginTop: 8 }} onClick={() => onChange({ ...live, alt: { ...live.alt, [e.id]: ((live.alt[e.id] ?? 0) + 1) % (e.alt.length + 1) } })}>
@@ -395,7 +395,7 @@ function LiveWorkout({ s, live, onChange, onQuit, onDone }: { s: SportSession; l
                     <Stepper value={st.reps} unit="reps" step={1} onChange={v => update(i, { reps: v ?? 0 })} />
                   </>)}
                   <button onClick={() => validate(i)} style={{ width: 44, height: 40, borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 18, fontWeight: 900,
-                    background: st.done ? C.green : 'rgba(255,255,255,0.1)', color: st.done ? '#09090d' : C.text }}>✓</button>
+                    background: st.done ? C.green : 'rgba(var(--dz-ink-rgb),0.075)', color: st.done ? '#ffffff' : C.text }}>✓</button>
                 </div>
               ))}
             </div>
@@ -412,7 +412,7 @@ function LiveWorkout({ s, live, onChange, onQuit, onDone }: { s: SportSession; l
 
       {finish && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'flex-end' }}>
-          <div style={{ width: '100%', background: '#0a1428', borderRadius: '20px 20px 0 0', padding: 18, border: `1px solid ${C.border}` }}>
+          <div style={{ width: '100%', background: 'var(--dz-surface)', borderRadius: '20px 20px 0 0', padding: 18, border: `1px solid ${C.border}` }}>
             <div style={{ fontSize: 20, fontWeight: 900 }}>🎉 Séance terminée</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, margin: '14px 0' }}>
               <StatCard icon="⏱" value={mmss(elapsed)} label="DURÉE" color={C.cyan} />
@@ -421,7 +421,7 @@ function LiveWorkout({ s, live, onChange, onQuit, onDone }: { s: SportSession; l
             </div>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>C'était dur comment ? (1 = facile · 10 = à fond)</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 4 }}>
-              {Array.from({ length: 10 }, (_, i) => i + 1).map(n => <button key={n} onClick={() => setRpe(n)} style={{ ...ghost, padding: '8px 0', fontSize: 12, background: rpe === n ? C.accent : 'rgba(255,255,255,0.05)', color: rpe === n ? '#09090d' : C.text }}>{n}</button>)}
+              {Array.from({ length: 10 }, (_, i) => i + 1).map(n => <button key={n} onClick={() => setRpe(n)} style={{ ...ghost, padding: '8px 0', fontSize: 12, background: rpe === n ? C.accent : 'rgba(var(--dz-ink-rgb),0.045)', color: rpe === n ? '#f2f2f5' : C.text }}>{n}</button>)}
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
               <button style={{ ...ghost, flex: 1 }} onClick={() => setFinish(false)}>Continuer</button>
@@ -435,7 +435,7 @@ function LiveWorkout({ s, live, onChange, onQuit, onDone }: { s: SportSession; l
 }
 
 function Stepper({ value, unit, step, onChange }: { value: number | null; unit: string; step: number; onChange: (v: number | null) => void }) {
-  const b = { width: 30, height: 36, border: 'none', borderRadius: 9, background: 'rgba(255,255,255,0.08)', color: C.text, fontSize: 17, fontWeight: 800, cursor: 'pointer' } as const;
+  const b = { width: 30, height: 36, border: 'none', borderRadius: 9, background: 'rgba(var(--dz-ink-rgb),0.06)', color: C.text, fontSize: 17, fontWeight: 800, cursor: 'pointer' } as const;
   return (
     <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
       <button style={b} onClick={() => onChange(Math.max(0, Math.round(((value ?? 0) - step) * 10) / 10))}>−</button>

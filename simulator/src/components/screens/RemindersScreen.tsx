@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { business, type SmartReminder } from '../../services/api.ts';
 
-const PRI_COL   = { HIGH: '#ff3366', MEDIUM: '#ffb347', LOW: '#ffffff44' } as const;
-const PRI_BG    = { HIGH: '#ff336610', MEDIUM: '#ffb34710', LOW: '#ffffff06' } as const;
+const PRI_COL   = { HIGH: '#e0304f', MEDIUM: '#b86e00', LOW: 'rgba(var(--dz-ink-rgb),0.16)' } as const;
+const PRI_BG    = { HIGH: '#e0304f10', MEDIUM: '#b86e0010', LOW: 'rgba(var(--dz-ink-rgb),0.02)' } as const;
 const PRI_LABEL = { HIGH: 'URGENT', MEDIUM: 'MOYEN', LOW: 'FAIBLE' } as const;
 const PRI_ICON  = { HIGH: '🔴', MEDIUM: '🟡', LOW: '⚪' } as const;
 
@@ -39,26 +39,26 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#09090d', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--dz-bg)', color: 'var(--dz-text)', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       {/* Header */}
-      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #9b8cff12', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
+      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #2f5bff12', flexShrink: 0, background: 'rgba(var(--dz-surface-rgb),0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9b8cff', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #9b8cff55' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#2f5bff', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #2f5bff26' }}>
             RAPPELS
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {byPri.HIGH.length > 0 && (
               <div style={{
-                background: '#ff336618', border: '1px solid #ff336655', borderRadius: 10,
-                padding: '3px 8px', fontSize: 12, color: '#ff3366', fontFamily: 'Inter, sans-serif',
+                background: '#e0304f18', border: '1px solid #e0304f55', borderRadius: 10,
+                padding: '3px 8px', fontSize: 12, color: '#e0304f', fontFamily: 'Inter, sans-serif',
                 letterSpacing: '0.1em', animation: 'statusPulse 1.5s ease infinite',
               }}>
                 {byPri.HIGH.length} URGENT
               </div>
             )}
-            <button onClick={() => void load()} style={{ background: 'none', border: '1px solid #9b8cff22', borderRadius: 6, padding: '3px 8px', color: '#9b8cff66', cursor: 'pointer', fontSize: 12 }}>
+            <button onClick={() => void load()} style={{ background: 'none', border: '1px solid #2f5bff22', borderRadius: 6, padding: '3px 8px', color: '#2f5bff66', cursor: 'pointer', fontSize: 12 }}>
               ↻
             </button>
           </div>
@@ -78,17 +78,17 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
             </div>
           ))}
         </div>
-        <div style={{ marginTop: 6, height: 1, background: 'linear-gradient(90deg, transparent, #9b8cff44, transparent)' }} />
+        <div style={{ marginTop: 6, height: 1, background: 'linear-gradient(90deg, transparent, #2f5bff44, transparent)' }} />
       </div>
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 30, fontSize: 13, color: '#9b8cff33', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>CHARGEMENT…</div>
+          <div style={{ textAlign: 'center', padding: 30, fontSize: 13, color: '#2f5bff33', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>CHARGEMENT…</div>
         ) : visible.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 30, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
             <div style={{ fontSize: 28 }}>✅</div>
-            <div style={{ fontSize: 13.5, color: '#00e676', fontFamily: 'Inter, sans-serif', letterSpacing: '0.2em' }}>
+            <div style={{ fontSize: 13.5, color: '#0a9a5e', fontFamily: 'Inter, sans-serif', letterSpacing: '0.2em' }}>
               AUCUN RAPPEL ACTIF
             </div>
           </div>
@@ -109,29 +109,29 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
                   <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: col, letterSpacing: '0.2em' }}>
                     {PRI_LABEL[pri]}
                   </span>
-                  <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${col}33, transparent)` }} />
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: `${col}55` }}>{items.length}</span>
+                  <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, color-mix(in srgb, ${col} 20%, transparent), transparent)` }} />
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: `color-mix(in srgb, ${col} 33%, transparent)` }}>{items.length}</span>
                 </div>
 
                 {/* Items */}
                 {items.map(r => (
                   <div key={r.id} style={{
                     margin: '0 0 5px', borderRadius: 10,
-                    background: bg, border: `1px solid ${col}2a`,
+                    background: bg, border: `1px solid color-mix(in srgb, ${col} 16%, transparent)`,
                     padding: '9px 10px',
-                    boxShadow: pri === 'HIGH' ? `0 0 10px ${col}0f` : 'none',
+                    boxShadow: pri === 'HIGH' ? `0 0 10px color-mix(in srgb, ${col} 6%, transparent)` : 'none',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                       {/* Left accent bar */}
                       <div style={{ width: 3, borderRadius: 2, background: col, flexShrink: 0, alignSelf: 'stretch', opacity: 0.8 }} />
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13.5, color: '#f3effc', lineHeight: 1.45, marginBottom: 4 }}>
+                        <div style={{ fontSize: 13.5, color: 'var(--dz-text)', lineHeight: 1.45, marginBottom: 4 }}>
                           {r.message}
                         </div>
-                        <div style={{ fontSize: 12.5, color: '#a6a3b8' }}>
+                        <div style={{ fontSize: 12.5, color: 'var(--dz-muted)' }}>
                           {r.client_name} · {r.car_name}
                         </div>
-                        <div style={{ fontSize: 12, color: `${col}55`, marginTop: 3, letterSpacing: '0.05em' }}>
+                        <div style={{ fontSize: 12, color: `color-mix(in srgb, ${col} 33%, transparent)`, marginTop: 3, letterSpacing: '0.05em' }}>
                           {fmtDate(r.date)} · {r.action}
                         </div>
                       </div>
@@ -142,9 +142,9 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
                         <button
                           onClick={() => void dismiss(r.id)}
                           style={{
-                            background: 'none', border: `1px solid ${col}22`,
+                            background: 'none', border: `1px solid color-mix(in srgb, ${col} 13%, transparent)`,
                             borderRadius: 4, cursor: 'pointer',
-                            fontSize: 13.5, color: `${col}44`, padding: '2px 4px',
+                            fontSize: 13.5, color: `color-mix(in srgb, ${col} 27%, transparent)`, padding: '2px 4px',
                           }}
                         >✕</button>
                       </div>

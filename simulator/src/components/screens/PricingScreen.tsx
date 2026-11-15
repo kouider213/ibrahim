@@ -56,7 +56,7 @@ export default function PricingScreen() {
                 <div style={{ fontSize: 12.5, color: s.col, marginTop: 2 }}>{s.reason}</div>
                 {s.occ > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
-                    <div style={{ flex: 1, maxWidth: 90, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.07)', overflow: 'hidden' }}><div style={{ width: `${Math.min(100, s.occ)}%`, height: '100%', background: s.col === T.muted ? T.accent : s.col }} /></div>
+                    <div style={{ flex: 1, maxWidth: 90, height: 5, borderRadius: 3, background: 'rgba(var(--dz-ink-rgb),0.053)', overflow: 'hidden' }}><div style={{ width: `${Math.min(100, s.occ)}%`, height: '100%', background: s.col === T.muted ? T.accent : s.col }} /></div>
                     <span style={{ fontSize: 11.5, color: T.muted }}>occupée {Math.round(s.occ)} %</span>
                   </div>
                 )}

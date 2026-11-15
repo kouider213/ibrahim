@@ -199,7 +199,7 @@ export default function CalendarScreen() {
     .filter(b => stKey(b.status) !== 'REJECTED' && (b.start_date.slice(0, 7) === pfx || b.end_date.slice(0, 7) === pfx || (b.start_date <= `${pfx}-31` && b.end_date >= `${pfx}-01`)))
     .sort((a, b) => a.start_date.localeCompare(b.start_date));
   const showBookings = filter === 'all' || filter === 'fik';
-  const navBtn = { width: 40, height: 40, borderRadius: 12, border: `1px solid ${T.line}`, background: 'rgba(255,255,255,0.03)', color: T.accent, fontSize: 20, cursor: 'pointer' } as const;
+  const navBtn = { width: 40, height: 40, borderRadius: 12, border: `1px solid ${T.line}`, background: 'rgba(var(--dz-ink-rgb),0.022)', color: T.accent, fontSize: 20, cursor: 'pointer' } as const;
 
   const BookingLine = ({ b, onClick }: { b: Booking; onClick?: () => void }) => {
     const col = STATUS_COL[stKey(b.status)] ?? T.faint;
@@ -253,13 +253,13 @@ export default function CalendarScreen() {
               return (
                 <button key={cell.iso} onClick={() => setSelected(cell.iso)} style={{
                   aspectRatio: '1', minHeight: 40, borderRadius: 12, cursor: 'pointer', fontFamily: T.font, padding: 0,
-                  background: isSel ? `linear-gradient(135deg, ${T.accent}, ${T.accent2})` : isToday ? tone(T.accent, 0.12) : bks.length || gcEvts.length ? 'rgba(255,255,255,0.04)' : 'transparent',
+                  background: isSel ? `linear-gradient(135deg, ${T.accent}, ${T.accent2})` : isToday ? tone(T.accent, 0.12) : bks.length || gcEvts.length ? 'rgba(var(--dz-ink-rgb),0.03)' : 'transparent',
                   border: isToday && !isSel ? `1px solid ${tone(T.accent, 0.55)}` : '1px solid transparent',
                   display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
                 }}>
-                  <span style={{ fontSize: 15, fontWeight: isToday || isSel ? 800 : 600, color: isSel ? '#0b0a12' : isToday ? T.accent : T.text, lineHeight: 1 }}>{cell.day}</span>
+                  <span style={{ fontSize: 15, fontWeight: isToday || isSel ? 800 : 600, color: isSel ? '#ffffff' : isToday ? T.accent : T.text, lineHeight: 1 }}>{cell.day}</span>
                   <span style={{ display: 'flex', gap: 3, height: 6 }}>
-                    {[...bkDots, ...gcDots].slice(0, 3).map((c, di) => <span key={di} style={{ width: 6, height: 6, borderRadius: '50%', background: isSel ? '#0b0a12' : c }} />)}
+                    {[...bkDots, ...gcDots].slice(0, 3).map((c, di) => <span key={di} style={{ width: 6, height: 6, borderRadius: '50%', background: isSel ? 'var(--dz-surface)' : c }} />)}
                   </span>
                 </button>
               );

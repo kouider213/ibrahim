@@ -98,7 +98,7 @@ export default function RouteScreen() {
           <div style={{ fontSize: 12, color: C.muted }}>km/h (GPS)</div>
         </div>
         {limit != null && (
-          <div style={{ width: 76, height: 76, borderRadius: '50%', background: '#fff', border: '9px solid #e11d2a', display: 'grid', placeItems: 'center', color: '#111', fontSize: 28, fontWeight: 800 }}>{limit}</div>
+          <div style={{ width: 76, height: 76, borderRadius: '50%', background: 'var(--dz-surface)', border: '9px solid #e11d2a', display: 'grid', placeItems: 'center', color: '#111', fontSize: 28, fontWeight: 800 }}>{limit}</div>
         )}
       </div>
       <div style={{ position: 'absolute', left: 16, right: 16, bottom: 20, display: 'grid', gap: 10 }}>

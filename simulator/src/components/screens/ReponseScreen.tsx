@@ -67,7 +67,7 @@ export default function ReponseScreen() {
             <Btn variant="ghost" onClick={copy} style={{ flex: 1 }}>📋 Copier</Btn>
             <Btn variant="ghost" onClick={() => void draft()} disabled={busy} style={{ flex: 1 }}>🔄 Autre version</Btn>
           </div>
-          <Btn onClick={send} style={{ width: '100%', background: '#25D366', color: '#04210f', border: 'none' }}>💬 Envoyer sur WhatsApp</Btn>
+          <Btn onClick={send} style={{ width: '100%', background: '#25D366', color: '#ffffff', border: 'none' }}>💬 Envoyer sur WhatsApp</Btn>
           <div style={{ fontSize: 12, color: T.faint, marginTop: 8, textAlign: 'center' }}>Rien ne part sans toi : WhatsApp s'ouvre avec le texte prêt.</div>
         </div>
       )}

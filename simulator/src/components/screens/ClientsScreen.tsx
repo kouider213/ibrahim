@@ -16,26 +16,26 @@ const dfr = (x?: string | null) => x ? new Date(String(x).slice(0, 10)).toLocale
 
 // ── Palette premium (cartes sur obsidian + accent émeraude) ─────
 const C = {
-  bg: '#09090d', surface: '#131319', surface2: '#1b1b23', border: 'rgba(200,190,255,0.15)',
-  accent: '#9b8cff', accentSoft: '#34d399', text: '#f5f5f7', muted: '#a6a3b8',
-  gold: '#fbbf24', blue: '#b9a6ff', violet: '#a78bfa',
+  bg: 'var(--dz-bg)', surface: 'var(--dz-surface)', surface2: 'var(--dz-surface2)', border: 'rgba(var(--dz-ink-rgb),0.15)',
+  accent: '#2f5bff', accentSoft: '#0a9a5e', text: 'var(--dz-text)', muted: 'var(--dz-muted)',
+  gold: '#b86e00', blue: '#2f5bff', violet: '#2f5bff',
   font: '-apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
 };
 
 const TYPE_META: Record<ClientType, { label: string; col: string }> = {
   loc_auto:   { label: 'Loc auto',   col: C.accent },
   loc_immo:   { label: 'Loc immo',   col: C.violet },
-  achat_auto: { label: 'Achat auto', col: '#fb923c' },
+  achat_auto: { label: 'Achat auto', col: '#c2570c' },
   achat_immo: { label: 'Achat immo', col: C.accentSoft },
-  demande:    { label: 'Demande',    col: '#f472b6' },
+  demande:    { label: 'Demande',    col: '#d6338a' },
 };
 
 const OP_META: Record<string, { label: string; icon: string; col: string }> = {
   location_immo:      { label: 'Location immo',  icon: '🏠', col: C.violet },
   vente_immo:         { label: 'Achat immo',     icon: '🏠', col: C.accentSoft },
-  vente_voiture:      { label: 'Achat voiture',  icon: '🚗', col: '#fb923c' },
-  demande_specifique: { label: 'Demande spéciale', icon: '✨', col: '#f472b6' },
-  demande:            { label: 'Demande spéciale', icon: '✨', col: '#f472b6' },
+  vente_voiture:      { label: 'Achat voiture',  icon: '🚗', col: '#c2570c' },
+  demande_specifique: { label: 'Demande spéciale', icon: '✨', col: '#d6338a' },
+  demande:            { label: 'Demande spéciale', icon: '✨', col: '#d6338a' },
 };
 
 const SCORE_COL: Record<string, string> = {
@@ -273,7 +273,7 @@ export default function ClientsScreen() {
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, position: 'relative' }}>
       {toast && (
-        <div style={{ position: 'fixed', left: '50%', top: 80, transform: 'translateX(-50%)', zIndex: 200, width: 'calc(100% - 32px)', maxWidth: 520, boxSizing: 'border-box', background: C.surface2, border: `1px solid ${C.accent}55`, color: C.text, fontSize: 14, fontWeight: 600, padding: '12px 14px', borderRadius: 12, boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>{toast}</div>
+        <div style={{ position: 'fixed', left: '50%', top: 80, transform: 'translateX(-50%)', zIndex: 200, width: 'calc(100% - 32px)', maxWidth: 520, boxSizing: 'border-box', background: C.surface2, border: `1px solid color-mix(in srgb, ${C.accent} 33%, transparent)`, color: C.text, fontSize: 14, fontWeight: 600, padding: '12px 14px', borderRadius: 12, boxShadow: '0 8px 30px rgba(15,17,30,0.11)' }}>{toast}</div>
       )}
       <PageHeader eyebrow="Fichier clients" title="Clients" subtitle={`${clients.length} profil${clients.length !== 1 ? 's' : ''} · historique, pièces, préférences`} />
       <div style={{ padding: '0 16px' }}>
@@ -317,9 +317,9 @@ export default function ClientsScreen() {
           const cOps = ops.get(c.name) ?? [];
 
           return (
-            <div key={c.name} style={{ background: isExp ? 'linear-gradient(160deg, #16141f, #131318)' : C.surface, border: `1px solid ${isExp ? scCol + '55' : C.border}`, borderRadius: 18, overflow: 'hidden', transition: 'all .2s', boxShadow: isExp ? `0 8px 28px ${scCol}18` : '0 1px 0 rgba(255,255,255,0.02)' }}>
+            <div key={c.name} style={{ background: isExp ? 'linear-gradient(160deg, #ffffff, #ffffff)' : C.surface, border: `1px solid ${isExp ? scCol + '55' : C.border}`, borderRadius: 18, overflow: 'hidden', transition: 'all .2s', boxShadow: isExp ? `0 8px 28px color-mix(in srgb, ${scCol} 9%, transparent)` : '0 1px 0 rgba(255,255,255,0.02)' }}>
               <div onClick={() => toggle(c)} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '15px 14px', cursor: 'pointer' }}>
-                <div style={{ width: 48, height: 48, borderRadius: '50%', flexShrink: 0, background: `linear-gradient(145deg, ${scCol}33, ${scCol}10)`, border: `1.5px solid ${scCol}66`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, color: scCol, boxShadow: `0 0 14px ${scCol}22` }}>{initials || '?'}</div>
+                <div style={{ width: 48, height: 48, borderRadius: '50%', flexShrink: 0, background: `linear-gradient(145deg, color-mix(in srgb, ${scCol} 20%, transparent), color-mix(in srgb, ${scCol} 6%, transparent))`, border: `1.5px solid color-mix(in srgb, ${scCol} 40%, transparent)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, color: scCol, boxShadow: `0 0 14px color-mix(in srgb, ${scCol} 13%, transparent)` }}>{initials || '?'}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 15.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><ClientName name={c.name} phone={c.phone} /></div>
                   <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>{c.bookingCount} résa · {fmt(c.totalSpent)}</div>
@@ -331,13 +331,13 @@ export default function ClientsScreen() {
                   {c.types && c.types.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 7 }}>
                       {c.types.map(t => { const m = TYPE_META[t]; if (!m) return null; return (
-                        <span key={t} style={{ fontSize: 12, fontWeight: 600, color: m.col, background: `${m.col}1a`, border: `1px solid ${m.col}40`, borderRadius: 20, padding: '2px 9px' }}>{m.label}</span>
+                        <span key={t} style={{ fontSize: 12, fontWeight: 600, color: m.col, background: `color-mix(in srgb, ${m.col} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${m.col} 25%, transparent)`, borderRadius: 20, padding: '2px 9px' }}>{m.label}</span>
                       ); })}
                     </div>
                   )}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: scCol, background: `${scCol}1f`, border: `1px solid ${scCol}55`, borderRadius: 20, padding: '3px 10px' }}>{score}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: scCol, background: `color-mix(in srgb, ${scCol} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${scCol} 33%, transparent)`, borderRadius: 20, padding: '3px 10px' }}>{score}</span>
                   {c.phone && <a href={`tel:${c.phone}`} onClick={e => e.stopPropagation()} style={{ fontSize: 20, textDecoration: 'none' }}>📞</a>}
                 </div>
               </div>
@@ -362,7 +362,7 @@ export default function ClientsScreen() {
                       <Row label="Négociation" val={ci.negotiation_style ? FR[ci.negotiation_style] ?? ci.negotiation_style : '—'} />
                       <Row label="Fiabilité paiement" val={ci.payment_reliability ? FR[ci.payment_reliability] ?? ci.payment_reliability : '—'} />
                       <Row label="Dépenses total" val={fmt(ci.total_spent)} col={C.gold} />
-                      {ci.notes && <div style={{ marginTop: 10, padding: '10px 12px', background: `${C.accent}10`, borderRadius: 12, border: `1px solid ${C.accent}22`, fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>{ci.notes}</div>}
+                      {ci.notes && <div style={{ marginTop: 10, padding: '10px 12px', background: `color-mix(in srgb, ${C.accent} 6%, transparent)`, borderRadius: 12, border: `1px solid color-mix(in srgb, ${C.accent} 13%, transparent)`, fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>{ci.notes}</div>}
                       <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                         <button onClick={() => openClient({ name: c.name, phone: c.phone })} style={{ ...miniBtn(C.accent) }}>👤 Fiche complète</button>
                         <button onClick={() => startIntelEdit(c.name, ci)} style={{ ...miniBtn(C.blue) }}>✏️ Modifier le profil</button>
@@ -408,7 +408,7 @@ export default function ClientsScreen() {
                     ) : det.bookings.map(bk => {
                       const stCol = bk.status === 'CONFIRMED' || bk.status === 'COMPLETED' ? C.accent
                         : bk.status === 'PENDING' ? C.gold
-                        : bk.status === 'REJECTED' || bk.status === 'CANCELLED' ? '#ef4444' : C.muted;
+                        : bk.status === 'REJECTED' || bk.status === 'CANCELLED' ? '#e0304f' : C.muted;
                       const reste = (bk.payment_status ?? '').toUpperCase() === 'PAID' ? 0 : (bk.final_price ?? 0) - (bk.paid_amount ?? 0);   // « Payé » = payé en entier
                       const marge = bk.client_price_per_day != null && bk.owner_price_per_day != null && bk.nb_days
                         ? Math.round((bk.client_price_per_day - bk.owner_price_per_day) * bk.nb_days) : null;
@@ -483,7 +483,7 @@ export default function ClientsScreen() {
                           {det.documents.map(doc => {
                             const lbl = doc.type === 'passport' ? '🪪 Passeport' : doc.type === 'license' ? '🚘 Permis' : doc.type === 'contract' ? '📄 Contrat' : '📎 Document';
                             const hasUrl = !!doc.file_url && doc.file_url.length > 4;
-                            const st = { fontSize: 12.5, fontWeight: 600, color: C.blue, background: `${C.blue}15`, border: `1px solid ${C.blue}40`, borderRadius: 10, padding: '6px 11px', textDecoration: 'none' } as const;
+                            const st = { fontSize: 12.5, fontWeight: 600, color: C.blue, background: `color-mix(in srgb, ${C.blue} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${C.blue} 25%, transparent)`, borderRadius: 10, padding: '6px 11px', textDecoration: 'none' } as const;
                             // Photo dispo → vignette cliquable (ouvre la pièce en grand). Sinon label "(sans photo)".
                             // 🗑 en coin → supprimer la pièce (ex: passeport ajouté par erreur, à re-scanner).
                             return (
@@ -493,13 +493,13 @@ export default function ClientsScreen() {
                                     <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
                                        style={{ display: 'inline-block', textDecoration: 'none' }}>
                                       <img src={doc.file_url} alt={lbl}
-                                           style={{ width: 104, height: 70, objectFit: 'cover', borderRadius: 10, border: `1px solid ${C.blue}55`, display: 'block' }} />
+                                           style={{ width: 104, height: 70, objectFit: 'cover', borderRadius: 10, border: `1px solid color-mix(in srgb, ${C.blue} 33%, transparent)`, display: 'block' }} />
                                       <span style={{ fontSize: 12, fontWeight: 700, color: C.blue, display: 'block', marginTop: 3, textAlign: 'center' }}>{lbl}</span>
                                     </a>
                                   )
                                   : <span style={{ ...st, color: C.muted, border: `1px solid ${C.border}`, background: C.surface }}>{lbl} (sans photo)</span>}
                                 <button onClick={() => void handleDeleteDoc(c, doc.id)} title="Supprimer la pièce"
-                                        style={{ position: 'absolute', top: -6, right: -6, width: 22, height: 22, borderRadius: 11, border: 'none', background: '#ef4444', color: '#fff', fontSize: 12.5, lineHeight: '22px', padding: 0, cursor: 'pointer' }}>🗑</button>
+                                        style={{ position: 'absolute', top: -6, right: -6, width: 22, height: 22, borderRadius: 11, border: 'none', background: '#e0304f', color: '#fff', fontSize: 12.5, lineHeight: '22px', padding: 0, cursor: 'pointer' }}>🗑</button>
                               </div>
                             );
                           })}
@@ -509,12 +509,12 @@ export default function ClientsScreen() {
 
                     {/* Ajouter une pièce directement (sans le chat) → scan + rattache à la résa */}
                     <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-                      <label style={{ fontSize: 12.5, fontWeight: 700, color: C.accent, background: `${C.accent}15`, border: `1px solid ${C.accent}40`, borderRadius: 10, padding: '8px 12px', cursor: scanning === c.name ? 'wait' : 'pointer', opacity: scanning === c.name ? 0.6 : 1 }}>
+                      <label style={{ fontSize: 12.5, fontWeight: 700, color: C.accent, background: `color-mix(in srgb, ${C.accent} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${C.accent} 25%, transparent)`, borderRadius: 10, padding: '8px 12px', cursor: scanning === c.name ? 'wait' : 'pointer', opacity: scanning === c.name ? 0.6 : 1 }}>
                         {scanning === c.name ? '⏳ Lecture…' : '🪪 Ajouter passeport'}
                         <input type="file" accept="image/*" style={{ display: 'none' }} disabled={scanning === c.name}
                           onChange={e => { const f = e.target.files?.[0]; if (f) void handleScan(c, f, false); e.currentTarget.value = ''; }} />
                       </label>
-                      <label style={{ fontSize: 12.5, fontWeight: 700, color: C.blue, background: `${C.blue}15`, border: `1px solid ${C.blue}40`, borderRadius: 10, padding: '8px 12px', cursor: scanning === c.name ? 'wait' : 'pointer', opacity: scanning === c.name ? 0.6 : 1 }}>
+                      <label style={{ fontSize: 12.5, fontWeight: 700, color: C.blue, background: `color-mix(in srgb, ${C.blue} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${C.blue} 25%, transparent)`, borderRadius: 10, padding: '8px 12px', cursor: scanning === c.name ? 'wait' : 'pointer', opacity: scanning === c.name ? 0.6 : 1 }}>
                         {scanning === c.name ? '⏳ Lecture…' : '🚘 Ajouter permis'}
                         <input type="file" accept="image/*" style={{ display: 'none' }} disabled={scanning === c.name}
                           onChange={e => { const f = e.target.files?.[0]; if (f) void handleScan(c, f, true); e.currentTarget.value = ''; }} />
@@ -532,7 +532,7 @@ export default function ClientsScreen() {
 }
 
 function miniBtn(col: string): React.CSSProperties {
-  return { fontSize: 12.5, fontWeight: 700, color: col, background: `${col}15`, border: `1px solid ${col}40`, borderRadius: 10, padding: '7px 12px', cursor: 'pointer' };
+  return { fontSize: 12.5, fontWeight: 700, color: col, background: `color-mix(in srgb, ${col} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${col} 25%, transparent)`, borderRadius: 10, padding: '7px 12px', cursor: 'pointer' };
 }
 
 // ── Formulaire "Nouvelle réservation" — réutilisé fiche client (fixedClient) + global (clients picker) ──
@@ -608,7 +608,7 @@ function NewBookingForm({ cars, clients, fixedClient, saving, onCancel, onCreate
   };
 
   return (
-    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8, padding: '10px', background: C.bg, borderRadius: 12, border: `1px solid ${C.accent}55` }}>
+    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8, padding: '10px', background: C.bg, borderRadius: 12, border: `1px solid color-mix(in srgb, ${C.accent} 33%, transparent)` }}>
       <div style={{ fontSize: 12.5, fontWeight: 700, color: C.accent }}>Nouvelle réservation{fixedClient ? ` — ${fixedClient.name}` : ''}</div>
       {!fixedClient && (
         <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>

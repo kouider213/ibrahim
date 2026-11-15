@@ -23,10 +23,10 @@ const MAX_CALL_S = 15 * 60;   // un appel raccroche tout seul après 15 min (cr�
 
 // Palette holographique (style Nexus) — la sphère change de teinte selon l'état
 const STATE_COLOR: Record<DzaryxStatus, string> = {
-  idle:      '#9b8cff',
-  listening: '#5ef0df',
-  thinking:  '#a78bfa',
-  speaking:  '#ff79c6',
+  idle:      '#2f5bff',
+  listening: '#2f5bff',
+  thinking:  '#2f5bff',
+  speaking:  '#d6338a',
 };
 
 // Sphère neuronale : points répartis (Fibonacci) + liaisons vers les voisins proches
@@ -968,15 +968,16 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       const R   = Math.min(W * 0.27, H * 0.17) * (1 + amp * 0.12 + (st === 'speaking' ? Math.sin(t * 0.012) * 0.03 : 0));
 
       // Fond bleu nuit + halo
-      ctx.fillStyle = '#060609'; ctx.fillRect(0, 0, W, H);
+      const dark = document.documentElement.dataset['theme'] === 'dark';
+      ctx.fillStyle = dark ? '#09090c' : '#f2f2f5'; ctx.fillRect(0, 0, W, H);
       const halo = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 2.6);
       halo.addColorStop(0, hexToRgba(col, 0.16 + amp * 0.12));
-      halo.addColorStop(0.5, 'rgba(20,50,110,0.10)');
-      halo.addColorStop(1, 'rgba(3,6,15,0)');
+      halo.addColorStop(0.5, 'rgba(47,91,255,0.1)');
+      halo.addColorStop(1, 'rgba(12,14,26,0)');
       ctx.fillStyle = halo; ctx.fillRect(0, 0, W, H);
 
       // Grille de sol en perspective (bas de l'écran)
-      ctx.strokeStyle = 'rgba(74,163,255,0.07)'; ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(47,91,255,0.07)'; ctx.lineWidth = 1;
       const hz = H * 0.62;
       for (let i = -8; i <= 8; i++) {
         ctx.beginPath(); ctx.moveTo(cx + i * 14, hz); ctx.lineTo(cx + i * W * 0.22, H); ctx.stroke();
@@ -1012,7 +1013,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       }
       // Cœur
       const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 0.55);
-      core.addColorStop(0, hexToRgba('#ffffff', 0.55 + amp * 0.4));
+      core.addColorStop(0, hexToRgba(dark ? '#ffffff' : '#0c0e1a', 0.55 + amp * 0.4));
       core.addColorStop(0.25, hexToRgba(col, 0.45 + amp * 0.3));
       core.addColorStop(1, hexToRgba(col, 0));
       ctx.fillStyle = core; ctx.beginPath(); ctx.arc(cx, cy, R * 0.55, 0, Math.PI * 2); ctx.fill();
@@ -1098,7 +1099,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
   const isThinking  = status === 'thinking';
   const isSpeaking  = status === 'speaking';
   const orbActive   = isListening || isSpeaking || isThinking;
-  const DIM = 'rgba(255,255,255,0.42)';
+  const DIM = 'rgba(var(--dz-ink-rgb),0.42)';
 
   // ── BARRE FINE (overlay façon Gemini) ─────────────────────────────────────
   if (compact) {
@@ -1120,13 +1121,13 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
     };
     return (
       <div style={{
-        width: '100%', height: '100%', background: '#0a0a0a',
+        width: '100%', height: '100%', background: 'var(--dz-bg)',
         display: 'flex', alignItems: 'center', gap: 10, padding: '0 46px 0 12px',
         position: 'relative', overflow: 'hidden',
-        borderBottom: `1px solid ${col}33`,
+        borderBottom: `1px solid color-mix(in srgb, ${col} 20%, transparent)`,
       }}>
         {/* halo bas */}
-        <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(120% 140% at 50% 130%, ${col}1f, transparent 60%)`, pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(120% 140% at 50% 130%, color-mix(in srgb, ${col} 12%, transparent), transparent 60%)`, pointerEvents: 'none' }} />
 
         {/* logo */}
         <div style={{ flexShrink: 0, animation: orbActive ? 'corePulse 1.4s ease-in-out infinite' : 'none' }}><OrbIcon size={32} /></div>
@@ -1135,7 +1136,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
         <div
           onClick={!audioUnlocked ? activate : undefined}
           style={{
-            flex: 1, minWidth: 0, color: liveText ? '#E8C98A' : 'rgba(255,255,255,0.9)',
+            flex: 1, minWidth: 0, color: liveText ? '#b86e00' : 'rgb(12,14,26)',
             fontFamily: 'Inter', fontSize: 13, fontWeight: 300, lineHeight: 1.3,
             display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
             overflow: 'hidden', cursor: !audioUnlocked ? 'pointer' : 'default',
@@ -1148,7 +1149,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
         <button onClick={() => { window.location.href = 'dzaryx://?vision=1'; }} aria-label="Caméra"
           style={{
             width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
-            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.14)',
+            background: 'rgba(var(--dz-ink-rgb),0.038)', border: '1px solid rgba(var(--dz-ink-rgb),0.14)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
           }}>
           <svg width="18" height="14" viewBox="0 0 24 18" fill="none" stroke={col} strokeWidth="1.6" strokeLinecap="round">
@@ -1161,10 +1162,10 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
         <button onClick={!audioUnlocked ? activate : micTap} aria-label="Micro"
           style={{
             width: 46, height: 46, borderRadius: '50%', flexShrink: 0,
-            background: orbActive ? `linear-gradient(180deg, ${col}44, ${col}18)` : `${col}1f`,
+            background: orbActive ? `linear-gradient(180deg, color-mix(in srgb, ${col} 27%, transparent), color-mix(in srgb, ${col} 9%, transparent))` : `color-mix(in srgb, ${col} 12%, transparent)`,
             border: `1px solid ${orbActive ? col : col + '66'}`,
             display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-            boxShadow: isListening ? `0 0 ${14 + rmsLevel * 26}px ${col}aa` : `0 0 12px ${col}44`,
+            boxShadow: isListening ? `0 0 ${14 + rmsLevel * 26}px color-mix(in srgb, ${col} 67%, transparent)` : `0 0 12px color-mix(in srgb, ${col} 27%, transparent)`,
             transition: 'box-shadow 0.08s linear',
           }}>
           {isListening ? (
@@ -1228,17 +1229,17 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
   };
 
   const glass: React.CSSProperties = {
-    background: 'rgba(10,18,38,0.62)', border: '1px solid rgba(200,190,255,0.18)',
-    backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+    background: 'var(--dz-surface)', border: '1px solid rgba(var(--dz-ink-rgb),0.06)',
+    boxShadow: '0 1px 2px rgba(var(--dz-shadow-rgb),0.04), 0 10px 24px -14px rgba(var(--dz-shadow-rgb),0.2)',
   };
   const STATE_TAG: Record<DzaryxStatus, string> = {
-    idle: 'EN VEILLE', listening: 'ÉCOUTE', thinking: 'ANALYSE', speaking: 'RÉPONSE',
+    idle: 'En veille', listening: 'Je t\'écoute', thinking: 'Je réfléchis', speaking: 'Je réponds',
   };
   const showChips = !displayText && !liveText && status === 'idle' && !call;
 
   return (
     <div
-      style={{ width: '100%', height: '100%', background: '#060609', position: 'relative', overflow: 'hidden' }}
+      style={{ width: '100%', height: '100%', background: 'var(--dz-bg)', position: 'relative', overflow: 'hidden' }}
     >
       {/* Fond holographique (sphère neuronale Nexus, réagit à la voix) */}
       <canvas ref={canvasRef}
@@ -1250,14 +1251,13 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
         padding: '12px 14px 8px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <div style={{ ...glass, display: 'flex', alignItems: 'center', gap: 6, borderRadius: 14, height: 30, padding: '0 11px' }}>
+        <div style={{ ...glass, display: 'flex', alignItems: 'center', gap: 7, borderRadius: 99, height: 36, padding: '0 14px' }}>
           <div style={{
-            width: 6, height: 6, borderRadius: '50%',
-            background: wsConn ? '#34d399' : '#f87171',
-            boxShadow: `0 0 6px ${wsConn ? '#34d399' : '#f87171'}`,
+            width: 7, height: 7, borderRadius: '50%',
+            background: wsConn ? '#0a9a5e' : '#e0304f',
           }} />
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 13.5, color: '#a6a3b8', letterSpacing: '0.12em' }}>
-            {wsConn ? 'EN LIGNE' : 'HORS LIGNE'}{wakeWordOn ? ' · À L\'ÉCOUTE' : ''}
+          <span style={{ fontFamily: 'Inter', fontSize: 12.5, fontWeight: 600, color: 'var(--dz-text)' }}>
+            {wsConn ? 'En ligne' : 'Hors ligne'}{wakeWordOn ? ' · à l\'écoute' : ''}
           </span>
         </div>
 
@@ -1268,8 +1268,8 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
               onClick={() => sendNativeAction({ __native_action: 'open_overlay' })}
               title="Ouvrir en overlay par-dessus les autres apps"
               style={{
-                ...glass, borderRadius: 14, width: 32, height: 30, cursor: 'pointer',
-                fontFamily: 'Inter', fontSize: 13, color: '#a6a3b8',
+                ...glass, borderRadius: '50%', width: 36, height: 36, cursor: 'pointer',
+                fontFamily: 'Inter', fontSize: 14, color: 'var(--dz-text)',
               }}
             >
               ⧉
@@ -1282,13 +1282,13 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
               onClick={onStartCall}
               title="Appeler Dzaryx"
               style={{
-                background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.5)',
-                borderRadius: 14, height: 30, padding: '0 11px', cursor: 'pointer',
-                fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: '#34d399',
+                background: '#0a9a5e', border: 'none',
+                borderRadius: 99, height: 36, padding: '0 14px', cursor: 'pointer',
+                fontFamily: 'Inter', fontSize: 12.5, fontWeight: 700, color: '#ffffff',
                 display: 'flex', alignItems: 'center', gap: 5,
               }}
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="#34d399"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z" /></svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="#ffffff"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z" /></svg>
               Appeler
             </button>
           )}
@@ -1298,11 +1298,11 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
             onClick={() => setHandsFree(h => !h)}
             style={{
               ...glass,
-              background: handsFree ? `${col}1f` : glass.background,
-              border: `1px solid ${handsFree ? col + '99' : 'rgba(200,190,255,0.18)'}`,
-              borderRadius: 14, height: 30, padding: '0 11px', cursor: 'pointer',
-              fontFamily: 'Inter', fontSize: 11, fontWeight: 500,
-              color: handsFree ? col : '#a6a3b8', transition: 'all 0.2s ease',
+              background: handsFree ? `color-mix(in srgb, ${col} 12%, transparent)` : glass.background,
+              border: `1px solid ${handsFree ? col + '99' : 'rgba(var(--dz-ink-rgb),0.16)'}`,
+              borderRadius: 99, height: 36, padding: '0 14px', cursor: 'pointer',
+              fontFamily: 'Inter', fontSize: 12.5, fontWeight: 600,
+              color: handsFree ? col : 'var(--dz-text)', transition: 'all 0.2s ease',
             }}
           >
             {handsFree ? 'Mains libres' : 'Manuel'}
@@ -1314,14 +1314,14 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       {call && (
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0, zIndex: 7,
-          padding: '12px 16px', background: 'linear-gradient(180deg, #060609 70%, rgba(3,6,15,0))',
+          padding: '12px 16px', background: 'linear-gradient(180deg, var(--dz-bg) 70%, rgba(var(--dz-ink-rgb),0))',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'Inter' }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#34C759', boxShadow: '0 0 8px #34C759' }} />
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#0a9a5e', boxShadow: '0 0 8px #0a9a5e' }} />
             <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>En appel avec Dzaryx</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', fontVariantNumeric: 'tabular-nums' }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--dz-text)' }}>En appel avec Dzaryx</div>
+              <div style={{ fontSize: 12, color: 'var(--dz-muted)', fontVariantNumeric: 'tabular-nums' }}>
                 {String(Math.floor(callSecs / 60)).padStart(2, '0')}:{String(callSecs % 60).padStart(2, '0')}
                 {' · '}{status === 'speaking' ? 'il parle' : status === 'thinking' ? 'il réfléchit' : status === 'listening' ? 'il t\'écoute' : 'parle quand tu veux'}
               </div>
@@ -1329,10 +1329,10 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
           </div>
           <button onClick={hangUp} title="Raccrocher" style={{
             width: 48, height: 48, borderRadius: '50%', border: 'none', cursor: 'pointer',
-            background: '#FF3B30', boxShadow: '0 4px 16px rgba(255,59,48,0.45)',
+            background: '#e0304f', boxShadow: '0 4px 16px rgba(224,48,79,0.203)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff" style={{ transform: 'rotate(135deg)' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#ffffff" style={{ transform: 'rotate(135deg)' }}>
               <path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z" />
             </svg>
           </button>
@@ -1345,11 +1345,10 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
         display: 'flex', justifyContent: 'center', pointerEvents: 'none',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          <div style={{ width: 18, height: 1, background: `${col}66` }} />
-          <span style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 13, fontWeight: 600, color: col, letterSpacing: '0.34em', textShadow: `0 0 10px ${col}88` }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: col }} />
+          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 700, color: 'var(--dz-muted)' }}>
             {STATE_TAG[status]}
           </span>
-          <div style={{ width: 18, height: 1, background: `${col}66` }} />
         </div>
       </div>
 
@@ -1360,8 +1359,8 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       }}>
         {liveText ? (
           <div style={{
-            fontFamily: 'Inter', fontSize: 19, fontWeight: 300, textAlign: 'center',
-            color: '#e9e0ff', lineHeight: 1.4, fontStyle: 'italic', padding: '4px 10px',
+            fontFamily: 'Manrope, Inter, sans-serif', fontSize: 21, fontWeight: 700, textAlign: 'center', letterSpacing: '-0.02em',
+            color: 'var(--dz-text)', lineHeight: 1.35, padding: '4px 10px',
           }}>
             « {liveText} »
           </div>
@@ -1369,30 +1368,29 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
           <div
             onClick={() => setRespExpanded(e => !e)}
             style={{
-              ...glass, borderRadius: 18, width: '100%', boxSizing: 'border-box',
-              borderColor: `${col}33`, boxShadow: `0 0 30px ${col}14, inset 0 1px 0 rgba(255,255,255,0.05)`,
-              padding: '12px 14px', cursor: 'pointer', overflow: 'auto',
+              ...glass, borderRadius: 24, width: '100%', boxSizing: 'border-box',
+              padding: '14px 16px', cursor: 'pointer', overflow: 'auto',
               maxHeight: respExpanded ? '100%' : 150, animation: 'fadeIn 0.3s ease',
             }}
           >
-            <div style={{ fontFamily: 'Share Tech Mono', fontSize: 13, color: '#4f6288', letterSpacing: '0.16em', marginBottom: 6 }}>
-              DZARYX ▸
+            <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 700, color: '#2f5bff', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>
+              Dzaryx
             </div>
-            <div style={{ fontFamily: 'Inter', fontSize: 15, fontWeight: 400, color: '#e8f0ff', lineHeight: 1.55 }}>
+            <div style={{ fontFamily: 'Inter', fontSize: 15, fontWeight: 400, color: 'var(--dz-text)', lineHeight: 1.55 }}>
               {displayText}
             </div>
             {/* Images (passeport/permis/doc client) */}
             {imageUrlsFrom(displayText).slice(0, 3).map((u, i) => (
               <a key={i} href={u} target="_blank" rel="noopener noreferrer" style={{ display: 'block', margin: '10px 0 0' }}>
                 <img src={u} alt="document"
-                  style={{ width: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 12, border: `1px solid ${col}33`, background: 'rgba(0,0,0,0.3)' }} />
+                  style={{ width: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 12, border: `1px solid color-mix(in srgb, ${col} 20%, transparent)`, background: 'rgba(0,0,0,0.3)' }} />
               </a>
             ))}
           </div>
         ) : (
           <div style={{
-            fontFamily: 'Inter', fontSize: 23, fontWeight: 300, textAlign: 'center',
-            color: '#e8f0ff', lineHeight: 1.25,
+            fontFamily: 'Manrope, Inter, sans-serif', fontSize: 25, fontWeight: 800, textAlign: 'center', letterSpacing: '-0.035em',
+            color: 'var(--dz-text)', lineHeight: 1.2,
           }}>
             {STATE_MSG[status]}
           </div>
@@ -1408,8 +1406,8 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
               ['🖥️', 'Mon PC', 'Montre-moi l\'état de mon PC sur Nexus'],
             ].map(([ic, label, q]) => (
               <button key={label} onClick={() => void processUserText(q)} style={{
-                ...glass, borderRadius: 16, padding: '7px 12px', cursor: 'pointer',
-                fontFamily: 'Inter', fontSize: 12, color: '#c8d8f5',
+                ...glass, borderRadius: 99, padding: '0 15px', minHeight: 40, cursor: 'pointer',
+                fontFamily: 'Inter', fontSize: 13.5, fontWeight: 600, color: 'var(--dz-text)',
                 display: 'flex', alignItems: 'center', gap: 6,
               }}>
                 <span style={{ fontSize: 13 }}>{ic}</span>{label}
@@ -1424,11 +1422,11 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
         onClick={() => setContinuousMode(m => !m)}
         style={{
           position: 'absolute', bottom: 116, left: '50%', transform: 'translateX(-50%)', zIndex: 6,
-          padding: '4px 14px', borderRadius: 14,
-          background: continuousMode ? `${col}1c` : 'transparent',
-          border: `1px solid ${continuousMode ? col + '88' : 'rgba(200,190,255,0.18)'}`,
-          cursor: 'pointer', color: continuousMode ? col : '#a6a3b8',
-          fontFamily: 'Inter', fontSize: 13.5, fontWeight: 500, letterSpacing: '0.02em',
+          padding: '0 16px', minHeight: 36, borderRadius: 99,
+          background: continuousMode ? 'var(--dz-ink)' : 'rgba(var(--dz-ink-rgb),0.06)',
+          border: 'none',
+          cursor: 'pointer', color: continuousMode ? '#ffffff' : 'var(--dz-muted)',
+          fontFamily: 'Inter', fontSize: 13, fontWeight: 600,
           transition: 'all 0.2s ease', whiteSpace: 'nowrap',
         }}
       >
@@ -1438,17 +1436,17 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       {/* ── DOCK (caméra · micro · scan) ── */}
       <div style={{
         position: 'absolute', bottom: 18, left: 16, right: 16, zIndex: 6,
-        ...glass, borderRadius: 30, height: 84,
+        ...glass, borderRadius: 99, height: 80,
         display: 'flex', justifyContent: 'space-around', alignItems: 'center',
-        boxShadow: '0 10px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
+        boxShadow: '0 1px 2px rgba(var(--dz-shadow-rgb),0.05), 0 22px 44px -22px rgba(var(--dz-shadow-rgb),0.3)',
       }}>
         {/* CAMÉRA / VISION */}
         <button
           onClick={toggleLiveCam}
           style={{
             width: 48, height: 48, borderRadius: '50%',
-            background: camActive ? 'rgba(167,139,250,0.18)' : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${camActive ? '#a78bfa' : 'rgba(200,190,255,0.2)'}`,
+            background: camActive ? 'rgba(47,91,255,0.14)' : '#f2f2f5',
+            border: 'none',
             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
             transition: 'all 0.2s ease', position: 'relative',
           }}
@@ -1459,7 +1457,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
             <div style={{
               position: 'absolute', top: -2, right: -2,
               width: 9, height: 9, borderRadius: '50%',
-              background: '#f87171', boxShadow: '0 0 6px #f87171',
+              background: '#e0304f', boxShadow: '0 0 6px #e0304f',
             }} />
           )}
         </button>
@@ -1468,28 +1466,21 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
         <button
           onClick={micTapMain}
           style={{
-            position: 'relative', width: 70, height: 70, borderRadius: '50%', padding: 0,
-            marginTop: -26,
-            background: orbActive
-              ? `radial-gradient(circle at 50% 35%, ${col}55, ${col}18 70%)`
-              : 'radial-gradient(circle at 50% 35%, #12305a, #0e0c18 75%)',
-            border: `1.5px solid ${orbActive ? col : col + '77'}`,
+            position: 'relative', width: 76, height: 76, borderRadius: '50%', padding: 0,
+            marginTop: -30,
+            background: orbActive ? col : 'var(--dz-ink)',
+            border: '5px solid #ffffff',
             cursor: isThinking ? 'default' : 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: isListening
-              ? `0 0 ${22 + rmsLevel * 46}px ${col}bb, 0 0 70px ${col}44`
-              : orbActive ? `0 0 28px ${col}88` : `0 0 18px ${col}44, 0 8px 24px rgba(0,0,0,0.6)`,
+              ? `0 0 0 ${4 + rmsLevel * 22}px ${col}33, 0 16px 30px -12px ${col}aa`
+              : orbActive ? `0 16px 30px -12px ${col}aa` : '0 16px 30px -12px rgba(var(--dz-ink-rgb),0.6)',
             transition: 'box-shadow 0.08s linear, background 0.3s ease, border 0.3s ease',
           }}
           aria-label="Micro"
         >
-          <div style={{
-            position: 'absolute', inset: -7, borderRadius: '50%', pointerEvents: 'none',
-            border: `1px dashed ${col}55`,
-            animation: `spinSlow ${orbActive ? 4 : 14}s linear infinite`,
-          }} />
           {isThinking ? (
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin-slow 1.2s linear infinite' }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin-slow 1.2s linear infinite' }}>
               <circle cx="12" cy="12" r="9" strokeOpacity="0.25" />
               <path d="M12 3a9 9 0 0 1 9 9" />
             </svg>
@@ -1498,19 +1489,19 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
             <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 26 }}>
               {[0.5, 0.85, 1, 0.7, 0.9].map((h, i) => (
                 <div key={i} style={{
-                  width: 4, borderRadius: 2, background: col,
+                  width: 4, borderRadius: 2, background: 'var(--dz-surface)',
                   height: `${Math.max(6, (h * (0.4 + rmsLevel * 1.6)) * 26)}px`,
                   transition: 'height 0.08s linear',
                 }} />
               ))}
             </div>
           ) : isSpeaking ? (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill={col}><rect x="6" y="6" width="12" height="12" rx="2.5" /></svg>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#ffffff"><rect x="6" y="6" width="12" height="12" rx="2.5" /></svg>
           ) : (
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-              <rect x="9" y="3" width="6" height="11" rx="3" fill={col} />
-              <path d="M5 11a7 7 0 0 0 14 0" stroke={col} strokeWidth="1.8" strokeLinecap="round" fill="none" />
-              <line x1="12" y1="18" x2="12" y2="21" stroke={col} strokeWidth="1.8" strokeLinecap="round" />
+              <rect x="9" y="3" width="6" height="11" rx="3" fill="#ffffff" />
+              <path d="M5 11a7 7 0 0 0 14 0" stroke="#ffffff" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+              <line x1="12" y1="18" x2="12" y2="21" stroke="#ffffff" strokeWidth="1.8" strokeLinecap="round" />
             </svg>
           )}
         </button>
@@ -1521,8 +1512,8 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
           disabled={scanActive}
           style={{
             width: 48, height: 48, borderRadius: '50%',
-            background: scanActive ? `${col}1c` : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${scanActive ? col + '99' : 'rgba(200,190,255,0.2)'}`,
+            background: scanActive ? `color-mix(in srgb, ${col} 11%, transparent)` : '#f2f2f5',
+            border: 'none',
             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
             transition: 'all 0.2s ease',
           }}
@@ -1534,7 +1525,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
               <path d="M12 3a9 9 0 0 1 9 9" />
             </svg>
           ) : (
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9fc4ff" strokeWidth="1.5" strokeLinecap="round">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0c0e1a" strokeWidth="1.5" strokeLinecap="round">
               <path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" />
               <path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" />
               <rect x="7" y="7" width="10" height="10" rx="1" strokeOpacity="0.5" />
@@ -1551,30 +1542,29 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
           style={{
             position: 'absolute', inset: 0, zIndex: 20,
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            background: 'radial-gradient(60% 40% at 20% 15%, rgba(138,123,255,0.22), transparent 70%), radial-gradient(60% 40% at 85% 30%, rgba(255,122,168,0.16), transparent 70%), radial-gradient(70% 40% at 50% 100%, rgba(255,179,107,0.10), transparent 70%), #09090d', cursor: 'pointer',
+            background: 'var(--dz-bg)', cursor: 'pointer',
             animation: 'fadeIn 0.4s ease', padding: '0 32px',
           }}
         >
-          {/* Orbe vivant : dégradé signature qui tourne et respire */}
-          <div style={{ position: 'relative', width: 190, height: 190 }}>
-            <div style={{ position: 'absolute', inset: -30, borderRadius: '50%', background: 'conic-gradient(from 0deg, #8a7bff, #c86bff, #ff7aa8, #ffb36b, #8a7bff)', filter: 'blur(38px)', opacity: 0.55, animation: 'spin-slow 9s linear infinite' }} />
-            <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'conic-gradient(from 90deg, #8a7bff, #c86bff, #ff7aa8, #ffb36b, #8a7bff)', animation: 'spin-slow 6s linear infinite', boxShadow: '0 30px 80px -20px rgba(200,107,255,0.8)' }} />
-            <div style={{ position: 'absolute', inset: 3, borderRadius: '50%', background: 'radial-gradient(circle at 35% 28%, rgba(255,255,255,0.55), rgba(255,255,255,0) 38%), radial-gradient(circle at 50% 60%, rgba(30,20,50,0.25), rgba(9,9,13,0.55) 75%)' }} />
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="52" height="52" viewBox="0 0 24 24" fill="none" style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.35))' }}>
-                <rect x="9" y="3" width="6" height="11" rx="3" fill="#fff" />
-                <path d="M5 11a7 7 0 0 0 14 0" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" fill="none" />
-                <line x1="12" y1="18" x2="12" y2="21" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" />
+          {/* Bouton-orbe : disque d'encre posé sur des anneaux blancs qui respirent */}
+          <div style={{ position: 'relative', width: 220, height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'rgba(47,91,255,0.07)', animation: 'orbBreathe 3.6s ease-in-out infinite' }} />
+            <div style={{ position: 'absolute', inset: 22, borderRadius: '50%', background: 'var(--dz-surface)', boxShadow: '0 1px 2px rgba(var(--dz-shadow-rgb),0.05), 0 30px 60px -28px rgba(var(--dz-shadow-rgb),0.35)' }} />
+            <div style={{ position: 'relative', width: 124, height: 124, borderRadius: '50%', background: 'linear-gradient(140deg, var(--dz-ink), #26315f)', boxShadow: '0 22px 40px -16px rgba(var(--dz-shadow-rgb),0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+                <rect x="9" y="3" width="6" height="11" rx="3" fill="#ffffff" />
+                <path d="M5 11a7 7 0 0 0 14 0" stroke="#ffffff" strokeWidth="1.9" strokeLinecap="round" fill="none" />
+                <line x1="12" y1="18" x2="12" y2="21" stroke="#ffffff" strokeWidth="1.9" strokeLinecap="round" />
               </svg>
             </div>
           </div>
-          <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 34, fontWeight: 800, letterSpacing: '-0.045em', color: '#f7f5ff', marginTop: 44, textAlign: 'center', lineHeight: 1.05 }}>
+          <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 34, fontWeight: 800, letterSpacing: '-0.045em', color: 'var(--dz-text)', marginTop: 34, textAlign: 'center', lineHeight: 1.05 }}>
             Parle à Dzaryx
           </div>
-          <div style={{ fontFamily: 'Inter', fontSize: 15, color: '#a6a3b8', marginTop: 10, textAlign: 'center', lineHeight: 1.45, maxWidth: 280 }}>
-            Touche l'orbe : il écoute, comprend et s'occupe de tout.
+          <div style={{ fontFamily: 'Inter', fontSize: 15, color: 'var(--dz-muted)', marginTop: 10, textAlign: 'center', lineHeight: 1.45, maxWidth: 280 }}>
+            Touche le micro : il écoute, comprend et s'occupe de tout.
           </div>
-          <div style={{ marginTop: 28, padding: '13px 26px', borderRadius: 99, background: 'linear-gradient(120deg, #8a7bff 0%, #c86bff 45%, #ff7aa8 75%, #ffb36b 100%)', color: '#fff', fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 15, fontWeight: 700, boxShadow: '0 14px 34px -10px rgba(200,107,255,0.9), inset 0 1px 0 rgba(255,255,255,0.4)' }}>
+          <div style={{ marginTop: 28, padding: '15px 30px', borderRadius: 99, background: 'var(--dz-ink)', color: '#fff', fontFamily: 'Inter, sans-serif', fontSize: 15.5, fontWeight: 700, boxShadow: '0 14px 30px -14px rgba(var(--dz-shadow-rgb),0.6)' }}>
             Activer le micro
           </div>
         </div>
@@ -1603,8 +1593,8 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
               display: 'flex', alignItems: 'center', gap: 5,
               padding: '4px 10px', borderRadius: 12, background: 'rgba(0,0,0,0.4)',
             }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#FF5A5A', boxShadow: '0 0 6px #FF5A5A' }} />
-              <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 500, color: '#fff', letterSpacing: '0.02em' }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#e0304f', boxShadow: '0 0 6px #e0304f' }} />
+              <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 500, color: 'var(--dz-text)', letterSpacing: '0.02em' }}>
                 {visionActive ? 'Vision en direct' : 'Caméra'}
               </span>
             </div>
@@ -1615,7 +1605,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
               style={{
                 position: 'absolute', top: 50, right: 18,
                 width: 40, height: 40, borderRadius: '50%',
-                background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.25)',
+                background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(var(--dz-ink-rgb),0.16)',
                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
             >
@@ -1642,7 +1632,7 @@ function DzaryxRobot({
   scale?: number;
 }) {
   const col         = STATE_COLOR[status];
-  const accent      = visionActive ? '#9b59b6' : col;
+  const accent      = visionActive ? '#2f5bff' : col;
   const isListening = status === 'listening';
   const isThinking  = status === 'thinking';
   const isSpeaking  = status === 'speaking';
@@ -1670,7 +1660,7 @@ function DzaryxRobot({
       style={{
         overflow: 'visible',
         animation: 'orbFloat 4.5s ease-in-out infinite',
-        filter: `drop-shadow(0 0 26px ${col}44) drop-shadow(0 0 60px ${col}18)`,
+        filter: `drop-shadow(0 0 26px color-mix(in srgb, ${col} 27%, transparent)) drop-shadow(0 0 60px color-mix(in srgb, ${col} 9%, transparent))`,
       }}
     >
       <defs>
@@ -1678,20 +1668,20 @@ function DzaryxRobot({
         <radialGradient id={`orb-body-${status}`} cx="38%" cy="30%" r="72%">
           <stop offset="0%"   stopColor={accent} stopOpacity="0.95" />
           <stop offset="22%"  stopColor={accent} stopOpacity="0.55" />
-          <stop offset="55%"  stopColor="#0a1830" stopOpacity="0.95" />
-          <stop offset="100%" stopColor="#02060f" />
+          <stop offset="55%"  stopColor="#ffffff" stopOpacity="0.95" />
+          <stop offset="100%" stopColor="#f2f2f5" />
         </radialGradient>
         {/* Inner core glow */}
         <radialGradient id={`orb-core-${status}`} cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stopColor="#ffffff" stopOpacity="0.95" />
+          <stop offset="0%"   stopColor="#0c0e1a" stopOpacity="0.95" />
           <stop offset="30%"  stopColor={accent}  stopOpacity="0.9" />
           <stop offset="70%"  stopColor={accent}  stopOpacity="0.25" />
           <stop offset="100%" stopColor={accent}  stopOpacity="0" />
         </radialGradient>
         {/* Specular highlight */}
         <radialGradient id="orb-spec" cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stopColor="#ffffff" stopOpacity="0.9" />
-          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+          <stop offset="0%"   stopColor="#0c0e1a" stopOpacity="0.9" />
+          <stop offset="100%" stopColor="#0c0e1a" stopOpacity="0" />
         </radialGradient>
         {/* Ambient halo */}
         <radialGradient id={`orb-halo-${status}`} cx="50%" cy="50%" r="50%">
@@ -1739,7 +1729,7 @@ function DzaryxRobot({
           <path d={`M ${C} ${C - 84} A 84 84 0 0 1 ${C + 72} ${C - 42}`}
             fill="none" stroke={col} strokeWidth="3" strokeLinecap="round"
             filter="url(#orbGlowS)" strokeOpacity="0.9" />
-          <circle cx={C} cy={C - 84} r="4" fill="#fff" filter="url(#orbGlowS)" />
+          <circle cx={C} cy={C - 84} r="4" fill="#0c0e1a" filter="url(#orbGlowS)" />
         </g>
       )}
 
@@ -1763,7 +1753,7 @@ function DzaryxRobot({
         style={{ animation: `corePulse ${isListening ? 0.8 : isSpeaking ? 1.1 : 2.6}s ease-in-out infinite` }} />
 
       {/* Bright nucleus */}
-      <circle cx={C} cy={C} r={isListening ? 9 : isSpeaking ? 8 : 6} fill="#ffffff" filter="url(#orbGlowL)"
+      <circle cx={C} cy={C} r={isListening ? 9 : isSpeaking ? 8 : 6} fill="#0c0e1a" filter="url(#orbGlowL)"
         style={{ animation: `corePulse ${isSpeaking ? 0.9 : 2}s ease-in-out infinite` }} />
 
       {/* Glossy specular highlight top-left */}
@@ -1789,7 +1779,7 @@ function Sparkle({ col, active }: { col: string; active: boolean }) {
   );
   return (
     <div style={{ position: 'relative', width: box, height: box, animation: active ? 'corePulse 1.6s ease-in-out infinite' : 'orbFloat 4.5s ease-in-out infinite' }}>
-      <div style={{ position: 'absolute', inset: 10, borderRadius: '50%', background: `radial-gradient(circle, ${col}22 0%, transparent 70%)` }} />
+      <div style={{ position: 'absolute', inset: 10, borderRadius: '50%', background: `radial-gradient(circle, color-mix(in srgb, ${col} 13%, transparent) 0%, transparent 70%)` }} />
       {ring(0, '2 6', 'spin-slow 26s linear infinite', 0.45)}
       {ring(12, '40 14 8 14', 'spin-rev 14s linear infinite', 0.6)}
       <div style={{ position: 'absolute', top: (box - size) / 2, left: (box - size) / 2 }}>
@@ -1847,11 +1837,11 @@ function Corner({ pos, col }: { pos: 'tl' | 'tr' | 'bl' | 'br'; col: string }) {
 }
 
 function VisionIcon({ active }: { active: boolean }) {
-  const c = active ? '#9b59b6' : '#9b59b677';
+  const c = active ? '#2f5bff' : '#0c0e1a';
   return (
     <svg width="22" height="18" viewBox="0 0 24 18" fill="none" stroke={c} strokeWidth="1.5" strokeLinecap="round">
       <path d="M1 9C4 3.5 8 1 12 1s8 2.5 11 8c-3 5.5-7 8-11 8S4 14.5 1 9z" />
-      <circle cx="12" cy="9" r="3.5" fill={active ? '#9b59b622' : 'none'} />
+      <circle cx="12" cy="9" r="3.5" fill={active ? '#2f5bff22' : 'none'} />
       {active && <circle cx="12" cy="9" r="1.5" fill={c} />}
     </svg>
   );

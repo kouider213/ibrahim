@@ -3,9 +3,9 @@ import { business, type OpportunitiesReport, type Opportunity } from '../../serv
 import { Hero } from '../ui/Premium.tsx';
 
 const C = {
-  bg: '#09090d', surface: '#131319', surface2: '#1b1b23', border: 'rgba(200,190,255,0.15)',
-  gold: '#a78bfa', goldSoft: '#c4b5fd', text: '#f5f5f7', muted: '#a6a3b8',
-  red: '#fb7185', green: '#34d399',
+  bg: 'var(--dz-bg)', surface: 'var(--dz-surface)', surface2: 'var(--dz-surface2)', border: 'rgba(var(--dz-ink-rgb),0.15)',
+  gold: '#2f5bff', goldSoft: '#2f5bff', text: 'var(--dz-text)', muted: 'var(--dz-muted)',
+  red: '#e0304f', green: '#0a9a5e',
   font: '-apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
 };
 
@@ -22,7 +22,7 @@ const OPP_META: Record<string, { icon: string; label: string }> = {
   marche:   { icon: '📊', label: 'Marché' },
   modele:   { icon: '🆕', label: 'Nouveauté' },
 };
-const URG_COL: Record<string, string> = { urgent: '#fb7185', a_suivre: '#34d399', info: '#a6a3b8' };
+const URG_COL: Record<string, string> = { urgent: '#e0304f', a_suivre: '#0a9a5e', info: '#5b5f72' };
 const URG_LABEL: Record<string, string> = { urgent: 'URGENT', a_suivre: 'À suivre', info: 'Info' };
 
 // Filtres affichés (ordre)
@@ -100,7 +100,7 @@ export default function OpportunitiesScreen({ onAsk }: { onAsk?: (prompt: string
       <Hero eyebrow="Dzaryx · Veille" title="Opportunités" accent={C.gold} subtitle="Tout le business algérien : auto · immo · devises · investissement · aides · lois" />
 
       {/* Carte synthèse + actualiser */}
-      <div style={{ margin: '0 18px 12px', background: `linear-gradient(135deg, ${C.gold}1c, ${C.surface})`, border: `1px solid ${C.border}`, borderRadius: 18, padding: 16 }}>
+      <div style={{ margin: '0 18px 12px', background: `linear-gradient(135deg, color-mix(in srgb, ${C.gold} 11%, transparent), ${C.surface})`, border: `1px solid ${C.border}`, borderRadius: 18, padding: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ fontSize: 15, fontWeight: 800 }}>🔍 Veille business Oran</div>
           <button onClick={() => void load(true)} disabled={loading || refreshing} style={{ border: `1px solid ${C.border}`, background: C.surface2, color: C.goldSoft, borderRadius: 10, padding: '6px 12px', fontFamily: C.font, fontSize: 11.5, fontWeight: 600, cursor: refreshing ? 'wait' : 'pointer', opacity: refreshing ? 0.7 : 1 }}>{refreshing ? '🔎 Analyse…' : loading ? '…' : '↻ Actualiser'}</button>
@@ -117,7 +117,7 @@ export default function OpportunitiesScreen({ onAsk }: { onAsk?: (prompt: string
           const active = filter === f.id;
           const count = f.id === 'all' ? merged.length : merged.filter(o => o.category === f.id).length;
           return (
-            <button key={f.id} onClick={() => setFilter(f.id)} style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 20, border: `1px solid ${active ? C.gold : C.border}`, background: active ? C.gold : C.surface, color: active ? '#fff' : C.muted, fontFamily: C.font, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <button key={f.id} onClick={() => setFilter(f.id)} style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 20, border: `1px solid ${active ? C.gold : C.border}`, background: active ? C.gold : C.surface, color: active ? 'var(--dz-text)' : C.muted, fontFamily: C.font, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
               {f.label}{count > 0 ? ` ${count}` : ''}
             </button>
           );
@@ -145,13 +145,13 @@ export default function OpportunitiesScreen({ onAsk }: { onAsk?: (prompt: string
           const m = OPP_META[o.category] ?? OPP_META.marche;
           const uc = URG_COL[o.urgency] ?? C.muted;
           return (
-            <div key={i} onClick={() => setSel(o)} role="button" style={{ ...card, padding: 14, marginBottom: 10, cursor: 'pointer', ...(isFav(o) ? { border: `1px solid ${C.gold}66`, background: `${C.gold}0c` } : {}) }}>
+            <div key={i} onClick={() => setSel(o)} role="button" style={{ ...card, padding: 14, marginBottom: 10, cursor: 'pointer', ...(isFav(o) ? { border: `1px solid color-mix(in srgb, ${C.gold} 40%, transparent)`, background: `color-mix(in srgb, ${C.gold} 5%, transparent)` } : {}) }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <span style={{ fontSize: 17 }}>{m.icon}</span>
                 <span style={{ fontSize: 14.5, fontWeight: 700, flex: 1 }}>{o.title}</span>
                 <button onClick={(e) => { e.stopPropagation(); toggleFav(o); }} title={isFav(o) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
                   style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 17, padding: 0, lineHeight: 1, color: isFav(o) ? C.gold : C.muted }}>{isFav(o) ? '★' : '☆'}</button>
-                <span style={{ fontSize: 13, fontWeight: 700, color: uc, background: `${uc}1f`, padding: '3px 8px', borderRadius: 20 }}>{URG_LABEL[o.urgency]}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: uc, background: `color-mix(in srgb, ${uc} 12%, transparent)`, padding: '3px 8px', borderRadius: 20 }}>{URG_LABEL[o.urgency]}</span>
               </div>
               <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{o.detail}</div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
@@ -176,15 +176,15 @@ export default function OpportunitiesScreen({ onAsk }: { onAsk?: (prompt: string
             <div style={{ fontSize: 19, fontWeight: 800, marginBottom: 14, lineHeight: 1.3 }}>{sel.title}</div>
             <div style={{ fontSize: 14, color: C.text, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{sel.detail}</div>
             {sel.action && (
-              <div style={{ marginTop: 16, padding: 14, borderRadius: 14, background: `${C.gold}10`, border: `1px solid ${C.gold}33` }}>
+              <div style={{ marginTop: 16, padding: 14, borderRadius: 14, background: `color-mix(in srgb, ${C.gold} 6%, transparent)`, border: `1px solid color-mix(in srgb, ${C.gold} 20%, transparent)` }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: C.goldSoft, marginBottom: 5 }}>👉 À FAIRE</div>
                 <div style={{ fontSize: 13.5, color: C.text, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{sel.action}</div>
               </div>
             )}
             {onAsk && (
-              <button onClick={() => { onAsk(buildAskPrompt(sel)); setSel(null); }} style={{ width: '100%', marginTop: 18, padding: 14, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${C.gold}, ${C.goldSoft})`, color: '#fff', fontFamily: C.font, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>🤖 Demander à Dzaryx d'approfondir</button>
+              <button onClick={() => { onAsk(buildAskPrompt(sel)); setSel(null); }} style={{ width: '100%', marginTop: 18, padding: 14, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${C.gold}, ${C.goldSoft})`, color: 'var(--dz-text)', fontFamily: C.font, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>🤖 Demander à Dzaryx d'approfondir</button>
             )}
-            <button onClick={() => toggleFav(sel)} style={{ width: '100%', marginTop: 10, padding: 13, borderRadius: 13, border: `1px solid ${isFav(sel) ? C.gold : C.border}`, background: isFav(sel) ? `${C.gold}1a` : 'transparent', color: isFav(sel) ? C.goldSoft : C.muted, fontFamily: C.font, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{isFav(sel) ? '★ Retirer des favoris' : '☆ Mettre en favori'}</button>
+            <button onClick={() => toggleFav(sel)} style={{ width: '100%', marginTop: 10, padding: 13, borderRadius: 13, border: `1px solid ${isFav(sel) ? C.gold : C.border}`, background: isFav(sel) ? `color-mix(in srgb, ${C.gold} 10%, transparent)` : 'transparent', color: isFav(sel) ? C.goldSoft : C.muted, fontFamily: C.font, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{isFav(sel) ? '★ Retirer des favoris' : '☆ Mettre en favori'}</button>
             <button onClick={() => setSel(null)} style={{ width: '100%', marginTop: 10, padding: 13, borderRadius: 13, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, fontFamily: C.font, fontSize: 14, cursor: 'pointer' }}>Fermer</button>
           </div>
         </div>

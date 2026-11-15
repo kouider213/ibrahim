@@ -63,7 +63,7 @@ export default function ParrainageScreen() {
                   <div style={{ fontSize: 13, color: T.muted, marginTop: 2 }}>{r.referrer_name || 'Parrain'}{r.reward ? ` · ${r.reward}` : ''}</div>
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, padding: '8px 10px', borderRadius: 13, background: 'rgba(255,255,255,0.03)', border: `1px solid ${T.line}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, padding: '8px 10px', borderRadius: 13, background: 'rgba(var(--dz-ink-rgb),0.022)', border: `1px solid ${T.line}` }}>
                 <span style={{ fontSize: 13.5, color: T.muted }}>Clients amenés</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Btn variant="ghost" onClick={() => void bump(r, -1)} disabled={busy === r.id} style={{ minHeight: 40, padding: '0 14px' }}>−</Btn>
@@ -72,7 +72,7 @@ export default function ParrainageScreen() {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                <Btn onClick={() => share(r)} style={{ flex: 2, background: '#25D366', color: '#04210f', border: 'none' }}>💬 Partager</Btn>
+                <Btn onClick={() => share(r)} style={{ flex: 2, background: '#25D366', color: '#ffffff', border: 'none' }}>💬 Partager</Btn>
                 <Btn variant="danger" onClick={() => { if (confirmDel === r.id) { void del(r); setConfirmDel(''); } else { setConfirmDel(r.id); setTimeout(() => setConfirmDel(c => c === r.id ? '' : c), 3000); } }} style={{ flex: 1, ...(confirmDel === r.id ? { background: T.bad, color: '#fff' } : {}) }}>{confirmDel === r.id ? 'Confirmer ?' : 'Supprimer'}</Btn>
               </div>
             </Card>

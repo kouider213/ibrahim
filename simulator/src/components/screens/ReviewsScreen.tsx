@@ -63,7 +63,7 @@ export default function ReviewsScreen() {
                   </div>
                   <Badge color={r.approved ? T.ok : T.warn}>{r.approved ? 'Publié' : 'À valider'}</Badge>
                 </div>
-                {r.comment && <div style={{ fontSize: 14.5, color: '#dbe4f5', marginTop: 10, lineHeight: 1.55, fontStyle: 'italic' }}>« {r.comment} »</div>}
+                {r.comment && <div style={{ fontSize: 14.5, color: 'var(--dz-text)', marginTop: 10, lineHeight: 1.55, fontStyle: 'italic' }}>« {r.comment} »</div>}
                 <div style={{ fontSize: 12.5, color: T.faint, marginTop: 8 }}>{fmt(r.created_at)}</div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                   {!r.approved

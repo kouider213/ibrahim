@@ -3,7 +3,7 @@ import { business } from '../../services/api.ts';
 import { T, Screen, PageHeader, Row, Avatar, Badge, Empty, inputStyle } from '../ui/Kit.tsx';
 
 const TYPE_COL: Record<string, string> = {
-  'Véhicule': '#00e676', 'Client/Résa': '#9b8cff', 'Bien': '#a78bfa', 'Dossier': '#8b5cf6', 'Import': '#8a7bff', 'Lead': '#f59e0b',
+  'Véhicule': '#0a9a5e', 'Client/Résa': '#2f5bff', 'Bien': '#2f5bff', 'Dossier': '#2f5bff', 'Import': '#2f5bff', 'Lead': '#b86e00',
 };
 const TYPE_ICON: Record<string, string> = {
   'Véhicule': '🚗', 'Client/Résa': '👤', 'Bien': '🏠', 'Dossier': '📁', 'Import': '🚢', 'Lead': '📥',

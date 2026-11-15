@@ -132,7 +132,7 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 10, marginBottom: 14 }}>
           <Kpi value={<>{availCount}<span style={{ fontSize: 15, color: T.faint, fontWeight: 600 }}> / {cars.length}</span></>} label="Disponibles" color={T.ok} sub={rentedCount || unavailCount ? [rentedCount ? `${rentedCount} en location` : '', unavailCount - rentedCount > 0 ? `${unavailCount - rentedCount} à l'arrêt` : ''].filter(Boolean).join(' · ') : 'Tout le parc est libre'} />
           <Kpi value={occPct != null ? `${occPct} %` : '—'} label="Occupation (30 j)" color={T.warn}
-            sub={occPct != null ? <span style={{ display: 'block', height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.07)', marginTop: 6 }}><span style={{ display: 'block', height: '100%', width: `${Math.min(100, occPct)}%`, borderRadius: 2, background: `linear-gradient(90deg, ${tone(T.warn, 0.5)}, ${T.warn})` }} /></span> : undefined} />
+            sub={occPct != null ? <span style={{ display: 'block', height: 4, borderRadius: 2, background: 'rgba(var(--dz-ink-rgb),0.053)', marginTop: 6 }}><span style={{ display: 'block', height: '100%', width: `${Math.min(100, occPct)}%`, borderRadius: 2, background: `linear-gradient(90deg, ${tone(T.warn, 0.5)}, ${T.warn})` }} /></span> : undefined} />
           {!isHouari && <Kpi value={avgMargin != null ? `${fmt(avgMargin)} ${cur}` : '—'} label="Marge moyenne / jour" color={T.accent} />}
           {!isHouari && <Kpi value={margins.length ? `${fmt(Math.max(...margins))} ${cur}` : '—'} label="Meilleure marge / jour" color={T.violet}
             sub={(() => { const best = cars.find(c => { const p = priceOf(c); return p.h != null && p.k != null && (p.k - p.h) === Math.max(...margins); }); return best?.name; })()} />}
@@ -164,26 +164,26 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
               const stLbl  = rent ? `En location → ${rent.until.slice(8)}/${rent.until.slice(5, 7)}${rent.client ? ` · ${rent.client.split(' ')[0]}` : ''}` : car.available ? 'Disponible' : repair ? 'Au garage' : 'Indisponible';
               const note   = !car.available && car.maintenance_note ? car.maintenance_note.replace(/^🔧\s*/, '') : '';
               return (
-                <div key={car.id} style={{ borderRadius: 22, overflow: 'hidden', background: `linear-gradient(180deg, ${T.surface2}, ${T.surface})`, border: `1px solid ${car.available ? T.line : tone(stCol, 0.35)}`, boxShadow: '0 18px 40px -24px rgba(0,0,0,0.9)' }}>
+                <div key={car.id} style={{ borderRadius: 22, overflow: 'hidden', background: `linear-gradient(180deg, ${T.surface2}, ${T.surface})`, border: `1px solid ${car.available ? T.line : tone(stCol, 0.35)}`, boxShadow: '0 18px 40px -24px rgba(15,17,30,0.198)' }}>
                   {/* Photo pleine largeur */}
-                  <div onClick={() => setDetail(car)} role="button" aria-label={`Fiche ${car.name}`} style={{ position: 'relative', height: 170, background: '#040914', overflow: 'hidden', cursor: 'pointer' }}>
+                  <div onClick={() => setDetail(car)} role="button" aria-label={`Fiche ${car.name}`} style={{ position: 'relative', height: 170, background: 'var(--dz-bg)', overflow: 'hidden', cursor: 'pointer' }}>
                     <CarPhoto url={car.image_url ?? null} name={car.name} col={stCol} />
-                    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(4,9,20,0.55) 0%, transparent 35%, transparent 45%, rgba(14,13,20,0.96) 100%)', pointerEvents: 'none' }} />
-                    {!car.available && <div style={{ position: 'absolute', inset: 0, background: 'rgba(4,9,20,0.35)', backdropFilter: 'grayscale(0.7)', pointerEvents: 'none' }} />}
-                    <div style={{ position: 'absolute', top: 12, left: 12 }}><Badge color={stCol}>{stLbl}</Badge></div>
+                    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(var(--dz-ink-rgb),0.28) 0%, transparent 34%, transparent 46%, rgba(var(--dz-ink-rgb),0.82) 100%)', pointerEvents: 'none' }} />
+                    {!car.available && <div style={{ position: 'absolute', inset: 0, background: 'rgba(var(--dz-ink-rgb),0.175)', backdropFilter: 'grayscale(0.7)', pointerEvents: 'none' }} />}
+                    <div style={{ position: 'absolute', top: 12, left: 12 }}><Badge color={stCol} solid>{stLbl}</Badge></div>
                     <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: 10, right: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Toggle on={car.available} busy={toggling === car.id} onChange={() => void toggle(car)} />
                     </div>
                     <div style={{ position: 'absolute', left: 14, right: 14, bottom: 10 }}>
-                      <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.02em', color: '#fff', textShadow: '0 2px 12px rgba(0,0,0,0.7)', lineHeight: 1.15 }}>{car.name}</div>
-                      <div style={{ fontSize: 12.5, color: '#c3d2f0', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ textTransform: 'capitalize' }}>{[car.category, car.fuel].filter(Boolean).join(' · ') || 'Standard'}</span><span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: T.accent }}>Voir la fiche ›</span></div>
+                      <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.02em', color: '#ffffff', fontFamily: T.display, lineHeight: 1.15 }}>{car.name}</div>
+                      <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.8)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ textTransform: 'capitalize' }}>{[car.category, car.fuel].filter(Boolean).join(' · ') || 'Standard'}</span><span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: '#ffffff' }}>Voir la fiche ›</span></div>
                     </div>
                   </div>
 
                   {note && <div style={{ margin: '12px 14px 0', padding: '9px 12px', borderRadius: 12, background: tone(stCol, 0.1), border: `1px solid ${tone(stCol, 0.3)}`, color: stCol, fontSize: 13, fontWeight: 600 }}>{repair ? '🔧 ' : '⛔ '}{note}</div>}
 
                   {/* Prix : Houari / Client / Marge */}
-                  <div style={{ display: 'grid', gridTemplateColumns: isHouari ? '1fr' : 'repeat(3, minmax(0,1fr))', margin: '12px 14px 0', borderRadius: 14, border: `1px solid ${T.line}`, background: 'rgba(255,255,255,0.02)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: isHouari ? '1fr' : 'repeat(3, minmax(0,1fr))', margin: '12px 14px 0', borderRadius: 14, border: `1px solid ${T.line}`, background: 'rgba(var(--dz-ink-rgb),0.015)' }}>
                     {!isHouari && <PriceCell label="Houari" value={h} cur={cur} color={T.muted} />}
                     <PriceCell label={isHouari ? 'Prix de location' : 'Client'} value={k} cur={cur} color={T.text} divider={!isHouari} />
                     {!isHouari && <PriceCell label="Marge" value={margin} cur={cur} color={margin != null && margin > 0 ? T.ok : T.bad} divider plus />}
@@ -193,7 +193,7 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
                   {(rev30d > 0 || occ30d > 0) && (
                     <div style={{ margin: '12px 14px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{ fontSize: 12.5, color: T.muted, whiteSpace: 'nowrap' }}>30 j · <b style={{ color: T.text }}>{rev30d >= 1000 ? `${(rev30d / 1000).toFixed(1)} k€` : `${rev30d} €`}</b></div>
-                      <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.07)', overflow: 'hidden' }}>
+                      <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(var(--dz-ink-rgb),0.053)', overflow: 'hidden' }}>
                         <div style={{ height: '100%', width: `${Math.min(100, occ30d)}%`, borderRadius: 3, background: `linear-gradient(90deg, ${tone(T.accent, 0.5)}, ${T.accent})` }} />
                       </div>
                       <div style={{ fontSize: 12.5, fontWeight: 700, color: T.accent, minWidth: 38, textAlign: 'right' }}>{occ30d} %</div>
@@ -347,7 +347,7 @@ function CarDetailSheet({ car, isHouari, stat, busy, onClose, onToggle, onBook, 
       </div>
 
       {/* Prix */}
-      <div style={{ display: 'grid', gridTemplateColumns: isHouari ? '1fr' : 'repeat(3, minmax(0,1fr))', borderRadius: 14, border: `1px solid ${T.line}`, background: 'rgba(255,255,255,0.02)', marginBottom: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isHouari ? '1fr' : 'repeat(3, minmax(0,1fr))', borderRadius: 14, border: `1px solid ${T.line}`, background: 'rgba(var(--dz-ink-rgb),0.015)', marginBottom: 14 }}>
         {!isHouari && <PriceCell label="Houari" value={h} cur={cur} color={T.muted} />}
         <PriceCell label={isHouari ? 'Prix de location' : 'Client'} value={k} cur={cur} color={T.text} divider={!isHouari} />
         {!isHouari && <PriceCell label="Marge" value={margin} cur={cur} color={margin != null && margin > 0 ? T.ok : T.bad} divider plus />}
@@ -362,7 +362,7 @@ function CarDetailSheet({ car, isHouari, stat, busy, onClose, onToggle, onBook, 
           {bookings.map((b, i) => {
             const now = b.start_date.slice(0, 10) <= today;
             return (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 13, background: 'rgba(255,255,255,0.03)', border: `1px solid ${now ? tone(T.accent, 0.4) : T.line}` }}>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 13, background: 'rgba(var(--dz-ink-rgb),0.022)', border: `1px solid ${now ? tone(T.accent, 0.4) : T.line}` }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.client_name}</div>
                   <div style={{ fontSize: 12.5, color: T.muted }}>{frDate(b.start_date)} → {frDate(b.end_date)}</div>
@@ -521,7 +521,7 @@ function BookingCalendarModal({ car, isHouari, onClose, onCreated }: {
       </>}
     >
       {/* Calendrier */}
-      <div style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${T.line}`, borderRadius: 18, padding: 14, marginBottom: 14 }}>
+      <div style={{ background: 'rgba(var(--dz-ink-rgb),0.015)', border: `1px solid ${T.line}`, borderRadius: 18, padding: 14, marginBottom: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <button onClick={() => setMonth(s => s.m === 0 ? { y: s.y - 1, m: 11 } : { y: s.y, m: s.m - 1 })} style={calNav} aria-label="Mois précédent">‹</button>
           <span style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{MONTHS[month.m]} {month.y}</span>
@@ -539,7 +539,7 @@ function BookingCalendarModal({ car, isHouari, onClose, onCreated }: {
             const isEdge = d === selStart || d === selEnd;
             const inSel = selStart && (isEdge || (selEnd && d >= selStart && d <= selEnd));
             const disabled = past || isBooked;
-            const bg = isBooked ? tone(T.bad, 0.18) : isEdge ? T.accent : inSel ? tone(T.accent, 0.25) : past ? 'transparent' : 'rgba(255,255,255,0.04)';
+            const bg = isBooked ? tone(T.bad, 0.18) : isEdge ? T.accent : inSel ? tone(T.accent, 0.25) : past ? 'transparent' : 'rgba(var(--dz-ink-rgb),0.03)';
             const fg = isBooked ? T.bad : isEdge ? '#0b0a12' : inSel ? T.text : past ? '#34405c' : T.text;
             return (
               <button key={day} onClick={() => !disabled && onDay(d)} disabled={disabled}
@@ -572,7 +572,7 @@ function BookingCalendarModal({ car, isHouari, onClose, onCreated }: {
           <SectionTitle>Déjà ajoutés</SectionTitle>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
             {entries.map((e, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.03)', border: `1px solid ${T.line}`, borderRadius: 13, padding: '10px 12px' }}>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(var(--dz-ink-rgb),0.022)', border: `1px solid ${T.line}`, borderRadius: 13, padding: '10px 12px' }}>
                 <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: T.text }}>{e.client}</span>
                 <span style={{ fontSize: 12.5, color: T.muted }}>{e.start.slice(8)}/{e.start.slice(5, 7)} → {e.end.slice(8)}/{e.end.slice(5, 7)}</span>
                 <button onClick={() => setEntries(x => x.filter((_, j) => j !== i))} aria-label="Retirer" style={{ width: 30, height: 30, borderRadius: 9, border: 'none', background: tone(T.bad, 0.12), color: T.bad, fontSize: 13, cursor: 'pointer' }}>✕</button>
@@ -597,7 +597,7 @@ function eachDay(start: string, end: string): string[] {
   }
   return out;
 }
-const calNav: CSSProperties = { width: 40, height: 40, borderRadius: 12, border: `1px solid ${T.line}`, background: 'rgba(255,255,255,0.03)', color: T.accent, fontSize: 20, cursor: 'pointer' };
+const calNav: CSSProperties = { width: 40, height: 40, borderRadius: 12, border: `1px solid ${T.line}`, background: 'rgba(var(--dz-ink-rgb),0.022)', color: T.accent, fontSize: 20, cursor: 'pointer' };
 
 // ── Édition prix voiture (Kouider €, Houari DZD) ──────────────────────────────
 function CarEditModal({ car, isHouari, onClose, onSaved }: {
@@ -901,7 +901,7 @@ function CarPlaceholder({ col }: { col: string }) {
 }
 
 // ── INSPECTION MODAL (véhicule + bien) ───────────────────────────────────────
-const SEV_COL: Record<string, string> = { grave: '#ff3366', moyen: '#ffb347', leger: '#ffd54f', aucun: '#7a8aa0' };
+const SEV_COL: Record<string, string> = { grave: '#e0304f', moyen: '#b86e00', leger: '#b86e00', aucun: '#9195a6' };
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((res, rej) => {
@@ -980,11 +980,11 @@ export function InspectionModal({ kind, subject, sessionId, onClose, initialMode
             <div key={pi} style={{ position: 'relative', width: '100%', borderRadius: 14, overflow: 'hidden', marginBottom: 10, border: `1px solid ${T.line}` }}>
               <img src={url} alt={`inspection ${pi + 1}`} style={{ width: '100%', display: 'block' }} />
               {boxes.map((d, gi) => (d.photo_index ?? 0) !== pi ? null : (() => {
-                const col = SEV_COL[d.severity] ?? '#ffb347';
+                const col = SEV_COL[d.severity] ?? '#b86e00';
                 return (
                   <div key={gi}>
-                    <div style={{ position: 'absolute', left: `${d.box.x * 100}%`, top: `${d.box.y * 100}%`, width: `${d.box.w * 100}%`, height: `${d.box.h * 100}%`, border: `2px solid ${col}`, borderRadius: 4, boxShadow: `0 0 8px ${col}88`, boxSizing: 'border-box' }} />
-                    <div style={{ position: 'absolute', left: `${d.box.x * 100}%`, top: `${d.box.y * 100}%`, transform: 'translate(-50%,-50%)', minWidth: 22, height: 22, padding: '0 4px', borderRadius: 11, background: col, color: '#0b0a12', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{gi + 1}</div>
+                    <div style={{ position: 'absolute', left: `${d.box.x * 100}%`, top: `${d.box.y * 100}%`, width: `${d.box.w * 100}%`, height: `${d.box.h * 100}%`, border: `2px solid ${col}`, borderRadius: 4, boxShadow: `0 0 8px color-mix(in srgb, ${col} 53%, transparent)`, boxSizing: 'border-box' }} />
+                    <div style={{ position: 'absolute', left: `${d.box.x * 100}%`, top: `${d.box.y * 100}%`, transform: 'translate(-50%,-50%)', minWidth: 22, height: 22, padding: '0 4px', borderRadius: 11, background: col, color: '#ffffff', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{gi + 1}</div>
                   </div>
                 );
               })())}
@@ -994,10 +994,10 @@ export function InspectionModal({ kind, subject, sessionId, onClose, initialMode
           {boxes.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
               {boxes.map((d, i) => {
-                const col = SEV_COL[d.severity] ?? '#ffb347';
+                const col = SEV_COL[d.severity] ?? '#b86e00';
                 return (
                   <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <span style={{ flex: '0 0 24px', height: 24, borderRadius: 12, background: col, color: '#0b0a12', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+                    <span style={{ flex: '0 0 24px', height: 24, borderRadius: 12, background: col, color: '#ffffff', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
                     <span style={{ fontSize: 14, color: T.text, lineHeight: 1.45 }}>{d.label}{d.is_new ? <b style={{ color: T.bad }}> · nouveau</b> : ''}</span>
                   </div>
                 );
@@ -1032,7 +1032,7 @@ export function InspectionModal({ kind, subject, sessionId, onClose, initialMode
               {shots.map((u, i) => (
                 <div key={i} style={{ position: 'relative', paddingTop: '100%', borderRadius: 12, overflow: 'hidden', border: `1px solid ${T.line}` }}>
                   <img src={u} alt={`p${i}`} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-                  <button onClick={() => setShots(s => s.filter((_, j) => j !== i))} aria-label="Retirer" style={{ position: 'absolute', top: 4, right: 4, width: 24, height: 24, borderRadius: '50%', border: 'none', background: 'rgba(225,29,72,0.9)', color: '#fff', fontSize: 12, cursor: 'pointer', padding: 0 }}>✕</button>
+                  <button onClick={() => setShots(s => s.filter((_, j) => j !== i))} aria-label="Retirer" style={{ position: 'absolute', top: 4, right: 4, width: 24, height: 24, borderRadius: '50%', border: 'none', background: 'rgba(224,48,79,0.9)', color: '#fff', fontSize: 12, cursor: 'pointer', padding: 0 }}>✕</button>
                 </div>
               ))}
             </div>

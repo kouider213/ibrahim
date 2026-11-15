@@ -5,8 +5,8 @@ import { business } from '../../services/api.ts';
 // actions rapides (mêmes commandes que sur le PC) et widgets à afficher sur l'écran Nexus.
 
 const C = {
-  surface: '#131319', border: 'rgba(200,190,255,0.16)', accent: '#9b8cff', blue: '#ff7aa8',
-  green: '#34d399', red: '#f87171', amber: '#fbbf24', text: '#f5f5f7', muted: '#a6a3b8',
+  surface: 'var(--dz-surface)', border: 'rgba(var(--dz-ink-rgb),0.16)', accent: '#2f5bff', blue: '#e0304f',
+  green: '#0a9a5e', red: '#e0304f', amber: '#b86e00', text: 'var(--dz-text)', muted: 'var(--dz-muted)',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 
@@ -71,13 +71,13 @@ export default function NexusDeck({ online, busy, onSay, flash }: {
   return (
     <div style={{
       position: 'relative', overflow: 'hidden', marginBottom: 12, borderRadius: 16, padding: 14,
-      background: 'radial-gradient(120% 90% at 50% 0%, rgba(155,140,255,0.10), transparent 60%), linear-gradient(180deg, #0b1630, #071024)',
+      background: 'radial-gradient(120% 90% at 50% 0%, rgba(47,91,255,0.1), transparent 60%), linear-gradient(180deg, var(--dz-surface), var(--dz-surface))',
       border: `1px solid ${C.border}`, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
     }}>
       {/* Coins façon HUD */}
       {(['tl', 'tr', 'bl', 'br'] as const).map(k => (
         <span key={k} style={{
-          position: 'absolute', width: 12, height: 12, borderColor: `${C.accent}88`, borderStyle: 'solid', borderWidth: 0,
+          position: 'absolute', width: 12, height: 12, borderColor: `color-mix(in srgb, ${C.accent} 53%, transparent)`, borderStyle: 'solid', borderWidth: 0,
           ...(k[0] === 't' ? { top: 6, borderTopWidth: 1.5 } : { bottom: 6, borderBottomWidth: 1.5 }),
           ...(k[1] === 'l' ? { left: 6, borderLeftWidth: 1.5 } : { right: 6, borderRightWidth: 1.5 }),
         }} />
@@ -86,7 +86,7 @@ export default function NexusDeck({ online, busy, onSay, flash }: {
       {/* Horloge + voyant */}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 12 }}>
         <div>
-          <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 30, fontWeight: 700, color: '#fff', letterSpacing: '0.04em', lineHeight: 1, textShadow: '0 0 18px rgba(155,140,255,0.35)' }}>
+          <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 30, fontWeight: 700, color: 'var(--dz-text)', letterSpacing: '0.04em', lineHeight: 1, textShadow: '0 0 18px rgba(47,91,255,0.158)' }}>
             {now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
             <span style={{ fontSize: 14, color: C.accent, marginLeft: 3 }}>{String(now.getSeconds()).padStart(2, '0')}</span>
           </div>
@@ -95,7 +95,7 @@ export default function NexusDeck({ online, busy, onSay, flash }: {
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 13, letterSpacing: '0.2em', color: online ? C.green : C.red }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'Manrope, Inter, sans-serif', fontSize: 13, letterSpacing: '0.2em', color: online ? C.green : C.red }}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: online ? C.green : C.red, boxShadow: `0 0 8px ${online ? C.green : C.red}` }} />
             {online ? 'NEXUS ACTIF' : 'NEXUS HORS LIGNE'}
           </div>
@@ -122,7 +122,7 @@ export default function NexusDeck({ online, busy, onSay, flash }: {
         {ACTIONS.map(([label, cmd, d]) => (
           <button key={label} disabled={!online || busy} onClick={() => onSay(cmd)} style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '11px 2px 9px', borderRadius: 12,
-            border: `1px solid ${C.border}`, background: 'rgba(155,140,255,0.05)', color: C.text, cursor: online && !busy ? 'pointer' : 'default',
+            border: `1px solid ${C.border}`, background: 'rgba(47,91,255,0.05)', color: C.text, cursor: online && !busy ? 'pointer' : 'default',
             opacity: online ? 1 : 0.4, fontFamily: C.font, fontSize: 13.5,
           }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
@@ -136,7 +136,7 @@ export default function NexusDeck({ online, busy, onSay, flash }: {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {WIDGETS.map(([w, label]) => (
           <button key={w} disabled={!online} onClick={() => { void pushWidget(w, label); }} style={{
-            padding: '7px 12px', borderRadius: 999, border: `1px solid ${C.accent}44`, background: 'rgba(155,140,255,0.08)',
+            padding: '7px 12px', borderRadius: 999, border: `1px solid color-mix(in srgb, ${C.accent} 27%, transparent)`, background: 'rgba(47,91,255,0.08)',
             color: C.accent, fontSize: 12, fontFamily: C.font, cursor: online ? 'pointer' : 'default', opacity: online ? 1 : 0.4,
           }}>＋ {label}</button>
         ))}
@@ -146,7 +146,7 @@ export default function NexusDeck({ online, busy, onSay, flash }: {
 }
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 13, letterSpacing: '0.24em', color: C.muted, textTransform: 'uppercase', marginBottom: 8 }}>{children}</div>;
+  return <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 13, letterSpacing: '0.24em', color: C.muted, textTransform: 'uppercase', marginBottom: 8 }}>{children}</div>;
 }
 
 function Gauge({ label, pct, sub }: { label: string; pct?: number; sub?: string }) {
@@ -154,15 +154,15 @@ function Gauge({ label, pct, sub }: { label: string; pct?: number; sub?: string 
   const col = v == null ? C.muted : v >= 90 ? C.red : v >= 70 ? C.amber : C.accent;
   const R = 26, L = 2 * Math.PI * R;
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 4px 8px', borderRadius: 12, background: 'rgba(5,12,28,0.6)', border: `1px solid ${C.border}` }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 4px 8px', borderRadius: 12, background: 'rgba(var(--dz-surface-rgb),0.6)', border: `1px solid ${C.border}` }}>
       <svg width="64" height="64" viewBox="0 0 64 64">
-        <circle cx="32" cy="32" r={R} fill="none" stroke="rgba(200,190,255,0.14)" strokeWidth="5" />
+        <circle cx="32" cy="32" r={R} fill="none" stroke="rgba(var(--dz-ink-rgb),0.34)" strokeWidth="5" />
         <circle cx="32" cy="32" r={R} fill="none" stroke={col} strokeWidth="5" strokeLinecap="round"
           strokeDasharray={`${((v ?? 0) / 100) * L} ${L}`} transform="rotate(-90 32 32)"
           style={{ transition: 'stroke-dasharray 0.6s ease', filter: `drop-shadow(0 0 4px ${col})` }} />
-        <text x="32" y="36" textAnchor="middle" fill="#fff" fontFamily="Plus Jakarta Sans" fontSize="13" fontWeight="700">{v == null ? '—' : `${Math.round(v)}%`}</text>
+        <text x="32" y="36" textAnchor="middle" fill="#0c0e1a" fontFamily="Manrope" fontSize="13" fontWeight="700">{v == null ? '—' : `${Math.round(v)}%`}</text>
       </svg>
-      <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 12.5, letterSpacing: '0.2em', color: C.muted, marginTop: 4 }}>{label}</div>
+      <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 12.5, letterSpacing: '0.2em', color: C.muted, marginTop: 4 }}>{label}</div>
       {sub && <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{sub}</div>}
     </div>
   );
@@ -170,9 +170,9 @@ function Gauge({ label, pct, sub }: { label: string; pct?: number; sub?: string 
 
 function Info({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div style={{ padding: '10px 11px', borderRadius: 12, background: 'rgba(5,12,28,0.6)', border: `1px solid ${C.border}`, minWidth: 0 }}>
-      <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 12.5, letterSpacing: '0.2em', color: C.muted, marginBottom: 6 }}>{label}</div>
-      <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 18, fontWeight: 700, color: '#fff' }}>{value}</div>
+    <div style={{ padding: '10px 11px', borderRadius: 12, background: 'rgba(var(--dz-surface-rgb),0.6)', border: `1px solid ${C.border}`, minWidth: 0 }}>
+      <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 12.5, letterSpacing: '0.2em', color: C.muted, marginBottom: 6 }}>{label}</div>
+      <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 18, fontWeight: 700, color: 'var(--dz-text)' }}>{value}</div>
       <div style={{ fontSize: 13.5, color: C.muted, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</div>
     </div>
   );

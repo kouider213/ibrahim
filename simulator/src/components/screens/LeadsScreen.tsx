@@ -2,9 +2,9 @@ import { useState, useEffect, type CSSProperties } from 'react';
 import { business, type ClientLead } from '../../services/api.ts';
 
 const C = {
-  bg: '#09090d', surface: '#131319', surface2: '#1b1b23', border: 'rgba(200,190,255,0.15)',
-  accent: '#9b8cff', accentSoft: '#34d399', text: '#f5f5f7', muted: '#a6a3b8',
-  violet: '#a78bfa', orange: '#fb923c', amber: '#fbbf24', red: '#fb7185',
+  bg: 'var(--dz-bg)', surface: 'var(--dz-surface)', surface2: 'var(--dz-surface2)', border: 'rgba(var(--dz-ink-rgb),0.15)',
+  accent: '#2f5bff', accentSoft: '#0a9a5e', text: 'var(--dz-text)', muted: 'var(--dz-muted)',
+  violet: '#2f5bff', orange: '#c2570c', amber: '#b86e00', red: '#e0304f',
   font: '-apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
 };
 
@@ -71,13 +71,13 @@ export default function LeadsScreen() {
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, position: 'relative' }}>
       {/* Hero */}
       <div style={{ position: 'relative', padding: '22px 18px 12px', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: -60, right: -40, width: 200, height: 200, background: `radial-gradient(circle, ${C.accent}22, transparent 70%)`, pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', top: -60, right: -40, width: 200, height: 200, background: `radial-gradient(circle, color-mix(in srgb, ${C.accent} 13%, transparent), transparent 70%)`, pointerEvents: 'none' }} />
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.accent, fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Dzaryx · Demandes</div>
             <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.05, background: `linear-gradient(120deg, #fff, ${C.accentSoft})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Demandes</div>
           </div>
-          <button onClick={() => setShow(s => !s)} style={{ width: 42, height: 42, borderRadius: 12, border: 'none', cursor: 'pointer', background: show ? C.surface2 : `linear-gradient(135deg, ${C.accent}, ${C.accentSoft})`, color: show ? C.muted : '#04140d', fontSize: 22, fontWeight: 700 }}>{show ? '✕' : '+'}</button>
+          <button onClick={() => setShow(s => !s)} style={{ width: 42, height: 42, borderRadius: 12, border: 'none', cursor: 'pointer', background: show ? C.surface2 : `linear-gradient(135deg, ${C.accent}, ${C.accentSoft})`, color: show ? C.muted : '#ffffff', fontSize: 22, fontWeight: 700 }}>{show ? '✕' : '+'}</button>
         </div>
       </div>
 
@@ -94,7 +94,7 @@ export default function LeadsScreen() {
       {/* Filtres */}
       <div style={{ display: 'flex', gap: 4, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 3, margin: '0 18px 12px' }}>
         {([['actifs', 'Actifs'], ['conclu', 'Conclus'], ['all', 'Tout']] as [string, string][]).map(([k, lbl]) => (
-          <button key={k} onClick={() => setFilter(k)} style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: 'none', cursor: 'pointer', fontFamily: C.font, fontSize: 12, fontWeight: 600, background: filter === k ? C.accent : 'transparent', color: filter === k ? '#04140d' : C.muted }}>{lbl}</button>
+          <button key={k} onClick={() => setFilter(k)} style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: 'none', cursor: 'pointer', fontFamily: C.font, fontSize: 12, fontWeight: 600, background: filter === k ? C.accent : 'transparent', color: filter === k ? '#ffffff' : C.muted }}>{lbl}</button>
         ))}
       </div>
 
@@ -104,7 +104,7 @@ export default function LeadsScreen() {
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 14, display: 'flex', flexDirection: 'column', gap: 9 }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {Object.entries(CAT_META).map(([k, m]) => (
-                <button key={k} onClick={() => setF(s => ({ ...s, category: k }))} style={{ flex: '1 1 45%', padding: '9px', borderRadius: 11, cursor: 'pointer', fontFamily: C.font, fontSize: 12, fontWeight: 600, background: f.category === k ? `${m.col}1c` : 'transparent', border: `1px solid ${f.category === k ? m.col : C.border}`, color: f.category === k ? m.col : C.muted }}>{m.icon} {m.label}</button>
+                <button key={k} onClick={() => setF(s => ({ ...s, category: k }))} style={{ flex: '1 1 45%', padding: '9px', borderRadius: 11, cursor: 'pointer', fontFamily: C.font, fontSize: 12, fontWeight: 600, background: f.category === k ? `color-mix(in srgb, ${m.col} 11%, transparent)` : 'transparent', border: `1px solid ${f.category === k ? m.col : C.border}`, color: f.category === k ? m.col : C.muted }}>{m.icon} {m.label}</button>
               ))}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -117,7 +117,7 @@ export default function LeadsScreen() {
               <input value={f.budget_max} onChange={e => setF(s => ({ ...s, budget_max: e.target.value }))} type="number" placeholder="Budget max" style={inp} />
               <select value={f.currency} onChange={e => setF(s => ({ ...s, currency: e.target.value }))} style={{ ...inp, flex: '0 0 78px' }}><option>DZD</option><option>EUR</option></select>
             </div>
-            <button onClick={() => void add()} disabled={busy === 'add'} style={{ padding: 13, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${C.accent}, ${C.accentSoft})`, color: '#04140d', fontFamily: C.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: busy === 'add' ? 0.5 : 1 }}>{busy === 'add' ? '…' : 'Enregistrer la demande'}</button>
+            <button onClick={() => void add()} disabled={busy === 'add'} style={{ padding: 13, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${C.accent}, ${C.accentSoft})`, color: '#ffffff', fontFamily: C.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: busy === 'add' ? 0.5 : 1 }}>{busy === 'add' ? '…' : 'Enregistrer la demande'}</button>
           </div>
         )}
 
@@ -128,17 +128,17 @@ export default function LeadsScreen() {
           return (
             <div key={l.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 14 }}>
               <div style={{ display: 'flex', gap: 12 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, background: `${m.col}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{m.icon}</div>
+                <div style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, background: `color-mix(in srgb, ${m.col} 9%, transparent)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{m.icon}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 15, fontWeight: 700 }}>{l.client_name}</span>
-                    <span style={{ fontSize: 13.5, fontWeight: 600, color: m.col, background: `${m.col}1a`, border: `1px solid ${m.col}40`, borderRadius: 20, padding: '2px 9px' }}>{m.label}</span>
+                    <span style={{ fontSize: 13.5, fontWeight: 600, color: m.col, background: `color-mix(in srgb, ${m.col} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${m.col} 25%, transparent)`, borderRadius: 20, padding: '2px 9px' }}>{m.label}</span>
                   </div>
                   <div style={{ fontSize: 13, color: C.text, marginTop: 4, lineHeight: 1.4 }}>{l.criteria}</div>
                   <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{[l.city, l.budget_max ? `≤ ${Number(l.budget_max).toLocaleString('fr-FR')} ${cur}` : null].filter(Boolean).join(' · ') || '—'}</div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-                  <button onClick={() => void cycle(l)} disabled={busy === l.id} style={{ fontSize: 11, fontWeight: 700, color: st.col, background: `${st.col}1a`, border: `1px solid ${st.col}55`, borderRadius: 20, padding: '4px 11px', cursor: 'pointer', fontFamily: C.font }}>{st.label} ▸</button>
+                  <button onClick={() => void cycle(l)} disabled={busy === l.id} style={{ fontSize: 11, fontWeight: 700, color: st.col, background: `color-mix(in srgb, ${st.col} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${st.col} 33%, transparent)`, borderRadius: 20, padding: '4px 11px', cursor: 'pointer', fontFamily: C.font }}>{st.label} ▸</button>
                   {l.client_phone && <a href={`tel:${l.client_phone}`} style={{ fontSize: 19, textDecoration: 'none' }}>📞</a>}
                 </div>
               </div>

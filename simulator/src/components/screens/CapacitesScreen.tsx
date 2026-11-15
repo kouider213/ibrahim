@@ -12,7 +12,7 @@ interface Agent {
 
 const AGENTS: Agent[] = [
   {
-    id: 'booking', icon: '📋', name: 'Agent Réservations', col: '#00e676',
+    id: 'booking', icon: '📋', name: 'Agent Réservations', col: '#0a9a5e',
     desc: 'Crée, modifie, annule des réservations. Vérifie disponibilité. Génère vouchers PDF. Synchro Google Agenda.',
     examples: [
       'Ahmed Sandero 22 au 26 mai 40€/j',
@@ -23,7 +23,7 @@ const AGENTS: Agent[] = [
     tags: ['CREATE', 'UPDATE', 'AGENDA', 'VOUCHER'],
   },
   {
-    id: 'finance', icon: '💰', name: 'Agent Finance', col: '#ffb347',
+    id: 'finance', icon: '💰', name: 'Agent Finance', col: '#b86e00',
     desc: 'Rapports CA/profit Kouider vs Houari. Impayés. Facturation. Anomalies. Export comptable.',
     examples: [
       'Donne moi les revenus du mois',
@@ -34,7 +34,7 @@ const AGENTS: Agent[] = [
     tags: ['CA', 'PROFIT', 'IMPAYÉS', 'EXPORT'],
   },
   {
-    id: 'clients', icon: '👤', name: 'Agent Clients', col: '#9b8cff',
+    id: 'clients', icon: '👤', name: 'Agent Clients', col: '#2f5bff',
     desc: 'Documents (passeport, permis, contrat). Score VIP/FREQUENT. Envoi WhatsApp/Telegram. Profil intelligence.',
     examples: [
       'Passeport de Sofiane Khelifi',
@@ -45,7 +45,7 @@ const AGENTS: Agent[] = [
     tags: ['DOCS', 'SCORE', 'WHATSAPP', 'OCR'],
   },
   {
-    id: 'planning', icon: '📅', name: 'Agent Planning', col: '#c084fc',
+    id: 'planning', icon: '📅', name: 'Agent Planning', col: '#2f5bff',
     desc: 'Calendrier Google. Rappels automatiques. Météo Oran. Actualités. Planification hebdomadaire.',
     examples: [
       'Météo demain à Oran',
@@ -56,7 +56,7 @@ const AGENTS: Agent[] = [
     tags: ['AGENDA', 'RAPPELS', 'MÉTÉO', 'NEWS'],
   },
   {
-    id: 'tiktok', icon: '🎬', name: 'Agent TikTok', col: '#ff6b9d',
+    id: 'tiktok', icon: '🎬', name: 'Agent TikTok', col: '#e0304f',
     desc: 'Vidéos marketing TikTok 720×1280. Tendances Oran. Analyse concurrents réseaux. Hashtags darija+français.',
     examples: [
       'Fais moi une vidéo pour la Clio Alpine',
@@ -67,7 +67,7 @@ const AGENTS: Agent[] = [
     tags: ['VIDÉO', 'TIKTOK', 'VOICEOVER', 'TRENDING'],
   },
   {
-    id: 'marketing', icon: '🎨', name: 'Agent Marketing', col: '#fb923c',
+    id: 'marketing', icon: '🎨', name: 'Agent Marketing', col: '#c2570c',
     desc: 'Images pub. Suppression fond. Overlay texte. Photos réelles du parc. Création vidéo complète.',
     examples: [
       'Photo pub pour le Duster',
@@ -78,7 +78,7 @@ const AGENTS: Agent[] = [
     tags: ['IMAGE', 'FOND', 'OVERLAY', 'SOCIAL'],
   },
   {
-    id: 'nexus', icon: '💻', name: 'Agent Nexus PC', col: '#7c3aed',
+    id: 'nexus', icon: '💻', name: 'Agent Nexus PC', col: '#7a3cff',
     desc: 'Contrôle PC Windows à distance. Terminal streaming live. Gestion fichiers. Git. Screenshot. Wake on LAN.',
     examples: [
       'git status sur le projet ibrahim',
@@ -89,7 +89,7 @@ const AGENTS: Agent[] = [
     tags: ['TERMINAL', 'FILES', 'GIT', 'SCREENSHOT'],
   },
   {
-    id: 'memory', icon: '🧠', name: 'Agent Mémoire', col: '#34d399',
+    id: 'memory', icon: '🧠', name: 'Agent Mémoire', col: '#0a9a5e',
     desc: 'Mémorisation long terme. Préférences Kouider. Règles métier. Historique d\'apprentissage.',
     examples: [
       'Souviens-toi que Karim est difficile',
@@ -100,7 +100,7 @@ const AGENTS: Agent[] = [
     tags: ['MÉMOIRE', 'RÈGLES', 'HABITUDES', 'ÉVOLUTION'],
   },
   {
-    id: 'general', icon: '🌐', name: 'Agent Général', col: '#34d399',
+    id: 'general', icon: '🌐', name: 'Agent Général', col: '#0a9a5e',
     desc: 'Question/réponse tout sujet. Recherche web réelle (SearXNG + Jina). Actualités. Taux de change. Météo.',
     examples: [
       'Quel est le taux euro/dinar aujourd\'hui ?',
@@ -111,7 +111,7 @@ const AGENTS: Agent[] = [
     tags: ['WEB', 'ACTUALITÉS', 'TAUX', 'GÉNÉ'],
   },
   {
-    id: 'code', icon: '⚙️', name: 'Agent Code', col: '#a78bfa',
+    id: 'code', icon: '⚙️', name: 'Agent Code', col: '#2f5bff',
     desc: 'Développement TypeScript/React. Deploy Railway/Netlify. Debug. Features. GitHub. Lecture/écriture fichiers.',
     examples: [
       'Lis le fichier FleetScreen.tsx',
@@ -122,7 +122,7 @@ const AGENTS: Agent[] = [
     tags: ['CODE', 'DEPLOY', 'GITHUB', 'DEBUG'],
   },
   {
-    id: 'obsidian', icon: '📓', name: 'Agent Obsidian', col: '#e879f9',
+    id: 'obsidian', icon: '📓', name: 'Agent Obsidian', col: '#2f5bff',
     desc: 'Mémoire long terme via Obsidian vault sur PC Kouider. Profils clients. Notes personnalisées.',
     examples: [
       'Profil client Karim dans Obsidian',
@@ -133,7 +133,7 @@ const AGENTS: Agent[] = [
     tags: ['VAULT', 'PROFILS', 'NOTES', 'OBSIDIAN'],
   },
   {
-    id: 'network', icon: '📡', name: 'Agent Veille Concurrents', col: '#f472b6',
+    id: 'network', icon: '📡', name: 'Agent Veille Concurrents', col: '#d6338a',
     desc: 'Analyse concurrents location voiture Oran. Recherche multi-sources réelle. Benchmark prix. SEO local.',
     examples: [
       'Analyse mes concurrents à Oran',
@@ -144,7 +144,7 @@ const AGENTS: Agent[] = [
     tags: ['VEILLE', 'BENCHMARK', 'SEO', 'MARCHÉS'],
   },
   {
-    id: 'designer', icon: '✨', name: 'Agent Designer', col: '#38bdf8',
+    id: 'designer', icon: '✨', name: 'Agent Designer', col: '#2f5bff',
     desc: 'Interface React/CSS. Charte graphique. Composants mobiles. Animations. Style dark luxueux.',
     examples: [
       'Crée une interface de facture',
@@ -155,7 +155,7 @@ const AGENTS: Agent[] = [
     tags: ['UI', 'CSS', 'REACT', 'DESIGN'],
   },
   {
-    id: 'video', icon: '🎞️', name: 'Agent Créateur Vidéo', col: '#fbbf24',
+    id: 'video', icon: '🎞️', name: 'Agent Créateur Vidéo', col: '#b86e00',
     desc: 'Pipeline complet production vidéo TikTok/Reels. Script → montage → sous-titres → publication.',
     examples: [
       'Pipeline vidéo Duster complet',
@@ -168,14 +168,14 @@ const AGENTS: Agent[] = [
 ];
 
 const PROACTIVE_FEATURES = [
-  { icon: '☀️', title: 'Briefing Matinal', col: '#ffb347', desc: 'Chaque matin à l\'heure de réveil de Kouider — CA du jour, retours, impayés, météo Oran' },
-  { icon: '⚠️', title: 'Alertes Impayés', col: '#ff3366', desc: '48h → relance normale · 72h+ → alerte urgente · calcul automatique délai' },
-  { icon: '🚗', title: 'Retours Véhicules', col: '#00e676', desc: '1h avant chaque retour prévu → rappel client + montant à encaisser' },
-  { icon: '📅', title: 'Arrivées J+1', col: '#9b8cff', desc: 'Soir J-1 → liste des clients attendus demain + docs manquants' },
-  { icon: '📊', title: 'Bilan Quotidien', col: '#c084fc', desc: '18h30 chaque jour → CA encaissé, nouvelles réservations, résumé' },
-  { icon: '🚨', title: 'Anomalies Business', col: '#ff6b6b', desc: 'Perte réelle (client_ppd < owner_ppd), grande résa > 2000€, voiture surutilisée' },
-  { icon: '📄', title: 'Docs Manquants', col: '#fb923c', desc: 'Rappel si client actif sans passeport/permis enregistré' },
-  { icon: '🧠', title: 'Contexte AI Matin', col: '#34d399', desc: 'Rappels intelligents injectés dans Claude chaque matin (impayés, retours, anniversaires)' },
+  { icon: '☀️', title: 'Briefing Matinal', col: '#b86e00', desc: 'Chaque matin à l\'heure de réveil de Kouider — CA du jour, retours, impayés, météo Oran' },
+  { icon: '⚠️', title: 'Alertes Impayés', col: '#e0304f', desc: '48h → relance normale · 72h+ → alerte urgente · calcul automatique délai' },
+  { icon: '🚗', title: 'Retours Véhicules', col: '#0a9a5e', desc: '1h avant chaque retour prévu → rappel client + montant à encaisser' },
+  { icon: '📅', title: 'Arrivées J+1', col: '#2f5bff', desc: 'Soir J-1 → liste des clients attendus demain + docs manquants' },
+  { icon: '📊', title: 'Bilan Quotidien', col: '#2f5bff', desc: '18h30 chaque jour → CA encaissé, nouvelles réservations, résumé' },
+  { icon: '🚨', title: 'Anomalies Business', col: '#e0304f', desc: 'Perte réelle (client_ppd < owner_ppd), grande résa > 2000€, voiture surutilisée' },
+  { icon: '📄', title: 'Docs Manquants', col: '#c2570c', desc: 'Rappel si client actif sans passeport/permis enregistré' },
+  { icon: '🧠', title: 'Contexte AI Matin', col: '#0a9a5e', desc: 'Rappels intelligents injectés dans Claude chaque matin (impayés, retours, anniversaires)' },
 ];
 
 export default function CapacitesScreen() {
@@ -185,30 +185,30 @@ export default function CapacitesScreen() {
   return (
     <div style={{
       height: '100%', display: 'flex', flexDirection: 'column',
-      background: '#09090d', color: '#fff', fontFamily: 'Inter, sans-serif',
+      background: 'var(--dz-bg)', color: 'var(--dz-text)', fontFamily: 'Inter, sans-serif',
       position: 'relative', overflow: 'hidden',
     }}>
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       {/* Header */}
-      <div style={{ padding: '10px 14px 0', borderBottom: '1px solid #9b8cff12', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
-        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9b8cff', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #9b8cff55', marginBottom: 8 }}>
+      <div style={{ padding: '10px 14px 0', borderBottom: '1px solid #2f5bff12', flexShrink: 0, background: 'rgba(var(--dz-surface-rgb),0.97)' }}>
+        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#2f5bff', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #2f5bff26', marginBottom: 8 }}>
           DZARYX — CAPACITÉS
         </div>
         <div style={{ display: 'flex', gap: 4, marginBottom: 0 }}>
           {(['agents', 'proactif', 'capacites'] as const).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
-              flex: 1, background: activeTab === tab ? '#9b8cff0d' : 'transparent',
-              border: 'none', borderBottom: activeTab === tab ? '2px solid #9b8cff' : '2px solid transparent',
+              flex: 1, background: activeTab === tab ? '#2f5bff0d' : 'transparent',
+              border: 'none', borderBottom: activeTab === tab ? '2px solid #2f5bff' : '2px solid transparent',
               padding: '6px 4px', fontFamily: 'Inter, sans-serif', fontSize: 12,
-              color: activeTab === tab ? '#9b8cff' : '#ffffff33',
+              color: activeTab === tab ? '#2f5bff' : 'rgba(var(--dz-ink-rgb),0.16)',
               letterSpacing: '0.15em', cursor: 'pointer',
             }}>
               {tab === 'agents' ? '14 AGENTS' : tab === 'proactif' ? 'PROACTIF' : 'CAPACITÉS'}
             </button>
           ))}
         </div>
-        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #9b8cff44, transparent)', marginTop: 0 }} />
+        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #2f5bff44, transparent)', marginTop: 0 }} />
       </div>
 
       {/* Content */}
@@ -216,15 +216,15 @@ export default function CapacitesScreen() {
 
         {activeTab === 'agents' && (
           <>
-            <div style={{ fontSize: 12.5, color: '#706d84', letterSpacing: '0.1em', textAlign: 'center', padding: '4px 0' }}>
+            <div style={{ fontSize: 12.5, color: 'var(--dz-faint)', letterSpacing: '0.1em', textAlign: 'center', padding: '4px 0' }}>
               {AGENTS.length} agents spécialisés — routing automatique par intention
             </div>
             {AGENTS.map(agent => {
               const isOpen = expanded === agent.id;
               return (
                 <div key={agent.id} style={{
-                  borderRadius: 10, border: `1px solid ${agent.col}22`,
-                  background: `linear-gradient(135deg, ${agent.col}05, rgba(10,10,12,0.6))`,
+                  borderRadius: 10, border: `1px solid color-mix(in srgb, ${agent.col} 13%, transparent)`,
+                  background: `linear-gradient(135deg, color-mix(in srgb, ${agent.col} 2%, transparent), rgba(255,255,255,0.6))`,
                   overflow: 'hidden',
                 }}>
                   <button
@@ -237,39 +237,39 @@ export default function CapacitesScreen() {
                   >
                     <span style={{ fontSize: 18, flexShrink: 0 }}>{agent.icon}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13.5, color: '#f3effc', fontWeight: 600, marginBottom: 2 }}>
+                      <div style={{ fontSize: 13.5, color: 'var(--dz-text)', fontWeight: 600, marginBottom: 2 }}>
                         {agent.name}
                       </div>
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                         {agent.tags.map(t => (
                           <span key={t} style={{
-                            fontSize: 11.5, background: `${agent.col}15`, color: `${agent.col}cc`,
+                            fontSize: 11.5, background: `color-mix(in srgb, ${agent.col} 8%, transparent)`, color: `color-mix(in srgb, ${agent.col} 80%, transparent)`,
                             borderRadius: 4, padding: '1px 5px', fontFamily: 'Inter, sans-serif', letterSpacing: '0.08em',
                           }}>{t}</span>
                         ))}
                       </div>
                     </div>
-                    <span style={{ fontSize: 13, color: '#a6a3b8', flexShrink: 0 }}>
+                    <span style={{ fontSize: 13, color: 'var(--dz-muted)', flexShrink: 0 }}>
                       {isOpen ? '▲' : '▼'}
                     </span>
                   </button>
 
                   {isOpen && (
-                    <div style={{ padding: '0 12px 12px', borderTop: `1px solid ${agent.col}11` }}>
-                      <div style={{ fontSize: 13, color: '#a6a3b8', lineHeight: 1.6, marginBottom: 8 }}>
+                    <div style={{ padding: '0 12px 12px', borderTop: `1px solid color-mix(in srgb, ${agent.col} 7%, transparent)` }}>
+                      <div style={{ fontSize: 13, color: 'var(--dz-muted)', lineHeight: 1.6, marginBottom: 8 }}>
                         {agent.desc}
                       </div>
-                      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: `${agent.col}77`, letterSpacing: '0.15em', marginBottom: 5 }}>
+                      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: `color-mix(in srgb, ${agent.col} 47%, transparent)`, letterSpacing: '0.15em', marginBottom: 5 }}>
                         EXEMPLES DE COMMANDES
                       </div>
                       {agent.examples.map((ex, i) => (
                         <div key={i} style={{
                           display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4,
-                          padding: '5px 8px', background: `${agent.col}08`, borderRadius: 6,
-                          border: `1px solid ${agent.col}11`,
+                          padding: '5px 8px', background: `color-mix(in srgb, ${agent.col} 3%, transparent)`, borderRadius: 6,
+                          border: `1px solid color-mix(in srgb, ${agent.col} 7%, transparent)`,
                         }}>
-                          <span style={{ fontSize: 12.5, color: `${agent.col}77`, flexShrink: 0 }}>›</span>
-                          <span style={{ fontSize: 13, color: '#d8eaff', lineHeight: 1.4 }}>"{ex}"</span>
+                          <span style={{ fontSize: 12.5, color: `color-mix(in srgb, ${agent.col} 47%, transparent)`, flexShrink: 0 }}>›</span>
+                          <span style={{ fontSize: 13, color: 'var(--dz-text)', lineHeight: 1.4 }}>"{ex}"</span>
                         </div>
                       ))}
                     </div>
@@ -282,22 +282,22 @@ export default function CapacitesScreen() {
 
         {activeTab === 'proactif' && (
           <>
-            <div style={{ fontSize: 12.5, color: '#706d84', letterSpacing: '0.1em', textAlign: 'center', padding: '4px 0' }}>
+            <div style={{ fontSize: 12.5, color: 'var(--dz-faint)', letterSpacing: '0.1em', textAlign: 'center', padding: '4px 0' }}>
               Dzaryx envoie des alertes automatiquement, sans que tu ne demandes rien
             </div>
 
             {/* Timeline visual */}
-            <div style={{ background: 'rgba(155,140,255,0.03)', borderRadius: 10, padding: '12px', border: '1px solid #9b8cff0f', marginBottom: 4 }}>
-              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9b8cff66', letterSpacing: '0.2em', marginBottom: 10 }}>
+            <div style={{ background: 'rgba(47,91,255,0.03)', borderRadius: 10, padding: '12px', border: '1px solid #2f5bff0f', marginBottom: 4 }}>
+              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#2f5bff66', letterSpacing: '0.2em', marginBottom: 10 }}>
                 ◉ TIMELINE JOURNÉE TYPE — KOUIDER
               </div>
               {[
-                { time: '07:00', label: 'Briefing matinal', col: '#ffb347', icon: '☀️' },
-                { time: '08:15', label: 'Alertes impayés', col: '#ff3366', icon: '⚠️' },
-                { time: 'J-1h', label: 'Rappel chaque retour', col: '#00e676', icon: '🚗' },
-                { time: '18:00', label: 'Bilan journée', col: '#c084fc', icon: '📊' },
-                { time: 'Veille', label: 'Arrivées lendemain', col: '#9b8cff', icon: '📅' },
-                { time: 'Live', label: 'Anomalies en temps réel', col: '#ff6b6b', icon: '🚨' },
+                { time: '07:00', label: 'Briefing matinal', col: '#b86e00', icon: '☀️' },
+                { time: '08:15', label: 'Alertes impayés', col: '#e0304f', icon: '⚠️' },
+                { time: 'J-1h', label: 'Rappel chaque retour', col: '#0a9a5e', icon: '🚗' },
+                { time: '18:00', label: 'Bilan journée', col: '#2f5bff', icon: '📊' },
+                { time: 'Veille', label: 'Arrivées lendemain', col: '#2f5bff', icon: '📅' },
+                { time: 'Live', label: 'Anomalies en temps réel', col: '#e0304f', icon: '🚨' },
               ].map((item, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                   <div style={{
@@ -305,7 +305,7 @@ export default function CapacitesScreen() {
                     textAlign: 'right', letterSpacing: '0.05em',
                   }}>{item.time}</div>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.col, flexShrink: 0 }} />
-                  <div style={{ fontSize: 12.5, color: '#f3effc' }}>
+                  <div style={{ fontSize: 12.5, color: 'var(--dz-text)' }}>
                     {item.icon} {item.label}
                   </div>
                 </div>
@@ -314,17 +314,17 @@ export default function CapacitesScreen() {
 
             {PROACTIVE_FEATURES.map(f => (
               <div key={f.title} style={{
-                borderRadius: 10, border: `1px solid ${f.col}22`,
-                background: `linear-gradient(135deg, ${f.col}05, rgba(10,10,12,0.6))`,
+                borderRadius: 10, border: `1px solid color-mix(in srgb, ${f.col} 13%, transparent)`,
+                background: `linear-gradient(135deg, color-mix(in srgb, ${f.col} 2%, transparent), rgba(255,255,255,0.6))`,
                 padding: '10px 12px',
                 display: 'flex', alignItems: 'flex-start', gap: 10,
               }}>
                 <span style={{ fontSize: 20, flexShrink: 0 }}>{f.icon}</span>
                 <div>
-                  <div style={{ fontSize: 13.5, color: '#f3effc', fontWeight: 600, marginBottom: 3 }}>
+                  <div style={{ fontSize: 13.5, color: 'var(--dz-text)', fontWeight: 600, marginBottom: 3 }}>
                     {f.title}
                   </div>
-                  <div style={{ fontSize: 12.5, color: '#a6a3b8', lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 12.5, color: 'var(--dz-muted)', lineHeight: 1.5 }}>
                     {f.desc}
                   </div>
                 </div>
@@ -335,13 +335,13 @@ export default function CapacitesScreen() {
 
         {activeTab === 'capacites' && (
           <>
-            <div style={{ fontSize: 12.5, color: '#706d84', letterSpacing: '0.1em', textAlign: 'center', padding: '4px 0' }}>
+            <div style={{ fontSize: 12.5, color: 'var(--dz-faint)', letterSpacing: '0.1em', textAlign: 'center', padding: '4px 0' }}>
               Tout ce que Dzaryx peut faire
             </div>
 
             {[
               {
-                title: '🤖 Intelligence Artificielle', col: '#9b8cff',
+                title: '🤖 Intelligence Artificielle', col: '#2f5bff',
                 items: [
                   'Claude Sonnet 4.6 (IA principale)',
                   'OpenAI GPT-4o (finance + code review)',
@@ -354,7 +354,7 @@ export default function CapacitesScreen() {
                 ],
               },
               {
-                title: '💬 Communication', col: '#00e676',
+                title: '💬 Communication', col: '#0a9a5e',
                 items: [
                   'Chat texte (FR / AR / darija)',
                   'Voix — Microphone → Whisper → Claude → TTS',
@@ -366,7 +366,7 @@ export default function CapacitesScreen() {
                 ],
               },
               {
-                title: '📋 Business Réservations', col: '#ffb347',
+                title: '📋 Business Réservations', col: '#b86e00',
                 items: [
                   'Créer réservation (voix ou texte)',
                   'Modifier / annuler réservation',
@@ -379,7 +379,7 @@ export default function CapacitesScreen() {
                 ],
               },
               {
-                title: '💰 Finance & Comptabilité', col: '#fb923c',
+                title: '💰 Finance & Comptabilité', col: '#c2570c',
                 items: [
                   'CA aujourd\'hui / semaine / mois / annuel',
                   'Profit Kouider réel (vs prix Houari)',
@@ -392,7 +392,7 @@ export default function CapacitesScreen() {
                 ],
               },
               {
-                title: '📄 Documents Clients', col: '#a78bfa',
+                title: '📄 Documents Clients', col: '#2f5bff',
                 items: [
                   'Stockage passeport / permis / contrat',
                   'OCR scan caméra (extraction données)',
@@ -404,7 +404,7 @@ export default function CapacitesScreen() {
                 ],
               },
               {
-                title: '🖥️ PC Agent Nexus', col: '#7c3aed',
+                title: '🖥️ PC Agent Nexus', col: '#7a3cff',
                 items: [
                   'Terminal streaming live (commandes)',
                   'Git : pull / push / status / log',
@@ -417,7 +417,7 @@ export default function CapacitesScreen() {
                 ],
               },
               {
-                title: '🌐 Recherche Web', col: '#38bdf8',
+                title: '🌐 Recherche Web', col: '#2f5bff',
                 items: [
                   'SearXNG (moteur de recherche privé)',
                   'Jina Reader (lecture articles complets)',
@@ -429,7 +429,7 @@ export default function CapacitesScreen() {
                 ],
               },
               {
-                title: '🎬 Marketing & Médias', col: '#ff6b9d',
+                title: '🎬 Marketing & Médias', col: '#e0304f',
                 items: [
                   'Vidéo TikTok 720×1280 FFmpeg',
                   'Script voiceover (darija / français)',
@@ -443,8 +443,8 @@ export default function CapacitesScreen() {
               },
             ].map(section => (
               <div key={section.title} style={{
-                borderRadius: 10, border: `1px solid ${section.col}22`,
-                background: `linear-gradient(135deg, ${section.col}05, rgba(10,10,12,0.5))`,
+                borderRadius: 10, border: `1px solid color-mix(in srgb, ${section.col} 13%, transparent)`,
+                background: `linear-gradient(135deg, color-mix(in srgb, ${section.col} 2%, transparent), rgba(var(--dz-ink-rgb),0.25))`,
                 padding: '10px 12px',
               }}>
                 <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, color: section.col, letterSpacing: '0.15em', marginBottom: 8 }}>
@@ -452,8 +452,8 @@ export default function CapacitesScreen() {
                 </div>
                 {section.items.map((item, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 4 }}>
-                    <span style={{ fontSize: 11.5, color: `${section.col}88`, flexShrink: 0, marginTop: 3 }}>●</span>
-                    <span style={{ fontSize: 12.5, color: '#c8e8ff', lineHeight: 1.5 }}>{item}</span>
+                    <span style={{ fontSize: 11.5, color: `color-mix(in srgb, ${section.col} 53%, transparent)`, flexShrink: 0, marginTop: 3 }}>●</span>
+                    <span style={{ fontSize: 12.5, color: 'var(--dz-text)', lineHeight: 1.5 }}>{item}</span>
                   </div>
                 ))}
               </div>

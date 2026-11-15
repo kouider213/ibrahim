@@ -9,8 +9,8 @@ import NexusTools from './NexusTools.tsx';
 // Deux PC : le laptop (Nexus) et le PC cloud (bureau virtuel toujours allumé sur le serveur, Chrome connecté).
 
 const C = {
-  bg: '#09090d', surface: '#131319', border: 'rgba(200,190,255,0.16)',
-  accent: '#9b8cff', red: '#f87171', amber: '#fbbf24', text: '#f5f5f7', muted: '#a6a3b8',
+  bg: 'var(--dz-bg)', surface: 'var(--dz-surface)', border: 'rgba(var(--dz-ink-rgb),0.16)',
+  accent: '#2f5bff', red: '#e0304f', amber: '#b86e00', text: 'var(--dz-text)', muted: 'var(--dz-muted)',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 
@@ -378,7 +378,7 @@ export default function NexusScreen() {
           {online ? 'Chargement de l\'écran…' : cloud ? 'PC cloud non connecté' : 'PC non connecté'}
         </div>
       )}
-      {mark && <div style={{ position: 'absolute', left: mark.x - 18, top: mark.y - 18, width: 36, height: 36, borderRadius: '50%', border: `3px solid ${mark.kind === 'right' ? C.amber : C.accent}`, pointerEvents: 'none', boxShadow: '0 0 12px rgba(155,140,255,0.6)' }} />}
+      {mark && <div style={{ position: 'absolute', left: mark.x - 18, top: mark.y - 18, width: 36, height: 36, borderRadius: '50%', border: `3px solid ${mark.kind === 'right' ? C.amber : C.accent}`, pointerEvents: 'none', boxShadow: '0 0 12px rgba(47,91,255,0.27)' }} />}
       {frame && <div style={{ position: 'absolute', right: 6, bottom: 6, fontSize: 13.5, color: '#fff', background: 'rgba(0,0,0,0.55)', borderRadius: 6, padding: '2px 6px', pointerEvents: 'none' }}>{liveOn ? '● direct' : frame.at}</div>}
     </div>
   );
@@ -411,7 +411,7 @@ export default function NexusScreen() {
       <div style={{ display: 'flex', gap: 6, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 4, marginBottom: 10 }}>
         {([['laptop', '💻 Laptop', targets?.laptop], ['cloud', '☁️ PC cloud', targets?.cloud]] as Array<[Target, string, boolean | undefined]>).map(([t, l, on]) => (
           <button key={t} onClick={() => choose(t)} style={{ flex: 1, padding: '9px 6px', borderRadius: 9, border: 'none', cursor: 'pointer', fontFamily: C.font, fontSize: 13, fontWeight: 600,
-            background: target === t ? 'rgba(155,140,255,0.18)' : 'transparent', color: target === t ? C.accent : C.text }}>
+            background: target === t ? 'rgba(47,91,255,0.18)' : 'transparent', color: target === t ? C.accent : C.text }}>
             {l} <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', marginLeft: 4, background: on === undefined ? C.amber : on ? C.accent : C.red }} />
           </button>
         ))}
@@ -453,7 +453,7 @@ export default function NexusScreen() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {tabs.map(t => (
                   <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <button onClick={() => { void tabAction(t, 'show'); }} style={{ flex: 1, minWidth: 0, textAlign: 'left', padding: '8px 10px', borderRadius: 9, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.04)', color: C.text, fontSize: 12, fontFamily: C.font, cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title || t.url}</button>
+                    <button onClick={() => { void tabAction(t, 'show'); }} style={{ flex: 1, minWidth: 0, textAlign: 'left', padding: '8px 10px', borderRadius: 9, border: `1px solid ${C.border}`, background: 'rgba(var(--dz-ink-rgb),0.03)', color: C.text, fontSize: 12, fontFamily: C.font, cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title || t.url}</button>
                     <button onClick={() => { void tabAction(t, 'close'); }} aria-label="Fermer l'onglet" style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 9, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, cursor: 'pointer' }}>✕</button>
                   </div>
                 ))}
@@ -516,7 +516,7 @@ export default function NexusScreen() {
         {msgs.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
             {msgs.map((m, i) => (
-              <div key={i} style={{ alignSelf: m.who === 'me' ? 'flex-end' : 'flex-start', maxWidth: '88%', background: m.who === 'me' ? 'rgba(155,140,255,0.16)' : 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '8px 11px', fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>{m.text}</div>
+              <div key={i} style={{ alignSelf: m.who === 'me' ? 'flex-end' : 'flex-start', maxWidth: '88%', background: m.who === 'me' ? 'rgba(47,91,255,0.16)' : 'rgba(var(--dz-ink-rgb),0.045)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '8px 11px', fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>{m.text}</div>
             ))}
           </div>
         )}
@@ -524,9 +524,9 @@ export default function NexusScreen() {
           <input value={ask} onChange={e => setAsk(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void say(ask); }}
             placeholder={!online ? 'PC non connecté' : cloud ? '« trouve les horaires d\'Air Algérie Oran-Bruxelles »…' : '« ouvre Spotify », « volume 30 »…'} disabled={!online} style={{ ...inp, flex: 1 }} />
           <button onClick={() => { void toggleMic(); }} disabled={!online || (!!busy && !recording)} aria-label="Dicter"
-            style={{ ...round, background: recording ? C.red : 'rgba(255,255,255,0.06)' }}>{recording ? '■' : '🎙️'}</button>
+            style={{ ...round, background: recording ? C.red : 'rgba(var(--dz-ink-rgb),0.045)' }}>{recording ? '■' : '🎙️'}</button>
           <button onClick={() => { void say(ask); }} disabled={!online || !ask.trim() || !!busy} aria-label="Envoyer"
-            style={{ ...round, background: C.accent, color: '#04140d' }}>{busy === 'say' || busy === 'stt' ? '…' : '➤'}</button>
+            style={{ ...round, background: C.accent, color: '#ffffff' }}>{busy === 'say' || busy === 'stt' ? '…' : '➤'}</button>
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 9 }}>
           {!cloud && CHIPS.map(c => <Pill key={c} onClick={() => { void say(c); }} label={c} />)}
@@ -611,7 +611,7 @@ const round: React.CSSProperties = { width: 44, height: 44, flexShrink: 0, borde
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 13, marginBottom: 12 }}>
-      <div style={{ fontSize: 15, fontWeight: 800, color: C.text, fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', marginBottom: 10 }}>{title}</div>
+      <div style={{ fontSize: 15, fontWeight: 800, color: C.text, fontFamily: 'Manrope, Inter, sans-serif', marginBottom: 10 }}>{title}</div>
       {children}
     </div>
   );
@@ -623,22 +623,22 @@ function Grid({ children }: { children: React.ReactNode }) {
 
 function Key({ label, onClick, disabled }: { label: string; onClick: () => void; disabled?: boolean }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{ padding: '11px 2px', borderRadius: 10, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.04)', color: C.text, fontSize: 13, fontFamily: C.font, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</button>
+    <button onClick={onClick} disabled={disabled} style={{ padding: '11px 2px', borderRadius: 10, border: `1px solid ${C.border}`, background: 'rgba(var(--dz-ink-rgb),0.03)', color: C.text, fontSize: 13, fontFamily: C.font, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</button>
   );
 }
 
 function Pill({ label, onClick, on }: { label: string; onClick: () => void; on?: boolean }) {
   return (
-    <button onClick={onClick} style={{ padding: '7px 11px', borderRadius: 999, border: `1px solid ${on ? C.accent : C.border}`, background: on ? 'rgba(155,140,255,0.16)' : 'rgba(255,255,255,0.04)', color: on ? C.accent : C.text, fontSize: 12, fontFamily: C.font, cursor: 'pointer' }}>{label}</button>
+    <button onClick={onClick} style={{ padding: '7px 11px', borderRadius: 999, border: `1px solid ${on ? C.accent : C.border}`, background: on ? 'rgba(47,91,255,0.16)' : 'rgba(var(--dz-ink-rgb),0.03)', color: on ? C.accent : C.text, fontSize: 12, fontFamily: C.font, cursor: 'pointer' }}>{label}</button>
   );
 }
 
 function Btn({ label, onClick, color, disabled }: { label: string; onClick: () => void; color: string; disabled?: boolean }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{ padding: '10px 13px', borderRadius: 11, border: `1px solid ${color}55`, background: `${color}1f`, color, fontSize: 13, fontWeight: 600, fontFamily: C.font, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1, flexShrink: 0 }}>{label}</button>
+    <button onClick={onClick} disabled={disabled} style={{ padding: '10px 13px', borderRadius: 11, border: `1px solid color-mix(in srgb, ${color} 33%, transparent)`, background: `color-mix(in srgb, ${color} 12%, transparent)`, color, fontSize: 13, fontWeight: 600, fontFamily: C.font, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1, flexShrink: 0 }}>{label}</button>
   );
 }
 
 function Toast({ text }: { text: string }) {
-  return <div style={{ position: 'absolute', left: 16, right: 16, bottom: 20, zIndex: 60, background: '#222', border: `1px solid ${C.border}`, color: C.text, borderRadius: 12, padding: '10px 14px', fontSize: 13, textAlign: 'center' }}>{text}</div>;
+  return <div style={{ position: 'absolute', left: 16, right: 16, bottom: 20, zIndex: 60, background: 'var(--dz-surface)', border: `1px solid ${C.border}`, color: C.text, borderRadius: 12, padding: '10px 14px', fontSize: 13, textAlign: 'center' }}>{text}</div>;
 }

@@ -177,7 +177,7 @@ function Bars({ rows, fmt }: { rows: Array<{ name: string; ca: number; sub: stri
             <span style={{ flex: 1, fontSize: 14.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
             <span style={{ fontSize: 15, fontWeight: 800, marginLeft: 8 }}>{fmt(r.ca)}</span>
           </div>
-          <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
+          <div style={{ height: 6, background: 'rgba(var(--dz-ink-rgb),0.045)', borderRadius: 3, overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${(r.ca / max) * 100}%`, background: `linear-gradient(90deg, ${tone(T.accent, 0.45)}, ${T.accent})`, borderRadius: 3 }} />
           </div>
           <div style={{ fontSize: 12, color: T.faint, marginTop: 4 }}>{r.sub}</div>

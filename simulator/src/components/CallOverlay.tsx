@@ -47,7 +47,7 @@ export default function CallOverlay({ reason, onAnswer, onDecline }: Props) {
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 300,
-      background: 'radial-gradient(circle at 50% 30%, #2a2214 0%, #0b0906 55%, #000 100%)',
+      background: 'linear-gradient(165deg, var(--dz-ink) 0%, #1b2140 70%, #26315f 100%)',
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between',
       padding: '72px 24px 64px', fontFamily: 'Inter, system-ui, sans-serif', color: '#fff',
     }}>
@@ -57,39 +57,39 @@ export default function CallOverlay({ reason, onAnswer, onDecline }: Props) {
       `}</style>
 
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 13, letterSpacing: '0.18em', color: 'rgba(232,201,138,0.75)', textTransform: 'uppercase' }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>
           Appel entrant
         </div>
-        <div style={{ fontSize: 34, fontWeight: 600, marginTop: 10 }}>Dzaryx</div>
-        <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.55)', marginTop: 6 }}>t'appelle…</div>
+        <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 40, fontWeight: 800, letterSpacing: '-0.04em', marginTop: 8 }}>Dzaryx</div>
+        <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.6)', marginTop: 6 }}>t'appelle…</div>
       </div>
 
       <div style={{ position: 'relative', width: 132, height: 132, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {[0, 0.8].map(d => (
           <div key={d} style={{
-            position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid #E8C98A',
+            position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.5)',
             animation: `dzRingPulse 1.6s ease-out ${d}s infinite`,
           }} />
         ))}
         <img src={LOGO_URL} alt="" style={{
           width: 112, height: 112, borderRadius: '50%', objectFit: 'cover',
-          background: '#1a150d', border: '2px solid rgba(232,201,138,0.6)',
+          background: 'var(--dz-surface)', border: '4px solid rgba(255,255,255,0.9)',
         }} />
       </div>
 
       {reason ? (
         <div style={{
           maxWidth: 320, textAlign: 'center', fontSize: 15, lineHeight: 1.45,
-          color: 'rgba(255,255,255,0.8)', background: 'rgba(255,255,255,0.06)',
-          border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: '12px 16px',
+          color: '#ffffff', background: 'rgba(255,255,255,0.1)',
+          borderRadius: 20, padding: '14px 18px',
         }}>
           {reason}
         </div>
       ) : <div />}
 
       <div style={{ display: 'flex', gap: 72 }}>
-        <CallButton color="#FF3B30" label="Refuser" onClick={onDecline} rotate />
-        <CallButton color="#34C759" label="Décrocher" onClick={onAnswer} shake />
+        <CallButton color="#e0304f" label="Refuser" onClick={onDecline} rotate />
+        <CallButton color="#0a9a5e" label="Décrocher" onClick={onAnswer} shake />
       </div>
     </div>
   );
@@ -100,20 +100,20 @@ export function CallButton({ color, label, onClick, rotate, shake }: {
 }) {
   return (
     <button onClick={onClick} style={{
-      background: 'none', border: 'none', cursor: 'pointer', color: '#fff',
+      background: 'none', border: 'none', cursor: 'pointer', color: 'inherit',
       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, fontFamily: 'inherit',
     }}>
       <span style={{
         width: 72, height: 72, borderRadius: '50%', background: color,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        boxShadow: `0 6px 24px ${color}66`,
+        boxShadow: `0 14px 28px -10px color-mix(in srgb, ${color} 67%, transparent)`,
         animation: shake ? 'dzRingShake 1.2s ease-in-out infinite' : undefined,
       }}>
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="#fff" style={{ transform: rotate ? 'rotate(135deg)' : undefined }}>
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="#ffffff" style={{ transform: rotate ? 'rotate(135deg)' : undefined }}>
           <path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z" />
         </svg>
       </span>
-      <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)' }}>{label}</span>
+      <span style={{ fontSize: 13.5, fontWeight: 600, opacity: 0.75 }}>{label}</span>
     </button>
   );
 }

@@ -335,7 +335,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
   // ── Fiche (voiture ou métier) ───────────────────────────────────────────────
   const sheetRaw = sheet?.id ? raws[sheet.kind].find(x => x.id === sheet.id) ?? null : null;
   const panel = (car || zone || meOpen) && (
-    <div style={{ background: '#fff', color: '#14141b', borderRadius: 14, padding: '11px 12px', boxShadow: '0 8px 30px rgba(0,0,0,0.25)', maxHeight: full ? '62vh' : undefined, overflowY: 'auto' }}>
+    <div style={{ background: 'var(--dz-surface)', color: 'var(--dz-text)', borderRadius: 14, padding: '11px 12px', boxShadow: '0 8px 30px rgba(0,0,0,0.25)', maxHeight: full ? '62vh' : undefined, overflowY: 'auto' }}>
       {meOpen ? (
         <MePanel data={meData} state={me} demo={!!demo} onClose={() => choose(null)} onAsk={onAsk} onChanged={loadMe} />
       ) : sheet && !demo && (!sheet.id || sheetRaw) ? (
@@ -347,16 +347,16 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: STATUS[car.status].badge, borderRadius: 6, padding: '2px 7px' }}>{STATUS[car.status].label.toUpperCase()}</span>
           <span style={{ fontSize: 14.5, fontWeight: 800, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{car.name}</span>
-          <button onClick={() => choose(null)} style={{ background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', color: '#64748b' }}>✕</button>
+          <button onClick={() => choose(null)} style={{ background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', color: 'var(--dz-muted)' }}>✕</button>
         </div>
         {car.booking ? (
-          <div style={{ fontSize: 12.5, marginTop: 6, color: '#334155' }}>
+          <div style={{ fontSize: 12.5, marginTop: 6, color: 'var(--dz-text)' }}>
             👤 <b>{car.booking.client_name}</b> · {fmtD(car.booking.start_date)} → {fmtD(car.booking.end_date)}
             {car.due > 0 && <span style={{ color: '#b45309', fontWeight: 700 }}> · {money(car.due)} à encaisser</span>}
           </div>
-        ) : <div style={{ fontSize: 12.5, marginTop: 6, color: '#334155' }}>{car.status === 'atelier' ? 'À l\'atelier, aucune location en cours.' : 'Au parking — prête à partir.'}</div>}
+        ) : <div style={{ fontSize: 12.5, marginTop: 6, color: 'var(--dz-text)' }}>{car.status === 'atelier' ? 'À l\'atelier, aucune location en cours.' : 'Au parking — prête à partir.'}</div>}
         {car.alerts.slice(0, 2).map(a => <div key={a.id} style={{ fontSize: 11.5, marginTop: 5, color: a.priority === 'HIGH' ? '#b91c1c' : '#9a3412' }}>⚠️ {a.message}</div>)}
-        <div style={{ fontSize: 11.5, marginTop: 7, color: '#64748b' }}>Dans la vraie version : tout se modifie ici (état, réparation, km, vidange, papiers, rappels, paiement…).</div>
+        <div style={{ fontSize: 11.5, marginTop: 7, color: 'var(--dz-muted)' }}>Dans la vraie version : tout se modifie ici (état, réparation, km, vidange, papiers, rappels, paiement…).</div>
       </> : zone && <ZonePanel zone={zone} world={world} demo={!!demo} when={when} onClose={() => choose(null)} onOpen={onOpen} onAsk={onAsk}
         onCar={id => choose({ kind: 'car', id })} onAdd={() => setAdding({})} onItem={(kind, id) => setSheet({ kind, id })}
         demands={raws.dem.map(x => ({ id: x.id, label: String(x['title'] ?? 'Demande'), sub: [x['client_name'], x['status']].filter(Boolean).join(' · ') }))} />}
@@ -396,7 +396,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
         @keyframes dz3P { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,.7) } 50% { box-shadow: 0 0 0 7px rgba(239,68,68,0) } } .dz3-pulse { animation: dz3P 1.2s ease-in-out infinite }
       `}</style>
 
-      {demo && <div style={{ background: `${C.gold}18`, border: `1px solid ${C.gold}44`, color: C.gold, borderRadius: 12, padding: '8px 11px', fontSize: 12, marginBottom: 10 }}>
+      {demo && <div style={{ background: `color-mix(in srgb, ${C.gold} 9%, transparent)`, border: `1px solid color-mix(in srgb, ${C.gold} 27%, transparent)`, color: C.gold, borderRadius: 12, padding: '8px 11px', fontSize: 12, marginBottom: 10 }}>
         Démo FIK Conciergerie — données d'exemple. Votre activité réelle, vue comme un jeu, sur téléphone, PC ou télé.
       </div>}
 
@@ -434,7 +434,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
 
       {/* Faire entrer toutes les locations */}
       {!demo && !loading && (
-        <div style={{ background: `${C.accent}10`, border: `1px solid ${C.accent}33`, borderRadius: 14, padding: '10px 12px', marginBottom: 12 }}>
+        <div style={{ background: `color-mix(in srgb, ${C.accent} 6%, transparent)`, border: `1px solid color-mix(in srgb, ${C.accent} 20%, transparent)`, borderRadius: 14, padding: '10px 12px', marginBottom: 12 }}>
           <div style={{ fontSize: 12.5, lineHeight: 1.4 }}>
             <b>{bookings.length} location{bookings.length > 1 ? 's' : ''}</b> dans Dzaryx. Ajoute toutes les autres : la carte, les relances et les rapports deviennent justes.
           </div>
@@ -451,7 +451,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
       {/* La carte 3D */}
       <div ref={wrap} style={mapBox}>
         <div ref={host} style={{ position: 'absolute', inset: 0, touchAction: 'none' }} />
-        {(loading || !ready) && <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#14141b', fontSize: 13, fontWeight: 700, background: 'rgba(255,255,255,0.35)', zIndex: 2, pointerEvents: 'none' }}>Construction de la ville…</div>}
+        {(loading || !ready) && <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: 'var(--dz-text)', fontSize: 13, fontWeight: 700, background: 'rgba(255,255,255,0.35)', zIndex: 2, pointerEvents: 'none' }}>Construction de la ville…</div>}
         <div style={{ position: 'absolute', top: sTop, right: 8, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, zIndex: 3 }}>
           {full && <button onClick={toggleFull} aria-label="Quitter le plein écran" style={{ height: 34, borderRadius: 10, border: 'none', background: '#dc2626', color: '#fff', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.25)', padding: '0 10px', whiteSpace: 'nowrap' }}>✕ Quitter</button>}
           <MapBtn onClick={() => api.current?.zoom(1.5)}>+</MapBtn>
@@ -468,7 +468,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
           </button>}
           <button onClick={() => tour ? stopTour() : startTour()} style={{ ...pill, background: tour ? '#dc2626' : 'rgba(15,23,42,0.86)', color: '#fff' }}>{tour ? '■ Stop' : '▶ Briefing 3D'}</button>
           <span style={{ flex: 1 }} />
-          <button onClick={() => { const v = !sound; setSound(v); setSnd(v); if (!v) hush(); else sfx.tap(); }} aria-label="Son" style={{ ...pill, background: 'rgba(255,255,255,0.94)', color: '#14141b', padding: '7px 10px' }}>{sound ? '🔊' : '🔇'}</button>
+          <button onClick={() => { const v = !sound; setSound(v); setSnd(v); if (!v) hush(); else sfx.tap(); }} aria-label="Son" style={{ ...pill, background: 'rgba(var(--dz-surface-rgb),0.94)', color: 'var(--dz-text)', padding: '7px 10px' }}>{sound ? '🔊' : '🔇'}</button>
         </div>
         {/* Heure + météo réelle d'Oran */}
         {!full && <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 3, background: 'rgba(15,23,42,0.78)', color: '#fff', borderRadius: 11, padding: '5px 9px', fontSize: 12, fontWeight: 800, fontFamily: C.font, pointerEvents: 'none' }}>
@@ -513,7 +513,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
       <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: '0.1em', margin: '6px 0 8px' }}>{demo ? 'ZONES' : 'TOUS NOS MÉTIERS'}</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 7, marginBottom: 14 }}>
         {world.zones.map(z => (
-          <button key={z} onClick={() => choose({ kind: 'zone', zone: z })} style={{ textAlign: 'left', background: zone === z ? `${C.accent}18` : C.surface, border: `1px solid ${zone === z ? C.accent : C.border}`, borderRadius: 12, padding: '9px 10px', color: C.text, cursor: 'pointer' }}>
+          <button key={z} onClick={() => choose({ kind: 'zone', zone: z })} style={{ textAlign: 'left', background: zone === z ? `color-mix(in srgb, ${C.accent} 9%, transparent)` : C.surface, border: `1px solid ${zone === z ? C.accent : C.border}`, borderRadius: 12, padding: '9px 10px', color: C.text, cursor: 'pointer' }}>
             <div style={{ fontSize: 13, fontWeight: 800 }}>{ZONE_INFO[z].icon} {ZONE_INFO[z].title}</div>
             <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>{zoneCount(z, world)}</div>
           </button>
@@ -534,7 +534,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <div style={{ fontSize: 13, fontWeight: 800 }}>✨ Assistant {urgent > 0 && <span style={{ color: C.red, fontSize: 11 }}>· {urgent} urgent{urgent > 1 ? 's' : ''}</span>}</div>
             <button onClick={() => onAsk('Fais-moi le briefing du jour de tout le business : départs, retours, paiements à encaisser, voitures libres à pousser, ventes, imports, immobilier, demandes du site et les urgences dans l\'ordre.')}
-              style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}44`, borderRadius: 9, padding: '5px 10px', cursor: 'pointer', color: C.accent, fontWeight: 700, fontSize: 11.5 }}>Briefing du jour</button>
+              style={{ background: `color-mix(in srgb, ${C.accent} 9%, transparent)`, border: `1px solid color-mix(in srgb, ${C.accent} 27%, transparent)`, borderRadius: 9, padding: '5px 10px', cursor: 'pointer', color: C.accent, fontWeight: 700, fontSize: 11.5 }}>Briefing du jour</button>
           </div>
           {reminders.length === 0 ? <div style={{ fontSize: 12, color: C.muted }}>Rien d'urgent sur le parc.</div> : reminders.slice(0, 4).map(r => (
             <div key={r.id} onClick={() => { const m = world.cars.find(x => norm(x.name) === norm(r.car_name)); if (m) choose({ kind: 'car', id: m.id }); }}
@@ -602,18 +602,18 @@ function ZonePanel({ zone, world, demo, when, onClose, onOpen, onAsk, onCar, onA
   return <>
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <span style={{ fontSize: 14.5, fontWeight: 800, flex: 1 }}>{info.icon} {info.title}</span>
-      <span style={{ fontSize: 11.5, color: '#475569', fontWeight: 700 }}>{zoneCount(zone, world)}</span>
-      <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', color: '#64748b' }}>✕</button>
+      <span style={{ fontSize: 11.5, color: 'var(--dz-muted)', fontWeight: 700 }}>{zoneCount(zone, world)}</span>
+      <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', color: 'var(--dz-muted)' }}>✕</button>
     </div>
-    <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>{info.desc}</div>
+    <div style={{ fontSize: 12, color: 'var(--dz-muted)', marginTop: 4 }}>{info.desc}</div>
     {list && list.length > 0 && <div style={{ marginTop: 7, maxHeight: 170, overflowY: 'auto' }}>
       {list.slice(0, 30).map(x => (
-        <div key={x.id} onClick={tap ? () => tap(x.id) : undefined} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '5px 0', borderTop: '1px solid #e2e8f0', fontSize: 12.5, cursor: tap ? 'pointer' : 'default' }}>
-          <b style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.label}</b><span style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{x.sub}{tap ? ' ›' : ''}</span>
+        <div key={x.id} onClick={tap ? () => tap(x.id) : undefined} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '5px 0', borderTop: '1px solid var(--dz-line)', fontSize: 12.5, cursor: tap ? 'pointer' : 'default' }}>
+          <b style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.label}</b><span style={{ color: 'var(--dz-muted)', whiteSpace: 'nowrap' }}>{x.sub}{tap ? ' ›' : ''}</span>
         </div>
       ))}
     </div>}
-    {list && list.length === 0 && <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>Rien pour le moment.</div>}
+    {list && list.length === 0 && <div style={{ fontSize: 12, color: 'var(--dz-muted)', marginTop: 6 }}>Rien pour le moment.</div>}
     {actions.length > 0 && <div style={{ display: 'flex', gap: 6, marginTop: 9, flexWrap: 'wrap' }}>
       {actions.map(([t, fn]) => <Btn key={t} bg="#f1f5f9" fg="#334155" onClick={fn}>{t}</Btn>)}
     </div>}
@@ -643,14 +643,14 @@ function SellOffer({ onCopy }: { onCopy: (url: string) => void }) {
   const msg = `Bonjour${name.trim() ? ` ${name.trim()}` : ''}, voici à quoi ressemblerait votre activité en direct, vue comme un jeu : chaque véhicule ou bien est à sa place (disponible, loué, à l'atelier, en vente…), les retards et paiements à encaisser sautent aux yeux, et on peut l'afficher en plein écran sur un PC ou une télé. Démo (données d'exemple) : ${url}\n— FIK Conciergerie`;
   const kinds: Array<[DemoKind, string]> = [['location', 'Loueur'], ['vente', 'Vente auto'], ['garage', 'Garage'], ['immo', 'Agence immo'], ['transport', 'Transport']];
   return (
-    <div style={{ background: `linear-gradient(135deg, ${C.gold}14, ${C.surface})`, border: `1px solid ${C.gold}40`, borderRadius: 14, padding: '12px 13px' }}>
+    <div style={{ background: `linear-gradient(135deg, color-mix(in srgb, ${C.gold} 8%, transparent), ${C.surface})`, border: `1px solid color-mix(in srgb, ${C.gold} 25%, transparent)`, borderRadius: 14, padding: '12px 13px' }}>
       <div style={{ fontSize: 13, fontWeight: 800 }}>💼 Offre FIK — vendre la Carte live</div>
       <div style={{ fontSize: 12, color: C.muted, margin: '4px 0 8px', lineHeight: 1.4 }}>
         Une démo à leur nom, avec des données d'exemple (aucune de tes vraies données). Tu peux aussi dire à Dzaryx : « envoie la démo carte au garage X ».
       </div>
       <input value={name} onChange={e => setName(e.target.value)} placeholder="Nom de l'entreprise (ex. Garage Benali)" style={{ width: '100%', boxSizing: 'border-box', background: '#0d0d12', border: `1px solid ${C.border}`, borderRadius: 9, padding: '8px 9px', color: C.text, fontSize: 13, marginBottom: 7 }} />
       <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 9 }}>
-        {kinds.map(([k, t]) => <button key={k} onClick={() => setKind(k)} style={{ fontSize: 11.5, fontWeight: 700, borderRadius: 16, padding: '5px 10px', cursor: 'pointer', border: `1px solid ${kind === k ? C.gold : C.border}`, background: kind === k ? `${C.gold}25` : 'transparent', color: C.text }}>{t}</button>)}
+        {kinds.map(([k, t]) => <button key={k} onClick={() => setKind(k)} style={{ fontSize: 11.5, fontWeight: 700, borderRadius: 16, padding: '5px 10px', cursor: 'pointer', border: `1px solid ${kind === k ? C.gold : C.border}`, background: kind === k ? `color-mix(in srgb, ${C.gold} 15%, transparent)` : 'transparent', color: C.text }}>{t}</button>)}
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <Btn bg={C.gold} fg="#1c1917" onClick={() => window.open(url, '_blank')}>👁️ Voir la démo</Btn>
@@ -662,10 +662,10 @@ function SellOffer({ onCopy }: { onCopy: (url: string) => void }) {
 }
 
 function Top({ onClick, title, children }: { onClick: () => void; title: string; children: ReactNode }) {
-  return <button onClick={onClick} title={title} style={{ background: `${C.accent}12`, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: '7px 11px', cursor: 'pointer', color: C.accent, fontWeight: 700, fontSize: 13 }}>{children}</button>;
+  return <button onClick={onClick} title={title} style={{ background: `color-mix(in srgb, ${C.accent} 7%, transparent)`, border: `1px solid color-mix(in srgb, ${C.accent} 20%, transparent)`, borderRadius: 10, padding: '7px 11px', cursor: 'pointer', color: C.accent, fontWeight: 700, fontSize: 13 }}>{children}</button>;
 }
 function MapBtn({ onClick, on, children }: { onClick: () => void; on?: boolean; children: ReactNode }) {
-  return <button onClick={onClick} style={{ width: 34, height: 34, borderRadius: 10, border: on ? '2px solid #f59e0b' : 'none', background: on ? '#fef3c7' : 'rgba(255,255,255,0.94)', color: '#14141b', fontSize: 17, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>{children}</button>;
+  return <button onClick={onClick} style={{ width: 34, height: 34, borderRadius: 10, border: on ? '2px solid #f59e0b' : 'none', background: on ? '#fef3c7' : 'rgba(255,255,255,0.94)', color: 'var(--dz-text)', fontSize: 17, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>{children}</button>;
 }
 function Btn({ bg, fg, onClick, children }: { bg: string; fg: string; onClick: () => void; children: ReactNode }) {
   return <button onClick={onClick} style={{ background: bg, color: fg, border: 'none', borderRadius: 9, padding: '7px 10px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>{children}</button>;
@@ -720,7 +720,7 @@ function MoneyCard({ money, cars, month, setMonth, on, toggle, onCar, onAsk }: {
         <div style={{ fontSize: 13, fontWeight: 800, flex: 1 }}>💶 L'argent — {monthName(month)}</div>
         <button onClick={() => setMonth(shiftMonth(month, -1))} style={mbtn}>‹</button>
         <button onClick={() => setMonth(shiftMonth(month, 1))} style={mbtn}>›</button>
-        <button onClick={toggle} style={{ ...mbtn, width: 'auto', padding: '0 9px', background: on ? '#f59e0b' : 'transparent', color: on ? '#1c1917' : C.gold, borderColor: `${C.gold}66` }}>{on ? '✓ Sur la carte' : 'Sur la carte'}</button>
+        <button onClick={toggle} style={{ ...mbtn, width: 'auto', padding: '0 9px', background: on ? '#f59e0b' : 'transparent', color: on ? '#1c1917' : C.gold, borderColor: `color-mix(in srgb, ${C.gold} 40%, transparent)` }}>{on ? '✓ Sur la carte' : 'Sur la carte'}</button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
         <Stat k="Chiffre d'affaires" v={fmtMoney(t.ca)} sub={`${t.rentals} loc. · ${t.days} j`} />
@@ -742,7 +742,7 @@ function MoneyCard({ money, cars, month, setMonth, on, toggle, onCar, onAsk }: {
           {asleep.slice(0, 12).map(({ c }) => <button key={c.id} onClick={() => onCar(c.id)} style={{ fontSize: 11.5, borderRadius: 14, padding: '4px 9px', cursor: 'pointer', border: `1px solid ${C.border}`, background: 'transparent', color: C.text }}>{c.name}</button>)}
         </div>
         <button onClick={() => onAsk(`Ces voitures n'ont aucun jour loué en ${monthName(month)} : ${asleep.map(x => x.c.name).join(', ')}. Pourquoi, et comment les louer vite (prix, pub, clients à relancer) ?`)}
-          style={{ marginTop: 7, background: `${C.accent}18`, border: `1px solid ${C.accent}44`, borderRadius: 9, padding: '5px 10px', cursor: 'pointer', color: C.accent, fontWeight: 700, fontSize: 11.5 }}>✨ Comment les faire rouler ?</button>
+          style={{ marginTop: 7, background: `color-mix(in srgb, ${C.accent} 9%, transparent)`, border: `1px solid color-mix(in srgb, ${C.accent} 27%, transparent)`, borderRadius: 9, padding: '5px 10px', cursor: 'pointer', color: C.accent, fontWeight: 700, fontSize: 11.5 }}>✨ Comment les faire rouler ?</button>
       </div>}
     </div>
   );

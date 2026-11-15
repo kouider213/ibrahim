@@ -6,14 +6,14 @@ import { business, type EditOptions, type EditTimelineText } from '../../service
 // « 🪄 Dzaryx monte tout » = montage automatique (silences coupés, zooms, accroche, sous-titres).
 
 const C = {
-  surface: '#131319', border: 'rgba(200,190,255,0.16)', accent: '#f472b6', green: '#9b8cff', gold: '#fbbf24', red: '#f87171',
-  text: '#f5f5f7', muted: '#a6a3b8', font: '-apple-system, "Segoe UI", Roboto, sans-serif',
+  surface: 'var(--dz-surface)', border: 'rgba(var(--dz-ink-rgb),0.16)', accent: 'var(--dz-ink)', green: '#2f5bff', gold: '#b86e00', red: '#e0304f',
+  text: 'var(--dz-text)', muted: 'var(--dz-muted)', font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 const btn = (bg: string, color: string) => ({ background: bg, color, border: 'none', borderRadius: 10, padding: '10px 13px', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: C.font } as const);
-const chip = (on: boolean) => ({ background: on ? C.accent : 'rgba(255,255,255,0.06)', color: on ? '#09090d' : C.text, border: `1px solid ${on ? C.accent : C.border}`,
+const chip = (on: boolean) => ({ background: on ? C.accent : 'rgba(var(--dz-ink-rgb),0.045)', color: on ? '#ffffff' : C.text, border: `1px solid ${on ? C.accent : C.border}`,
   borderRadius: 999, padding: '6px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: C.font, whiteSpace: 'nowrap' } as const);
 const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 12, marginBottom: 10 } as const;
-const input = { width: '100%', boxSizing: 'border-box', background: '#0d0d12', color: C.text, border: `1px solid ${C.border}`, borderRadius: 10,
+const input = { width: '100%', boxSizing: 'border-box', background: 'var(--dz-surface)', color: C.text, border: `1px solid ${C.border}`, borderRadius: 10,
   padding: 10, fontSize: 13, fontFamily: C.font } as const;
 const small = { fontSize: 11.5, color: C.muted } as const;
 
@@ -239,19 +239,19 @@ export default function MontageEditor({ onExported, say }: { onExported: () => v
           {activeTexts.map((t, k) => (
             <div key={k} style={{ position: 'absolute', left: 8, right: 8, textAlign: 'center', fontWeight: 900, fontSize: 14, textTransform: t.style === 'simple' ? 'none' : 'uppercase',
               top: t.pos === 'haut' ? '12%' : t.pos === 'milieu' ? '45%' : undefined, bottom: t.pos === 'bas' ? '10%' : undefined,
-              color: '#fff', textShadow: '0 2px 4px #000' }}>
+              color: 'var(--dz-text)', textShadow: '0 2px 4px #000' }}>
               <span style={t.style === 'bandeau' ? { background: '#000', padding: '3px 8px' } : undefined}>{t.text}</span>
             </div>
           ))}
           {captions !== 'aucun' && clips.length > 0 && (
-            <div style={{ position: 'absolute', left: 0, right: 0, bottom: captions === 'minimal' ? '6%' : '24%', textAlign: 'center', fontSize: 11, fontWeight: 900, color: '#fff', textShadow: '0 1px 3px #000', opacity: 0.55 }}>
-              SOUS-TITRES <span style={{ color: '#ffd700' }}>AUTO</span>
+            <div style={{ position: 'absolute', left: 0, right: 0, bottom: captions === 'minimal' ? '6%' : '24%', textAlign: 'center', fontSize: 11, fontWeight: 900, color: 'var(--dz-text)', textShadow: '0 1px 3px #000', opacity: 0.55 }}>
+              SOUS-TITRES <span style={{ color: '#b86e00' }}>AUTO</span>
             </div>
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
-          <button style={{ ...btn(C.accent, '#09090d'), padding: '8px 14px' }} onClick={togglePlay} disabled={!clips.length}>{playing ? '⏸' : '▶️'}</button>
-          <div style={{ flex: 1, height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 2 }}>
+          <button style={{ ...btn(C.accent, '#f2f2f5'), padding: '8px 14px' }} onClick={togglePlay} disabled={!clips.length}>{playing ? '⏸' : '▶️'}</button>
+          <div style={{ flex: 1, height: 4, background: 'rgba(var(--dz-ink-rgb),0.075)', borderRadius: 2 }}>
             <div style={{ width: `${total ? Math.min(100, (time / total) * 100) : 0}%`, height: '100%', background: C.accent, borderRadius: 2 }} />
           </div>
           <span style={small}>{fmt(time)} / {fmt(total)}</span>
@@ -263,24 +263,24 @@ export default function MontageEditor({ onExported, say }: { onExported: () => v
         {clips.map((c, i) => (
           <button key={c.id} onClick={() => setSel(c.id)}
             style={{ position: 'relative', flex: '0 0 auto', width: Math.max(58, Math.min(220, outDur(c) * 18)), height: 62, padding: 0, borderRadius: 8, overflow: 'hidden', cursor: 'pointer',
-              border: `2px solid ${sel === c.id ? C.gold : 'transparent'}`, background: '#111' }}>
+              border: `2px solid ${sel === c.id ? C.gold : 'transparent'}`, background: 'var(--dz-surface)' }}>
             {c.type === 'image'
               ? <img src={c.local} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               : <video src={`${c.local}#t=${c.start.toFixed(1)}`} muted playsInline preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} />}
-            <span style={{ position: 'absolute', left: 3, bottom: 2, fontSize: 9.5, color: '#fff', textShadow: '0 1px 2px #000', fontWeight: 700 }}>
+            <span style={{ position: 'absolute', left: 3, bottom: 2, fontSize: 9.5, color: 'var(--dz-text)', textShadow: '0 1px 2px #000', fontWeight: 700 }}>
               {i + 1} · {outDur(c).toFixed(1)}s{c.speed !== 1 ? ` ×${c.speed}` : ''}
             </span>
             {!c.url && !c.failed && <span style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', color: C.gold, fontSize: 11, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{c.progress}%</span>}
-            {c.failed && <span style={{ position: 'absolute', inset: 0, background: 'rgba(80,0,0,0.6)', color: '#fff', fontSize: 11, display: 'grid', placeItems: 'center' }}>❌</span>}
+            {c.failed && <span style={{ position: 'absolute', inset: 0, background: 'rgba(var(--dz-surface-rgb),0.6)', color: 'var(--dz-text)', fontSize: 11, display: 'grid', placeItems: 'center' }}>❌</span>}
           </button>
         ))}
-        <button onClick={() => fileIn.current?.click()} style={{ flex: '0 0 auto', width: 58, height: 62, borderRadius: 8, border: `1px dashed ${C.border}`, background: 'rgba(255,255,255,0.04)', color: C.text, fontSize: 22, cursor: 'pointer' }}>＋</button>
+        <button onClick={() => fileIn.current?.click()} style={{ flex: '0 0 auto', width: 58, height: 62, borderRadius: 8, border: `1px dashed ${C.border}`, background: 'rgba(var(--dz-ink-rgb),0.03)', color: C.text, fontSize: 22, cursor: 'pointer' }}>＋</button>
       </div>
 
       {/* ── Barre d'outils façon CapCut ── */}
       <div style={{ display: 'flex', gap: 2, overflowX: 'auto', marginBottom: 8 }}>
         {TOOLS.map(([id, icon, lbl]) => (
-          <button key={id} onClick={() => setTool(id)} style={{ flex: '0 0 auto', minWidth: 58, background: tool === id ? 'rgba(244,114,182,0.15)' : 'transparent', border: 'none', borderRadius: 10,
+          <button key={id} onClick={() => setTool(id)} style={{ flex: '0 0 auto', minWidth: 58, background: tool === id ? 'rgba(214,51,138,0.15)' : 'transparent', border: 'none', borderRadius: 10,
             color: tool === id ? C.accent : C.text, padding: '6px 4px', cursor: 'pointer', fontFamily: C.font }}>
             <div style={{ fontSize: 18 }}>{icon}</div><div style={{ fontSize: 10.5, fontWeight: 700 }}>{lbl}</div>
           </button>
@@ -332,7 +332,7 @@ export default function MontageEditor({ onExported, say }: { onExported: () => v
               </div>
             </div>
           ))}
-          <button style={btn('rgba(255,255,255,0.08)', C.text)} onClick={() => setTexts(ts => [...ts, { text: 'Ton texte', start: time, end: Math.min(Math.max(total, 2), time + 2.5), pos: 'milieu', style: 'titre' }])}>＋ Ajouter un texte ici</button>
+          <button style={btn('rgba(var(--dz-ink-rgb),0.072)', C.text)} onClick={() => setTexts(ts => [...ts, { text: 'Ton texte', start: time, end: Math.min(Math.max(total, 2), time + 2.5), pos: 'milieu', style: 'titre' }])}>＋ Ajouter un texte ici</button>
         </>)}
         {tool === 'music' && (<>
           {music ? (<>
@@ -340,7 +340,7 @@ export default function MontageEditor({ onExported, say }: { onExported: () => v
             <div style={{ ...small, marginTop: 6 }}>Volume : {Math.round(musicVol * 100)} % (baisse toute seule quand on parle)</div>
             <input type="range" min={0} max={1.5} step={0.05} value={musicVol} style={{ width: '100%' }} onChange={e => setMusicVol(Number(e.target.value))} />
             <button style={{ ...chip(false), color: C.red }} onClick={() => setMusic(null)}>🗑 Enlever</button>
-          </>) : <button style={btn('rgba(255,255,255,0.08)', C.text)} onClick={() => musicIn.current?.click()}>＋ Choisir une musique (fichier audio)</button>}
+          </>) : <button style={btn('rgba(var(--dz-ink-rgb),0.072)', C.text)} onClick={() => musicIn.current?.click()}>＋ Choisir une musique (fichier audio)</button>}
         </>)}
         {tool === 'look' && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{looks.map(l => <button key={l.id} style={chip(look === l.id)} onClick={() => setLook(l.id)}>{l.label}</button>)}</div>}
         {tool === 'captions' && (<>
@@ -360,8 +360,8 @@ export default function MontageEditor({ onExported, say }: { onExported: () => v
         <textarea style={{ ...input, resize: 'vertical' }} rows={2} value={brief} onChange={e => setBrief(e.target.value)}
           placeholder="Dis à Dzaryx ce que tu veux (ex. pub pour la Clio, ambiance été, en darija)…" />
         <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-          <button style={{ ...btn(C.gold, '#09090d'), flex: 1, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void exportAuto()}>🪄 Dzaryx monte tout</button>
-          <button style={{ ...btn(C.accent, '#09090d'), flex: 1, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void exportManual()}>⬆️ Exporter mon montage</button>
+          <button style={{ ...btn(C.gold, '#f2f2f5'), flex: 1, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void exportAuto()}>🪄 Dzaryx monte tout</button>
+          <button style={{ ...btn(C.accent, '#f2f2f5'), flex: 1, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void exportManual()}>⬆️ Exporter mon montage</button>
         </div>
         <div style={{ ...small, marginTop: 6, lineHeight: 1.4 }}>
           0 €, sans filigrane, sans limite. « Dzaryx monte tout » coupe les blancs, ajoute zooms, accroche, sous-titres et voix off si tes vidéos sont muettes. Max 50 Mo par fichier.

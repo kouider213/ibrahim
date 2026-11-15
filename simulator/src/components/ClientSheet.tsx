@@ -107,7 +107,7 @@ export default function ClientSheet({ client, onClose, actor }: { client: Client
   const box: CSSProperties = { ...glass(), borderRadius: 22, padding: '14px 15px', marginBottom: 12 };
   const h = (t: string, right?: ReactNode) => <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}><div style={{ flex: 1, fontFamily: T.display, fontSize: 15, color: T.text, fontWeight: 800, letterSpacing: '-0.01em' }}>{t.charAt(0) + t.slice(1).toLowerCase()}</div>{right}</div>;
   const kv = (k: string, v: ReactNode, c?: string) => v == null || v === '' ? null : (
-    <div style={{ display: 'flex', gap: 12, padding: '6px 0', fontSize: 14.5, borderTop: `1px solid ${tone('#6ea0ff', 0.07)}` }}>
+    <div style={{ display: 'flex', gap: 12, padding: '6px 0', fontSize: 14.5, borderTop: `1px solid ${tone('#2f5bff', 0.07)}` }}>
       <span style={{ color: T.muted, flexShrink: 0 }}>{k}</span>
       <span style={{ flex: 1, textAlign: 'right', fontWeight: 650, color: c ?? T.text, wordBreak: 'break-word' }}>{v}</span>
     </div>
@@ -120,12 +120,12 @@ export default function ClientSheet({ client, onClose, actor }: { client: Client
   );
 
   const body = (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(4,4,8,0.74)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', fontFamily: T.font, animation: 'fadeIn .18s ease' }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, maxHeight: '94%', display: 'flex', flexDirection: 'column', background: `radial-gradient(90% 40% at 100% 0%, rgba(200,107,255,0.22), transparent 60%), radial-gradient(70% 30% at 0% 0%, rgba(138,123,255,0.2), transparent 60%), linear-gradient(180deg, ${T.surface2}, ${T.bg} 55%)`, borderRadius: '30px 30px 0 0', animation: 'dzSheet .4s cubic-bezier(.16,.9,.3,1) both', border: `1px solid ${T.lineStrong}`, borderBottom: 'none', boxShadow: `0 -24px 70px -20px ${tone(T.accent, 0.4)}` }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(var(--dz-surface-rgb),0.74)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', fontFamily: T.font, animation: 'fadeIn .18s ease' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, maxHeight: '94%', display: 'flex', flexDirection: 'column', background: `radial-gradient(90% 40% at 100% 0%, rgba(47,91,255,0.22), transparent 60%), radial-gradient(70% 30% at 0% 0%, rgba(47,91,255,0.2), transparent 60%), linear-gradient(180deg, ${T.surface2}, ${T.bg} 55%)`, borderRadius: '30px 30px 0 0', animation: 'dzSheet .4s cubic-bezier(.16,.9,.3,1) both', border: `1px solid ${T.lineStrong}`, borderBottom: 'none', boxShadow: `0 -24px 70px -20px ${tone(T.accent, 0.4)}` }}>
         {/* En-tête */}
         <div style={{ padding: '10px 18px 14px', flexShrink: 0, position: 'relative', overflow: 'hidden', borderRadius: '26px 26px 0 0' }}>
           <div style={{ position: 'absolute', top: -120, right: -80, width: 300, height: 300, background: `radial-gradient(circle, ${tone(T.accent, 0.2)}, transparent 70%)`, pointerEvents: 'none' }} />
-          <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.2)', margin: '0 auto 14px' }} />
+          <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(var(--dz-ink-rgb),0.12)', margin: '0 auto 14px' }} />
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14 }}>
             <Avatar name={client.name} color={vip ? T.warn : T.accent} size={58} />
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -138,7 +138,7 @@ export default function ClientSheet({ client, onClose, actor }: { client: Client
                 {since && <Badge color={T.faint}>Client depuis {new Date(since).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}</Badge>}
               </div>
             </div>
-            <button onClick={onClose} aria-label="Fermer" style={{ alignSelf: 'flex-start', width: 38, height: 38, borderRadius: 12, border: `1px solid ${T.line}`, background: 'rgba(255,255,255,0.05)', color: T.muted, fontSize: 16, cursor: 'pointer', flexShrink: 0 }}>✕</button>
+            <button onClick={onClose} aria-label="Fermer" style={{ alignSelf: 'flex-start', width: 38, height: 38, borderRadius: 12, border: `1px solid ${T.line}`, background: 'rgba(var(--dz-ink-rgb),0.038)', color: T.muted, fontSize: 16, cursor: 'pointer', flexShrink: 0 }}>✕</button>
           </div>
           <div style={{ position: 'relative', display: 'flex', gap: 8, marginTop: 14 }}>
             {phone && <ActionBtn icon="📞" label="Appeler" onClick={() => { window.location.href = `tel:${phone}`; }} />}

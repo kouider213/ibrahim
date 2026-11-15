@@ -16,8 +16,8 @@ function fileToRawBase64(file: File): Promise<string> {
 }
 
 const C = {
-  bg: '#09090d', surface: '#131319', surface2: '#1b1b23', border: 'rgba(200,190,255,0.16)',
-  accent: '#9b8cff', gold: '#fbbf24', text: '#f5f5f7', muted: '#a6a3b8', blue: '#b9a6ff',
+  bg: 'var(--dz-bg)', surface: 'var(--dz-surface)', surface2: 'var(--dz-surface2)', border: 'rgba(var(--dz-ink-rgb),0.16)',
+  accent: '#2f5bff', gold: '#b86e00', text: 'var(--dz-text)', muted: 'var(--dz-muted)', blue: '#2f5bff',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 
@@ -140,7 +140,7 @@ export default function ReservationVoucherScreen() {
   const captureBlob = async (): Promise<Blob | null> => {
     const node = cardRef.current;
     if (!node) return null;
-    const canvas = await html2canvas(node, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
+    const canvas = await html2canvas(node, { scale: 2, backgroundColor: 'var(--dz-surface)', useCORS: true, logging: false });
     return await new Promise<Blob | null>(res => canvas.toBlob(b => res(b), 'image/png', 0.95));
   };
 
@@ -256,7 +256,7 @@ export default function ReservationVoucherScreen() {
 
       <Field label="Langue du message"><Segmented items={LANGS} value={lang} onChange={setLang} /></Field>
 
-      <Btn onClick={() => void sendWhatsApp()} disabled={busy} style={{ width: '100%', background: '#25D366', color: '#04210f', border: 'none', minHeight: 50, marginTop: 4 }}>{busy ? 'Préparation…' : '💬 Envoyer sur WhatsApp (en photo)'}</Btn>
+      <Btn onClick={() => void sendWhatsApp()} disabled={busy} style={{ width: '100%', background: '#25D366', color: '#ffffff', border: 'none', minHeight: 50, marginTop: 4 }}>{busy ? 'Préparation…' : '💬 Envoyer sur WhatsApp (en photo)'}</Btn>
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
         <Btn color={T.warn} onClick={() => void makePdf()} disabled={busy} style={{ flex: 1 }}>📄 PDF</Btn>
         <Btn color={T.accent2} onClick={() => void downloadImage()} disabled={busy} style={{ flex: 1 }}>🖼️ Image</Btn>
@@ -299,7 +299,7 @@ function VoucherCard(p: {
   vehicle: string; start: string; end: string; pickup: string; dropoff: string;
   total: number; deposit: number; reste: number | null; fmt: (n: number) => string;
 }) {
-  const GOLD = '#b8902f', INK = '#1a1a1a', SUB = '#7a7a82', BOX = '#f7f7f9', GREEN = '#1f8b4c';
+  const GOLD = '#b86e00', INK = '#1a1a1a', SUB = '#9195a6', BOX = '#0c0e1a', GREEN = '#0a9a5e';
   const name = [p.firstName, p.lastName].filter(Boolean).join(' ') || '—';
   const date = new Date().toLocaleDateString('fr-FR');
   const f: CSSProperties = { fontFamily: 'Arial, Helvetica, sans-serif' };
@@ -316,7 +316,7 @@ function VoucherCard(p: {
     </div>
   );
   return (
-    <div ref={p.cardRef} style={{ ...f, width: 720, background: '#fff', color: INK, padding: '0 0 24px' }}>
+    <div ref={p.cardRef} style={{ ...f, width: 720, background: 'var(--dz-surface)', color: INK, padding: '0 0 24px' }}>
       <div style={{ height: 8, background: GOLD }} />
       <div style={{ padding: '24px 36px 0' }}>
         {/* Header */}
@@ -331,7 +331,7 @@ function VoucherCard(p: {
         {/* Titre + badge */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 22 }}>
           <div style={{ fontSize: 20, fontWeight: 800 }}>BON DE RÉSERVATION</div>
-          <div style={{ background: GREEN, color: '#fff', fontSize: 12, fontWeight: 800, padding: '5px 14px', borderRadius: 20 }}>✓ CONFIRMÉ</div>
+          <div style={{ background: GREEN, color: 'var(--dz-text)', fontSize: 12, fontWeight: 800, padding: '5px 14px', borderRadius: 20 }}>✓ CONFIRMÉ</div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', color: SUB, fontSize: 12.5, marginTop: 6 }}>
           <span>N° {p.ref_ || '—'}</span><span>Émis le {date}</span>
@@ -352,15 +352,15 @@ function VoucherCard(p: {
         <Section title="PAIEMENT">
           {p.total > 0 ? <Row l="Montant total" v={p.fmt(p.total)} /> : null}
           <Row l="Acompte versé" v={p.fmt(p.deposit)} c={GREEN} />
-          {p.reste != null ? <Row l="Reste à payer (à la prise du véhicule)" v={p.fmt(p.reste)} c="#b3261e" /> : null}
+          {p.reste != null ? <Row l="Reste à payer (à la prise du véhicule)" v={p.fmt(p.reste)} c="#e0304f" /> : null}
         </Section>
 
         <div style={{ fontSize: 11.5, color: '#555', lineHeight: 1.5, marginTop: 4 }}>
           Ce bon confirme la réservation du véhicule ci-dessus avec l'acompte indiqué. Le solde est réglé à la prise du véhicule.
           Passeport et permis valides requis. Le passeport est conservé en lieu sûr pendant toute la durée de la location et restitué au retour du véhicule. Sans caution.
         </div>
-        <div style={{ borderTop: '1px solid #ececef', marginTop: 18, paddingTop: 10, fontSize: 11, color: SUB }}>
-          <b style={{ color: '#15151b' }}>FIK CONCIERGERIE</b> — Rue Derbouz Draoua Houari, Hay Badr, Oran 31300, Algérie · Merci de votre confiance
+        <div style={{ borderTop: '1px solid #e3e3ea', marginTop: 18, paddingTop: 10, fontSize: 11, color: SUB }}>
+          <b style={{ color: '#ffffff' }}>FIK CONCIERGERIE</b> — Rue Derbouz Draoua Houari, Hay Badr, Oran 31300, Algérie · Merci de votre confiance
         </div>
       </div>
     </div>

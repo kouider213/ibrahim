@@ -17,13 +17,13 @@ const OPP_META: Record<string, { icon: string; label: string }> = {
   marche:   { icon: '📊', label: 'Marché' },
   modele:   { icon: '🆕', label: 'Nouveauté' },
 };
-const URG_COL: Record<string, string> = { urgent: '#fb7185', a_suivre: '#9b8cff', info: '#a6a3b8' };
+const URG_COL: Record<string, string> = { urgent: '#e0304f', a_suivre: '#2f5bff', info: '#5b5f72' };
 const URG_LABEL: Record<string, string> = { urgent: 'URGENT', a_suivre: 'À suivre', info: 'Info' };
 
 const C = {
-  bg: '#09090d', surface: '#131319', surface2: '#1b1b23', border: 'rgba(200,190,255,0.15)',
-  gold: '#9b8cff', goldSoft: '#34d399', text: '#f5f5f7', muted: '#a6a3b8',
-  green: '#34d399', blue: '#34d399', red: '#fb7185', violet: '#a78bfa',
+  bg: 'var(--dz-bg)', surface: 'var(--dz-surface)', surface2: 'var(--dz-surface2)', border: 'rgba(var(--dz-ink-rgb),0.15)',
+  gold: '#2f5bff', goldSoft: '#0a9a5e', text: 'var(--dz-text)', muted: 'var(--dz-muted)',
+  green: '#0a9a5e', blue: '#0a9a5e', red: '#e0304f', violet: '#2f5bff',
   font: '-apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
 };
 
@@ -162,13 +162,13 @@ export default function DealsScreen() {
             return (
               <div key={v.id} style={card}>
                 <div style={{ display: 'flex', gap: 12, padding: 12 }}>
-                  <div style={{ width: 66, height: 66, borderRadius: 13, flexShrink: 0, background: v.image_url ? `url(${v.image_url}) center/cover` : `linear-gradient(135deg, ${C.surface2}, #0e0e12)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, border: `1px solid ${C.border}` }}>{!v.image_url && '🚗'}</div>
+                  <div style={{ width: 66, height: 66, borderRadius: 13, flexShrink: 0, background: v.image_url ? `url(${v.image_url}) center/cover` : `linear-gradient(135deg, ${C.surface2}, #ffffff)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, border: `1px solid ${C.border}` }}>{!v.image_url && '🚗'}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 15, fontWeight: 700 }}>{v.brand} {v.model}</div>
                     <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{[v.year, v.mileage ? `${Number(v.mileage).toLocaleString('fr-FR')} km` : null].filter(Boolean).join(' · ') || '—'}</div>
                     <div style={{ fontSize: 15, fontWeight: 800, color: C.goldSoft, marginTop: 7 }}>{v.price != null ? `${Number(v.price).toLocaleString('fr-FR')} ${cur}` : '—'}</div>
                   </div>
-                  <span style={{ fontSize: 13.5, fontWeight: 700, color: sm.col, background: `${sm.col}1f`, padding: '3px 9px', borderRadius: 20, height: 'fit-content' }}>{sm.label}</span>
+                  <span style={{ fontSize: 13.5, fontWeight: 700, color: sm.col, background: `color-mix(in srgb, ${sm.col} 12%, transparent)`, padding: '3px 9px', borderRadius: 20, height: 'fit-content' }}>{sm.label}</span>
                 </div>
                 <div style={{ borderTop: `1px solid ${C.border}`, display: 'flex' }}>
                   <button onClick={() => setGallery({ kind: 'sale', id: v.id, name: `${v.brand} ${v.model}` })} style={{ ...rowBtn, color: C.text }}>📷 Photos</button>
@@ -189,13 +189,13 @@ export default function DealsScreen() {
             return (
               <div key={p.id} style={card}>
                 <div style={{ display: 'flex', gap: 12, padding: 12 }}>
-                  <div style={{ width: 66, height: 66, borderRadius: 13, flexShrink: 0, background: p.image_url ? `url(${p.image_url}) center/cover` : `linear-gradient(135deg, ${C.surface2}, #0e0e12)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, border: `1px solid ${C.border}` }}>{!p.image_url && '🏠'}</div>
+                  <div style={{ width: 66, height: 66, borderRadius: 13, flexShrink: 0, background: p.image_url ? `url(${p.image_url}) center/cover` : `linear-gradient(135deg, ${C.surface2}, #ffffff)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, border: `1px solid ${C.border}` }}>{!p.image_url && '🏠'}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.title || p.name}</div>
                     <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{[p.district, p.city].filter(Boolean).join(', ') || '—'}</div>
                     <div style={{ fontSize: 15, fontWeight: 800, color: C.goldSoft, marginTop: 7 }}>{p.price != null ? `${Number(p.price).toLocaleString('fr-FR')} ${cur}` : '—'}</div>
                   </div>
-                  <span style={{ fontSize: 13.5, fontWeight: 700, color: sm.col, background: `${sm.col}1f`, padding: '3px 9px', borderRadius: 20, height: 'fit-content' }}>{(p.status || 'disponible') === 'vendu' ? 'Vendu' : 'À vendre'}</span>
+                  <span style={{ fontSize: 13.5, fontWeight: 700, color: sm.col, background: `color-mix(in srgb, ${sm.col} 12%, transparent)`, padding: '3px 9px', borderRadius: 20, height: 'fit-content' }}>{(p.status || 'disponible') === 'vendu' ? 'Vendu' : 'À vendre'}</span>
                 </div>
                 <div style={{ borderTop: `1px solid ${C.border}`, display: 'flex' }}>
                   <button onClick={() => setGallery({ kind: 'property', id: p.id, name: p.title || p.name || 'Bien' })} style={{ ...rowBtn, color: C.text }}>📷 Photos</button>
@@ -210,7 +210,7 @@ export default function DealsScreen() {
       {/* OPPORTUNITÉS — analyse marché auto Algérie (Dzaryx + web) */}
       {tab === 'opportunites' && (
         <div style={{ padding: '0 18px 20px' }}>
-          <div style={{ background: `linear-gradient(135deg, ${C.violet}1c, ${C.surface})`, border: `1px solid ${C.border}`, borderRadius: 18, padding: 16, marginBottom: 12 }}>
+          <div style={{ background: `linear-gradient(135deg, color-mix(in srgb, ${C.violet} 11%, transparent), ${C.surface})`, border: `1px solid ${C.border}`, borderRadius: 18, padding: 16, marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ fontSize: 15, fontWeight: 800 }}>🔍 Opportunités marché auto</div>
               <button onClick={() => void loadOpps(true)} disabled={oppLoading} style={{ border: `1px solid ${C.border}`, background: C.surface2, color: C.goldSoft, borderRadius: 10, padding: '6px 12px', fontFamily: C.font, fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>{oppLoading ? '…' : '↻ Actualiser'}</button>
@@ -238,7 +238,7 @@ export default function DealsScreen() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                   <span style={{ fontSize: 17 }}>{m.icon}</span>
                   <span style={{ fontSize: 14.5, fontWeight: 700, flex: 1 }}>{o.title}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: uc, background: `${uc}1f`, padding: '3px 8px', borderRadius: 20 }}>{URG_LABEL[o.urgency]}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: uc, background: `color-mix(in srgb, ${uc} 12%, transparent)`, padding: '3px 8px', borderRadius: 20 }}>{URG_LABEL[o.urgency]}</span>
                 </div>
                 <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{o.detail}</div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
@@ -264,7 +264,7 @@ export default function DealsScreen() {
             <div style={{ fontSize: 19, fontWeight: 800, marginBottom: 14, lineHeight: 1.3 }}>{sel.title}</div>
             <div style={{ fontSize: 14, color: C.text, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{sel.detail}</div>
             {sel.action && (
-              <div style={{ marginTop: 16, padding: 14, borderRadius: 14, background: `${C.gold}10`, border: `1px solid ${C.gold}33` }}>
+              <div style={{ marginTop: 16, padding: 14, borderRadius: 14, background: `color-mix(in srgb, ${C.gold} 6%, transparent)`, border: `1px solid color-mix(in srgb, ${C.gold} 20%, transparent)` }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: C.goldSoft, marginBottom: 5 }}>👉 À FAIRE</div>
                 <div style={{ fontSize: 13.5, color: C.text, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{sel.action}</div>
               </div>
@@ -320,18 +320,18 @@ export default function DealsScreen() {
                     <div key={i} style={{ position: 'relative', width: 56, height: 56, borderRadius: 9, overflow: 'hidden', border: `1px solid ${C.border}` }}>
                       <img src={u} alt={`p${i}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       {i === 0 && <span style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: C.goldSoft, fontSize: 12, textAlign: 'center' }}>Principale</span>}
-                      <button onClick={() => setPhotos(p => p.filter((_, j) => j !== i))} style={{ position: 'absolute', top: 2, right: 2, width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'rgba(255,51,102,0.85)', color: '#fff', fontSize: 13.5, lineHeight: '14px', cursor: 'pointer', padding: 0 }}>✕</button>
+                      <button onClick={() => setPhotos(p => p.filter((_, j) => j !== i))} style={{ position: 'absolute', top: 2, right: 2, width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'rgba(224,48,79,0.85)', color: '#fff', fontSize: 13.5, lineHeight: '14px', cursor: 'pointer', padding: 0 }}>✕</button>
                     </div>
                   ))}
                 </div>
               )}
               <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => { const arr = Array.from(e.target.files ?? []); e.target.value = ''; void addFiles(arr); }} />
-              <button onClick={() => fileRef.current?.click()} style={{ width: '100%', padding: '10px 0', borderRadius: 11, border: `1px dashed ${C.gold}55`, background: `${C.gold}10`, color: C.goldSoft, fontFamily: C.font, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>🖼️ Ajouter des photos</button>
+              <button onClick={() => fileRef.current?.click()} style={{ width: '100%', padding: '10px 0', borderRadius: 11, border: `1px dashed color-mix(in srgb, ${C.gold} 33%, transparent)`, background: `color-mix(in srgb, ${C.gold} 6%, transparent)`, color: C.goldSoft, fontFamily: C.font, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>🖼️ Ajouter des photos</button>
             </Field>
 
             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
               <button onClick={() => { setShow(false); setForm(EMPTY_V); setPhotos([]); }} style={{ flex: 1, padding: 13, borderRadius: 13, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, fontFamily: C.font, fontSize: 14, cursor: 'pointer' }}>Annuler</button>
-              <button onClick={() => void addVehicle()} disabled={saving} style={{ flex: 2, padding: 13, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${C.gold}, ${C.goldSoft})`, color: '#ffffff', fontFamily: C.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.5 : 1 }}>{saving ? 'Publication…' : 'Publier sur le site'}</button>
+              <button onClick={() => void addVehicle()} disabled={saving} style={{ flex: 2, padding: 13, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${C.gold}, ${C.goldSoft})`, color: 'var(--dz-text)', fontFamily: C.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.5 : 1 }}>{saving ? 'Publication…' : 'Publier sur le site'}</button>
             </div>
           </div>
         </div>
@@ -356,6 +356,6 @@ function Field({ label, children, flex }: { label: string; children: ReactNode; 
 }
 
 const card: CSSProperties = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 18, overflow: 'hidden' };
-const addBtn: CSSProperties = { width: '100%', padding: '13px 0', borderRadius: 14, border: `1px dashed ${C.gold}66`, background: `${C.gold}10`, color: C.goldSoft, fontFamily: C.font, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' };
+const addBtn: CSSProperties = { width: '100%', padding: '13px 0', borderRadius: 14, border: `1px dashed color-mix(in srgb, ${C.gold} 40%, transparent)`, background: `color-mix(in srgb, ${C.gold} 6%, transparent)`, color: C.goldSoft, fontFamily: C.font, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' };
 const rowBtn: CSSProperties = { flex: 1, minHeight: 46, padding: '0 4px', border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: C.font, fontSize: 14, fontWeight: 600, color: C.gold };
 const inp: CSSProperties = { width: '100%', padding: '11px 12px', borderRadius: 11, border: `1px solid ${C.border}`, background: C.surface2, color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none', boxSizing: 'border-box' };

@@ -26,12 +26,12 @@ const ACTOR_GREETING: Record<'kouider' | 'houari', string> = {
 };
 
 const ACTOR_COLOR: Record<'kouider' | 'houari', string> = {
-  kouider: '#C9A96E',
-  houari:  '#B9935A',
+  kouider: '#b86e00',
+  houari:  '#b86e00',
 };
 
 const STATUS_COLOR: Record<DzaryxStatus, string> = {
-  idle: '#C9A96E', listening: '#E8C98A', thinking: '#D4B87A', speaking: '#E8C98A',
+  idle: '#b86e00', listening: '#b86e00', thinking: '#b86e00', speaking: '#b86e00',
 };
 
 export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props) {
@@ -443,7 +443,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
       onClick={() => unlockAudio()}
       style={{
         width: '100%', height: '100%',
-        background: '#060609',
+        background: 'var(--dz-bg)',
         display: 'flex', flexDirection: 'column',
         position: 'relative', overflow: 'hidden',
       }}
@@ -458,13 +458,13 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <div style={{
             width: 6, height: 6, borderRadius: '50%',
-            background: wsConn ? '#52E3A1' : '#FF5A5A',
-            boxShadow: `0 0 8px ${wsConn ? '#52E3A1' : '#FF5A5A'}`,
+            background: wsConn ? '#0a9a5e' : '#e0304f',
+            boxShadow: `0 0 8px ${wsConn ? '#0a9a5e' : '#e0304f'}`,
           }} />
-          <span style={{ fontFamily: 'Inter', fontSize: 16, fontWeight: 500, color: 'rgba(255,255,255,0.72)', letterSpacing: '0.01em' }}>
+          <span style={{ fontFamily: 'Inter', fontSize: 16, fontWeight: 500, color: 'var(--dz-muted)', letterSpacing: '0.01em' }}>
             Dzaryx
           </span>
-          <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 400, color: `${actorCol}88`, letterSpacing: '0.02em' }}>
+          <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 400, color: `color-mix(in srgb, ${actorCol} 53%, transparent)`, letterSpacing: '0.02em' }}>
             {actor === 'kouider' ? 'PDG' : 'Associé'}
           </span>
         </div>
@@ -472,23 +472,23 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {/* Recherche dans l'historique */}
           <button onClick={() => { setShowSearch(s => !s); if (showSearch) setSearch(''); }} style={{
-            background: showSearch ? `${col}1c` : 'rgba(255,255,255,0.04)', border: `1px solid ${showSearch ? col + '88' : 'rgba(255,255,255,0.12)'}`,
+            background: showSearch ? `color-mix(in srgb, ${col} 11%, transparent)` : 'rgba(var(--dz-ink-rgb),0.03)', border: `1px solid ${showSearch ? col + '88' : 'rgba(var(--dz-ink-rgb),0.12)'}`,
             borderRadius: '50%', width: 38, height: 38, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }} aria-label="Rechercher">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={showSearch ? col : 'rgba(255,255,255,0.6)'} strokeWidth="1.8" strokeLinecap="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={showSearch ? col : 'rgb(91,95,114)'} strokeWidth="1.8" strokeLinecap="round">
               <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
           </button>
           {/* Bouton vocal */}
           <button onClick={onNavigateVoice} style={{
-            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)',
+            background: 'rgba(var(--dz-ink-rgb),0.03)', border: '1px solid rgba(var(--dz-ink-rgb),0.12)',
             borderRadius: '50%', width: 38, height: 38, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             transition: 'all 0.2s ease',
           }} aria-label="Mode vocal">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="1.8" strokeLinecap="round">
-              <rect x="9" y="2" width="6" height="11" rx="3" fill={`${col}44`} stroke="none" />
+              <rect x="9" y="2" width="6" height="11" rx="3" fill={`color-mix(in srgb, ${col} 27%, transparent)`} stroke="none" />
               <path d="M5 10a7 7 0 0 0 14 0" />
               <line x1="12" y1="17" x2="12" y2="21" />
               <line x1="8" y1="21" x2="16" y2="21" />
@@ -501,7 +501,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
           <input
             autoFocus value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Rechercher dans la conversation…"
-            style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 12, padding: '9px 13px', color: '#fff', fontFamily: 'Inter', fontSize: 16, outline: 'none' }}
+            style={{ width: '100%', background: 'rgba(var(--dz-ink-rgb),0.045)', border: '1px solid rgba(var(--dz-ink-rgb),0.14)', borderRadius: 12, padding: '9px 13px', color: 'var(--dz-text)', fontFamily: 'Inter', fontSize: 16, outline: 'none' }}
           />
         </div>
       )}
@@ -532,7 +532,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
           />
         ))}
         {search.trim() && !msgs.some(m => m.text.toLowerCase().includes(search.trim().toLowerCase())) && (
-          <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter', fontSize: 13, padding: 20 }}>Aucun résultat</div>
+          <div style={{ textAlign: 'center', color: 'rgba(var(--dz-ink-rgb),0.4)', fontFamily: 'Inter', fontSize: 13, padding: 20 }}>Aucun résultat</div>
         )}
         {streaming && streamingMsgId.current && (
           <TypingIndicator actorCol={actorCol} />
@@ -540,24 +540,24 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
       </div>
 
       {/* Zone de saisie — pill (façon Gemini) */}
-      <div style={{ flexShrink: 0, background: '#060609', padding: '8px 12px 14px' }}>
+      <div style={{ flexShrink: 0, background: 'var(--dz-bg)', padding: '8px 12px 14px' }}>
         {/* Aperçu photos (multiple) */}
         {selectedImages.length > 0 && (
           <div style={{ padding: '0 4px 8px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             {selectedImages.map((im, idx) => (
               <div key={idx} style={{ position: 'relative', display: 'inline-block' }}>
                 <img src={im.preview} alt="preview"
-                  style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: 12, border: '1px solid rgba(255,255,255,0.14)' }} />
+                  style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: 12, border: '1px solid rgba(var(--dz-ink-rgb),0.14)' }} />
                 <button onClick={() => setSelectedImages(prev => prev.filter((_, i) => i !== idx))} style={{
                   position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%',
-                  background: 'rgba(0,0,0,0.85)', border: '1px solid rgba(255,255,255,0.22)', cursor: 'pointer',
+                  background: 'rgba(0,0,0,0.85)', border: '1px solid rgba(var(--dz-ink-rgb),0.16)', cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
                 }}>
-                  <span style={{ fontSize: 13.5, color: '#fff', lineHeight: 1 }}>✕</span>
+                  <span style={{ fontSize: 13.5, color: 'var(--dz-text)', lineHeight: 1 }}>✕</span>
                 </button>
               </div>
             ))}
-            <span style={{ fontFamily: 'Inter', fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
+            <span style={{ fontFamily: 'Inter', fontSize: 11, color: 'var(--dz-muted)' }}>
               {selectedImages.length} photo{selectedImages.length > 1 ? 's' : ''} — dis "enregistre pour le [voiture]" pour les ranger
             </span>
           </div>
@@ -571,8 +571,8 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
         {/* Pill */}
         <div style={{
           display: 'flex', alignItems: 'flex-end', gap: 6,
-          background: 'rgba(255,255,255,0.06)',
-          border: '1px solid rgba(255,255,255,0.10)',
+          background: 'rgba(var(--dz-ink-rgb),0.045)',
+          border: '1px solid rgba(var(--dz-ink-rgb),0.1)',
           borderRadius: 26, padding: '5px 5px 5px 12px',
         }}>
           {/* + (ajouter photo) */}
@@ -581,11 +581,11 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
             aria-label="Ajouter une photo"
             style={{
               width: 36, height: 36, borderRadius: '50%', flexShrink: 0, marginBottom: 1,
-              background: selectedImages.length ? `${col}1c` : 'transparent', border: 'none', cursor: 'pointer',
+              background: selectedImages.length ? `color-mix(in srgb, ${col} 11%, transparent)` : 'transparent', border: 'none', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={selectedImages.length ? col : 'rgba(255,255,255,0.55)'} strokeWidth="1.8" strokeLinecap="round">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={selectedImages.length ? col : 'rgb(91,95,114)'} strokeWidth="1.8" strokeLinecap="round">
               <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
             </svg>
           </button>
@@ -596,7 +596,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
             aria-label="Joindre un document (PDF/Excel)"
             style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, marginBottom: 1, background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="rgb(91,95,114)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
             </svg>
           </button>
@@ -609,7 +609,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
             rows={1}
             style={{
               flex: 1, background: 'transparent', border: 'none',
-              padding: '8px 0', color: 'rgba(255,255,255,0.92)',
+              padding: '8px 0', color: 'rgb(12,14,26)',
               fontFamily: 'Inter', fontSize: 16, fontWeight: 400,
               resize: 'none', outline: 'none', lineHeight: 1.5, maxHeight: 100, overflowY: 'auto',
             }}
@@ -621,15 +621,15 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
             aria-label="Dictée vocale"
             style={{
               width: 36, height: 36, borderRadius: '50%', flexShrink: 0, marginBottom: 1,
-              background: recording ? '#FF5A5A22' : 'transparent',
-              border: recording ? '1px solid #FF5A5A' : 'none', cursor: 'pointer',
+              background: recording ? '#e0304f22' : 'transparent',
+              border: recording ? '1px solid #e0304f' : 'none', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               animation: recording ? 'statusPulse 1s ease infinite' : 'none',
             }}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-              stroke={recording ? '#FF5A5A' : 'rgba(255,255,255,0.55)'} strokeWidth="1.8" strokeLinecap="round">
-              <rect x="9" y="2" width="6" height="11" rx="3" fill={recording ? '#FF5A5A' : 'rgba(255,255,255,0.3)'} stroke="none" />
+              stroke={recording ? '#e0304f' : 'rgb(91,95,114)'} strokeWidth="1.8" strokeLinecap="round">
+              <rect x="9" y="2" width="6" height="11" rx="3" fill={recording ? '#e0304f' : 'rgba(var(--dz-ink-rgb),0.34)'} stroke="none" />
               <path d="M5 10a7 7 0 0 0 14 0" /><line x1="12" y1="17" x2="12" y2="21" />
             </svg>
           </button>
@@ -641,23 +641,23 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
             aria-label={(input.trim() || selectedImages.length) ? 'Envoyer' : 'Mode vocal'}
             style={{
               width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-              background: (input.trim() || selectedImages.length) ? col : 'rgba(255,255,255,0.10)',
+              background: (input.trim() || selectedImages.length) ? col : 'rgba(var(--dz-ink-rgb),0.075)',
               border: 'none', cursor: status === 'thinking' ? 'default' : 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               transition: 'all 0.2s ease',
             }}
           >
             {status === 'thinking' ? (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth="2.2" strokeLinecap="round" style={{ animation: 'spin-slow 1s linear infinite' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" style={{ animation: 'spin-slow 1s linear infinite' }}>
                 <circle cx="12" cy="12" r="9" strokeOpacity="0.3" /><path d="M12 3a9 9 0 0 1 9 9" />
               </svg>
             ) : (input.trim() || selectedImages.length) ? (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="19" x2="12" y2="5" /><polyline points="5,12 12,5 19,12" />
               </svg>
             ) : (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="1.8" strokeLinecap="round">
-                <rect x="9" y="2" width="6" height="11" rx="3" fill="rgba(255,255,255,0.45)" stroke="none" />
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgb(91,95,114)" strokeWidth="1.8" strokeLinecap="round">
+                <rect x="9" y="2" width="6" height="11" rx="3" fill="rgba(var(--dz-ink-rgb),0.45)" stroke="none" />
                 <path d="M5 10a7 7 0 0 0 14 0" /><line x1="12" y1="17" x2="12" y2="21" />
               </svg>
             )}
@@ -736,9 +736,9 @@ function RichText({ text, color }: { text: string; color: string }) {
               onClick={e => e.stopPropagation()}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
-                background: 'rgba(201,169,110,0.12)', border: '1px solid rgba(201,169,110,0.35)',
+                background: 'rgba(184,110,0,0.12)', border: '1px solid rgba(184,110,0,0.35)',
                 borderRadius: 8, padding: '5px 10px', textDecoration: 'none',
-                color: '#C9A96E', fontFamily: 'Inter', fontSize: 11, fontWeight: 600,
+                color: '#b86e00', fontFamily: 'Inter', fontSize: 11, fontWeight: 600,
                 marginTop: 4, wordBreak: 'break-all',
               }}>
               {icon} {fname} ⬇
@@ -747,7 +747,7 @@ function RichText({ text, color }: { text: string; color: string }) {
         }
         return (
           <a key={i} href={part} target="_blank" rel="noopener noreferrer"
-            style={{ color: '#C9A96E', textDecoration: 'underline', wordBreak: 'break-all' }}
+            style={{ color: '#b86e00', textDecoration: 'underline', wordBreak: 'break-all' }}
             onClick={e => e.stopPropagation()}>
             {part.length > 50 ? part.slice(0, 50) + '…' : part}
           </a>
@@ -759,7 +759,7 @@ function RichText({ text, color }: { text: string; color: string }) {
 
 // Graphique (barres / camembert) — rendu maison, thème sombre + or
 type ChartSpec = { type?: 'bar' | 'pie' | 'line'; title?: string; data?: Array<{ label: string; value: number }>; unit?: string };
-const CHART_COLORS = ['#C9A96E', '#52E3A1', '#9b8cff', '#E8C98A', '#ff8c5a', '#9b8cff', '#ff6b9d', '#7ad1c4'];
+const CHART_COLORS = ['#b86e00', '#0a9a5e', '#2f5bff', '#b86e00', '#c2570c', '#2f5bff', '#e0304f', '#2f5bff'];
 
 function Chart({ spec }: { spec: ChartSpec }) {
   const data = (spec.data ?? []).filter(d => d && typeof d.value === 'number');
@@ -771,7 +771,7 @@ function Chart({ spec }: { spec: ChartSpec }) {
   const saveChart = async () => {
     if (!cardRef.current) return;
     try {
-      const canvas = await html2canvas(cardRef.current, { backgroundColor: '#141414', scale: 2 });
+      const canvas = await html2canvas(cardRef.current, { backgroundColor: 'var(--dz-surface)', scale: 2 });
       const dataUrl = canvas.toDataURL('image/png');
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rn = (window as any).ReactNativeWebView;
@@ -784,11 +784,11 @@ function Chart({ spec }: { spec: ChartSpec }) {
   };
 
   const card = (children: React.ReactNode) => (
-    <div ref={cardRef} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 14, padding: '14px 14px 12px', margin: '8px 0', position: 'relative' }}>
+    <div ref={cardRef} style={{ background: 'rgba(var(--dz-ink-rgb),0.03)', border: '1px solid rgba(var(--dz-ink-rgb),0.1)', borderRadius: 14, padding: '14px 14px 12px', margin: '8px 0', position: 'relative' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8 }}>
-        {spec.title ? <div style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 600, color: '#fff' }}>{spec.title}</div> : <span />}
+        {spec.title ? <div style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 600, color: 'var(--dz-text)' }}>{spec.title}</div> : <span />}
         <button onClick={saveChart} title="Télécharger le graphique" data-html2canvas-ignore="true"
-          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 10, padding: '4px 8px', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', fontSize: 13, flexShrink: 0 }}>
+          style={{ background: 'rgba(var(--dz-ink-rgb),0.045)', border: '1px solid rgba(var(--dz-ink-rgb),0.14)', borderRadius: 10, padding: '4px 8px', cursor: 'pointer', color: 'var(--dz-muted)', fontSize: 13, flexShrink: 0 }}>
           ⤓
         </button>
       </div>
@@ -817,8 +817,8 @@ function Chart({ spec }: { spec: ChartSpec }) {
           {data.map((d, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
               <span style={{ width: 10, height: 10, borderRadius: 3, background: CHART_COLORS[i % CHART_COLORS.length], flexShrink: 0 }} />
-              <span style={{ fontFamily: 'Inter', fontSize: 12, color: 'rgba(255,255,255,0.85)', flex: 1 }}>{d.label}</span>
-              <span style={{ fontFamily: 'Inter', fontSize: 12, color: '#fff', fontWeight: 600 }}>{fmt(d.value)}</span>
+              <span style={{ fontFamily: 'Inter', fontSize: 12, color: 'var(--dz-muted)', flex: 1 }}>{d.label}</span>
+              <span style={{ fontFamily: 'Inter', fontSize: 12, color: 'var(--dz-text)', fontWeight: 600 }}>{fmt(d.value)}</span>
             </div>
           ))}
         </div>
@@ -833,10 +833,10 @@ function Chart({ spec }: { spec: ChartSpec }) {
       {data.map((d, i) => (
         <div key={i}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-            <span style={{ fontFamily: 'Inter', fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>{d.label}</span>
-            <span style={{ fontFamily: 'Inter', fontSize: 12, color: '#fff', fontWeight: 600 }}>{fmt(d.value)}</span>
+            <span style={{ fontFamily: 'Inter', fontSize: 12, color: 'var(--dz-muted)' }}>{d.label}</span>
+            <span style={{ fontFamily: 'Inter', fontSize: 12, color: 'var(--dz-text)', fontWeight: 600 }}>{fmt(d.value)}</span>
           </div>
-          <div style={{ height: 9, background: 'rgba(255,255,255,0.07)', borderRadius: 5, overflow: 'hidden' }}>
+          <div style={{ height: 9, background: 'rgba(var(--dz-ink-rgb),0.053)', borderRadius: 5, overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${Math.max(2, (d.value / max) * 100)}%`, background: CHART_COLORS[i % CHART_COLORS.length], borderRadius: 5, transition: 'width 0.5s ease' }} />
           </div>
         </div>
@@ -930,16 +930,16 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
             <button
               onClick={e => { e.stopPropagation(); downloadFile(lightbox); }}
               style={{
-                background: '#9b8cff22', border: '1px solid #9b8cff66', borderRadius: 10,
-                color: '#9b8cff', fontFamily: 'Inter', fontSize: 12, fontWeight: 600,
+                background: '#2f5bff22', border: '1px solid #2f5bff66', borderRadius: 10,
+                color: '#2f5bff', fontFamily: 'Inter', fontSize: 12, fontWeight: 600,
                 padding: '8px 20px', cursor: 'pointer',
               }}
             >⬇ Enregistrer</button>
             <button
               onClick={() => setLightbox(null)}
               style={{
-                background: '#ff336622', border: '1px solid #ff336666', borderRadius: 10,
-                color: '#ff3366', fontFamily: 'Inter', fontSize: 12, fontWeight: 600,
+                background: '#e0304f22', border: '1px solid #e0304f66', borderRadius: 10,
+                color: '#e0304f', fontFamily: 'Inter', fontSize: 12, fontWeight: 600,
                 padding: '8px 20px', cursor: 'pointer',
               }}
             >✕ Fermer</button>
@@ -953,11 +953,11 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
         )}
         <div style={{
           maxWidth: isUser ? '82%' : '86%',
-          background: isUser ? 'rgba(155,140,255,0.16)' : '#131319',
-          border: isUser ? '1px solid rgba(155,140,255,0.32)' : '1px solid rgba(200,190,255,0.15)',
-          borderRadius: isUser ? '20px 20px 6px 20px' : '6px 18px 18px 18px',
-          padding: '12px 14px',
-          boxShadow: isUser ? 'none' : '0 2px 10px rgba(0,0,0,0.25)',
+          background: isUser ? 'var(--dz-ink)' : 'var(--dz-surface)',
+          border: 'none',
+          borderRadius: isUser ? '22px 22px 6px 22px' : '6px 22px 22px 22px',
+          padding: '12px 15px',
+          boxShadow: isUser ? '0 10px 22px -14px rgba(var(--dz-shadow-rgb),0.6)' : '0 1px 2px rgba(var(--dz-shadow-rgb),0.04), 0 10px 26px -16px rgba(var(--dz-shadow-rgb),0.18)',
         }}>
           {msg.status === 'sending' && !msg.text ? (
             <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '2px 0' }}>
@@ -991,7 +991,7 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
                       onClick={() => downloadFile(item.url)}
                       style={{
                         position: 'absolute', bottom: 6, right: 6,
-                        background: 'rgba(0,0,0,0.65)', border: '1px solid #ffffff33',
+                        background: 'rgba(0,0,0,0.65)', border: '1px solid rgba(var(--dz-ink-rgb),0.16)',
                         borderRadius: 8, color: '#fff', fontFamily: 'Inter', fontSize: 13.5,
                         padding: '4px 10px', cursor: 'pointer',
                       }}
@@ -1012,15 +1012,15 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
                       download={filename}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10,
-                        background: 'rgba(155,140,255,0.08)', border: '1px solid rgba(155,140,255,0.25)',
+                        background: 'rgba(47,91,255,0.08)', border: '1px solid rgba(47,91,255,0.25)',
                         borderRadius: 10, padding: '10px 14px', textDecoration: 'none',
-                        color: '#9b8cff',
+                        color: '#2f5bff',
                       }}
                     >
                       <span style={{ fontSize: 22 }}>{icon}</span>
                       <div>
-                        <div style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: '#9b8cff' }}>{filename}</div>
-                        <div style={{ fontFamily: 'Inter', fontSize: 13, color: 'rgba(155,140,255,0.55)', marginTop: 2 }}>
+                        <div style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: '#2f5bff' }}>{filename}</div>
+                        <div style={{ fontFamily: 'Inter', fontSize: 13, color: 'rgba(47,91,255,0.55)', marginTop: 2 }}>
                           Appuyer pour télécharger
                         </div>
                       </div>
@@ -1032,7 +1032,7 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
             </>
           )}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, gap: 8 }}>
-            <span style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 400, color: isUser ? 'rgba(255,180,80,0.3)' : `${actorCol}33`, letterSpacing: '0.03em' }}>{msg.ts}</span>
+            <span style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 400, color: isUser ? 'rgba(255,255,255,0.5)' : 'var(--dz-faint)' }}>{msg.ts}</span>
             <div style={{ display: 'flex', gap: 6 }}>
             {isUser && onEdit && (
               <button
@@ -1040,9 +1040,9 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
                 aria-label="Éditer"
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
-                  background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)',
+                  background: 'rgba(255,255,255,0.14)', border: 'none',
                   borderRadius: 14, padding: '5px 12px', cursor: 'pointer',
-                  color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter', fontSize: 12, fontWeight: 500,
+                  color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter', fontSize: 12, fontWeight: 600,
                 }}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
@@ -1055,9 +1055,9 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
                 aria-label="Régénérer"
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
-                  background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)',
+                  background: 'rgba(var(--dz-ink-rgb),0.045)', border: '1px solid rgba(var(--dz-ink-rgb),0.14)',
                   borderRadius: 14, padding: '5px 12px', cursor: 'pointer',
-                  color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter', fontSize: 12, fontWeight: 500,
+                  color: 'var(--dz-muted)', fontFamily: 'Inter', fontSize: 12, fontWeight: 500,
                 }}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
@@ -1069,10 +1069,10 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
                 onClick={() => { void navigator.clipboard.writeText(parseMessage(msg.text).displayText || msg.text); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
-                  background: copied ? `${actorCol}22` : 'rgba(255,255,255,0.06)',
-                  border: `1px solid ${copied ? actorCol : 'rgba(255,255,255,0.14)'}`,
+                  background: copied ? `color-mix(in srgb, ${actorCol} 13%, transparent)` : 'rgba(var(--dz-ink-rgb),0.045)',
+                  border: `1px solid ${copied ? actorCol : 'rgba(var(--dz-ink-rgb),0.14)'}`,
                   borderRadius: 14, padding: '5px 12px', cursor: 'pointer',
-                  color: copied ? actorCol : 'rgba(255,255,255,0.7)',
+                  color: copied ? actorCol : 'rgb(91,95,114)',
                   fontFamily: 'Inter', fontSize: 12, fontWeight: 500, transition: 'all 0.2s',
                 }}
               >
@@ -1108,20 +1108,20 @@ function TypingIndicator({ actorCol }: { actorCol: string }) {
 function RobotAvatar({ col }: { col: string }) {
   return (
     <svg width="24" height="24" viewBox="0 0 40 40" fill="none"
-      style={{ flexShrink: 0, filter: `drop-shadow(0 0 5px ${col}55)` }}>
+      style={{ flexShrink: 0, filter: `drop-shadow(0 0 5px color-mix(in srgb, ${col} 33%, transparent))` }}>
       <defs>
         <radialGradient id="av-head" cx="40%" cy="35%" r="65%">
-          <stop offset="0%" stopColor="#1e3045" />
-          <stop offset="100%" stopColor="#050c18" />
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="100%" stopColor="#ffffff" />
         </radialGradient>
       </defs>
       <circle cx="20" cy="20" r="16" fill="url(#av-head)" />
       <circle cx="20" cy="20" r="16" fill="none" stroke={col} strokeWidth="0.8" strokeOpacity="0.35" />
-      <ellipse cx="20" cy="21" rx="11" ry="11" fill="#01080e" opacity="0.92" />
-      <circle cx="15" cy="18" r="3.5" fill="#000810" />
+      <ellipse cx="20" cy="21" rx="11" ry="11" fill="#ffffff" opacity="0.92" />
+      <circle cx="15" cy="18" r="3.5" fill="#ffffff" />
       <circle cx="15" cy="18" r="2.8" fill="none" stroke={col} strokeWidth="0.8" strokeOpacity="0.55" />
       <circle cx="15" cy="18" r="1.7" fill={col} style={{ animation: 'eyeGlow 2s ease-in-out infinite' }} />
-      <circle cx="25" cy="18" r="3.5" fill="#000810" />
+      <circle cx="25" cy="18" r="3.5" fill="#ffffff" />
       <circle cx="25" cy="18" r="2.8" fill="none" stroke={col} strokeWidth="0.8" strokeOpacity="0.55" />
       <circle cx="25" cy="18" r="1.7" fill={col} style={{ animation: 'eyeGlow 2s ease-in-out infinite 0.3s' }} />
       <path d="M 14 25 Q 20 28.5 26 25" stroke={col} strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.6" />

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { T, PageHeader } from '../ui/Kit.tsx';
+import { getThemeMode, setThemeMode, type ThemeMode } from '../../services/theme.ts';
 import { business, setSimActor, getSimActor, registerWebPush, notifStatus, changePassword, apiFetch } from '../../services/api.ts';
 import CapacitesScreen from './CapacitesScreen.tsx';
 
@@ -15,17 +16,17 @@ interface NexusInfo {
 }
 
 const RULES = [
-  { id: 1, rule: 'Acompte minimum 30% à la réservation pour les nouveaux clients', cat: 'BUSINESS',   priority: 9, col: '#ff3366' },
-  { id: 2, rule: 'Vérifier disponibilité voiture avant de confirmer une résa',      cat: 'BUSINESS',   priority: 10, col: '#ff3366' },
-  { id: 3, rule: 'Profit = (client_price - owner_price) × nb_jours. Jamais catalogue.', cat: 'PRICING', priority: 10, col: '#ffb347' },
-  { id: 4, rule: 'Kouider préfère les réponses courtes et directes',                cat: 'COMM',       priority: 7, col: '#9b8cff' },
-  { id: 5, rule: 'Houari gère les opérations terrain à Oran directement',           cat: 'OPÉRATIONS', priority: 8, col: '#7c3aed' },
-  { id: 6, rule: 'Houari préfère le darija oranais pour communiquer',               cat: 'COMM',       priority: 9, col: '#7c3aed' },
+  { id: 1, rule: 'Acompte minimum 30% à la réservation pour les nouveaux clients', cat: 'BUSINESS',   priority: 9, col: '#e0304f' },
+  { id: 2, rule: 'Vérifier disponibilité voiture avant de confirmer une résa',      cat: 'BUSINESS',   priority: 10, col: '#e0304f' },
+  { id: 3, rule: 'Profit = (client_price - owner_price) × nb_jours. Jamais catalogue.', cat: 'PRICING', priority: 10, col: '#b86e00' },
+  { id: 4, rule: 'Kouider préfère les réponses courtes et directes',                cat: 'COMM',       priority: 7, col: '#2f5bff' },
+  { id: 5, rule: 'Houari gère les opérations terrain à Oran directement',           cat: 'OPÉRATIONS', priority: 8, col: '#7a3cff' },
+  { id: 6, rule: 'Houari préfère le darija oranais pour communiquer',               cat: 'COMM',       priority: 9, col: '#7a3cff' },
 ];
 
 const ACTORS = [
-  { id: 'kouider' as const, label: 'KOUIDER', role: 'Gérant principal', col: '#9b8cff', icon: 'K' },
-  { id: 'houari'  as const, label: 'HOUARI',  role: 'Associé',          col: '#7c3aed', icon: 'H' },
+  { id: 'kouider' as const, label: 'KOUIDER', role: 'Gérant principal', col: '#2f5bff', icon: 'K' },
+  { id: 'houari'  as const, label: 'HOUARI',  role: 'Associé',          col: '#7a3cff', icon: 'H' },
 ];
 
 export default function SettingsScreen() {
@@ -141,6 +142,9 @@ export default function SettingsScreen() {
       <PageHeader eyebrow="Configuration" title="Réglages" subtitle={msg || 'Notifications, sécurité, position, état du système'} />
       <div style={{ flex: 1, overflowY: 'auto', padding: '6px 16px 130px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
+        {/* Apparence : clair / sombre / auto */}
+        <ThemePicker />
+
         {/* Notifications */}
         <NotifPrefs />
 
@@ -153,31 +157,31 @@ export default function SettingsScreen() {
             <div style={{ marginBottom: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <div style={{
-                  width: 8, height: 8, borderRadius: '50%', background: '#00e676',
-                  boxShadow: '0 0 8px #00e676', flexShrink: 0,
+                  width: 8, height: 8, borderRadius: '50%', background: '#0a9a5e',
+                  boxShadow: '0 0 8px #0a9a5e', flexShrink: 0,
                   animation: 'statusPulse 2s ease infinite',
                 }} />
-                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13.5, color: '#00e676' }}>
+                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13.5, color: '#0a9a5e' }}>
                   {locData.country === 'Algeria' ? '🇩🇿' : locData.country === 'Belgium' ? '🇧🇪' : locData.country === 'France' ? '🇫🇷' : '🌍'}{' '}
                   {locData.city ?? locData.country}
                 </div>
               </div>
-              <div style={{ fontSize: 12, color: '#a6a3b8', marginBottom: 3 }}>
+              <div style={{ fontSize: 12, color: 'var(--dz-muted)', marginBottom: 3 }}>
                 {locData.lat.toFixed(5)}, {locData.lng.toFixed(5)}
               </div>
-              <div style={{ fontSize: 12, color: '#706d84' }}>
+              <div style={{ fontSize: 12, color: 'var(--dz-faint)' }}>
                 Mis à jour: {new Date(locData.updated_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
           ) : (
-            <div style={{ fontSize: 12.5, color: '#a6a3b8', marginBottom: 10 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--dz-muted)', marginBottom: 10 }}>
               Position non partagée — Dzaryx ne peut pas calculer tes trajets.
             </div>
           )}
-          <button onClick={() => shareLocation()} disabled={locLoading} style={actionBtn('#00e676')}>
+          <button onClick={() => shareLocation()} disabled={locLoading} style={actionBtn('#0a9a5e')}>
             {locLoading ? 'LOCALISATION EN COURS…' : '📍 PARTAGER MA POSITION'}
           </button>
-          <div style={{ fontSize: 11.5, color: '#706d84', textAlign: 'center', marginTop: 6, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 11.5, color: 'var(--dz-faint)', textAlign: 'center', marginTop: 6, lineHeight: 1.5 }}>
             Dzaryx utilise ta position pour calculer tes trajets · Rappels livraison intelligents · 24h TTL
           </div>
         </Panel>
@@ -187,11 +191,11 @@ export default function SettingsScreen() {
           <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
             <StatusPill label="API" val={health?.status?.toUpperCase() ?? '…'} ok={apiOk} />
             <StatusPill label="NEXUS" val={nexusOk ? 'CONNECTÉ' : 'HORS LIGNE'} ok={nexusOk} />
-            <StatusPill label="UPTIME" val={fmtUptime(health?.uptime)} ok={!!health} col="#9b8cff" />
+            <StatusPill label="UPTIME" val={fmtUptime(health?.uptime)} ok={!!health} col="#2f5bff" />
           </div>
           {nexusOk && nexus && (
             <div style={{
-              background: 'rgba(0,230,118,0.04)', border: '1px solid #00e67610',
+              background: 'rgba(10,154,94,0.04)', border: '1px solid #0a9a5e10',
               borderRadius: 8, padding: '7px 10px', marginBottom: 8,
               display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px 12px',
             }}>
@@ -203,17 +207,17 @@ export default function SettingsScreen() {
               {nexus.os && <NexusRow k="OS" v={nexus.os.slice(0, 14)} />}
             </div>
           )}
-          <button onClick={() => void checkHealth()} disabled={loadingH} style={actionBtn('#9b8cff')}>
+          <button onClick={() => void checkHealth()} disabled={loadingH} style={actionBtn('#2f5bff')}>
             {loadingH ? 'TEST EN COURS…' : '↻ TESTER LA CONNEXION'}
           </button>
         </Panel>
 
         {/* Cache */}
         <Panel title="Cache des calculs">
-          <div style={{ fontSize: 12.5, color: '#a6a3b8', marginBottom: 8, lineHeight: 1.6 }}>
+          <div style={{ fontSize: 12.5, color: 'var(--dz-muted)', marginBottom: 8, lineHeight: 1.6 }}>
             Vide le cache des calculs de revenus. TTL normal: 5 minutes.
           </div>
-          <button onClick={() => void clearCache()} disabled={clearing} style={actionBtn('#ffb347')}>
+          <button onClick={() => void clearCache()} disabled={clearing} style={actionBtn('#b86e00')}>
             {clearing ? 'VIDAGE EN COURS…' : '⚡ VIDER CACHE (0 → 5 min)'}
           </button>
         </Panel>
@@ -225,11 +229,11 @@ export default function SettingsScreen() {
               <div key={j.name} style={{
                 display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7,
                 padding: '6px 8px', borderRadius: 7,
-                background: 'rgba(255,255,255,0.02)', border: '1px solid #ffffff08',
+                background: 'rgba(var(--dz-ink-rgb),0.015)', border: '1px solid rgba(var(--dz-ink-rgb),0.03)',
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: '#e0f0ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{j.name}</div>
-                  <div style={{ fontSize: 12, color: '#a6a3b8', marginTop: 1 }}>
+                  <div style={{ fontSize: 13, color: 'var(--dz-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{j.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--dz-muted)', marginTop: 1 }}>
                     {j.cron} · prochain: {fmtNext(j.next)}
                   </div>
                 </div>
@@ -237,8 +241,8 @@ export default function SettingsScreen() {
                   onClick={() => void triggerJob(j.name)}
                   disabled={triggering === j.name}
                   style={{
-                    background: '#9b8cff18', border: '1px solid #9b8cff44', borderRadius: 6,
-                    width: 28, height: 28, cursor: 'pointer', color: '#9b8cff',
+                    background: '#2f5bff18', border: '1px solid #2f5bff44', borderRadius: 6,
+                    width: 28, height: 28, cursor: 'pointer', color: '#2f5bff',
                     fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center',
                     flexShrink: 0, opacity: triggering === j.name ? 0.5 : 1,
                   }}
@@ -255,8 +259,8 @@ export default function SettingsScreen() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
             {RULES.map(r => (
               <div key={r.id} style={{
-                background: 'rgba(155,140,255,0.03)', borderRadius: 8,
-                border: `1px solid ${r.col}22`, padding: '7px 10px',
+                background: 'rgba(47,91,255,0.03)', borderRadius: 8,
+                border: `1px solid color-mix(in srgb, ${r.col} 13%, transparent)`, padding: '7px 10px',
                 display: 'flex', gap: 8, alignItems: 'flex-start',
               }}>
                 <div style={{
@@ -265,7 +269,7 @@ export default function SettingsScreen() {
                   marginTop: 4,
                 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12.5, color: '#c8e8ff', lineHeight: 1.5 }}>{r.rule}</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--dz-text)', lineHeight: 1.5 }}>{r.rule}</div>
                   <div style={{ fontSize: 11.5, color: r.col, marginTop: 2, letterSpacing: '0.1em', fontFamily: 'Inter, sans-serif' }}>
                     {r.cat} · PRIORITÉ {r.priority}
                   </div>
@@ -273,7 +277,7 @@ export default function SettingsScreen() {
               </div>
             ))}
           </div>
-          <div style={{ fontSize: 12, color: '#706d84', textAlign: 'center', letterSpacing: '0.1em' }}>
+          <div style={{ fontSize: 12, color: 'var(--dz-faint)', textAlign: 'center', letterSpacing: '0.1em' }}>
             Dzaryx apprend de chaque conversation · "sauvegarde cette règle: …"
           </div>
         </Panel>
@@ -282,13 +286,13 @@ export default function SettingsScreen() {
         <Panel title="Capacités & agents Dzaryx">
           <button
             onClick={() => setShowCaps(s => !s)}
-            style={{ width: '100%', textAlign: 'left', background: 'rgba(155,140,255,0.06)', border: '1px solid #9b8cff22', borderRadius: 8, padding: '10px 12px', cursor: 'pointer', color: '#cfefff', fontFamily: 'Inter, sans-serif', fontSize: 13.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+            style={{ width: '100%', textAlign: 'left', background: 'rgba(47,91,255,0.06)', border: '1px solid #2f5bff22', borderRadius: 8, padding: '10px 12px', cursor: 'pointer', color: 'var(--dz-text)', fontFamily: 'Inter, sans-serif', fontSize: 13.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
           >
             <span>🤖 14 agents · ce que Dzaryx sait faire</span>
-            <span style={{ color: '#9b8cff88' }}>{showCaps ? '▲' : '▼'}</span>
+            <span style={{ color: '#2f5bff88' }}>{showCaps ? '▲' : '▼'}</span>
           </button>
           {showCaps && (
-            <div style={{ marginTop: 10, height: 520, borderRadius: 10, overflow: 'hidden', border: '1px solid #9b8cff12' }}>
+            <div style={{ marginTop: 10, height: 520, borderRadius: 10, overflow: 'hidden', border: '1px solid #2f5bff12' }}>
               <CapacitesScreen />
             </div>
           )}
@@ -296,7 +300,7 @@ export default function SettingsScreen() {
 
         {/* Version */}
         <div style={{ textAlign: 'center', padding: '8px 0 2px' }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#706d84', letterSpacing: '0.3em' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'var(--dz-faint)', letterSpacing: '0.3em' }}>
             DZARYX SIMULATOR v1.3 · GPS BRAIN · FIK CONCIERGERIE ORAN
           </div>
         </div>
@@ -344,31 +348,31 @@ function NotifPrefs() {
     <Panel title="Notifications">
       {!granted && (
         <div style={{ marginBottom: 12 }}>
-          <button onClick={() => void enableNotifs()} disabled={busy} style={actionBtn('#9b8cff')}>
+          <button onClick={() => void enableNotifs()} disabled={busy} style={actionBtn('#2f5bff')}>
             {busy ? 'Activation…' : '🔔 Activer les notifications'}
           </button>
           {needsInstall && (
-            <div style={{ fontSize: 13, color: '#ffb347', marginTop: 8, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 13, color: '#b86e00', marginTop: 8, lineHeight: 1.5 }}>
               📲 Sur iPhone : ouvre d'abord l'app depuis l'écran d'accueil (Partager → « Sur l'écran d'accueil »), puis touche ce bouton.
             </div>
           )}
-          {hint && <div style={{ fontSize: 13.5, color: '#cfefff', marginTop: 8 }}>{hint}</div>}
+          {hint && <div style={{ fontSize: 13.5, color: 'var(--dz-text)', marginTop: 8 }}>{hint}</div>}
         </div>
       )}
       {granted && (
-        <div style={{ fontSize: 13.5, color: '#00e676', marginBottom: 12 }}>● Notifications activées sur cet appareil</div>
+        <div style={{ fontSize: 13.5, color: '#0a9a5e', marginBottom: 12 }}>● Notifications activées sur cet appareil</div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {TYPES.map(t => (
           <div key={t.k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, color: '#e8e8ee' }}>{t.icon} {t.label}</span>
-            <button onClick={() => toggle(t.k)} style={{ width: 46, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', position: 'relative', background: prefs[t.k] ? '#9b8cff' : 'rgba(255,255,255,0.12)', transition: 'background .2s' }}>
-              <div style={{ position: 'absolute', top: 3, left: prefs[t.k] ? 23 : 3, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left .2s' }} />
+            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, color: 'var(--dz-text)' }}>{t.icon} {t.label}</span>
+            <button onClick={() => toggle(t.k)} style={{ width: 46, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', position: 'relative', background: prefs[t.k] ? '#2f5bff' : 'rgba(var(--dz-ink-rgb),0.09)', transition: 'background .2s' }}>
+              <div style={{ position: 'absolute', top: 3, left: prefs[t.k] ? 23 : 3, width: 20, height: 20, borderRadius: '50%', background: 'var(--dz-surface)', transition: 'left .2s' }} />
             </button>
           </div>
         ))}
       </div>
-      <div style={{ fontSize: 13, color: '#a6a3b8', marginTop: 10 }}>Coupe un type pour ne plus recevoir ces notifications push.</div>
+      <div style={{ fontSize: 13, color: 'var(--dz-muted)', marginTop: 10 }}>Coupe un type pour ne plus recevoir ces notifications push.</div>
     </Panel>
   );
 }
@@ -398,8 +402,8 @@ function SecurityPanel() {
   };
 
   const input: React.CSSProperties = {
-    width: '100%', boxSizing: 'border-box', background: '#1b1b23', border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: 10, padding: '10px 12px', color: '#fff', fontFamily: 'Inter, sans-serif', fontSize: 13, marginBottom: 8,
+    width: '100%', boxSizing: 'border-box', background: 'var(--dz-surface)', border: '1px solid rgba(var(--dz-ink-rgb),0.1)',
+    borderRadius: 10, padding: '10px 12px', color: 'var(--dz-text)', fontFamily: 'Inter, sans-serif', fontSize: 13, marginBottom: 8,
   };
   const fmt = (iso: string | null) => iso ? new Date(iso).toLocaleString('fr-BE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
 
@@ -407,25 +411,50 @@ function SecurityPanel() {
     <Panel title="Sécurité">
       <input type="password" placeholder="Mot de passe actuel" value={cur} onChange={e => setCur(e.target.value)} autoComplete="current-password" style={input} />
       <input type="password" placeholder="Nouveau mot de passe (6 caractères min.)" value={next} onChange={e => setNext(e.target.value)} autoComplete="new-password" style={input} />
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#a6a3b8', marginBottom: 10 }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'var(--dz-muted)', marginBottom: 10 }}>
         <input type="checkbox" checked={others} onChange={e => setOthers(e.target.checked)} />
         Déconnecter mes autres appareils
       </label>
-      <button onClick={() => void submit()} disabled={busy || !cur || !next} style={actionBtn('#9b8cff')}>
+      <button onClick={() => void submit()} disabled={busy || !cur || !next} style={actionBtn('#2f5bff')}>
         {busy ? 'Enregistrement…' : '🔐 Changer mon mot de passe'}
       </button>
-      {msg && <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, marginTop: 8, color: msg.ok ? '#00e676' : '#ff3366' }}>{msg.text}</div>}
+      {msg && <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, marginTop: 8, color: msg.ok ? '#0a9a5e' : '#e0304f' }}>{msg.text}</div>}
       {devices.length > 0 && (
         <div style={{ marginTop: 14 }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#a6a3b8', marginBottom: 6 }}>Appareils connectés</div>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'var(--dz-muted)', marginBottom: 6 }}>Appareils connectés</div>
           {devices.map(d => (
-            <div key={d.id} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#cfcfd6', padding: '6px 0', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+            <div key={d.id} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'var(--dz-text)', padding: '6px 0', borderTop: '1px solid rgba(var(--dz-ink-rgb),0.05)' }}>
               {d.actor === 'houari' ? '👤 Houari' : '👤 Kouider'} · {d.label}
-              <div style={{ fontSize: 13.5, color: '#6b6b76' }}>Connecté le {fmt(d.created)} · vu {fmt(d.last)}</div>
+              <div style={{ fontSize: 13.5, color: 'var(--dz-faint)' }}>Connecté le {fmt(d.created)} · vu {fmt(d.last)}</div>
             </div>
           ))}
         </div>
       )}
+    </Panel>
+  );
+}
+
+function ThemePicker() {
+  const [mode, setMode] = useState<ThemeMode>(getThemeMode());
+  const opts: Array<{ id: ThemeMode; label: string; icon: string }> = [
+    { id: 'light', label: 'Clair', icon: '☀️' }, { id: 'dark', label: 'Sombre', icon: '🌙' }, { id: 'auto', label: 'Auto', icon: '📱' },
+  ];
+  return (
+    <Panel title="Apparence">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        {opts.map(o => {
+          const on = mode === o.id;
+          return (
+            <button key={o.id} aria-pressed={on} onClick={() => { setMode(o.id); setThemeMode(o.id); }} style={{
+              minHeight: 64, borderRadius: 16, cursor: 'pointer', fontFamily: T.font, fontSize: 13, fontWeight: 700,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+              background: on ? T.ink : T.surface, color: on ? '#ffffff' : T.text,
+              border: `1px solid ${on ? T.ink : T.lineStrong}`,
+            }}><span style={{ fontSize: 20 }}>{o.icon}</span>{o.label}</button>
+          );
+        })}
+      </div>
+      <div style={{ fontSize: 12, color: T.muted, marginTop: 10 }}>Auto suit le réglage de ton iPhone (sombre le soir si tu l'as activé).</div>
     </Panel>
   );
 }
@@ -440,10 +469,10 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 }
 
 function StatusPill({ label, val, ok, col }: { label: string; val: string; ok: boolean; col?: string }) {
-  const c = col ?? (ok ? '#00e676' : '#ff3366');
+  const c = col ?? (ok ? '#0a9a5e' : '#e0304f');
   return (
-    <div style={{ flex: 1, textAlign: 'center', background: '#1b1b23', borderRadius: 12, padding: '10px 6px', border: `1px solid ${c}33` }}>
-      <div style={{ fontSize: 13, color: '#a6a3b8', letterSpacing: '0.05em', marginBottom: 4 }}>{label}</div>
+    <div style={{ flex: 1, textAlign: 'center', background: 'var(--dz-surface)', borderRadius: 12, padding: '10px 6px', border: `1px solid color-mix(in srgb, ${c} 20%, transparent)` }}>
+      <div style={{ fontSize: 13, color: 'var(--dz-muted)', letterSpacing: '0.05em', marginBottom: 4 }}>{label}</div>
       <div style={{
         fontSize: 12, fontWeight: 700, color: c, fontFamily: 'Inter, sans-serif',
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
@@ -462,7 +491,7 @@ function StatusPill({ label, val, ok, col }: { label: string; val: string; ok: b
 
 function actionBtn(col: string): React.CSSProperties {
   return {
-    background: `${col}14`, border: `1px solid ${col}55`, borderRadius: 12,
+    background: `color-mix(in srgb, ${col} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${col} 33%, transparent)`, borderRadius: 12,
     minHeight: 46, padding: '0 14px', fontFamily: T.font, fontSize: 14, fontWeight: 700,
     color: col, cursor: 'pointer', letterSpacing: '0.01em',
     width: '100%', textAlign: 'center',
@@ -472,8 +501,8 @@ function actionBtn(col: string): React.CSSProperties {
 function NexusRow({ k, v }: { k: string; v: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-      <span style={{ fontSize: 11.5, color: '#00e67644', letterSpacing: '0.1em' }}>{k}</span>
-      <span style={{ fontSize: 12, color: '#00e676cc', fontFamily: 'Inter, sans-serif' }}>{v}</span>
+      <span style={{ fontSize: 11.5, color: '#0a9a5e44', letterSpacing: '0.1em' }}>{k}</span>
+      <span style={{ fontSize: 12, color: '#0a9a5ecc', fontFamily: 'Inter, sans-serif' }}>{v}</span>
     </div>
   );
 }

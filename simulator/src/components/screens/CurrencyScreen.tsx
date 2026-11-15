@@ -111,27 +111,27 @@ export default function CurrencyScreen({ actor }: { actor: string }) {
     catch { return d.slice(0, 16); }
   };
 
-  const actorCol = actor === 'houari' ? '#7c3aed' : '#b18cff';
+  const actorCol = actor === 'houari' ? '#7a3cff' : '#2f5bff';
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#09090d', color: '#fff', fontFamily: 'Share Tech Mono', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--dz-bg)', color: 'var(--dz-text)', fontFamily: 'Share Tech Mono', overflow: 'hidden' }}>
       {/* Header */}
-      <div style={{ padding: '12px 14px 10px', borderBottom: '1px solid #b18cff12', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
+      <div style={{ padding: '12px 14px 10px', borderBottom: '1px solid #2f5bff12', flexShrink: 0, background: 'rgba(var(--dz-surface-rgb),0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 11, color: actorCol, letterSpacing: '0.3em', fontWeight: 700, textShadow: `0 0 12px ${actorCol}55` }}>
+          <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 11, color: actorCol, letterSpacing: '0.3em', fontWeight: 700, textShadow: `0 0 12px color-mix(in srgb, ${actorCol} 33%, transparent)` }}>
             SARF — صرف
           </div>
           <button
             onClick={() => void fetchRates()}
             disabled={loading}
-            style={{ background: 'none', border: '1px solid #b18cff22', borderRadius: 6, padding: '4px 10px', color: '#b18cff66', cursor: 'pointer', fontSize: 11, fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', letterSpacing: '0.1em' }}
+            style={{ background: 'none', border: '1px solid #2f5bff22', borderRadius: 6, padding: '4px 10px', color: '#2f5bff66', cursor: 'pointer', fontSize: 11, fontFamily: 'Manrope, Inter, sans-serif', letterSpacing: '0.1em' }}
           >
             {loading ? '…' : '↻'}
           </button>
         </div>
-        {error && <div style={{ fontSize: 12.5, color: '#ffb34788', marginTop: 4, letterSpacing: '0.1em' }}>{error}</div>}
+        {error && <div style={{ fontSize: 12.5, color: '#b86e0088', marginTop: 4, letterSpacing: '0.1em' }}>{error}</div>}
         {rates && (
-          <div style={{ fontSize: 12, color: '#706d84', marginTop: 4 }}>
+          <div style={{ fontSize: 12, color: 'var(--dz-faint)', marginTop: 4 }}>
             Officiel · mis à jour {fmtDate(rates.updated_at)}
           </div>
         )}
@@ -140,36 +140,36 @@ export default function CurrencyScreen({ actor }: { actor: string }) {
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
 
         {/* ─── SECTION OFFICIEL ─── */}
-        <SectionTitle label="MARCHÉ OFFICIEL" color="#b18cff" icon="🏛" />
+        <SectionTitle label="MARCHÉ OFFICIEL" color="#2f5bff" icon="🏛" />
 
         <RateCard
           from="EUR" to="DZD"
           rate={rates?.eur_to_dzd_official}
-          color="#b18cff"
+          color="#2f5bff"
           example={`1 000 DZD = ${rates ? (1000 / rates.eur_to_dzd_official).toFixed(2) : '…'} EUR`}
         />
         <RateCard
           from="USD" to="DZD"
           rate={rates?.usd_to_dzd_official}
-          color="#00e676"
+          color="#0a9a5e"
           example={`1 000 DZD = ${rates ? (1000 / rates.usd_to_dzd_official).toFixed(2) : '…'} USD`}
         />
         <RateCard
           from="EUR" to="USD"
           rate={rates?.eur_to_usd}
-          color="#ffb347"
+          color="#b86e00"
           example={`100 EUR = ${rates ? (100 * rates.eur_to_usd).toFixed(2) : '…'} USD`}
         />
 
         {/* ─── SECTION PARALLÈLE ─── */}
-        <SectionTitle label="MARCHÉ PARALLÈLE (NOIR)" color="#ff3366" icon="🔄" />
+        <SectionTitle label="MARCHÉ PARALLÈLE (NOIR)" color="#e0304f" icon="🔄" />
 
         {parallel ? (
           <>
             <RateCard
               from="EUR" to="DZD"
               rate={parallel.eur_to_dzd}
-              color="#ff3366"
+              color="#e0304f"
               badge="PARALLÈLE"
               example={`1 000 DZD = ${(1000 / parallel.eur_to_dzd).toFixed(2)} EUR`}
               note={`${parallelSource || parallel.source} · ${fmtDate(parallel.updated_at)}`}
@@ -178,23 +178,23 @@ export default function CurrencyScreen({ actor }: { actor: string }) {
             <RateCard
               from="USD" to="DZD"
               rate={parallel.usd_to_dzd}
-              color="#ff7043"
+              color="#c2570c"
               badge="PARALLÈLE"
               example={`1 000 DZD = ${(1000 / parallel.usd_to_dzd).toFixed(2)} USD`}
             />
             )}
             {rates && (
               <div style={{
-                background: 'rgba(255,51,102,0.05)', border: '1px solid #ff336622', borderRadius: 10, padding: '8px 12px',
+                background: 'rgba(224,48,79,0.05)', border: '1px solid #e0304f22', borderRadius: 10, padding: '8px 12px',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
                 <div>
-                  <div style={{ fontSize: 12, color: '#ff336688', fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', letterSpacing: '0.15em' }}>ÉCART PARALLÈLE / OFFICIEL</div>
-                  <div style={{ fontSize: 16, color: '#ff3366', fontWeight: 'bold', marginTop: 2 }}>
+                  <div style={{ fontSize: 12, color: '#e0304f88', fontFamily: 'Manrope, Inter, sans-serif', letterSpacing: '0.15em' }}>ÉCART PARALLÈLE / OFFICIEL</div>
+                  <div style={{ fontSize: 16, color: '#e0304f', fontWeight: 'bold', marginTop: 2 }}>
                     +{Math.round((parallel.eur_to_dzd / rates.eur_to_dzd_official - 1) * 100)}%
                   </div>
                 </div>
-                <div style={{ fontSize: 12.5, color: '#a6a3b8', textAlign: 'right' }}>
+                <div style={{ fontSize: 12.5, color: 'var(--dz-muted)', textAlign: 'right' }}>
                   <div>{rates.eur_to_dzd_official.toFixed(0)} officiel</div>
                   <div>{parallel.eur_to_dzd.toFixed(0)} parallèle</div>
                 </div>
@@ -203,13 +203,13 @@ export default function CurrencyScreen({ actor }: { actor: string }) {
           </>
         ) : (
           <div style={{
-            background: 'rgba(255,51,102,0.05)', border: '1px solid #ff336622',
+            background: 'rgba(224,48,79,0.05)', border: '1px solid #e0304f22',
             borderRadius: 10, padding: '16px 14px', textAlign: 'center',
           }}>
-            <div style={{ fontSize: 13.5, color: '#ff336688', fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', letterSpacing: '0.15em', marginBottom: 6 }}>
+            <div style={{ fontSize: 13.5, color: '#e0304f88', fontFamily: 'Manrope, Inter, sans-serif', letterSpacing: '0.15em', marginBottom: 6 }}>
               COURS NON DÉFINI
             </div>
-            <div style={{ fontSize: 12.5, color: '#a6a3b8', marginBottom: 10 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--dz-muted)', marginBottom: 10 }}>
               Entrez le taux du marché parallèle manuellement
             </div>
           </div>
@@ -224,22 +224,22 @@ export default function CurrencyScreen({ actor }: { actor: string }) {
               setInputUsd(parallel?.usd_to_dzd?.toFixed(0) ?? '');
             }}
             style={{
-              background: 'rgba(255,51,102,0.08)', border: '1px solid #ff336644',
+              background: 'rgba(224,48,79,0.08)', border: '1px solid #e0304f44',
               borderRadius: 10, padding: '12px', cursor: 'pointer',
-              fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 12.5, color: '#ff3366',
+              fontFamily: 'Manrope, Inter, sans-serif', fontSize: 12.5, color: '#e0304f',
               letterSpacing: '0.15em', width: '100%',
             }}
           >
             ✏ METTRE À JOUR LE COURS PARALLÈLE
           </button>
         ) : (
-          <div style={{ background: 'rgba(255,51,102,0.06)', border: '1px solid #ff336633', borderRadius: 12, padding: '14px' }}>
-            <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 12.5, color: '#ff336688', letterSpacing: '0.15em', marginBottom: 10 }}>
+          <div style={{ background: 'rgba(224,48,79,0.06)', border: '1px solid #e0304f33', borderRadius: 12, padding: '14px' }}>
+            <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 12.5, color: '#e0304f88', letterSpacing: '0.15em', marginBottom: 10 }}>
               COURS MARCHÉ NOIR
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div>
-                <label style={{ fontSize: 12, color: '#ff336666', letterSpacing: '0.15em', display: 'block', marginBottom: 3 }}>1 EUR = ? DZD</label>
+                <label style={{ fontSize: 12, color: '#e0304f66', letterSpacing: '0.15em', display: 'block', marginBottom: 3 }}>1 EUR = ? DZD</label>
                 <input
                   value={inputEur}
                   onChange={e => setInputEur(e.target.value)}
@@ -249,7 +249,7 @@ export default function CurrencyScreen({ actor }: { actor: string }) {
                 />
               </div>
               <div>
-                <label style={{ fontSize: 12, color: '#ff336666', letterSpacing: '0.15em', display: 'block', marginBottom: 3 }}>1 USD = ? DZD (optionnel)</label>
+                <label style={{ fontSize: 12, color: '#e0304f66', letterSpacing: '0.15em', display: 'block', marginBottom: 3 }}>1 USD = ? DZD (optionnel)</label>
                 <input
                   value={inputUsd}
                   onChange={e => setInputUsd(e.target.value)}
@@ -259,7 +259,7 @@ export default function CurrencyScreen({ actor }: { actor: string }) {
                 />
               </div>
               {saveError && (
-                <div style={{ fontSize: 12.5, color: '#ff5566', background: 'rgba(255,51,102,0.1)', border: '1px solid #ff336633', borderRadius: 6, padding: '6px 10px', letterSpacing: '0.05em' }}>
+                <div style={{ fontSize: 12.5, color: '#e0304f', background: 'rgba(224,48,79,0.1)', border: '1px solid #e0304f33', borderRadius: 6, padding: '6px 10px', letterSpacing: '0.05em' }}>
                   ⚠ {saveError}
                 </div>
               )}
@@ -267,9 +267,9 @@ export default function CurrencyScreen({ actor }: { actor: string }) {
                 <button
                   onClick={saveManualParallel}
                   style={{
-                    flex: 1, background: '#ff336622', border: '1px solid #ff336655',
-                    borderRadius: 8, padding: '10px', fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 12.5,
-                    color: '#ff3366', cursor: 'pointer', letterSpacing: '0.1em',
+                    flex: 1, background: '#e0304f22', border: '1px solid #e0304f55',
+                    borderRadius: 8, padding: '10px', fontFamily: 'Manrope, Inter, sans-serif', fontSize: 12.5,
+                    color: '#e0304f', cursor: 'pointer', letterSpacing: '0.1em',
                   }}
                 >
                   ENREGISTRER
@@ -277,9 +277,9 @@ export default function CurrencyScreen({ actor }: { actor: string }) {
                 <button
                   onClick={() => { setEditParallel(false); setSaveError(''); }}
                   style={{
-                    flex: 1, background: '#ffffff08', border: '1px solid #ffffff22',
-                    borderRadius: 8, padding: '10px', fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 12.5,
-                    color: '#a6a3b8', cursor: 'pointer',
+                    flex: 1, background: 'rgba(var(--dz-ink-rgb),0.02)', border: '1px solid rgba(var(--dz-ink-rgb),0.13)',
+                    borderRadius: 8, padding: '10px', fontFamily: 'Manrope, Inter, sans-serif', fontSize: 12.5,
+                    color: 'var(--dz-muted)', cursor: 'pointer',
                   }}
                 >
                   ANNULER
@@ -290,7 +290,7 @@ export default function CurrencyScreen({ actor }: { actor: string }) {
         )}
 
         {/* ─── CONVERTISSEUR RAPIDE ─── */}
-        <SectionTitle label="CONVERTISSEUR RAPIDE" color="#ffb347" icon="⚡" />
+        <SectionTitle label="CONVERTISSEUR RAPIDE" color="#b86e00" icon="⚡" />
         <QuickConverter rates={rates} parallel={parallel} />
 
         <div style={{ height: 20 }} />
@@ -303,8 +303,8 @@ function SectionTitle({ label, color, icon }: { label: string; color: string; ic
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 4 }}>
       <span style={{ fontSize: 12 }}>{icon}</span>
-      <span style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 12, color: `${color}88`, letterSpacing: '0.2em' }}>{label}</span>
-      <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${color}33, transparent)` }} />
+      <span style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 12, color: `color-mix(in srgb, ${color} 53%, transparent)`, letterSpacing: '0.2em' }}>{label}</span>
+      <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, color-mix(in srgb, ${color} 20%, transparent), transparent)` }} />
     </div>
   );
 }
@@ -315,35 +315,35 @@ function RateCard({ from, to, rate, color, badge, example, note }: {
 }) {
   return (
     <div style={{
-      background: `${color}08`, border: `1px solid ${color}22`,
+      background: `color-mix(in srgb, ${color} 3%, transparent)`, border: `1px solid color-mix(in srgb, ${color} 13%, transparent)`,
       borderRadius: 12, padding: '12px 14px',
-      boxShadow: `0 0 15px ${color}08`,
+      boxShadow: `0 0 15px color-mix(in srgb, ${color} 3%, transparent)`,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 13.5, color: '#ffffff88' }}>{from}</span>
-          <span style={{ fontSize: 13.5, color: `${color}66` }}>→</span>
-          <span style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 13.5, color: '#ffffff88' }}>{to}</span>
+          <span style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 13.5, color: 'rgba(var(--dz-ink-rgb),0.53)' }}>{from}</span>
+          <span style={{ fontSize: 13.5, color: `color-mix(in srgb, ${color} 40%, transparent)` }}>→</span>
+          <span style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 13.5, color: 'rgba(var(--dz-ink-rgb),0.53)' }}>{to}</span>
           {badge && (
             <span style={{
-              fontSize: 11, color, fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', letterSpacing: '0.1em',
-              background: `${color}18`, padding: '2px 5px', borderRadius: 4,
+              fontSize: 11, color, fontFamily: 'Manrope, Inter, sans-serif', letterSpacing: '0.1em',
+              background: `color-mix(in srgb, ${color} 9%, transparent)`, padding: '2px 5px', borderRadius: 4,
             }}>{badge}</span>
           )}
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 20, color, textShadow: `0 0 10px ${color}44`, lineHeight: 1 }}>
+          <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 20, color, textShadow: `0 0 10px color-mix(in srgb, ${color} 27%, transparent)`, lineHeight: 1 }}>
             {rate ? rate.toFixed(to === 'USD' || from === 'EUR' && to === 'USD' ? 4 : 0) : '…'}
           </div>
-          <div style={{ fontSize: 12, color: `${color}55`, letterSpacing: '0.05em' }}>{to}</div>
+          <div style={{ fontSize: 12, color: `color-mix(in srgb, ${color} 33%, transparent)`, letterSpacing: '0.05em' }}>{to}</div>
         </div>
       </div>
       {example && (
-        <div style={{ fontSize: 12.5, color: '#a6a3b8', marginTop: 6, borderTop: `1px solid ${color}11`, paddingTop: 6 }}>
+        <div style={{ fontSize: 12.5, color: 'var(--dz-muted)', marginTop: 6, borderTop: `1px solid color-mix(in srgb, ${color} 7%, transparent)`, paddingTop: 6 }}>
           {example}
         </div>
       )}
-      {note && <div style={{ fontSize: 12, color: '#706d84', marginTop: 4 }}>{note}</div>}
+      {note && <div style={{ fontSize: 12, color: 'var(--dz-faint)', marginTop: 4 }}>{note}</div>}
     </div>
   );
 }
@@ -385,7 +385,7 @@ function QuickConverter({ rates, parallel }: { rates: Rates | null; parallel: Pa
   const result = convert();
 
   return (
-    <div style={{ background: 'rgba(255,179,71,0.05)', border: '1px solid #ffb34722', borderRadius: 12, padding: '12px 14px' }}>
+    <div style={{ background: 'rgba(184,110,0,0.05)', border: '1px solid #b86e0022', borderRadius: 12, padding: '12px 14px' }}>
       <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
         <input
           value={amount}
@@ -398,8 +398,8 @@ function QuickConverter({ rates, parallel }: { rates: Rates | null; parallel: Pa
           value={from}
           onChange={e => setFrom(e.target.value as typeof from)}
           style={{
-            background: '#0a0f1a', border: '1px solid #ffb34733', borderRadius: 8,
-            color: '#ffb347', fontFamily: 'Share Tech Mono', fontSize: 13.5, padding: '6px 8px',
+            background: 'var(--dz-surface)', border: '1px solid #b86e0033', borderRadius: 8,
+            color: '#b86e00', fontFamily: 'Share Tech Mono', fontSize: 13.5, padding: '6px 8px',
           }}
         >
           <option value="EUR">EUR →</option>
@@ -412,9 +412,9 @@ function QuickConverter({ rates, parallel }: { rates: Rates | null; parallel: Pa
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {Object.entries(result).map(([k, v]) =>
             v != null ? (
-              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #ffffff08' }}>
-                <span style={{ fontSize: 12.5, color: '#a6a3b8', letterSpacing: '0.1em' }}>{k.toUpperCase()}</span>
-                <span style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 12, color: '#ffb347' }}>
+              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid rgba(var(--dz-ink-rgb),0.03)' }}>
+                <span style={{ fontSize: 12.5, color: 'var(--dz-muted)', letterSpacing: '0.1em' }}>{k.toUpperCase()}</span>
+                <span style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 12, color: '#b86e00' }}>
                   {typeof v === 'number' ? v.toLocaleString('fr-FR') : v}
                 </span>
               </div>
@@ -422,15 +422,15 @@ function QuickConverter({ rates, parallel }: { rates: Rates | null; parallel: Pa
           )}
         </div>
       ) : (
-        <div style={{ fontSize: 12.5, color: '#706d84', textAlign: 'center' }}>Entrez un montant pour convertir</div>
+        <div style={{ fontSize: 12.5, color: 'var(--dz-faint)', textAlign: 'center' }}>Entrez un montant pour convertir</div>
       )}
     </div>
   );
 }
 
 const inputStyle: React.CSSProperties = {
-  background: 'rgba(0,212,255,0.04)', border: '1px solid #b18cff22',
+  background: 'rgba(47,91,255,0.04)', border: '1px solid #2f5bff22',
   borderRadius: 8, padding: '8px 12px',
-  fontFamily: 'Share Tech Mono', fontSize: 16, color: '#c8e8ff',
+  fontFamily: 'Share Tech Mono', fontSize: 16, color: 'var(--dz-text)',
   outline: 'none', width: '100%', boxSizing: 'border-box',
 };

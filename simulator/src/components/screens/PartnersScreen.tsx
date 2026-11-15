@@ -20,8 +20,8 @@ interface Partner {
 }
 
 const C = {
-  bg: '#09090d', surface: '#131319', surface2: '#101e3d', border: 'rgba(200,190,255,0.16)',
-  accent: '#9b8cff', gold: '#fbbf24', green: '#34d399', red: '#f87171', text: '#f5f5f7', muted: '#a6a3b8',
+  bg: 'var(--dz-bg)', surface: 'var(--dz-surface)', surface2: 'var(--dz-surface2)', border: 'rgba(var(--dz-ink-rgb),0.16)',
+  accent: '#2f5bff', gold: '#b86e00', green: '#0a9a5e', red: '#e0304f', text: 'var(--dz-text)', muted: 'var(--dz-muted)',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 const TYPES: Array<{ id: OfferType; icon: string; label: string; unit: string }> = [
@@ -186,7 +186,7 @@ export default function PartnersScreen() {
           </div>
           <span style={label}>Notes (ce qu'il propose, ses conditions, ce qu'il faut savoir…)</span>
           <textarea value={f.notes ?? ''} onChange={set('notes')} rows={4} style={{ ...input, resize: 'vertical' }} />
-          <button onClick={() => void savePartner()} disabled={busy} style={{ ...btn(C.accent, '#00131a'), width: '100%', marginTop: 16, padding: 13, fontSize: 14 }}>{busy ? 'Enregistrement…' : 'Enregistrer'}</button>
+          <button onClick={() => void savePartner()} disabled={busy} style={{ ...btn(C.accent, '#ffffff'), width: '100%', marginTop: 16, padding: 13, fontSize: 14 }}>{busy ? 'Enregistrement…' : 'Enregistrer'}</button>
         </div>
         {toast && <Toast text={toast} />}
       </div>
@@ -207,7 +207,7 @@ export default function PartnersScreen() {
           {!oForm.id && <>
             <span style={label}>Type</span>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {TYPES.map(t => <button key={t.id} onClick={() => setOForm(s => s && { ...s, f: { ...s.f, type: t.id, unit: t.unit } })} style={{ ...btn(f.type === t.id ? `${C.accent}26` : C.surface2, f.type === t.id ? C.accent : C.muted), border: `1px solid ${f.type === t.id ? C.accent : C.border}` }}>{t.icon} {t.label}</button>)}
+              {TYPES.map(t => <button key={t.id} onClick={() => setOForm(s => s && { ...s, f: { ...s.f, type: t.id, unit: t.unit } })} style={{ ...btn(f.type === t.id ? `color-mix(in srgb, ${C.accent} 15%, transparent)` : C.surface2, f.type === t.id ? C.accent : C.muted), border: `1px solid ${f.type === t.id ? C.accent : C.border}` }}>{t.icon} {t.label}</button>)}
             </div>
           </>}
           <span style={label}>Nom *</span>
@@ -219,7 +219,7 @@ export default function PartnersScreen() {
             <div><span style={label}>Le client paie</span><input value={f.client_price} onChange={e => set('client_price', e.target.value)} inputMode="decimal" placeholder="42" style={input} /></div>
           </div>
           {margin != null && (
-            <div style={{ marginTop: 8, padding: '9px 12px', borderRadius: 10, background: margin > 0 ? `${C.green}1a` : `${C.red}1a`, color: margin > 0 ? C.green : C.red, fontSize: 13, fontWeight: 700 }}>
+            <div style={{ marginTop: 8, padding: '9px 12px', borderRadius: 10, background: margin > 0 ? `color-mix(in srgb, ${C.green} 10%, transparent)` : `color-mix(in srgb, ${C.red} 10%, transparent)`, color: margin > 0 ? C.green : C.red, fontSize: 13, fontWeight: 700 }}>
               Ta marge : {money(margin, f.currency)} par {f.unit} ({Math.round(margin / cli * 100)} %){margin <= 0 ? ' — tu perds de l\'argent' : ''}
             </div>
           )}
@@ -255,14 +255,14 @@ export default function PartnersScreen() {
             {oForm.photos.map((ph, i) => (
               <div key={i} style={{ position: 'relative' }}>
                 <img src={ph} alt="" style={{ width: 70, height: 70, objectFit: 'cover', borderRadius: 10 }} />
-                <button onClick={() => setOForm(s => s && { ...s, photos: s.photos.filter((_, j) => j !== i) })} style={{ position: 'absolute', top: -6, right: -6, width: 22, height: 22, borderRadius: 11, border: 'none', background: C.red, color: '#fff', fontSize: 12, cursor: 'pointer' }}>×</button>
+                <button onClick={() => setOForm(s => s && { ...s, photos: s.photos.filter((_, j) => j !== i) })} style={{ position: 'absolute', top: -6, right: -6, width: 22, height: 22, borderRadius: 11, border: 'none', background: C.red, color: 'var(--dz-text)', fontSize: 12, cursor: 'pointer' }}>×</button>
               </div>
             ))}
             <label style={{ width: 70, height: 70, borderRadius: 10, border: `1px dashed ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 26, cursor: 'pointer' }}>
               +<input type="file" accept="image/*" multiple hidden onChange={e => void pickFormPhotos(e.target.files)} />
             </label>
           </div>
-          <button onClick={() => void saveOffer()} disabled={busy} style={{ ...btn(C.accent, '#00131a'), width: '100%', marginTop: 18, padding: 13, fontSize: 14 }}>{busy ? 'Envoi…' : 'Enregistrer l\'offre'}</button>
+          <button onClick={() => void saveOffer()} disabled={busy} style={{ ...btn(C.accent, '#ffffff'), width: '100%', marginTop: 18, padding: 13, fontSize: 14 }}>{busy ? 'Envoi…' : 'Enregistrer l\'offre'}</button>
         </div>
         {toast && <Toast text={toast} />}
       </div>
@@ -290,7 +290,7 @@ export default function PartnersScreen() {
           </div>
           <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
             {p.phone && <a href={`tel:${p.phone}`} style={{ ...btn(C.surface2, C.text), textDecoration: 'none' }}>📞 Appeler</a>}
-            {(p.whatsapp || p.phone) && <a href={waLink(p.whatsapp || p.phone!)} target="_blank" rel="noreferrer" style={{ ...btn('#25D36622', '#25D366'), textDecoration: 'none' }}>WhatsApp</a>}
+            {(p.whatsapp || p.phone) && <a href={waLink(p.whatsapp || p.phone!)} target="_blank" rel="noreferrer" style={{ ...btn('#0a9a5e22', '#25D366'), textDecoration: 'none' }}>WhatsApp</a>}
             <button onClick={() => setPForm({ id: p.id, f: Object.fromEntries(Object.entries(p).filter(([, v]) => typeof v === 'string' || typeof v === 'number').map(([k, v]) => [k, String(v)])) as PartnerForm })} style={btn(C.surface2, C.accent)}>✏️ Modifier</button>
             <button onClick={() => void removePartner(p)} style={btn(C.surface2, C.red)}>🗑️</button>
           </div>
@@ -314,7 +314,7 @@ export default function PartnersScreen() {
           </div>
         </div>
         <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button onClick={() => setOForm({ f: { ...EMPTY_OFFER }, photos: [] })} style={{ ...btn(C.accent, '#00131a'), padding: 12 }}>＋ Ajouter une offre (véhicule, bien, service, activité…)</button>
+          <button onClick={() => setOForm({ f: { ...EMPTY_OFFER }, photos: [] })} style={{ ...btn(C.accent, '#ffffff'), padding: 12 }}>＋ Ajouter une offre (véhicule, bien, service, activité…)</button>
           {offers.map(o => {
             const t = tInfo(o.type);
             const m = o.client_price != null && o.owner_price != null ? o.client_price - o.owner_price : null;
@@ -395,23 +395,23 @@ export default function PartnersScreen() {
 function Avatar({ name, photo }: { name: string; photo?: string }) {
   return photo
     ? <img src={photo} alt="" style={{ width: 52, height: 52, borderRadius: 14, objectFit: 'cover', flexShrink: 0 }} />
-    : <div style={{ width: 52, height: 52, borderRadius: 14, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #fbbf2433, #9b8cff22)', color: '#fbbf24', fontWeight: 800, fontSize: 22 }}>{name.slice(0, 1).toUpperCase()}</div>;
+    : <div style={{ width: 52, height: 52, borderRadius: 14, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #b86e0033, #2f5bff22)', color: '#b86e00', fontWeight: 800, fontSize: 22 }}>{name.slice(0, 1).toUpperCase()}</div>;
 }
 function Badge({ text, color }: { text: string; color: string }) {
-  return <span style={{ fontSize: 13.5, fontWeight: 700, color, background: `${color}1f`, border: `1px solid ${color}44`, borderRadius: 7, padding: '2px 7px' }}>{text}</span>;
+  return <span style={{ fontSize: 13.5, fontWeight: 700, color, background: `color-mix(in srgb, ${color} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${color} 27%, transparent)`, borderRadius: 7, padding: '2px 7px' }}>{text}</span>;
 }
-function Price({ lab, val, color = '#f5f5f7' }: { lab: string; val: string; color?: string }) {
-  return <div style={{ background: '#101e3d', borderRadius: 10, padding: '7px 8px' }}><div style={{ fontSize: 13.5, color: '#a6a3b8' }}>{lab}</div><div style={{ fontWeight: 800, fontSize: 13.5, color }}>{val}</div></div>;
+function Price({ lab, val, color = '#0c0e1a' }: { lab: string; val: string; color?: string }) {
+  return <div style={{ background: 'var(--dz-surface)', borderRadius: 10, padding: '7px 8px' }}><div style={{ fontSize: 13.5, color: 'var(--dz-muted)' }}>{lab}</div><div style={{ fontWeight: 800, fontSize: 13.5, color }}>{val}</div></div>;
 }
 function Toggle({ on, onClick, text }: { on: boolean; onClick: () => void; text: string }) {
   return (
-    <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', marginTop: 12, background: 'transparent', border: 'none', color: '#f5f5f7', fontSize: 13.5, cursor: 'pointer', padding: 0, textAlign: 'left', fontFamily: 'inherit' }}>
-      <span style={{ width: 42, height: 24, borderRadius: 12, background: on ? '#9b8cff' : '#2a3a5c', position: 'relative', flexShrink: 0, transition: 'background .2s' }}>
-        <span style={{ position: 'absolute', top: 3, left: on ? 21 : 3, width: 18, height: 18, borderRadius: 9, background: '#fff', transition: 'left .2s' }} />
+    <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', marginTop: 12, background: 'transparent', border: 'none', color: 'var(--dz-text)', fontSize: 13.5, cursor: 'pointer', padding: 0, textAlign: 'left', fontFamily: 'inherit' }}>
+      <span style={{ width: 42, height: 24, borderRadius: 12, background: on ? '#2f5bff' : '#2f5bff', position: 'relative', flexShrink: 0, transition: 'background .2s' }}>
+        <span style={{ position: 'absolute', top: 3, left: on ? 21 : 3, width: 18, height: 18, borderRadius: 9, background: 'var(--dz-surface)', transition: 'left .2s' }} />
       </span>{text}
     </button>
   );
 }
 function Toast({ text }: { text: string }) {
-  return <div style={{ position: 'fixed', left: 16, right: 16, bottom: 96, background: '#131319', border: '1px solid rgba(200,190,255,0.3)', borderRadius: 12, padding: '11px 14px', fontSize: 13.5, color: '#f5f5f7', zIndex: 60, boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>{text}</div>;
+  return <div style={{ position: 'fixed', left: 16, right: 16, bottom: 96, background: 'var(--dz-surface)', border: '1px solid rgba(var(--dz-ink-rgb),0.16)', borderRadius: 12, padding: '11px 14px', fontSize: 13.5, color: 'var(--dz-text)', zIndex: 60, boxShadow: '0 8px 30px rgba(15,17,30,0.11)' }}>{text}</div>;
 }

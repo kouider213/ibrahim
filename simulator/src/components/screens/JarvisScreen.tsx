@@ -472,14 +472,14 @@ function Hud() {
           const below = l.y < 0.18;
           return (
             <div key={`${l.title}-${i}`} style={{ position: 'absolute', left: `${l.x * 100}%`, top: `${l.y * 100}%`, width: `${l.w * 100}%`, height: `${l.h * 100}%`, border: `1.5px solid ${c}`, borderRadius: 6, boxShadow: `0 0 14px ${tone(c, 0.6)}, inset 0 0 10px ${tone(c, 0.25)}`, transition: 'all 400ms ease' }}>
-              <div style={{ position: 'absolute', [below ? 'top' : 'bottom']: 'calc(100% + 4px)', left: -2, minWidth: 120, maxWidth: 230, background: 'rgba(4,10,20,0.82)', border: `1px solid ${c}`, borderRadius: 8, padding: '4px 7px', backdropFilter: 'blur(4px)' }}>
-                <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 10.5, color: c, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }} dir="auto">{l.alert ? '⚠ ' : ''}{l.title}</div>
-                {l.detail && <div style={{ fontSize: 11.5, color: '#e6f6ff', lineHeight: 1.3 }} dir="auto">{l.detail}</div>}
+              <div style={{ position: 'absolute', [below ? 'top' : 'bottom']: 'calc(100% + 4px)', left: -2, minWidth: 120, maxWidth: 230, background: 'rgba(var(--dz-surface-rgb),0.82)', border: `1px solid ${c}`, borderRadius: 8, padding: '4px 7px', backdropFilter: 'blur(4px)' }}>
+                <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 10.5, color: c, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }} dir="auto">{l.alert ? '⚠ ' : ''}{l.title}</div>
+                {l.detail && <div style={{ fontSize: 11.5, color: 'var(--dz-text)', lineHeight: 1.3 }} dir="auto">{l.detail}</div>}
               </div>
             </div>
           );
         })}
-        <div style={{ position: 'absolute', left: 10, bottom: 8, right: 10, display: 'flex', justifyContent: 'space-between', fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 9.5, color: T.accent, letterSpacing: '0.14em', textShadow: `0 0 6px ${T.accent}` }}>
+        <div style={{ position: 'absolute', left: 10, bottom: 8, right: 10, display: 'flex', justifyContent: 'space-between', fontFamily: 'Manrope, Inter, sans-serif', fontSize: 9.5, color: T.accent, letterSpacing: '0.14em', textShadow: `0 0 6px ${T.accent}` }}>
           <span>DZARYX · HUD</span><span>{scene.toUpperCase().slice(0, 40)}</span>
         </div>
       </div>
@@ -540,13 +540,13 @@ function Escouade() {
           </Card>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
             {squad.agents.map((a, i) => (
-              <div key={i} onClick={() => setOpen(open === i ? null : i)} style={{ background: 'rgba(10,10,14,0.9)', border: `1px solid ${tone(color(a.status), 0.6)}`, borderRadius: 12, padding: 10, boxShadow: a.status === 'working' ? `0 0 16px ${tone(T.accent, 0.3)}` : 'none', cursor: 'pointer', minWidth: 0 }}>
+              <div key={i} onClick={() => setOpen(open === i ? null : i)} style={{ background: 'rgba(var(--dz-surface-rgb),0.9)', border: `1px solid ${tone(color(a.status), 0.6)}`, borderRadius: 12, padding: 10, boxShadow: a.status === 'working' ? `0 0 16px ${tone(T.accent, 0.3)}` : 'none', cursor: 'pointer', minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                   <span style={{ fontSize: 18 }}>{a.icon}</span>
                   <span style={{ fontWeight: 800, fontSize: 12.5, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
                   <span style={{ width: 8, height: 8, borderRadius: 4, background: color(a.status), animation: a.status === 'working' ? 'pulse 1s infinite' : undefined }} />
                 </div>
-                <div style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 10.5, color: '#9fe6ff', lineHeight: 1.45, minHeight: 60 }}>
+                <div style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 10.5, color: '#2f5bff', lineHeight: 1.45, minHeight: 60 }}>
                   {a.steps.slice(-4).map((s, k) => <div key={k} style={{ opacity: 0.45 + (k + 1) / 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>› {s.text}</div>)}
                   {!a.steps.length && <div style={{ color: T.faint }}>› en attente…</div>}
                 </div>
@@ -635,9 +635,9 @@ function Copilote() {
       )}
       {!on && <Card accent={T.ok}><div style={{ fontSize: 13.5, color: T.muted, lineHeight: 1.5, textAlign: 'left' }}>Pour la voiture : pose le téléphone, lance le copilote et parle sans toucher l'écran. Il te lit tes nouveaux messages WhatsApp, tu dictes tes réponses (« oui », « vocal », « change… »), il gère Waze, la musique, ton agenda et tout le reste. L'écran reste allumé.</div></Card>}
       <button onClick={() => (on ? stop() : void start())} aria-label={on ? 'Arrêter le copilote' : 'Démarrer le copilote'}
-        style={{ width: 210, height: 210, borderRadius: '50%', border: `2px solid ${on ? T.ok : T.accent}`, cursor: 'pointer', color: '#fff',
-          background: `radial-gradient(circle at 50% 40%, ${tone(on ? T.ok : T.accent, 0.55)}, rgba(4,10,20,0.95) 70%)`,
-          boxShadow: `0 0 ${30 + lvl * 70}px ${tone(on ? T.ok : T.accent, 0.45 + lvl * 0.4)}`, transition: 'box-shadow 90ms', fontFamily: '"Plus Jakarta Sans", Inter, sans-serif' }}>
+        style={{ width: 210, height: 210, borderRadius: '50%', border: `2px solid ${on ? T.ok : T.accent}`, cursor: 'pointer', color: 'var(--dz-text)',
+          background: `radial-gradient(circle at 50% 40%, ${tone(on ? T.ok : T.accent, 0.55)}, rgba(255,255,255,0.95) 70%)`,
+          boxShadow: `0 0 ${30 + lvl * 70}px ${tone(on ? T.ok : T.accent, 0.45 + lvl * 0.4)}`, transition: 'box-shadow 90ms', fontFamily: 'Manrope, Inter, sans-serif' }}>
         <div style={{ fontSize: 46 }}>{on ? (busy ? '⏳' : isAudioPlaying() ? '🔊' : '🎙️') : '🚗'}</div>
         <div style={{ fontSize: 12, letterSpacing: '0.18em', marginTop: 6 }}>{on ? (wake ? 'DIS « DZARYX »' : 'COPILOTE ACTIF') : 'DÉMARRER'}</div>
       </button>
@@ -658,8 +658,8 @@ const ST_COLOR: Record<string, string> = { libre: T.ok, louée: T.accent, retour
 
 function Tile({ label, value, sub, color = T.accent }: { label: string; value: string; sub?: string; color?: string }) {
   return (
-    <div style={{ background: 'rgba(10,10,14,0.9)', border: `1px solid ${tone(color, 0.5)}`, borderRadius: 14, padding: '10px 12px', boxShadow: `0 0 18px ${tone(color, 0.15)}`, minWidth: 0 }}>
-      <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 9.5, letterSpacing: '0.16em', color, textTransform: 'uppercase' }}>{label}</div>
+    <div style={{ background: 'rgba(var(--dz-surface-rgb),0.9)', border: `1px solid ${tone(color, 0.5)}`, borderRadius: 14, padding: '10px 12px', boxShadow: `0 0 18px ${tone(color, 0.15)}`, minWidth: 0 }}>
+      <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 9.5, letterSpacing: '0.16em', color, textTransform: 'uppercase' }}>{label}</div>
       <div style={{ fontSize: 'clamp(20px, 3.2vw, 34px)', fontWeight: 800, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div>
       {sub && <div style={{ fontSize: 11.5, color: T.muted, marginTop: 2 }}>{sub}</div>}
     </div>
@@ -725,11 +725,11 @@ function Salle({ onAsk }: { onAsk: (p: string) => void }) {
         <Btn onClick={load}>↻</Btn>
       </div>
       {err && <div style={{ color: T.bad, fontSize: 13 }}>{err}</div>}
-      <div ref={boxRef} style={{ display: 'grid', gap: 10, background: '#030814', padding: 10, borderRadius: 16, overflowY: 'auto' }}>
+      <div ref={boxRef} style={{ display: 'grid', gap: 10, background: 'var(--dz-bg)', padding: 10, borderRadius: 16, overflowY: 'auto' }}>
         {!cc && <div style={{ color: T.faint, fontSize: 13, padding: 20, textAlign: 'center' }}>Chargement de la salle de commande…</div>}
         {cc && (
           <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 11, color: T.accent, letterSpacing: '0.2em' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'Manrope, Inter, sans-serif', fontSize: 11, color: T.accent, letterSpacing: '0.2em' }}>
               <span>DZARYX · SALLE DE COMMANDE</span><span>{new Date(cc.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
@@ -740,8 +740,8 @@ function Salle({ onAsk }: { onAsk: (p: string) => void }) {
             </div>
             {cc.alerts.length > 0 && <div style={{ background: tone(T.bad, 0.15), border: `1px solid ${T.bad}`, borderRadius: 12, padding: 10, fontSize: 13 }}>⚠️ {cc.alerts.join(' · ')}</div>}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 8 }}>
-              <div style={{ background: 'rgba(10,10,14,0.9)', border: `1px solid ${T.line}`, borderRadius: 14, padding: 10 }}>
-                <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 9.5, letterSpacing: '0.16em', color: T.accent, marginBottom: 6 }}>FLOTTE</div>
+              <div style={{ background: 'rgba(var(--dz-surface-rgb),0.9)', border: `1px solid ${T.line}`, borderRadius: 14, padding: 10 }}>
+                <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 9.5, letterSpacing: '0.16em', color: T.accent, marginBottom: 6 }}>FLOTTE</div>
                 <div style={{ display: 'grid', gap: 4, maxHeight: 260, overflowY: 'auto' }}>
                   {cc.fleet.map(f => (
                     <div key={f.name} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12.5 }}>
@@ -753,19 +753,19 @@ function Salle({ onAsk }: { onAsk: (p: string) => void }) {
                 </div>
               </div>
               <div style={{ display: 'grid', gap: 8, alignContent: 'start' }}>
-                <div style={{ background: 'rgba(10,10,14,0.9)', border: `1px solid ${T.line}`, borderRadius: 14, padding: 10, fontSize: 12.5 }}>
-                  <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 9.5, letterSpacing: '0.16em', color: T.warn, marginBottom: 6 }}>AUJOURD'HUI</div>
+                <div style={{ background: 'rgba(var(--dz-surface-rgb),0.9)', border: `1px solid ${T.line}`, borderRadius: 14, padding: 10, fontSize: 12.5 }}>
+                  <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 9.5, letterSpacing: '0.16em', color: T.warn, marginBottom: 6 }}>AUJOURD'HUI</div>
                   {[...cc.departuresToday.map(d => `🚗 Départ : ${d}`), ...cc.returnsToday.map(r => `🏁 Retour : ${r}`)].map((l, i) => <div key={i}>{l}</div>)}
                   {!cc.departuresToday.length && !cc.returnsToday.length && <div style={{ color: T.faint }}>Ni départ ni retour.</div>}
                 </div>
-                <div style={{ background: 'rgba(10,10,14,0.9)', border: `1px solid ${T.line}`, borderRadius: 14, padding: 10, fontSize: 12.5 }}>
-                  <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 9.5, letterSpacing: '0.16em', color: T.ok, marginBottom: 6 }}>WHATSAPP EN ATTENTE ({cc.whatsapp.length})</div>
+                <div style={{ background: 'rgba(var(--dz-surface-rgb),0.9)', border: `1px solid ${T.line}`, borderRadius: 14, padding: 10, fontSize: 12.5 }}>
+                  <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 9.5, letterSpacing: '0.16em', color: T.ok, marginBottom: 6 }}>WHATSAPP EN ATTENTE ({cc.whatsapp.length})</div>
                   {cc.whatsapp.map((w, i) => <div key={i} onClick={() => onAsk(`Lis WhatsApp ${w.chat}`)} style={{ cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} dir="auto">💬 {w.chat} : {w.preview.replace(/\s+/g, ' ')}</div>)}
                   {!cc.whatsapp.length && <div style={{ color: T.faint }}>Rien en attente.</div>}
                 </div>
                 {(cc.projects.length > 0 || cc.squad) && (
-                  <div style={{ background: 'rgba(10,10,14,0.9)', border: `1px solid ${T.line}`, borderRadius: 14, padding: 10, fontSize: 12.5 }}>
-                    <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 9.5, letterSpacing: '0.16em', color: T.violet, marginBottom: 6 }}>PROJETS & AGENTS</div>
+                  <div style={{ background: 'rgba(var(--dz-surface-rgb),0.9)', border: `1px solid ${T.line}`, borderRadius: 14, padding: 10, fontSize: 12.5 }}>
+                    <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 9.5, letterSpacing: '0.16em', color: T.violet, marginBottom: 6 }}>PROJETS & AGENTS</div>
                     {cc.projects.map((p, i) => <div key={i}>🎼 {p.goal} — {p.done}/{p.total}{p.today ? ` · ${p.today}` : ''}</div>)}
                     {cc.squad && <div>🛰️ {cc.squad.goal} — {cc.squad.status}</div>}
                   </div>
@@ -802,9 +802,9 @@ function CarWidgetSetup() {
   const [ok, setOk] = useState(false);
   const code = CAR_WIDGET_SCRIPT.replace('__API__', PRIMARY_BACKEND).replace('__TOKEN__', getDeviceToken() ?? '');
   const copy = () => { void navigator.clipboard?.writeText(code).then(() => { setOk(true); setTimeout(() => setOk(false), 2500); }); };
-  const li = (n: number, t: React.ReactNode) => <div style={{ display: 'flex', gap: 8, fontSize: 13, lineHeight: 1.45 }}><b style={{ color: '#ff2b3a', minWidth: 18 }}>{n}.</b><div style={{ flex: 1 }}>{t}</div></div>;
+  const li = (n: number, t: React.ReactNode) => <div style={{ display: 'flex', gap: 8, fontSize: 13, lineHeight: 1.45 }}><b style={{ color: '#e0304f', minWidth: 18 }}>{n}.</b><div style={{ flex: 1 }}>{t}</div></div>;
   return (
-    <Card accent="#ff2b3a">
+    <Card accent="#e0304f">
       <div style={{ fontWeight: 800, fontSize: 15 }}>🚗 Ton widget CarPlay (Audi + Jarvis)</div>
       <div style={{ fontSize: 12, color: T.muted, marginTop: 4 }}>Photo de ton Audi, météo, prochain départ / retour FIK, argent du jour et une phrase Jarvis qui change chaque heure. Rouge Jarvis + or.</div>
       <div style={{ display: 'grid', gap: 6, marginTop: 10 }}>
@@ -891,10 +891,10 @@ function Cerveau({ onAsk }: { onAsk: (p: string) => void }) {
         <Btn onClick={full} style={{ flex: 1 }}>⛶ Plein écran (télé / PC)</Btn>
         <Btn onClick={load}>↻</Btn>
       </div>
-      <div ref={screenRef} style={{ background: '#030814', borderRadius: 16, padding: 18, minHeight: 160, overflowY: 'auto' }}>
+      <div ref={screenRef} style={{ background: 'var(--dz-bg)', borderRadius: 16, padding: 18, minHeight: 160, overflowY: 'auto' }}>
         {screen ? (
           <>
-            <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 12, color: T.accent, letterSpacing: '0.18em', marginBottom: 10 }}>{screen.title.toUpperCase()}</div>
+            <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 12, color: T.accent, letterSpacing: '0.18em', marginBottom: 10 }}>{screen.title.toUpperCase()}</div>
             <div style={{ fontSize: 17, lineHeight: 1.5, whiteSpace: 'pre-wrap' }} dir="auto">{screen.content.replace(/\*\*/g, '')}</div>
           </>
         ) : <div style={{ color: T.faint, fontSize: 13, textAlign: 'center', paddingTop: 50 }}>Dis à Dzaryx « continue sur la télé » et la suite s'affiche ici.</div>}
@@ -983,7 +983,7 @@ export function Coach({ onAsk }: { onAsk: (prompt: string) => void }) {
       <SectionTitle>👑 Que ferait un grand à ma place ?</SectionTitle>
       <Card>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {o.sages.map(n => <span key={n} onClick={() => setSage(n)} style={{ fontSize: 12, padding: '5px 9px', borderRadius: 999, cursor: 'pointer', background: sage === n ? T.accent : T.surface2, color: sage === n ? '#09090d' : T.text, border: `1px solid ${T.line}` }}>{n}</span>)}
+          {o.sages.map(n => <span key={n} onClick={() => setSage(n)} style={{ fontSize: 12, padding: '5px 9px', borderRadius: 999, cursor: 'pointer', background: sage === n ? T.accent : T.surface2, color: sage === n ? '#f2f2f5' : T.text, border: `1px solid ${T.line}` }}>{n}</span>)}
         </div>
         <Btn disabled={!sage} onClick={() => onAsk(`Grand coach : que ferait ${sage} à ma place ? Ma question : `)} style={{ marginTop: 8 }}>👑 Poser ma question{sage ? ` à ${sage}` : ''}</Btn>
       </Card>

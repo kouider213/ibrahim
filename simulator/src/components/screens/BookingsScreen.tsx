@@ -13,13 +13,13 @@ function daysInclusive(start: string, end: string): number {
 }
 
 const OP_META: Record<string, { label: string; icon: string; col: string }> = {
-  location_voiture:   { label: 'LOCATION VOITURE', icon: '🚗', col: '#b18cff' },
-  commande_vehicule:  { label: 'COMMANDE VÉHICULE', icon: '📦', col: '#ff9f43' },
-  location_immo:      { label: 'LOCATION IMMO',  icon: '🏠', col: '#b06bff' },
-  vente_immo:         { label: 'ACHAT IMMO',     icon: '🏠', col: '#00e676' },
-  vente_voiture:      { label: 'ACHAT VOITURE',  icon: '🚗', col: '#ff9f43' },
-  demande_specifique: { label: 'DEMANDE SPÉCIALE', icon: '✨', col: '#ff5fa2' },
-  demande:            { label: 'DEMANDE SPÉCIALE', icon: '✨', col: '#ff5fa2' },
+  location_voiture:   { label: 'LOCATION VOITURE', icon: '🚗', col: '#2f5bff' },
+  commande_vehicule:  { label: 'COMMANDE VÉHICULE', icon: '📦', col: '#b86e00' },
+  location_immo:      { label: 'LOCATION IMMO',  icon: '🏠', col: '#2f5bff' },
+  vente_immo:         { label: 'ACHAT IMMO',     icon: '🏠', col: '#0a9a5e' },
+  vente_voiture:      { label: 'ACHAT VOITURE',  icon: '🚗', col: '#b86e00' },
+  demande_specifique: { label: 'DEMANDE SPÉCIALE', icon: '✨', col: '#d6338a' },
+  demande:            { label: 'DEMANDE SPÉCIALE', icon: '✨', col: '#d6338a' },
 };
 
 
@@ -517,7 +517,7 @@ function GpsCalculator() {
 
   if (!open) return (
     <button onClick={() => setOpen(true)} style={{ width: '100%', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 16, cursor: 'pointer', fontFamily: T.font, textAlign: 'left',
-      background: 'rgba(255,255,255,0.02)', border: `1px dashed ${T.lineStrong}`, color: T.text }}>
+      background: 'rgba(var(--dz-ink-rgb),0.015)', border: `1px dashed ${T.lineStrong}`, color: T.text }}>
       <span style={{ fontSize: 22 }}>🗺️</span>
       <span style={{ flex: 1 }}><span style={{ display: 'block', fontSize: 14.5, fontWeight: 700 }}>Trajet de livraison</span><span style={{ fontSize: 12.5, color: T.muted }}>Distance et temps réels depuis le dépôt ou ta position</span></span>
       <span style={{ color: T.accent, fontSize: 18 }}>›</span>
@@ -544,7 +544,7 @@ function GpsCalculator() {
         />
         {acLoading && <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 14 }}>⏳</div>}
         {showDropdown && predictions.length > 0 && (
-          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 999, background: T.surface2, border: `1px solid ${T.lineStrong}`, borderRadius: 13, boxShadow: '0 12px 30px rgba(0,0,0,0.6)', overflow: 'hidden', marginTop: 4 }}>
+          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 999, background: T.surface2, border: `1px solid ${T.lineStrong}`, borderRadius: 13, boxShadow: '0 12px 30px rgba(15,17,30,0.132)', overflow: 'hidden', marginTop: 4 }}>
             {predictions.map((p, i) => (
               <div key={p.place_id} onMouseDown={() => selectPrediction(p)} style={{ padding: '12px 14px', fontSize: 14, color: T.text, cursor: 'pointer', borderBottom: i < predictions.length - 1 ? `1px solid ${T.line}` : 'none' }}>
                 <span style={{ marginRight: 8 }}>📍</span>{p.label}
@@ -564,7 +564,7 @@ function GpsCalculator() {
             {result.travel_time_minutes !== undefined && <Kpi value={`${result.travel_time_minutes} min`} label="Trajet" color={trafficColor} />}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {result.waze_link && <a href={result.waze_link} target="_blank" rel="noreferrer" style={{ ...btnStyle('soft', '#33ccff'), flex: 1, textDecoration: 'none' }}>Waze</a>}
+            {result.waze_link && <a href={result.waze_link} target="_blank" rel="noreferrer" style={{ ...btnStyle('soft', '#2f5bff'), flex: 1, textDecoration: 'none' }}>Waze</a>}
             {result.maps_link && <a href={result.maps_link} target="_blank" rel="noreferrer" style={{ ...btnStyle('soft', T.ok), flex: 1, textDecoration: 'none' }}>Google Maps</a>}
           </div>
         </div>
@@ -595,7 +595,7 @@ function BookingFiche({ b, ccy, nb, margin, stLabel, stCol, payLbl, payCol, own,
   const others = (detail?.bookings ?? []).filter(x => x.id !== b.id);
   const docs = detail?.documents ?? [];
   const DOC: Record<string, string> = { passport: '🛂 Passeport', license: '🪪 Permis', contract: '📄 Contrat', other: '📎 Document' };
-  const box: React.CSSProperties = { background: 'rgba(255,255,255,0.03)', border: `1px solid ${T.line}`, borderRadius: 14, padding: '12px 13px', marginBottom: 10 };
+  const box: React.CSSProperties = { background: 'rgba(var(--dz-ink-rgb),0.022)', border: `1px solid ${T.line}`, borderRadius: 14, padding: '12px 13px', marginBottom: 10 };
   const h = (t: string) => <div style={{ fontSize: 11.5, color: T.faint, fontWeight: 800, letterSpacing: '0.08em', marginBottom: 8 }}>{t}</div>;
   const kv = (k: string, v: React.ReactNode, c?: string) => v == null || v === '' || v === '—' ? null : (
     <div style={{ display: 'flex', gap: 10, padding: '4px 0', fontSize: 14 }}>

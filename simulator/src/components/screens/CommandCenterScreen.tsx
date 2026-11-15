@@ -23,7 +23,7 @@ function WaBtn({ phone }: { phone: string | null }) {
   return (
     <a href={href} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{
       minHeight: 40, padding: '0 12px', borderRadius: 12, display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none',
-      background: 'rgba(37,211,102,0.13)', border: '1px solid rgba(37,211,102,0.4)', color: '#25D366', fontSize: 13, fontWeight: 700, flexShrink: 0,
+      background: 'rgba(10,154,94,0.13)', border: '1px solid rgba(10,154,94,0.4)', color: '#25D366', fontSize: 13, fontWeight: 700, flexShrink: 0,
     }}>💬 WhatsApp</a>
   );
 }
@@ -79,34 +79,30 @@ export default function CommandCenterScreen() {
         <Empty icon="📡" title="Pas de connexion au serveur" text="Vérifie le réseau puis actualise." />
       ) : (
         <>
-          {/* Carte argent : ce que je dois récupérer + CA du mois */}
-          <div className="dz-press" onClick={() => go('revenue')} role="button" style={{ position: 'relative', overflow: 'hidden', borderRadius: 24, padding: '18px 18px 16px', marginBottom: 14, cursor: 'pointer',
-            background: `radial-gradient(120% 120% at 100% 0%, ${tone(T.accent, 0.35)}, transparent 55%), radial-gradient(90% 90% at 0% 100%, ${tone(T.violet, 0.28)}, transparent 60%), linear-gradient(150deg, #1e1832, #121218)`,
-            border: `1px solid ${tone(T.accent, 0.35)}`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.12), 0 22px 50px -24px ${tone(T.accent, 0.8)}` }}>
-            <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: '35%', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent)', animation: 'dzShine 6s ease-in-out infinite', pointerEvents: 'none' }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#e9e0ff', fontWeight: 700, letterSpacing: '0.04em' }}>💰 MON ARGENT <span style={{ marginLeft: 'auto', fontSize: 13, color: T.accent }}>Détails ›</span></div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, marginTop: 10 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1, color: '#fff', fontVariantNumeric: 'tabular-nums' }}><CountUp value={ledger ? money(ledger.toCollect) : '—'} /></div>
-                <div style={{ fontSize: 13, color: '#c9c1e3', marginTop: 5 }}>à récupérer{ledger ? ` · ${Math.round(ledger.toCollect * ledger.rate).toLocaleString('fr-FR')} DA` : ''}</div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: '#fff' }}><CountUp value={monthCA != null ? money(monthCA) : '—'} /></div>
-                <div style={{ fontSize: 12, color: '#c9c1e3' }}>CA ce mois</div>
-              </div>
+          {/* Carte argent (façon carte bancaire, à l'encre) : ce que je dois récupérer + CA du mois */}
+          <div className="dz-press" onClick={() => go('revenue')} role="button" style={{ position: 'relative', overflow: 'hidden', borderRadius: 28, padding: '20px 20px 18px', marginBottom: 18, cursor: 'pointer',
+            background: 'linear-gradient(140deg, var(--dz-ink) 0%, #1b2140 62%, #26315f 100%)', boxShadow: '0 24px 44px -24px rgba(var(--dz-shadow-rgb),0.7)' }}>
+            <div style={{ position: 'absolute', top: -70, right: -50, width: 220, height: 220, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.09)', pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', top: -20, right: -100, width: 260, height: 260, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.06)', pointerEvents: 'none' }} />
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>À récupérer <span style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 700, color: '#ffffff', background: 'rgba(255,255,255,0.14)', padding: '6px 12px', borderRadius: 99 }}>Détails ›</span></div>
+            <div style={{ position: 'relative', fontFamily: T.display, fontSize: 44, fontWeight: 800, letterSpacing: '-0.045em', lineHeight: 1, color: '#ffffff', fontVariantNumeric: 'tabular-nums', marginTop: 10 }}><CountUp value={ledger ? money(ledger.toCollect) : '—'} /></div>
+            <div style={{ position: 'relative', fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6 }}>{ledger ? `${Math.round(ledger.toCollect * ledger.rate).toLocaleString('fr-FR')} DA` : ' '}</div>
+            <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 8, marginTop: 18, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.12)' }}>
+              {[{ l: 'CA ce mois', v: monthCA != null ? money(monthCA) : '—', c: '#ffffff' }, { l: 'Gagné en tout', v: ledger ? money(ledger.total) : '—', c: '#ffffff' }, { l: 'Déjà récupéré', v: ledger ? money(ledger.collected) : '—', c: '#5fe0a8' }].map(x => (
+                <div key={x.l} style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>{x.l}</div>
+                  <div style={{ fontFamily: T.display, fontSize: 17, fontWeight: 800, color: x.c, marginTop: 3, letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}><CountUp value={x.v} /></div>
+                </div>
+              ))}
             </div>
-            {ledger && <div style={{ display: 'flex', gap: 14, marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.1)', fontSize: 12.5, color: '#c9c1e3' }}>
-              <span>Gagné depuis le début <b style={{ color: '#fff' }}>{money(ledger.total)}</b></span>
-              <span>Déjà récupéré <b style={{ color: T.ok }}>{money(ledger.collected)}</b></span>
-            </div>}
           </div>
 
-          {/* Raccourcis */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 8, marginBottom: 18 }}>
-            {[{ i: '📋', l: 'Locations', p: 'bookings', c: T.accent }, { i: '👥', l: 'Clients', p: 'clients', c: T.ok }, { i: '🚗', l: 'Parc', p: 'fleet', c: T.warn }, { i: '🧮', l: 'Devis', p: 'devis', c: T.violet }].map(x => (
-              <button key={x.p} onClick={() => go(x.p)} style={{ ...glass(x.c), borderRadius: 18, minHeight: 74, cursor: 'pointer', fontFamily: T.font, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, color: T.text }}>
-                <span style={{ width: 34, height: 34, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, background: `radial-gradient(circle at 35% 25%, ${tone(x.c, 0.45)}, ${tone(x.c, 0.1)} 70%)`, border: `1px solid ${tone(x.c, 0.5)}` }}>{x.i}</span>
-                <span style={{ fontSize: 12, fontWeight: 700 }}>{x.l}</span>
+          {/* Raccourcis : ronds blancs, libellé dessous */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 6, marginBottom: 22 }}>
+            {[{ i: '📋', l: 'Locations', p: 'bookings' }, { i: '👥', l: 'Clients', p: 'clients' }, { i: '🚗', l: 'Parc', p: 'fleet' }, { i: '🧮', l: 'Devis', p: 'devis' }].map(x => (
+              <button key={x.p} onClick={() => go(x.p)} style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: T.font, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, color: T.text }}>
+                <span style={{ width: 58, height: 58, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 23, background: 'var(--dz-surface)', boxShadow: T.shadow }}>{x.i}</span>
+                <span style={{ fontSize: 12.5, fontWeight: 700 }}>{x.l}</span>
               </button>
             ))}
           </div>
@@ -135,7 +131,7 @@ export default function CommandCenterScreen() {
                           </div>
                           <Badge color={left <= 1 ? T.warn : T.ok}>{left <= 0 ? "Rend aujourd'hui" : left === 1 ? 'Rend demain' : `${left} j restants`}</Badge>
                         </div>
-                        <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.07)', marginTop: 12, overflow: 'hidden' }}>
+                        <div style={{ height: 6, borderRadius: 3, background: 'rgba(var(--dz-ink-rgb),0.053)', marginTop: 12, overflow: 'hidden' }}>
                           <div style={{ width: `${(done / tot) * 100}%`, height: '100%', borderRadius: 3, background: `linear-gradient(90deg, ${tone(T.ok, 0.5)}, ${T.ok})`, boxShadow: `0 0 10px ${tone(T.ok, 0.7)}` }} />
                         </div>
                         <div style={{ fontSize: 11.5, color: T.faint, marginTop: 5 }}>Jour {done} sur {tot}</div>
