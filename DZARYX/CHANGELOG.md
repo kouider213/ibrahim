@@ -1,3 +1,10 @@
+## 15/11/2026 — Revue des échanges 14-15/11 : conseils Belgique/Algérie, douleur, moral, appel démarchage
+- « Rester en Belgique ou partir vivre en Algérie, quand ? » → le cerveau inventait ses seuils (15-20 k€, 1 500 €/mois, « été prochain »). algerieAdviceHint (algerie-plan.ts) : son plan calculé (maison + voiture payées, date de départ) mis à côté de la question. Rejoué : date déc. 2029 / janv. 2032 citée, plus rien d'inventé.
+- Douleur au flanc : « problème de rein très peu probable » à cause de la prise de sang. health-advisor : une prise de sang normale n'exclut pas calcul/infection/appendicite + signes qui imposent le médecin le jour même. Rejoué OK.
+- « Je n'arrive plus à baisser, je replonge depuis la reprise du travail » → réponse sans son vrai statut (« ne culpabilise pas si tu as freiné » alors qu'il était dans le plan) ni la baisse du lendemain. liberteStruggleHint : statut réel + prochaine baisse + il choisit (garder / palier plus long), jamais pendant le travail.
+- Les chiffres fournis par le code (Liberté, plan Algérie, dossier santé) ne sont plus remplacés par « je n'ai pas accès aux données en temps réel » (fastPathGuard).
+- Démarchage à court de sociétés : message seulement, plus d'appel (appelé au travail dimanche 10h16).
+
 ## 15/11/2026 nuit — Veille hebdo : notes « [Contexte : …] » périmées purgées de l'historique
 - Bug vécu 14/11 20h07 : « aucun des 2 mails n'est intéressant » → « je t'appelle dans 20 secondes pour ton brief du matin ». Cause : la note GPS de 10h54 (« je l'appelle dans 20 s pour son brief ») restait en entier devant son message dans l'historique, le cerveau gratuit la rejouait.
 - context-builder shortPreamble : dans l'historique (jamais le message courant) chaque note « [Contexte : …] » est réduite à sa 1re phrase + « contexte passé, déjà traité » (idée du « context editing » d'Anthropic : purger le contexte périmé). Aussi après « [au téléphone] ».

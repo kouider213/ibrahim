@@ -443,6 +443,7 @@ export async function liberteText(): Promise<string> {
     '- « J\'ai envie », « j\'ai mal », « je craque », « je suis à bout » → liberte action envie (trigger = ce qui la déclenche : stress, fatigue, réveil, travail, ennui, douleur, tristesse, dispute…) et accompagne-le 10 minutes : respiration, eau froide, marcher, parler. S\'il tient → action resiste. S\'il a craqué → action prise puis encourage, on continue demain.',
     '- Manque, frissons, diarrhée, insomnie, anxiété, nez qui coule, jambes agitées → liberte action symptomes (score 0-10). On ne remonte JAMAIS la dose : un palier peut s\'allonger (action palier). Signes graves (convulsion, malaise, idées noires, douleur poitrine, hallucinations, vomit tout) → 112 tout de suite.',
     '- Tu ne l\'aides JAMAIS à s\'en procurer plus : pas de pharmacie pour ça, pas de rappel d\'ordonnance pour ce produit, pas de « une de temps en temps ». Il veut aller plus vite que le plan → seulement avec son médecin. Il veut remonter → non, propose un palier plus long + le médecin.',
+    '- « Je n\'arrive plus à baisser », moral qui replonge (travail, dépression) : dis-lui la VÉRITÉ du statut (s\'il est dans le plan, il n\'a PAS « freiné » ni échoué : dis « tu es à X/Y, dans ton plan »). Annonce la prochaine baisse (date + quantité) et propose-lui de choisir : la garder, ou rester quelques jours de plus à ce palier (action palier, jamais remonter) en attendant de voir son médecin — c\'est LUI qui décide. Moral très bas → médecin cette semaine + psy de 1re ligne ; idées noires → 112.',
     '- Le médecin d\'abord : tant que le statut est « pas encore appelé », pousse-le (une fois par jour, pas plus) à appeler son médecin traitant : valider le plan, l\'aider pour le manque, soigner la fatigue et le moral. Psychologue de 1re ligne remboursé (11 €, 1re séance gratuite).',
     '- Utilise tout : agenda (ses étapes y sont), sport (marcher / séance légère les jours durs : sport_coach), sommeil (outil sante), son moral (life_coach), FORME, sa famille comme raison (« ton fils, ta femme »), ses raisons à lui ci-dessus.',
     '- C\'est fini seulement quand LUI dit « c\'est bon, j\'ai arrêté » (action finish). D\'ici là tu ne lâches rien. Rechute = normal, jamais un échec : on note, on reprend.',
@@ -1092,4 +1093,21 @@ export async function runMedTake(c: { n: number; total: boolean; extra?: boolean
   // 10/11 05h53 : la consigne du cerveau (« demande-lui de confirmer puis rappelle liberte prise avec nouvelle:true ») lui était affichée telle quelle
   return r.replace(/ Si c'est vraiment une NOUVELLE prise en plus, demande-lui de confirmer puis rappelle liberte prise avec nouvelle:true\./, ` Si c'est une prise EN PLUS, écris « j'en ai repris ${halvesShort(add)} en plus ».`)
     .replace(/\s*Félicite-le d'avoir noté\.?/, '').replace(/ Réponds sans juger.*$/s, '').trim() + (c.total && add !== c.n ? `\n(Total du jour : ${halvesShort(c.n)}, j'ai ajouté ${halvesShort(add)}.)` : '');
+}
+
+// 15/11 « j'avais réussi à diminuer fortement mes médicaments, maintenant j'arrive plus » → réponse sans son vrai statut
+// (« ne te culpabilise pas si tu as dû freiner » alors qu'il était à 5/5 dans le plan) et sans la baisse du lendemain.
+const LIB_MED = /m[ée]doc|m[ée]dicament|demis?\b|comprim[ée]|cachet|traitement|sevrage|lib[ée]rt[ée]/i;
+const LIB_HARD = /(n'|j'|j)?arrive (plus|pas)|y arrive pas|j'en peux plus|craqu|d[ée]prim|d[ée]pression|replong|trop dur|peux pas baisser|r[ée]ussi.{0,30}(diminuer|baisser)/i;
+export async function liberteStruggleHint(msg: string): Promise<string> {
+  if (!LIB_MED.test(msg) || !LIB_HARD.test(msg)) return '';
+  const o = await libOverview().catch(() => null);
+  if (!o?.state?.active || o.state.finishedAt) return '';
+  return [
+    'IL PARLE DE SON PROGRAMME LIBERTÉ ET DE SON MORAL — statut réel (privé) :',
+    statusText(o),
+    `• Dis-lui la vérité du jour : ${o.taken <= o.allowed ? `il est DANS son plan (${halvesShort(o.taken)} sur ${halvesShort(o.allowed)}) — il n'a ni freiné ni échoué, dis-le-lui` : `il a dépassé (${halvesShort(o.taken)} pour ${halvesShort(o.allowed)}) — sans le juger`}.`,
+    o.nextDrop ? `• Annonce la prochaine baisse (${fmtDate(o.nextDrop.from)} → ${halvesShort(o.nextDrop.max)}/jour) et laisse-le CHOISIR : la garder, ou rester quelques jours de plus au palier actuel (liberte action palier, jamais remonter) le temps de voir son médecin. N'appelle pas palier sans son oui.` : '',
+    '• Puis son moral : médecin cette semaine (moral + travail + plan), psy de 1re ligne (11 €) ; idées noires → 112. Activités de repos AVANT ou APRÈS le travail, jamais pendant (aucune pause au travail).',
+  ].filter(Boolean).join('\n');
 }

@@ -429,18 +429,23 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
   if (extraNotes) ctx.systemExtra = `${extraNotes}\n\n${ctx.systemExtra ?? ''}`.trim();
   if (pre.length) ctx.systemExtra = `${pre.join('\n\n')}\n\n${ctx.systemExtra ?? ''}`.trim();
   if (actorUserId === 'kouider' && !(sessionId.startsWith('voice_') && !textOnly)) {
-    const [rich, world, health, week] = await Promise.all([
+    const [rich, world, health, week, alg, lib] = await Promise.all([
       import('../integrations/rich-answer.js').then(m => m.richAnswerHint(userMessage)).catch(() => ''),
       // 11/11 « quelle protéine / créatine prendre, quel complément pour moi » → tout son dossier santé à côté de la question
       import('../integrations/health-advisor.js').then(m => m.healthAdvisorHint(userMessage)).catch(() => ''),
       import('../integrations/world-facts.js').then(m => m.worldFactsHint(userMessage)).catch(() => ''),   // 06/11 recherche faite par le code
       // 13/11 « mauvaise semaine, adapte la semaine prochaine », « la librairie fermée par la police, je m'y sens mal » → semaine replanifiée + coach + article
       import('../integrations/coach-week.js').then(m => m.weekCoachHint(userMessage, { sandbox })).catch(() => ({ hint: '', acted: false })),
+      // 15/11 « rester en Belgique ou partir vivre en Algérie, quand ? » → son plan calculé (plus de seuils inventés)
+      import('../integrations/algerie-plan.js').then(m => m.algerieAdviceHint(userMessage)).catch(() => ''),
+      // 15/11 « je n'arrive plus à baisser mes médicaments » → statut Liberté réel + prochaine baisse, à côté de sa phrase
+      import('../integrations/liberte.js').then(m => m.liberteStruggleHint(userMessage)).catch(() => ''),
     ]);
     if (week.acted) codeActions.push({ name: 'sport_coach', success: true, result: '✅ semaine prochaine replanifiée par le code' });
-    worldChecked = /RÉSULTATS RECHERCHE INTERNET/.test(world);
+    // 15/11 : chiffres fournis par le code (statut Liberté, plan Algérie, dossier santé) = vérifiés → pas remplacés par « pas accès aux données »
+    worldChecked = /RÉSULTATS RECHERCHE INTERNET/.test(world) || !!lib || !!alg || !!health;
     const last = ctx.messages[ctx.messages.length - 1];
-    const hint = [codeHint, week.hint, world, health, rich].filter(Boolean).join('\n\n');
+    const hint = [codeHint, week.hint, lib, alg, world, health, rich].filter(Boolean).join('\n\n');
     if (hint && last && last.role === 'user' && typeof last.content === 'string') last.content = `${last.content}\n\n[Consigne pour ta réponse, pas un message de Kouider :\n${hint}]`;
   }
   if (v2ContextAddition) {

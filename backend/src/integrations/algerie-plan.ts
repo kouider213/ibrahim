@@ -427,3 +427,24 @@ export async function algeriePlanTool(input: Record<string, unknown>): Promise<s
   }
   return `${text}\n\n📄 PDF complet (4 pages, graphiques, budget détaillé, business, sources) envoyé sur Telegram.`;
 }
+
+// 15/11 Kouider : « continuer à vivre en Belgique dans un autre travail ou quitter la Belgique et aller vivre en Algérie,
+// quand me conseilles-tu de partir ? » → le cerveau a inventé ses seuils (15-20 k€ de côté, 1 500 €/mois, « été prochain »)
+// au lieu de SON plan (maison + voiture payées). Ici le code calcule son plan et le met à côté de la question.
+const ALG_Q = /(quitter|partir de) la belgique|(vivre|rentrer|retourner|m'installer|s'installer|partir|aller vivre|habiter|retour)\s+(en|au|à|a)\s+(alg[ée]rie|bled|oran)\b/i;
+const ALG_ADVICE = /\?|conseil|quand|dois[- ]je|devrais|mieux|faut[- ]il|tu penses|ton avis|ou (de |bien )?rester|rester en belgique/i;
+export function isAlgerieAdviceQuestion(msg: string): boolean {
+  return ALG_Q.test(msg) && ALG_ADVICE.test(msg) && !/client|r[ée]servation|location de|vol\b|billet|air alg[ée]rie/i.test(msg);
+}
+export async function algerieAdviceHint(msg: string): Promise<string> {
+  if (!isAlgerieAdviceQuestion(msg)) return '';
+  const p = await buildPlan().catch(() => null);
+  if (!p) return '';
+  return [
+    'QUESTION DE VIE BELGIQUE / ALGÉRIE — son plan à LUI, calculé par le code sur ses vrais chiffres (mes_finances algerie) :',
+    planText(p),
+    '• Base ton conseil UNIQUEMENT sur ce plan : ses conditions = maison + voiture PAYÉES + réserve de mois de dépenses ; quitter la librairie = partir à Oran. N\'invente AUCUN seuil, montant ou date (pas de « 15 000 € », « 1 500 €/mois », « été prochain » sortis de nulle part) : donne la date calculée ci-dessus et ce qui l\'avance (business à côté, épargne, réglages).',
+    '• S\'il parle de changer de travail en Belgique en attendant : compare honnêtement (même salaire ou plus = la date ne bouge pas ; moins = elle recule) — sans chiffre inventé.',
+    '• Propose le PDF détaillé (mes_finances action algerie) et de changer ses réglages s\'il a de nouveaux prix.',
+  ].join('\n');
+}

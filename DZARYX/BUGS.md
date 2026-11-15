@@ -427,3 +427,7 @@ Cause : déploiement à 09:58 UTC pendant que le cerveau de secours (Gemini 503)
 
 ### B054 — Vieille note GPS rejouée : « je t'appelle dans 20 s pour ton brief du matin » à 20h07 (14/11) ✅ FIXÉ
 Cause : notes « [Contexte : …] » gardées en entier dans l'historique. Fix : shortPreamble (context-builder) les réduit à « contexte passé, déjà traité » sauf pour le message courant (CHANGELOG 15/11).
+
+### B055 — Conseils inventés / incomplets sur des questions de vie (15/11) ✅ FIXÉ
+Belgique ou Algérie : seuils inventés au lieu de son plan ; douleur au flanc : « rein très peu probable » ; « je n'arrive plus à baisser » sans statut réel ni baisse du lendemain ; appel pour démarchage à sec pendant le travail. Fix : algerieAdviceHint, règle douleur health-advisor, liberteStruggleHint, worldChecked pour les faits du code, autoCall retiré (voir CHANGELOG 15/11).
+

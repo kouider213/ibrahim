@@ -597,7 +597,7 @@ async function checkDryStock(wanted: number, found: number, stock: number | null
     '• m\'envoyer des noms de sociétés : je les ajoute et je leur écris.',
   ].join('\n');
   emitProactive(`Démarchage : plus assez de sociétés à contacter${since}.`, 'alert', text, 'kouider', 'demarchage');
-  void autoCall(`prospect-dry:${days}`, `Je n'ai plus assez de sociétés à démarcher. Donne-moi un nouveau secteur ou une ville à cibler, par exemple le BTP à Arzew, et je relance la prospection.`, { level: 'normal' });
+  // 15/11 : message seulement (appelé au travail un dimanche 10h16 pour ça) — pas urgent, il répond quand il veut
   return text;
 }
 
