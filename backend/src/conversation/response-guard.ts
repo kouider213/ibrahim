@@ -346,3 +346,25 @@ export function stripWorkBreak(text: string): string {
   if (out !== text.trim()) console.log('[work-break-guard] phrase « pause au travail » retirée');
   return out || text;
 }
+
+// 15/11 : le cerveau gratuit glisse parfois un mot italien/espagnol (« Transition immédiata ») ou vouvoie Kouider
+// (« Vos taux sont bas ») → corrigé par le code. Les lignes citées (« … », > …) = brouillons pour des clients : intouchées.
+const SLIPS: Array<[RegExp, string]> = [
+  [/\bimm[ée]diatas?\b/g, 'immédiate'], [/\bImm[ée]diatas?\b/g, 'Immédiate'], [/\bimmediatamente\b/gi, 'immédiatement'],
+  [/\bspams coliques\b/gi, 'spasmes coliques'], [/\bd[ée]pentes\b/g, 'dépendes'],
+];
+const VOUS_NOUNS = 'taux|r[ée]sultats|analyses|valeurs|chiffres|donn[ée]es|muscles|reins|s[ée]ances|objectifs|efforts|progr[èe]s|niveaux|besoins|apports|habitudes|nuits';
+const VOS_RE = new RegExp(`\\b([Vv])os (${VOUS_NOUNS})(?![\\wÀ-ÿ])`, 'g');
+const VOTRE_RE = new RegExp(`\\b([Vv])otre (sant[ée]|corps|poids|sommeil|moral|dos|traitement|prise de sang|taux|niveau|r[ée]cup[ée]ration|s[ée]ance|objectif|plan)(?![\\wÀ-ÿ])`, 'g');
+export function fixLanguageSlips(text: string, tutoie = false): string {
+  if (!text) return text;
+  return text.split('\n').map(line => {
+    if (/^\s*>/.test(line) || /[«“"]/.test(line)) return line;
+    let l = line;
+    for (const [re, to] of SLIPS) l = l.replace(re, to);
+    if (!tutoie) return l;   // clients / autres : le vouvoiement est voulu
+    return l.replace(VOS_RE, (_m, v: string, n: string) => `${v === 'V' ? 'Tes' : 'tes'} ${n}`)
+      .replace(VOTRE_RE, (_m, v: string, n: string) => `${v === 'V' ? 'Ton' : 'ton'} ${n}`.replace(/^([Tt])on (sant[ée]|prise de sang|r[ée]cup[ée]ration|s[ée]ance)/, (_x, t: string, w: string) => `${t === 'T' ? 'Ta' : 'ta'} ${w}`));
+  }).join('\n');
+}
+

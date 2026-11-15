@@ -290,10 +290,12 @@ async function sendWakeMessage(cfg: RoutineConfig, plan: DayPlan, date: string, 
     ? `☀️ (Test) Message du matin de Dzaryx :`
     : up ? `☀️ Bonjour Kouider ! Je vois que tu es déjà debout (${up}) 💪 Pas d'appel de réveil aujourd'hui.`
     : plan.kind === 'sport'
-      ? `☀️ Bonjour Kouider, il est ${hm(Date.now())}. Tu es réveillé ? Réponds-moi avec ta forme de 1 à 5 (1 = crevé, 5 = au top) : j'adapte ta séance. Sinon je t'appelle dans ${cfg.callAfterMin} min.`
+      ? `☀️ Bonjour Kouider, il est ${hm(Date.now())}. Tu es réveillé ? Touche ta forme de 1 à 5 sur les boutons (message du bot FIK) ou réponds-moi le chiffre (1 = crevé, 5 = au top) : j'adapte ta séance. Sinon je t'appelle dans ${cfg.callAfterMin} min.`
       : `☀️ Bonjour Kouider, il est ${hm(Date.now())}. Tu es réveillé ? Réponds-moi (un mot suffit) — sinon je t'appelle dans ${cfg.callAfterMin} min.`;
   const text = [head, '', motivation, '', planLine(plan, cfg.addresses), ready ? `\n${ready}` : '', energy ? `${energy}` : '', life ? `${life}` : '', liberte ? `\n${liberte}` : '', nudges ? `\n${nudges}` : ''].join('\n').trim();
   await queueTelegramMessage(text);
+  // 15/11 Kouider : boutons au lieu de taper le chiffre (bot des notifs FIK → site → Railway)
+  if (!test && !up && plan.kind === 'sport') await import('./conscience.js').then(m => m.sendBotButtons('☀️ Ta forme ce matin ?', m.FORME_LABELS.map((l, i) => ({ text: `${i + 1} ${l}`, data: `dz:forme:${i + 1}` })))).catch(() => false);
   emitProactive(text.split('\n')[0]!, 'reminder', text);
   return text;
 }

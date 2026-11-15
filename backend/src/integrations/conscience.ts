@@ -49,19 +49,40 @@ export async function createDecision(title: string, options: DecisionOption[], s
   return d;
 }
 
-async function sendDecisionButtons(d: Decision): Promise<boolean> {
+/** Message du bot des notifs FIK avec un bouton par ligne (data = « dz:<id>:<n> »). false si pas envoyé. */
+export async function sendBotButtons(text: string, buttons: Array<{ text: string; data: string }>): Promise<boolean> {
   const token = process.env['INTERNAL_API_TOKEN'];
   if (!token || process.env['DECISION_BUTTONS'] === '0') return false;
   const r = await fetch('https://fikconciergerie.com/api/dzaryx-buttons', {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'x-internal-token': token },
-    body: JSON.stringify({ text: `🔘 ${d.title.replace(/\*\*/g, '')}\n\n(ou réponds le chiffre à Dzaryx)`, buttons: d.options.map((o, i) => ({ text: `${i + 1}️⃣ ${o.label}`.slice(0, 60), data: `dz:${d.id}:${i + 1}` })) }),
+    body: JSON.stringify({ text, buttons: buttons.map(b => ({ text: b.text.slice(0, 60), data: b.data })) }),
     signal: AbortSignal.timeout(15_000),
   });
   return r.ok && (await r.json().catch(() => ({})) as { ok?: boolean }).ok === true;
 }
+function sendDecisionButtons(d: Decision): Promise<boolean> {
+  return sendBotButtons(`🔘 ${d.title.replace(/\*\*/g, '')}\n\n(ou réponds le chiffre à Dzaryx)`, d.options.map((o, i) => ({ text: `${i + 1}️⃣ ${o.label}`, data: `dz:${d.id}:${i + 1}` })));
+}
+export const FORME_LABELS = ['😴 Crevé', '🥱 Fatigué', '🙂 Correct', '😃 En forme', '💪 Au top'];
+
+/** 15/11 : bouton « forme du matin » (1-5) sous le message du réveil → noté, réveillé, séance adaptée. */
+async function chooseForme(n: number): Promise<string> {
+  const { localNow: ln, noteKouiderActivity } = await import('./morning-routine.js');
+  const date = ln().date;
+  const note = await noteKouiderActivity(String(n)).catch(() => null);   // le marque réveillé (+ forme si pas encore réveillé)
+  const sc = await import('./sport-coach.js');
+  const r = note && /Forme du matin/.test(note) ? note.replace(/^[\s\S]*Forme du matin : /, '').replace(/ Puis réponds[\s\S]*$/, '') : await sc.setMorningForm(date, n);
+  return `✅ ${r.replace(/ Encourage-le[\s\S]*$/, '').replace(/\]$/, '').trim()}`;
+}
 
 /** Clic sur un bouton (bot des notifs → site → ici) : rend tout de suite le libellé, le résultat arrive sur Telegram. */
 export async function chooseDecisionByButton(id: string, n: number): Promise<{ label: string } | { error: string }> {
+  if (id === 'forme') {
+    if (!(n >= 1 && n <= 5)) return { error: 'Bouton inconnu' };
+    void chooseForme(n).then(r => import('../notifications/tg-outbox.js').then(m => m.queueTelegramMessage(r, undefined, 'kouider', undefined, true)))
+      .catch(e => console.warn('[conscience] forme', e instanceof Error ? e.message : e));
+    return { label: `Forme ${n}/5 ${FORME_LABELS[n - 1]}` };
+  }
   const d = (await kvJson<Decision[]>(DEC_KEY, [])).find(x => x.id === id);
   if (!d) return { error: 'Choix introuvable (trop ancien)' };
   if (d.done) return { error: `Déjà choisi : ${d.done}` };

@@ -1,3 +1,7 @@
+## 15/11/2026 (3) — Boutons forme du réveil + correction auto des mots étrangers / vouvoiement
+- Jour de sport : sous le message du réveil, le bot des notifs FIK envoie « ☀️ Ta forme ce matin ? » avec 5 boutons (dz:forme:n) → réveillé + forme notée + séance adaptée, confirmation dans la conversation Dzaryx. Le chiffre écrit marche toujours.
+- fixLanguageSlips (response-guard, via oranize) : « immédiata » → « immédiate », « spams coliques » → « spasmes », et pour Kouider seulement « Vos taux / Votre santé » → « Tes taux / Ta santé » (lignes citées « … » / > laissées : brouillons clients).
+
 ## 15/11/2026 (2) — Vrais boutons sous les choix de Dzaryx
 - Kouider : « ajoute le bouton comme sur les notifs FIK, on clique au lieu de mettre 1 ou 2 ». Les décisions (createDecision, conscience.ts) partent maintenant par le bot des notifs FIK avec un bouton par choix (seuls les bots Telegram ont des boutons). Clic → site /api/telegram-notif (dz:id:n) → Railway POST /api/jarvis/decisions-button (jeton interne) → choix exécuté, résultat dans la conversation Dzaryx. Répondre « 1 » à Dzaryx marche toujours ; si le bot échoue → ancien texte. DECISION_BUTTONS=0 coupe.
 - Liberté : palier gardé à 5 demis jusqu'au médecin (RDV 20/11) à sa demande, prochaine baisse 21/11.
