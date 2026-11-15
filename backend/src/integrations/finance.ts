@@ -81,27 +81,42 @@ export function rentalDays(startDate: string, endDate: string, nbDays?: number |
   return Math.max(1, diff);
 }
 
-/** Argent réellement reçu / encore dû (15/11) : une résa « PAID » est payée EN ENTIER, même si paid_amount est resté
- *  sur l'acompte (le site / l'app passent le statut à PAID sans toucher au montant : Belarbi 75/150, Abdelkader 120/720).
+/** Argent réellement reçu / encore dû (15/11, règles de Kouider) :
+ *  - acompte = 3 jours de location, déduit du total ;
+ *  - le jour où le client RÉCUPÈRE la voiture (date de départ atteinte, résa acceptée), il a TOUT payé ;
+ *  - une résa « PAID » est payée en entier, même si paid_amount est resté sur l'acompte (Belarbi 75/150).
  *  À utiliser partout au lieu de final_price − paid_amount. */
-export function paidOf(b: { final_price?: number | null; paid_amount?: number | null; payment_status?: string | null }): number {
-  const fp = Number(b.final_price) || 0, pa = Number(b.paid_amount) || 0;
-  return String(b.payment_status ?? '').toUpperCase() === 'PAID' ? Math.max(fp, pa) : pa;
+type PayLike = { final_price?: number | null; paid_amount?: number | null; payment_status?: string | null; start_date?: string | null; status?: string | null };
+const algiersToday = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Africa/Algiers' });
+export function pickedUp(b: PayLike): boolean {
+  return !!b.start_date && String(b.start_date).slice(0, 10) <= algiersToday() && /^(CONFIRMED|ACCEPTED|ACTIVE|COMPLETED)$/i.test(b.status ?? '');
 }
-export function dueOf(b: { final_price?: number | null; paid_amount?: number | null; payment_status?: string | null }): number {
+export function paidOf(b: PayLike): number {
+  const fp = Number(b.final_price) || 0, pa = Number(b.paid_amount) || 0;
+  return String(b.payment_status ?? '').toUpperCase() === 'PAID' || pickedUp(b) ? Math.max(fp, pa) : pa;
+}
+export function dueOf(b: PayLike): number {
   return Math.max(0, (Number(b.final_price) || 0) - paidOf(b));
 }
+/** Acompte demandé pour confirmer = 3 jours au prix client (jamais plus que le total). */
+export function acompteOf(b: { final_price?: number | null; client_price_per_day?: number | null; nb_days?: number | null }): number {
+  const fp = Number(b.final_price) || 0;
+  const ppd = Number(b.client_price_per_day) || (Number(b.nb_days) > 0 ? fp / Number(b.nb_days) : 0);
+  return Math.round(Math.min(fp, ppd * 3) * 100) / 100;
+}
 
-/** Réparation auto (toutes les 15 min) : PAID → paid_amount = prix total + amount_remaining = 0 ; sinon amount_remaining
+/** Réparation auto (toutes les 15 min) : voiture récupérée → PAID ; PAID → paid_amount = prix total + amount_remaining = 0 ; sinon amount_remaining
  *  = prix − payé. Corrige ce que le site, l'app ou Dzaryx écrivent, pour que TOUS les écrans/rappels lisent le même chiffre. */
 export async function repairPayments(): Promise<string> {
-  const { data, error } = await supabase.from('bookings').select('id, client_name, status, final_price, paid_amount, amount_remaining, payment_status').not('final_price', 'is', null);
+  const { data, error } = await supabase.from('bookings').select('id, client_name, status, start_date, final_price, paid_amount, amount_remaining, payment_status').not('final_price', 'is', null);
   if (error) return `erreur ${error.message}`;
   const fixed: string[] = [];
-  for (const b of (data ?? []) as Array<{ id: string; client_name: string; status: string | null; final_price: number | null; paid_amount: number | null; amount_remaining: number | null; payment_status: string | null }>) {
+  for (const b of (data ?? []) as Array<{ id: string; client_name: string; status: string | null; start_date: string | null; final_price: number | null; paid_amount: number | null; amount_remaining: number | null; payment_status: string | null }>) {
     const dead = /^(REJECTED|CANCELLED)$/i.test(b.status ?? '');   // demande refusée/annulée : personne ne doit rien
     const paid = paidOf(b), due = dead ? 0 : dueOf(b);
-    const patch: Record<string, number> = {};
+    const patch: Record<string, number | string> = {};
+    // voiture récupérée = tout payé → le statut passe « Payé » (les rappels d'impayés s'arrêtent tout seuls)
+    if (pickedUp(b) && String(b.payment_status ?? '').toUpperCase() !== 'PAID') patch['payment_status'] = 'PAID';
     if ((Number(b.paid_amount) || 0) !== paid) patch['paid_amount'] = paid;
     if (b.amount_remaining == null || Number(b.amount_remaining) !== due) patch['amount_remaining'] = due;
     if (!Object.keys(patch).length) continue;
@@ -272,7 +287,7 @@ export async function getFinancialReport(year: number, month?: number): Promise<
       payment_status:       b.payment_status ?? 'PENDING',
       // 15/11 : paid_amount reste figé sur l'acompte quand la résa passe « Payé » (Belarbi 75/150, Abdelkader 120/720 PAID)
       // → une résa PAID est encaissée en entier, sinon « reste à encaisser » invente des dettes.
-      paid_amount:          (b.payment_status ?? '').toUpperCase() === 'PAID' ? Math.max(calc.paid_amount, calc.final_price ?? 0) : calc.paid_amount,
+      paid_amount:          paidOf({ final_price: calc.final_price, paid_amount: calc.paid_amount, payment_status: b.payment_status, start_date: b.start_date, status: b.status }),
       kouider_profit:       manualById.get(b.id) ?? calc.kouider_profit,
       discount_applied:     calc.discount_applied,
       price_source:         calc.price_source,

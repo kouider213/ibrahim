@@ -98,8 +98,8 @@ export async function jobMailReplyCall(): Promise<void> {
  */
 export async function jobRentalEveCall(): Promise<void> {
   const tomorrow = oranDate(1);
-  type B = { id: string; car_id: string; client_name: string; final_price: number | null; paid_amount: number | null; payment_status?: string | null; currency: string | null; cars?: { name?: string } | null };
-  const cols = 'id, car_id, client_name, final_price, paid_amount, payment_status, currency, cars(name)';
+  type B = { id: string; car_id: string; client_name: string; final_price: number | null; paid_amount: number | null; payment_status?: string | null; start_date?: string | null; status?: string | null; currency: string | null; cars?: { name?: string } | null };
+  const cols = 'id, car_id, client_name, final_price, paid_amount, payment_status, start_date, status, currency, cars(name)';
   const [{ data: dep }, { data: ret }] = await Promise.all([
     supabase.from('bookings').select(cols).eq('start_date', tomorrow).in('status', ['PENDING', 'CONFIRMED']),
     supabase.from('bookings').select(cols).eq('end_date', tomorrow).in('status', ['PENDING', 'CONFIRMED', 'ACTIVE']),

@@ -582,8 +582,13 @@ function BookingFiche({ b, ccy, nb, margin, stLabel, stCol, payLbl, payCol, own,
   const m = (n: number | null | undefined) => n == null ? '—' : money(n, ccy);
   const total = b.final_price ?? 0;
   // une résa « Payé » est payée en entier (paid_amount reste parfois figé sur l'acompte)
-  const paid = (b.payment_status ?? '').toUpperCase() === 'PAID' ? Math.max(total, b.paid_amount ?? 0) : (b.paid_amount ?? 0);
+  // Règles Kouider 15/11 : client qui a récupéré la voiture = tout payé ; acompte = 3 jours, déduit du total
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Africa/Algiers' });
+  const pickedUp = (b.start_date ?? '').slice(0, 10) <= today && /^(confirmed|accepted|active|completed)$/i.test(b.status ?? '');
+  const paid = (b.payment_status ?? '').toUpperCase() === 'PAID' || pickedUp ? Math.max(total, b.paid_amount ?? 0) : (b.paid_amount ?? 0);
   const reste = Math.max(0, total - paid);
+  const ppd = b.client_price_per_day ?? (nb > 0 ? total / nb : 0);
+  const acompte = Math.round(Math.min(total, ppd * 3));
   const fullD = (d?: string | null) => d ? new Date(d).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }) : '—';
   const notes = (b.notes ?? '').trim();
   const others = (detail?.bookings ?? []).filter(x => x.id !== b.id);
@@ -625,8 +630,9 @@ function BookingFiche({ b, ccy, nb, margin, stLabel, stCol, payLbl, payCol, own,
         {kv('Prix client / jour', m(b.client_price_per_day))}
         {kv('Total', m(total))}
         {kv('Paiement', <Badge color={payCol}>{payLbl}</Badge>)}
+        {!pickedUp && kv('Acompte (3 jours)', `${m(acompte)}${paid >= acompte ? ' ✓ reçu' : ' à demander'}`, paid >= acompte ? T.ok : T.warn)}
         {kv('Déjà payé', m(paid), T.ok)}
-        {kv('Reste à payer', reste > 0 ? m(reste) : 'Rien, tout est payé', reste > 0 ? T.bad : T.ok)}
+        {kv(pickedUp ? 'Reste à payer' : 'Reste à la remise des clés', reste > 0 ? m(reste) : 'Rien, tout est payé', reste > 0 ? (pickedUp ? T.bad : T.warn) : T.ok)}
         {kv('Prix proprio / jour', m(b.owner_price_per_day))}
         {kv('Ma marge', margin != null ? m(margin) : null, T.ok)}
       </div>
