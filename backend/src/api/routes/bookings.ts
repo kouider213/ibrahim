@@ -150,6 +150,12 @@ router.patch('/:id', requireMobileAuth, async (req, res) => {
   // Sanitize: never allow changing id or created_at
   const { id: _id, created_at: _ca, ...safeUpdates } = updates as Record<string, unknown>;
   safeUpdates['updated_at'] = new Date().toISOString();
+  // 15/11 : passée « Payé » sans montant → payé en entier (sinon « reste à encaisser » fantôme)
+  if (String(safeUpdates['payment_status'] ?? '').toUpperCase() === 'PAID' && safeUpdates['paid_amount'] === undefined) {
+    const { data: cur } = await supabase.from('bookings').select('final_price').eq('id', id).single();
+    const fp = Number(safeUpdates['final_price'] ?? (cur as { final_price?: number } | null)?.final_price) || 0;
+    if (fp > 0) { safeUpdates['paid_amount'] = fp; safeUpdates['amount_remaining'] = 0; }
+  }
 
   // If dates changed, re-check availability
   if (safeUpdates['start_date'] || safeUpdates['end_date']) {

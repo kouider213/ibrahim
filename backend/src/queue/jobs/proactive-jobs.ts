@@ -21,7 +21,7 @@ import axios from 'axios';
 import { runTikTokMarketResearch } from '../../marketing/market-research.js';
 import { generateOpportunities } from '../../integrations/opportunities.js';
 import type { Car } from '../../integrations/supabase.js';
-import { rentalDays } from '../../integrations/finance.js';
+import { rentalDays, paidOf, dueOf } from '../../integrations/finance.js';
 
 // ── 0. Réveil matinal 7h30 — app only (Socket.IO + Expo Push), no Telegram ────
 export async function jobMorningBriefing(_job: Job): Promise<void> {
@@ -163,7 +163,7 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
     client_name: string; final_price?: number; paid_amount?: number; currency?: string; cars?: { name: string };
   }>;
   const dus = soldes
-    .map(b => ({ ...b, remaining: Number(b.final_price ?? 0) - Number(b.paid_amount ?? 0) }))
+    .map(b => ({ ...b, remaining: dueOf(b as { final_price?: number; paid_amount?: number; payment_status?: string }) }))
     .filter(b => b.remaining > 0);
   if (dus.length > 0) {
     lines.push(`💵 *À encaisser (${dus.length}):*`);
@@ -507,7 +507,7 @@ export async function jobUnpaidReminder(_job: Job): Promise<void> {
     const clientPhone = booking.client_phone as string | null;
     const carName     = (booking.cars as any)?.name ?? 'Véhicule';
     const total       = Number(booking.final_price ?? 0);
-    const paid        = Number(booking.paid_amount ?? 0);
+    const paid        = paidOf(booking);
     const remaining   = total - paid;
     const startDate   = booking.start_date as string;
     const daysWithCar = Math.floor((now.getTime() - new Date(startDate).getTime()) / 86_400_000);

@@ -38,7 +38,7 @@ import {
   isValidTimezone,
 } from '../utils/timezone.js';
 import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent, updateCalendarEvent, createAgendaEvent, deleteAgendaEvent, listAgendaRange, updateAgendaEvent, updateAgendaSeries, agendaAccess } from './google-calendar.js';
-import { getFinancialReport, formatFinancialReport, rentalDays } from './finance.js';
+import { getFinancialReport, formatFinancialReport, rentalDays, paidOf, dueOf } from './finance.js';
 import { setCarPapers, getCarPapers } from './car-papers.js';
 import { listEmails, readEmail, readThread, getAttachment, modifyEmails, searchEmailIds, type MailAction, sendEmail, canSendEmail, type ThreadRef, countSentToday, getGmailConnectLink, gmailAddress, proSenderAddress, GmailNotConnectedError, GmailSendNotAllowedError, GmailModifyNotAllowedError, type GmailAccount } from './gmail.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
@@ -747,7 +747,7 @@ async function listBookings(input: Record<string, unknown>): Promise<string> {
   const rows = (data as any[]).map(b => {
     const curr = b.currency ?? 'EUR';
     const priceStr = curr === 'DZD' ? `${b.final_price} DZD` : `${b.final_price}€`;
-    const paidStr  = curr === 'DZD' ? `${b.paid_amount ?? 0} DZD` : `${b.paid_amount ?? 0}€`;
+    const paidStr  = curr === 'DZD' ? `${paidOf(b)} DZD` : `${paidOf(b)}€`;
     const payInfo = b.payment_status
       ? ` | 💰 ${b.payment_status} (payé: ${paidStr})`
       : '';
@@ -815,6 +815,12 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
     fields['notes'] = prev && !prev.includes(add) && !add.includes(prev) ? `${prev}\n${add}` : add;
   }
 
+  // 15/11 : « il a tout payé » (statut PAID sans montant) → le montant payé = le prix total, sinon « reste à payer » ment partout
+  if (fields['payment_status'] === 'PAID' && input['paid_amount'] === undefined) {
+    const { data: cur } = await supabase.from('bookings').select('final_price').eq('id', id).single();
+    const fp = Number(fields['final_price'] ?? (cur as { final_price?: number } | null)?.final_price) || 0;
+    if (fp > 0) { fields['paid_amount'] = fp; fields['amount_remaining'] = 0; }
+  }
   // Si on met à jour l'acompte sans préciser le statut, le déduire auto.
   if (input['paid_amount'] !== undefined && !input['payment_status']) {
     const { data: cur } = await supabase.from('bookings').select('final_price').eq('id', id).single();
@@ -1027,7 +1033,7 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
     end_date:             input['end_date'],
     final_price:          input['final_price'],
     payment_status,
-    paid_amount:          paidAmount,
+    paid_amount:          payment_status === 'PAID' && paidAmount < finalPrice ? finalPrice : paidAmount,
     rented_by:            rentedBy,
     currency,
     status,
@@ -3263,7 +3269,7 @@ async function getFleetStatus(): Promise<string> {
 
     if (active) {
       rented++;
-      const remaining = (active.final_price ?? 0) - (active.paid_amount ?? 0);
+      const remaining = dueOf(active);
       const payTag = active.payment_status === 'PAID' ? '✅' : remaining > 0 ? `💰${remaining}€ dû` : '';
       lines.push(`🔴 *${car.name}* — loué à ${active.client_name} jusqu'au ${active.end_date} ${payTag}`);
     } else if (!car.available) {
@@ -6452,6 +6458,9 @@ async function recordClientDealTool(input: Record<string, unknown>): Promise<str
   const clientName = (input['client_name'] as string | undefined)?.trim();
   const dealType   = (input['deal_type'] as string | undefined)?.trim();
   if (!clientName || !dealType) return '❌ client_name et deal_type requis.';
+  // 15/11 : une location de voiture vit dans les RÉSERVATIONS — un doublon ici apparaissait dans « Opérations » en DA
+  // (Djillali 440 « DA » pour une location payée en euros). On ne l'enregistre plus.
+  if (dealType === 'location_voiture') return 'ℹ️ Pas enregistré : une location de voiture se trouve déjà dans les réservations (create_booking / update_booking), pas dans les opérations.';
   await logClientDeal({
     client_name: clientName, client_phone: input['client_phone'] as string | undefined,
     deal_type: dealType, item_label: input['item_label'] as string | undefined,
@@ -6837,7 +6846,7 @@ async function exportAccountingPDF(input: Record<string, unknown>): Promise<stri
   }, 0);
   // Revenu Houari = somme coûts proprio
   const totalHouari = totalOwner;
-  const totalPaid   = bookings.reduce((s, b) => s + (Number(b['paid_amount'])    || 0), 0);
+  const totalPaid   = bookings.reduce((s, b) => s + paidOf(b as { final_price?: number; paid_amount?: number; payment_status?: string }), 0);
   const unpaid      = bookings.filter(b => b['payment_status'] !== 'PAID');
   const monthLabel  = new Date(year, month - 1, 1).toLocaleString('fr-FR', { month: 'long', year: 'numeric' });
 

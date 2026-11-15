@@ -12,7 +12,7 @@ import { listInboxMessages, readEmail, sendEmail, canSendEmail, countSentToday, 
 import { isOptedOut, listPendingReplies, updateProspect } from './prospects.js';
 import { paperWarning } from './car-papers.js';
 import { clientWhatsappLink } from '../notifications/client-care.js';
-import { rentalDays } from './finance.js';
+import { rentalDays, dueOf } from './finance.js';
 
 type CarRow = { id: string; name: string; base_price: number | null; resale_price: number | null; available: boolean | null };
 
@@ -103,17 +103,17 @@ export async function quickPayment(input: Record<string, unknown>, sessionId: st
   if (!client) return 'Quel client a payé ?';
   if (!amount || amount <= 0) return 'Quel montant ?';
   const { data } = await supabase.from('bookings')
-    .select('id, client_name, start_date, end_date, final_price, paid_amount, currency, status, cars(name)')
+    .select('id, client_name, start_date, end_date, final_price, paid_amount, payment_status, currency, status, cars(name)')
     .ilike('client_name', `%${client}%`).in('status', ['PENDING', 'CONFIRMED', 'ACTIVE', 'COMPLETED'])
     .order('start_date', { ascending: false }).limit(20);
-  let list = ((data ?? []) as PayBooking[]).filter(b => (Number(b.paid_amount) || 0) < (Number(b.final_price) || 0));
+  let list = ((data ?? []) as PayBooking[]).filter(b => dueOf(b) > 0);
   const carName = String(input['car_name'] ?? '').trim().toLowerCase();
   if (carName) list = list.filter(b => carOf(b).toLowerCase().includes(carName));
   const startDate = String(input['start_date'] ?? '');
   if (DATE.test(startDate)) list = list.filter(b => b.start_date === startDate);
   if (!list.length) return `Aucune réservation de « ${client} » avec un reste à payer${carName ? ` sur ${carName}` : ''}. Vérifie le nom (ou ask_dzaryx).`;
   if (list.length > 1) {
-    return `Plusieurs réservations de « ${client} » pas soldées : ${list.slice(0, 4).map(b => `${b.client_name}, ${carOf(b)} du ${b.start_date} (reste ${eur((b.final_price ?? 0) - (b.paid_amount ?? 0))})`).join(' ; ')}. Laquelle ? (rappelle l'outil avec car_name ou start_date)`;
+    return `Plusieurs réservations de « ${client} » pas soldées : ${list.slice(0, 4).map(b => `${b.client_name}, ${carOf(b)} du ${b.start_date} (reste ${eur(dueOf(b))})`).join(' ; ')}. Laquelle ? (rappelle l'outil avec car_name ou start_date)`;
   }
   const b = list[0]!;
   const cur = b.currency === 'DZD' ? ' DA' : ' €';

@@ -10,7 +10,7 @@
 
 import { supabase } from './supabase.js';
 import { getPricingForVehicle } from '../config/pricing.js';
-import { rentalDays, offeredDays } from './finance.js';
+import { rentalDays, offeredDays, paidOf } from './finance.js';
 
 // ── Calcul financier normalisé — SANS fallback catalogue ─────────────────────
 // Règle stricte :
@@ -462,7 +462,7 @@ export async function getFinancialDashboard(): Promise<string> {
     const fin = resolveFinancials(b);
     return s + ((b.rented_by ?? 'Kouider') === 'Houari' ? 0 : (fin.profit ?? 0));
   }, 0);
-  const curEncaisse = curData.reduce((s, b) => s + (b.paid_amount ?? 0), 0);
+  const curEncaisse = curData.reduce((s, b) => s + paidOf(b as { final_price?: number; paid_amount?: number; payment_status?: string }), 0);
 
   // Calculs mois précédent — prix réels
   const prevCA = prevData.reduce((s: number, b: any) => {
@@ -726,7 +726,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     return s + (resolveFinancials({ ...b, cars: carArr }).gross_ca ?? 0);
   }, 0);
   const evol     = prevCA > 0 ? Math.round(((curCA - prevCA) / prevCA) * 100) : 0;
-  const collected = cur.reduce((s: number, b: any) => s + (b.paid_amount ?? 0), 0);
+  const collected = cur.reduce((s: number, b: any) => s + paidOf(b), 0);
   const outstanding = unpaid.reduce((s: number, b: any) => s + Math.max(0, (b.final_price ?? 0) - (b.paid_amount ?? 0)), 0);
 
   // Profit réel : client_ppd - owner_ppd (null si owner_ppd manquant)

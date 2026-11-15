@@ -316,6 +316,17 @@ router.get('/operations', requireMobileAuth, async (_req, res) => {
   }
 });
 
+// DELETE /api/clients/operations/:id — supprimer une opération enregistrée par erreur (15/11)
+router.delete('/operations/:id', requireMobileAuth, async (req, res) => {
+  try {
+    const { error } = await supabase.from('client_deals').delete().eq('id', req.params['id'] as string);
+    if (error) throw new Error(error.message);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/clients/deals?name=&phone= — opérations immo/vente/demandes du client
 router.get('/deals', requireMobileAuth, async (req, res) => {
   const name  = (req.query['name']  as string | undefined)?.trim();

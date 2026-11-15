@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { supabase } from '../../integrations/supabase.js';
-import { rentalDays } from '../../integrations/finance.js';
+import { rentalDays, paidOf } from '../../integrations/finance.js';
 
 const router = Router();
 
@@ -75,15 +75,15 @@ async function loadContract(token: string): Promise<Contract | null> {
   if (row.booking_id) {
     const { data: bk } = await supabase
       .from('bookings')
-      .select('start_date, end_date, nb_days, final_price, paid_amount, currency, cars(name)')
+      .select('start_date, end_date, nb_days, final_price, paid_amount, payment_status, currency, cars(name)')
       .eq('id', row.booking_id).maybeSingle();
-    const b = bk as { start_date?: string; end_date?: string; nb_days?: number; final_price?: number; paid_amount?: number; currency?: string; cars?: { name?: string } } | null;
+    const b = bk as { start_date?: string; end_date?: string; nb_days?: number; final_price?: number; paid_amount?: number; payment_status?: string; currency?: string; cars?: { name?: string } } | null;
     if (b) {
       carName  = b.cars?.name ?? carName;
       start    = b.start_date ?? start;
       end      = b.end_date ?? end;
       total    = Number(b.final_price ?? total);
-      paid     = Number(b.paid_amount ?? 0);
+      paid     = paidOf(b);
       currency = b.currency ?? currency;
       nbDays   = Number(b.nb_days ?? 0);
     }

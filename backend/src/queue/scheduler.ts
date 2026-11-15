@@ -554,6 +554,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'payments-repair',
+    cron:  '*/15 * * * *',          // 15/11 : « Payé » = payé en entier partout (paid_amount / amount_remaining remis d'aplomb)
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'connections-watch',
     cron:  '*/15 * * * *',          // WhatsApp, PC cloud, Telegram, Gmail, Agenda : coupure → message tout de suite + rappel toutes les 2 h (8h-22h)
     tz:    'Europe/Brussels',
@@ -882,6 +887,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'client-waiting-reply':    async () => { await (await import('../integrations/night-guard.js')).jobClientWaitingReply(); },
   'nego-watch':              async () => { await (await import('../integrations/negotiator.js')).jobNegoWatch(); },
   'predictions':             async () => { await (await import('../integrations/predictions.js')).jobPredictions(); },
+  'payments-repair':         async () => { const r = await (await import('../integrations/finance.js')).repairPayments(); if (r !== 'rien à corriger') console.log(`[payments-repair] ${r}`); },
   'connections-watch':       async () => { console.log(`[connections] ${await jobConnectionsWatch()}`); },
   'forme-reminders':         async () => { console.log(`[forme] ${await jobFormeReminders()}`); },
   'forme-weekly':            async () => { await jobFormeWeekly(); },

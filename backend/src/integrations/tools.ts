@@ -1813,7 +1813,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
       properties: {
         client_name:  { type: 'string', description: 'Nom du client.' },
         client_phone: { type: 'string', description: 'Téléphone (optionnel).' },
-        deal_type:    { type: 'string', description: 'location_voiture | vente_voiture | location_immo | vente_immo | commande_vehicule' },
+        deal_type:    { type: 'string', description: 'vente_voiture | location_immo | vente_immo | commande_vehicule (PAS location_voiture : les locations de voitures sont des réservations)' },
         item_label:   { type: 'string', description: 'Ce qui est concerné (ex: "Clio 5 Alpine", "Appartement Hay Badr").' },
         amount:       { type: 'number', description: 'Montant (optionnel).' },
         notes:        { type: 'string', description: 'Note libre (optionnel).' },

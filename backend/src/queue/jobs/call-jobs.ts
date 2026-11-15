@@ -1,4 +1,5 @@
 import { supabase } from '../../integrations/supabase.js';
+import { dueOf } from '../../integrations/finance.js';
 import { listInboxMessages, isReplyToUs, type GmailAccount } from '../../integrations/gmail.js';
 import { buildYesterdayRecap } from '../../integrations/prospect-autopilot.js';
 import { autoCall } from '../../notifications/auto-call.js';
@@ -97,8 +98,8 @@ export async function jobMailReplyCall(): Promise<void> {
  */
 export async function jobRentalEveCall(): Promise<void> {
   const tomorrow = oranDate(1);
-  type B = { id: string; car_id: string; client_name: string; final_price: number | null; paid_amount: number | null; currency: string | null; cars?: { name?: string } | null };
-  const cols = 'id, car_id, client_name, final_price, paid_amount, currency, cars(name)';
+  type B = { id: string; car_id: string; client_name: string; final_price: number | null; paid_amount: number | null; payment_status?: string | null; currency: string | null; cars?: { name?: string } | null };
+  const cols = 'id, car_id, client_name, final_price, paid_amount, payment_status, currency, cars(name)';
   const [{ data: dep }, { data: ret }] = await Promise.all([
     supabase.from('bookings').select(cols).eq('start_date', tomorrow).in('status', ['PENDING', 'CONFIRMED']),
     supabase.from('bookings').select(cols).eq('end_date', tomorrow).in('status', ['PENDING', 'CONFIRMED', 'ACTIVE']),
@@ -107,7 +108,7 @@ export async function jobRentalEveCall(): Promise<void> {
   if (!departs.length && !returns.length) return;
 
   const leftToPay = (b: B) => {
-    const left = (Number(b.final_price) || 0) - (Number(b.paid_amount) || 0);
+    const left = dueOf(b);   // « Payé » = rien à encaisser, même si le montant est resté sur l'acompte
     return left > 0 ? ` Il reste ${Math.round(left)} ${b.currency === 'DZD' ? 'dinars' : 'euros'} à encaisser.` : '';
   };
   const parts: string[] = [];

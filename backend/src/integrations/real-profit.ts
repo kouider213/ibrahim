@@ -100,3 +100,13 @@ export async function setRealProfit(client: string, amount: string): Promise<str
   await saveCfg({ ...l.cfg, items });
   return `✅ Bénéfice réel de ${r.client} (${r.car}) : ${isEur ? fmtE(n) : `${fmtD(da)} ≈ ${fmtE(da / l.cfg.rate)}`}.\n${await formatLedger()}`;
 }
+
+/** App CA (15/11) : marquer une location (ou toutes celles à récupérer) comme récupérée / pas encore. */
+export async function setCollected(id: string | 'all', collected: boolean): Promise<void> {
+  const l = await profitLedger();
+  const items = { ...l.cfg.items };
+  const targets = id === 'all' ? l.pending.map(r => r.id) : l.rows.filter(r => r.id === id).map(r => r.id);
+  if (!targets.length) throw new Error('location introuvable');
+  for (const t of targets) items[t] = { ...(items[t] ?? {}), collected };
+  await saveCfg({ ...l.cfg, items });
+}

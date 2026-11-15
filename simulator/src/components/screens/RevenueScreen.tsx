@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { business, type RevenueSummary, type FinancialReport } from '../../services/api.ts';
+import { business, type RevenueSummary, type FinancialReport, type ProfitLedger } from '../../services/api.ts';
 import { SkeletonCards } from '../ui/Premium.tsx';
 import { T, tone, Screen, PageHeader, Segmented, Kpi, KpiGrid, Card, Row, Avatar, Badge, Btn, SectionTitle, Empty, money } from '../ui/Kit.tsx';
 
@@ -19,6 +19,7 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
   const [rev, setRev]                   = useState<RevenueSummary | null>(null);
   const [report, setReport]             = useState<FinancialReport | null>(null);
   const [annualReport, setAnnualReport] = useState<FinancialReport | null>(null);
+  const [ledger, setLedger]             = useState<ProfitLedger | null>(null);
   const [loading, setLoad]        = useState(true);
   const [clearing, setClear]      = useState(false);
   const [msg, setMsg]             = useState('');
@@ -30,6 +31,7 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
     setLoad(true);
     setRev(null); setReport(null); setAnnualReport(null);
     try {
+      if (!isHouari) business.fetchLedger().then(setLedger).catch(() => setLedger(null));
       const [revRes, repRes, annRes] = await Promise.allSettled([
         isCurrentMonth ? business.fetchRevenue() : Promise.resolve(null),
         business.fetchFinanceReport(viewYear, viewMonth),
@@ -97,6 +99,12 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
         ]} />
       </div>
     </>}>
+      {!loading && !isHouari && ledger && tab !== 'detail' && (
+        <LedgerCard ledger={ledger} fmt={fmt} onToggle={async (id, c) => {
+          try { await business.setCollected(id, c); setLedger(await business.fetchLedger()); setMsg(c ? '✅ Noté comme récupéré' : 'Remis à récupérer'); setTimeout(() => setMsg(''), 1500); }
+          catch { setMsg('Erreur — réessaie'); }
+        }} />
+      )}
       {loading ? <SkeletonCards count={4} height={110} /> : tab === 'overview' ? (
         <OverviewTab rev={rev} report={report} caMonth={caMonth} profitK={profitK} caHouari={caHouari}
           nbBookings={nbBookings} encaisse={encaisse} aEncaisser={aEncaisser} isCurrentMonth={isCurrentMonth} fmt={fmt} isHouari={isHouari} />
@@ -178,6 +186,56 @@ function Bars({ rows, fmt }: { rows: Array<{ name: string; ca: number; sub: stri
   );
 }
 
+// ─── Mon bénéfice : déjà récupéré / à récupérer (même source que le tableau de bord du site) ───
+
+function LedgerCard({ ledger, fmt, onToggle }: { ledger: ProfitLedger; fmt: Fmt; onToggle: (id: string, collected: boolean) => Promise<void> }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState('');
+  const da = (n: number) => money(Math.round(n * ledger.rate), 'DZD');
+  const pending = ledger.rows.filter(r => !r.collected);
+  const done = ledger.rows.filter(r => r.collected).slice().reverse();
+  const act = async (id: string, c: boolean) => { setBusy(id); try { await onToggle(id, c); } finally { setBusy(''); } };
+  const d = (x: string) => new Date(x).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  const line = (r: ProfitLedger['rows'][number], c: boolean) => (
+    <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderTop: `1px solid ${T.line}` }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.client}</div>
+        <div style={{ fontSize: 12, color: T.muted }}>{r.car} · {d(r.start)} → {d(r.end)}</div>
+      </div>
+      <div style={{ textAlign: 'right' }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: c ? T.muted : T.warn }}>{fmt(r.eur)}</div>
+        <div style={{ fontSize: 11.5, color: T.faint }}>{money(r.da, 'DZD')}</div>
+      </div>
+      <button onClick={() => void act(r.id, !c)} disabled={busy === r.id} style={{ border: `1px solid ${c ? T.line : tone(T.ok, 0.5)}`, background: c ? 'transparent' : tone(T.ok, 0.12), color: c ? T.faint : T.ok, borderRadius: 10, padding: '7px 9px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: T.font, whiteSpace: 'nowrap' }}>
+        {busy === r.id ? '…' : c ? '↺ Annuler' : '✓ Récupéré'}
+      </button>
+    </div>
+  );
+  return (
+    <Card accent={T.ok} style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>💰 Mon bénéfice</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 8 }}>
+        {[{ l: 'Gagné depuis le début', v: ledger.total, c: T.text }, { l: 'Déjà récupéré', v: ledger.collected, c: T.ok }, { l: 'À récupérer', v: ledger.toCollect, c: ledger.toCollect > 0 ? T.warn : T.ok }].map(x => (
+          <div key={x.l}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: x.c, letterSpacing: '-0.02em' }}>{fmt(x.v)}</div>
+            <div style={{ fontSize: 11.5, color: T.faint }}>{da(x.v)}</div>
+            <div style={{ fontSize: 12, color: T.muted, marginTop: 2, lineHeight: 1.25 }}>{x.l}</div>
+          </div>
+        ))}
+      </div>
+      {pending.length > 0 ? <div style={{ marginTop: 12 }}>
+        <div style={{ fontSize: 12.5, color: T.muted, fontWeight: 700, marginBottom: 2 }}>À RÉCUPÉRER</div>
+        {pending.map(r => line(r, false))}
+        {pending.length > 1 && <Btn onClick={() => void act('all', true)} disabled={!!busy} style={{ width: '100%', marginTop: 8 }}>{busy === 'all' ? '…' : `✓ J'ai tout récupéré (${fmt(ledger.toCollect)})`}</Btn>}
+      </div> : <div style={{ marginTop: 12, fontSize: 13.5, color: T.ok }}>✅ Tout est récupéré.</div>}
+      {done.length > 0 && <div style={{ marginTop: 10 }}>
+        <button onClick={() => setOpen(o => !o)} style={{ background: 'none', border: 'none', color: T.accent, fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0, fontFamily: T.font }}>{open ? '▾' : '▸'} Déjà récupéré ({done.length} locations)</button>
+        {open && <div style={{ marginTop: 4 }}>{done.map(r => line(r, true))}</div>}
+      </div>}
+    </Card>
+  );
+}
+
 // ─── Mois ─────────────────────────────────────────────────────────────────────
 
 function OverviewTab({ rev, report, caMonth, profitK, caHouari, nbBookings, encaisse, aEncaisser, isCurrentMonth, fmt, isHouari }: {
@@ -194,7 +252,8 @@ function OverviewTab({ rev, report, caMonth, profitK, caHouari, nbBookings, enca
     if (b.status === 'REJECTED') continue;
     const v = b.car_name || '—';
     if (!byVehicle[v]) byVehicle[v] = { ca: 0, profit: 0, count: 0 };
-    byVehicle[v].ca += b.final_price ?? 0; byVehicle[v].profit += b.kouider_profit ?? 0; byVehicle[v].count += 1;
+    const w = b.share ?? 1;   // même prorata que le total du mois (location à cheval sur 2 mois)
+    byVehicle[v].ca += (b.final_price ?? 0) * w; byVehicle[v].profit += (b.kouider_profit ?? 0) * w; byVehicle[v].count += 1;
   }
   const vehicles = Object.entries(byVehicle).sort((a, b) => b[1].ca - a[1].ca)
     .map(([name, st]) => ({ name, ca: st.ca, sub: `${st.count} résa${st.count > 1 ? 's' : ''}${!isHouari ? ` · ma marge ${fmt(st.profit)}` : ''}` }));
@@ -219,8 +278,8 @@ function OverviewTab({ rev, report, caMonth, profitK, caHouari, nbBookings, enca
 
       {/* Kouider / Houari */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 10, marginBottom: 12 }}>
-        <PartnerCard who="K" value={fmt(profitK)} label="Bénéfice net" sub={report ? `${report.kouiderBookings} résas` : undefined} />
-        <PartnerCard who="H" value={fmt(caHouari)} label="CA véhicules" sub={report ? `${report.houariBookings} résas` : undefined} />
+        <PartnerCard who="K" value={fmt(profitK)} label="Mon bénéfice ce mois" sub={report ? `${report.kouiderBookings} résas` : undefined} />
+        <PartnerCard who="H" value={fmt(caHouari)} label="Sa part (location de ses voitures)" sub={report ? `${report.kouiderBookings} résas` : undefined} />
       </div>
 
       <KpiGrid cols={3}>
@@ -263,7 +322,7 @@ function DetailTab({ report, fmt }: { report: FinancialReport | null; fmt: Fmt }
     <>
       <KpiGrid>
         <Kpi value={fmt(report.grossCA)} label="CA brut" color={T.accent} />
-        <Kpi value={fmt(report.kouiderProfit)} label="Ma marge" color={T.warn} />
+        <Kpi value={fmt(report.kouiderProfit)} label="Ma marge (part du mois)" color={T.warn} />
       </KpiGrid>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {report.bookings.map(b => {
@@ -286,6 +345,9 @@ function DetailTab({ report, fmt }: { report: FinancialReport | null; fmt: Fmt }
                 {b.client_price_per_day != null && <span style={{ fontSize: 12.5, color: T.muted }}>{b.client_price_per_day} €/j</span>}
                 {b.kouider_profit != null && <span style={{ marginLeft: 'auto', fontSize: 13, color: T.ok, fontWeight: 700 }}>marge {fmt(b.kouider_profit)}</span>}
               </div>
+              {b.share != null && b.share < 1 && (
+                <div style={{ fontSize: 12, color: T.faint, marginTop: 8 }}>À cheval sur 2 mois : ce mois-ci compte {fmt((b.final_price ?? 0) * b.share)} de CA et {fmt((b.kouider_profit ?? 0) * b.share)} de marge, le reste est sur l'autre mois.</div>
+              )}
             </Card>
           );
         })}
@@ -320,7 +382,7 @@ function AnnualTab({ report, year, fmt }: { report: FinancialReport | null; year
       </Card>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 10, marginBottom: 12 }}>
         <PartnerCard who="K" value={fmt(report.kouiderProfit)} label="Bénéfice net annuel" sub={`${report.kouiderBookings} résas`} />
-        <PartnerCard who="H" value={fmt(report.ownerTotal)} label="CA véhicules annuel" sub={`${report.houariBookings} résas`} />
+        <PartnerCard who="H" value={fmt(report.ownerTotal)} label="Sa part sur l'année" sub={`${report.kouiderBookings} résas`} />
       </div>
       {report.missingOwnerPrice > 0 && <Alert icon="⚠️" col={T.warn} text={`${report.missingOwnerPrice} réservation${report.missingOwnerPrice > 1 ? 's' : ''} sans prix propriétaire : marge partielle.`} />}
       {vehicles.length > 0 && <>

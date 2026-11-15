@@ -2,6 +2,11 @@
 - Jour de sport : sous le message du réveil, le bot des notifs FIK envoie « ☀️ Ta forme ce matin ? » avec 5 boutons (dz:forme:n) → réveillé + forme notée + séance adaptée, confirmation dans la conversation Dzaryx. Le chiffre écrit marche toujours.
 - fixLanguageSlips (response-guard, via oranize) : « immédiata » → « immédiate », « spams coliques » → « spasmes », et pour Kouider seulement « Vos taux / Votre santé » → « Tes taux / Ta santé » (lignes citées « … » / > laissées : brouillons clients).
 
+## 2026-11-15 — Argent juste partout + écran CA « récupéré / à récupérer » + fiche client (app v262)
+- **« Payé » = payé en entier partout** : paidOf()/dueOf() (finance.ts) ; le site/l'app/Dzaryx passaient PAID sans toucher paid_amount (Belarbi 75/150, Abdelkader 120/720, Fatima 380/420) → faux « reste à encaisser » (CA 715 €), appel de la veille qui aurait annoncé « il reste 75 € », contrat, rapports, export Excel, paiement par la voix. Job `payments-repair` */15 remet paid_amount + amount_remaining d'aplomb (refusées = 0). update_booking / create_booking / PATCH app : PAID sans montant → montant total.
+- Écran CA : carte « 💰 Mon bénéfice » (gagné / déjà récupéré / à récupérer, € + DA, même source que le site) avec ✓ Récupéré par location ; part Houari bien nommée ; par véhicule au prorata du mois. Routes /api/finance/ledger(+/collect).
+- Réservations : fiche complète au clic (client, passeport, e-mail, location, argent, notes, documents, autres locations). Opérations : bouton Supprimer (DELETE /api/clients/operations/:id) ; record_client_deal refuse location_voiture (doublon Djillali « 440 DA »).
+
 ## 15/11/2026 (2) — Vrais boutons sous les choix de Dzaryx
 - Kouider : « ajoute le bouton comme sur les notifs FIK, on clique au lieu de mettre 1 ou 2 ». Les décisions (createDecision, conscience.ts) partent maintenant par le bot des notifs FIK avec un bouton par choix (seuls les bots Telegram ont des boutons). Clic → site /api/telegram-notif (dz:id:n) → Railway POST /api/jarvis/decisions-button (jeton interne) → choix exécuté, résultat dans la conversation Dzaryx. Répondre « 1 » à Dzaryx marche toujours ; si le bot échoue → ancien texte. DECISION_BUTTONS=0 coupe.
 - Liberté : palier gardé à 5 demis jusqu'au médecin (RDV 20/11) à sa demande, prochaine baisse 21/11.

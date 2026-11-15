@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { business, type Booking, type Car, type ClientOperation } from '../../services/api.ts';
+import { business, type Booking, type Car, type ClientOperation, type ClientDetail } from '../../services/api.ts';
 import { SkeletonCards, SearchPill } from '../ui/Premium.tsx';
 import { T, tone, Screen, PageHeader, HeadBtn, Segmented, Kpi, KpiGrid, Card, Row, Avatar, Badge, Btn, btnStyle, ActionBtn, Empty, Sheet, Field, inputStyle as inputStyleKit, waLink, money } from '../ui/Kit.tsx';
 
@@ -12,6 +12,8 @@ function daysInclusive(start: string, end: string): number {
 }
 
 const OP_META: Record<string, { label: string; icon: string; col: string }> = {
+  location_voiture:   { label: 'LOCATION VOITURE', icon: '🚗', col: '#22d3ee' },
+  commande_vehicule:  { label: 'COMMANDE VÉHICULE', icon: '📦', col: '#ff9f43' },
   location_immo:      { label: 'LOCATION IMMO',  icon: '🏠', col: '#b06bff' },
   vente_immo:         { label: 'ACHAT IMMO',     icon: '🏠', col: '#00e676' },
   vente_voiture:      { label: 'ACHAT VOITURE',  icon: '🚗', col: '#ff9f43' },
@@ -282,6 +284,8 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
                   right={<div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: 15, fontWeight: 800 }}>{op.amount != null ? money(Number(op.amount), op.currency || 'EUR') : '—'}</div>
                     {op.client_phone && <a href={`tel:${op.client_phone}`} style={{ fontSize: 13, color: T.accent, textDecoration: 'none', fontWeight: 600 }}>📞 Appeler</a>}
+                    <button onClick={() => void (async () => { if (!confirm(`Supprimer l'opération « ${op.client_name} » ?`)) return; await business.deleteOperation(op.id).catch(() => {}); void load(search || undefined); })()}
+                      style={{ display: 'block', marginLeft: 'auto', marginTop: 4, background: 'none', border: 'none', color: T.bad, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', padding: 0, fontFamily: T.font }}>🗑️ Supprimer</button>
                   </div>} />
               );
             })}</div>
@@ -314,29 +318,8 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
                     <Badge color={payCol}>{payLbl}</Badge>
                   </div>
                 </div>
-                {isExp && (
-                  <div style={{ padding: '0 14px 14px 16px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 8, marginBottom: 12 }}>
-                      {([['Client / j', fmtPrice(b.client_price_per_day, ccy), T.text], ['Proprio / j', fmtPrice(b.owner_price_per_day, ccy), T.muted], ['Ma marge', mg != null ? fmtPrice(mg, ccy) : '—', mg != null ? T.ok : T.faint]] as const).map(([l, v, c]) => (
-                        <div key={l} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${T.line}`, borderRadius: 12, padding: '9px 10px' }}>
-                          <div style={{ fontSize: 11.5, color: T.faint }}>{l}</div>
-                          <div style={{ fontSize: 15, fontWeight: 800, color: c, marginTop: 2 }}>{v}</div>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-                      <Badge color={stCol}>{ST_FR[st] ?? b.status}</Badge>
-                      <Badge color={own === 'H' ? T.violet : T.accent}>{own === 'H' ? 'Loué par Houari' : 'Loué par Kouider'}</Badge>
-                      {(b.paid_amount ?? 0) > 0 && <span style={{ fontSize: 13, color: T.muted }}>Payé : {fmtPrice(b.paid_amount, ccy)}</span>}
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <ActionBtn icon="✏️" label="Modifier" color={T.warn} onClick={() => openEdit(b)} />
-                      {b.client_phone && <ActionBtn icon="📞" label="Appeler" onClick={() => { window.location.href = `tel:${b.client_phone}`; }} />}
-                      {waLink(b.client_phone) && <ActionBtn icon="💬" label="WhatsApp" color="#25D366" onClick={() => window.open(waLink(b.client_phone)!, '_blank')} />}
-                      <ActionBtn icon="🗑️" label="Supprimer" color={T.bad} onClick={() => void handleDelete(b.id)} />
-                    </div>
-                  </div>
-                )}
+                {isExp && <BookingFiche b={b} ccy={ccy} nb={nb} margin={mg} stLabel={ST_FR[st] ?? b.status} stCol={stCol} payLbl={payLbl} payCol={payCol} own={own}
+                  onEdit={() => openEdit(b)} onDelete={() => void handleDelete(b.id)} />}
               </Card>
             );
           })}
@@ -586,5 +569,88 @@ function GpsCalculator() {
         </div>
       )}
     </Card>
+  );
+}
+
+// ─── Fiche complète d'une réservation (15/11 : « quand je clique sur un client il devrait me donner toute sa fiche ») ───
+function BookingFiche({ b, ccy, nb, margin, stLabel, stCol, payLbl, payCol, own, onEdit, onDelete }: {
+  b: Booking; ccy: string; nb: number; margin: number | null; stLabel: string; stCol: string; payLbl: string; payCol: string; own: 'H' | 'K';
+  onEdit: () => void; onDelete: () => void;
+}) {
+  const [detail, setDetail] = useState<ClientDetail | null>(null);
+  useEffect(() => { if (b.client_phone) business.fetchClientDetail(b.client_phone).then(setDetail).catch(() => setDetail(null)); }, [b.client_phone]);
+  const m = (n: number | null | undefined) => n == null ? '—' : money(n, ccy);
+  const total = b.final_price ?? 0;
+  // une résa « Payé » est payée en entier (paid_amount reste parfois figé sur l'acompte)
+  const paid = (b.payment_status ?? '').toUpperCase() === 'PAID' ? Math.max(total, b.paid_amount ?? 0) : (b.paid_amount ?? 0);
+  const reste = Math.max(0, total - paid);
+  const fullD = (d?: string | null) => d ? new Date(d).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+  const notes = (b.notes ?? '').trim();
+  const others = (detail?.bookings ?? []).filter(x => x.id !== b.id);
+  const docs = detail?.documents ?? [];
+  const DOC: Record<string, string> = { passport: '🛂 Passeport', license: '🪪 Permis', contract: '📄 Contrat', other: '📎 Document' };
+  const box: React.CSSProperties = { background: 'rgba(255,255,255,0.03)', border: `1px solid ${T.line}`, borderRadius: 14, padding: '12px 13px', marginBottom: 10 };
+  const h = (t: string) => <div style={{ fontSize: 11.5, color: T.faint, fontWeight: 800, letterSpacing: '0.08em', marginBottom: 8 }}>{t}</div>;
+  const kv = (k: string, v: React.ReactNode, c?: string) => v == null || v === '' || v === '—' ? null : (
+    <div style={{ display: 'flex', gap: 10, padding: '4px 0', fontSize: 14 }}>
+      <span style={{ color: T.muted, flexShrink: 0, minWidth: 108 }}>{k}</span>
+      <span style={{ flex: 1, textAlign: 'right', fontWeight: 700, color: c ?? T.text, wordBreak: 'break-word' }}>{v}</span>
+    </div>
+  );
+  return (
+    <div style={{ padding: '0 14px 14px 16px' }}>
+      <div style={box}>
+        {h('CLIENT')}
+        {kv('Nom', b.client_name)}
+        {kv('Téléphone', b.client_phone ? <a href={`tel:${b.client_phone}`} style={{ color: T.accent, textDecoration: 'none' }}>{b.client_phone}</a> : null)}
+        {kv('E-mail', b.client_email ? <a href={`mailto:${b.client_email}`} style={{ color: T.accent, textDecoration: 'none' }}>{b.client_email}</a> : null)}
+        {kv('Âge', b.client_age ? `${b.client_age} ans` : null)}
+        {kv('Passeport', b.client_passport)}
+        {kv('Expire le', b.passport_expiry ? fullD(b.passport_expiry) : null)}
+        {kv('Langue', b.client_lang ? b.client_lang.toUpperCase() : null)}
+        {detail && detail.bookingCount > 1 && kv('Client fidèle', `${detail.bookingCount} locations · ${money(detail.totalSpent)}${detail.isVip ? ' · VIP' : ''}`, T.warn)}
+      </div>
+      <div style={box}>
+        {h('LOCATION')}
+        {kv('Voiture', b.cars?.name ?? '?')}
+        {kv('Départ', fullD(b.start_date))}
+        {kv('Retour', fullD(b.end_date))}
+        {kv('Durée', `${nb} jour${nb > 1 ? 's' : ''}`)}
+        {kv('Statut', <Badge color={stCol}>{stLabel}</Badge>)}
+        {kv('Loué par', own === 'H' ? 'Houari' : 'Kouider')}
+        {kv('Réservé le', b.created_at ? fullD(b.created_at) : null)}
+      </div>
+      <div style={box}>
+        {h('ARGENT')}
+        {kv('Prix client / jour', m(b.client_price_per_day))}
+        {kv('Total', m(total))}
+        {kv('Paiement', <Badge color={payCol}>{payLbl}</Badge>)}
+        {kv('Déjà payé', m(paid), T.ok)}
+        {kv('Reste à payer', reste > 0 ? m(reste) : 'Rien, tout est payé', reste > 0 ? T.bad : T.ok)}
+        {kv('Prix proprio / jour', m(b.owner_price_per_day))}
+        {kv('Ma marge', margin != null ? m(margin) : null, T.ok)}
+      </div>
+      {notes && <div style={box}>
+        {h('INFOS / NOTES')}
+        <div style={{ fontSize: 13.5, color: T.text, whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{notes}</div>
+      </div>}
+      {docs.length > 0 && <div style={box}>
+        {h('DOCUMENTS')}
+        {docs.map(d => <a key={d.id} href={d.file_url} target="_blank" rel="noreferrer" style={{ display: 'block', padding: '5px 0', color: T.accent, fontSize: 14, fontWeight: 600, textDecoration: 'none' }}>{DOC[d.type] ?? '📎 Document'}{d.notes ? ` · ${d.notes}` : ''}</a>)}
+      </div>}
+      {others.length > 0 && <div style={box}>
+        {h('SES AUTRES LOCATIONS')}
+        {others.slice(0, 6).map(x => <div key={x.id} style={{ display: 'flex', fontSize: 13.5, padding: '4px 0', gap: 8 }}>
+          <span style={{ flex: 1, color: T.muted }}>{x.car_name ?? '?'} · {x.start_date ? new Date(x.start_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: '2-digit' }) : ''}</span>
+          <span style={{ fontWeight: 700 }}>{x.final_price != null ? money(x.final_price) : '—'}</span>
+        </div>)}
+      </div>}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <ActionBtn icon="✏️" label="Modifier" color={T.warn} onClick={onEdit} />
+        {b.client_phone && <ActionBtn icon="📞" label="Appeler" onClick={() => { window.location.href = `tel:${b.client_phone}`; }} />}
+        {waLink(b.client_phone) && <ActionBtn icon="💬" label="WhatsApp" color="#25D366" onClick={() => window.open(waLink(b.client_phone)!, '_blank')} />}
+        <ActionBtn icon="🗑️" label="Supprimer" color={T.bad} onClick={onDelete} />
+      </div>
+    </div>
   );
 }

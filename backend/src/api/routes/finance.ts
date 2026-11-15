@@ -24,6 +24,26 @@ router.get('/report', requireMobileAuth, async (req, res) => {
   }
 });
 
+// GET /api/finance/ledger — mon bénéfice : gagné / déjà récupéré / à récupérer (même source que le site)
+router.get('/ledger', requireMobileAuth, async (_req, res) => {
+  try {
+    const { profitLedger } = await import('../../integrations/real-profit.js');
+    const l = await profitLedger();
+    res.json({ rate: l.cfg.rate, total: l.total, collected: l.collected, toCollect: l.toCollect, rows: l.rows });
+  } catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : String(err) }); }
+});
+
+// POST /api/finance/ledger/collect { id: string | 'all', collected: boolean }
+router.post('/ledger/collect', requireMobileAuth, async (req, res) => {
+  const { id, collected } = (req.body ?? {}) as { id?: string; collected?: boolean };
+  if (!id) { res.status(400).json({ error: 'id requis' }); return; }
+  try {
+    const { setCollected } = await import('../../integrations/real-profit.js');
+    await setCollected(id, collected !== false);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : String(err) }); }
+});
+
 // GET /api/finance/pricing — grille tarifaire
 router.get('/pricing', requireMobileAuth, (_req, res) => {
   res.json({ pricing: VEHICLE_PRICING });

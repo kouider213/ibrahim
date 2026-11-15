@@ -59,7 +59,7 @@ export default function CarSheet({ m, car, money, monthLabel, onClose, onChanged
 
   const repair = !!car?.maintenance_note && !car.available;
   const stateLabel = b ? STATUS[m.status].label : car?.available === false ? (repair ? 'En réparation / atelier' : 'Indisponible') : 'Disponible';
-  const paid = Number(b?.paid_amount ?? (b?.payment_status === 'PAID' ? b?.final_price : 0)) || 0;
+  const paid = b?.payment_status === 'PAID' ? Math.max(Number(b?.final_price) || 0, Number(b?.paid_amount) || 0) : Number(b?.paid_amount) || 0;   // « Payé » = payé en entier
   const cur = (b as (Booking & { currency?: string }) | null)?.currency === 'DZD' ? 'DA' : '€';
   const wa = (phone: string | null) => { const p = (phone || '').replace(/\D/g, ''); if (p) window.open(`https://wa.me/${p}`, '_blank'); };
 

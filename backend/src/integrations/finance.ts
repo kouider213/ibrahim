@@ -23,6 +23,7 @@ export interface FinancialBooking {
   price_source:          'explicit' | 'computed' | 'missing';
   data_complete:         boolean;
   currency:              string;             // 'EUR' (défaut) | 'DZD' (locations Houari en dinars)
+  share?:                number;             // part de la location qui tombe dans la période (1 = entière)
 }
 
 export interface FinancialReport {
@@ -78,6 +79,36 @@ export function rentalDays(startDate: string, endDate: string, nbDays?: number |
   if (!Number.isFinite(diff)) return 1;
   void startTime; void endTime; // heures gardées dans la signature : le jour du retour n'est plus jamais facturé
   return Math.max(1, diff);
+}
+
+/** Argent réellement reçu / encore dû (15/11) : une résa « PAID » est payée EN ENTIER, même si paid_amount est resté
+ *  sur l'acompte (le site / l'app passent le statut à PAID sans toucher au montant : Belarbi 75/150, Abdelkader 120/720).
+ *  À utiliser partout au lieu de final_price − paid_amount. */
+export function paidOf(b: { final_price?: number | null; paid_amount?: number | null; payment_status?: string | null }): number {
+  const fp = Number(b.final_price) || 0, pa = Number(b.paid_amount) || 0;
+  return String(b.payment_status ?? '').toUpperCase() === 'PAID' ? Math.max(fp, pa) : pa;
+}
+export function dueOf(b: { final_price?: number | null; paid_amount?: number | null; payment_status?: string | null }): number {
+  return Math.max(0, (Number(b.final_price) || 0) - paidOf(b));
+}
+
+/** Réparation auto (toutes les 15 min) : PAID → paid_amount = prix total + amount_remaining = 0 ; sinon amount_remaining
+ *  = prix − payé. Corrige ce que le site, l'app ou Dzaryx écrivent, pour que TOUS les écrans/rappels lisent le même chiffre. */
+export async function repairPayments(): Promise<string> {
+  const { data, error } = await supabase.from('bookings').select('id, client_name, status, final_price, paid_amount, amount_remaining, payment_status').not('final_price', 'is', null);
+  if (error) return `erreur ${error.message}`;
+  const fixed: string[] = [];
+  for (const b of (data ?? []) as Array<{ id: string; client_name: string; status: string | null; final_price: number | null; paid_amount: number | null; amount_remaining: number | null; payment_status: string | null }>) {
+    const dead = /^(REJECTED|CANCELLED)$/i.test(b.status ?? '');   // demande refusée/annulée : personne ne doit rien
+    const paid = paidOf(b), due = dead ? 0 : dueOf(b);
+    const patch: Record<string, number> = {};
+    if ((Number(b.paid_amount) || 0) !== paid) patch['paid_amount'] = paid;
+    if (b.amount_remaining == null || Number(b.amount_remaining) !== due) patch['amount_remaining'] = due;
+    if (!Object.keys(patch).length) continue;
+    const { error: e } = await supabase.from('bookings').update(patch).eq('id', b.id);
+    if (!e) fixed.push(`${b.client_name} ${JSON.stringify(patch)}`);
+  }
+  return fixed.length ? `${fixed.length} corrigée(s) : ${fixed.join(' ; ')}` : 'rien à corriger';
 }
 
 /** Jours OFFERTS au client (note « 🎁 N jour(s) offert(s) » posée par update_booking free_days) :
@@ -239,7 +270,9 @@ export async function getFinancialReport(year: number, month?: number): Promise<
       rented_by:            b.rented_by ?? 'Kouider',
       status:               b.status,
       payment_status:       b.payment_status ?? 'PENDING',
-      paid_amount:          calc.paid_amount,
+      // 15/11 : paid_amount reste figé sur l'acompte quand la résa passe « Payé » (Belarbi 75/150, Abdelkader 120/720 PAID)
+      // → une résa PAID est encaissée en entier, sinon « reste à encaisser » invente des dettes.
+      paid_amount:          (b.payment_status ?? '').toUpperCase() === 'PAID' ? Math.max(calc.paid_amount, calc.final_price ?? 0) : calc.paid_amount,
       kouider_profit:       manualById.get(b.id) ?? calc.kouider_profit,
       discount_applied:     calc.discount_applied,
       price_source:         calc.price_source,
@@ -258,6 +291,7 @@ export async function getFinancialReport(year: number, month?: number): Promise<
   // Même règle partout : les TOTAUX de la période sont au prorata des jours ; la liste des réservations garde les montants entiers.
   const sh = new Map(result.map(b => [b.id, shareIn(b.start_date, b.end_date, startDate, endDate)]));
   const w = (b: FinancialBooking) => sh.get(b.id) ?? 1;
+  for (const b of result) b.share = Math.round(w(b) * 1000) / 1000;
   const r2 = (x: number) => Math.round(x * 100) / 100;
   const kouiderBookings   = eur.filter(b => b.rented_by !== 'Houari').length;
   const houariBookings    = eur.filter(b => b.rented_by === 'Houari').length;

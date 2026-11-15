@@ -405,7 +405,7 @@ export default function ClientsScreen() {
                       const stCol = bk.status === 'CONFIRMED' || bk.status === 'COMPLETED' ? C.accent
                         : bk.status === 'PENDING' ? C.gold
                         : bk.status === 'REJECTED' || bk.status === 'CANCELLED' ? '#ef4444' : C.muted;
-                      const reste = (bk.final_price ?? 0) - (bk.paid_amount ?? 0);
+                      const reste = (bk.payment_status ?? '').toUpperCase() === 'PAID' ? 0 : (bk.final_price ?? 0) - (bk.paid_amount ?? 0);   // « Payé » = payé en entier
                       const marge = bk.client_price_per_day != null && bk.owner_price_per_day != null && bk.nb_days
                         ? Math.round((bk.client_price_per_day - bk.owner_price_per_day) * bk.nb_days) : null;
                       return (

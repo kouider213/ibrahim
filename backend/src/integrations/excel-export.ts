@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { paidOf } from './finance.js';
 import { supabase } from './supabase.js';
 
 interface BookingRow {
@@ -50,7 +51,7 @@ export async function exportBookingsToExcel(year?: number, month?: number): Prom
     const end   = new Date(b.end_date);
     const days  = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000)); // tranches de 24 h, comme rentalDays
     const total = b.final_price ?? 0;
-    const paid  = b.paid_amount ?? 0;
+    const paid  = paidOf(b);
     const reste = total - paid;
     const cpd   = b.client_price_per_day;
     const opd   = b.owner_price_per_day;

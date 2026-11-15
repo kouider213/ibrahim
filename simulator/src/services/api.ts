@@ -761,6 +761,9 @@ export interface Booking {
   rented_by?: string | null;
   car_id?: string | null;
   cars?: { name: string } | null;
+  currency?: string | null; notes?: string | null;
+  client_email?: string | null; client_age?: number | null; client_lang?: string | null;
+  client_passport?: string | null; passport_expiry?: string | null; created_at?: string | null;
 }
 
 export interface Car {
@@ -861,6 +864,12 @@ export interface FinancialBooking {
   rented_by: string; status: string; payment_status: string;
   paid_amount: number; kouider_profit: number | null;
   discount_applied: number; price_source: string; data_complete: boolean;
+  share?: number;
+}
+
+export interface ProfitLedger {
+  rate: number; total: number; collected: number; toCollect: number;
+  rows: Array<{ id: string; client: string; car: string; start: string; end: string; eur: number; da: number; manual: boolean; collected: boolean }>;
 }
 
 export interface FinancialReport {
@@ -1248,6 +1257,8 @@ export const business = {
 
   fetchOperations: () =>
     apiFetch<{ operations: ClientOperation[] }>('/api/clients/operations'),
+  deleteOperation: (id: string) =>
+    apiFetch<{ ok: boolean }>(`/api/clients/operations/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   // Leads / demandes clients
   fetchLeads: (status?: string) =>
@@ -1353,6 +1364,12 @@ export const business = {
 
   fetchFinanceReport: (year: number, month?: number) =>
     apiFetch<FinancialReport>(`/api/finance/report?year=${year}${month != null ? `&month=${month}` : ''}`),
+
+  fetchLedger: () =>
+    apiFetch<ProfitLedger>('/api/finance/ledger'),
+
+  setCollected: (id: string, collected: boolean) =>
+    apiFetch<{ ok: boolean }>('/api/finance/ledger/collect', { method: 'POST', body: JSON.stringify({ id, collected }) }),
 
   clearCache: () =>
     apiFetch<{ deleted: number }>('/api/bi/cache/clear', { method: 'POST' }),
