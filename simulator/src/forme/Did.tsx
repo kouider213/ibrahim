@@ -58,7 +58,7 @@ function DidSheet({ open, onClose, toast, onDone }: { open: boolean; onClose: ()
   return (
     <Sheet open={open} onClose={close} z={60} title={<div style={{ fontSize: 20, fontWeight: 700, paddingTop: 6 }}>Ce que j'ai vraiment fait</div>}>
       {done ? <div style={{ padding: '6px 2px 20px' }}>
-        <div style={{ ...card, background: '#e9f8ef', whiteSpace: 'pre-line', fontSize: 14.5, lineHeight: 1.45 }}>{done}</div>
+        <div style={{ ...card, background: 'color-mix(in srgb, #1f9d5c 14%, var(--f-card))', whiteSpace: 'pre-line', fontSize: 14.5, lineHeight: 1.45 }}>{done}</div>
         <button onClick={close} style={{ ...btn, width: '100%', marginTop: 12 }}>OK</button>
       </div> : <>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>

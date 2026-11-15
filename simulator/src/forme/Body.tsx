@@ -61,7 +61,7 @@ export function Compare({ photo, before, a, onReanalyze, onRetake, photos, onPic
         </div>
       </div>}
       {before && <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-        {(['side', 'slide'] as const).map(m => <button key={m} onClick={() => setMode(m)} style={{ ...ghostBtn, flex: 1, padding: '8px', background: mode === m ? F.dark : '#fff', color: mode === m ? '#fff' : F.ink }}>{m === 'side' ? 'Côte à côte' : 'Glisser avant / après'}</button>)}
+        {(['side', 'slide'] as const).map(m => <button key={m} onClick={() => setMode(m)} style={{ ...ghostBtn, flex: 1, padding: '8px', background: mode === m ? F.dark : 'var(--f-card)', color: mode === m ? '#fff' : F.ink }}>{m === 'side' ? 'Côte à côte' : 'Glisser avant / après'}</button>)}
       </div>}
       {!before || mode === 'side' ? (
         <div style={{ display: 'flex', gap: 8 }}>
@@ -76,8 +76,8 @@ export function Compare({ photo, before, a, onReanalyze, onRetake, photos, onPic
           <div style={{ position: 'absolute', inset: 0, clipPath: `inset(0 ${100 - pos}% 0 0)` }}>
             <img src={before.url ?? ''} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           </div>
-          <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${pos}%`, width: 3, background: '#fff', transform: 'translateX(-50%)', boxShadow: '0 0 8px rgba(0,0,0,0.4)' }}>
-            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 36, height: 36, borderRadius: 18, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>⇆</div>
+          <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${pos}%`, width: 3, background: 'var(--f-card)', transform: 'translateX(-50%)', boxShadow: '0 0 8px rgba(0,0,0,0.4)' }}>
+            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 36, height: 36, borderRadius: 18, background: 'var(--f-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>⇆</div>
           </div>
           <div style={{ position: 'absolute', left: 8, top: 8, background: 'rgba(0,0,0,0.6)', color: '#fff', borderRadius: 999, padding: '4px 10px', fontSize: 11.5, fontWeight: 900 }}>AVANT</div>
           <div style={{ position: 'absolute', right: 8, top: 8, background: F.accent, color: '#fff', borderRadius: 999, padding: '4px 10px', fontSize: 11.5, fontWeight: 900 }}>MAINTENANT</div>
@@ -227,7 +227,7 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
         {o.profile.targetKg ? <Stat v={`${Math.max(0, cur - o.profile.targetKg).toFixed(1)}`} l={`kg avant ${o.profile.targetKg}`} color={F.accent} /> : <Stat v="—" l="objectif à régler (profil)" />}
       </div>
       {o.eta && <div style={{ ...card, marginTop: 10, display: 'flex', gap: 12, alignItems: 'center' }}><span style={{ fontSize: 30 }}>🎯</span><div><b>{o.profile.targetKg} kg vers le {o.eta.slice(8)}/{o.eta.slice(5, 7)}/{o.eta.slice(0, 4)}</b><div style={{ fontSize: 13, color: F.muted }}>à ton rythme actuel ({o.weightRate} kg/semaine) — continue comme ça</div></div></div>}
-      {o.tooFast && <div style={{ ...card, marginTop: 10, background: '#fff4e5', fontSize: 13.5, lineHeight: 1.4 }}>⚠️ Tu perds {o.weightRate} kg/semaine : un peu vite. Pour garder ton muscle : atteins tes {o.targets.p} g de protéines chaque jour et ne saute pas la muscu. {o.uid !== 'ami' ? 'Parles-en à ton médecin au prochain contrôle.' : ''}</div>}
+      {o.tooFast && <div style={{ ...card, marginTop: 10, background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))', fontSize: 13.5, lineHeight: 1.4 }}>⚠️ Tu perds {o.weightRate} kg/semaine : un peu vite. Pour garder ton muscle : atteins tes {o.targets.p} g de protéines chaque jour et ne saute pas la muscu. {o.uid !== 'ami' ? 'Parles-en à ton médecin au prochain contrôle.' : ''}</div>}
       <div style={{ ...card, marginTop: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div style={{ fontWeight: 800 }}>⚖️ Courbe de poids</div>{o.weightRate != null && <div style={{ fontSize: 12.5, color: F.muted, fontWeight: 700 }}>{o.weightRate > 0 ? '−' : '+'}{Math.abs(o.weightRate)} kg/sem.</div>}</div>
         <LineChart points={o.weights.slice(-30).map(w => ({ x: w.date, y: w.kg }))} goal={o.profile.targetKg} digits={1} forecast={o.eta ? { x: o.eta, y: o.profile.targetKg } : null} />

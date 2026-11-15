@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#fbf1ec" />
+  <meta name="theme-color" content="#f2f2f5" />
+  <script>try{var m=localStorage.getItem("dz:theme");if(m==="dark"||(m==="auto"&&matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.dataset.theme="dark"}catch(e){}</script>
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -16,11 +17,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
   <title>Forme</title>
   <style>
-    html, body { margin: 0; background: #fbf1ec; color: #1d1a19; font-family: "Inter Tight", -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+    :root { --f-bg:#f2f2f5; --f-bg2:#e9e9ee; --f-card:#ffffff; --f-tile:#ececf1; --f-ink:#0c0e1a; --f-muted:#6b6f80; --f-line:rgba(12,14,26,0.08); --f-soft:#e6ecff; --f-dark:#0c0e1a; --f-dark2:#262a40; --f-ink-rgb:12,14,26; --f-shadow-rgb:12,14,26; --f-blend: multiply; color-scheme: light; }
+    :root[data-theme="dark"] { --f-bg:#000000; --f-bg2:#0d0d11; --f-card:#141418; --f-tile:#1d1d23; --f-ink:#f3f4f8; --f-muted:#9a9eb0; --f-line:rgba(236,238,246,0.09); --f-soft:rgba(47,91,255,0.18); --f-dark:#1b1c24; --f-dark2:#2a2c3a; --f-ink-rgb:236,238,246; --f-shadow-rgb:0,0,0; --f-blend: normal; color-scheme: dark; }
+    html, body { margin: 0; background: var(--f-bg); color: var(--f-ink); font-family: "Inter Tight", -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; transition: background .3s; }
     * { -webkit-font-smoothing: antialiased; }
     ::-webkit-scrollbar { display: none; }
     button:disabled { opacity: .6; }
-    input::placeholder { color: #b3a6a1; }
+    input::placeholder { color: var(--f-muted); opacity: .7; }
   </style>
 </head>
 <body>

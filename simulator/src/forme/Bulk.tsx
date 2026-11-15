@@ -75,7 +75,7 @@ export function BulkQuiz({ open, onClose, o, onO, toast }: { open: boolean; onCl
       { id: 'normal', e: '🍽️', l: 'Normal' }, { id: 'gros', e: '🍔', l: 'Gros mangeur', sub: 'Manger beaucoup, pas de problème' }]} /> },
     { q: 'Ta semaine', sub: 'Pour ne pas sous-estimer ce que tu dépenses.', body: (
       <div style={{ display: 'grid', gap: 12 }}>
-        <div><div style={{ fontWeight: 700, marginBottom: 8 }}>Séances de muscu par semaine</div><div style={{ display: 'flex', gap: 6 }}>{[2, 3, 4, 5, 6].map(x => <button key={x} onClick={() => setSpw(x)} style={{ ...ghostBtn, flex: 1, padding: '10px 0', background: spw === x ? F.accent : '#fff', color: spw === x ? '#fff' : F.ink }}>{x}</button>)}</div></div>
+        <div><div style={{ fontWeight: 700, marginBottom: 8 }}>Séances de muscu par semaine</div><div style={{ display: 'flex', gap: 6 }}>{[2, 3, 4, 5, 6].map(x => <button key={x} onClick={() => setSpw(x)} style={{ ...ghostBtn, flex: 1, padding: '10px 0', background: spw === x ? F.accent : 'var(--f-card)', color: spw === x ? '#fff' : F.ink }}>{x}</button>)}</div></div>
         <div><div style={{ fontWeight: 700, marginBottom: 8 }}>Ton travail</div><Choice v={b.job} set={x => set({ job: x })} opts={[{ id: 'assis', e: '💺', l: 'Assis (bureau, voiture)' }, { id: 'debout', e: '🧍', l: 'Debout (magasin, service)' }, { id: 'physique', e: '🧱', l: 'Physique (chantier, port de charges)' }]} /></div>
         <div><div style={{ fontWeight: 700, marginBottom: 8 }}>Autre sport ? <span style={{ color: F.muted, fontWeight: 500 }}>(facultatif)</span></div><input value={b.sports} onChange={e => set({ sports: e.target.value })} placeholder="ex. foot 2×/semaine, footing" style={input} /></div>
       </div>) },

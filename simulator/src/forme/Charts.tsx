@@ -60,7 +60,7 @@ export function DayBars({ title, points, unit, goal, color = F.accent, color2 = 
   const s = sel != null ? points[sel] : null;
   const dense = n > 10;
   return (
-    <div style={{ background: '#fff', borderRadius: 18, padding: '14px 12px 10px', marginTop: 10, boxShadow: '0 1px 2px rgba(40,30,70,0.05), 0 6px 18px rgba(40,30,70,0.05)' }}>
+    <div style={{ background: 'var(--f-card)', borderRadius: 18, padding: '14px 12px 10px', marginTop: 10, boxShadow: '0 1px 2px rgba(var(--f-shadow-rgb),0.05), 0 6px 18px rgba(var(--f-shadow-rgb),0.05)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, padding: '0 4px' }}>
         <div style={{ fontWeight: 700, fontSize: 14.5 }}>{title}</div>
         <div style={{ fontSize: 12.5, fontWeight: 700, color: s ? F.ink : F.muted, textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -102,7 +102,7 @@ export function ScoreStrip({ days }: { days: Array<{ date: string; score?: numbe
   const best = have.reduce((a, b) => (b.score! > a.score! ? b : a));
   const dense = days.length > 10;
   return (
-    <div style={{ background: '#fff', borderRadius: 18, padding: 14, marginTop: 10, boxShadow: '0 1px 2px rgba(40,30,70,0.05), 0 6px 18px rgba(40,30,70,0.05)' }}>
+    <div style={{ background: 'var(--f-card)', borderRadius: 18, padding: 14, marginTop: 10, boxShadow: '0 1px 2px rgba(var(--f-shadow-rgb),0.05), 0 6px 18px rgba(var(--f-shadow-rgb),0.05)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <div style={{ fontWeight: 700, fontSize: 14.5 }}>Ta note jour par jour</div>
         <div style={{ fontSize: 12.5, color: F.muted, fontWeight: 700 }}>meilleur : {dm(best.date)} ({best.score})</div>

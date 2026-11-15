@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch, getDeviceToken, setDeviceToken, loginDevice } from '../services/api.ts';
 import { forme, errText, type Overview, type Profile, DAYS, vibrate, formeToken, FORME_TOKEN } from './api.ts';
 import { applyLang, setTranslator } from './i18n.ts';
+import { getThemeMode, setThemeMode, type ThemeMode } from '../services/theme.ts';
 setTranslator(async texts => (await forme.translate(texts)).map);
 import { F, Title, card, btn, ghostBtn, input, Sheet, Spinner, Toast, Chip } from './ui.tsx';
 import SportScreen, { ProgramSport } from './Sport.tsx';
@@ -37,7 +38,7 @@ function keepInvite(t: string, lang: 'ar' | 'fr' = 'ar', who = 'femme') {
   const q = new URLSearchParams(location.search);
   if (q.get('invite') !== t || q.get('l') !== lang) history.replaceState(null, '', start);
   const abs = (u: string) => `${location.origin}${u}`;
-  const m = { id: `/ibrahim/forme/?${who}`, name: 'Forme', short_name: 'Forme', start_url: start, scope: abs('/ibrahim/forme/'), display: 'standalone', orientation: 'portrait', background_color: '#fbf1ec', theme_color: '#fbf1ec', lang, dir: lang === 'ar' ? 'rtl' : 'ltr',
+  const m = { id: `/ibrahim/forme/?${who}`, name: 'Forme', short_name: 'Forme', start_url: start, scope: abs('/ibrahim/forme/'), display: 'standalone', orientation: 'portrait', background_color: '#f2f2f5', theme_color: '#f2f2f5', lang, dir: lang === 'ar' ? 'rtl' : 'ltr',
     icons: [{ src: abs('/ibrahim/icons/forme-192.png'), sizes: '192x192', type: 'image/png' }, { src: abs('/ibrahim/icons/forme-512.png'), sizes: '512x512', type: 'image/png' }] };
   const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
   if (link) link.href = `data:application/manifest+json,${encodeURIComponent(JSON.stringify(m))}`;
@@ -118,6 +119,7 @@ function Invite({ o, toast, who = 'femme' }: { o: Overview; toast: (t: string) =
 function Settings({ o, open, onClose, onO, toast }: { o: Overview; open: boolean; onClose: () => void; onO: (o: Overview) => void; toast: (t: string) => void }) {
   const [p, setP] = useState<Profile>(o.profile);
   const [quiz, setQuiz] = useState(false);
+  const [theme, setTheme] = useState<ThemeMode>(getThemeMode());
   useEffect(() => { if (open) setP(o.profile); }, [open, o.profile]);
   const save = async (patch: Partial<Profile>) => {
     const next = { ...p, ...patch }; setP(next);
@@ -126,7 +128,7 @@ function Settings({ o, open, onClose, onO, toast }: { o: Overview; open: boolean
   const Toggle = ({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${F.line}` }}>
       <span style={{ fontWeight: 600, fontSize: 14.5 }}>{label}</span>
-      <button onClick={() => onChange(!on)} style={{ width: 50, height: 30, borderRadius: 15, border: 'none', background: on ? F.green : F.bg2, position: 'relative', cursor: 'pointer' }}><span style={{ position: 'absolute', top: 3, left: on ? 23 : 3, width: 24, height: 24, borderRadius: 12, background: '#fff', transition: 'left .2s', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }} /></button>
+      <button onClick={() => onChange(!on)} style={{ width: 50, height: 30, borderRadius: 15, border: 'none', background: on ? F.green : F.bg2, position: 'relative', cursor: 'pointer' }}><span style={{ position: 'absolute', top: 3, left: on ? 23 : 3, width: 24, height: 24, borderRadius: 12, background: 'var(--f-card)', transition: 'left .2s', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }} /></button>
     </div>
   );
   const num = (label: string, k: 'weightKg' | 'targetKg' | 'age' | 'heightCm' | 'photoEveryDays' | 'sessionsPerWeek') => (
@@ -140,6 +142,8 @@ function Settings({ o, open, onClose, onO, toast }: { o: Overview; open: boolean
         {num('Poids actuel (kg)', 'weightKg')}{num('Poids visé (kg)', 'targetKg')}{num('Âge', 'age')}{num('Taille (cm)', 'heightCm')}
         {num('Séances / semaine', 'sessionsPerWeek')}{num('Photo tous les … jours', 'photoEveryDays')}
       </div>
+      <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}>🌗 Apparence</div>
+      <div style={{ display: 'flex', gap: 6 }}>{([['light', '☀️ Clair'], ['dark', '🌙 Sombre'], ['auto', '📱 Auto']] as const).map(([m, l]) => <Chip key={m} on={theme === m} onClick={() => { setTheme(m); setThemeMode(m); }}>{l}</Chip>)}</div>
       <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}>🌐 Langue · اللغة</div>
       <div style={{ display: 'flex', gap: 6 }}><Chip on={p.lang === 'ar'} onClick={() => void save({ lang: 'ar' })}>العربية</Chip><Chip on={p.lang === 'fr'} onClick={() => void save({ lang: 'fr' })}>Français</Chip></div>
       {o.uid === 'femme' && <div style={{ ...card, padding: '4px 14px', marginTop: 12 }}><Toggle on={p.shareWithDzaryx} onChange={v => void save({ shareWithDzaryx: v })} label="Partager mon suivi avec Dzaryx (l'assistant de Kouider)" /><div style={{ fontSize: 12.5, color: F.muted, padding: '6px 0 10px' }}>Désactivé : ton suivi, tes photos et ton traitement restent rien qu'à toi.</div></div>}
@@ -277,11 +281,11 @@ function FormeApp() {
   if (!o.profile.onboarded) return <Setup initial={o.profile} onDone={() => { void load(); setTab('sport'); }} />;
 
   return (
-    <div style={{ minHeight: '100dvh', background: `linear-gradient(180deg, #f8f2fb 0px, ${F.bg} 320px)`, paddingBottom: 'calc(96px + env(safe-area-inset-bottom))', fontFamily: F.sans, color: F.ink }}>
-      <header style={{ position: 'sticky', top: 0, zIndex: 20, display: 'flex', alignItems: 'center', gap: 10, padding: 'calc(8px + env(safe-area-inset-top)) 14px 8px', background: 'rgba(248,244,251,0.86)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)' }}>
+    <div style={{ minHeight: '100dvh', background: `linear-gradient(180deg, var(--f-bg2) 0px, ${F.bg} 320px)`, paddingBottom: 'calc(96px + env(safe-area-inset-bottom))', fontFamily: F.sans, color: F.ink }}>
+      <header style={{ position: 'sticky', top: 0, zIndex: 20, display: 'flex', alignItems: 'center', gap: 10, padding: 'calc(8px + env(safe-area-inset-top)) 14px 8px', background: 'color-mix(in srgb, var(--f-bg) 86%, transparent)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)' }}>
         {embedded && <button onClick={() => window.parent.postMessage({ type: 'forme:exit' }, '*')} aria-label="Retour à Dzaryx" style={{ width: 34, height: 34, border: 'none', background: 'none', fontSize: 22, cursor: 'pointer', color: F.ink, padding: 0 }}>✕</button>}
         <div style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-0.01em', flex: 1 }}>Forme</div>
-        <button data-tour="profile" onClick={() => setSettings(true)} aria-label="Profil" style={{ width: 34, height: 34, borderRadius: 17, border: 'none', background: F.ink, color: '#fff', fontWeight: 700, cursor: 'pointer' }}>{(o.profile.name || 'K').slice(0, 1).toUpperCase()}</button>
+        <button data-tour="profile" onClick={() => setSettings(true)} aria-label="Profil" style={{ width: 34, height: 34, borderRadius: 17, border: 'none', background: F.dark, color: '#fff', fontWeight: 700, cursor: 'pointer' }}>{(o.profile.name || 'K').slice(0, 1).toUpperCase()}</button>
       </header>
       {!embedded && notifState !== 'granted' && (notifState !== 'dismissed' || standalone) && (
         <div style={{ margin: '6px 14px 0', ...card, display: 'flex', gap: 12, alignItems: 'center', background: F.dark, color: '#fff' }}>
@@ -302,7 +306,7 @@ function FormeApp() {
           {tab === 'body' && <BodyScreen o={o} onO={setO} toast={toast} />}
         </motion.main>
       </AnimatePresence>
-      <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30, background: 'rgba(250,248,253,0.94)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', borderTop: `1px solid ${F.line}`, padding: '6px 6px calc(6px + env(safe-area-inset-bottom))', display: 'flex' }}>
+      <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30, background: 'color-mix(in srgb, var(--f-bg) 94%, transparent)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', borderTop: `1px solid ${F.line}`, padding: '6px 6px calc(6px + env(safe-area-inset-bottom))', display: 'flex' }}>
         {TABS.filter(t => o.uid === 'kouider' ? t.id !== 'run' : t.id !== 'cut').map(t => (
           <button key={t.id} data-tour={`nav-${t.id}`} onClick={() => { vibrate(8); setTab(t.id); }} style={{ flex: 1, border: 'none', background: 'none', color: tab === t.id ? F.accent : '#8e899b', padding: '4px 0', cursor: 'pointer', fontFamily: F.sans, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
             {t.icon(tab === t.id)}

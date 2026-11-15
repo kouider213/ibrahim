@@ -50,8 +50,8 @@ export function MuscleMap({ p, s, h = 230 }: { p: string[]; s: string[]; h?: num
     <div>
       <div style={{ display: 'flex', justifyContent: 'center', gap: 24, direction: 'ltr' }}><Figure side="f" p={p} s={s} h={h} /><Figure side="b" p={p} s={s} h={h} /></div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center', marginTop: 12 }}>
-        {p.map(m => <span key={m} style={{ background: '#fde2df', color: F.red, borderRadius: 999, padding: '5px 11px', fontSize: 12.5, fontWeight: 700 }}>● {MUSCLE_FR[m] ?? m}</span>)}
-        {s.map(m => <span key={m} style={{ background: '#fdf0dc', color: '#b8720c', borderRadius: 999, padding: '5px 11px', fontSize: 12.5, fontWeight: 600 }}>○ {MUSCLE_FR[m] ?? m}</span>)}
+        {p.map(m => <span key={m} style={{ background: 'color-mix(in srgb, #e5322d 14%, var(--f-card))', color: F.red, borderRadius: 999, padding: '5px 11px', fontSize: 12.5, fontWeight: 700 }}>● {MUSCLE_FR[m] ?? m}</span>)}
+        {s.map(m => <span key={m} style={{ background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))', color: '#b8720c', borderRadius: 999, padding: '5px 11px', fontSize: 12.5, fontWeight: 600 }}>○ {MUSCLE_FR[m] ?? m}</span>)}
       </div>
     </div>
   );
@@ -61,7 +61,7 @@ export function MuscleMap({ p, s, h = 230 }: { p: string[]; s: string[]; h?: num
 export function Anim({ img, alt, h, style }: { img: string[]; alt: string; h: number | string; style?: CSSProperties }) {
   const [f, setF] = useState(0);
   useEffect(() => { if (img.length < 2) return; const t = setInterval(() => setF(x => 1 - x), 900); return () => clearInterval(t); }, [img.length]);
-  return <Img src={img[f] ?? img[0]} alt={alt} style={{ width: '100%', height: h, objectFit: 'contain', background: 'transparent', mixBlendMode: 'multiply', ...style }} />;
+  return <Img src={img[f] ?? img[0]} alt={alt} style={{ width: '100%', height: h, objectFit: 'contain', background: 'transparent', mixBlendMode: 'var(--f-blend)' as CSSProperties['mixBlendMode'], borderRadius: 12, ...style }} />;
 }
 
 // ── Marque-pages (partagés entre la bibliothèque, le scanner et les fiches) ──
@@ -136,13 +136,13 @@ export function ExerciseSheet({ session, id, onClose, z = 65 }: { session?: Sess
     const text = `${title} — ${d ? d.p.map(m => MUSCLE_FR[m] ?? m).join(', ') : ''}\n${video}`;
     try { if (navigator.share) await navigator.share({ title, text }); else { await navigator.clipboard.writeText(text); setToast('Copié'); setTimeout(() => setToast(''), 1500); } } catch { /* annulé */ }
   };
-  const pill: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', border: `1px solid ${F.line}`, borderRadius: 999, padding: '8px 13px', fontSize: 13, fontWeight: 600, color: F.ink, textDecoration: 'none', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 };
+  const pill: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--f-card)', border: `1px solid ${F.line}`, borderRadius: 999, padding: '8px 13px', fontSize: 13, fontWeight: 600, color: F.ink, textDecoration: 'none', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 };
   return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div key="ex" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 32, stiffness: 320 }}
-          style={{ position: 'fixed', inset: 0, zIndex: z, background: `linear-gradient(180deg, #f7f3fb, ${F.bg})`, overflowY: 'auto', fontFamily: F.sans, color: F.ink, paddingBottom: 'calc(40px + env(safe-area-inset-bottom))' }}>
-          <div style={{ position: 'sticky', top: 0, zIndex: 3, background: 'rgba(247,243,251,0.9)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', padding: 'calc(8px + env(safe-area-inset-top)) 12px 0' }}>
+          style={{ position: 'fixed', inset: 0, zIndex: z, background: `linear-gradient(180deg, var(--f-bg2), ${F.bg})`, overflowY: 'auto', fontFamily: F.sans, color: F.ink, paddingBottom: 'calc(40px + env(safe-area-inset-bottom))' }}>
+          <div style={{ position: 'sticky', top: 0, zIndex: 3, background: 'color-mix(in srgb, var(--f-bg) 90%, transparent)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', padding: 'calc(8px + env(safe-area-inset-top)) 12px 0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <button onClick={onClose} aria-label="Retour" style={{ width: 40, height: 40, border: 'none', background: 'none', fontSize: 26, cursor: 'pointer', color: F.ink, lineHeight: 1 }}>‹</button>
               <div style={{ flex: 1, textAlign: 'center', fontWeight: 600, fontSize: 16.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</div>
@@ -305,11 +305,11 @@ export function LibraryScreen() {
       </div>
       {searching && <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Chercher (développé, curl, tirage…)" style={{ ...input, marginBottom: 8, borderRadius: 12, background: F.tile, border: 'none' }} />}
       <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '4px 0 10px', alignItems: 'flex-end', scrollbarWidth: 'none' }}>
-        <button onClick={() => { vibrate(8); setFavOnly(f => !f); }} aria-label="Mes favoris" style={{ flexShrink: 0, width: 46, height: 74, borderRadius: 12, border: favOnly ? `2px solid ${F.ink}` : '2px solid transparent', background: favOnly ? '#fff' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+        <button onClick={() => { vibrate(8); setFavOnly(f => !f); }} aria-label="Mes favoris" style={{ flexShrink: 0, width: 46, height: 74, borderRadius: 12, border: favOnly ? `2px solid ${F.ink}` : '2px solid transparent', background: favOnly ? 'var(--f-card)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill={favOnly ? F.accent : 'none'} stroke={favOnly ? F.accent : F.ink} strokeWidth="2"><path d="M6 3h12v18l-6-4.5L6 21z" /></svg>
         </button>
         {GROUPS.map(g => (
-          <button key={g.id} onClick={() => { vibrate(8); setGroup(group === g.id ? null : g.id); }} style={{ flexShrink: 0, width: 62, padding: '5px 0 4px', borderRadius: 12, border: group === g.id ? `2px solid ${F.ink}` : '2px solid transparent', background: group === g.id ? '#fff' : 'transparent', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', fontFamily: 'inherit' }}>
+          <button key={g.id} onClick={() => { vibrate(8); setGroup(group === g.id ? null : g.id); }} style={{ flexShrink: 0, width: 62, padding: '5px 0 4px', borderRadius: 12, border: group === g.id ? `2px solid ${F.ink}` : '2px solid transparent', background: group === g.id ? 'var(--f-card)' : 'transparent', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', fontFamily: 'inherit' }}>
             <Figure side={g.side} p={g.m} h={52} />
             <div style={{ fontSize: 10.5, fontWeight: 600, color: group === g.id ? F.ink : F.muted, marginTop: 2 }}>{g.label}</div>
           </button>
@@ -333,7 +333,7 @@ export function LibraryScreen() {
             const on = draft.includes(e);
             return (
               <button key={e} onClick={() => { vibrate(8); setDraft(on ? draft.filter(x => x !== e) : [...draft, e]); }} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontFamily: 'inherit', padding: 0 }}>
-                <div style={{ width: 62, height: 62, borderRadius: 31, background: '#fff', border: on ? `2.5px solid ${F.accent}` : `1px solid ${F.line}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>{EQ_ICON[e] ?? '•'}</div>
+                <div style={{ width: 62, height: 62, borderRadius: 31, background: 'var(--f-card)', border: on ? `2.5px solid ${F.accent}` : `1px solid ${F.line}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>{EQ_ICON[e] ?? '•'}</div>
                 <div style={{ fontSize: 11.5, color: on ? F.accent : F.ink, fontWeight: on ? 600 : 500, textAlign: 'center' }}>{EQ_FR[e] ?? e}</div>
               </button>
             );

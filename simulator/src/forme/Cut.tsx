@@ -110,8 +110,8 @@ export default function CutScreen({ toast }: { toast: (t: string) => void }) {
       <div style={{ ...card, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, textAlign: 'center' }}>
         {c.week.map(d => <div key={d.date} style={{ display: 'grid', gap: 4, fontSize: 11.5 }}>
           <div style={{ color: F.muted, fontWeight: 600 }}>{dow(d.date)}</div>
-          <div title="Déficit" style={{ height: 26, borderRadius: 8, background: !d.logged ? F.bg2 : d.deficitOk ? '#d8f3e4' : '#fde2e1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{!d.logged ? '·' : d.deficitOk ? '🔥' : '✕'}</div>
-          <div title="Protéines" style={{ height: 26, borderRadius: 8, background: !d.logged ? F.bg2 : d.proteinOk ? '#dfe8ff' : '#fff1d6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{!d.logged ? '·' : d.proteinOk ? '🥩' : '—'}</div>
+          <div title="Déficit" style={{ height: 26, borderRadius: 8, background: !d.logged ? F.bg2 : d.deficitOk ? 'color-mix(in srgb, #1f9d5c 14%, var(--f-card))' : 'color-mix(in srgb, #e5322d 14%, var(--f-card))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{!d.logged ? '·' : d.deficitOk ? '🔥' : '✕'}</div>
+          <div title="Protéines" style={{ height: 26, borderRadius: 8, background: !d.logged ? F.bg2 : d.proteinOk ? 'color-mix(in srgb, #1f63f0 14%, var(--f-card))' : 'color-mix(in srgb, #e09a12 14%, var(--f-card))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{!d.logged ? '·' : d.proteinOk ? '🥩' : '—'}</div>
         </div>)}
         <div style={{ gridColumn: '1 / -1', fontSize: 12, color: F.muted, marginTop: 4 }}>🔥 déficit tenu · 🥩 protéines ≥ 90 % · « · » = repas pas notés</div>
       </div>

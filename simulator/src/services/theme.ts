@@ -22,3 +22,5 @@ export function setThemeMode(mode: ThemeMode) {
   applyTheme(mode);
 }
 mq?.addEventListener?.('change', () => { if (getThemeMode() === 'auto') applyTheme(); });
+// Les autres onglets / l'app FORME dans Dzaryx (même origine) suivent le changement tout de suite.
+if (typeof window !== 'undefined') window.addEventListener('storage', e => { if (e.key === KEY) applyTheme(); });

@@ -97,7 +97,7 @@ function Goals({ g, setG, toast }: { g: GoalsView; setG: (g: GoalsView) => void;
       <button onClick={() => setEdit(true)} style={{ ...ghostBtn, padding: '8px 12px' }}>✏️ Changer</button>
     </div>}
 
-    {g.recheck && p && !edit && <div style={{ ...card, marginTop: 10, background: '#eef9f1' }}>
+    {g.recheck && p && !edit && <div style={{ ...card, marginTop: 10, background: 'color-mix(in srgb, #1f9d5c 14%, var(--f-card))' }}>
       <div style={{ fontSize: 14, fontWeight: 700 }}>📸 Nouvelle photo du {fmt(g.latest!.date)}</div>
       <div style={{ fontSize: 13, color: F.muted, margin: '4px 0 8px' }}>Fais le point : le coach compare avec ton plan du {fmt(p.photoDate)} et te dit si tu es en avance ou en retard.</div>
       <button disabled={!!busy} onClick={plan} style={{ ...btn, width: '100%', background: F.green }}>{busy === 'plan' ? <Spinner size={16} color="#fff" /> : '📊 Faire le point'}</button>
@@ -133,7 +133,7 @@ function Plan({ g, setG, toast, busy, run }: { g: GoalsView; setG: (g: GoalsView
 
     {details && p.focus?.why && <><H t="⭐ Ce qu'on priorise" />
       <div style={card}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>{(p.focus.zones.length ? p.focus.zones : s.priority).map(id => <span key={id} style={{ background: '#fff4dc', color: F.gold, borderRadius: 999, padding: '4px 10px', fontSize: 12.5, fontWeight: 800 }}>⭐ {g.zones.find(z => z.id === id)?.label ?? id}</span>)}</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>{(p.focus.zones.length ? p.focus.zones : s.priority).map(id => <span key={id} style={{ background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))', color: F.gold, borderRadius: 999, padding: '4px 10px', fontSize: 12.5, fontWeight: 800 }}>⭐ {g.zones.find(z => z.id === id)?.label ?? id}</span>)}</div>
         <div style={{ fontSize: 14, lineHeight: 1.45 }}>{p.focus.why}</div>
         <button disabled={!!busy} onClick={() => run('apply', async () => { const r = await forme.goalApply(); setApplied(r); vibrate(60); toast('🏋️ Prochaine séance refaite'); })} style={{ ...darkBtn, width: '100%', marginTop: 12 }}>{busy === 'apply' ? <Spinner size={16} color="#fff" /> : '🏋️ Mettre ça dans ma prochaine séance'}</button>
         {applied && <div style={{ fontSize: 13, whiteSpace: 'pre-wrap', marginTop: 8, background: F.tile, borderRadius: 12, padding: 10 }}><b>Séance du {fmt(applied.date)}</b>{'\n'}{applied.text}</div>}

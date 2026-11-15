@@ -1,3 +1,9 @@
+## 15/11/2026 nuit — Mode sombre Dzaryx + FORME, nouvelle palette FORME (app v264-v265)
+- Réglages › Apparence (Dzaryx) et Mon profil › Apparence (FORME) : Clair / Sombre / Auto (suit l'iPhone). Clé partagée `dz:theme` : Dzaryx et FORME (même dans l'iframe) changent ensemble, sans flash au démarrage.
+- Toutes les couleurs neutres passent par des variables (`--dz-*` dans index.css, `--f-*` dans forme/index.html) ; T.* / F.* = variables. En sombre les boutons noirs deviennent bleus ; écran vocal (canvas) suit le thème.
+- FORME : palette alignée sur Dzaryx (fond #f2f2f5, encre #0c0e1a, bleu #2f5bff), sombre noir total façon Whoop ; photos d'exercices sans « multiply » en sombre.
+- Analyse de 30 apps → règles de design : DZARYX/APP/DESIGN_30_APPS.md.
+
 ## 15/11/2026 (3) — Boutons forme du réveil + correction auto des mots étrangers / vouvoiement
 - Jour de sport : sous le message du réveil, le bot des notifs FIK envoie « ☀️ Ta forme ce matin ? » avec 5 boutons (dz:forme:n) → réveillé + forme notée + séance adaptée, confirmation dans la conversation Dzaryx. Le chiffre écrit marche toujours.
 - fixLanguageSlips (response-guard, via oranize) : « immédiata » → « immédiate », « spams coliques » → « spasmes », et pour Kouider seulement « Vos taux / Votre santé » → « Tes taux / Ta santé » (lignes citées « … » / > laissées : brouillons clients).

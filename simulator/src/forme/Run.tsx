@@ -73,7 +73,7 @@ function MiniRoute({ poly, size = 64, color = F.accent }: { poly: Array<[number,
   const P = ([x, y]: readonly [number, number]) => [pad + ox + (x - minX) / s * w, pad + oy + (y - minY) / s * w];
   const [fx, fy] = P(first), [lx, ly] = P(last);
   return (
-    <svg width={size} height={size} style={{ borderRadius: 14, background: '#eef1f6', flexShrink: 0 }}>
+    <svg width={size} height={size} style={{ borderRadius: 14, background: 'var(--f-tile)', flexShrink: 0 }}>
       <path d={d} fill="none" stroke={color} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" />
       <circle cx={fx} cy={fy} r={3} fill={F.green} /><circle cx={lx} cy={ly} r={3} fill={F.red} />
     </svg>
@@ -140,7 +140,7 @@ function RouteMap({ d, h = 300, cursor }: { d: RunDetail; h?: number; cursor?: [
     if (!cursor) { cur.current?.remove(); cur.current = null; return; }
     if (!cur.current) cur.current = L.marker(cursor, { icon: dot(F.accent, 18), zIndexOffset: 1000 }).addTo(m); else cur.current.setLatLng(cursor);
   }, [cursor, map]);
-  return <div ref={el} style={{ height: h, borderRadius: 20, overflow: 'hidden', background: '#e8ecf2' }} />;
+  return <div ref={el} style={{ height: h, borderRadius: 20, overflow: 'hidden', background: 'var(--f-tile)' }} />;
 }
 
 // ───────────────────────────────── Graphique allure/vitesse + altitude (doigt) ─────────────────────────────────
@@ -173,7 +173,7 @@ function RunChart({ d, onCursor }: { d: RunDetail; onCursor: (i: number | null) 
   return (
     <div style={{ ...card, padding: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-        <div style={{ fontWeight: 700 }}>{bike ? 'Vitesse' : 'Allure'} <span style={{ color: '#9a95a8', fontWeight: 600 }}>& altitude</span></div>
+        <div style={{ fontWeight: 700 }}>{bike ? 'Vitesse' : 'Allure'} <span style={{ color: 'var(--f-muted)', fontWeight: 600 }}>& altitude</span></div>
         <div style={{ fontSize: 12.5, color: F.muted, fontVariantNumeric: 'tabular-nums' }}>{p ? `${km(p.d)} km · ${fmtDur(p.t)} · ${bike ? `${p.kmh} km/h` : `${fmtPace(p.pace)}/km`}${p.alt != null ? ` · ${p.alt} m` : ''}` : 'Glisse le doigt sur la courbe'}</div>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, touchAction: 'none', display: 'block' }}
@@ -202,7 +202,7 @@ function Splits({ r }: { r: RunSummary }) {
   const best = full.length ? Math.min(...full.map(s => s.pace)) : 0, worst = full.length ? Math.max(...full.map(s => s.pace)) : 1;
   return (
     <div style={{ ...card, padding: 14 }}>
-      <div style={{ fontWeight: 700, marginBottom: 8 }}>Splits <span style={{ color: '#9a95a8', fontWeight: 600 }}>{bike ? 'tous les 5 km' : 'par km'}</span></div>
+      <div style={{ fontWeight: 700, marginBottom: 8 }}>Splits <span style={{ color: 'var(--f-muted)', fontWeight: 600 }}>{bike ? 'tous les 5 km' : 'par km'}</span></div>
       <div style={{ display: 'grid', gridTemplateColumns: '34px 64px 1fr 44px', gap: '6px 8px', alignItems: 'center', fontSize: 13.5, fontVariantNumeric: 'tabular-nums' }}>
         <div style={{ color: F.muted, fontSize: 11.5, fontWeight: 700 }}>KM</div><div style={{ color: F.muted, fontSize: 11.5, fontWeight: 700 }}>{bike ? 'KM/H' : 'ALLURE'}</div><div /><div style={{ color: F.muted, fontSize: 11.5, fontWeight: 700, textAlign: 'end' }}>D±</div>
         {r.splits.map(s => {
@@ -305,7 +305,7 @@ function RunDetailSheet({ id, onClose, onChanged, onGhost, toast, name, shoes, o
           <button disabled={coachBusy} onClick={async () => { setCoachBusy(true); try { const c = await forme.coach(r.id, !!r.coach); setD(v => v ? { ...v, run: { ...v.run, coach: c.coach } } : v); onChanged(); } catch (e) { toast(errText(e)); } finally { setCoachBusy(false); } }} style={{ ...ghostBtn, width: '100%', marginTop: 10 }}>{coachBusy ? 'Analyse en cours…' : r.coach ? '🔄 Refaire l\'analyse' : '🧠 Analyser ma sortie'}</button>
         </div>
         {d.route && <div style={{ ...card, padding: 14 }}>
-          <div style={{ fontWeight: 700 }}>🗺️ Ce parcours <span style={{ color: '#9a95a8', fontWeight: 600 }}>fait {d.route.count} fois</span></div>
+          <div style={{ fontWeight: 700 }}>🗺️ Ce parcours <span style={{ color: 'var(--f-muted)', fontWeight: 600 }}>fait {d.route.count} fois</span></div>
           <div style={{ fontSize: 14, margin: '4px 0 8px', fontWeight: 600, color: d.route.rank === 1 ? '#a86b00' : F.ink }}>{d.route.rank === 1 ? '🥇 Ton meilleur temps sur ce parcours !' : `Classement : ${d.route.rank}e sur ${d.route.count} · record ${fmtDur(d.route.best.sec)}`}</div>
           {d.route.list.map((x, k) => <button key={x.id} onClick={() => { if (x.id !== r.id) onOpen(x.id); }} style={{ display: 'flex', width: '100%', gap: 10, padding: '6px 0', border: 'none', borderTop: `1px solid ${F.line}`, background: 'none', fontFamily: F.sans, fontSize: 13.5, cursor: 'pointer', color: F.ink, fontWeight: x.id === r.id ? 800 : 500, fontVariantNumeric: 'tabular-nums' }}><span style={{ width: 26, textAlign: 'start' }}>{['🥇', '🥈', '🥉'][k] ?? `${k + 1}.`}</span><span style={{ flex: 1, textAlign: 'start' }}>{fmtDate(x.date)}</span><span>{fmtDur(x.sec)}</span><span style={{ width: 64, textAlign: 'end', color: F.muted }}>{fmtPace(x.pace)}/km</span></button>)}
         </div>}
@@ -315,7 +315,7 @@ function RunDetailSheet({ id, onClose, onChanged, onGhost, toast, name, shoes, o
           <div style={{ fontWeight: 700, marginBottom: 8 }}>Meilleurs efforts</div>
           {r.efforts.map(e => <div key={e.m} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderTop: `1px solid ${F.line}` }}>
             <div style={{ flex: 1, fontWeight: 600 }}>{e.label}</div>
-            {e.pr && <span style={{ fontSize: 11.5, fontWeight: 800, color: '#a86b00', background: '#fff1cc', padding: '3px 8px', borderRadius: 8 }}>🏆 RECORD</span>}
+            {e.pr && <span style={{ fontSize: 11.5, fontWeight: 800, color: '#a86b00', background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))', padding: '3px 8px', borderRadius: 8 }}>🏆 RECORD</span>}
             <div style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmtDur(e.sec)}</div>
             <div style={{ width: 62, textAlign: 'end', fontSize: 12.5, color: F.muted, fontVariantNumeric: 'tabular-nums' }}>{fmtPace(e.sec / (e.m / 1000))}/km</div>
           </div>)}
@@ -541,8 +541,8 @@ function Recorder({ type, cfg, ghost, goal, resume, workout, onDone, onCancel, t
           <div style={{ flex: 1 }} />
           <div style={{ background: 'rgba(23,21,28,0.82)', borderRadius: 999, padding: '7px 12px', fontSize: 13, fontWeight: 700 }}>{TYPE_E[type]} {TYPE_L[type]}</div>
         </div>
-        <button onClick={() => { follow.current = true; const ll = me.current?.getLatLng(); if (ll) map.current?.setView(ll, 16); }} style={{ position: 'absolute', right: 12, bottom: 32, zIndex: 500, width: 44, height: 44, borderRadius: 22, border: 'none', background: '#fff', boxShadow: '0 4px 12px rgba(0,0,0,0.25)', fontSize: 18, cursor: 'pointer' }}>◎</button>
-        <button onClick={() => setPocket(true)} style={{ position: 'absolute', left: 12, bottom: 32, zIndex: 500, height: 44, padding: '0 14px', borderRadius: 22, border: 'none', background: '#fff', color: F.ink, boxShadow: '0 4px 12px rgba(0,0,0,0.25)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}>🌙 Mode poche</button>
+        <button onClick={() => { follow.current = true; const ll = me.current?.getLatLng(); if (ll) map.current?.setView(ll, 16); }} style={{ position: 'absolute', right: 12, bottom: 32, zIndex: 500, width: 44, height: 44, borderRadius: 22, border: 'none', background: 'var(--f-card)', boxShadow: '0 4px 12px rgba(0,0,0,0.25)', fontSize: 18, cursor: 'pointer' }}>◎</button>
+        <button onClick={() => setPocket(true)} style={{ position: 'absolute', left: 12, bottom: 32, zIndex: 500, height: 44, padding: '0 14px', borderRadius: 22, border: 'none', background: 'var(--f-card)', color: F.ink, boxShadow: '0 4px 12px rgba(0,0,0,0.25)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}>🌙 Mode poche</button>
         {gpsErr && <div style={{ position: 'absolute', left: 12, right: 12, top: 'calc(56px + env(safe-area-inset-top))', zIndex: 500, background: F.red, borderRadius: 14, padding: '10px 12px', fontSize: 13.5, fontWeight: 700 }}>{gpsErr}</div>}
       </div>
       <div style={{ padding: '16px 18px calc(16px + env(safe-area-inset-bottom))', background: `linear-gradient(180deg, ${F.dark2}, ${F.dark})`, borderRadius: '24px 24px 0 0', marginTop: -20, position: 'relative', zIndex: 600 }}>
@@ -574,7 +574,7 @@ function Recorder({ type, cfg, ghost, goal, resume, workout, onDone, onCancel, t
         {goal && <div style={{ marginTop: 10 }}><div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.12)', overflow: 'hidden' }}><div style={{ width: `${goalPct * 100}%`, height: '100%', background: goalPct >= 1 ? '#3ad07a' : F.accent2, transition: 'width .5s' }} /></div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 4, textAlign: 'center' }}>Objectif {goal.v} {goal.kind === 'km' ? 'km' : 'min'} · {Math.round(goalPct * 100)} %</div></div>}
         <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center' }}>
           <button onClick={() => { L0.laps.push(now()); vibrate(50); say(`Tour ${L0.laps.length}`); force(x => x + 1); }} disabled={paused || count > 0} style={{ width: 62, height: 62, borderRadius: 31, border: 'none', background: 'rgba(255,255,255,0.12)', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>Tour</button>
-          <button onClick={() => paused ? resumeRun() : pause()} disabled={count > 0} style={{ flex: 1, height: 66, borderRadius: 33, border: 'none', background: paused ? F.green : '#fff', color: paused ? '#fff' : F.ink, fontWeight: 800, fontSize: 18, cursor: 'pointer' }}>{paused ? '▶ Reprendre' : '❚❚ Pause'}</button>
+          <button onClick={() => paused ? resumeRun() : pause()} disabled={count > 0} style={{ flex: 1, height: 66, borderRadius: 33, border: 'none', background: paused ? F.green : 'var(--f-card)', color: paused ? '#fff' : F.ink, fontWeight: 800, fontSize: 18, cursor: 'pointer' }}>{paused ? '▶ Reprendre' : '❚❚ Pause'}</button>
           <button onPointerDown={() => setHold(10)} onPointerUp={() => setHold(0)} onPointerLeave={() => setHold(0)} disabled={count > 0}
             style={{ position: 'relative', width: 62, height: 62, borderRadius: 31, border: 'none', background: F.red, color: '#fff', fontWeight: 800, fontSize: 12, cursor: 'pointer', overflow: 'hidden', touchAction: 'none' }}>
             <span style={{ position: 'absolute', left: 0, bottom: 0, right: 0, height: `${hold}%`, background: 'rgba(0,0,0,0.3)' }} /><span style={{ position: 'relative' }}>FIN<br /><span style={{ fontSize: 9, opacity: 0.8 }}>maintenir</span></span>
@@ -613,7 +613,7 @@ function FinishSheet({ live, onSaved, onDiscard, toast, shoes }: { live: Live | 
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder={`Titre (sinon « ${TYPE_L[live.type]} du … »)`} style={{ ...input, marginBottom: 8 }} />
         <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Comment c'était ? (jambes, météo, chaussures…)" style={{ ...input, minHeight: 64, resize: 'vertical' }} />
         <div style={{ fontWeight: 700, margin: '12px 2px 8px' }}>Ressenti</div>
-        <div style={{ display: 'flex', gap: 6 }}>{['😫', '😕', '🙂', '😀', '🔥'].map((e, i) => <button key={e} onClick={() => setFeel(i + 1)} style={{ flex: 1, fontSize: 26, padding: '8px 0', borderRadius: 14, border: `2px solid ${feel === i + 1 ? F.accent : 'transparent'}`, background: '#fff', cursor: 'pointer' }}>{e}</button>)}</div>
+        <div style={{ display: 'flex', gap: 6 }}>{['😫', '😕', '🙂', '😀', '🔥'].map((e, i) => <button key={e} onClick={() => setFeel(i + 1)} style={{ flex: 1, fontSize: 26, padding: '8px 0', borderRadius: 14, border: `2px solid ${feel === i + 1 ? F.accent : 'transparent'}`, background: 'var(--f-card)', cursor: 'pointer' }}>{e}</button>)}</div>
         {live.type !== 'bike' && active.length > 0 && <><div style={{ fontWeight: 700, margin: '12px 2px 8px' }}>👟 Chaussures</div><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{active.map(x => <Chip key={x.id} on={shoe === x.id} onClick={() => setShoe(shoe === x.id ? '' : x.id)}>{x.name}</Chip>)}</div></>}
         {live.workout && <div style={{ fontSize: 13, color: F.green, fontWeight: 700, marginTop: 12 }}>📋 Séance du plan « {live.workout.title} » : elle sera cochée.</div>}
         <button disabled={busy} onClick={() => void save()} style={{ ...btn, width: '100%', marginTop: 16 }}>{busy ? 'Enregistrement…' : '💾 Enregistrer la sortie'}</button>
@@ -717,7 +717,7 @@ export default function RunScreen({ toast, name = '' }: { toast: (t: string) => 
         <button onClick={() => setSettings(true)} aria-label="Réglages" style={{ ...ghostBtn, width: 40, height: 40, padding: 0 }}>⚙️</button>
       </div>
 
-      {pending && <div style={{ ...card, background: '#fff6e0', border: `1px solid ${F.gold}66`, marginBottom: 12 }}>
+      {pending && <div style={{ ...card, background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))', border: `1px solid ${F.gold}66`, marginBottom: 12 }}>
         <div style={{ fontWeight: 800 }}>⚠️ Sortie non terminée</div>
         <div style={{ fontSize: 13.5, color: F.muted, margin: '4px 0 10px' }}>{TYPE_L[pending.type]} commencée à {new Date(pending.startedAt).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })} · {pending.points.length} points GPS gardés sur le téléphone.</div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -727,8 +727,8 @@ export default function RunScreen({ toast, name = '' }: { toast: (t: string) => 
       </div>}
 
       {/* Démarrer */}
-      <div style={{ background: `linear-gradient(160deg, ${F.dark2}, ${F.dark})`, color: '#fff', borderRadius: 26, padding: 18, boxShadow: '0 14px 30px rgba(30,25,60,0.25)' }}>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>{TYPES.map(t => <button key={t.id} onClick={() => { setType(t.id); vibrate(8); }} style={{ flex: 1, padding: '10px 0', borderRadius: 14, border: 'none', background: type === t.id ? '#fff' : 'rgba(255,255,255,0.08)', color: type === t.id ? F.ink : '#fff', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', fontFamily: F.sans }}><div style={{ fontSize: 20 }}>{t.e}</div>{t.l}</button>)}</div>
+      <div style={{ background: `linear-gradient(160deg, ${F.dark2}, ${F.dark})`, color: '#fff', borderRadius: 26, padding: 18, boxShadow: '0 14px 30px rgba(var(--f-shadow-rgb),0.25)' }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>{TYPES.map(t => <button key={t.id} onClick={() => { setType(t.id); vibrate(8); }} style={{ flex: 1, padding: '10px 0', borderRadius: 14, border: 'none', background: type === t.id ? 'var(--f-card)' : 'rgba(255,255,255,0.08)', color: type === t.id ? F.ink : '#fff', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', fontFamily: F.sans }}><div style={{ fontSize: 20 }}>{t.e}</div>{t.l}</button>)}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           {wk && <Ring value={wk.km} max={wk.goalKm || 1} size={104} stroke={10} color="#5b8cff"><div style={{ fontSize: 22, fontWeight: 800 }}>{String(wk.km).replace('.', ',')}</div><div style={{ fontSize: 10.5, opacity: 0.6, fontWeight: 600 }}>/ {wk.goalKm} km</div></Ring>}
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -766,7 +766,7 @@ export default function RunScreen({ toast, name = '' }: { toast: (t: string) => 
         <ChallengesCard c={s.challenges} />
 
         <div style={{ ...card, marginTop: 10 }}>
-          <div style={{ fontWeight: 700, marginBottom: 10 }}>12 dernières semaines <span style={{ color: '#9a95a8', fontWeight: 600 }}>(km)</span></div>
+          <div style={{ fontWeight: 700, marginBottom: 10 }}>12 dernières semaines <span style={{ color: 'var(--f-muted)', fontWeight: 600 }}>(km)</span></div>
           <WeekBars weeks={s.weeks} />
         </div>
         <div style={{ ...card, marginTop: 10 }}>

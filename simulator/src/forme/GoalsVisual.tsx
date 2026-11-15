@@ -66,7 +66,7 @@ export function GoalHero({ g, onVision, details }: { g: GoalsView; onVision: () 
           <div style={{ position: 'absolute', left: 8, top: 8, background: i ? F.accent : 'rgba(0,0,0,0.55)', color: '#fff', borderRadius: 999, padding: '4px 10px', fontSize: 10.5, fontWeight: 900, letterSpacing: '0.04em' }}>{x.l}</div>
         </div>
       ))}
-      <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 38, height: 38, borderRadius: 19, background: '#fff', color: F.ink, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, boxShadow: '0 6px 18px rgba(0,0,0,0.35)' }}>→</div>
+      <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 38, height: 38, borderRadius: 19, background: 'var(--f-card)', color: F.ink, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, boxShadow: '0 6px 18px rgba(0,0,0,0.35)' }}>→</div>
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 70, background: 'linear-gradient(transparent, rgba(22,21,42,0.95))' }} />
     </div>
     <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '4px 16px 16px' }}>
@@ -96,7 +96,7 @@ export function GoalToday({ g }: { g: GoalsView }) {
   return <>
     <H t="⚡ Aujourd'hui pour ton objectif" sub={`${ok}/${tiles.length} fait · score du jour ${c.score}/100`} />
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
-      {tiles.map(t => <div key={t.k} style={{ ...card, padding: 12, background: t.ok ? '#e9f8ef' : '#fff', border: `1px solid ${t.ok ? 'rgba(31,157,92,0.25)' : F.line}` }}>
+      {tiles.map(t => <div key={t.k} style={{ ...card, padding: 12, background: t.ok ? 'color-mix(in srgb, #1f9d5c 14%, var(--f-card))' : 'var(--f-card)', border: `1px solid ${t.ok ? 'rgba(31,157,92,0.25)' : F.line}` }}>
         <div style={{ fontSize: 22 }}>{t.ok ? '✅' : '⏳'}</div>
         <div style={{ fontWeight: 800, fontSize: 14, marginTop: 4, textTransform: 'capitalize' }}>{t.k}</div>
         <div style={{ fontSize: 12, color: F.muted, marginTop: 2, lineHeight: 1.35 }}>{t.ok ? 'Validé' : t.hint}</div>
@@ -137,7 +137,7 @@ export function GoalBody({ g, onEx, details }: { g: GoalsView; onEx: (id: string
             {ex?.img && <img src={ex.img} alt="" loading="lazy" onClick={() => onEx(ex.id)} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', cursor: 'pointer' }} />}
             {star && <div style={{ position: 'absolute', left: 8, top: 8, background: F.gold, color: '#fff', borderRadius: 999, padding: '3px 9px', fontSize: 11, fontWeight: 900 }}>⭐ PRIORITÉ</div>}
             <div style={{ position: 'absolute', right: 8, bottom: -26 }}>
-              <div style={{ background: '#fff', borderRadius: 40, padding: 3, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+              <div style={{ background: 'var(--f-card)', borderRadius: 40, padding: 3, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
                 <Ring value={z.now ?? 0} max={100} size={56} stroke={6} color={z.now == null ? F.muted : lvlColor(z.now)} track={F.tile}>
                   <div style={{ fontSize: 14, fontWeight: 900, color: F.ink }}>{z.now ?? '?'}</div>
                 </Ring>
@@ -188,7 +188,7 @@ export function GoalJourney({ g, onToggle, details }: { g: GoalsView; onToggle: 
         const col = m.done ? F.green : late ? F.red : here ? F.accent : F.line;
         return <div key={i} style={{ display: 'flex', gap: 12 }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 30 }}>
-            <button onClick={() => onToggle(i, !m.done)} style={{ width: here ? 30 : 24, height: here ? 30 : 24, borderRadius: 20, border: `3px solid ${col}`, background: m.done ? F.green : '#fff', color: '#fff', fontWeight: 900, cursor: 'pointer', flexShrink: 0, boxShadow: here ? `0 0 0 6px ${F.soft}` : 'none', padding: 0 }}>{m.done ? '✓' : ''}</button>
+            <button onClick={() => onToggle(i, !m.done)} style={{ width: here ? 30 : 24, height: here ? 30 : 24, borderRadius: 20, border: `3px solid ${col}`, background: m.done ? F.green : 'var(--f-card)', color: '#fff', fontWeight: 900, cursor: 'pointer', flexShrink: 0, boxShadow: here ? `0 0 0 6px ${F.soft}` : 'none', padding: 0 }}>{m.done ? '✓' : ''}</button>
             {i < p.milestones.length - 1 && <div style={{ width: 3, flex: 1, minHeight: 26, background: m.done ? F.green : F.line, borderRadius: 2, margin: '2px 0' }} />}
           </div>
           <div style={{ flex: 1, paddingBottom: 14 }}>
@@ -241,7 +241,7 @@ export function GoalTips({ g }: { g: GoalsView }) {
   return <>
     <H t="🎓 Les conseils de ton coach" sub="Fais défiler →" />
     <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6, scrollSnapType: 'x mandatory' }}>
-      {tips.map((x, i) => { const st = TIP_STYLE[i % TIP_STYLE.length]!; return <div key={i} style={{ minWidth: 240, maxWidth: 240, minHeight: 170, flexShrink: 0, scrollSnapAlign: 'start', background: st.bg, color: '#fff', borderRadius: 20, padding: 16, boxShadow: '0 10px 22px rgba(30,25,60,0.18)' }}>
+      {tips.map((x, i) => { const st = TIP_STYLE[i % TIP_STYLE.length]!; return <div key={i} style={{ minWidth: 240, maxWidth: 240, minHeight: 170, flexShrink: 0, scrollSnapAlign: 'start', background: st.bg, color: '#fff', borderRadius: 20, padding: 16, boxShadow: '0 10px 22px rgba(var(--f-shadow-rgb),0.18)' }}>
         <div style={{ fontSize: 34 }}>{st.icon}</div>
         <div style={{ fontSize: 10.5, fontWeight: 900, letterSpacing: '0.1em', opacity: 0.8, marginTop: 6 }}>{x.k.toUpperCase()}</div>
         <div style={{ fontSize: 14.5, fontWeight: 600, lineHeight: 1.4, marginTop: 4 }}>{x.t}</div>
@@ -300,15 +300,15 @@ export function GoalEvolution({ g }: { g: GoalsView }) {
   return <>
     <H t="📸 Ton évolution" />
     {poses.length > 1 && <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-      {poses.map(p => <button key={p} onClick={() => { setPose(p); setBeforeId(null); }} style={{ flex: 1, padding: '9px 0', borderRadius: 999, border: 'none', fontWeight: 800, fontSize: 13, fontFamily: F.sans, cursor: 'pointer', background: pose === p ? F.dark : '#fff', color: pose === p ? '#fff' : F.ink }}>{p === 'face' ? 'Face' : p === 'dos' ? 'Dos' : 'Profil'}</button>)}
+      {poses.map(p => <button key={p} onClick={() => { setPose(p); setBeforeId(null); }} style={{ flex: 1, padding: '9px 0', borderRadius: 999, border: 'none', fontWeight: 800, fontSize: 13, fontFamily: F.sans, cursor: 'pointer', background: pose === p ? F.dark : 'var(--f-card)', color: pose === p ? '#fff' : F.ink }}>{p === 'face' ? 'Face' : p === 'dos' ? 'Dos' : 'Profil'}</button>)}
     </div>}
     {list.length >= 2 && before && after && before.id !== after.id ? <div ref={ref}
       onPointerDown={e => { (e.target as HTMLElement).setPointerCapture?.(e.pointerId); move(e.clientX); }} onPointerMove={e => { if (e.buttons) move(e.clientX); }}
-      style={{ position: 'relative', aspectRatio: '3 / 4', borderRadius: 22, overflow: 'hidden', background: F.dark, touchAction: 'pan-y', userSelect: 'none', boxShadow: '0 12px 28px rgba(30,25,60,0.25)' }}>
+      style={{ position: 'relative', aspectRatio: '3 / 4', borderRadius: 22, overflow: 'hidden', background: F.dark, touchAction: 'pan-y', userSelect: 'none', boxShadow: '0 12px 28px rgba(var(--f-shadow-rgb),0.25)' }}>
       <img src={after.url} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
       <img src={before.url} alt="" draggable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', clipPath: `inset(0 ${100 - pos}% 0 0)` }} />
-      <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${pos}%`, width: 3, background: '#fff', transform: 'translateX(-50%)', boxShadow: '0 0 10px rgba(0,0,0,0.4)' }} />
-      <div style={{ position: 'absolute', top: '50%', left: `${pos}%`, transform: 'translate(-50%,-50%)', width: 44, height: 44, borderRadius: 22, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, color: F.ink, boxShadow: '0 4px 14px rgba(0,0,0,0.35)' }}>⇆</div>
+      <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${pos}%`, width: 3, background: 'var(--f-card)', transform: 'translateX(-50%)', boxShadow: '0 0 10px rgba(0,0,0,0.4)' }} />
+      <div style={{ position: 'absolute', top: '50%', left: `${pos}%`, transform: 'translate(-50%,-50%)', width: 44, height: 44, borderRadius: 22, background: 'var(--f-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, color: F.ink, boxShadow: '0 4px 14px rgba(0,0,0,0.35)' }}>⇆</div>
       <div style={{ position: 'absolute', left: 10, top: 10, background: 'rgba(0,0,0,0.6)', color: '#fff', borderRadius: 999, padding: '4px 10px', fontSize: 11.5, fontWeight: 800 }}>{tag(before, 'AVANT')}</div>
       <div style={{ position: 'absolute', right: 10, top: 10, background: F.accent, color: '#fff', borderRadius: 999, padding: '4px 10px', fontSize: 11.5, fontWeight: 800 }}>{tag(after, 'MAINTENANT')}</div>
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '30px 14px 12px', background: 'linear-gradient(transparent, rgba(0,0,0,0.75))', color: '#fff', display: 'flex', justifyContent: 'center', gap: 18, fontWeight: 900 }}>

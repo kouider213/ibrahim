@@ -29,7 +29,7 @@ export function WeekGoal() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <Ring value={d.week.done} max={d.week.target} size={40} stroke={5} color={ok ? F.green : F.accent} track={F.bg2}><div style={{ fontSize: 11, fontWeight: 700 }}>{d.week.done}/{d.week.target}</div></Ring>
-      {d.weekStreak > 0 && <div style={{ background: '#fff1e0', color: '#c06a00', borderRadius: 999, padding: '6px 10px', fontSize: 12.5, fontWeight: 700 }}>🔥 {d.weekStreak} sem.</div>}
+      {d.weekStreak > 0 && <div style={{ background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))', color: '#c06a00', borderRadius: 999, padding: '6px 10px', fontSize: 12.5, fontWeight: 700 }}>🔥 {d.weekStreak} sem.</div>}
     </div>
   );
 }

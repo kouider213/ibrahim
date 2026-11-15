@@ -156,7 +156,7 @@ function PlateCalc({ open, onClose, kg0 }: { open: boolean; onClose: () => void;
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <input inputMode="decimal" value={kg} onChange={e => setKg(e.target.value)} style={{ ...cellBig, flex: 1 }} /><span style={{ fontWeight: 600 }}>kg au total</span>
       </div>
-      <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>{[20, 15, 10, 0].map(b => <button key={b} onClick={() => setBar(b)} style={{ ...ghostBtn, padding: '8px 12px', background: bar === b ? F.ink : '#fff', color: bar === b ? '#fff' : F.ink }}>{b ? `Barre ${b} kg` : 'Sans barre'}</button>)}</div>
+      <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>{[20, 15, 10, 0].map(b => <button key={b} onClick={() => setBar(b)} style={{ ...ghostBtn, padding: '8px 12px', background: bar === b ? F.ink : 'var(--f-card)', color: bar === b ? '#fff' : F.ink }}>{b ? `Barre ${b} kg` : 'Sans barre'}</button>)}</div>
       <div style={{ ...card, marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, gap: 3 }}>
         <div style={{ width: 70, height: 10, background: '#b9b9c2', borderRadius: 3 }} />
         {out.map((p, i) => <div key={i} style={{ width: 13, height: p.h, background: p.c, borderRadius: 3, border: '1px solid rgba(0,0,0,0.15)' }} />)}
@@ -166,7 +166,7 @@ function PlateCalc({ open, onClose, kg0 }: { open: boolean; onClose: () => void;
     </Sheet>
   );
 }
-const cellBig: CSSProperties = { background: '#fff', border: `1px solid ${F.line}`, borderRadius: 12, padding: 12, fontSize: 20, fontWeight: 700, textAlign: 'center', fontFamily: F.sans, color: F.ink, boxSizing: 'border-box' };
+const cellBig: CSSProperties = { background: 'var(--f-card)', border: `1px solid ${F.line}`, borderRadius: 12, padding: 12, fontSize: 20, fontWeight: 700, textAlign: 'center', fontFamily: F.sans, color: F.ink, boxSizing: 'border-box' };
 
 // Coach vocal (façon Nike Training Club) : annonce l'exercice, la fin du repos, les 10 dernières secondes.
 const VOICE_K = 'forme:voice';
@@ -381,7 +381,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
   let nNum = 0;
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: F.bg, overflowY: 'auto', fontFamily: F.sans, color: F.ink, paddingBottom: 'calc(110px + env(safe-area-inset-bottom))' }}>
-      <div style={{ position: 'sticky', top: 0, zIndex: 3, background: 'rgba(245,242,250,0.94)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', padding: 'calc(8px + env(safe-area-inset-top)) 14px 10px', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 3, background: 'color-mix(in srgb, var(--f-bg) 94%, transparent)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', padding: 'calc(8px + env(safe-area-inset-top)) 14px 10px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <button onClick={() => { if (finish) setFinish(false); else if (!allRows.some(r => r.done) || confirm('Abandonner la séance ? (rien n\'est enregistré)')) { clearLive(); void apiFetch('/api/sport/live-app', { method: 'POST', body: JSON.stringify({ abandon: true }) }).catch(() => {}); onClose(); } }} aria-label="Fermer" style={{ width: 36, height: 36, border: 'none', background: 'none', fontSize: 22, cursor: 'pointer', color: F.ink }}>{finish ? '‹' : '✕'}</button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.label}</div>
@@ -397,14 +397,14 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 18 }}>
             {[[fmtTime(elapsed), 'Durée'], [`${Math.round(volume)} kg`, 'Volume'], [String(doneSets.length), 'Séries']].map(([v, l]) => <div key={l} style={{ ...card, padding: 12 }}><div style={{ fontSize: 19, fontWeight: 700 }}>{v}</div><div style={{ fontSize: 12, color: F.muted }}>{l}</div></div>)}
           </div>
-          {newPrs.length > 0 && <div style={{ ...card, marginTop: 10, background: '#fff6df', fontWeight: 600 }}>🏆 Record{newPrs.length > 1 ? 's' : ''} battu{newPrs.length > 1 ? 's' : ''} : {newPrs.join(', ')}</div>}
+          {newPrs.length > 0 && <div style={{ ...card, marginTop: 10, background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))', fontWeight: 600 }}>🏆 Record{newPrs.length > 1 ? 's' : ''} battu{newPrs.length > 1 ? 's' : ''} : {newPrs.join(', ')}</div>}
           <div style={{ ...card, marginTop: 10, textAlign: 'start', padding: '4px 14px' }}>
             {lifts.filter(e => (rows[e.id] ?? []).some(r => r.done && r.t !== 'w')).map((e, k, arr) => { const d = rows[e.id]!.filter(r => r.done && r.t !== 'w'); const top = d.reduce((a, r) => (Number(r.kg) || 0) > (Number(a.kg) || 0) ? r : a, d[0]!); return (
               <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '10px 0', borderBottom: k < arr.length - 1 ? `1px solid ${F.line}` : 'none', fontSize: 14 }}><span style={{ fontWeight: 600 }}>{d.length} × {e.name}</span><span style={{ color: F.muted, whiteSpace: 'nowrap' }}>{top.kg ? `${top.kg} kg × ${top.reps}` : `${top.reps} reps`}</span></div>); })}
           </div>
           {cardioDone.length > 0 && <div style={{ ...card, marginTop: 10, textAlign: 'start', fontSize: 14, fontWeight: 600 }}>🏃 {cardioDone.join(' · ')}</div>}
           <div style={{ fontWeight: 600, marginTop: 22 }}>C'était dur comment ?</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, marginTop: 10 }}>{[5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => setRpe(n)} style={{ ...ghostBtn, borderRadius: 12, padding: '13px 0', background: rpe === n ? F.accent : '#fff', color: rpe === n ? '#fff' : F.ink }}>{n}</button>)}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, marginTop: 10 }}>{[5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => setRpe(n)} style={{ ...ghostBtn, borderRadius: 12, padding: '13px 0', background: rpe === n ? F.accent : 'var(--f-card)', color: rpe === n ? '#fff' : F.ink }}>{n}</button>)}</div>
           <div style={{ fontSize: 12.5, color: F.muted, marginTop: 6 }}>5 = facile · 9 = à fond</div>
           <button disabled={busy || !(doneSets.length || cardioDone.length)} onClick={save} style={{ ...btn, width: '100%', marginTop: 22, opacity: doneSets.length || cardioDone.length ? 1 : 0.5 }}>{busy ? 'Enregistrement…' : pendingSave ? '📴 En attente du réseau… (touche pour réessayer)' : doneSets.length || cardioDone.length ? 'Enregistrer ma séance' : 'Aucune série validée'}</button>
           {doneSets.length > 0 && <button onClick={() => void shareCard({ title: s.label, dur: fmtTime(elapsed), volume, sets: doneSets.length, prs: newPrs, lines: exs.filter(e => (rows[e.id] ?? []).some(r => r.done && r.t !== 'w')).map(e => { const d = rows[e.id]!.filter(r => r.done && r.t !== 'w'); const top = Math.max(...d.map(r => Number(r.kg.replace(',', '.')) || 0)); return `${d.length} × ${e.name}${top ? ` · ${top} kg` : ''}`; }) })} style={{ ...ghostBtn, width: '100%', marginTop: 10 }}>📤 Partager ma séance (image)</button>}
@@ -412,7 +412,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
       ) : <>
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '2px 14px 8px', scrollbarWidth: 'none' }}>
           {exs.map((e, j) => { const ok = isCardioEx(e) ? !!rows[e.id]?.[0]?.done : (rows[e.id] ?? []).length > 0 && rows[e.id]!.every(r => r.done); return (
-            <button key={e.id} onClick={() => setI(j)} style={{ flexShrink: 0, border: j === i ? `2px solid ${F.accent}` : '2px solid transparent', borderRadius: 14, background: ok ? '#dff3e7' : F.tile, width: 54, height: 54, padding: 3, cursor: 'pointer', position: 'relative' }}>
+            <button key={e.id} onClick={() => setI(j)} style={{ flexShrink: 0, border: j === i ? `2px solid ${F.accent}` : '2px solid transparent', borderRadius: 14, background: ok ? 'color-mix(in srgb, #1f9d5c 14%, var(--f-card))' : F.tile, width: 54, height: 54, padding: 3, cursor: 'pointer', position: 'relative' }}>
               {e.demo.length ? <Anim img={e.demo} alt="" h={44} /> : '🏋️'}
               {ok && <span style={{ position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: 9, background: F.green, color: '#fff', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>}
             </button>); })}
@@ -444,13 +444,13 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
                     <div style={{ fontSize: 12, fontWeight: 600, color: F.accent }}>{i + 1}/{exs.length}{ex.muscle ? ` · ${MUSCLE[ex.muscle] ?? ex.muscle}` : ''}{isCardioEx(ex) ? ' · cardio' : ` · repos ${ex.rest}s`}{best(ex) ? ` · record ${best(ex)} kg` : ''}</div>
                     <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em', marginTop: 2 }}>{ex.name}</div>
                   </div>
-                  <button onClick={() => setHow(true)} aria-label="Comment faire" style={{ width: 34, height: 34, borderRadius: 17, border: `1px solid ${F.line}`, background: '#fff', cursor: 'pointer', fontWeight: 700, color: F.accent, flexShrink: 0 }}>i</button>
+                  <button onClick={() => setHow(true)} aria-label="Comment faire" style={{ width: 34, height: 34, borderRadius: 17, border: `1px solid ${F.line}`, background: 'var(--f-card)', cursor: 'pointer', fontWeight: 700, color: F.accent, flexShrink: 0 }}>i</button>
                 </div>
                 {(ss[ex.id] && exs[i + 1]) ? <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, color: F.accent }}>🔗 Superset avec « {exs[i + 1]!.name} » : 1 série ici → direct l'autre, puis repos</div>
                   : (exs[i - 1] && ss[exs[i - 1]!.id]) ? <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, color: F.accent }}>🔗 Superset avec « {exs[i - 1]!.name} » : après ta série, repos puis retour dessus</div> : null}
                 {ex.tip && <div style={{ fontSize: 13.5, color: F.muted, marginTop: 6, lineHeight: 1.4 }}>💡 {ex.tip}</div>}
                 {ex.suggestion.up && <div style={{ fontSize: 13, fontWeight: 600, marginTop: 6, color: F.green }}>↑ On monte à {ex.suggestion.kg} kg aujourd'hui</div>}
-                {chal === ex.id && <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, padding: '8px 10px', borderRadius: 10, background: '#fff6df' }}>🎯 Défi du jour : fais mieux que la dernière fois ({ex.suggestion.last}) — 1 rep ou 1 kg de plus</div>}
+                {chal === ex.id && <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, padding: '8px 10px', borderRadius: 10, background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))' }}>🎯 Défi du jour : fais mieux que la dernière fois ({ex.suggestion.last}) — 1 rep ou 1 kg de plus</div>}
                 <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
                   {!isCardioEx(ex) && <button onClick={warmup} style={tool}>🔥 Échauffement</button>}
                   {!isCardioEx(ex) && <button onClick={() => setPlates(true)} style={tool}>🧮 Disques</button>}
@@ -461,9 +461,9 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
               </div>
               {isCardioEx(ex) ? (() => { const r = sets[0] ?? { kg: '', reps: String(cardioMin(ex)), done: false, t: 'n' as SetT }; return (
               <div style={{ padding: '10px 14px 14px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12, background: r.done ? '#dff3e7' : F.bg }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12, background: r.done ? 'color-mix(in srgb, #1f9d5c 14%, var(--f-card))' : F.bg }}>
                   <div style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>⏱ Durée</div>
-                  <input inputMode="numeric" value={r.reps} onChange={e => upd(0, { reps: e.target.value })} style={{ ...cell, width: 70, background: r.done ? 'transparent' : '#fff' }} />
+                  <input inputMode="numeric" value={r.reps} onChange={e => upd(0, { reps: e.target.value })} style={{ ...cell, width: 70, background: r.done ? 'transparent' : 'var(--f-card)' }} />
                   <span style={{ fontWeight: 600, color: F.muted }}>min</span>
                   <button onClick={() => r.done ? upd(0, { done: false }) : validate(0)} aria-label="Cardio fait" style={{ width: 44, height: 40, borderRadius: 10, border: 'none', background: r.done ? F.green : F.bg2, color: r.done ? '#fff' : F.muted, fontSize: 18, fontWeight: 700, cursor: 'pointer' }}>✓</button>
                 </div>
@@ -472,7 +472,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
               <div style={{ padding: '6px 10px 10px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 6, fontSize: 11, fontWeight: 600, color: F.muted, padding: '6px 4px', textAlign: 'center' }}><div>SÉRIE</div><div>PRÉCÉDENT</div><div>KG</div><div>{ex.timed ? 'SEC' : 'REPS'}</div><div>✓</div></div>
                 {sets.map((r, k) => { const look = r.t !== 'n' ? T_LOOK[r.t] : null; if (r.t === 'n') nNum++; const num = nNum; return (
-                  <div key={k} style={{ display: 'grid', gridTemplateColumns: cols, gap: 6, alignItems: 'center', padding: '4px', borderRadius: 10, background: r.done ? '#dff3e7' : 'transparent', transition: 'background .2s' }}>
+                  <div key={k} style={{ display: 'grid', gridTemplateColumns: cols, gap: 6, alignItems: 'center', padding: '4px', borderRadius: 10, background: r.done ? 'color-mix(in srgb, #1f9d5c 14%, var(--f-card))' : 'transparent', transition: 'background .2s' }}>
                     <button onClick={() => upd(k, { t: T_NEXT[r.t] })} title={look?.name ?? 'Série normale — touche pour changer le type'} style={{ fontWeight: 700, textAlign: 'center', border: 'none', background: 'none', cursor: 'pointer', fontSize: 15, color: look?.c ?? F.ink, fontFamily: 'inherit' }}>{look?.l ?? num}</button>
                     <button onClick={() => void fixPrev()} disabled={r.t === 'w' || !ex.suggestion.last} title="Touche pour corriger ce poids s'il est faux" style={{ fontSize: 13, color: F.muted, textAlign: 'center', border: 'none', background: 'none', padding: '6px 0', cursor: 'pointer', fontFamily: 'inherit', textDecoration: r.t !== 'w' && ex.suggestion.last ? 'underline dotted' : 'none', textUnderlineOffset: 3 }}>{r.t === 'w' ? '—' : prevOf(ex.suggestion.last, num - 1)}</button>
                     <input inputMode="decimal" value={r.kg} onChange={e => upd(k, { kg: e.target.value })} placeholder="—" style={{ ...cell, background: r.done ? 'transparent' : F.bg }} />
@@ -749,7 +749,7 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
             <button key={w.date} onClick={() => { vibrate(10); setPick(w.type ? w.date : null); }} style={{ background: 'none', border: 'none', padding: 0, cursor: w.type ? 'pointer' : 'default', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, fontFamily: 'inherit' }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: sel ? F.accent : F.muted }}>{SHORT_DAYS[dayOf(w.date)]!.slice(0, 1)}</div>
               <div style={{ width: 38, height: 38, borderRadius: 19, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700,
-                background: done ? F.accent : w.type && !w.skip ? '#fff' : 'transparent', color: done ? '#fff' : missed ? F.red : F.ink,
+                background: done ? F.accent : w.type && !w.skip ? 'var(--f-card)' : 'transparent', color: done ? '#fff' : missed ? F.red : F.ink,
                 border: sel ? `2.5px solid ${F.accent}` : live ? `2px dashed ${F.accent}` : w.type && !w.skip ? `1.5px solid ${missed ? F.red : F.line}` : `1.5px dashed ${F.line}` }}>
                 {w.skip ? '·' : done ? '✓' : Number(w.date.slice(8))}
               </div>
@@ -837,7 +837,7 @@ export function ProgramSport({ toast, go }: { toast: (t: string) => void; go?: (
         {d.week.map(w => (
           <div key={w.date} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: F.muted }}>{SHORT_DAYS[dayOf(w.date)]!.slice(0, 1)}</div>
-            <div style={{ width: 38, height: 38, borderRadius: 19, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15, background: w.done ? F.accent : w.planned ? '#fff' : 'transparent', color: w.done ? '#fff' : F.ink, border: w.planned ? `1.5px solid ${F.line}` : `1.5px dashed ${F.line}` }}>{w.done ? '✓' : Number(w.date.slice(8))}</div>
+            <div style={{ width: 38, height: 38, borderRadius: 19, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15, background: w.done ? F.accent : w.planned ? 'var(--f-card)' : 'transparent', color: w.done ? '#fff' : F.ink, border: w.planned ? `1.5px solid ${F.line}` : `1.5px dashed ${F.line}` }}>{w.done ? '✓' : Number(w.date.slice(8))}</div>
           </div>
         ))}
       </div>
@@ -897,10 +897,10 @@ function ScanSheet({ open, onClose, onAdd }: { open: boolean; onClose: () => voi
         <div style={{ fontSize: 13, fontWeight: 600, marginTop: 12 }}>Coche ce que tu fais :</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
           {scan.exercises.map((x, k) => { const on = sel.includes(k); return (
-            <button key={k} onClick={() => setSel(v => on ? v.filter(y => y !== k) : [...v, k])} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 14, border: on ? `2px solid ${F.accent}` : `2px solid ${F.line}`, background: '#fff', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+            <button key={k} onClick={() => setSel(v => on ? v.filter(y => y !== k) : [...v, k])} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 14, border: on ? `2px solid ${F.accent}` : `2px solid ${F.line}`, background: 'var(--f-card)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
               <div style={{ width: 52, height: 52, borderRadius: 10, background: F.tile, overflow: 'hidden', flexShrink: 0 }}>{x.img?.length ? <Anim img={x.img} alt="" h={52} /> : null}</div>
               <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14.5, color: F.ink }}>{x.name}</div><div style={{ fontSize: 12, color: F.muted }}>{x.muscles.join(', ')}</div></div>
-              <div style={{ width: 26, height: 26, borderRadius: 7, background: on ? F.accent : '#fff', border: on ? 'none' : `2px solid ${F.line}`, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>{on ? '✓' : ''}</div>
+              <div style={{ width: 26, height: 26, borderRadius: 7, background: on ? F.accent : 'var(--f-card)', border: on ? 'none' : `2px solid ${F.line}`, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>{on ? '✓' : ''}</div>
             </button>); })}
         </div>
         <button disabled={!sel.length} onClick={() => onAdd(sel.sort((a, b) => a - b).map(k => scan.exercises[k]!))} style={{ ...btn, width: '100%', marginTop: 14, opacity: sel.length ? 1 : 0.5 }}>＋ Ajouter à ma séance{sel.length > 1 ? ` (${sel.length})` : ''}</button>
@@ -921,7 +921,7 @@ function DoneToggle({ date, label, done, live, toast, onD }: { date: string; lab
   return (
     <button disabled={busy} onClick={() => void flip()} style={{ ...card, marginTop: 10, width: '100%', display: 'flex', alignItems: 'center', gap: 12, border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', opacity: busy ? 0.6 : 1 }}>
       <div style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18,
-        background: done ? F.green : '#fff', color: '#fff', border: done ? 'none' : `2px solid ${F.line}` }}>{busy ? '…' : done ? '✓' : ''}</div>
+        background: done ? F.green : 'var(--f-card)', color: '#fff', border: done ? 'none' : `2px solid ${F.line}` }}>{busy ? '…' : done ? '✓' : ''}</div>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontWeight: 700, color: F.ink }}>{done ? `${label} : faite` : `${label} : pas encore faite`}</div>
         <div style={{ fontSize: 12.5, color: F.muted }}>{done ? 'Touche pour décocher si tu ne l\'as pas faite' : live ? 'Tu es à la salle : coche quand tu as fini' : 'Touche pour cocher si tu l\'as faite'}</div>

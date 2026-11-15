@@ -6,15 +6,15 @@ import { trPair } from './i18n.ts';
 // Kit visuel FORME — 31/10 : refait au style de l'appli « Library » que Kouider a montrée (TikTok physio_tip) :
 // fond clair lavande, tuiles grises-lavande, images d'exercices sur fond clair, muscles en rouge, bouton bleu, police système iPhone.
 export const F = {
-  bg: '#f5f2fa', bg2: '#ebe6f3', card: '#ffffff', tile: '#ece7f4', ink: '#17151c', dark: '#1d1b26', dark2: '#2c2938',
-  muted: '#7f7a8c', line: 'rgba(40,30,70,0.09)', accent: '#1f63f0', accent2: '#5b8cff', soft: '#e4ebff',
+  bg: 'var(--f-bg)', bg2: 'var(--f-bg2)', card: 'var(--f-card)', tile: 'var(--f-tile)', ink: 'var(--f-ink)', dark: 'var(--f-dark)', dark2: 'var(--f-dark2)',
+  muted: 'var(--f-muted)', line: 'var(--f-line)', accent: '#2f5bff', accent2: '#5b8cff', soft: 'var(--f-soft)',
   green: '#1f9d5c', blue: '#1f63f0', violet: '#7b5cf0', gold: '#e09a12', red: '#e5322d',
   sans: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif',
   serif: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Noto Naskh Arabic", sans-serif',
 };
 
-export const card: CSSProperties = { background: F.card, borderRadius: 18, padding: 16, boxShadow: '0 1px 2px rgba(40,30,70,0.05), 0 6px 18px rgba(40,30,70,0.05)' };
-export const darkCard: CSSProperties = { background: `linear-gradient(160deg, ${F.dark2}, ${F.dark})`, color: '#fff', borderRadius: 24, padding: 18, boxShadow: '0 12px 28px rgba(30,25,60,0.22)' };
+export const card: CSSProperties = { background: F.card, borderRadius: 18, padding: 16, boxShadow: '0 1px 2px rgba(var(--f-shadow-rgb),0.05), 0 6px 18px rgba(var(--f-shadow-rgb),0.05)' };
+export const darkCard: CSSProperties = { background: `linear-gradient(160deg, ${F.dark2}, ${F.dark})`, color: '#fff', borderRadius: 24, padding: 18, boxShadow: '0 12px 28px rgba(var(--f-shadow-rgb),0.22)' };
 
 export function Title({ a, b, size = 28, sub }: { a: string; b?: string; size?: number; sub?: string }) {
   [a, b] = trPair(a, b);
@@ -43,9 +43,9 @@ export function Section({ a, b, right, onRight }: { a: string; b?: string; right
 }
 
 export const btn: CSSProperties = { background: F.accent, color: '#fff', border: 'none', borderRadius: 999, padding: '14px 20px', fontSize: 15.5, fontWeight: 700, fontFamily: F.sans, cursor: 'pointer', boxShadow: '0 8px 20px rgba(31,99,240,0.25)' };
-export const darkBtn: CSSProperties = { ...btn, background: F.dark, boxShadow: '0 8px 18px rgba(30,25,60,0.2)' };
-export const ghostBtn: CSSProperties = { background: '#fff', color: F.ink, border: `1px solid ${F.line}`, borderRadius: 999, padding: '11px 16px', fontSize: 14, fontWeight: 600, fontFamily: F.sans, cursor: 'pointer' };
-export const input: CSSProperties = { width: '100%', boxSizing: 'border-box', background: '#fff', border: `1px solid ${F.line}`, borderRadius: 14, padding: '13px 14px', fontSize: 16, fontFamily: F.sans, color: F.ink, outline: 'none' };
+export const darkBtn: CSSProperties = { ...btn, background: F.dark, boxShadow: '0 8px 18px rgba(var(--f-shadow-rgb),0.2)' };
+export const ghostBtn: CSSProperties = { background: 'var(--f-card)', color: F.ink, border: `1px solid ${F.line}`, borderRadius: 999, padding: '11px 16px', fontSize: 14, fontWeight: 600, fontFamily: F.sans, cursor: 'pointer' };
+export const input: CSSProperties = { width: '100%', boxSizing: 'border-box', background: 'var(--f-card)', border: `1px solid ${F.line}`, borderRadius: 14, padding: '13px 14px', fontSize: 16, fontFamily: F.sans, color: F.ink, outline: 'none' };
 
 export function Ring({ value, max, size = 120, stroke = 11, color = F.accent, track = 'rgba(255,255,255,0.1)', children }: { value: number; max: number; size?: number; stroke?: number; color?: string; track?: string; children?: ReactNode }) {
   const r = (size - stroke) / 2, c = 2 * Math.PI * r, pct = Math.max(0, Math.min(1, max ? value / max : 0));
@@ -70,7 +70,7 @@ export function Bar({ value, max, color = F.accent, h = 6, track = 'rgba(255,255
 }
 
 export function Chip({ on, children, onClick, color = F.accent }: { on?: boolean; children: ReactNode; onClick?: () => void; color?: string }) {
-  return <button onClick={onClick} style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 999, border: `1px solid ${on ? color : F.line}`, background: on ? color : '#fff', color: on ? '#fff' : F.ink, fontWeight: 700, fontSize: 13.5, fontFamily: F.sans, cursor: 'pointer', whiteSpace: 'nowrap' }}>{children}</button>;
+  return <button onClick={onClick} style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 999, border: `1px solid ${on ? color : F.line}`, background: on ? color : 'var(--f-card)', color: on ? '#fff' : F.ink, fontWeight: 700, fontSize: 13.5, fontFamily: F.sans, cursor: 'pointer', whiteSpace: 'nowrap' }}>{children}</button>;
 }
 
 export function Sheet({ open, onClose, children, title, z = 50 }: { open: boolean; onClose: () => void; children: ReactNode; title?: ReactNode; z?: number }) {
@@ -88,7 +88,7 @@ export function Sheet({ open, onClose, children, title, z = 50 }: { open: boolea
           <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 30, stiffness: 300 }}
             onClick={e => e.stopPropagation()}
             style={{ width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', background: F.bg, borderRadius: '28px 28px 0 0', padding: '10px 18px calc(28px + env(safe-area-inset-bottom))', fontFamily: F.sans, color: F.ink, boxSizing: 'border-box' }}>
-            <div style={{ width: 42, height: 5, borderRadius: 3, background: 'rgba(40,30,70,0.18)', margin: '0 auto 12px' }} />
+            <div style={{ width: 42, height: 5, borderRadius: 3, background: 'rgba(var(--f-ink-rgb),0.18)', margin: '0 auto 12px' }} />
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
               <div style={{ flex: 1 }}>{typeof title === 'string' ? <Title a={title} size={24} /> : title}</div>
               <button onClick={onClose} aria-label="Fermer" style={{ ...ghostBtn, width: 40, height: 40, padding: 0, borderRadius: 20, flexShrink: 0 }}>✕</button>

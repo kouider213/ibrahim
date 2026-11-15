@@ -60,7 +60,7 @@ export function LoadCard({ l }: { l: Load }) {
   const YT = (v: number) => 4 + (1 - (v - minT) / (maxT - minT)) * 40;
   return (
     <div style={{ ...card, marginTop: 10 }}>
-      <div style={{ fontWeight: 700 }}>📈 Charge d'entraînement <span style={{ color: '#9a95a8', fontWeight: 600 }}>90 jours</span></div>
+      <div style={{ fontWeight: 700 }}>📈 Charge d'entraînement <span style={{ color: 'var(--f-muted)', fontWeight: 600 }}>90 jours</span></div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, margin: '10px 0' }}>
         <div><div style={{ fontSize: 20, fontWeight: 800, color: F.accent }}>{Math.round(l.ctl)}</div><div style={{ fontSize: 11.5, color: F.muted, fontWeight: 600 }}>Forme (42 j)</div></div>
         <div><div style={{ fontSize: 20, fontWeight: 800, color: '#e5322d' }}>{Math.round(l.atl)}</div><div style={{ fontSize: 11.5, color: F.muted, fontWeight: 600 }}>Fatigue (7 j)</div></div>
@@ -96,9 +96,9 @@ export function ChallengesCard({ c }: { c: Challenges }) {
     <div style={{ ...card, marginTop: 10 }}>
       <div style={{ fontWeight: 700 }}>🎯 Défis de {month}</div>
       {row('🏃', 'Parcourir', c.km, 'km')}{row('⛰️', 'Grimper', c.elev, 'm')}{row('📅', 'Bouger', c.days, 'jours')}
-      <div style={{ fontWeight: 700, margin: '16px 0 8px' }}>🏅 Badges <span style={{ color: '#9a95a8', fontWeight: 600 }}>{c.badges.filter(b => b.ok).length}/{c.badges.length}</span></div>
+      <div style={{ fontWeight: 700, margin: '16px 0 8px' }}>🏅 Badges <span style={{ color: 'var(--f-muted)', fontWeight: 600 }}>{c.badges.filter(b => b.ok).length}/{c.badges.length}</span></div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-        {c.badges.map(b => <div key={b.id} style={{ textAlign: 'center', padding: '8px 2px', borderRadius: 12, background: b.ok ? '#fff6e0' : F.bg, opacity: b.ok ? 1 : 0.45, filter: b.ok ? 'none' : 'grayscale(1)' }}><div style={{ fontSize: 24 }}>{b.e}</div><div style={{ fontSize: 10, fontWeight: 700, lineHeight: 1.2, marginTop: 2 }}>{b.l}</div></div>)}
+        {c.badges.map(b => <div key={b.id} style={{ textAlign: 'center', padding: '8px 2px', borderRadius: 12, background: b.ok ? 'color-mix(in srgb, #e09a12 14%, var(--f-card))' : F.bg, opacity: b.ok ? 1 : 0.45, filter: b.ok ? 'none' : 'grayscale(1)' }}><div style={{ fontSize: 24 }}>{b.e}</div><div style={{ fontSize: 10, fontWeight: 700, lineHeight: 1.2, marginTop: 2 }}>{b.l}</div></div>)}
       </div>
     </div>
   );
