@@ -7,7 +7,7 @@ import { STATUS, ymd, fmtMoney, type MapCar, type Money } from './data.ts';
 import { InspectionModal } from '../screens/FleetScreen.tsx';
 import { errMsg } from './AddRentals.tsx';
 
-export const inp: CSSProperties = { width: '100%', boxSizing: 'border-box', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 8, padding: '7px 8px', color: '#0f172a', fontSize: 12.5 };
+export const inp: CSSProperties = { width: '100%', boxSizing: 'border-box', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 8, padding: '7px 8px', color: '#14141b', fontSize: 12.5 };
 const fmtD = (s?: string | null) => (s ? new Date(s.slice(0, 10) + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 const addDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return ymd(d); };
 const daysTo = (s?: string | null) => (s ? Math.round((new Date(s.slice(0, 10) + 'T12:00:00').getTime() - Date.now()) / 86_400_000) : null);
@@ -73,7 +73,7 @@ export default function CarSheet({ m, car, money, monthLabel, onClose, onChanged
 
       <div style={{ display: 'flex', gap: 4, margin: '9px 0 8px', background: '#f1f5f9', borderRadius: 10, padding: 3 }}>
         {([['info', 'Infos'], ['etat', 'État & entretien'], ['rappels', 'Rappels']] as const).map(([k, t]) => (
-          <button key={k} onClick={() => { setTab(k); setMsg(''); }} style={{ flex: 1, border: 'none', borderRadius: 8, padding: '6px 0', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: tab === k ? '#fff' : 'transparent', color: tab === k ? '#0f172a' : '#64748b', boxShadow: tab === k ? '0 1px 3px rgba(0,0,0,.12)' : 'none' }}>{t}</button>
+          <button key={k} onClick={() => { setTab(k); setMsg(''); }} style={{ flex: 1, border: 'none', borderRadius: 8, padding: '6px 0', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: tab === k ? '#fff' : 'transparent', color: tab === k ? '#14141b' : '#64748b', boxShadow: tab === k ? '0 1px 3px rgba(0,0,0,.12)' : 'none' }}>{t}</button>
         ))}
       </div>
 
@@ -184,7 +184,7 @@ function StateForm({ car, busy, run }: { car: Car; busy: boolean; run: (fn: () =
     <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
       <div style={{ display: 'flex', gap: 4 }}>
         {([['dispo', '🟢 Disponible'], ['repar', '🔧 Réparation'], ['indispo', '⛔ Indispo (autre)']] as const).map(([k, t]) => (
-          <button key={k} onClick={() => setState(k)} style={{ flex: 1, padding: '7px 0', borderRadius: 9, border: `1.5px solid ${state === k ? '#0f172a' : '#cbd5e1'}`, background: state === k ? '#0f172a' : '#fff', color: state === k ? '#fff' : '#334155', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>{t}</button>
+          <button key={k} onClick={() => setState(k)} style={{ flex: 1, padding: '7px 0', borderRadius: 9, border: `1.5px solid ${state === k ? '#14141b' : '#cbd5e1'}`, background: state === k ? '#14141b' : '#fff', color: state === k ? '#fff' : '#334155', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>{t}</button>
         ))}
       </div>
       {state !== 'dispo' && <L t="Motif"><input value={why} onChange={e => setWhy(e.target.value)} placeholder={state === 'repar' ? 'ex. embrayage, carrosserie, chez le garagiste Hay Badr' : 'ex. réservée pour la famille, papiers'} style={inp} /></L>}
@@ -197,7 +197,7 @@ function StateForm({ car, busy, run }: { car: Car; busy: boolean; run: (fn: () =
         <L t="Vignette"><input type="date" value={f.vignette_expiry} onChange={set('vignette_expiry')} style={inp} /></L>
       </div>
       <L t="Notes"><textarea value={f.service_notes} onChange={set('service_notes')} rows={2} placeholder="ex. rayure portière arrière, pneus neufs le 10/10" style={{ ...inp, resize: 'vertical', fontFamily: 'inherit' }} /></L>
-      <Btn bg="#38d8f5" fg="#fff" disabled={busy} onClick={() => void save()}>{busy ? '…' : 'Enregistrer'}</Btn>
+      <Btn bg="#9b8cff" fg="#fff" disabled={busy} onClick={() => void save()}>{busy ? '…' : 'Enregistrer'}</Btn>
     </div>
   );
 }

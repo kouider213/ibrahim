@@ -5,7 +5,7 @@ export type Status = 'dispo' | 'depart' | 'loue' | 'retour' | 'atelier';
 export const STATUS: Record<Status, { label: string; body: string; badge: string }> = {
   dispo:   { label: 'Disponible',          body: '#34d399', badge: '#10b981' },
   depart:  { label: 'Départ aujourd\'hui', body: '#fcd34d', badge: '#f59e0b' },
-  loue:    { label: 'En location',         body: '#60a5fa', badge: '#3b82f6' },
+  loue:    { label: 'En location',         body: '#b9a6ff', badge: '#ff7aa8' },
   retour:  { label: 'Retour aujourd\'hui', body: '#fdba74', badge: '#f97316' },
   atelier: { label: 'Atelier / indispo',   body: '#a1a1aa', badge: '#71717a' },
 };

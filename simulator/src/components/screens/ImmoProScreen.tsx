@@ -7,14 +7,14 @@ import { InspectionModal } from './FleetScreen.tsx';
 
 // ── Palette sombre premium (cartes sur obsidian + accent bleu) ──
 const C = {
-  bg:      '#050a16',
-  surface: '#0c1730',
-  surface2:'#12203d',
+  bg:      '#09090d',
+  surface: '#131319',
+  surface2:'#1b1b23',
   border:  'rgba(255,255,255,0.07)',
-  gold:    '#38d8f5',
+  gold:    '#9b8cff',
   goldSoft:'#34d399',
   text:    '#f5f5f7',
-  muted:   '#8ea3c8',
+  muted:   '#a6a3b8',
   green:   '#34d399',
   blue:    '#34d399',
   red:     '#fb7185',

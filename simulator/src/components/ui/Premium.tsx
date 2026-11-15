@@ -26,8 +26,8 @@ export function SkeletonCards({ count = 4, height = 64 }: { count?: number; heig
       <style>{`@keyframes dzShimmer{0%{background-position:-200px 0}100%{background-position:calc(200px + 100%) 0}}`}</style>
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} style={{
-          height, borderRadius: 16, border: '1px solid rgba(90,150,255,0.14)',
-          background: 'linear-gradient(90deg, #0b1529 25%, #12213f 50%, #0b1529 75%)',
+          height, borderRadius: 16, border: '1px solid rgba(200,190,255,0.14)',
+          background: 'linear-gradient(90deg, #121218 25%, #1c1c26 50%, #121218 75%)',
           backgroundSize: '200px 100%', animation: 'dzShimmer 1.3s linear infinite',
         }} />
       ))}

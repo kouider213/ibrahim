@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { apiFetch, speakOnDevice } from '../../services/api.ts';
 
 const C = {
-  bg: '#04070d', glass: 'rgba(8,20,32,0.72)', border: 'rgba(56,216,245,0.28)', cyan: '#38d8f5',
+  bg: '#04070d', glass: 'rgba(8,20,32,0.72)', border: 'rgba(155,140,255,0.28)', cyan: '#9b8cff',
   text: '#e8fbff', muted: '#8fb3c0', red: '#ff4d6d', green: '#4ade80',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };

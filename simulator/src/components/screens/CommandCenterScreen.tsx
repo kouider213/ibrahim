@@ -81,21 +81,21 @@ export default function CommandCenterScreen() {
         <>
           {/* Carte argent : ce que je dois récupérer + CA du mois */}
           <div className="dz-press" onClick={() => go('revenue')} role="button" style={{ position: 'relative', overflow: 'hidden', borderRadius: 24, padding: '18px 18px 16px', marginBottom: 14, cursor: 'pointer',
-            background: `radial-gradient(120% 120% at 100% 0%, ${tone(T.accent, 0.35)}, transparent 55%), radial-gradient(90% 90% at 0% 100%, ${tone(T.violet, 0.28)}, transparent 60%), linear-gradient(150deg, #13285a, #0a1530)`,
+            background: `radial-gradient(120% 120% at 100% 0%, ${tone(T.accent, 0.35)}, transparent 55%), radial-gradient(90% 90% at 0% 100%, ${tone(T.violet, 0.28)}, transparent 60%), linear-gradient(150deg, #1e1832, #121218)`,
             border: `1px solid ${tone(T.accent, 0.35)}`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.12), 0 22px 50px -24px ${tone(T.accent, 0.8)}` }}>
             <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: '35%', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent)', animation: 'dzShine 6s ease-in-out infinite', pointerEvents: 'none' }} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#bfe9ff', fontWeight: 700, letterSpacing: '0.04em' }}>💰 MON ARGENT <span style={{ marginLeft: 'auto', fontSize: 13, color: T.accent }}>Détails ›</span></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#e9e0ff', fontWeight: 700, letterSpacing: '0.04em' }}>💰 MON ARGENT <span style={{ marginLeft: 'auto', fontSize: 13, color: T.accent }}>Détails ›</span></div>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, marginTop: 10 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1, color: '#fff', fontVariantNumeric: 'tabular-nums' }}><CountUp value={ledger ? money(ledger.toCollect) : '—'} /></div>
-                <div style={{ fontSize: 13, color: '#a9c4ea', marginTop: 5 }}>à récupérer{ledger ? ` · ${Math.round(ledger.toCollect * ledger.rate).toLocaleString('fr-FR')} DA` : ''}</div>
+                <div style={{ fontSize: 13, color: '#c9c1e3', marginTop: 5 }}>à récupérer{ledger ? ` · ${Math.round(ledger.toCollect * ledger.rate).toLocaleString('fr-FR')} DA` : ''}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: 20, fontWeight: 800, color: '#fff' }}><CountUp value={monthCA != null ? money(monthCA) : '—'} /></div>
-                <div style={{ fontSize: 12, color: '#a9c4ea' }}>CA ce mois</div>
+                <div style={{ fontSize: 12, color: '#c9c1e3' }}>CA ce mois</div>
               </div>
             </div>
-            {ledger && <div style={{ display: 'flex', gap: 14, marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.1)', fontSize: 12.5, color: '#a9c4ea' }}>
+            {ledger && <div style={{ display: 'flex', gap: 14, marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.1)', fontSize: 12.5, color: '#c9c1e3' }}>
               <span>Gagné depuis le début <b style={{ color: '#fff' }}>{money(ledger.total)}</b></span>
               <span>Déjà récupéré <b style={{ color: T.ok }}>{money(ledger.collected)}</b></span>
             </div>}

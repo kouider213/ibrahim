@@ -168,7 +168,7 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
                   {/* Photo pleine largeur */}
                   <div onClick={() => setDetail(car)} role="button" aria-label={`Fiche ${car.name}`} style={{ position: 'relative', height: 170, background: '#040914', overflow: 'hidden', cursor: 'pointer' }}>
                     <CarPhoto url={car.image_url ?? null} name={car.name} col={stCol} />
-                    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(4,9,20,0.55) 0%, transparent 35%, transparent 45%, rgba(8,16,36,0.96) 100%)', pointerEvents: 'none' }} />
+                    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(4,9,20,0.55) 0%, transparent 35%, transparent 45%, rgba(14,13,20,0.96) 100%)', pointerEvents: 'none' }} />
                     {!car.available && <div style={{ position: 'absolute', inset: 0, background: 'rgba(4,9,20,0.35)', backdropFilter: 'grayscale(0.7)', pointerEvents: 'none' }} />}
                     <div style={{ position: 'absolute', top: 12, left: 12 }}><Badge color={stCol}>{stLbl}</Badge></div>
                     <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: 10, right: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -540,7 +540,7 @@ function BookingCalendarModal({ car, isHouari, onClose, onCreated }: {
             const inSel = selStart && (isEdge || (selEnd && d >= selStart && d <= selEnd));
             const disabled = past || isBooked;
             const bg = isBooked ? tone(T.bad, 0.18) : isEdge ? T.accent : inSel ? tone(T.accent, 0.25) : past ? 'transparent' : 'rgba(255,255,255,0.04)';
-            const fg = isBooked ? T.bad : isEdge ? '#04101f' : inSel ? T.text : past ? '#34405c' : T.text;
+            const fg = isBooked ? T.bad : isEdge ? '#0b0a12' : inSel ? T.text : past ? '#34405c' : T.text;
             return (
               <button key={day} onClick={() => !disabled && onDay(d)} disabled={disabled}
                 style={{ aspectRatio: '1', minHeight: 38, borderRadius: 10, border: d === todayIso ? `1px solid ${tone(T.accent, 0.6)}` : 'none', background: bg, color: fg, fontSize: 14, fontWeight: inSel ? 800 : 500, cursor: disabled ? 'default' : 'pointer', fontFamily: T.font, textDecoration: isBooked ? 'line-through' : 'none' }}>
@@ -984,7 +984,7 @@ export function InspectionModal({ kind, subject, sessionId, onClose, initialMode
                 return (
                   <div key={gi}>
                     <div style={{ position: 'absolute', left: `${d.box.x * 100}%`, top: `${d.box.y * 100}%`, width: `${d.box.w * 100}%`, height: `${d.box.h * 100}%`, border: `2px solid ${col}`, borderRadius: 4, boxShadow: `0 0 8px ${col}88`, boxSizing: 'border-box' }} />
-                    <div style={{ position: 'absolute', left: `${d.box.x * 100}%`, top: `${d.box.y * 100}%`, transform: 'translate(-50%,-50%)', minWidth: 22, height: 22, padding: '0 4px', borderRadius: 11, background: col, color: '#04101f', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{gi + 1}</div>
+                    <div style={{ position: 'absolute', left: `${d.box.x * 100}%`, top: `${d.box.y * 100}%`, transform: 'translate(-50%,-50%)', minWidth: 22, height: 22, padding: '0 4px', borderRadius: 11, background: col, color: '#0b0a12', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{gi + 1}</div>
                   </div>
                 );
               })())}
@@ -997,7 +997,7 @@ export function InspectionModal({ kind, subject, sessionId, onClose, initialMode
                 const col = SEV_COL[d.severity] ?? '#ffb347';
                 return (
                   <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <span style={{ flex: '0 0 24px', height: 24, borderRadius: 12, background: col, color: '#04101f', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+                    <span style={{ flex: '0 0 24px', height: 24, borderRadius: 12, background: col, color: '#0b0a12', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
                     <span style={{ fontSize: 14, color: T.text, lineHeight: 1.45 }}>{d.label}{d.is_new ? <b style={{ color: T.bad }}> · nouveau</b> : ''}</span>
                   </div>
                 );

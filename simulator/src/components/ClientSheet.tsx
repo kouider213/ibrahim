@@ -4,7 +4,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { business, type Booking, type ClientDetail, type ClientIntelligence } from '../services/api.ts';
-import { T, tone, Avatar, Badge, ActionBtn, waLink, money } from './ui/Kit.tsx';
+import { T, tone, Avatar, Badge, ActionBtn, waLink, money, glass } from './ui/Kit.tsx';
 
 export interface ClientRef { name: string; phone?: string | null }
 
@@ -104,8 +104,8 @@ export default function ClientSheet({ client, onClose, actor }: { client: Client
     window.dispatchEvent(new CustomEvent('dz:go', { detail: 'text' }));
   };
 
-  const box: CSSProperties = { background: T.surface, border: `1px solid ${T.line}`, borderRadius: 16, padding: '13px 14px', marginBottom: 12 };
-  const h = (t: string, right?: ReactNode) => <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}><div style={{ flex: 1, fontSize: 11.5, color: T.faint, fontWeight: 800, letterSpacing: '0.1em' }}>{t}</div>{right}</div>;
+  const box: CSSProperties = { ...glass(), borderRadius: 22, padding: '14px 15px', marginBottom: 12 };
+  const h = (t: string, right?: ReactNode) => <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}><div style={{ flex: 1, fontFamily: T.display, fontSize: 15, color: T.text, fontWeight: 800, letterSpacing: '-0.01em' }}>{t.charAt(0) + t.slice(1).toLowerCase()}</div>{right}</div>;
   const kv = (k: string, v: ReactNode, c?: string) => v == null || v === '' ? null : (
     <div style={{ display: 'flex', gap: 12, padding: '6px 0', fontSize: 14.5, borderTop: `1px solid ${tone('#6ea0ff', 0.07)}` }}>
       <span style={{ color: T.muted, flexShrink: 0 }}>{k}</span>
@@ -120,8 +120,8 @@ export default function ClientSheet({ client, onClose, actor }: { client: Client
   );
 
   const body = (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(2,6,16,0.74)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', fontFamily: T.font, animation: 'fadeIn .18s ease' }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, maxHeight: '94%', display: 'flex', flexDirection: 'column', background: `linear-gradient(180deg, ${T.surface2}, ${T.bg} 60%)`, borderRadius: '26px 26px 0 0', border: `1px solid ${T.lineStrong}`, borderBottom: 'none', boxShadow: `0 -24px 70px -20px ${tone(T.accent, 0.4)}` }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(4,4,8,0.74)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', fontFamily: T.font, animation: 'fadeIn .18s ease' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, maxHeight: '94%', display: 'flex', flexDirection: 'column', background: `radial-gradient(90% 40% at 100% 0%, rgba(200,107,255,0.22), transparent 60%), radial-gradient(70% 30% at 0% 0%, rgba(138,123,255,0.2), transparent 60%), linear-gradient(180deg, ${T.surface2}, ${T.bg} 55%)`, borderRadius: '30px 30px 0 0', animation: 'dzSheet .4s cubic-bezier(.16,.9,.3,1) both', border: `1px solid ${T.lineStrong}`, borderBottom: 'none', boxShadow: `0 -24px 70px -20px ${tone(T.accent, 0.4)}` }}>
         {/* En-tête */}
         <div style={{ padding: '10px 18px 14px', flexShrink: 0, position: 'relative', overflow: 'hidden', borderRadius: '26px 26px 0 0' }}>
           <div style={{ position: 'absolute', top: -120, right: -80, width: 300, height: 300, background: `radial-gradient(circle, ${tone(T.accent, 0.2)}, transparent 70%)`, pointerEvents: 'none' }} />
@@ -129,8 +129,8 @@ export default function ClientSheet({ client, onClose, actor }: { client: Client
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14 }}>
             <Avatar name={client.name} color={vip ? T.warn : T.accent} size={58} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 11, color: T.accent, fontWeight: 800, letterSpacing: '0.16em' }}>FICHE CLIENT</div>
-              <div style={{ fontSize: 23, fontWeight: 800, letterSpacing: '-0.02em', color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{client.name}</div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, background: T.grad, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', display: 'inline-block' }}>Fiche client</div>
+              <div style={{ fontFamily: T.display, fontSize: 27, fontWeight: 800, letterSpacing: '-0.04em', color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{client.name}</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
                 {vip && <Badge color={T.warn}>⭐ VIP</Badge>}
                 {now && <Badge color={T.ok}>🚗 En location</Badge>}

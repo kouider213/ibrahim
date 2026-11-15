@@ -9,15 +9,15 @@ import AiRetouche from './AiRetouche.tsx';
 // Le rendu tourne sur le serveur ; la vidéo arrive ici et sur Telegram.
 
 const C = {
-  surface: '#0c1730', border: 'rgba(90,150,255,0.16)',
-  accent: '#f472b6', green: '#38d8f5', gold: '#fbbf24', red: '#f87171', text: '#f5f5f7', muted: '#8ea3c8',
+  surface: '#131319', border: 'rgba(200,190,255,0.16)',
+  accent: '#f472b6', green: '#9b8cff', gold: '#fbbf24', red: '#f87171', text: '#f5f5f7', muted: '#a6a3b8',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 const btn = (bg: string, color: string) => ({ background: bg, color, border: 'none', borderRadius: 10, padding: '10px 13px', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: C.font } as const);
-const chip = (on: boolean) => ({ background: on ? C.accent : 'rgba(255,255,255,0.06)', color: on ? '#050a16' : C.text, border: `1px solid ${on ? C.accent : C.border}`,
+const chip = (on: boolean) => ({ background: on ? C.accent : 'rgba(255,255,255,0.06)', color: on ? '#09090d' : C.text, border: `1px solid ${on ? C.accent : C.border}`,
   borderRadius: 999, padding: '6px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: C.font, whiteSpace: 'nowrap' } as const);
 const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 12, marginBottom: 10 } as const;
-const input = { width: '100%', boxSizing: 'border-box', background: '#081024', color: C.text, border: `1px solid ${C.border}`, borderRadius: 10,
+const input = { width: '100%', boxSizing: 'border-box', background: '#0d0d12', color: C.text, border: `1px solid ${C.border}`, borderRadius: 10,
   padding: 10, fontSize: 13, fontFamily: C.font, resize: 'vertical' } as const;
 const label = { fontSize: 12.5, fontWeight: 600, color: C.muted, margin: '14px 0 7px' } as const;
 const LANGS: Record<string, string> = { fr: '🇫🇷 Français', darija: '🇩🇿 Darija', ar: 'العربية', en: '🇬🇧 English' };
@@ -134,14 +134,14 @@ export default function StudioScreen() {
   const done = jobs.filter(j => j.status === 'done').length;
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch', background: '#050a16', color: C.text, fontFamily: C.font, paddingBottom: 110 }}>
+    <div style={{ height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch', background: '#09090d', color: C.text, fontFamily: C.font, paddingBottom: 110 }}>
       <Hero eyebrow="Dzaryx · Vidéo" title="Montage" subtitle="Ton éditeur vidéo + tes pubs IA — gratuit, sans filigrane, sans limite" accent={C.accent} />
       <div style={{ padding: '0 14px' }}>
         {!opts ? <SkeletonCards /> : (<>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 7, marginBottom: 14 }}>
             <StatCard icon="🎬" value={String(done)} label="VIDÉOS" color={C.accent} />
             <StatCard icon="⏳" value={String(jobs.filter(j => RUNNING.includes(j.status)).length)} label="EN COURS" color={C.gold} />
-            <StatCard icon="💸" value={`${spent.toFixed(2)} $`} label="DÉPENSÉ FAL.AI" color={C.green} />
+            <StatCard icon="💸" value={`${Math.round(spent)} $`} label="DÉPENSÉ FAL.AI" color={C.green} />
           </div>
           <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
             <button style={{ ...chip(tab === 'editor'), flex: 1, padding: '9px 6px' }} onClick={() => setTab('editor')}>✂️ Éditeur</button>
@@ -201,14 +201,14 @@ export default function StudioScreen() {
                   </button>
                 ))}
               </div>
-              <label style={{ ...btn('rgba(56,216,245,0.12)', C.green), display: 'block', textAlign: 'center', marginTop: 8, opacity: upPct !== null ? 0.6 : 1 }}>
+              <label style={{ ...btn('rgba(155,140,255,0.12)', C.green), display: 'block', textAlign: 'center', marginTop: 8, opacity: upPct !== null ? 0.6 : 1 }}>
                 {upPct !== null ? `📤 Envoi… ${upPct} %` : imageUrl ? '✅ Ta photo est prête — changer' : '📸 Envoyer une photo de mon téléphone'}
                 <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => void pickPhoto(e.target.files?.[0])} />
               </label>
               {imageUrl && <img src={imageUrl} alt="" style={{ width: 90, borderRadius: 8, marginTop: 6, display: 'block' }} />}
 
               {mode === 'viral' ? (<>
-                <button style={{ ...btn(C.accent, '#050a16'), width: '100%', marginTop: 12, padding: '14px 13px', fontSize: 15, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void quickCreate()}>
+                <button style={{ ...btn(C.accent, '#09090d'), width: '100%', marginTop: 12, padding: '14px 13px', fontSize: 15, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void quickCreate()}>
                   {busy ? '✍️ Dzaryx prépare…' : `🎬 Créer ma pub (1 clic${model === 'gratuit' ? ', gratuit' : ''})`}
                 </button>
                 <div style={{ fontSize: 11.5, color: C.muted, marginTop: 6, lineHeight: 1.4, textAlign: 'center' }}>
@@ -218,7 +218,7 @@ export default function StudioScreen() {
                   ✏️ Voir et modifier le scénario avant
                 </button>
               </>) : (
-                <button style={{ ...btn(C.accent, '#050a16'), width: '100%', marginTop: 12, opacity: busy || (!idea.trim() && !startImage) ? 0.5 : 1 }} disabled={busy || (!idea.trim() && !startImage)} onClick={() => void makePlan()}>
+                <button style={{ ...btn(C.accent, '#09090d'), width: '100%', marginTop: 12, opacity: busy || (!idea.trim() && !startImage) ? 0.5 : 1 }} disabled={busy || (!idea.trim() && !startImage)} onClick={() => void makePlan()}>
                   {busy ? '✍️ Dzaryx prépare…' : '✍️ Préparer la vidéo IA (gratuit)'}
                 </button>
               )}
@@ -280,7 +280,7 @@ export default function StudioScreen() {
                 {plan.voiceover && <button style={chip(subtitles)} onClick={() => setSubtitles(!subtitles)}>💬 Sous-titres</button>}
                 {model !== 'gratuit' && <button style={chip(nativeAudio)} onClick={() => setNativeAudio(!nativeAudio)}>🔊 Son natif du modèle</button>}
               </div>
-              <button style={{ ...btn(C.accent, '#050a16'), width: '100%', marginTop: 12, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void render()}>
+              <button style={{ ...btn(C.accent, '#09090d'), width: '100%', marginTop: 12, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void render()}>
                 🎬 Lancer le rendu · {model === 'gratuit' ? '0 €' : `≈ ${cost.toFixed(2)} $`}
               </button>
               <div style={{ fontSize: 11, color: C.muted, marginTop: 6, lineHeight: 1.4 }}>
@@ -311,7 +311,7 @@ export default function StudioScreen() {
                   ? <img src={j.url} alt="" style={{ width: '100%', maxHeight: 480, objectFit: 'contain', borderRadius: 10, marginTop: 8, background: '#000' }} />
                   : <video src={j.url} controls playsInline preload="metadata" style={{ width: '100%', maxHeight: 480, borderRadius: 10, marginTop: 8, background: '#000' }} />}
                 <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                  <a href={j.url} target="_blank" rel="noreferrer" download style={{ ...btn(C.green, '#050a16'), textDecoration: 'none', flex: 1, textAlign: 'center' }}>⬇️ Télécharger</a>
+                  <a href={j.url} target="_blank" rel="noreferrer" download style={{ ...btn(C.green, '#09090d'), textDecoration: 'none', flex: 1, textAlign: 'center' }}>⬇️ Télécharger</a>
                   {j.caption && <button style={{ ...btn('rgba(255,255,255,0.08)', C.text), flex: 1 }}
                     onClick={() => { void navigator.clipboard?.writeText(j.caption ?? '').then(() => say('📋 Légende copiée')).catch(() => say(j.caption ?? '')); }}>📋 Copier la légende</button>}
                 </div>

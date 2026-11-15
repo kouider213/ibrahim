@@ -6,14 +6,14 @@ import { business, type EditOptions, type EditTimelineText } from '../../service
 // « 🪄 Dzaryx monte tout » = montage automatique (silences coupés, zooms, accroche, sous-titres).
 
 const C = {
-  surface: '#0c1730', border: 'rgba(90,150,255,0.16)', accent: '#f472b6', green: '#38d8f5', gold: '#fbbf24', red: '#f87171',
-  text: '#f5f5f7', muted: '#8ea3c8', font: '-apple-system, "Segoe UI", Roboto, sans-serif',
+  surface: '#131319', border: 'rgba(200,190,255,0.16)', accent: '#f472b6', green: '#9b8cff', gold: '#fbbf24', red: '#f87171',
+  text: '#f5f5f7', muted: '#a6a3b8', font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 const btn = (bg: string, color: string) => ({ background: bg, color, border: 'none', borderRadius: 10, padding: '10px 13px', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: C.font } as const);
-const chip = (on: boolean) => ({ background: on ? C.accent : 'rgba(255,255,255,0.06)', color: on ? '#050a16' : C.text, border: `1px solid ${on ? C.accent : C.border}`,
+const chip = (on: boolean) => ({ background: on ? C.accent : 'rgba(255,255,255,0.06)', color: on ? '#09090d' : C.text, border: `1px solid ${on ? C.accent : C.border}`,
   borderRadius: 999, padding: '6px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: C.font, whiteSpace: 'nowrap' } as const);
 const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 12, marginBottom: 10 } as const;
-const input = { width: '100%', boxSizing: 'border-box', background: '#081024', color: C.text, border: `1px solid ${C.border}`, borderRadius: 10,
+const input = { width: '100%', boxSizing: 'border-box', background: '#0d0d12', color: C.text, border: `1px solid ${C.border}`, borderRadius: 10,
   padding: 10, fontSize: 13, fontFamily: C.font } as const;
 const small = { fontSize: 11.5, color: C.muted } as const;
 
@@ -250,7 +250,7 @@ export default function MontageEditor({ onExported, say }: { onExported: () => v
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
-          <button style={{ ...btn(C.accent, '#050a16'), padding: '8px 14px' }} onClick={togglePlay} disabled={!clips.length}>{playing ? '⏸' : '▶️'}</button>
+          <button style={{ ...btn(C.accent, '#09090d'), padding: '8px 14px' }} onClick={togglePlay} disabled={!clips.length}>{playing ? '⏸' : '▶️'}</button>
           <div style={{ flex: 1, height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 2 }}>
             <div style={{ width: `${total ? Math.min(100, (time / total) * 100) : 0}%`, height: '100%', background: C.accent, borderRadius: 2 }} />
           </div>
@@ -360,8 +360,8 @@ export default function MontageEditor({ onExported, say }: { onExported: () => v
         <textarea style={{ ...input, resize: 'vertical' }} rows={2} value={brief} onChange={e => setBrief(e.target.value)}
           placeholder="Dis à Dzaryx ce que tu veux (ex. pub pour la Clio, ambiance été, en darija)…" />
         <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-          <button style={{ ...btn(C.gold, '#050a16'), flex: 1, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void exportAuto()}>🪄 Dzaryx monte tout</button>
-          <button style={{ ...btn(C.accent, '#050a16'), flex: 1, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void exportManual()}>⬆️ Exporter mon montage</button>
+          <button style={{ ...btn(C.gold, '#09090d'), flex: 1, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void exportAuto()}>🪄 Dzaryx monte tout</button>
+          <button style={{ ...btn(C.accent, '#09090d'), flex: 1, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void exportManual()}>⬆️ Exporter mon montage</button>
         </div>
         <div style={{ ...small, marginTop: 6, lineHeight: 1.4 }}>
           0 €, sans filigrane, sans limite. « Dzaryx monte tout » coupe les blancs, ajoute zooms, accroche, sous-titres et voix off si tes vidéos sont muettes. Max 50 Mo par fichier.

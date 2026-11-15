@@ -3,8 +3,8 @@ import { business, type ProspectRow, type ProspectsOverview } from '../../servic
 import { Hero, StatCard, SkeletonCards, SearchPill } from '../ui/Premium.tsx';
 
 const C = {
-  bg: '#050a16', surface: '#0c1730', border: 'rgba(90,150,255,0.16)',
-  accent: '#38d8f5', gold: '#fbbf24', blue: '#0a66c2', wa: '#25d366', red: '#f87171', text: '#f5f5f7', muted: '#8ea3c8',
+  bg: '#09090d', surface: '#131319', border: 'rgba(200,190,255,0.16)',
+  accent: '#9b8cff', gold: '#fbbf24', blue: '#0a66c2', wa: '#25d366', red: '#f87171', text: '#f5f5f7', muted: '#a6a3b8',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 
@@ -16,7 +16,7 @@ const PARTNER = ['loueur_voitures', 'proprietaire_appart', 'autre'];
 const LANG: Record<string, string> = { fr: 'Français', en: 'Anglais', ar: 'Arabe', es: 'Espagnol', it: 'Italien', de: 'Allemand', tr: 'Turc', pt: 'Portugais', nl: 'Néerlandais', zh: 'Chinois', ko: 'Coréen', ja: 'Japonais', ru: 'Russe' };
 const STATUS: Record<string, { label: string; color: string }> = {
   a_contacter: { label: 'À contacter', color: C.muted },
-  contacte:    { label: 'Contacté',    color: '#60a5fa' },
+  contacte:    { label: 'Contacté',    color: '#b9a6ff' },
   a_repondu:   { label: 'A répondu',   color: C.gold },
   interesse:   { label: 'Intéressé',   color: C.accent },
   client:      { label: 'Client 🎉',   color: C.accent },
@@ -108,7 +108,7 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
         {/* Chiffres */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 7, marginBottom: 14 }}>
           <StatCard icon="📤" value={String(st?.sent ?? 0)} label="MAILS ENVOYÉS" />
-          <StatCard icon="📅" value={String(st?.sent_today ?? 0)} label="AUJOURD'HUI" color="#60a5fa" />
+          <StatCard icon="📅" value={String(st?.sent_today ?? 0)} label="AUJOURD'HUI" color="#b9a6ff" />
           <StatCard icon="📩" value={String(st?.replies ?? 0)} label="RÉPONSES" color={C.gold} />
           <StatCard icon="🔗" value={String(st?.linkedin_todo ?? 0)} label="DÉCIDEURS" color={C.blue} />
         </div>
@@ -127,7 +127,7 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
                 <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>Chaque jour à 10h (Oran) · {ap.per_day} mail(s)/jour{(data.mode ?? 'sites') !== 'sites' ? ' + 1 grand compte' : ''}</div>
               </div>
               <button onClick={() => act(() => business.prospectsAutopilot({ enabled: !ap.enabled }), ap.enabled ? 'Démarchage mis en pause' : 'Démarchage réactivé')}
-                style={btn(ap.enabled ? 'rgba(248,113,113,0.15)' : 'rgba(56,216,245,0.18)', ap.enabled ? C.red : C.accent)}>{ap.enabled ? 'Pause' : 'Activer'}</button>
+                style={btn(ap.enabled ? 'rgba(248,113,113,0.15)' : 'rgba(155,140,255,0.18)', ap.enabled ? C.red : C.accent)}>{ap.enabled ? 'Pause' : 'Activer'}</button>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11 }}>
               <span style={{ fontSize: 12, color: C.muted }}>Mails par jour</span>
@@ -142,7 +142,7 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
               {MODES.map(m => {
                 const on = (data.mode ?? 'sites') === m.id;
                 return <button key={m.id} onClick={() => !on && act(() => business.prospectsAutopilot({ mode: m.id }), `Mode : ${m.label}`)}
-                  style={{ ...btn(on ? 'rgba(56,216,245,0.18)' : 'rgba(255,255,255,0.06)', on ? C.accent : C.text), flex: 1, border: on ? `1px solid ${C.accent}` : '1px solid transparent' }}>{m.label}</button>;
+                  style={{ ...btn(on ? 'rgba(155,140,255,0.18)' : 'rgba(255,255,255,0.06)', on ? C.accent : C.text), flex: 1, border: on ? `1px solid ${C.accent}` : '1px solid transparent' }}>{m.label}</button>;
               })}
             </div>
             <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8, lineHeight: 1.45 }}>
@@ -186,7 +186,7 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
                     <div style={{ fontSize: 13.5, fontWeight: 700 }}>{r.company} <span style={{ color: C.muted, fontWeight: 400, fontSize: 11 }}>{open === `v-${r.id}` ? '▲' : '▼ voir la fiche'}</span></div>
                     <div style={{ fontSize: 11.5, color: C.muted }}>{r.site_visits > 1 ? `${r.site_visits} visites · ` : ''}dernière le {r.site_visit_at ? fmtSlot(r.site_visit_at) : '—'}</div>
                   </div>
-                  {r.phone && <a href={`tel:${r.phone}`} onClick={e => e.stopPropagation()} style={{ ...btn('rgba(56,216,245,0.18)', C.accent), textDecoration: 'none' }}>📞 Appeler</a>}
+                  {r.phone && <a href={`tel:${r.phone}`} onClick={e => e.stopPropagation()} style={{ ...btn('rgba(155,140,255,0.18)', C.accent), textDecoration: 'none' }}>📞 Appeler</a>}
                 </div>
                 {open === `v-${r.id}` && <div style={{ paddingBottom: 10 }}><ProspectDetails p={r} mailOpen /></div>}
               </div>
@@ -210,15 +210,15 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
               <div key={`${r.id}-${i}`} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 13, padding: 12, marginBottom: 8 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700 }}>{c.name} <span style={{ color: C.muted, fontWeight: 500 }}>· {r.company}</span></div>
                 <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 4 }}>{c.title}</div>
-                <div style={{ fontSize: 12.5, marginBottom: 7 }}>✉️ <a href={`mailto:${c.email}`} style={{ color: '#7fb5ff', wordBreak: 'break-all' }}>{c.email}</a></div>
+                <div style={{ fontSize: 12.5, marginBottom: 7 }}>✉️ <a href={`mailto:${c.email}`} style={{ color: '#c7b8ff', wordBreak: 'break-all' }}>{c.email}</a></div>
                 {c.subject && <div style={{ fontSize: 12, color: C.gold, marginBottom: 4 }}>Objet : {c.subject}</div>}
                 <div style={{ fontSize: 12.5, lineHeight: 1.45, whiteSpace: 'pre-wrap', background: 'rgba(255,255,255,0.04)', borderRadius: 9, padding: 9, marginBottom: 9 }}>{c.message}</div>
                 <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-                  <button onClick={() => window.open(`mailto:${c.email}?subject=${encodeURIComponent(c.subject ?? '')}&body=${encodeURIComponent(c.message)}`, '_self')} style={btn('rgba(56,216,245,0.18)', C.accent)}>✉️ Envoyer le mail</button>
+                  <button onClick={() => window.open(`mailto:${c.email}?subject=${encodeURIComponent(c.subject ?? '')}&body=${encodeURIComponent(c.message)}`, '_self')} style={btn('rgba(155,140,255,0.18)', C.accent)}>✉️ Envoyer le mail</button>
                   <button onClick={() => { void navigator.clipboard?.writeText(c.email!).then(() => say('Email copié'), () => say('Copie impossible')); }} style={btn('rgba(255,255,255,0.08)', C.text)}>📋 Email</button>
                   <button onClick={() => { void navigator.clipboard?.writeText(c.message).then(() => say('Texte copié'), () => say('Copie impossible')); }} style={btn('rgba(255,255,255,0.08)', C.text)}>📋 Texte</button>
-                  {c.url && <button onClick={() => window.open(c.url, '_blank')} style={btn('rgba(10,102,194,0.25)', '#7fb5ff')}>Profil</button>}
-                  <button onClick={() => act(() => business.prospectLinkedinSent(r.id, c.idx ?? i, true), `Noté : mail envoyé à ${c.name}`)} style={btn('rgba(56,216,245,0.18)', C.accent)}>✓ Envoyé</button>
+                  {c.url && <button onClick={() => window.open(c.url, '_blank')} style={btn('rgba(10,102,194,0.25)', '#c7b8ff')}>Profil</button>}
+                  <button onClick={() => act(() => business.prospectLinkedinSent(r.id, c.idx ?? i, true), `Noté : mail envoyé à ${c.name}`)} style={btn('rgba(155,140,255,0.18)', C.accent)}>✓ Envoyé</button>
                 </div>
               </div>
             )))}
@@ -238,7 +238,7 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
                   {r.status !== 'a_contacter' && <button onClick={() => { if (window.confirm(`Envoyer ce message WhatsApp à ${r.company} (+${r.whatsapp_number}) ?`)) act(() => business.prospectWhatsappSend(r.id), `💬 Envoyé à ${r.company}`); }}
                     style={btn(C.wa, '#06210f')}>📤 Envoyer</button>}
                   <button onClick={() => window.open(`https://wa.me/${r.whatsapp_number}?text=${encodeURIComponent(r.whatsapp_message ?? '')}`, '_blank')} style={btn('rgba(37,211,102,0.2)', C.wa)}>Ouvrir WhatsApp</button>
-                  <button onClick={() => act(() => business.prospectWhatsappSent(r.id, true), `Noté : message envoyé à ${r.company}`)} style={btn('rgba(56,216,245,0.18)', C.accent)}>✓ Envoyé</button>
+                  <button onClick={() => act(() => business.prospectWhatsappSent(r.id, true), `Noté : message envoyé à ${r.company}`)} style={btn('rgba(155,140,255,0.18)', C.accent)}>✓ Envoyé</button>
                 </div>
               </div>
             ))}
@@ -288,11 +288,11 @@ function ReplyCard({ p, onSend, onDismiss, onDevis }: { p: ProspectRow; onSend: 
       {!!p.proposed_slots?.length && <div style={{ fontSize: 11.5, color: C.accent, marginBottom: 6 }}>📅 Créneaux libres proposés : {p.proposed_slots.map(fmtSlot).join(' · ')}</div>}
       <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 4 }}>Réponse préparée par Dzaryx (tu peux la modifier) :</div>
       <textarea value={text} onChange={e => { setText(e.target.value); setConfirm(false); }} rows={7}
-        style={{ width: '100%', boxSizing: 'border-box', background: '#081024', color: C.text, border: `1px solid ${C.border}`, borderRadius: 9, padding: 9, fontSize: 12.5, fontFamily: C.font, lineHeight: 1.45, resize: 'vertical' }} />
+        style={{ width: '100%', boxSizing: 'border-box', background: '#0d0d12', color: C.text, border: `1px solid ${C.border}`, borderRadius: 9, padding: 9, fontSize: 12.5, fontFamily: C.font, lineHeight: 1.45, resize: 'vertical' }} />
       <div style={{ display: 'flex', gap: 7, marginTop: 8 }}>
         {confirm
           ? <button onClick={() => onSend(text)} style={btn(C.accent, '#06210f')}>Oui, envoyer à {p.company}</button>
-          : <button onClick={() => setConfirm(true)} style={btn('rgba(56,216,245,0.18)', C.accent)}>📤 Envoyer</button>}
+          : <button onClick={() => setConfirm(true)} style={btn('rgba(155,140,255,0.18)', C.accent)}>📤 Envoyer</button>}
         <button onClick={onDismiss} style={btn('rgba(255,255,255,0.06)', C.muted)}>Ne pas répondre</button>
       </div>
       {(p.status === 'interesse' || !!p.quote_draft?.length) && (
@@ -337,11 +337,11 @@ function ProspectCard({ p, open, onToggle, onStatus }: { p: ProspectRow; open: b
 function ProspectDetails({ p, mailOpen }: { p: ProspectRow; mailOpen?: boolean }) {
   return (
     <div style={{ padding: '0 13px 4px', fontSize: 12, lineHeight: 1.5 }}>
-      {p.email && <div>✉️ <a href={`mailto:${p.email}`} style={{ color: '#7fb5ff' }}>{p.email}</a></div>}
-      {p.phone && <div>📞 <a href={`tel:${p.phone}`} style={{ color: '#7fb5ff' }}>{p.phone}</a></div>}
+      {p.email && <div>✉️ <a href={`mailto:${p.email}`} style={{ color: '#c7b8ff' }}>{p.email}</a></div>}
+      {p.phone && <div>📞 <a href={`tel:${p.phone}`} style={{ color: '#c7b8ff' }}>{p.phone}</a></div>}
       {p.website && <div>🌐 {p.website}</div>}
       {p.linkedin_contacts.map((c, i) => (
-        <div key={i} style={{ marginTop: 4 }}>👔 <a href={c.url} target="_blank" rel="noreferrer" style={{ color: '#7fb5ff' }}>{c.name}</a> — {c.title}{c.email ? <> · <a href={`mailto:${c.email}`} style={{ color: '#7fb5ff' }}>{c.email}</a></> : ''} {c.sent_at ? <span style={{ color: C.accent }}>· envoyé</span> : ''}</div>
+        <div key={i} style={{ marginTop: 4 }}>👔 <a href={c.url} target="_blank" rel="noreferrer" style={{ color: '#c7b8ff' }}>{c.name}</a> — {c.title}{c.email ? <> · <a href={`mailto:${c.email}`} style={{ color: '#c7b8ff' }}>{c.email}</a></> : ''} {c.sent_at ? <span style={{ color: C.accent }}>· envoyé</span> : ''}</div>
       ))}
       {p.lang && <div>🌐 Mail écrit en {LANG[p.lang] ?? p.lang}</div>}
       {p.last_subject && <div>📨 Objet : {p.last_subject}</div>}

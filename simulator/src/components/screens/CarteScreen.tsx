@@ -14,8 +14,8 @@ import CarSheet from '../carte/CarSheet.tsx';
 import ItemSheet, { type SheetKind, type Raw } from '../carte/ItemSheet.tsx';
 
 const C = {
-  bg: '#050a16', surface: '#0c1730', border: 'rgba(90,150,255,0.16)',
-  accent: '#38d8f5', gold: '#fbbf24', red: '#ef4444', orange: '#fb923c', text: '#f5f5f7', muted: '#8ea3c8',
+  bg: '#09090d', surface: '#131319', border: 'rgba(200,190,255,0.16)',
+  accent: '#9b8cff', gold: '#fbbf24', red: '#ef4444', orange: '#fb923c', text: '#f5f5f7', muted: '#a6a3b8',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 const APP_URL = 'https://kouider213.github.io/ibrahim/';
@@ -335,7 +335,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
   // ── Fiche (voiture ou métier) ───────────────────────────────────────────────
   const sheetRaw = sheet?.id ? raws[sheet.kind].find(x => x.id === sheet.id) ?? null : null;
   const panel = (car || zone || meOpen) && (
-    <div style={{ background: '#fff', color: '#0f172a', borderRadius: 14, padding: '11px 12px', boxShadow: '0 8px 30px rgba(0,0,0,0.25)', maxHeight: full ? '62vh' : undefined, overflowY: 'auto' }}>
+    <div style={{ background: '#fff', color: '#14141b', borderRadius: 14, padding: '11px 12px', boxShadow: '0 8px 30px rgba(0,0,0,0.25)', maxHeight: full ? '62vh' : undefined, overflowY: 'auto' }}>
       {meOpen ? (
         <MePanel data={meData} state={me} demo={!!demo} onClose={() => choose(null)} onAsk={onAsk} onChanged={loadMe} />
       ) : sheet && !demo && (!sheet.id || sheetRaw) ? (
@@ -373,7 +373,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: demo ? '14px 14px 30px' : '18px 14px 30px', boxSizing: 'border-box' }}>
       <style>{`
-        .dz3-zone { background: rgba(255,255,255,.94); color: #0f172a; font: 700 11px ${C.font}; padding: 4px 9px; border-radius: 20px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+        .dz3-zone { background: rgba(255,255,255,.94); color: #14141b; font: 700 11px ${C.font}; padding: 4px 9px; border-radius: 20px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
         .dz3-zone b { color: #047857 }
         .dz3-brand { background: #0f766e; color: #fff; letter-spacing: .06em } .dz3-brand b { color: #fde68a }
         .dz3-badge { width: 18px; height: 18px; border-radius: 9px; color: #fff; font: 800 11px ${C.font}; display: grid; place-items: center; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.25) }
@@ -451,7 +451,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
       {/* La carte 3D */}
       <div ref={wrap} style={mapBox}>
         <div ref={host} style={{ position: 'absolute', inset: 0, touchAction: 'none' }} />
-        {(loading || !ready) && <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#0f172a', fontSize: 13, fontWeight: 700, background: 'rgba(255,255,255,0.35)', zIndex: 2, pointerEvents: 'none' }}>Construction de la ville…</div>}
+        {(loading || !ready) && <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#14141b', fontSize: 13, fontWeight: 700, background: 'rgba(255,255,255,0.35)', zIndex: 2, pointerEvents: 'none' }}>Construction de la ville…</div>}
         <div style={{ position: 'absolute', top: sTop, right: 8, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, zIndex: 3 }}>
           {full && <button onClick={toggleFull} aria-label="Quitter le plein écran" style={{ height: 34, borderRadius: 10, border: 'none', background: '#dc2626', color: '#fff', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.25)', padding: '0 10px', whiteSpace: 'nowrap' }}>✕ Quitter</button>}
           <MapBtn onClick={() => api.current?.zoom(1.5)}>+</MapBtn>
@@ -468,7 +468,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
           </button>}
           <button onClick={() => tour ? stopTour() : startTour()} style={{ ...pill, background: tour ? '#dc2626' : 'rgba(15,23,42,0.86)', color: '#fff' }}>{tour ? '■ Stop' : '▶ Briefing 3D'}</button>
           <span style={{ flex: 1 }} />
-          <button onClick={() => { const v = !sound; setSound(v); setSnd(v); if (!v) hush(); else sfx.tap(); }} aria-label="Son" style={{ ...pill, background: 'rgba(255,255,255,0.94)', color: '#0f172a', padding: '7px 10px' }}>{sound ? '🔊' : '🔇'}</button>
+          <button onClick={() => { const v = !sound; setSound(v); setSnd(v); if (!v) hush(); else sfx.tap(); }} aria-label="Son" style={{ ...pill, background: 'rgba(255,255,255,0.94)', color: '#14141b', padding: '7px 10px' }}>{sound ? '🔊' : '🔇'}</button>
         </div>
         {/* Heure + météo réelle d'Oran */}
         {!full && <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 3, background: 'rgba(15,23,42,0.78)', color: '#fff', borderRadius: 11, padding: '5px 9px', fontSize: 12, fontWeight: 800, fontFamily: C.font, pointerEvents: 'none' }}>
@@ -549,7 +549,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
       </>}
 
       {adding && <AddRentals cars={cars} actor={actor} initialCar={adding.car} onClose={() => setAdding(null)} onDone={n => { say(`${n} location${n > 1 ? 's' : ''} ajoutée${n > 1 ? 's' : ''} ✓`); void load(); }} />}
-      {toast && <div style={{ position: 'fixed', left: '50%', bottom: 90, transform: 'translateX(-50%)', background: '#0f172a', color: '#fff', padding: '9px 14px', borderRadius: 12, fontSize: 13, fontWeight: 700, zIndex: 1100, whiteSpace: 'nowrap', maxWidth: '92vw', overflow: 'hidden', textOverflow: 'ellipsis', boxShadow: '0 6px 20px rgba(0,0,0,.35)' }}>{toast}</div>}
+      {toast && <div style={{ position: 'fixed', left: '50%', bottom: 90, transform: 'translateX(-50%)', background: '#14141b', color: '#fff', padding: '9px 14px', borderRadius: 12, fontSize: 13, fontWeight: 700, zIndex: 1100, whiteSpace: 'nowrap', maxWidth: '92vw', overflow: 'hidden', textOverflow: 'ellipsis', boxShadow: '0 6px 20px rgba(0,0,0,.35)' }}>{toast}</div>}
     </div>
   );
 }
@@ -628,7 +628,7 @@ function PcLink({ url, onCopy }: { url: string; onCopy: () => void }) {
         Ouvre ce lien sur le PC : la carte s'affiche directement en grand et se met à jour toute seule chaque minute. La 1re fois, connecte-toi avec ton mot de passe Dzaryx. Touche ⛶ pour le vrai plein écran.
       </div>
       <div style={{ display: 'flex', gap: 6 }}>
-        <code style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5, background: '#081024', borderRadius: 8, padding: '8px 9px', color: '#a7f3d0' }}>{url}</code>
+        <code style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5, background: '#0d0d12', borderRadius: 8, padding: '8px 9px', color: '#a7f3d0' }}>{url}</code>
         <Btn bg={C.accent} fg="#fff" onClick={onCopy}>Copier</Btn>
       </div>
     </div>
@@ -648,7 +648,7 @@ function SellOffer({ onCopy }: { onCopy: (url: string) => void }) {
       <div style={{ fontSize: 12, color: C.muted, margin: '4px 0 8px', lineHeight: 1.4 }}>
         Une démo à leur nom, avec des données d'exemple (aucune de tes vraies données). Tu peux aussi dire à Dzaryx : « envoie la démo carte au garage X ».
       </div>
-      <input value={name} onChange={e => setName(e.target.value)} placeholder="Nom de l'entreprise (ex. Garage Benali)" style={{ width: '100%', boxSizing: 'border-box', background: '#081024', border: `1px solid ${C.border}`, borderRadius: 9, padding: '8px 9px', color: C.text, fontSize: 13, marginBottom: 7 }} />
+      <input value={name} onChange={e => setName(e.target.value)} placeholder="Nom de l'entreprise (ex. Garage Benali)" style={{ width: '100%', boxSizing: 'border-box', background: '#0d0d12', border: `1px solid ${C.border}`, borderRadius: 9, padding: '8px 9px', color: C.text, fontSize: 13, marginBottom: 7 }} />
       <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 9 }}>
         {kinds.map(([k, t]) => <button key={k} onClick={() => setKind(k)} style={{ fontSize: 11.5, fontWeight: 700, borderRadius: 16, padding: '5px 10px', cursor: 'pointer', border: `1px solid ${kind === k ? C.gold : C.border}`, background: kind === k ? `${C.gold}25` : 'transparent', color: C.text }}>{t}</button>)}
       </div>
@@ -665,7 +665,7 @@ function Top({ onClick, title, children }: { onClick: () => void; title: string;
   return <button onClick={onClick} title={title} style={{ background: `${C.accent}12`, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: '7px 11px', cursor: 'pointer', color: C.accent, fontWeight: 700, fontSize: 13 }}>{children}</button>;
 }
 function MapBtn({ onClick, on, children }: { onClick: () => void; on?: boolean; children: ReactNode }) {
-  return <button onClick={onClick} style={{ width: 34, height: 34, borderRadius: 10, border: on ? '2px solid #f59e0b' : 'none', background: on ? '#fef3c7' : 'rgba(255,255,255,0.94)', color: '#0f172a', fontSize: 17, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>{children}</button>;
+  return <button onClick={onClick} style={{ width: 34, height: 34, borderRadius: 10, border: on ? '2px solid #f59e0b' : 'none', background: on ? '#fef3c7' : 'rgba(255,255,255,0.94)', color: '#14141b', fontSize: 17, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>{children}</button>;
 }
 function Btn({ bg, fg, onClick, children }: { bg: string; fg: string; onClick: () => void; children: ReactNode }) {
   return <button onClick={onClick} style={{ background: bg, color: fg, border: 'none', borderRadius: 9, padding: '7px 10px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>{children}</button>;
@@ -690,7 +690,7 @@ function TimeBar({ days, day, setDay, total }: { days: Array<{ d: string; dispo:
             <button key={x.d} onClick={() => setDay(i)} title={`${x.d} : ${x.out} dehors, ${x.dispo} libres, ${x.depart} départs, ${x.retour} retours`}
               style={{ padding: 0, border: `1.5px solid ${day === i ? '#818cf8' : 'transparent'}`, borderRadius: 7, background: day === i ? '#312e81' : 'transparent', cursor: 'pointer', color: C.text, minWidth: 0 }}>
               <div style={{ height: 34, display: 'flex', alignItems: 'flex-end', padding: '0 3px' }}>
-                <div style={{ width: '100%', height: `${Math.max(8, pct * 100)}%`, borderRadius: 3, background: full ? C.red : pct > 0.75 ? C.orange : '#3b82f6' }} />
+                <div style={{ width: '100%', height: `${Math.max(8, pct * 100)}%`, borderRadius: 3, background: full ? C.red : pct > 0.75 ? C.orange : '#ff7aa8' }} />
               </div>
               <div style={{ fontSize: 9, fontWeight: 700, color: i === 0 ? C.accent : C.muted, lineHeight: 1.1, paddingTop: 2 }}>{i === 0 ? 'auj' : dd.toLocaleDateString('fr-FR', { weekday: 'short' }).slice(0, 3)}</div>
               <div style={{ fontSize: 10, fontWeight: 800, color: full ? C.red : C.text, paddingBottom: 2 }}>{x.dispo}</div>
@@ -750,7 +750,7 @@ function MoneyCard({ money, cars, month, setMonth, on, toggle, onCar, onAsk }: {
 const pill: CSSProperties = { pointerEvents: 'auto', border: 'none', borderRadius: 20, padding: '8px 13px', fontSize: 13, fontWeight: 900, cursor: 'pointer', fontFamily: C.font, boxShadow: '0 3px 10px rgba(0,0,0,.25)', whiteSpace: 'nowrap' };
 const mbtn: CSSProperties = { width: 28, height: 26, borderRadius: 8, border: `1px solid ${C.border}`, background: 'transparent', color: C.text, cursor: 'pointer', fontSize: 13, fontWeight: 800 };
 function Stat({ k, v, sub, warn }: { k: string; v: string; sub?: string; warn?: boolean }) {
-  return <div style={{ background: '#081024', borderRadius: 10, padding: '7px 8px', minWidth: 0 }}>
+  return <div style={{ background: '#0d0d12', borderRadius: 10, padding: '7px 8px', minWidth: 0 }}>
     <div style={{ fontSize: 9.5, color: C.muted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{k}</div>
     <div style={{ fontSize: 14, fontWeight: 800, marginTop: 2, color: warn && k !== 'Bénéfice' ? C.orange : C.text, overflowWrap: 'anywhere' }}>{v}</div>
     {sub && <div style={{ fontSize: 10, color: warn ? C.orange : C.muted, marginTop: 1 }}>{sub}</div>}

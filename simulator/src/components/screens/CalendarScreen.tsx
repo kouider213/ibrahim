@@ -257,9 +257,9 @@ export default function CalendarScreen() {
                   border: isToday && !isSel ? `1px solid ${tone(T.accent, 0.55)}` : '1px solid transparent',
                   display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
                 }}>
-                  <span style={{ fontSize: 15, fontWeight: isToday || isSel ? 800 : 600, color: isSel ? '#04101f' : isToday ? T.accent : T.text, lineHeight: 1 }}>{cell.day}</span>
+                  <span style={{ fontSize: 15, fontWeight: isToday || isSel ? 800 : 600, color: isSel ? '#0b0a12' : isToday ? T.accent : T.text, lineHeight: 1 }}>{cell.day}</span>
                   <span style={{ display: 'flex', gap: 3, height: 6 }}>
-                    {[...bkDots, ...gcDots].slice(0, 3).map((c, di) => <span key={di} style={{ width: 6, height: 6, borderRadius: '50%', background: isSel ? '#04101f' : c }} />)}
+                    {[...bkDots, ...gcDots].slice(0, 3).map((c, di) => <span key={di} style={{ width: 6, height: 6, borderRadius: '50%', background: isSel ? '#0b0a12' : c }} />)}
                   </span>
                 </button>
               );

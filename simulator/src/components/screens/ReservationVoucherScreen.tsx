@@ -16,8 +16,8 @@ function fileToRawBase64(file: File): Promise<string> {
 }
 
 const C = {
-  bg: '#050a16', surface: '#0c1730', surface2: '#12203d', border: 'rgba(90,150,255,0.16)',
-  accent: '#38d8f5', gold: '#fbbf24', text: '#f5f5f7', muted: '#8ea3c8', blue: '#60a5fa',
+  bg: '#09090d', surface: '#131319', surface2: '#1b1b23', border: 'rgba(200,190,255,0.16)',
+  accent: '#9b8cff', gold: '#fbbf24', text: '#f5f5f7', muted: '#a6a3b8', blue: '#b9a6ff',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 

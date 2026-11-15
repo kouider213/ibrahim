@@ -13,7 +13,7 @@ function daysInclusive(start: string, end: string): number {
 }
 
 const OP_META: Record<string, { label: string; icon: string; col: string }> = {
-  location_voiture:   { label: 'LOCATION VOITURE', icon: '🚗', col: '#22d3ee' },
+  location_voiture:   { label: 'LOCATION VOITURE', icon: '🚗', col: '#b18cff' },
   commande_vehicule:  { label: 'COMMANDE VÉHICULE', icon: '📦', col: '#ff9f43' },
   location_immo:      { label: 'LOCATION IMMO',  icon: '🏠', col: '#b06bff' },
   vente_immo:         { label: 'ACHAT IMMO',     icon: '🏠', col: '#00e676' },

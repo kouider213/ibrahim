@@ -118,7 +118,7 @@ export default function ItemSheet({ kind, raw, onClose, onChanged, onAsk }: {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: '#0f172a', borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap' }}>{TITLE[kind].split(' ')[0]} {TITLE[kind].split(' ').slice(1).join(' ').toUpperCase()}</span>
+        <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: '#14141b', borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap' }}>{TITLE[kind].split(' ')[0]} {TITLE[kind].split(' ').slice(1).join(' ').toUpperCase()}</span>
         <span style={{ fontSize: 14.5, fontWeight: 800, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
         <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', color: '#64748b' }}>✕</button>
       </div>
@@ -204,7 +204,7 @@ export default function ItemSheet({ kind, raw, onClose, onChanged, onAsk }: {
       )}
 
       <div style={{ display: 'flex', gap: 6, marginTop: 9, flexWrap: 'wrap' }}>
-        {kind !== 'dem' && <Btn bg="#38d8f5" fg="#fff" disabled={busy} onClick={save}>{busy ? '…' : creating ? '➕ Ajouter' : 'Enregistrer'}</Btn>}
+        {kind !== 'dem' && <Btn bg="#9b8cff" fg="#fff" disabled={busy} onClick={save}>{busy ? '…' : creating ? '➕ Ajouter' : 'Enregistrer'}</Btn>}
         {!creating && raw?.['client_phone'] ? <>
           <Btn bg="#dcfce7" fg="#15803d" onClick={() => wa(raw['client_phone'])}>💬 WhatsApp</Btn>
           <Btn bg="#e0f2fe" fg="#0369a1" onClick={() => { window.location.href = `tel:${str(raw['client_phone'])}`; }}>📞 Appeler</Btn>
@@ -219,5 +219,5 @@ export default function ItemSheet({ kind, raw, onClose, onChanged, onAsk }: {
 
 const Span2 = ({ children }: { children: ReactNode }) => <div style={{ gridColumn: '1 / -1' }}>{children}</div>;
 function Chip({ on, done, disabled, onClick, children }: { on: boolean; done?: boolean; disabled?: boolean; onClick: () => void; children: ReactNode }) {
-  return <button disabled={disabled} onClick={onClick} style={{ fontSize: 11, fontWeight: 700, borderRadius: 14, padding: '4px 9px', cursor: 'pointer', border: `1.5px solid ${on ? '#0f172a' : done ? '#86efac' : '#cbd5e1'}`, background: on ? '#0f172a' : done ? '#f0fdf4' : '#fff', color: on ? '#fff' : done ? '#15803d' : '#334155', opacity: disabled ? 0.6 : 1 }}>{done ? '✓ ' : ''}{children}</button>;
+  return <button disabled={disabled} onClick={onClick} style={{ fontSize: 11, fontWeight: 700, borderRadius: 14, padding: '4px 9px', cursor: 'pointer', border: `1.5px solid ${on ? '#14141b' : done ? '#86efac' : '#cbd5e1'}`, background: on ? '#14141b' : done ? '#f0fdf4' : '#fff', color: on ? '#fff' : done ? '#15803d' : '#334155', opacity: disabled ? 0.6 : 1 }}>{done ? '✓ ' : ''}{children}</button>;
 }

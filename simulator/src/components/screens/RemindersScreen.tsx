@@ -39,13 +39,13 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#050a16', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#09090d', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       {/* Header */}
-      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #38d8f512', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
+      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #9b8cff12', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#38d8f5', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #38d8f555' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9b8cff', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #9b8cff55' }}>
             RAPPELS
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -58,7 +58,7 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
                 {byPri.HIGH.length} URGENT
               </div>
             )}
-            <button onClick={() => void load()} style={{ background: 'none', border: '1px solid #38d8f522', borderRadius: 6, padding: '3px 8px', color: '#38d8f566', cursor: 'pointer', fontSize: 12 }}>
+            <button onClick={() => void load()} style={{ background: 'none', border: '1px solid #9b8cff22', borderRadius: 6, padding: '3px 8px', color: '#9b8cff66', cursor: 'pointer', fontSize: 12 }}>
               ↻
             </button>
           </div>
@@ -78,13 +78,13 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
             </div>
           ))}
         </div>
-        <div style={{ marginTop: 6, height: 1, background: 'linear-gradient(90deg, transparent, #38d8f544, transparent)' }} />
+        <div style={{ marginTop: 6, height: 1, background: 'linear-gradient(90deg, transparent, #9b8cff44, transparent)' }} />
       </div>
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 30, fontSize: 13, color: '#38d8f533', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>CHARGEMENT…</div>
+          <div style={{ textAlign: 'center', padding: 30, fontSize: 13, color: '#9b8cff33', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>CHARGEMENT…</div>
         ) : visible.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 30, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
             <div style={{ fontSize: 28 }}>✅</div>
@@ -125,10 +125,10 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
                       {/* Left accent bar */}
                       <div style={{ width: 3, borderRadius: 2, background: col, flexShrink: 0, alignSelf: 'stretch', opacity: 0.8 }} />
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13.5, color: '#e8f4ff', lineHeight: 1.45, marginBottom: 4 }}>
+                        <div style={{ fontSize: 13.5, color: '#f3effc', lineHeight: 1.45, marginBottom: 4 }}>
                           {r.message}
                         </div>
-                        <div style={{ fontSize: 12.5, color: '#8ea3c8' }}>
+                        <div style={{ fontSize: 12.5, color: '#a6a3b8' }}>
                           {r.client_name} · {r.car_name}
                         </div>
                         <div style={{ fontSize: 12, color: `${col}55`, marginTop: 3, letterSpacing: '0.05em' }}>

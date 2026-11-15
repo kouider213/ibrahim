@@ -8,13 +8,13 @@ import { Hero, StatCard, SkeletonCards } from '../ui/Premium.tsx';
 // muscles, records et réglages des rappels (appel + point GPS au départ, « tu as oublié ? » si le GPS est loin).
 
 const C = {
-  surface: '#0c1730', border: 'rgba(90,150,255,0.16)', accent: '#fb7185', cyan: '#38d8f5', gold: '#fbbf24', green: '#34d399',
-  text: '#f5f5f7', muted: '#8ea3c8', font: '-apple-system, "Segoe UI", Roboto, sans-serif',
+  surface: '#131319', border: 'rgba(200,190,255,0.16)', accent: '#fb7185', cyan: '#9b8cff', gold: '#fbbf24', green: '#34d399',
+  text: '#f5f5f7', muted: '#a6a3b8', font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 14, marginBottom: 12 } as const;
-const btn = (bg: string, color = '#050a16') => ({ background: bg, color, border: 'none', borderRadius: 12, padding: '11px 14px', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: C.font } as const);
+const btn = (bg: string, color = '#09090d') => ({ background: bg, color, border: 'none', borderRadius: 12, padding: '11px 14px', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: C.font } as const);
 const ghost = { ...btn('rgba(255,255,255,0.06)', C.text), border: `1px solid ${C.border}` } as const;
-const section = (t: string) => <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 2px 10px' }}><span style={{ width: 4, height: 14, borderRadius: 2, background: C.accent }} /><span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted }}>{t}</span><span style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, rgba(110,160,255,0.14), transparent)' }} /></div>;
+const section = (t: string) => <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 2px 10px' }}><span style={{ width: 4, height: 14, borderRadius: 2, background: C.accent }} /><span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted }}>{t}</span><span style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, rgba(200,190,255,0.14), transparent)' }} /></div>;
 const MUSCLE: Record<string, string> = { pecs: 'Pecs', dos: 'Dos', epaules: 'Épaules', bras: 'Bras', jambes: 'Jambes', abdos: 'Abdos', cardio: 'Cardio' };
 const hm = (iso: string) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }).replace(':', 'h');
 const dayName = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'short' }).replace('.', '');
@@ -73,7 +73,7 @@ export default function SportScreen({ embedded = false, onLive }: { embedded?: b
 
   const s = data?.today ?? data?.next ?? null;
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: embedded ? 'transparent' : 'radial-gradient(120% 60% at 50% 0%, #2a0b1d 0%, #050a16 55%)', color: C.text, fontFamily: C.font, paddingBottom: 30, paddingTop: embedded ? 12 : 0 }}>
+    <div style={{ height: '100%', overflowY: 'auto', background: embedded ? 'transparent' : 'radial-gradient(120% 60% at 50% 0%, #2a0b1d 0%, #09090d 55%)', color: C.text, fontFamily: C.font, paddingBottom: 30, paddingTop: embedded ? 12 : 0 }}>
       {!embedded && <Hero eyebrow="Coach sportif · Dzaryx" title="SPORT" accent={C.accent}
         subtitle={data ? `🔥 ${data.stats.streak} séance(s) d'affilée · ${data.stats.monthSessions} ce mois` : 'Ton programme calé sur ton agenda'} />}
       <div style={{ padding: '0 14px' }}>
@@ -82,7 +82,7 @@ export default function SportScreen({ embedded = false, onLive }: { embedded?: b
         {data && <>
           {/* ── Séance du jour / prochaine ── */}
           {s ? (
-            <div style={{ ...card, padding: 16, background: 'linear-gradient(150deg, #3a0f27, #0c1730 70%)', border: `1px solid ${C.accent}55` }}>
+            <div style={{ ...card, padding: 16, background: 'linear-gradient(150deg, #3a0f27, #131319 70%)', border: `1px solid ${C.accent}55` }}>
               <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: 0.5 }}>{s.date === data.week[0]?.date ? "AUJOURD'HUI" : `PROCHAINE SÉANCE · ${dayName(s.date).toUpperCase()}`} · {hm(s.start)}–{hm(s.end)}</div>
               <div style={{ fontSize: 30, fontWeight: 900, margin: '6px 0 2px', letterSpacing: '-0.02em' }}>{s.emoji} {s.label}</div>
               <div style={{ fontSize: 13, color: '#fda4af' }}>{s.focus}</div>
@@ -337,11 +337,11 @@ function LiveWorkout({ s, live, onChange, onQuit, onDone }: { s: SportSession; l
   );
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: 'radial-gradient(120% 50% at 50% 0%, #3a0f27 0%, #050a16 60%)', color: C.text, fontFamily: C.font, padding: '14px 14px 30px' }}>
+    <div style={{ height: '100%', overflowY: 'auto', background: 'radial-gradient(120% 50% at 50% 0%, #3a0f27 0%, #09090d 60%)', color: C.text, fontFamily: C.font, padding: '14px 14px 30px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button style={{ ...ghost, padding: '7px 11px', fontSize: 12 }} onClick={() => { if (confirm('Quitter la séance sans l\'enregistrer ?')) onQuit(); }}>✕</button>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 13.5, letterSpacing: '0.2em', color: C.accent }}>{s.emoji} {s.label}</div>
+          <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 13.5, letterSpacing: '0.2em', color: C.accent }}>{s.emoji} {s.label}</div>
           <div style={{ fontSize: 22, fontWeight: 900, fontVariantNumeric: 'tabular-nums' }}>{mmss(elapsed)}</div>
           <div style={{ fontSize: 13.5, color: C.gold, fontWeight: 800 }}>🎮 +{100 + doneCount * 5} pts en jeu</div>
         </div>
@@ -354,7 +354,7 @@ function LiveWorkout({ s, live, onChange, onQuit, onDone }: { s: SportSession; l
         {s.exercises.map((x, i) => {
           const d = (live.sets[x.id] ?? []).every(st => st.done);
           return <button key={x.id} onClick={() => onChange({ ...live, idx: i })} style={{ flexShrink: 0, ...ghost, padding: '6px 10px', fontSize: 11,
-            background: i === live.idx ? C.accent : d ? 'rgba(52,211,153,0.18)' : 'rgba(255,255,255,0.05)', color: i === live.idx ? '#050a16' : C.text }}>{d ? '✓' : i + 1}</button>;
+            background: i === live.idx ? C.accent : d ? 'rgba(52,211,153,0.18)' : 'rgba(255,255,255,0.05)', color: i === live.idx ? '#09090d' : C.text }}>{d ? '✓' : i + 1}</button>;
         })}
       </div>
 
@@ -395,7 +395,7 @@ function LiveWorkout({ s, live, onChange, onQuit, onDone }: { s: SportSession; l
                     <Stepper value={st.reps} unit="reps" step={1} onChange={v => update(i, { reps: v ?? 0 })} />
                   </>)}
                   <button onClick={() => validate(i)} style={{ width: 44, height: 40, borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 18, fontWeight: 900,
-                    background: st.done ? C.green : 'rgba(255,255,255,0.1)', color: st.done ? '#050a16' : C.text }}>✓</button>
+                    background: st.done ? C.green : 'rgba(255,255,255,0.1)', color: st.done ? '#09090d' : C.text }}>✓</button>
                 </div>
               ))}
             </div>
@@ -421,7 +421,7 @@ function LiveWorkout({ s, live, onChange, onQuit, onDone }: { s: SportSession; l
             </div>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>C'était dur comment ? (1 = facile · 10 = à fond)</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 4 }}>
-              {Array.from({ length: 10 }, (_, i) => i + 1).map(n => <button key={n} onClick={() => setRpe(n)} style={{ ...ghost, padding: '8px 0', fontSize: 12, background: rpe === n ? C.accent : 'rgba(255,255,255,0.05)', color: rpe === n ? '#050a16' : C.text }}>{n}</button>)}
+              {Array.from({ length: 10 }, (_, i) => i + 1).map(n => <button key={n} onClick={() => setRpe(n)} style={{ ...ghost, padding: '8px 0', fontSize: 12, background: rpe === n ? C.accent : 'rgba(255,255,255,0.05)', color: rpe === n ? '#09090d' : C.text }}>{n}</button>)}
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
               <button style={{ ...ghost, flex: 1 }} onClick={() => setFinish(false)}>Continuer</button>

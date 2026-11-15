@@ -5,7 +5,7 @@
 html, body, #root {
   width: 100%;
   height: 100%;
-  background: #030712;
+  background: #060609;
   overflow: hidden;
   font-family: 'Exo 2', 'Share Tech Mono', system-ui, sans-serif;
 }
@@ -29,7 +29,7 @@ html, body, #root {
 /* Scrollbar */
 ::-webkit-scrollbar { width: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #00d4ff44; border-radius: 2px; }
+::-webkit-scrollbar-thumb { background: #b18cff44; border-radius: 2px; }
 
 /* HUD text glow */
 .hud-text {
@@ -41,15 +41,15 @@ html, body, #root {
 .phone-shadow {
   box-shadow:
     0 0 0 1px #1a2a3a,
-    0 0 40px #00d4ff22,
+    0 0 40px #b18cff22,
     0 40px 80px rgba(0,0,0,0.9),
     inset 0 1px 0 #ffffff18;
 }
 
 /* Neon border pulse */
 @keyframes neonPulse {
-  0%, 100% { box-shadow: 0 0 5px #00d4ff, 0 0 15px #00d4ff44; }
-  50%       { box-shadow: 0 0 10px #00d4ff, 0 0 30px #00d4ff66; }
+  0%, 100% { box-shadow: 0 0 5px #b18cff, 0 0 15px #b18cff44; }
+  50%       { box-shadow: 0 0 10px #b18cff, 0 0 30px #b18cff66; }
 }
 
 /* Ring animations */

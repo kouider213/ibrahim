@@ -18,13 +18,13 @@ const RULES = [
   { id: 1, rule: 'Acompte minimum 30% à la réservation pour les nouveaux clients', cat: 'BUSINESS',   priority: 9, col: '#ff3366' },
   { id: 2, rule: 'Vérifier disponibilité voiture avant de confirmer une résa',      cat: 'BUSINESS',   priority: 10, col: '#ff3366' },
   { id: 3, rule: 'Profit = (client_price - owner_price) × nb_jours. Jamais catalogue.', cat: 'PRICING', priority: 10, col: '#ffb347' },
-  { id: 4, rule: 'Kouider préfère les réponses courtes et directes',                cat: 'COMM',       priority: 7, col: '#38d8f5' },
+  { id: 4, rule: 'Kouider préfère les réponses courtes et directes',                cat: 'COMM',       priority: 7, col: '#9b8cff' },
   { id: 5, rule: 'Houari gère les opérations terrain à Oran directement',           cat: 'OPÉRATIONS', priority: 8, col: '#7c3aed' },
   { id: 6, rule: 'Houari préfère le darija oranais pour communiquer',               cat: 'COMM',       priority: 9, col: '#7c3aed' },
 ];
 
 const ACTORS = [
-  { id: 'kouider' as const, label: 'KOUIDER', role: 'Gérant principal', col: '#00e5ff', icon: 'K' },
+  { id: 'kouider' as const, label: 'KOUIDER', role: 'Gérant principal', col: '#9b8cff', icon: 'K' },
   { id: 'houari'  as const, label: 'HOUARI',  role: 'Associé',          col: '#7c3aed', icon: 'H' },
 ];
 
@@ -162,22 +162,22 @@ export default function SettingsScreen() {
                   {locData.city ?? locData.country}
                 </div>
               </div>
-              <div style={{ fontSize: 12, color: '#8ea3c8', marginBottom: 3 }}>
+              <div style={{ fontSize: 12, color: '#a6a3b8', marginBottom: 3 }}>
                 {locData.lat.toFixed(5)}, {locData.lng.toFixed(5)}
               </div>
-              <div style={{ fontSize: 12, color: '#5d7096' }}>
+              <div style={{ fontSize: 12, color: '#706d84' }}>
                 Mis à jour: {new Date(locData.updated_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
           ) : (
-            <div style={{ fontSize: 12.5, color: '#8ea3c8', marginBottom: 10 }}>
+            <div style={{ fontSize: 12.5, color: '#a6a3b8', marginBottom: 10 }}>
               Position non partagée — Dzaryx ne peut pas calculer tes trajets.
             </div>
           )}
           <button onClick={() => shareLocation()} disabled={locLoading} style={actionBtn('#00e676')}>
             {locLoading ? 'LOCALISATION EN COURS…' : '📍 PARTAGER MA POSITION'}
           </button>
-          <div style={{ fontSize: 11.5, color: '#5d7096', textAlign: 'center', marginTop: 6, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 11.5, color: '#706d84', textAlign: 'center', marginTop: 6, lineHeight: 1.5 }}>
             Dzaryx utilise ta position pour calculer tes trajets · Rappels livraison intelligents · 24h TTL
           </div>
         </Panel>
@@ -187,7 +187,7 @@ export default function SettingsScreen() {
           <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
             <StatusPill label="API" val={health?.status?.toUpperCase() ?? '…'} ok={apiOk} />
             <StatusPill label="NEXUS" val={nexusOk ? 'CONNECTÉ' : 'HORS LIGNE'} ok={nexusOk} />
-            <StatusPill label="UPTIME" val={fmtUptime(health?.uptime)} ok={!!health} col="#38d8f5" />
+            <StatusPill label="UPTIME" val={fmtUptime(health?.uptime)} ok={!!health} col="#9b8cff" />
           </div>
           {nexusOk && nexus && (
             <div style={{
@@ -203,14 +203,14 @@ export default function SettingsScreen() {
               {nexus.os && <NexusRow k="OS" v={nexus.os.slice(0, 14)} />}
             </div>
           )}
-          <button onClick={() => void checkHealth()} disabled={loadingH} style={actionBtn('#38d8f5')}>
+          <button onClick={() => void checkHealth()} disabled={loadingH} style={actionBtn('#9b8cff')}>
             {loadingH ? 'TEST EN COURS…' : '↻ TESTER LA CONNEXION'}
           </button>
         </Panel>
 
         {/* Cache */}
         <Panel title="Cache des calculs">
-          <div style={{ fontSize: 12.5, color: '#8ea3c8', marginBottom: 8, lineHeight: 1.6 }}>
+          <div style={{ fontSize: 12.5, color: '#a6a3b8', marginBottom: 8, lineHeight: 1.6 }}>
             Vide le cache des calculs de revenus. TTL normal: 5 minutes.
           </div>
           <button onClick={() => void clearCache()} disabled={clearing} style={actionBtn('#ffb347')}>
@@ -229,7 +229,7 @@ export default function SettingsScreen() {
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, color: '#e0f0ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{j.name}</div>
-                  <div style={{ fontSize: 12, color: '#8ea3c8', marginTop: 1 }}>
+                  <div style={{ fontSize: 12, color: '#a6a3b8', marginTop: 1 }}>
                     {j.cron} · prochain: {fmtNext(j.next)}
                   </div>
                 </div>
@@ -237,8 +237,8 @@ export default function SettingsScreen() {
                   onClick={() => void triggerJob(j.name)}
                   disabled={triggering === j.name}
                   style={{
-                    background: '#38d8f518', border: '1px solid #38d8f544', borderRadius: 6,
-                    width: 28, height: 28, cursor: 'pointer', color: '#38d8f5',
+                    background: '#9b8cff18', border: '1px solid #9b8cff44', borderRadius: 6,
+                    width: 28, height: 28, cursor: 'pointer', color: '#9b8cff',
                     fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center',
                     flexShrink: 0, opacity: triggering === j.name ? 0.5 : 1,
                   }}
@@ -255,7 +255,7 @@ export default function SettingsScreen() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
             {RULES.map(r => (
               <div key={r.id} style={{
-                background: 'rgba(56,216,245,0.03)', borderRadius: 8,
+                background: 'rgba(155,140,255,0.03)', borderRadius: 8,
                 border: `1px solid ${r.col}22`, padding: '7px 10px',
                 display: 'flex', gap: 8, alignItems: 'flex-start',
               }}>
@@ -273,7 +273,7 @@ export default function SettingsScreen() {
               </div>
             ))}
           </div>
-          <div style={{ fontSize: 12, color: '#5d7096', textAlign: 'center', letterSpacing: '0.1em' }}>
+          <div style={{ fontSize: 12, color: '#706d84', textAlign: 'center', letterSpacing: '0.1em' }}>
             Dzaryx apprend de chaque conversation · "sauvegarde cette règle: …"
           </div>
         </Panel>
@@ -282,13 +282,13 @@ export default function SettingsScreen() {
         <Panel title="Capacités & agents Dzaryx">
           <button
             onClick={() => setShowCaps(s => !s)}
-            style={{ width: '100%', textAlign: 'left', background: 'rgba(56,216,245,0.06)', border: '1px solid #38d8f522', borderRadius: 8, padding: '10px 12px', cursor: 'pointer', color: '#cfefff', fontFamily: 'Inter, sans-serif', fontSize: 13.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+            style={{ width: '100%', textAlign: 'left', background: 'rgba(155,140,255,0.06)', border: '1px solid #9b8cff22', borderRadius: 8, padding: '10px 12px', cursor: 'pointer', color: '#cfefff', fontFamily: 'Inter, sans-serif', fontSize: 13.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
           >
             <span>🤖 14 agents · ce que Dzaryx sait faire</span>
-            <span style={{ color: '#38d8f588' }}>{showCaps ? '▲' : '▼'}</span>
+            <span style={{ color: '#9b8cff88' }}>{showCaps ? '▲' : '▼'}</span>
           </button>
           {showCaps && (
-            <div style={{ marginTop: 10, height: 520, borderRadius: 10, overflow: 'hidden', border: '1px solid #38d8f512' }}>
+            <div style={{ marginTop: 10, height: 520, borderRadius: 10, overflow: 'hidden', border: '1px solid #9b8cff12' }}>
               <CapacitesScreen />
             </div>
           )}
@@ -296,7 +296,7 @@ export default function SettingsScreen() {
 
         {/* Version */}
         <div style={{ textAlign: 'center', padding: '8px 0 2px' }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#5d7096', letterSpacing: '0.3em' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#706d84', letterSpacing: '0.3em' }}>
             DZARYX SIMULATOR v1.3 · GPS BRAIN · FIK CONCIERGERIE ORAN
           </div>
         </div>
@@ -344,8 +344,8 @@ function NotifPrefs() {
     <Panel title="Notifications">
       {!granted && (
         <div style={{ marginBottom: 12 }}>
-          <button onClick={() => void enableNotifs()} disabled={busy} style={actionBtn('#38d8f5')}>
-            {busy ? 'ACTIVATION…' : '🔔 ACTIVER LES NOTIFICATIONS'}
+          <button onClick={() => void enableNotifs()} disabled={busy} style={actionBtn('#9b8cff')}>
+            {busy ? 'Activation…' : '🔔 Activer les notifications'}
           </button>
           {needsInstall && (
             <div style={{ fontSize: 13, color: '#ffb347', marginTop: 8, lineHeight: 1.5 }}>
@@ -362,13 +362,13 @@ function NotifPrefs() {
         {TYPES.map(t => (
           <div key={t.k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, color: '#e8e8ee' }}>{t.icon} {t.label}</span>
-            <button onClick={() => toggle(t.k)} style={{ width: 46, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', position: 'relative', background: prefs[t.k] ? '#38d8f5' : 'rgba(255,255,255,0.12)', transition: 'background .2s' }}>
+            <button onClick={() => toggle(t.k)} style={{ width: 46, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', position: 'relative', background: prefs[t.k] ? '#9b8cff' : 'rgba(255,255,255,0.12)', transition: 'background .2s' }}>
               <div style={{ position: 'absolute', top: 3, left: prefs[t.k] ? 23 : 3, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left .2s' }} />
             </button>
           </div>
         ))}
       </div>
-      <div style={{ fontSize: 13, color: '#8ea3c8', marginTop: 10 }}>Coupe un type pour ne plus recevoir ces notifications push.</div>
+      <div style={{ fontSize: 13, color: '#a6a3b8', marginTop: 10 }}>Coupe un type pour ne plus recevoir ces notifications push.</div>
     </Panel>
   );
 }
@@ -398,7 +398,7 @@ function SecurityPanel() {
   };
 
   const input: React.CSSProperties = {
-    width: '100%', boxSizing: 'border-box', background: '#12203d', border: '1px solid rgba(255,255,255,0.1)',
+    width: '100%', boxSizing: 'border-box', background: '#1b1b23', border: '1px solid rgba(255,255,255,0.1)',
     borderRadius: 10, padding: '10px 12px', color: '#fff', fontFamily: 'Inter, sans-serif', fontSize: 13, marginBottom: 8,
   };
   const fmt = (iso: string | null) => iso ? new Date(iso).toLocaleString('fr-BE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
@@ -407,17 +407,17 @@ function SecurityPanel() {
     <Panel title="Sécurité">
       <input type="password" placeholder="Mot de passe actuel" value={cur} onChange={e => setCur(e.target.value)} autoComplete="current-password" style={input} />
       <input type="password" placeholder="Nouveau mot de passe (6 caractères min.)" value={next} onChange={e => setNext(e.target.value)} autoComplete="new-password" style={input} />
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#8ea3c8', marginBottom: 10 }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#a6a3b8', marginBottom: 10 }}>
         <input type="checkbox" checked={others} onChange={e => setOthers(e.target.checked)} />
         Déconnecter mes autres appareils
       </label>
-      <button onClick={() => void submit()} disabled={busy || !cur || !next} style={actionBtn('#38d8f5')}>
-        {busy ? 'ENREGISTREMENT…' : '🔐 CHANGER MON MOT DE PASSE'}
+      <button onClick={() => void submit()} disabled={busy || !cur || !next} style={actionBtn('#9b8cff')}>
+        {busy ? 'Enregistrement…' : '🔐 Changer mon mot de passe'}
       </button>
       {msg && <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, marginTop: 8, color: msg.ok ? '#00e676' : '#ff3366' }}>{msg.text}</div>}
       {devices.length > 0 && (
         <div style={{ marginTop: 14 }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#8ea3c8', marginBottom: 6 }}>Appareils connectés</div>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#a6a3b8', marginBottom: 6 }}>Appareils connectés</div>
           {devices.map(d => (
             <div key={d.id} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#cfcfd6', padding: '6px 0', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
               {d.actor === 'houari' ? '👤 Houari' : '👤 Kouider'} · {d.label}
@@ -442,8 +442,8 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 function StatusPill({ label, val, ok, col }: { label: string; val: string; ok: boolean; col?: string }) {
   const c = col ?? (ok ? '#00e676' : '#ff3366');
   return (
-    <div style={{ flex: 1, textAlign: 'center', background: '#12203d', borderRadius: 12, padding: '10px 6px', border: `1px solid ${c}33` }}>
-      <div style={{ fontSize: 13, color: '#8ea3c8', letterSpacing: '0.05em', marginBottom: 4 }}>{label}</div>
+    <div style={{ flex: 1, textAlign: 'center', background: '#1b1b23', borderRadius: 12, padding: '10px 6px', border: `1px solid ${c}33` }}>
+      <div style={{ fontSize: 13, color: '#a6a3b8', letterSpacing: '0.05em', marginBottom: 4 }}>{label}</div>
       <div style={{
         fontSize: 12, fontWeight: 700, color: c, fontFamily: 'Inter, sans-serif',
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,

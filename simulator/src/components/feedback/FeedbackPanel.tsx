@@ -218,7 +218,7 @@ export default function FeedbackPanel({ onClose }: Props) {
     <div style={{
       height: '100%',
       background: 'rgba(3,5,15,0.97)',
-      borderLeft: '1px solid #00d4ff22',
+      borderLeft: '1px solid #b18cff22',
       display: 'flex', flexDirection: 'column',
       fontFamily: 'Exo 2, system-ui',
       backdropFilter: 'blur(10px)',
@@ -226,11 +226,11 @@ export default function FeedbackPanel({ onClose }: Props) {
       {/* Header */}
       <div style={{
         padding: '16px 16px 0',
-        borderBottom: '1px solid #00d4ff1a',
+        borderBottom: '1px solid #b18cff1a',
         flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <span style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#00d4ff', letterSpacing: '0.2em' }}>
+          <span style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 10, color: '#b18cff', letterSpacing: '0.2em' }}>
             PANEL QUALITÉ
           </span>
           <div style={{ flex: 1 }} />
@@ -248,8 +248,8 @@ export default function FeedbackPanel({ onClose }: Props) {
               onClick={() => setTab(t)}
               style={{
                 flex: 1, padding: '6px 4px', background: 'none',
-                border: 'none', borderBottom: `2px solid ${tab === t ? '#00d4ff' : 'transparent'}`,
-                cursor: 'pointer', color: tab === t ? '#00d4ff' : '#ffffff44',
+                border: 'none', borderBottom: `2px solid ${tab === t ? '#b18cff' : 'transparent'}`,
+                cursor: 'pointer', color: tab === t ? '#b18cff' : '#ffffff44',
                 fontFamily: 'Share Tech Mono', fontSize: 9, letterSpacing: '0.1em',
                 textTransform: 'uppercase', transition: 'all 0.2s ease',
               }}
@@ -313,8 +313,8 @@ function FeedbackTab({
               style={{
                 padding: '4px 10px', borderRadius: 20,
                 background: category === c ? 'rgba(0,212,255,0.15)' : 'transparent',
-                border: `1px solid ${category === c ? '#00d4ff66' : '#ffffff22'}`,
-                color: category === c ? '#00d4ff' : '#ffffff55',
+                border: `1px solid ${category === c ? '#b18cff66' : '#ffffff22'}`,
+                color: category === c ? '#b18cff' : '#ffffff55',
                 fontFamily: 'Exo 2', fontSize: 10, cursor: 'pointer',
                 transition: 'all 0.15s ease',
               }}
@@ -332,7 +332,7 @@ function FeedbackTab({
           rows={5}
           style={{
             width: '100%', marginTop: 6, background: 'rgba(0,212,255,0.04)',
-            border: '1px solid #00d4ff22', borderRadius: 8, padding: '10px 12px',
+            border: '1px solid #b18cff22', borderRadius: 8, padding: '10px 12px',
             color: '#fff', fontFamily: 'Exo 2', fontSize: 11, resize: 'vertical',
             outline: 'none', lineHeight: 1.6, boxSizing: 'border-box',
           }}
@@ -347,9 +347,9 @@ function FeedbackTab({
           background: sent
             ? 'rgba(0,230,118,0.15)'
             : text.trim() ? 'rgba(0,212,255,0.1)' : 'transparent',
-          border: `1px solid ${sent ? '#00e67666' : text.trim() ? '#00d4ff44' : '#ffffff22'}`,
-          color: sent ? '#00e676' : text.trim() ? '#00d4ff' : '#ffffff33',
-          fontFamily: 'Orbitron', fontSize: 9, letterSpacing: '0.2em',
+          border: `1px solid ${sent ? '#00e67666' : text.trim() ? '#b18cff44' : '#ffffff22'}`,
+          color: sent ? '#00e676' : text.trim() ? '#b18cff' : '#ffffff33',
+          fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 9, letterSpacing: '0.2em',
           transition: 'all 0.2s ease',
         }}
       >
@@ -388,7 +388,7 @@ function ChecklistTab({
       {/* Score bar */}
       <div style={{ background: 'rgba(0,212,255,0.05)', borderRadius: 8, padding: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{ fontFamily: 'Orbitron', fontSize: 9, color: '#00d4ff', letterSpacing: '0.2em' }}>
+          <span style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 9, color: '#b18cff', letterSpacing: '0.2em' }}>
             PROGRESSION {pct}%
           </span>
           <div style={{ display: 'flex', gap: 10 }}>
@@ -397,8 +397,8 @@ function ChecklistTab({
             <Stat label="❌" val={score.fail} col="#ff3366" />
           </div>
         </div>
-        <div style={{ height: 4, background: '#00d4ff15', borderRadius: 2 }}>
-          <div style={{ height: '100%', width: `${pct}%`, background: '#00d4ff', borderRadius: 2, transition: 'width 0.3s ease' }} />
+        <div style={{ height: 4, background: '#b18cff15', borderRadius: 2 }}>
+          <div style={{ height: '100%', width: `${pct}%`, background: '#b18cff', borderRadius: 2, transition: 'width 0.3s ease' }} />
         </div>
       </div>
 
@@ -430,7 +430,7 @@ function ChecklistTab({
 
           return (
             <div key={group.title} style={{
-              border: '1px solid #00d4ff1a', borderRadius: 8, overflow: 'hidden',
+              border: '1px solid #b18cff1a', borderRadius: 8, overflow: 'hidden',
             }}>
               <button
                 onClick={() => setExpanded(e =>
@@ -443,13 +443,13 @@ function ChecklistTab({
                 }}
               >
                 <span style={{ fontSize: 12 }}>{group.icon}</span>
-                <span style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#00d4ffcc', letterSpacing: '0.1em', flex: 1, textAlign: 'left' }}>
+                <span style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#b18cffcc', letterSpacing: '0.1em', flex: 1, textAlign: 'left' }}>
                   {group.title}
                 </span>
                 <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: '#00e676aa' }}>
                   {groupOk}/{group.items.length}
                 </span>
-                <span style={{ color: '#00d4ff66', fontSize: 10 }}>{isExp ? '▲' : '▼'}</span>
+                <span style={{ color: '#b18cff66', fontSize: 10 }}>{isExp ? '▲' : '▼'}</span>
               </button>
               {isExp && (
                 <div style={{ padding: '4px 0' }}>
@@ -471,7 +471,7 @@ function ChecklistTab({
           background: 'rgba(255,107,0,0.08)',
           border: '1px solid #ff6b0033',
           color: '#ff6b00aa',
-          fontFamily: 'Orbitron', fontSize: 9, letterSpacing: '0.2em',
+          fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 9, letterSpacing: '0.2em',
           marginTop: 4,
         }}
       >
@@ -492,7 +492,7 @@ function CheckRow({ item, onCycle, onNote }: {
   };
 
   return (
-    <div style={{ borderBottom: '1px solid #00d4ff0a' }}>
+    <div style={{ borderBottom: '1px solid #b18cff0a' }}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8,
         padding: '7px 12px', cursor: 'pointer',
@@ -544,12 +544,12 @@ function CheckRow({ item, onCycle, onNote }: {
 }
 
 function HistoryTab({ history }: { history: HistoryEntry[] }) {
-  const statusCol = { done: '#00e676', partial: '#f39c12', planned: '#00d4ff' };
+  const statusCol = { done: '#00e676', partial: '#f39c12', planned: '#b18cff' };
   const statusLabel = { done: '✅ FAIT', partial: '⚠️ PARTIEL', planned: '📋 PRÉVU' };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ fontFamily: 'Orbitron', fontSize: 9, color: '#00d4ff88', letterSpacing: '0.2em', marginBottom: 4 }}>
+      <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 9, color: '#b18cff88', letterSpacing: '0.2em', marginBottom: 4 }}>
         JOURNAL DÉVELOPPEMENT
       </div>
       {history.map((entry, i) => (
@@ -584,6 +584,6 @@ function Stat({ label, val, col }: { label: string; val: number; col: string }) 
 }
 
 const labelStyle: React.CSSProperties = {
-  fontFamily: 'Share Tech Mono', fontSize: 8, color: '#00d4ff88', letterSpacing: '0.2em',
+  fontFamily: 'Share Tech Mono', fontSize: 8, color: '#b18cff88', letterSpacing: '0.2em',
   textTransform: 'uppercase',
 };

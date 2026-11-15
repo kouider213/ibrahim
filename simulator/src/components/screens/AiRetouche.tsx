@@ -5,11 +5,11 @@ import { uploadFile } from './MontageEditor.tsx';
 // 🪄 Retouche IA : ta photo ou ta vidéo + une phrase (« remplace la voiture par une Ferrari Purosangue »)
 // → Dzaryx la modifie en gardant tout le reste. Photo gratuite ; vidéo via Kling (devis affiché avant).
 
-const C = { surface: '#0c1730', border: 'rgba(90,150,255,0.16)', accent: '#f472b6', green: '#38d8f5', gold: '#fbbf24', text: '#f5f5f7', muted: '#8ea3c8',
+const C = { surface: '#131319', border: 'rgba(200,190,255,0.16)', accent: '#f472b6', green: '#9b8cff', gold: '#fbbf24', text: '#f5f5f7', muted: '#a6a3b8',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif' };
 const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 12, marginBottom: 10 } as const;
 const btn = (bg: string, color: string) => ({ background: bg, color, border: 'none', borderRadius: 10, padding: '11px 13px', fontSize: 13.5, fontWeight: 800, cursor: 'pointer', fontFamily: C.font } as const);
-const chip = (on: boolean) => ({ background: on ? C.accent : 'rgba(255,255,255,0.06)', color: on ? '#050a16' : C.text, border: `1px solid ${on ? C.accent : C.border}`,
+const chip = (on: boolean) => ({ background: on ? C.accent : 'rgba(255,255,255,0.06)', color: on ? '#09090d' : C.text, border: `1px solid ${on ? C.accent : C.border}`,
   borderRadius: 999, padding: '6px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: C.font, whiteSpace: 'nowrap' } as const);
 const label = { fontSize: 12.5, fontWeight: 600, color: C.muted, margin: '14px 0 7px' } as const;
 const IDEAS = ['Remplace la voiture par une Ferrari Purosangue noire', 'Mets la scène de nuit avec les lumières de la ville', 'Mets-nous sur la corniche d\'Oran au coucher du soleil', 'Enlève les gens en arrière-plan'];
@@ -73,7 +73,7 @@ export default function AiRetouche({ say, onLaunched }: { say: (t: string) => vo
 
       <div style={label}>Qu'est-ce que je change ?</div>
       <textarea rows={3} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Ex. remplace la voiture par une Ferrari Purosangue"
-        style={{ width: '100%', boxSizing: 'border-box', background: '#081024', color: C.text, border: `1px solid ${C.border}`, borderRadius: 10, padding: 10, fontSize: 14, fontFamily: C.font, resize: 'vertical' }} />
+        style={{ width: '100%', boxSizing: 'border-box', background: '#0d0d12', color: C.text, border: `1px solid ${C.border}`, borderRadius: 10, padding: 10, fontSize: 14, fontFamily: C.font, resize: 'vertical' }} />
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
         {IDEAS.map(t => <button key={t} style={chip(prompt === t)} onClick={() => setPrompt(t)}>{t}</button>)}
       </div>
@@ -93,7 +93,7 @@ export default function AiRetouche({ say, onLaunched }: { say: (t: string) => vo
         </div>
       )}
 
-      <button style={{ ...btn(C.accent, '#050a16'), width: '100%', marginTop: 14, opacity: !media || !prompt.trim() || busy ? 0.5 : 1 }}
+      <button style={{ ...btn(C.accent, '#09090d'), width: '100%', marginTop: 14, opacity: !media || !prompt.trim() || busy ? 0.5 : 1 }}
         disabled={!media || !prompt.trim() || busy} onClick={() => void launch()}>
         {busy ? '⏳ Lancement…' : media?.type === 'video' ? (usd > 0 ? `🪄 Modifier ma vidéo (≈ ${usd.toFixed(2)} $)` : '🪄 Modifier ma vidéo (0 €)') : '🪄 Modifier ma photo'}
       </button>

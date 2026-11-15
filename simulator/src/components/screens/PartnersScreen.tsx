@@ -20,8 +20,8 @@ interface Partner {
 }
 
 const C = {
-  bg: '#050a16', surface: '#0c1730', surface2: '#101e3d', border: 'rgba(90,150,255,0.16)',
-  accent: '#38d8f5', gold: '#fbbf24', green: '#34d399', red: '#f87171', text: '#f5f5f7', muted: '#8ea3c8',
+  bg: '#09090d', surface: '#131319', surface2: '#101e3d', border: 'rgba(200,190,255,0.16)',
+  accent: '#9b8cff', gold: '#fbbf24', green: '#34d399', red: '#f87171', text: '#f5f5f7', muted: '#a6a3b8',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 const TYPES: Array<{ id: OfferType; icon: string; label: string; unit: string }> = [
@@ -395,23 +395,23 @@ export default function PartnersScreen() {
 function Avatar({ name, photo }: { name: string; photo?: string }) {
   return photo
     ? <img src={photo} alt="" style={{ width: 52, height: 52, borderRadius: 14, objectFit: 'cover', flexShrink: 0 }} />
-    : <div style={{ width: 52, height: 52, borderRadius: 14, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #fbbf2433, #38d8f522)', color: '#fbbf24', fontWeight: 800, fontSize: 22 }}>{name.slice(0, 1).toUpperCase()}</div>;
+    : <div style={{ width: 52, height: 52, borderRadius: 14, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #fbbf2433, #9b8cff22)', color: '#fbbf24', fontWeight: 800, fontSize: 22 }}>{name.slice(0, 1).toUpperCase()}</div>;
 }
 function Badge({ text, color }: { text: string; color: string }) {
   return <span style={{ fontSize: 13.5, fontWeight: 700, color, background: `${color}1f`, border: `1px solid ${color}44`, borderRadius: 7, padding: '2px 7px' }}>{text}</span>;
 }
 function Price({ lab, val, color = '#f5f5f7' }: { lab: string; val: string; color?: string }) {
-  return <div style={{ background: '#101e3d', borderRadius: 10, padding: '7px 8px' }}><div style={{ fontSize: 13.5, color: '#8ea3c8' }}>{lab}</div><div style={{ fontWeight: 800, fontSize: 13.5, color }}>{val}</div></div>;
+  return <div style={{ background: '#101e3d', borderRadius: 10, padding: '7px 8px' }}><div style={{ fontSize: 13.5, color: '#a6a3b8' }}>{lab}</div><div style={{ fontWeight: 800, fontSize: 13.5, color }}>{val}</div></div>;
 }
 function Toggle({ on, onClick, text }: { on: boolean; onClick: () => void; text: string }) {
   return (
     <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', marginTop: 12, background: 'transparent', border: 'none', color: '#f5f5f7', fontSize: 13.5, cursor: 'pointer', padding: 0, textAlign: 'left', fontFamily: 'inherit' }}>
-      <span style={{ width: 42, height: 24, borderRadius: 12, background: on ? '#38d8f5' : '#2a3a5c', position: 'relative', flexShrink: 0, transition: 'background .2s' }}>
+      <span style={{ width: 42, height: 24, borderRadius: 12, background: on ? '#9b8cff' : '#2a3a5c', position: 'relative', flexShrink: 0, transition: 'background .2s' }}>
         <span style={{ position: 'absolute', top: 3, left: on ? 21 : 3, width: 18, height: 18, borderRadius: 9, background: '#fff', transition: 'left .2s' }} />
       </span>{text}
     </button>
   );
 }
 function Toast({ text }: { text: string }) {
-  return <div style={{ position: 'fixed', left: 16, right: 16, bottom: 96, background: '#0c1730', border: '1px solid rgba(90,150,255,0.3)', borderRadius: 12, padding: '11px 14px', fontSize: 13.5, color: '#f5f5f7', zIndex: 60, boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>{text}</div>;
+  return <div style={{ position: 'fixed', left: 16, right: 16, bottom: 96, background: '#131319', border: '1px solid rgba(200,190,255,0.3)', borderRadius: 12, padding: '11px 14px', fontSize: 13.5, color: '#f5f5f7', zIndex: 60, boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>{text}</div>;
 }

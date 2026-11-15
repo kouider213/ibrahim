@@ -34,7 +34,7 @@ const AGENTS: Agent[] = [
     tags: ['CA', 'PROFIT', 'IMPAYÉS', 'EXPORT'],
   },
   {
-    id: 'clients', icon: '👤', name: 'Agent Clients', col: '#38d8f5',
+    id: 'clients', icon: '👤', name: 'Agent Clients', col: '#9b8cff',
     desc: 'Documents (passeport, permis, contrat). Score VIP/FREQUENT. Envoi WhatsApp/Telegram. Profil intelligence.',
     examples: [
       'Passeport de Sofiane Khelifi',
@@ -171,7 +171,7 @@ const PROACTIVE_FEATURES = [
   { icon: '☀️', title: 'Briefing Matinal', col: '#ffb347', desc: 'Chaque matin à l\'heure de réveil de Kouider — CA du jour, retours, impayés, météo Oran' },
   { icon: '⚠️', title: 'Alertes Impayés', col: '#ff3366', desc: '48h → relance normale · 72h+ → alerte urgente · calcul automatique délai' },
   { icon: '🚗', title: 'Retours Véhicules', col: '#00e676', desc: '1h avant chaque retour prévu → rappel client + montant à encaisser' },
-  { icon: '📅', title: 'Arrivées J+1', col: '#38d8f5', desc: 'Soir J-1 → liste des clients attendus demain + docs manquants' },
+  { icon: '📅', title: 'Arrivées J+1', col: '#9b8cff', desc: 'Soir J-1 → liste des clients attendus demain + docs manquants' },
   { icon: '📊', title: 'Bilan Quotidien', col: '#c084fc', desc: '18h30 chaque jour → CA encaissé, nouvelles réservations, résumé' },
   { icon: '🚨', title: 'Anomalies Business', col: '#ff6b6b', desc: 'Perte réelle (client_ppd < owner_ppd), grande résa > 2000€, voiture surutilisée' },
   { icon: '📄', title: 'Docs Manquants', col: '#fb923c', desc: 'Rappel si client actif sans passeport/permis enregistré' },
@@ -185,30 +185,30 @@ export default function CapacitesScreen() {
   return (
     <div style={{
       height: '100%', display: 'flex', flexDirection: 'column',
-      background: '#050a16', color: '#fff', fontFamily: 'Inter, sans-serif',
+      background: '#09090d', color: '#fff', fontFamily: 'Inter, sans-serif',
       position: 'relative', overflow: 'hidden',
     }}>
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       {/* Header */}
-      <div style={{ padding: '10px 14px 0', borderBottom: '1px solid #38d8f512', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
-        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#38d8f5', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #38d8f555', marginBottom: 8 }}>
+      <div style={{ padding: '10px 14px 0', borderBottom: '1px solid #9b8cff12', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
+        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9b8cff', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #9b8cff55', marginBottom: 8 }}>
           DZARYX — CAPACITÉS
         </div>
         <div style={{ display: 'flex', gap: 4, marginBottom: 0 }}>
           {(['agents', 'proactif', 'capacites'] as const).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
-              flex: 1, background: activeTab === tab ? '#38d8f50d' : 'transparent',
-              border: 'none', borderBottom: activeTab === tab ? '2px solid #38d8f5' : '2px solid transparent',
+              flex: 1, background: activeTab === tab ? '#9b8cff0d' : 'transparent',
+              border: 'none', borderBottom: activeTab === tab ? '2px solid #9b8cff' : '2px solid transparent',
               padding: '6px 4px', fontFamily: 'Inter, sans-serif', fontSize: 12,
-              color: activeTab === tab ? '#38d8f5' : '#ffffff33',
+              color: activeTab === tab ? '#9b8cff' : '#ffffff33',
               letterSpacing: '0.15em', cursor: 'pointer',
             }}>
               {tab === 'agents' ? '14 AGENTS' : tab === 'proactif' ? 'PROACTIF' : 'CAPACITÉS'}
             </button>
           ))}
         </div>
-        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #38d8f544, transparent)', marginTop: 0 }} />
+        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #9b8cff44, transparent)', marginTop: 0 }} />
       </div>
 
       {/* Content */}
@@ -216,7 +216,7 @@ export default function CapacitesScreen() {
 
         {activeTab === 'agents' && (
           <>
-            <div style={{ fontSize: 12.5, color: '#5d7096', letterSpacing: '0.1em', textAlign: 'center', padding: '4px 0' }}>
+            <div style={{ fontSize: 12.5, color: '#706d84', letterSpacing: '0.1em', textAlign: 'center', padding: '4px 0' }}>
               {AGENTS.length} agents spécialisés — routing automatique par intention
             </div>
             {AGENTS.map(agent => {
@@ -237,7 +237,7 @@ export default function CapacitesScreen() {
                   >
                     <span style={{ fontSize: 18, flexShrink: 0 }}>{agent.icon}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13.5, color: '#e8f4ff', fontWeight: 600, marginBottom: 2 }}>
+                      <div style={{ fontSize: 13.5, color: '#f3effc', fontWeight: 600, marginBottom: 2 }}>
                         {agent.name}
                       </div>
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -249,14 +249,14 @@ export default function CapacitesScreen() {
                         ))}
                       </div>
                     </div>
-                    <span style={{ fontSize: 13, color: '#8ea3c8', flexShrink: 0 }}>
+                    <span style={{ fontSize: 13, color: '#a6a3b8', flexShrink: 0 }}>
                       {isOpen ? '▲' : '▼'}
                     </span>
                   </button>
 
                   {isOpen && (
                     <div style={{ padding: '0 12px 12px', borderTop: `1px solid ${agent.col}11` }}>
-                      <div style={{ fontSize: 13, color: '#8ea3c8', lineHeight: 1.6, marginBottom: 8 }}>
+                      <div style={{ fontSize: 13, color: '#a6a3b8', lineHeight: 1.6, marginBottom: 8 }}>
                         {agent.desc}
                       </div>
                       <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: `${agent.col}77`, letterSpacing: '0.15em', marginBottom: 5 }}>
@@ -282,13 +282,13 @@ export default function CapacitesScreen() {
 
         {activeTab === 'proactif' && (
           <>
-            <div style={{ fontSize: 12.5, color: '#5d7096', letterSpacing: '0.1em', textAlign: 'center', padding: '4px 0' }}>
+            <div style={{ fontSize: 12.5, color: '#706d84', letterSpacing: '0.1em', textAlign: 'center', padding: '4px 0' }}>
               Dzaryx envoie des alertes automatiquement, sans que tu ne demandes rien
             </div>
 
             {/* Timeline visual */}
-            <div style={{ background: 'rgba(56,216,245,0.03)', borderRadius: 10, padding: '12px', border: '1px solid #38d8f50f', marginBottom: 4 }}>
-              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#38d8f566', letterSpacing: '0.2em', marginBottom: 10 }}>
+            <div style={{ background: 'rgba(155,140,255,0.03)', borderRadius: 10, padding: '12px', border: '1px solid #9b8cff0f', marginBottom: 4 }}>
+              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9b8cff66', letterSpacing: '0.2em', marginBottom: 10 }}>
                 ◉ TIMELINE JOURNÉE TYPE — KOUIDER
               </div>
               {[
@@ -296,7 +296,7 @@ export default function CapacitesScreen() {
                 { time: '08:15', label: 'Alertes impayés', col: '#ff3366', icon: '⚠️' },
                 { time: 'J-1h', label: 'Rappel chaque retour', col: '#00e676', icon: '🚗' },
                 { time: '18:00', label: 'Bilan journée', col: '#c084fc', icon: '📊' },
-                { time: 'Veille', label: 'Arrivées lendemain', col: '#38d8f5', icon: '📅' },
+                { time: 'Veille', label: 'Arrivées lendemain', col: '#9b8cff', icon: '📅' },
                 { time: 'Live', label: 'Anomalies en temps réel', col: '#ff6b6b', icon: '🚨' },
               ].map((item, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
@@ -305,7 +305,7 @@ export default function CapacitesScreen() {
                     textAlign: 'right', letterSpacing: '0.05em',
                   }}>{item.time}</div>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.col, flexShrink: 0 }} />
-                  <div style={{ fontSize: 12.5, color: '#e8f4ff' }}>
+                  <div style={{ fontSize: 12.5, color: '#f3effc' }}>
                     {item.icon} {item.label}
                   </div>
                 </div>
@@ -321,10 +321,10 @@ export default function CapacitesScreen() {
               }}>
                 <span style={{ fontSize: 20, flexShrink: 0 }}>{f.icon}</span>
                 <div>
-                  <div style={{ fontSize: 13.5, color: '#e8f4ff', fontWeight: 600, marginBottom: 3 }}>
+                  <div style={{ fontSize: 13.5, color: '#f3effc', fontWeight: 600, marginBottom: 3 }}>
                     {f.title}
                   </div>
-                  <div style={{ fontSize: 12.5, color: '#8ea3c8', lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 12.5, color: '#a6a3b8', lineHeight: 1.5 }}>
                     {f.desc}
                   </div>
                 </div>
@@ -335,13 +335,13 @@ export default function CapacitesScreen() {
 
         {activeTab === 'capacites' && (
           <>
-            <div style={{ fontSize: 12.5, color: '#5d7096', letterSpacing: '0.1em', textAlign: 'center', padding: '4px 0' }}>
+            <div style={{ fontSize: 12.5, color: '#706d84', letterSpacing: '0.1em', textAlign: 'center', padding: '4px 0' }}>
               Tout ce que Dzaryx peut faire
             </div>
 
             {[
               {
-                title: '🤖 Intelligence Artificielle', col: '#38d8f5',
+                title: '🤖 Intelligence Artificielle', col: '#9b8cff',
                 items: [
                   'Claude Sonnet 4.6 (IA principale)',
                   'OpenAI GPT-4o (finance + code review)',

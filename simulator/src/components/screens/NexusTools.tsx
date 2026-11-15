@@ -5,8 +5,8 @@ import { business } from '../../services/api.ts';
 // journal de Nexus, agents spécialisés et outils de dev. Les commandes « parlées » passent par onSay (même cerveau que le PC).
 
 const C = {
-  surface: '#0c1730', inner: 'rgba(5,12,28,0.6)', border: 'rgba(90,150,255,0.16)', accent: '#38d8f5',
-  red: '#f87171', gold: '#fbbf24', text: '#f5f5f7', muted: '#8ea3c8', font: '-apple-system, "Segoe UI", Roboto, sans-serif',
+  surface: '#131319', inner: 'rgba(5,12,28,0.6)', border: 'rgba(200,190,255,0.16)', accent: '#9b8cff',
+  red: '#f87171', gold: '#fbbf24', text: '#f5f5f7', muted: '#a6a3b8', font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 
 type Entry = { name: string; type: string; size?: number | null; modified?: string; path?: string };
@@ -125,7 +125,7 @@ export default function NexusTools({ online, busy, onSay, flash }: {
               return (
                 <div key={full} style={{ borderBottom: `1px solid ${C.border}` }}>
                   <button onClick={() => { if (isDir) void openDir(full); else setPicked(picked === full ? null : full); }} style={{
-                    display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 11px', background: picked === full ? 'rgba(56,216,245,0.08)' : 'transparent',
+                    display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 11px', background: picked === full ? 'rgba(155,140,255,0.08)' : 'transparent',
                     border: 'none', color: C.text, fontFamily: C.font, fontSize: 13, textAlign: 'left', cursor: 'pointer',
                   }}>
                     <span style={{ width: 18, textAlign: 'center', color: isDir ? C.gold : C.accent }}>{isDir ? '▸' : '•'}</span>
@@ -205,7 +205,7 @@ export default function NexusTools({ online, busy, onSay, flash }: {
           <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
             {journal.slice(0, 60).map((j, i) => (
               <div key={`${j.at}-${i}`} style={{ display: 'flex', gap: 10, fontSize: 12.5, lineHeight: 1.4, padding: '6px 2px', borderBottom: `1px solid ${C.border}` }}>
-                <span style={{ fontFamily: 'Orbitron', fontSize: 13.5, color: C.accent, flexShrink: 0, paddingTop: 2 }}>
+                <span style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 13.5, color: C.accent, flexShrink: 0, paddingTop: 2 }}>
                   {new Date(j.at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                 </span>
                 <span style={{ color: C.text, wordBreak: 'break-word' }}>{j.text}</span>
@@ -241,7 +241,7 @@ function Muted({ children, pad }: { children: React.ReactNode; pad?: boolean }) 
 function Chip({ label, onClick, on, disabled }: { label: string; onClick: () => void; on?: boolean; disabled?: boolean }) {
   return (
     <button onClick={onClick} disabled={disabled} style={{
-      padding: '7px 11px', borderRadius: 999, border: `1px solid ${on ? C.accent : C.border}`, background: on ? 'rgba(56,216,245,0.16)' : 'rgba(255,255,255,0.04)',
+      padding: '7px 11px', borderRadius: 999, border: `1px solid ${on ? C.accent : C.border}`, background: on ? 'rgba(155,140,255,0.16)' : 'rgba(255,255,255,0.04)',
       color: on ? C.accent : C.text, fontSize: 12, fontFamily: C.font, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1, whiteSpace: 'nowrap',
     }}>{label}</button>
   );
@@ -258,7 +258,7 @@ function Big({ label, sub, onClick, disabled }: { label: string; sub: string; on
   return (
     <button onClick={onClick} disabled={disabled} style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '12px 4px 9px', borderRadius: 12, border: `1px solid ${C.border}`,
-      background: 'rgba(56,216,245,0.05)', color: C.text, fontFamily: C.font, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1,
+      background: 'rgba(155,140,255,0.05)', color: C.text, fontFamily: C.font, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1,
     }}>
       <span style={{ fontSize: 20, color: C.accent }}>{label}</span>
       <span style={{ fontSize: 13.5, color: C.muted }}>{sub}</span>

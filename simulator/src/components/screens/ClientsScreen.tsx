@@ -16,9 +16,9 @@ const dfr = (x?: string | null) => x ? new Date(String(x).slice(0, 10)).toLocale
 
 // ── Palette premium (cartes sur obsidian + accent émeraude) ─────
 const C = {
-  bg: '#050a16', surface: '#0c1730', surface2: '#12203d', border: 'rgba(90,150,255,0.15)',
-  accent: '#38d8f5', accentSoft: '#34d399', text: '#f5f5f7', muted: '#8ea3c8',
-  gold: '#fbbf24', blue: '#60a5fa', violet: '#a78bfa',
+  bg: '#09090d', surface: '#131319', surface2: '#1b1b23', border: 'rgba(200,190,255,0.15)',
+  accent: '#9b8cff', accentSoft: '#34d399', text: '#f5f5f7', muted: '#a6a3b8',
+  gold: '#fbbf24', blue: '#b9a6ff', violet: '#a78bfa',
   font: '-apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
 };
 
@@ -317,7 +317,7 @@ export default function ClientsScreen() {
           const cOps = ops.get(c.name) ?? [];
 
           return (
-            <div key={c.name} style={{ background: isExp ? 'linear-gradient(160deg, #0e1a34, #131318)' : C.surface, border: `1px solid ${isExp ? scCol + '55' : C.border}`, borderRadius: 18, overflow: 'hidden', transition: 'all .2s', boxShadow: isExp ? `0 8px 28px ${scCol}18` : '0 1px 0 rgba(255,255,255,0.02)' }}>
+            <div key={c.name} style={{ background: isExp ? 'linear-gradient(160deg, #16141f, #131318)' : C.surface, border: `1px solid ${isExp ? scCol + '55' : C.border}`, borderRadius: 18, overflow: 'hidden', transition: 'all .2s', boxShadow: isExp ? `0 8px 28px ${scCol}18` : '0 1px 0 rgba(255,255,255,0.02)' }}>
               <div onClick={() => toggle(c)} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '15px 14px', cursor: 'pointer' }}>
                 <div style={{ width: 48, height: 48, borderRadius: '50%', flexShrink: 0, background: `linear-gradient(145deg, ${scCol}33, ${scCol}10)`, border: `1.5px solid ${scCol}66`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, color: scCol, boxShadow: `0 0 14px ${scCol}22` }}>{initials || '?'}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>

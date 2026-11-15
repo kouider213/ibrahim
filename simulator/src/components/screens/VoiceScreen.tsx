@@ -23,10 +23,10 @@ const MAX_CALL_S = 15 * 60;   // un appel raccroche tout seul après 15 min (cr�
 
 // Palette holographique (style Nexus) — la sphère change de teinte selon l'état
 const STATE_COLOR: Record<DzaryxStatus, string> = {
-  idle:      '#38d8f5',
+  idle:      '#9b8cff',
   listening: '#5ef0df',
   thinking:  '#a78bfa',
-  speaking:  '#4aa3ff',
+  speaking:  '#ff79c6',
 };
 
 // Sphère neuronale : points répartis (Fibonacci) + liaisons vers les voisins proches
@@ -968,7 +968,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       const R   = Math.min(W * 0.27, H * 0.17) * (1 + amp * 0.12 + (st === 'speaking' ? Math.sin(t * 0.012) * 0.03 : 0));
 
       // Fond bleu nuit + halo
-      ctx.fillStyle = '#03060f'; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#060609'; ctx.fillRect(0, 0, W, H);
       const halo = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 2.6);
       halo.addColorStop(0, hexToRgba(col, 0.16 + amp * 0.12));
       halo.addColorStop(0.5, 'rgba(20,50,110,0.10)');
@@ -1228,7 +1228,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
   };
 
   const glass: React.CSSProperties = {
-    background: 'rgba(10,18,38,0.62)', border: '1px solid rgba(90,150,255,0.18)',
+    background: 'rgba(10,18,38,0.62)', border: '1px solid rgba(200,190,255,0.18)',
     backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
   };
   const STATE_TAG: Record<DzaryxStatus, string> = {
@@ -1238,7 +1238,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
 
   return (
     <div
-      style={{ width: '100%', height: '100%', background: '#03060f', position: 'relative', overflow: 'hidden' }}
+      style={{ width: '100%', height: '100%', background: '#060609', position: 'relative', overflow: 'hidden' }}
     >
       {/* Fond holographique (sphère neuronale Nexus, réagit à la voix) */}
       <canvas ref={canvasRef}
@@ -1256,7 +1256,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
             background: wsConn ? '#34d399' : '#f87171',
             boxShadow: `0 0 6px ${wsConn ? '#34d399' : '#f87171'}`,
           }} />
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 13.5, color: '#8ea3c8', letterSpacing: '0.12em' }}>
+          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 13.5, color: '#a6a3b8', letterSpacing: '0.12em' }}>
             {wsConn ? 'EN LIGNE' : 'HORS LIGNE'}{wakeWordOn ? ' · À L\'ÉCOUTE' : ''}
           </span>
         </div>
@@ -1269,7 +1269,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
               title="Ouvrir en overlay par-dessus les autres apps"
               style={{
                 ...glass, borderRadius: 14, width: 32, height: 30, cursor: 'pointer',
-                fontFamily: 'Inter', fontSize: 13, color: '#8ea3c8',
+                fontFamily: 'Inter', fontSize: 13, color: '#a6a3b8',
               }}
             >
               ⧉
@@ -1299,10 +1299,10 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
             style={{
               ...glass,
               background: handsFree ? `${col}1f` : glass.background,
-              border: `1px solid ${handsFree ? col + '99' : 'rgba(90,150,255,0.18)'}`,
+              border: `1px solid ${handsFree ? col + '99' : 'rgba(200,190,255,0.18)'}`,
               borderRadius: 14, height: 30, padding: '0 11px', cursor: 'pointer',
               fontFamily: 'Inter', fontSize: 11, fontWeight: 500,
-              color: handsFree ? col : '#8ea3c8', transition: 'all 0.2s ease',
+              color: handsFree ? col : '#a6a3b8', transition: 'all 0.2s ease',
             }}
           >
             {handsFree ? 'Mains libres' : 'Manuel'}
@@ -1314,7 +1314,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       {call && (
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0, zIndex: 7,
-          padding: '12px 16px', background: 'linear-gradient(180deg, #03060f 70%, rgba(3,6,15,0))',
+          padding: '12px 16px', background: 'linear-gradient(180deg, #060609 70%, rgba(3,6,15,0))',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'Inter' }}>
@@ -1346,7 +1346,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <div style={{ width: 18, height: 1, background: `${col}66` }} />
-          <span style={{ fontFamily: 'Orbitron', fontSize: 13, fontWeight: 600, color: col, letterSpacing: '0.34em', textShadow: `0 0 10px ${col}88` }}>
+          <span style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 13, fontWeight: 600, color: col, letterSpacing: '0.34em', textShadow: `0 0 10px ${col}88` }}>
             {STATE_TAG[status]}
           </span>
           <div style={{ width: 18, height: 1, background: `${col}66` }} />
@@ -1361,7 +1361,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
         {liveText ? (
           <div style={{
             fontFamily: 'Inter', fontSize: 19, fontWeight: 300, textAlign: 'center',
-            color: '#bfe9ff', lineHeight: 1.4, fontStyle: 'italic', padding: '4px 10px',
+            color: '#e9e0ff', lineHeight: 1.4, fontStyle: 'italic', padding: '4px 10px',
           }}>
             « {liveText} »
           </div>
@@ -1426,8 +1426,8 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
           position: 'absolute', bottom: 116, left: '50%', transform: 'translateX(-50%)', zIndex: 6,
           padding: '4px 14px', borderRadius: 14,
           background: continuousMode ? `${col}1c` : 'transparent',
-          border: `1px solid ${continuousMode ? col + '88' : 'rgba(90,150,255,0.18)'}`,
-          cursor: 'pointer', color: continuousMode ? col : '#8ea3c8',
+          border: `1px solid ${continuousMode ? col + '88' : 'rgba(200,190,255,0.18)'}`,
+          cursor: 'pointer', color: continuousMode ? col : '#a6a3b8',
           fontFamily: 'Inter', fontSize: 13.5, fontWeight: 500, letterSpacing: '0.02em',
           transition: 'all 0.2s ease', whiteSpace: 'nowrap',
         }}
@@ -1448,7 +1448,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
           style={{
             width: 48, height: 48, borderRadius: '50%',
             background: camActive ? 'rgba(167,139,250,0.18)' : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${camActive ? '#a78bfa' : 'rgba(90,150,255,0.2)'}`,
+            border: `1px solid ${camActive ? '#a78bfa' : 'rgba(200,190,255,0.2)'}`,
             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
             transition: 'all 0.2s ease', position: 'relative',
           }}
@@ -1472,7 +1472,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
             marginTop: -26,
             background: orbActive
               ? `radial-gradient(circle at 50% 35%, ${col}55, ${col}18 70%)`
-              : 'radial-gradient(circle at 50% 35%, #12305a, #071229 75%)',
+              : 'radial-gradient(circle at 50% 35%, #12305a, #0e0c18 75%)',
             border: `1.5px solid ${orbActive ? col : col + '77'}`,
             cursor: isThinking ? 'default' : 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1522,7 +1522,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
           style={{
             width: 48, height: 48, borderRadius: '50%',
             background: scanActive ? `${col}1c` : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${scanActive ? col + '99' : 'rgba(90,150,255,0.2)'}`,
+            border: `1px solid ${scanActive ? col + '99' : 'rgba(200,190,255,0.2)'}`,
             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
             transition: 'all 0.2s ease',
           }}
@@ -1551,30 +1551,31 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
           style={{
             position: 'absolute', inset: 0, zIndex: 20,
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            background: 'radial-gradient(ellipse at 50% 35%, rgba(10,30,70,0.97), rgba(3,6,15,0.98) 70%)', backdropFilter: 'blur(8px)', cursor: 'pointer',
+            background: 'radial-gradient(60% 40% at 20% 15%, rgba(138,123,255,0.22), transparent 70%), radial-gradient(60% 40% at 85% 30%, rgba(255,122,168,0.16), transparent 70%), radial-gradient(70% 40% at 50% 100%, rgba(255,179,107,0.10), transparent 70%), #09090d', cursor: 'pointer',
             animation: 'fadeIn 0.4s ease', padding: '0 32px',
           }}
         >
-          <Sparkle col={col} active={false} />
-          <div style={{
-            fontFamily: 'Inter', fontSize: 22, fontWeight: 300,
-            color: 'rgba(255,255,255,0.95)', marginTop: 26, textAlign: 'center', lineHeight: 1.3,
-          }}>
-            Activer Dzaryx
+          {/* Orbe vivant : dégradé signature qui tourne et respire */}
+          <div style={{ position: 'relative', width: 190, height: 190 }}>
+            <div style={{ position: 'absolute', inset: -30, borderRadius: '50%', background: 'conic-gradient(from 0deg, #8a7bff, #c86bff, #ff7aa8, #ffb36b, #8a7bff)', filter: 'blur(38px)', opacity: 0.55, animation: 'spin-slow 9s linear infinite' }} />
+            <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'conic-gradient(from 90deg, #8a7bff, #c86bff, #ff7aa8, #ffb36b, #8a7bff)', animation: 'spin-slow 6s linear infinite', boxShadow: '0 30px 80px -20px rgba(200,107,255,0.8)' }} />
+            <div style={{ position: 'absolute', inset: 3, borderRadius: '50%', background: 'radial-gradient(circle at 35% 28%, rgba(255,255,255,0.55), rgba(255,255,255,0) 38%), radial-gradient(circle at 50% 60%, rgba(30,20,50,0.25), rgba(9,9,13,0.55) 75%)' }} />
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="52" height="52" viewBox="0 0 24 24" fill="none" style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.35))' }}>
+                <rect x="9" y="3" width="6" height="11" rx="3" fill="#fff" />
+                <path d="M5 11a7 7 0 0 0 14 0" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" fill="none" />
+                <line x1="12" y1="18" x2="12" y2="21" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" />
+              </svg>
+            </div>
           </div>
-          <div style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 300, color: 'rgba(255,255,255,0.4)', marginTop: 10, textAlign: 'center' }}>
-            Appuyez pour démarrer le micro
+          <div style={{ fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 34, fontWeight: 800, letterSpacing: '-0.045em', color: '#f7f5ff', marginTop: 44, textAlign: 'center', lineHeight: 1.05 }}>
+            Parle à Dzaryx
           </div>
-          <div style={{
-            marginTop: 26, width: 44, height: 44, borderRadius: '50%',
-            border: `1px solid ${col}66`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: `0 0 20px ${col}33`,
-          }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <rect x="9" y="3" width="6" height="11" rx="3" fill={col} />
-              <path d="M5 11a7 7 0 0 0 14 0" stroke={col} strokeWidth="1.8" strokeLinecap="round" fill="none" />
-              <line x1="12" y1="18" x2="12" y2="21" stroke={col} strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
+          <div style={{ fontFamily: 'Inter', fontSize: 15, color: '#a6a3b8', marginTop: 10, textAlign: 'center', lineHeight: 1.45, maxWidth: 280 }}>
+            Touche l'orbe : il écoute, comprend et s'occupe de tout.
+          </div>
+          <div style={{ marginTop: 28, padding: '13px 26px', borderRadius: 99, background: 'linear-gradient(120deg, #8a7bff 0%, #c86bff 45%, #ff7aa8 75%, #ffb36b 100%)', color: '#fff', fontFamily: '"Plus Jakarta Sans", Inter, sans-serif', fontSize: 15, fontWeight: 700, boxShadow: '0 14px 34px -10px rgba(200,107,255,0.9), inset 0 1px 0 rgba(255,255,255,0.4)' }}>
+            Activer le micro
           </div>
         </div>
       )}

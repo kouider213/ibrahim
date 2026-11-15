@@ -99,7 +99,7 @@ const WIN = new THREE.MeshStandardMaterial({ color: '#cbd5e1', roughness: 0.1, m
 const WIN2 = new THREE.MeshStandardMaterial({ color: '#a5b4fc', roughness: 0.1, metalness: 0.7, emissive: '#fde68a', emissiveIntensity: 0 });
 const HEAD = new THREE.MeshStandardMaterial({ color: '#fef9c3', emissive: '#fef08a', emissiveIntensity: 0.2 });
 const TAIL = new THREE.MeshStandardMaterial({ color: '#b91c1c', emissive: '#ef4444', emissiveIntensity: 0.2 });
-const GLASS = new THREE.MeshStandardMaterial({ color: '#0f172a', roughness: 0.05, metalness: 0.9 });
+const GLASS = new THREE.MeshStandardMaterial({ color: '#14141b', roughness: 0.05, metalness: 0.9 });
 
 // ── Textures procédurales (aucun fichier à charger) ─────────────────────────
 function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void, srgb = true) {
@@ -220,7 +220,7 @@ const WING_G = plate([[0, 0], [2.7, -1.15], [2.7, -1.55], [0, -1.45]], 0.07);
 const STAB_G = plate([[0, 0], [1.15, -0.55], [1.15, -0.85], [0, -0.75]], 0.05);
 const FIN_G = plate([[0, 0], [-1.35, 0], [-1.75, 1.45], [-1.2, 1.45]], 0.07);
 export function makePlane(tailColor: string, stripe: string): THREE.Group {
-  const g = new THREE.Group(), white = shiny('#f8fafc', 60), belly = mat('#cbd5e1'), tail = shiny(tailColor, 60), dark = mat('#0f172a');
+  const g = new THREE.Group(), white = shiny('#f8fafc', 60), belly = mat('#cbd5e1'), tail = shiny(tailColor, 60), dark = mat('#14141b');
   const body = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 4.2, 20), white); body.rotation.x = Math.PI / 2; g.add(body);
   const bel = new THREE.Mesh(new THREE.CylinderGeometry(0.425, 0.425, 4.2, 20, 1, true, Math.PI * 0.75, Math.PI * 0.5), belly); bel.rotation.x = Math.PI / 2; g.add(bel);
   const nose = new THREE.Mesh(new THREE.SphereGeometry(0.42, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), white);
@@ -368,7 +368,7 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   box(crane, P.x + 0.4, 5.2, P.z + 1, 0.06, 2.2, 0.06, '#334155');
   tag(world, crane, 'port');
   const cont = new THREE.Group(); tag(world, cont, 'port');
-  for (let i = 0; i < 6; i++) box(cont, P.x - 5 + (i % 3) * 1.9, 0.6 + Math.floor(i / 3) * 0.9, P.z + 2.6, 1.7, 0.9, 1, ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6', '#0ea5e9'][i]!);
+  for (let i = 0; i < 6; i++) box(cont, P.x - 5 + (i % 3) * 1.9, 0.6 + Math.floor(i / 3) * 0.9, P.z + 2.6, 1.7, 0.9, 1, ['#ef4444', '#ff7aa8', '#22c55e', '#f59e0b', '#8b5cf6', '#0ea5e9'][i]!);
   // Atelier (hangar ouvert)
   const A = Z.atelier, at = new THREE.Group();
   box(at, A.x, 0, A.z, A.w, 0.08, A.d, '#d4d4d8', false);
@@ -394,7 +394,7 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   const PS = Z.packs, pk = new THREE.Group();
   box(pk, PS.x, 0, PS.z + 1, 5, 2.4, 3.4, '#f8fafc'); box(pk, PS.x + 0.6, 2.4, PS.z + 1, 3.4, 1.6, 3, '#f1f5f9');
   box(pk, PS.x, 4, PS.z + 1, 5.4, 0.25, 3.8, '#c2410c');
-  box(pk, PS.x + 3.6, 0, PS.z + 1, 2.2, 0.09, 3, '#06b6d4', false);
+  box(pk, PS.x + 3.6, 0, PS.z + 1, 2.2, 0.09, 3, '#8a7bff', false);
   tag(world, pk, 'packs');
   palm(world, PS.x - 3.4, PS.z - 1.6); palm(world, PS.x + 3.6, PS.z - 2.4); palm(world, 19, -13);
   // Showroom vente
@@ -413,7 +413,7 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   tag(world, bt, 'b2b');
   const WB = Z.web, wb = new THREE.Group();
   box(wb, WB.x, 0, WB.z, 3.6, 3.4, 3.2, '#f472b6'); box(wb, WB.x, 3.4, WB.z, 3.9, 0.25, 3.5, '#be185d');
-  box(wb, WB.x, 1.2, WB.z + 1.63, 2.4, 1.5, 0.05, '#0f172a', false); box(wb, WB.x, 1.32, WB.z + 1.67, 2.1, 1.2, 0.02, '#38bdf8', false);
+  box(wb, WB.x, 1.2, WB.z + 1.63, 2.4, 1.5, 0.05, '#14141b', false); box(wb, WB.x, 1.32, WB.z + 1.67, 2.1, 1.2, 0.02, '#38bdf8', false);
   tag(world, wb, 'web');
   // Centre-ville décoratif
   const city = new THREE.Group();
@@ -448,7 +448,7 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   ].map(([x, y, z]) => new THREE.Vector3(x, y, z)), true, 'centripetal');
   const FLIGHT_S = 48;
   // Balisage de piste (bleu sur les bords, blanc au seuil) — s'allume la nuit
-  const RWY = new THREE.MeshBasicMaterial({ color: '#60a5fa' }), RWY_W = new THREE.MeshBasicMaterial({ color: '#fef9c3' });
+  const RWY = new THREE.MeshBasicMaterial({ color: '#b9a6ff' }), RWY_W = new THREE.MeshBasicMaterial({ color: '#fef9c3' });
   for (let z = AZ - 10.5; z <= AZ + 10.5; z += 1.5) for (const dx of [-2.1, 2.1]) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 4), Math.abs(z - (AZ + 10.5)) < 0.1 ? RWY_W : RWY); l.position.set(AX + dx, 0.06, z); world.add(l); }
   // Arbres
   ([[-28, -4], [-27, 4], [-12, -2.5], [-5.5, -2.5], [4.5, -2.5], [24, -3], [-2, 2.6], [8, 2.6], [24, 18], [-24, 22.5], [-10, 22.8], [9, 22.8], [29.5, 14], [29.5, 6], [-14, 2.6]] as const)
@@ -518,7 +518,7 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   world.add(bus);
   // Piétons
   const people: Array<{ g: THREE.Group; x0: number; x1: number; z: number; v: number; o: number }> = [];
-  const skin = ['#fcd34d', '#d6a77a', '#a16207', '#f5d0a9'], cloth = ['#ef4444', '#3b82f6', '#22c55e', '#a855f7', '#f97316', '#0f172a', '#ec4899'];
+  const skin = ['#fcd34d', '#d6a77a', '#a16207', '#f5d0a9'], cloth = ['#ef4444', '#ff7aa8', '#22c55e', '#a855f7', '#f97316', '#14141b', '#ec4899'];
   for (let i = 0; i < 18; i++) {
     const g = new THREE.Group();
     box(g, 0, 0, 0, 0.32, 0.6, 0.24, cloth[i % 7]!);
@@ -531,7 +531,7 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   const umbrellas: THREE.Object3D[] = [];
   people.forEach(({ g }, i) => {
     const u = new THREE.Group();
-    const top = new THREE.Mesh(new THREE.ConeGeometry(0.45, 0.25, 8), mat(['#1d4ed8', '#be123c', '#0f172a', '#ca8a04'][i % 4]!)); top.position.y = 1.35; u.add(top);
+    const top = new THREE.Mesh(new THREE.ConeGeometry(0.45, 0.25, 8), mat(['#1d4ed8', '#be123c', '#14141b', '#ca8a04'][i % 4]!)); top.position.y = 1.35; u.add(top);
     const st = new THREE.Mesh(CYL, mat('#334155')); st.scale.set(0.02, 0.5, 0.02); st.position.y = 1.05; u.add(st);
     u.visible = false; g.add(u); umbrellas.push(u);
   });
@@ -589,13 +589,13 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   box(ferry, 0, -0.4, 0, 3.4, 1.5, 12, '#f8fafc'); box(ferry, 0, -0.4, 0, 3.45, 0.35, 12.05, '#1d4ed8', false);
   box(ferry, 0, 1.1, -0.6, 3, 1.1, 8.5, '#f1f5f9'); box(ferry, 0, 2.2, -1.2, 2.6, 0.9, 5.5, '#e2e8f0');
   for (let i = 0; i < 9; i++) for (const sx of [1, -1]) box(ferry, sx * 1.51, 1.45, -4.4 + i * 0.95, 0.03, 0.32, 0.6, WIN, false);
-  cyl(ferry, 0, 3.1, -2.6, 0.45, 1.3, '#1d4ed8'); cyl(ferry, 0, 4.4, -2.6, 0.47, 0.25, '#0f172a');
+  cyl(ferry, 0, 3.1, -2.6, 0.45, 1.3, '#1d4ed8'); cyl(ferry, 0, 4.4, -2.6, 0.47, 0.25, '#14141b');
   world.add(ferry);
   const FERRY_DOCK = new THREE.Vector3(-7, 0, -18.4), FERRY_SEA = new THREE.Vector3(-7, 0, -62);
 
   // Jet ski (packs)
   const jet = new THREE.Group();
-  box(jet, 0, 0, 0, 1.4, 0.4, 0.6, '#facc15'); box(jet, -0.2, 0.4, 0, 0.5, 0.3, 0.4, '#0f172a');
+  box(jet, 0, 0, 0, 1.4, 0.4, 0.6, '#facc15'); box(jet, -0.2, 0.4, 0, 0.5, 0.3, 0.4, '#14141b');
   jet.traverse(o => { o.userData['zone'] = 'packs'; }); world.add(jet);
 
   // ── Le bonhomme de Kouider : il va là où son agenda l'emmène ────────────────
@@ -613,7 +613,7 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   const headM = new THREE.Mesh(new THREE.SphereGeometry(0.19, 14, 10), mat('#c8946a')); headM.position.y = 1.42; me.add(headM);
   const hair = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2.2), mat('#1c1917')); hair.position.y = 1.45; me.add(hair);
   box(me, 0, 1.24, 0.1, 0.24, 0.12, 0.1, '#292524', false);                           // barbe
-  const phone = new THREE.Mesh(BOX, mat('#0f172a')); phone.scale.set(0.08, 0.14, 0.02); phone.position.set(0, -0.5, 0.06); armR.add(phone);
+  const phone = new THREE.Mesh(BOX, mat('#14141b')); phone.scale.set(0.08, 0.14, 0.02); phone.position.set(0, -0.5, 0.06); armR.add(phone);
   const meRing = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.56, 28), new THREE.MeshBasicMaterial({ color: '#fbbf24', transparent: true, opacity: 0.9, depthWrite: false }));
   meRing.rotation.x = -Math.PI / 2; meRing.position.y = 0.04; me.add(meRing);
   me.scale.setScalar(1.6); me.position.set(...[ME_SPOT.agence[0], 0, ME_SPOT.agence[1]] as [number, number, number]); me.visible = false;
@@ -740,7 +740,7 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
     });
     // Conteneurs sur le bateau = imports en cours
     w.imports.slice(0, 12).forEach((im, i) => {
-      const c = box(boatCargo, -1.6 + (i % 4) * 1.6, 1.05 + Math.floor(i / 8) * 0.9, i % 8 < 4 ? -0.6 : 0.6, 1.5, 0.85, 1.1, ['#ef4444', '#22c55e', '#f59e0b', '#3b82f6'][i % 4]!);
+      const c = box(boatCargo, -1.6 + (i % 4) * 1.6, 1.05 + Math.floor(i / 8) * 0.9, i % 8 < 4 ? -0.6 : 0.6, 1.5, 0.85, 1.1, ['#ef4444', '#22c55e', '#f59e0b', '#ff7aa8'][i % 4]!);
       if (fresh.has(`imp:${im.id}`)) born(c, 'drop', new THREE.Vector3(0, 9, 0), 2200, 'Nouvel import', 1.6);
     });
     // Biens immobiliers : immeubles réels, sinon chantier « bientôt »

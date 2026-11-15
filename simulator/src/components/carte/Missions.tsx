@@ -76,7 +76,7 @@ export function useQuests(quests: Quest[], date: string, live: boolean, onWin: (
   return { all, done, xp, streak, complete, undo };
 }
 
-const S = { surface: '#0c1730', border: 'rgba(90,150,255,0.16)', muted: '#8ea3c8', gold: '#fbbf24', accent: '#38d8f5', text: '#f5f5f7' };
+const S = { surface: '#131319', border: 'rgba(200,190,255,0.16)', muted: '#a6a3b8', gold: '#fbbf24', accent: '#9b8cff', text: '#f5f5f7' };
 
 export function Missions({ all, done, xp, streak, onGo, onDone, onUndo, compact }: {
   all: Quest[]; done: string[]; xp: number; streak: { last: string; n: number };
@@ -86,7 +86,7 @@ export function Missions({ all, done, xp, streak, onGo, onDone, onUndo, compact 
   const left = all.filter(q => !done.includes(q.id)), won = all.filter(q => done.includes(q.id));
   const pct = all.length ? won.length / all.length : 1;
   return (
-    <div style={{ background: compact ? '#0f172aee' : `linear-gradient(135deg, #312e8130, ${S.surface})`, border: `1px solid ${compact ? '#334155' : '#818cf855'}`, borderRadius: 14, padding: '11px 12px', marginBottom: compact ? 0 : 12, color: S.text }}>
+    <div style={{ background: compact ? '#14141bee' : `linear-gradient(135deg, #312e8130, ${S.surface})`, border: `1px solid ${compact ? '#334155' : '#818cf855'}`, borderRadius: 14, padding: '11px 12px', marginBottom: compact ? 0 : 12, color: S.text }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ position: 'relative', width: 44, height: 44, flexShrink: 0 }}>
           <svg viewBox="0 0 36 36" width="44" height="44" style={{ transform: 'rotate(-90deg)' }}>

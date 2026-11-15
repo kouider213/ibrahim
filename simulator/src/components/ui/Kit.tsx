@@ -4,22 +4,25 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 
 export const T = {
-  bg: '#050a16',
-  surface: '#0b1530',
-  surface2: '#101d3d',
-  line: 'rgba(110,160,255,0.14)',
-  lineStrong: 'rgba(110,160,255,0.28)',
-  text: '#f4f7ff',
-  muted: '#8ea3c8',
-  faint: '#5d7096',
-  accent: '#38d8f5',
-  accent2: '#4aa3ff',
-  ok: '#34d399',
-  warn: '#fbbf24',
-  bad: '#fb7185',
-  violet: '#a78bfa',
+  bg: '#09090d',
+  surface: '#131319',
+  surface2: '#1b1b23',
+  line: 'rgba(255,255,255,0.08)',
+  lineStrong: 'rgba(255,255,255,0.16)',
+  text: '#f7f5ff',
+  muted: '#a6a3b8',
+  faint: '#706d84',
+  accent: '#9b8cff',
+  accent2: '#ff79c6',
+  ok: '#3ee39b',
+  warn: '#ffc061',
+  bad: '#ff5d7d',
+  violet: '#c08bff',
   font: 'Inter, -apple-system, "Segoe UI", Roboto, sans-serif',
-  radius: 18,
+  display: '"Plus Jakarta Sans", Inter, -apple-system, sans-serif',
+  /** Signature Dzaryx 2 : aurore violet → rose → ambre */
+  grad: 'linear-gradient(120deg, #8a7bff 0%, #c86bff 45%, #ff7aa8 75%, #ffb36b 100%)',
+  radius: 22,
 };
 
 // ── Styles globaux (une seule fois) : animations d'entrée, appui « qui s'enfonce », feuilles qui glissent, aurore ──
@@ -41,8 +44,8 @@ button:not(:disabled):active{transform:scale(.965)}
 .dz-in>*:nth-child(5){animation-delay:.16s}.dz-in>*:nth-child(6){animation-delay:.2s}.dz-in>*:nth-child(7){animation-delay:.24s}.dz-in>*:nth-child(n+8){animation-delay:.28s}
 .dz-scroll{scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 .dz-scroll::-webkit-scrollbar{display:none}
-input::placeholder,textarea::placeholder{color:#4f6289}
-input:focus,textarea:focus,select:focus{border-color:rgba(56,216,245,.55)!important;box-shadow:0 0 0 3px rgba(56,216,245,.14)}
+input::placeholder,textarea::placeholder{color:#5f5c72}
+input:focus,textarea:focus,select:focus{border-color:rgba(155,140,255,.55)!important;box-shadow:0 0 0 3px rgba(155,140,255,.14)}
 @media (prefers-reduced-motion:reduce){.dz-in>*,.dz-sheet,.dz-aurora{animation:none!important}}
 `;
 if (typeof document !== 'undefined' && !document.getElementById('dz-kit-css')) {
@@ -51,9 +54,9 @@ if (typeof document !== 'undefined' && !document.getElementById('dz-kit-css')) {
 
 /** Fond « verre » commun aux cartes : dégradé profond + reflet en haut + ombre portée. */
 export const glass = (accent?: string): CSSProperties => ({
-  background: `${accent ? `radial-gradient(120% 90% at 0% 0%, ${tone(accent, 0.13)}, transparent 55%), ` : ''}linear-gradient(155deg, rgba(24,42,86,0.82), rgba(10,19,43,0.94))`,
-  border: `1px solid ${accent ? tone(accent, 0.3) : 'rgba(120,170,255,0.15)'}`,
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07), 0 14px 34px -22px rgba(0,0,0,0.9)',
+  background: `${accent ? `radial-gradient(130% 100% at 0% 0%, ${tone(accent, 0.16)}, transparent 55%), ` : ''}linear-gradient(160deg, rgba(34,32,46,0.78), rgba(18,17,25,0.92))`,
+  border: `1px solid ${accent ? tone(accent, 0.28) : 'rgba(255,255,255,0.08)'}`,
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), 0 18px 40px -26px rgba(0,0,0,0.95)',
 });
 
 /** Chiffre qui défile jusqu'à sa valeur (5 490 €, 10,93 €, 14 / 15…). Le texte autour est gardé tel quel. */
@@ -88,14 +91,16 @@ export const tone = (c: string, a = 0.14) => {
 /** En-tête de page compact : sur-titre, titre, sous-titre (ou message), action à droite. */
 export function PageHeader({ eyebrow, title, subtitle, right, compact }: { eyebrow?: string; title: string; subtitle?: ReactNode; right?: ReactNode; compact?: boolean }) {
   return (
-    <div style={{ position: 'relative', padding: compact ? '12px 16px 10px' : '18px 16px 14px', overflow: 'hidden' }}>
-      <div className="dz-aurora" style={{ position: 'absolute', top: -110, right: -70, width: 300, height: 300, background: `radial-gradient(circle, ${tone(T.accent, 0.2)}, transparent 68%)`, pointerEvents: 'none', animation: 'dzAurora 14s ease-in-out infinite' }} />
-      <div className="dz-aurora" style={{ position: 'absolute', top: -60, left: -90, width: 240, height: 240, background: `radial-gradient(circle, ${tone(T.violet, 0.12)}, transparent 70%)`, pointerEvents: 'none', animation: 'dzAurora2 18s ease-in-out infinite' }} />
+    <div style={{ position: 'relative', padding: compact ? '14px 18px 12px' : '20px 18px 16px', overflow: 'hidden' }}>
+      {/* Aurore : trois halos qui dérivent lentement (violet, rose, ambre) */}
+      <div className="dz-aurora" style={{ position: 'absolute', top: -140, right: -90, width: 320, height: 320, background: 'radial-gradient(circle, rgba(138,123,255,0.32), transparent 66%)', pointerEvents: 'none', animation: 'dzAurora 16s ease-in-out infinite' }} />
+      <div className="dz-aurora" style={{ position: 'absolute', top: -120, left: -110, width: 280, height: 280, background: 'radial-gradient(circle, rgba(255,122,168,0.18), transparent 68%)', pointerEvents: 'none', animation: 'dzAurora2 20s ease-in-out infinite' }} />
+      <div className="dz-aurora" style={{ position: 'absolute', top: -40, left: '35%', width: 200, height: 160, background: 'radial-gradient(circle, rgba(255,179,107,0.10), transparent 70%)', pointerEvents: 'none', animation: 'dzAurora 24s ease-in-out infinite reverse' }} />
       <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          {eyebrow && <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: 'Orbitron, ' + T.font, fontSize: 10, letterSpacing: '0.26em', color: T.accent, fontWeight: 600, textTransform: 'uppercase', marginBottom: 7 }}><span style={{ width: 5, height: 5, borderRadius: 2, background: T.accent, boxShadow: `0 0 8px ${T.accent}` }} />{eyebrow}</div>}
-          <div style={{ fontSize: compact ? 23 : 30, fontWeight: 800, letterSpacing: '-0.035em', lineHeight: 1.05, background: 'linear-gradient(120deg, #ffffff 30%, #bfeffd 75%, #7fd8ff)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{title}</div>
-          {subtitle != null && <div style={{ fontSize: compact ? 12.5 : 13, color: T.muted, marginTop: compact ? 3 : 6, lineHeight: 1.4 }}>{subtitle}</div>}
+          {eyebrow && <div style={{ fontFamily: T.display, fontSize: 12.5, fontWeight: 700, letterSpacing: '0.02em', marginBottom: 4, background: T.grad, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', display: 'inline-block' }}>{(eyebrow.charAt(0).toUpperCase() + eyebrow.slice(1).toLowerCase()).replace(/\b(fik|ia|ca|pdf|pc)\b/gi, m => m.toUpperCase())}</div>}
+          <div style={{ fontFamily: T.display, fontSize: compact ? 26 : 34, fontWeight: 800, letterSpacing: '-0.045em', lineHeight: 1.02, color: T.text }}>{title}</div>
+          {subtitle != null && <div style={{ fontSize: 13.5, color: T.muted, marginTop: compact ? 4 : 7, lineHeight: 1.45 }}>{subtitle}</div>}
         </div>
         {right}
       </div>
@@ -106,14 +111,14 @@ export function PageHeader({ eyebrow, title, subtitle, right, compact }: { eyebr
 /** Contrôle segmenté (onglets) avec compteurs. */
 export function Segmented<K extends string>({ items, value, onChange }: { items: { id: K; label: string; count?: number }[]; value: K; onChange: (k: K) => void }) {
   return (
-    <div style={{ display: 'flex', padding: 4, gap: 4, background: 'rgba(8,16,36,0.75)', border: `1px solid ${T.line}`, borderRadius: 15, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)', backdropFilter: 'blur(12px)' }}>
+    <div style={{ display: 'flex', padding: 4, gap: 4, background: 'rgba(255,255,255,0.04)', border: `1px solid ${T.line}`, borderRadius: 16, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)', backdropFilter: 'blur(12px)' }}>
       {items.map(it => {
         const on = it.id === value;
         return (
           <button key={it.id} onClick={() => onChange(it.id)} style={{
             flex: 1, minHeight: 40, borderRadius: 10, border: 'none', cursor: 'pointer', fontFamily: T.font,
-            background: on ? `linear-gradient(135deg, ${tone(T.accent, 0.26)}, ${tone(T.accent2, 0.18)})` : 'transparent',
-            boxShadow: on ? `inset 0 0 0 1px ${tone(T.accent, 0.55)}, 0 6px 18px -8px ${tone(T.accent, 0.7)}` : 'none',
+            background: on ? 'linear-gradient(160deg, rgba(255,255,255,0.16), rgba(255,255,255,0.07))' : 'transparent',
+            boxShadow: on ? 'inset 0 1px 0 rgba(255,255,255,0.18), 0 6px 18px -8px rgba(0,0,0,0.9)' : 'none',
             color: on ? T.text : T.muted, fontSize: 13.5, fontWeight: on ? 700 : 600,
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           }}>
@@ -150,7 +155,7 @@ export function Kpi({ value, label, color = T.accent, sub, icon }: { value: Reac
     <div style={{ position: 'relative', minWidth: 0, ...glass(), borderRadius: 18, padding: '13px 13px 12px', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', top: -30, right: -30, width: 90, height: 90, borderRadius: '50%', background: `radial-gradient(circle, ${tone(color, 0.22)}, transparent 70%)`, pointerEvents: 'none' }} />
       <div style={{ position: 'absolute', insetInline: 12, top: 0, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${color}, transparent)`, boxShadow: `0 0 10px ${tone(color, 0.7)}` }} />
-      <div style={{ position: 'relative', fontSize: 23, fontWeight: 800, letterSpacing: '-0.03em', color: T.text, lineHeight: 1.1, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{icon && <span style={{ fontSize: 17, marginRight: 6 }}>{icon}</span>}<CountUp value={value} /></div>
+      <div style={{ position: 'relative', fontFamily: T.display, fontSize: 24, fontWeight: 800, letterSpacing: '-0.04em', color: T.text, lineHeight: 1.1, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{icon && <span style={{ fontSize: 17, marginRight: 6 }}>{icon}</span>}<CountUp value={value} /></div>
       <div style={{ fontSize: 11.5, color: T.muted, marginTop: 4, fontWeight: 500 }}>{label}</div>
       {sub != null && <div style={{ fontSize: 11, color, marginTop: 2, fontWeight: 600 }}>{sub}</div>}
     </div>
@@ -162,7 +167,7 @@ export function Badge({ children, color = T.accent, solid = false }: { children:
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 99, fontSize: 11.5, fontWeight: 700,
-      background: solid ? color : tone(color, 0.16), color: solid ? '#04101f' : color, border: solid ? 'none' : `1px solid ${tone(color, 0.35)}`,
+      background: solid ? color : tone(color, 0.16), color: solid ? '#0b0a12' : color, border: solid ? 'none' : `1px solid ${tone(color, 0.35)}`,
       backdropFilter: 'blur(8px)', whiteSpace: 'nowrap',
     }}>
       {!solid && <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, boxShadow: `0 0 6px ${color}` }} />}
@@ -174,7 +179,7 @@ export function Badge({ children, color = T.accent, solid = false }: { children:
 type BtnVariant = 'primary' | 'soft' | 'ghost' | 'danger';
 export function btnStyle(variant: BtnVariant = 'soft', color: string = T.accent): CSSProperties {
   const base: CSSProperties = { minHeight: 44, padding: '0 16px', borderRadius: 13, fontFamily: T.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, border: 'none', boxSizing: 'border-box', whiteSpace: 'nowrap' };
-  if (variant === 'primary') return { ...base, position: 'relative', overflow: 'hidden', background: `linear-gradient(135deg, #5ee6ff, ${T.accent} 40%, ${T.accent2})`, color: '#03101f', boxShadow: `inset 0 1px 0 rgba(255,255,255,0.45), 0 10px 26px -10px ${tone(T.accent, 0.9)}` };
+  if (variant === 'primary') return { ...base, position: 'relative', overflow: 'hidden', background: T.grad, color: '#ffffff', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 12px 30px -12px rgba(200,107,255,0.9)', textShadow: '0 1px 2px rgba(0,0,0,0.25)' };
   if (variant === 'danger') return { ...base, background: tone(T.bad, 0.12), color: T.bad, border: `1px solid ${tone(T.bad, 0.35)}` };
   if (variant === 'ghost') return { ...base, background: 'transparent', color: T.muted, border: `1px solid ${T.line}` };
   return { ...base, background: `linear-gradient(160deg, ${tone(color, 0.16)}, ${tone(color, 0.07)})`, color, border: `1px solid ${tone(color, 0.34)}`, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' };
@@ -220,7 +225,7 @@ export function Toggle({ on, onChange, busy, colorOn = T.ok, colorOff = T.bad }:
 /** Feuille modale (glisse depuis le bas). */
 export function Sheet({ title, subtitle, onClose, children, footer, accent = T.accent, z = 60, fixed }: { title: ReactNode; subtitle?: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode; accent?: string; z?: number; fixed?: boolean }) {
   return (
-    <div onClick={onClose} style={{ position: fixed ? 'fixed' : 'absolute', inset: 0, zIndex: z, background: 'rgba(2,6,16,0.72)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', display: 'flex', alignItems: 'flex-end', fontFamily: T.font, animation: 'dzFade .2s ease both' }}>
+    <div onClick={onClose} style={{ position: fixed ? 'fixed' : 'absolute', inset: 0, zIndex: z, background: 'rgba(4,4,8,0.72)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', display: 'flex', alignItems: 'flex-end', fontFamily: T.font, animation: 'dzFade .2s ease both' }}>
       <div className="dz-sheet" onClick={e => e.stopPropagation()} style={{ width: '100%', maxHeight: '92%', display: 'flex', flexDirection: 'column', background: `radial-gradient(100% 50% at 100% 0%, ${tone(accent, 0.14)}, transparent 60%), linear-gradient(180deg, ${T.surface2}, ${T.bg})`, borderRadius: '26px 26px 0 0', border: `1px solid ${T.lineStrong}`, borderBottom: 'none', boxShadow: `0 -24px 70px -20px ${tone(accent, 0.45)}`, animation: 'dzSheet .38s cubic-bezier(.16,.9,.3,1) both' }}>
         <div style={{ padding: '10px 18px 12px', flexShrink: 0 }}>
           <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.18)', margin: '0 auto 14px' }} />
@@ -279,8 +284,8 @@ export function Toast({ text }: { text: string }) {
 export function SectionTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '6px 0 10px' }}>
-      <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a9bbdc' }}>{children}</div>
-      <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${tone(T.accent, 0.35)}, transparent)` }} />
+      <div style={{ fontFamily: T.display, fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', color: T.text }}>{children}</div>
+      <div style={{ flex: 1 }} />
       {right}
     </div>
   );
@@ -289,10 +294,10 @@ export function SectionTitle({ children, right }: { children: ReactNode; right?:
 /** Écran standard : en-tête fixe + contenu défilant (bas dégagé pour le bouton micro). */
 export function Screen({ header, children, toast, pad = true }: { header?: ReactNode; children: ReactNode; toast?: string; pad?: boolean }) {
   return (
-    <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', background: `radial-gradient(120% 60% at 50% 115%, rgba(56,120,245,0.10), transparent 60%), ${T.bg}`, color: T.text, fontFamily: T.font, animation: 'dzFade .25s ease both' }}>
+    <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', background: `radial-gradient(90% 50% at 100% 110%, rgba(255,122,168,0.07), transparent 60%), radial-gradient(90% 50% at 0% 110%, rgba(138,123,255,0.09), transparent 60%), ${T.bg}`, color: T.text, fontFamily: T.font, animation: 'dzFade .25s ease both' }}>
       {toast != null && <Toast text={toast} />}
       {header != null && <div style={{ flexShrink: 0 }}>{header}</div>}
-      <div className="dz-in dz-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: pad ? '6px 16px 130px' : '0 0 130px' }}>{children}</div>
+      <div className="dz-in dz-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: pad ? '6px 16px 140px' : '0 0 140px' }}>{children}</div>
     </div>
   );
 }

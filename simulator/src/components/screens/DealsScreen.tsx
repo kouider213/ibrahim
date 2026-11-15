@@ -17,12 +17,12 @@ const OPP_META: Record<string, { icon: string; label: string }> = {
   marche:   { icon: '📊', label: 'Marché' },
   modele:   { icon: '🆕', label: 'Nouveauté' },
 };
-const URG_COL: Record<string, string> = { urgent: '#fb7185', a_suivre: '#38d8f5', info: '#8ea3c8' };
+const URG_COL: Record<string, string> = { urgent: '#fb7185', a_suivre: '#9b8cff', info: '#a6a3b8' };
 const URG_LABEL: Record<string, string> = { urgent: 'URGENT', a_suivre: 'À suivre', info: 'Info' };
 
 const C = {
-  bg: '#050a16', surface: '#0c1730', surface2: '#12203d', border: 'rgba(90,150,255,0.15)',
-  gold: '#38d8f5', goldSoft: '#34d399', text: '#f5f5f7', muted: '#8ea3c8',
+  bg: '#09090d', surface: '#131319', surface2: '#1b1b23', border: 'rgba(200,190,255,0.15)',
+  gold: '#9b8cff', goldSoft: '#34d399', text: '#f5f5f7', muted: '#a6a3b8',
   green: '#34d399', blue: '#34d399', red: '#fb7185', violet: '#a78bfa',
   font: '-apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
 };

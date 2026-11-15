@@ -443,7 +443,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
       onClick={() => unlockAudio()}
       style={{
         width: '100%', height: '100%',
-        background: '#03060f',
+        background: '#060609',
         display: 'flex', flexDirection: 'column',
         position: 'relative', overflow: 'hidden',
       }}
@@ -540,7 +540,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
       </div>
 
       {/* Zone de saisie — pill (façon Gemini) */}
-      <div style={{ flexShrink: 0, background: '#03060f', padding: '8px 12px 14px' }}>
+      <div style={{ flexShrink: 0, background: '#060609', padding: '8px 12px 14px' }}>
         {/* Aperçu photos (multiple) */}
         {selectedImages.length > 0 && (
           <div style={{ padding: '0 4px 8px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -759,7 +759,7 @@ function RichText({ text, color }: { text: string; color: string }) {
 
 // Graphique (barres / camembert) — rendu maison, thème sombre + or
 type ChartSpec = { type?: 'bar' | 'pie' | 'line'; title?: string; data?: Array<{ label: string; value: number }>; unit?: string };
-const CHART_COLORS = ['#C9A96E', '#52E3A1', '#38d8f5', '#E8C98A', '#ff8c5a', '#9b8cff', '#ff6b9d', '#7ad1c4'];
+const CHART_COLORS = ['#C9A96E', '#52E3A1', '#9b8cff', '#E8C98A', '#ff8c5a', '#9b8cff', '#ff6b9d', '#7ad1c4'];
 
 function Chart({ spec }: { spec: ChartSpec }) {
   const data = (spec.data ?? []).filter(d => d && typeof d.value === 'number');
@@ -930,8 +930,8 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
             <button
               onClick={e => { e.stopPropagation(); downloadFile(lightbox); }}
               style={{
-                background: '#38d8f522', border: '1px solid #38d8f566', borderRadius: 10,
-                color: '#38d8f5', fontFamily: 'Inter', fontSize: 12, fontWeight: 600,
+                background: '#9b8cff22', border: '1px solid #9b8cff66', borderRadius: 10,
+                color: '#9b8cff', fontFamily: 'Inter', fontSize: 12, fontWeight: 600,
                 padding: '8px 20px', cursor: 'pointer',
               }}
             >⬇ Enregistrer</button>
@@ -953,8 +953,8 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
         )}
         <div style={{
           maxWidth: isUser ? '82%' : '86%',
-          background: isUser ? 'rgba(56,216,245,0.16)' : '#0c1730',
-          border: isUser ? '1px solid rgba(56,216,245,0.32)' : '1px solid rgba(90,150,255,0.15)',
+          background: isUser ? 'rgba(155,140,255,0.16)' : '#131319',
+          border: isUser ? '1px solid rgba(155,140,255,0.32)' : '1px solid rgba(200,190,255,0.15)',
           borderRadius: isUser ? '20px 20px 6px 20px' : '6px 18px 18px 18px',
           padding: '12px 14px',
           boxShadow: isUser ? 'none' : '0 2px 10px rgba(0,0,0,0.25)',
@@ -1012,15 +1012,15 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
                       download={filename}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10,
-                        background: 'rgba(56,216,245,0.08)', border: '1px solid rgba(56,216,245,0.25)',
+                        background: 'rgba(155,140,255,0.08)', border: '1px solid rgba(155,140,255,0.25)',
                         borderRadius: 10, padding: '10px 14px', textDecoration: 'none',
-                        color: '#38d8f5',
+                        color: '#9b8cff',
                       }}
                     >
                       <span style={{ fontSize: 22 }}>{icon}</span>
                       <div>
-                        <div style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: '#38d8f5' }}>{filename}</div>
-                        <div style={{ fontFamily: 'Inter', fontSize: 13, color: 'rgba(56,216,245,0.55)', marginTop: 2 }}>
+                        <div style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: '#9b8cff' }}>{filename}</div>
+                        <div style={{ fontFamily: 'Inter', fontSize: 13, color: 'rgba(155,140,255,0.55)', marginTop: 2 }}>
                           Appuyer pour télécharger
                         </div>
                       </div>

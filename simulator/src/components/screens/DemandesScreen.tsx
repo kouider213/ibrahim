@@ -59,7 +59,7 @@ const nextStage = (d: Demande): Stage | null => {
 const SRC: Record<Demande['source'], { label: string; color: string; icon: string }> = {
   lead:    { label: 'Lead',        color: '#f59e0b', icon: '🔔' },
   dossier: { label: 'Dossier',     color: '#8b5cf6', icon: '📁' },
-  import:  { label: 'Importation', color: '#06b6d4', icon: '🛳️' },
+  import:  { label: 'Importation', color: '#8a7bff', icon: '🛳️' },
   booking: { label: 'Réservation', color: '#22c55e', icon: '🚗' },
 };
 const LANG_FLAG: Record<string, string> = { fr: '🇫🇷', ar: '🇩🇿', en: '🇬🇧' };
