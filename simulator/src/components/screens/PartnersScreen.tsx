@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { apiFetch } from '../../services/api.ts';
 import { Hero, StatCard, SkeletonCards, SearchPill } from '../ui/Premium.tsx';
+import { btnStyle } from '../ui/Kit.tsx';
 
 // « PARTENAIRES » : Houari, Karim… et tout ce qu'ils proposent (véhicules, immobilier, services, activités),
 // avec photos, prix payé au partenaire, prix client et marge. Un véhicule « dans le PARC » se met à jour partout.
@@ -368,7 +369,7 @@ export default function PartnersScreen() {
           <StatCard icon="💰" value={totals.margin != null ? `${totals.margin} %` : '—'} label="marge moy." color={C.green} />
         </div>
         <div style={{ margin: '12px 0' }}><SearchPill value={q} onChange={setQ} placeholder="Chercher un partenaire ou une offre…" /></div>
-        <button onClick={() => setPForm({ f: { status: 'actif', city: 'Oran' } })} style={{ ...btn(C.gold, '#1a1200'), width: '100%', padding: 12, marginBottom: 12 }}>＋ Nouveau partenaire</button>
+        <button onClick={() => setPForm({ f: { status: 'actif', city: 'Oran' } })} style={{ ...btnStyle('primary'), width: '100%', minHeight: 50, fontSize: 15, marginBottom: 12 }}>＋ Nouveau partenaire</button>
         {list === null ? <SkeletonCards count={3} height={86} /> : shown.map(x => (
           <button key={x.id} onClick={() => setOpenId(x.id)} style={{ display: 'flex', gap: 12, alignItems: 'center', width: '100%', textAlign: 'left', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 12, marginBottom: 10, cursor: 'pointer', color: C.text, fontFamily: C.font }}>
             <Avatar name={x.name} photo={x.offers.find(o => o.photos.length)?.photos[0]} />

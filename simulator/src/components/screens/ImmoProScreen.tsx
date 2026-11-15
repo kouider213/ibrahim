@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import PhotoGallery from '../ui/PhotoGallery.tsx';
 import { Hero, StatCard } from '../ui/Premium.tsx';
-import { Segmented } from '../ui/Kit.tsx';
+import { Segmented, btnStyle } from '../ui/Kit.tsx';
 import { business, getOrCreateSessionId, type SiteProperty } from '../../services/api.ts';
 import { InspectionModal } from './FleetScreen.tsx';
 
@@ -162,14 +162,10 @@ export default function ImmoProScreen() {
 
       {/* Filtres + ajouter */}
       <div style={{ display: 'flex', gap: 8, padding: '0 18px 14px', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 4, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 3, flex: 1 }}>
-          {(['tous', 'location', 'vente'] as const).map(f => (
-            <button key={f} onClick={() => setFilter(f)} style={{ flex: 1, padding: '7px 0', borderRadius: 9, border: 'none', cursor: 'pointer', fontFamily: C.font, fontSize: 11.5, fontWeight: 600, background: filter === f ? C.gold : 'transparent', color: filter === f ? '#ffffff' : C.muted, transition: 'all .2s' }}>
-              {f === 'tous' ? 'Tous' : f === 'location' ? 'À louer' : 'À vendre'}
-            </button>
-          ))}
+        <div style={{ flex: 1 }}>
+          <Segmented<'tous' | 'location' | 'vente'> value={filter} onChange={setFilter} items={[{ id: 'tous', label: 'Tous' }, { id: 'location', label: 'À louer' }, { id: 'vente', label: 'À vendre' }]} />
         </div>
-        <button onClick={() => setShow(true)} style={{ width: 42, height: 42, borderRadius: 12, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg, ${C.gold}, ${C.goldSoft})`, color: '#ffffff', fontSize: 22, fontWeight: 700, boxShadow: `0 6px 18px ${C.gold}44` }}>+</button>
+        <button onClick={() => setShow(true)} aria-label="Ajouter un bien" style={{ ...btnStyle('primary'), width: 48, height: 48, padding: 0, fontSize: 24 }}>＋</button>
       </div>
 
       {/* Liste */}

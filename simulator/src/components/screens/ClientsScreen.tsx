@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
+import { openClient, ClientName } from '../ClientSheet.tsx';
 import { business, type ClientSummary, type ClientIntelligence, type ClientOperation, type ClientType, type ClientDetail, type ClientBookingHistory, type Car } from '../../services/api.ts';
 import { SkeletonCards, SearchPill } from '../ui/Premium.tsx';
-import { T, PageHeader, Kpi, KpiGrid } from '../ui/Kit.tsx';
+import { T, PageHeader, Kpi, KpiGrid, btnStyle } from '../ui/Kit.tsx';
 
 // Libellés français des statuts (les valeurs envoyées au serveur restent en anglais)
 const FR: Record<string, string> = { CONFIRMED: 'Confirmée', PENDING: 'En attente', ACTIVE: 'En cours', COMPLETED: 'Terminée', REJECTED: 'Refusée', CANCELLED: 'Annulée', UNPAID: 'À payer', PARTIAL: 'Acompte', PAID: 'Payé',
@@ -295,8 +296,8 @@ export default function ClientsScreen() {
             onCancel={() => setNewGlobal(false)} onCreate={createBookingFor} />
         ) : (
           <button onClick={() => setNewGlobal(true)}
-            style={{ width: '100%', boxSizing: 'border-box', fontSize: 13, fontWeight: 700, color: '#06281c', background: `linear-gradient(120deg, ${C.accentSoft}, ${C.accent})`, border: 'none', borderRadius: 14, padding: '13px', cursor: 'pointer' }}>
-            ➕ Nouvelle réservation
+            style={{ ...btnStyle('primary'), width: '100%', fontSize: 15, minHeight: 50 }}>
+            ＋ Nouvelle réservation
           </button>
         )}
       </div>
@@ -320,7 +321,7 @@ export default function ClientsScreen() {
               <div onClick={() => toggle(c)} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '15px 14px', cursor: 'pointer' }}>
                 <div style={{ width: 48, height: 48, borderRadius: '50%', flexShrink: 0, background: `linear-gradient(145deg, ${scCol}33, ${scCol}10)`, border: `1.5px solid ${scCol}66`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, color: scCol, boxShadow: `0 0 14px ${scCol}22` }}>{initials || '?'}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 15.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+                  <div style={{ fontSize: 15.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><ClientName name={c.name} phone={c.phone} /></div>
                   <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>{c.bookingCount} résa · {fmt(c.totalSpent)}</div>
                   {c.lastCarName && (
                     <div style={{ fontSize: 11.5, color: C.accentSoft, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -362,7 +363,10 @@ export default function ClientsScreen() {
                       <Row label="Fiabilité paiement" val={ci.payment_reliability ? FR[ci.payment_reliability] ?? ci.payment_reliability : '—'} />
                       <Row label="Dépenses total" val={fmt(ci.total_spent)} col={C.gold} />
                       {ci.notes && <div style={{ marginTop: 10, padding: '10px 12px', background: `${C.accent}10`, borderRadius: 12, border: `1px solid ${C.accent}22`, fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>{ci.notes}</div>}
-                      <button onClick={() => startIntelEdit(c.name, ci)} style={{ ...miniBtn(C.blue), marginTop: 10 }}>✏️ Modifier le profil</button>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                        <button onClick={() => openClient({ name: c.name, phone: c.phone })} style={{ ...miniBtn(C.accent) }}>👤 Fiche complète</button>
+                        <button onClick={() => startIntelEdit(c.name, ci)} style={{ ...miniBtn(C.blue) }}>✏️ Modifier le profil</button>
+                      </div>
                     </>)}
                   </>}
                   {cOps.length > 0 && (

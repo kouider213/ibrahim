@@ -40,7 +40,7 @@ router.get('/', requireMobileAuth, async (req, res) => {
       if (existing) {
         existing.bookingCount++;
         existing.types.add('loc_auto');
-        if (b.status === 'CONFIRMED' || b.status === 'COMPLETED') existing.totalSpent += b.final_price ?? 0;
+        if (['CONFIRMED', 'ACTIVE', 'COMPLETED'].includes(String(b.status).toUpperCase())) existing.totalSpent += b.final_price ?? 0;   // 15/11 : ACTIVE oublié → Belarbi « 0 € »
         if (b.created_at > existing.lastBooking) existing.lastBooking = b.created_at;
       } else {
         // 1er vu = résa la plus récente (données triées created_at DESC) → dernière voiture louée
@@ -49,7 +49,7 @@ router.get('/', requireMobileAuth, async (req, res) => {
           phone:        b.client_phone,
           email:        b.client_email,
           bookingCount: 1,
-          totalSpent:   b.status === 'CONFIRMED' ? (b.final_price ?? 0) : 0,
+          totalSpent:   ['CONFIRMED', 'ACTIVE', 'COMPLETED'].includes(String(b.status).toUpperCase()) ? (b.final_price ?? 0) : 0,
           lastBooking:  b.created_at,
           types:        new Set<ClientType>(['loc_auto']),
           lastCarName:     b.cars?.name ?? null,

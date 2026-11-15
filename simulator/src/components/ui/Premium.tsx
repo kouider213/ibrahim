@@ -16,7 +16,7 @@ export function Hero({ eyebrow, title, subtitle }: { eyebrow: string; title: str
 
 export function StatCard({ icon, value, label, color = T.accent }: { icon?: string; value: string; label: string; color?: string }) {
   const nice = label.length > 3 && label === label.toUpperCase() ? label.charAt(0) + label.slice(1).toLowerCase() : label;
-  return <Kpi value={<>{icon && <span style={{ fontSize: 16, marginRight: 6 }}>{icon}</span>}{value}</>} label={nice} color={color} />;
+  return <Kpi icon={icon} value={value} label={nice} color={color} />;
 }
 
 // Skeletons de chargement (shimmer) — remplace les "Chargement…"

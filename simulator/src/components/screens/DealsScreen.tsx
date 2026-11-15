@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from 
 import PhotoGallery, { type GalleryKind } from '../ui/PhotoGallery.tsx';
 import { business, type SaleVehicle, type SiteProperty, type OpportunitiesReport, type Opportunity } from '../../services/api.ts';
 import { Hero } from '../ui/Premium.tsx';
+import { Segmented } from '../ui/Kit.tsx';
 
 const OPP_META: Record<string, { icon: string; label: string }> = {
   location: { icon: '🔑', label: 'Location' },
@@ -147,10 +148,8 @@ export default function DealsScreen() {
       <Hero eyebrow="Dzaryx · Trading" title="Achat & Revente" accent={C.gold} subtitle="Voitures & biens · synchro fikconciergerie.com" />
 
       {/* Segments */}
-      <div style={{ display: 'flex', gap: 4, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 3, margin: '0 18px 14px' }}>
-        {([['voitures', 'Voitures'], ['immo', 'Immo'], ['opportunites', 'Opportunités']] as const).map(([id, lbl]) => (
-          <button key={id} onClick={() => setTab(id)} style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: 'none', cursor: 'pointer', fontFamily: C.font, fontSize: 11.5, fontWeight: 600, background: tab === id ? C.gold : 'transparent', color: tab === id ? '#ffffff' : C.muted }}>{lbl}</button>
-        ))}
+      <div style={{ margin: '0 18px 14px' }}>
+        <Segmented<'voitures' | 'immo' | 'opportunites'> value={tab} onChange={setTab} items={[{ id: 'voitures', label: '🚗 Voitures' }, { id: 'immo', label: '🏠 Immo' }, { id: 'opportunites', label: '💡 Opportunités' }]} />
       </div>
 
       {/* VOITURES */}

@@ -2,6 +2,14 @@
 - Jour de sport : sous le message du réveil, le bot des notifs FIK envoie « ☀️ Ta forme ce matin ? » avec 5 boutons (dz:forme:n) → réveillé + forme notée + séance adaptée, confirmation dans la conversation Dzaryx. Le chiffre écrit marche toujours.
 - fixLanguageSlips (response-guard, via oranize) : « immédiata » → « immédiate », « spams coliques » → « spasmes », et pour Kouider seulement « Vos taux / Votre santé » → « Tes taux / Ta santé » (lignes citées « … » / > laissées : brouillons clients).
 
+## 2026-11-15 soir — Refonte design de l'app (v263)
+- Navigation : bouton ‹ Retour en haut sur toutes les sous-pages + geste retour iPhone (history), onglets du bas = racines.
+- Fiche client unique (ClientSheet.tsx, openClient/ClientName) : nom touché n'importe où (Réservations, Clients, CA, Aujourd'hui, Relance) → coordonnées, passeport, chiffres (locations, dépensé, à encaisser, marge réelle du site), ce que Dzaryx sait, toutes les locations, documents, notes, actions Appeler/WhatsApp/E-mail/Dzaryx.
+- Kit v3 : verre + reflets, aurore animée dans les en-têtes, titres en dégradé, chiffres qui défilent (CountUp), appui qui s'enfonce, feuilles qui glissent, entrée des pages en cascade, barres haut/bas en verre dépoli, menu Plus coloré par thème.
+- Aujourd'hui : carte « Mon argent » (à récupérer, CA du mois), raccourcis, « En ce moment » (voitures dehors + barre de progression, arrivées 7 j).
+- Harmonisation : onglets Immo/Achat, boutons Clients/Partenaires/Immo au style commun.
+- Backend : liste Clients « 0 € » corrigée (ACTIVE/COMPLETED comptés dans le total dépensé).
+
 ## 2026-11-15 — Argent juste partout + écran CA « récupéré / à récupérer » + fiche client (app v262)
 - **Règles de Kouider : voiture récupérée = tout payé (statut → PAID auto), acompte = 3 jours déduit du total** (pickedUp/acompteOf, fiche client « Acompte (3 jours) ✓ reçu / à demander » + « Reste à la remise des clés »).
 - **« Payé » = payé en entier partout** : paidOf()/dueOf() (finance.ts) ; le site/l'app/Dzaryx passaient PAID sans toucher paid_amount (Belarbi 75/150, Abdelkader 120/720, Fatima 380/420) → faux « reste à encaisser » (CA 715 €), appel de la veille qui aurait annoncé « il reste 75 € », contrat, rapports, export Excel, paiement par la voix. Job `payments-repair` */15 remet paid_amount + amount_remaining d'aplomb (refusées = 0). update_booking / create_booking / PATCH app : PAID sans montant → montant total.

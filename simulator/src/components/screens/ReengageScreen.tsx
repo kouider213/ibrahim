@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { openClient, ClientName } from '../ClientSheet.tsx';
 import { business } from '../../services/api.ts';
 import { T, Screen, PageHeader, Segmented, Row, Avatar, Btn, Empty, Kpi, KpiGrid } from '../ui/Kit.tsx';
 import { SkeletonCards } from '../ui/Premium.tsx';
@@ -39,7 +40,7 @@ export default function ReengageScreen() {
       {loading ? <SkeletonCards count={5} /> : list.length === 0 ? <Empty icon="🎉" title="Personne à relancer" text={`Tous tes clients sont revenus depuis moins de ${months} mois.`} /> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {list.map((d, i) => (
-            <Row key={d.phone || d.name + i} left={<Avatar name={d.name} color={d.count > 1 ? T.warn : T.accent} />}
+            <Row key={d.phone || d.name + i} onClick={() => openClient({ name: d.name, phone: d.phone })} left={<Avatar name={d.name} color={d.count > 1 ? T.warn : T.accent} />}
               title={d.name}
               sub={<>{d.car} · {fmt(d.date)}<br />{d.count} location{d.count > 1 ? 's' : ''}{d.count > 1 ? ' · fidèle ⭐' : ''}</>}
               right={d.phone ? <Btn onClick={() => wa(d)} color="#25D366" style={{ padding: '0 12px' }}>💬 Relancer</Btn> : <span style={{ fontSize: 12, color: T.faint }}>pas de n°</span>} />

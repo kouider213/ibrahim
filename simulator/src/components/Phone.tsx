@@ -44,6 +44,7 @@ import LiberteScreen from './screens/LiberteScreen.tsx';
 import JarvisScreen from './screens/JarvisScreen.tsx';
 import CoachScreen from './screens/CoachScreen.tsx';
 import JeuxScreen from './screens/JeuxScreen.tsx';
+import ClientSheet, { type ClientRef } from './ClientSheet.tsx';
 import { setSimActor, resumeWebPush, business, callApi, loginDevice, logoutDevice, setDeviceToken, getDeviceToken } from '../services/api.ts';
 
 export type Page =
@@ -51,6 +52,9 @@ export type Page =
   | 'clients' | 'documents' | 'calendar'
   | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews' | 'blog' | 'devis' | 'reponse'
   | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'demarchage' | 'sites' | 'partners' | 'paiements' | 'studio' | 'carte' | 'nexus' | 'globe' | 'camera' | 'route' | 'sport' | 'coach' | 'fennou' | 'liberte' | 'jeux' | 'jarvis' | 'plus';
+
+// Onglets du bas : pas de bouton retour
+const ROOT_PAGES: Page[] = ['voice', 'aujourdhui', 'text', 'leads', 'plus'];
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -127,7 +131,33 @@ export default function Phone() {
   const carteLink = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('carte');
   // Dev seulement : ?page=xxx ouvre la page directement (captures d'écran du design)
   const devPage = (import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV && typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('page') as Page | null : null;
-  const [page, setPage]       = useState<Page>(devPage ?? (carteLink ? 'carte' : 'voice'));
+  const [page, setPageRaw]    = useState<Page>(devPage ?? (carteLink ? 'carte' : 'voice'));
+  // 15/11 : vraie navigation — chaque page ouverte s'empile ; bouton ‹ en haut + geste retour iPhone (history) = page précédente
+  const pageRef = useRef<Page>(page); pageRef.current = page;
+  const histRef = useRef<Page[]>([]);
+  const setPage = useCallback((p: Page) => {
+    const prev = pageRef.current;
+    if (p === prev) return;
+    if (ROOT_PAGES.includes(p)) histRef.current = [];        // onglet du bas = on repart de zéro
+    else { histRef.current.push(prev); if (histRef.current.length > 30) histRef.current.shift(); }
+    try { window.history.pushState({ dz: p }, ''); } catch { /* ignore */ }
+    pageRef.current = p; setPageRaw(p);
+  }, []);
+  const goBack = useCallback(() => {
+    const prev = histRef.current.pop();
+    if (prev) { pageRef.current = prev; setPageRaw(prev); }
+  }, []);
+  useEffect(() => {
+    const onPop = () => goBack();
+    window.addEventListener('popstate', onPop);
+    // Fiche client depuis n'importe quelle page
+    const onClient = (e: Event) => setClientRef((e as CustomEvent<ClientRef>).detail);
+    window.addEventListener('dz:client', onClient as EventListener);
+    const onGo = (e: Event) => setPage((e as CustomEvent<Page>).detail);
+    window.addEventListener('dz:go', onGo as EventListener);
+    return () => { window.removeEventListener('popstate', onPop); window.removeEventListener('dz:client', onClient as EventListener); window.removeEventListener('dz:go', onGo as EventListener); };
+  }, [goBack, setPage]);
+  const [clientRef, setClientRef] = useState<ClientRef | null>(null);
   const [showOnboard, setShowOnboard] = useState<boolean>(() => { try { return !localStorage.getItem('dz:onboarded'); } catch { return false; } });
   const [wsOk, setWsOk]       = useState(false);
   // Hors de la page vocale (pas de socket), une lecture réussie suffit pour afficher « EN LIGNE »
@@ -406,12 +436,14 @@ export default function Phone() {
 
       {simState === 'app' && (
         <>
-          <StatusBar wsOk={wsOk} page={safePage} actorCol={actorCol} actorInit={actorInit} onLogout={logout} />
+          <StatusBar wsOk={wsOk} page={safePage} actorCol={actorCol} actorInit={actorInit} onLogout={logout}
+            onBack={!ROOT_PAGES.includes(safePage) && histRef.current.length ? () => window.history.back() : undefined} />
           <OfflineBanner />
           <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
             {renderScreen()}
           </div>
           <NavBar page={safePage} onPage={setPage} actor={loggedActor ?? 'kouider'} />
+          {clientRef && <ClientSheet client={clientRef} onClose={() => setClientRef(null)} actor={loggedActor ?? 'kouider'} />}
           {showOnboard && <Onboarding onDone={() => { try { localStorage.setItem('dz:onboarded', '1'); } catch { /* ignore */ } setShowOnboard(false); }} />}
         </>
       )}
@@ -815,9 +847,9 @@ function OfflineBanner() {
 
 // ─── Status Bar ───────────────────────────────────────────────────────────────
 
-function StatusBar({ wsOk, page, actorCol, actorInit, onLogout }: {
+function StatusBar({ wsOk, page, actorCol, actorInit, onLogout, onBack }: {
   wsOk: boolean; page: Page;
-  actorCol: string; actorInit: string; onLogout: () => void;
+  actorCol: string; actorInit: string; onLogout: () => void; onBack?: () => void;
 }) {
   const tab = TABS.find(t => t.id === page);
   const [showMenu, setShowMenu] = useState(false);
@@ -825,9 +857,10 @@ function StatusBar({ wsOk, page, actorCol, actorInit, onLogout }: {
   return (
     <div style={{
       width: '100%',
-      background: 'linear-gradient(180deg, rgba(6,14,32,0.98), rgba(3,7,18,0.96))',
-      borderBottom: '1px solid rgba(90,150,255,0.14)',
-      boxShadow: '0 1px 0 rgba(56,216,245,0.06), 0 6px 24px rgba(0,0,0,0.35)',
+      background: 'linear-gradient(180deg, rgba(8,18,40,0.92), rgba(4,9,22,0.86))',
+      backdropFilter: 'blur(18px) saturate(1.4)', WebkitBackdropFilter: 'blur(18px) saturate(1.4)',
+      borderBottom: '1px solid rgba(90,150,255,0.12)',
+      boxShadow: '0 1px 0 rgba(56,216,245,0.08), 0 10px 30px rgba(0,0,0,0.4)',
       flexShrink: 0,
       position: 'relative', zIndex: 5,
     }}>
@@ -838,7 +871,13 @@ function StatusBar({ wsOk, page, actorCol, actorInit, onLogout }: {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 14px', height: 50,
       }}>
-        {/* Marque : emblème + DZARYX + état de la liaison */}
+        {/* Retour (sous-pages) ou marque : emblème + DZARYX + état de la liaison */}
+        {onBack ? (
+          <button onClick={onBack} aria-label="Retour" style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 92, height: 40, padding: '0 10px 0 4px', marginLeft: -4, borderRadius: 12, border: 'none', background: 'transparent', color: '#38d8f5', fontFamily: 'Inter, sans-serif', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+            Retour
+          </button>
+        ) : (
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 92 }}>
           <DzaryxIcon size={28} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -854,6 +893,7 @@ function StatusBar({ wsOk, page, actorCol, actorInit, onLogout }: {
             </span>
           </div>
         </div>
+        )}
 
         {/* Page courante */}
         <span style={{
@@ -957,7 +997,8 @@ function NavBar({ page, onPage, actor }: { page: Page; onPage: (p: Page) => void
       flex: 1, height: 56, background: 'transparent', border: 'none', cursor: 'pointer', position: 'relative',
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
     }}>
-      {active && <div style={{ position: 'absolute', top: 0, width: 26, height: 2, borderRadius: 2, background: accent, boxShadow: `0 0 10px ${accent}` }} />}
+      {active && <div style={{ position: 'absolute', top: 0, width: 30, height: 3, borderRadius: '0 0 3px 3px', background: accent, boxShadow: `0 0 14px ${accent}, 0 0 4px ${accent}` }} />}
+      {active && <div style={{ position: 'absolute', top: 6, width: 46, height: 34, borderRadius: 14, background: `radial-gradient(circle, ${accent}22, transparent 70%)`, pointerEvents: 'none' }} />}
       <div style={{ filter: active ? `drop-shadow(0 0 6px ${accent}aa)` : 'none', display: 'flex' }}>
         <NavIcon id={id} col={active ? accent : '#5d7096'} />
       </div>
@@ -971,7 +1012,8 @@ function NavBar({ page, onPage, actor }: { page: Page; onPage: (p: Page) => void
   return (
     <div style={{
       width: '100%', flexShrink: 0, position: 'relative', zIndex: 5,
-      background: 'linear-gradient(0deg, #030712, #060e20)',
+      background: 'linear-gradient(0deg, rgba(3,7,18,0.98), rgba(6,14,32,0.94))',
+      backdropFilter: 'blur(18px) saturate(1.4)', WebkitBackdropFilter: 'blur(18px) saturate(1.4)',
       paddingBottom: 'env(safe-area-inset-bottom, 0px)',
     }}>
       {/* Bord du haut avec une bosse sous l'orbe VOIX (au lieu d'un trait qui coupe le bouton) */}
@@ -1060,16 +1102,21 @@ function ToolsGrid({ onOpen, actor }: { onOpen: (p: Page) => void; actor: string
   const norm = (x: string) => x.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   const info = (t: (typeof TABS)[number]) => TOOL_INFO[t.id] ?? { name: t.label.charAt(0) + t.label.slice(1).toLowerCase(), hint: '', cat: 'Perso & PC' };
   const shown = visible.filter(t => { const i = info(t); return !q || norm(`${i.name} ${i.hint} ${t.label}`).includes(norm(q)); });
+  // Une couleur par thème : on repère les outils d'un coup d'œil
+  const CAT_COL: Record<string, string> = { 'Activité': '#38d8f5', 'Clients & ventes': '#34d399', 'Marketing': '#f472b6', 'Pilotage': '#fbbf24', 'Perso & PC': '#a78bfa' };
   const tile = (t: (typeof TABS)[number]) => {
     const i = info(t);
+    const c = actor === 'houari' ? accent : (CAT_COL[i.cat] ?? accent);
     return (
       <button key={t.id} onClick={() => onOpen(t.id)} style={{
-        background: 'linear-gradient(160deg, #101d3d, #0b1530)', border: '1px solid rgba(110,160,255,0.14)', borderRadius: 16,
-        padding: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', minHeight: 64, minWidth: 0,
+        position: 'relative', overflow: 'hidden',
+        background: `radial-gradient(120% 100% at 0% 0%, ${c}1c, transparent 55%), linear-gradient(155deg, rgba(24,42,86,0.82), rgba(10,19,43,0.94))`,
+        border: `1px solid ${c}2e`, borderRadius: 18, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07), 0 12px 28px -20px rgba(0,0,0,0.9)',
+        padding: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 11, textAlign: 'left', minHeight: 68, minWidth: 0,
         fontFamily: 'Inter, -apple-system, "Segoe UI", Roboto, sans-serif',
       }}>
-        <span style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
-          background: `radial-gradient(circle at 50% 35%, ${accent}2e, ${accent}0a)`, border: `1px solid ${accent}33` }}>{t.icon}</span>
+        <span style={{ width: 42, height: 42, borderRadius: 13, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 21,
+          background: `radial-gradient(circle at 35% 25%, ${c}55, ${c}12 70%)`, border: `1px solid ${c}55`, boxShadow: `0 8px 18px -8px ${c}aa, inset 0 1px 0 rgba(255,255,255,0.2)` }}>{t.icon}</span>
         <span style={{ minWidth: 0 }}>
           <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#f4f7ff', lineHeight: 1.2 }}>{i.name}</span>
           {i.hint && <span style={{ display: 'block', fontSize: 12, color: '#8ea3c8', marginTop: 2, lineHeight: 1.25 }}>{i.hint}</span>}
@@ -1080,7 +1127,8 @@ function ToolsGrid({ onOpen, actor }: { onOpen: (p: Page) => void; actor: string
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: 'radial-gradient(120% 60% at 50% 0%, #0b1a3a 0%, #050a16 60%)', color: '#e8f0ff', fontFamily: 'Inter, -apple-system, "Segoe UI", Roboto, sans-serif', padding: '18px 16px 130px' }}>
       <div style={{ fontFamily: 'Orbitron', fontSize: 11, letterSpacing: '0.26em', color: accent, fontWeight: 600 }}>OUTILS</div>
-      <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.03em', marginTop: 6, color: '#f4f7ff' }}>Tout Dzaryx</div>
+      <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.035em', marginTop: 6, background: 'linear-gradient(120deg, #ffffff 30%, #bfeffd 75%, #7fd8ff)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Tout Dzaryx</div>
+      <div style={{ fontSize: 13, color: '#8ea3c8', marginTop: 4 }}>{visible.length} outils · touche pour ouvrir, ‹ Retour pour revenir ici</div>
       <div style={{ position: 'relative', margin: '14px 0 4px' }}>
         <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', fontSize: 14, opacity: 0.5 }}>🔍</span>
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Chercher un outil…" style={{ width: '100%', boxSizing: 'border-box', minHeight: 48, background: '#0b1530', border: '1px solid rgba(110,160,255,0.14)', borderRadius: 999, padding: '0 16px 0 42px', color: '#f4f7ff', fontFamily: 'inherit', fontSize: 16, outline: 'none' }} />
@@ -1091,10 +1139,11 @@ function ToolsGrid({ onOpen, actor }: { onOpen: (p: Page) => void; actor: string
         return (
           <div key={cat}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0 10px' }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#8ea3c8', letterSpacing: '0.12em', textTransform: 'uppercase' }}>{cat}</span>
-              <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, rgba(110,160,255,0.2), transparent)' }} />
+              <span style={{ width: 6, height: 6, borderRadius: 2, background: actor === 'houari' ? accent : (CAT_COL[cat] ?? accent), boxShadow: `0 0 8px ${actor === 'houari' ? accent : (CAT_COL[cat] ?? accent)}` }} />
+              <span style={{ fontSize: 12, fontWeight: 800, color: '#a9bbdc', letterSpacing: '0.14em', textTransform: 'uppercase' }}>{cat}</span>
+              <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${(actor === 'houari' ? accent : (CAT_COL[cat] ?? accent))}55, transparent)` }} />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 160px), 1fr))', gap: 8 }}>{items.map(tile)}</div>
+            <div className="dz-in" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 160px), 1fr))', gap: 9 }}>{items.map(tile)}</div>
           </div>
         );
       })}

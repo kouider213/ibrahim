@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { ClientName } from '../ClientSheet.tsx';
 import { business, type RevenueSummary, type FinancialReport, type ProfitLedger } from '../../services/api.ts';
 import { SkeletonCards } from '../ui/Premium.tsx';
 import { T, tone, Screen, PageHeader, Segmented, Kpi, KpiGrid, Card, Row, Avatar, Badge, Btn, SectionTitle, Empty, money } from '../ui/Kit.tsx';
@@ -199,7 +200,7 @@ function LedgerCard({ ledger, fmt, onToggle }: { ledger: ProfitLedger; fmt: Fmt;
   const line = (r: ProfitLedger['rows'][number], c: boolean) => (
     <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderTop: `1px solid ${T.line}` }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.client}</div>
+        <div style={{ fontSize: 14.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><ClientName name={r.client} /></div>
         <div style={{ fontSize: 12, color: T.muted }}>{r.car} · {d(r.start)} → {d(r.end)}</div>
       </div>
       <div style={{ textAlign: 'right' }}>
@@ -334,7 +335,7 @@ function DetailTab({ report, fmt }: { report: FinancialReport | null; fmt: Fmt }
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <Avatar name={b.client_name} color={isH ? H_COL : K_COL} size={38} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.client_name}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><ClientName name={b.client_name} /></div>
                   <div style={{ fontSize: 13, color: T.muted }}>{b.car_name} · {d(b.start_date)} → {d(b.end_date)} · {b.nb_days} j</div>
                 </div>
                 <div style={{ fontSize: 16, fontWeight: 800 }}>{fmt(b.final_price)}</div>

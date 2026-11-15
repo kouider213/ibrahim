@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { openClient, ClientName } from '../ClientSheet.tsx';
 import { business, type Booking, type Car, type ClientOperation, type ClientDetail } from '../../services/api.ts';
 import { SkeletonCards, SearchPill } from '../ui/Premium.tsx';
 import { T, tone, Screen, PageHeader, HeadBtn, Segmented, Kpi, KpiGrid, Card, Row, Avatar, Badge, Btn, btnStyle, ActionBtn, Empty, Sheet, Field, inputStyle as inputStyleKit, waLink, money } from '../ui/Kit.tsx';
@@ -309,7 +310,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
                 <div onClick={() => setExpanded(e => e === b.id ? null : b.id)} style={{ padding: '13px 14px 13px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <Avatar name={b.client_name} color={own === 'H' ? T.violet : T.accent} size={42} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 15.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.client_name}</div>
+                    <div style={{ fontSize: 15.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><ClientName name={b.client_name} phone={b.client_phone} /></div>
                     <div style={{ fontSize: 13, color: T.muted, marginTop: 2 }}>{b.cars?.name ?? '?'}</div>
                     <div style={{ fontSize: 13, color: T.text, marginTop: 2 }}>{longD(b.start_date)} → {longD(b.end_date)} <span style={{ color: T.faint }}>· {nb} j</span></div>
                   </div>
@@ -606,7 +607,7 @@ function BookingFiche({ b, ccy, nb, margin, stLabel, stCol, payLbl, payCol, own,
     <div style={{ padding: '0 14px 14px 16px' }}>
       <div style={box}>
         {h('CLIENT')}
-        {kv('Nom', b.client_name)}
+        {kv('Nom', <ClientName name={b.client_name} phone={b.client_phone} style={{ color: T.accent }} />)}
         {kv('Téléphone', b.client_phone ? <a href={`tel:${b.client_phone}`} style={{ color: T.accent, textDecoration: 'none' }}>{b.client_phone}</a> : null)}
         {kv('E-mail', b.client_email ? <a href={`mailto:${b.client_email}`} style={{ color: T.accent, textDecoration: 'none' }}>{b.client_email}</a> : null)}
         {kv('Âge', b.client_age ? `${b.client_age} ans` : null)}
@@ -651,6 +652,7 @@ function BookingFiche({ b, ccy, nb, margin, stLabel, stCol, payLbl, payCol, own,
           <span style={{ fontWeight: 700 }}>{x.final_price != null ? money(x.final_price) : '—'}</span>
         </div>)}
       </div>}
+      <button onClick={() => openClient({ name: b.client_name, phone: b.client_phone })} style={{ width: '100%', marginBottom: 10, minHeight: 46, borderRadius: 14, border: `1px solid ${tone(T.accent, 0.4)}`, background: tone(T.accent, 0.1), color: T.accent, fontSize: 14.5, fontWeight: 700, cursor: 'pointer', fontFamily: T.font }}>👤 Voir la fiche client complète ›</button>
       <div style={{ display: 'flex', gap: 8 }}>
         <ActionBtn icon="✏️" label="Modifier" color={T.warn} onClick={onEdit} />
         {b.client_phone && <ActionBtn icon="📞" label="Appeler" onClick={() => { window.location.href = `tel:${b.client_phone}`; }} />}
