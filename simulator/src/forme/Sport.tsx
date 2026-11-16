@@ -207,7 +207,8 @@ const fromLib = (x: LibItem, k: number): PEx => ({ id: `${x.id}~${Date.now().toS
 
 // Séance en cours gardée sur le téléphone (Hevy) : appel, écran verrouillé, appli fermée → on la reprend telle quelle.
 export const LIVE_K = 'forme:live';
-export interface LiveState { kind: 'coach' | 'routine'; s: SportSession; exs: PEx[]; rows: Record<string, SetRow[]>; i: number; start: number; feel: Record<string, Feel>; at: number; ss?: Record<string, boolean> }
+const WARM_K = 'forme:warmMin';
+export interface LiveState { kind: 'coach' | 'routine'; s: SportSession; exs: PEx[]; rows: Record<string, SetRow[]>; i: number; start: number; feel: Record<string, Feel>; at: number; ss?: Record<string, boolean>; wu?: number }
 export function readLive(): LiveState | null { try { const v = JSON.parse(localStorage.getItem(LIVE_K) ?? 'null') as LiveState | null; return v && Date.now() - v.at < 8 * 3600_000 ? v : null; } catch { return null; } }
 const clearLive = () => { try { localStorage.removeItem(LIVE_K); } catch { /* */ } };
 const noteKey = (e: PEx) => `forme:exnote:${libIdOf(e) ?? norm(e.name)}`;
@@ -237,9 +238,10 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
   const [voice, setVoice] = useState(() => { try { return localStorage.getItem(VOICE_K) !== '0'; } catch { return true; } });
   const toggleVoice = () => { const v = !voice; setVoice(v); try { localStorage.setItem(VOICE_K, v ? '1' : '0'); } catch { /* */ } if (v) speak('Coach vocal activé'); else speechSynthesis.cancel(); };
   const start = useRef(resume?.start ?? Date.now());
+  const [warmDone, setWarmDone] = useState<number>(resume?.wu ?? 0);
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
-  useEffect(() => { if (Object.values(rows).flat().some(r => r.done) || exs.length !== s.exercises.length || exs.some((e, j) => e.id !== s.exercises[j]?.id)) { try { localStorage.setItem(LIVE_K, JSON.stringify({ kind, s, exs, rows, i, start: start.current, feel, at: Date.now(), ss } satisfies LiveState)); } catch { /* */ } } }, [rows, exs, i, feel, ss]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (Object.values(rows).flat().some(r => r.done) || exs.length !== s.exercises.length || exs.some((e, j) => e.id !== s.exercises[j]?.id)) { try { localStorage.setItem(LIVE_K, JSON.stringify({ kind, s, exs, rows, i, start: start.current, feel, at: Date.now(), ss, wu: warmDone } satisfies LiveState)); } catch { /* */ } } }, [rows, exs, i, feel, ss, warmDone]); // eslint-disable-line react-hooks/exhaustive-deps
   const [note, setNote] = useState('');
   const ex = exs[Math.min(i, exs.length - 1)];
   const chal = useRef(kind === 'coach' ? challengeOf(s.exercises, s.date) : null).current;
@@ -252,8 +254,18 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
   // 07/11 : échauffement général chronométré (5 min) avant la 1re série
   const [warm, setWarm] = useState<number | null>(null);
   // 09/11 : le chrono suit la durée écrite dans la séance (« 8 min cardio facile… ») au lieu d'annoncer toujours 5 min.
-  const warmMin = Math.max(3, Math.min(15, Number(/(\d{1,2})\s*min/.exec(s.warmup ?? '')?.[1] ?? 5)));
-  useEffect(() => { if (warm && now >= warm) { setWarm(null); vibrate(200); speak('Échauffement terminé. On attaque !'); } }, [now, warm]);
+  // 16/11 Kouider : « je fais 10 min de tapis » → on garde la durée qu'il fait vraiment (dernier échauffement) et on l'ENREGISTRE.
+  const warmMin = (() => { try { const v = Number(localStorage.getItem(WARM_K)); if (v >= 3 && v <= 30) return v; } catch { /* */ } return Math.max(3, Math.min(15, Number(/(\d{1,2})\s*min/.exec(s.warmup ?? '')?.[1] ?? 5))); })();
+  const warmAt = useRef(0);
+  const warmSaid = useRef(false);
+  // Fin du chrono : il est prévenu mais le chrono continue (+0:30…) jusqu'à « Fini » ou sa 1re série → durée réelle notée
+  useEffect(() => { if (warm && now >= warm && !warmSaid.current) { warmSaid.current = true; vibrate(200); speak('Échauffement terminé. On attaque !'); } }, [now, warm]);
+  const stopWarm = () => {
+    if (!warm) return;
+    const m = Math.round((Date.now() - warmAt.current) / 60_000);
+    setWarm(null);
+    if (m >= 1) { setWarmDone(d => d + m); try { localStorage.setItem(WARM_K, String(Math.min(30, Math.max(3, m)))); } catch { /* */ } setFlash(`✅ Échauffement noté : ${m} min (pas compté dans tes exercices)`); setTimeout(() => setFlash(null), 3000); }
+  };
   useEffect(() => { if (ex) { try { setNote(localStorage.getItem(noteKey(ex)) ?? ''); } catch { setNote(''); } } }, [ex?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ex && !finish) speak(`${i === 0 ? 'On commence' : 'Exercice suivant'} : ${ex.name}. ${isCardioEx(ex) ? `${rows[ex.id]?.[0]?.reps || cardioMin(ex)} minutes` : `${ex.sets} séries de ${ex.reps}`}${ex.suggestion.kg ? `, à ${ex.suggestion.kg} kilos` : ''}.`); }, [ex?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const sets = ex ? rows[ex.id] ?? [] : [];
@@ -287,6 +299,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
   const validate = (k: number) => {
     if (!ex) return;
     vibrate(25);
+    if (warm) stopWarm();
     const r0 = rows[ex.id]![k]!;
     const kg = Number(r0.kg.replace(',', '.')) || 0;
     if (r0.t !== 'w' && kg > 0 && best(ex) > 0 && kg > best(ex) && !newPrs.includes(ex.name)) { setNewPrs(p => [...p, ex.name]); setFlash(`🏆 Nouveau record : ${kg} kg !`); vibrate(300); setTimeout(() => setFlash(null), 3500); }
@@ -342,24 +355,24 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
   const elapsed = Math.round((now - start.current) / 1000);
   // 07/11 : l'app dit au coach où il en est (exercice actuel, ce qui reste, ajouts compris) → plus de « exercice suivant » ni de
   // « muscu terminée » au chrono pendant qu'il est encore sur un exercice ; « terminée » seulement quand il appuie sur Terminer ici.
-  const progKey = `${exs.map(e => e.id).join('|')}#${i}#${doneSets.length}#${work.length}`;
+  const progKey = `${exs.map(e => e.id).join('|')}#${i}#${doneSets.length}#${work.length}#${warm ? 'w' : ''}`;
   useEffect(() => {
     if (finish) return;
     const t = setTimeout(() => {
       const left = exs.filter(e => isCardioEx(e) ? !rows[e.id]?.[0]?.done : (rows[e.id] ?? []).some(r => !r.done && r.t !== 'w')).map(e => e.name);
-      void apiFetch('/api/sport/live-app', { method: 'POST', body: JSON.stringify({ current: ex?.name ?? null, left, done: doneSets.length, total: work.length }) }).catch(() => {});
+      void apiFetch('/api/sport/live-app', { method: 'POST', body: JSON.stringify({ current: warm ? 'Échauffement (tapis)' : ex?.name ?? null, left, done: doneSets.length, total: work.length }) }).catch(() => {});
     }, 1500);
     return () => clearTimeout(t);
   }, [progKey, finish]); // eslint-disable-line react-hooks/exhaustive-deps
   const progRef = useRef<() => void>(() => {});
-  progRef.current = () => { if (finish) return; const left = exs.filter(e => isCardioEx(e) ? !rows[e.id]?.[0]?.done : (rows[e.id] ?? []).some(r => !r.done && r.t !== 'w')).map(e => e.name); void apiFetch('/api/sport/live-app', { method: 'POST', body: JSON.stringify({ current: ex?.name ?? null, left, done: doneSets.length, total: work.length }) }).catch(() => {}); };
+  progRef.current = () => { if (finish) return; const left = exs.filter(e => isCardioEx(e) ? !rows[e.id]?.[0]?.done : (rows[e.id] ?? []).some(r => !r.done && r.t !== 'w')).map(e => e.name); void apiFetch('/api/sport/live-app', { method: 'POST', body: JSON.stringify({ current: warm ? 'Échauffement (tapis)' : ex?.name ?? null, left, done: doneSets.length, total: work.length }) }).catch(() => {}); };
   useEffect(() => { const t = setInterval(() => progRef.current(), 8 * 60_000); return () => clearInterval(t); }, []);   // signe de vie (la note expire après 60 min sans nouvelles)
   const save = async () => {
     setBusy(true);
     try {
       const out = lifts.flatMap(e => (rows[e.id] ?? []).filter(r => r.done && r.t !== 'w').map(r => ({ ex: e.id, kg: Number(r.kg.replace(',', '.')) || undefined, reps: Number(r.reps) || undefined })));
       const fb = exs.filter(e => feel[e.id]).map(e => `${e.name} : ${FEEL.find(f => f.id === feel[e.id])!.l.toLowerCase()}`);
-      const notes = [cardioDone.length ? `Cardio — ${cardioDone.join(' ; ')}` : '', fb.length ? `Ressenti — ${fb.join(' ; ')}` : ''].filter(Boolean).join(' · ');
+      const notes = [warmDone ? `Échauffement — tapis ${warmDone} min` : '', cardioDone.length ? `Cardio — ${cardioDone.join(' ; ')}` : '', fb.length ? `Ressenti — ${fb.join(' ; ')}` : ''].filter(Boolean).join(' · ');
       const msg = await saveFn(out, Math.round(elapsed / 60), rpe, lifts, rows, notes);
       // Historique de chaque exercice de la bibliothèque (fiche → Historique / Progrès)
       const lib = lifts.flatMap(e => { const id = libIdOf(e); return id ? (rows[e.id] ?? []).filter(r => r.done && r.t !== 'w').map(r => ({ id, kg: Number(r.kg.replace(',', '.')) || undefined, reps: Number(r.reps) || undefined, ...(feel[e.id] ? { fb: feel[e.id] } : {}) })) : []; });
@@ -421,8 +434,8 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
         </div>
         {(warm || !allRows.some(r => r.done)) && <div style={{ ...card, margin: '0 14px 10px', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px' }}>
           <span style={{ fontSize: 22 }}>🔥</span>
-          <div style={{ flex: 1, minWidth: 0, fontSize: 13 }}><div style={{ fontWeight: 700 }}>{warm ? `Échauffement : ${fmtTime(Math.max(0, Math.round((warm - now) / 1000)))}` : `Échauffement général ${warmMin} min`}</div><div style={{ color: F.muted, lineHeight: 1.3 }}>{s.warmup || 'Vélo ou rameur léger, rotations des épaules et des hanches'}</div></div>
-          <button onClick={() => { if (warm) setWarm(null); else { setWarm(Date.now() + warmMin * 60_000); speak(`Échauffement ${warmMin} minutes. ${s.warmup || ''}`); } }} style={{ ...btn, padding: '8px 12px', fontSize: 13, boxShadow: 'none' }}>{warm ? 'Stop' : '▶ Lancer'}</button>
+          <div style={{ flex: 1, minWidth: 0, fontSize: 13 }}><div style={{ fontWeight: 700 }}>{warm ? (now < warm ? `Échauffement : ${fmtTime(Math.round((warm - now) / 1000))}` : `Échauffement fini · +${fmtTime(Math.round((now - warm) / 1000))}`) : warmDone ? `✅ Échauffement noté : ${warmDone} min` : `Échauffement général ${warmMin} min`}</div><div style={{ color: F.muted, lineHeight: 1.3 }}>{s.warmup || 'Vélo ou rameur léger, rotations des épaules et des hanches'}</div></div>
+          <button onClick={() => { if (warm) stopWarm(); else { warmAt.current = Date.now(); warmSaid.current = false; setWarm(Date.now() + warmMin * 60_000); speak(`Échauffement ${warmMin} minutes. ${s.warmup || ''}`); } }} style={{ ...btn, padding: '8px 12px', fontSize: 13, boxShadow: 'none' }}>{warm ? (now < warm ? 'Stop' : '✓ Fini') : warmDone ? '▶ Encore' : '▶ Lancer'}</button>
         </div>}
         {!ex ? (
           <div style={{ padding: '30px 20px', textAlign: 'center' }}>
