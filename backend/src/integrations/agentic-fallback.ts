@@ -257,6 +257,15 @@ export function importantAsk(text: string, hasImage = false): boolean {
     || (t.length > 60 && /\?/.test(t));
 }
 
+/** Les mots de Kouider sans les blocs [ … ] ajoutés par le système (notification citée, visage, photo, contexte). */
+export function ownWords(text: string): string {
+  let t = text, prev = '';
+  while (t !== prev) { prev = t; t = t.replace(/\[[^\[\]]*\]/g, ' '); }
+  t = t.replace(/\s+/g, ' ').trim();
+  // Message qui n'est QU'un bloc système (ex. photo seule) : on garde le bloc mais sans la règle de longueur
+  return t || text.replace(/\s+/g, ' ').slice(0, 200);
+}
+
 /** Demande qui mérite de la réflexion (analyse, plan, calcul, texte à rédiger…) plutôt qu'une réponse éclair. */
 export function needsDeepThought(text: string): boolean {
   return text.length > 220 || /analys|strat[eé]g|business ?plan|calcul|compar|r[eé]dig|pourquoi|expliqu|conseil|optimis|pr[eé]vision|bilan|devis|contrat/i.test(text);
@@ -392,7 +401,11 @@ export async function runAgenticFallback(
   ];
 
   // Gemini : réflexion « minimal » pour le quotidien (2 s), « medium » quand la demande le mérite (29/10 : aussi fort que Claude)
-  const deep = needsDeepThought(lastUserText);
+  // 16/11 : la réflexion « medium » coûtait 8-20 s par étape même pour « c'était quoi les compléments ? » ou une
+  // notification de RDV : le texte envoyé au cerveau est gonflé par des blocs [ … ] ajoutés par le système (notification
+  // citée, visage, photo…) → plus de 220 caractères = « grosse question ». On juge sur les mots de Kouider seulement.
+  const deep = needsDeepThought(ownWords(lastUserText));
+  if (deep) console.log(`[agentic-fallback] réflexion demandée pour : "${ownWords(lastUserText).slice(0, 90).replace(/\s+/g, ' ')}"`);
 
   const call = async (ep: FallbackEndpoint, history: OAIMessage[], oaiTools: Array<Record<string, unknown>>, signal?: AbortSignal) => {
     const body = {

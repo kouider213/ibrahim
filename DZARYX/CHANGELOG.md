@@ -1,3 +1,7 @@
+## 16/11/2026 (soir 5) — Réponses plus rapides : réflexion ciblée + quota Gemini épargné (backend)
+- Mesure 15/11 (journaux Railway) : chaque étape Gemini en « réflexion medium » = 8-20 s. Elle se déclenchait à tort : texte de plus de 220 caractères à cause des blocs [ … ] ajoutés par le système (notification de RDV citée → 38 s pour « calcule mon trajet » ; « c'était quoi les compléments ? » → 32 s). `ownWords()` : on juge sur les mots de Kouider seulement (agentic-fallback). Log « réflexion demandée pour : … » pour vérifier.
+- fallback-probe : le test des cerveaux appelait CHAQUE modèle × CHAQUE clé (Gemini 7 × 5 = 35 requêtes, quota 20/jour/modèle) à l'autotest, à la veille du matin et à l'ouverture de À PAYER. Maintenant 1 essai par fournisseur (Gemini sur un « lite »), timeout 20 s : 30 s → 1,3 s.
+
 ## 16/11/2026 (soir 4) — Revue de solidité : 40 pages passées au robot (app v271)
 - Audit automatique des 40 pages (erreurs JS, appels serveur en échec, débordements, « NaN/undefined ») : aucune page ne plante.
 - Demandes : les leads « perdu »/« conclu » et dossiers terminés/annulés étaient comptés « 3 demandes en cours » → rangés à part (« Voir les 3 terminées »), compteurs des filtres sur les demandes ouvertes, statut en badge (Perdu/Conclu) au lieu de « Statut : perdu ».

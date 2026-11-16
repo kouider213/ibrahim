@@ -56,10 +56,20 @@ export async function probeProviders(force = false): Promise<Record<string, Prob
     results['claude'] = { state: 'absent', model: CLAUDE_PROBE_MODEL, ms: 0 };
   }
 
-  for (const ep of fallbackEndpoints()) {
+  // 16/11 : on testait CHAQUE modèle × CHAQUE clé (Gemini 7 × 5 = 35 requêtes) à chaque test — et le résultat n'en
+  // gardait qu'un par fournisseur. Avec 20 requêtes/jour/modèle, ça mangeait le quota des messages de Kouider
+  // (autotest + veille du matin + page À PAYER). Maintenant : 1 seul essai par fournisseur, sur un modèle « lite »
+  // pour Gemini (le quota des gros modèles reste pour les vraies réponses).
+  const all = fallbackEndpoints();
+  const one = new Map<string, (typeof all)[number]>();
+  for (const ep of all) {
+    const cur = one.get(ep.key);
+    if (!cur || (ep.key === 'gemini' && /lite/.test(ep.model) && !/lite/.test(cur.model))) one.set(ep.key, ep);
+  }
+  for (const ep of one.values()) {
     jobs.push(timed(ep.model, () => axios.post(ep.url,
-      { model: ep.model, messages: [{ role: 'user', content: 'Réponds juste OK' }], max_tokens: 64 },
-      { headers: { Authorization: `Bearer ${ep.apiKey}` }, timeout: 30_000 },
+      { model: ep.model, messages: [{ role: 'user', content: 'Réponds juste OK' }], max_tokens: 64, ...(ep.key === 'gemini' ? { reasoning_effort: 'low' } : {}) },
+      { headers: { Authorization: `Bearer ${ep.apiKey}` }, timeout: 20_000 },
     )).then(r => { results[ep.key] = r; }));
   }
   for (const k of ['groq', 'gemini', 'openai']) {
