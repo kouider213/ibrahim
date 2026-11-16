@@ -1025,7 +1025,8 @@ function composeFromMuscles(raw: unknown): { label: string; exercises: ProgramEx
   if (direct && wanted.every(([, m]) => musclesIn(SESSIONS[direct].label).some(([, x]) => x === m))) return null;
   const exercises = wanted.flatMap(([, m]) => {
     const mine = ROTATION.flatMap(t => SESSIONS[t].exercises).filter(e => e.muscle === m);
-    const pool = mine.length ? mine : DEFAULT_SESSIONS.core.exercises.filter(e => e.muscle === m && !['stretch', 'cat_cow'].includes(e.id));
+    // 16/11 : son programme n'a pas de jambes → on prend les exercices jambes du coach (avant : seulement 'core' → rien)
+    const pool = mine.length ? mine : Object.values(DEFAULT_SESSIONS).flatMap(x => x.exercises).filter(e => e.muscle === m && !['stretch', 'cat_cow'].includes(e.id));
     return [...new Map(pool.map(e => [e.name, e])).values()].slice(0, 4).map(e => ({ name: e.name, sets: e.sets, reps: e.reps, rest: e.rest, tip: e.tip, muscle: e.muscle }));
   });
   return exercises.length ? { label: wanted.map(w => w[2]).join(' & ').toUpperCase(), exercises } : null;
@@ -1075,12 +1076,21 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
   }
   if (action === 'swap') {
     await loadProgram();   // sinon le 1er appel après redémarrage ne connaît pas encore SES séances
-    const combo = composeFromMuscles(input['type']);
-    if (combo) return planCustomDay({ date, ...combo, source: 'séance demandée par Kouider' });
-    const type = parseType(input['type']);
+    // 16/11 (« oui passe demain en legs » → type='legs' = la case interne qui porte « Épaules » dans SON programme :
+    // rien n'a changé et Dzaryx a dit « LEG DAY ») : avec son programme, les noms anglais du coach = des muscles.
+    let raw: unknown = input['type'];
+    if (programInfo) {
+      const k = norm(String(raw ?? '')).trim();
+      if (/^(leg ?day|legs?|lower)$/.test(k)) raw = 'Jambes';
+      else if (/^(core|abs)$/.test(k)) raw = 'Abdos';
+      else if (/^(cardio|upper)$/.test(k) && !ROTATION.some(t => norm(SESSIONS[t].label).includes(k))) return `❌ « ${k} » n'est pas une séance de SON programme (${ROTATION.map(t => SESSIONS[t].label).join(', ')}). Pour du cardio ou une séance libre → plan_day avec les exercices ; pour des muscles → type = les muscles en français (« Jambes », « Pectoraux & Abdos »). Rien n'a été changé : ne dis pas que c'est fait.`;
+    }
+    const combo = composeFromMuscles(raw);
+    if (combo) return `${await planCustomDay({ date, ...combo, source: 'séance demandée par Kouider' })}\n(Dis à Kouider le nom EXACT de la séance écrit ci-dessus : « ${combo.label} ».)`;
+    const type = parseType(raw);
     if (!type) return `❌ Je ne connais pas la séance « ${String(input['type'] ?? '')} ». Séances du programme : ${ROTATION.map(t => `${SESSIONS[t].emoji} ${SESSIONS[t].label}`).join(', ')}. Redemande avec type = le NOM exact d'une de ces séances.`;
     await setSportOverride(date, type);
-    return `✅ ${fmt(date)} : ${SESSIONS[type].emoji} ${SESSIONS[type].label} (agenda mis à jour).`;
+    return `✅ ${fmt(date)} : ${SESSIONS[type].emoji} ${SESSIONS[type].label} (agenda mis à jour). Dis EXACTEMENT ce nom « ${SESSIONS[type].label} » — si ce n'est pas ce qu'il a demandé, dis-le-lui au lieu de prétendre le contraire.`;
   }
   // 01/11 (Kouider : « je ne suis pas ce que tu dis, je fais juste les bras → modifie partout ») : APRÈS COUP, la séance
   // vraiment faite remplace la prévue dans le journal, FORME et l'agenda ; la séance prévue reste dans la rotation.
