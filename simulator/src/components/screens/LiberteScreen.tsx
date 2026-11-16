@@ -40,6 +40,17 @@ const demis = (n: number) => `${String(n).replace('.', ',')} demi${n > 1 ? 's' :
 const TRIGGERS = ['réveil', 'stress', 'travail', 'fatigue', 'ennui', 'tristesse', 'douleur', 'dispute', 'habitude'];
 const SYMPTOMS = ['fatigue', 'anxiété', 'insomnie', 'frissons', 'sueurs', 'diarrhée', 'nez qui coule', 'jambes agitées', 'douleurs', 'irritable', 'moral bas', 'fourmillements'];
 
+// « 2026-11-20 » ou « 2026-11-20T09:30 » → « ven. 20 nov. » / « ven. 20 nov. à 09:30 » (avant : date brute)
+function fmtRdv(d?: string): string {
+  if (!d) return 'pris';
+  const [day, time] = d.split('T');
+  const dt = new Date(day + 'T12:00:00');
+  if (isNaN(dt.getTime())) return d;
+  const left = Math.round((dt.getTime() - new Date(new Date().toISOString().slice(0, 10) + 'T12:00:00').getTime()) / 86400000);
+  const txt = dt.toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' }) + (time ? ` à ${time.slice(0, 5)}` : '');
+  return txt + (left === 0 ? " (aujourd'hui)" : left === 1 ? ' (demain)' : left > 1 && left < 15 ? ` (dans ${left} j)` : '');
+}
+
 export default function LiberteScreen() {
   const [o, setO] = useState<Overview | null>(null);
   const [err, setErr] = useState('');
@@ -122,7 +133,7 @@ export default function LiberteScreen() {
       {/* Médecin */}
       {s.doctor.status !== 'vu' && (
         <Card accent={T.warn} style={{ marginBottom: 12 }} onClick={() => setSheet('doc')}>
-          <div style={{ fontWeight: 700 }}><Ico e="🩺" />{s.doctor.status === 'a_appeler' ? 'Étape 1 : appelle ton médecin' : `RDV médecin : ${s.doctor.date?.replace('T', ' à ') ?? 'pris'}`}</div>
+          <div style={{ fontWeight: 700 }}><Ico e="🩺" />{s.doctor.status === 'a_appeler' ? 'Étape 1 : appelle ton médecin' : `RDV médecin : ${fmtRdv(s.doctor.date)}`}</div>
           <div style={{ fontSize: 13, color: T.muted, marginTop: 4, lineHeight: 1.45 }}>
             {s.doctor.status === 'a_appeler' ? 'Il valide le plan, peut soulager le manque, et s\'occupe de la fatigue et du moral (prise de sang). Touche ici quand c\'est fait.' : 'Touche ici après la consultation pour noter ce qu\'il a dit.'}
           </div>

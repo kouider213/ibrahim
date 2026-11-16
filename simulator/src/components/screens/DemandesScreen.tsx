@@ -46,6 +46,9 @@ const DOSSIER_FLOWS: Record<string, Stage[]> = {
     { key: 'ONGOING', fr: 'Séjour en cours' }, { key: 'COMPLETED', fr: 'Terminé' },
   ],
 };
+// 16/11 : les leads « perdu »/« conclu » et dossiers terminés étaient comptés « en cours » → rangés à part.
+const CLOSED = new Set(['perdu', 'conclu', 'lost', 'won', 'refuse', 'refusé', 'CANCELLED', 'DELIVERED', 'FINALIZED', 'COMPLETED', 'REJECTED', 'DECLINED']);
+const isClosed = (d: Demande) => !!d.status && CLOSED.has(d.status);
 const flowFor = (d: Demande): Stage[] =>
   d.source === 'import' ? IMPORT_FLOW : DOSSIER_FLOWS[d.kind || 'voiture'] || DOSSIER_FLOWS.voiture;
 const stageLabel = (d: Demande, key?: string): string =>
@@ -84,7 +87,6 @@ const rawId = (id: string) => id.replace(/^(booking|dossier|import|lead)-/, '');
 
 export default function DemandesScreen() {
   const [demandes, setDemandes] = useState<Demande[]>([]);
-  const [counts, setCounts] = useState<Counts>({ total: 0, lead: 0, dossier: 0, import: 0, booking: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<'all' | Demande['source']>('all');
@@ -95,6 +97,7 @@ export default function DemandesScreen() {
 
   // Formulaire de création (dossier / import)
   const [showNew, setShowNew] = useState(false);
+  const [showClosed, setShowClosed] = useState(false);
   const emptyForm = { type: 'dossier', kind: 'voiture', client_name: '', client_phone: '', client_email: '', subject: '', vehicle: '', budget: '', currency: 'DZD', lang: 'fr' };
   const [form, setForm] = useState(emptyForm);
   const setF = (k: keyof typeof emptyForm, v: string) => setForm(f => ({ ...f, [k]: v }));
@@ -122,7 +125,6 @@ export default function DemandesScreen() {
       setLoading(true);
       const data = await apiFetch<{ demandes: Demande[]; counts: Counts }>('/api/demandes');
       setDemandes(data.demandes || []);
-      setCounts(data.counts || { total: 0, lead: 0, dossier: 0, import: 0, booking: 0 });
       setError('');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -131,7 +133,11 @@ export default function DemandesScreen() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const shown = filter === 'all' ? demandes : demandes.filter(d => d.source === filter);
+  const open = demandes.filter(d => !isClosed(d));
+  const closedN = demandes.length - open.length;
+  const pool = showClosed ? demandes.filter(isClosed) : open;
+  const shown = filter === 'all' ? pool : pool.filter(d => d.source === filter);
+  const cnt = (src?: Demande['source']) => pool.filter(d => !src || d.source === src).length;
 
   const waRelance = (d: Demande) => {
     const phone = (d.client_phone || '').replace(/\D/g, '');
@@ -196,24 +202,29 @@ export default function DemandesScreen() {
   return (
     <Screen toast={toast} header={<>
       <PageHeader eyebrow="Site & dossiers" title="Demandes"
-        subtitle={loading ? 'Chargement…' : `${counts.total} demande${counts.total !== 1 ? 's' : ''} en cours`}
+        subtitle={loading ? 'Chargement…' : `${open.length} demande${open.length !== 1 ? 's' : ''} en cours${closedN ? ` · ${closedN} terminée${closedN > 1 ? 's' : ''}` : ''}`}
         right={<div style={{ display: 'flex', gap: 8 }}>
           <HeadBtn icon="↻" label="Actualiser" onClick={() => void load()} busy={loading} />
           <HeadBtn icon="＋" label="Nouveau" onClick={() => setShowNew(true)} />
         </div>} />
       <div style={{ padding: '0 16px 10px' }}>
         <Chips<'all' | Demande['source']> value={filter} onChange={setFilter} items={[
-          { id: 'all', label: 'Tout', count: counts.total },
-          { id: 'booking', label: '🚗 Réservations', count: counts.booking },
-          { id: 'lead', label: '🔔 Leads', count: counts.lead },
-          { id: 'dossier', label: '📁 Dossiers', count: counts.dossier },
-          { id: 'import', label: '🛳️ Imports', count: counts.import },
+          { id: 'all', label: 'Tout', count: cnt() },
+          { id: 'booking', label: '🚗 Réservations', count: cnt('booking') },
+          { id: 'lead', label: '🔔 Leads', count: cnt('lead') },
+          { id: 'dossier', label: '📁 Dossiers', count: cnt('dossier') },
+          { id: 'import', label: '🛳️ Imports', count: cnt('import') },
         ]} />
       </div>
     </>}>
       {loading && !demandes.length && <SkeletonCards count={4} height={150} />}
       {error && !loading && <Empty icon="📡" title="Impossible de charger" text={error} action={<Btn onClick={() => void load()}>Réessayer</Btn>} />}
-      {!loading && !error && shown.length === 0 && <Empty icon="📭" title="Aucune demande" text="Les nouvelles demandes du site arrivent ici automatiquement." />}
+      {!loading && !error && shown.length === 0 && <Empty icon="📭" title={showClosed ? 'Rien de terminé ici' : 'Aucune demande en cours'} text={showClosed ? 'Les demandes conclues, perdues ou annulées apparaissent ici.' : 'Les nouvelles demandes du site arrivent ici automatiquement.'} />}
+      {!loading && closedN > 0 && (
+        <button onClick={() => setShowClosed(v => !v)} style={{ width: '100%', margin: '0 0 12px', padding: '10px 14px', borderRadius: 14, border: '1px solid var(--dz-line)', background: 'transparent', color: T.muted, fontFamily: T.font, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>
+          {showClosed ? '← Revenir aux demandes en cours' : `Voir les ${closedN} terminée${closedN > 1 ? 's' : ''} (conclues, perdues, annulées)`}
+        </button>
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {shown.map(d => {
@@ -250,7 +261,7 @@ export default function DemandesScreen() {
                   </div>
                 )}
                 {d.status === 'CANCELLED' && <div style={{ marginTop: 10 }}><Badge color={T.bad}>Annulée</Badge></div>}
-                {!flow && d.status && d.status !== 'CANCELLED' && <div style={{ marginTop: 10, fontSize: 13, color: T.faint }}>Statut : {d.status}</div>}
+                {!flow && d.status && d.status !== 'CANCELLED' && <div style={{ marginTop: 10 }}><Badge color={d.status === 'conclu' ? T.ok : d.status === 'perdu' ? T.bad : T.faint}>{({ new: 'Nouveau', nouveau: 'Nouveau', contacte: 'Contacté', contacté: 'Contacté', conclu: 'Conclu', perdu: 'Perdu', PENDING: 'En attente' } as Record<string, string>)[d.status] ?? d.status}</Badge></div>}
               </div>
 
               {/* Actions */}

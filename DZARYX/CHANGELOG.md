@@ -1,3 +1,10 @@
+## 16/11/2026 (soir 4) — Revue de solidité : 40 pages passées au robot (app v271)
+- Audit automatique des 40 pages (erreurs JS, appels serveur en échec, débordements, « NaN/undefined ») : aucune page ne plante.
+- Demandes : les leads « perdu »/« conclu » et dossiers terminés/annulés étaient comptés « 3 demandes en cours » → rangés à part (« Voir les 3 terminées »), compteurs des filtres sur les demandes ouvertes, statut en badge (Perdu/Conclu) au lieu de « Statut : perdu ».
+- FORME : le tableau de bord disait « 7 semaines d'affilée » alors que c'est 7 SÉANCES (stats.streak compte les séances) — en haut « 4 sem. » était juste. Libellé corrigé ; 🔥 → icône.
+- Liberté : « RDV médecin : 2026-11-20 » → « ven. 20 nov. (dans 4 j) ».
+- Cases de chiffres : Démarchage et Sites clients passent de 4 à 2 colonnes (« Aujourd' », « Décideu », « Messag » coupés). Kit Kpi : mode compact automatique (container query) quand une case fait < 96 px.
+
 ## 16/11/2026 (soir 3) — Sèche : vraie série au lieu du « 1RM estimé » (app v270)
 - Kouider : « je n'ai pas fait 92 kg au butterfly ». 92,4 = 1RM estimé (Epley) de 66 kg × 12. « Ta force pendant la sèche » affiche maintenant la meilleure série réelle (66 kg × 12), l'estimation en petit ; même chose dans le contexte des cerveaux. Noms d'exercices sans l'id « ~mwiuf57z0 » (les séries du même exo sont enfin regroupées → la comparaison sur 2 semaines marche).
 

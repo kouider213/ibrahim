@@ -107,7 +107,7 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
         <div style={{ textAlign: 'center', padding: 30, color: C.muted, fontSize: 13 }}>Impossible de charger le démarchage. <button onClick={() => { setLoading(true); void load(); }} style={btn('rgba(var(--dz-ink-rgb),0.072)', C.text)}>Réessayer</button></div>
       ) : (<>
         {/* Chiffres */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 7, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 7, marginBottom: 14 }}>
           <StatCard icon="📤" value={String(st?.sent ?? 0)} label="MAILS ENVOYÉS" />
           <StatCard icon="📅" value={String(st?.sent_today ?? 0)} label="AUJOURD'HUI" color="#2f5bff" />
           <StatCard icon="📩" value={String(st?.replies ?? 0)} label="RÉPONSES" color={C.gold} />

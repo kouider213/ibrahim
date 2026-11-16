@@ -40,6 +40,8 @@ const KIT_CSS = `
 @keyframes dzFade{from{opacity:0}to{opacity:1}}
 @keyframes dzSheet{from{transform:translateY(105%)}to{transform:none}}
 @keyframes dzSpin{to{transform:rotate(360deg)}}
+.dz-kpi{container-type:inline-size}
+@container (max-width:96px){.dz-kpi-in{padding:11px 9px 12px!important}.dz-kpi-dot{display:none!important}.dz-kpi-lb{font-size:10.5px!important;letter-spacing:-0.02em!important}}
 @keyframes dzPulse{0%,100%{box-shadow:0 0 0 0 var(--dzp)}50%{box-shadow:0 0 0 6px transparent}}
 @keyframes dzBlink{0%,100%{opacity:1}50%{opacity:.35}}
 button{-webkit-tap-highlight-color:transparent;transition:transform .16s cubic-bezier(.3,.7,.4,1),background .2s,border-color .2s,box-shadow .2s,color .2s,opacity .2s}
@@ -172,15 +174,15 @@ export function Chips<K extends string>({ items, value, onChange }: { items: { i
 /** Tuile de chiffre clé : étiquette mono, gros chiffre, petite lueur de couleur. */
 export function Kpi({ value, label, color = T.accent, sub, icon }: { value: ReactNode; label: string; color?: string; sub?: ReactNode; icon?: string }) {
   return (
-    <div style={{ minWidth: 0, ...glass(), borderRadius: 18, padding: '13px 14px 14px', position: 'relative', overflow: 'hidden' }}>
+    <div className="dz-kpi" style={{ minWidth: 0 }}><div className="dz-kpi-in" style={{ height: '100%', boxSizing: 'border-box', ...glass(), borderRadius: 18, padding: '13px 14px 14px', position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', top: -30, right: -30, width: 80, height: 80, borderRadius: '50%', background: tone(color, 0.18), filter: 'blur(22px)', pointerEvents: 'none' }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 500, color: T.muted, lineHeight: 1.25, letterSpacing: '-0.005em' }}>
-        <span style={{ width: 6, height: 6, borderRadius: 2, background: color, boxShadow: `0 0 8px ${color}`, flexShrink: 0 }} />
-        <span lang="fr" style={{ minWidth: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', hyphens: 'auto', WebkitHyphens: 'auto' }}>{label}</span>
+        <span className="dz-kpi-dot" style={{ width: 6, height: 6, borderRadius: 2, background: color, boxShadow: `0 0 8px ${color}`, flexShrink: 0 }} />
+        <span className="dz-kpi-lb" lang="fr" style={{ minWidth: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', hyphens: 'auto', WebkitHyphens: 'auto' }}>{label}</span>
       </div>
       <div className="dz-num" style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: T.display, fontSize: 25, fontWeight: 600, letterSpacing: '-0.045em', color: T.text, lineHeight: 1.1, marginTop: 10, whiteSpace: 'nowrap' }}>{icon && (() => { const ic = splitEmoji(icon); return ic.icon ? <span style={{ color, display: 'flex' }}><Icon name={ic.icon} size={18} stroke={2} /></span> : <span style={{ fontSize: 16 }}>{icon}</span>; })()}<CountUp value={value} /></div>
       {sub != null && <div style={{ fontSize: 11.5, color, marginTop: 4, fontWeight: 600 }}>{sub}</div>}
-    </div>
+    </div></div>
   );
 }
 

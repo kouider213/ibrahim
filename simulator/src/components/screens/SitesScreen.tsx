@@ -71,7 +71,7 @@ export default function SitesScreen() {
       {loading ? <SkeletonCards count={5} /> : !data ? (
         <div style={{ textAlign: 'center', padding: 30, color: C.muted, fontSize: 13 }}>Impossible de charger les sites. <button onClick={() => { setLoading(true); void load(); }} style={btn('rgba(var(--dz-ink-rgb),0.072)', C.text)}>Réessayer</button></div>
       ) : (<>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 7, marginBottom: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 7, marginBottom: 8 }}>
           <StatCard icon="🌐" value={String(st?.live ?? 0)} label="EN LIGNE" />
           <StatCard icon="⏸️" value={String(st?.paused ?? 0)} label="EN PAUSE" color={C.muted} />
           <StatCard icon="⏰" value={String(st?.late ?? 0)} label="RETARDS" color={C.red} />

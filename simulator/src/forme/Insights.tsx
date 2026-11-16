@@ -30,7 +30,7 @@ export function WeekGoal() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <Ring value={d.week.done} max={d.week.target} size={40} stroke={5} color={ok ? F.green : F.accent} track={F.bg2}><div style={{ fontSize: 11, fontWeight: 700 }}>{d.week.done}/{d.week.target}</div></Ring>
-      {d.weekStreak > 0 && <div style={{ background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))', color: '#c06a00', borderRadius: 999, padding: '6px 10px', fontSize: 12.5, fontWeight: 700 }}>🔥 {d.weekStreak} sem.</div>}
+      {d.weekStreak > 0 && <div style={{ background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))', color: '#c06a00', borderRadius: 999, padding: '6px 10px', fontSize: 12.5, fontWeight: 700 }}><Ico e="🔥" />{d.weekStreak} sem.</div>}
     </div>
   );
 }
@@ -57,7 +57,7 @@ export default function Insights() {
         </Ring>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 16 }}>{d.week.done >= d.week.target ? 'Objectif atteint 🎉' : `Encore ${d.week.target - d.week.done} séance${d.week.target - d.week.done > 1 ? 's' : ''}`}</div>
-          <div style={{ fontSize: 13, color: F.muted, marginTop: 3 }}>🔥 {d.weekStreak} semaine{d.weekStreak > 1 ? 's' : ''} tenue{d.weekStreak > 1 ? 's' : ''} d'affilée · {d.total} séances au total</div>
+          <div style={{ fontSize: 13, color: F.muted, marginTop: 3 }}><Ico e="🔥" />{d.weekStreak} semaine{d.weekStreak > 1 ? 's' : ''} tenue{d.weekStreak > 1 ? 's' : ''} d'affilée · {d.total} séances au total</div>
           {d.load && <div style={{ fontSize: 12.5, color: F.muted, marginTop: 4 }}>{d.load}</div>}
         </div>
       </div>

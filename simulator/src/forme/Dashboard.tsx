@@ -170,7 +170,7 @@ export default function Dashboard({ o, weeks, weekDone, weekGoal, streak }: {
           <Legend color="#ff5a1f" label="Séances semaine" value={weekDone} sub={`/ ${weekGoal || 4}`} />
           <Legend color="#12b76a" label="Pas aujourd'hui" value={fmtK(steps)} sub={`/ ${fmtK(STEP_GOAL)}`} />
           <Legend color="#3d6bff" label="Protéines" value={Math.round(prot)} sub={`/ ${Math.round(protGoal)} g`} />
-          {streak > 0 && <div style={{ justifySelf: 'start', fontSize: 11.5, fontWeight: 700, color: '#ff5a1f', background: 'rgba(255,90,31,0.14)', padding: '3px 8px', borderRadius: 8 }}>{streak} semaines d'affilée</div>}
+          {streak > 0 && <div style={{ justifySelf: 'start', fontSize: 11.5, fontWeight: 700, color: '#ff5a1f', background: 'rgba(255,90,31,0.14)', padding: '3px 8px', borderRadius: 8 }}>{streak} séance{streak > 1 ? 's' : ''} d'affilée</div>}
         </div>
       </div>
 
