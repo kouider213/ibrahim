@@ -235,9 +235,26 @@ export async function formeSnapshot(): Promise<string> {
   ].filter(Boolean);
   const text = `ÉTAT PHYSIQUE (app FORME + montre, à jour) : ${bits.join(' · ')}. UTILISE-LE partout (coach de vie, moral, business, planning) : nuit courte / récupération basse = journée plus douce et pas de grosses décisions le soir ; séance pas faite = propose le meilleur moment ; protéines ou déficit manquants = rappel au bon moment, sans sermon. Jamais de nourriture/repas dans l'agenda.`;
   // Plancher de poids (09/11) : dit à TOUS les cerveaux, pour qu'aucun conseil ne le pousse sous son poids visé.
+  // 16/11 (« commence les jambes ? » → « absolument, effet hormonal » alors qu'il a ÉCRIT « d'abord le haut, ensuite le bas »,
+  // et « demain c'était BRAS » alors que c'était ÉPAULES) : ses objectifs écrits + les vraies prochaines séances, pour tous les cerveaux.
+  const goalsLine = await (async () => {
+    const g = JSON.parse((await kvGet('kouider:forme:goals').catch(() => null)) ?? 'null') as { note?: string; priority?: string[] } | null;
+    if (!g?.note && !g?.priority?.length) return '';
+    return ` SES OBJECTIFS SPORT ÉCRITS PAR LUI (app FORME) : ${g.note ? `« ${g.note.slice(0, 300)} »` : ''}${g.priority?.length ? ` · priorités : ${g.priority.join(', ')}` : ''}. Tout conseil sport/programme part de là : si tu conseilles autre chose, dis-lui franchement que ça change SON plan et pourquoi, sans arguments de salle non prouvés (ex. « les jambes font grossir les bras par les hormones » = faux).`;
+  })().catch(() => '');
+  const nextLine = await (async () => {
+    const m = await import('./sport-coach.js');
+    const out: string[] = [];
+    for (const n of [1, 2, 3]) {
+      const d = new Date(Date.parse(`${today}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+      const t = await m.sportSessionFor(d).catch(() => null);
+      out.push(`${d} : ${t ? String(t).split('\n')[0]!.replace(/\*\*/g, '').slice(0, 70) : 'pas de séance'}`);
+    }
+    return ` PROCHAINES SÉANCES (vraies, ne les invente jamais) : ${out.join(' · ')}.`;
+  })().catch(() => '');
   const fl = c?.weight.goalKg ?? (await getFormeProfile('kouider').catch(() => null))?.targetKg;
   const rule = fl ? ` RÈGLE DE POIDS (décidée par Kouider) : ${fl} kg est son MINIMUM et sa cible — ne lui conseille JAMAIS de descendre dessous ni de « perdre encore ». Son but est la forme du corps : ventre plat, abdos visibles, gros bras, pecs. Arrivé à ${fl} kg : maintien des calories, protéines hautes, charges qui montent.` : '';
-  snapCache = { at: Date.now(), text: text + rule };
+  snapCache = { at: Date.now(), text: text + goalsLine + nextLine + rule };
   return snapCache.text;
   return text;
 }
