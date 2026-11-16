@@ -46,7 +46,7 @@ export default function MeCard() {
   const rows = me.week.filter(r => r.now != null || r.prev != null);
   return (
     <div style={{ marginBottom: 18 }}>
-      <SectionTitle><Icon name="user" size={17} style={{ marginRight: 7, verticalAlign: '-3px' }} />Toi aujourd'hui</SectionTitle>
+      <SectionTitle>Toi aujourd'hui</SectionTitle>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 8 }}>
         {tiles.map(t => (
           <button key={t.k} onClick={() => go(t.page)} className="dz-press" style={{ ...glass(t.c), borderRadius: 18, padding: '12px 13px', textAlign: 'left', color: T.text, fontFamily: T.font, cursor: 'pointer', minWidth: 0 }}>

@@ -28,7 +28,7 @@ export default function QuickProtein({ b, onBudget, toast }: { b: FoodBudget; on
   const chip = (key: string, top: string, sub: string, onClick: () => void, strong = false) => (
     <motion.button key={key} whileTap={{ scale: 0.95 }} onClick={onClick} disabled={!!busy}
       style={{ border: `1px solid ${strong ? 'color-mix(in srgb, #7fb2ff 45%, transparent)' : F.line}`, background: strong ? 'color-mix(in srgb, #7fb2ff 12%, var(--f-card))' : 'var(--f-card)', color: F.ink, borderRadius: 14, padding: '9px 11px', textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer', opacity: busy && busy !== key ? 0.5 : 1, minWidth: 0 }}>
-      <div style={{ fontSize: 13.5, fontWeight: 650, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{busy === key ? '…' : top}</div>
+      <div style={{ fontSize: 13.5, fontWeight: 650, lineHeight: 1.25, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', wordBreak: 'break-word' }}>{busy === key ? '…' : top}</div>
       <div style={{ fontSize: 11.5, color: F.muted, marginTop: 1 }}>{sub}</div>
     </motion.button>
   );

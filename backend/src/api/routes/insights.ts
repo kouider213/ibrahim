@@ -155,7 +155,8 @@ router.get('/waves', requireMobileAuth, async (_req, res) => {
     }
     // Ceux qui sont DÉJÀ réservés pour la prochaine vague ne reçoivent rien
     const next = waves[0];
-    const already = new Set(next ? Bk.filter(b => BUSY.includes(b.status) && b.start_date <= next.to && b.end_date >= next.from).map(b => intlPhone(b.client_phone)).filter(Boolean) : []);
+    // … ni ceux qui sont EN CE MOMENT en location à Oran (« tu descends pour les fêtes ? » alors qu'il y est)
+    const already = new Set(Bk.filter(b => BUSY.includes(b.status) && ((next && b.start_date <= next.to && b.end_date >= next.from) || (b.start_date <= today && b.end_date >= today))).map(b => intlPhone(b.client_phone)).filter(Boolean));
     const clients = [...byPhone.values()].filter(c => !already.has(c.phone)).sort((a, b) => b.trips - a.trips || b.last.localeCompare(a.last));
     res.json({ today, waves, clients, unreachable: Bk.filter(x => CONFIRMED.includes(x.status) && !intlPhone(x.client_phone)).length, announcement: (site as { announcement?: string } | null)?.announcement ?? '' });
   } catch (e) { res.status(500).json({ error: (e as Error).message }); }

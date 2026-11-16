@@ -310,7 +310,7 @@ export const QUICK_FOODS: Record<string, { label: string; title: string; items: 
   oeufs:  { label: '3 œufs', title: '3 œufs', items: [{ name: 'Œufs entiers (3)', grams: 150, kcal: 215, p: 19, c: 1, f: 15 }] },
   poulet: { label: 'Poulet 150 g', title: 'Blanc de poulet', items: [{ name: 'Blanc de poulet cuit', grams: 150, kcal: 248, p: 46, c: 0, f: 5 }] },
   thon:   { label: 'Thon 1 boîte', title: 'Thon au naturel', items: [{ name: 'Thon au naturel égoutté', grams: 140, kcal: 160, p: 36, c: 0, f: 2 }] },
-  fblanc: { label: 'Fromage blanc 0 %', title: 'Fromage blanc 0 %', items: [{ name: 'Fromage blanc 0 %', grams: 250, kcal: 120, p: 20, c: 10, f: 0 }] },
+  fblanc: { label: 'Fromage blanc', title: 'Fromage blanc 0 %', items: [{ name: 'Fromage blanc 0 %', grams: 250, kcal: 120, p: 20, c: 10, f: 0 }] },
 };
 /** Repas des 14 derniers jours, sans doublon de titre (bouton « refaire ») — le plus récent d'abord. */
 export async function recentMeals(uid: Uid, n = 6): Promise<Array<{ date: string; id: string; title: string; kcal: number; p: number }>> {
