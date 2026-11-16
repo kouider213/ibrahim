@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { forme, errText, compressImage, vibrate, type LibItem } from './api.ts';
 import { F, card, btn, ghostBtn, input, Sheet, Spinner, Img } from './ui.tsx';
 import { LibraryPicker, loadLib, MUSCLE_FR } from './Exercises.tsx';
+import { Ico } from '../components/ui/Icon.tsx';
 
 // 🖼️ « CE QUE J'AI VRAIMENT FAIT » (Kouider 01/11) : il n'a pas suivi la séance prévue et ne connaît pas toujours le nom
 // des exercices → il les choisit EN IMAGES (bibliothèque) ou prend la MACHINE en photo. Séries/kg facultatifs.
@@ -66,8 +67,8 @@ function DidSheet({ open, onClose, toast, onDone }: { open: boolean; onClose: ()
           <button onClick={() => setDate(yesterday())} style={chip(date === yesterday())}>Hier</button>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setPick(true)} style={{ ...ghostBtn, flex: 1 }}>🖼️ Images</button>
-          <button onClick={() => cam.current?.click()} style={{ ...ghostBtn, flex: 1 }}>📷 Photo machine</button>
+          <button onClick={() => setPick(true)} style={{ ...ghostBtn, flex: 1 }}><Ico e="🖼️" />Images</button>
+          <button onClick={() => cam.current?.click()} style={{ ...ghostBtn, flex: 1 }}><Ico e="📷" />Photo machine</button>
           <input ref={cam} type="file" accept="image/*" capture="environment" hidden onChange={e => void fromPhoto(e.target.files?.[0])} />
         </div>
         {busy && <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'center', padding: 14, color: F.muted }}><Spinner size={18} />{busy}</div>}
@@ -94,7 +95,7 @@ function DidSheet({ open, onClose, toast, onDone }: { open: boolean; onClose: ()
         </div>
         {!!rows.length && <div style={{ position: 'sticky', bottom: 0, paddingTop: 10, background: F.bg }}>
           <div style={{ fontSize: 12, color: F.muted, textAlign: 'center', marginBottom: 6 }}>kg et reps facultatifs · ta séance prévue reste pour la prochaine fois</div>
-          <button disabled={!!busy} onClick={() => void save()} style={{ ...btn, width: '100%' }}>✅ Enregistrer ({rows.length} exercice{rows.length > 1 ? 's' : ''})</button>
+          <button disabled={!!busy} onClick={() => void save()} style={{ ...btn, width: '100%' }}><Ico e="✅" />Enregistrer ({rows.length} exercice{rows.length > 1 ? 's' : ''})</button>
         </div>}
       </>}
       <LibraryPicker open={pick} onClose={() => setPick(false)} onPick={fromLib} multi title="Choisis ce que tu as fait" />

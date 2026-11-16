@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../../services/api.ts';
 import { T, tone, PageHeader, Screen, Card, SectionTitle, Btn, Sheet, Field, inputStyle, Kpi, KpiGrid, Badge } from '../ui/Kit.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 // LIBERTÉ : programme pour arrêter complètement un médicament pris tous les jours (Kouider, privé).
 // Tout vient du serveur (/api/liberte) — rien de personnel dans ce code (dépôt public).
@@ -97,12 +98,12 @@ export default function LiberteScreen() {
         )}
         <div className="lib-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14 }}>
           <style>{'.lib-grid button{white-space:normal;padding:0 8px;line-height:1.2;width:100%;min-width:0}'}</style>
-          <Btn variant="primary" color={DOVE} disabled={busy} onClick={() => setSheet('take')}>💊 J'ai pris…</Btn>
-          <Btn variant="danger" onClick={() => setSheet('sos')}>🔥 J'ai une envie</Btn>
-          <Btn onClick={() => setSheet('sym')}>🤒 Mon état du jour</Btn>
-          <Btn onClick={() => setSheet('why')}>❤️ Mes raisons</Btn>
-          <Btn color={T.violet} onClick={() => setSheet('calm')}>🌬️ Calme 5 min</Btn>
-          <Btn color={T.ok} onClick={() => { const v = prompt('Ta victoire du jour (même petite) ?'); if (v?.trim()) void act({ action: 'victoire', text: v.trim() }, '🏆 Victoire gardée'); }}>🏆 Une victoire</Btn>
+          <Btn variant="primary" color={DOVE} disabled={busy} onClick={() => setSheet('take')}><Ico e="💊" />J'ai pris…</Btn>
+          <Btn variant="danger" onClick={() => setSheet('sos')}><Ico e="🔥" />J'ai une envie</Btn>
+          <Btn onClick={() => setSheet('sym')}><Ico e="🤒" />Mon état du jour</Btn>
+          <Btn onClick={() => setSheet('why')}><Ico e="❤️" />Mes raisons</Btn>
+          <Btn color={T.violet} onClick={() => setSheet('calm')}><Ico e="🌬️" />Calme 5 min</Btn>
+          <Btn color={T.ok} onClick={() => { const v = prompt('Ta victoire du jour (même petite) ?'); if (v?.trim()) void act({ action: 'victoire', text: v.trim() }, '🏆 Victoire gardée'); }}><Ico e="🏆" />Une victoire</Btn>
         </div>
       </Card>
 
@@ -110,7 +111,7 @@ export default function LiberteScreen() {
         <Card accent={o.mission.done ? T.ok : T.violet} style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, color: T.muted }}>🎯 Mission anti-zombie du jour · +1 €</div>
+              <div style={{ fontSize: 12, color: T.muted }}><Ico e="🎯" />Mission anti-zombie du jour · +1 €</div>
               <div style={{ fontSize: 14.5, fontWeight: 700, marginTop: 3, lineHeight: 1.35 }}>{o.mission.text}</div>
             </div>
             {o.mission.done ? <Badge color={T.ok}>✓ faite</Badge> : <Btn color={T.ok} disabled={busy} onClick={() => act({ action: 'mission' }, '🎯 Mission faite : +1 €')}>Fait</Btn>}
@@ -123,7 +124,7 @@ export default function LiberteScreen() {
         <Card accent={T.warn} style={{ marginBottom: 12 }} onClick={() => setSheet('doc')}>
           <div style={{ fontWeight: 700 }}>🩺 {s.doctor.status === 'a_appeler' ? 'Étape 1 : appelle ton médecin' : `RDV médecin : ${s.doctor.date?.replace('T', ' à ') ?? 'pris'}`}</div>
           <div style={{ fontSize: 13, color: T.muted, marginTop: 4, lineHeight: 1.45 }}>
-            {s.doctor.status === 'a_appeler' ? 'Il valide le plan, peut soulager le manque, et s\'occupe de la fatigue, du moral et de la libido (prise de sang). Touche ici quand c\'est fait.' : 'Touche ici après la consultation pour noter ce qu\'il a dit.'}
+            {s.doctor.status === 'a_appeler' ? 'Il valide le plan, peut soulager le manque, et s\'occupe de la fatigue et du moral (prise de sang). Touche ici quand c\'est fait.' : 'Touche ici après la consultation pour noter ce qu\'il a dit.'}
           </div>
         </Card>
       )}
@@ -157,17 +158,17 @@ export default function LiberteScreen() {
 
       {/* Ce qui revient */}
       <Card style={{ marginBottom: 12 }} onClick={() => setSheet('back')}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>✨ Ce qui revient</div>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}><Ico e="✨" />Ce qui revient</div>
         {o.comeback.length ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-            {(['energie', 'desir', 'joie', 'clarte'] as const).map(k => { const a = o.comeback[0]![k], b = o.comeback[o.comeback.length - 1]![k]; return (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+            {(['energie', 'joie', 'clarte'] as const).map(k => { const a = o.comeback[0]![k], b = o.comeback[o.comeback.length - 1]![k]; return (
               <div key={k} style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: 18, fontWeight: 800, color: b != null && a != null && b > a ? T.ok : T.text }}>{b ?? '—'}</div>
-                <div style={{ fontSize: 11, color: T.muted }}>{{ energie: 'énergie', desir: 'désir', joie: 'joie', clarte: 'clarté' }[k]}</div>
+                <div style={{ fontSize: 11, color: T.muted }}>{{ energie: 'énergie', joie: 'joie', clarte: 'clarté' }[k]}</div>
                 {a != null && b != null && o.comeback.length > 1 && <div style={{ fontSize: 11, color: b >= a ? T.ok : T.bad }}>{b >= a ? '+' : ''}{Math.round((b - a) * 10) / 10}</div>}
               </div>); })}
           </div>
-        ) : <div style={{ fontSize: 13, color: T.muted }}>Note chaque semaine ton énergie, ton désir, ta joie, ton esprit clair : tu verras ce que tu récupères. Touche ici.</div>}
+        ) : <div style={{ fontSize: 13, color: T.muted }}>Note chaque semaine ton énergie, ta joie, ton esprit clair : tu verras ce que tu récupères. Touche ici.</div>}
       </Card>
 
       {/* Le chemin */}
@@ -202,37 +203,37 @@ export default function LiberteScreen() {
 
       {o.riskHours.length > 0 && (
         <Card accent={T.warn} style={{ marginBottom: 12 }}>
-          <div style={{ fontWeight: 700 }}>⏰ Tes heures à risque : {o.riskHours.map(h => `${h}h`).join(', ')}</div>
+          <div style={{ fontWeight: 700 }}><Ico e="⏰" />Tes heures à risque : {o.riskHours.map(h => `${h}h`).join(', ')}</div>
           <div style={{ fontSize: 12.5, color: T.muted, marginTop: 4 }}>Dzaryx te prévient 15 min avant, avec tes plans « si… alors… ».</div>
         </Card>
       )}
       {o.victories.length > 0 && (
         <Card style={{ marginBottom: 12 }}>
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>🏆 Tes victoires</div>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}><Ico e="🏆" />Tes victoires</div>
           {o.victories.slice(0, 5).map(v => <div key={v.at} style={{ fontSize: 13.5, padding: '4px 0', color: T.text }}>• {v.text} <span style={{ color: T.faint, fontSize: 12 }}>{fmt(v.at.slice(0, 10))}</span></div>)}
         </Card>
       )}
       {o.triggers.length > 0 && (
         <Card style={{ marginBottom: 12 }}>
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>🎯 Ce qui déclenche tes envies</div>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}><Ico e="🎯" />Ce qui déclenche tes envies</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{o.triggers.map(t => <Badge key={t.trigger} color={T.warn}>{t.trigger} · {t.n}</Badge>)}</div>
           <div style={{ fontSize: 12.5, color: T.muted, marginTop: 8 }}>Dzaryx prépare ces moments-là à l'avance.</div>
         </Card>
       )}
 
       <Card style={{ marginBottom: 12 }}>
-        <div style={{ fontWeight: 700, marginBottom: 6 }}>💡 Ce qui revient quand tu arrêtes</div>
+        <div style={{ fontWeight: 700, marginBottom: 6 }}><Ico e="💡" />Ce qui revient quand tu arrêtes</div>
         <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.55 }}>
-          Les premiers jours après chaque marche peuvent être durs (fatigue, nervosité, sommeil). Puis, semaine après semaine : l'énergie, l'esprit clair, l'envie, le désir, le rire. Le corps se répare — laisse-lui quelques semaines.
+          Les premiers jours après chaque marche peuvent être durs (fatigue, nervosité, sommeil). Puis, semaine après semaine : l'énergie, l'esprit clair, l'envie, le rire. Le corps se répare — laisse-lui quelques semaines.
         </div>
       </Card>
 
       <SosCard sos={o.sos} />
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-        {!s.finishedAt && o.allowed === 0 && <Btn color={T.ok} onClick={() => { if (confirm('Tu confirmes : c\'est bon, tu as arrêté complètement ?')) void act({ action: 'finish', confirm: true }, '🕊️ Bravo. Dzaryx reste en vigilance.'); }}>🏁 C'est bon, j'ai arrêté</Btn>}
-        <Btn onClick={() => setSheet('plan')}>⚙️ Heures de prise</Btn>
-        <Btn onClick={() => setSheet('doc')}>🩺 Médecin</Btn>
+        {!s.finishedAt && o.allowed === 0 && <Btn color={T.ok} onClick={() => { if (confirm('Tu confirmes : c\'est bon, tu as arrêté complètement ?')) void act({ action: 'finish', confirm: true }, '🕊️ Bravo. Dzaryx reste en vigilance.'); }}><Ico e="🏁" />C'est bon, j'ai arrêté</Btn>}
+        <Btn onClick={() => setSheet('plan')}><Ico e="⚙️" />Heures de prise</Btn>
+        <Btn onClick={() => setSheet('doc')}><Ico e="🩺" />Médecin</Btn>
       </div>
 
       {sheet === 'sos' && <SosSheet why={s.why} busy={busy} onClose={() => setSheet(null)} onAct={async b => { await act(b, b['action'] === 'resiste' ? '💪 Tenue ! Chaque envie tenue rend la suivante plus faible.' : '✅ Noté'); }} />}
@@ -281,7 +282,7 @@ function Stairs({ steps, today }: { steps: Step[]; today: string }) {
 function SosCard({ sos }: { sos: string[] }) {
   return (
     <Card accent={T.bad} style={{ marginTop: 4 }}>
-      <div style={{ fontWeight: 700, marginBottom: 6 }}>🆘 Si ça va vraiment mal</div>
+      <div style={{ fontWeight: 700, marginBottom: 6 }}><Ico e="🆘" />Si ça va vraiment mal</div>
       {sos.map(l => { const num = l.match(/\d[\d ]{2,}\d/)?.[0]?.replace(/\s/g, ''); return (
         <a key={l} href={num ? `tel:${num}` : undefined} style={{ display: 'block', fontSize: 13, color: T.text, textDecoration: 'none', padding: '5px 0', lineHeight: 1.4 }}>{l}</a>); })}
       <div style={{ fontSize: 12, color: T.faint, marginTop: 6 }}>Convulsion, malaise, idées noires, douleur dans la poitrine, hallucinations → 112 tout de suite.</div>
@@ -315,7 +316,7 @@ function Setup({ onStart, busy }: { onStart: (b: Record<string, unknown>) => Pro
         </div>
       </Field>
       <Field label="Pourquoi tu arrêtes ?" hint="Dzaryx te le rappellera à chaque envie."><textarea style={{ ...inputStyle, minHeight: 80, padding: 12 }} value={why} onChange={e => setWhy(e.target.value)} placeholder="Ce que tu veux retrouver…" /></Field>
-      <Btn variant="primary" color={DOVE} disabled={busy} style={{ width: '100%' }} onClick={() => onStart({ baseline: base, med: med || undefined, times: times.filter(Boolean), why: why || undefined })}>🕊️ Commencer mon plan</Btn>
+      <Btn variant="primary" color={DOVE} disabled={busy} style={{ width: '100%' }} onClick={() => onStart({ baseline: base, med: med || undefined, times: times.filter(Boolean), why: why || undefined })}><Ico e="🕊️" />Commencer mon plan</Btn>
     </Card>
   );
 }
@@ -338,7 +339,7 @@ function SosSheet({ why, onClose, onAct, busy }: { why: string[]; onClose: () =>
   return (
     <Sheet title="🔥 L'envie va passer" subtitle="Elle monte, atteint un pic, et redescend en 10 à 20 minutes." onClose={onClose} accent={T.bad} fixed z={90}
       footer={started ? <>
-        <Btn variant="primary" color={T.ok} style={{ flex: 1 }} disabled={busy} onClick={async () => { await onAct({ action: 'resiste' }); onClose(); }}>💪 Passée, j'ai tenu</Btn>
+        <Btn variant="primary" color={T.ok} style={{ flex: 1 }} disabled={busy} onClick={async () => { await onAct({ action: 'resiste' }); onClose(); }}><Ico e="💪" />Passée, j'ai tenu</Btn>
         <Btn color={T.bad} disabled={busy} onClick={async () => { await onAct({ action: 'prise', n: 1, note: 'après une envie' }); onClose(); }}>J'ai craqué</Btn>
       </> : undefined}>
       {!started ? <>
@@ -354,7 +355,7 @@ function SosSheet({ why, onClose, onAct, busy }: { why: string[]; onClose: () =>
           </div>
           <div style={{ fontSize: 17, fontWeight: 700, marginTop: 14 }}>{label}</div>
         </div>
-        <Btn style={{ width: '100%', marginBottom: 8 }} disabled={busy} onClick={() => onAct({ action: 'ma_voix' })}>🎙️ Écouter ma propre voix (Telegram)</Btn>
+        <Btn style={{ width: '100%', marginBottom: 8 }} disabled={busy} onClick={() => onAct({ action: 'ma_voix' })}><Ico e="🎙️" />Écouter ma propre voix (Telegram)</Btn>
         {['💧 Un grand verre d\'eau froide, lentement', '🚶 Marche 10 minutes, dehors si tu peux', '🔁 Change de pièce, mets ta musique', '📞 Dis à Dzaryx « appelle-moi »'].map(x => <div key={x} style={{ fontSize: 14, padding: '6px 0' }}>{x}</div>)}
         {why.length > 0 && <Card accent={DOVE} style={{ marginTop: 12 }}>
           <div style={{ fontSize: 12, color: T.muted, marginBottom: 4 }}>Pourquoi tu fais ça</div>
@@ -387,15 +388,15 @@ function DocSheet({ status, onClose, onSave, onReport }: { status: string; onClo
   return (
     <Sheet title="🩺 Mon médecin" onClose={onClose} fixed z={90}>
       <div style={{ fontSize: 13.5, color: T.muted, lineHeight: 1.5, marginBottom: 12 }}>
-        À lui dire : « Je veux arrêter. J'en prends environ X demis par jour depuis des années. Je suis tout le temps fatigué, sans moral, sans envie. » À lui demander : valider le plan, de l'aide pour le manque, un soutien pour le moral (psychologue de 1re ligne : 11 €, 1re séance gratuite), une prise de sang (fatigue, libido).
+        À lui dire : « Je veux arrêter. J'en prends environ X demis par jour depuis des années. Je suis tout le temps fatigué, sans moral, sans envie. » À lui demander : valider le plan, de l'aide pour le manque, un soutien pour le moral (psychologue de 1re ligne : 11 €, 1re séance gratuite), une prise de sang (fatigue).
       </div>
       {status === 'a_appeler' && <>
         <Field label="RDV pris pour le…"><input type="datetime-local" style={inputStyle} value={date} onChange={e => setDate(e.target.value)} /></Field>
-        <Btn variant="primary" color={DOVE} style={{ width: '100%', marginBottom: 14 }} disabled={!date} onClick={() => onSave({ status: 'rdv_pris', date })}>📅 J'ai pris RDV</Btn>
+        <Btn variant="primary" color={DOVE} style={{ width: '100%', marginBottom: 14 }} disabled={!date} onClick={() => onSave({ status: 'rdv_pris', date })}><Ico e="📅" />J'ai pris RDV</Btn>
       </>}
       <Field label="Ce qu'il a dit (après la consultation)"><textarea style={{ ...inputStyle, minHeight: 70, padding: 12 }} value={note} onChange={e => setNote(e.target.value)} /></Field>
-      <Btn color={T.ok} style={{ width: '100%', marginBottom: 8 }} onClick={() => onSave({ status: 'vu', note })}>✅ Je l'ai vu</Btn>
-      <Btn style={{ width: '100%' }} onClick={() => onReport()}>📋 Mon rapport pour le médecin (Telegram)</Btn>
+      <Btn color={T.ok} style={{ width: '100%', marginBottom: 8 }} onClick={() => onSave({ status: 'vu', note })}><Ico e="✅" />Je l'ai vu</Btn>
+      <Btn style={{ width: '100%' }} onClick={() => onReport()}><Ico e="📋" />Mon rapport pour le médecin (Telegram)</Btn>
     </Sheet>
   );
 }
@@ -477,8 +478,8 @@ function BankSheet({ o, onClose, onAct }: { o: Overview; onClose: () => void; on
 }
 
 function BackSheet({ onClose, onSave }: { onClose: () => void; onSave: (b: Record<string, unknown>) => Promise<void> }) {
-  const [v, setV] = useState({ energie: 5, desir: 5, joie: 5, clarte: 5 });
-  const labels = { energie: '⚡ Énergie', desir: '❤️‍🔥 Désir', joie: '😄 Joie', clarte: '🧠 Esprit clair' } as const;
+  const [v, setV] = useState({ energie: 5, joie: 5, clarte: 5 });
+  const labels = { energie: '⚡ Énergie', joie: '😄 Joie', clarte: '🧠 Esprit clair' } as const;
   return (
     <Sheet title="✨ Ce qui revient" subtitle="Cette semaine, de 1 à 10" onClose={onClose} fixed z={90} footer={<Btn variant="primary" style={{ flex: 1 }} onClick={() => onSave(v)}>Enregistrer</Btn>}>
       {(Object.keys(labels) as Array<keyof typeof labels>).map(k => (
@@ -514,7 +515,7 @@ function TakeSheet({ o, busy, onClose, onAct }: { o: Overview; busy: boolean; on
         <Btn onClick={() => setHalves(h => Math.min(30, h + 0.5))}>+</Btn>
       </div>
       {mode !== 'hier' && <div style={{ textAlign: 'center', fontSize: 13, color: after > o.allowed ? T.bad : T.muted }}>Aujourd'hui ça fera {demis(after)} sur {demis(o.allowed)} autorisés{after > o.allowed ? ' — au-dessus du plan, mais note-le quand même.' : '.'}</div>}
-      {o.taken > 0 && <Btn variant="ghost" style={{ width: '100%', marginTop: 14 }} onClick={() => onAct({ action: 'annuler' }, '↩️ Dernière prise annulée')}>↩️ Annuler la dernière prise notée (erreur)</Btn>}
+      {o.taken > 0 && <Btn variant="ghost" style={{ width: '100%', marginTop: 14 }} onClick={() => onAct({ action: 'annuler' }, '↩️ Dernière prise annulée')}><Ico e="↩️" />Annuler la dernière prise notée (erreur)</Btn>}
     </Sheet>
   );
 }

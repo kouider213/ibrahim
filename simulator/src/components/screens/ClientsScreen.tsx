@@ -3,6 +3,7 @@ import { openClient, ClientName } from '../ClientSheet.tsx';
 import { business, type ClientSummary, type ClientIntelligence, type ClientOperation, type ClientType, type ClientDetail, type ClientBookingHistory, type Car } from '../../services/api.ts';
 import { SkeletonCards, SearchPill } from '../ui/Premium.tsx';
 import { T, PageHeader, Kpi, KpiGrid, btnStyle } from '../ui/Kit.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 // Libellés français des statuts (les valeurs envoyées au serveur restent en anglais)
 const FR: Record<string, string> = { CONFIRMED: 'Confirmée', PENDING: 'En attente', ACTIVE: 'En cours', COMPLETED: 'Terminée', REJECTED: 'Refusée', CANCELLED: 'Annulée', UNPAID: 'À payer', PARTIAL: 'Acompte', PAID: 'Payé',
@@ -364,8 +365,8 @@ export default function ClientsScreen() {
                       <Row label="Dépenses total" val={fmt(ci.total_spent)} col={C.gold} />
                       {ci.notes && <div style={{ marginTop: 10, padding: '10px 12px', background: `color-mix(in srgb, ${C.accent} 6%, transparent)`, borderRadius: 12, border: `1px solid color-mix(in srgb, ${C.accent} 13%, transparent)`, fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>{ci.notes}</div>}
                       <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                        <button onClick={() => openClient({ name: c.name, phone: c.phone })} style={{ ...miniBtn(C.accent) }}>👤 Fiche complète</button>
-                        <button onClick={() => startIntelEdit(c.name, ci)} style={{ ...miniBtn(C.blue) }}>✏️ Modifier le profil</button>
+                        <button onClick={() => openClient({ name: c.name, phone: c.phone })} style={{ ...miniBtn(C.accent) }}><Ico e="👤" />Fiche complète</button>
+                        <button onClick={() => startIntelEdit(c.name, ci)} style={{ ...miniBtn(C.blue) }}><Ico e="✏️" />Modifier le profil</button>
                       </div>
                     </>)}
                   </>}
@@ -460,7 +461,7 @@ export default function ClientsScreen() {
                                 {bk.payment_status && <span>{FR[bk.payment_status] ?? bk.payment_status}{reste > 0 ? ` · reste ${Math.round(reste)}€` : ''}</span>}
                                 {bk.client_passport && <span style={{ color: C.blue }}>🪪 {bk.client_passport}{bk.passport_expiry ? ` (exp. ${dfr(bk.passport_expiry)})` : ''}</span>}
                               </div>
-                              <button onClick={() => startBkEdit(bk)} style={{ ...miniBtn(C.blue), marginTop: 6 }}>✏️ Modifier la réservation</button>
+                              <button onClick={() => startBkEdit(bk)} style={{ ...miniBtn(C.blue), marginTop: 6 }}><Ico e="✏️" />Modifier la réservation</button>
                             </div>
                           )}
                         </div>
@@ -472,7 +473,7 @@ export default function ClientsScreen() {
                       <NewBookingForm cars={cars} fixedClient={{ name: c.name, phone: c.phone ?? null }} saving={saving}
                         onCancel={() => setNewBk(null)} onCreate={createBookingFor} />
                     ) : (
-                      <button onClick={() => setNewBk(c.phone ?? c.name)} style={{ ...miniBtn(C.accent), marginTop: 12 }}>➕ Nouvelle réservation</button>
+                      <button onClick={() => setNewBk(c.phone ?? c.name)} style={{ ...miniBtn(C.accent), marginTop: 12 }}><Ico e="➕" />Nouvelle réservation</button>
                     )}
 
                     {/* Documents */}

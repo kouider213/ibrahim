@@ -3,6 +3,7 @@ import { openClient } from '../ClientSheet.tsx';
 import { business, type TodayItem, type Booking, type ProfitLedger } from '../../services/api.ts';
 import { SkeletonCards } from '../ui/Premium.tsx';
 import { T, tone, Screen, PageHeader, HeadBtn, Kpi, KpiGrid, SectionTitle, Row, Avatar, Badge, Empty, waLink, money, glass, CountUp } from '../ui/Kit.tsx';
+import { Icon, Ico } from '../ui/Icon.tsx';
 
 const go = (p: string) => window.dispatchEvent(new CustomEvent('dz:go', { detail: p }));
 const ymd = (d = new Date()) => d.toLocaleDateString('sv-SE', { timeZone: 'Africa/Algiers' });
@@ -24,7 +25,7 @@ function WaBtn({ phone }: { phone: string | null }) {
     <a href={href} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{
       minHeight: 40, padding: '0 12px', borderRadius: 12, display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none',
       background: 'rgba(10,154,94,0.13)', border: '1px solid rgba(10,154,94,0.4)', color: '#25D366', fontSize: 13, fontWeight: 700, flexShrink: 0,
-    }}>💬 WhatsApp</a>
+    }}><Ico e="💬" />WhatsApp</a>
   );
 }
 
@@ -81,11 +82,11 @@ export default function CommandCenterScreen() {
         <>
           {/* Carte argent (façon carte bancaire, à l'encre) : ce que je dois récupérer + CA du mois */}
           <div className="dz-press" onClick={() => go('revenue')} role="button" style={{ position: 'relative', overflow: 'hidden', borderRadius: 28, padding: '20px 20px 18px', marginBottom: 18, cursor: 'pointer',
-            background: 'linear-gradient(140deg, var(--dz-ink) 0%, #1b2140 62%, #26315f 100%)', boxShadow: '0 24px 44px -24px rgba(var(--dz-shadow-rgb),0.7)' }}>
+            background: 'radial-gradient(120% 90% at 100% 0%, rgba(34,211,238,0.42), transparent 52%), radial-gradient(110% 90% at 0% 100%, rgba(139,92,246,0.6), transparent 58%), linear-gradient(145deg, #2442ff 0%, #2a1878 100%)', boxShadow: '0 24px 44px -24px rgba(var(--dz-shadow-rgb),0.7)' }}>
             <div style={{ position: 'absolute', top: -70, right: -50, width: 220, height: 220, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.09)', pointerEvents: 'none' }} />
             <div style={{ position: 'absolute', top: -20, right: -100, width: 260, height: 260, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.06)', pointerEvents: 'none' }} />
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>À récupérer <span style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 700, color: '#ffffff', background: 'rgba(255,255,255,0.14)', padding: '6px 12px', borderRadius: 99 }}>Détails ›</span></div>
-            <div style={{ position: 'relative', fontFamily: T.display, fontSize: 44, fontWeight: 800, letterSpacing: '-0.045em', lineHeight: 1, color: '#ffffff', fontVariantNumeric: 'tabular-nums', marginTop: 10 }}><CountUp value={ledger ? money(ledger.toCollect) : '—'} /></div>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, fontFamily: T.mono, fontSize: 11, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.75)', fontWeight: 500 }}>À récupérer <span style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 700, color: '#ffffff', background: 'rgba(255,255,255,0.14)', padding: '6px 12px', borderRadius: 99 }}>Détails ›</span></div>
+            <div style={{ position: 'relative', fontFamily: T.display, fontSize: 52, fontWeight: 600, letterSpacing: '-0.055em', lineHeight: 1, color: '#ffffff', fontVariantNumeric: 'tabular-nums', marginTop: 10 }}><CountUp value={ledger ? money(ledger.toCollect) : '—'} /></div>
             <div style={{ position: 'relative', fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6 }}>{ledger ? `${Math.round(ledger.toCollect * ledger.rate).toLocaleString('fr-FR')} DA` : ' '}</div>
             <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 8, marginTop: 18, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.12)' }}>
               {[{ l: 'CA ce mois', v: monthCA != null ? money(monthCA) : '—', c: '#ffffff' }, { l: 'Gagné en tout', v: ledger ? money(ledger.total) : '—', c: '#ffffff' }, { l: 'Déjà récupéré', v: ledger ? money(ledger.collected) : '—', c: '#5fe0a8' }].map(x => (
@@ -99,10 +100,10 @@ export default function CommandCenterScreen() {
 
           {/* Raccourcis : ronds blancs, libellé dessous */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 6, marginBottom: 22 }}>
-            {[{ i: '📋', l: 'Locations', p: 'bookings' }, { i: '👥', l: 'Clients', p: 'clients' }, { i: '🚗', l: 'Parc', p: 'fleet' }, { i: '🧮', l: 'Devis', p: 'devis' }].map(x => (
-              <button key={x.p} onClick={() => go(x.p)} style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: T.font, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, color: T.text }}>
-                <span style={{ width: 58, height: 58, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 23, background: 'var(--dz-surface)', boxShadow: T.shadow }}>{x.i}</span>
-                <span style={{ fontSize: 12.5, fontWeight: 700 }}>{x.l}</span>
+            {([{ i: 'calendar', l: 'Locations', p: 'bookings', c: '#3d6bff' }, { i: 'users', l: 'Clients', p: 'clients', c: '#8b5cf6' }, { i: 'car', l: 'Parc', p: 'fleet', c: '#22d3ee' }, { i: 'calc', l: 'Devis', p: 'devis', c: '#12b76a' }] as const).map(x => (
+              <button key={x.p} onClick={() => go(x.p)} style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: T.font, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, color: T.text }}>
+                <span style={{ width: 58, height: 58, borderRadius: 19, display: 'flex', alignItems: 'center', justifyContent: 'center', color: x.c, background: 'var(--dz-card)', border: '1px solid var(--dz-card-line)', boxShadow: `${T.shadow}, 0 10px 24px -14px ${x.c}` }}><Icon name={x.i} size={24} /></span>
+                <span style={{ fontSize: 12.5, fontWeight: 600, letterSpacing: '-0.01em' }}>{x.l}</span>
               </button>
             ))}
           </div>
@@ -116,7 +117,7 @@ export default function CommandCenterScreen() {
             if (!out.length && !soon.length) return null;
             return (
               <div style={{ marginBottom: 18 }}>
-                <SectionTitle right={<Badge color={T.ok}>{out.length} dehors</Badge>}>🚗 En ce moment</SectionTitle>
+                <SectionTitle right={<Badge color={T.ok}>{out.length} dehors</Badge>}><Ico e="🚗" />En ce moment</SectionTitle>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {out.map(b => {
                     const tot = Math.max(1, dayN(b.start_date, b.end_date)), done = Math.min(tot, Math.max(0, dayN(b.start_date, t)));

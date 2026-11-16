@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { business, type BlogPost } from '../../services/api.ts';
 import { T, Screen, PageHeader, HeadBtn, Sheet, Field, inputStyle, Btn, Card, Badge, Empty, KpiGrid, Kpi, SectionTitle } from '../ui/Kit.tsx';
 import { SkeletonCards } from '../ui/Premium.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 export default function BlogScreen() {
   const [posts, setPosts]   = useState<BlogPost[]>([]);
@@ -81,7 +82,7 @@ export default function BlogScreen() {
 
       <SectionTitle>Articles</SectionTitle>
       {loading ? <SkeletonCards count={3} height={92} />
-        : posts.length === 0 ? <Empty icon="📝" title="Aucun article" text="Un article de blog aide ton site à remonter sur Google." action={<Btn variant="primary" onClick={() => setShow(true)}>✍️ Écrire le premier</Btn>} />
+        : posts.length === 0 ? <Empty icon="📝" title="Aucun article" text="Un article de blog aide ton site à remonter sur Google." action={<Btn variant="primary" onClick={() => setShow(true)}><Ico e="✍️" />Écrire le premier</Btn>} />
         : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {posts.map(p => (

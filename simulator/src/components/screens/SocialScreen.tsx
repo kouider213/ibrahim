@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { business } from '../../services/api.ts';
 import { T, Screen, PageHeader, Segmented, Field, inputStyle, Btn, Card, SectionTitle } from '../ui/Kit.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 const PLATFORMS = [{ id: 'Instagram', label: 'Instagram' }, { id: 'TikTok', label: 'TikTok' }, { id: 'Facebook', label: 'Facebook' }];
 const LANGS = [{ id: 'fr', label: '🇫🇷 Français' }, { id: 'ar', label: '🇩🇿 Arabe' }, { id: 'en', label: '🇬🇧 Anglais' }];
@@ -46,8 +47,8 @@ export default function SocialScreen() {
           <Field label="Texte (modifiable)"><textarea value={caption} onChange={e => setCaption(e.target.value)} rows={7} style={area} /></Field>
           <Field label="Hashtags"><textarea value={hashtags} onChange={e => setHashtags(e.target.value)} rows={3} style={{ ...area, color: T.accent2, fontSize: 14 }} /></Field>
           <div style={{ display: 'flex', gap: 8 }}>
-            <Btn variant="ghost" onClick={() => void gen()} disabled={busy} style={{ flex: 1 }}>🔄 Régénérer</Btn>
-            <Btn variant="primary" onClick={copyAll} style={{ flex: 2 }}>📋 Copier tout</Btn>
+            <Btn variant="ghost" onClick={() => void gen()} disabled={busy} style={{ flex: 1 }}><Ico e="🔄" />Régénérer</Btn>
+            <Btn variant="primary" onClick={copyAll} style={{ flex: 2 }}><Ico e="📋" />Copier tout</Btn>
           </div>
         </div>
       )}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { apiFetch, playBase64Audio, isAudioPlaying, unlockAudio, stopAudio, getDeviceToken, PRIMARY_BACKEND } from '../../services/api.ts';
 import { T, tone, PageHeader, Segmented, Card, Btn, Badge, Empty, Field, Screen, inputStyle, SectionTitle } from '../ui/Kit.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 // Page JARVIS (27/10/2026) : Dzaryx écoute en direct.
 //  🎧 Souffleur — il entend ta discussion et te glisse à l'oreille (écouteurs) traduction + conseils.
@@ -523,7 +524,7 @@ function Escouade() {
         <>
           <Card accent={T.violet}><div style={{ fontSize: 13.5, color: T.muted, lineHeight: 1.5 }}>Une grosse question ? Plusieurs Dzaryx s'y mettent en même temps (chercheur, analyste, stratège…) avec tes vraies données et le web. Tu les regardes travailler ici, puis le plan final arrive aussi sur Telegram. Ils proposent, ils n'envoient rien.</div></Card>
           <textarea value={goal} onChange={e => setGoal(e.target.value)} rows={2} style={{ ...inputStyle, resize: 'vertical' }} placeholder="ex. « Prépare-moi la saison été 2027 » ou « Comment avoir 5 clients FIK Sites ce mois-ci ? »" />
-          <Btn variant="primary" color={T.violet} disabled={!goal.trim()} onClick={() => void launch()} style={{ minHeight: 52, fontSize: 15 }}>🛰️ Lancer l'escouade</Btn>
+          <Btn variant="primary" color={T.violet} disabled={!goal.trim()} onClick={() => void launch()} style={{ minHeight: 52, fontSize: 15 }}><Ico e="🛰️" />Lancer l'escouade</Btn>
         </>
       )}
       {err && <div style={{ color: T.bad, fontSize: 13 }}>{err}</div>}
@@ -643,7 +644,7 @@ function Copilote() {
       </button>
       {heard && <div style={{ fontSize: 15, color: T.muted, maxWidth: 520 }}>« {heard} »</div>}
       {answer && <div style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.4, maxWidth: 520 }} dir="auto">{answer.replace(/https?:\/\/\S+/g, '').replace(/[*_#]/g, '')}</div>}
-      {on && <Btn variant="danger" onClick={stop} style={{ minHeight: 54, width: '100%', fontSize: 16 }}>⏹ Arrêter le copilote</Btn>}
+      {on && <Btn variant="danger" onClick={stop} style={{ minHeight: 54, width: '100%', fontSize: 16 }}><Ico e="⏹" />Arrêter le copilote</Btn>}
       {err && <div style={{ color: T.bad, fontSize: 13 }}>{err}</div>}
     </div>
   );
@@ -688,7 +689,7 @@ function FutureMachine() {
   const path = (arr: number[]) => arr.map((v, i) => `${i ? 'L' : 'M'}${(i / 11) * W},${H / 2 - (v / max) * (H / 2 - 6)}`).join(' ');
   return (
     <Card accent={T.violet}>
-      <div style={{ fontWeight: 800, fontSize: 15 }}>🔭 La machine à voir le futur</div>
+      <div style={{ fontWeight: 800, fontSize: 15 }}><Ico e="🔭" />La machine à voir le futur</div>
       <div style={{ fontSize: 12, color: T.muted, margin: '2px 0 10px' }}>Bénéfice cumulé sur 12 mois, à partir de tes vrais chiffres ({base.cars} voitures, {base.price} €/j en moyenne, occupation réelle {base.occupancy} %).</div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 160 }} role="img" aria-label="Projection du bénéfice cumulé sur 12 mois">
         <line x1="0" x2={W} y1={H / 2} y2={H / 2} stroke={T.line} strokeDasharray="3 4" />
@@ -698,9 +699,9 @@ function FutureMachine() {
         {scen.map((sc, k) => <div key={k} style={{ display: 'flex', gap: 8, alignItems: 'center' }}><span style={{ width: 12, height: 3, background: sc.color, borderRadius: 2 }} /><span style={{ flex: 1 }}>{sc.name}</span><b>{cum[k]![11]!.toLocaleString('fr-FR')} € en 1 an</b></div>)}
       </div>
       <div style={{ display: 'grid', gap: 8, marginTop: 12, fontSize: 12.5 }}>
-        <label>🚗 Voitures en plus : <b>{extra}</b><input type="range" min={0} max={15} value={extra} onChange={e => setExtra(Number(e.target.value))} style={{ width: '100%' }} /></label>
-        <label>📈 Occupation visée : <b>{occ} %</b><input type="range" min={10} max={90} value={occ} onChange={e => setOcc(Number(e.target.value))} style={{ width: '100%' }} /></label>
-        <label>💶 Prix moyen : <b>{price} €/j</b><input type="range" min={20} max={90} value={price} onChange={e => setPrice(Number(e.target.value))} style={{ width: '100%' }} /></label>
+        <label><Ico e="🚗" />Voitures en plus : <b>{extra}</b><input type="range" min={0} max={15} value={extra} onChange={e => setExtra(Number(e.target.value))} style={{ width: '100%' }} /></label>
+        <label><Ico e="📈" />Occupation visée : <b>{occ} %</b><input type="range" min={10} max={90} value={occ} onChange={e => setOcc(Number(e.target.value))} style={{ width: '100%' }} /></label>
+        <label><Ico e="💶" />Prix moyen : <b>{price} €/j</b><input type="range" min={20} max={90} value={price} onChange={e => setPrice(Number(e.target.value))} style={{ width: '100%' }} /></label>
       </div>
       <div style={{ fontSize: 11, color: T.faint, marginTop: 8 }}>Estimation : marge réelle par jour de tes voitures, coûts moyens des 3 derniers mois, nouvelles voitures qui montent en charge sur 3 mois. Pas une promesse.</div>
     </Card>
@@ -777,7 +778,7 @@ function Salle({ onAsk }: { onAsk: (p: string) => void }) {
       </div>
       {fortune && fortune.lines.length > 0 && (
         <Card accent={T.violet}>
-          <div style={{ fontWeight: 800, fontSize: 15 }}>💰 Ta fortune : {fortune.total.toLocaleString('fr-FR')} €</div>
+          <div style={{ fontWeight: 800, fontSize: 15 }}><Ico e="💰" />Ta fortune : {fortune.total.toLocaleString('fr-FR')} €</div>
           <div style={{ fontSize: 12.5, color: T.muted, marginTop: 6, display: 'grid', gap: 2 }}>
             {fortune.lines.map((l, i) => <div key={i} style={{ display: 'flex' }}><span style={{ flex: 1 }}>{l.label}</span><b style={{ color: l.eur < 0 ? T.bad : T.text }}>{l.eur.toLocaleString('fr-FR')} €</b></div>)}
           </div>
@@ -805,7 +806,7 @@ function CarWidgetSetup() {
   const li = (n: number, t: React.ReactNode) => <div style={{ display: 'flex', gap: 8, fontSize: 13, lineHeight: 1.45 }}><b style={{ color: '#e0304f', minWidth: 18 }}>{n}.</b><div style={{ flex: 1 }}>{t}</div></div>;
   return (
     <Card accent="#e0304f">
-      <div style={{ fontWeight: 800, fontSize: 15 }}>🚗 Ton widget CarPlay (Audi + Jarvis)</div>
+      <div style={{ fontWeight: 800, fontSize: 15 }}><Ico e="🚗" />Ton widget CarPlay (Audi + Jarvis)</div>
       <div style={{ fontSize: 12, color: T.muted, marginTop: 4 }}>Photo de ton Audi, météo, prochain départ / retour FIK, argent du jour et une phrase Jarvis qui change chaque heure. Rouge Jarvis + or.</div>
       <div style={{ display: 'grid', gap: 6, marginTop: 10 }}>
         {li(1, <>Installe l'app gratuite <b>Scriptable</b> (App Store).</>)}
@@ -851,12 +852,12 @@ function Cerveau({ onAsk }: { onAsk: (p: string) => void }) {
             <Tile label="Séance" value={w.sport} />
             <Tile label="Énergie" value={w.energy != null ? `${w.energy}/10` : '—'} color={T.violet} />
           </div>
-          <div style={{ fontSize: 12.5, marginTop: 8 }}>➡️ Prochaine étape : {w.next}</div>
+          <div style={{ fontSize: 12.5, marginTop: 8 }}><Ico e="➡️" />Prochaine étape : {w.next}</div>
           <div style={{ fontSize: 11, color: T.faint, marginTop: 4 }}>C'est aussi le widget de ton écran d'accueil (app Scriptable).</div>
         </Card>
       )}
       <CarWidgetSetup />
-      <SectionTitle>🔘 Décisions en attente</SectionTitle>
+      <SectionTitle><Ico e="🔘" />Décisions en attente</SectionTitle>
       {!dec.length && <div style={{ color: T.faint, fontSize: 13 }}>Rien à décider. Quand Dzaryx a besoin de toi, les boutons arrivent ici et sur Telegram (réponds juste 1, 2 ou 3).</div>}
       {dec.map(d => (
         <Card key={d.id}>
@@ -869,7 +870,7 @@ function Cerveau({ onAsk }: { onAsk: (p: string) => void }) {
       {msg && <div style={{ fontSize: 12.5, whiteSpace: 'pre-wrap', color: T.muted }}>{msg}</div>}
       {crisis && (
         <>
-          <SectionTitle>🚨 Salle de crise</SectionTitle>
+          <SectionTitle><Ico e="🚨" />Salle de crise</SectionTitle>
           <Card accent={T.bad}>
             <div style={{ fontWeight: 800, fontSize: 15 }}>{crisis.title}</div>
             <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
@@ -882,11 +883,11 @@ function Cerveau({ onAsk }: { onAsk: (p: string) => void }) {
               ))}
             </div>
             <div style={{ fontSize: 11.5, color: T.faint, marginTop: 8 }}>{crisis.log.slice(-4).join(' · ')}</div>
-            <Btn onClick={() => onAsk('Ferme la salle de crise, c\'est réglé')} style={{ marginTop: 8 }}>🟢 C'est réglé</Btn>
+            <Btn onClick={() => onAsk('Ferme la salle de crise, c\'est réglé')} style={{ marginTop: 8 }}><Ico e="🟢" />C'est réglé</Btn>
           </Card>
         </>
       )}
-      <SectionTitle>📺 Écran partagé</SectionTitle>
+      <SectionTitle><Ico e="📺" />Écran partagé</SectionTitle>
       <div style={{ display: 'flex', gap: 8 }}>
         <Btn onClick={full} style={{ flex: 1 }}>⛶ Plein écran (télé / PC)</Btn>
         <Btn onClick={load}>↻</Btn>
@@ -940,17 +941,17 @@ export function Coach({ onAsk }: { onAsk: (prompt: string) => void }) {
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       {msg && <Card accent={T.accent}><div style={{ fontSize: 13.5, lineHeight: 1.5, whiteSpace: 'pre-wrap' }} dir="auto">{msg.replace(/\*\*/g, '')}</div></Card>}
-      <SectionTitle>☀️ Texte du jour</SectionTitle>
+      <SectionTitle><Ico e="☀️" />Texte du jour</SectionTitle>
       <Card>
         <div style={{ fontSize: 14, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{o.text ?? 'Ton texte arrive chaque matin à 7h15 (Telegram + ici).'}</div>
-        {!o.text && <Btn disabled={busy} onClick={() => act({ action: 'texte' })} style={{ marginTop: 8 }}>☀️ Mon texte maintenant</Btn>}
+        {!o.text && <Btn disabled={busy} onClick={() => act({ action: 'texte' })} style={{ marginTop: 8 }}><Ico e="☀️" />Mon texte maintenant</Btn>}
       </Card>
-      <SectionTitle>💼 Mes 3 actions qui rapportent {o.streak ? `· série ${o.streak} j 🔥` : ''}</SectionTitle>
+      <SectionTitle><Ico e="💼" />Mes 3 actions qui rapportent {o.streak ? `· série ${o.streak} j 🔥` : ''}</SectionTitle>
       <Card>
         {o.big3.length ? o.big3.map((t, k) => (
           <div key={k} onClick={() => !t.done && !busy && act({ action: 'fait', n: k + 1 })} style={{ fontSize: 13.5, padding: '7px 0', cursor: t.done ? 'default' : 'pointer', opacity: t.done ? 0.55 : 1 }}>{t.done ? '✅' : '⬜'} {t.text}</div>
-        )) : <Btn disabled={busy} onClick={() => act({ action: 'actions' })}>🎯 Tirer mes 3 actions du jour</Btn>}
-        {o.defi && <div style={{ fontSize: 12.5, color: T.muted, marginTop: 8 }}>🔥 Défi : {o.defi.text} <span onClick={() => !busy && act({ action: 'defi_fait' })} style={{ color: T.accent, cursor: 'pointer' }}>· ✅ fait aujourd'hui</span></div>}
+        )) : <Btn disabled={busy} onClick={() => act({ action: 'actions' })}><Ico e="🎯" />Tirer mes 3 actions du jour</Btn>}
+        {o.defi && <div style={{ fontSize: 12.5, color: T.muted, marginTop: 8 }}><Ico e="🔥" />Défi : {o.defi.text} <span onClick={() => !busy && act({ action: 'defi_fait' })} style={{ color: T.accent, cursor: 'pointer' }}>· ✅ fait aujourd'hui</span></div>}
       </Card>
       {o.piliers && <Card>
         {Object.entries(o.piliers).map(([k, v]) => (
@@ -961,31 +962,31 @@ export function Coach({ onAsk }: { onAsk: (prompt: string) => void }) {
           </div>
         ))}
       </Card>}
-      <SectionTitle>💼 Business — tous les jours</SectionTitle>
+      <SectionTitle><Ico e="💼" />Business — tous les jours</SectionTitle>
       <div style={grid}>{COACH_BIZ.map(([l, b]) => <Btn key={l} disabled={busy} onClick={() => act(b)}>{l}</Btn>)}</div>
-      <SectionTitle>🧠 Coach de vie</SectionTitle>
+      <SectionTitle><Ico e="🧠" />Coach de vie</SectionTitle>
       <div style={grid}>
         {COACH_VIE.map(([l, b]) => <Btn key={l} disabled={busy} onClick={() => act(b)}>{l}</Btn>)}
-        <Btn onClick={() => onAsk('Grand coach, mode tempête : ')}>⛈️ Ça va pas (tempête)</Btn>
-        <Btn onClick={() => onAsk('Examen du soir : 1) ce que j\'ai fait de bien : … 2) à faire mieux demain : … 3) j\'ai été là pour : …')}>📝 Examen du soir</Btn>
+        <Btn onClick={() => onAsk('Grand coach, mode tempête : ')}><Ico e="⛈️" />Ça va pas (tempête)</Btn>
+        <Btn onClick={() => onAsk('Examen du soir : 1) ce que j\'ai fait de bien : … 2) à faire mieux demain : … 3) j\'ai été là pour : …')}><Ico e="📝" />Examen du soir</Btn>
       </div>
-      <SectionTitle>🔭 Mon évolution & mon futur</SectionTitle>
+      <SectionTitle><Ico e="🔭" />Mon évolution & mon futur</SectionTitle>
       <div style={grid}>
-        <Btn disabled={busy} onClick={() => act({ action: 'futur' })}>🔭 Je serai quoi dans 1, 2, 5, 10 ans ?</Btn>
-        <Btn disabled={busy} onClick={() => act({ action: 'evolution' })}>📈 Mon score d'évolution</Btn>
+        <Btn disabled={busy} onClick={() => act({ action: 'futur' })}><Ico e="🔭" />Je serai quoi dans 1, 2, 5, 10 ans ?</Btn>
+        <Btn disabled={busy} onClick={() => act({ action: 'evolution' })}><Ico e="📈" />Mon score d'évolution</Btn>
       </div>
-      <SectionTitle>🚀 Coach + (il t'accompagne toute la journée)</SectionTitle>
+      <SectionTitle><Ico e="🚀" />Coach + (il t'accompagne toute la journée)</SectionTitle>
       <div style={grid}>
         {COACH_PLUS.map(([l, b]) => <Btn key={l} disabled={busy} onClick={() => act(b)}>{l}</Btn>)}
-        <Btn onClick={() => onAsk('Victoire : ')}>🏆 J'ai gagné…</Btn>
-        <Btn onClick={() => onAsk('Lettre à Ibrahim, ma réponse : ')}>✍️ Répondre à Ibrahim</Btn>
+        <Btn onClick={() => onAsk('Victoire : ')}><Ico e="🏆" />J'ai gagné…</Btn>
+        <Btn onClick={() => onAsk('Lettre à Ibrahim, ma réponse : ')}><Ico e="✍️" />Répondre à Ibrahim</Btn>
       </div>
-      <SectionTitle>👑 Que ferait un grand à ma place ?</SectionTitle>
+      <SectionTitle><Ico e="👑" />Que ferait un grand à ma place ?</SectionTitle>
       <Card>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {o.sages.map(n => <span key={n} onClick={() => setSage(n)} style={{ fontSize: 12, padding: '5px 9px', borderRadius: 999, cursor: 'pointer', background: sage === n ? T.accent : T.surface2, color: sage === n ? '#f2f2f5' : T.text, border: `1px solid ${T.line}` }}>{n}</span>)}
         </div>
-        <Btn disabled={!sage} onClick={() => onAsk(`Grand coach : que ferait ${sage} à ma place ? Ma question : `)} style={{ marginTop: 8 }}>👑 Poser ma question{sage ? ` à ${sage}` : ''}</Btn>
+        <Btn disabled={!sage} onClick={() => onAsk(`Grand coach : que ferait ${sage} à ma place ? Ma question : `)} style={{ marginTop: 8 }}><Ico e="👑" />Poser ma question{sage ? ` à ${sage}` : ''}</Btn>
       </Card>
       <div style={{ fontSize: 11.5, color: T.faint, textAlign: 'center' }}>Statut en Algérie : {o.statut.done}/{o.statut.total} démarches · le coach te suit seul : 7h15 (+ audio), arrivée au travail, 12h30, 16h, 18h30, sas avant la maison · il se tait quand tu conduis.</div>
     </div>
@@ -1014,7 +1015,7 @@ export function Vie({ onAsk }: { onAsk: (prompt: string) => void }) {
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       {o.readiness && <Card accent={T.ok}><div style={{ fontSize: 13.5, lineHeight: 1.45 }}>{o.readiness}</div>{o.curve && <div style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12, color: T.muted, whiteSpace: 'pre-wrap', marginTop: 8 }}>{o.curve}</div>}</Card>}
-      <SectionTitle>🗳️ Qui je deviens</SectionTitle>
+      <SectionTitle><Ico e="🗳️" />Qui je deviens</SectionTitle>
       <div style={{ display: 'grid', gap: 10 }}>
         {o.identities.map(i => (
           <Card key={i.name} style={{ padding: 0, overflow: 'hidden' }}>
@@ -1028,33 +1029,33 @@ export function Vie({ onAsk }: { onAsk: (prompt: string) => void }) {
           </Card>
         ))}
       </div>
-      <Btn onClick={() => onAsk('Je veux changer mes identités « qui je veux devenir »')}>✏️ Changer mes identités</Btn>
-      <SectionTitle>🧭 Mes intentions de la semaine</SectionTitle>
+      <Btn onClick={() => onAsk('Je veux changer mes identités « qui je veux devenir »')}><Ico e="✏️" />Changer mes identités</Btn>
+      <SectionTitle><Ico e="🧭" />Mes intentions de la semaine</SectionTitle>
       <Card>
         {o.intentions.length ? o.intentions.map((t, k) => (
           <div key={k} onClick={() => !t.done && act({ action: 'intention_faite', n: k + 1 })} style={{ fontSize: 13.5, padding: '6px 0', cursor: t.done ? 'default' : 'pointer', opacity: t.done ? 0.55 : 1 }}>{t.done ? '✅' : '⬜'} {t.text}</div>
         )) : <div style={{ fontSize: 13, color: T.faint }}>Choisies dimanche à la revue de vie (19h).</div>}
-        <Btn disabled={busy} onClick={() => act({ action: 'revue' })} style={{ marginTop: 8 }}>🧭 Lancer ma revue de vie maintenant</Btn>
+        <Btn disabled={busy} onClick={() => act({ action: 'revue' })} style={{ marginTop: 8 }}><Ico e="🧭" />Lancer ma revue de vie maintenant</Btn>
       </Card>
-      <SectionTitle>💑 Soirée à deux</SectionTitle>
+      <SectionTitle><Ico e="💑" />Soirée à deux</SectionTitle>
       <Card>
         <div style={{ fontSize: 13.5 }}>{o.couple ? `Prochaine : ${o.couple.place} — ${o.couple.date.slice(8)}/${o.couple.date.slice(5, 7)} à ${o.couple.time.replace(':', 'h')}` : 'Je te propose une idée tous les 15 jours (mercredi midi).'}</div>
-        <Btn disabled={busy} onClick={() => act({ action: 'couple', op: 'propose' })} style={{ marginTop: 8 }}>💡 Une idée maintenant</Btn>
+        <Btn disabled={busy} onClick={() => act({ action: 'couple', op: 'propose' })} style={{ marginTop: 8 }}><Ico e="💡" />Une idée maintenant</Btn>
       </Card>
-      <SectionTitle>🛑 Décisions</SectionTitle>
+      <SectionTitle><Ico e="🛑" />Décisions</SectionTitle>
       <Card>
         {o.decisions.length ? o.decisions.map(d => <div key={d.id} style={{ fontSize: 13, padding: '4px 0' }}>• {d.text}<span style={{ color: T.faint }}>{d.verdict ? ` → ${d.verdict}` : ` (bilan le ${d.followAt.slice(8)}/${d.followAt.slice(5, 7)})`}</span></div>)
           : <div style={{ fontSize: 13, color: T.faint }}>Dis « je veux acheter / investir / m'associer… » : je te fais le conseil avant de décider.</div>}
-        <Btn onClick={() => onAsk('J\'ai une grosse décision à prendre : ')} style={{ marginTop: 8 }}>🛑 J'ai une décision à prendre</Btn>
+        <Btn onClick={() => onAsk('J\'ai une grosse décision à prendre : ')} style={{ marginTop: 8 }}><Ico e="🛑" />J'ai une décision à prendre</Btn>
       </Card>
       <Card>
         <div style={{ fontSize: 13, lineHeight: 1.5 }}>{o.water}</div>
         {o.prayer && <div style={{ fontSize: 13, lineHeight: 1.5, marginTop: 6 }}>{o.prayer}</div>}
         <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-          <Btn disabled={busy} onClick={() => act({ action: 'priere', op: 'rappels_on' })}>🔔 Rappels prière</Btn>
-          <Btn disabled={busy} onClick={() => act({ action: 'priere', op: 'rappels_off' })}>🔕 Sans rappel</Btn>
-          <Btn disabled={busy} onClick={() => act({ action: 'rapport' })}>📄 Rapport santé PDF</Btn>
-          <Btn disabled={busy} onClick={() => act({ action: 'correlations' })}>🔬 Mes bons jours</Btn>
+          <Btn disabled={busy} onClick={() => act({ action: 'priere', op: 'rappels_on' })}><Ico e="🔔" />Rappels prière</Btn>
+          <Btn disabled={busy} onClick={() => act({ action: 'priere', op: 'rappels_off' })}><Ico e="🔕" />Sans rappel</Btn>
+          <Btn disabled={busy} onClick={() => act({ action: 'rapport' })}><Ico e="📄" />Rapport santé PDF</Btn>
+          <Btn disabled={busy} onClick={() => act({ action: 'correlations' })}><Ico e="🔬" />Mes bons jours</Btn>
         </div>
       </Card>
       {msg && <Card accent={T.accent}><div style={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{msg}</div></Card>}
@@ -1078,7 +1079,7 @@ function SanteSiri() {
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <Card accent={T.ok}>
-        <div style={{ fontWeight: 800, fontSize: 15 }}>🩺 Jarvis santé</div>
+        <div style={{ fontWeight: 800, fontSize: 15 }}><Ico e="🩺" />Jarvis santé</div>
         <div style={{ fontSize: 12.5, color: T.muted, whiteSpace: 'pre-wrap', marginTop: 6 }}>{text || 'Chargement…'}</div>
       </Card>
       <Card>
@@ -1092,7 +1093,7 @@ function SanteSiri() {
         </div>
       </Card>
       <Card accent={T.warn}>
-        <div style={{ fontWeight: 800, fontSize: 14.5, marginBottom: 4 }}>⌚ Séance en direct avec la montre</div>
+        <div style={{ fontWeight: 800, fontSize: 14.5, marginBottom: 4 }}><Ico e="⌚" />Séance en direct avec la montre</div>
         <div style={{ fontSize: 12.5, color: T.muted, marginBottom: 8 }}>Dès que tu lances un entraînement sur l'Apple Watch, Dzaryx le sait : tapis fini → il t'envoie la muscu ; fin → durée, calories, cœur moyen / max, minutes par zone, comparaison avec la dernière fois et bilan. Tu n'as rien à lui dire.</div>
         <div style={{ display: 'grid', gap: 8 }}>
           {step(1, <>Raccourcis › <b>Automatisation</b> › <b>+</b> › <b>Entraînement Apple Watch</b> › <b>Commence</b> › choisis <b>Course en salle, Marche en salle, Elliptique, Vélo en salle</b> › <b>Exécuter immédiatement</b>.</>)}
@@ -1104,7 +1105,7 @@ function SanteSiri() {
         </div>
       </Card>
       <Card accent={T.accent}>
-        <div style={{ fontWeight: 800, fontSize: 14.5, marginBottom: 4 }}>🍏 « Dis Siri, Dzaryx » — ton iPhone à la voix</div>
+        <div style={{ fontWeight: 800, fontSize: 14.5, marginBottom: 4 }}><Ico e="🍏" />« Dis Siri, Dzaryx » — ton iPhone à la voix</div>
         <div style={{ fontSize: 12.5, color: T.muted, marginBottom: 8 }}>Tu dis « Dis Siri, Dzaryx », tu parles, Dzaryx répond à voix haute et utilise tous ses outils (clients, WhatsApp Business, papiers des clients → Telegram), appelle, envoie un SMS, ouvre Waze, la musique… et te répond en conversation suivie.</div>
         <div style={{ display: 'grid', gap: 8 }}>
           {step(1, <>Raccourcis › <b>+</b> › nomme-le exactement <b>Dzaryx</b>.</>)}
@@ -1113,7 +1114,7 @@ function SanteSiri() {
           {step(4, <>Ajoute <b>Obtenir la valeur du dictionnaire</b> « say » → <b>Énoncer le texte</b>.</>)}
           {step(5, <>Ajoute <b>Obtenir la valeur du dictionnaire</b> « url » → <b>Si</b> elle a une valeur → <b>Ouvrir les URL</b>.</>)}
           {step(6, <>⚠️ <b>Indispensable pour discuter</b> : ajoute <b>Obtenir la valeur du dictionnaire</b> « listen » → <b>Si</b> elle a une valeur → <b>Exécuter le raccourci</b> « Dzaryx ». Le micro se rouvre après CHAQUE réponse : tu enchaînes comme sur Telegram. Pour finir : « merci », « c'est bon » ou tu ne dis rien.</>)}
-          {step(7, <>💬 Pour une <b>vraie conversation libre</b> (tu lui coupes la parole, il t'écoute en continu) : « Dis Siri, Dzaryx » puis <b>« appelle-moi »</b> → il t'appelle sur Telegram dans la seconde, avec tous ses outils et la suite de ce que vous disiez.</>)}
+          {step(7, <><Ico e="💬" />Pour une <b>vraie conversation libre</b> (tu lui coupes la parole, il t'écoute en continu) : « Dis Siri, Dzaryx » puis <b>« appelle-moi »</b> → il t'appelle sur Telegram dans la seconde, avec tous ses outils et la suite de ce que vous disiez.</>)}
         </div>
         <div style={{ fontSize: 11.5, color: T.faint, marginTop: 8 }}>Ta clé est personnelle : ne la partage avec personne. Si tu te déconnectes de l'app, recopie la nouvelle.</div>
       </Card>

@@ -4,6 +4,7 @@ import { forme, errText, compressImage, vibrate, type MachineScan, type MachineE
 import { F, card, btn, ghostBtn, Spinner } from './ui.tsx';
 import { ExTile, ExerciseSheet } from './Exercises.tsx';
 import { readLive, addToLive } from './Sport.tsx';
+import { Ico } from '../components/ui/Icon.tsx';
 
 // 📷 SCANNER (Kouider 31/10) : il prend une machine de la salle en photo → l'appareil est reconnu, comment le régler,
 // et les exercices à faire dessus EN IMAGES (tuiles comme la bibliothèque) + un lien vidéo YouTube (pas obligé de l'ouvrir).
@@ -52,7 +53,7 @@ export default function ScanScreen({ toast }: { toast: (t: string) => void }) {
           <div style={{ fontSize: 13, opacity: 0.8 }}>Poulie, presse, banc, haltères, cardio…</div>
         </motion.button>
       )}
-      {!scan && !busy && <button onClick={() => lib.current?.click()} style={{ ...ghostBtn, width: '100%', marginTop: 10 }}>🖼️ Choisir une photo dans la galerie</button>}
+      {!scan && !busy && <button onClick={() => lib.current?.click()} style={{ ...ghostBtn, width: '100%', marginTop: 10 }}><Ico e="🖼️" />Choisir une photo dans la galerie</button>}
 
       {busy && (
         <div style={{ ...card, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: 24 }}>
@@ -73,7 +74,7 @@ export default function ScanScreen({ toast }: { toast: (t: string) => void }) {
             <div style={{ fontSize: 13, color: F.muted, marginTop: 4, lineHeight: 1.35 }}>{scan.what}</div>
           </div>
         </div>
-        {scan.setup && <div style={{ ...card, marginTop: 10, background: F.soft, boxShadow: 'none', fontSize: 14, lineHeight: 1.45 }}><b>⚙️ Réglage</b><br />{scan.setup}</div>}
+        {scan.setup && <div style={{ ...card, marginTop: 10, background: F.soft, boxShadow: 'none', fontSize: 14, lineHeight: 1.45 }}><b><Ico e="⚙️" />Réglage</b><br />{scan.setup}</div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', margin: '18px 2px 10px' }}>
           <div style={{ fontWeight: 700, fontSize: 18 }}>Exercices sur cette machine</div>
           <div style={{ fontSize: 12.5, color: F.muted }}>{scan.exercises.length}</div>
@@ -82,13 +83,13 @@ export default function ScanScreen({ toast }: { toast: (t: string) => void }) {
           {scan.exercises.map((x, i) => (
             <div key={i} style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <ExTile name={x.name} sub={x.muscles.join(', ')} img={x.img} favId={x.id} onClick={() => setPick(x)} badge={i === 0 ? 'Le classique' : undefined} />
-              <a href={x.video} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 12.5, fontWeight: 600, color: F.accent, textDecoration: 'none', padding: '6px 4px 0' }}>▶ Vidéo de la technique</a>
+              <a href={x.video} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 12.5, fontWeight: 600, color: F.accent, textDecoration: 'none', padding: '6px 4px 0' }}><Ico e="▶" />Vidéo de la technique</a>
             </div>
           ))}
         </div>
         {readLive() && <button onClick={() => { if (addToLive(scan.exercises.slice(0, 1))) { vibrate(40); toast(`✅ ${scan.exercises[0]!.name} ajouté à ta séance en cours (Entraînement › Reprendre)`); } }} style={{ ...btn, width: '100%', marginTop: 16 }}>＋ Ajouter « {scan.exercises[0]!.name} » à ma séance en cours</button>}
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-          <button onClick={() => cam.current?.click()} style={{ ...btn, flex: 1 }}>📷 Autre machine</button>
+          <button onClick={() => cam.current?.click()} style={{ ...btn, flex: 1 }}><Ico e="📷" />Autre machine</button>
           <button onClick={() => { setScan(null); setErr(''); }} style={{ ...ghostBtn }}>Fermer</button>
         </div>
       </>}

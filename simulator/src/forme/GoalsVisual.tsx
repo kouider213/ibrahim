@@ -4,6 +4,7 @@ import { get, type GoalsView } from './api.ts';
 import { F, card, darkCard, Ring, Bar, LineChart } from './ui.tsx';
 import { ExerciseSheet } from './Exercises.tsx';
 import type { Cut } from './Cut.tsx';
+import { Ico } from '../components/ui/Icon.tsx';
 
 // 🎯 OBJECTIFS « PRO » (Kouider 02/11 : « trop simple, je veux un truc visuel avec des images, des conseils… la meilleure
 // de toutes »). Le meilleur de ~20 applis, avec SES vraies données uniquement :
@@ -135,7 +136,7 @@ export function GoalBody({ g, onEx, details }: { g: GoalsView; onEx: (id: string
           style={{ ...card, padding: 0, overflow: 'hidden', minWidth: 210, maxWidth: 210, scrollSnapAlign: 'start', flexShrink: 0 }}>
           <div style={{ position: 'relative', height: 110, background: F.tile }}>
             {ex?.img && <img src={ex.img} alt="" loading="lazy" onClick={() => onEx(ex.id)} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', cursor: 'pointer' }} />}
-            {star && <div style={{ position: 'absolute', left: 8, top: 8, background: F.gold, color: '#fff', borderRadius: 999, padding: '3px 9px', fontSize: 11, fontWeight: 900 }}>⭐ PRIORITÉ</div>}
+            {star && <div style={{ position: 'absolute', left: 8, top: 8, background: F.gold, color: '#fff', borderRadius: 999, padding: '3px 9px', fontSize: 11, fontWeight: 900 }}><Ico e="⭐" />PRIORITÉ</div>}
             <div style={{ position: 'absolute', right: 8, bottom: -26 }}>
               <div style={{ background: 'var(--f-card)', borderRadius: 40, padding: 3, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
                 <Ring value={z.now ?? 0} max={100} size={56} stroke={6} color={z.now == null ? F.muted : lvlColor(z.now)} track={F.tile}>
@@ -192,7 +193,7 @@ export function GoalJourney({ g, onToggle, details }: { g: GoalsView; onToggle: 
             {i < p.milestones.length - 1 && <div style={{ width: 3, flex: 1, minHeight: 26, background: m.done ? F.green : F.line, borderRadius: 2, margin: '2px 0' }} />}
           </div>
           <div style={{ flex: 1, paddingBottom: 14 }}>
-            {here && <div style={{ fontSize: 10.5, fontWeight: 900, color: F.accent, letterSpacing: '0.08em' }}>📍 TU ES ICI</div>}
+            {here && <div style={{ fontSize: 10.5, fontWeight: 900, color: F.accent, letterSpacing: '0.08em' }}><Ico e="📍" />TU ES ICI</div>}
             <div style={{ fontSize: 12, fontWeight: 800, color: late ? F.red : F.muted }}>{fmt(m.date)} · semaine {m.week}{late ? ' · en retard' : ''}</div>
             <div style={{ fontSize: 15, fontWeight: 800, textDecoration: m.done ? 'line-through' : 'none', color: m.done ? F.muted : F.ink }}>{m.title}</div>
             {details && m.check && !m.done && <div style={{ fontSize: 12.5, color: F.muted, marginTop: 2 }}>{m.check}</div>}
@@ -317,7 +318,7 @@ export function GoalEvolution({ g }: { g: GoalsView }) {
     </div> : after ? <div style={{ position: 'relative', aspectRatio: '3 / 4', borderRadius: 22, overflow: 'hidden' }}>
       <img src={after.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
       <div style={{ position: 'absolute', left: 10, top: 10, background: F.accent, color: '#fff', borderRadius: 999, padding: '4px 10px', fontSize: 11.5, fontWeight: 800 }}>{tag(after, 'DÉPART')}</div>
-      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '30px 14px 12px', background: 'linear-gradient(transparent, rgba(0,0,0,0.75))', color: '#fff', textAlign: 'center', fontWeight: 800, fontSize: 13 }}>📸 Prochaine photo dans la même pose → l'avant / après apparaît</div>
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '30px 14px 12px', background: 'linear-gradient(transparent, rgba(0,0,0,0.75))', color: '#fff', textAlign: 'center', fontWeight: 800, fontSize: 13 }}><Ico e="📸" />Prochaine photo dans la même pose → l'avant / après apparaît</div>
     </div> : null}
     {list.length > 1 && <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '10px 2px 2px' }}>
       {list.map(x => { const on = x.id === before?.id; const last = x.id === after?.id; return <button key={x.id} onClick={() => !last && setBeforeId(x.id)} style={{ position: 'relative', flexShrink: 0, width: 76, height: 100, padding: 0, borderRadius: 14, overflow: 'hidden', border: `3px solid ${on ? F.gold : last ? F.accent : 'transparent'}`, cursor: last ? 'default' : 'pointer', background: F.tile }}>

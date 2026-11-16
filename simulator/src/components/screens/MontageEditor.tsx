@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { business, type EditOptions, type EditTimelineText } from '../../services/api.ts';
+import { Ico } from '../ui/Icon.tsx';
 
 // ÉDITEUR façon CapCut (gratuit, illimité, sans filigrane) : tes rushes → timeline → coupes, vitesse, volume,
 // textes, filtres, sous-titres auto, musique, format, signature FIK → export rendu par le serveur.
 // « 🪄 Dzaryx monte tout » = montage automatique (silences coupés, zooms, accroche, sous-titres).
 
 const C = {
-  surface: 'var(--dz-surface)', border: 'rgba(var(--dz-ink-rgb),0.16)', accent: 'var(--dz-ink)', green: '#2f5bff', gold: '#b86e00', red: '#e0304f',
+  surface: 'var(--dz-surface)', border: 'rgba(var(--dz-ink-rgb),0.16)', accent: '#3d6bff', green: '#2f5bff', gold: '#b86e00', red: '#e0304f',
   text: 'var(--dz-text)', muted: 'var(--dz-muted)', font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 const btn = (bg: string, color: string) => ({ background: bg, color, border: 'none', borderRadius: 10, padding: '10px 13px', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: C.font } as const);
@@ -301,11 +302,11 @@ export default function MontageEditor({ onExported, say }: { onExported: () => v
               onChange={e => patch(selected.id, { start: 0, end: Number(e.target.value) })} />
           )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-            {selected.type === 'video' && <button style={chip(false)} onClick={splitHere}>✂️ Couper ici</button>}
-            <button style={chip(false)} onClick={() => move(-1)}>◀ Avant</button>
+            {selected.type === 'video' && <button style={chip(false)} onClick={splitHere}><Ico e="✂️" />Couper ici</button>}
+            <button style={chip(false)} onClick={() => move(-1)}><Ico e="◀" />Avant</button>
             <button style={chip(false)} onClick={() => move(1)}>Après ▶</button>
             <button style={chip(false)} onClick={duplicate}>⧉ Dupliquer</button>
-            <button style={{ ...chip(false), color: C.red }} onClick={remove}>🗑 Supprimer</button>
+            <button style={{ ...chip(false), color: C.red }} onClick={remove}><Ico e="🗑" />Supprimer</button>
           </div>
         </>)}
         {tool === 'speed' && selected && (selected.type === 'image' ? <div style={small}>La vitesse s'applique aux vidéos.</div> : (
@@ -316,7 +317,7 @@ export default function MontageEditor({ onExported, say }: { onExported: () => v
         {tool === 'volume' && selected && (<>
           <div style={small}>Son du plan : {Math.round(selected.volume * 100)} %</div>
           <input type="range" min={0} max={2} step={0.05} value={selected.volume} style={{ width: '100%' }} onChange={e => patch(selected.id, { volume: Number(e.target.value) })} />
-          <button style={chip(selected.volume === 0)} onClick={() => patch(selected.id, { volume: selected.volume === 0 ? 1 : 0 })}>🔇 Couper le son</button>
+          <button style={chip(selected.volume === 0)} onClick={() => patch(selected.id, { volume: selected.volume === 0 ? 1 : 0 })}><Ico e="🔇" />Couper le son</button>
         </>)}
         {tool === 'text' && (<>
           {texts.map((t, k) => (
@@ -339,7 +340,7 @@ export default function MontageEditor({ onExported, say }: { onExported: () => v
             <div style={{ fontSize: 13 }}>🎵 {music.name} {music.url ? '✅' : `⏳ ${music.progress} %`}</div>
             <div style={{ ...small, marginTop: 6 }}>Volume : {Math.round(musicVol * 100)} % (baisse toute seule quand on parle)</div>
             <input type="range" min={0} max={1.5} step={0.05} value={musicVol} style={{ width: '100%' }} onChange={e => setMusicVol(Number(e.target.value))} />
-            <button style={{ ...chip(false), color: C.red }} onClick={() => setMusic(null)}>🗑 Enlever</button>
+            <button style={{ ...chip(false), color: C.red }} onClick={() => setMusic(null)}><Ico e="🗑" />Enlever</button>
           </>) : <button style={btn('rgba(var(--dz-ink-rgb),0.072)', C.text)} onClick={() => musicIn.current?.click()}>＋ Choisir une musique (fichier audio)</button>}
         </>)}
         {tool === 'look' && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{looks.map(l => <button key={l.id} style={chip(look === l.id)} onClick={() => setLook(l.id)}>{l.label}</button>)}</div>}
@@ -351,7 +352,7 @@ export default function MontageEditor({ onExported, say }: { onExported: () => v
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {[['9:16', 'TikTok / Reels'], ['1:1', 'Carré'], ['16:9', 'YouTube']].map(([f, l]) => <button key={f} style={chip(format === f)} onClick={() => setFormat(f!)}>{f} {l}</button>)}
           </div>
-          <button style={{ ...chip(outro), marginTop: 8 }} onClick={() => setOutro(!outro)}>🔑 Signature FIK à la fin {outro ? 'oui' : 'non'}</button>
+          <button style={{ ...chip(outro), marginTop: 8 }} onClick={() => setOutro(!outro)}><Ico e="🔑" />Signature FIK à la fin {outro ? 'oui' : 'non'}</button>
         </>)}
       </div>
 
@@ -360,8 +361,8 @@ export default function MontageEditor({ onExported, say }: { onExported: () => v
         <textarea style={{ ...input, resize: 'vertical' }} rows={2} value={brief} onChange={e => setBrief(e.target.value)}
           placeholder="Dis à Dzaryx ce que tu veux (ex. pub pour la Clio, ambiance été, en darija)…" />
         <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-          <button style={{ ...btn(C.gold, '#f2f2f5'), flex: 1, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void exportAuto()}>🪄 Dzaryx monte tout</button>
-          <button style={{ ...btn(C.accent, '#f2f2f5'), flex: 1, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void exportManual()}>⬆️ Exporter mon montage</button>
+          <button style={{ ...btn(C.gold, '#f2f2f5'), flex: 1, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void exportAuto()}><Ico e="🪄" />Dzaryx monte tout</button>
+          <button style={{ ...btn(C.accent, '#f2f2f5'), flex: 1, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void exportManual()}><Ico e="⬆️" />Exporter mon montage</button>
         </div>
         <div style={{ ...small, marginTop: 6, lineHeight: 1.4 }}>
           0 €, sans filigrane, sans limite. « Dzaryx monte tout » coupe les blancs, ajoute zooms, accroche, sous-titres et voix off si tes vidéos sont muettes. Max 50 Mo par fichier.

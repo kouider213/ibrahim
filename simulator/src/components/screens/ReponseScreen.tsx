@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { business } from '../../services/api.ts';
 import { T, Screen, PageHeader, Segmented, Field, inputStyle, Btn, Card, SectionTitle } from '../ui/Kit.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 const LANGS = [{ id: 'fr', label: '🇫🇷 Français' }, { id: 'ar', label: '🇩🇿 Darija' }, { id: 'en', label: '🇬🇧 Anglais' }];
 const TONES = [
@@ -64,10 +65,10 @@ export default function ReponseScreen() {
           <SectionTitle>Réponse proposée</SectionTitle>
           <textarea value={reply} onChange={e => setReply(e.target.value)} rows={7} dir={lang === 'ar' ? 'rtl' : 'ltr'} style={{ ...area, fontSize: 15, lineHeight: 1.6, marginBottom: 10 }} />
           <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <Btn variant="ghost" onClick={copy} style={{ flex: 1 }}>📋 Copier</Btn>
-            <Btn variant="ghost" onClick={() => void draft()} disabled={busy} style={{ flex: 1 }}>🔄 Autre version</Btn>
+            <Btn variant="ghost" onClick={copy} style={{ flex: 1 }}><Ico e="📋" />Copier</Btn>
+            <Btn variant="ghost" onClick={() => void draft()} disabled={busy} style={{ flex: 1 }}><Ico e="🔄" />Autre version</Btn>
           </div>
-          <Btn onClick={send} style={{ width: '100%', background: '#25D366', color: '#ffffff', border: 'none' }}>💬 Envoyer sur WhatsApp</Btn>
+          <Btn onClick={send} style={{ width: '100%', background: '#25D366', color: '#ffffff', border: 'none' }}><Ico e="💬" />Envoyer sur WhatsApp</Btn>
           <div style={{ fontSize: 12, color: T.faint, marginTop: 8, textAlign: 'center' }}>Rien ne part sans toi : WhatsApp s'ouvre avec le texte prêt.</div>
         </div>
       )}

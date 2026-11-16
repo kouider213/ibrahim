@@ -4,6 +4,7 @@ import { forme, errText, compressImage, vibrate, type FoodBudget, type FoodCfg, 
 import { F, card, darkCard, btn, ghostBtn, input, Ring, Bar, Sheet, Spinner } from './ui.tsx';
 import { BulkCard, BulkQuiz } from './Bulk.tsx';
 import type { Overview } from './api.ts';
+import { Ico } from '../components/ui/Icon.tsx';
 
 // 🍽️ REPAS (Kouider 31/10, « style Cal AI ») : photo du plat → chaque aliment, grammes, kcal, protéines.
 // Le budget vient de sa montre (dépense − déficit) ; Dzaryx commente sur Telegram après chaque photo et toute la journée.
@@ -129,7 +130,7 @@ export default function FoodScreen({ toast, o, onO }: { toast: (t: string) => vo
           </motion.button>
           <input value={note} onChange={e => setNote(e.target.value)} placeholder="Précision (facultatif) : « 200 g de riz », « sans huile »…" style={{ ...input, marginTop: 10, fontSize: 14 }} />
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <button onClick={() => lib.current?.click()} style={{ ...ghostBtn, flex: 1 }}>🖼️ Galerie</button>
+            <button onClick={() => lib.current?.click()} style={{ ...ghostBtn, flex: 1 }}><Ico e="🖼️" />Galerie</button>
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void byText(); }} placeholder="Ou écris : « 2 œufs et une tartine »" style={{ ...input, flex: 1, fontSize: 14 }} />
@@ -143,7 +144,7 @@ export default function FoodScreen({ toast, o, onO }: { toast: (t: string) => vo
         <div style={{ ...card, marginTop: 14, borderLeft: `4px solid ${F.green}` }}>
           <div style={{ fontSize: 12, color: F.muted, fontWeight: 600, marginBottom: 6 }}>DZARYX · aussi envoyé sur Telegram</div>
           <div style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{last.message}</div>
-          <button onClick={() => setOpen(last.meal)} style={{ ...ghostBtn, marginTop: 10, width: '100%' }}>✏️ Corriger les grammes</button>
+          <button onClick={() => setOpen(last.meal)} style={{ ...ghostBtn, marginTop: 10, width: '100%' }}><Ico e="✏️" />Corriger les grammes</button>
         </div>
       )}
 
@@ -217,8 +218,8 @@ function Settings({ cfg, onSave, bulk, kouider, onQuiz, goalMuscle }: { cfg: Foo
   const [d, setD] = useState(cfg.deficit);
   return (
     <div style={{ paddingTop: 8 }}>
-      {bulk ? <div style={{ ...card, padding: 14, marginBottom: 12 }}><div style={{ fontWeight: 700 }}>💪 Mode prise de masse</div><div style={{ fontSize: 13, color: F.muted, margin: '4px 0 10px' }}>Ton objectif est « Prendre du muscle » : FORME vise un SURPLUS de calories, pas un déficit. Pour changer le rythme, refais le questionnaire.</div><button onClick={onQuiz} style={{ ...btn, width: '100%' }}>Questionnaire prise de masse</button></div> : <>
-      {!goalMuscle && !kouider && <button onClick={onQuiz} style={{ ...card, width: '100%', border: 'none', textAlign: 'start', cursor: 'pointer', fontFamily: F.sans, color: F.ink, marginBottom: 12 }}><div style={{ fontWeight: 700 }}>💪 Tu veux prendre du poids / du muscle ?</div><div style={{ fontSize: 13, color: F.muted }}>Fais le questionnaire prise de masse : FORME passe en surplus au lieu du déficit.</div></button>}
+      {bulk ? <div style={{ ...card, padding: 14, marginBottom: 12 }}><div style={{ fontWeight: 700 }}><Ico e="💪" />Mode prise de masse</div><div style={{ fontSize: 13, color: F.muted, margin: '4px 0 10px' }}>Ton objectif est « Prendre du muscle » : FORME vise un SURPLUS de calories, pas un déficit. Pour changer le rythme, refais le questionnaire.</div><button onClick={onQuiz} style={{ ...btn, width: '100%' }}>Questionnaire prise de masse</button></div> : <>
+      {!goalMuscle && !kouider && <button onClick={onQuiz} style={{ ...card, width: '100%', border: 'none', textAlign: 'start', cursor: 'pointer', fontFamily: F.sans, color: F.ink, marginBottom: 12 }}><div style={{ fontWeight: 700 }}><Ico e="💪" />Tu veux prendre du poids / du muscle ?</div><div style={{ fontSize: 13, color: F.muted }}>Fais le questionnaire prise de masse : FORME passe en surplus au lieu du déficit.</div></button>}
       <div style={{ fontWeight: 600, marginBottom: 6 }}>Déficit par jour : {d} kcal</div>
       <div style={{ fontSize: 13, color: F.muted, marginBottom: 8 }}>≈ {(d * 7 / 7700).toFixed(1).replace('.', ',')} kg perdu par semaine. Au-delà de 750 on perd du muscle.</div>
       <input type="range" min={0} max={750} step={50} value={d} onChange={e => setD(Number(e.target.value))} style={{ width: '100%' }} />
@@ -254,7 +255,7 @@ function DeficitCard({ b, me, onRefresh }: { b: FoodBudget; me: boolean; onRefre
   );
   return (
     <div style={{ ...card, marginBottom: 14 }}>
-      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 10 }}>🔥 Calories brûlées aujourd'hui{b.asOf ? <span style={{ fontSize: 12.5, fontWeight: 500, color: F.muted }}> · en direct {b.asOf}</span> : null}</div>
+      <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 10 }}><Ico e="🔥" />Calories brûlées aujourd'hui{b.asOf ? <span style={{ fontSize: 12.5, fontWeight: 500, color: F.muted }}> · en direct {b.asOf}</span> : null}</div>
       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
         {cell('Brûlé jusqu\'ici', String(now), '#e8590c')}
         <div style={{ color: F.muted, fontWeight: 700 }}>−</div>
@@ -269,7 +270,7 @@ function DeficitCard({ b, me, onRefresh }: { b: FoodBudget; me: boolean; onRefre
         {ok ? (b.left > 0 ? `✅ Objectif atteint. Si tu manges tes ${b.left} kcal restantes, ton déficit retombe à ${goal} kcal : c'est ton minimum, pile dans l'objectif.` : `✅ Déficit du jour : ${real} kcal (objectif ${goal})`) : real < 0 ? `⚠️ Tu as mangé ${-real} kcal de plus que ta dépense — il manque ${missing} kcal pour ton déficit` : `⚠️ Déficit ${real} / ${goal} kcal — il manque ${missing} kcal`}
       </div>
       <div style={{ fontSize: 12, color: F.muted, marginTop: 4 }}>{b.burnedNow != null ? `Jusqu'ici : ${b.burnedNow - (b.activeNow ?? 0)} kcal brûlées par ton corps seul depuis minuit (même en dormant) + ${b.activeNow ?? 0} d'activité (${b.nowSource === 'montre' ? 'montre ⌚' : 'estimée, la montre précise quand elle envoie'}). ` : ''}Journée : base {b.bmr} + activité {b.active} kcal — {measured ? 'mesurée par ta montre ⌚' : 'estimation : ta montre n\'a pas encore envoyé ta journée'}.</div>
-      {me && !measured && <a href={`shortcuts://run-shortcut?name=${encodeURIComponent('Dzaryx Santé')}`} style={{ ...ghostBtn, display: 'block', textAlign: 'center', textDecoration: 'none', marginTop: 10, color: F.ink }}>⌚ Mettre à jour avec ma montre</a>}
+      {me && !measured && <a href={`shortcuts://run-shortcut?name=${encodeURIComponent('Dzaryx Santé')}`} style={{ ...ghostBtn, display: 'block', textAlign: 'center', textDecoration: 'none', marginTop: 10, color: F.ink }}><Ico e="⌚" />Mettre à jour avec ma montre</a>}
       {!ok && !plan && <button onClick={() => void showPlan()} disabled={busy} style={{ ...btn, width: '100%', marginTop: 10 }}>{busy ? '…' : '🏠 Exercices maison pour l\'atteindre'}</button>}
       {plan && (
         <div style={{ marginTop: 12, background: F.bg, borderRadius: 16, padding: 12 }}>

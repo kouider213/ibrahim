@@ -4,6 +4,7 @@ import { Hero, StatCard } from '../ui/Premium.tsx';
 import { Segmented, btnStyle } from '../ui/Kit.tsx';
 import { business, getOrCreateSessionId, type SiteProperty } from '../../services/api.ts';
 import { InspectionModal } from './FleetScreen.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 // ── Palette sombre premium (cartes sur obsidian + accent bleu) ──
 const C = {
@@ -273,7 +274,7 @@ export default function ImmoProScreen() {
                 </div>
               )}
               <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => { const arr = Array.from(e.target.files ?? []); e.target.value = ''; void addFiles(arr); }} />
-              <button onClick={() => fileRef.current?.click()} style={{ width: '100%', padding: '10px 0', borderRadius: 11, border: `1px dashed color-mix(in srgb, ${C.gold} 33%, transparent)`, background: `color-mix(in srgb, ${C.gold} 6%, transparent)`, color: C.goldSoft, fontFamily: C.font, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>🖼️ Ajouter des photos</button>
+              <button onClick={() => fileRef.current?.click()} style={{ width: '100%', padding: '10px 0', borderRadius: 11, border: `1px dashed color-mix(in srgb, ${C.gold} 33%, transparent)`, background: `color-mix(in srgb, ${C.gold} 6%, transparent)`, color: C.goldSoft, fontFamily: C.font, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}><Ico e="🖼️" />Ajouter des photos</button>
             </Field>
 
             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>

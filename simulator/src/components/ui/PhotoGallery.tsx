@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { business } from '../../services/api.ts';
 import { T, tone, Sheet, Btn, Empty } from './Kit.tsx';
+import { Ico } from './Icon.tsx';
 
 export type GalleryKind = 'car' | 'property' | 'sale';
 
@@ -126,7 +127,7 @@ export default function PhotoGallery({ kind, id, name, onClose, onChanged, fixed
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
           {photos.map((url, i) => (
             <button key={url} onClick={() => setView(i)} style={{ position: 'relative', aspectRatio: '1', borderRadius: 13, overflow: 'hidden', border: url === cover ? `2px solid ${T.warn}` : `1px solid ${T.line}`, background: `${T.surface2} url(${url}) center/cover`, cursor: 'pointer', padding: 0 }}>
-              {url === cover && <span style={{ position: 'absolute', top: 5, left: 5, fontSize: 11, fontWeight: 800, padding: '2px 7px', borderRadius: 8, background: T.warn, color: '#ffffff' }}>⭐ Site</span>}
+              {url === cover && <span style={{ position: 'absolute', top: 5, left: 5, fontSize: 11, fontWeight: 800, padding: '2px 7px', borderRadius: 8, background: T.warn, color: '#ffffff' }}><Ico e="⭐" />Site</span>}
               {busy === url && <span style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>⏳</span>}
             </button>
           ))}
@@ -151,9 +152,9 @@ export default function PhotoGallery({ kind, id, name, onClose, onChanged, fixed
             </>}
           </div>
           <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 8, padding: '12px 14px calc(16px + env(safe-area-inset-bottom))' }}>
-            <Btn onClick={() => void savePhoto(photos[view], name)} style={{ flex: 1 }}>⬇️ Enregistrer</Btn>
-            {photos[view] !== cover && <Btn onClick={() => void makeCover(photos[view])} color={T.warn} disabled={!!busy} style={{ flex: 1 }}>⭐ Principale</Btn>}
-            <Btn variant="danger" onClick={() => void remove(photos[view])} disabled={!!busy} style={{ flex: 1 }}>🗑️ Supprimer</Btn>
+            <Btn onClick={() => void savePhoto(photos[view], name)} style={{ flex: 1 }}><Ico e="⬇️" />Enregistrer</Btn>
+            {photos[view] !== cover && <Btn onClick={() => void makeCover(photos[view])} color={T.warn} disabled={!!busy} style={{ flex: 1 }}><Ico e="⭐" />Principale</Btn>}
+            <Btn variant="danger" onClick={() => void remove(photos[view])} disabled={!!busy} style={{ flex: 1 }}><Ico e="🗑️" />Supprimer</Btn>
           </div>
         </div>,
         document.body,

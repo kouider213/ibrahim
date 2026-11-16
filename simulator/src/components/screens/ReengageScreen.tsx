@@ -3,6 +3,7 @@ import { openClient, ClientName } from '../ClientSheet.tsx';
 import { business } from '../../services/api.ts';
 import { T, Screen, PageHeader, Segmented, Row, Avatar, Btn, Empty, Kpi, KpiGrid } from '../ui/Kit.tsx';
 import { SkeletonCards } from '../ui/Premium.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 type D = { name: string; phone: string | null; date: string; car: string; count: number };
 
@@ -43,7 +44,7 @@ export default function ReengageScreen() {
             <Row key={d.phone || d.name + i} onClick={() => openClient({ name: d.name, phone: d.phone })} left={<Avatar name={d.name} color={d.count > 1 ? T.warn : T.accent} />}
               title={d.name}
               sub={<>{d.car} · {fmt(d.date)}<br />{d.count} location{d.count > 1 ? 's' : ''}{d.count > 1 ? ' · fidèle ⭐' : ''}</>}
-              right={d.phone ? <Btn onClick={() => wa(d)} color="#25D366" style={{ padding: '0 12px' }}>💬 Relancer</Btn> : <span style={{ fontSize: 12, color: T.faint }}>pas de n°</span>} />
+              right={d.phone ? <Btn onClick={() => wa(d)} color="#25D366" style={{ padding: '0 12px' }}><Ico e="💬" />Relancer</Btn> : <span style={{ fontSize: 12, color: T.faint }}>pas de n°</span>} />
           ))}
         </div>
       )}

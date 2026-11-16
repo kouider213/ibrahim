@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { business, type SportOverview, type SportSession, type SportExercise, type SportType } from '../../services/api.ts';
 import { Hero, StatCard, SkeletonCards } from '../ui/Premium.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 // « SPORT » : le coach sportif de Dzaryx dans la poche, à la salle. Séance du jour (calée sur l'agenda FIK),
 // MODE SÉANCE plein écran (séries cochées, charges pré-remplies + progression, minuteur de repos qui parle et vibre,
@@ -87,29 +88,29 @@ export default function SportScreen({ embedded = false, onLive }: { embedded?: b
               <div style={{ fontSize: 30, fontWeight: 900, margin: '6px 0 2px', letterSpacing: '-0.02em' }}>{s.emoji} {s.label}</div>
               <div style={{ fontSize: 13, color: '#e0304f' }}>{s.focus}</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '10px 0' }}>
-                <span style={pill}>⏱ ~{s.estMin} min</span>
+                <span style={pill}><Ico e="⏱" />~{s.estMin} min</span>
                 <span style={pill}>🏋️ {s.exercises.length} exercices</span>
-                {s.minutes < 60 && <span style={{ ...pill, color: C.gold }}>⚡ version courte ({s.minutes} min libres)</span>}
-                {s.arrived && <span style={{ ...pill, color: C.green }}>✅ arrivé à {hm(new Date(s.arrived).toISOString())}</span>}
+                {s.minutes < 60 && <span style={{ ...pill, color: C.gold }}><Ico e="⚡" />version courte ({s.minutes} min libres)</span>}
+                {s.arrived && <span style={{ ...pill, color: C.green }}><Ico e="✅" />arrivé à {hm(new Date(s.arrived).toISOString())}</span>}
               </div>
               <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.7 }}>
                 {s.exercises.map(e => <div key={e.id} onClick={() => setDemo(e)} style={{ cursor: 'pointer' }}>{e.demo.length ? '🎬' : '•'} {e.name} <b style={{ color: C.text }}>{e.sets}×{e.reps}</b>{e.suggestion.kg != null && <span style={{ color: e.suggestion.up ? C.green : C.cyan }}> · {e.suggestion.kg} kg{e.suggestion.up ? ' ⬆️' : ''}</span>}</div>)}
                 {s.finisher && <div>🏁 {s.finisher}</div>}
-                <div style={{ fontSize: 13.5, marginTop: 4 }}>👆 Touche un exercice pour voir la démo et la vidéo</div>
+                <div style={{ fontSize: 13.5, marginTop: 4 }}><Ico e="👆" />Touche un exercice pour voir la démo et la vidéo</div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8, marginTop: 14 }}>
-                <button style={{ ...btn(C.accent), fontSize: 15, padding: 14 }} onClick={() => { const l = initLive(s); setLive(l); saveLive(l); }}>▶ COMMENCER</button>
+                <button style={{ ...btn(C.accent), fontSize: 15, padding: 14 }} onClick={() => { const l = initLive(s); setLive(l); saveLive(l); }}><Ico e="▶" />COMMENCER</button>
                 {'lat' in data.gym && data.gym.lat != null
-                  ? <a href={`https://waze.com/ul?ll=${data.gym.lat},${data.gym.lng}&navigate=yes`} target="_blank" rel="noreferrer" style={{ ...ghost, textAlign: 'center', textDecoration: 'none', padding: 14 }}>🧭 Y aller</a>
+                  ? <a href={`https://waze.com/ul?ll=${data.gym.lat},${data.gym.lng}&navigate=yes`} target="_blank" rel="noreferrer" style={{ ...ghost, textAlign: 'center', textDecoration: 'none', padding: 14 }}><Ico e="🧭" />Y aller</a>
                   : <span />}
               </div>
-              {data.gym.distanceKm != null && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8 }}>📍 Tu es à {data.gym.distanceKm} km de la salle</div>}
+              {data.gym.distanceKm != null && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8 }}><Ico e="📍" />Tu es à {data.gym.distanceKm} km de la salle</div>}
               <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                <button style={{ ...ghost, flex: 1, padding: 9, fontSize: 12 }} onClick={() => setSheet(s.date)}>🔄 Changer</button>
-                <button style={{ ...ghost, flex: 1, padding: 9, fontSize: 12 }} onClick={() => void act(business.sportSkip(s.date, 'repos'), '😴 Séance décalée au prochain créneau — pas d\'appel ce jour-là')}>😴 Pas aujourd'hui</button>
+                <button style={{ ...ghost, flex: 1, padding: 9, fontSize: 12 }} onClick={() => setSheet(s.date)}><Ico e="🔄" />Changer</button>
+                <button style={{ ...ghost, flex: 1, padding: 9, fontSize: 12 }} onClick={() => void act(business.sportSkip(s.date, 'repos'), '😴 Séance décalée au prochain créneau — pas d\'appel ce jour-là')}><Ico e="😴" />Pas aujourd'hui</button>
               </div>
             </div>
-          ) : <div style={card}>😴 Aucun créneau sport dans les 7 prochains jours. Ajoute « 🏋️ Sport » dans l'agenda ou dis à Dzaryx « mets-moi du sport demain à 7h ».</div>}
+          ) : <div style={card}><Ico e="😴" />Aucun créneau sport dans les 7 prochains jours. Ajoute « 🏋️ Sport » dans l'agenda ou dis à Dzaryx « mets-moi du sport demain à 7h ».</div>}
 
           {/* ── Semaine ── */}
           {section('TA SEMAINE (AGENDA FIK)')}
@@ -173,7 +174,7 @@ export default function SportScreen({ embedded = false, onLive }: { embedded?: b
               sub="10 min après le début, si ta position est loin de la salle : appel + point GPS. Arrivé à la salle : ta séance arrive toute seule." />
             <div style={{ fontSize: 11, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>Pour que Dzaryx voie ta position : partage ta position en direct dans le chat Telegram de Dzaryx (📎 → Position → « jusqu'à désactivation »).</div>
           </div>
-          <button style={{ ...ghost, width: '100%' }} onClick={() => business.sportSync().then(r => say(`✅ ${r.message}`)).catch(e => say(`❌ ${errText(e)}`))}>🗓️ Réécrire les séances dans l'agenda</button>
+          <button style={{ ...ghost, width: '100%' }} onClick={() => business.sportSync().then(r => say(`✅ ${r.message}`)).catch(e => say(`❌ ${errText(e)}`))}><Ico e="🗓️" />Réécrire les séances dans l'agenda</button>
         </>}
       </div>
 
@@ -192,8 +193,8 @@ export default function SportScreen({ embedded = false, onLive }: { embedded?: b
               </div>}
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
               {data.week.find(w => w.date === sheet)?.skip
-                ? <button style={{ ...btn(C.green), flex: 1 }} onClick={() => { setSheet(null); void act(business.sportSkip(sheet, null), '✅ Sport remis'); }}>💪 Remettre le sport</button>
-                : <button style={{ ...ghost, flex: 1 }} onClick={() => { setSheet(null); void act(business.sportSkip(sheet, 'repos'), '😴 Repos noté'); }}>😴 Repos ce jour-là</button>}
+                ? <button style={{ ...btn(C.green), flex: 1 }} onClick={() => { setSheet(null); void act(business.sportSkip(sheet, null), '✅ Sport remis'); }}><Ico e="💪" />Remettre le sport</button>
+                : <button style={{ ...ghost, flex: 1 }} onClick={() => { setSheet(null); void act(business.sportSkip(sheet, 'repos'), '😴 Repos noté'); }}><Ico e="😴" />Repos ce jour-là</button>}
               <button style={{ ...ghost, flex: 1 }} onClick={() => setSheet(null)}>Fermer</button>
             </div>
           </div>
@@ -230,7 +231,7 @@ export function ExerciseDemo({ e, height = 190 }: { e: SportExercise; height?: n
           <span style={{ position: 'absolute', left: 8, bottom: 6, fontSize: 13, color: 'var(--dz-faint)', background: 'rgba(var(--dz-surface-rgb),0.8)', borderRadius: 6, padding: '1px 5px' }}>démo · {f === 0 ? 'départ' : 'arrivée'}</span>
         </div>
       )}
-      <a href={e.video} target="_blank" rel="noreferrer" style={{ ...btn('#e0304f', '#0c0e1a'), display: 'block', textAlign: 'center', textDecoration: 'none', marginTop: 8, padding: 10 }}>▶ Voir la vidéo de l'exercice</a>
+      <a href={e.video} target="_blank" rel="noreferrer" style={{ ...btn('#e0304f', '#0c0e1a'), display: 'block', textAlign: 'center', textDecoration: 'none', marginTop: 8, padding: 10 }}><Ico e="▶" />Voir la vidéo de l'exercice</a>
     </div>
   );
 }
@@ -343,7 +344,7 @@ function LiveWorkout({ s, live, onChange, onQuit, onDone }: { s: SportSession; l
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 13.5, letterSpacing: '0.2em', color: C.accent }}>{s.emoji} {s.label}</div>
           <div style={{ fontSize: 22, fontWeight: 900, fontVariantNumeric: 'tabular-nums' }}>{mmss(elapsed)}</div>
-          <div style={{ fontSize: 13.5, color: C.gold, fontWeight: 800 }}>🎮 +{100 + doneCount * 5} pts en jeu</div>
+          <div style={{ fontSize: 13.5, color: C.gold, fontWeight: 800 }}><Ico e="🎮" />+{100 + doneCount * 5} pts en jeu</div>
         </div>
         <button style={{ ...btn(C.green), padding: '7px 11px', fontSize: 12 }} onClick={() => setFinish(true)}>Fin ✓</button>
       </div>
@@ -389,7 +390,7 @@ function LiveWorkout({ s, live, onChange, onQuit, onDone }: { s: SportSession; l
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: `1px solid ${C.border}`, opacity: st.done ? 0.55 : 1 }}>
                   <span style={{ width: 22, fontWeight: 800, color: C.muted }}>{i + 1}</span>
                   {e.timed ? (
-                    <button style={{ ...ghost, flex: 1, padding: 8, fontSize: 12 }} onClick={() => { const sec = timedSec(e.reps); if (sec) { setWork({ until: Date.now() + sec * 1000, total: sec }); speak('Go !'); } }}>▶ Chrono {e.reps}</button>
+                    <button style={{ ...ghost, flex: 1, padding: 8, fontSize: 12 }} onClick={() => { const sec = timedSec(e.reps); if (sec) { setWork({ until: Date.now() + sec * 1000, total: sec }); speak('Go !'); } }}><Ico e="▶" />Chrono {e.reps}</button>
                   ) : (<>
                     <Stepper value={st.kg} unit="kg" step={e.step && e.step > 0 ? e.step : 2.5} onChange={v => update(i, { kg: v })} />
                     <Stepper value={st.reps} unit="reps" step={1} onChange={v => update(i, { reps: v ?? 0 })} />
@@ -401,19 +402,19 @@ function LiveWorkout({ s, live, onChange, onQuit, onDone }: { s: SportSession; l
             </div>
           )}
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button style={{ ...ghost, flex: 1 }} disabled={live.idx === 0} onClick={() => onChange({ ...live, idx: live.idx - 1 })}>◀ Précédent</button>
+            <button style={{ ...ghost, flex: 1 }} disabled={live.idx === 0} onClick={() => onChange({ ...live, idx: live.idx - 1 })}><Ico e="◀" />Précédent</button>
             {live.idx < s.exercises.length - 1
               ? <button style={{ ...ghost, flex: 1 }} onClick={() => onChange({ ...live, idx: live.idx + 1 })}>Suivant ▶</button>
               : <button style={{ ...btn(C.green), flex: 1 }} onClick={() => setFinish(true)}>Terminer ✓</button>}
           </div>
         </div>
       ) : null}
-      {s.finisher && <div style={{ ...card, fontSize: 12.5 }}>🏁 Pour finir : {s.finisher}</div>}
+      {s.finisher && <div style={{ ...card, fontSize: 12.5 }}><Ico e="🏁" />Pour finir : {s.finisher}</div>}
 
       {finish && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'flex-end' }}>
           <div style={{ width: '100%', background: 'var(--dz-surface)', borderRadius: '20px 20px 0 0', padding: 18, border: `1px solid ${C.border}` }}>
-            <div style={{ fontSize: 20, fontWeight: 900 }}>🎉 Séance terminée</div>
+            <div style={{ fontSize: 20, fontWeight: 900 }}><Ico e="🎉" />Séance terminée</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, margin: '14px 0' }}>
               <StatCard icon="⏱" value={mmss(elapsed)} label="DURÉE" color={C.cyan} />
               <StatCard icon="✓" value={`${doneCount}/${allSets.length}`} label="SÉRIES" color={C.green} />

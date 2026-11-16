@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { business } from '../../services/api.ts';
 import { T, Screen, PageHeader, Field, inputStyle, Btn, Card, KpiGrid, Kpi, SectionTitle, tone } from '../ui/Kit.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 export default function NewsletterScreen() {
   const [active, setActive]   = useState<number | null>(null);
@@ -53,7 +54,7 @@ export default function NewsletterScreen() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <Btn color={T.warn} disabled={!!busy} onClick={() => void send(true)} style={{ width: '100%' }}>{busy === 'test' ? 'Envoi…' : '✉️ M\'envoyer un test d\'abord'}</Btn>
           {!confirmAll ? (
-            <Btn variant="primary" disabled={!!busy} onClick={() => setConfirmAll(true)} style={{ width: '100%' }}>📣 Envoyer à tous {active != null ? `(${active})` : ''}</Btn>
+            <Btn variant="primary" disabled={!!busy} onClick={() => setConfirmAll(true)} style={{ width: '100%' }}><Ico e="📣" />Envoyer à tous {active != null ? `(${active})` : ''}</Btn>
           ) : (
             <div style={{ display: 'flex', gap: 8 }}>
               <Btn variant="ghost" disabled={!!busy} onClick={() => setConfirmAll(false)} style={{ flex: 1 }}>Annuler</Btn>

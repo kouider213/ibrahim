@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { business, type Car, type FleetStat } from '../../services/api.ts';
 import { T, Screen, PageHeader, Card, KpiGrid, Kpi, SectionTitle, Empty, tone } from '../ui/Kit.tsx';
 import { SkeletonCards } from '../ui/Premium.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 
 export default function PricingScreen() {
@@ -75,7 +76,7 @@ export default function PricingScreen() {
           ))}
         </div>
       )}
-      <div style={{ fontSize: 13, color: T.muted, marginTop: 16, lineHeight: 1.5 }}>💡 Conseils indicatifs. Pour changer un prix : page Parc → touche la voiture → Prix.</div>
+      <div style={{ fontSize: 13, color: T.muted, marginTop: 16, lineHeight: 1.5 }}><Ico e="💡" />Conseils indicatifs. Pour changer un prix : page Parc → touche la voiture → Prix.</div>
     </Screen>
   );
 }

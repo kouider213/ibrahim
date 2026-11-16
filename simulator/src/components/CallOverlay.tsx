@@ -47,7 +47,7 @@ export default function CallOverlay({ reason, onAnswer, onDecline }: Props) {
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 300,
-      background: 'linear-gradient(165deg, var(--dz-ink) 0%, #1b2140 70%, #26315f 100%)',
+      background: 'radial-gradient(120% 90% at 100% 0%, rgba(34,211,238,0.42), transparent 52%), radial-gradient(110% 90% at 0% 100%, rgba(139,92,246,0.6), transparent 58%), linear-gradient(145deg, #2442ff 0%, #2a1878 100%)',
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between',
       padding: '72px 24px 64px', fontFamily: 'Inter, system-ui, sans-serif', color: '#fff',
     }}>

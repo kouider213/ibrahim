@@ -6,6 +6,7 @@ import { forme, errText, vibrate, type RunType, type RunPt, type RunStats, type 
 import { F, card, btn, ghostBtn, input, Sheet, Spinner, Chip, Ring } from './ui.tsx';
 import { FitnessCard, LoadCard, ChallengesCard, PlanCard, ShoesSection, useCadence, askMotion, stepProgress, sayStep, STEP_E, getShareLive, SHARE_K, shareLiveLink, type StepState } from './RunPro.tsx';
 import type { Workout, Shoe } from './api.ts';
+import { Ico } from '../components/ui/Icon.tsx';
 
 // 🏃 COURSE GPS — FORME (Kouider 01/11, « comme Strava ») : footing, marche, vélo, rando.
 // Chaque profil (Kouider, sa femme, son ami) a SES sorties. Le téléphone enregistre les points GPS bruts
@@ -300,12 +301,12 @@ function RunDetailSheet({ id, onClose, onChanged, onGhost, toast, name, shoes, o
           {r.workout && <div style={{ ...card, padding: '8px 12px', fontSize: 13.5, fontWeight: 600, color: F.green }}>📋 {r.workout.title} ✓</div>}
         </div>}
         <div style={{ ...card, padding: 14, background: 'linear-gradient(135deg,#f1f5ff,#fff)' }}>
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>🧠 Analyse du coach</div>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}><Ico e="🧠" />Analyse du coach</div>
           {r.coach ? <div style={{ fontSize: 14, lineHeight: 1.5 }}>{r.coach}</div> : <div style={{ fontSize: 13, color: F.muted }}>Ton coach lit tes splits, ton allure, la météo, tes sorties d'avant… et te dit quoi faire la prochaine fois.</div>}
           <button disabled={coachBusy} onClick={async () => { setCoachBusy(true); try { const c = await forme.coach(r.id, !!r.coach); setD(v => v ? { ...v, run: { ...v.run, coach: c.coach } } : v); onChanged(); } catch (e) { toast(errText(e)); } finally { setCoachBusy(false); } }} style={{ ...ghostBtn, width: '100%', marginTop: 10 }}>{coachBusy ? 'Analyse en cours…' : r.coach ? '🔄 Refaire l\'analyse' : '🧠 Analyser ma sortie'}</button>
         </div>
         {d.route && <div style={{ ...card, padding: 14 }}>
-          <div style={{ fontWeight: 700 }}>🗺️ Ce parcours <span style={{ color: 'var(--f-muted)', fontWeight: 600 }}>fait {d.route.count} fois</span></div>
+          <div style={{ fontWeight: 700 }}><Ico e="🗺️" />Ce parcours <span style={{ color: 'var(--f-muted)', fontWeight: 600 }}>fait {d.route.count} fois</span></div>
           <div style={{ fontSize: 14, margin: '4px 0 8px', fontWeight: 600, color: d.route.rank === 1 ? '#a86b00' : F.ink }}>{d.route.rank === 1 ? '🥇 Ton meilleur temps sur ce parcours !' : `Classement : ${d.route.rank}e sur ${d.route.count} · record ${fmtDur(d.route.best.sec)}`}</div>
           {d.route.list.map((x, k) => <button key={x.id} onClick={() => { if (x.id !== r.id) onOpen(x.id); }} style={{ display: 'flex', width: '100%', gap: 10, padding: '6px 0', border: 'none', borderTop: `1px solid ${F.line}`, background: 'none', fontFamily: F.sans, fontSize: 13.5, cursor: 'pointer', color: F.ink, fontWeight: x.id === r.id ? 800 : 500, fontVariantNumeric: 'tabular-nums' }}><span style={{ width: 26, textAlign: 'start' }}>{['🥇', '🥈', '🥉'][k] ?? `${k + 1}.`}</span><span style={{ flex: 1, textAlign: 'start' }}>{fmtDate(x.date)}</span><span>{fmtDur(x.sec)}</span><span style={{ width: 64, textAlign: 'end', color: F.muted }}>{fmtPace(x.pace)}/km</span></button>)}
         </div>}
@@ -315,7 +316,7 @@ function RunDetailSheet({ id, onClose, onChanged, onGhost, toast, name, shoes, o
           <div style={{ fontWeight: 700, marginBottom: 8 }}>Meilleurs efforts</div>
           {r.efforts.map(e => <div key={e.m} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderTop: `1px solid ${F.line}` }}>
             <div style={{ flex: 1, fontWeight: 600 }}>{e.label}</div>
-            {e.pr && <span style={{ fontSize: 11.5, fontWeight: 800, color: '#a86b00', background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))', padding: '3px 8px', borderRadius: 8 }}>🏆 RECORD</span>}
+            {e.pr && <span style={{ fontSize: 11.5, fontWeight: 800, color: '#a86b00', background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))', padding: '3px 8px', borderRadius: 8 }}><Ico e="🏆" />RECORD</span>}
             <div style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmtDur(e.sec)}</div>
             <div style={{ width: 62, textAlign: 'end', fontSize: 12.5, color: F.muted, fontVariantNumeric: 'tabular-nums' }}>{fmtPace(e.sec / (e.m / 1000))}/km</div>
           </div>)}
@@ -325,7 +326,7 @@ function RunDetailSheet({ id, onClose, onChanged, onGhost, toast, name, shoes, o
           {r.laps.map(l => <div key={l.n} style={{ display: 'flex', gap: 10, padding: '6px 0', borderTop: `1px solid ${F.line}`, fontVariantNumeric: 'tabular-nums', fontSize: 14 }}><b style={{ width: 28 }}>{l.n}</b><span style={{ flex: 1 }}>{km(l.dist)} km</span><span>{fmtDur(l.sec)}</span><span style={{ width: 70, textAlign: 'end', color: F.muted }}>{fmtPace(l.pace)}/km</span></div>)}
         </div>}
         <div style={{ ...card, padding: 14 }}>
-          {r.type !== 'bike' && shoes.length > 0 && <><div style={{ fontWeight: 700, marginBottom: 8 }}>👟 Chaussures</div><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>{shoes.filter(x => !x.retired || x.id === r.shoeId).map(x => <Chip key={x.id} on={r.shoeId === x.id} onClick={() => void save({ shoeId: r.shoeId === x.id ? '' : x.id })}>{x.name}</Chip>)}</div></>}
+          {r.type !== 'bike' && shoes.length > 0 && <><div style={{ fontWeight: 700, marginBottom: 8 }}><Ico e="👟" />Chaussures</div><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>{shoes.filter(x => !x.retired || x.id === r.shoeId).map(x => <Chip key={x.id} on={r.shoeId === x.id} onClick={() => void save({ shoeId: r.shoeId === x.id ? '' : x.id })}>{x.name}</Chip>)}</div></>}
           <div style={{ fontWeight: 700, marginBottom: 8 }}>Ressenti</div>
           <div style={{ display: 'flex', gap: 6 }}>{['😫', '😕', '🙂', '😀', '🔥'].map((e, i) => <button key={e} onClick={() => void save({ feel: i + 1 })} style={{ flex: 1, fontSize: 24, padding: '8px 0', borderRadius: 14, border: `2px solid ${r.feel === i + 1 ? F.accent : 'transparent'}`, background: F.bg2, cursor: 'pointer' }}>{e}</button>)}</div>
           {editing ? <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
@@ -333,14 +334,14 @@ function RunDetailSheet({ id, onClose, onChanged, onGhost, toast, name, shoes, o
             <textarea value={note} onChange={e => setNote(e.target.value)} style={{ ...input, minHeight: 70, resize: 'vertical' }} placeholder="Note (comment c'était, météo, chaussures…)" />
             <div style={{ display: 'flex', gap: 6 }}>{TYPES.map(t => <Chip key={t.id} on={r.type === t.id} onClick={() => void save({ type: t.id })}>{t.e}</Chip>)}</div>
             <button onClick={() => { void save({ title, note }); setEditing(false); }} style={btn}>Enregistrer</button>
-          </div> : <>{r.note && <div style={{ fontSize: 14, marginTop: 10, lineHeight: 1.45 }}>{r.note}</div>}<button onClick={() => setEditing(true)} style={{ ...ghostBtn, marginTop: 10, width: '100%' }}>✏️ Modifier titre / note / type</button></>}
+          </div> : <>{r.note && <div style={{ fontSize: 14, marginTop: 10, lineHeight: 1.45 }}>{r.note}</div>}<button onClick={() => setEditing(true)} style={{ ...ghostBtn, marginTop: 10, width: '100%' }}><Ico e="✏️" />Modifier titre / note / type</button></>}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => void share()} style={{ ...btn, flex: 1 }}>📤 Partager</button>
-          <button onClick={() => onGhost(d)} style={{ ...btn, flex: 1, background: F.dark, boxShadow: 'none' }}>👻 Refaire ce parcours</button>
+          <button onClick={() => void share()} style={{ ...btn, flex: 1 }}><Ico e="📤" />Partager</button>
+          <button onClick={() => onGhost(d)} style={{ ...btn, flex: 1, background: F.dark, boxShadow: 'none' }}><Ico e="👻" />Refaire ce parcours</button>
         </div>
         <button onClick={async () => { try { const g = await forme.gpx(r.id); const blob = new Blob([g.gpx], { type: 'application/gpx+xml' }); const file = new File([blob], g.name, { type: 'application/gpx+xml' });
-          if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: g.name }); else { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = g.name; a.click(); } } catch (e) { if (!/abort/i.test(String(e))) toast(errText(e)); } }} style={ghostBtn}>📁 Exporter en GPX (Strava, Garmin, Komoot…)</button>
+          if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: g.name }); else { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = g.name; a.click(); } } catch (e) { if (!/abort/i.test(String(e))) toast(errText(e)); } }} style={ghostBtn}><Ico e="📁" />Exporter en GPX (Strava, Garmin, Komoot…)</button>
         <button onClick={async () => { if (!confirm('Supprimer cette sortie ?')) return; try { await forme.delRun(r.id); onChanged(); onClose(); toast('Sortie supprimée'); } catch (e) { toast(errText(e)); } }} style={{ ...ghostBtn, color: F.red }}>Supprimer la sortie</button>
       </div>}
     </Sheet>
@@ -542,7 +543,7 @@ function Recorder({ type, cfg, ghost, goal, resume, workout, onDone, onCancel, t
           <div style={{ background: 'rgba(23,21,28,0.82)', borderRadius: 999, padding: '7px 12px', fontSize: 13, fontWeight: 700 }}>{TYPE_E[type]} {TYPE_L[type]}</div>
         </div>
         <button onClick={() => { follow.current = true; const ll = me.current?.getLatLng(); if (ll) map.current?.setView(ll, 16); }} style={{ position: 'absolute', right: 12, bottom: 32, zIndex: 500, width: 44, height: 44, borderRadius: 22, border: 'none', background: 'var(--f-card)', boxShadow: '0 4px 12px rgba(0,0,0,0.25)', fontSize: 18, cursor: 'pointer' }}>◎</button>
-        <button onClick={() => setPocket(true)} style={{ position: 'absolute', left: 12, bottom: 32, zIndex: 500, height: 44, padding: '0 14px', borderRadius: 22, border: 'none', background: 'var(--f-card)', color: F.ink, boxShadow: '0 4px 12px rgba(0,0,0,0.25)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}>🌙 Mode poche</button>
+        <button onClick={() => setPocket(true)} style={{ position: 'absolute', left: 12, bottom: 32, zIndex: 500, height: 44, padding: '0 14px', borderRadius: 22, border: 'none', background: 'var(--f-card)', color: F.ink, boxShadow: '0 4px 12px rgba(0,0,0,0.25)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}><Ico e="🌙" />Mode poche</button>
         {gpsErr && <div style={{ position: 'absolute', left: 12, right: 12, top: 'calc(56px + env(safe-area-inset-top))', zIndex: 500, background: F.red, borderRadius: 14, padding: '10px 12px', fontSize: 13.5, fontWeight: 700 }}>{gpsErr}</div>}
       </div>
       <div style={{ padding: '16px 18px calc(16px + env(safe-area-inset-bottom))', background: `linear-gradient(180deg, ${F.dark2}, ${F.dark})`, borderRadius: '24px 24px 0 0', marginTop: -20, position: 'relative', zIndex: 600 }}>
@@ -555,7 +556,7 @@ function Recorder({ type, cfg, ghost, goal, resume, workout, onDone, onCancel, t
         </div>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 10, fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: 600, flexWrap: 'wrap' }}>
           {!isBike(type) && <span>⛰ {elev} m</span>}
-          {cfg.targetPace && !isBike(type) && !W && <span>🎯 cible {fmtPace(cfg.targetPace)}</span>}
+          {cfg.targetPace && !isBike(type) && !W && <span><Ico e="🎯" />cible {fmtPace(cfg.targetPace)}</span>}
           {L0.laps.length > 0 && <span>🔁 {L0.laps.length} tour{L0.laps.length > 1 ? 's' : ''}</span>}
           {gDiff != null && <span style={{ color: gDiff >= 0 ? '#3ad07a' : '#ff8a80', fontWeight: 800 }}>👻 {gDiff >= 0 ? `+${gDiff} s d'avance` : `${gDiff} s de retard`}</span>}
         </div>
@@ -569,7 +570,7 @@ function Recorder({ type, cfg, ghost, goal, resume, workout, onDone, onCancel, t
           </div>; })()}
         {(cad.live || liveLink) && <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 8, alignItems: 'center' }}>
           {cad.live && <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>👣 {cad.live} pas/min</span>}
-          {liveLink && <button onClick={() => shareLiveLink(liveLink, toast)} style={{ background: 'rgba(58,208,122,0.2)', color: '#3ad07a', border: 'none', borderRadius: 999, padding: '6px 12px', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', fontFamily: F.sans }}>📍 Envoyer le suivi</button>}
+          {liveLink && <button onClick={() => shareLiveLink(liveLink, toast)} style={{ background: 'rgba(58,208,122,0.2)', color: '#3ad07a', border: 'none', borderRadius: 999, padding: '6px 12px', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', fontFamily: F.sans }}><Ico e="📍" />Envoyer le suivi</button>}
         </div>}
         {goal && <div style={{ marginTop: 10 }}><div style={{ height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.12)', overflow: 'hidden' }}><div style={{ width: `${goalPct * 100}%`, height: '100%', background: goalPct >= 1 ? '#3ad07a' : F.accent2, transition: 'width .5s' }} /></div><div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 4, textAlign: 'center' }}>Objectif {goal.v} {goal.kind === 'km' ? 'km' : 'min'} · {Math.round(goalPct * 100)} %</div></div>}
         <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center' }}>
@@ -614,8 +615,8 @@ function FinishSheet({ live, onSaved, onDiscard, toast, shoes }: { live: Live | 
         <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Comment c'était ? (jambes, météo, chaussures…)" style={{ ...input, minHeight: 64, resize: 'vertical' }} />
         <div style={{ fontWeight: 700, margin: '12px 2px 8px' }}>Ressenti</div>
         <div style={{ display: 'flex', gap: 6 }}>{['😫', '😕', '🙂', '😀', '🔥'].map((e, i) => <button key={e} onClick={() => setFeel(i + 1)} style={{ flex: 1, fontSize: 26, padding: '8px 0', borderRadius: 14, border: `2px solid ${feel === i + 1 ? F.accent : 'transparent'}`, background: 'var(--f-card)', cursor: 'pointer' }}>{e}</button>)}</div>
-        {live.type !== 'bike' && active.length > 0 && <><div style={{ fontWeight: 700, margin: '12px 2px 8px' }}>👟 Chaussures</div><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{active.map(x => <Chip key={x.id} on={shoe === x.id} onClick={() => setShoe(shoe === x.id ? '' : x.id)}>{x.name}</Chip>)}</div></>}
-        {live.workout && <div style={{ fontSize: 13, color: F.green, fontWeight: 700, marginTop: 12 }}>📋 Séance du plan « {live.workout.title} » : elle sera cochée.</div>}
+        {live.type !== 'bike' && active.length > 0 && <><div style={{ fontWeight: 700, margin: '12px 2px 8px' }}><Ico e="👟" />Chaussures</div><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{active.map(x => <Chip key={x.id} on={shoe === x.id} onClick={() => setShoe(shoe === x.id ? '' : x.id)}>{x.name}</Chip>)}</div></>}
+        {live.workout && <div style={{ fontSize: 13, color: F.green, fontWeight: 700, marginTop: 12 }}><Ico e="📋" />Séance du plan « {live.workout.title} » : elle sera cochée.</div>}
         <button disabled={busy} onClick={() => void save()} style={{ ...btn, width: '100%', marginTop: 16 }}>{busy ? 'Enregistrement…' : '💾 Enregistrer la sortie'}</button>
         <button onClick={() => { if (confirm('Supprimer cette sortie sans l\'enregistrer ?')) { writeLive(null); onDiscard(); } }} style={{ ...ghostBtn, width: '100%', marginTop: 8, color: F.red }}>Ne pas enregistrer</button>
       </>}
@@ -638,7 +639,7 @@ function RunSettings({ open, onClose, cfg, onCfg, toast, shoes, onShoes, shareLi
         <div style={{ ...row, borderBottom: 'none' }}><span style={{ fontWeight: 600 }}>Allure cible (min/km)</span>
           <input value={paceTxt} onChange={e => setPaceTxt(e.target.value)} placeholder="ex. 5:30" inputMode="numeric" onBlur={() => { const m = /^(\d{1,2})[:.,h](\d{1,2})$/.exec(paceTxt.trim()); void set({ targetPace: m ? Number(m[1]) * 60 + Number(m[2]) : null }); }} style={{ ...input, width: 100, textAlign: 'right', padding: '9px 12px' }} /></div>
       </div>
-      <div style={{ ...card, padding: '4px 14px', marginTop: 12 }}><div style={row}><div><div style={{ fontWeight: 600 }}>📍 Suivi en direct</div><div style={{ fontSize: 12, color: F.muted }}>Pendant la sortie, un lien à envoyer à un proche : il voit ta position sur la carte (sécurité, la nuit…).</div></div><Chip on={shareLive} onClick={() => onShareLive(!shareLive)}>{shareLive ? 'Oui' : 'Non'}</Chip></div></div>
+      <div style={{ ...card, padding: '4px 14px', marginTop: 12 }}><div style={row}><div><div style={{ fontWeight: 600 }}><Ico e="📍" />Suivi en direct</div><div style={{ fontSize: 12, color: F.muted }}>Pendant la sortie, un lien à envoyer à un proche : il voit ta position sur la carte (sécurité, la nuit…).</div></div><Chip on={shareLive} onClick={() => onShareLive(!shareLive)}>{shareLive ? 'Oui' : 'Non'}</Chip></div></div>
       <ShoesSection shoes={shoes} onShoes={onShoes} toast={toast} />
       <div style={{ fontSize: 13, color: F.muted, marginTop: 12, lineHeight: 1.5 }}>
         📱 <b>iPhone</b> : une appli web ne reçoit pas le GPS quand l'écran est verrouillé. Pendant la sortie, FORME garde l'écran allumé — utilise le <b>mode poche</b> (écran noir) et mets le téléphone dans un brassard ou ta poche sans le verrouiller.
@@ -718,11 +719,11 @@ export default function RunScreen({ toast, name = '' }: { toast: (t: string) => 
       </div>
 
       {pending && <div style={{ ...card, background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))', border: `1px solid ${F.gold}66`, marginBottom: 12 }}>
-        <div style={{ fontWeight: 800 }}>⚠️ Sortie non terminée</div>
+        <div style={{ fontWeight: 800 }}><Ico e="⚠️" />Sortie non terminée</div>
         <div style={{ fontSize: 13.5, color: F.muted, margin: '4px 0 10px' }}>{TYPE_L[pending.type]} commencée à {new Date(pending.startedAt).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })} · {pending.points.length} points GPS gardés sur le téléphone.</div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => { const l = pending; setPending(null); setRecording({ ghost: null, goal: l.goal ?? null, resume: l, type: l.type }); }} style={{ ...btn, flex: 1, padding: '11px 12px' }}>▶ Reprendre</button>
-          <button onClick={() => { setDone(pending); setPending(null); }} style={{ ...ghostBtn, flex: 1 }}>💾 Terminer</button>
+          <button onClick={() => { const l = pending; setPending(null); setRecording({ ghost: null, goal: l.goal ?? null, resume: l, type: l.type }); }} style={{ ...btn, flex: 1, padding: '11px 12px' }}><Ico e="▶" />Reprendre</button>
+          <button onClick={() => { setDone(pending); setPending(null); }} style={{ ...ghostBtn, flex: 1 }}><Ico e="💾" />Terminer</button>
         </div>
       </div>}
 
@@ -738,7 +739,7 @@ export default function RunScreen({ toast, name = '' }: { toast: (t: string) => 
             <button onClick={() => setGoalSheet(true)} style={{ marginTop: 8, background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: 999, padding: '7px 12px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: F.sans }}>🎯 {goal ? `Objectif ${goal.v} ${goal.kind === 'km' ? 'km' : 'min'}` : 'Objectif de la sortie'}</button>
           </div>
         </div>
-        <motion.button whileTap={{ scale: 0.96 }} onClick={() => start()} disabled={!s} style={{ ...btn, width: '100%', marginTop: 16, padding: '18px 20px', fontSize: 18, background: '#ff5a1f', boxShadow: '0 10px 24px rgba(255,90,31,0.4)' }}>▶ Démarrer {TYPE_L[type].toLowerCase()}</motion.button>
+        <motion.button whileTap={{ scale: 0.96 }} onClick={() => start()} disabled={!s} style={{ ...btn, width: '100%', marginTop: 16, padding: '18px 20px', fontSize: 18, background: '#ff5a1f', boxShadow: '0 10px 24px rgba(255,90,31,0.4)' }}><Ico e="▶" />Démarrer {TYPE_L[type].toLowerCase()}</motion.button>
       </div>
 
       {s && <PlanCard plan={s.plan} onPlan={p => setS(x => x ? { ...x, plan: p } : x)} toast={toast} onStart={w => { setType('run'); start(null, 'run', w); }} />}
@@ -775,7 +776,7 @@ export default function RunScreen({ toast, name = '' }: { toast: (t: string) => 
         </div>
 
         {(s.records.length > 0 || s.longest.length > 0) && <div style={{ ...card, marginTop: 10 }}>
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>🏆 Mes records</div>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}><Ico e="🏆" />Mes records</div>
           {TYPES.filter(t => s.records.some(r => r.type === t.id) || s.longest.some(r => r.type === t.id)).map(t => (
             <div key={t.id} style={{ marginTop: 8 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: F.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{t.e} {t.l}</div>

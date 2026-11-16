@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business, type ClientSiteRow, type SitesOverview, type SiteMessage, type SiteTarifs, type SitePack } from '../../services/api.ts';
 import { Hero, StatCard, SkeletonCards, SearchPill } from '../ui/Premium.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 // Sites clients (FIK Sites) : démos depuis Google Maps → vrais sites, espace client du patron, abonnements payés à la
 // main, noms de domaine, réservations/messages reçus par les sites. Mêmes actions que l'outil vocal manage_client_site.
@@ -76,7 +77,7 @@ export default function SitesScreen() {
           <StatCard icon="⏰" value={String(st?.late ?? 0)} label="RETARDS" color={C.red} />
           <StatCard icon="📨" value={String(st?.unread ?? 0)} label="MESSAGES" color={C.gold} />
         </div>
-        <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 16, textAlign: 'center' }}>💰 Revenus mensuels : <b style={{ color: C.accent }}>{mrr || '—'}</b></div>
+        <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 16, textAlign: 'center' }}><Ico e="💰" />Revenus mensuels : <b style={{ color: C.accent }}>{mrr || '—'}</b></div>
 
         {data.tarifs && <TarifsSection t={data.tarifs} onEdit={changes => run(() => business.sitesTarifs(changes), '✅ Tarifs mis à jour')} />}
 
@@ -86,7 +87,7 @@ export default function SitesScreen() {
             <input value={link} onChange={e => setLink(e.target.value)} placeholder="https://maps.app.goo.gl/…  ou  Garage Atlas Oran" style={input} />
             <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Précisions (facultatif) : couleurs, ce qu'il faut mettre en avant…" style={{ ...input, marginTop: 7 }} />
             <button disabled={!link.trim()} onClick={() => run(() => business.sitesDemo(link.trim(), notes.trim())).then(ok => { if (ok) { setLink(''); setNotes(''); } })}
-              style={{ ...btn(C.blue, '#ffffff'), marginTop: 9, width: '100%', opacity: link.trim() ? 1 : 0.5 }}>🚀 Créer la démo</button>
+              style={{ ...btn(C.blue, '#ffffff'), marginTop: 9, width: '100%', opacity: link.trim() ? 1 : 0.5 }}><Ico e="🚀" />Créer la démo</button>
           </div>
         </Section>
 
@@ -164,7 +165,7 @@ function DemoCard({ d, tarifs, onCreate }: { d: SitesOverview['demos'][number]; 
             {chosen && chosen.once == null && <div style={{ display: 'flex', gap: 5, marginTop: 6 }}>{(['mois', 'an'] as const).map(x => <button key={x} onClick={() => setPeriod(x)} style={btn(period === x ? C.blue : 'rgba(var(--dz-ink-rgb),0.054)', period === x ? '#ffffff' : C.text)}>{x === 'mois' ? 'Payé au mois' : 'Payé à l\'année'}</button>)}</div>}
             {chosen && <input value={paid} onChange={e => setPaid(e.target.value.replace(/[^0-9]/g, ''))} inputMode="numeric" placeholder={`Montant déjà reçu (vide = pas encore payé, 0 = prix normal) en ${chosen.currency}`} style={{ ...input, marginTop: 6 }} />}
           </div>)}
-          <button onClick={() => { void onCreate(info.trim(), email.trim(), chosen ? { pack: chosen.id, country, period: chosen.once != null ? 'unique' : period, ...(paid !== '' ? { paid_amount: Number(paid) } : {}) } : {}).then(ok => { if (ok) setForm(false); }); }} style={{ ...btn(C.accent, '#ffffff'), marginTop: 8, width: '100%' }}>✅ Créer le vrai site</button>
+          <button onClick={() => { void onCreate(info.trim(), email.trim(), chosen ? { pack: chosen.id, country, period: chosen.once != null ? 'unique' : period, ...(paid !== '' ? { paid_amount: Number(paid) } : {}) } : {}).then(ok => { if (ok) setForm(false); }); }} style={{ ...btn(C.accent, '#ffffff'), marginTop: 8, width: '100%' }}><Ico e="✅" />Créer le vrai site</button>
           <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>Prêt en 1 à 2 min : site, abonnement, paiement et espace client. Dzaryx te prévient sur Telegram ; il ne restera que le nom de domaine.</div>
         </div>
       )}
@@ -277,9 +278,9 @@ function SiteDetail({ s, act, onRead }: { s: ClientSiteRow; act: Act; onRead: ()
   return (
     <div style={{ padding: '0 12px 12px', fontSize: 12.5, lineHeight: 1.5 }}>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        <button onClick={() => window.open(s.url, '_blank')} style={btn('rgba(var(--dz-ink-rgb),0.16)', C.blue)}>🌐 Voir le site</button>
-        <button onClick={() => window.open(s.adminUrl, '_blank')} style={btn('rgba(var(--dz-ink-rgb),0.063)', C.text)}>🔧 Espace client</button>
-        <button onClick={() => copy(s.adminUrl)} style={btn('rgba(var(--dz-ink-rgb),0.063)', C.text)}>📋 Lien espace client</button>
+        <button onClick={() => window.open(s.url, '_blank')} style={btn('rgba(var(--dz-ink-rgb),0.16)', C.blue)}><Ico e="🌐" />Voir le site</button>
+        <button onClick={() => window.open(s.adminUrl, '_blank')} style={btn('rgba(var(--dz-ink-rgb),0.063)', C.text)}><Ico e="🔧" />Espace client</button>
+        <button onClick={() => copy(s.adminUrl)} style={btn('rgba(var(--dz-ink-rgb),0.063)', C.text)}><Ico e="📋" />Lien espace client</button>
         <OpenAsMe s={s} />
       </div>
       <ClientFile s={s} act={act} />
@@ -298,7 +299,7 @@ function SiteDetail({ s, act, onRead }: { s: ClientSiteRow; act: Act; onRead: ()
         <div style={{ color: C.muted, fontSize: 11.5, marginBottom: 7 }}>Créé le {fmtDay(s.createdAt.slice(0, 10))} · modifié le {fmtAt(s.updatedAt)}</div>
         {s.status === 'live'
           ? <ConfirmButton label="⏸️ Mettre en pause" confirm="Oui, mettre en pause" color={C.red} onGo={() => act('pause')} />
-          : <button onClick={() => act('resume')} style={btn('rgba(47,91,255,0.18)', C.accent)}>▶️ Remettre en ligne</button>}
+          : <button onClick={() => act('resume')} style={btn('rgba(47,91,255,0.18)', C.accent)}><Ico e="▶️" />Remettre en ligne</button>}
       </Block>
     </div>
   );
@@ -332,7 +333,7 @@ function BillingBlock({ s, act }: { s: ClientSiteRow; act: Act }) {
         </div>
         <div style={{ color: C.muted, fontSize: 11.5 }}>Pause automatique : {b.autoPause ? `oui, après ${b.graceDays} jours de retard` : 'non (Dzaryx te prévient seulement)'}</div>
         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-          <button onClick={() => setPayOpen(!payOpen)} style={btn(C.accent, '#ffffff')}>💰 Paiement reçu</button>
+          <button onClick={() => setPayOpen(!payOpen)} style={btn(C.accent, '#ffffff')}><Ico e="💰" />Paiement reçu</button>
           <button onClick={() => setEdit(true)} style={btn('rgba(var(--dz-ink-rgb),0.063)', C.text)}>Modifier</button>
         </div>
         {payOpen && (
@@ -497,7 +498,7 @@ function DomainBlock({ s, act }: { s: ClientSiteRow; act: Act }) {
         <div style={{ fontSize: 11.5, fontWeight: 700, marginTop: 9 }}>Ligne 2 — type <span style={{ color: C.blue }}>CNAME</span></div>
         <CopyLine label="Nom / Hôte" value="www" />
         <CopyLine label="Valeur / Cible" value={t.cname} />
-        <div style={{ fontSize: 11.5, color: C.gold, marginTop: 7 }}>⚠️ Supprime les autres lignes A, AAAA ou CNAME qui ont le nom « @ » ou « www » (souvent une page « parking » du vendeur). Ne touche pas aux lignes MX (les e-mails).</div>
+        <div style={{ fontSize: 11.5, color: C.gold, marginTop: 7 }}><Ico e="⚠️" />Supprime les autres lignes A, AAAA ou CNAME qui ont le nom « @ » ou « www » (souvent une page « parking » du vendeur). Ne touche pas aux lignes MX (les e-mails).</div>
         <button onClick={copyMsg} style={{ ...btn(sent ? 'rgba(47,91,255,0.2)' : 'rgba(var(--dz-ink-rgb),0.063)', sent ? C.accent : C.text), marginTop: 8 }}>{sent ? '✓ Message copié' : '💬 Copier le message pour le client'}</button>
         <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>Si c'est lui (ou son informaticien) qui fait le réglage : colle ce message sur WhatsApp, tout y est.</div>
       </div>
@@ -520,7 +521,7 @@ function DomainBlock({ s, act }: { s: ClientSiteRow; act: Act }) {
         </div>
         {dnsSteps}
       </>) : (<>
-        <div><b>{d.name}</b> · {d.status === 'active' ? <span style={{ color: C.accent }}>✅ actif (https)</span> : <span style={{ color: C.gold }}>⏳ en attente du DNS</span>}</div>
+        <div><b>{d.name}</b> · {d.status === 'active' ? <span style={{ color: C.accent }}><Ico e="✅" />actif (https)</span> : <span style={{ color: C.gold }}><Ico e="⏳" />en attente du DNS</span>}</div>
         {d.status === 'pending' && <>
           <Step n={1} title="Domaine acheté" />
           <Step n={2} title={`Branché sur le site ✓`} />
@@ -528,7 +529,7 @@ function DomainBlock({ s, act }: { s: ClientSiteRow; act: Act }) {
         </>}
         {d.checkedAt && <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>Dernière vérification : {fmtAt(d.checkedAt)}</div>}
         <div style={{ display: 'flex', gap: 6, marginTop: 7 }}>
-          {d.status === 'pending' && <button onClick={() => { void act('domain_check'); }} style={btn('rgba(var(--dz-ink-rgb),0.16)', C.blue)}>🔄 Vérifier maintenant</button>}
+          {d.status === 'pending' && <button onClick={() => { void act('domain_check'); }} style={btn('rgba(var(--dz-ink-rgb),0.16)', C.blue)}><Ico e="🔄" />Vérifier maintenant</button>}
           <ConfirmButton label="Retirer" confirm="Oui, retirer le domaine" color={C.red} onGo={() => { void act('domain_remove'); }} />
         </div>
       </>)}
@@ -543,7 +544,7 @@ function AccountBlock({ s, act }: { s: ClientSiteRow; act: Act }) {
   return (
     <Block title="🔑 QUI A ACCÈS À L'ESPACE ADMIN">
       <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 10px', fontSize: 12.5 }}>
-        <span style={{ color: C.muted }}>Toi</span><span style={{ color: C.accent }}>✅ toujours (bouton « Ouvrir son espace »)</span>
+        <span style={{ color: C.muted }}>Toi</span><span style={{ color: C.accent }}><Ico e="✅" />toujours (bouton « Ouvrir son espace »)</span>
         <span style={{ color: C.muted }}>Le patron</span>
         <span style={{ color: s.account ? C.accent : C.gold }}>{s.account ? `✅ ${s.account}` : '⛔ pas d\'accès'}</span>
       </div>

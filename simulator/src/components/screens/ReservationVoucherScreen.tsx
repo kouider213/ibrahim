@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, type CSSProperties, type RefObject, type R
 import html2canvas from 'html2canvas';
 import { business, api, type Car } from '../../services/api.ts';
 import { T, Screen, PageHeader, Field, inputStyle, Btn, Card, SectionTitle, Segmented, Chips, Row, Avatar, tone } from '../ui/Kit.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 const LOGO_URL = `${((import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL) ?? '/'}logo.png`;
 
@@ -258,8 +259,8 @@ export default function ReservationVoucherScreen() {
 
       <Btn onClick={() => void sendWhatsApp()} disabled={busy} style={{ width: '100%', background: '#25D366', color: '#ffffff', border: 'none', minHeight: 50, marginTop: 4 }}>{busy ? 'Préparation…' : '💬 Envoyer sur WhatsApp (en photo)'}</Btn>
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-        <Btn color={T.warn} onClick={() => void makePdf()} disabled={busy} style={{ flex: 1 }}>📄 PDF</Btn>
-        <Btn color={T.accent2} onClick={() => void downloadImage()} disabled={busy} style={{ flex: 1 }}>🖼️ Image</Btn>
+        <Btn color={T.warn} onClick={() => void makePdf()} disabled={busy} style={{ flex: 1 }}><Ico e="📄" />PDF</Btn>
+        <Btn color={T.accent2} onClick={() => void downloadImage()} disabled={busy} style={{ flex: 1 }}><Ico e="🖼️" />Image</Btn>
       </div>
 
       {history.length > 0 && (

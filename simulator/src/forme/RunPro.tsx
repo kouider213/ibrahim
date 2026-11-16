@@ -4,6 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { forme, errText, vibrate, type Fitness, type Load, type Challenges, type PlanView, type PlanGoal, type Shoe, type Workout, type PlanStep, type RunType } from './api.ts';
 import { F, card, btn, ghostBtn, input, Sheet, Spinner, Chip } from './ui.tsx';
+import { Ico } from '../components/ui/Icon.tsx';
 
 // 🏆 Course « PRO » côté app (01/11, après l'analyse des 20 applis) : forme & prédictions, charge d'entraînement,
 // plans guidés (séance pas à pas avec la voix), défis du mois + badges, chaussures, cadence (accéléromètre),
@@ -19,7 +20,7 @@ const KIND: Record<Workout['kind'], { e: string; c: string }> = { easy: { e: '�
 export function FitnessCard({ f }: { f: Fitness | null }) {
   if (!f) return (
     <div style={{ ...card, marginTop: 10 }}>
-      <div style={{ fontWeight: 700 }}>🫀 Ma forme</div>
+      <div style={{ fontWeight: 700 }}><Ico e="🫀" />Ma forme</div>
       <div style={{ fontSize: 13.5, color: F.muted, marginTop: 4, lineHeight: 1.45 }}>Fais une course d'au moins 1,6 km : FORME calcule ton VO2max, tes temps prévus sur 5 km / 10 km / semi / marathon et tes allures d'entraînement.</div>
     </div>
   );
@@ -31,7 +32,7 @@ export function FitnessCard({ f }: { f: Fitness | null }) {
           <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1 }}>{String(f.vdot).replace('.', ',')}</div><div style={{ fontSize: 9.5, fontWeight: 700, opacity: 0.85 }}>VO2max</div>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700 }}>🫀 Ma forme</div>
+          <div style={{ fontWeight: 700 }}><Ico e="🫀" />Ma forme</div>
           <div style={{ fontSize: 12.5, color: F.muted, marginTop: 2, lineHeight: 1.35 }}>Estimé d'après ton {f.from.label} en {fmtDur(f.from.sec)} ({fmtDay(f.from.date)}). Méthode Jack Daniels, comme Garmin.</div>
         </div>
       </div>
@@ -60,7 +61,7 @@ export function LoadCard({ l }: { l: Load }) {
   const YT = (v: number) => 4 + (1 - (v - minT) / (maxT - minT)) * 40;
   return (
     <div style={{ ...card, marginTop: 10 }}>
-      <div style={{ fontWeight: 700 }}>📈 Charge d'entraînement <span style={{ color: 'var(--f-muted)', fontWeight: 600 }}>90 jours</span></div>
+      <div style={{ fontWeight: 700 }}><Ico e="📈" />Charge d'entraînement <span style={{ color: 'var(--f-muted)', fontWeight: 600 }}>90 jours</span></div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, margin: '10px 0' }}>
         <div><div style={{ fontSize: 20, fontWeight: 800, color: F.accent }}>{Math.round(l.ctl)}</div><div style={{ fontSize: 11.5, color: F.muted, fontWeight: 600 }}>Forme (42 j)</div></div>
         <div><div style={{ fontSize: 20, fontWeight: 800, color: '#e5322d' }}>{Math.round(l.atl)}</div><div style={{ fontSize: 11.5, color: F.muted, fontWeight: 600 }}>Fatigue (7 j)</div></div>
@@ -94,9 +95,9 @@ export function ChallengesCard({ c }: { c: Challenges }) {
   );
   return (
     <div style={{ ...card, marginTop: 10 }}>
-      <div style={{ fontWeight: 700 }}>🎯 Défis de {month}</div>
+      <div style={{ fontWeight: 700 }}><Ico e="🎯" />Défis de {month}</div>
       {row('🏃', 'Parcourir', c.km, 'km')}{row('⛰️', 'Grimper', c.elev, 'm')}{row('📅', 'Bouger', c.days, 'jours')}
-      <div style={{ fontWeight: 700, margin: '16px 0 8px' }}>🏅 Badges <span style={{ color: 'var(--f-muted)', fontWeight: 600 }}>{c.badges.filter(b => b.ok).length}/{c.badges.length}</span></div>
+      <div style={{ fontWeight: 700, margin: '16px 0 8px' }}><Ico e="🏅" />Badges <span style={{ color: 'var(--f-muted)', fontWeight: 600 }}>{c.badges.filter(b => b.ok).length}/{c.badges.length}</span></div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
         {c.badges.map(b => <div key={b.id} style={{ textAlign: 'center', padding: '8px 2px', borderRadius: 12, background: b.ok ? 'color-mix(in srgb, #e09a12 14%, var(--f-card))' : F.bg, opacity: b.ok ? 1 : 0.45, filter: b.ok ? 'none' : 'grayscale(1)' }}><div style={{ fontSize: 24 }}>{b.e}</div><div style={{ fontSize: 10, fontWeight: 700, lineHeight: 1.2, marginTop: 2 }}>{b.l}</div></div>)}
       </div>
@@ -130,7 +131,7 @@ export function PlanCard({ plan, onPlan, onStart, toast }: { plan: PlanView | nu
             <div style={{ fontWeight: 800, fontSize: 18, marginTop: 2 }}>{KIND[w.kind].e} {w.title}</div>
             <div style={{ fontSize: 13, color: F.muted, marginTop: 4, lineHeight: 1.4 }}>{w.desc}</div>
             <div style={{ fontSize: 12.5, marginTop: 8, display: 'grid', gap: 2 }}>{w.steps.filter((s, i, a) => i < 5 || i === a.length - 1).map((s, i) => <div key={i}>• {s.label} — <b>{stepTxt(s)}</b></div>)}{w.steps.length > 6 && <div style={{ color: F.muted }}>… {w.steps.length} étapes au total</div>}</div>
-            <button onClick={() => onStart(w)} style={{ ...btn, width: '100%', marginTop: 12, background: KIND[w.kind].c }}>▶ Lancer la séance guidée</button>
+            <button onClick={() => onStart(w)} style={{ ...btn, width: '100%', marginTop: 12, background: KIND[w.kind].c }}><Ico e="▶" />Lancer la séance guidée</button>
           </div>}
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <button onClick={() => setAll(true)} style={{ ...ghostBtn, flex: 1 }}>Tout le plan</button>
@@ -183,7 +184,7 @@ export function ShoesSection({ shoes, onShoes, toast }: { shoes: Shoe[]; onShoes
   const act = async (b: Parameters<typeof forme.shoe>[0]) => { try { onShoes((await forme.shoe(b)).shoes); } catch (e) { toast(errText(e)); } };
   return (
     <>
-      <div style={{ fontWeight: 800, margin: '18px 2px 8px' }}>👟 Mes chaussures</div>
+      <div style={{ fontWeight: 800, margin: '18px 2px 8px' }}><Ico e="👟" />Mes chaussures</div>
       <div style={{ ...card, padding: '6px 14px' }}>
         {shoes.map(s => <div key={s.id} style={{ padding: '10px 0', borderBottom: `1px solid ${F.line}`, opacity: s.retired ? 0.5 : 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ flex: 1, fontWeight: 700 }}>{s.name}{s.retired ? ' (retraite)' : ''}</div><div style={{ fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{String(s.km).replace('.', ',')} / {s.maxKm} km</div></div>
@@ -270,7 +271,7 @@ export function LiveViewer({ token }: { token: string }) {
             <div><div style={{ fontSize: 22, fontWeight: 800 }}>{fmtDur(d.moving)}</div><div style={{ fontSize: 11.5, color: F.muted }}>temps</div></div>
             <div><div style={{ fontSize: 22, fontWeight: 800 }}>{d.dist > 100 ? fmtPace(d.moving / (d.dist / 1000)) : '–:––'}</div><div style={{ fontSize: 11.5, color: F.muted }}>/km</div></div>
           </div>
-          <div style={{ fontSize: 11.5, color: F.muted, marginTop: 8 }}>📍 Suivi en direct FORME · mis à jour toutes les 15 s · départ {new Date(d.startedAt).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })}</div>
+          <div style={{ fontSize: 11.5, color: F.muted, marginTop: 8 }}><Ico e="📍" />Suivi en direct FORME · mis à jour toutes les 15 s · départ {new Date(d.startedAt).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })}</div>
         </>}
       </div>
     </div>

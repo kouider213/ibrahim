@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { BACKEND_URL, getToken } from '../../services/api.ts';
 import { SkeletonCards } from '../ui/Premium.tsx';
 import { T, Screen, PageHeader, HeadBtn, Chips, Segmented, Card, Badge, Avatar, Btn, btnStyle, Empty, Sheet, Field, inputStyle } from '../ui/Kit.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 interface Demande {
   id: string;
@@ -256,7 +257,7 @@ export default function DemandesScreen() {
               <div style={{ padding: '0 14px 14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {d.source === 'booking' && d.status === 'PENDING' && (
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <Btn variant="primary" disabled={!!busy} onClick={() => void act(d, 'ACCEPTED', 'Réservation acceptée ✅')} style={{ flex: 1 }}>✅ Accepter</Btn>
+                    <Btn variant="primary" disabled={!!busy} onClick={() => void act(d, 'ACCEPTED', 'Réservation acceptée ✅')} style={{ flex: 1 }}><Ico e="✅" />Accepter</Btn>
                     <Btn variant="danger" disabled={!!busy} onClick={() => void act(d, 'REJECTED', 'Réservation refusée')} style={{ flex: 1 }}>Refuser</Btn>
                   </div>
                 )}
@@ -272,9 +273,9 @@ export default function DemandesScreen() {
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 8 }}>
-                  {d.client_phone && <Btn color="#25D366" onClick={() => waRelance(d)} style={{ flex: 1.2 }}>💬 WhatsApp</Btn>}
+                  {d.client_phone && <Btn color="#25D366" onClick={() => waRelance(d)} style={{ flex: 1.2 }}><Ico e="💬" />WhatsApp</Btn>}
                   {d.source === 'lead' && d.status !== 'conclu' && <Btn color={T.ok} disabled={!!busy} onClick={() => void act(d, 'conclu', 'Lead marqué conclu ✅')} style={{ flex: 1 }}>✓ Conclu</Btn>}
-                  <a href={`${SITE}${d.admin_path}`} target="_blank" rel="noopener noreferrer" style={{ ...btnStyle('ghost'), flex: 1, textDecoration: 'none' }}>⚙️ Gérer</a>
+                  <a href={`${SITE}${d.admin_path}`} target="_blank" rel="noopener noreferrer" style={{ ...btnStyle('ghost'), flex: 1, textDecoration: 'none' }}><Ico e="⚙️" />Gérer</a>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {flow && d.status !== 'CANCELLED' && <Btn variant="ghost" disabled={!!busy} onClick={() => void act(d, 'CANCELLED', 'Demande annulée')} style={{ flex: 1, minHeight: 40, fontSize: 13 }}>✕ Annuler</Btn>}

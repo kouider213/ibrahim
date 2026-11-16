@@ -3,6 +3,7 @@ import { ClientName } from '../ClientSheet.tsx';
 import { business, type RevenueSummary, type FinancialReport, type ProfitLedger } from '../../services/api.ts';
 import { SkeletonCards } from '../ui/Premium.tsx';
 import { T, tone, Screen, PageHeader, Segmented, Kpi, KpiGrid, Card, Row, Avatar, Badge, Btn, SectionTitle, Empty, money } from '../ui/Kit.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 const SCORE_COL: Record<string, string> = {
   VIP: T.warn, FREQUENT: T.accent, FRÉQUENT: T.accent, A: T.accent,
@@ -91,7 +92,7 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
           <button onClick={prevMonth} aria-label="Mois précédent" style={navBtn(false)}>‹</button>
           <div style={{ flex: 1, textAlign: 'center' }}>
             <div style={{ fontSize: 17, fontWeight: 800 }}>{MONTH_FR[viewMonth - 1]} {viewYear}</div>
-            {!isAtNow && <button onClick={goToNow} style={{ background: 'none', border: 'none', color: T.accent, fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 2, fontFamily: T.font }}>↩ Revenir à ce mois</button>}
+            {!isAtNow && <button onClick={goToNow} style={{ background: 'none', border: 'none', color: T.accent, fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 2, fontFamily: T.font }}><Ico e="↩" />Revenir à ce mois</button>}
           </div>
           <button onClick={nextMonth} disabled={isAtNow} aria-label="Mois suivant" style={navBtn(isAtNow)}>›</button>
         </div>
@@ -118,7 +119,7 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
       {!loading && report?.dzd && (isHouari || report.dzd.bookings > 0) && (
         <Card accent={T.violet} style={{ marginTop: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
-            <div style={{ flex: 1, fontSize: 15, fontWeight: 800 }}>💱 En dinars</div>
+            <div style={{ flex: 1, fontSize: 15, fontWeight: 800 }}><Ico e="💱" />En dinars</div>
             <Badge color={T.violet}>{report.dzd.bookings} location{report.dzd.bookings > 1 ? 's' : ''}</Badge>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 8 }}>
@@ -214,7 +215,7 @@ function LedgerCard({ ledger, fmt, onToggle }: { ledger: ProfitLedger; fmt: Fmt;
   );
   return (
     <Card accent={T.ok} style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>💰 Mon bénéfice</div>
+      <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}><Ico e="💰" />Mon bénéfice</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 8 }}>
         {[{ l: 'Gagné depuis le début', v: ledger.total, c: T.text }, { l: 'Déjà récupéré', v: ledger.collected, c: T.ok }, { l: 'À récupérer', v: ledger.toCollect, c: ledger.toCollect > 0 ? T.warn : T.ok }].map(x => (
           <div key={x.l}>
@@ -228,7 +229,7 @@ function LedgerCard({ ledger, fmt, onToggle }: { ledger: ProfitLedger; fmt: Fmt;
         <div style={{ fontSize: 12.5, color: T.muted, fontWeight: 700, marginBottom: 2 }}>À RÉCUPÉRER</div>
         {pending.map(r => line(r, false))}
         {pending.length > 1 && <Btn onClick={() => void act('all', true)} disabled={!!busy} style={{ width: '100%', marginTop: 8 }}>{busy === 'all' ? '…' : `✓ J'ai tout récupéré (${fmt(ledger.toCollect)})`}</Btn>}
-      </div> : <div style={{ marginTop: 12, fontSize: 13.5, color: T.ok }}>✅ Tout est récupéré.</div>}
+      </div> : <div style={{ marginTop: 12, fontSize: 13.5, color: T.ok }}><Ico e="✅" />Tout est récupéré.</div>}
       {done.length > 0 && <div style={{ marginTop: 10 }}>
         <button onClick={() => setOpen(o => !o)} style={{ background: 'none', border: 'none', color: T.accent, fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0, fontFamily: T.font }}>{open ? '▾' : '▸'} Déjà récupéré ({done.length} locations)</button>
         {open && <div style={{ marginTop: 4 }}>{done.map(r => line(r, true))}</div>}
@@ -379,7 +380,7 @@ function AnnualTab({ report, year, fmt }: { report: FinancialReport | null; year
         <div style={{ fontSize: 13, color: T.muted, fontWeight: 600 }}>CA {year}</div>
         <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.05, marginTop: 4 }}>{fmt(report.grossCA)}</div>
         <div style={{ fontSize: 13.5, color: T.muted, marginTop: 8 }}>{report.totalBookings} réservations{report.encaisse > 0 ? ` · ${fmt(report.encaisse)} encaissé` : ''}</div>
-        {report.aEncaisser > 0 && <div style={{ marginTop: 10 }}><Badge color={T.warn}>💸 Reste à encaisser : {fmt(report.aEncaisser)}</Badge></div>}
+        {report.aEncaisser > 0 && <div style={{ marginTop: 10 }}><Badge color={T.warn}><Ico e="💸" />Reste à encaisser : {fmt(report.aEncaisser)}</Badge></div>}
       </Card>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 10, marginBottom: 12 }}>
         <PartnerCard who="K" value={fmt(report.kouiderProfit)} label="Bénéfice net annuel" sub={`${report.kouiderBookings} résas`} />

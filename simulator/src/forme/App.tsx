@@ -15,6 +15,7 @@ import RunScreen from './Run.tsx';
 import CutScreen from './Cut.tsx';
 import { LiveViewer } from './RunPro.tsx';
 import { BulkQuiz } from './Bulk.tsx';
+import { Ico } from '../components/ui/Icon.tsx';
 
 // FORME — l'app SPORT de Kouider (31/10 : refaite au style de l'appli « Library » de sa vidéo, nourriture retirée).
 // Marche seule (écran d'accueil : /ibrahim/forme/) ou dans l'app Dzaryx (page FORME, en iframe : même session).
@@ -142,19 +143,19 @@ function Settings({ o, open, onClose, onO, toast }: { o: Overview; open: boolean
         {num('Poids actuel (kg)', 'weightKg')}{num('Poids visé (kg)', 'targetKg')}{num('Âge', 'age')}{num('Taille (cm)', 'heightCm')}
         {num('Séances / semaine', 'sessionsPerWeek')}{num('Photo tous les … jours', 'photoEveryDays')}
       </div>
-      <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}>🌗 Apparence</div>
+      <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}><Ico e="🌗" />Apparence</div>
       <div style={{ display: 'flex', gap: 6 }}>{([['light', '☀️ Clair'], ['dark', '🌙 Sombre'], ['auto', '📱 Auto']] as const).map(([m, l]) => <Chip key={m} on={theme === m} onClick={() => { setTheme(m); setThemeMode(m); }}>{l}</Chip>)}</div>
-      <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}>🌐 Langue · اللغة</div>
+      <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}><Ico e="🌐" />Langue · اللغة</div>
       <div style={{ display: 'flex', gap: 6 }}><Chip on={p.lang === 'ar'} onClick={() => void save({ lang: 'ar' })}>العربية</Chip><Chip on={p.lang === 'fr'} onClick={() => void save({ lang: 'fr' })}>Français</Chip></div>
       {o.uid === 'femme' && <div style={{ ...card, padding: '4px 14px', marginTop: 12 }}><Toggle on={p.shareWithDzaryx} onChange={v => void save({ shareWithDzaryx: v })} label="Partager mon suivi avec Dzaryx (l'assistant de Kouider)" /><div style={{ fontSize: 12.5, color: F.muted, padding: '6px 0 10px' }}>Désactivé : ton suivi, tes photos et ton traitement restent rien qu'à toi.</div></div>}
-      {(p.goal === 'muscle' || o.uid !== 'kouider') && <button onClick={() => setQuiz(true)} style={{ ...ghostBtn, width: '100%', marginBottom: 6 }}>💪 Questionnaire prise de masse{o.profile.bulk ? ' (refaire)' : ''}</button>}
+      {(p.goal === 'muscle' || o.uid !== 'kouider') && <button onClick={() => setQuiz(true)} style={{ ...ghostBtn, width: '100%', marginBottom: 6 }}><Ico e="💪" />Questionnaire prise de masse{o.profile.bulk ? ' (refaire)' : ''}</button>}
       <BulkQuiz open={quiz} onClose={() => setQuiz(false)} o={o} onO={onO} toast={toast} />
       {o.uid === 'kouider' && <><Invite o={o} toast={toast} /><Invite o={o} toast={toast} who="ami" /></>}
-      <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}>🛌 Jours de repos (pas de sport)</div>
+      <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}><Ico e="🛌" />Jours de repos (pas de sport)</div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{[1, 2, 3, 4, 5, 6, 0].map(d => <Chip key={d} on={p.restDays.includes(d)} onClick={() => void save({ restDays: p.restDays.includes(d) ? p.restDays.filter(x => x !== d) : [...p.restDays, d] })}>{DAYS[d]!.slice(0, 3)}</Chip>)}</div>
       {o.uid === 'kouider' && <div style={{ fontSize: 12.5, color: F.muted, marginTop: 6 }}>Tes séances à la salle restent calées par Dzaryx sur ton agenda Google.</div>}
       {o.uid !== 'ami' && <>
-      <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}>💉 Wegovy</div>
+      <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}><Ico e="💉" />Wegovy</div>
       <div style={{ ...card, padding: '4px 14px' }}>
         <Toggle on={p.wegovy.on} onChange={v => void save({ wegovy: { ...p.wegovy, on: v } })} label="Traitement en cours" />
         <div style={{ display: 'flex', gap: 4, padding: '10px 0', flexWrap: 'wrap' }}>{[1, 2, 3, 4, 5, 6, 0].map(d => <Chip key={d} on={p.wegovy.day === d} onClick={() => void save({ wegovy: { ...p.wegovy, day: d } })}>{DAYS[d]!.slice(0, 3)}</Chip>)}</div>
@@ -163,7 +164,7 @@ function Settings({ o, open, onClose, onO, toast }: { o: Overview; open: boolean
           {(p.wegovy.doses?.length ?? 0) > 0 && <div style={{ fontSize: 12.5, color: F.muted, marginTop: 8 }}>Historique : {p.wegovy.doses!.map(x => `${x.dose} (${x.date.slice(8)}/${x.date.slice(5, 7)})`).join(' → ')}</div>}</div>
       </div>
       </>}
-      <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}>🔔 Notifications</div>
+      <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}><Ico e="🔔" />Notifications</div>
       <div style={{ ...card, padding: '4px 14px' }}>
         {o.uid !== 'ami' && <Toggle on={p.notif.injection} onChange={v => void save({ notif: { ...p.notif, injection: v } })} label="Jour d'injection" />}
         <Toggle on={p.notif.weigh} onChange={v => void save({ notif: { ...p.notif, weigh: v } })} label="Pesée du lundi" />
@@ -172,7 +173,7 @@ function Settings({ o, open, onClose, onO, toast }: { o: Overview; open: boolean
         {o.uid === 'kouider' && <Toggle on={p.notif.telegram !== false} onChange={v => void save({ notif: { ...p.notif, telegram: v } })} label="Aussi sur Telegram (Dzaryx)" />}
       </div>
       {o.uid === 'kouider' && <AutoSyncToggle Toggle={Toggle} />}
-      {!embedded && <button onClick={async () => { try { toast(await enablePush()); } catch (e) { toast(errText(e)); } }} style={{ ...btn, width: '100%', marginTop: 12 }}>🔔 Activer les notifications sur ce téléphone</button>}
+      {!embedded && <button onClick={async () => { try { toast(await enablePush()); } catch (e) { toast(errText(e)); } }} style={{ ...btn, width: '100%', marginTop: 12 }}><Ico e="🔔" />Activer les notifications sur ce téléphone</button>}
       <div style={{ fontSize: 12.5, color: F.muted, marginTop: 10, lineHeight: 1.45 }}>{embedded ? 'Dans Dzaryx, les rappels arrivent dans les notifications de Dzaryx. ' : ''}Pour avoir FORME comme une vraie app : ouvre kouider213.github.io/ibrahim/forme dans Safari → Partager → « Sur l'écran d'accueil ».</div>
       <button onClick={() => { if (confirm('Refaire le questionnaire du début ?')) void save({ onboarded: false }); }} style={{ ...ghostBtn, width: '100%', marginTop: 12 }}>Refaire le questionnaire</button>
     </Sheet>
@@ -217,7 +218,7 @@ export default function App() {
 function AutoSyncToggle({ Toggle }: { Toggle: (p: { on: boolean; onChange: (v: boolean) => void; label: string }) => React.ReactElement }) {
   const [on, setOn] = useState(() => { try { return localStorage.getItem('forme:autosync:off') !== '1'; } catch { return true; } });
   return (<>
-    <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}>⌚ Montre en direct</div>
+    <div style={{ fontWeight: 800, margin: '16px 2px 8px' }}><Ico e="⌚" />Montre en direct</div>
     <div style={{ ...card, padding: '4px 14px' }}>
       <Toggle on={on} onChange={v => { setOn(v); try { if (v) localStorage.removeItem('forme:autosync:off'); else localStorage.setItem('forme:autosync:off', '1'); } catch { /* */ } }} label="Lancer « Dzaryx Santé » quand j'ouvre FORME" />
       <div style={{ fontSize: 12.5, color: F.muted, padding: '0 0 10px' }}>Si ta montre n'a rien envoyé depuis 20 min, FORME lance le raccourci (au plus 1 fois toutes les 20 min, de 5h à 23h). Reviens ensuite sur FORME : les chiffres sont à jour.</div>
@@ -281,11 +282,17 @@ function FormeApp() {
   if (!o.profile.onboarded) return <Setup initial={o.profile} onDone={() => { void load(); setTab('sport'); }} />;
 
   return (
-    <div style={{ minHeight: '100dvh', background: `linear-gradient(180deg, var(--f-bg2) 0px, ${F.bg} 320px)`, paddingBottom: 'calc(96px + env(safe-area-inset-bottom))', fontFamily: F.sans, color: F.ink }}>
-      <header style={{ position: 'sticky', top: 0, zIndex: 20, display: 'flex', alignItems: 'center', gap: 10, padding: 'calc(8px + env(safe-area-inset-top)) 14px 8px', background: 'color-mix(in srgb, var(--f-bg) 86%, transparent)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)' }}>
-        {embedded && <button onClick={() => window.parent.postMessage({ type: 'forme:exit' }, '*')} aria-label="Retour à Dzaryx" style={{ width: 34, height: 34, border: 'none', background: 'none', fontSize: 22, cursor: 'pointer', color: F.ink, padding: 0 }}>✕</button>}
-        <div style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-0.01em', flex: 1 }}>Forme</div>
-        <button data-tour="profile" onClick={() => setSettings(true)} aria-label="Profil" style={{ width: 34, height: 34, borderRadius: 17, border: 'none', background: F.dark, color: '#fff', fontWeight: 700, cursor: 'pointer' }}>{(o.profile.name || 'K').slice(0, 1).toUpperCase()}</button>
+    <div style={{ minHeight: '100dvh', background: `radial-gradient(110% 380px at 50% -60px, color-mix(in srgb, #ff5a1f var(--f-glow-a), transparent), transparent 75%), radial-gradient(60% 260px at 100% 0, color-mix(in srgb, #ff2d6f calc(var(--f-glow-a) * 0.6), transparent), transparent 70%), ${F.bg}`, backgroundRepeat: 'no-repeat', paddingBottom: 'calc(110px + env(safe-area-inset-bottom))', fontFamily: F.sans, color: F.ink }}>
+      {/* v4 (16/11) : en-tête en verre, logo FORME orange, barre du bas flottante (Nike Run Club / Strava / iOS 26) */}
+      <header style={{ position: 'sticky', top: 0, zIndex: 20, display: 'flex', alignItems: 'center', gap: 10, padding: 'calc(8px + env(safe-area-inset-top)) 16px 10px', background: 'color-mix(in srgb, var(--f-bg) 55%, transparent)', backdropFilter: 'blur(20px) saturate(160%)', WebkitBackdropFilter: 'blur(20px) saturate(160%)' }}>
+        {embedded && <button onClick={() => window.parent.postMessage({ type: 'forme:exit' }, '*')} aria-label="Retour à Dzaryx" style={{ width: 38, height: 38, borderRadius: 13, border: `1px solid ${F.line}`, background: 'var(--f-card)', fontSize: 16, cursor: 'pointer', color: F.ink, padding: 0 }}>✕</button>}
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 9 }}>
+          <span style={{ width: 30, height: 30, borderRadius: 10, background: 'linear-gradient(145deg, #ff7a1a, #ff2d55)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 18px -8px #ff5a1f' }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round"><path d="M6.5 7v10M3.5 9.5v5M17.5 7v10M20.5 9.5v5M6.5 12h11" /></svg>
+          </span>
+          <span style={{ fontWeight: 750, fontSize: 19, letterSpacing: '-0.05em' }}>FORME</span>
+        </div>
+        <button data-tour="profile" onClick={() => setSettings(true)} aria-label="Profil" style={{ width: 38, height: 38, borderRadius: 19, border: '1px solid rgba(255,255,255,0.18)', background: 'linear-gradient(145deg, #ff7a1a, #ff2d55)', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>{(o.profile.name || 'K').slice(0, 1).toUpperCase()}</button>
       </header>
       {!embedded && notifState !== 'granted' && (notifState !== 'dismissed' || standalone) && (
         <div style={{ margin: '6px 14px 0', ...card, display: 'flex', gap: 12, alignItems: 'center', background: F.dark, color: '#fff' }}>
@@ -306,13 +313,16 @@ function FormeApp() {
           {tab === 'body' && <BodyScreen o={o} onO={setO} toast={toast} />}
         </motion.main>
       </AnimatePresence>
-      <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 30, background: 'color-mix(in srgb, var(--f-bg) 94%, transparent)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', borderTop: `1px solid ${F.line}`, padding: '6px 6px calc(6px + env(safe-area-inset-bottom))', display: 'flex' }}>
-        {TABS.filter(t => o.uid === 'kouider' ? t.id !== 'run' : t.id !== 'cut').map(t => (
-          <button key={t.id} data-tour={`nav-${t.id}`} onClick={() => { vibrate(8); setTab(t.id); }} style={{ flex: 1, border: 'none', background: 'none', color: tab === t.id ? F.accent : '#8e899b', padding: '4px 0', cursor: 'pointer', fontFamily: F.sans, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-            {t.icon(tab === t.id)}
-            <div style={{ fontSize: 10.5, fontWeight: tab === t.id ? 600 : 500 }}>{t.label}</div>
-          </button>
-        ))}
+      <nav style={{ position: 'fixed', left: 12, right: 12, bottom: 'max(10px, env(safe-area-inset-bottom))', zIndex: 30, height: 66, borderRadius: 26, background: 'var(--f-dock)', backdropFilter: 'blur(28px) saturate(180%)', WebkitBackdropFilter: 'blur(28px) saturate(180%)', border: `1px solid ${F.line}`, boxShadow: '0 1px 0 rgba(255,255,255,0.08) inset, 0 20px 50px -14px rgba(0,0,0,0.55)', padding: '0 6px', display: 'flex', alignItems: 'center', maxWidth: 560, margin: '0 auto' }}>
+        {TABS.filter(t => o.uid === 'kouider' ? t.id !== 'run' : t.id !== 'cut').map(t => {
+          const on = tab === t.id;
+          return (
+            <button key={t.id} data-tour={`nav-${t.id}`} onClick={() => { vibrate(8); setTab(t.id); }} style={{ flex: 1, height: 52, margin: '0 2px', borderRadius: 18, border: 'none', background: on ? 'linear-gradient(145deg, rgba(255,122,26,0.22), rgba(255,45,85,0.16))' : 'none', color: on ? F.accent : F.muted, padding: 0, cursor: 'pointer', fontFamily: F.sans, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+              <span style={{ transform: 'scale(0.9)', display: 'flex' }}>{t.icon(on)}</span>
+              <div style={{ fontSize: 10, fontWeight: on ? 650 : 500, letterSpacing: '-0.005em' }}>{t.label}</div>
+            </button>
+          );
+        })}
       </nav>
       <BulkQuiz open={bulkOpen} onClose={() => { setBulkOpen(false); setBulkLater(true); try { sessionStorage.setItem('forme:bulk-later', '1'); } catch { /* */ } }} o={o} onO={setO} toast={toast} />
       <Settings o={o} open={settings} onClose={() => setSettings(false)} onO={setO} toast={toast} />

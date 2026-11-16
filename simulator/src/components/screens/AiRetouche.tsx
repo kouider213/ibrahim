@@ -5,7 +5,7 @@ import { uploadFile } from './MontageEditor.tsx';
 // 🪄 Retouche IA : ta photo ou ta vidéo + une phrase (« remplace la voiture par une Ferrari Purosangue »)
 // → Dzaryx la modifie en gardant tout le reste. Photo gratuite ; vidéo via Kling (devis affiché avant).
 
-const C = { surface: 'var(--dz-surface)', border: 'rgba(var(--dz-ink-rgb),0.16)', accent: 'var(--dz-ink)', green: '#2f5bff', gold: '#b86e00', text: 'var(--dz-text)', muted: 'var(--dz-muted)',
+const C = { surface: 'var(--dz-surface)', border: 'rgba(var(--dz-ink-rgb),0.16)', accent: '#3d6bff', green: '#2f5bff', gold: '#b86e00', text: 'var(--dz-text)', muted: 'var(--dz-muted)',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif' };
 const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 12, marginBottom: 10 } as const;
 const btn = (bg: string, color: string) => ({ background: bg, color, border: 'none', borderRadius: 10, padding: '11px 13px', fontSize: 13.5, fontWeight: 800, cursor: 'pointer', fontFamily: C.font } as const);

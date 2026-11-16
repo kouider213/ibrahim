@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { apiFetch } from '../../services/api.ts';
 import { Hero, StatCard, SkeletonCards, SearchPill } from '../ui/Premium.tsx';
 import { btnStyle } from '../ui/Kit.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 // « PARTENAIRES » : Houari, Karim… et tout ce qu'ils proposent (véhicules, immobilier, services, activités),
 // avec photos, prix payé au partenaire, prix client et marge. Un véhicule « dans le PARC » se met à jour partout.
@@ -289,9 +290,9 @@ export default function PartnersScreen() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
-            {p.phone && <a href={`tel:${p.phone}`} style={{ ...btn(C.surface2, C.text), textDecoration: 'none' }}>📞 Appeler</a>}
+            {p.phone && <a href={`tel:${p.phone}`} style={{ ...btn(C.surface2, C.text), textDecoration: 'none' }}><Ico e="📞" />Appeler</a>}
             {(p.whatsapp || p.phone) && <a href={waLink(p.whatsapp || p.phone!)} target="_blank" rel="noreferrer" style={{ ...btn('#0a9a5e22', '#25D366'), textDecoration: 'none' }}>WhatsApp</a>}
-            <button onClick={() => setPForm({ id: p.id, f: Object.fromEntries(Object.entries(p).filter(([, v]) => typeof v === 'string' || typeof v === 'number').map(([k, v]) => [k, String(v)])) as PartnerForm })} style={btn(C.surface2, C.accent)}>✏️ Modifier</button>
+            <button onClick={() => setPForm({ id: p.id, f: Object.fromEntries(Object.entries(p).filter(([, v]) => typeof v === 'string' || typeof v === 'number').map(([k, v]) => [k, String(v)])) as PartnerForm })} style={btn(C.surface2, C.accent)}><Ico e="✏️" />Modifier</button>
             <button onClick={() => void removePartner(p)} style={btn(C.surface2, C.red)}>🗑️</button>
           </div>
           {(infos.some(([, v]) => v) || p.notes) && (
@@ -341,8 +342,8 @@ export default function PartnersScreen() {
                   </div>
                   <div style={{ color: C.muted, fontSize: 11.5, marginTop: 6 }}>par {o.unit}{o.capacity ? ` · ${o.capacity} ${o.type === 'vehicle' ? 'places' : 'pers.'}` : ''}{o.location ? ` · ${o.location}` : ''}{o.conditions ? ` · ${o.conditions}` : ''}</div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-                    <button onClick={() => setOForm({ id: o.id, photos: [], f: { ...EMPTY_OFFER, type: o.type, title: o.title, description: o.description ?? '', owner_price: o.owner_price != null ? String(o.owner_price) : '', client_price: o.client_price != null ? String(o.client_price) : '', unit: o.unit, currency: o.currency, capacity: o.capacity != null ? String(o.capacity) : '', location: o.location ?? '', conditions: o.conditions ?? '', available: o.available } })} style={btn(C.surface2, C.accent)}>✏️ Modifier</button>
-                    <label style={{ ...btn(C.surface2, C.text), display: 'inline-block' }}>📷 Photos<input type="file" accept="image/*" multiple hidden onChange={e => void addPhotos(o, e.target.files)} /></label>
+                    <button onClick={() => setOForm({ id: o.id, photos: [], f: { ...EMPTY_OFFER, type: o.type, title: o.title, description: o.description ?? '', owner_price: o.owner_price != null ? String(o.owner_price) : '', client_price: o.client_price != null ? String(o.client_price) : '', unit: o.unit, currency: o.currency, capacity: o.capacity != null ? String(o.capacity) : '', location: o.location ?? '', conditions: o.conditions ?? '', available: o.available } })} style={btn(C.surface2, C.accent)}><Ico e="✏️" />Modifier</button>
+                    <label style={{ ...btn(C.surface2, C.text), display: 'inline-block' }}><Ico e="📷" />Photos<input type="file" accept="image/*" multiple hidden onChange={e => void addPhotos(o, e.target.files)} /></label>
                     <button onClick={() => void removeOffer(o)} style={btn(C.surface2, C.red)}>🗑️</button>
                   </div>
                 </div>
@@ -385,7 +386,7 @@ export default function PartnersScreen() {
           </button>
         ))}
         {list && !shown.length && <div style={{ color: C.muted, textAlign: 'center', padding: 24, fontSize: 13 }}>{q ? 'Aucun résultat.' : 'Aucun partenaire. Ajoute ton premier !'}</div>}
-        <div style={{ color: C.muted, fontSize: 11, lineHeight: 1.5, marginTop: 8 }}>💡 Tu peux aussi le dire à Dzaryx : « ajoute Karim comme partenaire, il me propose une villa à 80 € la nuit que je loue 110 € » ou « si je travaille avec Karim, combien je gagne ? ».</div>
+        <div style={{ color: C.muted, fontSize: 11, lineHeight: 1.5, marginTop: 8 }}><Ico e="💡" />Tu peux aussi le dire à Dzaryx : « ajoute Karim comme partenaire, il me propose une villa à 80 € la nuit que je loue 110 € » ou « si je travaille avec Karim, combien je gagne ? ».</div>
       </div>
       {toast && <Toast text={toast} />}
     </div>

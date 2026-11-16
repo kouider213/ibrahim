@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business, type BillingRow, type BillingOverview } from '../../services/api.ts';
 import { Hero, StatCard, SkeletonCards } from '../ui/Premium.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 // « À PAYER » : tout ce qu'il faut payer pour garder Dzaryx actif. Railway et le domaine sont lus en direct,
 // le reste se remplit ici (date, montant, solde après recharge). Dzaryx prévient à J-7, J-3, J-1, le jour J.
@@ -67,14 +68,14 @@ export default function PaiementsScreen() {
           </div>
 
           <div style={{ background: 'rgba(224,48,79,0.08)', border: '1px solid rgba(224,48,79,0.35)', borderRadius: 14, padding: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.5 }}>
-            <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 4 }}>💡 Le minimum obligatoire</div>
+            <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 4 }}><Ico e="💡" />Le minimum obligatoire</div>
             {must.map(r => <div key={r.id}>🔴 <b>{r.name}</b> — {r.amount ?? r.price}{r.due ? ` · le ${new Date(`${r.due}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : ''}</div>)}
             <div style={{ color: C.muted, marginTop: 4 }}>C'est le seul paiement obligatoire pour garder Dzaryx en vie. Tout ce qui est marqué FACULTATIF peut être arrêté pour faire des économies : Dzaryx continue (en mode gratuit pour ce service).</div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 12, marginBottom: 10 }}>
             <div style={{ flex: 1, fontSize: 12, lineHeight: 1.45 }}>
-              <div style={{ fontWeight: 800, fontSize: 13.5 }}>🌱 Mode économie Claude {data?.eco !== false ? 'activé' : 'coupé'}</div>
+              <div style={{ fontWeight: 800, fontSize: 13.5 }}><Ico e="🌱" />Mode économie Claude {data?.eco !== false ? 'activé' : 'coupé'}</div>
               <div style={{ color: C.muted }}>Les tâches de fond utilisent le modèle léger (≈ 20× moins cher). Le chat, les mails aux prospects, le conseiller et les inspections gardent le meilleur modèle.</div>
             </div>
             <button onClick={() => void act(() => business.billingEco(data?.eco === false))}
@@ -82,9 +83,9 @@ export default function PaiementsScreen() {
           </div>
 
           <div style={{ background: 'rgba(47,91,255,0.08)', border: `1px solid rgba(47,91,255,0.25)`, borderRadius: 14, padding: 12, marginBottom: 14, fontSize: 12, lineHeight: 1.5 }}>
-            <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 4 }}>🛡️ Dzaryx ne meurt pas</div>
+            <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 4 }}><Ico e="🛡️" />Dzaryx ne meurt pas</div>
             {(data?.survival ?? []).map((l, i) => <div key={i}>• {l}</div>)}
-            <div style={{ color: C.muted, marginTop: 4 }}>🔔 Dzaryx te prévient à J-7, J-3, la veille (appel pour Railway) et le jour J, et dès qu'un crédit est épuisé.</div>
+            <div style={{ color: C.muted, marginTop: 4 }}><Ico e="🔔" />Dzaryx te prévient à J-7, J-3, la veille (appel pour Railway) et le jour J, et dès qu'un crédit est épuisé.</div>
           </div>
 
           {paid.map(r => <Card key={r.id} r={r} open={open === r.id} onToggle={() => setOpen(open === r.id ? null : r.id)} act={act} />)}
@@ -135,13 +136,13 @@ function Card({ r, open, onToggle, act }: { r: BillingRow; open: boolean; onTogg
       {open && (
         <div style={{ marginTop: 9, fontSize: 12, lineHeight: 1.5 }}>
           <div>🧩 {r.what}</div>
-          <div style={{ color: r.level === 'vital' ? C.red : C.muted }}>⚠️ Si pas payé : {r.ifUnpaid}</div>
+          <div style={{ color: r.level === 'vital' ? C.red : C.muted }}><Ico e="⚠️" />Si pas payé : {r.ifUnpaid}</div>
           {r.note && <div style={{ color: C.muted }}>📝 {r.note}</div>}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 9 }}>
-            {r.payUrl && <button onClick={() => window.open(r.payUrl, '_blank')} style={btn('rgba(184,110,0,0.18)', C.gold)}>💳 Payer</button>}
+            {r.payUrl && <button onClick={() => window.open(r.payUrl, '_blank')} style={btn('rgba(184,110,0,0.18)', C.gold)}><Ico e="💳" />Payer</button>}
             {r.kind !== 'gratuit' && r.kind !== 'credits' && r.id !== 'railway' && r.id !== 'domain' && <button onClick={() => { if (window.confirm(`${r.name} payé ? (l'échéance passe au ${r.period === 'an' ? 'an' : 'mois'} suivant)`)) void act(() => business.billingUpdate(r.id, { paid: true })); }} style={btn('rgba(47,91,255,0.18)', C.accent)}>✓ Payé</button>}
-            {r.kind === 'credits' && <button onClick={setBalance} style={btn('rgba(47,91,255,0.18)', C.accent)}>💰 J'ai rechargé</button>}
-            {r.kind !== 'gratuit' && !((r.id === 'railway' || r.id === 'domain') && r.live) && <button onClick={setDate} style={btn('rgba(var(--dz-ink-rgb),0.054)', C.text)}>📅 Date</button>}
+            {r.kind === 'credits' && <button onClick={setBalance} style={btn('rgba(47,91,255,0.18)', C.accent)}><Ico e="💰" />J'ai rechargé</button>}
+            {r.kind !== 'gratuit' && !((r.id === 'railway' || r.id === 'domain') && r.live) && <button onClick={setDate} style={btn('rgba(var(--dz-ink-rgb),0.054)', C.text)}><Ico e="📅" />Date</button>}
             {r.kind !== 'gratuit' && <button onClick={setAmount} style={btn('rgba(var(--dz-ink-rgb),0.054)', C.text)}>Montant</button>}
           </div>
         </div>

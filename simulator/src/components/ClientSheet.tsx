@@ -5,6 +5,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { business, type Booking, type ClientDetail, type ClientIntelligence } from '../services/api.ts';
 import { T, tone, Avatar, Badge, ActionBtn, waLink, money, glass } from './ui/Kit.tsx';
+import { Ico } from './ui/Icon.tsx';
 
 export interface ClientRef { name: string; phone?: string | null }
 
@@ -132,8 +133,8 @@ export default function ClientSheet({ client, onClose, actor }: { client: Client
               <div style={{ fontSize: 12.5, fontWeight: 700, background: T.grad, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', display: 'inline-block' }}>Fiche client</div>
               <div style={{ fontFamily: T.display, fontSize: 27, fontWeight: 800, letterSpacing: '-0.04em', color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{client.name}</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
-                {vip && <Badge color={T.warn}>⭐ VIP</Badge>}
-                {now && <Badge color={T.ok}>🚗 En location</Badge>}
+                {vip && <Badge color={T.warn}><Ico e="⭐" />VIP</Badge>}
+                {now && <Badge color={T.ok}><Ico e="🚗" />En location</Badge>}
                 {!now && next && <Badge color={T.accent}>Arrive le {dShort(next.start_date)}</Badge>}
                 {since && <Badge color={T.faint}>Client depuis {new Date(since).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}</Badge>}
               </div>

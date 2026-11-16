@@ -2,19 +2,28 @@
 
 /* Thème Dzaryx : clair (défaut) / sombre — data-theme posé sur <html> par services/theme.ts */
 :root {
-  --dz-bg: #f2f2f5; --dz-surface: #ffffff; --dz-surface2: #f6f6f9; --dz-surface-rgb: 255,255,255;
-  --dz-ink-rgb: 12,14,26; --dz-text: #0c0e1a; --dz-muted: #5b5f72; --dz-faint: #9195a6;
-  --dz-line: rgba(12,14,26,0.08); --dz-line-strong: rgba(12,14,26,0.16);
-  --dz-ink: #0c0e1a; --dz-ink2: #23273d; --dz-shadow-rgb: 12,14,26;
-  --dz-shadow: 0 1px 2px rgba(12,14,26,0.04), 0 10px 28px -16px rgba(12,14,26,0.16);
+  /* v4 « Signature » (16/11/2026) — clair : papier blanc cassé, cartes blanches à filet, encre noire */
+  --dz-bg: #f4f4f6; --dz-surface: #ffffff; --dz-surface2: #f7f7f9; --dz-surface-rgb: 255,255,255;
+  --dz-card: #ffffff; --dz-card-line: rgba(10,10,20,0.07); --dz-track: rgba(10,10,20,0.045); --dz-seg-on: #ffffff; --dz-sheet: #f4f4f6;
+  --dz-ink-rgb: 10,10,20; --dz-text: #0a0a14; --dz-muted: #5d5f6e; --dz-faint: #9a9cab;
+  --dz-line: rgba(10,10,20,0.07); --dz-line-strong: rgba(10,10,20,0.13);
+  --dz-ink: #0a0a14; --dz-ink2: #24263a; --dz-on-ink: #ffffff; --dz-shadow-rgb: 10,10,20;
+  --dz-shadow: 0 1px 2px rgba(10,10,20,0.04), 0 8px 24px -14px rgba(10,10,20,0.14);
+  --dz-dock: rgba(255,255,255,0.72);
+  --dz-glow: #3d6bff; --dz-glow-a: 16%;
   --dz-scheme: light; color-scheme: light;
 }
 :root[data-theme="dark"] {
-  --dz-bg: #09090c; --dz-surface: #15161c; --dz-surface2: #1c1d25; --dz-surface-rgb: 21,22,28;
-  --dz-ink-rgb: 236,238,246; --dz-text: #f3f4f8; --dz-muted: #a3a7b9; --dz-faint: #6e7286;
-  --dz-line: rgba(236,238,246,0.08); --dz-line-strong: rgba(236,238,246,0.17);
-  --dz-ink: #2f5bff; --dz-ink2: #5a3dff; --dz-shadow-rgb: 0,0,0;
-  --dz-shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 12px 30px -18px rgba(0,0,0,0.9);
+  /* sombre : noir OLED, cartes en verre fumé avec liseré lumineux, bouton principal blanc */
+  --dz-bg: #000000; --dz-surface: #0e0e12; --dz-surface2: #16161c; --dz-surface-rgb: 14,14,18;
+  --dz-card: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.025)); --dz-card-line: rgba(255,255,255,0.085);
+  --dz-track: rgba(255,255,255,0.05); --dz-seg-on: #26262e; --dz-sheet: #0c0c10;
+  --dz-ink-rgb: 240,240,246; --dz-text: #f7f7fa; --dz-muted: #a0a2b0; --dz-faint: #62646f;
+  --dz-line: rgba(255,255,255,0.075); --dz-line-strong: rgba(255,255,255,0.15);
+  --dz-ink: #f7f7fa; --dz-ink2: #d9dae2; --dz-on-ink: #000000; --dz-shadow-rgb: 0,0,0;
+  --dz-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 16px 36px -22px rgba(0,0,0,0.9);
+  --dz-dock: rgba(22,22,28,0.66);
+  --dz-glow-a: 30%;
   --dz-scheme: dark; color-scheme: dark;
 }
 
@@ -26,7 +35,9 @@ html, body, #root {
   background: var(--dz-bg);
   overflow: hidden;
   transition: background .3s;
-  font-family: 'Exo 2', 'Share Tech Mono', system-ui, sans-serif;
+  font-family: 'Geist', Inter, -apple-system, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.006em;
 }
 
 /* Scanlines overlay */
@@ -161,7 +172,7 @@ html, body, #root {
 @keyframes shimmer    { 0%,100% { opacity: 0.25; } 50% { opacity: 0.6; } }
 
 /* ── Markdown (réponses Dzaryx façon ChatGPT/Claude) ── */
-.dz-md { color: var(--dz-text); font-family: Inter, -apple-system, "Segoe UI", sans-serif; font-size: 15px; line-height: 1.7; word-break: break-word; overflow-wrap: anywhere; }
+.dz-md { color: var(--dz-text); font-family: 'Geist', Inter, -apple-system, "Segoe UI", sans-serif; font-size: 15px; line-height: 1.7; word-break: break-word; overflow-wrap: anywhere; }
 .dz-md p { margin: 0 0 10px; }
 .dz-md p:last-child { margin-bottom: 0; }
 .dz-md strong { color: var(--dz-text); font-weight: 700; }

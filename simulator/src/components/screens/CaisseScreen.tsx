@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { business, type CashEntry } from '../../services/api.ts';
 import { T, Screen, PageHeader, HeadBtn, Sheet, Field, inputStyle, Btn, Card, Badge, Empty, KpiGrid, Kpi, SectionTitle, Segmented, Chips, Avatar, tone } from '../ui/Kit.tsx';
 import { SkeletonCards } from '../ui/Premium.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 const CATS = ['location', 'vente', 'immo', 'import', 'carburant', 'entretien', 'salaire', 'autre'];
 const CAT_ICON: Record<string, string> = { location: '🚗', vente: '🏷️', immo: '🏠', import: '🚢', carburant: '⛽', entretien: '🔧', salaire: '👷', autre: '📌' };
@@ -61,11 +62,11 @@ export default function CaisseScreen() {
               <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.02em', color: m.balance >= 0 ? T.text : T.bad, marginTop: 2 }}>{m.balance >= 0 ? '' : '−'}{fmt(Math.abs(m.balance), cur)}</div>
               <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
                 <div style={{ flex: 1, padding: '10px 12px', borderRadius: 13, background: tone(T.ok, 0.1), border: `1px solid ${tone(T.ok, 0.25)}` }}>
-                  <div style={{ fontSize: 12, color: T.ok, fontWeight: 600 }}>↗ Entrées</div>
+                  <div style={{ fontSize: 12, color: T.ok, fontWeight: 600 }}><Ico e="↗" />Entrées</div>
                   <div style={{ fontSize: 16, fontWeight: 800, marginTop: 2 }}>{fmt(m.income, cur)}</div>
                 </div>
                 <div style={{ flex: 1, padding: '10px 12px', borderRadius: 13, background: tone(T.bad, 0.1), border: `1px solid ${tone(T.bad, 0.25)}` }}>
-                  <div style={{ fontSize: 12, color: T.bad, fontWeight: 600 }}>↘ Sorties</div>
+                  <div style={{ fontSize: 12, color: T.bad, fontWeight: 600 }}><Ico e="↘" />Sorties</div>
                   <div style={{ fontSize: 16, fontWeight: 800, marginTop: 2 }}>{fmt(m.expense, cur)}</div>
                 </div>
               </div>

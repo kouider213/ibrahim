@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { business, type Car } from '../../services/api.ts';
 import { T, Screen, PageHeader, Sheet, Field, inputStyle, Btn, Card, SectionTitle, Segmented, Row, Avatar, tone } from '../ui/Kit.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 
 interface Line { id: string; label: string; amount: string; currency: string; }
@@ -148,7 +149,7 @@ export default function DevisScreen() {
         ))}
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <Btn onClick={() => setShowCar(true)} style={{ flex: 1 }}>🚗 Voiture</Btn>
+        <Btn onClick={() => setShowCar(true)} style={{ flex: 1 }}><Ico e="🚗" />Voiture</Btn>
         <Btn variant="ghost" onClick={addLine} style={{ flex: 1 }}>＋ Ligne libre</Btn>
       </div>
 
@@ -171,7 +172,7 @@ export default function DevisScreen() {
       )}
 
       <Btn onClick={() => void sendWhatsApp()} disabled={pdfBusy} style={{ width: '100%', background: '#25D366', color: '#ffffff', border: 'none', marginBottom: 8, minHeight: 50 }}>{pdfBusy ? 'Préparation…' : '💬 Envoyer sur WhatsApp (avec PDF)'}</Btn>
-      <Btn color={T.warn} onClick={() => void makePdf()} disabled={pdfBusy} style={{ width: '100%' }}>📄 Voir le PDF seulement</Btn>
+      <Btn color={T.warn} onClick={() => void makePdf()} disabled={pdfBusy} style={{ width: '100%' }}><Ico e="📄" />Voir le PDF seulement</Btn>
 
       {history.length > 0 && (
         <div style={{ marginTop: 20 }}>

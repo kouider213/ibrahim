@@ -3,6 +3,7 @@ import { openClient, ClientName } from '../ClientSheet.tsx';
 import { business, type Booking, type Car, type ClientOperation, type ClientDetail } from '../../services/api.ts';
 import { SkeletonCards, SearchPill } from '../ui/Premium.tsx';
 import { T, tone, Screen, PageHeader, HeadBtn, Segmented, Kpi, KpiGrid, Card, Row, Avatar, Badge, Btn, btnStyle, ActionBtn, Empty, Sheet, Field, inputStyle as inputStyleKit, waLink, money } from '../ui/Kit.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 type ResaMode = 'resa' | 'ops';
 
@@ -284,9 +285,9 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
                   sub={<><span style={{ color: m.col, fontWeight: 700 }}>{m.label.charAt(0) + m.label.slice(1).toLowerCase()}</span>{op.item_label ? ` · ${op.item_label}` : ''}<br />{new Date(op.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</>}
                   right={<div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: 15, fontWeight: 800 }}>{op.amount != null ? money(Number(op.amount), op.currency || 'EUR') : '—'}</div>
-                    {op.client_phone && <a href={`tel:${op.client_phone}`} style={{ fontSize: 13, color: T.accent, textDecoration: 'none', fontWeight: 600 }}>📞 Appeler</a>}
+                    {op.client_phone && <a href={`tel:${op.client_phone}`} style={{ fontSize: 13, color: T.accent, textDecoration: 'none', fontWeight: 600 }}><Ico e="📞" />Appeler</a>}
                     <button onClick={() => void (async () => { if (!confirm(`Supprimer l'opération « ${op.client_name} » ?`)) return; await business.deleteOperation(op.id).catch(() => {}); void load(search || undefined); })()}
-                      style={{ display: 'block', marginLeft: 'auto', marginTop: 4, background: 'none', border: 'none', color: T.bad, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', padding: 0, fontFamily: T.font }}>🗑️ Supprimer</button>
+                      style={{ display: 'block', marginLeft: 'auto', marginTop: 4, background: 'none', border: 'none', color: T.bad, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', padding: 0, fontFamily: T.font }}><Ico e="🗑️" />Supprimer</button>
                   </div>} />
               );
             })}</div>
@@ -360,7 +361,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
             <Field label={`Prix client (${unit}/jour)`}><input type="number" inputMode="decimal" value={form.client_ppd} onChange={e => setForm(f => ({ ...f, client_ppd: e.target.value }))} placeholder={form.currency === 'DZD' ? '8000' : '30'} style={inputStyleKit} /></Field>
             {!isHouari && <Field label={`Prix proprio (${unit}/jour) *`}><input type="number" inputMode="decimal" value={ownerPpd ?? ''} onChange={e => { const v = parseFloat(e.target.value); setOwnerPpd(Number.isFinite(v) ? v : null); }} placeholder={form.currency === 'DZD' ? '5000' : '16'} style={{ ...inputStyleKit, borderColor: ownerPpd ? undefined : tone(T.bad, 0.5) }} /></Field>}
           </div>
-          {!isHouari && !ownerPpd && <div style={{ fontSize: 13, color: T.bad, marginTop: -4 }}>⚠️ Sans prix proprio, la marge ne sera pas calculée.</div>}
+          {!isHouari && !ownerPpd && <div style={{ fontSize: 13, color: T.bad, marginTop: -4 }}><Ico e="⚠️" />Sans prix proprio, la marge ne sera pas calculée.</div>}
           {!isHouari && ownerPpd != null && createCpp > 0 && createNb > 0 && (
             <div style={{ marginTop: 4, padding: '12px 14px', borderRadius: 14, background: tone(T.ok, 0.08), border: `1px solid ${tone(T.ok, 0.3)}`, fontSize: 14 }}>
               Ta marge : <b style={{ color: T.ok }}>{money((createCpp - ownerPpd) * createNb, form.currency)}</b> <span style={{ color: T.muted }}>({createCpp - ownerPpd} {unit} × {createNb} j)</span>
@@ -527,7 +528,7 @@ function GpsCalculator() {
   return (
     <Card style={{ marginBottom: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
-        <div style={{ flex: 1, fontSize: 15, fontWeight: 800 }}>🗺️ Trajet de livraison</div>
+        <div style={{ flex: 1, fontSize: 15, fontWeight: 800 }}><Ico e="🗺️" />Trajet de livraison</div>
         <button onClick={() => setOpen(false)} aria-label="Fermer" style={{ width: 36, height: 36, borderRadius: 11, border: `1px solid ${T.line}`, background: 'transparent', color: T.muted, cursor: 'pointer', fontSize: 15 }}>✕</button>
       </div>
       <div style={{ marginBottom: 10 }}>
@@ -652,7 +653,7 @@ function BookingFiche({ b, ccy, nb, margin, stLabel, stCol, payLbl, payCol, own,
           <span style={{ fontWeight: 700 }}>{x.final_price != null ? money(x.final_price) : '—'}</span>
         </div>)}
       </div>}
-      <button onClick={() => openClient({ name: b.client_name, phone: b.client_phone })} style={{ width: '100%', marginBottom: 10, minHeight: 46, borderRadius: 14, border: `1px solid ${tone(T.accent, 0.4)}`, background: tone(T.accent, 0.1), color: T.accent, fontSize: 14.5, fontWeight: 700, cursor: 'pointer', fontFamily: T.font }}>👤 Voir la fiche client complète ›</button>
+      <button onClick={() => openClient({ name: b.client_name, phone: b.client_phone })} style={{ width: '100%', marginBottom: 10, minHeight: 46, borderRadius: 14, border: `1px solid ${tone(T.accent, 0.4)}`, background: tone(T.accent, 0.1), color: T.accent, fontSize: 14.5, fontWeight: 700, cursor: 'pointer', fontFamily: T.font }}><Ico e="👤" />Voir la fiche client complète ›</button>
       <div style={{ display: 'flex', gap: 8 }}>
         <ActionBtn icon="✏️" label="Modifier" color={T.warn} onClick={onEdit} />
         {b.client_phone && <ActionBtn icon="📞" label="Appeler" onClick={() => { window.location.href = `tel:${b.client_phone}`; }} />}

@@ -3,6 +3,7 @@ import { business, type StudioOptions, type StudioPlan, type StudioJob, type Stu
 import { Hero, StatCard, SkeletonCards } from '../ui/Premium.tsx';
 import MontageEditor, { uploadFile } from './MontageEditor.tsx';
 import AiRetouche from './AiRetouche.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 // « STUDIO VIDÉO » : vidéos virales 9:16 niveau Higgsfield. Dzaryx écrit le scénario, génère les plans IA
 // (Kling 3.0, Veo 3.1, Seedance 2.0 via fal.ai) et fait le montage (voix off, sous-titres, musique, CTA).
@@ -10,7 +11,7 @@ import AiRetouche from './AiRetouche.tsx';
 
 const C = {
   surface: 'var(--dz-surface)', border: 'rgba(var(--dz-ink-rgb),0.16)',
-  accent: 'var(--dz-ink)', green: '#2f5bff', gold: '#b86e00', red: '#e0304f', text: 'var(--dz-text)', muted: 'var(--dz-muted)',
+  accent: '#3d6bff', green: '#2f5bff', gold: '#b86e00', red: '#e0304f', text: 'var(--dz-text)', muted: 'var(--dz-muted)',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 const btn = (bg: string, color: string) => ({ background: bg, color, border: 'none', borderRadius: 10, padding: '10px 13px', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: C.font } as const);
@@ -144,9 +145,9 @@ export default function StudioScreen() {
             <StatCard icon="💸" value={`${Math.round(spent)} $`} label="DÉPENSÉ FAL.AI" color={C.green} />
           </div>
           <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-            <button style={{ ...chip(tab === 'editor'), flex: 1, padding: '9px 6px' }} onClick={() => setTab('editor')}>✂️ Éditeur</button>
-            <button style={{ ...chip(tab === 'retouche'), flex: 1, padding: '9px 6px' }} onClick={() => setTab('retouche')}>🪄 Retouche IA</button>
-            <button style={{ ...chip(tab === 'ia'), flex: 1, padding: '9px 6px' }} onClick={() => setTab('ia')}>🤖 Pub IA</button>
+            <button style={{ ...chip(tab === 'editor'), flex: 1, padding: '9px 6px' }} onClick={() => setTab('editor')}><Ico e="✂️" />Éditeur</button>
+            <button style={{ ...chip(tab === 'retouche'), flex: 1, padding: '9px 6px' }} onClick={() => setTab('retouche')}><Ico e="🪄" />Retouche IA</button>
+            <button style={{ ...chip(tab === 'ia'), flex: 1, padding: '9px 6px' }} onClick={() => setTab('ia')}><Ico e="🤖" />Pub IA</button>
           </div>
           {tab === 'retouche' && <AiRetouche say={say} onLaunched={() => void loadJobs()} />}
           {tab === 'editor' && <MontageEditor say={say} onExported={() => void loadJobs()} />}
@@ -154,8 +155,8 @@ export default function StudioScreen() {
           {tab === 'ia' && !plan && (
             <div style={card}>
               <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                <button style={chip(mode === 'viral')} onClick={() => setMode('viral')}>🔥 Vidéo virale complète</button>
-                <button style={chip(mode === 'single')} onClick={() => setMode('single')}>📸 Photo → vidéo IA</button>
+                <button style={chip(mode === 'viral')} onClick={() => setMode('viral')}><Ico e="🔥" />Vidéo virale complète</button>
+                <button style={chip(mode === 'single')} onClick={() => setMode('single')}><Ico e="📸" />Photo → vidéo IA</button>
               </div>
               <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.45 }}>
                 {mode === 'viral'
@@ -244,7 +245,7 @@ export default function StudioScreen() {
             {plan.shots.map((s, i) => (
               <div key={i} style={card}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                  <div style={{ fontWeight: 800, fontSize: 13, flex: 1 }}>🎥 Plan {i + 1}</div>
+                  <div style={{ fontWeight: 800, fontSize: 13, flex: 1 }}><Ico e="🎥" />Plan {i + 1}</div>
                   <select value={s.camera} onChange={e => setShot(i, { camera: e.target.value })} style={{ ...input, width: 'auto', padding: '6px 8px', fontSize: 12 }}>
                     {opts.cameras.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                   </select>
@@ -275,10 +276,10 @@ export default function StudioScreen() {
                 </button>
               ))}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                {plan.voiceover && <button style={chip(voice)} onClick={() => setVoice(!voice)}>🎙 Voix off</button>}
-                {model !== 'gratuit' && <button style={chip(music)} onClick={() => setMusic(!music)}>🎵 Musique IA</button>}
-                {plan.voiceover && <button style={chip(subtitles)} onClick={() => setSubtitles(!subtitles)}>💬 Sous-titres</button>}
-                {model !== 'gratuit' && <button style={chip(nativeAudio)} onClick={() => setNativeAudio(!nativeAudio)}>🔊 Son natif du modèle</button>}
+                {plan.voiceover && <button style={chip(voice)} onClick={() => setVoice(!voice)}><Ico e="🎙" />Voix off</button>}
+                {model !== 'gratuit' && <button style={chip(music)} onClick={() => setMusic(!music)}><Ico e="🎵" />Musique IA</button>}
+                {plan.voiceover && <button style={chip(subtitles)} onClick={() => setSubtitles(!subtitles)}><Ico e="💬" />Sous-titres</button>}
+                {model !== 'gratuit' && <button style={chip(nativeAudio)} onClick={() => setNativeAudio(!nativeAudio)}><Ico e="🔊" />Son natif du modèle</button>}
               </div>
               <button style={{ ...btn(C.accent, '#f2f2f5'), width: '100%', marginTop: 12, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void render()}>
                 🎬 Lancer le rendu · {model === 'gratuit' ? '0 €' : `≈ ${cost.toFixed(2)} $`}
@@ -311,9 +312,9 @@ export default function StudioScreen() {
                   ? <img src={j.url} alt="" style={{ width: '100%', maxHeight: 480, objectFit: 'contain', borderRadius: 10, marginTop: 8, background: '#000' }} />
                   : <video src={j.url} controls playsInline preload="metadata" style={{ width: '100%', maxHeight: 480, borderRadius: 10, marginTop: 8, background: '#000' }} />}
                 <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                  <a href={j.url} target="_blank" rel="noreferrer" download style={{ ...btn(C.green, '#f2f2f5'), textDecoration: 'none', flex: 1, textAlign: 'center' }}>⬇️ Télécharger</a>
+                  <a href={j.url} target="_blank" rel="noreferrer" download style={{ ...btn(C.green, '#f2f2f5'), textDecoration: 'none', flex: 1, textAlign: 'center' }}><Ico e="⬇️" />Télécharger</a>
                   {j.caption && <button style={{ ...btn('rgba(var(--dz-ink-rgb),0.072)', C.text), flex: 1 }}
-                    onClick={() => { void navigator.clipboard?.writeText(j.caption ?? '').then(() => say('📋 Légende copiée')).catch(() => say(j.caption ?? '')); }}>📋 Copier la légende</button>}
+                    onClick={() => { void navigator.clipboard?.writeText(j.caption ?? '').then(() => say('📋 Légende copiée')).catch(() => say(j.caption ?? '')); }}><Ico e="📋" />Copier la légende</button>}
                 </div>
               </>)}
             </div>

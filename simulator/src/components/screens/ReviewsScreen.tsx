@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { business, type SiteReview } from '../../services/api.ts';
 import { T, Screen, PageHeader, HeadBtn, Sheet, Field, inputStyle, Btn, Card, Badge, Empty, KpiGrid, Kpi, SectionTitle, Segmented, Chips, Avatar, tone } from '../ui/Kit.tsx';
 import { SkeletonCards } from '../ui/Premium.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 
 export default function ReviewsScreen() {
@@ -68,7 +69,7 @@ export default function ReviewsScreen() {
                 <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                   {!r.approved
                     ? <Btn color={T.ok} disabled={busy === r.id} onClick={() => void setApproved(r, true)} style={{ flex: 1 }}>✓ Publier</Btn>
-                    : <Btn variant="ghost" disabled={busy === r.id} onClick={() => void setApproved(r, false)} style={{ flex: 1 }}>🔒 Masquer</Btn>}
+                    : <Btn variant="ghost" disabled={busy === r.id} onClick={() => void setApproved(r, false)} style={{ flex: 1 }}><Ico e="🔒" />Masquer</Btn>}
                   <Btn variant="danger" disabled={busy === r.id} onClick={() => { if (confirmDel === r.id) { void del(r); setConfirmDel(''); } else { setConfirmDel(r.id); setTimeout(() => setConfirmDel(c => c === r.id ? '' : c), 3000); } }} style={{ flex: 1, ...(confirmDel === r.id ? { background: T.bad, color: '#fff' } : {}) }}>{confirmDel === r.id ? 'Confirmer ?' : 'Supprimer'}</Btn>
                 </div>
               </Card>

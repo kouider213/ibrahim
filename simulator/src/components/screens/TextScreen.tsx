@@ -10,6 +10,7 @@ import {
   type DzaryxStatus,
 } from '../../services/api.ts';
 import { OrbIcon } from '../ui/Premium.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 interface Props { onNavigateVoice: () => void; actor?: 'kouider' | 'houari'; }
 
@@ -934,7 +935,7 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
                 color: '#2f5bff', fontFamily: 'Inter', fontSize: 12, fontWeight: 600,
                 padding: '8px 20px', cursor: 'pointer',
               }}
-            >⬇ Enregistrer</button>
+            ><Ico e="⬇" />Enregistrer</button>
             <button
               onClick={() => setLightbox(null)}
               style={{
@@ -953,8 +954,8 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
         )}
         <div style={{
           maxWidth: isUser ? '82%' : '86%',
-          background: isUser ? 'var(--dz-ink)' : 'var(--dz-surface)',
-          border: 'none',
+          background: isUser ? 'linear-gradient(140deg, #3d6bff, #6d4cff)' : 'var(--dz-card)',
+          border: isUser ? 'none' : '1px solid var(--dz-card-line)',
           borderRadius: isUser ? '22px 22px 6px 22px' : '6px 22px 22px 22px',
           padding: '12px 15px',
           boxShadow: isUser ? '0 10px 22px -14px rgba(var(--dz-shadow-rgb),0.6)' : '0 1px 2px rgba(var(--dz-shadow-rgb),0.04), 0 10px 26px -16px rgba(var(--dz-shadow-rgb),0.18)',
@@ -995,7 +996,7 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
                         borderRadius: 8, color: '#fff', fontFamily: 'Inter', fontSize: 13.5,
                         padding: '4px 10px', cursor: 'pointer',
                       }}
-                    >⬇ Enregistrer</button>
+                    ><Ico e="⬇" />Enregistrer</button>
                   </div>
                 );
                 // doc / excel / pdf

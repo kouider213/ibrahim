@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { get, forme, errText, vibrate } from './api.ts';
 import { F, card, darkCard, btn, ghostBtn, input, Ring, Bar, LineChart, Spinner } from './ui.tsx';
+import { Ico } from '../components/ui/Icon.tsx';
 
 // 🔪 SÈCHE (Kouider 01/11) — remplace « Course » pour lui seul (son ami garde Course). Musculation + sèche, le meilleur de
 // 20 applis (MacroFactor, Happy Scale, RP Diet, Carbon, Hevy, Strong, Alpha Progression, Whoop, Gravl, Fitbod…), calculé
@@ -102,7 +103,7 @@ export default function CutScreen({ toast }: { toast: (t: string) => void }) {
         {c.adaptive ? <>
           <div style={{ fontSize: 30, fontWeight: 800 }}>{c.adaptive.tdee} <span style={{ fontSize: 15, color: F.muted }}>kcal/jour</span></div>
           <div style={{ fontSize: 13.5, lineHeight: 1.45, marginTop: 4 }}>Calculée sur {c.adaptive.days} jours : ce que tu as VRAIMENT mangé ({c.avgEaten} kcal en moyenne) + ce que ton poids a vraiment fait. Ta montre dit {c.avgBurnWatch} kcal → elle {c.adaptive.vsWatch >= 0 ? 'sous-estime' : 'surestime'} de {Math.abs(c.adaptive.vsWatch)} kcal.</div>
-        </> : <div style={{ fontSize: 14, lineHeight: 1.45 }}>🧮 Après <b>10 jours de repas notés</b> + tes pesées, je calcule ta dépense RÉELLE (pas celle de la montre, qui se trompe souvent de 10-20 %) et j'ajuste ton objectif dessus. {c.avgBurnWatch ? `Pour l'instant : montre ≈ ${c.avgBurnWatch} kcal/jour.` : ''}</div>}
+        </> : <div style={{ fontSize: 14, lineHeight: 1.45 }}><Ico e="🧮" />Après <b>10 jours de repas notés</b> + tes pesées, je calcule ta dépense RÉELLE (pas celle de la montre, qui se trompe souvent de 10-20 %) et j'ajuste ton objectif dessus. {c.avgBurnWatch ? `Pour l'instant : montre ≈ ${c.avgBurnWatch} kcal/jour.` : ''}</div>}
       </div>
 
       {/* 7 jours */}
@@ -113,7 +114,7 @@ export default function CutScreen({ toast }: { toast: (t: string) => void }) {
           <div title="Déficit" style={{ height: 26, borderRadius: 8, background: !d.logged ? F.bg2 : d.deficitOk ? 'color-mix(in srgb, #1f9d5c 14%, var(--f-card))' : 'color-mix(in srgb, #e5322d 14%, var(--f-card))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{!d.logged ? '·' : d.deficitOk ? '🔥' : '✕'}</div>
           <div title="Protéines" style={{ height: 26, borderRadius: 8, background: !d.logged ? F.bg2 : d.proteinOk ? 'color-mix(in srgb, #1f63f0 14%, var(--f-card))' : 'color-mix(in srgb, #e09a12 14%, var(--f-card))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{!d.logged ? '·' : d.proteinOk ? '🥩' : '—'}</div>
         </div>)}
-        <div style={{ gridColumn: '1 / -1', fontSize: 12, color: F.muted, marginTop: 4 }}>🔥 déficit tenu · 🥩 protéines ≥ 90 % · « · » = repas pas notés</div>
+        <div style={{ gridColumn: '1 / -1', fontSize: 12, color: F.muted, marginTop: 4 }}><Ico e="🔥" />déficit tenu · 🥩 protéines ≥ 90 % · « · » = repas pas notés</div>
       </div>
 
       {/* Force */}
@@ -151,8 +152,8 @@ export default function CutScreen({ toast }: { toast: (t: string) => void }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: F.muted, marginTop: 4 }}><span>abdos visibles ≤ 12 %</span><span>20 %</span><span>50 %</span></div>
           <div style={{ fontSize: 14, lineHeight: 1.45, marginTop: 10 }}>
             {c.fat.pct <= 12 ? '🔥 Abdos visibles : tu y es. Maintenant on construit (pecs, bras) sans reprendre de gras.'
-              : c.fat.atFloorPct != null ? <>🎯 À <b>75 kg</b> (ton plancher) tu seras vers <b>{String(c.fat.atFloorPct).replace('.', ',')} %</b>. Pour descendre à 12 % sans passer sous 75 kg : <b>recomposition</b> — muscle en plus, gras en moins, à poids stable.</>
-              : <>🎯 Abdos visibles (~12 %) vers <b>{String(c.fat.absKg).replace('.', ',')} kg</b>{c.fat.absEta ? <> — à ton rythme, vers le <b>{fmt(c.fat.absEta)}</b></> : ''}, si tu gardes tes charges.</>}
+              : c.fat.atFloorPct != null ? <><Ico e="🎯" />À <b>75 kg</b> (ton plancher) tu seras vers <b>{String(c.fat.atFloorPct).replace('.', ',')} %</b>. Pour descendre à 12 % sans passer sous 75 kg : <b>recomposition</b> — muscle en plus, gras en moins, à poids stable.</>
+              : <><Ico e="🎯" />Abdos visibles (~12 %) vers <b>{String(c.fat.absKg).replace('.', ',')} kg</b>{c.fat.absEta ? <> — à ton rythme, vers le <b>{fmt(c.fat.absEta)}</b></> : ''}, si tu gardes tes charges.</>}
           </div>
           <div style={{ fontSize: 11.5, color: F.muted, marginTop: 6 }}>Estimation méthode US Navy (taille + cou + hauteur), précision ±3 %. Mesure taille au nombril, cou sous la pomme d'Adam.</div>
         </> : <div style={{ fontSize: 14, color: F.muted, lineHeight: 1.45 }}>{c.waist.length ? 'Il me manque ton tour de cou (sous la pomme d\'Adam) pour calculer ton % de gras et la date de tes abdos visibles.' : 'Note ton tour de taille ci-dessus et ton tour de cou ici : je calcule ton % de gras et quand tes abdos se verront.'}</div>}

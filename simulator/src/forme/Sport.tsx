@@ -7,6 +7,7 @@ import { F, card, btn, ghostBtn, input, Sheet, Spinner } from './ui.tsx';
 import { ExerciseSheet, Anim, RecoveryMap, LibraryPicker, COACH_TO_GROUP } from './Exercises.tsx';
 import { TodayForm } from './Watch.tsx';
 import { WeekGoal } from './Insights.tsx';
+import { Ico } from '../components/ui/Icon.tsx';
 
 // Onglet SÉANCE — 31/10 refait façon applis pro de muscu (Hevy / Strong / Fitbod) : semaine en pastilles, carte du jour
 // avec les exercices en images, carte de récupération du corps, stats, records, historique ; mode séance en direct
@@ -62,7 +63,7 @@ function SessionCard({ s, kicker, onStart, onEx, start }: { s: SportSession; kic
         <div style={{ fontSize: 12, fontWeight: 600, color: F.accent, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{kicker}</div>
         <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 2 }}>{s.label}</div>
         <div style={{ display: 'flex', gap: 14, fontSize: 13, color: F.muted, marginTop: 6, flexWrap: 'wrap' }}>
-          <span>⏱ ~{s.estMin} min</span><span>🏋️ {s.exercises.length} exercices</span><span>🎯 {s.focus}</span>{deload && <span>🪶 semaine allégée</span>}
+          <span><Ico e="⏱" />~{s.estMin} min</span><span>🏋️ {s.exercises.length} exercices</span><span>🎯 {s.focus}</span>{deload && <span><Ico e="🪶" />semaine allégée</span>}
         </div>
         {custom && <div style={{ fontSize: 13, background: F.soft, color: F.accent, borderRadius: 12, padding: '8px 10px', marginTop: 10 }}>Sur mesure : {custom}</div>}
       </div>
@@ -71,7 +72,7 @@ function SessionCard({ s, kicker, onStart, onEx, start }: { s: SportSession; kic
           <button key={e.id} onClick={() => onEx(e)} style={{ ...thumb, width: 78, height: 78, border: 'none', cursor: 'pointer' }}>{e.demo.length ? <Anim img={e.demo} alt={e.name} h={70} /> : <span style={{ margin: 'auto' }}>🏋️</span>}</button>
         ))}
       </div>
-      <div style={{ padding: '6px 16px 0', fontSize: 12.5, color: F.muted }}>🔥 Échauffement : {s.warmup}{finisher ? ` · Fin : ${finisher}` : ''}</div>
+      <div style={{ padding: '6px 16px 0', fontSize: 12.5, color: F.muted }}><Ico e="🔥" />Échauffement : {s.warmup}{finisher ? ` · Fin : ${finisher}` : ''}</div>
       <div style={{ padding: 16 }}><button onClick={onStart} style={{ ...btn, width: '100%' }}>{start}</button></div>
     </div>
   );
@@ -410,7 +411,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 18 }}>
             {[[fmtTime(elapsed), 'Durée'], [`${Math.round(volume)} kg`, 'Volume'], [String(doneSets.length), 'Séries']].map(([v, l]) => <div key={l} style={{ ...card, padding: 12 }}><div style={{ fontSize: 19, fontWeight: 700 }}>{v}</div><div style={{ fontSize: 12, color: F.muted }}>{l}</div></div>)}
           </div>
-          {newPrs.length > 0 && <div style={{ ...card, marginTop: 10, background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))', fontWeight: 600 }}>🏆 Record{newPrs.length > 1 ? 's' : ''} battu{newPrs.length > 1 ? 's' : ''} : {newPrs.join(', ')}</div>}
+          {newPrs.length > 0 && <div style={{ ...card, marginTop: 10, background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))', fontWeight: 600 }}><Ico e="🏆" />Record{newPrs.length > 1 ? 's' : ''} battu{newPrs.length > 1 ? 's' : ''} : {newPrs.join(', ')}</div>}
           <div style={{ ...card, marginTop: 10, textAlign: 'start', padding: '4px 14px' }}>
             {lifts.filter(e => (rows[e.id] ?? []).some(r => r.done && r.t !== 'w')).map((e, k, arr) => { const d = rows[e.id]!.filter(r => r.done && r.t !== 'w'); const top = d.reduce((a, r) => (Number(r.kg) || 0) > (Number(a.kg) || 0) ? r : a, d[0]!); return (
               <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '10px 0', borderBottom: k < arr.length - 1 ? `1px solid ${F.line}` : 'none', fontSize: 14 }}><span style={{ fontWeight: 600 }}>{d.length} × {e.name}</span><span style={{ color: F.muted, whiteSpace: 'nowrap' }}>{top.kg ? `${top.kg} kg × ${top.reps}` : `${top.reps} reps`}</span></div>); })}
@@ -420,7 +421,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, marginTop: 10 }}>{[5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => setRpe(n)} style={{ ...ghostBtn, borderRadius: 12, padding: '13px 0', background: rpe === n ? F.accent : 'var(--f-card)', color: rpe === n ? '#fff' : F.ink }}>{n}</button>)}</div>
           <div style={{ fontSize: 12.5, color: F.muted, marginTop: 6 }}>5 = facile · 9 = à fond</div>
           <button disabled={busy || !(doneSets.length || cardioDone.length)} onClick={save} style={{ ...btn, width: '100%', marginTop: 22, opacity: doneSets.length || cardioDone.length ? 1 : 0.5 }}>{busy ? 'Enregistrement…' : pendingSave ? '📴 En attente du réseau… (touche pour réessayer)' : doneSets.length || cardioDone.length ? 'Enregistrer ma séance' : 'Aucune série validée'}</button>
-          {doneSets.length > 0 && <button onClick={() => void shareCard({ title: s.label, dur: fmtTime(elapsed), volume, sets: doneSets.length, prs: newPrs, lines: exs.filter(e => (rows[e.id] ?? []).some(r => r.done && r.t !== 'w')).map(e => { const d = rows[e.id]!.filter(r => r.done && r.t !== 'w'); const top = Math.max(...d.map(r => Number(r.kg.replace(',', '.')) || 0)); return `${d.length} × ${e.name}${top ? ` · ${top} kg` : ''}`; }) })} style={{ ...ghostBtn, width: '100%', marginTop: 10 }}>📤 Partager ma séance (image)</button>}
+          {doneSets.length > 0 && <button onClick={() => void shareCard({ title: s.label, dur: fmtTime(elapsed), volume, sets: doneSets.length, prs: newPrs, lines: exs.filter(e => (rows[e.id] ?? []).some(r => r.done && r.t !== 'w')).map(e => { const d = rows[e.id]!.filter(r => r.done && r.t !== 'w'); const top = Math.max(...d.map(r => Number(r.kg.replace(',', '.')) || 0)); return `${d.length} × ${e.name}${top ? ` · ${top} kg` : ''}`; }) })} style={{ ...ghostBtn, width: '100%', marginTop: 10 }}><Ico e="📤" />Partager ma séance (image)</button>}
         </div>
       ) : <>
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '2px 14px 8px', scrollbarWidth: 'none' }}>
@@ -443,7 +444,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
             <div style={{ fontSize: 18, fontWeight: 700, marginTop: 8 }}>Séance libre</div>
             <div style={{ color: F.muted, fontSize: 14, marginTop: 4 }}>Ajoute les exercices que tu fais, au fur et à mesure.</div>
             <button onClick={() => setPicker('add')} style={{ ...btn, marginTop: 16 }}>＋ Ajouter un exercice</button>
-            <button onClick={() => setScanOpen(true)} style={{ ...ghostBtn, marginTop: 10, display: 'block', marginInline: 'auto' }}>📷 Scanner une machine</button>
+            <button onClick={() => setScanOpen(true)} style={{ ...ghostBtn, marginTop: 10, display: 'block', marginInline: 'auto' }}><Ico e="📷" />Scanner une machine</button>
           </div>
         ) : (
         <AnimatePresence mode="wait">
@@ -459,15 +460,15 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
                   </div>
                   <button onClick={() => setHow(true)} aria-label="Comment faire" style={{ width: 34, height: 34, borderRadius: 17, border: `1px solid ${F.line}`, background: 'var(--f-card)', cursor: 'pointer', fontWeight: 700, color: F.accent, flexShrink: 0 }}>i</button>
                 </div>
-                {(ss[ex.id] && exs[i + 1]) ? <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, color: F.accent }}>🔗 Superset avec « {exs[i + 1]!.name} » : 1 série ici → direct l'autre, puis repos</div>
-                  : (exs[i - 1] && ss[exs[i - 1]!.id]) ? <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, color: F.accent }}>🔗 Superset avec « {exs[i - 1]!.name} » : après ta série, repos puis retour dessus</div> : null}
+                {(ss[ex.id] && exs[i + 1]) ? <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, color: F.accent }}><Ico e="🔗" />Superset avec « {exs[i + 1]!.name} » : 1 série ici → direct l'autre, puis repos</div>
+                  : (exs[i - 1] && ss[exs[i - 1]!.id]) ? <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, color: F.accent }}><Ico e="🔗" />Superset avec « {exs[i - 1]!.name} » : après ta série, repos puis retour dessus</div> : null}
                 {ex.tip && <div style={{ fontSize: 13.5, color: F.muted, marginTop: 6, lineHeight: 1.4 }}>💡 {ex.tip}</div>}
                 {ex.suggestion.up && <div style={{ fontSize: 13, fontWeight: 600, marginTop: 6, color: F.green }}>↑ On monte à {ex.suggestion.kg} kg aujourd'hui</div>}
-                {chal === ex.id && <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, padding: '8px 10px', borderRadius: 10, background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))' }}>🎯 Défi du jour : fais mieux que la dernière fois ({ex.suggestion.last}) — 1 rep ou 1 kg de plus</div>}
+                {chal === ex.id && <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, padding: '8px 10px', borderRadius: 10, background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))' }}><Ico e="🎯" />Défi du jour : fais mieux que la dernière fois ({ex.suggestion.last}) — 1 rep ou 1 kg de plus</div>}
                 <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-                  {!isCardioEx(ex) && <button onClick={warmup} style={tool}>🔥 Échauffement</button>}
-                  {!isCardioEx(ex) && <button onClick={() => setPlates(true)} style={tool}>🧮 Disques</button>}
-                  <button onClick={() => setPicker('swap')} style={tool}>🔁 Remplacer</button>
+                  {!isCardioEx(ex) && <button onClick={warmup} style={tool}><Ico e="🔥" />Échauffement</button>}
+                  {!isCardioEx(ex) && <button onClick={() => setPlates(true)} style={tool}><Ico e="🧮" />Disques</button>}
+                  <button onClick={() => setPicker('swap')} style={tool}><Ico e="🔁" />Remplacer</button>
                   {!isCardioEx(ex) && exs[i + 1] && !isCardioEx(exs[i + 1]!) && <button onClick={() => { vibrate(15); setSs(x => ({ ...x, [ex.id]: !x[ex.id] })); }} aria-label="Superset avec l'exercice suivant" style={{ ...tool, flex: '0 0 auto', padding: '9px 11px', background: ss[ex.id] ? F.accent : F.bg, color: ss[ex.id] ? '#fff' : F.ink }}>🔗</button>}
                   <button onClick={removeEx} aria-label="Retirer cet exercice" style={{ ...tool, flex: '0 0 auto', padding: '9px 11px' }}>🗑️</button>
                 </div>
@@ -475,7 +476,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
               {isCardioEx(ex) ? (() => { const r = sets[0] ?? { kg: '', reps: String(cardioMin(ex)), done: false, t: 'n' as SetT }; return (
               <div style={{ padding: '10px 14px 14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12, background: r.done ? 'color-mix(in srgb, #1f9d5c 14%, var(--f-card))' : F.bg }}>
-                  <div style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>⏱ Durée</div>
+                  <div style={{ flex: 1, fontWeight: 600, fontSize: 14 }}><Ico e="⏱" />Durée</div>
                   <input inputMode="numeric" value={r.reps} onChange={e => upd(0, { reps: e.target.value })} style={{ ...cell, width: 70, background: r.done ? 'transparent' : 'var(--f-card)' }} />
                   <span style={{ fontWeight: 600, color: F.muted }}>min</span>
                   <button onClick={() => r.done ? upd(0, { done: false }) : validate(0)} aria-label="Cardio fait" style={{ width: 44, height: 40, borderRadius: 10, border: 'none', background: r.done ? F.green : F.bg2, color: r.done ? '#fff' : F.muted, fontSize: 18, fontWeight: 700, cursor: 'pointer' }}>✓</button>
@@ -678,17 +679,17 @@ function ReviewCard({ dates, bump }: { dates: string[]; bump: number }) {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 12 }}>{[note('Progression', r.scores.progression), note('Volume', r.scores.volume), note('Intensité', r.scores.intensite), note('Régularité', r.scores.regularite), note('Densité', r.scores.densite)]}</div>
         <div style={{ fontSize: 14, marginTop: 12, lineHeight: 1.45 }}>💬 {r.avis}</div>
         {open && <>
-          {r.good.length > 0 && <div style={{ marginTop: 10 }}><div style={{ fontWeight: 700, fontSize: 13.5 }}>✅ Points forts</div>{r.good.map((x, i) => <div key={i} style={{ fontSize: 13, marginTop: 3 }}>• {x}</div>)}</div>}
-          {r.improve.length > 0 && <div style={{ marginTop: 10 }}><div style={{ fontWeight: 700, fontSize: 13.5 }}>🎯 À améliorer</div>{r.improve.map((x, i) => <div key={i} style={{ fontSize: 13, marginTop: 3 }}>• {x}</div>)}</div>}
+          {r.good.length > 0 && <div style={{ marginTop: 10 }}><div style={{ fontWeight: 700, fontSize: 13.5 }}><Ico e="✅" />Points forts</div>{r.good.map((x, i) => <div key={i} style={{ fontSize: 13, marginTop: 3 }}>• {x}</div>)}</div>}
+          {r.improve.length > 0 && <div style={{ marginTop: 10 }}><div style={{ fontWeight: 700, fontSize: 13.5 }}><Ico e="🎯" />À améliorer</div>{r.improve.map((x, i) => <div key={i} style={{ fontSize: 13, marginTop: 3 }}>• {x}</div>)}</div>}
           {(r.context?.sleep != null || r.context?.protYday || r.rests) && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10, fontSize: 12.5 }}>
             {r.context?.sleep != null && <span style={{ background: F.bg, borderRadius: 8, padding: '5px 8px' }}>😴 {r.context.sleep} h cette nuit</span>}
             {r.context?.protYday ? <span style={{ background: F.bg, borderRadius: 8, padding: '5px 8px' }}>🥩 {Math.round(r.context.protYday)}{r.context.protGoal ? `/${r.context.protGoal}` : ''} g protéines hier</span> : null}
-            {r.rests && <span style={{ background: F.bg, borderRadius: 8, padding: '5px 8px' }}>⏱️ repos {fmtS(r.rests.avgSec)} (prévu {fmtS(r.rests.plannedSec)})</span>}
+            {r.rests && <span style={{ background: F.bg, borderRadius: 8, padding: '5px 8px' }}><Ico e="⏱️" />repos {fmtS(r.rests.avgSec)} (prévu {fmtS(r.rests.plannedSec)})</span>}
           </div>}
-          {r.forecast?.length ? <div style={{ marginTop: 10 }}><div style={{ fontWeight: 700, fontSize: 13.5 }}>🔮 À ce rythme</div>{r.forecast.map((f, i) => <div key={i} style={{ fontSize: 13, marginTop: 3 }}>• {f.name} à {f.target} kg vers le {f.eta.slice(8)}/{f.eta.slice(5, 7)}</div>)}</div> : null}
-          {r.links?.length ? <div style={{ marginTop: 10 }}><div style={{ fontWeight: 700, fontSize: 13.5 }}>🔗 Ce que disent tes séances</div>{r.links.map((x, i) => <div key={i} style={{ fontSize: 13, marginTop: 3 }}>• {x}</div>)}</div> : null}
-          {r.month?.best && <div style={{ fontSize: 13, marginTop: 10 }}>📅 Ce mois : <b>{r.month.volume.toLocaleString('fr-FR')} kg</b> · meilleur mois ({r.month.best.month.slice(5)}/{r.month.best.month.slice(0, 4)}) : {r.month.best.volume.toLocaleString('fr-FR')} kg</div>}
-          <div style={{ marginTop: 12, fontWeight: 700, fontSize: 13.5 }}>📈 Volume par exercice <span style={{ fontWeight: 400, color: F.muted }}>(gris = dernière fois)</span></div>
+          {r.forecast?.length ? <div style={{ marginTop: 10 }}><div style={{ fontWeight: 700, fontSize: 13.5 }}><Ico e="🔮" />À ce rythme</div>{r.forecast.map((f, i) => <div key={i} style={{ fontSize: 13, marginTop: 3 }}>• {f.name} à {f.target} kg vers le {f.eta.slice(8)}/{f.eta.slice(5, 7)}</div>)}</div> : null}
+          {r.links?.length ? <div style={{ marginTop: 10 }}><div style={{ fontWeight: 700, fontSize: 13.5 }}><Ico e="🔗" />Ce que disent tes séances</div>{r.links.map((x, i) => <div key={i} style={{ fontSize: 13, marginTop: 3 }}>• {x}</div>)}</div> : null}
+          {r.month?.best && <div style={{ fontSize: 13, marginTop: 10 }}><Ico e="📅" />Ce mois : <b>{r.month.volume.toLocaleString('fr-FR')} kg</b> · meilleur mois ({r.month.best.month.slice(5)}/{r.month.best.month.slice(0, 4)}) : {r.month.best.volume.toLocaleString('fr-FR')} kg</div>}
+          <div style={{ marginTop: 12, fontWeight: 700, fontSize: 13.5 }}><Ico e="📈" />Volume par exercice <span style={{ fontWeight: 400, color: F.muted }}>(gris = dernière fois)</span></div>
           {r.exercises.map(e => (
             <div key={e.id} style={{ marginTop: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5 }}><span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.pr ? '🏆 ' : ''}{e.name}</span><span style={{ color: F.muted, flexShrink: 0, marginLeft: 8 }}>{e.topKg ? `${e.topKg} kg × ${e.topReps ?? '?'}` : `${e.sets} séries`}{e.prev?.topKg ? ` (avant ${e.prev.topKg})` : ''}</span></div>
@@ -899,8 +900,8 @@ function ScanSheet({ open, onClose, onAdd }: { open: boolean; onClose: () => voi
       <div style={{ fontSize: 20, fontWeight: 700 }}>Scanner une machine</div>
       {!scan && !busy && <>
         <div style={{ fontSize: 13.5, color: F.muted, marginTop: 4 }}>Prends la machine en photo : ses exercices s'ajoutent à ta séance, tu notes tes séries comme les autres.</div>
-        <button onClick={() => cam.current?.click()} style={{ ...btn, width: '100%', marginTop: 14 }}>📷 Prendre la photo</button>
-        <button onClick={() => gal.current?.click()} style={{ ...ghostBtn, width: '100%', marginTop: 8 }}>🖼️ Depuis la galerie</button>
+        <button onClick={() => cam.current?.click()} style={{ ...btn, width: '100%', marginTop: 14 }}><Ico e="📷" />Prendre la photo</button>
+        <button onClick={() => gal.current?.click()} style={{ ...ghostBtn, width: '100%', marginTop: 8 }}><Ico e="🖼️" />Depuis la galerie</button>
       </>}
       {busy && <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: 24 }}><Spinner size={28} /><div style={{ fontWeight: 600 }}>Je reconnais la machine…</div><div style={{ fontSize: 12.5, color: F.muted }}>~15 à 25 secondes</div></div>}
       {err && !busy && <div style={{ color: F.red, fontWeight: 600, marginTop: 12 }}>❌ {err}</div>}
@@ -917,7 +918,7 @@ function ScanSheet({ open, onClose, onAdd }: { open: boolean; onClose: () => voi
             </button>); })}
         </div>
         <button disabled={!sel.length} onClick={() => onAdd(sel.sort((a, b) => a - b).map(k => scan.exercises[k]!))} style={{ ...btn, width: '100%', marginTop: 14, opacity: sel.length ? 1 : 0.5 }}>＋ Ajouter à ma séance{sel.length > 1 ? ` (${sel.length})` : ''}</button>
-        <button onClick={() => cam.current?.click()} style={{ ...ghostBtn, width: '100%', marginTop: 8 }}>📷 Autre machine</button>
+        <button onClick={() => cam.current?.click()} style={{ ...ghostBtn, width: '100%', marginTop: 8 }}><Ico e="📷" />Autre machine</button>
       </>}
     </Sheet>
   );
@@ -958,7 +959,7 @@ function SwapRow({ d, date, current, toast, onD }: { d: SportOverview; date: str
   };
   return (
     <div style={{ marginTop: 10 }}>
-      {!open ? <button onClick={() => setOpen(true)} style={{ ...ghostBtn, width: '100%' }}>🔁 Changer la séance de ce jour</button> : (
+      {!open ? <button onClick={() => setOpen(true)} style={{ ...ghostBtn, width: '100%' }}><Ico e="🔁" />Changer la séance de ce jour</button> : (
         <div style={{ ...card }}>
           <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>Ce jour-là je fais…</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>

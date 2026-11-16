@@ -1,3 +1,8 @@
+## 16/11/2026 — Design v4 « Signature » (Dzaryx + FORME) + Vitalité retiré + bouton LIBERTÉ
+- LIBERTÉ : la feuille « Combien exactement ? » restait sous la barre du bas → impossible de valider. Toutes les feuilles (Kit Sheet) et toasts passent en portail dans <body> (z ≥ 1000).
+- Module Vitalité retiré partout (demande de Kouider) : onglet COACH supprimé (VitaliteTab.tsx), job/rappels coupés, rien dans le dossier des cerveaux, outil `vitalite` limité aux prises de sang ; LIBERTÉ sans « désir / libido » (« Ce qui revient » = énergie, joie, clarté).
+- Design v4 (analyse de 40 apps → DZARYX/APP/DESIGN_40_APPS.md) : barre du bas flottante en verre + orbe animé, menu Plus en grille d'icônes d'applis (+ « Les plus utilisés »), lueur de couleur par page, police Geist + étiquettes Geist Mono, cartes en verre fumé, bouton principal monochrome (`T.onInk`), icônes au trait (Icon.tsx) à la place des emojis (Label/Ico automatiques), nouveau logo. FORME : identité orange énergie, barre flottante, cartes verre.
+
 ## 15/11/2026 nuit — Mode sombre Dzaryx + FORME, nouvelle palette FORME (app v264-v265)
 - Réglages › Apparence (Dzaryx) et Mon profil › Apparence (FORME) : Clair / Sombre / Auto (suit l'iPhone). Clé partagée `dz:theme` : Dzaryx et FORME (même dans l'iframe) changent ensemble, sans flash au démarrage.
 - Toutes les couleurs neutres passent par des variables (`--dz-*` dans index.css, `--f-*` dans forme/index.html) ; T.* / F.* = variables. En sombre les boutons noirs deviennent bleus ; écran vocal (canvas) suit le thème.

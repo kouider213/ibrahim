@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { get } from './api.ts';
 import { F, card, Ring, LineChart } from './ui.tsx';
 import { BilansCard, DaySheet, GoalCard } from './Bilans.tsx';
+import { Ico } from '../components/ui/Icon.tsx';
 
 // 📊 STATS PRO (31/10) — le meilleur des grosses applis, calculé sur ses vraies données (/api/forme/insights) :
 // anneau objectif semaine (Apple Fitness / Hevy), séries par muscle vs zone utile 10-20 (JEFIT / Alpha Progression),
@@ -95,7 +96,7 @@ export default function Insights() {
           <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: F.accent, marginRight: 5 }} />séance faite</span>
           <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: F.bg2, marginRight: 5 }} />pas de séance</span>
           <span>▢ = aujourd'hui</span>
-          <span style={{ flexBasis: '100%' }}>👆 Touche un jour pour voir tout le détail (montre, séance, repas, note).</span>
+          <span style={{ flexBasis: '100%' }}><Ico e="👆" />Touche un jour pour voir tout le détail (montre, séance, repas, note).</span>
         </div>
       </div>
 

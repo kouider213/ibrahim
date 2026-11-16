@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import DzaryxIcon from './ui/DzaryxLogo.tsx';
+import { Icon, type IconName } from './ui/Icon.tsx';
 import VoiceScreen, { prepareCallAudio } from './screens/VoiceScreen.tsx';
 import CallOverlay from './CallOverlay.tsx';
 import TextScreen from './screens/TextScreen.tsx';
@@ -414,7 +415,12 @@ export default function Phone() {
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      background: 'var(--dz-bg)',
+      // v4 : lueur de couleur en haut de chaque page (couleur du thème de la page), sur noir profond
+      ['--dz-glow' as string]: pageGlow(safePage),
+      background: simState === 'app'
+        ? 'radial-gradient(110% 42% at 50% -8%, color-mix(in srgb, var(--dz-glow) var(--dz-glow-a), transparent), transparent 72%), radial-gradient(70% 28% at 100% 0%, color-mix(in srgb, #8b5cf6 calc(var(--dz-glow-a) * 0.5), transparent), transparent 70%), var(--dz-bg)'
+        : 'var(--dz-bg)',
+      transition: 'background .5s',
       position: 'relative',
     }}>
       {simState === 'locked' && (
@@ -439,7 +445,7 @@ export default function Phone() {
           <StatusBar wsOk={wsOk} page={safePage} actorCol={actorCol} actorInit={actorInit} onLogout={logout}
             onBack={!ROOT_PAGES.includes(safePage) && histRef.current.length ? () => window.history.back() : undefined} />
           <OfflineBanner />
-          <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+          <div style={{ flex: 1, overflow: 'hidden', position: 'relative', paddingBottom: DOCK_PAD.includes(safePage) ? 'calc(84px + env(safe-area-inset-bottom, 0px))' : 0 }}>
             {renderScreen()}
           </div>
           <NavBar page={safePage} onPage={setPage} actor={loggedActor ?? 'kouider'} />
@@ -494,7 +500,7 @@ export default function Phone() {
           {notif.deepLink && (
             <button
               onClick={() => { setPage(notif.deepLink!); setNotif(null); }}
-              style={{ background: 'var(--dz-ink)', border: 'none', borderRadius: 99, padding: '0 16px', minHeight: 40, cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: 13.5, fontWeight: 700, color: '#ffffff', flexShrink: 0 }}
+              style={{ background: 'var(--dz-ink)', border: 'none', borderRadius: 99, padding: '0 16px', minHeight: 40, cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: 13.5, fontWeight: 700, color: 'var(--dz-on-ink)', flexShrink: 0 }}
             >
               Voir
             </button>
@@ -737,7 +743,7 @@ function LoginScreen({
             style={{
               marginTop: 4, minHeight: 54, border: 'none', borderRadius: 99,
               background: 'var(--dz-ink)', opacity: ready ? 1 : 0.35,
-              fontFamily: 'Inter, sans-serif', fontSize: 16, fontWeight: 700, color: '#ffffff',
+              fontFamily: 'Inter, sans-serif', fontSize: 16, fontWeight: 700, color: 'var(--dz-on-ink)',
               cursor: ready ? 'pointer' : 'default',
               boxShadow: ready ? '0 14px 28px -14px rgba(var(--dz-ink-rgb),0.6)' : 'none',
             }}
@@ -790,55 +796,45 @@ function StatusBar({ wsOk, page, actorCol: _actorCol, actorInit, onLogout, onBac
 }) {
   const tab = TABS.find(t => t.id === page);
   const [showMenu, setShowMenu] = useState(false);
-  const round: React.CSSProperties = { width: 40, height: 40, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 };
+  const sq: React.CSSProperties = { width: 40, height: 40, borderRadius: 14, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: 'var(--dz-dock)', border: '1px solid var(--dz-card-line)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', color: 'var(--dz-text)' };
+  const name = (() => { const n = TOOL_INFO[page]?.name; if (n) return n; const l = tab?.label ?? page; return l.charAt(0).toUpperCase() + l.slice(1).toLowerCase(); })();
 
   return (
-    <div style={{ width: '100%', background: 'var(--dz-bg)', flexShrink: 0, position: 'relative', zIndex: 5 }}>
-      {/* Safe-area spacer */}
+    <div style={{ width: '100%', background: 'transparent', flexShrink: 0, position: 'relative', zIndex: 5 }}>
       <div style={{ height: 'env(safe-area-inset-top, 0px)' }} />
-
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', height: 56 }}>
-        {/* Retour (sous-pages) ou marque : emblème + Dzaryx + état de la liaison */}
         {onBack ? (
           <>
-            <button onClick={onBack} aria-label="Retour" title="Retour" style={{ ...round, background: 'var(--dz-surface)', color: 'var(--dz-text)', boxShadow: '0 1px 2px rgba(var(--dz-shadow-rgb),0.06), 0 6px 16px -8px rgba(var(--dz-shadow-rgb),0.2)' }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
-            </button>
-            <span style={{ flex: 1, minWidth: 0, textAlign: 'center', fontFamily: 'Manrope, Inter, sans-serif', fontSize: 15.5, fontWeight: 800, color: 'var(--dz-text)', letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {(() => { const n = TOOL_INFO[page]?.name; if (n) return n; const l = tab?.label ?? page; return l.charAt(0).toUpperCase() + l.slice(1).toLowerCase(); })()}
-            </span>
+            <button onClick={onBack} aria-label="Retour" title="Retour" style={sq}><Icon name="chevronLeft" size={20} stroke={2.3} /></button>
+            <span style={{ flex: 1, minWidth: 0, textAlign: 'center', fontFamily: '"Geist", Inter, sans-serif', fontSize: 15, fontWeight: 600, color: 'var(--dz-text)', letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
           </>
         ) : (
           <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <DzaryxIcon size={36} />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <span style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 18, fontWeight: 800, letterSpacing: '-0.035em', lineHeight: 1, color: 'var(--dz-text)' }}>Dzaryx</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, lineHeight: 1, color: wsOk ? '#0a9a5e' : 'var(--dz-faint)' }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: wsOk ? '#0a9a5e' : '#f5a524' }} />
-                {wsOk ? 'En ligne' : 'Connexion…'}
+            <DzaryxIcon size={34} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={{ fontFamily: '"Geist", Inter, sans-serif', fontSize: 17, fontWeight: 650, letterSpacing: '-0.04em', lineHeight: 1, color: 'var(--dz-text)' }}>Dzaryx</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: '"Geist Mono", monospace', fontSize: 10, fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1, color: wsOk ? '#12b76a' : 'var(--dz-faint)' }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: wsOk ? '#12b76a' : '#f59e0b', boxShadow: wsOk ? '0 0 8px #12b76a' : 'none', animation: wsOk ? undefined : 'dzBlink 1.2s infinite' }} />
+                {wsOk ? 'En ligne' : 'Connexion'}
               </span>
             </div>
           </div>
         )}
-
-        {/* Avatar — tap = menu déconnexion */}
-        <button onClick={() => setShowMenu(m => !m)} aria-label="Mon compte" style={{ ...round, background: 'var(--dz-ink)', color: '#ffffff', fontFamily: 'Manrope, Inter, sans-serif', fontSize: 14, fontWeight: 800 }}>
+        <button onClick={() => setShowMenu(m => !m)} aria-label="Mon compte" style={{ ...sq, borderRadius: '50%', background: 'linear-gradient(135deg, #3d6bff, #8b5cf6)', border: '1px solid rgba(255,255,255,0.2)', color: '#ffffff', fontFamily: '"Geist", Inter, sans-serif', fontSize: 14, fontWeight: 650 }}>
           {actorInit}
         </button>
       </div>
 
-      {/* Dropdown menu */}
       {showMenu && (
         <>
           <div onClick={() => setShowMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 98 }} />
-          <div style={{ position: 'absolute', top: '100%', right: 14, zIndex: 99, background: 'var(--dz-surface)', borderRadius: 20, overflow: 'hidden', boxShadow: '0 2px 4px rgba(var(--dz-shadow-rgb),0.06), 0 24px 50px -18px rgba(var(--dz-shadow-rgb),0.35)', minWidth: 210 }}>
-            <div style={{ padding: '14px 16px 10px', fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: 'var(--dz-faint)' }}>
+          <div style={{ position: 'absolute', top: '100%', right: 14, zIndex: 99, background: 'var(--dz-surface2)', border: '1px solid var(--dz-card-line)', borderRadius: 18, overflow: 'hidden', boxShadow: '0 24px 50px -18px rgba(0,0,0,0.55)', minWidth: 220 }}>
+            <div style={{ padding: '14px 16px 12px', fontFamily: '"Geist Mono", monospace', fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--dz-faint)' }}>
               Connecté en tant que
-              <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 16, fontWeight: 800, color: 'var(--dz-text)', marginTop: 2 }}>{actorInit === 'K' ? 'Kouider' : 'Houari'}</div>
+              <div style={{ fontFamily: '"Geist", Inter, sans-serif', fontSize: 16, fontWeight: 650, letterSpacing: '-0.03em', textTransform: 'none', color: 'var(--dz-text)', marginTop: 4 }}>{actorInit === 'K' ? 'Kouider' : 'Houari'}</div>
             </div>
-            <button onClick={() => { setShowMenu(false); onLogout(); }} style={{ width: '100%', padding: '13px 16px', background: 'none', border: 'none', borderTop: '1px solid rgba(var(--dz-ink-rgb),0.07)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, fontFamily: 'Inter', fontSize: 14, fontWeight: 600, color: '#e0304f', textAlign: 'left' }}>
-              <span style={{ fontSize: 16 }}>⏻</span>
-              Se déconnecter
+            <button onClick={() => { setShowMenu(false); onLogout(); }} style={{ width: '100%', padding: '13px 16px', background: 'none', border: 'none', borderTop: '1px solid var(--dz-line)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, fontFamily: '"Geist", Inter, sans-serif', fontSize: 14, fontWeight: 600, color: '#f04438', textAlign: 'left' }}>
+              <Icon name="power" size={17} /> Se déconnecter
             </button>
           </div>
         </>
@@ -855,29 +851,32 @@ const PRIMARY: Record<string, Page[]> = {
   houari:  ['fleet', 'text', 'voice', 'leads'],
 };
 
-function NavIcon({ id, col }: { id: Page; col: string }) {
-  const p = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: col, strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
-  switch (id) {
-    case 'aujourdhui': return <svg {...p}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>;
-    case 'text':       return <svg {...p}><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /><path d="M8.5 11h7M8.5 14h4" /></svg>;
-    case 'leads':      return <svg {...p}><path d="M22 12h-6l-2 3h-4l-2-3H2" /><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z" /></svg>;
-    case 'fleet':      return <svg {...p}><path d="M5 17h14M3 13l2-6h14l2 6v4H3z" /><circle cx="7" cy="17" r="2" /><circle cx="17" cy="17" r="2" /></svg>;
-    default:           return <svg {...p}><rect x="3" y="3" width="7" height="7" rx="2" /><rect x="14" y="3" width="7" height="7" rx="2" /><rect x="3" y="14" width="7" height="7" rx="2" /><rect x="14" y="14" width="7" height="7" rx="2" /></svg>;
-  }
+const NAV_ICON: Partial<Record<Page, IconName>> = { aujourdhui: 'sun', text: 'chat', leads: 'inbox', fleet: 'car', plus: 'grid' };
+
+// Pages plein écran avec leurs propres contrôles en bas (chat, voix, jeux…) : on réserve la place de la barre flottante
+const DOCK_PAD: Page[] = ['text', 'voice', 'sport', 'fennou', 'jeux', 'carte', 'route', 'camera', 'nexus', 'globe', 'studio'];
+
+/** Couleur de la lueur en haut de page, selon le thème de la page. */
+function pageGlow(p: Page): string {
+  const own: Partial<Record<Page, string>> = { aujourdhui: '#3d6bff', text: '#8b5cf6', voice: '#8b5cf6', leads: '#22d3ee', liberte: '#22d3ee', plus: '#3d6bff', coach: '#f59e0b', jarvis: '#8b5cf6', settings: '#6b7280' };
+  const cat = TOOL_INFO[p]?.cat;
+  return own[p] ?? (cat ? CAT_COL[cat] : undefined) ?? '#3d6bff';
 }
 
+/** Barre du bas v4 : îlot de verre flottant (iOS 26 / Arc), onglet actif en pastille, orbe Dzaryx animé au centre. */
 function NavBar({ page, onPage, actor }: { page: Page; onPage: (p: Page) => void; actor: string }) {
   const primary = (PRIMARY[actor] ?? PRIMARY.kouider)!;
   const tabs = primary.map(id => TABS.find(t => t.id === id)).filter((t): t is (typeof TABS)[number] => !!t);
   const onPlus = !primary.includes(page);
   const item = (id: Page, label: string, active: boolean) => (
-    <button key={id} onClick={() => onPage(id)} style={{
-      flex: 1, height: 56, border: 'none', cursor: 'pointer', background: 'transparent', padding: 0,
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+    <button key={id} onClick={() => onPage(id)} aria-label={label} style={{
+      flex: 1, height: 52, border: 'none', cursor: 'pointer', padding: 0, borderRadius: 18, margin: '0 2px',
+      background: active ? 'rgba(var(--dz-ink-rgb),0.09)' : 'transparent',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+      color: active ? 'var(--dz-text)' : 'var(--dz-faint)',
     }}>
-      <NavIcon id={id} col={active ? '#0c0e1a' : '#a3a6b4'} />
-      <span style={{ fontFamily: 'Inter', fontSize: 10.5, fontWeight: active ? 700 : 600, color: active ? 'var(--dz-text)' : '#a3a6b4' }}>{label}</span>
-      <span style={{ width: 4, height: 4, borderRadius: '50%', background: active ? '#2f5bff' : 'transparent', marginTop: -1 }} />
+      <Icon name={NAV_ICON[id] ?? 'grid'} size={21} stroke={active ? 2.1 : 1.8} />
+      <span style={{ fontFamily: '"Geist", Inter, sans-serif', fontSize: 10, fontWeight: active ? 650 : 500, letterSpacing: '-0.005em' }}>{label}</span>
     </button>
   );
   const voiceActive = page === 'voice';
@@ -885,22 +884,23 @@ function NavBar({ page, onPage, actor }: { page: Page; onPage: (p: Page) => void
   const half = Math.ceil(side.length / 2);
   const label = (t: (typeof TABS)[number]) => t.label.charAt(0) + t.label.slice(1).toLowerCase();
   return (
-    <div style={{ width: '100%', flexShrink: 0, position: 'relative', zIndex: 5, background: 'var(--dz-surface)', borderTop: '1px solid rgba(var(--dz-ink-rgb),0.07)', padding: '4px 8px calc(4px + env(safe-area-inset-bottom, 0px))' }}>
-      {/* Barre blanche pleine largeur, bouton micro rond à l'encre au centre */}
-      <div style={{ display: 'flex', alignItems: 'center', height: 60 }}>
+    <div style={{ position: 'absolute', left: 12, right: 12, bottom: 'max(10px, env(safe-area-inset-bottom, 0px))', zIndex: 50, pointerEvents: 'none' }}>
+      <style>{'@keyframes dzOrb{to{transform:rotate(360deg)}}@keyframes dzOrbPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}'}</style>
+      <div style={{
+        pointerEvents: 'auto', display: 'flex', alignItems: 'center', height: 66, padding: '0 6px', borderRadius: 26,
+        background: 'var(--dz-dock)', backdropFilter: 'blur(28px) saturate(180%)', WebkitBackdropFilter: 'blur(28px) saturate(180%)',
+        border: '1px solid var(--dz-card-line)', boxShadow: '0 1px 0 rgba(255,255,255,0.08) inset, 0 20px 50px -14px rgba(0,0,0,0.55)',
+      }}>
         {side.slice(0, half).map(t => item(t.id, label(t), page === t.id))}
         <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-          <button onClick={() => onPage('voice')} aria-label="Voix" style={{
-            width: 60, height: 60, marginTop: -30, borderRadius: '50%', position: 'relative', zIndex: 1, cursor: 'pointer', padding: 0,
-            border: '5px solid #ffffff', background: voiceActive ? '#2f5bff' : 'var(--dz-ink)',
-            boxShadow: voiceActive ? '0 14px 28px -10px rgba(47,91,255,0.7)' : '0 14px 28px -10px rgba(var(--dz-ink-rgb),0.55)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          <button onClick={() => onPage('voice')} aria-label="Parler à Dzaryx" style={{
+            width: 54, height: 54, borderRadius: '50%', position: 'relative', cursor: 'pointer', padding: 0, border: 'none', overflow: 'hidden',
+            background: '#05050a', boxShadow: voiceActive ? '0 0 0 3px rgba(139,92,246,0.35), 0 10px 30px -6px rgba(61,107,255,0.8)' : '0 10px 26px -8px rgba(61,107,255,0.65)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', animation: voiceActive ? 'dzOrbPulse 2.4s ease-in-out infinite' : undefined,
           }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <rect x="9" y="3" width="6" height="11" rx="3" fill="#fff" />
-              <path d="M5 11a7 7 0 0 0 14 0" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-              <line x1="12" y1="18" x2="12" y2="21" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-            </svg>
+            <span style={{ position: 'absolute', inset: -10, background: 'conic-gradient(from 0deg, #3d6bff, #8b5cf6, #22d3ee, #3d6bff)', animation: 'dzOrb 6s linear infinite', filter: 'blur(6px)', opacity: 0.95 }} />
+            <span style={{ position: 'absolute', inset: 3, borderRadius: '50%', background: 'radial-gradient(circle at 35% 30%, rgba(255,255,255,0.35), rgba(5,5,10,0.15) 45%, rgba(5,5,10,0.55))' }} />
+            <span style={{ position: 'relative', color: '#fff', display: 'flex' }}><Icon name="mic" size={22} stroke={2.1} /></span>
           </button>
         </div>
         {side.slice(half).map(t => item(t.id, label(t), page === t.id))}
@@ -950,6 +950,38 @@ const TOOL_INFO: Partial<Record<Page, { name: string; hint: string; cat: string 
 };
 const TOOL_CATS = ['Activité', 'Clients & ventes', 'Marketing', 'Pilotage', 'Perso & PC'];
 
+// Une teinte par thème : on repère les outils d'un coup d'œil
+const CAT_COL: Record<string, string> = { 'Activité': '#3d6bff', 'Clients & ventes': '#12b76a', 'Marketing': '#ec4899', 'Pilotage': '#f59e0b', 'Perso & PC': '#8b5cf6' };
+const TOOL_ICON: Partial<Record<Page, IconName>> = {
+  bookings: 'calendar', fleet: 'car', revenue: 'coins', clients: 'users', calendar: 'calendar', immo: 'home', deals: 'repeat', caisse: 'receipt',
+  paiements: 'card', documents: 'file', devis: 'calc', voucher: 'ticket', reponse: 'reply', reengage: 'refresh', parrainage: 'gift', reviews: 'star',
+  demarchage: 'send', sites: 'globe', social: 'smartphone', newsletter: 'megaphone', blog: 'pen', studio: 'film', opportunities: 'bulb', forecast: 'trend',
+  pricing: 'tag', partners: 'handshake', search: 'search', coach: 'trophy', sport: 'dumbbell', carte: 'pin', nexus: 'monitor', camera: 'eye', globe: 'globe',
+  settings: 'settings', jarvis: 'bot', fennou: 'paw', liberte: 'feather', route: 'route', jeux: 'gamepad',
+};
+// Couleurs d'icône propres à quelques outils (comme sur un écran d'accueil : chaque appli a sa couleur)
+const TOOL_HUE: Partial<Record<Page, [string, string]>> = {
+  bookings: ['#3d6bff', '#1e40af'], fleet: ['#0ea5e9', '#1d4ed8'], revenue: ['#22c55e', '#047857'], clients: ['#6366f1', '#4338ca'], calendar: ['#ef4444', '#b91c1c'],
+  immo: ['#f97316', '#c2410c'], deals: ['#14b8a6', '#0f766e'], caisse: ['#84cc16', '#4d7c0f'], paiements: ['#64748b', '#334155'], documents: ['#94a3b8', '#475569'],
+  devis: ['#10b981', '#065f46'], voucher: ['#06b6d4', '#0e7490'], reponse: ['#22c55e', '#15803d'], reengage: ['#f59e0b', '#b45309'], parrainage: ['#ec4899', '#9d174d'],
+  reviews: ['#facc15', '#ca8a04'], demarchage: ['#3b82f6', '#1e3a8a'], sites: ['#0ea5e9', '#0369a1'], social: ['#d946ef', '#86198f'], newsletter: ['#f43f5e', '#9f1239'],
+  blog: ['#a855f7', '#6b21a8'], studio: ['#e11d48', '#4c0519'], opportunities: ['#fbbf24', '#b45309'], forecast: ['#22d3ee', '#0e7490'], pricing: ['#fb923c', '#c2410c'],
+  partners: ['#8b5cf6', '#5b21b6'], search: ['#71717a', '#27272a'], coach: ['#f59e0b', '#92400e'], sport: ['#ff6a1f', '#e11d48'], nexus: ['#3d6bff', '#312e81'],
+  camera: ['#06b6d4', '#164e63'], globe: ['#2563eb', '#0f172a'], settings: ['#9ca3af', '#374151'], jarvis: ['#8b5cf6', '#1e1b4b'], fennou: ['#fb923c', '#9a3412'],
+  liberte: ['#22d3ee', '#0e7490'], route: ['#10b981', '#064e3b'], carte: ['#3d6bff', '#0c4a6e'], jeux: ['#ec4899', '#831843'],
+};
+
+/** Icône d'outil façon écran d'accueil iPhone : carré arrondi en dégradé, symbole blanc, reflet. */
+function AppIcon({ id, size = 58 }: { id: Page; size?: number }) {
+  const [a, b] = TOOL_HUE[id] ?? ['#3d6bff', '#1e3a8a'];
+  return (
+    <span style={{ width: size, height: size, borderRadius: size * 0.27, flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
+      background: `linear-gradient(160deg, ${a}, ${b})`, boxShadow: `0 1px 0 rgba(255,255,255,0.35) inset, 0 -8px 16px -8px rgba(0,0,0,0.35) inset, 0 10px 22px -12px ${a}` }}>
+      <Icon name={TOOL_ICON[id] ?? 'sparkles'} size={size * 0.46} stroke={1.9} />
+    </span>
+  );
+}
+
 function ToolsGrid({ onOpen, actor }: { onOpen: (p: Page) => void; actor: string }) {
   const [q, setQ] = useState('');
   const primary = (PRIMARY[actor] ?? PRIMARY.kouider)!;
@@ -961,50 +993,46 @@ function ToolsGrid({ onOpen, actor }: { onOpen: (p: Page) => void; actor: string
   const norm = (x: string) => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const info = (t: (typeof TABS)[number]) => TOOL_INFO[t.id] ?? { name: t.label.charAt(0) + t.label.slice(1).toLowerCase(), hint: '', cat: 'Perso & PC' };
   const shown = visible.filter(t => { const i = info(t); return !q || norm(`${i.name} ${i.hint} ${t.label}`).includes(norm(q)); });
-  // Une teinte par thème : on repère les outils d'un coup d'œil
-  const CAT_COL: Record<string, string> = { 'Activité': '#2f5bff', 'Clients & ventes': '#0a9a5e', 'Marketing': '#d6338a', 'Pilotage': '#f5a524', 'Perso & PC': '#7a3cff' };
+  // Favoris : les 4 outils les plus ouverts (compteur local), sinon une sélection par défaut
+  const [uses] = useState<Record<string, number>>(() => { try { return JSON.parse(localStorage.getItem('dz:tool_uses') ?? '{}') as Record<string, number>; } catch { return {}; } });
+  const open = (p: Page) => { try { const u = { ...uses, [p]: (uses[p] ?? 0) + 1 }; localStorage.setItem('dz:tool_uses', JSON.stringify(u)); } catch { /* ignore */ } onOpen(p); };
+  const favIds = (Object.keys(uses).length ? Object.entries(uses).sort((x, y) => y[1] - x[1]).map(([k]) => k as Page) : (['bookings', 'fleet', 'revenue', 'clients'] as Page[]))
+    .filter(id => visible.some(t => t.id === id)).slice(0, 4);
   const ink = 'var(--dz-text)';
-  // Ligne d'outil : pastille teintée, nom, explication, chevron
-  const row = (t: (typeof TABS)[number], last: boolean) => {
-    const i = info(t);
-    const c = CAT_COL[i.cat] ?? '#2f5bff';
-    return (
-      <button key={t.id} onClick={() => onOpen(t.id)} style={{
-        width: '100%', background: 'transparent', border: 'none', padding: '0 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13, textAlign: 'left', minHeight: 62,
-        fontFamily: 'Inter, -apple-system, "Segoe UI", Roboto, sans-serif',
-      }}>
-        <span style={{ width: 42, height: 42, borderRadius: 14, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, background: `color-mix(in srgb, ${c} 9%, transparent)` }}>{t.icon}</span>
-        <span style={{ flex: 1, minWidth: 0, alignSelf: 'stretch', display: 'flex', alignItems: 'center', gap: 8, borderBottom: last ? 'none' : '1px solid rgba(var(--dz-ink-rgb),0.06)' }}>
-          <span style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ display: 'block', fontSize: 15.5, fontWeight: 700, color: ink, lineHeight: 1.2, letterSpacing: '-0.01em' }}>{i.name}</span>
-            {i.hint && <span style={{ display: 'block', fontSize: 12.5, color: '#7b7f90', marginTop: 2, lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{i.hint}</span>}
-          </span>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c3c5cf" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M9 6l6 6-6 6" /></svg>
-        </span>
-      </button>
-    );
-  };
+  const tile = (t: (typeof TABS)[number]) => (
+    <button key={t.id} onClick={() => open(t.id)} style={{ background: 'none', border: 'none', padding: '4px 0', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, minWidth: 0, fontFamily: '"Geist", Inter, sans-serif' }}>
+      <AppIcon id={t.id} />
+      <span style={{ fontSize: 11.5, fontWeight: 500, color: ink, letterSpacing: '-0.01em', lineHeight: 1.2, textAlign: 'center', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 2px' }}>{info(t).name}</span>
+    </button>
+  );
+  const mono: React.CSSProperties = { fontFamily: '"Geist Mono", monospace', fontSize: 10.5, fontWeight: 500, letterSpacing: '0.09em', textTransform: 'uppercase' };
   return (
-    <div className="dz-scroll" style={{ height: '100%', overflowY: 'auto', background: 'var(--dz-bg)', color: ink, fontFamily: 'Inter, -apple-system, "Segoe UI", Roboto, sans-serif', padding: '8px 16px 130px' }}>
-      <div style={{ padding: '0 4px' }}>
-        <div style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 32, fontWeight: 800, letterSpacing: '-0.04em', color: ink }}>Tous les outils</div>
-        <div style={{ fontSize: 14, color: 'var(--dz-muted)', marginTop: 4 }}>{visible.length} outils rangés par thème</div>
+    <div className="dz-scroll" style={{ height: '100%', overflowY: 'auto', color: ink, fontFamily: '"Geist", Inter, -apple-system, sans-serif', padding: '6px 16px 130px' }}>
+      <div style={{ padding: '4px 4px 0' }}>
+        <div style={{ ...mono, color: 'var(--dz-muted)', display: 'flex', alignItems: 'center', gap: 7 }}><span style={{ width: 6, height: 6, borderRadius: 2, background: '#3d6bff', boxShadow: '0 0 10px #3d6bff' }} />{visible.length} outils</div>
+        <div style={{ fontSize: 36, fontWeight: 650, letterSpacing: '-0.045em', lineHeight: 1.02, marginTop: 10 }}>Tous les outils</div>
       </div>
-      <div style={{ position: 'relative', margin: '16px 0 4px' }}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9195a6" strokeWidth="2.2" strokeLinecap="round" style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Chercher un outil…" style={{ width: '100%', boxSizing: 'border-box', minHeight: 50, background: 'var(--dz-surface)', border: '1px solid rgba(var(--dz-ink-rgb),0.06)', borderRadius: 999, padding: '0 16px 0 44px', color: ink, fontFamily: 'inherit', fontSize: 16, outline: 'none', boxShadow: '0 1px 2px rgba(var(--dz-shadow-rgb),0.04)' }} />
+      <div style={{ position: 'relative', margin: '18px 0 6px' }}>
+        <span style={{ position: 'absolute', left: 15, top: '50%', transform: 'translateY(-50%)', color: 'var(--dz-faint)' }}><Icon name="search" size={18} /></span>
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Chercher un outil…" style={{ width: '100%', boxSizing: 'border-box', minHeight: 48, background: 'var(--dz-card)', border: '1px solid var(--dz-card-line)', borderRadius: 16, padding: '0 16px 0 44px', color: ink, fontFamily: 'inherit', fontSize: 16, outline: 'none' }} />
       </div>
+      {!q && favIds.length > 0 && (
+        <div style={{ marginTop: 18, padding: 14, borderRadius: 24, background: 'var(--dz-card)', border: '1px solid var(--dz-card-line)', boxShadow: 'var(--dz-shadow)' }}>
+          <div style={{ ...mono, color: 'var(--dz-muted)', marginBottom: 12 }}>Les plus utilisés</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 6 }}>{favIds.map(id => tile(TABS.find(t => t.id === id)!))}</div>
+        </div>
+      )}
       {TOOL_CATS.map(cat => {
         const items = shown.filter(t => info(t).cat === cat);
         if (!items.length) return null;
         return (
           <div key={cat}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '22px 6px 10px' }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: CAT_COL[cat] ?? '#2f5bff' }} />
-              <span style={{ fontFamily: 'Manrope, Inter, sans-serif', fontSize: 17, fontWeight: 800, color: ink, letterSpacing: '-0.02em' }}>{cat}</span>
-              <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--dz-faint)' }}>{items.length}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '26px 4px 12px' }}>
+              <span style={{ fontSize: 19, fontWeight: 650, letterSpacing: '-0.035em' }}>{cat}</span>
+              <span style={{ ...mono, color: 'var(--dz-faint)' }}>{items.length}</span>
+              <span style={{ flex: 1, height: 1, background: 'var(--dz-line)', marginLeft: 6 }} />
             </div>
-            <div style={{ background: 'var(--dz-surface)', borderRadius: 24, overflow: 'hidden', boxShadow: '0 1px 2px rgba(var(--dz-shadow-rgb),0.04), 0 10px 28px -16px rgba(var(--dz-shadow-rgb),0.16)' }}>{items.map((t, k) => row(t, k === items.length - 1))}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', rowGap: 16, columnGap: 6 }}>{items.map(tile)}</div>
           </div>
         );
       })}
@@ -1034,7 +1062,7 @@ function Onboarding({ onDone }: { onDone: () => void }) {
           <div key={i} style={{ width: i === step ? 22 : 7, height: 7, borderRadius: 4, background: i === step ? 'var(--dz-ink)' : 'rgba(var(--dz-ink-rgb),0.16)', transition: 'all .2s' }} />
         ))}
       </div>
-      <button onClick={() => last ? onDone() : setStep(step + 1)} style={{ width: '100%', maxWidth: 320, minHeight: 54, borderRadius: 99, border: 'none', background: 'var(--dz-ink)', color: '#ffffff', fontFamily: 'Inter', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>{last ? 'Commencer' : 'Suivant'}</button>
+      <button onClick={() => last ? onDone() : setStep(step + 1)} style={{ width: '100%', maxWidth: 320, minHeight: 54, borderRadius: 99, border: 'none', background: 'var(--dz-ink)', color: 'var(--dz-on-ink)', fontFamily: 'Inter', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>{last ? 'Commencer' : 'Suivant'}</button>
       {!last && <button onClick={onDone} style={{ marginTop: 12, minHeight: 40, background: 'none', border: 'none', color: 'var(--dz-faint)', fontFamily: 'Inter', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Passer</button>}
     </div>
   );

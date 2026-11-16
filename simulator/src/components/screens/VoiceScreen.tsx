@@ -1425,7 +1425,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
           padding: '0 16px', minHeight: 36, borderRadius: 99,
           background: continuousMode ? 'var(--dz-ink)' : 'rgba(var(--dz-ink-rgb),0.06)',
           border: 'none',
-          cursor: 'pointer', color: continuousMode ? '#ffffff' : 'var(--dz-muted)',
+          cursor: 'pointer', color: continuousMode ? 'var(--dz-on-ink)' : 'var(--dz-muted)',
           fontFamily: 'Inter', fontSize: 13, fontWeight: 600,
           transition: 'all 0.2s ease', whiteSpace: 'nowrap',
         }}
@@ -1468,8 +1468,8 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
           style={{
             position: 'relative', width: 76, height: 76, borderRadius: '50%', padding: 0,
             marginTop: -30,
-            background: orbActive ? col : 'var(--dz-ink)',
-            border: '5px solid #ffffff',
+            background: orbActive ? col : 'linear-gradient(135deg, #3d6bff, #8b5cf6)',
+            border: '5px solid var(--dz-bg)',
             cursor: isThinking ? 'default' : 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: isListening
@@ -1550,7 +1550,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
           <div style={{ position: 'relative', width: 220, height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'rgba(47,91,255,0.07)', animation: 'orbBreathe 3.6s ease-in-out infinite' }} />
             <div style={{ position: 'absolute', inset: 22, borderRadius: '50%', background: 'var(--dz-surface)', boxShadow: '0 1px 2px rgba(var(--dz-shadow-rgb),0.05), 0 30px 60px -28px rgba(var(--dz-shadow-rgb),0.35)' }} />
-            <div style={{ position: 'relative', width: 124, height: 124, borderRadius: '50%', background: 'linear-gradient(140deg, var(--dz-ink), #26315f)', boxShadow: '0 22px 40px -16px rgba(var(--dz-shadow-rgb),0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ position: 'relative', width: 124, height: 124, borderRadius: '50%', background: 'radial-gradient(120% 90% at 100% 0%, rgba(34,211,238,0.42), transparent 52%), radial-gradient(110% 90% at 0% 100%, rgba(139,92,246,0.6), transparent 58%), linear-gradient(145deg, #2442ff 0%, #2a1878 100%)', boxShadow: '0 22px 40px -16px rgba(var(--dz-shadow-rgb),0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
                 <rect x="9" y="3" width="6" height="11" rx="3" fill="#ffffff" />
                 <path d="M5 11a7 7 0 0 0 14 0" stroke="#ffffff" strokeWidth="1.9" strokeLinecap="round" fill="none" />
@@ -1564,7 +1564,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
           <div style={{ fontFamily: 'Inter', fontSize: 15, color: 'var(--dz-muted)', marginTop: 10, textAlign: 'center', lineHeight: 1.45, maxWidth: 280 }}>
             Touche le micro : il écoute, comprend et s'occupe de tout.
           </div>
-          <div style={{ marginTop: 28, padding: '15px 30px', borderRadius: 99, background: 'var(--dz-ink)', color: '#fff', fontFamily: 'Inter, sans-serif', fontSize: 15.5, fontWeight: 700, boxShadow: '0 14px 30px -14px rgba(var(--dz-shadow-rgb),0.6)' }}>
+          <div style={{ marginTop: 28, padding: '15px 30px', borderRadius: 99, background: 'var(--dz-ink)', color: 'var(--dz-on-ink)', fontFamily: 'Inter, sans-serif', fontSize: 15.5, fontWeight: 700, boxShadow: '0 14px 30px -14px rgba(var(--dz-shadow-rgb),0.6)' }}>
             Activer le micro
           </div>
         </div>

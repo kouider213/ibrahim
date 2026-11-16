@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { get } from './api.ts';
 import { F, card, btn, Sheet, Ring } from './ui.tsx';
+import { Ico } from '../components/ui/Icon.tsx';
 
 // ⌚ FORME DU JOUR (31/10, « comme Fitbit mais en mieux ») — façon Whoop / Fitbit / anneaux Apple :
 // l'Apple Watch → Santé de l'iPhone → raccourci Santé (chaque soir) → Dzaryx (/api/jarvis/health) → score de
@@ -28,7 +29,7 @@ export function WatchGuide({ open, onClose }: { open: boolean; onClose: () => vo
   );
   const say = (t: string) => <div style={{ background: F.bg, borderRadius: 12, padding: '9px 12px', fontSize: 14, marginBottom: 6 }}>« {t} »</div>;
   return (
-    <Sheet open={open} onClose={onClose} title={<div style={{ fontSize: 20, fontWeight: 700, paddingTop: 6 }}>⌚ Dzaryx sur ta montre</div>}>
+    <Sheet open={open} onClose={onClose} title={<div style={{ fontSize: 20, fontWeight: 700, paddingTop: 6 }}><Ico e="⌚" />Dzaryx sur ta montre</div>}>
       <div style={{ fontSize: 14, color: F.muted, lineHeight: 1.45, marginBottom: 14 }}>Gratuit, sans appli à acheter : ta montre passe par ton iPhone, et Dzaryx a déjà accès à ses données (raccourci Santé du soir).</div>
       <div style={{ fontWeight: 700, marginBottom: 10 }}>Parler à Dzaryx depuis la montre</div>
       {step(1, 'Sur l\'iPhone : app Raccourcis → ton raccourci « Dzaryx » → appui long → Détails', 'Active « Afficher sur l\'Apple Watch ».')}
@@ -79,7 +80,7 @@ export function TodayForm() {
             <div style={{ fontSize: 12, fontWeight: 600, color: F.muted }}>FORME DU JOUR</div>
             <div style={{ fontSize: 19, fontWeight: 700, color: r ? col(r.score) : F.ink }}>{r ? word(r.score) : 'Pas encore de données montre'}</div>
             <div style={{ fontSize: 12.5, color: F.muted, marginTop: 2 }}>{ago == null ? 'Aucune donnée reçue' : ago === 0 ? 'Montre synchronisée aujourd\'hui' : `Dernière synchro il y a ${ago} j`}{r?.from ? ' · cœur/VFC d\'hier' : ''}</div>
-            {r?.energy != null && <div style={{ fontSize: 13.5, fontWeight: 700, color: col(r.energy), marginTop: 4 }}>⚡ Énergie maintenant : {r.energy}/100</div>}
+            {r?.energy != null && <div style={{ fontSize: 13.5, fontWeight: 700, color: col(r.energy), marginTop: 4 }}><Ico e="⚡" />Énergie maintenant : {r.energy}/100</div>}
             {d.series.length > 1 && <div style={{ marginTop: 6 }}><Spark pts={d.series.map(x => x.score)} /></div>}
           </div>
         </div>
@@ -90,7 +91,7 @@ export function TodayForm() {
           {mini(l?.sleep_h ? `${l.sleep_h} h` : '—', 'Sommeil')}
         </div>
         {r?.line && <div style={{ fontSize: 13.5, lineHeight: 1.45, marginTop: 10 }}>{r.line.replace(/^🔋\s*/, '')}</div>}
-        <button onClick={() => setGuide(true)} style={{ width: '100%', marginTop: 12, border: 'none', background: F.soft, color: F.accent, borderRadius: 12, padding: '11px', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>⌚ Utiliser Dzaryx depuis ma montre</button>
+        <button onClick={() => setGuide(true)} style={{ width: '100%', marginTop: 12, border: 'none', background: F.soft, color: F.accent, borderRadius: 12, padding: '11px', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}><Ico e="⌚" />Utiliser Dzaryx depuis ma montre</button>
       </div>
       <WatchGuide open={guide} onClose={() => setGuide(false)} />
     </>

@@ -3,6 +3,7 @@ import { T, PageHeader } from '../ui/Kit.tsx';
 import { getThemeMode, setThemeMode, type ThemeMode } from '../../services/theme.ts';
 import { business, setSimActor, getSimActor, registerWebPush, notifStatus, changePassword, apiFetch } from '../../services/api.ts';
 import CapacitesScreen from './CapacitesScreen.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 interface StoredLocation { lat: number; lng: number; city?: string; country: string; updated_at: string; }
 
@@ -288,7 +289,7 @@ export default function SettingsScreen() {
             onClick={() => setShowCaps(s => !s)}
             style={{ width: '100%', textAlign: 'left', background: 'rgba(47,91,255,0.06)', border: '1px solid #2f5bff22', borderRadius: 8, padding: '10px 12px', cursor: 'pointer', color: 'var(--dz-text)', fontFamily: 'Inter, sans-serif', fontSize: 13.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
           >
-            <span>🤖 14 agents · ce que Dzaryx sait faire</span>
+            <span><Ico e="🤖" />14 agents · ce que Dzaryx sait faire</span>
             <span style={{ color: '#2f5bff88' }}>{showCaps ? '▲' : '▼'}</span>
           </button>
           {showCaps && (
@@ -448,7 +449,7 @@ function ThemePicker() {
             <button key={o.id} aria-pressed={on} onClick={() => { setMode(o.id); setThemeMode(o.id); }} style={{
               minHeight: 64, borderRadius: 16, cursor: 'pointer', fontFamily: T.font, fontSize: 13, fontWeight: 700,
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
-              background: on ? T.ink : T.surface, color: on ? '#ffffff' : T.text,
+              background: on ? T.ink : T.surface, color: on ? T.onInk : T.text,
               border: `1px solid ${on ? T.ink : T.lineStrong}`,
             }}><span style={{ fontSize: 20 }}>{o.icon}</span>{o.label}</button>
           );

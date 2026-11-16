@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { get, errText, forme, vibrate, type LibItem, type LibDetail, type ExSet } from './api.ts';
 import { F, card, btn, ghostBtn, input, Sheet, Img, Spinner, LineChart } from './ui.tsx';
+import { Ico } from '../components/ui/Icon.tsx';
 
 // BIBLIOTHÈQUE + FICHE EXERCICE — 31/10 refaites au style de l'appli de la vidéo (« Library ») : petits bonshommes
 // de muscles en haut, filtre par matériel (ronds + « Appliquer » bleu), grille de tuiles avec marque-page, fiche plein
@@ -162,8 +163,8 @@ export function ExerciseSheet({ session, id, onClose, z = 65 }: { session?: Sess
               <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '6px 0 4px' }}>
                 {key && <button onClick={() => toggleFav(key)} style={pill}><svg width="15" height="15" viewBox="0 0 24 24" fill={favs.includes(key) ? F.accent : 'none'} stroke={favs.includes(key) ? F.accent : F.ink} strokeWidth="2"><path d="M6 3h12v18l-6-4.5L6 21z" /></svg>{favs.includes(key) ? 'Favori' : 'Favoris'}</button>}
                 <a href={video} target="_blank" rel="noreferrer" style={pill}><span style={{ background: '#ff0000', color: '#fff', borderRadius: 4, fontSize: 9, padding: '2px 4px' }}>▶</span>YouTube</a>
-                <button onClick={() => void share()} style={pill}>↗ Partager</button>
-                <button onClick={() => document.getElementById('ex-how')?.scrollIntoView({ behavior: 'smooth' })} style={pill}>💡 Comment faire</button>
+                <button onClick={() => void share()} style={pill}><Ico e="↗" />Partager</button>
+                <button onClick={() => document.getElementById('ex-how')?.scrollIntoView({ behavior: 'smooth' })} style={pill}><Ico e="💡" />Comment faire</button>
               </div>
               {toast && <div style={{ fontSize: 12.5, color: F.green, fontWeight: 600 }}>{toast}</div>}
               {d && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
@@ -171,7 +172,7 @@ export function ExerciseSheet({ session, id, onClose, z = 65 }: { session?: Sess
               </div>}
               {session && (session.sets || session.tip) && <div style={{ ...card, marginTop: 12, fontSize: 14.5, lineHeight: 1.5 }}>
                 {session.sets ? <><b>{session.sets} × {session.reps}</b>{session.rest ? ` · repos ${session.rest} s` : ''}<br /></> : null}
-                {session.tip && <>💡 {session.tip}</>}{session.alt?.length ? <><br />🔁 Variantes : {session.alt.join(', ')}</> : null}
+                {session.tip && <>💡 {session.tip}</>}{session.alt?.length ? <><br /><Ico e="🔁" />Variantes : {session.alt.join(', ')}</> : null}
               </div>}
               {busy && !d && <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'center', padding: 24, color: F.muted }}><Spinner size={18} /> Préparation de la fiche…</div>}
               {err && <div style={{ color: F.red, fontWeight: 600, marginTop: 12 }}>❌ {err}</div>}
@@ -192,7 +193,7 @@ export function ExerciseSheet({ session, id, onClose, z = 65 }: { session?: Sess
                   <div style={{ ...card, padding: '4px 14px' }}>{d.mistakes.map((m, i) => <div key={i} style={{ padding: '10px 0', borderBottom: i < d.mistakes.length - 1 ? `1px solid ${F.line}` : 'none', fontSize: 14, lineHeight: 1.4 }}>⚠️ {m}</div>)}</div>
                 </>}
               </>}
-              <a href={video} target="_blank" rel="noreferrer" style={{ ...btn, display: 'block', textAlign: 'center', marginTop: 20, textDecoration: 'none' }}>▶ Voir la vidéo (YouTube)</a>
+              <a href={video} target="_blank" rel="noreferrer" style={{ ...btn, display: 'block', textAlign: 'center', marginTop: 20, textDecoration: 'none' }}><Ico e="▶" />Voir la vidéo (YouTube)</a>
               <div style={{ fontSize: 11, color: F.muted, textAlign: 'center', marginTop: 10 }}>Photos : free-exercise-db · Schémas : wger.de (CC BY-SA)</div>
             </>}
             {tab !== 'about' && key && <HistoryTab id={key} prog={tab === 'prog'} />}

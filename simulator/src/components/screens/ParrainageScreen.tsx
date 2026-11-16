@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { business, type Referral } from '../../services/api.ts';
 import { T, Screen, PageHeader, HeadBtn, Sheet, Field, inputStyle, Btn, Card, Badge, Empty, KpiGrid, Kpi, SectionTitle, Segmented, Chips, Avatar, tone } from '../ui/Kit.tsx';
 import { SkeletonCards } from '../ui/Premium.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 
 export default function ParrainageScreen() {
@@ -72,14 +73,14 @@ export default function ParrainageScreen() {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                <Btn onClick={() => share(r)} style={{ flex: 2, background: '#25D366', color: '#ffffff', border: 'none' }}>💬 Partager</Btn>
+                <Btn onClick={() => share(r)} style={{ flex: 2, background: '#25D366', color: '#ffffff', border: 'none' }}><Ico e="💬" />Partager</Btn>
                 <Btn variant="danger" onClick={() => { if (confirmDel === r.id) { void del(r); setConfirmDel(''); } else { setConfirmDel(r.id); setTimeout(() => setConfirmDel(c => c === r.id ? '' : c), 3000); } }} style={{ flex: 1, ...(confirmDel === r.id ? { background: T.bad, color: '#fff' } : {}) }}>{confirmDel === r.id ? 'Confirmer ?' : 'Supprimer'}</Btn>
               </div>
             </Card>
           ))}
         </div>
       )}
-      <div style={{ fontSize: 13, color: T.muted, marginTop: 16, lineHeight: 1.5 }}>💡 Quand un client réserve avec un code, touche ＋ sur ce code pour le compter et penser à la récompense du parrain.</div>
+      <div style={{ fontSize: 13, color: T.muted, marginTop: 16, lineHeight: 1.5 }}><Ico e="💡" />Quand un client réserve avec un code, touche ＋ sur ce code pour le compter et penser à la récompense du parrain.</div>
 
       {show && (
         <Sheet title="Nouveau code parrain" subtitle="Le code est créé à partir du nom" accent={T.warn} onClose={() => setShow(false)}

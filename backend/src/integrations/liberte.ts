@@ -44,7 +44,7 @@ export type LibKind = 'prise' | 'envie' | 'resiste' | 'craque' | 'symptomes' | '
 export interface LibLog { at: string; kind: LibKind; n?: number; score?: number; trigger?: string; symptoms?: string[]; note?: string; scores?: Record<string, number> }
 
 const DEFAULT_TIMES = ['07:30', '11:30', '15:30', '19:30'];
-// MISSION ANTI-ZOMBIE du jour : une petite action qui ramène ce qu'il veut retrouver (énergie, famille, rire, désir). +1 € à la cagnotte.
+// MISSION ANTI-ZOMBIE du jour : une petite action qui ramène ce qu'il veut retrouver (énergie, famille, rire). +1 € à la cagnotte.
 const MISSIONS = [
   '15 minutes à jouer par terre avec ton fils, téléphone dans une autre pièce',
   'marche de 20 minutes dehors, à la lumière du jour',
@@ -252,7 +252,7 @@ async function doctorReport(s: LibState, log: LibLog[]): Promise<string> {
     sym.length ? `Manque (0-10) : ${sym.map(l => `${fmtDate(dayOf(l.at))} ${l.score}${l.symptoms?.length ? ` (${l.symptoms.join(', ')})` : ''}`).join(' ; ')}` : '',
     phq ? `Dépistage PHQ-2 (moral) : ${phq.score}/6${(phq.score ?? 0) >= 3 ? ' — positif' : ''}.` : '',
     health,
-    'Plaintes : fatigue permanente, moral bas, libido en baisse. Mes questions : valider ou adapter le plan ; aide pour le manque ; soutien moral / psychologue ; prise de sang (testostérone, fer, vitamine D, thyroïde).',
+    'Plaintes : fatigue permanente, moral bas. Mes questions : valider ou adapter le plan ; aide pour le manque ; soutien moral / psychologue ; prise de sang (fer, vitamine D, thyroïde).',
   ].filter(Boolean).join('\n\n');
 }
 
@@ -448,7 +448,7 @@ export async function liberteText(): Promise<string> {
     '- Utilise tout : agenda (ses étapes y sont), sport (marcher / séance légère les jours durs : sport_coach), sommeil (outil sante), son moral (life_coach), FORME, sa famille comme raison (« ton fils, ta femme »), ses raisons à lui ci-dessus.',
     '- C\'est fini seulement quand LUI dit « c\'est bon, j\'ai arrêté » (action finish). D\'ici là tu ne lâches rien. Rechute = normal, jamais un échec : on note, on reprend.',
     '- EN APPEL / SIRI / VOCAL : s\'il a une envie pendant un appel, guide-le À VOIX HAUTE (« inspire… 2… 3… 4… bloque… souffle… »), phrases courtes, reste en ligne 10 minutes. Propose « je t\'envoie ta propre voix » (liberte action ma_voix).',
-    '- Il te donne énergie / désir / joie / clarté sur 10 (« 5 4 6 5 ») → liberte action retour. Ses réponses aux 2 questions du moral (« 1 2 », 0-3 chacune) → action phq2.',
+    '- Il te donne énergie / joie / clarté sur 10 (« 5 6 5 ») → liberte action retour. Ses réponses aux 2 questions du moral (« 1 2 », 0-3 chacune) → action phq2.',
     '- Cagnotte : chaque jour validé rapporte plus que le précédent ; un écart la remet à 2 €. Parle-lui de ses récompenses (action recompense) pour lui donner envie. Il peut écrire ses plans si-alors (action si_alors) et une lettre à lui-même (action lettre).',
     '- Il dit avoir fait sa mission du jour → action mission. Il raconte une réussite, même petite → action victoire (text). Stress / nervosité → propose la cohérence cardiaque 5 min (app LIBERTÉ → « Calme », ou guide-le : 5 s inspire, 5 s souffle, 5 min). Moment dur → rappelle-lui ses victoires.',
     '- STRICTEMENT PRIVÉ : jamais un mot à sa femme, sa famille, Houari ou un client. Exception choisie par lui : il peut nommer UN allié (action allie) — tu lui proposes de L\'APPELER LUI-MÊME, tu ne le contactes jamais.',
@@ -686,8 +686,8 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
 
     case 'retour': {
       const scores: Record<string, number> = {};
-      for (const k of ['energie', 'desir', 'joie', 'clarte']) { const v = Number(input[k]); if (v >= 1 && v <= 10) scores[k] = Math.round(v); }
-      if (!Object.keys(scores).length) return '❌ energie, desir, joie, clarte de 1 à 10.';
+      for (const k of ['energie', 'joie', 'clarte']) { const v = Number(input[k]); if (v >= 1 && v <= 10) scores[k] = Math.round(v); }
+      if (!Object.keys(scores).length) return '❌ energie, joie, clarte de 1 à 10.';
       await addLog({ kind: 'retour', scores });
       const cb = comeback(await readLibLog(), s.start);
       const first = cb[0], last = cb.at(-1);
@@ -805,10 +805,10 @@ async function weeklyBilan(send: boolean): Promise<string> {
     `${o.avoided} demis évités depuis le début · ${o.streak} jour(s) d'affilée dans le plan.`,
     o.nextDrop ? `Cette semaine : baisse le ${fmtDate(o.nextDrop.from)} → ${halvesShort(o.nextDrop.max)}/jour.` : 'Tu es au palier zéro. Chaque jour compte.',
     o.bank ? `💰 Cagnotte : ${eur(o.bank.balance)} — gain du prochain jour validé : ${eur(o.bank.rate)}` : '',
-    o.comeback.length > 1 ? `✨ Ce qui revient : ${(['energie', 'desir', 'joie', 'clarte'] as const).map(k => { const a = o.comeback[0]![k], b = o.comeback.at(-1)![k]; return a != null && b != null ? `${k} ${a}→${b}` : ''; }).filter(Boolean).join(' · ')}` : '',
+    o.comeback.length > 1 ? `✨ Ce qui revient : ${(['energie', 'joie', 'clarte'] as const).map(k => { const a = o.comeback[0]![k], b = o.comeback.at(-1)![k]; return a != null && b != null ? `${k} ${a}→${b}` : ''; }).filter(Boolean).join(' · ')}` : '',
     s.doctor.status === 'a_appeler' ? '🩺 Le médecin n\'est toujours pas appelé : c\'est LA chose de la semaine.' : '',
     '',
-    '❓ Cette semaine, de 1 à 10 : ton ÉNERGIE, ton DÉSIR, ta JOIE, ton esprit CLAIR ? (réponds par exemple « 5 4 6 5 »)',
+    '❓ Cette semaine, de 1 à 10 : ton ÉNERGIE, ta JOIE, ton esprit CLAIR ? (réponds par exemple « 5 6 5 »)',
     daysBetween(s.start, localNow().date) % 14 < 7 ? '❓ Et ces 2 dernières semaines (0 jamais → 3 presque tous les jours) : peu de plaisir à faire les choses ? triste ou sans espoir ? (réponds par exemple « 1 2 »)' : '',
   ].filter(Boolean).join('\n');
   if (send) { await queueTelegramMessage(text); emitProactive('🕊️ Ton bilan Liberté de la semaine', 'info', text, 'kouider'); }
@@ -980,13 +980,13 @@ export async function jobLiberte(): Promise<void> {
   if (hardDay && hhmm >= '21:50' && hhmm < '22:30' && !dnd && await once(`bed:${today}`))
     await queueTelegramMessage('😴 Ce soir on protège ta nuit : téléphone posé à 22h15, douche chaude, chambre fraîche et sombre. Si tu ne dors pas au bout de 20 min, lève-toi, lumière douce, reviens quand les yeux piquent. Une nuit agitée pendant la baisse, c\'est normal — ça revient.');
 
-  // 3 semaines après le jour zéro : le désir / l'énergie reviennent-ils ? Sinon → prise de sang (testostérone) chez le médecin
+  // 3 semaines après le jour zéro : l'énergie revient-elle ? Sinon → prise de sang chez le médecin
   if (today === addDays(zeroDay(s), 21) && hhmm >= '19:00' && hhmm < '21:00' && await once(`libido:${today}`)) {
     const cb = o.comeback, a = cb[0], b = cb.at(-1);
-    const up = a && b && b !== a && ((b.desir ?? 0) - (a.desir ?? 0) >= 2 || (b.energie ?? 0) - (a.energie ?? 0) >= 2);
+    const up = a && b && b !== a && (b.energie ?? 0) - (a.energie ?? 0) >= 2;
     await queueTelegramMessage(up
-      ? `✨ 3 semaines après ton jour zéro : ton énergie et ton désir remontent (${a!.energie ?? '?'}→${b!.energie ?? '?'}, ${a!.desir ?? '?'}→${b!.desir ?? '?'}). C'est ton corps qui revient. Continue.`
-      : '🩺 3 semaines après ton jour zéro. Si l\'énergie et le désir ne reviennent pas encore assez, c\'est fréquent après des années de ce type de médicament : la testostérone peut rester basse un moment. Ça se vérifie par une simple prise de sang et ça se soigne — parles-en à ton médecin cette semaine.');
+      ? `✨ 3 semaines après ton jour zéro : ton énergie remonte (${a!.energie ?? '?'}→${b!.energie ?? '?'}). C'est ton corps qui revient. Continue.`
+      : '🩺 3 semaines après ton jour zéro. Si l\'énergie ne revient pas encore assez, c\'est fréquent après des années de ce type de médicament. Ça se vérifie par une simple prise de sang — parles-en à ton médecin cette semaine.');
   }
 
   // Silence : rien noté depuis 2 jours alors qu'il en prend encore → appel

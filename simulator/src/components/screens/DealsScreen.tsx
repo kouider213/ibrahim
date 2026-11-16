@@ -3,6 +3,7 @@ import PhotoGallery, { type GalleryKind } from '../ui/PhotoGallery.tsx';
 import { business, type SaleVehicle, type SiteProperty, type OpportunitiesReport, type Opportunity } from '../../services/api.ts';
 import { Hero } from '../ui/Premium.tsx';
 import { Segmented } from '../ui/Kit.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 const OPP_META: Record<string, { icon: string; label: string }> = {
   location: { icon: '🔑', label: 'Location' },
@@ -171,7 +172,7 @@ export default function DealsScreen() {
                   <span style={{ fontSize: 13.5, fontWeight: 700, color: sm.col, background: `color-mix(in srgb, ${sm.col} 12%, transparent)`, padding: '3px 9px', borderRadius: 20, height: 'fit-content' }}>{sm.label}</span>
                 </div>
                 <div style={{ borderTop: `1px solid ${C.border}`, display: 'flex' }}>
-                  <button onClick={() => setGallery({ kind: 'sale', id: v.id, name: `${v.brand} ${v.model}` })} style={{ ...rowBtn, color: C.text }}>📷 Photos</button>
+                  <button onClick={() => setGallery({ kind: 'sale', id: v.id, name: `${v.brand} ${v.model}` })} style={{ ...rowBtn, color: C.text }}><Ico e="📷" />Photos</button>
                   <button onClick={() => void cycleVehicle(v)} disabled={busy === v.id} style={rowBtn}>Changer le statut →</button>
                 </div>
               </div>
@@ -198,7 +199,7 @@ export default function DealsScreen() {
                   <span style={{ fontSize: 13.5, fontWeight: 700, color: sm.col, background: `color-mix(in srgb, ${sm.col} 12%, transparent)`, padding: '3px 9px', borderRadius: 20, height: 'fit-content' }}>{(p.status || 'disponible') === 'vendu' ? 'Vendu' : 'À vendre'}</span>
                 </div>
                 <div style={{ borderTop: `1px solid ${C.border}`, display: 'flex' }}>
-                  <button onClick={() => setGallery({ kind: 'property', id: p.id, name: p.title || p.name || 'Bien' })} style={{ ...rowBtn, color: C.text }}>📷 Photos</button>
+                  <button onClick={() => setGallery({ kind: 'property', id: p.id, name: p.title || p.name || 'Bien' })} style={{ ...rowBtn, color: C.text }}><Ico e="📷" />Photos</button>
                   <button onClick={() => void cycleProp(p)} disabled={busy === p.id} style={rowBtn}>Changer le statut →</button>
                 </div>
               </div>
@@ -212,20 +213,20 @@ export default function DealsScreen() {
         <div style={{ padding: '0 18px 20px' }}>
           <div style={{ background: `linear-gradient(135deg, color-mix(in srgb, ${C.violet} 11%, transparent), ${C.surface})`, border: `1px solid ${C.border}`, borderRadius: 18, padding: 16, marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontSize: 15, fontWeight: 800 }}>🔍 Opportunités marché auto</div>
+              <div style={{ fontSize: 15, fontWeight: 800 }}><Ico e="🔍" />Opportunités marché auto</div>
               <button onClick={() => void loadOpps(true)} disabled={oppLoading} style={{ border: `1px solid ${C.border}`, background: C.surface2, color: C.goldSoft, borderRadius: 10, padding: '6px 12px', fontFamily: C.font, fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>{oppLoading ? '…' : '↻ Actualiser'}</button>
             </div>
             <div style={{ fontSize: 12.5, color: C.muted, marginTop: 6, lineHeight: 1.45 }}>
               {opps?.summary || 'Dzaryx surveille le marché algérien chaque jour : ventes, location, nouveautés, lois & import. Touche une opportunité pour la lire en entier.'}
             </div>
-            {opps?.updated_at && <div style={{ fontSize: 13.5, color: C.muted, marginTop: 6 }}>🔄 Auto chaque jour · mis à jour : {new Date(opps.updated_at).toLocaleString('fr-FR')}</div>}
+            {opps?.updated_at && <div style={{ fontSize: 13.5, color: C.muted, marginTop: 6 }}><Ico e="🔄" />Auto chaque jour · mis à jour : {new Date(opps.updated_at).toLocaleString('fr-FR')}</div>}
           </div>
 
           {(oppLoading && !opps) || opps?.pending ? (
             <Empty t="Dzaryx analyse le marché… (~1 min la 1ʳᵉ fois, reviens via Actualiser)" />
           ) : oppErr && !opps ? (
             <div style={{ textAlign: 'center', padding: 24, color: C.muted, fontSize: 13 }}>
-              <div style={{ marginBottom: 12 }}>⚠️ Analyse indisponible (réseau ou serveur lent).</div>
+              <div style={{ marginBottom: 12 }}><Ico e="⚠️" />Analyse indisponible (réseau ou serveur lent).</div>
               <button onClick={() => void loadOpps(true)} disabled={oppLoading} style={{ border: `1px solid ${C.border}`, background: C.surface2, color: C.goldSoft, borderRadius: 10, padding: '9px 18px', fontFamily: C.font, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>↻ Réessayer</button>
             </div>
           ) : opps && opps.items.length === 0 ? (
@@ -265,7 +266,7 @@ export default function DealsScreen() {
             <div style={{ fontSize: 14, color: C.text, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{sel.detail}</div>
             {sel.action && (
               <div style={{ marginTop: 16, padding: 14, borderRadius: 14, background: `color-mix(in srgb, ${C.gold} 6%, transparent)`, border: `1px solid color-mix(in srgb, ${C.gold} 20%, transparent)` }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: C.goldSoft, marginBottom: 5 }}>👉 À FAIRE</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.goldSoft, marginBottom: 5 }}><Ico e="👉" />À FAIRE</div>
                 <div style={{ fontSize: 13.5, color: C.text, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{sel.action}</div>
               </div>
             )}
@@ -326,7 +327,7 @@ export default function DealsScreen() {
                 </div>
               )}
               <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => { const arr = Array.from(e.target.files ?? []); e.target.value = ''; void addFiles(arr); }} />
-              <button onClick={() => fileRef.current?.click()} style={{ width: '100%', padding: '10px 0', borderRadius: 11, border: `1px dashed color-mix(in srgb, ${C.gold} 33%, transparent)`, background: `color-mix(in srgb, ${C.gold} 6%, transparent)`, color: C.goldSoft, fontFamily: C.font, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>🖼️ Ajouter des photos</button>
+              <button onClick={() => fileRef.current?.click()} style={{ width: '100%', padding: '10px 0', borderRadius: 11, border: `1px dashed color-mix(in srgb, ${C.gold} 33%, transparent)`, background: `color-mix(in srgb, ${C.gold} 6%, transparent)`, color: C.goldSoft, fontFamily: C.font, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}><Ico e="🖼️" />Ajouter des photos</button>
             </Field>
 
             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>

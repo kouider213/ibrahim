@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { get, postJson } from './api.ts';
 import { F, card, ghostBtn, btn, input, Sheet, Spinner, Stat, LineChart } from './ui.tsx';
 import { Radar, DayBars, ScoreStrip } from './Charts.tsx';
+import { Ico } from '../components/ui/Icon.tsx';
 
 // 📊 BILANS (06/11, Kouider) : bilan du jour / de la semaine / du mois (notes, points forts/faibles, quoi améliorer, charges à augmenter)
 // + un jour du calendrier en détail (montre, séance, repas, eau, records). Tout vient de /api/forme/report et /api/forme/day.
@@ -105,11 +106,11 @@ function ReportCharts({ r, kind }: { r: ReportData; kind: 'day' | 'week' | 'mont
       {ds.some(d => d.eaten) && <DayBars title="🍽️ Mangé / brûlé" points={ds.map(d => ({ date: d.date, v: d.eaten, v2: d.eaten ? d.burned : undefined }))} unit="kcal" color={F.gold} color2="#b9c8f5" legend={['mangé', 'brûlé']} />}
       {ds.some(d => d.protein) && <DayBars title="🥩 Protéines" points={ds.map(d => ({ date: d.date, v: d.protein }))} unit="g" goal={ds.find(d => d.proteinGoal)?.proteinGoal} color="#c8553d" />}
       <DayBars title="💧 Eau" points={ds.map(d => ({ date: d.date, v: d.water ? d.water * 0.25 : undefined }))} unit="L" goal={ds[0]?.waterGoal ? ds[0].waterGoal * 0.25 : undefined} digits={2} color="#1b998b" />
-      {hrv.length >= 2 && <div style={{ ...card, marginTop: 10 }}><div style={{ fontWeight: 700, fontSize: 14.5 }}>💚 VFC (ms) — plus haut = mieux récupéré</div><LineChart points={hrv} color={F.green} unit="ms" h={120} /></div>}
-      {rhr.length >= 2 && <div style={{ ...card, marginTop: 10 }}><div style={{ fontWeight: 700, fontSize: 14.5 }}>❤️ Cœur au repos (bpm) — plus bas = mieux</div><LineChart points={rhr} color={F.red} unit="bpm" h={120} /></div>}
-      {wt.length >= 2 && <div style={{ ...card, marginTop: 10 }}><div style={{ fontWeight: 700, fontSize: 14.5 }}>⚖️ Poids (kg)</div><LineChart points={wt} color={F.ink} unit="kg" h={120} digits={1} /></div>}
+      {hrv.length >= 2 && <div style={{ ...card, marginTop: 10 }}><div style={{ fontWeight: 700, fontSize: 14.5 }}><Ico e="💚" />VFC (ms) — plus haut = mieux récupéré</div><LineChart points={hrv} color={F.green} unit="ms" h={120} /></div>}
+      {rhr.length >= 2 && <div style={{ ...card, marginTop: 10 }}><div style={{ fontWeight: 700, fontSize: 14.5 }}><Ico e="❤️" />Cœur au repos (bpm) — plus bas = mieux</div><LineChart points={rhr} color={F.red} unit="bpm" h={120} /></div>}
+      {wt.length >= 2 && <div style={{ ...card, marginTop: 10 }}><div style={{ fontWeight: 700, fontSize: 14.5 }}><Ico e="⚖️" />Poids (kg)</div><LineChart points={wt} color={F.ink} unit="kg" h={120} digits={1} /></div>}
       {kind !== 'day' && !!ms.length && <div style={{ ...card, marginTop: 10 }}>
-        <div style={{ fontWeight: 700, fontSize: 14.5, marginBottom: 6 }}>💪 Séries par muscle <span style={{ color: F.muted, fontWeight: 600, fontSize: 12 }}>· visé {target}{kind === 'week' ? ' à 20' : '+'}</span></div>
+        <div style={{ fontWeight: 700, fontSize: 14.5, marginBottom: 6 }}><Ico e="💪" />Séries par muscle <span style={{ color: F.muted, fontWeight: 600, fontSize: 12 }}>· visé {target}{kind === 'week' ? ' à 20' : '+'}</span></div>
         {ms.sort((a, b) => b[1] - a[1]).map(([m, n]) => (
           <div key={m} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 34px', alignItems: 'center', gap: 8, padding: '4px 0' }}>
             <div style={{ fontSize: 13, fontWeight: 600 }}>{MUSCLE[m]}</div>
@@ -133,7 +134,7 @@ export function GoalCard({ toast }: { toast?: (t: string) => void }) {
   if (!g) return null;
   return (
     <div style={{ ...card, marginTop: 10 }}>
-      <div style={{ fontWeight: 700, fontSize: 15.5, marginBottom: 6 }}>🎯 Ton objectif</div>
+      <div style={{ fontWeight: 700, fontSize: 15.5, marginBottom: 6 }}><Ico e="🎯" />Ton objectif</div>
       {g.lines.length ? g.lines.map((l, i) => <div key={i} style={{ fontSize: 13.5, lineHeight: 1.45, padding: '2px 0' }}>{l}</div>) : <div style={{ fontSize: 13.5, color: F.muted }}>Fixe ton poids visé dans Objectifs pour voir le temps qu'il te reste.</div>}
       {!!g.ifBehind.length && <List t="💡 Pour y arriver plus vite" items={g.ifBehind} color={F.accent} />}
       <button onClick={adapt} disabled={!!busy} style={{ ...ghostBtn, width: '100%', marginTop: 12, fontWeight: 700, color: g.behind ? F.red : F.ink }}>{busy === 'adapt' ? 'Je regarde…' : '🔧 Adapter mon programme (agenda + FORME)'}</button>
@@ -193,14 +194,14 @@ function DayEdit({ date, x, onSaved }: { date: string; x: DayData['day']; onSave
       <input inputMode="decimal" value={f[k]} onChange={e => setF(v => ({ ...v, [k]: e.target.value }))} placeholder={ph} style={{ ...input, padding: '9px 10px', fontSize: 15 }} />
       <button disabled={!valid || !!busy} onClick={() => void run(k, go, ok)} style={{ ...btn, padding: '9px 0', fontSize: 14, boxShadow: 'none', opacity: valid ? 1 : 0.4 }}>{busy === k ? '…' : 'OK'}</button>
     </div>);
-  if (!open) return <button onClick={() => setOpen(true)} style={{ ...ghostBtn, width: '100%', marginTop: 10 }}>✏️ Ajouter / corriger ce que j'ai fait ce jour-là</button>;
+  if (!open) return <button onClick={() => setOpen(true)} style={{ ...ghostBtn, width: '100%', marginTop: 10 }}><Ico e="✏️" />Ajouter / corriger ce que j'ai fait ce jour-là</button>;
   const glasses = x.water;
   return (
     <div style={{ ...card, marginTop: 10 }}>
-      <div style={{ fontWeight: 700, fontSize: 15.5 }}>✏️ Ajouter / corriger ce jour</div>
+      <div style={{ fontWeight: 700, fontSize: 15.5 }}><Ico e="✏️" />Ajouter / corriger ce jour</div>
       <div style={{ fontSize: 12.5, color: F.muted, marginTop: 2 }}>Enregistré partout : bilans, objectif, coach, calendrier.</div>
       <div style={{ display: 'grid', gridTemplateColumns: '96px 1fr', gap: 8, alignItems: 'center', marginTop: 10 }}>
-        <div style={{ fontSize: 14, fontWeight: 600 }}>💧 Eau</div>
+        <div style={{ fontSize: 14, fontWeight: 600 }}><Ico e="💧" />Eau</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button disabled={!!busy || glasses <= 0} onClick={() => void run('water', () => postJson('/api/forme/log', { kind: 'water-set', glasses: glasses - 1, date }), '💧 Eau corrigée')} style={{ ...ghostBtn, padding: '8px 14px' }}>−</button>
           <div style={{ flex: 1, textAlign: 'center', fontWeight: 700 }}>{busy === 'water' ? '…' : `${glasses} verre${glasses > 1 ? 's' : ''} · ${(glasses * 0.25).toLocaleString('fr-FR')} L`}</div>
@@ -210,7 +211,7 @@ function DayEdit({ date, x, onSaved }: { date: string; x: DayData['day']; onSave
       {row('sleep', '😴 Sommeil', x.sleep_h ? `${x.sleep_h} h` : 'heures (ex. 7,5)', () => postJson('/api/forme/log', { kind: 'sleep', hours: num(f.sleep), date }), '😴 Sommeil noté', num(f.sleep) > 0 && num(f.sleep) <= 14)}
       {row('steps', '👣 Pas', x.steps ? String(x.steps) : 'ex. 9000', () => postJson('/api/forme/log', { kind: 'steps', steps: Math.round(num(f.steps)), date }), '👣 Pas notés', num(f.steps) >= 0 && f.steps.trim() !== '')}
       {row('weight', '⚖️ Poids', x.weight ? `${x.weight} kg` : 'kg', () => postJson('/api/forme/log', { kind: 'weight', kg: num(f.weight), date }), '⚖️ Pesée notée', num(f.weight) > 30 && num(f.weight) < 250)}
-      <div style={{ fontSize: 14, fontWeight: 600, marginTop: 12 }}>🍽️ Repas oublié</div>
+      <div style={{ fontSize: 14, fontWeight: 600, marginTop: 12 }}><Ico e="🍽️" />Repas oublié</div>
       <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
         <input value={f.meal} onChange={e => setF(v => ({ ...v, meal: e.target.value }))} placeholder="ex. 200 g de riz + 150 g de poulet" style={{ ...input, padding: '9px 10px', fontSize: 15 }} />
         <button disabled={!f.meal.trim() || !!busy} onClick={() => void run('meal', () => postJson('/api/forme/food/text', { text: f.meal.trim(), date }), '🍽️ Repas noté')} style={{ ...btn, padding: '9px 14px', fontSize: 14, boxShadow: 'none', opacity: f.meal.trim() ? 1 : 0.4 }}>{busy === 'meal' ? '…' : 'OK'}</button>
@@ -250,10 +251,10 @@ export function DaySheet({ date, onClose }: { date: string | null; onClose: () =
           <div style={{ fontWeight: 700, fontSize: 15.5 }}>🏋️ {x.session.label}</div>
           <div style={{ fontSize: 13, color: F.muted, margin: '3px 0 8px' }}>{x.session.sets} séries · {n(x.session.volume)} kg soulevés{x.session.durationMin ? ` · ${x.session.durationMin} min` : ''}{x.session.rpe ? ` · effort ${x.session.rpe}/10` : ''}</div>
           {d.sets.map((s, i) => <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '3px 0', borderTop: i ? `1px solid ${F.line}` : 'none' }}><span>{s.ex}</span><b>{s.kg ? `${n(s.kg, 1)} kg` : ''}{s.reps ? ` × ${s.reps}` : ''}</b></div>)}
-          {!!x.prs.length && <div style={{ marginTop: 8, fontSize: 13, color: F.green, fontWeight: 600 }}>🏆 Record : {x.prs.map(p => `${p.ex} ${n(p.kg, 1)} kg (avant ${n(p.prev, 1)})`).join(', ')}</div>}
+          {!!x.prs.length && <div style={{ marginTop: 8, fontSize: 13, color: F.green, fontWeight: 600 }}><Ico e="🏆" />Record : {x.prs.map(p => `${p.ex} ${n(p.kg, 1)} kg (avant ${n(p.prev, 1)})`).join(', ')}</div>}
         </div> : <div style={{ ...card, marginTop: 10, fontSize: 13.5, color: F.muted }}>Pas de séance ce jour-là.</div>}
         {!!x.watch?.length && <div style={{ ...card, marginTop: 10 }}>
-          <div style={{ fontWeight: 700, fontSize: 15.5, marginBottom: 6 }}>⌚ Vu par ta montre</div>
+          <div style={{ fontWeight: 700, fontSize: 15.5, marginBottom: 6 }}><Ico e="⌚" />Vu par ta montre</div>
           {x.watch.map((w, i) => <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '3px 0', borderTop: i ? `1px solid ${F.line}` : 'none' }}><span>{w.name}</span><b>{w.min ? `${w.min} min` : ''}{w.kcal ? ` · ${w.kcal} kcal` : ''}</b></div>)}
         </div>}
         <List t="✅ Points forts" items={d.strengths} color={F.green} />

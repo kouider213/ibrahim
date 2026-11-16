@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { forme, errText, vibrate, type GoalsView, type GoalChallenge } from './api.ts';
 import { F, card, darkCard, btn, darkBtn, ghostBtn, input, Sheet, Spinner, Bar, Chip, Kicker } from './ui.tsx';
 import { GoalEvolution, GoalHero, GoalToday, GoalBody, GoalWeight, GoalJourney, GoalExercises, GoalTips, GoalBadges, GoalExSheet } from './GoalsVisual.tsx';
+import { Ico } from '../components/ui/Icon.tsx';
 
 // 🎯 OBJECTIFS & DÉFIS (Kouider 02/11) — dans Progrès.
 // Il choisit ce qu'il veut (pecs, bras, ventre plat + abdos…), le dit avec ses mots, met des muscles en PRIORITÉ ;
@@ -19,7 +20,7 @@ export function GoalsCard({ toast }: { toast: (t: string) => void }) {
   return <>
     <button onClick={() => setOpen(true)} style={{ ...darkCard, width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer', marginTop: 12, fontFamily: F.sans, display: 'block' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Kicker color="rgba(255,255,255,0.6)">🎯 Mes objectifs & défis</Kicker>
+        <Kicker color="rgba(255,255,255,0.6)"><Ico e="🎯" />Mes objectifs & défis</Kicker>
         <span style={{ fontSize: 13, fontWeight: 700, color: F.accent2 }}>Ouvrir ›</span>
       </div>
       {p ? <>
@@ -28,7 +29,7 @@ export function GoalsCard({ toast }: { toast: (t: string) => void }) {
           {p.zones.slice(0, 4).map(z => <div key={z.id}><div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 3 }}><span>{g!.state.priority.includes(z.id) || p.focus?.zones.includes(z.id) ? '⭐ ' : ''}{z.label}</span><b>{z.now == null ? '?' : `${z.now}/100`}</b></div><Bar value={z.now ?? 0} max={100} color={(z.now ?? 0) >= 70 ? '#1f63f0' : (z.now ?? 0) >= 40 ? '#f5c400' : '#e5322d'} /></div>)}
         </div>
         {g?.pace && g.pace.status !== 'inconnu' && <div style={{ fontSize: 13, marginTop: 10, fontWeight: 700, color: g.pace.status === 'retard' ? '#ff8a80' : g.pace.status === 'avance' ? '#7ee2a8' : '#fff' }}>{g.pace.status === 'retard' ? '⚠️ En retard' : g.pace.status === 'avance' ? '🚀 En avance' : '✅ Dans les temps'}</div>}
-        {g?.nextMilestone && <div style={{ fontSize: 13, marginTop: 10, color: 'rgba(255,255,255,0.8)' }}>⏳ Prochaine deadline {fmt(g.nextMilestone.date)} : {g.nextMilestone.title}</div>}
+        {g?.nextMilestone && <div style={{ fontSize: 13, marginTop: 10, color: 'rgba(255,255,255,0.8)' }}><Ico e="⏳" />Prochaine deadline {fmt(g.nextMilestone.date)} : {g.nextMilestone.title}</div>}
         {active.length > 0 && <div style={{ fontSize: 13, marginTop: 4, color: 'rgba(255,255,255,0.8)' }}>🏆 {active.length} défi{active.length > 1 ? 's' : ''} en cours</div>}
       </> : <div style={{ fontSize: 15, lineHeight: 1.4, marginTop: 6, color: 'rgba(255,255,255,0.85)' }}>Pecs, bras, ventre plat avec abdos… Dis ce que tu veux : le coach lit ta dernière photo, te dit où tu en es, quoi faire, en combien de temps, et te montre à quoi tu ressembleras.</div>}
     </button>
@@ -67,22 +68,22 @@ function Goals({ g, setG, toast }: { g: GoalsView; setG: (g: GoalsView) => void;
         {g.zones.map(z => <Chip key={z.id} on={zones.includes(z.id)} onClick={() => toggleZone(z.id)}>{z.emoji} {z.label}</Chip>)}
       </div>
       {zones.length > 0 && <>
-        <div style={{ fontWeight: 800, margin: '14px 0 4px' }}>⭐ À travailler plus souvent</div>
+        <div style={{ fontWeight: 800, margin: '14px 0 4px' }}><Ico e="⭐" />À travailler plus souvent</div>
         <div style={{ fontSize: 12.5, color: F.muted, marginBottom: 6 }}>Facultatif. Si tu ne choisis rien, le coach décide d'après ta photo (ex. bras déjà dessinés → priorité aux abdos).</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {zones.map(id => { const z = g.zones.find(x => x.id === id)!; return <Chip key={id} color={F.gold} on={prio.includes(id)} onClick={() => setPrio(pr => pr.includes(id) ? pr.filter(x => x !== id) : [...pr, id])}>⭐ {z.label}</Chip>; })}
         </div>
       </>}
-      <button onClick={() => { setZones(['dos', 'bras', 'pecs', 'abdos', 'jambes']); setPrio(['dos', 'bras', 'pecs', 'abdos']); setNote('D\'abord le haut du corps (dos, bras, pecs, ventre plat avec abdos). Quand le haut est bien entraîné, je commence le bas du corps.'); }} style={{ ...ghostBtn, width: '100%', marginTop: 12, fontSize: 13 }}>⚡ Raccourci : haut du corps d'abord, le bas ensuite</button>
+      <button onClick={() => { setZones(['dos', 'bras', 'pecs', 'abdos', 'jambes']); setPrio(['dos', 'bras', 'pecs', 'abdos']); setNote('D\'abord le haut du corps (dos, bras, pecs, ventre plat avec abdos). Quand le haut est bien entraîné, je commence le bas du corps.'); }} style={{ ...ghostBtn, width: '100%', marginTop: 12, fontSize: 13 }}><Ico e="⚡" />Raccourci : haut du corps d'abord, le bas ensuite</button>
       <div style={{ fontWeight: 800, margin: '14px 0 6px' }}>Avec tes mots</div>
       <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder="Ex. je veux des pecs bien dessinés et un ventre plat avec les abdos pour l'été, sans perdre mes bras" style={{ ...input, resize: 'vertical', fontSize: 15 }} />
-      <div style={{ fontWeight: 800, margin: '14px 0 6px' }}>📅 Je veux voir des résultats d'ici le</div>
+      <div style={{ fontWeight: 800, margin: '14px 0 6px' }}><Ico e="📅" />Je veux voir des résultats d'ici le</div>
       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
         <input type="date" value={wantBy} min={new Date().toISOString().slice(0, 10)} onChange={e => setWantBy(e.target.value)} style={{ ...input, flex: 1 }} />
         {wantBy && <button onClick={() => setWantBy('')} style={{ ...ghostBtn, padding: '10px 12px' }}>✕</button>}
       </div>
       <div style={{ fontSize: 12.5, color: F.muted, marginTop: 4 }}>Facultatif. Le coach met une deadline à cette date et te dit franchement ce qui sera visible.</div>
-      <div style={{ fontSize: 12.5, color: F.muted, margin: '8px 0 10px' }}>📸 Le plan part de ta dernière photo{g.latest ? ` (${fmt(g.latest.date)})` : ' — prends-en une de face dans Photos de suivi'}. Torse nu ou t-shirt moulant = analyse juste.</div>
+      <div style={{ fontSize: 12.5, color: F.muted, margin: '8px 0 10px' }}><Ico e="📸" />Le plan part de ta dernière photo{g.latest ? ` (${fmt(g.latest.date)})` : ' — prends-en une de face dans Photos de suivi'}. Torse nu ou t-shirt moulant = analyse juste.</div>
       <button disabled={!zones.length || !!busy} onClick={plan} style={{ ...btn, width: '100%', opacity: zones.length ? 1 : 0.5 }}>{busy === 'plan' ? <><Spinner size={16} color="#fff" /> Le coach regarde ta photo… (~30 s)</> : p ? '🔄 Refaire mon plan' : '🎯 Créer mon plan'}</button>
       {p && <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
         {dirty && <button disabled={!!busy} onClick={savePrefs} style={{ ...ghostBtn, flex: 1 }}>Enregistrer sans recalculer</button>}
@@ -92,13 +93,13 @@ function Goals({ g, setG, toast }: { g: GoalsView; setG: (g: GoalsView) => void;
       <div style={{ flex: 1, fontSize: 13.5, lineHeight: 1.4 }}>
         <b>{s.zones.map(id => `${s.priority.includes(id) ? '⭐' : ''}${g.zones.find(z => z.id === id)?.label ?? id}`).join(' · ')}</b>
         {s.note && <div style={{ color: F.muted, marginTop: 2 }}>« {s.note} »</div>}
-        {s.wantBy && <div style={{ color: F.accent, marginTop: 2, fontWeight: 700 }}>📅 Résultats voulus d'ici le {fmt(s.wantBy)}</div>}
+        {s.wantBy && <div style={{ color: F.accent, marginTop: 2, fontWeight: 700 }}><Ico e="📅" />Résultats voulus d'ici le {fmt(s.wantBy)}</div>}
       </div>
-      <button onClick={() => setEdit(true)} style={{ ...ghostBtn, padding: '8px 12px' }}>✏️ Changer</button>
+      <button onClick={() => setEdit(true)} style={{ ...ghostBtn, padding: '8px 12px' }}><Ico e="✏️" />Changer</button>
     </div>}
 
     {g.recheck && p && !edit && <div style={{ ...card, marginTop: 10, background: 'color-mix(in srgb, #1f9d5c 14%, var(--f-card))' }}>
-      <div style={{ fontSize: 14, fontWeight: 700 }}>📸 Nouvelle photo du {fmt(g.latest!.date)}</div>
+      <div style={{ fontSize: 14, fontWeight: 700 }}><Ico e="📸" />Nouvelle photo du {fmt(g.latest!.date)}</div>
       <div style={{ fontSize: 13, color: F.muted, margin: '4px 0 8px' }}>Fais le point : le coach compare avec ton plan du {fmt(p.photoDate)} et te dit si tu es en avance ou en retard.</div>
       <button disabled={!!busy} onClick={plan} style={{ ...btn, width: '100%', background: F.green }}>{busy === 'plan' ? <Spinner size={16} color="#fff" /> : '📊 Faire le point'}</button>
     </div>}
@@ -149,7 +150,7 @@ function Plan({ g, setG, toast, busy, run }: { g: GoalsView; setG: (g: GoalsView
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 4 }}><span>{m.what}</span><b>{m.now ? `${m.now} → ` : ''}{m.target} {m.unit}</b></div>
           {m.now ? <Bar value={Math.min(m.now, m.target)} max={Math.max(m.now, m.target)} color={F.accent} track={F.tile} h={6} /> : null}
         </div>)}
-        {p.measures.some(m => !m.now) && <div style={{ fontSize: 12.5, color: F.accent, fontWeight: 700 }}>📏 Pas encore de mesure de départ : ces cibles sont indicatives. Mesure-toi d'abord pour suivre l'écart réel.</div>}
+        {p.measures.some(m => !m.now) && <div style={{ fontSize: 12.5, color: F.accent, fontWeight: 700 }}><Ico e="📏" />Pas encore de mesure de départ : ces cibles sont indicatives. Mesure-toi d'abord pour suivre l'écart réel.</div>}
         <div style={{ fontSize: 12, color: F.muted }}>Mesure-toi toutes les 2 semaines (Progrès → mensurations) : le mètre ruban voit les progrès avant le miroir.</div>
       </div></>}
     <GoalBadges g={g} />
@@ -174,7 +175,7 @@ function ChallengeRow({ c, setG, toast }: { c: GoalChallenge; setG: (g: GoalsVie
       <button onClick={() => { if (confirm(`Supprimer « ${c.title} » ?`)) void act({ action: 'delete', id: c.id }); }} style={{ background: 'none', border: 'none', color: F.muted, fontSize: 16, cursor: 'pointer' }}>✕</button>
     </div>
     <div style={{ margin: '8px 0' }}><Bar value={c.progress} max={1} h={8} color={color} track={F.tile} /></div>
-    {c.autoFill && !c.finished && <div style={{ fontSize: 11.5, color: F.green, marginBottom: 4 }}>🤖 Rempli tout seul avec {c.autoFill}{c.auto ? '' : ' (tu peux aussi ajouter à la main)'}</div>}
+    {c.autoFill && !c.finished && <div style={{ fontSize: 11.5, color: F.green, marginBottom: 4 }}><Ico e="🤖" />Rempli tout seul avec {c.autoFill}{c.auto ? '' : ' (tu peux aussi ajouter à la main)'}</div>}
     {!c.finished && (c.auto ? <div style={{ fontSize: 12.5, color: F.muted }}>Aujourd'hui : {c.today.toLocaleString('fr-FR')}</div>
       : c.kind === 'check' ? <button disabled={busy} onClick={() => act({ action: 'log', id: c.id, value: doneToday ? 0 : 1 })} style={{ ...(doneToday ? ghostBtn : btn), width: '100%', padding: '10px' }}>{doneToday ? '✓ Fait aujourd\'hui (annuler)' : 'Fait aujourd\'hui'}</button>
       : <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -194,7 +195,7 @@ function Challenges({ g, setG, toast }: { g: GoalsView; setG: (g: GoalsView) => 
   const fromPlan = (s.plan?.challenges ?? []).map((p, i) => ({ p, i })).filter(({ p }) => !running.has(p.title));
   const kindTxt = (k: GoalChallenge['kind'], t: number, u: string, d: number) => k === 'daily' ? `${t} ${u}/jour · ${d} j` : k === 'total' ? `${t} ${u} en ${d} j` : k === 'record' ? `objectif ${t} ${u} · ${d} j` : `chaque jour · ${d} j`;
   return <>
-    <div style={{ fontSize: 17, fontWeight: 800, margin: '20px 2px 8px' }}>🏆 Défis</div>
+    <div style={{ fontSize: 17, fontWeight: 800, margin: '20px 2px 8px' }}><Ico e="🏆" />Défis</div>
     <div style={{ display: 'grid', gap: 8 }}>
       {s.challenges.filter(c => !c.finished).map(c => <ChallengeRow key={c.id} c={c} setG={setG} toast={toast} />)}
       {s.challenges.filter(c => c.finished).slice(-3).map(c => <div key={c.id} style={{ ...card, padding: 10, fontSize: 13, display: 'flex', justifyContent: 'space-between' }}><span>{c.progress >= 1 ? '🏅' : '🏳️'} {c.title}</span><span style={{ color: F.muted }}>{c.label}</span></div>)}
@@ -225,7 +226,7 @@ function Coach({ g, setG, toast }: { g: GoalsView; setG: (g: GoalsView) => void;
   const ideas = ['Qu\'est-ce que je dois prioriser ?', 'Je veux surtout les abdos, change mon plan', 'Je peux aller plus vite ?', 'J\'ai mal à l\'épaule, j\'adapte comment ?'];
   return <>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', margin: '20px 2px 8px' }}>
-      <div style={{ fontSize: 17, fontWeight: 800 }}>💬 Parle à ton coach</div>
+      <div style={{ fontSize: 17, fontWeight: 800 }}><Ico e="💬" />Parle à ton coach</div>
       {chat.length > 0 && <button onClick={async () => { try { setG((await forme.goalChat('', true)).overview); } catch (e) { toast(errText(e)); } }} style={{ background: 'none', border: 'none', color: F.muted, fontSize: 12.5, cursor: 'pointer' }}>Effacer</button>}
     </div>
     <div style={{ ...card, padding: 10 }}>

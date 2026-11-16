@@ -223,8 +223,11 @@ const RULES = [
 ].join('\n');
 
 /** Contexte pour tous les cerveaux (dossier Kouider). Court. */
+/** 16/11/2026 : Kouider a demandé de retirer ce module (plus visible nulle part). */
+export const VITALITE_OFF = true;
 let textCache: { at: number; text: string } | null = null;
 export async function vitaliteText(): Promise<string> {
+  if (VITALITE_OFF) return '';   // 16/11 : module retiré à la demande de Kouider — plus rien de visible nulle part
   if (textCache && Date.now() - textCache.at < 10 * 60_000) return textCache.text;
   const s = await vitaliteState().catch(() => null);
   if (!s) return '';
@@ -371,6 +374,8 @@ export async function vitaliteTool(input: Record<string, unknown>, sessionId?: s
   const push = async (e: Omit<VitLog, 'at' | 'date'>) => { log.push({ at: new Date().toISOString(), date, ...e }); await writeLog(log); };
   const num = (k: string, lo: number, hi: number) => { const v = Number(input[k]); return Number.isFinite(v) && v >= lo && v <= hi ? v : undefined; };
 
+  // 16/11 : module retiré — seules les prises de sang (analyse / valeurs / date) restent
+  if (VITALITE_OFF && !['analyse_labo', 'labo', 'prise_de_sang'].includes(a)) return 'Ce module a été retiré.';
   switch (a) {
     case 'etat': case 'plan': return planText(await vitaliteState());
     case 'question': {
@@ -556,6 +561,7 @@ export async function dailyText(date = localNow().date): Promise<string | null> 
 
 // ── ⏰ Job : bilan privé du dimanche 21 h 30 + questionnaire désir toutes les 4 semaines ─────────────────────────────
 export async function jobVitalite(): Promise<void> {
+  if (VITALITE_OFF) return;   // 16/11 : plus aucun rappel / bilan
   const st = await settings();
   const { date, hhmm: time } = localNow();
   const wd = new Date(`${date}T12:00:00Z`).getUTCDay();

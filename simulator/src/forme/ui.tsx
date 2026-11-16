@@ -7,21 +7,24 @@ import { trPair } from './i18n.ts';
 // fond clair lavande, tuiles grises-lavande, images d'exercices sur fond clair, muscles en rouge, bouton bleu, police système iPhone.
 export const F = {
   bg: 'var(--f-bg)', bg2: 'var(--f-bg2)', card: 'var(--f-card)', tile: 'var(--f-tile)', ink: 'var(--f-ink)', dark: 'var(--f-dark)', dark2: 'var(--f-dark2)',
-  muted: 'var(--f-muted)', line: 'var(--f-line)', accent: '#2f5bff', accent2: '#5b8cff', soft: 'var(--f-soft)',
-  green: '#1f9d5c', blue: '#1f63f0', violet: '#7b5cf0', gold: '#e09a12', red: '#e5322d',
-  sans: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif',
-  serif: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Noto Naskh Arabic", sans-serif',
+  muted: 'var(--f-muted)', line: 'var(--f-line)', accent: '#ff5a1f', accent2: '#ff2d6f', soft: 'var(--f-soft)',
+  green: '#12b76a', blue: '#3d6bff', violet: '#8b5cf6', gold: '#f59e0b', red: '#f04438',
+  sans: '"Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif',
+  serif: '"Geist", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Noto Naskh Arabic", sans-serif',
+  mono: '"Geist Mono", ui-monospace, "SF Mono", monospace',
+  grad: 'linear-gradient(135deg, #ff7a1a 0%, #ff2d55 100%)',
 };
 
-export const card: CSSProperties = { background: F.card, borderRadius: 18, padding: 16, boxShadow: '0 1px 2px rgba(var(--f-shadow-rgb),0.05), 0 6px 18px rgba(var(--f-shadow-rgb),0.05)' };
-export const darkCard: CSSProperties = { background: `linear-gradient(160deg, ${F.dark2}, ${F.dark})`, color: '#fff', borderRadius: 24, padding: 18, boxShadow: '0 12px 28px rgba(var(--f-shadow-rgb),0.22)' };
+// v4 (16/11) : cartes en verre fumé avec liseré (sombre) / blanches à filet (clair), coins 22 px
+export const card: CSSProperties = { background: F.card, borderRadius: 22, padding: 16, border: '1px solid var(--f-line)', backgroundImage: 'linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0))', boxShadow: '0 1px 0 rgba(255,255,255,0.05) inset, 0 12px 30px -20px rgba(var(--f-shadow-rgb),0.5)' };
+export const darkCard: CSSProperties = { background: 'radial-gradient(120% 90% at 100% 0%, rgba(255,122,26,0.35), transparent 55%), radial-gradient(110% 90% at 0% 100%, rgba(255,45,85,0.3), transparent 60%), linear-gradient(160deg, #1d1715, #0b0909)', color: '#fff', borderRadius: 26, padding: 18, border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 20px 40px -20px rgba(0,0,0,0.6)' };
 
 export function Title({ a, b, size = 28, sub }: { a: string; b?: string; size?: number; sub?: string }) {
   [a, b] = trPair(a, b);
   b = b?.replace(/ ([?!:])/g, '\u00a0$1');   // jamais un « ? » seul à la ligne
   return (
     <div style={{ margin: '4px 0 14px' }}>
-      <div style={{ fontSize: size, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.05, color: F.ink }}>
+      <div style={{ fontSize: size + 4, fontWeight: 650, letterSpacing: '-0.045em', lineHeight: 1.02, color: F.ink }}>
         {a}{b && <> <span style={{ color: F.ink }}>{b}</span></>}
       </div>
       {sub && <div style={{ fontSize: 14, color: F.muted, marginTop: 6, lineHeight: 1.4 }}>{sub}</div>}
@@ -30,21 +33,21 @@ export function Title({ a, b, size = 28, sub }: { a: string; b?: string; size?: 
 }
 
 export const Kicker = ({ children, color = F.muted }: { children: ReactNode; color?: string }) =>
-  <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color }}>{children}</div>;
+  <div style={{ fontFamily: F.mono, fontSize: 11, fontWeight: 500, letterSpacing: '0.09em', textTransform: 'uppercase', color }}>{children}</div>;
 
 export function Section({ a, b, right, onRight }: { a: string; b?: string; right?: string; onRight?: () => void }) {
   [a, b] = trPair(a, b);
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', margin: '22px 2px 10px' }}>
-      <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em' }}>{a}{b && <> <span>{b}</span></>}</div>
+      <div style={{ fontSize: 20, fontWeight: 650, letterSpacing: '-0.035em' }}>{a}{b && <> <span>{b}</span></>}</div>
       {right && <button onClick={onRight} style={{ ...ghostBtn, padding: '4px 0', color: F.accent, fontSize: 13, fontWeight: 700, background: 'none', border: 'none' }}>{right}</button>}
     </div>
   );
 }
 
-export const btn: CSSProperties = { background: F.accent, color: '#fff', border: 'none', borderRadius: 999, padding: '14px 20px', fontSize: 15.5, fontWeight: 700, fontFamily: F.sans, cursor: 'pointer', boxShadow: '0 8px 20px rgba(31,99,240,0.25)' };
-export const darkBtn: CSSProperties = { ...btn, background: F.dark, boxShadow: '0 8px 18px rgba(var(--f-shadow-rgb),0.2)' };
-export const ghostBtn: CSSProperties = { background: 'var(--f-card)', color: F.ink, border: `1px solid ${F.line}`, borderRadius: 999, padding: '11px 16px', fontSize: 14, fontWeight: 600, fontFamily: F.sans, cursor: 'pointer' };
+export const btn: CSSProperties = { background: F.grad, color: '#fff', border: 'none', borderRadius: 16, padding: '14px 20px', fontSize: 15.5, fontWeight: 650, letterSpacing: '-0.015em', fontFamily: F.sans, cursor: 'pointer', boxShadow: '0 1px 0 rgba(255,255,255,0.3) inset, 0 12px 26px -12px rgba(255,74,40,0.75)' };
+export const darkBtn: CSSProperties = { ...btn, background: F.ink, color: 'var(--f-bg)', boxShadow: '0 10px 22px -12px rgba(var(--f-shadow-rgb),0.5)' };
+export const ghostBtn: CSSProperties = { background: 'var(--f-card)', color: F.ink, border: `1px solid ${F.line}`, borderRadius: 14, padding: '11px 16px', fontSize: 14, fontWeight: 600, fontFamily: F.sans, cursor: 'pointer' };
 export const input: CSSProperties = { width: '100%', boxSizing: 'border-box', background: 'var(--f-card)', border: `1px solid ${F.line}`, borderRadius: 14, padding: '13px 14px', fontSize: 16, fontFamily: F.sans, color: F.ink, outline: 'none' };
 
 export function Ring({ value, max, size = 120, stroke = 11, color = F.accent, track = 'rgba(255,255,255,0.1)', children }: { value: number; max: number; size?: number; stroke?: number; color?: string; track?: string; children?: ReactNode }) {
@@ -70,7 +73,7 @@ export function Bar({ value, max, color = F.accent, h = 6, track = 'rgba(255,255
 }
 
 export function Chip({ on, children, onClick, color = F.accent }: { on?: boolean; children: ReactNode; onClick?: () => void; color?: string }) {
-  return <button onClick={onClick} style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 999, border: `1px solid ${on ? color : F.line}`, background: on ? color : 'var(--f-card)', color: on ? '#fff' : F.ink, fontWeight: 700, fontSize: 13.5, fontFamily: F.sans, cursor: 'pointer', whiteSpace: 'nowrap' }}>{children}</button>;
+  return <button onClick={onClick} style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 12, border: `1px solid ${on ? 'transparent' : F.line}`, background: on ? (color === F.accent ? F.grad : color) : 'var(--f-card)', color: on ? '#fff' : F.ink, fontWeight: 600, fontSize: 13.5, letterSpacing: '-0.01em', fontFamily: F.sans, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: on ? '0 8px 18px -10px rgba(255,74,40,0.7)' : 'none' }}>{children}</button>;
 }
 
 export function Sheet({ open, onClose, children, title, z = 50 }: { open: boolean; onClose: () => void; children: ReactNode; title?: ReactNode; z?: number }) {
@@ -84,10 +87,10 @@ export function Sheet({ open, onClose, children, title, z = 50 }: { open: boolea
     <AnimatePresence>
       {open && (
         <motion.div key="bg" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(20,15,40,0.4)', zIndex: z, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', zIndex: Math.max(z, 40) + 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 30, stiffness: 300 }}
             onClick={e => e.stopPropagation()}
-            style={{ width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', background: F.bg, borderRadius: '28px 28px 0 0', padding: '10px 18px calc(28px + env(safe-area-inset-bottom))', fontFamily: F.sans, color: F.ink, boxSizing: 'border-box' }}>
+            style={{ width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', background: F.bg, border: `1px solid ${F.line}`, borderBottom: 'none', borderRadius: '28px 28px 0 0', padding: '10px 18px calc(28px + env(safe-area-inset-bottom))', fontFamily: F.sans, color: F.ink, boxSizing: 'border-box' }}>
             <div style={{ width: 42, height: 5, borderRadius: 3, background: 'rgba(var(--f-ink-rgb),0.18)', margin: '0 auto 12px' }} />
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
               <div style={{ flex: 1 }}>{typeof title === 'string' ? <Title a={title} size={24} /> : title}</div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { business, type OpportunitiesReport, type Opportunity } from '../../services/api.ts';
 import { Hero } from '../ui/Premium.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 const C = {
   bg: 'var(--dz-bg)', surface: 'var(--dz-surface)', surface2: 'var(--dz-surface2)', border: 'rgba(var(--dz-ink-rgb),0.15)',
@@ -102,13 +103,13 @@ export default function OpportunitiesScreen({ onAsk }: { onAsk?: (prompt: string
       {/* Carte synthèse + actualiser */}
       <div style={{ margin: '0 18px 12px', background: `linear-gradient(135deg, color-mix(in srgb, ${C.gold} 11%, transparent), ${C.surface})`, border: `1px solid ${C.border}`, borderRadius: 18, padding: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ fontSize: 15, fontWeight: 800 }}>🔍 Veille business Oran</div>
+          <div style={{ fontSize: 15, fontWeight: 800 }}><Ico e="🔍" />Veille business Oran</div>
           <button onClick={() => void load(true)} disabled={loading || refreshing} style={{ border: `1px solid ${C.border}`, background: C.surface2, color: C.goldSoft, borderRadius: 10, padding: '6px 12px', fontFamily: C.font, fontSize: 11.5, fontWeight: 600, cursor: refreshing ? 'wait' : 'pointer', opacity: refreshing ? 0.7 : 1 }}>{refreshing ? '🔎 Analyse…' : loading ? '…' : '↻ Actualiser'}</button>
         </div>
         <div style={{ fontSize: 12.5, color: C.muted, marginTop: 6, lineHeight: 1.45 }}>
           {opps?.summary || 'Dzaryx surveille chaque jour TOUT le business algérien : auto, immobilier, devises (euro/dinar), investissement, aides de l\'État, lois & toute affaire intéressante. Touche une opportunité pour la lire en entier.'}
         </div>
-        {opps?.updated_at && <div style={{ fontSize: 13.5, color: C.muted, marginTop: 6 }}>🔄 Auto chaque jour · mis à jour : {new Date(opps.updated_at).toLocaleString('fr-FR')}</div>}
+        {opps?.updated_at && <div style={{ fontSize: 13.5, color: C.muted, marginTop: 6 }}><Ico e="🔄" />Auto chaque jour · mis à jour : {new Date(opps.updated_at).toLocaleString('fr-FR')}</div>}
       </div>
 
       {/* Filtres par axe */}
@@ -134,7 +135,7 @@ export default function OpportunitiesScreen({ onAsk }: { onAsk?: (prompt: string
           </div>
         ) : err && !opps ? (
           <div style={{ textAlign: 'center', padding: 24, color: C.muted, fontSize: 13 }}>
-            <div style={{ marginBottom: 12 }}>⚠️ Analyse indisponible (réseau ou serveur lent).</div>
+            <div style={{ marginBottom: 12 }}><Ico e="⚠️" />Analyse indisponible (réseau ou serveur lent).</div>
             <button onClick={() => void load(true)} disabled={loading} style={{ border: `1px solid ${C.border}`, background: C.surface2, color: C.goldSoft, borderRadius: 10, padding: '9px 18px', fontFamily: C.font, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>↻ Réessayer</button>
           </div>
         ) : merged.length === 0 ? (
@@ -177,12 +178,12 @@ export default function OpportunitiesScreen({ onAsk }: { onAsk?: (prompt: string
             <div style={{ fontSize: 14, color: C.text, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{sel.detail}</div>
             {sel.action && (
               <div style={{ marginTop: 16, padding: 14, borderRadius: 14, background: `color-mix(in srgb, ${C.gold} 6%, transparent)`, border: `1px solid color-mix(in srgb, ${C.gold} 20%, transparent)` }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: C.goldSoft, marginBottom: 5 }}>👉 À FAIRE</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.goldSoft, marginBottom: 5 }}><Ico e="👉" />À FAIRE</div>
                 <div style={{ fontSize: 13.5, color: C.text, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{sel.action}</div>
               </div>
             )}
             {onAsk && (
-              <button onClick={() => { onAsk(buildAskPrompt(sel)); setSel(null); }} style={{ width: '100%', marginTop: 18, padding: 14, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${C.gold}, ${C.goldSoft})`, color: 'var(--dz-text)', fontFamily: C.font, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>🤖 Demander à Dzaryx d'approfondir</button>
+              <button onClick={() => { onAsk(buildAskPrompt(sel)); setSel(null); }} style={{ width: '100%', marginTop: 18, padding: 14, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${C.gold}, ${C.goldSoft})`, color: 'var(--dz-text)', fontFamily: C.font, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}><Ico e="🤖" />Demander à Dzaryx d'approfondir</button>
             )}
             <button onClick={() => toggleFav(sel)} style={{ width: '100%', marginTop: 10, padding: 13, borderRadius: 13, border: `1px solid ${isFav(sel) ? C.gold : C.border}`, background: isFav(sel) ? `color-mix(in srgb, ${C.gold} 10%, transparent)` : 'transparent', color: isFav(sel) ? C.goldSoft : C.muted, fontFamily: C.font, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{isFav(sel) ? '★ Retirer des favoris' : '☆ Mettre en favori'}</button>
             <button onClick={() => setSel(null)} style={{ width: '100%', marginTop: 10, padding: 13, borderRadius: 13, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, fontFamily: C.font, fontSize: 14, cursor: 'pointer' }}>Fermer</button>

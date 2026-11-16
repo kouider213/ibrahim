@@ -3,6 +3,7 @@
 // (« limité à 50, tu es à 63 »), dangers dits à voix haute, plaques retenues, boîte noire sur freinage brutal.
 import { useEffect, useRef, useState } from 'react';
 import { apiFetch, speakOnDevice } from '../../services/api.ts';
+import { Ico } from '../ui/Icon.tsx';
 
 const C = {
   bg: '#04070d', glass: 'rgba(8,20,32,0.72)', border: 'rgba(155,140,255,0.28)', cyan: '#9b8cff',
@@ -103,11 +104,11 @@ export default function RouteScreen() {
       </div>
       <div style={{ position: 'absolute', left: 16, right: 16, bottom: 20, display: 'grid', gap: 10 }}>
         {last && <div style={{ background: C.glass, border: `1px solid ${C.border}`, borderRadius: 14, padding: '10px 14px', fontSize: 15 }}>🗣️ {last}</div>}
-        {plates.length > 0 && <div style={{ background: C.glass, border: `1px solid ${C.border}`, borderRadius: 14, padding: '8px 14px', fontSize: 12, color: C.muted }}>🔢 Plaques retenues : {plates.join(' · ')}</div>}
+        {plates.length > 0 && <div style={{ background: C.glass, border: `1px solid ${C.border}`, borderRadius: 14, padding: '8px 14px', fontSize: 12, color: C.muted }}><Ico e="🔢" />Plaques retenues : {plates.join(' · ')}</div>}
         {msg && <div style={{ fontSize: 12, color: C.muted, textAlign: 'center' }}>{msg}</div>}
         {!on && (
           <div style={{ background: C.glass, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, fontSize: 13, lineHeight: 1.5 }}>
-            <b style={{ color: C.cyan }}>🚗 Copilote avec des yeux</b><br />
+            <b style={{ color: C.cyan }}><Ico e="🚗" />Copilote avec des yeux</b><br />
             Pose l'iPhone sur le support, caméra vers la route. Dzaryx lit les panneaux et te prévient si tu dépasses la limite,
             dit les dangers à voix haute, retient les plaques (« la plaque devant moi ce matin ? ») et garde une boîte noire
             en cas de freinage brutal (images envoyées sur Telegram).

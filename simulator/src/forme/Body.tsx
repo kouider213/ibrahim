@@ -5,6 +5,7 @@ import { F, Title, Section, card, darkCard, btn, darkBtn, ghostBtn, Sheet, Spinn
 import { beep } from './Sport.tsx';
 import Insights from './Insights.tsx';
 import { GoalsCard } from './Goals.tsx';
+import { Ico } from '../components/ui/Icon.tsx';
 
 // Onglet CORPS : poids, mensurations et PHOTOS DE SUIVI. Caméra avec la photo d'avant en transparence pour se placer
 // pareil, minuteur 3 s par défaut (10 s / off au choix), photo « avant » au choix, puis Claude compare avant / maintenant et entoure ce qui a changé.
@@ -49,7 +50,7 @@ export function Compare({ photo, before, a, onReanalyze, onRetake, photos, onPic
   return (
     <div>
       {onPickBefore && others.length > 0 && <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>👆 Choisis ta photo AVANT {picking && <><Spinner size={14} /> <span style={{ fontWeight: 600, color: F.muted }}>nouvelle comparaison…</span></>}</div>
+        <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}><Ico e="👆" />Choisis ta photo AVANT {picking && <><Spinner size={14} /> <span style={{ fontWeight: 600, color: F.muted }}>nouvelle comparaison…</span></>}</div>
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
           {others.map(p => {
             const on = before?.id === p.id;
@@ -100,8 +101,8 @@ export function Compare({ photo, before, a, onReanalyze, onRetake, photos, onPic
         {a.focus.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>{a.focus.map(f => <span key={f} style={{ background: F.soft, color: F.accent, borderRadius: 999, padding: '5px 11px', fontSize: 12.5, fontWeight: 800 }}>💪 {f}</span>)}</div>}
       </div>
       <div style={{ fontSize: 12, color: F.muted, textAlign: 'center', marginTop: 10 }}>Analyse par Claude · envoyée à Dzaryx · photos privées (jamais partagées)</div>
-      {onRetake && <button onClick={onRetake} style={{ ...btn, width: '100%', marginTop: 10 }}>📸 Reprendre la photo</button>}
-      {onReanalyze && <button onClick={onReanalyze} style={{ ...ghostBtn, width: '100%', marginTop: 8 }}>🔄 Refaire l'analyse (même photo)</button>}
+      {onRetake && <button onClick={onRetake} style={{ ...btn, width: '100%', marginTop: 10 }}><Ico e="📸" />Reprendre la photo</button>}
+      {onReanalyze && <button onClick={onReanalyze} style={{ ...ghostBtn, width: '100%', marginTop: 8 }}><Ico e="🔄" />Refaire l'analyse (même photo)</button>}
     </div>
   );
 }
@@ -227,9 +228,9 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
         {o.profile.targetKg ? <Stat v={`${Math.max(0, cur - o.profile.targetKg).toFixed(1)}`} l={`kg avant ${o.profile.targetKg}`} color={F.accent} /> : <Stat v="—" l="objectif à régler (profil)" />}
       </div>
       {o.eta && <div style={{ ...card, marginTop: 10, display: 'flex', gap: 12, alignItems: 'center' }}><span style={{ fontSize: 30 }}>🎯</span><div><b>{o.profile.targetKg} kg vers le {o.eta.slice(8)}/{o.eta.slice(5, 7)}/{o.eta.slice(0, 4)}</b><div style={{ fontSize: 13, color: F.muted }}>à ton rythme actuel ({o.weightRate} kg/semaine) — continue comme ça</div></div></div>}
-      {o.tooFast && <div style={{ ...card, marginTop: 10, background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))', fontSize: 13.5, lineHeight: 1.4 }}>⚠️ Tu perds {o.weightRate} kg/semaine : un peu vite. Pour garder ton muscle : atteins tes {o.targets.p} g de protéines chaque jour et ne saute pas la muscu. {o.uid !== 'ami' ? 'Parles-en à ton médecin au prochain contrôle.' : ''}</div>}
+      {o.tooFast && <div style={{ ...card, marginTop: 10, background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))', fontSize: 13.5, lineHeight: 1.4 }}><Ico e="⚠️" />Tu perds {o.weightRate} kg/semaine : un peu vite. Pour garder ton muscle : atteins tes {o.targets.p} g de protéines chaque jour et ne saute pas la muscu. {o.uid !== 'ami' ? 'Parles-en à ton médecin au prochain contrôle.' : ''}</div>}
       <div style={{ ...card, marginTop: 12 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div style={{ fontWeight: 800 }}>⚖️ Courbe de poids</div>{o.weightRate != null && <div style={{ fontSize: 12.5, color: F.muted, fontWeight: 700 }}>{o.weightRate > 0 ? '−' : '+'}{Math.abs(o.weightRate)} kg/sem.</div>}</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div style={{ fontWeight: 800 }}><Ico e="⚖️" />Courbe de poids</div>{o.weightRate != null && <div style={{ fontSize: 12.5, color: F.muted, fontWeight: 700 }}>{o.weightRate > 0 ? '−' : '+'}{Math.abs(o.weightRate)} kg/sem.</div>}</div>
         <LineChart points={o.weights.slice(-30).map(w => ({ x: w.date, y: w.kg }))} goal={o.profile.targetKg} digits={1} forecast={o.eta ? { x: o.eta, y: o.profile.targetKg } : null} />
         <div style={{ display: 'flex', gap: 8 }}>
           <input inputMode="decimal" value={kg} onChange={e => setKg(e.target.value)} placeholder="Poids du jour (kg)" style={input} />
@@ -246,16 +247,16 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
         </div>
         <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.55)', marginTop: 8 }}>{POSES.find(p => p.id === pose)!.tip}</div>
         <button disabled={busy} onClick={() => setCam(true)} style={{ ...btn, width: '100%', marginTop: 12, display: 'flex', justifyContent: 'center', gap: 10, alignItems: 'center' }}>{busy ? <><Spinner size={18} color="#fff" /> Analyse en cours… (~20 s)</> : `📸 Prendre ma photo ${POSES.find(p => p.id === pose)!.label.toLowerCase()}`}</button>
-        <button disabled={busy} onClick={() => fromGallery(false)} style={{ ...ghostBtn, width: '100%', marginTop: 8, background: 'rgba(255,255,255,0.08)', color: '#fff', border: 'none' }}>🖼️ Choisir une photo {POSES.find(p => p.id === pose)!.label.toLowerCase()} dans ma galerie</button>
+        <button disabled={busy} onClick={() => fromGallery(false)} style={{ ...ghostBtn, width: '100%', marginTop: 8, background: 'rgba(255,255,255,0.08)', color: '#fff', border: 'none' }}><Ico e="🖼️" />Choisir une photo {POSES.find(p => p.id === pose)!.label.toLowerCase()} dans ma galerie</button>
         <input ref={gal} type="file" accept="image/*" hidden onChange={async e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) await shot(await compressImage(f)); else setAdaptAfter(false); }} />
       </div>
       <div style={{ ...card, marginTop: 12 }}>
-        <div style={{ fontWeight: 800, fontSize: 16 }}>🎯 Ce que je veux perdre ou améliorer</div>
+        <div style={{ fontWeight: 800, fontSize: 16 }}><Ico e="🎯" />Ce que je veux perdre ou améliorer</div>
         <div style={{ fontSize: 13, color: F.muted, margin: '4px 0 10px', lineHeight: 1.4 }}>Avec tes photos analysées, le coach refait ta prochaine séance exercice par exercice (programme + agenda).</div>
         <textarea value={goal} onChange={e => setGoal(e.target.value)} rows={2} placeholder="ex. le ventre et les poignées d'amour, plus de pecs" style={{ ...input, resize: 'none', fontFamily: 'inherit' }} />
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '8px 0' }}>{['Le ventre', "Les poignées d'amour", 'Le bas du dos', 'Plus de pecs', 'Les bras', 'Les cuisses', 'Le dos plus large'].map(x => <Chip key={x} onClick={() => setGoal(g => g ? `${g}, ${x.toLowerCase()}` : x)}>{x}</Chip>)}</div>
         <button disabled={busy} onClick={() => { setAdaptAfter(true); setCam(true); }} style={{ ...darkBtn, width: '100%', marginBottom: 8, display: 'flex', justifyContent: 'center', gap: 10, alignItems: 'center' }}>{busy && adaptAfter ? <><Spinner size={18} color="#fff" /> Analyse + nouvelle séance…</> : `📸 Photo ${POSES.find(p => p.id === pose)!.label.toLowerCase()} + adapter ma séance`}</button>
-        <button disabled={busy} onClick={() => fromGallery(true)} style={{ ...ghostBtn, width: '100%', marginBottom: 8 }}>🖼️ Photo de ma galerie + adapter ma séance</button>
+        <button disabled={busy} onClick={() => fromGallery(true)} style={{ ...ghostBtn, width: '100%', marginBottom: 8 }}><Ico e="🖼️" />Photo de ma galerie + adapter ma séance</button>
         <button disabled={adapting} onClick={adapt} style={{ ...btn, width: '100%', display: 'flex', justifyContent: 'center', gap: 10, alignItems: 'center' }}>{adapting ? <><Spinner size={18} color="#fff" /> Le coach prépare ta séance…</> : goal.trim() ? '🎯 Adapter ma séance de demain' : '🎯 Le coach choisit pour moi (sans photo)'}</button>
         <div style={{ fontSize: 12.5, color: F.muted, marginTop: 8, lineHeight: 1.4 }}>Sans rien écrire, le coach regarde tes photos et te dit lui-même quoi perdre. Tu peux aussi envoyer ta photo à Dzaryx sur Telegram : il répond avec ta photo entourée ⭕ et refait ta séance.</div>
       </div>

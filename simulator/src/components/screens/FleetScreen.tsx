@@ -3,6 +3,7 @@ import { business, getOrCreateSessionId, type Car, type FleetIntel, type SitePro
 import { SkeletonCards } from '../ui/Premium.tsx';
 import { T, tone, PageHeader, Segmented, Chips, Kpi, Badge, Btn, ActionBtn, Toggle, Sheet, Field, inputStyle, Empty, Toast, SectionTitle } from '../ui/Kit.tsx';
 import PhotoGallery, { type GalleryKind } from '../ui/PhotoGallery.tsx';
+import { Ico } from '../ui/Icon.tsx';
 
 type ParcTab = 'cars' | 'immo' | 'vente';
 type CarFilter = 'all' | 'on' | 'off';
@@ -333,7 +334,7 @@ function CarDetailSheet({ car, isHouari, stat, busy, onClose, onToggle, onBook, 
             <span style={{ position: 'absolute', bottom: 8, right: 8, fontSize: 12, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: 'rgba(0,0,0,0.6)', color: '#fff' }}>{i + 1}/{photos.length}</span>
           </button>
         )) : (
-          <button onClick={() => onPhotos(car)} style={{ flex: '1 0 100%', height: 150, borderRadius: 16, border: `1px dashed ${T.lineStrong}`, background: 'transparent', color: T.accent, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: T.font }}>📷 Ajouter des photos</button>
+          <button onClick={() => onPhotos(car)} style={{ flex: '1 0 100%', height: 150, borderRadius: 16, border: `1px dashed ${T.lineStrong}`, background: 'transparent', color: T.accent, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: T.font }}><Ico e="📷" />Ajouter des photos</button>
         )}
       </div>
 
@@ -968,13 +969,13 @@ export function InspectionModal({ kind, subject, sessionId, onClose, initialMode
         <Btn variant="primary" onClick={onClose} style={{ flex: 1 }}>Terminé</Btn>
       </> : busy ? undefined : <>
         <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Annuler</Btn>
-        <Btn variant="primary" onClick={() => void submit()} disabled={!ready} style={{ flex: 2 }}>🔍 Analyser{shots.length ? ` (${shots.length})` : ''}</Btn>
+        <Btn variant="primary" onClick={() => void submit()} disabled={!ready} style={{ flex: 2 }}><Ico e="🔍" />Analyser{shots.length ? ` (${shots.length})` : ''}</Btn>
       </>}
     >
       {result ? (
         <>
           {result.analysis?.accident && (
-            <div style={{ background: tone(T.bad, 0.14), border: `1px solid ${tone(T.bad, 0.4)}`, borderRadius: 14, padding: '11px 14px', marginBottom: 12, color: T.bad, fontSize: 14, fontWeight: 700, textAlign: 'center' }}>🚨 Accident / choc détecté</div>
+            <div style={{ background: tone(T.bad, 0.14), border: `1px solid ${tone(T.bad, 0.4)}`, borderRadius: 14, padding: '11px 14px', marginBottom: 12, color: T.bad, fontSize: 14, fontWeight: 700, textAlign: 'center' }}><Ico e="🚨" />Accident / choc détecté</div>
           )}
           {photos.map((url, pi) => (
             <div key={pi} style={{ position: 'relative', width: '100%', borderRadius: 14, overflow: 'hidden', marginBottom: 10, border: `1px solid ${T.line}` }}>
@@ -1004,7 +1005,7 @@ export function InspectionModal({ kind, subject, sessionId, onClose, initialMode
               })}
             </div>
           ) : (
-            <div style={{ color: T.ok, fontSize: 15, fontWeight: 700, textAlign: 'center', margin: '6px 0 12px' }}>✅ Aucun {kind === 'vehicle' ? 'dégât' : 'défaut'} détecté</div>
+            <div style={{ color: T.ok, fontSize: 15, fontWeight: 700, textAlign: 'center', margin: '6px 0 12px' }}><Ico e="✅" />Aucun {kind === 'vehicle' ? 'dégât' : 'défaut'} détecté</div>
           )}
           {(result.analysis?.comparisonReport || result.analysis?.description) && (
             <div style={{ fontSize: 13.5, color: T.muted, lineHeight: 1.55, whiteSpace: 'pre-wrap', borderTop: `1px solid ${T.line}`, paddingTop: 12 }}>

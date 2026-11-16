@@ -168,7 +168,7 @@ export async function kouiderDossierText(): Promise<string> {
     txt(import('./connections-watch.js').then(m => m.connectionsText())),
     txt(import('./brain-plus.js').then(m => m.moodText())),
     txt(import('./liberte.js').then(m => m.liberteText())),   // programme d'arrêt (privé)
-    txt(import('./vitalite.js').then(m => m.vitaliteText())),   // 02/11 désir/testo/couple (privé)
+    txt(Promise.resolve('')),   // 16/11 : module Vitalité retiré (plus rien dans le dossier)
     txt(import('./life-plus.js').then(m => m.lifeText())),
     txt(import('./mon-esprit.js').then(m => m.espritText())),   // 04/11 journal des jours + famille d'abord
     txt(import('./grand-coach.js').then(m => m.grandCoachText())),
