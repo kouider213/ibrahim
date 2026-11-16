@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { T, PageHeader, glass, tone, Toggle, inputStyle, btnStyle } from '../ui/Kit.tsx';
+import { T, PageHeader, glass, tone, Toggle, inputStyle, btnStyle, Sheet } from '../ui/Kit.tsx';
 import { getThemeMode, setThemeMode, type ThemeMode } from '../../services/theme.ts';
 import { business, setSimActor, getSimActor, registerWebPush, notifStatus, changePassword, apiFetch } from '../../services/api.ts';
 import CapacitesScreen from './CapacitesScreen.tsx';
@@ -203,12 +203,7 @@ export default function SettingsScreen() {
           {openSec === 'rules' && RULES.map(r => (
             <Item key={r.id} title={<span style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'normal', lineHeight: 1.4 }}>{r.rule}</span>} sub={r.cat.charAt(0) + r.cat.slice(1).toLowerCase()} />
           ))}
-          <Item icon="bot" hue="#3d6bff" title="Capacités & agents" sub="Ce que Dzaryx sait faire" onClick={() => setShowCaps(s => !s)} right={<Chev open={showCaps} />} />
-          {showCaps && (
-            <div style={{ height: 520, overflow: 'hidden', borderTop: '1px solid var(--dz-line)' }}>
-              <CapacitesScreen />
-            </div>
-          )}
+          <Item icon="bot" hue="#3d6bff" title="Capacités & agents" sub="Ce que Dzaryx sait faire" onClick={() => setShowCaps(true)} />
         </Group>
 
         <div style={{ textAlign: 'center', padding: '4px 0 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
@@ -218,6 +213,7 @@ export default function SettingsScreen() {
         </div>
       </div>
       </div>
+      {showCaps && <Sheet title="Capacités de Dzaryx" subtitle="14 agents, alertes automatiques et tout ce qu'il sait faire" onClose={() => setShowCaps(false)}><CapacitesScreen /></Sheet>}
     </div>
   );
 }

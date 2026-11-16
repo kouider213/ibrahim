@@ -69,7 +69,7 @@ export default function PaiementsScreen() {
 
           <div style={{ background: 'rgba(224,48,79,0.08)', border: '1px solid rgba(224,48,79,0.35)', borderRadius: 14, padding: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.5 }}>
             <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 4 }}><Ico e="💡" />Le minimum obligatoire</div>
-            {must.map(r => <div key={r.id}>🔴 <b>{r.name}</b> — {r.amount ?? r.price}{r.due ? ` · le ${new Date(`${r.due}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : ''}</div>)}
+            {must.map(r => <div key={r.id} style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f04438', flexShrink: 0, alignSelf: 'center' }} /><span><b>{r.name}</b> — {r.amount ?? r.price}{r.due ? ` · le ${new Date(`${r.due}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : ''}</span></div>)}
             <div style={{ color: C.muted, marginTop: 4 }}>C'est le seul paiement obligatoire pour garder Dzaryx en vie. Tout ce qui est marqué FACULTATIF peut être arrêté pour faire des économies : Dzaryx continue (en mode gratuit pour ce service).</div>
           </div>
 
@@ -126,7 +126,7 @@ function Card({ r, open, onToggle, act }: { r: BillingRow; open: boolean; onTogg
     <div style={{ background: C.surface, border: `1px solid ${r.state === 'late' || r.state === 'out' ? 'rgba(224,48,79,0.5)' : C.border}`, borderRadius: 13, padding: 12, marginBottom: 8 }}>
       <div onClick={onToggle} style={{ cursor: 'pointer' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span>{st.icon}</span>
+          <span style={{ width: 9, height: 9, borderRadius: '50%', background: st.color, boxShadow: `0 0 8px ${st.color}`, flexShrink: 0 }} />
           <span style={{ fontSize: 14, fontWeight: 700, flex: 1 }}>{r.name}</span>
           <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1, color: lv.color, border: `1px solid color-mix(in srgb, ${lv.color} 33%, transparent)`, borderRadius: 6, padding: '2px 6px' }}>{lv.label}</span>
         </div>

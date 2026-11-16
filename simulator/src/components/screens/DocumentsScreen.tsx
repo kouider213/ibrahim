@@ -2,12 +2,13 @@ import { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { api, business, getOrCreateSessionId, type ClientDocument } from '../../services/api.ts';
 import { SkeletonCards } from '../ui/Premium.tsx';
+import { Icon } from '../ui/Icon.tsx';
 import { T, tone, Screen, PageHeader, Card, Btn, SectionTitle, Chips, Empty, Field, inputStyle } from '../ui/Kit.tsx';
 
 const TYPE_MAP: Record<string, { label: string; icon: string; apiType: string }> = {
-  passeport: { label: 'Passeport', icon: '🛂', apiType: 'passport'  },
-  permis:    { label: 'Permis',    icon: '🚗', apiType: 'license'   },
-  contrat:   { label: 'Contrat',   icon: '📝', apiType: 'contract'  },
+  passeport: { label: 'Passeport', icon: 'book', apiType: 'passport'  },
+  permis:    { label: 'Permis',    icon: 'card', apiType: 'license'   },
+  contrat:   { label: 'Contrat',   icon: 'file', apiType: 'contract'  },
 };
 const TYPE_FR: Record<string, string> = { passport: 'Passeport', license: 'Permis', contract: 'Contrat', other: 'Document' };
 
@@ -89,7 +90,7 @@ export default function DocumentsScreen() {
                 background: on ? tone(T.accent, 0.16) : 'rgba(var(--dz-ink-rgb),0.022)', border: `1px solid ${on ? tone(T.accent, 0.6) : T.line}`,
                 color: on ? T.accent : T.text, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
               }}>
-                <span style={{ fontSize: 22 }}>{icon}</span>
+                <Icon name={icon} size={24} />
                 <span style={{ fontSize: 13.5, fontWeight: 700 }}>{label}</span>
               </button>
             );

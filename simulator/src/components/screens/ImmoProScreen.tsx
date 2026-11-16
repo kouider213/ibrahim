@@ -4,7 +4,7 @@ import { Hero, StatCard } from '../ui/Premium.tsx';
 import { Segmented, btnStyle } from '../ui/Kit.tsx';
 import { business, getOrCreateSessionId, type SiteProperty } from '../../services/api.ts';
 import { InspectionModal } from './FleetScreen.tsx';
-import { Ico } from '../ui/Icon.tsx';
+import { Ico, Label } from '../ui/Icon.tsx';
 
 // ── Palette sombre premium (cartes sur obsidian + accent bleu) ──
 const C = {
@@ -42,7 +42,7 @@ const HOWTO = [
   '➕ Appuie sur + pour publier un bien (location ou vente) directement sur le site.',
   '🖼️ Ajoute plusieurs photos — la 1ʳᵉ est la photo principale.',
   '📍 Tape l\'adresse → choisis la suggestion exacte → une carte s\'affiche sur l\'annonce.',
-  '🔄 « Statut » bascule disponible / loué / vendu. 📷 fait l\'état des lieux (IA).',
+  '🔄 « Statut » bascule disponible / loué / vendu. le bouton photo fait l\'état des lieux (IA).',
 ];
 
 interface AddForm {
@@ -214,7 +214,7 @@ export default function ImmoProScreen() {
         <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>Comment l'utiliser</div>
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: '6px 14px' }}>
           {HOWTO.map((s, i) => (
-            <div key={i} style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, padding: '8px 0', borderBottom: i < HOWTO.length - 1 ? `1px solid ${C.border}` : 'none' }}>{s}</div>
+            <div key={i} style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, padding: '9px 0', borderBottom: i < HOWTO.length - 1 ? `1px solid ${C.border}` : 'none' }}><Label size={15} gap={9}>{s}</Label></div>
           ))}
         </div>
       </div>

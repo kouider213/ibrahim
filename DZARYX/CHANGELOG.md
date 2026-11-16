@@ -1,3 +1,7 @@
+## 16/11/2026 (soir) — Capacités refait + emojis restants (app v268)
+- Réglages › Capacités & agents : les cartes étaient écrasées dans une boîte de 520 px (capture de Kouider). Maintenant ouvert dans une feuille plein écran, refait au style v4 (segments Agents/Proactif/Tout, avatars, exemples « dis par exemple », frise de la journée type). Liste IA mise à jour (Gemini par défaut, Claude, Gemini Live).
+- Emojis → icônes : Documents (Passeport/Permis/Contrat), Immobilier (« Comment l'utiliser »), À payer (pastilles d'état), Demandes (badge Lead).
+
 ## 16/11/2026 (après-midi) — Clients, Réglages, FORME graphiques, Fennou + Route retirés du menu (app v267)
 - CLIENTS : héros « CA cumulé » + 3 chiffres (profils, reviennent, panier moyen) + top 5 clients en barres ; filtres Tous / VIP / Fidèles / Nouveaux / À relancer (> 4 mois) ; tri Récents / CA / A→Z ; cartes avec avatar, « il y a X », boutons WhatsApp + appel ; fond blanc de la carte ouverte en mode sombre corrigé.
 - RÉGLAGES refaits façon Réglages iPhone : carte profil (statut serveur + version), aperçus clair/sombre/auto, lignes avec tuiles d'icônes, mot de passe et appareils repliables (vu il y a…), position, état système, tâches et règles repliables.

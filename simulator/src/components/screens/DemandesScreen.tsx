@@ -226,7 +226,7 @@ export default function DemandesScreen() {
             <Card key={d.id} accent={s.color} pad={0}>
               <div style={{ padding: '14px 14px 12px 16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-                  <Badge color={s.color}>{s.icon} {s.label}</Badge>
+                  <Badge color={s.color}>{`${s.icon} ${s.label}`}</Badge>
                   {d.ref && <span style={{ fontSize: 12, color: T.faint, fontFamily: 'ui-monospace, monospace' }}>{d.ref}</span>}
                   {d.lang && <span style={{ fontSize: 14 }}>{LANG_FLAG[d.lang] || ''}</span>}
                   <span style={{ marginLeft: 'auto', fontSize: 12, color: T.faint }}>{ago(d.created_at)}</span>
