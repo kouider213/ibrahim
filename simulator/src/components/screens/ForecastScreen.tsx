@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { business } from '../../services/api.ts';
 import { T, Screen, PageHeader, Card, KpiGrid, Kpi, SectionTitle, Empty, tone } from '../ui/Kit.tsx';
 import { SkeletonCards } from '../ui/Premium.tsx';
+import DiasporaCampaign from './DiasporaCampaign.tsx';
 
 type F = { byMonth: Array<{ month: string; count: number; pct: number }>; peaks: string[]; next3: string[]; summerSoon: boolean; total: number };
 
@@ -21,6 +22,7 @@ export default function ForecastScreen() {
     <Screen header={<PageHeader eyebrow="Prévision" title="Saison diaspora" subtitle="Quand la demande monte — pour préparer la flotte et les prix" />}>
       {loading ? <SkeletonCards count={3} height={110} /> : !f ? <Empty icon="📉" title="Prévision indisponible" text="Réessaie dans un moment." /> : (
         <>
+          <DiasporaCampaign />
           {f.summerSoon && <Card accent={T.warn} style={{ marginBottom: 14 }}><div style={{ fontSize: 14, color: T.warn, lineHeight: 1.5 }}>☀️ <b>L'été approche</b> — pic diaspora juillet/août. Bloque les voitures clés et monte les prix sur les périodes fortes.</div></Card>}
           <KpiGrid cols={3}>
             <Kpi value={f.peaks[0] ?? '—'} label="Mois le plus fort" color={T.warn} />

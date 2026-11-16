@@ -49,6 +49,18 @@ const DOSSIER_FLOWS: Record<string, Stage[]> = {
 // 16/11 : les leads « perdu »/« conclu » et dossiers terminés étaient comptés « en cours » → rangés à part.
 const CLOSED = new Set(['perdu', 'conclu', 'lost', 'won', 'refuse', 'refusé', 'CANCELLED', 'DELIVERED', 'FINALIZED', 'COMPLETED', 'REJECTED', 'DECLINED']);
 const isClosed = (d: Demande) => !!d.status && CLOSED.has(d.status);
+const ageDays = (d: Demande) => d.created_at ? Math.floor((Date.now() - Date.parse(d.created_at)) / 86_400_000) : 0;
+const isStale = (d: Demande) => !isClosed(d) && ageDays(d) >= 2;
+/** Numéro international pour wa.me (même règle que le serveur) : 00… → …, 04… belge, 05/06/07 Oran. */
+function intlPhone(raw?: string): string | null {
+  let p = String(raw ?? '').replace(/\D/g, '');
+  if (!p) return null;
+  if (p.startsWith('00')) p = p.slice(2);
+  else if (/^04\d{8}$/.test(p)) p = '32' + p.slice(1);
+  else if (/^0[567]\d{8}$/.test(p)) p = '213' + p.slice(1);
+  else if (p.startsWith('0')) return null;
+  return p.length >= 9 ? p : null;
+}
 const flowFor = (d: Demande): Stage[] =>
   d.source === 'import' ? IMPORT_FLOW : DOSSIER_FLOWS[d.kind || 'voiture'] || DOSSIER_FLOWS.voiture;
 const stageLabel = (d: Demande, key?: string): string =>
@@ -140,15 +152,24 @@ export default function DemandesScreen() {
   const cnt = (src?: Demande['source']) => pool.filter(d => !src || d.source === src).length;
 
   const waRelance = (d: Demande) => {
-    const phone = (d.client_phone || '').replace(/\D/g, '');
-    if (!phone) return;
+    const phone = intlPhone(d.client_phone);
+    if (!phone) { showToast('Numéro sans indicatif pays : corrige-le sur le site'); return; }
     const lg = d.lang === 'ar' ? 'ar' : d.lang === 'en' ? 'en' : 'fr';
     const obj = d.title;
-    const msg = lg === 'ar'
-      ? `مرحباً ${d.client_name || ''}، معك Fik Conciergerie 👋 بخصوص: ${obj}. كيف يمكننا مساعدتك؟`
-      : lg === 'en'
-      ? `Hello ${d.client_name || ''}, this is Fik Conciergerie 👋 Regarding: ${obj}. How can we help?`
-      : `Bonjour ${d.client_name || ''}, c'est Fik Conciergerie 👋 Concernant : ${obj}. Comment pouvons-nous vous aider ?`;
+    const name = (d.client_name || '').trim().split(/\s+/)[0] ?? '';
+    // 16/11 : demande ouverte depuis plus de 48 h → vraie relance (le client est en Europe, il prépare sa venue à Oran)
+    const late = isStale(d);
+    const msg = late
+      ? (lg === 'ar'
+        ? `السلام عليكم ${name}، معك قويدر من FIK Conciergerie 👋 رجعتلك على طلبك : ${obj}. مازال يهمك ؟ قولي وقتاش راك هابط لوهران ونحضرلك كلش.`
+        : lg === 'en'
+        ? `Hello ${name}, Kouider from FIK Conciergerie 👋 Following up on your request: ${obj}. Are you still interested? Tell me when you're coming to Oran and I'll get everything ready.`
+        : `Bonjour ${name}, c'est Kouider de FIK Conciergerie 👋 Je reviens vers vous pour votre demande : ${obj}. Est-ce toujours d'actualité ? Dites-moi quand vous descendez à Oran et je vous prépare tout.`)
+      : (lg === 'ar'
+        ? `مرحباً ${d.client_name || ''}، معك Fik Conciergerie 👋 بخصوص: ${obj}. كيف يمكننا مساعدتك؟`
+        : lg === 'en'
+        ? `Hello ${d.client_name || ''}, this is Fik Conciergerie 👋 Regarding: ${obj}. How can we help?`
+        : `Bonjour ${d.client_name || ''}, c'est Fik Conciergerie 👋 Concernant : ${obj}. Comment pouvons-nous vous aider ?`);
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
@@ -238,6 +259,7 @@ export default function DemandesScreen() {
               <div style={{ padding: '14px 14px 12px 16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
                   <Badge color={s.color}>{`${s.icon} ${s.label}`}</Badge>
+                  {isStale(d) && <Badge color={T.warn}>{`attend depuis ${ageDays(d)} j`}</Badge>}
                   {d.ref && <span style={{ fontSize: 12, color: T.faint, fontFamily: 'ui-monospace, monospace' }}>{d.ref}</span>}
                   {d.lang && <span style={{ fontSize: 14 }}>{LANG_FLAG[d.lang] || ''}</span>}
                   <span style={{ marginLeft: 'auto', fontSize: 12, color: T.faint }}>{ago(d.created_at)}</span>
@@ -284,7 +306,7 @@ export default function DemandesScreen() {
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 8 }}>
-                  {d.client_phone && <Btn color="#25D366" onClick={() => waRelance(d)} style={{ flex: 1.2 }}><Ico e="💬" />WhatsApp</Btn>}
+                  {d.client_phone && <Btn color="#25D366" onClick={() => waRelance(d)} style={{ flex: 1.2 }}><Ico e="💬" />{isStale(d) ? 'Relancer' : 'WhatsApp'}</Btn>}
                   {d.source === 'lead' && d.status !== 'conclu' && <Btn color={T.ok} disabled={!!busy} onClick={() => void act(d, 'conclu', 'Lead marqué conclu ✅')} style={{ flex: 1 }}>✓ Conclu</Btn>}
                   <a href={`${SITE}${d.admin_path}`} target="_blank" rel="noopener noreferrer" style={{ ...btnStyle('ghost'), flex: 1, textDecoration: 'none' }}><Ico e="⚙️" />Gérer</a>
                 </div>

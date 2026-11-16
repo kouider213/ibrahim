@@ -6,6 +6,7 @@ import { BulkCard, BulkQuiz } from './Bulk.tsx';
 import type { Overview } from './api.ts';
 import { Ico } from '../components/ui/Icon.tsx';
 import { EnergyChart, ProteinChart } from './WeekCharts.tsx';
+import QuickProtein from './Quick.tsx';
 
 // 🍽️ REPAS (Kouider 31/10, « style Cal AI ») : photo du plat → chaque aliment, grammes, kcal, protéines.
 // Le budget vient de sa montre (dépense − déficit) ; Dzaryx commente sur Telegram après chaque photo et toute la journée.
@@ -108,6 +109,8 @@ export default function FoodScreen({ toast, o, onO }: { toast: (t: string) => vo
         {b.macros && <div style={{ fontSize: 11.5, opacity: 0.6, marginTop: 8 }}>Fourchettes pour {b.target} kcal : lipides 0,8 g/kg à 35 % des kcal (jamais moins, hormones) · glucides = le reste.</div>}
         <div style={{ fontSize: 11.5, opacity: 0.6, marginTop: 12 }}>Base {b.bmr} + activité {b.active} kcal, {SRC[b.activeSource]}.</div>
       </div>
+
+      <QuickProtein b={b} onBudget={setB} toast={toast} />
 
       {!bulk && <DeficitCard b={b} me={o.uid === 'kouider'} onRefresh={() => void load()} />}
 

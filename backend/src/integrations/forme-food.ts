@@ -303,6 +303,43 @@ export async function logMealText(uid: Uid, text: string, slot?: MealSlot, date?
   return afterMeal(uid, meal);
 }
 
+// ── 16/11 : protéines en 1 geste (Kouider : compteur à 0/154 g en pleine sèche) — valeurs fixes, sans IA (instantané, 0 quota)
+export const QUICK_FOODS: Record<string, { label: string; title: string; items: FoodPart[] }> = {
+  shake:  { label: 'Shake whey', title: 'Shake whey (1 dose)', items: [{ name: 'Whey (1 dose 30 g, à l\'eau)', grams: 30, kcal: 120, p: 24, c: 3, f: 2 }] },
+  skyr:   { label: 'Skyr 250 g', title: 'Skyr nature', items: [{ name: 'Skyr nature', grams: 250, kcal: 158, p: 27, c: 10, f: 0 }] },
+  oeufs:  { label: '3 œufs', title: '3 œufs', items: [{ name: 'Œufs entiers (3)', grams: 150, kcal: 215, p: 19, c: 1, f: 15 }] },
+  poulet: { label: 'Poulet 150 g', title: 'Blanc de poulet', items: [{ name: 'Blanc de poulet cuit', grams: 150, kcal: 248, p: 46, c: 0, f: 5 }] },
+  thon:   { label: 'Thon 1 boîte', title: 'Thon au naturel', items: [{ name: 'Thon au naturel égoutté', grams: 140, kcal: 160, p: 36, c: 0, f: 2 }] },
+  fblanc: { label: 'Fromage blanc 0 %', title: 'Fromage blanc 0 %', items: [{ name: 'Fromage blanc 0 %', grams: 250, kcal: 120, p: 20, c: 10, f: 0 }] },
+};
+/** Repas des 14 derniers jours, sans doublon de titre (bouton « refaire ») — le plus récent d'abord. */
+export async function recentMeals(uid: Uid, n = 6): Promise<Array<{ date: string; id: string; title: string; kcal: number; p: number }>> {
+  const today = localNow().date;
+  const days = await Promise.all(Array.from({ length: 14 }, (_, i) => mealsOf(uid, addDays(today, -i))));
+  const seen = new Set<string>(); const out: Array<{ date: string; id: string; title: string; kcal: number; p: number }> = [];
+  for (const m of days.flat().sort((a, b) => b.at - a.at)) {
+    const k = m.title.toLowerCase().trim();
+    if (seen.has(k) || !m.items.length) continue;
+    seen.add(k); out.push({ date: m.date, id: m.id, title: m.title, kcal: m.kcal, p: m.p });
+    if (out.length >= n) break;
+  }
+  return out;
+}
+export async function quickMeal(uid: Uid, o: { preset?: string; from?: { date: string; id: string } }): Promise<{ meal: MealLog; budget: Budget; message: string }> {
+  let raw: RawMeal | null = null;
+  if (o.preset && QUICK_FOODS[o.preset]) { const q = QUICK_FOODS[o.preset]!; raw = { title: q.title, items: q.items.map(x => ({ ...x })), confidence: 'haute' }; }
+  else if (o.from) {
+    const m = (await mealsOf(uid, o.from.date)).find(x => x.id === o.from!.id);
+    if (m) raw = { title: m.title, items: m.items.map(x => ({ ...x })), confidence: m.confidence };
+  }
+  if (!raw) throw new Error('aliment inconnu');
+  // Double appui en moins de 20 s = pas compté 2 fois
+  const twin = (await mealsOf(uid)).find(m => Date.now() - m.at < 20_000 && m.title === raw!.title);
+  if (twin) return { meal: twin, budget: await foodBudget(uid, twin.date), message: `Déjà noté : ${twin.title}` };
+  const meal = await storeMeal(uid, raw, { src: 'texte' });
+  return afterMeal(uid, meal);
+}
+
 /** Avant de manger : « si je mange ça ? » → kcal estimées + verdict + compensation. Rien n'est enregistré. */
 export async function checkFood(text: string): Promise<string> {
   const { ai, jsonOf } = await import('./ai-util.js');

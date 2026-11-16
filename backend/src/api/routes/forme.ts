@@ -160,6 +160,19 @@ router.post('/food/text', async (req, res) => {
   if (!b.text?.trim()) { fail(res, 'texte manquant', 400); return; }
   try { const f = await food(); res.json(await f.logMealText(U(req), b.text.slice(0, 300), b.slot && b.slot in f.SLOT_LABEL ? b.slot as never : undefined, isDate(b.date) && b.date <= new Date().toISOString().slice(0, 10) ? b.date : undefined)); } catch (err) { fail(res, err, 400); }
 });
+// 16/11 : protéines en 1 geste — aliments prêts + « refaire » un repas récent (sans IA)
+router.get('/food/quick', async (req, res) => {
+  try { const f = await food(); res.json({ presets: Object.entries(f.QUICK_FOODS).map(([id, q]) => ({ id, label: q.label, p: q.items.reduce((a, x) => a + x.p, 0), kcal: q.items.reduce((a, x) => a + x.kcal, 0) })), recent: await f.recentMeals(U(req)) }); } catch (err) { fail(res, err); }
+});
+router.post('/food/quick', async (req, res) => {
+  const b = (req.body ?? {}) as { preset?: string; from?: { date?: string; id?: string } };
+  try {
+    const f = await food();
+    const from = b.from && isDate(b.from.date) && b.from.id ? { date: b.from.date, id: String(b.from.id) } : undefined;
+    const r = await f.quickMeal(U(req), { preset: b.preset ? String(b.preset) : undefined, from });
+    res.json({ meal: r.meal, budget: r.budget });
+  } catch (err) { fail(res, err, 400); }
+});
 router.post('/food/edit', async (req, res) => {
   const b = req.body as { date?: string; id?: string; items?: never; title?: string; slot?: never; scale?: number; del?: boolean };
   if (!isDate(b.date) || !b.id) { fail(res, 'date et id requis', 400); return; }

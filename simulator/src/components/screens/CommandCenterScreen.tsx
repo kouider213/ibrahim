@@ -4,6 +4,7 @@ import { business, type TodayItem, type Booking, type ProfitLedger } from '../..
 import { SkeletonCards } from '../ui/Premium.tsx';
 import { T, tone, Screen, PageHeader, HeadBtn, Kpi, KpiGrid, SectionTitle, Row, Avatar, Badge, Empty, waLink, money, glass, CountUp } from '../ui/Kit.tsx';
 import { Icon, Ico } from '../ui/Icon.tsx';
+import MeCard from './MeCard.tsx';
 
 const go = (p: string) => window.dispatchEvent(new CustomEvent('dz:go', { detail: p }));
 const ymd = (d = new Date()) => d.toLocaleDateString('sv-SE', { timeZone: 'Africa/Algiers' });
@@ -149,6 +150,8 @@ export default function CommandCenterScreen() {
               </div>
             );
           })()}
+
+          <MeCard />
 
           <KpiGrid>
             <Kpi value={d.newDemands} label="Demandes (24 h)" color={T.accent2} sub={d.pendingBookings ? `${d.pendingBookings} résa à confirmer` : undefined} />

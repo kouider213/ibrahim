@@ -389,6 +389,16 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'week-card',
+    cron:  '30 19 * * 0',            // 16/11 : dimanche soir, « Ta semaine » (poids, séances, sommeil, protéines, demis, CA)
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'lead-cold',
+    cron:  '30 10 * * *',            // 16/11 : demande du site sans suite depuis 48 h → liste + relance prête dans l'app
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'people-brief',
     cron:  '*/15 8-21 * * *',         // mémoire des gens : RDV dans ~45 min avec une personne connue → sa fiche ; anniversaires du jour
     tz:    'Europe/Brussels',
@@ -854,6 +864,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'liberte':                 async () => { await (await import('../integrations/liberte.js')).jobLiberte(); },
   'papa-time':               async () => { console.log(`[papa-time] ${await jobPapaTime()}`); },
   'papa-weekly':             async () => { await jobPapaWeekly(); },
+  'week-card':                async () => { console.log(`[week-card] ${await (await import('../integrations/me-week.js')).jobWeekCard()}`); },
+  'lead-cold':                async () => { console.log(`[lead-cold] ${await (await import('../integrations/lead-cold.js')).jobLeadCold()}`); },
   'people-brief':             async () => { console.log(`[people-brief] ${await (await import('../integrations/people-memory.js')).jobPeopleBrief()}`); },
   'night-list-run':           async () => { console.log(`[night-list-run] ${await (await import('../integrations/night-list.js')).jobNightListRun()}`); },
   'night-list-report':        async () => { console.log(`[night-list-report] ${await (await import('../integrations/night-list.js')).jobNightListReport()}`); },
