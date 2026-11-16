@@ -13,7 +13,7 @@ export interface Cut {
   weight: { current: number; trend?: number; last: { date: string; kg: number } | null; goalKg: number | null; toLose: number; eta: string | null; rateWeek: number | null; ratePct: number | null; points: Array<{ date: string; kg: number; trend: number }>; loggedToday: boolean };
   adaptive: { tdee: number; vsWatch: number; days: number } | null; avgEaten: number | null; avgBurnWatch: number | null;
   week: Array<{ date: string; logged: boolean; deficitOk: boolean; proteinOk: boolean }>;
-  lifts: Array<{ name: string; now: number; before: number | null; pct: number | null; date: string }>; dropping: string[];
+  lifts: Array<{ name: string; now: number; before: number | null; pct: number | null; date: string; kg?: number; reps?: number }>; dropping: string[];
   score: number; parts: Array<{ k: string; ok: boolean; pts: number; hint: string }>;
   decision: { text: string; deficit: number | null; level: 'ok' | 'up' | 'down' | 'wait' | 'break' };
   waist: Array<{ date: string; cm: number }>; protein: { goal: number; perKg: number };
@@ -124,11 +124,11 @@ export default function CutScreen({ toast }: { toast: (t: string) => void }) {
       <H2>Ta force pendant la sèche</H2>
       <div style={card}>
         {c.lifts.length ? c.lifts.map(l => <div key={l.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: `1px solid ${F.line}` }}>
-          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.name}</div><div style={{ fontSize: 12, color: F.muted }}>1RM estimé · {fmt(l.date)}</div></div>
-          <div style={{ fontWeight: 800 }}>{l.now} kg</div>
+          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.name}</div><div style={{ fontSize: 12, color: F.muted }}>{fmt(l.date)}{l.kg ? ` · max estimé ≈ ${Math.round(l.now)} kg` : ''}</div></div>
+          <div style={{ fontWeight: 800, whiteSpace: 'nowrap' }}>{l.kg ? <>{l.kg} kg <span style={{ color: F.muted, fontWeight: 600 }}>× {l.reps}</span></> : `${l.now} kg`}</div>
           <div style={{ minWidth: 62, textAlign: 'right', fontSize: 13, fontWeight: 700, color: l.pct == null ? F.muted : l.pct <= -5 ? F.red : l.pct >= 0 ? F.green : F.gold }}>{l.pct == null ? 'nouveau' : `${l.pct > 0 ? '+' : ''}${l.pct} %`}</div>
         </div>) : <div style={{ fontSize: 14, color: F.muted }}>Note tes séries (kg × reps) pendant la séance : je surveille que tu ne perds pas de force.</div>}
-        <div style={{ fontSize: 12, color: F.muted, marginTop: 8, lineHeight: 1.4 }}>En sèche, garder ses charges = garder son muscle. Si un exo baisse de plus de 5 % en 2 semaines, je te le dis et on ajuste.</div>
+        <div style={{ fontSize: 12, color: F.muted, marginTop: 8, lineHeight: 1.4 }}>Ta meilleure série de la dernière séance. En sèche, garder ses charges = garder son muscle. Si un exo baisse de plus de 5 % en 2 semaines, je te le dis et on ajuste.</div>
       </div>
 
       {/* Tour de taille */}

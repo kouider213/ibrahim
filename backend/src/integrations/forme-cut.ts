@@ -23,7 +23,7 @@ const frN = (n: number | null) => n == null ? '?' : String(Number(n.toFixed(2)))
 const START_K = (u: Uid) => `${u}:forme:cutstart`;
 
 interface Day { weight?: number; measures?: Record<string, number>; workout?: { label: string } }
-interface Lift { name: string; now: number; before: number | null; pct: number | null; date: string }
+interface Lift { name: string; now: number; before: number | null; pct: number | null; date: string; kg: number; reps: number }
 
 /** Tendance lissée (moyenne mobile exponentielle, ~10 % par jour, trous comblés) */
 function trendOf(w: Array<{ date: string; kg: number }>) {
@@ -93,14 +93,15 @@ export async function cutStatus(uid: Uid = 'kouider') {
   const week = hist.slice(-7).map(h => ({ date: h.date, logged: h.complete, deficitOk: h.complete && h.eaten <= h.target + 50, proteinOk: h.p >= h.pGoal * 0.9 }));
 
   // Force pendant la sèche : 1RM estimé (Epley) — journal du coach + fiches FORME
-  const best = new Map<string, Array<{ date: string; e1: number }>>();
-  const pretty = (n: string) => { const t = n.replace(/[_-]+/g, ' ').trim(); return t.charAt(0).toUpperCase() + t.slice(1); };
+  // 16/11 (Kouider : « je n'ai pas fait 92 kg au butterfly ») : on garde aussi la vraie meilleure série (66 kg × 12) ; l'id « ~mwiuf57z0 » des fiches est retiré du nom
+  const best = new Map<string, Array<{ date: string; e1: number; kg: number; reps: number }>>();
+  const pretty = (n: string) => { const t = n.replace(/~.*$/, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim(); return t.charAt(0).toUpperCase() + t.slice(1); };
   const push = (raw: string, date: string, kg?: number, reps?: number) => {
     if (!kg || !reps || reps > 15 || kg < 5) return;
     const name = pretty(raw);
     const e1 = kg * (1 + reps / 30);
     const l = best.get(name) ?? []; const same = l.find(x => x.date === date);
-    if (same) same.e1 = Math.max(same.e1, e1); else l.push({ date, e1 }); best.set(name, l);
+    if (same) { if (e1 > same.e1) Object.assign(same, { e1, kg, reps }); } else l.push({ date, e1, kg, reps }); best.set(name, l);
   };
   if (uid === 'kouider') {
     const log = await logP;
@@ -112,8 +113,8 @@ export async function cutStatus(uid: Uid = 'kouider') {
     l.sort((a, b) => a.date.localeCompare(b.date));
     const last = l[l.length - 1]!;
     const old = [...l].reverse().find(x => dayDiff(x.date, last.date) >= 14) ?? null;
-    return { name, now: r1(last.e1), before: old ? r1(old.e1) : null, pct: old && Math.abs((last.e1 - old.e1) / old.e1) <= 0.4 ? Math.round((last.e1 - old.e1) / old.e1 * 1000) / 10 : null, date: last.date, n: l.length };
-  }).filter(x => dayDiff(x.date, today) <= 35).sort((a, b) => (b as Lift & { n: number }).n - (a as Lift & { n: number }).n).slice(0, 6).map(({ name, now, before, pct, date }) => ({ name, now, before, pct, date }));
+    return { name, now: r1(last.e1), before: old ? r1(old.e1) : null, pct: old && Math.abs((last.e1 - old.e1) / old.e1) <= 0.4 ? Math.round((last.e1 - old.e1) / old.e1 * 1000) / 10 : null, date: last.date, kg: last.kg, reps: last.reps, n: l.length };
+  }).filter(x => dayDiff(x.date, today) <= 35).sort((a, b) => (b as Lift & { n: number }).n - (a as Lift & { n: number }).n).slice(0, 6).map(({ name, now, before, pct, date, kg, reps }) => ({ name, now, before, pct, date, kg, reps }));
   const dropping = lifts.filter(l => l.pct != null && l.pct <= -5);
 
   // Score du jour (0-100) : déficit 30, protéines 25, muscu ou 8 000 pas 20, sommeil 15, pesée 10
@@ -227,7 +228,7 @@ export async function formeSnapshot(): Promise<string> {
     ins ? `semaine ${ins.week.done}/${ins.week.target} séances${notTrained.length ? `, muscles pas travaillés en 7 j : ${notTrained.join(', ')}` : ''}` : '',
     c ? `sèche semaine ${c.weeksIn + 1} : poids ${c.weight.current} kg (dernière pesée)${c.weight.rateWeek != null ? ` (${c.weight.rateWeek > 0 ? '−' : '+'}${Math.abs(c.weight.rateWeek)} kg/sem)` : ''}, objectif ${c.weight.goalKg ?? '?'} kg${c.weight.eta ? ` vers le ${c.weight.eta}` : ''} ; score du jour ${c.score}/100 (${c.parts.filter(p => !p.ok).map(p => `${p.k} manquant : ${p.hint}`).join(', ') || 'tout bon'})` : '',
     c?.dropping.length ? `force en baisse : ${c.dropping.join(', ')}` : '',
-    c?.lifts?.length ? `charges actuelles (1RM estimé) : ${c.lifts.slice(0, 5).map((l: { name: string; now: number; pct: number | null }) => `${l.name} ${l.now} kg${l.pct != null ? ` (${l.pct > 0 ? '+' : ''}${l.pct} % en 2 sem.)` : ''}`).join(', ')}` : '',
+    c?.lifts?.length ? `meilleures séries réelles (dernière séance) : ${c.lifts.slice(0, 5).map((l: { name: string; now: number; pct: number | null; kg?: number; reps?: number }) => `${l.name} ${l.kg ? `${l.kg} kg × ${l.reps}` : `${l.now} kg (max estimé)`}${l.pct != null ? ` (${l.pct > 0 ? '+' : ''}${l.pct} % en 2 sem.)` : ''}`).join(', ')}` : '',
     c ? `déficit visé ${c.deficit} kcal/j, protéines visées ${c.protein.goal} g/j` : '',
     ready, sleep,
     lastPh ? `dernière photo du corps (${lastPh.date}) : ${lastPh.analysis!.summary.slice(0, 160)}` : '',

@@ -1,3 +1,6 @@
+## 16/11/2026 (soir 3) — Sèche : vraie série au lieu du « 1RM estimé » (app v270)
+- Kouider : « je n'ai pas fait 92 kg au butterfly ». 92,4 = 1RM estimé (Epley) de 66 kg × 12. « Ta force pendant la sèche » affiche maintenant la meilleure série réelle (66 kg × 12), l'estimation en petit ; même chose dans le contexte des cerveaux. Noms d'exercices sans l'id « ~mwiuf57z0 » (les séries du même exo sont enfin regroupées → la comparaison sur 2 semaines marche).
+
 ## 16/11/2026 (soir 2) — Sommeil réparé, FORME graphiques partout, emojis finis, étiquettes non coupées (app v269)
 - SOMMEIL : 5 nuits sur 7 vides (le Raccourci « Dzaryx Sommeil » du matin ne part presque plus, montre pas portée la nuit). Le 1er envoi de la montre du matin (sans nuit), avant l'heure de réveil prévue + 1 h 30, compte maintenant comme « levé » → nuit estimée (sleep-phone `wakeFromHealthSend`, appelé par receiveHealth). FORME lisait le jour FORME seulement : `formeOverview.week7` prend aussi sommeil/pas de health:daily.
 - FORME : Repas (graphique mangé vs brûlé + déficit du jour, protéines vs objectif), Sèche (même graphique « Ton déficit », grille sans emojis), Progrès (courbe du tour de taille dès 2 mesures), Exercices (bandeau « Tes records »). forme/WeekCharts.tsx.
