@@ -535,8 +535,11 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
   // Photo d'un permis/passeport → OCR + calcul âge + contrôle assurance (≥35) + validité.
   // tolère les typos: passeport/passport/pasport/paseport, permis, carte/pièce d'identité, CIN
   const ID_SCAN_RE = /\b(permis|pas+e?port|(carte|pi[èe]ce).{0,4}identit|cin)\b/i;
-  if (imageBase64 && ID_SCAN_RE.test(userMessage)) {
-    const isPermis = /permis|license|licence/i.test(userMessage);
+  // 16/11 : les raccourcis photo ne lisent que SES mots, pas les consignes [entre crochets] ajoutées par le code
+  // (« Tu voit une différence » + 3 photos du corps → retouche lancée à cause de « « modifie mon agenda » » du contexte ne-pas-déranger).
+  const ownWords = userMessage.replace(/\[[^\]]*\]/g, ' ').trim();
+  if (imageBase64 && ID_SCAN_RE.test(ownWords)) {
+    const isPermis = /permis|license|licence/i.test(ownWords);
     console.log(`[orch:${requestId}] ID_SCAN pre-route isPermis=${isPermis}`);
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId, toolLabel: '📋 Lecture du document…' });
     try {
@@ -563,15 +566,15 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
   const EDIT_IMG_RE    = /\b(modifie|modifier|[ée]dite|edite|retouche|retoucher|enl[èe]ve|enlever|transforme|remplace|mets?[- ]?(moi|nous|le|la|les)|change\s+(le\s+|mon\s+|ma\s+|mes\s+)?(fond|d[ée]cor|arri[èe]re|visage|couleur|t[êe]te|coiffure))\b/i;
   const SUBJECT_EDIT_RE = /\b(enl[èe]ve|enlever|rends?[- ]?moi|rajeuni|vieilli|barbe|cheveux|coiffure|lunettes?|b[ée]ret|chapeau|casquette|maquillage|visage|peau|sourire|costume|habille)\b/i;
   const SCENE_RE        = /\b(fond|d[ée]cor|arri[èe]re|plage|ville|nuit|coucher|paysage|montagne|d[ée]sert|neige|for[êe]t|studio|mur|piscine|bureau|rue|route)\b/i;
-  if (imageBase64 && EDIT_IMG_RE.test(userMessage)
-      && !INSPECTION_BEFORE_RE.test(userMessage) && !INSPECTION_AFTER_RE.test(userMessage)) {
+  if (imageBase64 && EDIT_IMG_RE.test(ownWords)
+      && !INSPECTION_BEFORE_RE.test(ownWords) && !INSPECTION_AFTER_RE.test(ownWords)) {
     // garantir que l'image est bien en cache (le set plus haut n'est pas attendu)
     await redis.set(`session:image:${sessionId}`, JSON.stringify({ base64: imageBase64, mime: imageMime }), 'EX', 300).catch(() => {});
-    const styleEdit = (SUBJECT_EDIT_RE.test(userMessage) || !SCENE_RE.test(userMessage)) ? 'realistic' : 'background_only';
+    const styleEdit = (SUBJECT_EDIT_RE.test(ownWords) || !SCENE_RE.test(ownWords)) ? 'realistic' : 'background_only';
     console.log(`[orch:${requestId}] IMAGE_EDIT pre-route style=${styleEdit} msg="${userMessage.slice(0, 60)}"`);
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId, toolLabel: '🎨 Retouche image (gpt-image-1)…' });
     try {
-      const editRes = await executeImageToImage({ prompt: userMessage, style: styleEdit, strength: 0.5 }, sessionId);
+      const editRes = await executeImageToImage({ prompt: ownWords, style: styleEdit, strength: 0.5 }, sessionId);
       _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: editRes });
       saveConversationTurn(sessionId, 'assistant', editRes).catch(() => {});
       if (!textOnly && editRes.length > 0) {

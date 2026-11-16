@@ -547,7 +547,10 @@ export async function executeImageToImage(
   } catch (err: any) {
     const errMsg = err.message as string;
     console.error('[executeImageToImage] FAILED:', errMsg);
-    return `❌ Transformation image échouée. ${openaiEditError ? `OpenAI: ${openaiEditError}` : errMsg.slice(0, 300)}`;
+    // 16/11 : plus de JSON brut d'OpenAI envoyé à Kouider
+    const all = `${openaiEditError ?? ''} ${errMsg}`;
+    if (/insufficient_quota|credit_balance|no credits|billing/i.test(all)) return '❌ Retouche photo impossible pour le moment : le crédit OpenAI est épuisé (À PAYER). Rien d\'autre n\'est touché.';
+    return `❌ Retouche photo échouée (${(openaiEditError ? 'OpenAI' : errMsg).replace(/\s+/g, ' ').slice(0, 120)}).`;
   }
 
   console.log(`[executeImageToImage] ✅ provider=${result.provider} mode=${result.mode} url=${result.url.slice(0, 80)}`);
