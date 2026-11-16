@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { business, type OpportunitiesReport, type Opportunity } from '../../services/api.ts';
 import { Hero } from '../ui/Premium.tsx';
-import { Ico } from '../ui/Icon.tsx';
+import { Ico, Icon, splitEmoji } from '../ui/Icon.tsx';
 
 const C = {
   bg: 'var(--dz-bg)', surface: 'var(--dz-surface)', surface2: 'var(--dz-surface2)', border: 'rgba(var(--dz-ink-rgb),0.15)',
@@ -148,7 +148,7 @@ export default function OpportunitiesScreen({ onAsk }: { onAsk?: (prompt: string
           return (
             <div key={i} onClick={() => setSel(o)} role="button" style={{ ...card, padding: 14, marginBottom: 10, cursor: 'pointer', ...(isFav(o) ? { border: `1px solid color-mix(in srgb, ${C.gold} 40%, transparent)`, background: `color-mix(in srgb, ${C.gold} 5%, transparent)` } : {}) }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <span style={{ fontSize: 17 }}>{m.icon}</span>
+                <OppIcon e={m.icon} size={17} />
                 <span style={{ fontSize: 14.5, fontWeight: 700, flex: 1 }}>{o.title}</span>
                 <button onClick={(e) => { e.stopPropagation(); toggleFav(o); }} title={isFav(o) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
                   style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 17, padding: 0, lineHeight: 1, color: isFav(o) ? C.gold : C.muted }}>{isFav(o) ? '★' : '☆'}</button>
@@ -170,7 +170,7 @@ export default function OpportunitiesScreen({ onAsk }: { onAsk?: (prompt: string
           <div onClick={e => e.stopPropagation()} style={{ width: '100%', background: C.surface, borderRadius: '22px 22px 0 0', border: `1px solid ${C.border}`, padding: '20px 18px 28px', maxHeight: '88%', overflowY: 'auto' }}>
             <div style={{ width: 38, height: 4, borderRadius: 2, background: C.border, margin: '0 auto 16px' }} />
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <span style={{ fontSize: 22 }}>{(OPP_META[sel.category] ?? OPP_META.marche).icon}</span>
+              <OppIcon e={(OPP_META[sel.category] ?? OPP_META.marche).icon} size={22} />
               <span style={{ fontSize: 11, fontWeight: 700, color: URG_COL[sel.urgency] ?? C.muted, background: `${URG_COL[sel.urgency] ?? C.muted}1f`, padding: '3px 9px', borderRadius: 20 }}>{URG_LABEL[sel.urgency]}</span>
               <span style={{ fontSize: 11, color: C.muted, marginLeft: 'auto' }}>{(OPP_META[sel.category] ?? OPP_META.marche).label}</span>
             </div>
@@ -204,3 +204,8 @@ function buildAskPrompt(o: Opportunity): string {
 }
 
 const card: CSSProperties = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 18, overflow: 'hidden' };
+
+function OppIcon({ e, size }: { e: string; size: number }) {
+  const { icon } = splitEmoji(e);
+  return icon ? <span style={{ display: 'inline-flex', color: 'var(--dz-text)', opacity: 0.85 }}><Icon name={icon} size={size} /></span> : <span style={{ fontSize: size }}>{e}</span>;
+}

@@ -96,6 +96,8 @@ export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok
   all.push(d);
   all.sort((a, b) => a.date.localeCompare(b.date));
   await kvPut('health:daily', all.slice(-120));
+  // 16/11 : envoi du matin SANS nuit (montre pas portée) → compte comme « levé », la nuit est estimée (coucher noté ou 23:00)
+  if (!d.sleep_h && body['sleep_src'] === undefined && date === localNow().date) await import('./sleep-phone.js').then(m => m.wakeFromHealthSend()).catch(() => {});
   // 02/11 : 1er sommeil reçu ce matin = heure de réveil (le Raccourci part à l'arrêt de l'alarme) → « énergie en direct » de FORME
   if (d.sleep_h && !same?.sleep_h && date === localNow().date && localNow().hhmm < '12:00') await kvPut('kouider:woke', { date, hhmm: localNow().hhmm }, 2 * 86_400).catch(() => {});
   const prev = all.slice(-15, -1);

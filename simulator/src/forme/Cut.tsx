@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { get, forme, errText, vibrate } from './api.ts';
 import { F, card, darkCard, btn, ghostBtn, input, Ring, Bar, LineChart, Spinner } from './ui.tsx';
-import { Ico } from '../components/ui/Icon.tsx';
+import { Ico, Icon } from '../components/ui/Icon.tsx';
+import { EnergyChart, useFoodWeek } from './WeekCharts.tsx';
 
 // 🔪 SÈCHE (Kouider 01/11) — remplace « Course » pour lui seul (son ami garde Course). Musculation + sèche, le meilleur de
 // 20 applis (MacroFactor, Happy Scale, RP Diet, Carbon, Hevy, Strong, Alpha Progression, Whoop, Gravl, Fitbod…), calculé
@@ -24,6 +25,7 @@ const dow = (d: string) => 'DLMMJVS'[new Date(`${d}T12:00:00Z`).getUTCDay()];
 
 export default function CutScreen({ toast }: { toast: (t: string) => void }) {
   const [c, setC] = useState<Cut | null>(null);
+  const fw = useFoodWeek();
   const [err, setErr] = useState('');
   const [kg, setKg] = useState('');
   const [cm, setCm] = useState('');
@@ -108,13 +110,14 @@ export default function CutScreen({ toast }: { toast: (t: string) => void }) {
 
       {/* 7 jours */}
       <H2>7 derniers jours</H2>
+      {fw && <EnergyChart days={fw} title="Ton déficit" />}
       <div style={{ ...card, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, textAlign: 'center' }}>
         {c.week.map(d => <div key={d.date} style={{ display: 'grid', gap: 4, fontSize: 11.5 }}>
           <div style={{ color: F.muted, fontWeight: 600 }}>{dow(d.date)}</div>
-          <div title="Déficit" style={{ height: 26, borderRadius: 8, background: !d.logged ? F.bg2 : d.deficitOk ? 'color-mix(in srgb, #1f9d5c 14%, var(--f-card))' : 'color-mix(in srgb, #e5322d 14%, var(--f-card))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{!d.logged ? '·' : d.deficitOk ? '🔥' : '✕'}</div>
-          <div title="Protéines" style={{ height: 26, borderRadius: 8, background: !d.logged ? F.bg2 : d.proteinOk ? 'color-mix(in srgb, #1f63f0 14%, var(--f-card))' : 'color-mix(in srgb, #e09a12 14%, var(--f-card))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{!d.logged ? '·' : d.proteinOk ? '🥩' : '—'}</div>
+          <div title="Déficit" style={{ height: 26, borderRadius: 8, background: !d.logged ? F.bg2 : d.deficitOk ? 'color-mix(in srgb, #1f9d5c 14%, var(--f-card))' : 'color-mix(in srgb, #e5322d 14%, var(--f-card))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{!d.logged ? '·' : d.deficitOk ? <Icon name="flame" size={15} color="#1f9d5c" /> : <Icon name="x" size={14} color="#e5322d" />}</div>
+          <div title="Protéines" style={{ height: 26, borderRadius: 8, background: !d.logged ? F.bg2 : d.proteinOk ? 'color-mix(in srgb, #1f63f0 14%, var(--f-card))' : 'color-mix(in srgb, #e09a12 14%, var(--f-card))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{!d.logged ? '·' : d.proteinOk ? <Icon name="check" size={15} color="#1f63f0" stroke={2.4} /> : '—'}</div>
         </div>)}
-        <div style={{ gridColumn: '1 / -1', fontSize: 12, color: F.muted, marginTop: 4 }}><Ico e="🔥" />déficit tenu · 🥩 protéines ≥ 90 % · « · » = repas pas notés</div>
+        <div style={{ gridColumn: '1 / -1', fontSize: 12, color: F.muted, marginTop: 4 }}>1re ligne : déficit tenu · 2e ligne : protéines ≥ 90 % · « · » = repas pas notés</div>
       </div>
 
       {/* Force */}

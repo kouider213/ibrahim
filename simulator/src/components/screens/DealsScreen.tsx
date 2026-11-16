@@ -3,7 +3,7 @@ import PhotoGallery, { type GalleryKind } from '../ui/PhotoGallery.tsx';
 import { business, type SaleVehicle, type SiteProperty, type OpportunitiesReport, type Opportunity } from '../../services/api.ts';
 import { Hero } from '../ui/Premium.tsx';
 import { Segmented } from '../ui/Kit.tsx';
-import { Ico } from '../ui/Icon.tsx';
+import { Ico, Label } from '../ui/Icon.tsx';
 
 const OPP_META: Record<string, { icon: string; label: string }> = {
   location: { icon: '🔑', label: 'Location' },
@@ -280,7 +280,7 @@ export default function DealsScreen() {
         <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>Comment l'utiliser</div>
         <div style={{ ...card, padding: '6px 14px' }}>
           {HOWTO.map((s, i) => (
-            <div key={i} style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, padding: '8px 0', borderBottom: i < HOWTO.length - 1 ? `1px solid ${C.border}` : 'none' }}>{s}</div>
+            <div key={i} style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, padding: '8px 0', borderBottom: i < HOWTO.length - 1 ? `1px solid ${C.border}` : 'none' }}><Label size={15} gap={9}>{s}</Label></div>
           ))}
         </div>
       </div>

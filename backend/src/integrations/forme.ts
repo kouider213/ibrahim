@@ -692,7 +692,10 @@ export async function formeOverview(uid: Uid = 'kouider') {
   // Série = jours de suivi d'affilée (poids, séance, pas, photo) — plus de repas depuis le 31/10
   let streak = 0;
   for (let i = 0; i < 200; i++) { const d = days[addDays(today, -i)]; if (d && (d.weight || d.workout || d.steps || d.injection)) streak++; else if (i > 0) break; }
-  const week7 = Array.from({ length: 7 }, (_, i) => addDays(today, i - 6)).map(d => ({ date: d, sleep: days[d]?.sleep ?? null, steps: days[d]?.steps ?? null, workout: !!days[d]?.workout }));
+  // 16/11 : la nuit et les pas de la montre / du téléphone sont dans health:daily (pas dans le jour FORME) → graphiques FORME vides
+  const health = uid === 'kouider' ? await readJson<Array<{ date: string; sleep_h?: number; steps?: number }>>('health:daily', []) : [];
+  const hOf = (d: string) => health.find(x => x.date === d);
+  const week7 = Array.from({ length: 7 }, (_, i) => addDays(today, i - 6)).map(d => ({ date: d, sleep: days[d]?.sleep ?? hOf(d)?.sleep_h ?? null, steps: days[d]?.steps ?? hOf(d)?.steps ?? null, workout: !!days[d]?.workout }));
   const shown = photos.slice(-24);
   const urls = await signedPhotoUrls(shown).catch(() => ({} as Record<string, string>));
   const lastPhoto = photos[photos.length - 1];

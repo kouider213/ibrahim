@@ -1,4 +1,5 @@
 // Caméra du téléphone → Nexus : le PC voit en direct (widget sur l'écran Nexus), lit / analyse ce qu'on lui montre,
+import { Icon } from '../ui/Icon.tsx';
 // et range les photos / vidéos dans Images/Dzaryx Caméra du PC. Les ordres vocaux donnés à Nexus (« prends-la en photo »,
 // « filme 10 secondes ») reviennent ici dans la réponse de /frame et sont exécutés en pleine qualité.
 import { useEffect, useRef, useState } from 'react';
@@ -170,7 +171,7 @@ export default function PhoneCamScreen() {
 
       {!on && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 28, textAlign: 'center', gap: 16 }}>
-          <div style={{ width: 120, height: 120, borderRadius: 60, border: `2px solid ${C.cyan}`, boxShadow: `0 0 40px color-mix(in srgb, ${C.cyan} 33%, transparent), inset 0 0 30px color-mix(in srgb, ${C.cyan} 20%, transparent)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 46 }}>👁️</div>
+          <div style={{ width: 120, height: 120, borderRadius: 60, border: `2px solid ${C.cyan}`, boxShadow: `0 0 40px color-mix(in srgb, ${C.cyan} 33%, transparent), inset 0 0 30px color-mix(in srgb, ${C.cyan} 20%, transparent)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 46, color: C.cyan }}><Icon name="eye" size={50} stroke={1.6} /></div>
           <div style={{ fontSize: 20, fontWeight: 700 }}>Montre-le à Nexus</div>
           <div style={{ fontSize: 13.5, color: C.muted, lineHeight: 1.5, maxWidth: 320 }}>
             Ta caméra s'affiche en direct sur l'écran de ton PC. Dis à Nexus « tu vois ça ? », « prends-la en photo » ou « filme 10 secondes » :

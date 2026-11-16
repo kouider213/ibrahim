@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business, type ClientSiteRow, type SitesOverview, type SiteMessage, type SiteTarifs, type SitePack } from '../../services/api.ts';
 import { Hero, StatCard, SkeletonCards, SearchPill } from '../ui/Premium.tsx';
-import { Ico } from '../ui/Icon.tsx';
+import { Ico, Label } from '../ui/Icon.tsx';
 
 // Sites clients (FIK Sites) : démos depuis Google Maps → vrais sites, espace client du patron, abonnements payés à la
 // main, noms de domaine, réservations/messages reçus par les sites. Mêmes actions que l'outil vocal manage_client_site.
@@ -117,7 +117,7 @@ export default function SitesScreen() {
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: '0.02em', marginBottom: hint ? 3 : 9 }}>{title}</div>
+      <div style={{ fontSize: 14, fontWeight: 750, letterSpacing: '-0.01em', marginBottom: hint ? 3 : 9 }}><Label size={16}>{title}</Label></div>
       {hint && <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 9, lineHeight: 1.4 }}>{hint}</div>}
       {children}
     </div>
@@ -127,7 +127,7 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 10 }}>
-      <div style={{ fontSize: 12, fontWeight: 800, color: C.muted, letterSpacing: '0.04em', marginBottom: 7 }}>{title}</div>
+      <div style={{ fontSize: 12, fontWeight: 750, color: C.muted, letterSpacing: '0.04em', marginBottom: 7 }}><Label size={14}>{title}</Label></div>
       {children}
     </div>
   );
@@ -191,7 +191,7 @@ function SiteCard({ s, open, onToggle, act, onRead }: { s: ClientSiteRow; open: 
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
           <Badge color={s.status === 'live' ? C.accent : C.muted}>{s.status === 'live' ? 'En ligne' : s.pausedReason === 'billing' ? 'Pause impayé' : 'En pause'}</Badge>
-          {late ? <Badge color={C.red}>{b!.late} j de retard</Badge> : s.unread ? <Badge color={C.gold}>📨 {s.unread}</Badge> : null}
+          {late ? <Badge color={C.red}>{b!.late} j de retard</Badge> : s.unread ? <Badge color={C.gold}>{`📨 ${s.unread}`}</Badge> : null}
         </div>
       </button>
       {open && <SiteDetail s={s} act={act} onRead={onRead} />}
@@ -226,8 +226,8 @@ function TarifsSection({ t, onEdit }: { t: SiteTarifs; onEdit: (changes: string)
           </div>
         ))}
         <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 9, paddingTop: 9, fontSize: 12 }}>
-          {t.options.filter(o => o.country === country).map(o => <div key={o.id}>➕ <b>{o.name}</b>{o.monthly ? ` +${money(o.monthly, o.currency)}/mois` : ''}{o.once ? ` ${money(o.once, o.currency)}` : ''} <span style={{ color: C.muted }}>— {o.note}</span></div>)}
-          <div style={{ color: C.gold, marginTop: 6 }}>🎁 {t.offers[country]}</div>
+          {t.options.filter(o => o.country === country).map(o => <div key={o.id}><Ico e="➕" /><b>{o.name}</b>{o.monthly ? ` +${money(o.monthly, o.currency)}/mois` : ''}{o.once ? ` ${money(o.once, o.currency)}` : ''} <span style={{ color: C.muted }}>— {o.note}</span></div>)}
+          <div style={{ color: C.gold, marginTop: 6 }}><Ico e="🎁" />{t.offers[country]}</div>
         </div>
         {open && (<div style={{ marginTop: 10 }}>
           <input value={changes} onChange={e => setChanges(e.target.value)} placeholder="Changer un prix : « passe le Pro France à 45 € »" style={input} />

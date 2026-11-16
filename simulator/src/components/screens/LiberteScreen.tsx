@@ -122,7 +122,7 @@ export default function LiberteScreen() {
       {/* Médecin */}
       {s.doctor.status !== 'vu' && (
         <Card accent={T.warn} style={{ marginBottom: 12 }} onClick={() => setSheet('doc')}>
-          <div style={{ fontWeight: 700 }}>🩺 {s.doctor.status === 'a_appeler' ? 'Étape 1 : appelle ton médecin' : `RDV médecin : ${s.doctor.date?.replace('T', ' à ') ?? 'pris'}`}</div>
+          <div style={{ fontWeight: 700 }}><Ico e="🩺" />{s.doctor.status === 'a_appeler' ? 'Étape 1 : appelle ton médecin' : `RDV médecin : ${s.doctor.date?.replace('T', ' à ') ?? 'pris'}`}</div>
           <div style={{ fontSize: 13, color: T.muted, marginTop: 4, lineHeight: 1.45 }}>
             {s.doctor.status === 'a_appeler' ? 'Il valide le plan, peut soulager le manque, et s\'occupe de la fatigue et du moral (prise de sang). Touche ici quand c\'est fait.' : 'Touche ici après la consultation pour noter ce qu\'il a dit.'}
           </div>

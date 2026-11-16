@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { business, type BillingRow, type BillingOverview } from '../../services/api.ts';
 import { Hero, StatCard, SkeletonCards } from '../ui/Premium.tsx';
 import { Ico } from '../ui/Icon.tsx';
+import { T, Toggle } from '../ui/Kit.tsx';
 
 // « À PAYER » : tout ce qu'il faut payer pour garder Dzaryx actif. Railway et le domaine sont lus en direct,
 // le reste se remplit ici (date, montant, solde après recharge). Dzaryx prévient à J-7, J-3, J-1, le jour J.
@@ -46,7 +47,7 @@ export default function PaiementsScreen() {
   useEffect(() => { void load(); }, [load]);
   const say = (t: string) => { setToast(t); setTimeout(() => setToast(''), 3500); };
   const act = async (fn: () => Promise<{ message?: string }>) => {
-    try { const r = await fn(); say(r.message ?? '✅'); await load(); } catch (e) { say(`❌ ${errText(e)}`); }
+    try { const r = await fn(); say(r.message ?? 'Fait'); await load(); } catch (e) { say(`❌ ${errText(e)}`); }
   };
 
   const rows = data?.rows ?? [];
@@ -78,13 +79,12 @@ export default function PaiementsScreen() {
               <div style={{ fontWeight: 800, fontSize: 13.5 }}><Ico e="🌱" />Mode économie Claude {data?.eco !== false ? 'activé' : 'coupé'}</div>
               <div style={{ color: C.muted }}>Les tâches de fond utilisent le modèle léger (≈ 20× moins cher). Le chat, les mails aux prospects, le conseiller et les inspections gardent le meilleur modèle.</div>
             </div>
-            <button onClick={() => void act(() => business.billingEco(data?.eco === false))}
-              style={btn(data?.eco !== false ? 'rgba(47,91,255,0.18)' : 'rgba(var(--dz-ink-rgb),0.054)', data?.eco !== false ? C.accent : C.text)}>{data?.eco !== false ? 'ON' : 'OFF'}</button>
+            <Toggle on={data?.eco !== false} onChange={() => void act(() => business.billingEco(data?.eco === false))} colorOn={T.ok} colorOff="#64748b" />
           </div>
 
           <div style={{ background: 'rgba(47,91,255,0.08)', border: `1px solid rgba(47,91,255,0.25)`, borderRadius: 14, padding: 12, marginBottom: 14, fontSize: 12, lineHeight: 1.5 }}>
             <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 4 }}><Ico e="🛡️" />Dzaryx ne meurt pas</div>
-            {(data?.survival ?? []).map((l, i) => <div key={i}>• {l}</div>)}
+            {(data?.survival ?? []).map((l, i) => <div key={i}>• {l.replace(/\p{Extended_Pictographic}\uFE0F?\s*/gu, '')}</div>)}
             <div style={{ color: C.muted, marginTop: 4 }}><Ico e="🔔" />Dzaryx te prévient à J-7, J-3, la veille (appel pour Railway) et le jour J, et dès qu'un crédit est épuisé.</div>
           </div>
 

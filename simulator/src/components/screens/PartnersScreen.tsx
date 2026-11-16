@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { apiFetch } from '../../services/api.ts';
 import { Hero, StatCard, SkeletonCards, SearchPill } from '../ui/Premium.tsx';
 import { btnStyle } from '../ui/Kit.tsx';
-import { Ico } from '../ui/Icon.tsx';
+import { Ico, Label } from '../ui/Icon.tsx';
 
 // « PARTENAIRES » : Houari, Karim… et tout ce qu'ils proposent (véhicules, immobilier, services, activités),
 // avec photos, prix payé au partenaire, prix client et marge. Un véhicule « dans le PARC » se met à jour partout.
@@ -208,7 +208,7 @@ export default function PartnersScreen() {
           {!oForm.id && <>
             <span style={label}>Type</span>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {TYPES.map(t => <button key={t.id} onClick={() => setOForm(s => s && { ...s, f: { ...s.f, type: t.id, unit: t.unit } })} style={{ ...btn(f.type === t.id ? `color-mix(in srgb, ${C.accent} 15%, transparent)` : C.surface2, f.type === t.id ? C.accent : C.muted), border: `1px solid ${f.type === t.id ? C.accent : C.border}` }}>{t.icon} {t.label}</button>)}
+              {TYPES.map(t => <button key={t.id} onClick={() => setOForm(s => s && { ...s, f: { ...s.f, type: t.id, unit: t.unit } })} style={{ ...btn(f.type === t.id ? `color-mix(in srgb, ${C.accent} 15%, transparent)` : C.surface2, f.type === t.id ? C.accent : C.muted), border: `1px solid ${f.type === t.id ? C.accent : C.border}` }}><Label size={15}>{`${t.icon} ${t.label}`}</Label></button>)}
             </div>
           </>}
           <span style={label}>Nom *</span>
@@ -309,7 +309,7 @@ export default function PartnersScreen() {
           <div style={{ display: 'flex', gap: 6, overflowX: 'auto', margin: '14px 0 4px', paddingBottom: 4 }}>
             {[{ id: 'all' as const, icon: '✨', label: 'Tout' }, ...TYPES].filter(t => t.id === 'all' || p.stats.byType[t.id as OfferType]).map(t => (
               <button key={t.id} onClick={() => setFilter(t.id)} style={{ ...btn(filter === t.id ? `${C.accent}26` : C.surface2, filter === t.id ? C.accent : C.muted), whiteSpace: 'nowrap', flexShrink: 0 }}>
-                {t.icon} {t.label}{t.id !== 'all' ? ` ${p.stats.byType[t.id as OfferType]}` : ''}
+                <Label size={15}>{`${t.icon} ${t.label}${t.id !== 'all' ? ` ${p.stats.byType[t.id as OfferType]}` : ''}`}</Label>
               </button>
             ))}
           </div>

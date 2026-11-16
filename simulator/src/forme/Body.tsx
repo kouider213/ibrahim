@@ -6,6 +6,7 @@ import { beep } from './Sport.tsx';
 import Insights from './Insights.tsx';
 import { GoalsCard } from './Goals.tsx';
 import { Ico } from '../components/ui/Icon.tsx';
+import { MeasureLine } from './WeekCharts.tsx';
 
 // Onglet CORPS : poids, mensurations et PHOTOS DE SUIVI. Caméra avec la photo d'avant en transparence pour se placer
 // pareil, minuteur 3 s par défaut (10 s / off au choix), photo « avant » au choix, puis Claude compare avant / maintenant et entoure ce qui a changé.
@@ -273,6 +274,7 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
       )}
 
       <Section a="Mensurations" right="+ Noter" onRight={() => setMOpen(true)} />
+      <MeasureLine label="Tour de taille" points={o.measures.filter(m => m['taille'] != null).map(m => ({ date: String(m['date']), v: Number(m['taille']) }))} />
       <div style={{ ...card }}>
         {o.measures.length ? (() => {
           const first = o.measures[0]!, last = o.measures[o.measures.length - 1]!;

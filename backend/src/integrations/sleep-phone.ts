@@ -102,6 +102,25 @@ export async function phoneSleepMark(kindIn: string): Promise<{ ok: true; say: s
   return { ok: true, say: `Bonjour ☀️ Couché à ${hm(bed.at)}, levé à ${hm(nowIso)} → environ ${fmtH(sleep)} de sommeil (estimé sans montre).` };
 }
 
+/** 16/11 (FORME : sommeil vide 5 nuits sur 7, le Raccourci « Dzaryx Sommeil » du matin ne part presque plus) :
+ *  le 1er envoi de la montre du matin (alarme arrêtée, ouverture de FORME…) compte comme « levé » — seulement avant
+ *  son heure de réveil prévue + 1 h 30, sinon une ouverture de FORME à 11h gonflerait la nuit. Rien si la nuit est déjà connue. */
+export async function wakeFromHealthSend(): Promise<void> {
+  const { date, hhmm } = localNow();
+  if (hhmm < '04:30') return;
+  const woke = await kvJson<{ date: string } | null>(WOKE_K, null);
+  if (woke?.date === date) return;
+  const wd = new Date(`${date}T12:00:00Z`).getUTCDay();
+  const { getRoutineConfig } = await import('./morning-routine.js');
+  const plan = (await getRoutineConfig().catch(() => null))?.days?.[wd];
+  const wake = plan && plan.kind !== 'none' && plan.wake ? plan.wake : '07:00';
+  const [h, m] = wake.split(':').map(Number);
+  const lim = (h ?? 7) * 60 + (m ?? 0) + 90;
+  const [nh, nm] = hhmm.split(':').map(Number);
+  if ((nh ?? 0) * 60 + (nm ?? 0) > lim) return;
+  await phoneSleepMark('leve');
+}
+
 /** Coucher estimé quand il n'a rien dit : heure habituelle (min_bed), repoussée à son dernier message de la soirée s'il écrivait encore après. */
 async function estimateBed(date: string): Promise<{ iso: string; why: string }> {
   const mb = await minBed();

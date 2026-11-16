@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { business, type EditOptions, type EditTimelineText } from '../../services/api.ts';
-import { Ico } from '../ui/Icon.tsx';
+import { Ico, Icon } from '../ui/Icon.tsx';
 
 // ÉDITEUR façon CapCut (gratuit, illimité, sans filigrane) : tes rushes → timeline → coupes, vitesse, volume,
 // textes, filtres, sous-titres auto, musique, format, signature FIK → export rendu par le serveur.
@@ -251,7 +251,7 @@ export default function MontageEditor({ onExported, say }: { onExported: () => v
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
-          <button style={{ ...btn(C.accent, '#f2f2f5'), padding: '8px 14px' }} onClick={togglePlay} disabled={!clips.length}>{playing ? '⏸' : '▶️'}</button>
+          <button style={{ ...btn(C.accent, '#f2f2f5'), padding: '8px 14px' }} onClick={togglePlay} disabled={!clips.length}>{playing ? <Icon name="pause" size={16} stroke={2.2} /> : <Icon name="play" size={16} stroke={2.2} />}</button>
           <div style={{ flex: 1, height: 4, background: 'rgba(var(--dz-ink-rgb),0.075)', borderRadius: 2 }}>
             <div style={{ width: `${total ? Math.min(100, (time / total) * 100) : 0}%`, height: '100%', background: C.accent, borderRadius: 2 }} />
           </div>

@@ -176,7 +176,7 @@ export function Kpi({ value, label, color = T.accent, sub, icon }: { value: Reac
       <div style={{ position: 'absolute', top: -30, right: -30, width: 80, height: 80, borderRadius: '50%', background: tone(color, 0.18), filter: 'blur(22px)', pointerEvents: 'none' }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 500, color: T.muted, lineHeight: 1.25, letterSpacing: '-0.005em' }}>
         <span style={{ width: 6, height: 6, borderRadius: 2, background: color, boxShadow: `0 0 8px ${color}`, flexShrink: 0 }} />
-        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+        <span lang="fr" style={{ minWidth: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', hyphens: 'auto', WebkitHyphens: 'auto' }}>{label}</span>
       </div>
       <div className="dz-num" style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: T.display, fontSize: 25, fontWeight: 600, letterSpacing: '-0.045em', color: T.text, lineHeight: 1.1, marginTop: 10, whiteSpace: 'nowrap' }}>{icon && (() => { const ic = splitEmoji(icon); return ic.icon ? <span style={{ color, display: 'flex' }}><Icon name={ic.icon} size={18} stroke={2} /></span> : <span style={{ fontSize: 16 }}>{icon}</span>; })()}<CountUp value={value} /></div>
       {sub != null && <div style={{ fontSize: 11.5, color, marginTop: 4, fontWeight: 600 }}>{sub}</div>}

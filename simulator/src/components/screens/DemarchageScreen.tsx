@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business, type ProspectRow, type ProspectsOverview } from '../../services/api.ts';
 import { Hero, StatCard, SkeletonCards, SearchPill } from '../ui/Premium.tsx';
-import { Ico } from '../ui/Icon.tsx';
+import { Ico, Label } from '../ui/Icon.tsx';
 
 const C = {
   bg: 'var(--dz-bg)', surface: 'var(--dz-surface)', border: 'rgba(var(--dz-ink-rgb),0.16)',
@@ -124,7 +124,7 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
           <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 13, marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>{ap.enabled ? '✅ Démarchage auto actif' : '⏸️ Démarchage auto en pause'}</div>
+                <div style={{ fontSize: 14, fontWeight: 700 }}><Label size={16}>{ap.enabled ? '✅ Démarchage auto actif' : '⏸️ Démarchage auto en pause'}</Label></div>
                 <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>Chaque jour à 10h (Oran) · {ap.per_day} mail(s)/jour{(data.mode ?? 'sites') !== 'sites' ? ' + 1 grand compte' : ''}</div>
               </div>
               <button onClick={() => act(() => business.prospectsAutopilot({ enabled: !ap.enabled }), ap.enabled ? 'Démarchage mis en pause' : 'Démarchage réactivé')}
@@ -143,19 +143,19 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
               {MODES.map(m => {
                 const on = (data.mode ?? 'sites') === m.id;
                 return <button key={m.id} onClick={() => !on && act(() => business.prospectsAutopilot({ mode: m.id }), `Mode : ${m.label}`)}
-                  style={{ ...btn(on ? 'rgba(47,91,255,0.18)' : 'rgba(var(--dz-ink-rgb),0.054)', on ? C.accent : C.text), flex: 1, border: on ? `1px solid ${C.accent}` : '1px solid transparent' }}>{m.label}</button>;
+                  style={{ ...btn(on ? 'rgba(47,91,255,0.18)' : 'rgba(var(--dz-ink-rgb),0.054)', on ? C.accent : C.text), flex: 1, border: on ? `1px solid ${C.accent}` : '1px solid transparent' }}><Label size={15}>{m.label}</Label></button>;
               })}
             </div>
             <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8, lineHeight: 1.45 }}>
               {(data.mode ?? 'sites') === 'conciergerie'
-                ? '🏨 Entreprises et partenaires FIK Conciergerie, mail avec le lien du site.'
-                : '🌐 Commerces SANS site web (Google Maps) : le 1er mail propose une démo gratuite. La démo est faite et envoyée seulement s\'ils répondent oui.'
+                ? 'Entreprises et partenaires FIK Conciergerie, mail avec le lien du site.'
+                : 'Commerces SANS site web (Google Maps) : le 1er mail propose une démo gratuite. La démo est faite et envoyée seulement s\'ils répondent oui.'
                   + ((data.mode ?? 'sites') === 'both' ? ' Moitié sites web, moitié conciergerie.' : '')}
               {st?.sites_sent ? ` · ${st.sites_sent} commerce(s) déjà contacté(s).` : ''}
             </div>
             {(data.mode ?? 'sites') !== 'conciergerie' && (
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 8 }}>
-                <div style={{ flex: 1, fontSize: 11.5, lineHeight: 1.45 }}>📍 {(data.cities ?? []).join(' · ')}</div>
+                <div style={{ flex: 1, fontSize: 11.5, lineHeight: 1.45 }}><Ico e="📍" />{(data.cities ?? []).join(' · ')}</div>
                 <button onClick={() => {
                   const v = window.prompt('Villes à démarcher, séparées par des virgules (ex : Liège Belgique, Lyon France, Oran Algérie)',
                     (data.cities ?? []).map(c => c.replace(', ', ' ')).join(', '));
@@ -167,12 +167,12 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
             )}
             <div style={{ fontSize: 11.5, color: data.sender_pro ? C.accent : C.gold, marginTop: 10, lineHeight: 1.4 }}>
               {data.sender_pro
-                ? `✉️ Envoi depuis ${data.sender}`
-                : `✉️ Envoi depuis ${data.sender} — contact@fikconciergerie.com pas encore relié à Gmail (« Envoyer en tant que »)`}
+                ? `Envoi depuis ${data.sender}`
+                : `Envoi depuis ${data.sender} — contact@fikconciergerie.com pas encore relié à Gmail (« Envoyer en tant que »)`}
             </div>
             <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}><Ico e="🔁" />Relance automatique après 5 jours sans réponse (une seule fois)</div>
             <button onClick={() => { if (weekly) { setWeekly(null); return; } business.prospectsWeekly().then(r => setWeekly(r.report), () => say('❌ Bilan indisponible')); }}
-              style={{ ...btn('rgba(var(--dz-ink-rgb),0.054)', C.text), marginTop: 10, width: '100%' }}>{weekly ? 'Fermer le bilan' : '📊 Bilan de la semaine'}</button>
+              style={{ ...btn('rgba(var(--dz-ink-rgb),0.054)', C.text), marginTop: 10, width: '100%' }}><Label size={15}>{weekly ? 'Fermer le bilan' : '📊 Bilan de la semaine'}</Label></button>
             {weekly && <div style={{ marginTop: 9, fontSize: 12, lineHeight: 1.5, whiteSpace: 'pre-wrap', background: 'rgba(var(--dz-ink-rgb),0.03)', borderRadius: 9, padding: 10 }}>{weekly.replace(/\*/g, '')}</div>}
           </div>
         )}
@@ -269,7 +269,7 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: '0.02em', marginBottom: hint ? 3 : 9 }}>{title}</div>
+      <div style={{ fontSize: 14, fontWeight: 750, letterSpacing: '-0.01em', marginBottom: hint ? 3 : 9 }}><Label size={16}>{title}</Label></div>
       {hint && <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 9 }}>{hint}</div>}
       {children}
     </div>

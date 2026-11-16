@@ -5,6 +5,7 @@ import { F, card, darkCard, btn, ghostBtn, input, Ring, Bar, Sheet, Spinner } fr
 import { BulkCard, BulkQuiz } from './Bulk.tsx';
 import type { Overview } from './api.ts';
 import { Ico } from '../components/ui/Icon.tsx';
+import { EnergyChart, ProteinChart } from './WeekCharts.tsx';
 
 // 🍽️ REPAS (Kouider 31/10, « style Cal AI ») : photo du plat → chaque aliment, grammes, kcal, protéines.
 // Le budget vient de sa montre (dépense − déficit) ; Dzaryx commente sur Telegram après chaque photo et toute la journée.
@@ -298,6 +299,8 @@ function WeekHistory({ onOpen }: { onOpen: (m: MealLog) => void }) {
   return (
     <>
       <div style={{ fontSize: 19, fontWeight: 700, margin: '22px 2px 10px' }}>Ma semaine</div>
+      <EnergyChart days={w.days} />
+      <ProteinChart days={w.days} />
       <div style={{ ...card, padding: 14 }}>
         {w.avgReal != null && <div style={{ fontSize: 13.5, marginBottom: 10 }}>Moyenne sur {w.logged} jour{w.logged > 1 ? 's' : ''} noté{w.logged > 1 ? 's' : ''} : <b style={{ color: w.avgReal >= 0 ? F.green : F.red }}>{w.avgReal >= 0 ? `déficit ${w.avgReal}` : `surplus ${-w.avgReal}`} kcal/jour</b></div>}
         {w.days.map(d => {

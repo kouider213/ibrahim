@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Label } from '../ui/Icon.tsx';
 import { api, business } from '../../services/api.ts';
 import { Hero } from '../ui/Premium.tsx';
 import NexusDeck from './NexusDeck.tsx';
@@ -412,7 +413,7 @@ export default function NexusScreen() {
         {([['laptop', '💻 Laptop', targets?.laptop], ['cloud', '☁️ PC cloud', targets?.cloud]] as Array<[Target, string, boolean | undefined]>).map(([t, l, on]) => (
           <button key={t} onClick={() => choose(t)} style={{ flex: 1, padding: '9px 6px', borderRadius: 9, border: 'none', cursor: 'pointer', fontFamily: C.font, fontSize: 13, fontWeight: 600,
             background: target === t ? 'rgba(47,91,255,0.18)' : 'transparent', color: target === t ? C.accent : C.text }}>
-            {l} <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', marginLeft: 4, background: on === undefined ? C.amber : on ? C.accent : C.red }} />
+            <Label size={15}>{l}</Label> <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', marginLeft: 4, background: on === undefined ? C.amber : on ? C.accent : C.red }} />
           </button>
         ))}
       </div>
@@ -611,7 +612,7 @@ const round: React.CSSProperties = { width: 44, height: 44, flexShrink: 0, borde
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 13, marginBottom: 12 }}>
-      <div style={{ fontSize: 15, fontWeight: 800, color: C.text, fontFamily: 'Manrope, Inter, sans-serif', marginBottom: 10 }}>{title}</div>
+      <div style={{ fontSize: 15, fontWeight: 750, color: C.text, marginBottom: 10 }}><Label size={17}>{title}</Label></div>
       {children}
     </div>
   );
@@ -629,13 +630,13 @@ function Key({ label, onClick, disabled }: { label: string; onClick: () => void;
 
 function Pill({ label, onClick, on }: { label: string; onClick: () => void; on?: boolean }) {
   return (
-    <button onClick={onClick} style={{ padding: '7px 11px', borderRadius: 999, border: `1px solid ${on ? C.accent : C.border}`, background: on ? 'rgba(47,91,255,0.16)' : 'rgba(var(--dz-ink-rgb),0.03)', color: on ? C.accent : C.text, fontSize: 12, fontFamily: C.font, cursor: 'pointer' }}>{label}</button>
+    <button onClick={onClick} style={{ padding: '7px 11px', borderRadius: 999, border: `1px solid ${on ? C.accent : C.border}`, background: on ? 'rgba(47,91,255,0.16)' : 'rgba(var(--dz-ink-rgb),0.03)', color: on ? C.accent : C.text, fontSize: 12, fontFamily: C.font, cursor: 'pointer' }}><Label size={15}>{label}</Label></button>
   );
 }
 
 function Btn({ label, onClick, color, disabled }: { label: string; onClick: () => void; color: string; disabled?: boolean }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{ padding: '10px 13px', borderRadius: 11, border: `1px solid color-mix(in srgb, ${color} 33%, transparent)`, background: `color-mix(in srgb, ${color} 12%, transparent)`, color, fontSize: 13, fontWeight: 600, fontFamily: C.font, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1, flexShrink: 0 }}>{label}</button>
+    <button onClick={onClick} disabled={disabled} style={{ padding: '10px 13px', borderRadius: 11, border: `1px solid color-mix(in srgb, ${color} 33%, transparent)`, background: `color-mix(in srgb, ${color} 12%, transparent)`, color, fontSize: 13, fontWeight: 600, fontFamily: C.font, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1, flexShrink: 0 }}><Label size={15}>{label}</Label></button>
   );
 }
 

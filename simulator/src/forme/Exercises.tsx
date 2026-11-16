@@ -1,3 +1,4 @@
+import { RecordsStrip } from './WeekCharts.tsx';
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -316,6 +317,7 @@ export function LibraryScreen() {
           </button>
         ))}
       </div>
+      {!group && !favOnly && !q && <RecordsStrip />}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '2px 2px 10px' }}>
         <div style={{ fontWeight: 600, fontSize: 15 }}>{favOnly ? 'Mes favoris' : group ? GROUPS.find(g => g.id === group)!.label : 'Tous les exercices'}{eqs.length ? ` · ${eqs.map(e => EQ_FR[e] ?? e).join(', ')}` : ''}</div>
         <div style={{ fontSize: 12.5, color: F.muted }}>{items ? list.length : ''}</div>

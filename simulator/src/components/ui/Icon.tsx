@@ -109,6 +109,12 @@ const P: Record<string, ReactNode> = {
   droplet: <path d="M12 2.7 6.3 8.4a8 8 0 1 0 11.4 0z" />,
   bed: <><path d="M2 4v16M2 8h18a2 2 0 0 1 2 2v10M2 17h20M6 8v9" /></>,
   scale: <><path d="M16 16.5 19 9l3 7.5a3.5 3.5 0 0 1-6 0zM2 16.5 5 9l3 7.5a3.5 3.5 0 0 1-6 0z" /><path d="M7 21h10M12 3v18M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2" /></>,
+  leaf: <><path d="M11 20A7 7 0 0 1 4 13c0-6 5-9 16-10-1 11-4 16-9 17z" /><path d="M4 20c3-4 6-7 10-9" /></>,
+  ship: <><path d="M3 15l2 5h14l2-5-9-3-9 3z" /><path d="M6 13.5V8h12v5.5M12 4v4" /></>,
+  watch: <><rect x="6" y="6" width="12" height="12" rx="3.5" /><path d="M9 6l.6-3.5h4.8L15 6M9 18l.6 3.5h4.8L15 18M12 9.5V12l1.5 1.5" /></>,
+  scissors: <><circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12" /></>,
+  flag: <><path d="M5 21V4" /><path d="M5 4h12l-2 4 2 4H5" /></>,
+  utensils: <><path d="M7 2v9M4 2v5a3 3 0 0 0 6 0V2M7 11v11" /><path d="M17 22V2c-2.5 1.5-3.5 4-3.5 7v4H17" /></>,
   hexagon: <path d="M12 2.5 20.5 7.3v9.4L12 21.5l-8.5-4.8V7.3z" />,
 };
 
@@ -140,7 +146,7 @@ const EMOJI: Record<string, IconName> = {
   '🎯': 'target', '🧮': 'calc', '👁': 'eye', '👀': 'eye', '🖥': 'monitor', '💻': 'monitor', '🧭': 'compass', '✨': 'sparkles', '🤖': 'bot', '🦾': 'bot',
   '⚡': 'bolt', '❤': 'heart', '💙': 'heart', '🩺': 'stethoscope', '😄': 'smile', '🙂': 'smile', '😊': 'smile', '🧠': 'brain', '💧': 'droplet', '😴': 'bed', '🛏': 'bed',
   '⚖': 'scale', '✈': 'plane', '🛫': 'plane', '🎮': 'gamepad', '🦊': 'paw', '📚': 'book', '📖': 'book', '🛡': 'shield', '☁': 'cloud', '⬇': 'download', '📥 ': 'download', '⬆': 'upload',
-  '📲': 'smartphone', '🔙': 'chevronLeft', '➡': 'arrowRight', '→': 'arrowRight', '📦': 'layers', '🗂': 'layers', '📁': 'layers', '🧹': 'trash', '🎟': 'ticket', '🎫': 'ticket',
+  '📲': 'smartphone', '🔙': 'chevronLeft', '➡': 'arrowRight', '→': 'arrowRight', '📦': 'layers', '🗂': 'layers', '📁': 'layers', '🧹': 'trash', '⌚': 'watch', '🔭': 'eye', '👟': 'activity', '👆': 'target', '🫀': 'heart', '🪄': 'sparkles', '🛑': 'alert', '🗺': 'compass', '👑': 'trophy', '👉': 'arrowRight', '🏁': 'flag', '✂': 'scissors', '◀': 'chevronLeft', '↗': 'trend', '🪶': 'feather', '🤒': 'stethoscope', '🟢': 'checkCircle', '🛰': 'globe', '🛌': 'bed', '🗳': 'list', '🔮': 'sparkles', '🔬': 'search', '🔧': 'settings', '🔢': 'calc', '🔘': 'check', '🔕': 'bell', '🔊': 'megaphone', '🔇': 'bell', '📺': 'monitor', '📏': 'scale', '💾': 'download', '💱': 'repeat', '💚': 'heart', '💑': 'users', '💉': 'pill', '👻': 'smile', '🏅': 'trophy', '🎵': 'play', '🎙': 'mic', '🎉': 'sparkles', '🍽': 'utensils', '🍏': 'leaf', '🌗': 'moon', '⛈': 'cloud', '⏹': 'pause', '↘': 'chart', '📂': 'layers', '🏭': 'building', '🏨': 'building', '🎓': 'book', '👔': 'user', '🧪': 'bolt', '🛎': 'bell', '🌊': 'wind', '％': 'tag', '⏮': 'chevronLeft', '⏭': 'chevronRight', '⏯': 'play', '🔉': 'megaphone', '■': 'pause', '➤': 'send', '⛶': 'grid', '↕': 'repeat', '🌱': 'leaf', '🌿': 'leaf', '🍃': 'leaf', '🛳': 'ship', '🚢': 'ship', '⛴': 'ship', '🛂': 'book', '🎟': 'ticket', '🎫': 'ticket',
 };
 const LEAD = /^\s*((?:\p{Extended_Pictographic}|[✓✔✕↻⟳↩→＋])(?:️|‍(?:\p{Extended_Pictographic})️?|[\u{1F3FB}-\u{1F3FF}])*)\s*/u;
 

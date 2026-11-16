@@ -1,3 +1,9 @@
+## 16/11/2026 (soir 2) — Sommeil réparé, FORME graphiques partout, emojis finis, étiquettes non coupées (app v269)
+- SOMMEIL : 5 nuits sur 7 vides (le Raccourci « Dzaryx Sommeil » du matin ne part presque plus, montre pas portée la nuit). Le 1er envoi de la montre du matin (sans nuit), avant l'heure de réveil prévue + 1 h 30, compte maintenant comme « levé » → nuit estimée (sleep-phone `wakeFromHealthSend`, appelé par receiveHealth). FORME lisait le jour FORME seulement : `formeOverview.week7` prend aussi sommeil/pas de health:daily.
+- FORME : Repas (graphique mangé vs brûlé + déficit du jour, protéines vs objectif), Sèche (même graphique « Ton déficit », grille sans emojis), Progrès (courbe du tour de taille dès 2 mesures), Exercices (bandeau « Tes records »). forme/WeekCharts.tsx.
+- Emojis → icônes : Mon PC (pastilles, boutons, Laptop/PC cloud), Sites clients, Démarchage, Partenaires, Montage (lecture), Caméra → PC, Opportunités, Achat-revente, Liberté, À payer (+ interrupteur mode éco). ~60 emojis ajoutés à la table d'icônes (+ icônes watch, scissors, flag, utensils, leaf, ship).
+- Kit Kpi : étiquette sur 2 lignes avec césure au lieu de « Mails … » coupé. Immobilier : « Location / Vente ».
+
 ## 16/11/2026 (soir) — Capacités refait + emojis restants (app v268)
 - Réglages › Capacités & agents : les cartes étaient écrasées dans une boîte de 520 px (capture de Kouider). Maintenant ouvert dans une feuille plein écran, refait au style v4 (segments Agents/Proactif/Tout, avatars, exemples « dis par exemple », frise de la journée type). Liste IA mise à jour (Gemini par défaut, Claude, Gemini Live).
 - Emojis → icônes : Documents (Passeport/Permis/Contrat), Immobilier (« Comment l'utiliser »), À payer (pastilles d'état), Demandes (badge Lead).

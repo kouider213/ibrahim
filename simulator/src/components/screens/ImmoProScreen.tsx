@@ -155,8 +155,8 @@ export default function ImmoProScreen() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, padding: '0 18px 14px' }}>
         {[
           { v: stats.total, l: 'Biens', c: C.goldSoft },
-          { v: stats.louer, l: 'À louer', c: C.gold },
-          { v: stats.vendre, l: 'À vendre', c: C.blue },
+          { v: stats.louer, l: 'Location', c: C.gold },
+          { v: stats.vendre, l: 'Vente', c: C.blue },
           { v: stats.dispo, l: 'Dispo', c: C.green },
         ].map(s => <StatCard key={s.l} value={String(s.v)} label={s.l} color={s.c} />)}
       </div>
