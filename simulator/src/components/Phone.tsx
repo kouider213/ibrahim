@@ -71,16 +71,14 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'revenue',       icon: '💰', label: 'CA'      },
   { id: 'clients',       icon: '👥', label: 'CLIENTS' },
   { id: 'settings',      icon: '⚙️', label: 'CONFIG'  },
-  // ── Menu "⋯ Plus" (outils) ── (31/10 : JEUX et CARTE LIVE retirés du menu à la demande de Kouider, jamais utilisés ; code gardé, démo ?demo=carte intacte)
+  // ── Menu "⋯ Plus" (outils) ── (16/11 : FENNOU et ROUTE retirés du menu à la demande de Kouider, code gardé) (31/10 : JEUX et CARTE LIVE retirés du menu à la demande de Kouider, jamais utilisés ; code gardé, démo ?demo=carte intacte)
   { id: 'coach',         icon: '🏆', label: 'COACH',   kouiderOnly: true, group: 'tool' },
   { id: 'jarvis',        icon: '🦾', label: 'JARVIS',  kouiderOnly: true, group: 'tool' },
   { id: 'search',        icon: '🔍', label: 'CHERCHER', group: 'tool' },
-  { id: 'fennou',        icon: '🦊', label: 'FENNOU',  kouiderOnly: true, group: 'tool' },
   { id: 'sport',         icon: '💪', label: 'FORME',   kouiderOnly: true, group: 'tool' },
   { id: 'liberte',       icon: '🕊️', label: 'LIBERTÉ', kouiderOnly: true, group: 'tool' },
   { id: 'nexus',         icon: '🖥️', label: 'MON PC',  kouiderOnly: true, group: 'tool' },
   { id: 'globe',         icon: '🌍', label: 'GLOBE',   kouiderOnly: true, group: 'tool' },
-  { id: 'route',         icon: '🚗', label: 'ROUTE',   kouiderOnly: true, group: 'tool' },
   { id: 'camera',        icon: '👁️', label: 'CAMÉRA → PC', kouiderOnly: true, group: 'tool' },
   { id: 'demarchage',    icon: '📤', label: 'DÉMARCHAGE', kouiderOnly: true, group: 'tool' },
   { id: 'partners',      icon: '🤝', label: 'PARTENAIRES', kouiderOnly: true, group: 'tool' },

@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { T, PageHeader } from '../ui/Kit.tsx';
+import { T, PageHeader, glass, tone, Toggle, inputStyle, btnStyle } from '../ui/Kit.tsx';
 import { getThemeMode, setThemeMode, type ThemeMode } from '../../services/theme.ts';
 import { business, setSimActor, getSimActor, registerWebPush, notifStatus, changePassword, apiFetch } from '../../services/api.ts';
 import CapacitesScreen from './CapacitesScreen.tsx';
-import { Ico } from '../ui/Icon.tsx';
+import { Icon } from '../ui/Icon.tsx';
 
 interface StoredLocation { lat: number; lng: number; city?: string; country: string; updated_at: string; }
 
@@ -138,184 +138,145 @@ export default function SettingsScreen() {
     return total ? `${Math.round(used / 1024)}/${Math.round(total / 1024)}GB` : `${Math.round(used / 1024)}GB`;
   };
 
+  const [version, setVersion] = useState('');
+  const [openSec, setOpenSec] = useState<string | null>(null);
+  useEffect(() => {
+    fetch(`${((import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL) ?? "/ibrahim/"}sw.js`, { cache: 'no-store' }).then(r => r.text())
+      .then(t => { const m = /dzaryx-(v\d+)/.exec(t); if (m) setVersion(m[1]!); }).catch(() => {});
+  }, []);
+  const toggleSec = (k: string) => setOpenSec(o => o === k ? null : k);
+  const flag = locData ? (locData.country === 'Algeria' ? '🇩🇿' : locData.country === 'Belgium' ? '🇧🇪' : locData.country === 'France' ? '🇫🇷' : '') : '';
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: T.bg, color: T.text, fontFamily: T.font, position: 'relative', overflow: 'hidden' }}>
-      <PageHeader eyebrow="Configuration" title="Réglages" subtitle={msg || 'Notifications, sécurité, position, état du système'} />
-      <div style={{ flex: 1, overflowY: 'auto', padding: '6px 16px 130px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <PageHeader eyebrow="Configuration" title="Réglages" subtitle={msg || undefined} />
+      <div className="dz-scroll" style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 130px' }}>
+      <div className="dz-in" style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
 
-        {/* Apparence : clair / sombre / auto */}
+        {/* Carte profil */}
+        <div style={{ ...glass(T.accent2), borderRadius: 24, padding: 16, display: 'flex', alignItems: 'center', gap: 14, position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', right: -50, top: -60, width: 170, height: 170, borderRadius: '50%', background: T.grad, opacity: 0.2, filter: 'blur(28px)' }} />
+          <div style={{ width: 58, height: 58, borderRadius: 20, background: T.grad, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: T.display, fontSize: 24, fontWeight: 700, letterSpacing: '-0.04em', flexShrink: 0, boxShadow: '0 10px 30px -10px rgba(139,92,246,0.7)' }}>{actor === 'houari' ? 'H' : 'K'}</div>
+          <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+            <div style={{ fontFamily: T.display, fontSize: 20, fontWeight: 650, letterSpacing: '-0.03em' }}>{actor === 'houari' ? 'Houari' : 'Kouider'}</div>
+            <div style={{ fontSize: 13, color: T.muted, marginTop: 2 }}>{actor === 'houari' ? 'Associé' : 'Gérant'} · FIK Conciergerie</div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+              <Pill ok={apiOk} label={health ? (apiOk ? 'Dzaryx en ligne' : 'Serveur injoignable') : 'Vérification…'} />
+              {version && <span style={{ fontFamily: T.mono, fontSize: 11, color: T.muted, padding: '3px 8px', borderRadius: 8, background: 'var(--dz-track)' }}>{version}</span>}
+            </div>
+          </div>
+        </div>
+
         <ThemePicker />
 
-        {/* Notifications */}
         <NotifPrefs />
 
-        {/* Mot de passe + appareils connectés */}
-        <SecurityPanel />
+        <Group title="Compte & sécurité">
+          <SecurityPanel open={openSec === 'sec'} onToggle={() => toggleSec('sec')} devOpen={openSec === 'dev'} onDevToggle={() => toggleSec('dev')} />
+        </Group>
 
-        {/* GPS Location */}
-        <Panel title="Localisation GPS">
-          {locData ? (
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <div style={{
-                  width: 8, height: 8, borderRadius: '50%', background: '#0a9a5e',
-                  boxShadow: '0 0 8px #0a9a5e', flexShrink: 0,
-                  animation: 'statusPulse 2s ease infinite',
-                }} />
-                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13.5, color: '#0a9a5e' }}>
-                  {locData.country === 'Algeria' ? '🇩🇿' : locData.country === 'Belgium' ? '🇧🇪' : locData.country === 'France' ? '🇫🇷' : '🌍'}{' '}
-                  {locData.city ?? locData.country}
-                </div>
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--dz-muted)', marginBottom: 3 }}>
-                {locData.lat.toFixed(5)}, {locData.lng.toFixed(5)}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--dz-faint)' }}>
-                Mis à jour: {new Date(locData.updated_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-              </div>
-            </div>
-          ) : (
-            <div style={{ fontSize: 12.5, color: 'var(--dz-muted)', marginBottom: 10 }}>
-              Position non partagée — Dzaryx ne peut pas calculer tes trajets.
-            </div>
-          )}
-          <button onClick={() => shareLocation()} disabled={locLoading} style={actionBtn('#0a9a5e')}>
-            {locLoading ? 'LOCALISATION EN COURS…' : '📍 PARTAGER MA POSITION'}
-          </button>
-          <div style={{ fontSize: 11.5, color: 'var(--dz-faint)', textAlign: 'center', marginTop: 6, lineHeight: 1.5 }}>
-            Dzaryx utilise ta position pour calculer tes trajets · Rappels livraison intelligents · 24h TTL
-          </div>
-        </Panel>
+        <Group title="Position" foot="Sert à calculer tes trajets et l'heure de départ pour les livraisons. Mise à jour automatique à l'ouverture.">
+          <Item icon="pin" hue="#12b76a" title={locData ? `${flag ? flag + ' ' : ''}${locData.city ?? locData.country}` : 'Position non partagée'}
+            sub={locData ? `Mise à jour à ${new Date(locData.updated_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : 'Dzaryx ne peut pas calculer tes trajets'}
+            right={<SmallBtn busy={locLoading} onClick={() => shareLocation()}>{locLoading ? '…' : 'Actualiser'}</SmallBtn>} />
+        </Group>
 
-        {/* System health */}
-        <Panel title="État du système">
-          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-            <StatusPill label="API" val={health?.status?.toUpperCase() ?? '…'} ok={apiOk} />
-            <StatusPill label="NEXUS" val={nexusOk ? 'CONNECTÉ' : 'HORS LIGNE'} ok={nexusOk} />
-            <StatusPill label="UPTIME" val={fmtUptime(health?.uptime)} ok={!!health} col="#2f5bff" />
-          </div>
-          {nexusOk && nexus && (
-            <div style={{
-              background: 'rgba(10,154,94,0.04)', border: '1px solid #0a9a5e10',
-              borderRadius: 8, padding: '7px 10px', marginBottom: 8,
-              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px 12px',
-            }}>
-              {nexus.hostname && <NexusRow k="HOST" v={nexus.hostname} />}
-              {nexus.latency_ms != null && <NexusRow k="PING" v={`${nexus.latency_ms}ms`} />}
-              {nexus.cpu_percent != null && <NexusRow k="CPU" v={`${nexus.cpu_percent.toFixed(1)}%`} />}
-              {(nexus.ram_used_mb != null) && <NexusRow k="RAM" v={fmtRam(nexus.ram_used_mb, nexus.ram_total_mb)} />}
-              {nexus.uptime_s != null && <NexusRow k="UPTIME" v={fmtUptime(nexus.uptime_s)} />}
-              {nexus.os && <NexusRow k="OS" v={nexus.os.slice(0, 14)} />}
-            </div>
-          )}
-          <button onClick={() => void checkHealth()} disabled={loadingH} style={actionBtn('#2f5bff')}>
-            {loadingH ? 'TEST EN COURS…' : '↻ TESTER LA CONNEXION'}
-          </button>
-        </Panel>
+        <Group title="État du système">
+          <Item icon="cloud" hue="#3d6bff" title="Serveur Dzaryx" sub={health?.uptime ? `Allumé depuis ${fmtUptime(health.uptime)}` : undefined} right={<Pill ok={apiOk} label={health ? (apiOk ? 'OK' : 'Erreur') : '…'} />} />
+          <Item icon="monitor" hue="#8b5cf6" title="Mon PC" sub={nexusOk && nexus ? [nexus.hostname, nexus.cpu_percent != null ? `CPU ${nexus.cpu_percent.toFixed(0)} %` : '', nexus.ram_used_mb ? `RAM ${fmtRam(nexus.ram_used_mb, nexus.ram_total_mb)}` : ''].filter(Boolean).join(' · ') : 'Éteint ou non connecté'} right={<Pill ok={nexusOk} label={nexusOk ? 'Connecté' : 'Hors ligne'} />} />
+          <Item icon="refresh" hue="#22d3ee" title="Tester la connexion" onClick={() => void checkHealth()} right={loadingH ? <Spin /> : undefined} />
+          <Item icon="bolt" hue="#f59e0b" title="Vider le cache des calculs" sub="Si un chiffre du CA te paraît pas à jour" onClick={() => void clearCache()} right={clearing ? <Spin /> : undefined} />
+        </Group>
 
-        {/* Cache */}
-        <Panel title="Cache des calculs">
-          <div style={{ fontSize: 12.5, color: 'var(--dz-muted)', marginBottom: 8, lineHeight: 1.6 }}>
-            Vide le cache des calculs de revenus. TTL normal: 5 minutes.
-          </div>
-          <button onClick={() => void clearCache()} disabled={clearing} style={actionBtn('#b86e00')}>
-            {clearing ? 'VIDAGE EN COURS…' : '⚡ VIDER CACHE (0 → 5 min)'}
-          </button>
-        </Panel>
-
-        {/* Scheduled jobs */}
         {jobs.length > 0 && (
-          <Panel title="Tâches programmées">
-            {jobs.map(j => (
-              <div key={j.name} style={{
-                display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7,
-                padding: '6px 8px', borderRadius: 7,
-                background: 'rgba(var(--dz-ink-rgb),0.015)', border: '1px solid rgba(var(--dz-ink-rgb),0.03)',
-              }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: 'var(--dz-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{j.name}</div>
-                  <div style={{ fontSize: 12, color: 'var(--dz-muted)', marginTop: 1 }}>
-                    {j.cron} · prochain: {fmtNext(j.next)}
-                  </div>
-                </div>
-                <button
-                  onClick={() => void triggerJob(j.name)}
-                  disabled={triggering === j.name}
-                  style={{
-                    background: '#2f5bff18', border: '1px solid #2f5bff44', borderRadius: 6,
-                    width: 28, height: 28, cursor: 'pointer', color: '#2f5bff',
-                    fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0, opacity: triggering === j.name ? 0.5 : 1,
-                  }}
-                >
-                  {triggering === j.name ? '…' : '▶'}
-                </button>
-              </div>
+          <Group title="Tâches automatiques">
+            <Item icon="clock" hue="#64748b" title={`${jobs.length} tâches programmées`} sub="Briefings, rappels, relances…" onClick={() => toggleSec('jobs')} right={<Chev open={openSec === 'jobs'} />} />
+            {openSec === 'jobs' && jobs.map(j => (
+              <Item key={j.name} title={<span style={{ fontSize: 14 }}>{j.name}</span>} sub={`Prochaine : ${fmtNext(j.next)}`}
+                right={<SmallBtn busy={triggering === j.name} onClick={() => void triggerJob(j.name)}>{triggering === j.name ? '…' : 'Lancer'}</SmallBtn>} />
             ))}
-          </Panel>
+          </Group>
         )}
 
-        {/* Règles apprises — Phase 8 */}
-        <Panel title="Règles apprises">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
-            {RULES.map(r => (
-              <div key={r.id} style={{
-                background: 'rgba(47,91,255,0.03)', borderRadius: 8,
-                border: `1px solid color-mix(in srgb, ${r.col} 13%, transparent)`, padding: '7px 10px',
-                display: 'flex', gap: 8, alignItems: 'flex-start',
-              }}>
-                <div style={{
-                  flexShrink: 0, width: 5, height: 5, borderRadius: '50%',
-                  background: r.col, boxShadow: `0 0 5px ${r.col}`,
-                  marginTop: 4,
-                }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12.5, color: 'var(--dz-text)', lineHeight: 1.5 }}>{r.rule}</div>
-                  <div style={{ fontSize: 11.5, color: r.col, marginTop: 2, letterSpacing: '0.1em', fontFamily: 'Inter, sans-serif' }}>
-                    {r.cat} · PRIORITÉ {r.priority}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--dz-faint)', textAlign: 'center', letterSpacing: '0.1em' }}>
-            Dzaryx apprend de chaque conversation · "sauvegarde cette règle: …"
-          </div>
-        </Panel>
-
-        {/* Capacités & Agents Dzaryx (déplacé ici depuis l'onglet DZARYX) */}
-        <Panel title="Capacités & agents Dzaryx">
-          <button
-            onClick={() => setShowCaps(s => !s)}
-            style={{ width: '100%', textAlign: 'left', background: 'rgba(47,91,255,0.06)', border: '1px solid #2f5bff22', borderRadius: 8, padding: '10px 12px', cursor: 'pointer', color: 'var(--dz-text)', fontFamily: 'Inter, sans-serif', fontSize: 13.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-          >
-            <span><Ico e="🤖" />14 agents · ce que Dzaryx sait faire</span>
-            <span style={{ color: '#2f5bff88' }}>{showCaps ? '▲' : '▼'}</span>
-          </button>
+        <Group title="Dzaryx">
+          <Item icon="brain" hue="#ec4899" title="Règles apprises" sub={`${RULES.length} règles · dis « sauvegarde cette règle : … »`} onClick={() => toggleSec('rules')} right={<Chev open={openSec === 'rules'} />} />
+          {openSec === 'rules' && RULES.map(r => (
+            <Item key={r.id} title={<span style={{ fontSize: 14, fontWeight: 500, whiteSpace: 'normal', lineHeight: 1.4 }}>{r.rule}</span>} sub={r.cat.charAt(0) + r.cat.slice(1).toLowerCase()} />
+          ))}
+          <Item icon="bot" hue="#3d6bff" title="Capacités & agents" sub="Ce que Dzaryx sait faire" onClick={() => setShowCaps(s => !s)} right={<Chev open={showCaps} />} />
           {showCaps && (
-            <div style={{ marginTop: 10, height: 520, borderRadius: 10, overflow: 'hidden', border: '1px solid #2f5bff12' }}>
+            <div style={{ height: 520, overflow: 'hidden', borderTop: '1px solid var(--dz-line)' }}>
               <CapacitesScreen />
             </div>
           )}
-        </Panel>
+        </Group>
 
-        {/* Version */}
-        <div style={{ textAlign: 'center', padding: '8px 0 2px' }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'var(--dz-faint)', letterSpacing: '0.3em' }}>
-            DZARYX SIMULATOR v1.3 · GPS BRAIN · FIK CONCIERGERIE ORAN
-          </div>
+        <div style={{ textAlign: 'center', padding: '4px 0 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 11, background: T.grad, opacity: 0.9 }} />
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.muted }}>Dzaryx {version}</div>
+          <div style={{ fontFamily: T.mono, fontSize: 10.5, color: T.faint, letterSpacing: '0.12em' }}>FIK CONCIERGERIE · ORAN</div>
         </div>
+      </div>
       </div>
     </div>
   );
 }
 
+// ── Briques façon Réglages iPhone : groupe arrondi + lignes avec tuile d'icône colorée ──
+function Group({ title, foot, children }: { title?: string; foot?: string; children: React.ReactNode }) {
+  return (
+    <section>
+      {title && <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.muted, padding: '0 6px 8px' }}>{title}</div>}
+      <div style={{ ...glass(), borderRadius: 20, overflow: 'hidden' }}>{children}</div>
+      {foot && <div style={{ fontSize: 12.5, color: T.faint, padding: '8px 8px 0', lineHeight: 1.45 }}>{foot}</div>}
+    </section>
+  );
+}
+
+function Item({ icon, hue = T.accent, title, sub, right, onClick }: { icon?: string; hue?: string; title: React.ReactNode; sub?: React.ReactNode; right?: React.ReactNode; onClick?: () => void }) {
+  return (
+    <div onClick={onClick} role={onClick ? 'button' : undefined} className={onClick ? 'dz-press' : undefined}
+      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', minHeight: 52, boxSizing: 'border-box', cursor: onClick ? 'pointer' : undefined, borderTop: '1px solid var(--dz-line)', marginTop: -1 }}>
+      {icon && (
+        <div style={{ width: 32, height: 32, borderRadius: 9, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: `linear-gradient(145deg, ${hue}, color-mix(in srgb, ${hue} 70%, #000))` }}>
+          <Icon name={icon} size={17} stroke={2} />
+        </div>
+      )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
+        {sub != null && sub !== '' && <div style={{ fontSize: 12.5, color: T.muted, marginTop: 2, lineHeight: 1.35 }}>{sub}</div>}
+      </div>
+      {right ?? (onClick ? <Icon name="chevronRight" size={16} color="var(--dz-faint)" stroke={2.2} /> : null)}
+    </div>
+  );
+}
+
+function Chev({ open }: { open: boolean }) {
+  return <Icon name="chevronDown" size={16} color="var(--dz-faint)" stroke={2.2} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .25s' }} />;
+}
+function Spin() {
+  return <Icon name="refresh" size={16} color={T.muted} style={{ animation: 'dzSpin 1s linear infinite' }} />;
+}
+function SmallBtn({ children, onClick, busy }: { children: React.ReactNode; onClick: () => void; busy?: boolean }) {
+  return (
+    <button onClick={e => { e.stopPropagation(); onClick(); }} disabled={busy} style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, padding: '7px 12px', borderRadius: 10, border: '1px solid var(--dz-card-line)', background: 'var(--dz-track)', color: T.text, cursor: 'pointer', flexShrink: 0 }}>{children}</button>
+  );
+}
+function Pill({ ok, label }: { ok: boolean; label: string }) {
+  const c = ok ? T.ok : T.bad;
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: c, padding: '3px 9px', borderRadius: 8, background: tone(c, 0.12), flexShrink: 0 }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: c, boxShadow: `0 0 8px ${c}` }} />{label}
+    </span>
+  );
+}
+
 function NotifPrefs() {
-  const TYPES: Array<{ k: string; label: string; icon: string }> = [
-    { k: 'morning', label: 'Briefing du matin', icon: '☀️' },
-    { k: 'alert', label: 'Alertes', icon: '🚨' },
-    { k: 'reminder', label: 'Rappels', icon: '🔔' },
-    { k: 'info', label: 'Infos / proactif', icon: '📱' },
+  const TYPES: Array<{ k: string; label: string; sub: string; icon: string; hue: string }> = [
+    { k: 'morning', label: 'Briefing du matin', sub: 'Ta journée résumée au réveil', icon: 'sun', hue: '#f59e0b' },
+    { k: 'alert', label: 'Alertes', sub: 'Retards, paiements, urgences', icon: 'alert', hue: '#f04438' },
+    { k: 'reminder', label: 'Rappels', sub: 'Ce que tu as demandé de te rappeler', icon: 'bell', hue: '#8b5cf6' },
+    { k: 'info', label: 'Infos & idées', sub: 'Dzaryx te prévient de lui-même', icon: 'sparkles', hue: '#3d6bff' },
   ];
   const [prefs, setPrefs] = useState<Record<string, boolean>>({ morning: true, alert: true, reminder: true, info: true });
   const [st, setSt] = useState(notifStatus());
@@ -333,53 +294,31 @@ function NotifPrefs() {
     setBusy(true); setHint('');
     const perm = await registerWebPush();
     setSt(notifStatus());
-    if (perm === 'granted')      setHint('✅ Notifications activées');
-    else if (perm === 'denied')  setHint('❌ Refusé — autorise les notifs dans Réglages iOS pour ce site/app');
-    else if (perm === 'unsupported') setHint('⚠️ Non supporté ici — ouvre l\'app depuis l\'écran d\'accueil');
-    else                          setHint('Demande fermée — réessaie');
+    if (perm === 'granted')      setHint('Notifications activées');
+    else if (perm === 'denied')  setHint('Refusé : autorise les notifications dans Réglages iOS pour Dzaryx');
+    else if (perm === 'unsupported') setHint("Non supporté ici : ouvre l'app depuis l'écran d'accueil");
+    else                          setHint('Demande fermée, réessaie');
     setBusy(false);
     setTimeout(() => setHint(''), 6000);
   };
 
   const granted = st.permission === 'granted';
-  // iOS web push n'existe qu'en PWA installée (écran d'accueil). Si pas standalone → guider.
   const needsInstall = !st.standalone && !granted && st.permission !== 'unsupported';
 
   return (
-    <Panel title="Notifications">
-      {!granted && (
-        <div style={{ marginBottom: 12 }}>
-          <button onClick={() => void enableNotifs()} disabled={busy} style={actionBtn('#2f5bff')}>
-            {busy ? 'Activation…' : '🔔 Activer les notifications'}
-          </button>
-          {needsInstall && (
-            <div style={{ fontSize: 13, color: '#b86e00', marginTop: 8, lineHeight: 1.5 }}>
-              📲 Sur iPhone : ouvre d'abord l'app depuis l'écran d'accueil (Partager → « Sur l'écran d'accueil »), puis touche ce bouton.
-            </div>
-          )}
-          {hint && <div style={{ fontSize: 13.5, color: 'var(--dz-text)', marginTop: 8 }}>{hint}</div>}
-        </div>
-      )}
-      {granted && (
-        <div style={{ fontSize: 13.5, color: '#0a9a5e', marginBottom: 12 }}>● Notifications activées sur cet appareil</div>
-      )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {TYPES.map(t => (
-          <div key={t.k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, color: 'var(--dz-text)' }}>{t.icon} {t.label}</span>
-            <button onClick={() => toggle(t.k)} style={{ width: 46, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', position: 'relative', background: prefs[t.k] ? '#2f5bff' : 'rgba(var(--dz-ink-rgb),0.09)', transition: 'background .2s' }}>
-              <div style={{ position: 'absolute', top: 3, left: prefs[t.k] ? 23 : 3, width: 20, height: 20, borderRadius: '50%', background: 'var(--dz-surface)', transition: 'left .2s' }} />
-            </button>
-          </div>
-        ))}
-      </div>
-      <div style={{ fontSize: 13, color: 'var(--dz-muted)', marginTop: 10 }}>Coupe un type pour ne plus recevoir ces notifications push.</div>
-    </Panel>
+    <Group title="Notifications" foot={needsInstall ? "Sur iPhone : ouvre d'abord l'app depuis l'écran d'accueil (Partager → « Sur l'écran d'accueil »), puis active." : hint || undefined}>
+      {granted
+        ? <Item icon="checkCircle" hue="#12b76a" title="Activées sur ce téléphone" />
+        : <Item icon="bell" hue="#3d6bff" title={busy ? 'Activation…' : 'Activer les notifications'} sub="Pour recevoir alertes et rappels" onClick={() => void enableNotifs()} />}
+      {TYPES.map(t => (
+        <Item key={t.k} icon={t.icon} hue={t.hue} title={t.label} sub={t.sub} right={<Toggle on={!!prefs[t.k]} onChange={() => toggle(t.k)} colorOn={T.ok} colorOff="#64748b" />} />
+      ))}
+    </Group>
   );
 }
 
 // Sécurité : le mot de passe est vérifié par le serveur ; chaque téléphone connecté a son propre jeton.
-function SecurityPanel() {
+function SecurityPanel({ open, onToggle, devOpen, onDevToggle }: { open: boolean; onToggle: () => void; devOpen: boolean; onDevToggle: () => void }) {
   const [cur, setCur]   = useState('');
   const [next, setNext] = useState('');
   const [others, setOthers] = useState(true);
@@ -402,109 +341,69 @@ function SecurityPanel() {
     } else setMsg({ ok: false, text: r.error ?? 'Échec' });
   };
 
-  const input: React.CSSProperties = {
-    width: '100%', boxSizing: 'border-box', background: 'var(--dz-surface)', border: '1px solid rgba(var(--dz-ink-rgb),0.1)',
-    borderRadius: 10, padding: '10px 12px', color: 'var(--dz-text)', fontFamily: 'Inter, sans-serif', fontSize: 13, marginBottom: 8,
+  const ago = (iso: string | null) => {
+    if (!iso) return 'jamais';
+    const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    if (m < 2) return 'maintenant';
+    if (m < 60) return `il y a ${m} min`;
+    const h = Math.round(m / 60); if (h < 24) return `il y a ${h} h`;
+    const d = Math.round(h / 24); return d < 31 ? `il y a ${d} j` : `il y a ${Math.round(d / 30)} mois`;
   };
-  const fmt = (iso: string | null) => iso ? new Date(iso).toLocaleString('fr-BE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+  const sorted = [...devices].sort((a, b) => String(b.last ?? b.created).localeCompare(String(a.last ?? a.created)));
+  const active = sorted.filter(d => d.last && Date.now() - new Date(d.last).getTime() < 7 * 86400000).length;
 
   return (
-    <Panel title="Sécurité">
-      <input type="password" placeholder="Mot de passe actuel" value={cur} onChange={e => setCur(e.target.value)} autoComplete="current-password" style={input} />
-      <input type="password" placeholder="Nouveau mot de passe (6 caractères min.)" value={next} onChange={e => setNext(e.target.value)} autoComplete="new-password" style={input} />
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'var(--dz-muted)', marginBottom: 10 }}>
-        <input type="checkbox" checked={others} onChange={e => setOthers(e.target.checked)} />
-        Déconnecter mes autres appareils
-      </label>
-      <button onClick={() => void submit()} disabled={busy || !cur || !next} style={actionBtn('#2f5bff')}>
-        {busy ? 'Enregistrement…' : '🔐 Changer mon mot de passe'}
-      </button>
-      {msg && <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, marginTop: 8, color: msg.ok ? '#0a9a5e' : '#e0304f' }}>{msg.text}</div>}
-      {devices.length > 0 && (
-        <div style={{ marginTop: 14 }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'var(--dz-muted)', marginBottom: 6 }}>Appareils connectés</div>
-          {devices.map(d => (
-            <div key={d.id} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'var(--dz-text)', padding: '6px 0', borderTop: '1px solid rgba(var(--dz-ink-rgb),0.05)' }}>
-              {d.actor === 'houari' ? '👤 Houari' : '👤 Kouider'} · {d.label}
-              <div style={{ fontSize: 13.5, color: 'var(--dz-faint)' }}>Connecté le {fmt(d.created)} · vu {fmt(d.last)}</div>
-            </div>
-          ))}
+    <>
+      <Item icon="lock" hue="#64748b" title="Mot de passe" sub="Vérifié par le serveur" onClick={onToggle} right={<Chev open={open} />} />
+      {open && (
+        <div style={{ padding: '4px 14px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <input type="password" placeholder="Mot de passe actuel" value={cur} onChange={e => setCur(e.target.value)} autoComplete="current-password" style={inputStyle} />
+          <input type="password" placeholder="Nouveau (6 caractères min.)" value={next} onChange={e => setNext(e.target.value)} autoComplete="new-password" style={inputStyle} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '4px 2px' }}>
+            <span style={{ fontSize: 13.5, color: T.muted }}>Déconnecter mes autres appareils</span>
+            <Toggle on={others} onChange={() => setOthers(o => !o)} colorOn={T.ok} colorOff="#64748b" />
+          </div>
+          <button onClick={() => void submit()} disabled={busy || !cur || !next} style={{ ...btnStyle('primary'), width: '100%', minHeight: 48, opacity: !cur || !next ? 0.5 : 1 }}>
+            {busy ? 'Enregistrement…' : 'Changer mon mot de passe'}
+          </button>
+          {msg && <div style={{ fontSize: 13, color: msg.ok ? T.ok : T.bad }}>{msg.text}</div>}
         </div>
       )}
-    </Panel>
+      <Item icon="smartphone" hue="#3d6bff" title="Appareils connectés" sub={devices.length ? `${devices.length} au total · ${active} actif${active > 1 ? 's' : ''} cette semaine` : 'Chargement…'} onClick={onDevToggle} right={<Chev open={devOpen} />} />
+      {devOpen && sorted.map(d => (
+        <Item key={d.id} title={<span style={{ fontSize: 14 }}>{d.actor === 'houari' ? 'Houari' : 'Kouider'} · {d.label.replace(/\s*—\s*\d{2}\/\d{2}\/\d{4}$/, '')}</span>}
+          sub={`Vu ${ago(d.last)} · ajouté le ${new Date(d.created).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`}
+          right={d.last && Date.now() - new Date(d.last).getTime() < 3600000 ? <Pill ok label="Actif" /> : undefined} />
+      ))}
+    </>
   );
 }
 
 function ThemePicker() {
   const [mode, setMode] = useState<ThemeMode>(getThemeMode());
-  const opts: Array<{ id: ThemeMode; label: string; icon: string }> = [
-    { id: 'light', label: 'Clair', icon: '☀️' }, { id: 'dark', label: 'Sombre', icon: '🌙' }, { id: 'auto', label: 'Auto', icon: '📱' },
+  const opts: Array<{ id: ThemeMode; label: string; icon: string; bg: string; fg: string }> = [
+    { id: 'light', label: 'Clair', icon: 'sun', bg: 'linear-gradient(160deg,#ffffff,#eef1f6)', fg: '#0b0d12' },
+    { id: 'dark', label: 'Sombre', icon: 'moon', bg: 'linear-gradient(160deg,#1a1d26,#050608)', fg: '#ffffff' },
+    { id: 'auto', label: 'Auto', icon: 'smartphone', bg: 'linear-gradient(115deg,#ffffff 0%,#eef1f6 49%,#14171f 51%,#050608 100%)', fg: '#7c8597' },
   ];
   return (
-    <Panel title="Apparence">
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+    <Group title="Apparence" foot="Auto suit le réglage de ton iPhone.">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, padding: 14 }}>
         {opts.map(o => {
           const on = mode === o.id;
           return (
-            <button key={o.id} aria-pressed={on} onClick={() => { setMode(o.id); setThemeMode(o.id); }} style={{
-              minHeight: 64, borderRadius: 16, cursor: 'pointer', fontFamily: T.font, fontSize: 13, fontWeight: 700,
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
-              background: on ? T.ink : T.surface, color: on ? T.onInk : T.text,
-              border: `1px solid ${on ? T.ink : T.lineStrong}`,
-            }}><span style={{ fontSize: 20 }}>{o.icon}</span>{o.label}</button>
+            <button key={o.id} aria-pressed={on} onClick={() => { setMode(o.id); setThemeMode(o.id); }} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: T.font, color: T.text, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: '100%', aspectRatio: '1 / 1.15', borderRadius: 16, background: o.bg, border: on ? `2px solid ${T.accent}` : '1px solid var(--dz-line-strong)', boxShadow: on ? `0 0 0 4px ${tone(T.accent, 0.2)}` : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: o.fg, boxSizing: 'border-box' }}>
+                <Icon name={o.icon} size={22} />
+              </div>
+              <span style={{ fontSize: 13, fontWeight: on ? 700 : 500, color: on ? T.text : T.muted, display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 16, height: 16, borderRadius: '50%', border: on ? 'none' : '1.5px solid var(--dz-line-strong)', background: on ? T.accent : 'transparent', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{on && <Icon name="check" size={11} color="#fff" stroke={3} />}</span>
+                {o.label}
+              </span>
+            </button>
           );
         })}
       </div>
-      <div style={{ fontSize: 12, color: T.muted, marginTop: 10 }}>Auto suit le réglage de ton iPhone (sombre le soir si tu l'as activé).</div>
-    </Panel>
+    </Group>
   );
 }
-
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ background: `linear-gradient(160deg, ${T.surface2}, ${T.surface})`, borderRadius: T.radius, padding: '16px', border: `1px solid ${T.line}` }}>
-      <div style={{ fontSize: 16, fontWeight: 800, color: T.text, marginBottom: 12, letterSpacing: '-0.01em' }}>{title}</div>
-      {children}
-    </div>
-  );
-}
-
-function StatusPill({ label, val, ok, col }: { label: string; val: string; ok: boolean; col?: string }) {
-  const c = col ?? (ok ? '#0a9a5e' : '#e0304f');
-  return (
-    <div style={{ flex: 1, textAlign: 'center', background: 'var(--dz-surface)', borderRadius: 12, padding: '10px 6px', border: `1px solid color-mix(in srgb, ${c} 20%, transparent)` }}>
-      <div style={{ fontSize: 13, color: 'var(--dz-muted)', letterSpacing: '0.05em', marginBottom: 4 }}>{label}</div>
-      <div style={{
-        fontSize: 12, fontWeight: 700, color: c, fontFamily: 'Inter, sans-serif',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-      }}>
-        <div style={{
-          width: 5, height: 5, borderRadius: '50%', background: c,
-          boxShadow: `0 0 5px ${c}`,
-          animation: ok ? 'statusPulse 2s ease infinite' : 'none',
-          flexShrink: 0,
-        }} />
-        {val}
-      </div>
-    </div>
-  );
-}
-
-function actionBtn(col: string): React.CSSProperties {
-  return {
-    background: `color-mix(in srgb, ${col} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${col} 33%, transparent)`, borderRadius: 12,
-    minHeight: 46, padding: '0 14px', fontFamily: T.font, fontSize: 14, fontWeight: 700,
-    color: col, cursor: 'pointer', letterSpacing: '0.01em',
-    width: '100%', textAlign: 'center',
-  };
-}
-
-function NexusRow({ k, v }: { k: string; v: string }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-      <span style={{ fontSize: 11.5, color: '#0a9a5e44', letterSpacing: '0.1em' }}>{k}</span>
-      <span style={{ fontSize: 12, color: '#0a9a5ecc', fontFamily: 'Inter, sans-serif' }}>{v}</span>
-    </div>
-  );
-}
-

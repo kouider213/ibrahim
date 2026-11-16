@@ -1,8 +1,9 @@
+import Dashboard from './Dashboard.tsx';
 import { DidButton } from './Did.tsx';
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch, type SportOverview, type SportSession, type SportExercise, type SportType } from '../services/api.ts';
-import { errText, SHORT_DAYS, dayOf, vibrate, forme, compressImage, type MachineEx, type MachineScan, type ProgramView, type LibItem, type Routine, type RoutineEx, type ExSet } from './api.ts';
+import { errText, SHORT_DAYS, dayOf, vibrate, forme, compressImage, type MachineEx, type MachineScan, type ProgramView, type LibItem, type Routine, type RoutineEx, type ExSet, type Overview } from './api.ts';
 import { F, card, btn, ghostBtn, input, Sheet, Spinner } from './ui.tsx';
 import { ExerciseSheet, Anim, RecoveryMap, LibraryPicker, COACH_TO_GROUP } from './Exercises.tsx';
 import { TodayForm } from './Watch.tsx';
@@ -726,7 +727,7 @@ function WeekBars({ weeks }: { weeks: Array<{ from: string; sessions: number; vo
 
 const statTile = (v: ReactNode, l: string) => <div style={{ ...card, padding: '12px 12px', flex: 1, minWidth: 0 }}><div style={{ fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em' }}>{v}</div><div style={{ fontSize: 12, color: F.muted, marginTop: 2 }}>{l}</div></div>;
 
-export default function SportScreen({ toast, go }: { toast: (t: string) => void; go?: (t: 'library' | 'scan') => void }) {
+export default function SportScreen({ toast, go, o }: { toast: (t: string) => void; go?: (t: 'library' | 'scan') => void; o?: Overview }) {
   const [d, setD] = useState<SportOverview | null>(null);
   const [err, setErr] = useState('');
   const [play, setPlay] = useState<SportSession | null>(null);
@@ -772,6 +773,7 @@ export default function SportScreen({ toast, go }: { toast: (t: string) => void;
         })}
       </div>
       <ResumeBanner toast={toast} onDone={() => { void load(); setBump(b => b + 1); }} />
+      {o && <Dashboard o={o} weeks={d.stats.weeks} weekDone={strip.filter(w => w.status === 'done').length} weekGoal={o.profile?.sessionsPerWeek || strip.filter(w => w.type && !w.skip).length || 4} streak={d.stats.streak} />}
       <TodayForm />
       {doneToday && !pick && <div style={{ ...card, marginTop: 14, display: 'flex', alignItems: 'center', gap: 12 }}><div style={{ width: 40, height: 40, borderRadius: 20, background: F.green, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 800 }}>✓</div><div><div style={{ fontWeight: 700 }}>Séance du jour faite{d.today?.label ? ` : ${d.today.label}` : ''}</div><div style={{ fontSize: 13, color: F.muted }}>Bravo. Récupère bien — voici la prochaine.</div></div></div>}
       {s ? <SessionCard s={s} kicker={isToday ? (doneToday ? 'Aujourd\'hui · faite ✓' : "Aujourd'hui") : `${pick ? '' : 'Prochaine · '}${SHORT_DAYS[dayOf(s.date)]} ${s.date.slice(8)} · ${new Date(s.start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' })}`} onStart={() => setPlay(s)} onEx={setEx} start={isToday ? 'Démarrer l\'entraînement' : 'Voir / faire cette séance'} />

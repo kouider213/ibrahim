@@ -1,3 +1,9 @@
+## 16/11/2026 (après-midi) — Clients, Réglages, FORME graphiques, Fennou + Route retirés du menu (app v267)
+- CLIENTS : héros « CA cumulé » + 3 chiffres (profils, reviennent, panier moyen) + top 5 clients en barres ; filtres Tous / VIP / Fidèles / Nouveaux / À relancer (> 4 mois) ; tri Récents / CA / A→Z ; cartes avec avatar, « il y a X », boutons WhatsApp + appel ; fond blanc de la carte ouverte en mode sombre corrigé.
+- RÉGLAGES refaits façon Réglages iPhone : carte profil (statut serveur + version), aperçus clair/sombre/auto, lignes avec tuiles d'icônes, mot de passe et appareils repliables (vu il y a…), position, état système, tâches et règles repliables.
+- FORME › Séance : nouveau tableau de bord (forme/Dashboard.tsx) — anneaux d'activité (séances semaine, pas, protéines), graphique à onglets (volume 8 semaines, pas, sommeil, calories ; onglets vides masqués), courbe de poids en aire avec objectif.
+- Menu Plus : FENNOU et ROUTE retirés à la demande de Kouider (code gardé).
+
 ## 16/11/2026 — Design v4 « Signature » (Dzaryx + FORME) + Vitalité retiré + bouton LIBERTÉ
 - LIBERTÉ : la feuille « Combien exactement ? » restait sous la barre du bas → impossible de valider. Toutes les feuilles (Kit Sheet) et toasts passent en portail dans <body> (z ≥ 1000).
 - Module Vitalité retiré partout (demande de Kouider) : onglet COACH supprimé (VitaliteTab.tsx), job/rappels coupés, rien dans le dossier des cerveaux, outil `vitalite` limité aux prises de sang ; LIBERTÉ sans « désir / libido » (« Ce qui revient » = énergie, joie, clarté).

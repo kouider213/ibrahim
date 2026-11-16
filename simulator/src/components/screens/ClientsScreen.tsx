@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { openClient, ClientName } from '../ClientSheet.tsx';
 import { business, type ClientSummary, type ClientIntelligence, type ClientOperation, type ClientType, type ClientDetail, type ClientBookingHistory, type Car } from '../../services/api.ts';
 import { SkeletonCards, SearchPill } from '../ui/Premium.tsx';
-import { T, PageHeader, Kpi, KpiGrid, btnStyle } from '../ui/Kit.tsx';
-import { Ico } from '../ui/Icon.tsx';
+import { T, PageHeader, btnStyle, glass, tone, Avatar, Chips, waLink, CountUp } from '../ui/Kit.tsx';
+import { Ico, Icon } from '../ui/Icon.tsx';
 
 // Libellés français des statuts (les valeurs envoyées au serveur restent en anglais)
 const FR: Record<string, string> = { CONFIRMED: 'Confirmée', PENDING: 'En attente', ACTIVE: 'En cours', COMPLETED: 'Terminée', REJECTED: 'Refusée', CANCELLED: 'Annulée', UNPAID: 'À payer', PARTIAL: 'Acompte', PAID: 'Payé',
@@ -44,7 +44,23 @@ const SCORE_COL: Record<string, string> = {
   REGULAR: C.accentSoft, RÉGULIER: C.accentSoft, NEW: C.muted, NOUVEAU: C.muted,
 };
 
+const SCORE_FR: Record<string, string> = { VIP: 'VIP', FREQUENT: 'Fidèle', 'FRÉQUENT': 'Fidèle', REGULAR: 'Régulier', 'RÉGULIER': 'Régulier', NEW: 'Nouveau', NOUVEAU: 'Nouveau' };
+type Seg = 'all' | 'vip' | 'fidele' | 'new' | 'dormant';
+type Sort = 'recent' | 'ca' | 'az';
+const ago = (x?: string | null) => {
+  if (!x) return '';
+  const d = Math.round((Date.now() - new Date(String(x).slice(0, 10)).getTime()) / 86400000);
+  if (d < 0) return `dans ${-d} j`;
+  if (d === 0) return "aujourd'hui";
+  if (d < 31) return `il y a ${d} j`;
+  if (d < 365) return `il y a ${Math.round(d / 30)} mois`;
+  const y = Math.round(d / 365); return `il y a ${y} an${y > 1 ? 's' : ''}`;
+};
+const daysSince = (x?: string | null) => x ? (Date.now() - new Date(String(x).slice(0, 10)).getTime()) / 86400000 : 9999;
+
 export default function ClientsScreen() {
+  const [seg, setSeg]   = useState<Seg>('all');
+  const [sort, setSort] = useState<Sort>('recent');
   const [clients, setClients]   = useState<ClientSummary[]>([]);
   const [intel, setIntel]       = useState<Map<string, ClientIntelligence>>(new Map());
   const [ops, setOps]           = useState<Map<string, ClientOperation[]>>(new Map());
@@ -263,83 +279,154 @@ export default function ClientsScreen() {
     finally { setSaving(false); setTimeout(() => setToast(null), 5000); }
   };
 
-  const filtered = clients.filter(c =>
-    !search || c.name.toLowerCase().includes(search.toLowerCase()) || (c.phone?.includes(search) ?? false)
-  );
   const getScore = (name: string) => intel.get(name)?.score?.toUpperCase() ?? 'NOUVEAU';
   const fmt = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} €`;
+  const lastOf = (c: ClientSummary) => c.lastBookingDate || c.lastBooking || '';
+  const inSeg = (c: ClientSummary, k: Seg) => {
+    const sc = SCORE_FR[getScore(c.name)] ?? 'Nouveau';
+    if (k === 'vip') return sc === 'VIP';
+    if (k === 'fidele') return sc === 'Fidèle' || sc === 'Régulier' || c.bookingCount >= 2;
+    if (k === 'new') return sc === 'Nouveau' && c.bookingCount <= 1;
+    if (k === 'dormant') return c.bookingCount > 0 && daysSince(lastOf(c)) > 120;
+    return true;
+  };
+  const q = search.trim().toLowerCase();
+  const filtered = clients
+    .filter(c => !q || c.name.toLowerCase().includes(q) || (c.phone?.replace(/\s/g, '').includes(q.replace(/\s/g, '')) ?? false))
+    .filter(c => inSeg(c, seg))
+    .sort((a, b) => sort === 'ca' ? b.totalSpent - a.totalSpent
+      : sort === 'az' ? a.name.localeCompare(b.name, 'fr')
+      : String(lastOf(b)).localeCompare(String(lastOf(a))));
   const vipCount = clients.filter(c => getScore(c.name) === 'VIP').length;
-  const totalSpent = clients.reduce((s, c) => s + (intel.get(c.name)?.total_spent ?? 0), 0);
+  const totalSpent = clients.reduce((s, c) => s + (c.totalSpent || 0), 0);
+  const totalBk = clients.reduce((s, c) => s + (c.bookingCount || 0), 0);
+  const fideles = clients.filter(c => inSeg(c, 'fidele')).length;
+  const top = [...clients].sort((a, b) => b.totalSpent - a.totalSpent).filter(c => c.totalSpent > 0).slice(0, 5);
+  const topMax = top[0]?.totalSpent || 1;
+  const segItems: { id: Seg; label: string; count: number }[] = [
+    { id: 'all', label: 'Tous', count: clients.length },
+    { id: 'vip', label: 'VIP', count: clients.filter(c => inSeg(c, 'vip')).length },
+    { id: 'fidele', label: 'Fidèles', count: clients.filter(c => inSeg(c, 'fidele')).length },
+    { id: 'new', label: 'Nouveaux', count: clients.filter(c => inSeg(c, 'new')).length },
+    { id: 'dormant', label: 'À relancer', count: clients.filter(c => inSeg(c, 'dormant')).length },
+  ];
+  const BAR = ['#3d6bff', '#8b5cf6', '#22d3ee', '#12b76a', '#f59e0b'];
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, position: 'relative' }}>
+    <div className="dz-scroll" style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: T.font, position: 'relative' }}>
       {toast && (
         <div style={{ position: 'fixed', left: '50%', top: 80, transform: 'translateX(-50%)', zIndex: 200, width: 'calc(100% - 32px)', maxWidth: 520, boxSizing: 'border-box', background: C.surface2, border: `1px solid color-mix(in srgb, ${C.accent} 33%, transparent)`, color: C.text, fontSize: 14, fontWeight: 600, padding: '12px 14px', borderRadius: 12, boxShadow: '0 8px 30px rgba(15,17,30,0.11)' }}>{toast}</div>
       )}
       <PageHeader eyebrow="Fichier clients" title="Clients" subtitle={`${clients.length} profil${clients.length !== 1 ? 's' : ''} · historique, pièces, préférences`} />
-      <div style={{ padding: '0 16px' }}>
-        <KpiGrid cols={3}>
-          <Kpi value={clients.length} label="Profils" color={T.ok} />
-          <Kpi value={vipCount} label="VIP" color={T.warn} />
-          <Kpi value={fmt(totalSpent)} label="CA total" color={T.accent} />
-        </KpiGrid>
+
+      {/* Héros : CA cumulé + 3 chiffres + top 5 en barres */}
+      <div style={{ padding: '0 16px 14px' }}>
+        <div style={{ ...glass(T.accent2), borderRadius: 24, padding: 18, position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', right: -40, top: -50, width: 180, height: 180, borderRadius: '50%', background: T.grad, opacity: 0.18, filter: 'blur(30px)' }} />
+          <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.muted }}>CA cumulé clients</div>
+          <div className="dz-num" style={{ fontFamily: T.display, fontSize: 40, fontWeight: 700, letterSpacing: '-0.045em', lineHeight: 1.05, marginTop: 6 }}><CountUp value={fmt(totalSpent)} /></div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 14 }}>
+            {[
+              { v: String(clients.length), l: 'Profils', c: T.accent },
+              { v: String(fideles), l: 'Reviennent', c: T.ok },
+              { v: totalBk ? fmt(totalSpent / totalBk) : '—', l: 'Panier moyen', c: T.warn },
+            ].map(k => (
+              <div key={k.l} style={{ background: tone(k.c, 0.1), border: `1px solid ${tone(k.c, 0.2)}`, borderRadius: 14, padding: '9px 10px' }}>
+                <div className="dz-num" style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.03em' }}>{k.v}</div>
+                <div style={{ fontSize: 11.5, color: T.muted, marginTop: 1 }}>{k.l}</div>
+              </div>
+            ))}
+          </div>
+          {top.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: T.muted, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="trophy" size={14} color={T.warn} />Meilleurs clients{vipCount ? ` · ${vipCount} VIP` : ''}</div>
+              {top.map((c, i) => (
+                <button key={c.name} onClick={() => { setSearch(c.name); setSeg('all'); }} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', padding: '5px 0', cursor: 'pointer', color: T.text, fontFamily: T.font, textAlign: 'left' }}>
+                  <span style={{ width: 92, fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0 }}>{c.name}</span>
+                  <span style={{ flex: 1, height: 10, borderRadius: 6, background: 'var(--dz-line)', overflow: 'hidden' }}>
+                    <span style={{ display: 'block', height: '100%', width: `${Math.max(6, (c.totalSpent / topMax) * 100)}%`, borderRadius: 6, background: `linear-gradient(90deg, ${BAR[i]}, ${tone(BAR[i], 0.55)})`, transition: 'width .8s cubic-bezier(.16,.84,.3,1)' }} />
+                  </span>
+                  <span className="dz-num" style={{ width: 62, textAlign: 'right', fontSize: 12.5, fontWeight: 700, flexShrink: 0 }}>{fmt(c.totalSpent)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Recherche (pilule) */}
-      <div style={{ padding: '0 16px 14px' }}>
+      {/* Recherche + filtres + tri */}
+      <div style={{ padding: '0 16px 10px' }}>
         <SearchPill value={search} onChange={setSearch} placeholder="Rechercher un nom ou un téléphone…" />
       </div>
+      <div style={{ padding: '0 16px 10px' }}>
+        <Chips items={segItems} value={seg} onChange={setSeg} />
+      </div>
+      <div style={{ padding: '0 16px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 12.5, color: T.muted, flex: 1 }}>{filtered.length} client{filtered.length > 1 ? 's' : ''}</span>
+        {([['recent', 'Récents'], ['ca', 'CA'], ['az', 'A→Z']] as [Sort, string][]).map(([k, l]) => (
+          <button key={k} onClick={() => setSort(k)} style={{ fontFamily: T.font, fontSize: 12.5, fontWeight: 600, padding: '6px 11px', borderRadius: 10, cursor: 'pointer',
+            background: sort === k ? T.ink : 'transparent', color: sort === k ? T.onInk : T.muted, border: `1px solid ${sort === k ? 'transparent' : 'var(--dz-line)'}` }}>{l}</button>
+        ))}
+      </div>
 
-      {/* ➕ Nouvelle réservation GLOBALE (choisir le client dans la liste) */}
+      {/* Nouvelle réservation GLOBALE (choisir le client dans la liste) */}
       <div style={{ padding: '0 16px 14px' }}>
         {newGlobal ? (
           <NewBookingForm cars={cars} clients={clients} saving={saving}
             onCancel={() => setNewGlobal(false)} onCreate={createBookingFor} />
         ) : (
           <button onClick={() => setNewGlobal(true)}
-            style={{ ...btnStyle('primary'), width: '100%', fontSize: 15, minHeight: 50 }}>
-            ＋ Nouvelle réservation
+            style={{ ...btnStyle('primary'), width: '100%', fontSize: 15, minHeight: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <Icon name="plus" size={18} stroke={2.2} />Nouvelle réservation
           </button>
         )}
       </div>
 
       {/* Liste */}
-      <div style={{ padding: '0 16px 130px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="dz-in" style={{ padding: '0 16px 130px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {loading ? (
           <SkeletonCards count={5} height={78} />
         ) : filtered.length === 0 ? (
-          <Empty t="Aucun client" />
+          <Empty t={seg === 'all' ? 'Aucun client' : 'Aucun client dans ce filtre'} />
         ) : filtered.map(c => {
           const score = getScore(c.name);
           const scCol = SCORE_COL[score] ?? C.muted;
+          const avCol = score === 'VIP' ? T.warn : score.startsWith('FR') ? T.accent : c.bookingCount >= 2 ? T.ok : T.accent2;
           const ci    = intel.get(c.name);
           const isExp = expanded === c.name;
-          const initials = c.name.split(' ').map(w => w[0] ?? '').slice(0, 2).join('').toUpperCase();
           const cOps = ops.get(c.name) ?? [];
+          const wa = waLink(c.phone);
+          const last = lastOf(c);
 
           return (
-            <div key={c.name} style={{ background: isExp ? 'linear-gradient(160deg, #ffffff, #ffffff)' : C.surface, border: `1px solid ${isExp ? scCol + '55' : C.border}`, borderRadius: 18, overflow: 'hidden', transition: 'all .2s', boxShadow: isExp ? `0 8px 28px color-mix(in srgb, ${scCol} 9%, transparent)` : '0 1px 0 rgba(255,255,255,0.02)' }}>
-              <div onClick={() => toggle(c)} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '15px 14px', cursor: 'pointer' }}>
-                <div style={{ width: 48, height: 48, borderRadius: '50%', flexShrink: 0, background: `linear-gradient(145deg, color-mix(in srgb, ${scCol} 20%, transparent), color-mix(in srgb, ${scCol} 6%, transparent))`, border: `1.5px solid color-mix(in srgb, ${scCol} 40%, transparent)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, color: scCol, boxShadow: `0 0 14px color-mix(in srgb, ${scCol} 13%, transparent)` }}>{initials || '?'}</div>
+            <div key={c.name} style={{ ...glass(isExp ? avCol : undefined), borderRadius: 20, overflow: 'hidden', transition: 'all .2s' }}>
+              <div onClick={() => toggle(c)} className="dz-press" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 14px', cursor: 'pointer' }}>
+                <Avatar name={c.name} color={avCol} size={46} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 15.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><ClientName name={c.name} phone={c.phone} /></div>
-                  <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>{c.bookingCount} résa · {fmt(c.totalSpent)}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                    <div style={{ fontSize: 15.5, fontWeight: 650, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><ClientName name={c.name} phone={c.phone} /></div>
+                    {score === 'VIP' && <Icon name="star" size={14} color={T.warn} fill={T.warn} />}
+                  </div>
+                  <div className="dz-num" style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>
+                    <span style={{ color: C.text, fontWeight: 650 }}>{fmt(c.totalSpent)}</span> · {c.bookingCount} résa{c.bookingCount > 1 ? 's' : ''} · <span style={{ color: scCol, fontWeight: 600 }}>{SCORE_FR[score] ?? score}</span>
+                  </div>
                   {c.lastCarName && (
-                    <div style={{ fontSize: 11.5, color: C.accentSoft, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      🚗 Dernière : {c.lastCarName}{c.lastBookingDate ? ` · ${dfr(c.lastBookingDate)}` : ''}
+                    <div style={{ fontSize: 12, color: C.muted, marginTop: 4, display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                      <Icon name="car" size={13} color="var(--dz-faint)" />
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.lastCarName}{last ? ` · ${ago(last)}` : ''}</span>
                     </div>
                   )}
-                  {c.types && c.types.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 7 }}>
-                      {c.types.map(t => { const m = TYPE_META[t]; if (!m) return null; return (
-                        <span key={t} style={{ fontSize: 12, fontWeight: 600, color: m.col, background: `color-mix(in srgb, ${m.col} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${m.col} 25%, transparent)`, borderRadius: 20, padding: '2px 9px' }}>{m.label}</span>
+                  {c.types && c.types.filter(t => t !== 'loc_auto').length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 6 }}>
+                      {c.types.filter(t => t !== 'loc_auto').map(t => { const m = TYPE_META[t]; if (!m) return null; return (
+                        <span key={t} style={{ fontSize: 11.5, fontWeight: 600, color: m.col, background: `color-mix(in srgb, ${m.col} 10%, transparent)`, borderRadius: 20, padding: '2px 8px' }}>{m.label}</span>
                       ); })}
                     </div>
                   )}
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: scCol, background: `color-mix(in srgb, ${scCol} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${scCol} 33%, transparent)`, borderRadius: 20, padding: '3px 10px' }}>{score}</span>
-                  {c.phone && <a href={`tel:${c.phone}`} onClick={e => e.stopPropagation()} style={{ fontSize: 20, textDecoration: 'none' }}>📞</a>}
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  {wa && <a href={wa} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} aria-label="WhatsApp" style={circ('#25d366')}><Icon name="whatsapp" size={17} /></a>}
+                  {c.phone && <a href={`tel:${c.phone}`} onClick={e => e.stopPropagation()} aria-label="Appeler" style={circ(T.accent)}><Icon name="phone" size={17} /></a>}
                 </div>
               </div>
 
@@ -532,6 +619,9 @@ export default function ClientsScreen() {
   );
 }
 
+function circ(col: string): React.CSSProperties {
+  return { width: 38, height: 38, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', color: col, background: `color-mix(in srgb, ${col} 13%, transparent)`, border: `1px solid color-mix(in srgb, ${col} 26%, transparent)`, textDecoration: 'none' };
+}
 function miniBtn(col: string): React.CSSProperties {
   return { fontSize: 12.5, fontWeight: 700, color: col, background: `color-mix(in srgb, ${col} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${col} 25%, transparent)`, borderRadius: 10, padding: '7px 12px', cursor: 'pointer' };
 }

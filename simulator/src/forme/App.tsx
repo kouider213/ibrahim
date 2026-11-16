@@ -304,7 +304,7 @@ function FormeApp() {
       )}
       <AnimatePresence mode="wait">
         <motion.main key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.16 }}>
-          {tab === 'sport' && (o.uid === 'kouider' ? <SportScreen toast={toast} go={setTab} /> : <ProgramSport toast={toast} go={setTab} />)}
+          {tab === 'sport' && (o.uid === 'kouider' ? <SportScreen toast={toast} go={setTab} o={o} /> : <ProgramSport toast={toast} go={setTab} />)}
           {tab === 'cut' && <CutScreen toast={toast} />}
           {tab === 'run' && <RunScreen toast={toast} name={o.profile.name} />}
           {tab === 'food' && <FoodScreen toast={toast} o={o} onO={setO} />}
