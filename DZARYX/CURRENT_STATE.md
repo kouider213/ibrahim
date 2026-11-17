@@ -2,9 +2,15 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : **2026-11-09**.
+> Dernière mise à jour : **2026-11-17**.
 
 ---
+
+## ⚡ Session 2026-11-17 — FORME corps cliquable (app v275) + programme « transformation Aïd 10/03/2027 » (ca86ba17 → b7c4801c)
+- Séance : carte du corps cliquable (BodyZones.tsx) → séance par muscle, objectifs par zone, programme sur mesure ; historique cliquable avec vrais noms.
+- Programme officiel (kv kouider:sport:program) : HAUT A · Pecs & Dos / BAS + ABDOS / HAUT B · Épaules & Bras / HAUT C · Pecs, Dos & Bras. Objectif FORME eta 2027-03-10 + 7 étapes datées.
+- ⚠️ Les noms de séance ne doivent PAS contenir « — » (séparateur nom/lieu dans les titres d'agenda, coupé par widget voiture/GPS/messages) → utiliser « · ».
+- Vérifié en direct : agenda 20/21/23/24 nov, FORME planned + charges, goalsText dans le cerveau. À faire avant le 06/02 : plan ramadan (séances après iftar).
 
 ## ⚡ Session 2026-11-10 (nuit) — Appels qui apprennent des refus + réponses plus rapides (a7efd7c2 → 95ad836a)
 - tgcall relancé (pm2 dzaryx-tg) : apprentissage des refus d'appel + plus de raccroché en pleine phrase sur appel muet.
