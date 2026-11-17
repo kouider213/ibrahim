@@ -77,6 +77,8 @@ async function dayStat(date: string, s: Src): Promise<DayStat> {
   try {
     const { foodBudget, deficitStatus } = await import('./forme-food.js');
     const b = await foodBudget('kouider', date);
+    // 17/11 : séance pas lancée sur la montre → calories actives complétées par l'estimation de la séance notée
+    if (b.session?.used && b.activeSource === 'montre' && b.active > (st.activeKcal ?? 0)) st.activeKcal = b.active;
     if (b.eaten.kcal > 0) {
       const d = deficitStatus(b);
       Object.assign(st, { eaten: b.eaten.kcal, protein: Math.round(b.eaten.p), proteinGoal: b.proteinGoal, target: b.target, burned: d.burned, realDeficit: d.real, deficitGoal: d.goal });

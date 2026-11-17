@@ -37,7 +37,7 @@ function DidSheet({ open, onClose, toast, onDone }: { open: boolean; onClose: ()
     if (!f) return;
     setBusy('Je reconnais la machine…');
     try {
-      const [image, thumb] = await Promise.all([compressImage(f, 1280, 0.82), compressImage(f, 220, 0.6)]);
+      const [image, thumb] = await Promise.all([compressImage(f, 1024, 0.78), compressImage(f, 220, 0.6)]);
       const { scan } = await forme.machine(image, thumb);
       const lib = await loadLib().catch(() => [] as LibItem[]);
       const found = scan.exercises.filter(e => e.id).map(e => { const l = lib.find(x => x.id === e.id); return { id: e.id!, name: e.name, img: e.img, p: l?.p ?? [] }; });

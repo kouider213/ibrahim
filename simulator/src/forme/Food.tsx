@@ -107,7 +107,7 @@ export default function FoodScreen({ toast, o, onO }: { toast: (t: string) => vo
           {b.macros ? range('Lipides', b.eaten.f, b.macros.fatMin, b.macros.fatMax, '#ff9f80') : macro('Lipides', b.eaten.f, null, '#ff9f80')}
         </div>
         {b.macros && <div style={{ fontSize: 11.5, opacity: 0.6, marginTop: 8 }}>Fourchettes pour {b.target} kcal : lipides 0,8 g/kg à 35 % des kcal (jamais moins, hormones) · glucides = le reste.</div>}
-        <div style={{ fontSize: 11.5, opacity: 0.6, marginTop: 12 }}>Base {b.bmr} + activité {b.active} kcal, {SRC[b.activeSource]}.</div>
+        <div style={{ fontSize: 11.5, opacity: 0.6, marginTop: 12 }}>Base {b.bmr} + activité {b.active} kcal, {SRC[b.activeSource]}.{b.session?.used ? ` Dont ta séance ≈ ${b.session.kcal} kcal (${b.session.min} min), calculée par Dzaryx car pas lancée sur ta montre.` : ''}</div>
       </div>
 
       <QuickProtein b={b} onBudget={setB} toast={toast} />

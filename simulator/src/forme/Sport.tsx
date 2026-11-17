@@ -651,10 +651,15 @@ function ReviewCard({ dates, bump }: { dates: string[]; bump: number }) {
   useEffect(() => {
     let stop = false; let tries = 0;
     const run = async () => {
-      for (const dt of dates) {
+      for (const [i, dt] of dates.entries()) {
         const x = await apiFetch<{ review: SessionReviewV | null }>(`/api/sport/review?date=${dt}`).catch(() => null);
         if (stop) return;
-        if (x?.review) { setR(x.review); return; }
+        if (x?.review) {
+          setR(x.review);
+          // 17/11 : le bilan du jour se prépare ~10-30 s après la séance → on affichait celui d'hier et on s'arrêtait là
+          if (i > 0 && bump && ++tries < 10 && !stop) setTimeout(() => void run(), 6000);
+          return;
+        }
       }
       if (bump && ++tries < 8 && !stop) setTimeout(() => void run(), 6000);   // bilan en préparation juste après la séance
     };

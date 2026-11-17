@@ -23,7 +23,7 @@ export interface MealLog {
 }
 export interface FoodCfg { on: boolean; deficit: number; telegram: boolean }
 export interface Budget {
-  date: string; bmr: number; active: number; activeSource: 'montre' | 'moyenne' | 'estimation'; burn: number;
+  date: string; bmr: number; active: number; activeSource: 'montre' | 'moyenne' | 'estimation'; burn: number; session?: { kcal: number; min: number; used: boolean };
   deficit: number; target: number; floor: number; eaten: { kcal: number; p: number; c: number; f: number };
   mode: 'deficit' | 'surplus'; surplus: number;   // objectif « muscle » = SURPLUS (prise de masse), sinon déficit
   left: number; proteinGoal: number; proteinLeft: number; pct: number; meals: MealLog[];
@@ -76,20 +76,45 @@ const sumOf = (items: Array<{ kcal: number; p: number; c: number; f: number }>) 
 
 // ── Dépense du jour (montre) et objectif ────────────────────────────────────
 interface HDay { date: string; active_kcal?: number; active_at?: string; steps?: number; sleep_h?: number; rhr?: number; hrv?: number }
-async function activeFor(date: string): Promise<{ kcal: number; source: Budget['activeSource']; today?: number; woK?: number; at?: string }> {
+/** 17/11 (Kouider : « j'oublie de lancer la séance sur ma montre → les calories brûlées sont fausses ») : dépense ACTIVE
+ *  de la séance de muscu notée dans FORME, calculée par MET (durée, effort ressenti, son poids) + l'échauffement tapis. */
+export async function sessionKcal(date: string, kg?: number): Promise<{ kcal: number; min: number } | null> {
+  const log = await import('./sport-coach.js').then(m => m.readSportLog()).catch(() => []);
+  const s = log.find(l => l.date === date && l.sets.length);
+  if (!s) return null;
+  const w = kg ?? (await getFormeProfile('kouider')).weightKg;
+  const min = s.durationMin && s.durationMin >= 10 ? Math.min(150, s.durationMin) : Math.max(20, s.sets.length * 2.5);
+  const met = (s.rpe ?? 7) <= 5 ? 3.5 : (s.rpe ?? 7) <= 7 ? 5 : 6;
+  const tapis = Number(/tapis\s+(\d+)\s*min/i.exec(s.note ?? '')?.[1] ?? 0);
+  return { kcal: r0((met - 1) * w * min / 60 + 3.5 * w * Math.min(60, tapis) / 60), min: r0(min + tapis) };
+}
+
+export async function activeFor(date: string): Promise<{ kcal: number; source: Budget['activeSource']; today?: number; woK?: number; at?: string; session?: { kcal: number; min: number; used: boolean } }> {
   const all = await readJson<HDay[]>('health:daily', []);
   const row = all.find(x => x.date === date), today = row?.active_kcal ?? 0, at = row?.active_at;
   // Séances vues par la montre aujourd'hui (début/fin envoyés en direct) → au moins ça + la vie de tous les jours
   const wo = await import('./workout-live.js').then(m => m.readWorkouts()).catch(() => []);
-  const woK = wo.filter(w => String(w.at).slice(0, 10) === date).reduce((a, w) => a + (w.kcal ?? 0), 0);
+  const woWatch = wo.filter(w => String(w.at).slice(0, 10) === date).reduce((a, w) => a + (w.kcal ?? 0), 0);
+  const sess = await sessionKcal(date).catch(() => null);
+  const woK = Math.max(woWatch, sess?.kcal ?? 0);
   const past = all.filter(x => x.date < date && x.date >= addDays(date, -14) && (x.active_kcal ?? 0) > 50).map(x => x.active_kcal!).sort((a, b) => a - b);
   const med = past.length >= 3 ? past[Math.floor(past.length / 2)]! : 0;
+  // Journée « sans séance » typique (montre) : base pour savoir si la séance a été vue par la montre ou non
+  const log = await import('./sport-coach.js').then(m => m.readSportLog()).catch(() => []);
+  const gymDays = new Set(log.filter(l => l.sets.length).map(l => l.date));
+  const rest = all.filter(x => x.date < date && x.date >= addDays(date, -21) && !gymDays.has(x.date) && (x.active_kcal ?? 0) > 150 && (x.active_at ?? '22:00') >= '20:00').map(x => x.active_kcal!).sort((a, b) => a - b);
+  const restMed = rest.length >= 2 ? rest[Math.floor(rest.length / 2)]! : med ? r0(med * 0.85) : 0;
   // Valeur de la montre = journée complète seulement le soir (envoi 22h) ou un jour passé ; un envoi du matin
   // (réveil) ne compte que quelques kcal → on garde la moyenne tant que la journée n'est pas finie.
   const dayDone = date < localNow().date || localNow().hhmm >= '20:00';
-  if (today > 50 && (dayDone || (med > 0 && today >= med))) return { kcal: r0(today), source: 'montre', today, woK, at };
-  if (med) return { kcal: r0(Math.max(med, woK + 200, today)), source: 'moyenne', today, woK, at };
-  return { kcal: r0(Math.max(350, woK + 250, today)), source: 'estimation', today, woK, at };
+  if (today > 50 && (dayDone || (med > 0 && today >= med))) {
+    // Séance pas lancée sur la montre : sa journée ne dépasse pas une journée sans sport + la séance → on prend ce plancher
+    const floorK = sess && restMed ? r0(restMed * 0.9) + sess.kcal : 0;
+    const used = !woWatch && floorK > today;
+    return { kcal: r0(used ? floorK : today), source: 'montre', today, woK, at, ...(sess ? { session: { ...sess, used } } : {}) };
+  }
+  if (med) return { kcal: r0(Math.max(med, woK + 200, today, sess && restMed ? r0(restMed * 0.9) + sess.kcal : 0)), source: 'moyenne', today, woK, at, ...(sess ? { session: { ...sess, used: !woWatch } } : {}) };
+  return { kcal: r0(Math.max(350, woK + 250, today)), source: 'estimation', today, woK, at, ...(sess ? { session: { ...sess, used: !woWatch } } : {}) };
 }
 
 export const BULK_SURPLUS = { lent: 250, moyen: 350, rapide: 500 } as const;
@@ -146,7 +171,8 @@ export async function foodBudget(uid: Uid = 'kouider', date = localNow().date): 
   const watchAt = 'at' in act && act.at ? Number(act.at.slice(0, 2)) * 60 + Number(act.at.slice(3, 5)) : null;
   const sinceWatch = watchAt !== null && watchNow > 0 ? watchNow + Math.max(0, act.kcal + runKcal - watchNow) * Math.max(0, minNow - watchAt) / Math.max(60, 1320 - watchAt) : null;
   const activeNow = !isToday || act.source === 'montre' ? act.kcal + runKcal : r0(Math.max(sinceWatch ?? Math.max(watchNow, (act.kcal + runKcal) * wakeFrac), woNow + runKcal));
-  const live = { burnedNow: r0(t.bmr * minNow / 1440 + activeNow), activeNow, nowSource: (watchNow > 50 && watchNow >= activeNow ? 'montre' : act.source === 'montre' ? 'montre' : 'estimation') as 'montre' | 'estimation', asOf: isToday ? ln.hhmm : '23:59' };
+  const sessionInfo = 'session' in act && act.session ? { session: act.session } : {};
+  const live = { ...sessionInfo, burnedNow: r0(t.bmr * minNow / 1440 + activeNow), activeNow, nowSource: (watchNow > 50 && watchNow >= activeNow ? 'montre' : act.source === 'montre' ? 'montre' : 'estimation') as 'montre' | 'estimation', asOf: isToday ? ln.hhmm : '23:59' };
   // Kouider garde son DÉFICIT même si son objectif sport est « muscle » (recompo) — sauf s'il fait lui-même le questionnaire
   if (p.goal === 'muscle' && (uid !== 'kouider' || p.bulk)) {
     // PRISE DE MASSE (01/11, son ami) : dépense + surplus selon le rythme choisi au questionnaire
@@ -418,7 +444,7 @@ Sécurité : jamais de régime extrême ; jamais de conseil sur un médicament (
 
 export function budgetFacts(b: Budget): string {
   return [`Date ${b.date}, heure ${localNow().hhmm}.`,
-    `Dépense estimée du jour : ${b.burn} kcal (base ${b.bmr} + activité ${b.active} ${b.activeSource === 'montre' ? 'mesurée par sa montre' : b.activeSource === 'moyenne' ? '(moyenne de ses 14 derniers jours sur la montre)' : '(estimation, pas encore de données montre)'}).`,
+    `Dépense estimée du jour : ${b.burn} kcal (base ${b.bmr} + activité ${b.active} ${b.activeSource === 'montre' ? 'mesurée par sa montre' : b.activeSource === 'moyenne' ? '(moyenne de ses 14 derniers jours sur la montre)' : '(estimation, pas encore de données montre)'})${b.session?.used ? ` — dont sa séance de muscu ≈ ${b.session.kcal} kcal ESTIMÉE par Dzaryx (${b.session.min} min, séance pas lancée sur la montre)` : ''}.`,
     b.mode === 'surplus' ? `Objectif PRISE DE MASSE : manger AU MOINS ${b.target} kcal (surplus de ${b.surplus} kcal au-dessus de sa dépense).` : `Objectif pour être en déficit : ${b.target} kcal (déficit ${b.deficit} kcal ; plancher de sécurité ${b.floor}).`,
     `Mangé : ${b.eaten.kcal} kcal (${b.pct} %), protéines ${b.eaten.p}/${b.proteinGoal} g, glucides ${b.eaten.c} g (fourchette du jour ${b.macros?.carbMin}–${b.macros?.carbMax} g), lipides ${b.eaten.f} g (fourchette ${b.macros?.fatMin}–${b.macros?.fatMax} g).`,
     `Il reste : ${b.left} kcal et ${b.proteinLeft} g de protéines.`,

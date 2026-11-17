@@ -58,6 +58,23 @@ const post = <T,>(path: string, body: unknown) => call<T>(path, { method: 'POST'
 export const get = <T,>(path: string) => call<T>(path);
 export const postJson = <T,>(path: string, body: unknown) => post<T>(path, body);   // 06/11 bilans : adapter / priorité
 
+// 17/11 (Kouider à la salle : « il reste chargé la photo ») : un envoi POST n'avait AUCUNE limite de temps → réseau de la salle
+// qui décroche = roue infinie. Maintenant 40 s max, un 2e essai automatique, puis un message clair.
+async function scanMachinePhoto(image: string, thumb?: string): Promise<{ scan: MachineScan }> {
+  for (let k = 0; k < 2; k++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 40_000);
+    try {
+      return await call<{ scan: MachineScan }>('/api/forme/machine', { method: 'POST', body: JSON.stringify({ image, thumb: k ? undefined : thumb }), signal: ctrl.signal });
+    } catch (e) {
+      if (/API 4\d\d/.test(String((e as Error)?.message ?? e))) throw e;   // vraie réponse du serveur (photo illisible…) : pas de 2e essai
+    } finally { clearTimeout(timer); }
+  }
+  const off = typeof navigator !== 'undefined' && navigator.onLine === false;
+  throw new Error(off ? 'Pas de réseau à la salle — la photo n\'est pas partie. Réessaie quand tu as du réseau, ou ajoute l\'exercice depuis la liste.'
+    : `Le réseau est trop lent, la photo n'est pas passée (2 essais). Réessaie, ou ajoute l'exercice depuis la liste.`);
+}
+
 export interface MachineEx { id: string | null; name: string; muscles: string[]; tip: string; img: string[]; video: string }
 export interface MachineScan { id: string; at: number; date: string; machine: string; what: string; setup: string; exercises: MachineEx[]; thumb?: string }
 export interface ExSet { at: number; date: string; kg?: number; reps?: number; fb?: 'easy' | 'ok' | 'hard' }
@@ -100,7 +117,7 @@ export interface RunDetail { run: RunSummary; track: Array<[number, number, numb
 export type MealSlot = 'matin' | 'midi' | 'collation' | 'soir';
 export interface FoodPart { name: string; grams: number; kcal: number; p: number; c: number; f: number }
 export interface MealLog { id: string; at: number; date: string; time: string; slot: MealSlot; title: string; items: FoodPart[]; kcal: number; p: number; c: number; f: number; confidence: 'haute' | 'moyenne' | 'basse'; note?: string; thumb?: string; src: 'photo' | 'texte'; coach?: string }
-export interface FoodBudget { date: string; bmr: number; active: number; activeSource: 'montre' | 'moyenne' | 'estimation'; burn: number; deficit: number; mode: 'deficit' | 'surplus'; surplus: number; target: number; floor: number; eaten: { kcal: number; p: number; c: number; f: number }; left: number; proteinGoal: number; proteinLeft: number; pct: number; meals: MealLog[]; burnedNow?: number; activeNow?: number; nowSource?: 'montre' | 'estimation'; asOf?: string; macros?: { carbMin: number; carbMax: number; fatMin: number; fatMax: number } }
+export interface FoodBudget { date: string; bmr: number; active: number; activeSource: 'montre' | 'moyenne' | 'estimation'; burn: number; session?: { kcal: number; min: number; used: boolean }; deficit: number; mode: 'deficit' | 'surplus'; surplus: number; target: number; floor: number; eaten: { kcal: number; p: number; c: number; f: number }; left: number; proteinGoal: number; proteinLeft: number; pct: number; meals: MealLog[]; burnedNow?: number; activeNow?: number; nowSource?: 'montre' | 'estimation'; asOf?: string; macros?: { carbMin: number; carbMax: number; fatMin: number; fatMax: number } }
 export interface FoodDay { date: string; eaten: number; p: number; proteinGoal: number; burn: number; real: number; goal: number; mode: 'deficit' | 'surplus'; measured: boolean; meals: number; today: boolean }
 export interface FoodCfg { on: boolean; deficit: number; telegram: boolean }
 export const forme = {
@@ -121,7 +138,7 @@ export const forme = {
   exBatch: (sets: Array<{ id: string; kg?: number; reps?: number; fb?: 'easy' | 'ok' | 'hard' }>) => post<{ n: number }>('/api/forme/exlog-batch', { sets }),
   fixPrev: (b: { ex: string; libId?: string; kg: number; day?: string; date?: string }) => post<{ fixed: number; date: string | null; best: number; higher: Array<{ date: string; kg: number }> }>('/api/forme/fix-prev', b),
   exLast: (ids: string[]) => call<{ last: Record<string, ExSet[]> }>(`/api/forme/exlast?ids=${encodeURIComponent(ids.join(','))}`),
-  machine: (image: string, thumb?: string) => post<{ scan: MachineScan }>('/api/forme/machine', { image, thumb }),
+  machine: scanMachinePhoto,
   machines: () => call<{ machines: MachineScan[] }>('/api/forme/machines'),
   delMachine: (id: string) => call<{ machines: MachineScan[] }>(`/api/forme/machines/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   exFavs: () => call<{ ids: string[] }>('/api/forme/exfav'),

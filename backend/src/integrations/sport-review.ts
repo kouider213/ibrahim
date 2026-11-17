@@ -88,7 +88,12 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
   const log = await readSportLog();
   const cur = log.find(l => l.date === date);
   if (!cur || !cur.sets.length) return null;
-  const prevS = log.filter(l => l.date < date && l.type === cur.type && l.sets.length).sort((a, b) => b.date.localeCompare(a.date))[0] ?? null;
+  // 17/11 (Kouider : « elle compte encore comme si c'est une séance épaule ») : JAMBES du 17 comparée aux PECS du 16 parce que
+  // les deux étaient rangées dans la case « legs ». La « dernière pareille » = la plus récente qui partage vraiment ses exercices.
+  const curIds = new Set(cur.sets.map(z => base(z.ex)));
+  const shared = (l: SessionLog) => new Set(l.sets.map(z => base(z.ex)).filter(id => curIds.has(id))).size;
+  const need = Math.max(1, Math.ceil(curIds.size * 0.3));
+  const prevS = log.filter(l => l.date < date && l.sets.length && shared(l) >= need).sort((a, b) => b.date.localeCompare(a.date))[0] ?? null;
   const now = perEx(cur), was = prevS ? perEx(prevS) : new Map();
   // Records : meilleure force estimée de chaque exercice avant aujourd'hui (toutes séances)
   const bestBefore = new Map<string, number>();
@@ -135,7 +140,7 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
   }
   const lost = prevS ? [...was.keys()].filter(k => !now.has(k)) : [];
   if (lost.length) improve.push(`Pas refait : ${(await Promise.all(lost.slice(0, 3).map(k => nameOf(k, names)))).join(', ')}`);
-  if (prevVol && volume >= prevVol * 1.05) good.push(`Volume total +${Math.round((volume / prevVol - 1) * 100)} % vs la dernière ${SESSIONS[cur.type].label}`);
+  if (prevVol && volume >= prevVol * 1.05) good.push(`Volume total +${Math.round((volume / prevVol - 1) * 100)} % vs la même séance du ${prevS!.date.slice(8)}/${prevS!.date.slice(5, 7)}`);
   if (cur.rpe && cur.rpe <= 6) improve.push(`Effort ${cur.rpe}/10 : c'était facile → monte un peu les charges la prochaine fois`);
   if (cur.rpe === 10) improve.push('Effort 10/10 : garde 1-2 reps en réserve sur la plupart des séries, tu progresseras plus longtemps');
   if (o.planned && exercises.length < o.planned) improve.push(`${o.planned - exercises.length} exercice(s) du programme non faits`);
