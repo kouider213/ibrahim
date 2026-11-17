@@ -1,3 +1,9 @@
+## 17/11/2026 (midi) — Séance : vraies séries précédentes, progression 1→2→3 séries, échauffement = 1er exercice (07df79b0 + app v277)
+- Kouider (photo triceps corde) : la dernière fois 1 seule série à 20,3 kg (puis 18, 18) mais PRÉCÉDENT affichait 20,3 × 12 sur les 3 lignes et proposait 20,3 partout. Pareil curl barre (30/25/25), élévations latérales (8/6/6).
+- Backend suggestFor : `prev` (séries réelles dans l'ordre), `plan` (kg série par série), `goal` (phrase). Règle : 1 série de plus au poids lourd à chaque séance (si les reps du bas de la fourchette sont faites) ; toutes les séries réussies → +step (2,5 par défaut) sur la 1re série, les autres restent, et ça recommence. « facile » = on monte, « dur » = −step.
+- App : PRÉCÉDENT = série réelle ou « — » ; lignes pré-remplies avec `plan` ; encadré 🎯 Objectif (remplace le défi du jour).
+- Échauffement = vrai exercice n°1 (warmupFor) : jambes → vélo, dos → rameur, épaules/bras/pecs → elliptique, sinon tapis (pente 8 %, 5,5 km/h) ; réglages + machine de rechange + mobilité ; chrono dans la carte ; durée retenue (forme:warmMin) ; noté « Échauffement — rameur X min ». Ancienne bannière cachée quand il est là.
+
 ## 17/11/2026 (matin 6) — Corriger / supprimer une pesée (backend + app v276)
 - Kouider : « je dois pouvoir remodifier le poids si je me suis trompé (76,9 au lieu de 76) ». Pesée du 17/11 corrigée à 76,9.
 - App FORME (Évolution + Sèche) : « ✏️ Mes pesées — corriger une erreur » → 10 dernières pesées, toucher = corriger le chiffre ou supprimer (WeighIns.tsx). Retaper le poids du jour remplace déjà celui du jour (placeholder le dit).

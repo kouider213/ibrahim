@@ -159,7 +159,7 @@ export function setOffline(on: boolean) {
 // ── Coach sportif (page SPORT) ──
 export type SportType = 'push' | 'pull' | 'legs' | 'cardio' | 'upper' | 'core';
 export interface SportExercise { id: string; name: string; muscle: string; sets: number; reps: string; rest: number; tip: string; alt: string[]; step?: number;
-  suggestion: { kg: number | null; last?: string; up?: boolean }; timed: boolean; demo: string[]; video: string }
+  suggestion: { kg: number | null; last?: string; up?: boolean; prev?: Array<{ kg: number; reps: number | null }>; plan?: number[]; goal?: string }; timed: boolean; demo: string[]; video: string }
 export interface SportSession { date: string; type: SportType; label: string; emoji: string; focus: string; muscles: string[]; warmup: string;
   exercises: SportExercise[]; finisher: string | null; estMin: number; start: string; end: string; minutes: number; arrived: number | null }
 export interface SportOverview {

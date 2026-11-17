@@ -74,7 +74,7 @@ function SessionCard({ s, kicker, onStart, onEx, start }: { s: SportSession; kic
           <button key={e.id} onClick={() => onEx(e)} style={{ ...thumb, width: 78, height: 78, border: 'none', cursor: 'pointer' }}>{e.demo.length ? <Anim img={e.demo} alt={e.name} h={70} /> : <span style={{ margin: 'auto' }}>🏋️</span>}</button>
         ))}
       </div>
-      <div style={{ padding: '6px 16px 0', fontSize: 12.5, color: F.muted }}><Ico e="🔥" />Échauffement : {s.warmup}{finisher ? ` · Fin : ${finisher}` : ''}</div>
+      <div style={{ padding: '6px 16px 0', fontSize: 12.5, color: F.muted }}><Ico e="🔥" />Échauffement : {warmupFor({ muscles: s.muscles, exercises: s.exercises }, 8).name.replace('Échauffement — ', '')} (1er exercice de la séance){finisher ? ` · Fin : ${finisher}` : ''}</div>
       <div style={{ padding: 16 }}><button onClick={onStart} style={{ ...btn, width: '100%' }}>{start}</button></div>
     </div>
   );
@@ -105,16 +105,34 @@ const T_LOOK: Record<Exclude<SetT, 'n'>, { l: string; c: string; name: string }>
 // 13/11 Kouider : le tapis (vélo, elliptique…) n'est pas une série × kg × reps → une seule ligne en MINUTES, hors séries/volume
 const isCardioEx = (e: PEx) => e.muscle === 'cardio' || (/tapis|treadmill|ellipti|stepper|escalier|corde [àa] sauter|^(marche|course|v[ée]lo|rameur)\b|cardio/i.test(e.name) && !/fermier|farmer|crunch/i.test(e.name));
 const cardioMin = (e: PEx) => Number(/(\d{1,3})\s*min/.exec(e.reps)?.[1] ?? /(\d{1,3})\s*min/.exec(e.tip)?.[1] ?? 10);
+// 17/11 Kouider : l'échauffement = un vrai exercice, TOUJOURS le 1er, machine choisie selon la séance + réglages (pente, vitesse…)
+const WARM_IMG = (id: string) => [0, 1].map(n => `https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/${id}/${n}.jpg`);
+const isWarmEx = (e?: PEx | null) => !!e && e.id.startsWith('warmup_');
+export function warmupFor(s: { muscles?: string[]; exercises: PEx[] }, min: number): PEx {
+  const m = new Set([...(s.muscles ?? []), ...s.exercises.map(e => e.muscle)].map(x => String(x).toLowerCase()));
+  const easy = 'Tu dois être un peu essoufflé mais pouvoir encore parler.';
+  const W = m.has('jambes') && !m.has('pecs') && !m.has('dos')
+    ? { k: 'velo', name: 'Échauffement — Vélo', img: 'Bicycling_Stationary', tip: `Résistance 6 à 8 · 80-90 tours/min, les 2 dernières minutes +2 de résistance. ${easy} Puis 10 squats au poids du corps + cercles de hanches. Pourquoi le vélo : genoux et cuisses bien chauds avant la presse et le leg extension. Vélo pris ? Tapis : pente 8 %, 5,5 km/h.` }
+    : m.has('dos')
+    ? { k: 'rameur', name: 'Échauffement — Rameur', img: 'Rowing_Stationary', tip: `Résistance (volet) 4-5 · 22-24 coups/min : pousse avec les jambes puis tire avec le dos ; les 2 dernières minutes 26 coups/min. ${easy} Puis 10 rotations d'épaules avant + 10 arrière. Pourquoi le rameur : dos, épaules et bras chauds avant les tirages et le développé. Rameur pris ? Elliptique résistance 6-8 en tirant fort avec les bras.` }
+    : m.has('epaules') || m.has('bras') || m.has('pecs')
+    ? { k: 'elliptique', name: 'Échauffement — Elliptique', img: 'Elliptical_Trainer', tip: `Résistance 6 à 8 · environ 60 tours/min, pousse et tire fort avec les poignées mobiles ; les 2 dernières minutes +2 de résistance. ${easy} Puis 10 rotations d'épaules + 15 élévations latérales sans poids. Pourquoi l'elliptique : épaules et bras chauds sans fatiguer les jambes. Elliptique pris ? Rameur résistance 4-5, 22-24 coups/min.` }
+    : { k: 'tapis', name: 'Échauffement — Tapis', img: 'Walking_Treadmill', tip: `Pente 8 % · 5,5 km/h, puis 6 km/h les 2 dernières minutes, sans te tenir aux barres. ${easy} Puis rotations d'épaules et de hanches.` };
+  return { id: `warmup_${W.k}`, libId: null, name: W.name, muscle: 'cardio', sets: 1, reps: `${min} min`, rest: 0, tip: W.tip, alt: [], timed: false, demo: WARM_IMG(W.img), video: `https://www.youtube.com/results?search_query=${encodeURIComponent(`${W.img.replace(/_/g, ' ')} warm up`)}`, suggestion: { kg: null } } as PEx;
+}
 const libIdOf = (e: PEx) => e.libId ?? (/\/exercises\/([^/]+)\/\d\.jpg/.exec(e.demo?.[0] ?? '')?.[1] ?? null);
 const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 const r25 = (x: number) => Math.round(x / 2.5) * 2.5;
 
 /** « 3×10/10/8 à 40 kg (28/10) » → précédent de la série k : « 40 × 10 ». */
-function prevOf(last: string | undefined, k: number): string {
-  const m = /×([\d?/]+) à ([\d.,]+) kg/.exec(last ?? '');
+// 17/11 Kouider : 1 seule série faite à ce poids la dernière fois → PRÉCÉDENT ne la recopie plus sur toutes les lignes :
+// chaque ligne montre la série vraiment faite (20,3 × 12 · 18 × 12 · 18 × 12), « — » s'il n'y en avait pas.
+function prevOf(sg: PEx['suggestion'], k: number): string {
+  if (sg.prev) { const p = sg.prev[k]; return p ? `${p.kg} × ${p.reps ?? '?'}` : '—'; }
+  const m = /×([\d?/]+) à ([\d.,]+) kg/.exec(sg.last ?? '');
   if (!m) return '—';
   const reps = m[1]!.split('/');
-  return `${m[2]} × ${reps[k] ?? reps[reps.length - 1] ?? '?'}`;
+  return reps[k] ? `${m[2]} × ${reps[k]}` : '—';
 }
 
 function RestBar({ seconds, onDone }: { seconds: number; onDone: () => void }) {
@@ -217,11 +235,13 @@ const clearLive = () => { try { localStorage.removeItem(LIVE_K); } catch { /* */
 const noteKey = (e: PEx) => `forme:exnote:${libIdOf(e) ?? norm(e.name)}`;
 
 function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach', resume }: { s: SportSession; onClose: () => void; onFinished: (msg: string) => void; save: SaveFn; prs?: Record<string, number>; kind?: 'coach' | 'routine'; resume?: LiveState | null }) {
-  const mkRows = (e: PEx): SetRow[] => isCardioEx(e) ? [{ kg: '', reps: String(cardioMin(e)), done: false, t: 'n' as SetT }] : Array.from({ length: e.sets }, () => ({ kg: e.suggestion.kg ? String(e.suggestion.kg) : '', reps: String(parseInt(e.reps) || ''), done: false, t: 'n' as SetT }));
-  const [exs, setExs] = useState<PEx[]>(() => resume?.exs ?? s.exercises.map(e => ({ ...e })));
+  const mkRows = (e: PEx): SetRow[] => isCardioEx(e) ? [{ kg: '', reps: String(cardioMin(e)), done: false, t: 'n' as SetT }] : Array.from({ length: e.sets }, (_, k) => ({ kg: (e.suggestion.plan?.[k] ?? e.suggestion.kg) ? String(e.suggestion.plan?.[k] ?? e.suggestion.kg) : '', reps: String(parseInt(e.reps) || ''), done: false, t: 'n' as SetT }));
+  const warmMin0 = (() => { try { const v = Number(localStorage.getItem(WARM_K)); if (v >= 3 && v <= 30) return v; } catch { /* */ } return Math.max(3, Math.min(15, Number(/(\d{1,2})\s*min/.exec(s.warmup ?? '')?.[1] ?? 8))); })();
+  const startExs = (): PEx[] => { const l = s.exercises.map(e => ({ ...e })); return l.length && !l.some(isWarmEx) ? [warmupFor({ muscles: s.muscles, exercises: l }, warmMin0), ...l] : l; };
+  const [exs, setExs] = useState<PEx[]>(() => resume?.exs ?? startExs());
   const [i, setI] = useState(resume?.i ?? 0);
   const [how, setHow] = useState(false);
-  const [rows, setRows] = useState<Record<string, SetRow[]>>(() => resume?.rows ?? Object.fromEntries(s.exercises.map(e => [e.id, mkRows(e)])));
+  const [rows, setRows] = useState<Record<string, SetRow[]>>(() => resume?.rows ?? Object.fromEntries(startExs().map(e => [e.id, mkRows(e)])));
   const [rest, setRest] = useState<{ n: number; key: number } | null>(null);
   const [finish, setFinish] = useState(false);
   const [rpe, setRpe] = useState(7);
@@ -244,7 +264,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
   const [warmDone, setWarmDone] = useState<number>(resume?.wu ?? 0);
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
-  useEffect(() => { if (Object.values(rows).flat().some(r => r.done) || exs.length !== s.exercises.length || exs.some((e, j) => e.id !== s.exercises[j]?.id)) { try { localStorage.setItem(LIVE_K, JSON.stringify({ kind, s, exs, rows, i, start: start.current, feel, at: Date.now(), ss, wu: warmDone } satisfies LiveState)); } catch { /* */ } } }, [rows, exs, i, feel, ss, warmDone]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (Object.values(rows).flat().some(r => r.done) || exs.filter(e => !isWarmEx(e)).length !== s.exercises.length || exs.filter(e => !isWarmEx(e)).some((e, j) => e.id !== s.exercises[j]?.id)) { try { localStorage.setItem(LIVE_K, JSON.stringify({ kind, s, exs, rows, i, start: start.current, feel, at: Date.now(), ss, wu: warmDone } satisfies LiveState)); } catch { /* */ } } }, [rows, exs, i, feel, ss, warmDone]); // eslint-disable-line react-hooks/exhaustive-deps
   const [note, setNote] = useState('');
   const ex = exs[Math.min(i, exs.length - 1)];
   const chal = useRef(kind === 'coach' ? challengeOf(s.exercises, s.date) : null).current;
@@ -267,7 +287,8 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
     if (!warm) return;
     const m = Math.round((Date.now() - warmAt.current) / 60_000);
     setWarm(null);
-    if (m >= 1) { setWarmDone(d => d + m); try { localStorage.setItem(WARM_K, String(Math.min(30, Math.max(3, m)))); } catch { /* */ } setFlash(`✅ Échauffement noté : ${m} min (pas compté dans tes exercices)`); setTimeout(() => setFlash(null), 3000); }
+    const wx = exs.find(isWarmEx); if (wx && m >= 1) setRows(rr => ({ ...rr, [wx.id]: [{ kg: '', reps: String(m), done: true, t: 'n' as SetT }] }));
+    if (m >= 1) { setWarmDone(d => wx ? m : d + m); try { localStorage.setItem(WARM_K, String(Math.min(30, Math.max(3, m)))); } catch { /* */ } setFlash(`✅ Échauffement noté : ${m} min (pas compté dans tes exercices)`); setTimeout(() => setFlash(null), 3000); }
   };
   useEffect(() => { if (ex) { try { setNote(localStorage.getItem(noteKey(ex)) ?? ''); } catch { setNote(''); } } }, [ex?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ex && !finish) speak(`${i === 0 ? 'On commence' : 'Exercice suivant'} : ${ex.name}. ${isCardioEx(ex) ? `${rows[ex.id]?.[0]?.reps || cardioMin(ex)} minutes` : `${ex.sets} séries de ${ex.reps}`}${ex.suggestion.kg ? `, à ${ex.suggestion.kg} kilos` : ''}.`); }, [ex?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -294,7 +315,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
       }
       const old = String(ex.suggestion.kg ?? '');
       setPrFix(p => ({ ...p, [ex.id]: r.best }));
-      setExs(e => e.map(y => y.id === ex.id ? { ...y, suggestion: { kg, last: (y.suggestion.last ?? '').replace(`à ${m[1]} kg`, `à ${kg} kg`) } } : y));
+      setExs(e => e.map(y => y.id === ex.id ? { ...y, suggestion: { ...y.suggestion, kg, last: (y.suggestion.last ?? '').replace(`à ${m[1]} kg`, `à ${kg} kg`), ...(y.suggestion.prev ? { prev: y.suggestion.prev.map(p => p.kg === Number(m[1]!.replace(',', '.')) ? { ...p, kg } : p) } : {}), ...(y.suggestion.plan ? { plan: y.suggestion.plan.map(p => p === Number(m[1]!.replace(',', '.')) ? kg : p) } : {}) } } : y));
       setRows(rw => ({ ...rw, [ex.id]: (rw[ex.id] ?? []).map(x => !x.done && x.t !== 'w' && x.kg === old ? { ...x, kg: String(kg) } : x) }));
       setFlash(`✅ Corrigé : ${kg} kg`); setTimeout(() => setFlash(null), 3000);
     } catch (e) { setFlash(errText(e)); setTimeout(() => setFlash(null), 4000); }
@@ -302,6 +323,12 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
   const validate = (k: number) => {
     if (!ex) return;
     vibrate(25);
+    if (isWarmEx(ex)) {   // échauffement validé : minutes du chrono s'il tournait, sinon celles écrites
+      const m = warm ? Math.max(1, Math.round((Date.now() - warmAt.current) / 60_000)) : (Number(rows[ex.id]?.[0]?.reps) || cardioMin(ex));
+      setWarm(null); setWarmDone(m); upd(0, { reps: String(m), done: true });
+      try { localStorage.setItem(WARM_K, String(Math.min(30, Math.max(3, m)))); } catch { /* */ }
+      speak('Échauffement noté. On attaque !'); if (i < exs.length - 1) setTimeout(() => setI(i + 1), 600); return;
+    }
     if (warm) stopWarm();
     const r0 = rows[ex.id]![k]!;
     const kg = Number(r0.kg.replace(',', '.')) || 0;
@@ -352,7 +379,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
   const allRows = exs.flatMap(e => rows[e.id] ?? []);
   const lifts = exs.filter(e => !isCardioEx(e));
   const work = lifts.flatMap(e => rows[e.id] ?? []).filter(r => r.t !== 'w');
-  const cardioDone = exs.filter(e => isCardioEx(e) && rows[e.id]?.[0]?.done).map(e => `${e.name} ${Number(rows[e.id]![0]!.reps) || cardioMin(e)} min`);
+  const cardioDone = exs.filter(e => isCardioEx(e) && !isWarmEx(e) && rows[e.id]?.[0]?.done).map(e => `${e.name} ${Number(rows[e.id]![0]!.reps) || cardioMin(e)} min`);
   const doneSets = work.filter(r => r.done);
   const volume = lifts.reduce((a, e) => a + (rows[e.id] ?? []).filter(r => r.done && r.t !== 'w').reduce((b, r) => b + (Number(r.kg.replace(',', '.')) || 0) * (Number(r.reps) || 0), 0), 0);
   const elapsed = Math.round((now - start.current) / 1000);
@@ -363,19 +390,19 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
     if (finish) return;
     const t = setTimeout(() => {
       const left = exs.filter(e => isCardioEx(e) ? !rows[e.id]?.[0]?.done : (rows[e.id] ?? []).some(r => !r.done && r.t !== 'w')).map(e => e.name);
-      void apiFetch('/api/sport/live-app', { method: 'POST', body: JSON.stringify({ current: warm ? 'Échauffement (tapis)' : ex?.name ?? null, left, done: doneSets.length, total: work.length }) }).catch(() => {});
+      void apiFetch('/api/sport/live-app', { method: 'POST', body: JSON.stringify({ current: warm ? (exs.find(isWarmEx)?.name ?? 'Échauffement (tapis)') : ex?.name ?? null, left, done: doneSets.length, total: work.length }) }).catch(() => {});
     }, 1500);
     return () => clearTimeout(t);
   }, [progKey, finish]); // eslint-disable-line react-hooks/exhaustive-deps
   const progRef = useRef<() => void>(() => {});
-  progRef.current = () => { if (finish) return; const left = exs.filter(e => isCardioEx(e) ? !rows[e.id]?.[0]?.done : (rows[e.id] ?? []).some(r => !r.done && r.t !== 'w')).map(e => e.name); void apiFetch('/api/sport/live-app', { method: 'POST', body: JSON.stringify({ current: warm ? 'Échauffement (tapis)' : ex?.name ?? null, left, done: doneSets.length, total: work.length }) }).catch(() => {}); };
+  progRef.current = () => { if (finish) return; const left = exs.filter(e => isCardioEx(e) ? !rows[e.id]?.[0]?.done : (rows[e.id] ?? []).some(r => !r.done && r.t !== 'w')).map(e => e.name); void apiFetch('/api/sport/live-app', { method: 'POST', body: JSON.stringify({ current: warm ? (exs.find(isWarmEx)?.name ?? 'Échauffement (tapis)') : ex?.name ?? null, left, done: doneSets.length, total: work.length }) }).catch(() => {}); };
   useEffect(() => { const t = setInterval(() => progRef.current(), 8 * 60_000); return () => clearInterval(t); }, []);   // signe de vie (la note expire après 60 min sans nouvelles)
   const save = async () => {
     setBusy(true);
     try {
       const out = lifts.flatMap(e => (rows[e.id] ?? []).filter(r => r.done && r.t !== 'w').map(r => ({ ex: e.id, kg: Number(r.kg.replace(',', '.')) || undefined, reps: Number(r.reps) || undefined })));
       const fb = exs.filter(e => feel[e.id]).map(e => `${e.name} : ${FEEL.find(f => f.id === feel[e.id])!.l.toLowerCase()}`);
-      const notes = [warmDone ? `Échauffement — tapis ${warmDone} min` : '', cardioDone.length ? `Cardio — ${cardioDone.join(' ; ')}` : '', fb.length ? `Ressenti — ${fb.join(' ; ')}` : ''].filter(Boolean).join(' · ');
+      const notes = [warmDone ? `Échauffement — ${(exs.find(isWarmEx)?.name.replace(/^Échauffement — /, '') ?? 'tapis').toLowerCase()} ${warmDone} min` : '', cardioDone.length ? `Cardio — ${cardioDone.join(' ; ')}` : '', fb.length ? `Ressenti — ${fb.join(' ; ')}` : ''].filter(Boolean).join(' · ');
       const msg = await saveFn(out, Math.round(elapsed / 60), rpe, lifts, rows, notes);
       // Historique de chaque exercice de la bibliothèque (fiche → Historique / Progrès)
       const lib = lifts.flatMap(e => { const id = libIdOf(e); return id ? (rows[e.id] ?? []).filter(r => r.done && r.t !== 'w').map(r => ({ id, kg: Number(r.kg.replace(',', '.')) || undefined, reps: Number(r.reps) || undefined, ...(feel[e.id] ? { fb: feel[e.id] } : {}) })) : []; });
@@ -435,7 +462,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
           <button onClick={() => setPicker('add')} aria-label="Ajouter un exercice" style={{ flexShrink: 0, borderRadius: 14, border: `2px dashed ${F.line}`, background: 'transparent', width: 54, height: 54, fontSize: 22, color: F.muted, cursor: 'pointer' }}>＋</button>
           <button onClick={() => setScanOpen(true)} aria-label="Scanner une machine" style={{ flexShrink: 0, borderRadius: 14, border: `2px dashed ${F.line}`, background: 'transparent', width: 54, height: 54, fontSize: 22, color: F.muted, cursor: 'pointer' }}>📷</button>
         </div>
-        {(warm || !allRows.some(r => r.done)) && <div style={{ ...card, margin: '0 14px 10px', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px' }}>
+        {!exs.some(isWarmEx) && (warm || !allRows.some(r => r.done)) && <div style={{ ...card, margin: '0 14px 10px', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px' }}>
           <span style={{ fontSize: 22 }}>🔥</span>
           <div style={{ flex: 1, minWidth: 0, fontSize: 13 }}><div style={{ fontWeight: 700 }}>{warm ? (now < warm ? `Échauffement : ${fmtTime(Math.round((warm - now) / 1000))}` : `Échauffement fini · +${fmtTime(Math.round((now - warm) / 1000))}`) : warmDone ? `✅ Échauffement noté : ${warmDone} min` : `Échauffement général ${warmMin} min`}</div><div style={{ color: F.muted, lineHeight: 1.3 }}>{s.warmup || 'Vélo ou rameur léger, rotations des épaules et des hanches'}</div></div>
           <button onClick={() => { if (warm) stopWarm(); else { warmAt.current = Date.now(); warmSaid.current = false; setWarm(Date.now() + warmMin * 60_000); speak(`Échauffement ${warmMin} minutes. ${s.warmup || ''}`); } }} style={{ ...btn, padding: '8px 12px', fontSize: 13, boxShadow: 'none' }}>{warm ? (now < warm ? 'Stop' : '✓ Fini') : warmDone ? '▶ Encore' : '▶ Lancer'}</button>
@@ -457,7 +484,7 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
               <div style={{ padding: '12px 14px 4px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: F.accent }}>{i + 1}/{exs.length}{ex.muscle ? ` · ${MUSCLE[ex.muscle] ?? ex.muscle}` : ''}{isCardioEx(ex) ? ' · cardio' : ` · repos ${ex.rest}s`}{best(ex) ? ` · record ${best(ex)} kg` : ''}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: F.accent }}>{i + 1}/{exs.length}{isWarmEx(ex) ? ' · Échauffement · toujours en 1er' : <>{ex.muscle ? ` · ${MUSCLE[ex.muscle] ?? ex.muscle}` : ''}{isCardioEx(ex) ? '' : ` · repos ${ex.rest}s`}</>}{best(ex) ? ` · record ${best(ex)} kg` : ''}</div>
                     <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em', marginTop: 2 }}>{ex.name}</div>
                   </div>
                   <button onClick={() => setHow(true)} aria-label="Comment faire" style={{ width: 34, height: 34, borderRadius: 17, border: `1px solid ${F.line}`, background: 'var(--f-card)', cursor: 'pointer', fontWeight: 700, color: F.accent, flexShrink: 0 }}>i</button>
@@ -466,7 +493,8 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
                   : (exs[i - 1] && ss[exs[i - 1]!.id]) ? <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, color: F.accent }}><Ico e="🔗" />Superset avec « {exs[i - 1]!.name} » : après ta série, repos puis retour dessus</div> : null}
                 {ex.tip && <div style={{ fontSize: 13.5, color: F.muted, marginTop: 6, lineHeight: 1.4 }}>💡 {ex.tip}</div>}
                 {ex.suggestion.up && <div style={{ fontSize: 13, fontWeight: 600, marginTop: 6, color: F.green }}>↑ On monte à {ex.suggestion.kg} kg aujourd'hui</div>}
-                {chal === ex.id && <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, padding: '8px 10px', borderRadius: 10, background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))' }}><Ico e="🎯" />Défi du jour : fais mieux que la dernière fois ({ex.suggestion.last}) — 1 rep ou 1 kg de plus</div>}
+                {ex.suggestion.goal && <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, padding: '8px 10px', borderRadius: 10, background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))', lineHeight: 1.35 }}><Ico e="🎯" />{ex.suggestion.goal}</div>}
+                {chal === ex.id && !ex.suggestion.goal && <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, padding: '8px 10px', borderRadius: 10, background: 'color-mix(in srgb, #e09a12 14%, var(--f-card))' }}><Ico e="🎯" />Défi du jour : fais mieux que la dernière fois ({ex.suggestion.last}) — 1 rep ou 1 kg de plus</div>}
                 <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
                   {!isCardioEx(ex) && <button onClick={warmup} style={tool}><Ico e="🔥" />Échauffement</button>}
                   {!isCardioEx(ex) && <button onClick={() => setPlates(true)} style={tool}><Ico e="🧮" />Disques</button>}
@@ -477,20 +505,21 @@ function Player({ s, onClose, onFinished, save: saveFn, prs = {}, kind = 'coach'
               </div>
               {isCardioEx(ex) ? (() => { const r = sets[0] ?? { kg: '', reps: String(cardioMin(ex)), done: false, t: 'n' as SetT }; return (
               <div style={{ padding: '10px 14px 14px' }}>
+                {isWarmEx(ex) && !r.done && <button onClick={() => { if (warm) validate(0); else { warmAt.current = Date.now(); warmSaid.current = false; setWarm(Date.now() + (Number(r.reps) || cardioMin(ex)) * 60_000); speak(`Échauffement ${Number(r.reps) || cardioMin(ex)} minutes. ${ex.tip.split('.')[0]}.`); } }} style={{ ...btn, width: '100%', marginBottom: 10, padding: 14, fontSize: 16 }}>{warm ? (now < warm ? `⏱ ${fmtTime(Math.round((warm - now) / 1000))} — touche quand c'est fini` : `✓ Fini (+${fmtTime(Math.round((now - warm) / 1000))})`) : '▶ Lancer le chrono'}</button>}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12, background: r.done ? 'color-mix(in srgb, #1f9d5c 14%, var(--f-card))' : F.bg }}>
                   <div style={{ flex: 1, fontWeight: 600, fontSize: 14 }}><Ico e="⏱" />Durée</div>
                   <input inputMode="numeric" value={r.reps} onChange={e => upd(0, { reps: e.target.value })} style={{ ...cell, width: 70, background: r.done ? 'transparent' : 'var(--f-card)' }} />
                   <span style={{ fontWeight: 600, color: F.muted }}>min</span>
                   <button onClick={() => r.done ? upd(0, { done: false }) : validate(0)} aria-label="Cardio fait" style={{ width: 44, height: 40, borderRadius: 10, border: 'none', background: r.done ? F.green : F.bg2, color: r.done ? '#fff' : F.muted, fontSize: 18, fontWeight: 700, cursor: 'pointer' }}>✓</button>
                 </div>
-                <div style={{ fontSize: 11.5, color: F.muted, textAlign: 'center', marginTop: 8 }}>Cardio : pas de séries ni de kg — mets juste tes minutes et valide ✓</div>
+                <div style={{ fontSize: 11.5, color: F.muted, textAlign: 'center', marginTop: 8 }}>{isWarmEx(ex) ? 'Lance le chrono, ou mets tes minutes et valide ✓ — pas compté dans ton volume' : 'Cardio : pas de séries ni de kg — mets juste tes minutes et valide ✓'}</div>
               </div>); })() : (
               <div style={{ padding: '6px 10px 10px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 6, fontSize: 11, fontWeight: 600, color: F.muted, padding: '6px 4px', textAlign: 'center' }}><div>SÉRIE</div><div>PRÉCÉDENT</div><div>KG</div><div>{ex.timed ? 'SEC' : 'REPS'}</div><div>✓</div></div>
                 {sets.map((r, k) => { const look = r.t !== 'n' ? T_LOOK[r.t] : null; if (r.t === 'n') nNum++; const num = nNum; return (
                   <div key={k} style={{ display: 'grid', gridTemplateColumns: cols, gap: 6, alignItems: 'center', padding: '4px', borderRadius: 10, background: r.done ? 'color-mix(in srgb, #1f9d5c 14%, var(--f-card))' : 'transparent', transition: 'background .2s' }}>
                     <button onClick={() => upd(k, { t: T_NEXT[r.t] })} title={look?.name ?? 'Série normale — touche pour changer le type'} style={{ fontWeight: 700, textAlign: 'center', border: 'none', background: 'none', cursor: 'pointer', fontSize: 15, color: look?.c ?? F.ink, fontFamily: 'inherit' }}>{look?.l ?? num}</button>
-                    <button onClick={() => void fixPrev()} disabled={r.t === 'w' || !ex.suggestion.last} title="Touche pour corriger ce poids s'il est faux" style={{ fontSize: 13, color: F.muted, textAlign: 'center', border: 'none', background: 'none', padding: '6px 0', cursor: 'pointer', fontFamily: 'inherit', textDecoration: r.t !== 'w' && ex.suggestion.last ? 'underline dotted' : 'none', textUnderlineOffset: 3 }}>{r.t === 'w' ? '—' : prevOf(ex.suggestion.last, num - 1)}</button>
+                    <button onClick={() => void fixPrev()} disabled={r.t === 'w' || !ex.suggestion.last} title="Touche pour corriger ce poids s'il est faux" style={{ fontSize: 13, color: F.muted, textAlign: 'center', border: 'none', background: 'none', padding: '6px 0', cursor: 'pointer', fontFamily: 'inherit', textDecoration: r.t !== 'w' && ex.suggestion.last ? 'underline dotted' : 'none', textUnderlineOffset: 3 }}>{r.t === 'w' ? '—' : prevOf(ex.suggestion, num - 1)}</button>
                     <input inputMode="decimal" value={r.kg} onChange={e => upd(k, { kg: e.target.value })} placeholder="—" style={{ ...cell, background: r.done ? 'transparent' : F.bg }} />
                     <input inputMode="numeric" value={r.reps} onChange={e => upd(k, { reps: e.target.value })} placeholder="—" style={{ ...cell, background: r.done ? 'transparent' : F.bg }} />
                     <button onClick={() => r.done ? upd(k, { done: false }) : validate(k)} aria-label="Série faite" style={{ width: 38, height: 36, borderRadius: 10, border: 'none', background: r.done ? F.green : F.bg2, color: r.done ? '#fff' : F.muted, fontSize: 17, fontWeight: 700, cursor: 'pointer' }}>✓</button>
