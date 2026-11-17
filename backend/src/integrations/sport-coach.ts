@@ -486,7 +486,8 @@ export async function planSportWeek(write = true): Promise<{ slots: Array<PlanSl
   }
   for (const [date, slot] of Object.entries(plan)) {
     const e = evOf[date]!, type = slot.type, minutes = slot.minutes;
-    const suffix = (e.summary ?? '').includes(' — ') ? (e.summary ?? '').split(' — ').slice(1).join(' — ') : 'salle';
+    const lastSeg = (e.summary ?? '').includes(' — ') ? (e.summary ?? '').split(' — ').pop()!.trim() : '';
+    const suffix = /salle|gym|fitness/i.test(lastSeg) ? lastSeg : 'salle';   // seul le lieu (« salle de Wemmel ») est gardé, jamais un morceau d'ancien nom de séance
     const title = `🏋️ ${customMap[date]?.label ?? SESSIONS[type].label}${inDeload(date) ? ' (allégée)' : lowForm(date) ? ' (courte)' : ''} — ${suffix}`;
     slot.title = title;
     if (write && e.id) {

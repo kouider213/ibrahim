@@ -1,3 +1,7 @@
+## 17/11/2026 (matin 5) — Agenda : titre de séance en double
+- Les séances du programme Aïd s'appellent « HAUT B — ÉPAULES & BRAS » : la synchro agenda gardait tout ce qui suit le 1er « — » comme lieu → « HAUT B — ÉPAULES & BRAS — ÉPAULES & BRAS — salle de Wemmel » (et ça grossissait à chaque synchro). Le lieu = seulement le dernier segment s'il parle de salle.
+- Noms des séances passés en « HAUT B · ÉPAULES & BRAS » (kv kouider:sport:program) pour que widget voiture / GPS / messages, qui coupent au « — », affichent le nom complet.
+
 ## 17/11/2026 (matin 4) — Programme « transformation Aïd 10/03/2027 » (backend + données)
 - Programme officiel (kouider:sport:program) : HAUT A Pecs & Dos · BAS + ABDOS · HAUT B Épaules & Bras · HAUT C Pecs, Dos & Bras — haut du corps 2-3×/semaine, jambes en entretien, 1-2 reps en réserve. Rotation reprise sur HAUT B (state.next = 2), agenda resynchronisé (POST /api/sport/sync sur Railway).
 - Objectif : wantBy/eta 2027-03-10, 7 étapes datées (photos 21/11, 19/12, 16/01, 06/02 bilan ramadan, 10/03 Aïd ; poids 76 kg 05/12, 75 kg 02/01 puis maintien — jamais sous 75).
