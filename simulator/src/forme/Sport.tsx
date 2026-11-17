@@ -643,6 +643,25 @@ interface SessionReviewV { date: string; label: string; emoji: string; totals: {
   month?: { volume: number; best: { month: string; volume: number } | null } | null; forecast?: Array<{ name: string; target: number; eta: string }> }
 const fmtS = (sec: number) => sec >= 60 ? `${Math.floor(sec / 60)} min ${String(sec % 60).padStart(2, '0')}` : `${sec} s`;
 
+/** 17/11 (Kouider : « je n'ai pas accès à tout ») : TOUS ses records (programme + photo + liste), les plus récents en premier. */
+function RecordsCard({ prs }: { prs: Array<{ ex: string; kg: number; reps: number | null; date: string }> }) {
+  const [all, setAll] = useState(false);
+  const list = all ? prs : prs.slice(0, 6);
+  return <>
+    <H2>Records ({prs.length})</H2>
+    <div style={{ ...card, padding: '4px 14px' }}>
+      {list.map((p, k) => (
+        <div key={p.ex} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: k < list.length - 1 ? `1px solid ${F.line}` : 'none' }}>
+          <span style={{ fontSize: 18 }}>🏆</span>
+          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14.5 }}>{p.ex}</div><div style={{ fontSize: 12, color: F.muted }}>{p.date.slice(8)}/{p.date.slice(5, 7)}</div></div>
+          <div style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{p.kg} kg{p.reps ? <span style={{ color: F.muted, fontWeight: 500 }}> × {p.reps}</span> : null}</div>
+        </div>
+      ))}
+      {prs.length > 6 && <button onClick={() => setAll(v => !v)} style={{ border: 'none', background: 'none', color: F.accent, fontWeight: 600, fontSize: 14, padding: '12px 0', width: '100%', cursor: 'pointer', fontFamily: 'inherit' }}>{all ? 'Voir moins' : `Voir tous mes records (${prs.length})`}</button>}
+    </div>
+  </>;
+}
+
 /** 07/11 : bilan de la dernière séance (notes /10, avis, à améliorer, comparaison avec la dernière pareille). */
 function ReviewCard({ dates, bump }: { dates: string[]; bump: number }) {
   const [r, setR] = useState<SessionReviewV | null>(null);
@@ -806,18 +825,7 @@ export default function SportScreen({ toast, go, o }: { toast: (t: string) => vo
       <H2>Statistiques</H2>
       <div style={{ display: 'flex', gap: 8 }}>{statTile(d.stats.monthSessions, 'Séances ce mois')}{statTile(d.stats.total, 'Au total')}{statTile(weekVol ? `${Math.round(weekVol / 100) / 10} t` : '—', 'Volume semaine')}</div>
       {d.stats.weeks.length > 1 && <div style={{ ...card, marginTop: 8 }}><div style={{ fontWeight: 600, fontSize: 14 }}>Séances par semaine</div><WeekBars weeks={d.stats.weeks} /></div>}
-      {d.stats.prs.length > 0 && <>
-        <H2>Records</H2>
-        <div style={{ ...card, padding: '4px 14px' }}>
-          {d.stats.prs.slice(0, 6).map((p, k) => (
-            <div key={p.ex} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: k < Math.min(6, d.stats.prs.length) - 1 ? `1px solid ${F.line}` : 'none' }}>
-              <span style={{ fontSize: 18 }}>🏆</span>
-              <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14.5 }}>{p.ex}</div><div style={{ fontSize: 12, color: F.muted }}>{p.date.slice(8)}/{p.date.slice(5, 7)}</div></div>
-              <div style={{ fontWeight: 700 }}>{p.kg} kg{p.reps ? <span style={{ color: F.muted, fontWeight: 500 }}> × {p.reps}</span> : null}</div>
-            </div>
-          ))}
-        </div>
-      </>}
+      {d.stats.prs.length > 0 && <RecordsCard prs={d.stats.prs} />}
       {d.recent?.length > 0 && <>
         <H2>Historique</H2>
         <div style={{ display: 'grid', gap: 8 }}>

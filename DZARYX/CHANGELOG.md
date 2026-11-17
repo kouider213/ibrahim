@@ -1,3 +1,7 @@
+## 17/11/2026 (matin 2) — FORME : records sur TOUS les exercices, regroupés par nom (app v274 + backend)
+- Curl barre 30 kg pas compté en record : le même exercice avait 2 identifiants (« pull_curl_barre » 25 kg le 13/11, « Barbell_Curl~… » ajouté depuis la liste). exKeyer() (sport-coach) = clé par NOM (kouider:sport:exnames) → records à l'enregistrement, records de la semaine, bilan de séance (« avant », 🏆) et liste Records.
+- Liste Records : avant = seulement les exercices du programme, 6 visibles ; maintenant tous (photo + liste), les plus récents en premier, bouton « Voir tous mes records ». Bilan du 17/11 recalculé (🏆 Curl barre 30 kg × 12).
+
 ## 17/11/2026 (matin) — FORME : bilan comparé à la bonne séance, calories de séance sans montre, photo machine qui ne charge plus à l'infini (app v273 + backend)
 - Bilan de séance : la « dernière pareille » = la plus récente qui partage vraiment ≥ 30 % de ses exercices (avant : même case de rotation → JAMBES du 17 comparée aux PECS du 16, « vs la dernière ÉPAULES », « Pas refait : Papillon »). Bilan du 17/11 recalculé. Carte « Bilan de ta dernière séance » : si le bilan du jour n'est pas encore prêt, l'appli continue de le chercher au lieu de rester sur celui d'hier.
 - Calories : séance pas lancée sur la montre → dépense de la séance calculée (MET selon l'effort × poids × durée + tapis) ; dépense active du jour = au moins journée sans sport typique × 0,9 + séance. Visible dans Repas et les bilans jour/semaine.

@@ -40,7 +40,8 @@ router.post('/log', async (req, res) => {
     const sets = (b.sets ?? []).filter(s => typeof s?.ex === 'string').slice(0, 80)
       .map(s => ({ ex: s.ex, ...(Number(s.kg) > 0 ? { kg: Math.round(Number(s.kg) * 10) / 10 } : {}), ...(Number(s.reps) > 0 ? { reps: Math.round(Number(s.reps)) } : {}) }));
     const before = await computeGame().catch(() => null);
-    const r = await logSportSession({ date, type: b.type, sets,
+    const names0 = b.names && typeof b.names === 'object' ? Object.fromEntries(Object.entries(b.names).slice(0, 60).map(([k, v]) => [String(k).slice(0, 80), String(v).slice(0, 60)])) : undefined;
+    const r = await logSportSession({ date, type: b.type, sets, ...(names0 ? { names: names0 } : {}),
       ...(Number(b.durationMin) > 0 ? { durationMin: Math.round(Number(b.durationMin)) } : {}),
       ...(Number(b.rpe) > 0 ? { rpe: Math.min(10, Math.round(Number(b.rpe))) } : {}),
       ...(b.note ? { note: String(b.note).slice(0, 700) } : {}) });

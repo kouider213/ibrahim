@@ -6,7 +6,7 @@
 import { kvGet, kvSet } from './app-store.js';
 import { ai, jsonOf } from './ai-util.js';
 import { queueTelegramMessage, queueTelegramAlbum } from '../notifications/tg-outbox.js';
-import { readSportLog, findExercise, SESSIONS, type SessionLog } from './sport-coach.js';
+import { readSportLog, findExercise, exKeyer, SESSIONS, type SessionLog } from './sport-coach.js';
 
 const RK = (date: string) => `kouider:sport:review:${date}`;
 const NAMES_K = 'kouider:sport:exnames';
@@ -85,7 +85,12 @@ export async function getReview(date: string): Promise<SessionReview | null> {
 export async function buildReview(date: string, o: { names?: Record<string, string>; send?: boolean; planned?: number; extra?: string; rests?: Record<string, number[]>; challenge?: string } = {}): Promise<SessionReview | null> {
   if (o.names) await rememberNames(o.names);
   const names = { ...(JSON.parse((await kvGet(NAMES_K).catch(() => null)) ?? '{}') as Record<string, string>), ...Object.fromEntries(Object.entries(o.names ?? {}).map(([k, v]) => [base(k), v])) };
-  const log = await readSportLog();
+  const log0 = await readSportLog();
+  // 17/11 : un même exercice peut avoir plusieurs identifiants → tout est ramené à un identifiant par NOM (records, « avant »)
+  const kx = await exKeyer(names);
+  const canon = new Map<string, string>();
+  for (const l of log0) for (const z of l.sets) { const k = kx.key(z.ex); if (!canon.has(k) || l.date === date) canon.set(k, base(z.ex)); }
+  const log = log0.map(l => ({ ...l, sets: l.sets.map(z => ({ ...z, ex: canon.get(kx.key(z.ex)) ?? base(z.ex) })) }));
   const cur = log.find(l => l.date === date);
   if (!cur || !cur.sets.length) return null;
   // 17/11 (Kouider : « elle compte encore comme si c'est une séance épaule ») : JAMBES du 17 comparée aux PECS du 16 parce que

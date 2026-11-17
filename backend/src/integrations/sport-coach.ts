@@ -664,6 +664,16 @@ export async function jobSportPlan(): Promise<void> {
 // ── Notes de séance + stats ─────────────────────────────────────────────────
 
 const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ');
+/** 17/11 (Kouider : « curl barre 30 kg pas noté en record ») : le même exercice a plusieurs identifiants (« pull_curl_barre » du
+ *  programme, « Barbell_Curl~xyz » ajouté par photo / liste). Records et comparaisons se font sur le NOM de l'exercice. */
+export async function exKeyer(extra: Record<string, string> = {}): Promise<{ key: (id: string) => string; name: (id: string) => string }> {
+  let names: Record<string, string> = {};
+  try { names = JSON.parse((await kvGet('kouider:sport:exnames')) ?? '{}') as Record<string, string>; } catch { /* vide */ }
+  for (const [k, v] of Object.entries(extra)) names[k.replace(/~.*$/, '')] = v;
+  const all = ALL_EXERCISES();
+  const name = (id: string) => { const b = id.replace(/~.*$/, ''); return names[b] ?? all.find(e => e.id === b)?.name ?? b.replace(/^(push|pull|legs|lib)_/, '').replace(/_/g, ' '); };
+  return { name, key: (id: string) => norm(name(id)).replace(/\s+/g, ' ').trim() || id };
+}
 /** 09/11 — deux noms désignent-ils VRAIMENT le même exercice ? « Développé couché (barre) » était rapproché de « Développé couché
  *  haltères » (2 mots en commun) → photo d'haltères et historique de charges mélangé ; « Écarté assis machine » prenait la photo du
  *  développé incliné. Si le matériel, le mouvement ou l'inclinaison sont nommés des deux côtés et diffèrent, ce n'est pas le même. */
@@ -697,7 +707,8 @@ export function findExercise(q: string): Exercise | null {
 }
 
 /** Enregistre une séance (ou ajoute des séries à celle du jour). Retourne les records battus. */
-export async function logSportSession(entry: Omit<SessionLog, 'at'> & { at?: string }): Promise<{ prs: string[]; total: number }> {
+export async function logSportSession(entry0: Omit<SessionLog, 'at'> & { at?: string; names?: Record<string, string> }): Promise<{ prs: string[]; total: number }> {
+  const { names: _n, ...entry } = entry0; void _n;
   const log = await readSportLog();
   const prev = [...log];
   const i = log.findIndex(l => l.date === entry.date);
@@ -713,10 +724,11 @@ export async function logSportSession(entry: Omit<SessionLog, 'at'> & { at?: str
     await saveState(st);
   }
   const prs: string[] = [];
+  const kx = await exKeyer(entry0.names ?? {});
   for (const s of entry.sets) {
     if (s.kg == null) continue;
-    const before = prev.flatMap(l => l.sets).filter(x => x.ex === s.ex && x.kg != null).map(x => x.kg!);
-    if (before.length && s.kg > Math.max(...before) && !prs.some(p => p.startsWith(findExercise(s.ex)?.name ?? s.ex))) prs.push(`${findExercise(s.ex)?.name ?? s.ex} : ${s.kg} kg`);
+    const before = prev.flatMap(l => l.sets).filter(x => kx.key(x.ex) === kx.key(s.ex) && x.kg != null).map(x => x.kg!);
+    if (before.length && s.kg > Math.max(...before) && !prs.some(p => p.startsWith(kx.name(s.ex)))) prs.push(`${kx.name(s.ex)} : ${s.kg} kg`);
   }
   return { prs, total: merged.sets.length };
 }
@@ -801,12 +813,15 @@ export async function sportOverview() {
     const ls = log.filter(l => l.date >= from && l.date <= to);
     return { from, sessions: ls.length, volume: Math.round(ls.reduce((a, l) => a + volume(l), 0)) };
   });
-  const prs = ALL_EXERCISES().map(e => {
-    const sets = log.flatMap(l => l.sets.filter(s => s.ex === e.id && s.kg != null).map(s => ({ ...s, date: l.date })));
-    if (!sets.length) return null;
-    const best = sets.reduce((a, b) => (b.kg! > a.kg! ? b : a));
-    return { ex: e.name, kg: best.kg!, reps: best.reps ?? null, date: best.date };
-  }).filter(Boolean).slice(0, 12);
+  // 17/11 : TOUS les exercices notés (programme + photo + liste), regroupés par nom ; le record battu le plus récent en premier
+  const kx = await exKeyer();
+  const bestBy = new Map<string, { ex: string; kg: number; reps: number | null; date: string }>();
+  for (const l of [...log].sort((a, b) => a.date.localeCompare(b.date))) for (const z of l.sets) {
+    if (z.kg == null) continue;
+    const k = kx.key(z.ex), cur = bestBy.get(k);
+    if (!cur || z.kg > cur.kg || (z.kg === cur.kg && (z.reps ?? 0) > (cur.reps ?? 0))) bestBy.set(k, { ex: kx.name(z.ex), kg: z.kg, reps: z.reps ?? null, date: l.date });
+  }
+  const prs = [...bestBy.values()].sort((a, b) => b.date.localeCompare(a.date) || b.kg - a.kg).slice(0, 40);
   const cfg = await getRoutineConfig();
   const gym = await gymPoint().catch(() => null);
   const loc = await getLocation('kouider').catch(() => null);
@@ -952,10 +967,12 @@ export async function sportWeeklyReport(send = false): Promise<string> {
   const week = log.filter(l => l.date >= from && l.date <= to), prevW = log.filter(l => l.date >= addDays(from, -7) && l.date < from);
   const vol = Math.round(week.reduce((a, l) => a + volumeOf(l), 0)), prevVol = Math.round(prevW.reduce((a, l) => a + volumeOf(l), 0));
   const prs: string[] = [];
-  for (const e of ALL_EXERCISES()) {
-    const kgs = (ls: SessionLog[]) => ls.flatMap(l => l.sets).filter(x => x.ex === e.id && x.kg != null).map(x => x.kg!);
+  const kxW = await exKeyer();
+  for (const k of new Set(week.flatMap(l => l.sets).map(x => kxW.key(x.ex)))) {
+    const kgs = (ls: SessionLog[]) => ls.flatMap(l => l.sets).filter(x => kxW.key(x.ex) === k && x.kg != null).map(x => x.kg!);
     const now = kgs(week), before = kgs(log.filter(l => l.date < from));
-    if (now.length && before.length && Math.max(...now) > Math.max(...before)) prs.push(`${e.name} ${Math.max(...now)} kg`);
+    const nm = kxW.name(week.flatMap(l => l.sets).find(x => kxW.key(x.ex) === k)!.ex);
+    if (now.length && before.length && Math.max(...now) > Math.max(...before)) prs.push(`${nm} ${Math.max(...now)} kg`);
   }
   const fmtD = (d: string) => new Date(localTs(d, '12:00')).toLocaleDateString('fr-FR', { timeZone: TZ, weekday: 'long', day: 'numeric' });
   // Objectif de la semaine passée
