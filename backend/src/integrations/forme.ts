@@ -733,6 +733,7 @@ export async function logForme(kind: string, b: Record<string, unknown>, date = 
     if (kind === 'water') d.water = Math.max(0, Math.min(30, d.water + (n(b.delta) || 1)));
     else if (kind === 'water-set') d.water = Math.max(0, Math.min(30, Math.round(n(b.glasses))));
     else if (kind === 'weight' && n(b.kg) > 30) d.weight = Math.round(n(b.kg) * 10) / 10;
+    else if (kind === 'weight-del') delete d.weight;   // 17/11 : pesée tapée par erreur → supprimée
     else if (kind === 'meal') d.meals[String(b.key)] = !!b.eaten;
     else if (kind === 'food') d.extra.push({ name: String(b.name ?? 'Aliment').slice(0, 60), kcal: Math.round(n(b.kcal)), p: Math.round(n(b.p)), c: Math.round(n(b.c)), f: Math.round(n(b.f)), at: Date.now(), src: String(b.src ?? 'manuel').slice(0, 20) });
     else if (kind === 'food-del') d.extra.splice(n(b.index), 1);
@@ -748,7 +749,12 @@ export async function logForme(kind: string, b: Record<string, unknown>, date = 
   // 07/11 : une pesée oubliée notée après coup ne remplace pas le poids actuel s'il y a une pesée plus récente
   if (kind === 'weight' && n(b.kg) > 30) {
     const later = Object.entries(await readDays(uid).catch(() => ({} as Record<string, FormeDay>))).some(([k, x]) => k > date && x.weight);
-    if (!later) await setFormeProfile({ weightKg: n(b.kg) }, uid).catch(() => {});
+    if (!later) await setFormeProfile({ weightKg: Math.round(n(b.kg) * 10) / 10 }, uid).catch(() => {});
+  }
+  // 17/11 : pesée supprimée → le poids actuel redevient la dernière pesée qui reste
+  if (kind === 'weight-del') {
+    const last = Object.entries(await readDays(uid).catch(() => ({} as Record<string, FormeDay>))).filter(([, x]) => x.weight).sort(([a], [z]) => a.localeCompare(z)).pop();
+    if (last) await setFormeProfile({ weightKg: last[1].weight! }, uid).catch(() => {});
   }
   // 07/11 Kouider : « si j'oublie de noter, je le rajoute plus tard et c'est enregistré partout » → sommeil / pas d'un jour
   // aussi dans health:daily (coach sommeil, bilans, objectif lisent la montre d'abord) : sa correction l'emporte.
@@ -1009,9 +1015,11 @@ export async function formeTool(input: Record<string, unknown>): Promise<string>
   if (a === 'status') return await formeText('kouider');
   if (a === 'log') {
     const kind = String(input.kind ?? '');
-    if (!['weight', 'injection', 'side', 'measures'].includes(kind)) return 'kind invalide (weight, injection, side, measures) — FORME ne suit plus la nourriture';
-    await logForme(kind, input);
-    return `✅ Noté dans FORME (${kind}).`;
+    if (!['weight', 'weight-del', 'injection', 'side', 'measures'].includes(kind)) return 'kind invalide (weight, weight-del, injection, side, measures) — FORME ne suit plus la nourriture';
+    // 17/11 : « je me suis trompé, c'est 76,9 » → kind weight + kg (même date = remplace) ; date YYYY-MM-DD pour un autre jour ; weight-del = supprimer
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(input.date ?? '')) ? String(input.date) : undefined;
+    await logForme(kind, input, date);
+    return kind === 'weight-del' ? `✅ Pesée du ${date ?? "jour"} supprimée dans FORME.` : kind === 'weight' ? `✅ Poids ${input.kg} kg noté dans FORME pour le ${date ?? "jour"} (remplace l'ancienne pesée de ce jour).` : `✅ Noté dans FORME (${kind}).`;
   }
   if (a === 'machines') {
     const h = await machineHistory('kouider');

@@ -1,3 +1,8 @@
+## 17/11/2026 (matin 6) — Corriger / supprimer une pesée (backend + app v276)
+- Kouider : « je dois pouvoir remodifier le poids si je me suis trompé (76,9 au lieu de 76) ». Pesée du 17/11 corrigée à 76,9.
+- App FORME (Évolution + Sèche) : « ✏️ Mes pesées — corriger une erreur » → 10 dernières pesées, toucher = corriger le chiffre ou supprimer (WeighIns.tsx). Retaper le poids du jour remplace déjà celui du jour (placeholder le dit).
+- Backend : kind `weight-del` (le poids actuel du profil redevient la dernière pesée restante) ; outil `forme` log accepte `date` + weight-del, et une correction « je me suis trompé c'est X » remplace la pesée du jour.
+
 ## 17/11/2026 (matin 5) — Agenda : titre de séance en double
 - Les séances du programme Aïd s'appellent « HAUT B — ÉPAULES & BRAS » : la synchro agenda gardait tout ce qui suit le 1er « — » comme lieu → « HAUT B — ÉPAULES & BRAS — ÉPAULES & BRAS — salle de Wemmel » (et ça grossissait à chaque synchro). Le lieu = seulement le dernier segment s'il parle de salle.
 - Noms des séances passés en « HAUT B · ÉPAULES & BRAS » (kv kouider:sport:program) pour que widget voiture / GPS / messages, qui coupent au « — », affichent le nom complet.

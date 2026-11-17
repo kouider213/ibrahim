@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { get, forme, errText, vibrate } from './api.ts';
 import { F, card, darkCard, btn, ghostBtn, input, Ring, Bar, LineChart, Spinner } from './ui.tsx';
 import { Ico, Icon } from '../components/ui/Icon.tsx';
+import WeighIns from './WeighIns.tsx';
 import { EnergyChart, useFoodWeek } from './WeekCharts.tsx';
 
 // 🔪 SÈCHE (Kouider 01/11) — remplace « Course » pour lui seul (son ami garde Course). Musculation + sèche, le meilleur de
@@ -93,10 +94,11 @@ export default function CutScreen({ toast }: { toast: (t: string) => void }) {
         <div style={{ marginTop: 10 }}><LineChart points={w.points.map(p => ({ x: p.date, y: p.kg ?? p.trend }))} trend={w.points.map(p => ({ x: p.date, y: p.trend }))} goal={w.goalKg ?? undefined} color={F.violet} digits={1} forecast={w.eta && w.goalKg ? { x: w.eta, y: w.goalKg } : null} /></div>
         {w.goalKg && <div style={{ marginTop: 6 }}><div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}><span>Objectif {w.goalKg} kg · encore {Math.max(0, Math.round(((w.last?.kg ?? w.current) - w.goalKg) * 10) / 10)} kg</span><b>{w.eta ? `vers le ${fmt(w.eta)}` : ''}</b></div><Bar value={Math.max(0, (w.points[0]?.trend ?? w.current) - w.current)} max={Math.max(0.1, (w.points[0]?.trend ?? w.current) - w.goalKg)} color={F.violet} track={F.bg2} /></div>}
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-          <input value={kg} onChange={e => setKg(e.target.value)} inputMode="decimal" placeholder={w.loggedToday ? 'Déjà pesé aujourd\'hui ✓' : 'Poids ce matin (kg)'} style={{ ...input, flex: 1 }} />
+          <input value={kg} onChange={e => setKg(e.target.value)} inputMode="decimal" placeholder={w.loggedToday ? 'Déjà pesé ✓ — retape pour corriger' : 'Poids ce matin (kg)'} style={{ ...input, flex: 1 }} />
           <button disabled={busy || !kg} onClick={() => void logW()} style={{ ...btn, padding: '12px 18px' }}>⚖️</button>
         </div>
         <div style={{ fontSize: 12, color: F.muted, marginTop: 6 }}>Le matin, à jeun, après les toilettes. Le chiffre de la balance saute de ±1 kg (eau, sel) : on suit la tendance.</div>
+        <WeighIns onChanged={() => load()} toast={toast} />
       </div>
 
       {/* Vraie dépense */}

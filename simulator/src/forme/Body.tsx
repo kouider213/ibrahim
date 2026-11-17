@@ -7,6 +7,7 @@ import Insights from './Insights.tsx';
 import { GoalsCard } from './Goals.tsx';
 import { Ico } from '../components/ui/Icon.tsx';
 import { MeasureLine } from './WeekCharts.tsx';
+import WeighIns from './WeighIns.tsx';
 
 // Onglet CORPS : poids, mensurations et PHOTOS DE SUIVI. Caméra avec la photo d'avant en transparence pour se placer
 // pareil, minuteur 3 s par défaut (10 s / off au choix), photo « avant » au choix, puis Claude compare avant / maintenant et entoure ce qui a changé.
@@ -234,9 +235,10 @@ export default function BodyScreen({ o, onO, toast }: { o: Overview; onO: (o: Ov
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div style={{ fontWeight: 800 }}><Ico e="⚖️" />Courbe de poids</div>{o.weightRate != null && <div style={{ fontSize: 12.5, color: F.muted, fontWeight: 700 }}>{o.weightRate > 0 ? '−' : '+'}{Math.abs(o.weightRate)} kg/sem.</div>}</div>
         <LineChart points={o.weights.slice(-30).map(w => ({ x: w.date, y: w.kg }))} goal={o.profile.targetKg} digits={1} forecast={o.eta ? { x: o.eta, y: o.profile.targetKg } : null} />
         <div style={{ display: 'flex', gap: 8 }}>
-          <input inputMode="decimal" value={kg} onChange={e => setKg(e.target.value)} placeholder="Poids du jour (kg)" style={input} />
+          <input inputMode="decimal" value={kg} onChange={e => setKg(e.target.value)} placeholder="Poids du jour (kg) — retape pour corriger" style={input} />
           <button onClick={logKg} style={{ ...btn, padding: '0 18px' }}>OK</button>
         </div>
+        <WeighIns weights={o.weights} onChanged={onO} toast={toast} />
       </div>
 
       <Insights />
