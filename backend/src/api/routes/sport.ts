@@ -33,7 +33,7 @@ router.get('/', async (_req, res) => {
 
 // POST /api/sport/log { date?, type, sets: [{ ex, kg?, reps? }], durationMin?, rpe?, note? } — fin de séance
 router.post('/log', async (req, res) => {
-  const b = req.body as { date?: string; type?: string; sets?: SetLog[]; durationMin?: number; rpe?: number; note?: string; names?: Record<string, string>; planned?: number; rests?: Record<string, number[]>; challenge?: string };
+  const b = req.body as { date?: string; type?: string; label?: string; sets?: SetLog[]; durationMin?: number; rpe?: number; note?: string; names?: Record<string, string>; planned?: number; rests?: Record<string, number[]>; challenge?: string };
   if (!isType(b.type)) { fail(res, 'type de séance invalide', 400); return; }
   try {
     const date = isDate(b.date) ? b.date : localNow().date;
@@ -41,7 +41,7 @@ router.post('/log', async (req, res) => {
       .map(s => ({ ex: s.ex, ...(Number(s.kg) > 0 ? { kg: Math.round(Number(s.kg) * 10) / 10 } : {}), ...(Number(s.reps) > 0 ? { reps: Math.round(Number(s.reps)) } : {}) }));
     const before = await computeGame().catch(() => null);
     const names0 = b.names && typeof b.names === 'object' ? Object.fromEntries(Object.entries(b.names).slice(0, 60).map(([k, v]) => [String(k).slice(0, 80), String(v).slice(0, 60)])) : undefined;
-    const r = await logSportSession({ date, type: b.type, sets, ...(names0 ? { names: names0 } : {}),
+    const r = await logSportSession({ date, type: b.type, sets, ...(names0 ? { names: names0 } : {}), ...(typeof b.label === 'string' && b.label.trim() ? { label: b.label.trim().slice(0, 60) } : {}),
       ...(Number(b.durationMin) > 0 ? { durationMin: Math.round(Number(b.durationMin)) } : {}),
       ...(Number(b.rpe) > 0 ? { rpe: Math.min(10, Math.round(Number(b.rpe))) } : {}),
       ...(b.note ? { note: String(b.note).slice(0, 700) } : {}) });
@@ -63,6 +63,22 @@ router.post('/log', async (req, res) => {
 router.get('/review', async (req, res) => {
   const date = isDate(req.query['date']) ? String(req.query['date']) : localNow().date;
   try { res.json({ review: await import('../../integrations/sport-review.js').then(m => m.getReview(date)) }); } catch (err) { fail(res, err); }
+});
+
+// GET /api/sport/session?date= — 17/11 détail d'une séance de l'historique (séries par exercice + bilan, fait à la demande si absent)
+router.get('/session', async (req, res) => {
+  const date = isDate(req.query['date']) ? String(req.query['date']) : localNow().date;
+  try {
+    const sc = await import('../../integrations/sport-coach.js');
+    const l = (await sc.readSportLog()).find(x => x.date === date);
+    if (!l) { res.json({ session: null }); return; }
+    const kx = await sc.exKeyer();
+    const ex: Array<{ id: string; name: string; sets: Array<{ kg?: number; reps?: number }> }> = [];
+    for (const z of l.sets) { const k = kx.key(z.ex); let e = ex.find(x => kx.key(x.id) === k); if (!e) { e = { id: z.ex, name: kx.name(z.ex), sets: [] }; ex.push(e); } e.sets.push({ ...(z.kg ? { kg: z.kg } : {}), ...(z.reps ? { reps: z.reps } : {}) }); }
+    const rv = await import('../../integrations/sport-review.js');
+    const review = (await rv.getReview(date)) ?? (l.sets.length ? await rv.buildReview(date, { send: false }).catch(() => null) : null);
+    res.json({ session: { date, type: l.type, label: await sc.sessionLabel(l), durationMin: l.durationMin ?? null, rpe: l.rpe ?? null, note: l.note ?? null, exercises: ex }, review });
+  } catch (err) { fail(res, err); }
 });
 
 // POST /api/sport/swap { date, type|null } — changer la séance d'un jour

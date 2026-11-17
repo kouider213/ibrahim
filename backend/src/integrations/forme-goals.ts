@@ -379,7 +379,8 @@ export async function goalsText(uid: Uid = 'kouider'): Promise<string> {
   if (!s.plan) return '';
   const next = s.plan.milestones.find(m => !m.done);
   const pc = await pace(uid, s, days).catch(() => null);
-  return `${pc ? `Suivi objectif : ${pc.text} ` : ''}Objectif physique : ${s.plan.zones.map(z => `${z.label} ${z.now ?? '?'}/100`).join(', ')} → arrivée ~${s.plan.eta}${next ? ` ; prochain jalon ${next.date} : ${next.title}` : ''}. Défis : ${s.challenges.map(c => challengeView(c, days, {}, new Set())).filter(c => !c.finished && !c.autoFill?.includes('séances')).map(c => `${c.title} (${c.label})`).join(' ; ') || 'aucun'}.`;
+  const zt = await import('./forme-zones.js').then(m => m.zoneGoalsText(uid)).catch(() => '');
+  return `${zt ? `${zt} ` : ''}${pc ? `Suivi objectif : ${pc.text} ` : ''}Objectif physique : ${s.plan.zones.map(z => `${z.label} ${z.now ?? '?'}/100`).join(', ')} → arrivée ~${s.plan.eta}${next ? ` ; prochain jalon ${next.date} : ${next.title}` : ''}. Défis : ${s.challenges.map(c => challengeView(c, days, {}, new Set())).filter(c => !c.finished && !c.autoFill?.includes('séances')).map(c => `${c.title} (${c.label})`).join(' ; ') || 'aucun'}.`;
 }
 
 // ── Parler au coach : n'importe quelle question, et il peut CHANGER l'objectif tout seul ────

@@ -219,7 +219,7 @@ export function sportProgramText(): string {
 }
 
 export interface SetLog { ex: string; kg?: number; reps?: number }
-export interface SessionLog { date: string; type: SessionType; at: string; durationMin?: number; rpe?: number; note?: string; sets: SetLog[] }
+export interface SessionLog { date: string; type: SessionType; at: string; durationMin?: number; rpe?: number; note?: string; sets: SetLog[]; label?: string }   // label : 17/11 vrai nom (« JAMBES », « Abdos + obliques ») quand la case du programme ne correspond pas
 interface PlanSlot { type: SessionType; eventId: string; start: string; end: string; minutes: number; title: string }
 type DayStatus = 'done' | 'missed' | 'skip';
 export interface SportSettings { callBefore: boolean; gymCheck: boolean; playlist: boolean }
@@ -707,13 +707,30 @@ export function findExercise(q: string): Exercise | null {
 }
 
 /** Enregistre une séance (ou ajoute des séries à celle du jour). Retourne les records battus. */
+/** 17/11 (Kouider : « il est encore noté comme épaule ») : la case du programme (« legs » = ÉPAULES dans son programme) ne dit pas
+ *  ce qu'il a VRAIMENT fait. Ordre : nom enregistré avec la séance → séance du jour personnalisée → bilan → muscles travaillés. */
+export async function sessionLabel(l: SessionLog): Promise<string> {
+  if (l.label) return l.label;
+  if (customMap[l.date]?.label) return customMap[l.date]!.label;
+  const rv = await kvGet(`kouider:sport:review:${l.date}`).catch(() => null);
+  if (rv) { try { const r = JSON.parse(rv) as { label?: string }; if (r.label) return r.label; } catch { /* */ } }
+  const all = ALL_EXERCISES();
+  const cnt = new Map<string, number>();
+  for (const z of l.sets) { const m = all.find(e => e.id === z.ex.replace(/~.*$/, ''))?.muscle; if (m) cnt.set(m, (cnt.get(m) ?? 0) + 1); }
+  const top = [...cnt.entries()].sort((a, b) => b[1] - a[1]).filter(([, n], i, arr) => i < 2 && n >= (arr[0]![1] / 3)).map(([m]) => MUSCLE_LABEL[m] ?? m);
+  return top.length ? top.join(' & ').toUpperCase() : SESSIONS[l.type].label;
+}
+const MUSCLE_LABEL: Record<string, string> = { pecs: 'Pectoraux', dos: 'Dos', epaules: 'Épaules', bras: 'Bras', jambes: 'Jambes', abdos: 'Abdos', cardio: 'Cardio' };
+
 export async function logSportSession(entry0: Omit<SessionLog, 'at'> & { at?: string; names?: Record<string, string> }): Promise<{ prs: string[]; total: number }> {
   const { names: _n, ...entry } = entry0; void _n;
   const log = await readSportLog();
   const prev = [...log];
   const i = log.findIndex(l => l.date === entry.date);
+  // 17/11 : 2 séances différentes le même jour (« JAMBES » puis « Abdos ») → les deux noms restent
+  const lab = i >= 0 && entry.label && log[i]!.label && log[i]!.label !== entry.label && entry.sets.length && log[i]!.sets.length ? `${log[i]!.label} + ${entry.label}`.slice(0, 80) : entry.label ?? (i >= 0 ? log[i]!.label : undefined);
   const merged: SessionLog = i >= 0
-    ? { ...log[i]!, ...entry, sets: [...log[i]!.sets, ...entry.sets], at: log[i]!.at }
+    ? { ...log[i]!, ...entry, sets: [...log[i]!.sets, ...entry.sets], at: log[i]!.at, ...(lab ? { label: lab } : {}) }
     : { ...entry, at: entry.at ?? new Date().toISOString() };
   if (i >= 0) log[i] = merged; else log.push(merged);
   await kvSet(LOG_KEY, JSON.stringify(log.slice(-300)));
@@ -832,7 +849,7 @@ export async function sportOverview() {
     recovery, stats: { streak, monthSessions: log.filter(l => l.date.startsWith(month)).length, total: log.length, weeks, prs },
     gym: gym ? { ...gym, distanceKm: loc && Date.now() - Date.parse(loc.updated_at) < 30 * 60_000 ? Math.round(km(loc, gym) * 10) / 10 : null } : { address: cfg.addresses.gym },
     settings: st.settings, deload: st.deload ?? null, goal: st.goal ? { ...st.goal, ...goalProgress(st, log) } : null, sessions: Object.fromEntries(ROTATION.map(t => [t, { label: SESSIONS[t].label, emoji: SESSIONS[t].emoji, focus: SESSIONS[t].focus }])),
-    recent: log.slice(-5).reverse().map(l => ({ date: l.date, type: l.type, label: SESSIONS[l.type].label, sets: l.sets.length, volume: Math.round(volume(l)), durationMin: l.durationMin ?? null, rpe: l.rpe ?? null })),
+    recent: await Promise.all(log.slice(-12).reverse().map(async l => ({ date: l.date, type: l.type, label: await sessionLabel(l), sets: l.sets.length, volume: Math.round(volume(l)), durationMin: l.durationMin ?? null, rpe: l.rpe ?? null }))),
   };
 }
 

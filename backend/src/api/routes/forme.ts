@@ -312,6 +312,38 @@ router.post('/priority', async (req, res) => {
     res.json({ text: await import('../../integrations/forme-adapt.js').then(m => m.prioritize(muscles)) });
   } catch (err) { fail(res, err); }
 });
+// 17/11 : carte du corps cliquable — zones, objectif par zone, séance générée pour les muscles touchés, programme sur mesure
+const zonesMod = () => import('../../integrations/forme-zones.js');
+router.get('/zones', async (req, res) => {
+  try { const z = await zonesMod(); res.json({ zones: z.ZONES.map(({ id, label, group }) => ({ id, label, group })), goals: z.ZONE_GOALS, mine: await z.readZoneGoals(U(req)) }); } catch (err) { fail(res, err); }
+});
+router.post('/zones/goals', async (req, res) => {
+  const b = req.body as { zones?: unknown; goal?: unknown; note?: unknown };
+  try {
+    const z = await zonesMod();
+    const goal = typeof b.goal === 'string' && b.goal in z.ZONE_GOALS ? b.goal as import('../../integrations/forme-zones.js').ZoneGoal : null;
+    res.json({ mine: await z.setZoneGoals(U(req), Array.isArray(b.zones) ? b.zones.map(String).slice(0, 20) : [], goal, typeof b.note === 'string' ? b.note : undefined) });
+  } catch (err) { fail(res, err, 400); }
+});
+router.post('/zones/workout', async (req, res) => {
+  const b = req.body as { zones?: unknown; minutes?: unknown };
+  try { res.json({ session: await (await zonesMod()).zoneWorkout(U(req), Array.isArray(b.zones) ? b.zones.map(String).slice(0, 20) : [], Math.min(120, Math.max(15, Number(b.minutes) || 60))) }); } catch (err) { fail(res, err, 400); }
+});
+router.post('/zones/program', async (req, res) => {
+  try {
+    if (U(req) !== 'kouider') { res.status(403).json({ error: 'réservé' }); return; }
+    const z = await zonesMod(); const g = await goals();
+    const mine = await z.readZoneGoals('kouider');
+    const ov = await g.goalsOverview('kouider');
+    const groups = (ids: string[]) => [...new Set(ids.map(id => z.ZONES.find(x => x.id === id)?.group).filter((x): x is string => !!x && x !== 'cardio'))];
+    const want = groups(Object.keys(mine));
+    const prio = groups(Object.entries(mine).filter(([, x]) => x.goal === 'volume' || x.goal === 'dessin' || x.goal === 'force').map(([id]) => id));
+    const zonesTxt = await z.zoneGoalsText('kouider');
+    const plan = await g.makeGoalPlan('kouider', { zones: [...new Set([...(ov.state.zones ?? []), ...want])], priority: [...new Set([...prio, ...(ov.state.priority ?? [])])], note: `${ov.state.note ?? ''} ${zonesTxt}`.trim().slice(0, 500) });
+    const adapt = await import('../../integrations/forme-adapt.js').then(m => m.adaptProgram()).catch(() => null);
+    res.json({ plan: plan.plan, adapt: adapt?.text ?? null });
+  } catch (err) { fail(res, err, 400); }
+});
 router.get('/goal-status', async (req, res) => {
   try { if (U(req) !== 'kouider') { res.status(403).json({ error: 'réservé' }); return; } res.json(await import('../../integrations/forme-adapt.js').then(m => m.goalStatus())); } catch (err) { fail(res, err); }
 });
