@@ -1,3 +1,11 @@
+## 17/11/2026 (soir) — Dzaryx pilote l'iPhone (outil `iphone` + raccourci « Dzaryx Faire ») + app v278
+- Kouider (vidéo OpenJarvis) : « qu'il crée une alarme ou autre si je lui demande, comme s'il avait un accès complet à mon téléphone », « que moi qui ai accès ».
+- `set_phone_alarm` ne marchait que sur Android (rien sur iPhone) → remplacé par l'outil `iphone` (25 actions : alarme, minuteur, Ne pas déranger, silence, lampe, Wi-Fi, Bluetooth, données, avion, économie d'énergie, mode sombre, volume, luminosité, rappel, note, dire un texte, presse-papiers, Shazam, média, appel, SMS pré-rempli, Waze, Musique, ouvrir une appli, lien).
+- File `iphone:queue` (app_kv, 12 h max) ; GET `/api/jarvis/phone-do` (jeton Kouider) la vide ; `/api/jarvis/siri` renvoie `act: '1'` quand une action attend.
+- Sécurité : sessions Houari / WhatsApp / jobs autonomes / tests refusées ; liens limités à une liste blanche ; SMS jamais envoyé seul.
+- iphone-tool-def.ts sans import (sinon import circulaire tools.ts → ai-util → claude-api → tools, vu sur le backend VPS).
+- App JARVIS › Santé·Siri : carte « Dzaryx pilote ton iPhone » (guide raccourci, automatisation Telegram fermé, Toucher le dos / bouton Action = Dzaryx à la place de Siri). Non testé sur le vrai iPhone.
+
 ## 17/11/2026 (après-midi) — Escouade + document, pesée Telegram → FORME
 - Kouider : « fais une recherche pour le business … et crée un document, envoie-le-moi » → l'escouade a fait la recherche mais Dzaryx promettait un Google Doc + PDF que l'escouade ne sait pas faire (rien n'est arrivé). Dossier « Saveurs d'Oran — étude du business » créé à la main à partir des résultats + PDF via tgcall/outbox.
 - escouade : `document: true` (+ doc_title) → à la fin, create_presentation_doc (Google Doc soigné + PDF Telegram) tout seul ; sans ça, la réponse de l'outil interdit de promettre un document.

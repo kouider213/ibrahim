@@ -701,12 +701,9 @@ async function _dispatch(
       case 'create_signature_link':          return await createSignatureLinkTool(input);
       case 'apply_dynamic_pricing':          return await applyDynamicPricingTool(input);
       // ─── ALARME TÉLÉPHONE ───
-      case 'set_phone_alarm': {
-        const hour   = Number(input['hour']   ?? 0);
-        const minute = Number(input['minute'] ?? 0);
-        const label  = String(input['label']  ?? 'Dzaryx');
-        return JSON.stringify({ __native_action: 'set_alarm', hour, minute, label });
-      }
+      case 'iphone':          return await import('./iphone-actions.js').then(m => m.iphoneTool(input, sessionId));
+      case 'set_phone_alarm': // ancien nom (Android) → même file iPhone
+        return await import('./iphone-actions.js').then(m => m.iphoneTool({ action: 'alarm', time: m.parseClock(input['hour'], input['minute']) ?? '', label: input['label'] }, sessionId));
       default:                           return `Outil inconnu: ${name}`;
     }
   } catch (err) {

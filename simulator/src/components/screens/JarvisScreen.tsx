@@ -1118,6 +1118,32 @@ function SanteSiri() {
         </div>
         <div style={{ fontSize: 11.5, color: T.faint, marginTop: 8 }}>Ta clé est personnelle : ne la partage avec personne. Si tu te déconnectes de l'app, recopie la nouvelle.</div>
       </Card>
+      <Card accent={T.accent}>
+        <div style={{ fontWeight: 800, fontSize: 14.5, marginBottom: 4 }}><Ico e="📲" />Dzaryx pilote ton iPhone</div>
+        <div style={{ fontSize: 12.5, color: T.muted, marginBottom: 8 }}>« Réveille-moi à 5h », « minuteur 10 min », « mode avion », « baisse le son », « lance Waze vers la salle », « appelle Houari », « mets Ne pas déranger »… Dzaryx le fait VRAIMENT sur ton iPhone. Par Siri : tout de suite. Par Telegram : dès que tu fermes Telegram. 🔒 Toi seul : ta clé personnelle est obligatoire (elle n'est jamais dans GitHub), Houari, les clients et les tâches automatiques ne peuvent pas s'en servir, et aucun lien inconnu ne peut s'ouvrir.</div>
+        <div style={{ display: 'grid', gap: 8 }}>
+          {step(1, <>Raccourcis › <b>+</b> › nomme-le exactement <b>Dzaryx Faire</b>.</>)}
+          {step(2, <>Ajoute <b>Obtenir le contenu de l'URL</b> : <b>GET</b> sur <Copy label="pdo" v={`${PRIMARY_BACKEND}/api/jarvis/phone-do`} /> En-tête <b>Authorization</b> = <Copy label="tok4" v={`Bearer ${token}`} /></>)}
+          {step(3, <>Ajoute <b>Obtenir la valeur du dictionnaire</b> « items » → <b>Répéter avec chaque élément</b>. Dedans : <b>Obtenir la valeur du dictionnaire</b> « do » de <i>Élément de répétition</i>.</>)}
+          {step(4, <>Dans la boucle, un bloc <b>Si</b> « do » <b>est</b> … par action. Commence par les ⭐ (les plus utiles), ajoute les autres quand tu veux :
+            <div style={{ fontSize: 12, marginTop: 6, display: 'grid', gap: 4 }}>
+              <div>⭐ 🔗 <b>open</b> → <b>Ouvrir les URL</b> : « url » — sert pour appeler, SMS (pré-rempli, tu appuies sur Envoyer), Waze, Musique et ouvrir une appli</div>
+              <div>⭐ ⏰ <b>alarm</b> → <b>Créer une alarme</b> : heure = « time », libellé = « label »</div>
+              <div>⭐ ⏱️ <b>timer</b> → <b>Démarrer le minuteur</b> : « minutes » minutes</div>
+              <div>⭐ 🌙 <b>focus</b> → <b>Activer/désactiver Concentration</b> (Ne pas déranger) : <b>Si</b> « on » est 1 → Activer, sinon Désactiver</div>
+              <div>⭐ 🔔 <b>reminder</b> → <b>Ajouter un rappel</b> : titre = « text », alerte = « when »</div>
+              <div>⭐ 🗣️ <b>say</b> → <b>Énoncer le texte</b> : « text »</div>
+              <div>🔕 <b>silent</b> → <b>Régler le mode Silence</b> · 🔦 <b>torch</b> → <b>Régler la lampe torche</b> · 📶 <b>wifi</b> → <b>Régler le Wi-Fi</b> · 🎧 <b>bluetooth</b> → <b>Régler le Bluetooth</b> · 📡 <b>cellular</b> → <b>Régler les données cellulaires</b> · ✈️ <b>airplane</b> → <b>Régler le mode Avion</b> · 🔋 <b>low_power</b> → <b>Régler le mode Économie d'énergie</b> · 🌗 <b>dark_mode</b> → <b>Régler l'apparence</b> (Sombre / Clair) — tous avec « on » (1 = activer, 0 = couper)</div>
+              <div>🔊 <b>volume</b> → <b>Régler le volume</b> · ☀️ <b>brightness</b> → <b>Régler la luminosité</b> : « level » %</div>
+              <div>⏯️ <b>media</b> → selon « cmd » : <b>Lire/Mettre en pause</b>, <b>Passer au morceau suivant</b>, <b>Revenir au morceau précédent</b></div>
+              <div>📝 <b>note</b> → <b>Créer une note</b> : « text » · 📋 <b>clipboard</b> → <b>Copier dans le presse-papiers</b> : « text » · 🎵 <b>shazam</b> → <b>Reconnaître la musique</b></div>
+            </div></>)}
+          {step(5, <>Dans ton raccourci <b>Dzaryx</b> (celui de Siri), juste après « Énoncer le texte » : <b>Obtenir la valeur du dictionnaire</b> « act » → <b>Si</b> elle a une valeur → <b>Exécuter le raccourci</b> « Dzaryx Faire ».</>)}
+          {step(6, <>Pour Telegram : Raccourcis › <b>Automatisation</b> › <b>+</b> › <b>App</b> › Telegram › <b>Est fermée</b> › <b>Exécuter immédiatement</b> → <b>Exécuter le raccourci</b> « Dzaryx Faire ».</>)}
+          {step(7, <>👑 <b>Dzaryx à la place de Siri</b> : Réglages › Accessibilité › Toucher › <b>Toucher le dos</b> › Toucher deux fois › raccourci <b>Dzaryx</b> (2 tapes au dos de l'iPhone = Dzaryx t'écoute). Si ton iPhone a le <b>bouton Action</b> : Réglages › Bouton Action › Raccourci › <b>Dzaryx</b>.</>)}
+        </div>
+        <div style={{ fontSize: 11.5, color: T.faint, marginTop: 8 }}>Une action pas récupérée dans les 12 h est oubliée (une vieille alarme ne sonnera jamais par surprise). Apple interdit à toute appli de lire tes SMS, tes appels ou tes autres applis : ça, personne ne peut le faire.</div>
+      </Card>
     </div>
   );
 }

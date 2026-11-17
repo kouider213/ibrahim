@@ -186,7 +186,16 @@ router.post('/siri', express.text({ type: 'text/*', limit: '1mb' }), async (req,
     res.json({ say: `Je n'ai pas reçu ta phrase. Le raccourci m'a envoyé ${what}. Vérifie que la dictée t'a bien entendu.` });
     return;
   }
-  try { res.json(await import('../../integrations/jarvis-hub.js').then(m => m.siriTurn(text))); } catch (e) { fail(res, e); }
+  try {
+    const out = await import('../../integrations/jarvis-hub.js').then(m => m.siriTurn(text));
+    // 📲 17/11 : actions iPhone en attente → le raccourci « Dzaryx » lance « Dzaryx Faire »
+    const n = await import('../../integrations/iphone-actions.js').then(m => m.pendingPhoneCount()).catch(() => 0);
+    res.json(n ? { ...out, act: '1' } : out);
+  } catch (e) { fail(res, e); }
+});
+// 📲 Raccourci « Dzaryx Faire » : récupère (et vide) les actions iPhone en file — alarme, minuteur, Ne pas déranger…
+router.get('/phone-do', async (_req, res) => {
+  try { const items = await import('../../integrations/iphone-actions.js').then(m => m.popPhoneActions()); res.json({ count: items.length, items }); } catch (e) { fail(res, e); }
 });
 // Salle de commande (TV / PC), machine à voir le futur, briefing 3D de la Carte live
 router.get('/command-center', async (_req, res) => {

@@ -1,5 +1,6 @@
 ﻿import type Anthropic from '@anthropic-ai/sdk';
 import { JARVIS3_TOOLS } from './jarvis3-tools.js';
+import { IPHONE_TOOL } from './iphone-tool-def.js';
 import { JARVIS4_TOOLS } from './jarvis4-tools.js';
 
 // 🧹 02/11 (Kouider « oui cache les ») : outils morts cachés au cerveau — le code reste (tool-executor), on peut les
@@ -2735,20 +2736,8 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
       required: [],
     },
   },
-  // ─── ALARME TÉLÉPHONE (natif Android/iOS) ────────────────────────
-  {
-    name: 'set_phone_alarm',
-    description: 'Créer une alarme sur le téléphone de l\'utilisateur. L\'alarme sonne à l\'heure demandée via l\'app alarme native. Utiliser quand l\'utilisateur dit "crée une alarme à X", "réveille-moi à X", "alarme pour X heures", "mets une alarme à Xh".',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        hour:    { type: 'number', description: 'Heure (0-23)' },
-        minute:  { type: 'number', description: 'Minutes (0-59, défaut: 0)' },
-        label:   { type: 'string', description: 'Titre de l\'alarme (ex: "Dzaryx — Rappel client")' },
-      },
-      required: ['hour'],
-    },
-  },
+  // ─── IPHONE (17/11) : alarme, minuteur, Ne pas déranger… via le raccourci « Dzaryx Faire » ───
+  IPHONE_TOOL,
 
   // ─── PHASE EXTRAS : dégât, signature, pricing ───
   {
