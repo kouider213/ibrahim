@@ -321,9 +321,11 @@ export function suggestFor(e: Exercise, log: SessionLog[], date?: string): Sugge
   const s = suggestRaw(e, log);
   return (inDeload(date) || lowForm(date)) && s.kg ? { kg: Math.round(s.kg * 0.9 * 2) / 2, last: s.last } : s;
 }
+const slotless = (id: string) => id.replace(/~.*$/, '').replace(/^(push|pull|legs|cardio|upper|core)_/, '');
 function suggestRaw(e: Exercise, log: SessionLog[]): Suggestion {
   for (let i = log.length - 1; i >= 0; i--) {
-    const sets = log[i]!.sets.filter(s => s.ex === e.id && s.kg != null);
+    // 17/11 : même exercice passé dans une autre séance du programme (« pull_curl_barre » → « cardio_curl_barre ») = mêmes charges
+    const sets = log[i]!.sets.filter(s => (s.ex === e.id || slotless(s.ex) === slotless(e.id)) && s.kg != null);
     if (!sets.length) continue;
     const top = Math.max(...sets.map(s => s.kg!));
     const atTop = sets.filter(s => s.kg === top);
