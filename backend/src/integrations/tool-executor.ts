@@ -2879,6 +2879,13 @@ const fmtOran = (iso: string) => new Date(iso).toLocaleString('fr-FR', { timeZon
 
 async function prospectRepliesTool(input: Record<string, unknown>): Promise<string> {
   const rows = await listPendingReplies(input['query'] as string | undefined);
+  // 17/11 Kouider : « aucun des 2 n'est intéressant, oublie-les » → Dzaryx disait « classé » sans rien faire et ils restaient en attente
+  if (input['dismiss'] === true) {
+    if (!rows.length) return '📭 Rien à classer : aucune réponse de prospect en attente' + (input['query'] ? ` pour « ${String(input['query'])} »` : '') + '.';
+    const { updateProspect } = await import('./prospects.js');
+    for (const p of rows) await updateProspect(p.id, { status: 'stop', suggested_reply: null, notes: `${p.notes ? `${p.notes}\n` : ''}${new Date().toISOString().slice(0, 10)} : pas intéressant pour nous (Kouider) — on ne répond pas, plus de relance.` });
+    return `✅ Classé (pas de réponse, plus de rappel ni de relance) : ${rows.map(p => p.company).join(', ')}.`;
+  }
   if (!rows.length) return '📭 Aucune réponse de prospect en attente.';
   return rows.map(p =>
     `📩 **${p.company}** (${p.email}) — statut ${p.status}\n` +

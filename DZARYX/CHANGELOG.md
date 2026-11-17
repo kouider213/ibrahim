@@ -1,6 +1,7 @@
 ## 17/11/2026 (après-midi) — Escouade + document, pesée Telegram → FORME
 - Kouider : « fais une recherche pour le business … et crée un document, envoie-le-moi » → l'escouade a fait la recherche mais Dzaryx promettait un Google Doc + PDF que l'escouade ne sait pas faire (rien n'est arrivé). Dossier « Saveurs d'Oran — étude du business » créé à la main à partir des résultats + PDF via tgcall/outbox.
 - escouade : `document: true` (+ doc_title) → à la fin, create_presentation_doc (Google Doc soigné + PDF Telegram) tout seul ; sans ça, la réponse de l'outil interdit de promettre un document.
+- prospect_replies dismiss=true : « pas intéressant, oublie-les » classe vraiment (status stop, suggested_reply null) — avant Dzaryx disait « classé » sans outil. Keyin-DZ + SIAHA classés.
 - life_coach log weight (« je me suis trompé c'est 76,9 ») écrit aussi dans FORME (remplace la pesée du jour).
 
 ## 17/11/2026 (midi) — Séance : vraies séries précédentes, progression 1→2→3 séries, échauffement = 1er exercice (07df79b0 + app v277)

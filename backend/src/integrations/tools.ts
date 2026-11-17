@@ -1197,7 +1197,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     description: 'Voir les réponses des prospects au démarchage + la réponse que Dzaryx a préparée. Quand Kouider dit "réponds à X", "réponds-lui", "qui a répondu ?" → appeler ceci, puis draft_email avec reply_to_prospect et le texte proposé (adapté à ses consignes éventuelles), puis demander "Je l\'envoie ?".',
     input_schema: {
       type: 'object' as const,
-      properties: { query: { type: 'string', description: 'Nom de l\'entreprise ou email (vide = toutes les réponses en attente)' } },
+      properties: { query: { type: 'string', description: 'Nom de l\'entreprise ou email (vide = toutes les réponses en attente)' }, dismiss: { type: 'boolean', description: 'true = « pas intéressant / oublie-les / laisse tomber » : classe ces réponses (query = une entreprise, vide = toutes) — plus de rappel ni de relance. Ne dis JAMAIS « classé » sans cet appel.' } },
     },
   },
   {
