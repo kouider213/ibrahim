@@ -50,7 +50,7 @@ Réponds UNIQUEMENT : {"agents":[{"name":"nom court","icon":"un emoji","task":"m
   return (j?.agents ?? []).slice(0, 4).filter(a => a.task);
 }
 
-async function run(s: Squad, onDone?: (final: string) => Promise<void>): Promise<void> {
+async function run(s: Squad, onDone?: (final: string, s: Squad) => Promise<void>): Promise<void> {
   try {
     const p = await plan(s.goal);
     if (!p.length) throw new Error('découpage impossible');
@@ -85,7 +85,7 @@ async function run(s: Squad, onDone?: (final: string) => Promise<void>): Promise
     if (inSandbox()) return;   // crash-test : rien chez Kouider
     await queueTelegramMessage(`🛰️ Escouade terminée — « ${s.goal} »\n\n${s.final.replace(/\*\*/g, '')}`).catch(() => {});
     emitProactive(`🛰️ Escouade terminée : ${s.goal.slice(0, 60)}`, 'info', s.final.slice(0, 1500));
-    if (onDone) await onDone(s.final).catch(err => console.warn('[squad] onDone:', err instanceof Error ? err.message : err));
+    if (onDone) await onDone(s.final, s).catch(err => console.warn('[squad] onDone:', err instanceof Error ? err.message : err));
   } catch (err) {
     s.status = 'error'; s.final = `❌ ${err instanceof Error ? err.message : String(err)}`;
     await save(s);
@@ -93,7 +93,7 @@ async function run(s: Squad, onDone?: (final: string) => Promise<void>): Promise
 }
 
 /** onDone : appelé avec le plan final (pas en crash-test), ex. l'usine à business rappelle Kouider avec le résumé. */
-export async function startSquad(goal: string, onDone?: (final: string) => Promise<void>): Promise<Squad> {
+export async function startSquad(goal: string, onDone?: (final: string, s: Squad) => Promise<void>): Promise<Squad> {
   const s: Squad = { id: randomUUID().slice(0, 8), goal: goal.slice(0, 400), started: new Date().toISOString(), status: 'planning', agents: [] };
   await save(s);
   void run(s, onDone);
@@ -109,6 +109,14 @@ export async function squadTool(input: Record<string, unknown>): Promise<string>
   }
   const goal = String(input['goal'] ?? '').trim();
   if (!goal) return '❌ Quel objectif pour l\'escouade ?';
-  const s = await startSquad(goal);
-  return `🛰️ Escouade lancée (« ${s.goal} ») : je découpe en 2 à 4 agents qui travaillent en même temps. Tu peux les regarder en direct dans l'app : JARVIS › 🛰️ Escouade. Le plan final arrive sur Telegram dans quelques minutes.`;
+  // 17/11 Kouider : « fais une recherche … et crée un document, envoie-le-moi » → l'escouade promettait un Google Doc + PDF
+  // qu'elle ne savait pas faire. document=true : à la fin, dossier soigné (create_presentation_doc) + PDF sur Telegram, tout seuls.
+  const wantDoc = input['document'] === true;
+  const docTitle = String(input['doc_title'] ?? '').trim() || goal.replace(/^(étude|recherche)\s*(de marché)?\s*(approfondie)?\s*(pour|sur)?\s*(le business de)?\s*/i, '').slice(0, 70);
+  const s = await startSquad(goal, wantDoc ? async (final, sq) => {
+    const material = `Objectif de l'étude : ${sq.goal}\n\n${sq.agents.map(a => `=== ${a.icon} ${a.name} — mission : ${a.task}\n${a.result ?? ''}`).join('\n\n')}\n\n=== PLAN FINAL ASSEMBLÉ\n${final}`;
+    const { createPresentationDoc } = await import('./pro-doc.js');
+    console.log('[squad] document :', (await createPresentationDoc({ title: docTitle, brief: `Étude pour Kouider : ${sq.goal}. Marché, chiffres, plan d'action, risques — uniquement ce que l'escouade a trouvé.`, material })).slice(0, 160));
+  } : undefined);
+  return `🛰️ Escouade lancée (« ${s.goal} ») : je découpe en 2 à 4 agents qui travaillent en même temps. Tu peux les regarder en direct dans l'app : JARVIS › 🛰️ Escouade. Le plan final arrive sur Telegram dans quelques minutes.${wantDoc ? ` Ensuite le dossier « ${docTitle} » se crée TOUT SEUL (Google Doc + PDF sur Telegram, 1-2 min de plus) : n'appelle PAS create_presentation_doc toi-même.` : ' ⚠️ AUCUN document ne sera créé (document=false) : ne promets ni Google Doc ni PDF ; s\'il en veut un, relance avec document=true.'}`;
 }

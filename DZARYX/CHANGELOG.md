@@ -1,3 +1,8 @@
+## 17/11/2026 (après-midi) — Escouade + document, pesée Telegram → FORME
+- Kouider : « fais une recherche pour le business … et crée un document, envoie-le-moi » → l'escouade a fait la recherche mais Dzaryx promettait un Google Doc + PDF que l'escouade ne sait pas faire (rien n'est arrivé). Dossier « Saveurs d'Oran — étude du business » créé à la main à partir des résultats + PDF via tgcall/outbox.
+- escouade : `document: true` (+ doc_title) → à la fin, create_presentation_doc (Google Doc soigné + PDF Telegram) tout seul ; sans ça, la réponse de l'outil interdit de promettre un document.
+- life_coach log weight (« je me suis trompé c'est 76,9 ») écrit aussi dans FORME (remplace la pesée du jour).
+
 ## 17/11/2026 (midi) — Séance : vraies séries précédentes, progression 1→2→3 séries, échauffement = 1er exercice (07df79b0 + app v277)
 - Kouider (photo triceps corde) : la dernière fois 1 seule série à 20,3 kg (puis 18, 18) mais PRÉCÉDENT affichait 20,3 × 12 sur les 3 lignes et proposait 20,3 partout. Pareil curl barre (30/25/25), élévations latérales (8/6/6).
 - Backend suggestFor : `prev` (séries réelles dans l'ordre), `plan` (kg série par série), `goal` (phrase). Règle : 1 série de plus au poids lourd à chaque séance (si les reps du bas de la fourchette sont faites) ; toutes les séries réussies → +step (2,5 par défaut) sur la 1re série, les autres restent, et ça recommence. « facile » = on monte, « dur » = −step.

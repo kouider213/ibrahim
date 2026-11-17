@@ -2920,10 +2920,10 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'escouade',
-    description: "ESCOUADE D'AGENTS : « lance l'escouade : prépare-moi la saison été 2027 », « escouade : comment doubler FIK Sites ? ». Plusieurs agents Dzaryx travaillent EN MÊME TEMPS (chercheur, analyste, stratège, rédacteur…) avec les vraies données et le web, Kouider les voit avancer en direct dans l'app (JARVIS › Escouade), puis un plan final assemblé arrive sur Telegram (quelques minutes). Lecture seule : ils proposent, ils n'envoient rien. action 'start' (goal) ; 'status'. Pour une grosse question qui demande plusieurs recherches en parallèle ; une question simple → réponds directement.",
+    description: "ESCOUADE D'AGENTS : « lance l'escouade : prépare-moi la saison été 2027 », « escouade : comment doubler FIK Sites ? ». Plusieurs agents Dzaryx travaillent EN MÊME TEMPS (chercheur, analyste, stratège, rédacteur…) avec les vraies données et le web, Kouider les voit avancer en direct dans l'app (JARVIS › Escouade), puis un plan final assemblé arrive sur Telegram (quelques minutes). Lecture seule : ils proposent, ils n'envoient rien. action 'start' (goal) ; 'status'. S'il veut un DOCUMENT / dossier / PDF à la fin (« fais une recherche et crée un document, envoie-le-moi ») → document=true (+ doc_title) : le dossier soigné + PDF arrivent tout seuls après la recherche ; sans document=true, NE PROMETS AUCUN document. Pour une grosse question qui demande plusieurs recherches en parallèle ; une question simple → réponds directement.",
     input_schema: {
       type: 'object' as const,
-      properties: { action: { type: 'string', enum: ['start', 'status'] }, goal: { type: 'string' } },
+      properties: { action: { type: 'string', enum: ['start', 'status'] }, goal: { type: 'string' }, document: { type: 'boolean', description: 'true = créer à la fin un dossier Google Doc soigné + PDF sur Telegram avec les résultats' }, doc_title: { type: 'string' } },
       required: ['action'],
     },
   },

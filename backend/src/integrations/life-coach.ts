@@ -173,6 +173,8 @@ export async function lifeCoachTool(input: Record<string, unknown>, sessionId?: 
     const log = await readLog();
     log.push(entry);
     await kvSet(LOG_KEY, JSON.stringify(log.slice(-120)));
+    // 17/11 : « je me suis trompé, c'est 76,9 » passait ici seulement → FORME (courbe, objectif, profil) gardait 76. Une pesée = aussi FORME (remplace celle du jour).
+    if (entry.weight != null) await import('./forme.js').then(m => m.logForme('weight', { kg: entry.weight })).catch(e => console.warn('[life-coach] poids → FORME :', e instanceof Error ? e.message : e));
     // 01/11 : « j'ai dormi 7h » → aussi dans health:daily (quand la montre n'envoie pas le sommeil), sans écraser une valeur montre
     if (entry.sleep != null && localNow().hhmm < '15:00') {
       const { kvJson, kvPut } = await import('./ai-util.js');
