@@ -3,11 +3,12 @@ import { DidButton } from './Did.tsx';
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch, type SportOverview, type SportSession, type SportExercise, type SportType } from '../services/api.ts';
-import { errText, SHORT_DAYS, dayOf, vibrate, forme, compressImage, type MachineEx, type MachineScan, type ProgramView, type LibItem, type Routine, type RoutineEx, type ExSet, type Overview } from './api.ts';
+import { formeToken, errText, SHORT_DAYS, dayOf, vibrate, forme, compressImage, type MachineEx, type MachineScan, type ProgramView, type LibItem, type Routine, type RoutineEx, type ExSet, type Overview } from './api.ts';
 import { F, card, btn, ghostBtn, input, Sheet, Spinner } from './ui.tsx';
-import { ExerciseSheet, Anim, RecoveryMap, LibraryPicker, COACH_TO_GROUP } from './Exercises.tsx';
+import { ExerciseSheet, Anim, LibraryPicker, COACH_TO_GROUP } from './Exercises.tsx';
 import { TodayForm } from './Watch.tsx';
 import { WeekGoal } from './Insights.tsx';
+import { BodyZones, type ZoneSession } from './BodyZones.tsx';
 import { Ico } from '../components/ui/Icon.tsx';
 
 // Onglet SÉANCE — 31/10 refait façon applis pro de muscu (Hevy / Strong / Fitbod) : semaine en pastilles, carte du jour
@@ -572,6 +573,14 @@ async function routineSession(r: Routine | null): Promise<SportSession> {
     }) } as unknown as SportSession;
 }
 
+const localDay = () => new Date().toLocaleDateString('sv-SE');
+/** 17/11 : routines et séance libre de Kouider → son vrai journal de sport (bilan /10, records, historique), plus seulement FORME. */
+async function saveRoutineToSport(s: SportSession, sets: Array<{ ex: string; kg?: number; reps?: number }>, durationMin: number, rpe: number, exs: PEx[], rws: Record<string, SetRow[]>, note: string): Promise<string> {
+  const date = localDay();
+  const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date, type: s.type, label: s.label, sets, durationMin, rpe, ...logExtras(exs, rws, date), ...(note ? { note } : {}) }) });
+  return `💪 ${s.label} enregistrée${r.prs.length ? ` — 🏆 record : ${r.prs.join(', ')}` : ''} · bilan dans 1 min`;
+}
+
 function Routines({ toast, prs, onDone }: { toast: (t: string) => void; prs: Record<string, number>; onDone?: () => void }) {
   const [list, setList] = useState<Routine[] | null>(null);
   const [edit, setEdit] = useState<Routine | null | 'new'>(null);
@@ -598,7 +607,8 @@ function Routines({ toast, prs, onDone }: { toast: (t: string) => void; prs: Rec
         </div>
       ))}
       <RoutineEditor open={!!edit} init={edit && edit !== 'new' ? edit : null} onClose={() => setEdit(null)} onSaved={setList} />
-      {play && <Player s={play} prs={prs} kind="routine" onClose={() => setPlay(null)} onFinished={msg => { setPlay(null); toast(msg); onDone?.(); }} save={async (sets, durationMin, rpe) => {
+      {play && <Player s={play} prs={prs} kind="routine" onClose={() => setPlay(null)} onFinished={msg => { setPlay(null); toast(msg); onDone?.(); }} save={async (sets, durationMin, rpe, exs, rws, note) => {
+        if (!formeToken()) return saveRoutineToSport(play, sets, durationMin, rpe, exs, rws, note);
         await forme.log('workout', { session: 0, label: play.label, sets, durationMin, rpe });
         return `💪 ${play.label} enregistrée`;
       }} />}
@@ -622,9 +632,10 @@ function ResumeBanner({ toast, onDone }: { toast: (t: string) => void; onDone?: 
       </div>
       {play && <Player s={live.s} resume={live} kind={live.kind} onClose={() => { setPlay(false); setLive(readLive()); }} onFinished={msg => { setPlay(false); setLive(null); toast(msg); onDone?.(); }} save={async (sets, durationMin, rpe, exs, rws, note) => {
         if (live.kind === 'coach') {
-          const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date: live.s.date, type: live.s.type, sets, durationMin, rpe, ...logExtras(exs, rws, live.s.date), ...(note ? { note } : {}) }) });
+          const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date: live.s.date, type: live.s.type, ...(live.s.focus === 'zones' ? { label: live.s.label } : {}), sets, durationMin, rpe, ...logExtras(exs, rws, live.s.date), ...(note ? { note } : {}) }) });
           return `💪 Séance enregistrée${r.prs.length ? ` — 🏆 record : ${r.prs.join(', ')}` : ''} · Dzaryx est prévenu`;
         }
+        if (!formeToken()) return saveRoutineToSport(live.s, sets, durationMin, rpe, exs, rws, note);
         await forme.log('workout', { session: (live.s as unknown as { index?: number }).index ?? 0, label: live.s.label, sets, durationMin, rpe });
         return `💪 ${live.s.label} enregistrée`;
       }} />}
@@ -665,7 +676,6 @@ function RecordsCard({ prs }: { prs: Array<{ ex: string; kg: number; reps: numbe
 /** 07/11 : bilan de la dernière séance (notes /10, avis, à améliorer, comparaison avec la dernière pareille). */
 function ReviewCard({ dates, bump }: { dates: string[]; bump: number }) {
   const [r, setR] = useState<SessionReviewV | null>(null);
-  const [open, setOpen] = useState(false);
   const key = dates.join(',');
   useEffect(() => {
     let stop = false; let tries = 0;
@@ -686,6 +696,12 @@ function ReviewCard({ dates, bump }: { dates: string[]; bump: number }) {
     return () => { stop = true; };
   }, [key, bump]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!r) return null;
+  return <><H2>Bilan de ta dernière séance</H2><ReviewView r={r} /></>;
+}
+
+/** 17/11 : le bilan d'une séance (carte « dernière séance » ET détail d'une séance de l'historique). */
+export function ReviewView({ r, startOpen = false }: { r: SessionReviewV; startOpen?: boolean }) {
+  const [open, setOpen] = useState(startOpen);
   const col = (n: number) => n >= 8 ? F.accent : n >= 6 ? '#e9a23b' : F.red;
   const note = (l: string, n: number | null) => n == null ? null : (
     <div key={l} style={{ flex: '1 1 30%', minWidth: 86 }}><div style={{ fontSize: 12, color: F.muted }}>{l}</div>
@@ -694,7 +710,6 @@ function ReviewCard({ dates, bump }: { dates: string[]; bump: number }) {
   const maxV = Math.max(1, ...r.exercises.map(e => Math.max(e.volume, e.prev?.volume ?? 0)));
   return (
     <>
-      <H2>Bilan de ta dernière séance</H2>
       <div style={{ ...card }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 56, height: 56, borderRadius: 28, border: `4px solid ${col(r.scores.global)}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18 }}>{r.scores.global}<span style={{ fontSize: 11, color: F.muted }}>/10</span></div>
@@ -732,6 +747,32 @@ function ReviewCard({ dates, bump }: { dates: string[]; bump: number }) {
   );
 }
 
+/** 17/11 (Kouider : « ici je devrais pouvoir cliquer dessus et avoir les infos ») : détail d'une séance de l'historique. */
+function HistorySheet({ date, onClose }: { date: string | null; onClose: () => void }) {
+  const [x, setX] = useState<{ session: { date: string; label: string; durationMin: number | null; rpe: number | null; note: string | null; exercises: Array<{ id: string; name: string; sets: Array<{ kg?: number; reps?: number }> }> } | null; review: SessionReviewV | null } | null>(null);
+  useEffect(() => { setX(null); if (date) void apiFetch<NonNullable<typeof x>>(`/api/sport/session?date=${date}`).then(setX).catch(() => setX({ session: null, review: null })); }, [date]);
+  const s = x?.session;
+  return (
+    <Sheet open={!!date} onClose={onClose} z={60} title={<div style={{ fontSize: 20, fontWeight: 700, paddingTop: 6 }}>{s ? s.label : 'Séance'}{date ? <span style={{ fontWeight: 500, fontSize: 14, color: F.muted }}> · {new Date(`${date}T12:00:00Z`).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' })}</span> : null}</div>}>
+      {!x && <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: 30 }}><Spinner /><div style={{ fontSize: 12.5, color: F.muted }}>Je prépare le bilan…</div></div>}
+      {x && !s && <div style={{ color: F.muted, padding: 20, textAlign: 'center' }}>Rien de noté ce jour-là.</div>}
+      {x?.review && <ReviewView r={x.review} startOpen />}
+      {s && <>
+        <H2>Tes séries</H2>
+        <div style={{ ...card, padding: '4px 14px' }}>
+          {s.exercises.map((e, k) => (
+            <div key={e.id} style={{ padding: '10px 0', borderBottom: k < s.exercises.length - 1 ? `1px solid ${F.line}` : 'none' }}>
+              <div style={{ fontWeight: 600, fontSize: 14.5 }}>{e.name}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>{e.sets.map((z, i) => <span key={i} style={{ fontSize: 12.5, background: F.bg, borderRadius: 8, padding: '4px 8px' }}>{i + 1}. {z.kg ? `${z.kg} kg` : '—'} × {z.reps ?? '?'}</span>)}</div>
+            </div>
+          ))}
+        </div>
+        {s.note && <div style={{ fontSize: 13, color: F.muted, marginTop: 10 }}>📝 {s.note}</div>}
+      </>}
+    </Sheet>
+  );
+}
+
 /** Petit graphe en barres : séances par semaine (8 dernières). */
 function WeekBars({ weeks }: { weeks: Array<{ from: string; sessions: number; volume: number }> }) {
   const w = weeks.slice(-8); const max = Math.max(1, ...w.map(x => x.sessions));
@@ -758,6 +799,14 @@ export default function SportScreen({ toast, go, o }: { toast: (t: string) => vo
   const [ex, setEx] = useState<SportExercise | null>(null);
   const [pick, setPick] = useState<string | null>(null);
   const [bump, setBump] = useState(0);
+  const [hist, setHist] = useState<string | null>(null);
+  // 17/11 : séance faite pour les muscles touchés sur la carte du corps → même lecteur, enregistrée avec son vrai nom
+  const startZone = async (z: ZoneSession) => {
+    const base = await routineSession({ id: 'zones', name: z.label, at: 0, exercises: z.exercises.map(e => ({ id: e.id, name: e.name, img: e.img, sets: e.sets, reps: e.reps, rest: e.rest })) });
+    const tips = Object.fromEntries(z.exercises.map(e => [e.id, e.tip]));
+    setPlay({ ...base, date: localDay(), type: z.type, label: z.label, emoji: '🎯', focus: 'zones', finisher: z.finisher, estMin: z.minutes,
+      exercises: base.exercises.map(e => ({ ...e, tip: tips[(e as PEx).libId ?? ''] ?? e.tip })) } as SportSession);
+  };
   const load = useCallback(() => apiFetch<SportOverview>('/api/sport').then(setD).catch(e => setErr(errText(e))), []);
   useEffect(() => { void load(); }, [load]);
   if (err) return <div style={{ padding: 18, color: F.red }}>❌ {err}</div>;
@@ -811,13 +860,11 @@ export default function SportScreen({ toast, go, o }: { toast: (t: string) => vo
       <DidButton toast={toast} onDone={() => void load()} />
       <Routines toast={toast} prs={prs} onDone={() => void load()} />
       <Shortcuts go={go} />
-      <H2>Récupération</H2>
-      <div style={{ ...card }}>
-        <RecoveryMap rec={d.recovery} />
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 16, fontSize: 12, color: F.muted, marginTop: 10 }}>
-          <span><b style={{ color: F.green }}>●</b> Prêt</span><span><b style={{ color: F.gold }}>●</b> Bientôt</span><span><b style={{ color: F.red }}>●</b> Fatigué</span>
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 10 }}>
+      <H2>Ton corps — touche un muscle</H2>
+      <BodyZones rec={d.recovery} onStart={z => void startZone(z)} toast={toast} />
+      <div style={{ ...card, marginTop: 8, padding: '10px 12px' }}>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: F.muted, textAlign: 'center' }}>Récupération</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 6 }}>
           {d.recovery.map(r => <span key={r.muscle} style={{ fontSize: 12.5, fontWeight: 600, background: F.bg, borderRadius: 999, padding: '5px 10px', color: r.pct >= 100 ? F.green : r.pct >= 60 ? F.gold : F.red }}>{MUSCLE[r.muscle] ?? r.muscle} {r.pct >= 100 ? '✓' : `${r.pct}%`}</span>)}
         </div>
       </div>
@@ -829,19 +876,21 @@ export default function SportScreen({ toast, go, o }: { toast: (t: string) => vo
       {d.recent?.length > 0 && <>
         <H2>Historique</H2>
         <div style={{ display: 'grid', gap: 8 }}>
-          {d.recent.slice(0, 8).map(r => (
-            <div key={`${r.date}-${r.type}`} style={{ ...card, padding: 14 }}>
+          {d.recent.slice(0, 12).map(r => (
+            <button key={`${r.date}-${r.type}`} onClick={() => setHist(r.date)} style={{ ...card, padding: 14, width: '100%', textAlign: 'start', cursor: 'pointer', color: F.ink, fontFamily: 'inherit' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}><div style={{ fontWeight: 700 }}>{r.label}</div><div style={{ fontSize: 12.5, color: F.muted }}>{new Date(`${r.date}T12:00:00Z`).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' })}</div></div>
               <div style={{ display: 'flex', gap: 16, fontSize: 13, color: F.muted, marginTop: 6 }}>{r.durationMin ? <span>⏱ {r.durationMin} min</span> : null}<span>🏋️ {Math.round(r.volume)} kg</span><span>{r.sets} séries</span>{r.rpe ? <span>💥 {r.rpe}/10</span> : null}</div>
-            </div>
+            <div style={{ fontSize: 12, color: F.accent, marginTop: 6, fontWeight: 600 }}>Voir le détail ›</div>
+            </button>
           ))}
         </div>
       </>}
       <ExerciseSheet session={ex} onClose={() => setEx(null)} />
       {play && <Player s={play} prs={prs} onClose={() => setPlay(null)} onFinished={msg => { setPlay(null); toast(msg); void load(); setBump(b => b + 1); }} save={async (sets, durationMin, rpe, exs, rws, note) => {
-        const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date: d.week[0]?.date ?? play.date, type: play.type, sets, durationMin, rpe, ...logExtras(exs, rws, play.date), ...(note ? { note } : {}) }) });
+        const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date: play.focus === 'zones' ? play.date : d.week[0]?.date ?? play.date, type: play.type, ...(play.focus === 'zones' ? { label: play.label } : {}), sets, durationMin, rpe, ...logExtras(exs, rws, play.date), ...(note ? { note } : {}) }) });
         return `💪 Séance enregistrée${r.prs.length ? ` — 🏆 record : ${r.prs.join(', ')}` : ''} · Dzaryx est prévenu`;
       }} />}
+      <HistorySheet date={hist} onClose={() => setHist(null)} />
     </div>
   );
 }
