@@ -272,7 +272,6 @@ export async function readSportLog(): Promise<SessionLog[]> {
 const addDays = (date: string, n: number) => new Date(Date.parse(`${date}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 const dateOf = (iso: string) => localNow(Date.parse(iso)).date;
 const isSport = (e: AgendaEvent) => !!e.start.dateTime && (/^🏋️/u.test(e.summary ?? '') || /\b(sport|muscu|gym|salle de sport|fitness)\b/i.test(e.summary ?? ''));
-const reps = (r: string) => Number(r.match(/(\d+)\s*$/)?.[1] ?? r.match(/\d+/)?.[0] ?? 0);
 const isTimed = (e: Exercise) => /(s|min)\b/.test(e.reps) && !/\//.test(e.reps.replace(/s\/côté/, ''));
 
 // ── Semaine allégée (deload) ────────────────────────────────────────────────
@@ -315,12 +314,19 @@ async function checkDeload(st: SportState): Promise<string | null> {
 
 // ── Charges conseillées (progression) ───────────────────────────────────────
 
-export interface Suggestion { kg: number | null; last?: string; up?: boolean }
+export interface Suggestion {
+  kg: number | null; last?: string; up?: boolean;
+  // 17/11 Kouider : « je n'ai fait qu'1 série à ce poids → la prochaine fois 2, puis 3, puis on monte et ça recommence »
+  prev?: Array<{ kg: number; reps: number | null }>;   // séries de la dernière fois, dans l'ordre (colonne PRÉCÉDENT)
+  plan?: number[];                                      // charge proposée série par série
+  goal?: string;                                        // la règle du jour en une phrase
+}
 
 /** Dernière perf sur l'exercice ; toutes les séries au haut de la fourchette → + step kg. */
 export function suggestFor(e: Exercise, log: SessionLog[], date?: string): Suggestion {
   const s = suggestRaw(e, log);
-  return (inDeload(date) || lowForm(date)) && s.kg ? { kg: Math.round(s.kg * 0.9 * 2) / 2, last: s.last } : s;
+  const r9 = (k: number) => Math.round(k * 0.9 * 2) / 2;
+  return (inDeload(date) || lowForm(date)) && s.kg ? { kg: r9(s.kg), last: s.last, ...(s.prev ? { prev: s.prev } : {}), ...(s.plan ? { plan: s.plan.map(r9) } : {}), goal: 'Semaine allégée : charges −10 %.' } : s;
 }
 let exNamesMap: Record<string, string> = {};   // noms réels notés par l'appli (kouider:sport:exnames), rafraîchis par getState()
 const sameName = (a: string | undefined, b: string) => !!a && norm(a).replace(/\s+/g, ' ').trim() === norm(b).replace(/\s+/g, ' ').trim();
@@ -331,16 +337,32 @@ function suggestRaw(e: Exercise, log: SessionLog[]): Suggestion {
     // … mais pas un AUTRE exercice qui portait le même identifiant (« shoulder_press » noté « Écarté assis machine » ≠ « Développé épaules machine »)
     const sets = log[i]!.sets.filter(s => (s.ex === e.id || slotless(s.ex) === slotless(e.id) || sameName(exNamesMap[s.ex.replace(/~.*$/, '')], e.name)) && s.kg != null && (!exNamesMap[s.ex.replace(/~.*$/, '')] || sameMove(exNamesMap[s.ex.replace(/~.*$/, '')]!, e.name)));
     if (!sets.length) continue;
+    const work = sets.filter(x => (x as { t?: string }).t !== 'w');
     const top = Math.max(...sets.map(s => s.kg!));
     const atTop = sets.filter(s => s.kg === top);
-    const allDone = atTop.length >= e.sets && atTop.every(s => (s.reps ?? 0) >= reps(e.reps));
+    const lo = Number(e.reps.match(/\d+/)?.[0] ?? 0);                     // bas de la fourchette (« 10-12 » → 10) = série réussie
+    const okN = atTop.filter(s => (s.reps ?? 0) >= lo).length;
     const last = `${atTop.length}×${atTop.map(s => s.reps ?? '?').join('/')} à ${top} kg (${log[i]!.date.slice(8)}/${log[i]!.date.slice(5, 7)})`;
-    // Ressenti noté dans FORME (31/10, façon Freeletics) : « Nom : facile » → on monte même si une rep manquait ; « dur » → on redescend d'un cran
+    const prev = (work.length ? work : sets).map(x => ({ kg: x.kg!, reps: x.reps ?? null }));
+    // Ressenti noté dans FORME (31/10, façon Freeletics) : « Nom : facile » → on monte ; « dur » → on redescend d'un cran
     const feel = new RegExp(`${e.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} : (facile|parfait|dur)`, 'i').exec(log[i]!.note ?? '')?.[1]?.toLowerCase();
     const step = e.step || 2.5;
-    if (feel === 'facile') return { kg: Math.max(0, Math.round((top + step) * 10) / 10), last, up: true };
-    if (feel === 'dur' && !allDone) return { kg: Math.max(0, Math.round((top - step) * 10) / 10), last };
-    return e.step && allDone ? { kg: Math.max(0, Math.round((top + e.step) * 10) / 10), last, up: true } : { kg: top, last };
+    const r1 = (k: number) => Math.max(0, Math.round(k * 10) / 10);
+    const fr = (k: number) => String(k).replace('.', ',');
+    const below = (() => { const o = sets.filter(x => x.kg! < top).map(x => x.kg!); return o.length ? Math.max(...o) : r1(top - step); })();
+    const allOk = okN >= e.sets;
+    if (feel === 'dur' && !allOk) { const k = r1(top - step); return { kg: k, last, prev, plan: Array(e.sets).fill(k), goal: `C'était dur la dernière fois → ${fr(k)} kg sur toutes les séries.` }; }
+    // Toutes les séries réussies à ce poids (ou « facile ») → on monte : 1re série au nouveau poids, les autres restent, et ça recommence
+    if (allOk || feel === 'facile') {
+      const up = r1(top + step);
+      return { kg: up, last, up: true, prev, plan: [up, ...Array(Math.max(0, e.sets - 1)).fill(top)],
+        goal: `Tes ${e.sets} séries sont passées à ${fr(top)} kg → on monte : 1re série à ${fr(up)} kg, les autres à ${fr(top)} kg. La prochaine fois, 2 séries à ${fr(up)} kg.` };
+    }
+    // Pas encore toutes : une série de plus au poids lourd à chaque séance (1 → 2 → 3…)
+    const n = Math.min(e.sets, okN === atTop.length ? okN + 1 : Math.max(1, atTop.length));
+    const rest = e.sets - n;
+    return { kg: top, last, prev, plan: [...Array(n).fill(top), ...Array(rest).fill(below)],
+      goal: `Objectif : ${n} série${n > 1 ? 's' : ''} à ${fr(top)} kg (la dernière fois : ${okN})${rest ? `, ${rest === 1 ? 'la dernière' : `les ${rest} autres`} à ${fr(below)} kg` : ''}. Quand les ${e.sets} passent à ${fr(top)} kg (${lo}+ reps), on monte.` };
   }
   return { kg: null };
 }
