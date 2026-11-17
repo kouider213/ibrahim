@@ -251,6 +251,7 @@ async function getState(): Promise<SportState> {
     deloadWin = s.deload ?? null;
     formMap = s.form ?? {};
     customMap = JSON.parse((await kvGet(CUSTOM_KEY).catch(() => null)) ?? '{}') as Record<string, CustomSession>;
+    try { exNamesMap = JSON.parse((await kvGet('kouider:sport:exnames')) ?? '{}') as Record<string, string>; } catch { /* garde */ }
     return { ...DEFAULT_STATE, ...s, settings: { ...DEFAULT_STATE.settings, ...s.settings } };
   }
   catch { return { ...DEFAULT_STATE }; }
@@ -321,11 +322,14 @@ export function suggestFor(e: Exercise, log: SessionLog[], date?: string): Sugge
   const s = suggestRaw(e, log);
   return (inDeload(date) || lowForm(date)) && s.kg ? { kg: Math.round(s.kg * 0.9 * 2) / 2, last: s.last } : s;
 }
+let exNamesMap: Record<string, string> = {};   // noms réels notés par l'appli (kouider:sport:exnames), rafraîchis par getState()
+const sameName = (a: string | undefined, b: string) => !!a && norm(a).replace(/\s+/g, ' ').trim() === norm(b).replace(/\s+/g, ' ').trim();
 const slotless = (id: string) => id.replace(/~.*$/, '').replace(/^(push|pull|legs|cardio|upper|core)_/, '');
 function suggestRaw(e: Exercise, log: SessionLog[]): Suggestion {
   for (let i = log.length - 1; i >= 0; i--) {
     // 17/11 : même exercice passé dans une autre séance du programme (« pull_curl_barre » → « cardio_curl_barre ») = mêmes charges
-    const sets = log[i]!.sets.filter(s => (s.ex === e.id || slotless(s.ex) === slotless(e.id)) && s.kg != null);
+    // … mais pas un AUTRE exercice qui portait le même identifiant (« shoulder_press » noté « Écarté assis machine » ≠ « Développé épaules machine »)
+    const sets = log[i]!.sets.filter(s => (s.ex === e.id || slotless(s.ex) === slotless(e.id) || sameName(exNamesMap[s.ex.replace(/~.*$/, '')], e.name)) && s.kg != null && (!exNamesMap[s.ex.replace(/~.*$/, '')] || sameMove(exNamesMap[s.ex.replace(/~.*$/, '')]!, e.name)));
     if (!sets.length) continue;
     const top = Math.max(...sets.map(s => s.kg!));
     const atTop = sets.filter(s => s.kg === top);
