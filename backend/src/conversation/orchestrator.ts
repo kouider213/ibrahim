@@ -538,6 +538,36 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
   // 16/11 : les raccourcis photo ne lisent que SES mots, pas les consignes [entre crochets] ajoutées par le code
   // (« Tu voit une différence » + 3 photos du corps → retouche lancée à cause de « « modifie mon agenda » » du contexte ne-pas-déranger).
   const ownWords = userMessage.replace(/\[[^\]]*\]/g, ' ').trim();
+
+  // ── Raccourci ALARME iPhone (18/11) : « mets une alarme à 23h59 » ─────────────
+  // Le cerveau de secours (Claude sans crédit, Gemini 503) avait créé un RAPPEL au lieu de l'alarme.
+  // Ici le code met l'alarme dans la file du raccourci « Dzaryx Faire », quel que soit le modèle.
+  const ALARM_RE = /^\s*(?:(?:mets?|mettre|r[èe]gle|programme|cr[ée]e|ajoute|fais)(?:[- ]moi)?\s+(?:une\s+|l'|un\s+)?(?:alarme|r[ée]veil)|r[ée]veille[- ]moi)\s+(?:demain\s+)?(?:à|a|pour)\s+(\d{1,2})\s*(?:h|:)\s*(\d{2})?\s*(?:demain)?\s*[.!]?\s*$/i;
+  const alarmM = !imageBase64 ? ALARM_RE.exec(ownWords) : null;
+  if (alarmM) {
+    try {
+      const ia = await import('../integrations/iphone-actions.js');
+      if (ia.phoneAllowed(sessionId)) {
+        const r = await ia.queuePhoneAction({ action: 'alarm', time: `${alarmM[1]}:${alarmM[2] ?? '00'}` });
+        if (typeof r !== 'string') {
+          const msg = `C'est fait ⏰ alarme à ${(r.time ?? '').replace(':', 'h')} sur ton iPhone — elle se crée dès que « Dzaryx faire » tourne.`;
+          console.log(`[orch:${requestId}] ALARM pre-route time=${r.time}`);
+          _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: msg });
+          saveConversationTurn(sessionId, 'assistant', msg).catch(() => {});
+          if (!textOnly) {
+            _io?.emit(SOCKET_EVENTS.STATUS, { status: 'speaking', sessionId });
+            await streamAudioSentences(msg, sessionId);
+            _io?.emit(SOCKET_EVENTS.AUDIO_COMPLETE, { sessionId });
+          }
+          _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+          return { text: msg, status: 'done' };
+        }
+      }
+    } catch (e) {
+      console.error(`[orch:${requestId}] ALARM pre-route failed:`, e);
+    }
+  }
+
   if (imageBase64 && ID_SCAN_RE.test(ownWords)) {
     const isPermis = /permis|license|licence/i.test(ownWords);
     console.log(`[orch:${requestId}] ID_SCAN pre-route isPermis=${isPermis}`);

@@ -1,3 +1,8 @@
+## 18/11/2026 — Raccourci « Dzaryx faire » : branche alarme OK sur le vrai iPhone + alarme fiable
+- Kouider a construit la branche `alarm` du raccourci (GET phone-do → items → boucle → do → Text → Si Text est alarm → time → Créer une alarme). Test direct par la file : alarme 23:58 créée ✅.
+- Bug : « mets une alarme à 23h59 » sur Telegram → Claude sans crédit, Gemini 503, le secours gemini-3-flash a appelé schedule_reminder (rappel) au lieu de `iphone` et a dit « c'est fait ». En plus normalizer.ts réécrivait « mets » → « ouvre ».
+- Fix : synonyme « mets → ouvre » retiré ; raccourci code ALARM dans orchestrator.ts (sur ownWords, phrase entière « mets/règle/programme une alarme à HHhMM », « réveille-moi à … ») → queuePhoneAction direct, quel que soit le modèle.
+
 ## 17/11/2026 (soir) — Dzaryx pilote l'iPhone (outil `iphone` + raccourci « Dzaryx Faire ») + app v278
 - Kouider (vidéo OpenJarvis) : « qu'il crée une alarme ou autre si je lui demande, comme s'il avait un accès complet à mon téléphone », « que moi qui ai accès ».
 - `set_phone_alarm` ne marchait que sur Android (rien sur iPhone) → remplacé par l'outil `iphone` (25 actions : alarme, minuteur, Ne pas déranger, silence, lampe, Wi-Fi, Bluetooth, données, avion, économie d'énergie, mode sombre, volume, luminosité, rappel, note, dire un texte, presse-papiers, Shazam, média, appel, SMS pré-rempli, Waze, Musique, ouvrir une appli, lien).

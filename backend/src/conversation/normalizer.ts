@@ -126,7 +126,7 @@ const SYNONYM_MAP: Record<string, string> = {
   "fais":           "exécute",
   "balance":        "envoie",
   "file":           "envoie",
-  "mets":           "ouvre",
+  // "mets" → "ouvre" retiré 18/11 : « mets une alarme » devenait « ouvre une alarme »
   "ouvre-le":       "ouvre",
   "lance-le":       "lance",
   // Rapport aliases
