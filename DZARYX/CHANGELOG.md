@@ -2,6 +2,7 @@
 - Kouider a construit la branche `alarm` du raccourci (GET phone-do → items → boucle → do → Text → Si Text est alarm → time → Créer une alarme). Test direct par la file : alarme 23:58 créée ✅.
 - Bug : « mets une alarme à 23h59 » sur Telegram → Claude sans crédit, Gemini 503, le secours gemini-3-flash a appelé schedule_reminder (rappel) au lieu de `iphone` et a dit « c'est fait ». En plus normalizer.ts réécrivait « mets » → « ouvre ».
 - Fix : synonyme « mets → ouvre » retiré ; raccourci code ALARM dans orchestrator.ts (sur ownWords, phrase entière « mets/règle/programme une alarme à HHhMM », « réveille-moi à … ») → queuePhoneAction direct, quel que soit le modèle.
+- Conscience (17:20) : « pour être à la maison à 20h, vise une sortie vers 19h15 (≈45 min de route) » alors qu'il finit à 20h et que le trajet est de ~7 min. Le snapshot n'avait ni fin de travail ni trajet → inventé (modèle de secours nvidia). Fix : `fin_travail_aujourdhui` + `trajet_travail_maison_min` (Google, cache 30 min) dans le snapshot + règle « jamais partir avant la fin, jamais de trajet inventé ».
 
 ## 17/11/2026 (soir) — Dzaryx pilote l'iPhone (outil `iphone` + raccourci « Dzaryx Faire ») + app v278
 - Kouider (vidéo OpenJarvis) : « qu'il crée une alarme ou autre si je lui demande, comme s'il avait un accès complet à mon téléphone », « que moi qui ai accès ».

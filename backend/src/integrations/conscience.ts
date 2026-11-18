@@ -351,6 +351,24 @@ export async function jarvis4Context(): Promise<string> {
 // ── La Conscience ────────────────────────────────────────────────────────────
 const MAX_PER_DAY = 6;
 
+// 18/11 : « vise une sortie vers 19h15 (≈45 min de route) » alors qu'il FINIT à 20h et que le trajet est bien plus court
+// → la Conscience reçoit sa vraie fin de travail + le vrai trajet travail → maison (Google, mis en cache 30 min).
+async function commuteHome(): Promise<{ fin_travail_aujourdhui: string | null; trajet_travail_maison_min: number | null }> {
+  const fin = await import('./kouider-dossier.js').then(m => m.workEndToday()).catch(() => null);
+  if (!fin) return { fin_travail_aujourdhui: null, trajet_travail_maison_min: null };
+  const cached = await kvJson<{ min: number; at: number } | null>('conscience:commute', null);
+  if (cached && Date.now() - cached.at < 30 * 60_000) return { fin_travail_aujourdhui: fin, trajet_travail_maison_min: cached.min };
+  try {
+    const cfg = await getRoutineConfig();
+    const w = await import('./departures.js').then(m => m.geocode(cfg.addresses.work));
+    if (!w) return { fin_travail_aujourdhui: fin, trajet_travail_maison_min: null };
+    const r = await import('./maps.js').then(m => m.getTravelTime(w.lat, w.lng, cfg.addresses.home));
+    const min = r.error || !r.travel_time_minutes ? null : Math.round(r.travel_time_minutes);
+    if (min) await kvPut('conscience:commute', { min, at: Date.now() }, 3600);
+    return { fin_travail_aujourdhui: fin, trajet_travail_maison_min: min };
+  } catch { return { fin_travail_aujourdhui: fin, trajet_travail_maison_min: null }; }
+}
+
 export async function snapshot(): Promise<Record<string, unknown>> {
   const now = new Date();
   const in4h = new Date(Date.now() + 4 * 3600_000);
@@ -384,6 +402,7 @@ export async function snapshot(): Promise<Record<string, unknown>> {
     date_du_jour: date, heure: localNow().hhmm, jour: ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'][localNow().weekday],
     lieu: where ? `${where.where} depuis ${Math.round((Date.now() - where.since) / 60_000)} min` : 'inconnu', vitesse_kmh: Math.round(gps.last?.kmh ?? 0),
     mode_oran: !!oran, bouclier_famille: await shieldActive(),
+    ...(await commuteHome()),
     // Son créneau de TRAVAIL n'est pas un rendez-vous ; un événement déjà commencé est marqué comme tel
     agenda_4h: ((agenda ?? []) as Array<{ summary?: string; start?: { dateTime?: string }; location?: string }>)
       .filter(e => !/travail|boulot|\btaf\b|shift|poste/i.test(e.summary ?? ''))
@@ -433,7 +452,7 @@ export async function jobConscience(): Promise<string> {
     + `Sa position (lieu) est la vérité : « work » = il est à son poste de travail, c'est normal, jamais un retard ; ne lui annonce pas un RDV ailleurs pendant qu'il y est sauf s'il est noté hors travail. `
     + `Les dates sont déjà écrites en relatif (aujourd'hui / hier / demain) : ne dis JAMAIS qu'une chose se passe aujourd'hui si elle est notée « hier ». Une location « EN COURS » est déjà partie : ne parle pas de son départ. Un message WhatsApp reçu hier n'est pas « nouveau ». `
     + `Tu ne réponds JAMAIS à une question ou demande de kouider_a_dit_2h : il a déjà eu sa réponse, tu n'es pas la conversation. `
-    + `Ce que Kouider a dit (kouider_a_dit_2h) PRIME sur l'agenda : s'il a dit qu'il n'a pas de RDV, qu'il est au travail ou que c'est réglé, n'en reparle plus. Son travail n'est jamais un « RDV ». `
+    + `Ce que Kouider a dit (kouider_a_dit_2h) PRIME sur l'agenda : s'il a dit qu'il n'a pas de RDV, qu'il est au travail ou que c'est réglé, n'en reparle plus. Son travail n'est jamais un « RDV ». Il ne quitte JAMAIS le travail avant fin_travail_aujourdhui : ne lui conseille pas de partir plus tôt. Une durée de trajet ou une heure d'arrivée ne se donne QUE si elle est dans les données (trajet_travail_maison_min) — jamais inventée. `
     + `Un sujet présent dans ignores_24h (il ne l'a pas relevé) ne se relance PAS, même reformulé, sauf danger réel ou échéance dans moins d'une heure. `
     + `Pas de redite de ce qui a déjà été envoyé ces 3 h. Pas de banalité, pas de motivation creuse, pas de « bonne journée ». Si rien d'utile → speak:false (c'est le cas le plus fréquent).\n`
     + `Réponds UNIQUEMENT en JSON : {"speak":true|false,"kind":"type court (ex. retard-rdv, client-aeroport, promesse, sante, argent, famille, decision)","urgency":1|2|3,"text":"ce que tu lui dis, 1 à 3 phrases, tutoiement, concret","options":[{"label":"bouton court","tool":"outil Dzaryx facultatif","input":{}}]} (options facultatives, 2-3 max, seulement si un simple choix permet d'agir ; "tool" = UNIQUEMENT un vrai nom d'outil Dzaryx (ex. promesses avec input {"action":"list"}), sinon ne mets pas de "tool").`,
