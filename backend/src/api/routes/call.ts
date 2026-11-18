@@ -267,6 +267,21 @@ router.post('/turn', requireCallerAuth, async (req, res) => {
     const send = res.json.bind(res);
     res.json = ((b: unknown) => { void kvSet(turnId, JSON.stringify(b), 3600).catch(() => {}); return send(b); }) as typeof res.json;
   }
+  // 📲 18/11 : une action iPhone mise en file pendant ce message Telegram → lien « touche ici » sous la réponse
+  // (il ne quitte presque jamais Telegram : sans ce lien, l'action attend qu'il en sorte)
+  if (channel === 'message' && who === 'kouider' && !stream) {
+    const t0 = Date.now();
+    const { lastPhoneQueuedAt } = await import('../../integrations/iphone-actions.js');
+    const send = res.json.bind(res);
+    res.json = ((b: unknown) => {
+      const o = b as { text?: unknown } | null;
+      if (o && typeof o.text === 'string' && lastPhoneQueuedAt() >= t0) {
+        const base = (process.env['PUBLIC_BACKEND_URL'] || 'https://ibrahim-backend-production.up.railway.app').replace(/\/$/, '');
+        return send({ ...o, text: `${o.text}\n\n📲 Touche pour lancer sur l'iPhone : ${base}/api/jarvis/go-iphone` });
+      }
+      return send(b);
+    }) as typeof res.json;
+  }
   try {
     // Dzaryx doit savoir qu'il est DÉJÀ au téléphone : sinon « tu m'entends ? » relance call_me.
     const dndNote = who === 'kouider' ? await dndOnKouiderMessage().catch(() => null) : null;   // « ne pas déranger » : il a répondu

@@ -17,7 +17,11 @@ export type { PhoneDo };
 
 const QUEUE = 'iphone:queue';
 const LAST_PULL = 'iphone:last_pull';
-const MAX_AGE_MS = 12 * 3600_000;   // une alarme demandée hier soir et jamais récupérée ne doit pas sonner 2 jours après
+const STATE = 'iphone:state';
+const MAX_AGE_MS = 12 * 3600_000;
+// 18/11 : heure de la dernière mise en file (mémoire) → /api/call/turn ajoute le lien « lancer sur l'iPhone » à la réponse Telegram
+let lastQueued = 0;
+export const lastPhoneQueuedAt = (): number => lastQueued;   // une alarme demandée hier soir et jamais récupérée ne doit pas sonner 2 jours après
 
 // Ce que le raccourci reçoit (`do`) : call/sms/navigate/music/app deviennent `open` + url → un seul bloc côté iPhone.
 type ShortcutDo = Exclude<PhoneDo, 'call' | 'sms' | 'navigate' | 'music' | 'app'>;
@@ -110,6 +114,7 @@ export async function queuePhoneAction(input: Record<string, unknown>): Promise<
       if (!url) return `Appli inconnue « ${text} ». Connues : ${Object.keys(PHONE_APPS).join(', ')}.`;
       open(url); item.text = text; break;
     }
+    case 'status': return 'status = lecture de l\'état, rien à mettre en file (utilise l\'outil iphone action=status).';
     case 'open': {
       const u = String(input['url'] ?? '').trim();
       if (!SAFE_URL.test(u) && !APP_URLS.has(u)) return 'Lien refusé : seulement tel:, sms:, FaceTime, Waze, Plans, Musique ou une appli connue (sécurité).';
@@ -119,6 +124,7 @@ export async function queuePhoneAction(input: Record<string, unknown>): Promise<
   const q = (await kvJson<PhoneItem[]>(QUEUE, [])).filter(x => Date.now() - x.at < MAX_AGE_MS);
   q.push(item);
   await kvPut(QUEUE, q.slice(-20));
+  lastQueued = Date.now();
   return item;
 }
 
@@ -157,14 +163,41 @@ function describe(i: PhoneItem): string {
   }
 }
 
+// ── 👀 LECTURE (18/11) : le raccourci « Dzaryx faire » envoie à la fin un état de l'iPhone (alarmes, batterie, photos…) ──
+// Apple ne laisse rien lire de l'extérieur : on garde la dernière photo de l'état, envoyée à chaque lancement du raccourci.
+export interface PhoneState { at: number; data: Record<string, string> }
+const clean = (v: unknown): string => (Array.isArray(v) ? v.map(clean).join(' | ') : typeof v === 'object' && v ? JSON.stringify(v) : String(v ?? '')).replace(/\s+/g, ' ').trim().slice(0, 1500);
+
+export async function savePhoneState(body: unknown): Promise<number> {
+  let obj: Record<string, unknown> = {};
+  if (typeof body === 'string') { try { obj = JSON.parse(body); } catch { obj = { texte: body }; } }
+  else if (body && typeof body === 'object') obj = body as Record<string, unknown>;
+  const data: Record<string, string> = {};
+  for (const [k, v] of Object.entries(obj).slice(0, 40)) { const c = clean(v); if (c) data[k.slice(0, 40).toLowerCase()] = c; }
+  await kvPut(STATE, { at: Date.now(), data } satisfies PhoneState);
+  return Object.keys(data).length;
+}
+
+export async function phoneStateText(): Promise<string> {
+  const st = await kvJson<PhoneState | null>(STATE, null);
+  if (!st?.at || !Object.keys(st.data).length) return '❌ Pas encore d\'état de son iPhone : il faut ajouter le bloc « Envoyer l\'état » à la fin du raccourci « Dzaryx faire » (guide dans la conversation Claude du 18/11). Dis-le-lui simplement.';
+  const min = Math.round((Date.now() - st.at) / 60_000);
+  const age = min < 2 ? 'à l\'instant' : min < 120 ? `il y a ${min} min` : `il y a ${Math.round(min / 60)} h`;
+  const lines = Object.entries(st.data).map(([k, v]) => `- ${k} : ${v}`).join('\n');
+  return `📱 État de son iPhone (relevé ${age}, envoyé par le raccourci « Dzaryx faire ») :\n${lines}\n`
+    + 'Réponds avec ces chiffres. Si le relevé est vieux (> 30 min) et que ça compte, dis l\'heure du relevé. '
+    + 'Alarmes : « oui » = activée. Une info absente ici = son raccourci ne l\'envoie pas encore (ne l\'invente pas).';
+}
+
 /** Outil `iphone` du cerveau. */
 export async function iphoneTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   if (!phoneAllowed(sessionId)) return '❌ Réservé à Kouider en direct : son iPhone ne se pilote pas depuis cette conversation.';
+  if (String(input['action'] ?? '').toLowerCase() === 'status') return phoneStateText();
   const r = await queuePhoneAction(input);
   if (typeof r === 'string') return `❌ ${r}`;
   const lastPull = await kvJson<number>(LAST_PULL, 0);
   const what = describe(r);
   if (!lastPull) return `⏳ Mis en file : ${what}. ATTENTION : le raccourci « Dzaryx Faire » n'a encore jamais été lancé sur son iPhone — dis-lui de l'installer (app Dzaryx › JARVIS › Santé·Siri › « Dzaryx pilote ton iPhone »), sinon rien ne se fera.`;
   // Siri, app et Telegram partagent la session voice_kouider : on ne sait pas d'où il parle → phrase valable partout
-  return `✅ ${what} — ton iPhone le fait tout de suite si tu me parles par Siri, sinon dès que tu fermes Telegram. Dis-le-lui en une phrase (« c'est fait, alarme à 5h »).`;
+  return `✅ ${what} — ton iPhone le fait tout de suite si tu me parles par Siri, sinon dès qu'il quitte Telegram ou touche le lien sous ta réponse. Dis-le-lui en une phrase (« c'est fait, alarme à 5h »).`;
 }

@@ -27,6 +27,17 @@ router.get('/voice/:id', async (req, res) => {
   if (!wav) { res.status(404).end(); return; }
   res.setHeader('Content-Type', 'audio/wav'); res.setHeader('Content-Disposition', 'inline; filename="jarvis.wav"'); res.end(wav);
 });
+// 📲 18/11 : lien sous une réponse Telegram « touche ici » → ouvre le raccourci « Dzaryx faire » (qui récupère l'action avec SON jeton).
+// Public sans risque : la page ne fait que lancer un raccourci sur l'iPhone de celui qui touche ; la file reste protégée.
+router.get('/go-iphone', (_req, res) => {
+  const url = 'shortcuts://run-shortcut?name=' + encodeURIComponent('Dzaryx faire');
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.end(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dzaryx</title>
+<style>body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#0b0b0f;color:#fff;font:17px -apple-system,system-ui,sans-serif;text-align:center;padding:24px}
+a{display:block;background:#7c5cff;color:#fff;text-decoration:none;font-weight:600;padding:18px 28px;border-radius:16px;font-size:19px}</style></head>
+<body><div>📲 Lancement sur ton iPhone…</div><a href="${url}">Lancer « Dzaryx faire »</a><div style="opacity:.6;font-size:14px">Si rien ne s'ouvre, touche le bouton.</div>
+<script>location.href=${JSON.stringify(url)}</script></body></html>`);
+});
 // 15/11 : bouton cliqué sous une décision (bot des notifs FIK → site → ici), jeton interne du site
 router.post('/decisions-button', async (req, res) => {
   const tok = process.env['INTERNAL_API_TOKEN'];
@@ -198,6 +209,10 @@ router.post('/siri', express.text({ type: 'text/*', limit: '1mb' }), async (req,
 // 📲 Raccourci « Dzaryx Faire » : récupère (et vide) les actions iPhone en file — alarme, minuteur, Ne pas déranger…
 router.get('/phone-do', async (_req, res) => {
   try { const items = await import('../../integrations/iphone-actions.js').then(m => m.popPhoneActions()); res.json({ count: items.length, items }); } catch (e) { fail(res, e); }
+});
+// 👀 18/11 : à la fin de « Dzaryx faire », l'iPhone envoie son état (alarmes, batterie, photos…) → outil iphone action=status
+router.post('/phone-state', express.text({ type: 'text/*', limit: '64kb' }), async (req, res) => {
+  try { res.json({ ok: true, fields: await import('../../integrations/iphone-actions.js').then(m => m.savePhoneState(req.body)) }); } catch (e) { fail(res, e); }
 });
 // Salle de commande (TV / PC), machine à voir le futur, briefing 3D de la Carte live
 router.get('/command-center', async (_req, res) => {

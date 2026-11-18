@@ -2,9 +2,9 @@
 export type PhoneDo =
   | 'alarm' | 'timer' | 'focus' | 'silent' | 'torch' | 'wifi' | 'bluetooth' | 'cellular' | 'airplane' | 'low_power' | 'dark_mode'
   | 'volume' | 'brightness' | 'reminder' | 'note' | 'say' | 'clipboard' | 'shazam' | 'media'
-  | 'call' | 'sms' | 'navigate' | 'music' | 'app' | 'open';
+  | 'call' | 'sms' | 'navigate' | 'music' | 'app' | 'open' | 'status';
 export const PHONE_ACTIONS: PhoneDo[] = ['alarm', 'timer', 'focus', 'silent', 'torch', 'wifi', 'bluetooth', 'cellular', 'airplane', 'low_power', 'dark_mode',
-  'volume', 'brightness', 'reminder', 'note', 'say', 'clipboard', 'shazam', 'media', 'call', 'sms', 'navigate', 'music', 'app', 'open'];
+  'volume', 'brightness', 'reminder', 'note', 'say', 'clipboard', 'shazam', 'media', 'call', 'sms', 'navigate', 'music', 'app', 'open', 'status'];
 // Applis ouvrables par leur lien (Raccourcis « Ouvrir les URL »)
 export const PHONE_APPS: Record<string, string> = {
   waze: 'waze://', telegram: 'tg://', instagram: 'instagram://', tiktok: 'snssdk1233://', youtube: 'youtube://', spotify: 'spotify://',
@@ -20,7 +20,8 @@ export const IPHONE_TOOL = {
     + 'alarm (« réveille-moi à 5h »), timer (minuteur), focus (Ne pas déranger), silent (mode silence), torch (lampe), wifi, bluetooth, cellular (données), airplane (mode avion), '
     + 'low_power (économie d\'énergie), dark_mode (mode sombre), volume, brightness (luminosité), reminder (app Rappels), note (app Notes), say (le téléphone DIT un texte à voix haute), '
     + 'clipboard (copier un texte), shazam (reconnaître la musique), media (play/pause/next/previous), call (appeler un numéro), sms (prépare le SMS, il appuie sur Envoyer), '
-    + 'navigate (Waze vers une adresse), music (chercher un titre/artiste), app (ouvrir une appli : waze, instagram, tiktok, youtube, spotify, telegram, photos, notes, réglages…), open (lien). '
+    + 'navigate (Waze vers une adresse), music (chercher un titre/artiste), app (ouvrir une appli : waze, instagram, tiktok, youtube, spotify, telegram, photos, notes, réglages…), open (lien), '
+    + 'status = LIRE son iPhone (alarmes déjà réglées et activées, batterie, nombre de photos, réseau Wi-Fi, mode concentration, stockage… tout ce que son raccourci envoie) : « j\'ai des alarmes ? », « combien de photos ? », « ma batterie ? ». '
     + 'Une action par appel ; plusieurs appels pour plusieurs actions. Ne dis jamais « je ne peux pas toucher à ton téléphone » : utilise cet outil. '
     + 'WhatsApp = jamais ici (outil whatsapp_web).',
   input_schema: {

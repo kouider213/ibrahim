@@ -1,3 +1,8 @@
+## 18/11/2026 (nuit) — iPhone : lien « touche pour lancer » sous Telegram + lecture de l'état
+- Automatisation iPhone « Telegram Fermée → Dzaryx faire » faite par Kouider ; bouton Action → Dzaryx déjà en place.
+- Il quitte rarement Telegram → `/api/call/turn` (channel message) ajoute « 📲 Touche pour lancer sur l'iPhone : …/api/jarvis/go-iphone » quand une action iPhone a été mise en file pendant le message. `/go-iphone` (public) = page qui ouvre `shortcuts://run-shortcut?name=Dzaryx faire`.
+- Lecture : POST `/api/jarvis/phone-state` (jeton Kouider) stocke l'état envoyé par le raccourci (alarmes, batterie, photos…) dans app_kv `iphone:state` ; outil `iphone` action `status` le lit (avec l'âge du relevé).
+
 ## 18/11/2026 — Raccourci « Dzaryx faire » : branche alarme OK sur le vrai iPhone + alarme fiable
 - Kouider a construit la branche `alarm` du raccourci (GET phone-do → items → boucle → do → Text → Si Text est alarm → time → Créer une alarme). Test direct par la file : alarme 23:58 créée ✅.
 - Bug : « mets une alarme à 23h59 » sur Telegram → Claude sans crédit, Gemini 503, le secours gemini-3-flash a appelé schedule_reminder (rappel) au lieu de `iphone` et a dit « c'est fait ». En plus normalizer.ts réécrivait « mets » → « ouvre ».
