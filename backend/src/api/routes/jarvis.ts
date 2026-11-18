@@ -190,7 +190,9 @@ router.post('/siri', express.text({ type: 'text/*', limit: '1mb' }), async (req,
     const out = await import('../../integrations/jarvis-hub.js').then(m => m.siriTurn(text));
     // 📲 17/11 : actions iPhone en attente → le raccourci « Dzaryx » lance « Dzaryx Faire »
     const n = await import('../../integrations/iphone-actions.js').then(m => m.pendingPhoneCount()).catch(() => 0);
-    res.json(n ? { ...out, act: '1' } : out);
+    // 18/11 : action iPhone envoyée = commande finie → pas de « listen » (sinon « jarvis » se relance et redemande)
+    if (n) { const { listen: _l, ...rest } = out; res.json({ ...rest, act: '1' }); return; }
+    res.json(out);
   } catch (e) { fail(res, e); }
 });
 // 📲 Raccourci « Dzaryx Faire » : récupère (et vide) les actions iPhone en file — alarme, minuteur, Ne pas déranger…
