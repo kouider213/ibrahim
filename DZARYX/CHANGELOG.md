@@ -1,3 +1,6 @@
+## 19/11/2026 (suite 5) — Contrat : article 2 « DOCUMENTS » (sans le mot caution)
+- Le contrat disait « CAUTION ET DOCUMENTS » alors que le site / la signature promettent « aucune caution ». Kouider garde bien le passeport → règle gardée, titre « DOCUMENTS » + « Aucune caution ni dépôt d'argent n'est demandé ».
+
 ## 19/11/2026 (suite 4) — Banc à 197/197 + « marre du travail » sans recherche d'article
 - coach-week : « j'en ai marre moralement, je suis au travail » lançait la recherche web de l'article sur la librairie et disait au cerveau « il reprend le 14/11 » → recherche seulement s'il parle de fermeture / article ; contexte « il y retravaille depuis le 13/11 ».
 - Banc privé (hors dépôt) : une IA d'appoint (message FORME du réveil…) n'est plus comptée comme « le cerveau » (requête sans liste d'outils) ; fr-meteo à la date réelle. phase1 = 197 OK · 0 KO.

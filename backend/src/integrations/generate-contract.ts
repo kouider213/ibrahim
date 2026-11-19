@@ -118,7 +118,8 @@ function buildContractPDF(booking: Record<string, unknown>, contractNumber: stri
     doc.font('Helvetica').fontSize(8.5).fillColor('#333333');
     const cg = [
       '1. RESTITUTION DU CARBURANT: Le véhicule doit être restitué avec le même niveau de carburant qu\'à la prise en charge. Dans le cas contraire, le carburant manquant sera facturé au tarif en vigueur majoré de 20%.',
-      '2. CAUTION ET DOCUMENTS: Le passeport ou la carte d\'identité nationale du locataire est conservé par l\'agence pendant toute la durée de la location à titre de garantie.',
+      // 19/11 Kouider : il garde bien le passeport, mais FIK loue SANS caution (site, signature) → plus le mot « caution » ici
+      '2. DOCUMENTS: Le passeport ou la carte d\'identité nationale du locataire est conservé par l\'agence pendant toute la durée de la location à titre de garantie. Aucune caution ni dépôt d\'argent n\'est demandé.',
       '3. RETARD DE RETOUR: Tout dépassement de la date de retour convenue sera automatiquement facturé au tarif journalier en vigueur. Un retard de plus de 2h est considéré comme un jour supplémentaire.',
       '4. RESPONSABILITÉ: L\'agence décline toute responsabilité pour les infractions au Code de la Route, contraventions ou dommages causés à des tiers pendant la période de location.',
       '5. DOMMAGES: En cas de dommages constatés à la restitution du véhicule qui n\'étaient pas présents lors de la remise, les frais de réparation seront à la charge du locataire.',
