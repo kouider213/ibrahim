@@ -121,15 +121,19 @@ Jamais : « tu aurais dû », dramatiser, lui dire de quitter son travail sur un
   }
   if (work) {
     // L'article : recherche faite par le code (adresse du travail dans la routine du matin). Requêtes publiques sans nom de Kouider.
+    // 19/11 : « j'en ai marre moralement, je suis au travail » lançait la recherche de l'article à chaque fois → seulement s'il
+    // parle vraiment de la fermeture / de l'article ; et il retravaille là-bas depuis le 13/11 (plus « il reprend le 14/11 »).
+    const news = WORK_NEWS.test(norm(msg));
     const { multiProviderWebSearch } = await import('./web-search-provider.js');
-    const qs = ['librairie Jette fermée police', 'Jette place Philippe Werrie librairie fermeture police'];
+    const qs = news ? ['librairie Jette fermée police', 'Jette place Philippe Werrie librairie fermeture police'] : [];
     const rs = await Promise.all(qs.map(q => Promise.race([
       multiProviderWebSearch(`${q} novembre ${today.slice(0, 4)}`, 'coach-week').catch(() => null),
       new Promise<null>(res => setTimeout(() => res(null), 9000)),
     ])));
     const found = rs.filter(r => r && r.results_count > 0 && !/^NO_DATA/.test(r.text)).map(r => r!.text.slice(0, 1800));
-    parts.push(`SON TRAVAIL : la librairie de Jette (place Philippe Werrie) où il est salarié, fermée par la police la semaine du 11/11 ; il dit reprendre le travail le 14/11. ${lifeCtx}`,
-      found.length
+    parts.push(`SON TRAVAIL : la librairie de Jette (place Philippe Werrie) où il est salarié ; fermée par la police la semaine du 11/11, il y retravaille depuis le 13/11. ${lifeCtx}`,
+      !news ? `Il parle de ce qu'il RESSENT au travail (pas de l'article) : ne lui parle pas de la fermeture ni d'article sauf s'il le demande.`
+      : found.length
         ? `ARTICLES TROUVÉS SUR INTERNET (recherche faite par le code — ne garde QUE ce qui parle vraiment d'une librairie à Jette fermée par la police ; cite le média, la date et le lien ; n'invente rien de plus que ce qui est écrit) :\n${found.join('\n---\n')}`
         : `ARTICLES : la recherche n'a rien trouvé de sûr sur la fermeture. S'il demande l'article, dis-le honnêtement (tu peux relancer web_search une fois avec d'autres mots) et ne raconte rien d'inventé sur les raisons de la fermeture.`,
       `Comment répondre sur le travail : s'il en parle ou demande l'article → résume ce que dit l'article (faits seulement, source), puis relie-le à CE QU'IL RESSENT (ci-dessus) : il s'y sent mal. Conseille-le comme un grand frère sage : ce qui dépend de lui / ce qui n'en dépend pas, comment se protéger (ne pas se mêler de ce qui ne le regarde pas, garder ses preuves de paie et d'heures, connaître ses droits de salarié si la fermeture dure — chômage temporaire en Belgique), et comment utiliser ce moment pour avancer sur SES projets (FIK, plan Algérie) sans tout lâcher d'un coup. Motive-le avec du concret. Jamais d'accusation contre son patron ou quelqu'un de précis au-delà de ce que dit la source ; ne suppose RIEN sur un rôle de Kouider (il est salarié). S'il s'inquiète pour lui ou son salaire : conseil concret = garder fiches de paie / contrat / heures, se renseigner auprès d'un syndicat ou d'un avocat (aide juridique gratuite possible), ne parler de l'affaire à personne au travail.`);

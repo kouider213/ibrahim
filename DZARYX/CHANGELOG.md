@@ -1,3 +1,7 @@
+## 19/11/2026 (suite 4) — Banc à 197/197 + « marre du travail » sans recherche d'article
+- coach-week : « j'en ai marre moralement, je suis au travail » lançait la recherche web de l'article sur la librairie et disait au cerveau « il reprend le 14/11 » → recherche seulement s'il parle de fermeture / article ; contexte « il y retravaille depuis le 13/11 ».
+- Banc privé (hors dépôt) : une IA d'appoint (message FORME du réveil…) n'est plus comptée comme « le cerveau » (requête sans liste d'outils) ; fr-meteo à la date réelle. phase1 = 197 OK · 0 KO.
+
 ## 19/11/2026 (suite 3) — Un seul « Bien arrivé au travail », Agence FIK hors check-list, livraison sans faux trajet
 - Arrivée au travail annoncée 2 fois (grand-coach-plus « 🏢 » au 1er point GPS + presence « 💼 » 4 min après) → un seul message (presence) qui inclut la mission du Grand Coach (workMissionLine).
 - Check-list de départ : les créneaux « Agence FIK » ne comptent plus (« tes dossiers pour l'Agence FIK »).
