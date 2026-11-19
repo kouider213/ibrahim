@@ -81,6 +81,11 @@ router.get('/session', async (req, res) => {
   } catch (err) { fail(res, err); }
 });
 
+// GET /api/sport/agenda?days=60 — 19/11 page AGENDA de FORME : séances faites (kg × reps, records), ratées, à venir (objectifs, records à battre)
+router.get('/agenda', async (req, res) => {
+  try { const sc = await import('../../integrations/sport-coach.js'); res.json(await sc.sportAgenda(Number(req.query['days']) || 60)); } catch (err) { fail(res, err); }
+});
+
 // POST /api/sport/swap { date, type|null } — changer la séance d'un jour
 router.post('/swap', async (req, res) => {
   const b = req.body as { date?: string; type?: string | null };

@@ -910,6 +910,68 @@ export async function sportOverview() {
   };
 }
 
+// 19/11 (Kouider : « l'agenda avec toutes les séances que je dois faire et que j'ai déjà faites : poids portés, objectifs, records à battre »)
+// Une seule lecture pour la page AGENDA de FORME : séances faites (séries kg × reps, records du jour), ratées, à venir (poids prévu
+// série par série, objectif, record à battre). Rien d'inventé : log + plan + progression déjà calculés ailleurs.
+export async function sportAgenda(days = 60) {
+  const o = await sportOverview();
+  const st = await getState();
+  const log = await readSportLog();
+  const today = localNow().date, from = addDays(today, -Math.max(7, Math.min(365, days)));
+  const kx = await exKeyer();
+  const vol = (l: SessionLog) => Math.round(l.sets.reduce((a, z) => a + (z.kg ?? 0) * (z.reps ?? 0), 0));
+  // records : meilleur poids par exercice AVANT chaque jour → on sait quel jour un record a été battu
+  const best = new Map<string, { kg: number; reps: number | null; date: string }>();
+  const sorted = [...log].sort((a, b) => a.date.localeCompare(b.date) || a.at.localeCompare(b.at));
+  const done: Array<Record<string, unknown>> = [];
+  for (const l of sorted) {
+    const exs: Array<{ name: string; sets: Array<{ kg?: number; reps?: number }>; pr: boolean; top: number | null }> = [];
+    for (const z of l.sets) {
+      const k = kx.key(z.ex);
+      let e = exs.find(x => kx.key(x.name) === k || x.name === kx.name(z.ex));
+      if (!e) { e = { name: kx.name(z.ex), sets: [], pr: false, top: null }; exs.push(e); }
+      e.sets.push({ ...(z.kg != null ? { kg: z.kg } : {}), ...(z.reps != null ? { reps: z.reps } : {}) });
+    }
+    for (const e of exs) {
+      const k = kx.key(e.name), kgs = e.sets.map(z => z.kg ?? 0), top = Math.max(0, ...kgs);
+      if (!top) continue;
+      e.top = top;
+      const reps = Math.max(0, ...e.sets.filter(z => z.kg === top).map(z => z.reps ?? 0));
+      const prev = best.get(k);
+      if (prev && (top > prev.kg || (top === prev.kg && reps > (prev.reps ?? 0)))) e.pr = true;
+      if (!prev || top > prev.kg || (top === prev.kg && reps > (prev.reps ?? 0))) best.set(k, { kg: top, reps: reps || null, date: l.date });
+    }
+    let label = await sessionLabel(l);
+    if (!l.label && label === SESSIONS[l.type].label) {   // nom de la case ACTUELLE du programme ≠ ce qu'il a fait à l'époque → nom tiré des exercices notés
+      const cnt = new Map<string, number>();
+      for (const e of exs) { const m = guessMuscle(e.name); cnt.set(m, (cnt.get(m) ?? 0) + e.sets.length); }
+      const top = [...cnt.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([m]) => MUSCLE_LABEL[m] ?? m);
+      label = top.length ? top.join(' & ').toUpperCase() : 'SÉANCE FAITE';
+    }
+    if (l.date >= from) done.push({ date: l.date, status: 'done', label, type: l.type, durationMin: l.durationMin ?? null, rpe: l.rpe ?? null,
+      note: l.note ?? null, volume: vol(l), sets: l.sets.length, prs: exs.filter(e => e.pr).map(e => e.name), exercises: exs.map(({ name, sets, pr }) => ({ name, sets, pr })) });
+  }
+  const doneDates = new Set(done.map(d => d.date as string));
+  const missed = Object.entries(st.history).filter(([d, v]) => d >= from && d < today && v === 'missed' && !doneDates.has(d))
+    .map(([d]) => ({ date: d, status: 'missed', label: o.past?.find(p => p.date === d)?.label ?? 'Séance', exercises: [] }));
+  const skipped = Object.entries(st.skips).filter(([d]) => d >= from && !doneDates.has(d)).map(([d, why]) => ({ date: d, status: 'skip', label: 'Pas de sport', reason: why, exercises: [] }));
+  const upcoming = (o.planned ?? []).filter(p => p && p.date >= today && !doneDates.has(p.date)).map(p => ({
+    date: p!.date, status: p!.date === today ? 'today' : 'planned', label: p!.label, emoji: p!.emoji, focus: p!.focus, start: p!.start, end: p!.end, estMin: p!.estMin,
+    warmup: p!.warmup, finisher: p!.finisher, deload: p!.deload,
+    exercises: p!.exercises.map(e => {
+      const r = best.get(kx.key(e.name)) ?? best.get(kx.key(e.id));
+      return { name: e.name, muscle: e.muscle, sets: e.sets, reps: e.reps, rest: e.rest, timed: e.timed, plan: e.suggestion.plan ?? (e.suggestion.kg != null ? Array(e.sets).fill(e.suggestion.kg) : null),
+        up: !!e.suggestion.up, goal: e.suggestion.goal ?? null, last: e.suggestion.last ?? null, prev: e.suggestion.prev ?? null, record: r ?? null };
+    }),
+  }));
+  const rules = await readSportRules();
+  return {
+    today, goal: o.goal, streak: o.stats.streak, total: o.stats.total, monthSessions: o.stats.monthSessions,
+    rules: rules.map(r => r.text),
+    days: [...upcoming, ...done, ...missed, ...skipped].sort((a, b) => String(b.date).localeCompare(String(a.date))),
+  };
+}
+
 export async function setSportOverride(date: string, type: SessionType | null): Promise<void> {
   const st = await getState();
   if (type) st.overrides[date] = type; else delete st.overrides[date];
