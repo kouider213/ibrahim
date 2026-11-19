@@ -9,6 +9,7 @@ import { ExerciseSheet, Anim, LibraryPicker, COACH_TO_GROUP } from './Exercises.
 import { TodayForm } from './Watch.tsx';
 import { WeekGoal } from './Insights.tsx';
 import { BodyZones, type ZoneSession } from './BodyZones.tsx';
+import { AgendaSheet } from './Agenda.tsx';
 import { Ico } from '../components/ui/Icon.tsx';
 
 // Onglet SÉANCE — 31/10 refait façon applis pro de muscu (Hevy / Strong / Fitbod) : semaine en pastilles, carte du jour
@@ -829,6 +830,7 @@ export default function SportScreen({ toast, go, o }: { toast: (t: string) => vo
   const [pick, setPick] = useState<string | null>(null);
   const [bump, setBump] = useState(0);
   const [hist, setHist] = useState<string | null>(null);
+  const [agenda, setAgenda] = useState(false);
   // 17/11 : séance faite pour les muscles touchés sur la carte du corps → même lecteur, enregistrée avec son vrai nom
   const startZone = async (z: ZoneSession) => {
     const base = await routineSession({ id: 'zones', name: z.label, at: 0, exercises: z.exercises.map(e => ({ id: e.id, name: e.name, img: e.img, sets: e.sets, reps: e.reps, rest: e.rest })) });
@@ -874,6 +876,11 @@ export default function SportScreen({ toast, go, o }: { toast: (t: string) => vo
           );
         })}
       </div>
+      <button onClick={() => { vibrate(10); setAgenda(true); }} style={{ ...card, width: '100%', marginTop: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', color: F.ink, fontFamily: 'inherit', textAlign: 'start' }}>
+        <span style={{ fontSize: 24 }}>📅</span>
+        <span style={{ flex: 1 }}><span style={{ display: 'block', fontWeight: 700, fontSize: 15 }}>Agenda des séances</span><span style={{ display: 'block', fontSize: 12.5, color: F.muted, marginTop: 2 }}>Faites (poids, séries, records) · à venir (objectifs, records à battre)</span></span>
+        <span style={{ color: F.muted, fontSize: 18 }}>›</span>
+      </button>
       <ResumeBanner toast={toast} onDone={() => { void load(); setBump(b => b + 1); }} />
       {o && <Dashboard o={o} weeks={d.stats.weeks} weekDone={strip.filter(w => w.status === 'done').length} weekGoal={o.profile?.sessionsPerWeek || strip.filter(w => w.type && !w.skip).length || 4} streak={d.stats.streak} />}
       <TodayForm />
@@ -920,6 +927,7 @@ export default function SportScreen({ toast, go, o }: { toast: (t: string) => vo
         return `💪 Séance enregistrée${r.prs.length ? ` — 🏆 record : ${r.prs.join(', ')}` : ''} · Dzaryx est prévenu`;
       }} />}
       <HistorySheet date={hist} onClose={() => setHist(null)} />
+      <AgendaSheet open={agenda} onClose={() => setAgenda(false)} />
     </div>
   );
 }

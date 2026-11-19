@@ -1,3 +1,6 @@
+## 19/11/2026 (suite 8) — FORME : Agenda des séances (app v282)
+- Onglet Séance → bouton « 📅 Agenda des séances » : calendrier du mois (faites ✓ / à venir / ratées / repos), séances faites avec chaque série kg × reps, durée, tonnage, effort, records battus 🏆 ; séances à venir avec poids prévu série par série, objectif de progression, record à battre et dernière perf. Route GET /api/sport/agenda (sportAgenda). Anciennes séances sans nom → nom tiré des exercices notés (plus le nom de la case actuelle du programme).
+
 ## 19/11/2026 (suite 7) — Règles sport durables + plus de jambes
 - Programme : « BAS + ABDOS » → « ABDOS + CARDIO » (tapis incliné, abdos, obliques, gainage, elliptique).
 - Nouvelle action sport_coach `rule` (add/remove/list, kv `kouider:sport:rules`) : « plus de X sauf si je demande » est gardé pour toujours, injecté dans formeSnapshot (tous les cerveaux) et affiché avec le programme. Règle 1 : plus de jambes sauf demande de Kouider.
