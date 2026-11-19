@@ -75,6 +75,9 @@ async function handle(p: Pt): Promise<void> {
   const dt = st.last ? (p.t - st.last.t) / 3600_000 : 0;
   const kmh = st.last && dt > 30 / 3600 && dt < 0.25 ? km(st.last, p) / dt : 0;
   if (st.last && p.t - st.last.t < 30_000) return;
+  // 19/11 : l'iPhone n'a envoyé AUCUNE position entre 5h30 et 6h47 → le 1er point au travail a déclenché « Bien arrivé » +
+  // check-list de départ à 6h47 alors qu'il y était depuis 6h30. Point après un trou > 10 min = position en retard, pas un événement.
+  const fresh = !!st.last && p.t - st.last.t <= 10 * 60_000;
   const track = await gpsTrack();
   track.push(p);
   trackMem = track.filter(x => p.t - x.t < 8 * 86_400_000).slice(-2500);
@@ -120,12 +123,12 @@ async function handle(p: Pt): Promise<void> {
   if (home && !st.wasHome) st.homeSince = p.t;
   if (!home && st.wasHome && st.homeSince && p.t - st.homeSince > 20 * 60_000 && km(p, known.find(k => k.id === 'home') ?? p) > 0.3) {
     const { date, hhmm } = localNow();
-    if (st.checklistDate !== date && hhmm >= '05:00' && hhmm <= '21:30') { st.checklistDate = date; void departureChecklist().catch(() => {}); }
+    if (st.checklistDate !== date && hhmm >= '05:00' && hhmm <= '21:30') { st.checklistDate = date; if (fresh && !here) void departureChecklist().catch(() => {}); }
   }
   st.wasHome = home;
 
   // ── Grand Coach : arrivée au travail, sas de décompression avant la maison ──
-  void import('./grand-coach-plus.js').then(m => m.onGps(here, p, known, !!st.drive)).catch(() => {});
+  void import('./grand-coach-plus.js').then(m => m.onGps(here, p, known, !!st.drive, fresh)).catch(() => {});
 
   // ── Mode Oran ──
   await oranSwitch(p);

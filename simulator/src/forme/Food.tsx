@@ -66,8 +66,12 @@ export default function FoodScreen({ toast, o, onO }: { toast: (t: string) => vo
     </div>
   );
   // 02/11 : glucides / lipides avec fourchette min–max du jour (Kouider : « il me dit pas le max et min »)
-  const range = (l: string, v: number, min: number, max: number, color: string) => {
-    const st = v > max ? { t: `⚠️ +${v - max} g au-dessus`, c: '#ff8a80' } : v >= min ? { t: '✅ dans la fourchette', c: '#8ff0b8' } : { t: `encore ${min - v} à ${max - v} g`, c: 'rgba(255,255,255,0.65)' };
+  // 19/11 : « 932 kcal restantes » mais protéines 109 g + glucides « encore 41 à 64 » + lipides « encore 29 à 39 » = ~1040 kcal
+  // (chaque fourchette calculée seule). Le « encore » des glucides = ce qui reste VRAIMENT après les protéines manquantes et le gras.
+  const range = (l: string, v: number, min: number, max: number, color: string, room?: [number, number]) => {
+    const lo = room ? Math.min(min - v, room[0]) : min - v, hi = room ? Math.min(max - v, room[1]) : max - v;
+    const st = v > max ? { t: `⚠️ +${v - max} g au-dessus`, c: '#ff8a80' } : v >= min ? { t: '✅ dans la fourchette', c: '#8ff0b8' }
+      : hi <= 0 ? { t: 'plus de place aujourd\'hui', c: '#ffd27a' } : { t: lo <= 0 || lo === hi ? `encore jusqu'à ${hi} g` : `encore ${lo} à ${hi} g`, c: 'rgba(255,255,255,0.65)' };
     return (
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 12, opacity: 0.7 }}>{l}</div>
@@ -77,6 +81,12 @@ export default function FoodScreen({ toast, o, onO }: { toast: (t: string) => vo
       </div>
     );
   };
+
+  const carbRoom: [number, number] | undefined = b.macros ? (() => {
+    const kcal = Math.max(0, b.left) - Math.max(0, (b.proteinGoal ?? 0) - b.eaten.p) * 4;
+    const fatLo = Math.max(0, b.macros.fatMin - b.eaten.f), fatHi = Math.max(0, b.macros.fatMax - b.eaten.f);
+    return [Math.max(0, Math.floor((kcal - fatHi * 9) / 4)), Math.max(0, Math.floor((kcal - fatLo * 9) / 4))];
+  })() : undefined;
 
   return (
     <div style={{ padding: '0 14px', overflowX: 'hidden' }}>
@@ -103,7 +113,7 @@ export default function FoodScreen({ toast, o, onO }: { toast: (t: string) => vo
         </div>
         <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
           {macro('Protéines', b.eaten.p, b.proteinGoal, '#7fb2ff')}
-          {b.macros ? range('Glucides', b.eaten.c, b.macros.carbMin, b.macros.carbMax, '#ffd27a') : macro('Glucides', b.eaten.c, null, '#ffd27a')}
+          {b.macros ? range('Glucides', b.eaten.c, b.macros.carbMin, b.macros.carbMax, '#ffd27a', carbRoom) : macro('Glucides', b.eaten.c, null, '#ffd27a')}
           {b.macros ? range('Lipides', b.eaten.f, b.macros.fatMin, b.macros.fatMax, '#ff9f80') : macro('Lipides', b.eaten.f, null, '#ff9f80')}
         </div>
         {b.macros && <div style={{ fontSize: 11.5, opacity: 0.6, marginTop: 8 }}>Fourchettes pour {b.target} kcal : lipides 0,8 g/kg à 35 % des kcal (jamais moins, hormones) · glucides = le reste.</div>}

@@ -52,6 +52,8 @@ const PHANTOM_ACTION_PATTERNS: RegExp[] = [
   /\b(location|r[ée]servation|r[ée]sa)\s+(bien\s+)?(prolong[ée]e?|d[ée]cal[ée]e?|modifi[ée]e?)\b|\bjour\s+offert\s+(not[ée]|enregistr[ée]|ajout[ée])\b/im,
   // 14/11 : « 2 marquée lu » → « Noté. ✅ Les 2 sont marqués lus. » sans aucun outil
   /(✅|\bsont|\best|\bj.ai|\bont\s+été|\ba\s+été)[^\n]{0,40}\b(marqu[ée]e?s?\s+(comme\s+)?(non[\s-])?lue?s?|archiv[ée]e?s?)\b/im,
+  // 18/11 14h14 : « 🔄 Mise à jour de ton shaker (en plus du précédent) : total 420 kcal » sans aucun outil → rien dans FORME
+  /^\s*🔄\s*\**\s*mise\s+[àa]\s+jour|\ben\s+plus\s+du\s+pr[ée]c[ée]dent\b|\b(ajout[ée]|compt[ée]|not[ée])\s+dans\s+(ta\s+journ[ée]e|forme|ton\s+compteur)\b/im,
   /\b(site\s+mis\s+[aà]\s+jour|r[eé]servation\s+cr[eé][eé]e?|paiement\s+enregistr[eé]|agenda\s+mis\s+[aà]\s+jour|envoy[eé]e?\s+sur\s+telegram|fichier\s+modifi[eé]|code\s+corrig[eé]|bug\s+corrig[eé]|d[eé]ploy[eé]\s+sur\s+railway|vid[eé]o\s+cr[eé][eé]e?|image\s+g[eé]n[eé]r[eé]e?|rappel\s+programm[eé])\b/im,
 ];
 

@@ -65,7 +65,7 @@ export async function countdown(): Promise<string> {
 }
 
 // ── 3 + 4. GPS : arrivée au travail, sas avant la maison ─────────────────────
-export async function onGps(here: string | undefined, p: { lat: number; lng: number }, known: Array<{ id: string; lat: number; lng: number }>, driving: boolean): Promise<void> {
+export async function onGps(here: string | undefined, p: { lat: number; lng: number }, known: Array<{ id: string; lat: number; lng: number }>, driving: boolean, fresh = true): Promise<void> {
   const { date, hhmm } = localNow();
   const st = await kvJson<{ date: string; work?: boolean; home?: boolean }>(K.gps, { date });
   if (st.date !== date) { st.date = date; st.work = false; st.home = false; }
@@ -75,11 +75,11 @@ export async function onGps(here: string | undefined, p: { lat: number; lng: num
     const b = await kvJson<{ items: Array<{ text: string; done?: boolean }> } | null>(`gc:big3:${date}`, null);
     const first = b?.items.find(i => !i.done)?.text;
     // 07/11 Kouider : « je t'ai dit que je n'ai JAMAIS de pause au travail » → la mission est pour la sortie du travail
-    if (await canSpeak()) { await tg(`🏢 Bien arrivé au travail. Concentre-toi ici. Ta mission pour la sortie du travail : ${first ?? 'une action FIK de 10 minutes'}.\nIci tu gagnes ta sécurité, à Oran tu construis ta liberté. Les deux comptent aujourd'hui. 💪`); await spoke(); }
+    if (await canSpeak()) { await tg(`🏢 ${fresh ? 'Bien arrivé au travail.' : 'Au travail :'} Concentre-toi ici. Ta mission pour la sortie du travail : ${first ?? 'une action FIK de 10 minutes'}.\nIci tu gagnes ta sécurité, à Oran tu construis ta liberté. Les deux comptent aujourd'hui. 💪`); await spoke(); }
     return;
   }
   const home = known.find(k => k.id === 'home');
-  if (home && driving && !st.home && hhmm >= '15:30' && hhmm <= '22:30') {
+  if (home && driving && fresh && !st.home && hhmm >= '15:30' && hhmm <= '22:30') {
     const km = Math.hypot((p.lat - home.lat) * 111, (p.lng - home.lng) * 111 * Math.cos(p.lat * Math.PI / 180));
     if (km < 3 && km > 0.4) {
       st.home = true; await kvPut(K.gps, st, 2 * 86_400);
@@ -127,7 +127,7 @@ export async function winsPick(n = 3): Promise<string> {
 export async function atWorkNow(): Promise<boolean> {
   const m = await import('./kouider-dossier.js').catch(() => null);
   if (!m) return false;
-  return !(await m.isDayOff().catch(() => false)) && !(await m.isAfterWork().catch(() => false));
+  return !(await m.isOffWork().catch(() => false)) && !(await m.isAfterWork().catch(() => false));
 }
 
 // ── 8. Anti-procrastination ──────────────────────────────────────────────────

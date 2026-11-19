@@ -1,3 +1,12 @@
+## 19/11/2026 — Revue de la semaine : GPS en retard, calories FORME, Agence FIK, journée famille
+- « 🏢 Bien arrivé au travail » à 6h47 alors qu'il y était à 6h30 + « 🎒 Tu as bien : tes dossiers… » à 6h48 : l'iPhone n'a envoyé AUCUNE position entre 5h30 et 6h47. gps-life `fresh` (point précédent ≤ 10 min) : après un trou, pas de check-list de départ, pas de sas maison, et le Grand Coach dit « Au travail : » au lieu de « Bien arrivé ».
+- « Journée famille » (family_care hard_day) rendait isDayOff vrai → atWorkNow faux alors qu'il travaille jusqu'à 13h le jeudi. Nouveau `isOffWork()` (congé réel, sans journée dure) utilisé par atWorkNow.
+- FORME Repas : 932 kcal restantes mais protéines 109 g + glucides « encore 41 à 64 » + lipides « encore 29 à 39 » ≈ 1 040 kcal. Le « encore » des glucides = kcal restantes − protéines manquantes − gras (36 à 58 g ce jour-là).
+- Agence FIK : Kouider travaille pour FIK de n'importe où, jamais à l'agence. Conscience ne voit plus ces créneaux (avant : « pars maintenant depuis la maison » 15/11 + 17/11, puis « Je pars » → 2 492 km), departures.ts les saute ; lieu en Algérie hors mode Oran marqué « à distance ».
+- Brief du matin : conseils business jamais « ce matin / pendant le travail » (aucune pause).
+- phantomGuard : « 🔄 Mise à jour… (en plus du précédent) » sans outil (shaker 18/11 14h14, rien dans FORME) bloqué.
+- Vérifié : trajet travail → maison Google = 5 min (le « 45 min » du 18/11 était déjà corrigé 55b9ea04).
+
 ## 18/11/2026 (nuit) — iPhone : lien « touche pour lancer » sous Telegram + lecture de l'état
 - Automatisation iPhone « Telegram Fermée → Dzaryx faire » faite par Kouider ; bouton Action → Dzaryx déjà en place.
 - Il quitte rarement Telegram → `/api/call/turn` (channel message) ajoute « 📲 Touche pour lancer sur l'iPhone : …/api/jarvis/go-iphone » quand une action iPhone a été mise en file pendant le message. `/go-iphone` (public) = page qui ouvre `shortcuts://run-shortcut?name=Dzaryx faire`.

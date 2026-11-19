@@ -405,8 +405,10 @@ export async function snapshot(): Promise<Record<string, unknown>> {
     ...(await commuteHome()),
     // Son créneau de TRAVAIL n'est pas un rendez-vous ; un événement déjà commencé est marqué comme tel
     agenda_4h: ((agenda ?? []) as Array<{ summary?: string; start?: { dateTime?: string }; location?: string }>)
-      .filter(e => !/travail|boulot|\btaf\b|shift|poste/i.test(e.summary ?? ''))
-      .map(e => `${e.start?.dateTime?.slice(11, 16) ?? ''} ${e.summary ?? ''}${e.location ? ` @${e.location}` : ''}${e.start?.dateTime && Date.parse(e.start.dateTime) < Date.now() ? ' (déjà commencé)' : ''}`),
+      // 15/11 + 17/11 : « Ton RDV Agence FIK à 19:00 — pars maintenant depuis la maison » puis « Je pars » → 2 492 km / 31 h 40.
+      // « Agence FIK — business Algérie » = bloc de travail FIK fait de N'IMPORTE OÙ (maison, travail…), jamais à l'agence, même à Oran → jamais un départ.
+      .filter(e => !/travail|boulot|\btaf\b|shift|poste/i.test(e.summary ?? '') && !/agence fik|business alg/i.test(e.summary ?? ''))
+      .map(e => `${e.start?.dateTime?.slice(11, 16) ?? ''} ${e.summary ?? ''}${e.location ? ` @${e.location}${!oran && /oran|alg[ée]rie|\bdz\b/i.test(e.location) ? ' (en Algérie, il est en Belgique : à distance, AUCUN trajet ni départ)' : ''}` : ''}${e.start?.dateTime && Date.parse(e.start.dateTime) < Date.now() ? ' (déjà commencé)' : ''}`),
     locations_aujourdhui_demain: (books as Array<Record<string, unknown>>).filter(b => !/REJECT|CANCEL/i.test(String(b['status']))).map(b => {
       const st = String(b['start_date']), en = String(b['end_date']);
       const state = st.slice(0, 10) < date ? (en.slice(0, 10) > date ? 'EN COURS (déjà partie, rien à faire au départ)' : en.slice(0, 10) === date ? 'RETOUR AUJOURD\'HUI' : 'finie') : st.slice(0, 10) === date ? 'DÉPART AUJOURD\'HUI' : 'départ demain';

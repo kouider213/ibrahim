@@ -79,7 +79,12 @@ async function isDateOff(offsetDays = 0): Promise<boolean> {
   return !!(await kvGet(DATE_OFF_KEY(brusselsDate(offsetDays))).catch(() => null));
 }
 export async function isDayOff(offsetDays = 0): Promise<boolean> {
-  if (await isHardDay(offsetDays) || await isDateOff(offsetDays)) return true;
+  if (await isHardDay(offsetDays)) return true;
+  return isOffWork(offsetDays);
+}
+/** 19/11 : congé RÉEL (sans la « journée dure ») — « journée famille » dite à 6h48 un jeudi : il est quand même au travail jusqu'à 13h. */
+export async function isOffWork(offsetDays = 0): Promise<boolean> {
+  if (await isDateOff(offsetDays)) return true;
   if (!(await getDaysOff()).includes(brusselsWeekday(offsetDays))) return false;
   if (offsetDays !== 0) return true;
   const from = await dayOffFrom(0);
