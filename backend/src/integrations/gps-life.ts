@@ -237,7 +237,9 @@ async function departureChecklist(): Promise<void> {
   const { date } = localNow();
   const { listAgendaRange } = await import('./google-calendar.js');
   const end = new Date(); end.setHours(23, 59, 0, 0);
-  const evs = ((await listAgendaRange(new Date().toISOString(), end.toISOString()).catch(() => null)) ?? []) as Array<{ summary?: string; location?: string; start?: { dateTime?: string } }>;
+  // 19/11 : « Tu as bien tes dossiers pour l'Agence FIK ? » — l'Agence FIK n'est pas un lieu où il va (FIK = de n'importe où)
+  const evs = (((await listAgendaRange(new Date().toISOString(), end.toISOString()).catch(() => null)) ?? []) as Array<{ summary?: string; location?: string; start?: { dateTime?: string } }>)
+    .filter(e => !/agence fik|business alg/i.test(e.summary ?? ''));
   const trips = (await kvJson<Array<{ who: string; kind: string; title: string; departAt: number }>>('trips:v1', [])).filter(t => t.who === 'kouider' && localNow(t.departAt).date === date);
   const oran = await oranActive();
   let books = '';

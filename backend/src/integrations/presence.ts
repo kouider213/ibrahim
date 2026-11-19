@@ -352,7 +352,8 @@ async function onWork(st: PresenceState, now: number): Promise<void> {
   const evs = await listAgendaRange(new Date(now).toISOString(), new Date(localTs(localNow(now).date, '23:59')).toISOString(), 20).catch(() => null);
   const list = (evs ?? []).filter(e => e.start.dateTime && !/^(🟢|🚿|⏰|🚗)/u.test(e.summary ?? '')).slice(0, 6)
     .map(e => `• ${hm(Date.parse(e.start.dateTime!))} ${e.summary}`);
-  await queueTelegramMessage([`💼 Bien arrivé au travail (${hm(now)}). Bonne journée champion !`, list.length ? `\nLa suite :\n${list.join('\n')}` : '',
+  const mission = await import('./grand-coach-plus.js').then(m => m.workMissionLine()).catch(() => '');
+  await queueTelegramMessage([`💼 Bien arrivé au travail (${hm(now)}). Bonne journée champion !`, mission ? `\n${mission}` : '', list.length ? `\nLa suite :\n${list.join('\n')}` : '',
     did(st, 'brief') ? '' : `\nTon brief du matin t'attend : écris « brief » quand tu es seul (ou « écris-le »).`].filter(Boolean).join('\n'));
 }
 

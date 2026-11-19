@@ -1506,6 +1506,9 @@ export async function jobDeliveryDepartureAlert(_job: Job): Promise<void> {
 
     if (!bookings?.length) return;
 
+    // 19/11 : la livraison se fait à Oran (Houari). Kouider en Belgique recevait « X min depuis Bruxelles → aéroport »
+    // (l'aéroport de Bruxelles). Seulement quand il est lui-même en Algérie (mode Oran).
+    if (!(await import('../../integrations/gps-life.js').then(m => m.oranActive()).catch(() => null))) return;
     const { getLocation } = await import('../../integrations/location.js');
     const kouiderLoc = await getLocation('kouider');
     if (!kouiderLoc) return;
@@ -1518,7 +1521,7 @@ export async function jobDeliveryDepartureAlert(_job: Job): Promise<void> {
       if (alreadySent) continue;
 
       try {
-        const travel = await getTravelTime(kouiderLoc.lat, kouiderLoc.lng, 'aéroport');
+        const travel = await getTravelTime(kouiderLoc.lat, kouiderLoc.lng, 'Aéroport Ahmed Ben Bella, Oran, Algérie');
         const trafficEmoji = travel.traffic === 'heavy' ? '🔴' : travel.traffic === 'light' ? '🟢' : '🟡';
         const cityLabel = kouiderLoc.city ?? kouiderLoc.country;
 

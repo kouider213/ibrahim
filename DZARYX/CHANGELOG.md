@@ -1,3 +1,8 @@
+## 19/11/2026 (suite 3) — Un seul « Bien arrivé au travail », Agence FIK hors check-list, livraison sans faux trajet
+- Arrivée au travail annoncée 2 fois (grand-coach-plus « 🏢 » au 1er point GPS + presence « 💼 » 4 min après) → un seul message (presence) qui inclut la mission du Grand Coach (workMissionLine).
+- Check-list de départ : les créneaux « Agence FIK » ne comptent plus (« tes dossiers pour l'Agence FIK »).
+- jobDeliveryDepartureAlert : seulement en mode Oran (avant : « X min depuis Bruxelles → aéroport » pour une livraison à Oran) ; destination = aéroport d'Oran.
+
 ## 19/11/2026 (suite 2) — Humeur = supposition, vérifiée avec la montre (mood-guard.ts)
 - Kouider : « il m'envoie "je sens que tu es stressé", comment il peut confirmer ça ? » → l'humeur est devinée par une IA d'après ses mots.
 - 1) Jamais affirmée ni chiffrée : moodText (dossier), jarvis4Context, Conscience (humeur_supposee), life-plus, rapport mensuel → « supposition, demande-le ».

@@ -69,15 +69,9 @@ export async function onGps(here: string | undefined, p: { lat: number; lng: num
   const { date, hhmm } = localNow();
   const st = await kvJson<{ date: string; work?: boolean; home?: boolean }>(K.gps, { date });
   if (st.date !== date) { st.date = date; st.work = false; st.home = false; }
-  const off = await import('./kouider-dossier.js').then(m => m.isDayOff()).catch(() => false);
-  if (here === 'work' && !st.work && hhmm >= '05:00' && hhmm <= '11:00' && !off) {
-    st.work = true; await kvPut(K.gps, st, 2 * 86_400);
-    const b = await kvJson<{ items: Array<{ text: string; done?: boolean }> } | null>(`gc:big3:${date}`, null);
-    const first = b?.items.find(i => !i.done)?.text;
-    // 07/11 Kouider : « je t'ai dit que je n'ai JAMAIS de pause au travail » → la mission est pour la sortie du travail
-    if (await canSpeak()) { await tg(`🏢 ${fresh ? 'Bien arrivé au travail.' : 'Au travail :'} Concentre-toi ici. Ta mission pour la sortie du travail : ${first ?? 'une action FIK de 10 minutes'}.\nIci tu gagnes ta sécurité, à Oran tu construis ta liberté. Les deux comptent aujourd'hui. 💪`); await spoke(); }
-    return;
-  }
+  // 19/11 : l'arrivée au travail est annoncée UNE fois, par presence.ts (« 💼 Bien arrivé… »), qui y ajoute workMissionLine()
+  // (avant : « 🏢 Bien arrivé » ici + « 💼 Bien arrivé » 4 min plus tard). Ici on ne fait plus rien pour le travail.
+  if (here === 'work') return;
   const home = known.find(k => k.id === 'home');
   if (home && driving && fresh && !st.home && hhmm >= '15:30' && hhmm <= '22:30') {
     const km = Math.hypot((p.lat - home.lat) * 111, (p.lng - home.lng) * 111 * Math.cos(p.lat * Math.PI / 180));
@@ -88,6 +82,20 @@ export async function onGps(here: string | undefined, p: { lat: number; lng: num
       await spoke();
     }
   }
+}
+
+/** Mission du Grand Coach, ajoutée au message d'arrivée au travail (presence.ts). Vide si déjà dite ou budget épuisé. */
+export async function workMissionLine(): Promise<string> {
+  const { date } = localNow();
+  const st = await kvJson<{ date: string; work?: boolean; home?: boolean }>(K.gps, { date });
+  if (st.date !== date) { st.date = date; st.work = false; st.home = false; }
+  if (st.work || !(await canSpeak())) return '';
+  st.work = true; await kvPut(K.gps, st, 2 * 86_400);
+  const b = await kvJson<{ items: Array<{ text: string; done?: boolean }> } | null>(`gc:big3:${date}`, null);
+  const first = b?.items.find(i => !i.done)?.text;
+  await spoke();
+  // 07/11 Kouider : « je t'ai dit que je n'ai JAMAIS de pause au travail » → la mission est pour la sortie du travail
+  return `🎯 Concentre-toi ici. Ta mission pour la sortie du travail : ${first ?? 'une action FIK de 10 minutes'}.\nIci tu gagnes ta sécurité, à Oran tu construis ta liberté. Les deux comptent aujourd'hui. 💪`;
 }
 
 // ── 5. Lettre du Kouider de 2036 ─────────────────────────────────────────────
