@@ -925,11 +925,11 @@ export async function sportAgenda(days = 60) {
   const sorted = [...log].sort((a, b) => a.date.localeCompare(b.date) || a.at.localeCompare(b.at));
   const done: Array<Record<string, unknown>> = [];
   for (const l of sorted) {
-    const exs: Array<{ name: string; sets: Array<{ kg?: number; reps?: number }>; pr: boolean; top: number | null }> = [];
+    const exs: Array<{ id: string; name: string; sets: Array<{ kg?: number; reps?: number }>; pr: boolean; top: number | null }> = [];
     for (const z of l.sets) {
       const k = kx.key(z.ex);
       let e = exs.find(x => kx.key(x.name) === k || x.name === kx.name(z.ex));
-      if (!e) { e = { name: kx.name(z.ex), sets: [], pr: false, top: null }; exs.push(e); }
+      if (!e) { e = { id: z.ex.replace(/~.*$/, ''), name: kx.name(z.ex), sets: [], pr: false, top: null }; exs.push(e); }
       e.sets.push({ ...(z.kg != null ? { kg: z.kg } : {}), ...(z.reps != null ? { reps: z.reps } : {}) });
     }
     for (const e of exs) {
@@ -949,7 +949,7 @@ export async function sportAgenda(days = 60) {
       label = top.length ? top.join(' & ').toUpperCase() : 'SÉANCE FAITE';
     }
     if (l.date >= from) done.push({ date: l.date, status: 'done', label, type: l.type, durationMin: l.durationMin ?? null, rpe: l.rpe ?? null,
-      note: l.note ?? null, volume: vol(l), sets: l.sets.length, prs: exs.filter(e => e.pr).map(e => e.name), exercises: exs.map(({ name, sets, pr }) => ({ name, sets, pr })) });
+      note: l.note ?? null, volume: vol(l), sets: l.sets.length, prs: exs.filter(e => e.pr).map(e => e.name), exercises: exs.map(({ id, name, sets, pr }) => ({ name, sets, pr, demo: demoFor({ id, name }) })) });
   }
   const doneDates = new Set(done.map(d => d.date as string));
   const missed = Object.entries(st.history).filter(([d, v]) => d >= from && d < today && v === 'missed' && !doneDates.has(d))
@@ -960,10 +960,13 @@ export async function sportAgenda(days = 60) {
     warmup: p!.warmup, finisher: p!.finisher, deload: p!.deload,
     exercises: p!.exercises.map(e => {
       const r = best.get(kx.key(e.name)) ?? best.get(kx.key(e.id));
-      return { name: e.name, muscle: e.muscle, sets: e.sets, reps: e.reps, rest: e.rest, timed: e.timed, plan: e.suggestion.plan ?? (e.suggestion.kg != null ? Array(e.sets).fill(e.suggestion.kg) : null),
+      return { name: e.name, demo: e.demo, tip: e.tip, video: e.video, muscle: e.muscle, sets: e.sets, reps: e.reps, rest: e.rest, timed: e.timed, plan: e.suggestion.plan ?? (e.suggestion.kg != null ? Array(e.sets).fill(e.suggestion.kg) : null),
         up: !!e.suggestion.up, goal: e.suggestion.goal ?? null, last: e.suggestion.last ?? null, prev: e.suggestion.prev ?? null, record: r ?? null };
     }),
   }));
+  // 19/11 (« avec des images pour que je sache c'est lequel ») : photo de la bibliothèque pour chaque exercice (2 images = le mouvement)
+  const allEx = [...upcoming, ...done].flatMap(d => (d as { exercises: Array<{ name: string; demo: string[] }> }).exercises);
+  await import('./exercise-lib.js').then(m => m.fillDemos(allEx)).catch(() => null);
   const rules = await readSportRules();
   return {
     today, goal: o.goal, streak: o.stats.streak, total: o.stats.total, monthSessions: o.stats.monthSessions,
