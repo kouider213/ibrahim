@@ -2,9 +2,18 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : **2026-11-17**.
+> Dernière mise à jour : **2026-11-19**.
 
 ---
+
+## ⚡ Session 2026-11-19 — Revue de la semaine (e892809e → a4824f36, app v279)
+- GPS : point après un trou > 10 min = position en retard (gps-life `fresh`) → pas de « bien arrivé », check-list ni sas. Un seul message d'arrivée au travail (presence + workMissionLine du Grand Coach).
+- « Journée dure / famille » ≠ congé : `isOffWork()` (atWorkNow). Agence FIK = travail FIK de n'importe où → jamais un trajet (conscience, departures, check-list).
+- FORME Repas : « encore X g » des glucides cohérent avec les kcal restantes.
+- Appels : Conscience jamais d'urgence 3 pour moral/sommeil/santé ; check-lists clients sans appel ni « caution ».
+- Humeur = supposition (mood-guard.ts) : jamais affirmée ni chiffrée, croisée avec la montre, « non ça va » = silence du jour.
+- phantomGuard : « 🔄 mise à jour… en plus du précédent » sans outil bloqué ; morning_routine reconnu comme action.
+- Reste : trous de position côté iPhone (réglages Telegram de Kouider) ; banc phase1 : 6 faux KO (réponse code juste classée « cerveau »), à réaligner.
 
 ## ⚡ Session 2026-11-17 — FORME corps cliquable (app v275) + programme « transformation Aïd 10/03/2027 » (ca86ba17 → b7c4801c)
 - Séance : carte du corps cliquable (BodyZones.tsx) → séance par muscle, objectifs par zone, programme sur mesure ; historique cliquable avec vrais noms.
