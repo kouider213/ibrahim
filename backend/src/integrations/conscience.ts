@@ -257,16 +257,20 @@ async function moodNowTick(): Promise<MoodNow | null> {
   const since = new Date(Date.now() - 90 * 60_000).toISOString();
   const { data } = await supabase.from('conversations').select('content, created_at').eq('session_id', 'voice_kouider').eq('role', 'user').gte('created_at', since).order('created_at').limit(30);
   const turns = typedByHim((data ?? []) as Array<{ content: string; created_at: string }>).map(t => `${localNow(Date.parse(t.created_at)).hhmm} ${String(t.content).replace(/^\[[^\]]{20,}\]\s*/s, '').slice(0, 300)}`);
+  // 19/11 : il dit « non ça va » / « je suis pas stressé » → plus un mot sur son humeur aujourd'hui (mood-guard.ts)
+  const mg = await import('./mood-guard.js');
+  if (turns.some(t => mg.MOOD_DENY_RE.test(t))) await mg.denyMoodToday().catch(() => {});
   const prev = await kvJson<MoodNow | null>('mood:now', null);
   if (turns.length < 3) return prev && Date.now() - prev.at < 3 * 3600_000 ? prev : null;
   if (prev && Date.now() - prev.at < 30 * 60_000) return prev;
   const o = jsonOf<{ stress?: number; energy?: number; why?: string }>(await ai(`Messages de Kouider à son assistant ces 90 dernières minutes (heure + texte, souvent dictés à la voix) :\n${turns.join('\n')}\n\nÉvalue son état MAINTENANT d'après les mots, le ton, l'impatience, la longueur, les fautes de fatigue, l'heure. Réponds UNIQUEMENT : {"stress":1-10,"energy":1-10,"why":"une phrase factuelle"}`, { max: 150 })) ?? {};
   const m: MoodNow = { at: Date.now(), stress: Number(o.stress ?? 5), energy: Number(o.energy ?? 5), why: String(o.why ?? ''), offered: prev?.offered && Date.now() - prev.at < 6 * 3600_000 };
   await kvPut('mood:now', m, 12 * 3600);
-  if ((m.stress >= 8 || m.energy <= 2) && !m.offered) {
+  if ((m.stress >= 8 || m.energy <= 2) && !m.offered && (await mg.moodVerdict(m)).say === 'ask') {
     m.offered = true;
     await kvPut('mood:now', m, 12 * 3600);
-    await createDecision(`Tu as l'air ${m.stress >= 8 ? 'sous pression' : 'crevé'} (${m.why}). Je prends le relais ?`, [
+    // Une QUESTION, pas une affirmation (c'est deviné d'après ses mots) ; « Non, ça va » → silence jusqu'à demain
+    await createDecision(`Tu as l'air ${m.stress >= 8 ? 'sous pression' : 'crevé'}, je me trompe ? Si c'est le cas, je prends le relais ?`, [
       { label: 'Oui : je gère les clients 3 h et je repousse le non-urgent', tool: 'relais', input: { hours: 3 } },
       { label: 'Non, ça va', say: 'OK, je reste discret.' },
     ]);
@@ -341,7 +345,8 @@ export async function jarvis4Context(): Promise<string> {
   if (oran) l.push('🇩🇿 MODE ORAN : Kouider est EN ALGÉRIE en ce moment. Heure d\'Oran, montants en dinars d\'abord (euro au square), il peut aller sur place.');
   if (shield) l.push('🛡️ BOUCLIER FAMILLE actif : il est avec sa famille ; ne propose rien de non urgent, réponses très courtes.');
   if (relief && Date.now() < relief.until) l.push('🤝 RELAIS : tu gères les clients à sa place pour le moment, ne lui remonte que l\'urgent.');
-  if (mood && Date.now() - mood.at < 3 * 3600_000 && (mood.stress >= 7 || mood.energy <= 3)) l.push(`💭 Il est ${mood.stress >= 7 ? 'tendu' : 'fatigué'} en ce moment (${mood.why}) : sois bref, calme, propose de prendre des choses en charge.`);
+  const moodHint = await import('./mood-guard.js').then(m => m.moodHintLine(mood)).catch(() => '');
+  if (moodHint) l.push(moodHint);
   if (e) l.push(e.line);
   const sl = await import('./sleep-coach.js').then(m => m.sleepContextLine()).catch(() => '');   // 01/11 : sa nuit sert partout
   if (sl) l.push(sl);
@@ -419,7 +424,8 @@ export async function snapshot(): Promise<Record<string, unknown>> {
     promesses_dues: promises.slice(0, 5),
     sante_du_jour: health ?? null,
     energie: (await energyToday()).line,
-    humeur: await kvJson<MoodNow | null>('mood:now', null),
+    // 19/11 : humeur = SUPPOSITION d'après ses mots, vérifiée avec la montre ; vide = ne pas en parler
+    humeur_supposee: await import('./mood-guard.js').then(async m => m.moodHintLine(await kvJson<MoodNow | null>('mood:now', null))).catch(() => '') || null,
     // Liberté (son médicament) a son propre suivi : la Conscience n'en voit rien et n'en parle jamais (03/11)
     decisions_en_attente: decisions.filter(d => !d.title.startsWith('🕊️')).map(d => d.title.slice(0, 80)),
     salle_de_crise: crisis ? `${crisis.title} — ${crisis.steps.filter(s => !s.done).length} étape(s) restante(s)` : null,
@@ -455,6 +461,7 @@ export async function jobConscience(): Promise<string> {
     + `Les dates sont déjà écrites en relatif (aujourd'hui / hier / demain) : ne dis JAMAIS qu'une chose se passe aujourd'hui si elle est notée « hier ». Une location « EN COURS » est déjà partie : ne parle pas de son départ. Un message WhatsApp reçu hier n'est pas « nouveau ». `
     + `Tu ne réponds JAMAIS à une question ou demande de kouider_a_dit_2h : il a déjà eu sa réponse, tu n'es pas la conversation. `
     + `Ce que Kouider a dit (kouider_a_dit_2h) PRIME sur l'agenda : s'il a dit qu'il n'a pas de RDV, qu'il est au travail ou que c'est réglé, n'en reparle plus. Son travail n'est jamais un « RDV ». Il ne quitte JAMAIS le travail avant fin_travail_aujourdhui : ne lui conseille pas de partir plus tôt. Une durée de trajet ou une heure d'arrivée ne se donne QUE si elle est dans les données (trajet_travail_maison_min) — jamais inventée. `
+    + `Son humeur n'est JAMAIS un fait : si humeur_supposee est vide, n'en parle pas ; sinon pose une question, jamais de note sur 10. `
     + `Un sujet présent dans ignores_24h (il ne l'a pas relevé) ne se relance PAS, même reformulé, sauf danger réel ou échéance dans moins d'une heure. `
     + `Pas de redite de ce qui a déjà été envoyé ces 3 h. Pas de banalité, pas de motivation creuse, pas de « bonne journée ». Si rien d'utile → speak:false (c'est le cas le plus fréquent).\n`
     + `Réponds UNIQUEMENT en JSON : {"speak":true|false,"kind":"type court (ex. retard-rdv, client-aeroport, promesse, sante, argent, famille, decision)","urgency":1|2|3,"text":"ce que tu lui dis, 1 à 3 phrases, tutoiement, concret","options":[{"label":"bouton court","tool":"outil Dzaryx facultatif","input":{}}]} (options facultatives, 2-3 max, seulement si un simple choix permet d'agir ; "tool" = UNIQUEMENT un vrai nom d'outil Dzaryx (ex. promesses avec input {"action":"list"}), sinon ne mets pas de "tool").`,

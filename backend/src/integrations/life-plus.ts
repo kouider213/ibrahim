@@ -235,7 +235,7 @@ async function coupleContext(sat: string): Promise<string> {
     `LENDEMAIN : ${offNext ? 'congé' : `travail, réveil ${nextDay?.wake ?? '?'}${nextDay?.next ? ` (${nextDay.next})` : ''}`}${(nextEvs ?? []).length ? `, agenda : ${((nextEvs ?? []) as Array<{ summary?: string; start?: { dateTime?: string } }>).filter(e => !PRIV.test(e.summary ?? '')).map(fmtEv).join(' ; ')}` : ''}.`,
     sleep ? `SOMMEIL : ${sleep}` : '',
     ready ? `FORME DU JOUR : récupération ${ready.score}/100.` : '',
-    mood && Date.now() - mood.at < 48 * 3600_000 ? `MORAL récent : stress ${mood.stress}/10, énergie ${mood.energy}/10.` : '',
+    mood && Date.now() - mood.at < 48 * 3600_000 && (mood.stress >= 7 || mood.energy <= 3) ? `MORAL récent (SUPPOSÉ d'après ses mots, pas mesuré — ne l'affirme pas, pas de chiffre) : peut-être ${mood.stress >= 7 ? 'tendu' : 'fatigué'}.` : '',
     forme ? `RÉGIME / SPORT : ${forme.slice(0, 500)}` : '',
   ].filter(Boolean).join('\n');
 }

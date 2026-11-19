@@ -1,3 +1,9 @@
+## 19/11/2026 (suite 2) — Humeur = supposition, vérifiée avec la montre (mood-guard.ts)
+- Kouider : « il m'envoie "je sens que tu es stressé", comment il peut confirmer ça ? » → l'humeur est devinée par une IA d'après ses mots.
+- 1) Jamais affirmée ni chiffrée : moodText (dossier), jarvis4Context, Conscience (humeur_supposee), life-plus, rapport mensuel → « supposition, demande-le ».
+- 2) Croisée avec la montre (VFC < 85 % de la moyenne 14 j, pouls repos +4, nuit < 5,5 h) : montre normale → silence ; pas de données → question seulement.
+- 3) « non ça va », « je suis pas stressé », « tout va bien »… → mood:denied:<date>, plus un mot sur son humeur jusqu'au lendemain (moodNowTick, alerte 3 jours, cerveaux).
+
 ## 19/11/2026 (suite) — Appels de nuit / pendant le travail, check-list sans caution, faux refus
 - 18/11 01h20 : APPEL de la Conscience « ton stress est à 8/10, dors maintenant ». Moral / sommeil / santé / sport / famille = urgence 2 max → jamais d'appel, et rien la nuit.
 - 18/11 19h30 : appel « urgent » pendant le travail pour la check-list du retour d'un client dans 2 jours. Les check-lists clients restent en message ; seuls ses propres voyages (≤ J-2) appellent. « Caution rendue » retiré (FIK loue sans caution, anciennes listes filtrées).

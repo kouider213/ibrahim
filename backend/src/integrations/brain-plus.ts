@@ -134,9 +134,11 @@ export async function jobMood(): Promise<string> {
   await kvPut('mood:log', log.filter(m => m.date !== date || m === log[log.length - 1]).slice(-120));
   const last3 = log.slice(-3);
   const alerted = await kvJson<string>('mood:alerted', '');
-  if (last3.length === 3 && last3.every(m => m.stress >= 7) && (!alerted || Date.parse(date) - Date.parse(alerted) > 5 * 86_400_000)) {
+  const mg = await import('./mood-guard.js');
+  if (last3.length === 3 && last3.every(m => m.stress >= 7) && (!alerted || Date.parse(date) - Date.parse(alerted) > 5 * 86_400_000)
+    && !(await mg.moodDeniedToday()) && (await mg.watchSignal().catch(() => null)) !== 'ok') {
     await kvPut('mood:alerted', date);
-    await tg(`💭 Kouider, ça fait 3 jours que je te sens sous pression (${last3.map(m => m.why).join(' ; ')}).\nTu veux que je décale ce qui peut attendre demain et que je te garde une vraie pause ? Dis-moi juste « allège ma journée ».`);
+    await tg(`💭 Kouider, d'après tes messages de ces 3 derniers jours, tu as l'air sous pression — je me trompe ?\nSi c'est le cas, je peux décaler ce qui peut attendre demain et te garder une vraie pause : dis-moi juste « allège ma journée ». Si ça va, dis-le-moi et je n'en parle plus.`);
   }
   return `humeur ${o.mood} stress ${o.stress}`;
 }
@@ -146,7 +148,9 @@ export async function moodText(): Promise<string> {
   const log = await kvJson<Mood[]>('mood:log', []);
   const m = log[log.length - 1];
   if (!m || Date.now() - Date.parse(m.date) > 2 * 86_400_000) return '';
-  return `HUMEUR RÉCENTE de Kouider (${m.date}) : ${m.mood}, stress ${m.stress}/10, énergie ${m.energy}/10 — ${m.why}${m.stress >= 7 ? ' → sois bref, calme et rassurant, propose d\'alléger.' : ''}`;
+  // 19/11 : deviné d'après ses mots → supposition, sans chiffre, vérifiée avec la montre, muette s'il a dit que ça va
+  const { moodHintLine } = await import('./mood-guard.js');
+  return moodHintLine({ at: Date.parse(`${m.date}T20:00:00`), stress: m.stress, energy: m.energy, why: m.why }, 36 * 3600_000);
 }
 
 // ── Habitudes : il devine ────────────────────────────────────────────────────
@@ -196,7 +200,7 @@ export async function buildSelfReport(days = 30): Promise<string> {
   return ai(`Écris à Kouider « Le rapport : qui tu es » des ${days} derniers jours, à partir de ces VRAIES données (n'invente rien) :
 - Messages à son assistant par heure (0h→23h) : ${byHour.join(',')} (total ${turns.length})
 - Exemples de ses demandes : ${turns.filter((_, i) => i % Math.max(1, Math.floor(turns.length / 60)) === 0).map(t => t.content.slice(0, 90)).join(' | ').slice(0, 6000)}
-- Humeur notée chaque soir : ${mood.map(m => `${m.date} ${m.mood} stress ${m.stress}`).join(' ; ') || 'pas encore de données'}
+- Humeur DEVINÉE chaque soir d'après ses messages (supposition, à présenter comme une tendance, jamais comme une mesure) : ${mood.map(m => `${m.date} ${m.mood}`).join(' ; ') || 'pas encore de données'}
 - Santé (montre) : ${health.map(h => `${h.date} sommeil ${h.sleep_h ?? '?'}h pas ${h.steps ?? '?'}`).join(' ; ') || 'pas encore branché'}
 - Argent FIK : ${String(money).slice(0, 1200)}
 - Dépenses : ${String(expenses).slice(0, 800)}
