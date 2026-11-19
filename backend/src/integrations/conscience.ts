@@ -461,8 +461,12 @@ export async function jobConscience(): Promise<string> {
     { max: 500 }));
   if (!o?.speak || !o.text) return 'silence';
   if (MED_RE.test(o.text) || /lib[ée]rt[ée]|sant[ée]-?m[ée]d/i.test(String(o.kind))) return 'tu (Liberté a son propre suivi)';
-  const urgency = Math.max(1, Math.min(3, Number(o.urgency) || 1));
   const kind = String(o.kind ?? 'autre').slice(0, 30);
+  // 18/11 01h20 : APPEL « ton stress est à 8/10, dors maintenant » (urgence 3 donnée par le modèle). La nuit / bouclier famille,
+  // le moral, le sommeil, la santé ou le sport ne sont jamais une urgence 3 (ni appel ni message).
+  const soft = /sant|sommeil|dorm|humeur|moral|stress|fatigu|motiv|sport|repos|famille|ecran|écran|bien-?[eê]tre/i.test(`${kind} ${o.text}`)
+    && !/accident|police|panne|urgence|h[oô]pital|a[ée]roport|vol\b|client/i.test(`${kind} ${o.text}`);
+  const urgency = Math.max(1, Math.min(soft ? 2 : 3, Number(o.urgency) || 1));
   // Jamais deux fois le même sujet en 3 h, même « urgent » (le 28/10 : 4 alertes + appels pour un faux RDV)
   if (log.some(n => n.kind === kind && Date.now() - n.at < 3 * 3600_000)) return `tu (${kind} déjà dit)`;
   // Même type ignoré 2 fois de suite en 24 h → on se tait 24 h sur ce type (hors catégories fourre-tout)

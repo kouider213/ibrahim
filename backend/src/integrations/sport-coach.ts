@@ -1179,7 +1179,8 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
     // 13/11 : il avait promis « demain on reprend les Épaules » alors que le planning disait Dos & Biceps → on lit la vraie suite
     const stN = await getState();
     const nextD = Object.keys(stN.plan).filter(d => d > date).sort()[0];
-    const nextLine = nextD ? ` PROCHAINE SÉANCE (dis exactement celle-ci, n'en invente pas d'autre) : ${stN.plan[nextD]!.title ?? SESSIONS[stN.plan[nextD]!.type]?.label ?? stN.plan[nextD]!.type} le ${fmt(nextD)}.` : '';
+    // 19/11 : la consigne « (dis exactement celle-ci…) » s'affichait telle quelle quand le code répond directement
+    const nextLine = nextD ? `\n➡️ Prochaine séance prévue (la seule vraie) : ${stN.plan[nextD]!.title ?? SESSIONS[stN.plan[nextD]!.type]?.label ?? stN.plan[nextD]!.type} le ${fmt(nextD)}.` : '';
     return `✅ Pas de sport le ${fmt(date)} (${reason}) : pas de message ni d'appel de réveil, pas d'alerte de départ, et la séance passe au créneau suivant. Agenda : ${removed.length ? `enlevé ${removed.join(', ')}` : 'rien à enlever (ou agenda injoignable)'}.${nextLine}`;
   }
   if (action === 'rest' || action === 'rest_off') {

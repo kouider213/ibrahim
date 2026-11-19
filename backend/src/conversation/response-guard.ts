@@ -31,6 +31,8 @@ const ACTION_TOOLS = new Set([
   'get_car_photo', 'send_photos', 'get_client_document', 'partners', 'family_care', 'papa_time', 'forme', 'update_car', 'add_car', 'delete_car', 'business_mentor', 'kouider_dossier',
   // Jarvis : outils qui lancent un vrai travail (escouade, atelier…) et répondent « 🏭 … lancée » (30/10 : usine_business bloqué à tort)
   'site_admin', 'usine_business', 'atelier', 'se_coder', 'chasseur_voitures', 'commercial', 'radar_concurrence', 'auto_amelioration', 'autonomie', 'liberte', 'vitalite', 'vie', 'grand_coach', 'sport_coach', 'esprit',
+  // 13/11 21h48 : « remets mes horaires de travail » → morning_routine ✅ puis « ⚠️ Je n'ai pas exécuté cette action » (faux refus)
+  'morning_routine',
 ]);
 
 // Patterns qui indiquent que Claude prétend avoir exécuté une action write

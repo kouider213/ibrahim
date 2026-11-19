@@ -1,3 +1,9 @@
+## 19/11/2026 (suite) — Appels de nuit / pendant le travail, check-list sans caution, faux refus
+- 18/11 01h20 : APPEL de la Conscience « ton stress est à 8/10, dors maintenant ». Moral / sommeil / santé / sport / famille = urgence 2 max → jamais d'appel, et rien la nuit.
+- 18/11 19h30 : appel « urgent » pendant le travail pour la check-list du retour d'un client dans 2 jours. Les check-lists clients restent en message ; seuls ses propres voyages (≤ J-2) appellent. « Caution rendue » retiré (FIK loue sans caution, anciennes listes filtrées).
+- 13/11 : « remets mes horaires » → morning_routine ✅ puis faux « ⚠️ Je n'ai pas exécuté cette action » : morning_routine ajouté aux outils d'action du phantomGuard.
+- sport_coach skip : la consigne interne « (dis exactement celle-ci…) » s'affichait → « ➡️ Prochaine séance prévue (la seule vraie) : … ».
+
 ## 19/11/2026 — Revue de la semaine : GPS en retard, calories FORME, Agence FIK, journée famille
 - « 🏢 Bien arrivé au travail » à 6h47 alors qu'il y était à 6h30 + « 🎒 Tu as bien : tes dossiers… » à 6h48 : l'iPhone n'a envoyé AUCUNE position entre 5h30 et 6h47. gps-life `fresh` (point précédent ≤ 10 min) : après un trou, pas de check-list de départ, pas de sas maison, et le Grand Coach dit « Au travail : » au lieu de « Bien arrivé ».
 - « Journée famille » (family_care hard_day) rendait isDayOff vrai → atWorkNow faux alors qu'il travaille jusqu'à 13h le jeudi. Nouveau `isOffWork()` (congé réel, sans journée dure) utilisé par atWorkNow.

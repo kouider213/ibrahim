@@ -94,7 +94,7 @@ const CLIENT_START = [
 ] as const;
 const CLIENT_END = [
   ['Heure et lieu de retour confirmés', ''], ['Solde encaissé', 'paid'], ['Photos état des lieux après', ''],
-  ['Caution rendue', ''], ['Demande d\'avis envoyée', 'review'],
+  ['Demande d\'avis envoyée', 'review'],   // 19/11 : « Caution rendue » retiré — FIK loue SANS caution
 ] as const;
 
 // ── Création d'un voyage ─────────────────────────────────────────────────────
@@ -255,7 +255,7 @@ export async function clientChecklistMissing(bookingId: string, kind: 'booking-s
 
 // ── Rappels ──────────────────────────────────────────────────────────────────
 
-const missing = (t: Trip) => t.checklist.filter(i => !i.done);
+const missing = (t: Trip) => t.checklist.filter(i => !i.done && !/^caution rendue$/i.test(i.label.trim()));   // anciennes listes : pas de caution chez FIK
 const upcoming = (list: Trip[]) => list.filter(t => !t.validated && t.checklist.length && t.departAt > Date.now() - 3 * 3600_000)
   .sort((a, b) => a.departAt - b.departAt);
 const inDays = (n: number) => n <= 0 ? "aujourd'hui" : n === 1 ? 'demain' : `dans ${n} jours`;
@@ -282,8 +282,9 @@ export async function jobTripReminders(): Promise<void> {
   await queueTelegramMessage(text);
   emitProactive('📋 Check-lists à valider', 'reminder', text);
 
-  // Appel : voyages de Kouider à J-2 ou moins ; clients à J-2 (J-1 = l'appel de 18h « veille de location » le dit déjà)
-  const urgent = [...mine.filter(t => daysUntil(t.departAt) <= CALL_FROM_DAYS), ...clients.filter(t => daysUntil(t.departAt) === CALL_FROM_DAYS)];
+  // Appel : SEULEMENT ses propres voyages à J-2 ou moins. 18/11 19h30 : appel « urgent » pendant son travail pour le retour
+  // d'un client dans 2 jours → les check-lists clients restent en message (la veille, l'appel de 18h « veille de location » le dit déjà).
+  const urgent = mine.filter(t => daysUntil(t.departAt) <= CALL_FROM_DAYS);
   if (!urgent.length) return;
   const said = urgent.map(t => `${t.who === 'kouider' ? `Ton ${t.title.replace(/^Vol/, 'vol')}` : t.title} ${inDays(daysUntil(t.departAt))} : il manque ${missing(t).slice(0, 6).map(i => i.label.toLowerCase()).join(', ')}.`);
   await autoCall(`trip-checklist:${localNow().date}`,
