@@ -1,15 +1,16 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { apiFetch } from '../services/api.ts';
 import { F, card, Sheet, Spinner } from './ui.tsx';
 import { errText, vibrate } from './api.ts';
+import { Anim, ExerciseSheet, type SessionInfo } from './Exercises.tsx';
 
 // 📅 AGENDA DES SÉANCES — 19/11 (Kouider : « l'agenda avec toutes les séances que je dois faire et que j'ai déjà faites ;
 // celles faites avec le poids porté et toutes les infos ; les prochaines avec les objectifs à réaliser, les records à battre »).
 // Données : GET /api/sport/agenda (backend sport-coach.ts sportAgenda) — log réel, plan de la semaine, progression, records.
 
 type SetX = { kg?: number; reps?: number };
-interface DoneEx { name: string; sets: SetX[]; pr: boolean }
-interface PlanEx { name: string; muscle: string; sets: number; reps: string; rest: number; timed: boolean; plan: number[] | null; up: boolean; goal: string | null; last: string | null;
+interface DoneEx { name: string; sets: SetX[]; pr: boolean; demo?: string[] }
+interface PlanEx { name: string; demo?: string[]; tip?: string; video?: string; muscle: string; sets: number; reps: string; rest: number; timed: boolean; plan: number[] | null; up: boolean; goal: string | null; last: string | null;
   prev: Array<{ kg: number; reps: number | null }> | null; record: { kg: number; reps: number | null; date: string } | null }
 interface Day { date: string; status: 'done' | 'missed' | 'skip' | 'planned' | 'today'; label: string; emoji?: string; focus?: string; start?: string; estMin?: number;
   warmup?: string; finisher?: string | null; deload?: boolean; durationMin?: number | null; rpe?: number | null; note?: string | null; volume?: number; prs?: string[]; reason?: string;
@@ -19,8 +20,6 @@ interface Agenda { today: string; goal: { text: string; done: number; target: nu
 const fr = (n: number) => String(n).replace('.', ',');
 const dd = (d: string) => `${d.slice(8)}/${d.slice(5, 7)}`;
 const longDay = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' });
-const chip = (children: ReactNode, bg: string = F.bg, color: string = F.ink, key?: number | string) =>
-  <span key={key} style={{ fontSize: 12.5, fontWeight: 600, background: bg, color, borderRadius: 8, padding: '4px 8px', whiteSpace: 'nowrap' }}>{children}</span>;
 const COLOR: Record<Day['status'], string> = { done: F.green, today: F.accent, planned: F.accent, missed: F.red, skip: F.muted };
 
 function MonthGrid({ days, today, onPick }: { days: Day[]; today: string; onPick: (d: string) => void }) {
@@ -62,62 +61,139 @@ function MonthGrid({ days, today, onPick }: { days: Day[]; today: string; onPick
   );
 }
 
-function PlannedCard({ d }: { d: Day }) {
+const thumbBox: CSSProperties = { width: 68, height: 68, borderRadius: 16, background: F.tile, flexShrink: 0, display: 'flex', alignItems: 'center', overflow: 'hidden', padding: 4, boxSizing: 'border-box' };
+const Thumb = ({ e, size = 68 }: { e: { name: string; demo?: string[] }; size?: number }) => (
+  <div style={{ ...thumbBox, width: size, height: size }}>{e.demo?.length ? <Anim img={e.demo} alt={e.name} h={size - 8} /> : <span style={{ margin: 'auto', fontSize: size / 2.6 }}>🏋️</span>}</div>
+);
+const th: CSSProperties = { fontSize: 10.5, fontWeight: 700, color: F.muted, textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0 0 4px' };
+const td: CSSProperties = { fontSize: 13.5, fontWeight: 600, padding: '5px 0', borderTop: `1px solid ${F.line}`, fontVariantNumeric: 'tabular-nums' };
+
+/** Une ligne d'exercice : photo animée (le mouvement) + nom + tableau des séries. Toucher = fiche complète de l'exercice. */
+function ExBlock({ e, onOpen, children, badge }: { e: { name: string; demo?: string[] }; onOpen: () => void; children?: ReactNode; badge?: ReactNode }) {
+  return (
+    <div style={{ padding: '12px 0', borderTop: `1px solid ${F.line}` }}>
+      <button onClick={onOpen} style={{ display: 'flex', gap: 12, alignItems: 'center', width: '100%', border: 'none', background: 'none', padding: 0, cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit', color: F.ink }}>
+        <Thumb e={e} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 650, fontSize: 15, lineHeight: 1.25 }}>{e.name}</div>
+          {badge}
+        </div>
+        <span style={{ color: F.muted, fontSize: 18 }}>›</span>
+      </button>
+      {children}
+    </div>
+  );
+}
+
+function PlannedCard({ d, onEx }: { d: Day; onEx: (e: PlanEx) => void }) {
   const exs = d.exercises as PlanEx[];
   return (
     <>
-      <div style={{ fontSize: 12.5, color: F.muted, marginTop: 4 }}>
-        {d.start ? `🕐 ${new Date(d.start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' })}` : ''}{d.estMin ? ` · ~${d.estMin} min` : ''}{d.focus ? ` · ${d.focus}` : ''}
-      </div>
-      {d.deload && <div style={{ fontSize: 12.5, color: F.gold, fontWeight: 600, marginTop: 6 }}>🪶 Semaine allégée : charges −10 %</div>}
-      {d.warmup && <div style={{ fontSize: 12.5, color: F.muted, marginTop: 6 }}>🔥 Échauffement : {d.warmup}</div>}
-      <div style={{ marginTop: 6 }}>
-        {exs.map((e, k) => (
-          <div key={k} style={{ padding: '10px 0', borderTop: `1px solid ${F.line}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-              <div style={{ fontWeight: 600, fontSize: 14.5 }}>{e.name}</div>
-              <div style={{ fontSize: 12.5, color: F.muted, whiteSpace: 'nowrap' }}>{e.sets} × {e.reps}</div>
-            </div>
-            {e.plan?.length ? (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 6, alignItems: 'center' }}>
-                <span style={{ fontSize: 11.5, color: F.muted, fontWeight: 600 }}>À faire :</span>
-                {e.plan.map((kg, i) => chip(<>S{i + 1} {fr(kg)} kg{e.up && i === 0 ? ' ↑' : ''}</>, e.up && i === 0 ? 'rgba(255,90,31,0.14)' : F.bg, e.up && i === 0 ? F.accent : F.ink, i))}
-              </div>
-            ) : !e.timed && e.muscle !== 'cardio' ? <div style={{ fontSize: 12.5, color: F.muted, marginTop: 5 }}>Première fois : trouve un poids où les dernières reps sont dures mais propres.</div> : null}
-            {e.goal && <div style={{ fontSize: 12.5, marginTop: 6, lineHeight: 1.4 }}>🎯 {e.goal}</div>}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 5, fontSize: 12, color: F.muted }}>
-              {e.record && <span style={{ color: F.gold, fontWeight: 600 }}>🏆 Record à battre : {fr(e.record.kg)} kg{e.record.reps ? ` × ${e.record.reps}` : ''} ({dd(e.record.date)})</span>}
-              {e.prev?.length ? <span>Dernière fois : {e.prev.map(p => `${fr(p.kg)}×${p.reps ?? '?'}`).join(' · ')}</span> : null}
-            </div>
-          </div>
-        ))}
-      </div>
-      {d.finisher && <div style={{ fontSize: 12.5, color: F.muted, marginTop: 6 }}>🏁 Pour finir : {d.finisher}</div>}
+      {d.deload && <div style={{ fontSize: 12.5, color: F.gold, fontWeight: 600, marginTop: 8 }}>🪶 Semaine allégée : charges −10 %</div>}
+      {d.warmup && <div style={{ fontSize: 12.5, color: F.muted, margin: '8px 0 4px' }}>🔥 Échauffement : {d.warmup}</div>}
+      {exs.map((e, k) => {
+        const rows = e.plan?.length ? e.plan : null;
+        return (
+          <ExBlock key={k} e={e} onOpen={() => onEx(e)} badge={<>
+            <div style={{ fontSize: 12.5, color: F.muted, marginTop: 2 }}>{e.sets} séries × {e.reps}{e.rest ? ` · repos ${e.rest} s` : ''}</div>
+            {e.record && <div style={{ display: 'inline-block', marginTop: 5, fontSize: 11.5, fontWeight: 700, color: F.gold, background: 'rgba(245,158,11,0.13)', borderRadius: 999, padding: '3px 9px' }}>🏆 Record à battre · {fr(e.record.kg)} kg{e.record.reps ? ` × ${e.record.reps}` : ''}</div>}
+          </>}>
+            {rows ? (
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 10 }}>
+                <thead><tr><th style={{ ...th, textAlign: 'start' }}>Série</th><th style={{ ...th, textAlign: 'center' }}>Objectif</th><th style={{ ...th, textAlign: 'end' }}>Dernière fois</th></tr></thead>
+                <tbody>{rows.map((kg, i) => {
+                  const up = e.up && i === 0, p = e.prev?.[i];
+                  return (
+                    <tr key={i}>
+                      <td style={{ ...td, color: F.muted, width: 52 }}>{i + 1}</td>
+                      <td style={{ ...td, textAlign: 'center', color: up ? F.accent : F.ink }}>{fr(kg)} kg × {e.reps}{up ? ' ↑' : ''}</td>
+                      <td style={{ ...td, textAlign: 'end', color: F.muted, fontWeight: 500 }}>{p ? `${fr(p.kg)} kg × ${p.reps ?? '?'}` : '—'}</td>
+                    </tr>
+                  );
+                })}</tbody>
+              </table>
+            ) : !e.timed && e.muscle !== 'cardio' ? <div style={{ fontSize: 12.5, color: F.muted, marginTop: 8 }}>Première fois : trouve un poids où les dernières reps sont dures mais propres.</div> : null}
+            {e.goal && <div style={{ fontSize: 12.5, lineHeight: 1.45, marginTop: 8, background: 'rgba(255,90,31,0.08)', borderRadius: 10, padding: '8px 10px' }}>🎯 {e.goal}</div>}
+          </ExBlock>
+        );
+      })}
+      {d.finisher && <div style={{ fontSize: 12.5, color: F.muted, marginTop: 8 }}>🏁 Pour finir : {d.finisher}</div>}
     </>
   );
 }
 
-function DoneCard({ d }: { d: Day }) {
+function DoneCard({ d, onEx }: { d: Day; onEx: (e: DoneEx) => void }) {
   const exs = d.exercises as DoneEx[];
   return (
     <>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 12.5, color: F.muted, marginTop: 4 }}>
-        {d.durationMin ? <span>⏱ {d.durationMin} min</span> : null}
-        {d.volume ? <span>🏋️ {d.volume >= 1000 ? `${fr(Math.round(d.volume / 100) / 10)} t` : `${d.volume} kg`} soulevés</span> : null}
-        {exs.length ? <span>{exs.reduce((a, e) => a + e.sets.length, 0)} séries</span> : null}
-        {d.rpe ? <span>💥 effort {d.rpe}/10</span> : null}
-      </div>
-      {d.prs?.length ? <div style={{ fontSize: 12.5, color: F.gold, fontWeight: 700, marginTop: 6 }}>🏆 Record battu : {d.prs.join(', ')}</div> : null}
-      {exs.length ? exs.map((e, k) => (
-        <div key={k} style={{ padding: '9px 0', borderTop: k ? `1px solid ${F.line}` : 'none', marginTop: k ? 0 : 6 }}>
-          <div style={{ fontWeight: 600, fontSize: 14 }}>{e.name}{e.pr ? <span style={{ color: F.gold }}> 🏆</span> : null}</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 5 }}>
-            {e.sets.map((z, i) => chip(<>{i + 1}. {z.kg != null ? `${fr(z.kg)} kg` : '—'}{z.reps != null ? ` × ${z.reps}` : ''}</>, F.bg, F.ink, i))}
-          </div>
-        </div>
-      )) : <div style={{ fontSize: 12.5, color: F.muted, marginTop: 6 }}>Séance notée sans le détail des séries.</div>}
-      {d.note && <div style={{ fontSize: 12.5, color: F.muted, marginTop: 6 }}>📝 {d.note}</div>}
+      {exs.length ? exs.map((e, k) => {
+        const top = Math.max(0, ...e.sets.map(z => z.kg ?? 0));
+        return (
+          <ExBlock key={k} e={e} onOpen={() => onEx(e)} badge={<>
+            <div style={{ fontSize: 12.5, color: F.muted, marginTop: 2 }}>{e.sets.length} série{e.sets.length > 1 ? 's' : ''}{top ? ` · max ${fr(top)} kg` : ''}</div>
+            {e.pr && <div style={{ display: 'inline-block', marginTop: 5, fontSize: 11.5, fontWeight: 700, color: F.gold, background: 'rgba(245,158,11,0.13)', borderRadius: 999, padding: '3px 9px' }}>🏆 Nouveau record</div>}
+          </>}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 10 }}>
+              <thead><tr><th style={{ ...th, textAlign: 'start' }}>Série</th><th style={{ ...th, textAlign: 'center' }}>Poids</th><th style={{ ...th, textAlign: 'end' }}>Reps</th></tr></thead>
+              <tbody>{e.sets.map((z, i) => {
+                const best = !!top && z.kg === top;
+                return (
+                  <tr key={i}>
+                    <td style={{ ...td, color: F.muted, width: 52 }}>{i + 1}</td>
+                    <td style={{ ...td, textAlign: 'center', color: best ? F.green : F.ink }}>{z.kg != null ? `${fr(z.kg)} kg` : '—'}</td>
+                    <td style={{ ...td, textAlign: 'end' }}>{z.reps ?? '—'}</td>
+                  </tr>
+                );
+              })}</tbody>
+            </table>
+          </ExBlock>
+        );
+      }) : <div style={{ fontSize: 12.5, color: F.muted, marginTop: 8 }}>Séance notée sans le détail des séries.</div>}
+      {d.note && <div style={{ fontSize: 12.5, color: F.muted, marginTop: 8 }}>📝 {d.note}</div>}
     </>
+  );
+}
+
+const pill = (t: ReactNode) => <span style={{ fontSize: 12, fontWeight: 600, background: F.bg, borderRadius: 999, padding: '5px 10px', whiteSpace: 'nowrap' }}>{t}</span>;
+const STATUS_TXT: Record<Day['status'], string> = { today: "Aujourd'hui", planned: 'À venir', done: 'Faite', missed: 'Ratée', skip: 'Repos' };
+
+/** Carte d'un jour : en-tête pro (statut, date, titre, chiffres), aperçu des exercices en photos ; touché = détail complet. */
+function DayCard({ d, open, onToggle, onEx }: { d: Day; open: boolean; onToggle: () => void; onEx: (e: SessionInfo) => void }) {
+  const c = COLOR[d.status], rich = d.exercises.length > 0;
+  const time = d.start ? new Date(d.start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }) : null;
+  return (
+    <div style={{ ...card, padding: 0, overflow: 'hidden', opacity: d.status === 'skip' ? 0.7 : 1 }}>
+      <button onClick={rich ? onToggle : undefined} style={{ display: 'block', width: '100%', boxSizing: 'border-box', border: 'none', textAlign: 'start', cursor: rich ? 'pointer' : 'default', fontFamily: 'inherit', color: F.ink, padding: '14px 16px 12px',
+        background: `linear-gradient(135deg, color-mix(in srgb, ${c} 16%, transparent), transparent 70%)` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: '#fff', background: c, borderRadius: 999, padding: '3px 9px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{STATUS_TXT[d.status]}{d.status === 'done' ? ' ✓' : ''}</span>
+          <span style={{ fontSize: 12.5, color: F.muted, textTransform: 'capitalize', flex: 1 }}>{longDay(d.date)}{time && d.status !== 'done' ? ` · ${time}` : ''}</span>
+          {rich && <span style={{ color: F.muted, fontSize: 14, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }}>›</span>}
+        </div>
+        <div style={{ fontSize: 19, fontWeight: 750, letterSpacing: '-0.02em', marginTop: 8, lineHeight: 1.2 }}>{d.emoji ? `${d.emoji} ` : ''}{d.status === 'skip' ? `Pas de sport${d.reason ? ` · ${d.reason}` : ''}` : d.label}</div>
+        {d.status === 'missed' && <div style={{ fontSize: 12.5, color: F.muted, marginTop: 4 }}>Pas faite — elle reste dans la rotation pour la prochaine fois.</div>}
+        {rich && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+          {d.status === 'done' ? <>
+            {d.durationMin ? pill(`⏱ ${d.durationMin} min`) : null}
+            {d.volume ? pill(`🏋️ ${d.volume >= 1000 ? `${fr(Math.round(d.volume / 100) / 10)} t` : `${d.volume} kg`}`) : null}
+            {pill(`${(d.exercises as DoneEx[]).reduce((a, e) => a + e.sets.length, 0)} séries`)}
+            {d.rpe ? pill(`💥 ${d.rpe}/10`) : null}
+            {d.prs?.length ? pill(<span style={{ color: F.gold }}>🏆 {d.prs.length} record{d.prs.length > 1 ? 's' : ''}</span>) : null}
+          </> : <>
+            {pill(`${d.exercises.length} exercices`)}
+            {d.estMin ? pill(`⏱ ~${d.estMin} min`) : null}
+            {(d.exercises as PlanEx[]).some(e => e.up) ? pill(<span style={{ color: F.accent }}>↑ charge en hausse</span>) : null}
+          </>}
+        </div>}
+        {rich && !open && <div style={{ display: 'flex', gap: 6, marginTop: 12, overflow: 'hidden' }}>
+          {d.exercises.slice(0, d.exercises.length > 6 ? 5 : 6).map((e, i) => <Thumb key={i} e={e} size={48} />)}
+          {d.exercises.length > 6 && <div style={{ ...thumbBox, width: 48, height: 48, justifyContent: 'center', fontSize: 13, fontWeight: 700, color: F.muted }}>+{d.exercises.length - 5}</div>}
+        </div>}
+      </button>
+      {rich && open && <div style={{ padding: '0 16px 14px' }}>
+        {d.status === 'done' ? <DoneCard d={d} onEx={e => onEx({ name: e.name, demo: e.demo })} /> : <PlannedCard d={d} onEx={e => onEx({ name: e.name, demo: e.demo, sets: e.sets, reps: e.reps, rest: e.rest, tip: e.tip, video: e.video })} />}
+      </div>}
+    </div>
   );
 }
 
@@ -126,10 +202,13 @@ export function AgendaSheet({ open, onClose }: { open: boolean; onClose: () => v
   const [err, setErr] = useState('');
   const [tab, setTab] = useState<'next' | 'done' | 'all'>('all');
   const refs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [openD, setOpenD] = useState<Record<string, boolean>>({});
+  const [ex, setEx] = useState<SessionInfo | null>(null);
   useEffect(() => { if (!open) return; setErr(''); apiFetch<Agenda>('/api/sport/agenda?days=120').then(setA).catch(e => setErr(errText(e))); }, [open]);
   const pick = (d: string) => {
     const x = a?.days.find(y => y.date === d);
     if (x) setTab(x.status === 'planned' || x.status === 'today' ? (tab === 'done' ? 'all' : tab) : (tab === 'next' ? 'all' : tab));
+    setOpenD(o => ({ ...o, [d]: true }));
     setTimeout(() => refs.current[d]?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
   };
   const upcoming = (a?.days ?? []).filter(d => d.status === 'planned' || d.status === 'today').reverse();   // la plus proche d'abord
@@ -154,25 +233,17 @@ export function AgendaSheet({ open, onClose }: { open: boolean; onClose: () => v
         <div style={{ display: 'flex', gap: 4, background: F.bg, borderRadius: 12, padding: 3, marginTop: 12 }}>
           {tabBtn('all', 'Tout')}{tabBtn('next', `À venir (${upcoming.length})`)}{tabBtn('done', 'Faites')}
         </div>
-        <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10, marginTop: 12 }}>
           {list.length === 0 && <div style={{ color: F.muted, textAlign: 'center', padding: 20 }}>Rien ici pour l'instant.</div>}
-          {list.map(d => (
-            <div key={d.date} ref={el => { refs.current[d.date] = el; }} style={{ ...card, padding: 14, scrollMarginTop: 12, borderLeft: `4px solid ${COLOR[d.status]}`, opacity: d.status === 'skip' ? 0.7 : 1 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: COLOR[d.status], textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                  {d.status === 'today' ? "Aujourd'hui" : d.status === 'planned' ? 'À venir' : d.status === 'done' ? 'Faite ✓' : d.status === 'missed' ? 'Ratée' : 'Repos'}
-                </div>
-                <div style={{ fontSize: 12.5, color: F.muted, textTransform: 'capitalize' }}>{longDay(d.date)}</div>
-              </div>
-              <div style={{ fontSize: 17, fontWeight: 700, marginTop: 4 }}>{d.emoji ? `${d.emoji} ` : ''}{d.status === 'skip' ? `Pas de sport${d.reason ? ` · ${d.reason}` : ''}` : d.label}</div>
-              {(d.status === 'planned' || d.status === 'today') && <PlannedCard d={d} />}
-              {d.status === 'done' && <DoneCard d={d} />}
-              {d.status === 'missed' && <div style={{ fontSize: 12.5, color: F.muted, marginTop: 4 }}>Pas faite — elle reste dans la rotation pour la prochaine fois.</div>}
+          {list.map((d, i) => (
+            <div key={d.date} ref={el => { refs.current[d.date] = el; }} style={{ scrollMarginTop: 12, minWidth: 0 }}>
+              <DayCard d={d} open={openD[d.date] ?? (i === 0 && (d.status === 'today' || d.status === 'planned' || tab === 'done'))} onToggle={() => { vibrate(8); setOpenD(o => ({ ...o, [d.date]: !(o[d.date] ?? (i === 0 && (d.status === 'today' || d.status === 'planned' || tab === 'done'))) })); }} onEx={setEx} />
             </div>
           ))}
         </div>
         {a.rules.length > 0 && <div style={{ fontSize: 12, color: F.muted, marginTop: 14, lineHeight: 1.45 }}>📌 Tes règles : {a.rules.join(' · ')}</div>}
       </>}
+      <ExerciseSheet session={ex} onClose={() => setEx(null)} z={70} />
     </Sheet>
   );
 }

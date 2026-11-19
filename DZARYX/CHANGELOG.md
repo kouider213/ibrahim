@@ -1,3 +1,7 @@
+## 19/11/2026 (suite 9) — FORME Agenda plus pro, avec photos des exercices (app v283)
+- /api/sport/agenda renvoie la photo animée (2 images) de chaque exercice fait ou prévu (demoFor + fillDemos).
+- Cartes repensées : badge statut, chiffres en pastilles, aperçu des exercices en photos ; ouvertes = photo + tableau SÉRIE | OBJECTIF | DERNIÈRE FOIS (à venir) ou SÉRIE | POIDS | REPS (faites), record à battre / nouveau record ; toucher un exercice = sa fiche complète.
+
 ## 19/11/2026 (suite 8) — FORME : Agenda des séances (app v282)
 - Onglet Séance → bouton « 📅 Agenda des séances » : calendrier du mois (faites ✓ / à venir / ratées / repos), séances faites avec chaque série kg × reps, durée, tonnage, effort, records battus 🏆 ; séances à venir avec poids prévu série par série, objectif de progression, record à battre et dernière perf. Route GET /api/sport/agenda (sportAgenda). Anciennes séances sans nom → nom tiré des exercices notés (plus le nom de la case actuelle du programme).
 
