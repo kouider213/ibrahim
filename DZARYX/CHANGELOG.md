@@ -1,3 +1,6 @@
+## 19/11/2026 (suite 6) — App v281 : texte tapé visible dans le Chat
+- La zone de saisie du Chat avait une couleur de texte noire codée en dur → invisible en thème sombre. Elle suit maintenant le thème (var(--dz-text)).
+
 ## 19/11/2026 (suite 5) — Contrat : article 2 « DOCUMENTS » (sans le mot caution)
 - Le contrat disait « CAUTION ET DOCUMENTS » alors que le site / la signature promettent « aucune caution ». Kouider garde bien le passeport → règle gardée, titre « DOCUMENTS » + « Aucune caution ni dépôt d'argent n'est demandé ».
 

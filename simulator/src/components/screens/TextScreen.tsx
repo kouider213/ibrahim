@@ -610,7 +610,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
             rows={1}
             style={{
               flex: 1, background: 'transparent', border: 'none',
-              padding: '8px 0', color: 'rgb(12,14,26)',
+              padding: '8px 0', color: 'var(--dz-text, rgb(12,14,26))', caretColor: 'var(--dz-text, rgb(12,14,26))',
               fontFamily: 'Inter', fontSize: 16, fontWeight: 400,
               resize: 'none', outline: 'none', lineHeight: 1.5, maxHeight: 100, overflowY: 'auto',
             }}
