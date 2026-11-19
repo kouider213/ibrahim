@@ -213,6 +213,34 @@ export async function setSportProgram(o: { sessions?: ProgramSession[]; index?: 
   return `${o.reset ? '✅ Programme du coach remis par défaut' : `✅ Programme enregistré (${ROTATION.length} séance(s) en rotation)`} : ${ROTATION.map(t => `${SESSIONS[t].emoji} ${SESSIONS[t].label} (${SESSIONS[t].exercises.length} exos)`).join(' → ')}. ` +
     `Agenda : ${r.note || 'à jour'} ; l'app et les messages utilisent déjà ces séances.`;
 }
+// 19/11 (Kouider : « plus de jambes sauf si c'est moi qui demande ») : RÈGLES SPORT durables qu'il donne lui-même.
+// Lues par tous les cerveaux (formeSnapshot) et affichées avec le programme. Jamais contournées sans sa demande.
+const RULES_KEY = 'kouider:sport:rules';
+export interface SportRule { text: string; at: string }
+export async function readSportRules(): Promise<SportRule[]> {
+  try { const r = JSON.parse((await kvGet(RULES_KEY)) ?? '[]') as SportRule[]; return Array.isArray(r) ? r.filter(x => x?.text) : []; } catch { return []; }
+}
+async function sportRuleTool(input: Record<string, unknown>): Promise<string> {
+  const op = String(input['rule_op'] ?? 'list');
+  const text = String(input['rule'] ?? '').trim().slice(0, 200);
+  let rules = await readSportRules();
+  const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (op === 'add') {
+    if (!text) return '❌ Donne la règle (rule), dans ses mots.';
+    if (!rules.some(r => norm(r.text) === norm(text))) rules.push({ text, at: new Date().toISOString().slice(0, 10) });
+    await kvSet(RULES_KEY, JSON.stringify(rules.slice(-15)));
+  } else if (op === 'remove') {
+    const n = Number(text);
+    const before = rules.length;
+    rules = Number.isInteger(n) && n >= 1 && n <= rules.length ? rules.filter((_, i) => i !== n - 1)
+      : rules.filter(r => !norm(r.text).includes(norm(text)) && !norm(text).includes(norm(r.text)));
+    if (rules.length === before) return `❌ Aucune règle ne correspond à « ${text} ». Règles actuelles :\n${rules.map((r, i) => `${i + 1}. ${r.text}`).join('\n') || '(aucune)'}`;
+    await kvSet(RULES_KEY, JSON.stringify(rules));
+  }
+  await import('./forme-cut.js').then(m => m.clearFormeSnapshot()).catch(() => null);
+  return rules.length ? `${op === 'list' ? '📌' : '✅'} Règles sport de Kouider (gardées pour toujours, jusqu'à ce qu'il les enlève) :\n${rules.map((r, i) => `${i + 1}. ${r.text} (depuis le ${r.at.slice(8, 10)}/${r.at.slice(5, 7)})`).join('\n')}`
+    : '✅ Aucune règle sport en cours.';
+}
 export function sportProgramText(): string {
   return [programInfo ? `📋 Programme OFFICIEL de Kouider${programInfo.source ? ` (${programInfo.source})` : ''}, depuis le ${programInfo.updatedAt.slice(8, 10)}/${programInfo.updatedAt.slice(5, 7)} :` : '📋 Programme du coach Dzaryx (par défaut) :',
     ...ROTATION.map((t, i) => `${i + 1}. ${SESSIONS[t].emoji} ${SESSIONS[t].label} — ${SESSIONS[t].focus}\n${SESSIONS[t].exercises.map(e => `   - ${e.name} : ${e.sets} × ${e.reps}, repos ${e.rest} s`).join('\n')}`)].join('\n');
@@ -1271,7 +1299,8 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
     return `✅ ${fmt(date)} : à la maison à ${h.replace(':', 'h')}. À la salle je calcule le départ avec le trafic, je l'appelle pour partir et le cardio de fin prend le temps qui reste.`;
   }
   if (action === 'sync') { const r = await planSportWeek(true); return `✅ ${r.slots.length} séance(s) planifiées, ${r.note}.`; }
-  if (action === 'program') { await getState(); return sportProgramText(); }
+  if (action === 'program') { await getState(); const rules = await readSportRules(); return sportProgramText() + (rules.length ? `\n\n📌 RÈGLES de Kouider (à respecter) :\n${rules.map(r => `- ${r.text}`).join('\n')}` : ''); }
+  if (action === 'rule') return sportRuleTool(input);
   // 11/11 (10/11 : « déplace ma séance de demain à jeudi et enlève mon jour de travail jeudi », redit 4 fois, « je le vois pas »)
   if (action === 'move_day') {
     const from = parseDate(input['from'] ?? input['date']);

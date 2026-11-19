@@ -210,6 +210,7 @@ export async function cutText(): Promise<string> {
 // ── 🧠 ÉTAT PHYSIQUE pour TOUS les cerveaux (Kouider 01/11 : « Dzaryx doit utiliser toutes les infos de FORME, aussi
 // pour le coach de vie et le reste ») : une ligne courte, en cache 10 min (le calcul complet prend ~3 s).
 let snapCache: { at: number; text: string } | null = null;
+export function clearFormeSnapshot(): void { snapCache = null; }
 export async function formeSnapshot(): Promise<string> {
   if (snapCache && Date.now() - snapCache.at < 10 * 60_000) return snapCache.text;
   const today = localNow().date;
@@ -252,9 +253,12 @@ export async function formeSnapshot(): Promise<string> {
     }
     return ` PROCHAINES SÉANCES (vraies, ne les invente jamais) : ${out.join(' · ')}.`;
   })().catch(() => '');
+  // 19/11 : ses RÈGLES SPORT (« plus de jambes sauf si je demande ») — vues par tous les cerveaux.
+  const rulesLine = await import('./sport-coach.js').then(m => m.readSportRules()).then(r => r.length
+    ? ` RÈGLES SPORT DONNÉES PAR KOUIDER (OBLIGATOIRES : ne propose, ne programme, ne conseille JAMAIS l'inverse ; seule exception = il le demande lui-même dans son message) : ${r.map(x => `« ${x.text} »`).join(' · ')}.` : '').catch(() => '');
   const fl = c?.weight.goalKg ?? (await getFormeProfile('kouider').catch(() => null))?.targetKg;
   const rule = fl ? ` RÈGLE DE POIDS (décidée par Kouider) : ${fl} kg est son MINIMUM et sa cible — ne lui conseille JAMAIS de descendre dessous ni de « perdre encore ». Son but est la forme du corps : ventre plat, abdos visibles, gros bras, pecs. Arrivé à ${fl} kg : maintien des calories, protéines hautes, charges qui montent.` : '';
-  snapCache = { at: Date.now(), text: text + goalsLine + nextLine + rule };
+  snapCache = { at: Date.now(), text: text + goalsLine + rulesLine + nextLine + rule };
   return snapCache.text;
   return text;
 }

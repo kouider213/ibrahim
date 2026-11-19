@@ -1,3 +1,7 @@
+## 19/11/2026 (suite 7) — Règles sport durables + plus de jambes
+- Programme : « BAS + ABDOS » → « ABDOS + CARDIO » (tapis incliné, abdos, obliques, gainage, elliptique).
+- Nouvelle action sport_coach `rule` (add/remove/list, kv `kouider:sport:rules`) : « plus de X sauf si je demande » est gardé pour toujours, injecté dans formeSnapshot (tous les cerveaux) et affiché avec le programme. Règle 1 : plus de jambes sauf demande de Kouider.
+
 ## 19/11/2026 (suite 6) — App v281 : texte tapé visible dans le Chat
 - La zone de saisie du Chat avait une couleur de texte noire codée en dur → invisible en thème sombre. Elle suit maintenant le thème (var(--dz-text)).
 
