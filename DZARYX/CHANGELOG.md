@@ -1,3 +1,5 @@
+## 20/11 — FORME bilan : repos / défi / exercices prévus envoyés par l app gardés (kouider:sport:review-in:DATE) et repris quand le bilan est recalculé.
+
 ## 20/11 — FORME bilan : prévision « prochain palier » sur les 3 dernières séances seulement (Papillon 66/66/66 ne prédit plus 70 kg en 4 j), délai min 7 j ; « meilleur mois » seulement face à un mois avec ≥ 6 séances notées (octobre = 1 509 kg ignoré).
 
 ## 20/11 — FORME bilan : compte les séries faites À la charge max (16/11 élévations : 1 série à 8 kg puis 6, 6 → « = pareil » faux face à 3 × 8 kg). Graphique « 8 kg × 12 · 3 séries », tag « ▲ +2 séries à 8 kg », vert si même charge avec plus de séries, point fort ajouté. Bilan du 20/11 régénéré (sans renvoi Telegram).

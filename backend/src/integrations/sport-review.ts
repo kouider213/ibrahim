@@ -127,6 +127,11 @@ export async function getReview(date: string): Promise<SessionReview | null> {
 /** Construit le bilan de la séance du jour `date` (après /api/sport/log), le garde et l'envoie sur Telegram. */
 export async function buildReview(date: string, o: { names?: Record<string, string>; send?: boolean; planned?: number; extra?: string; rests?: Record<string, number[]>; challenge?: string } = {}): Promise<SessionReview | null> {
   if (o.names) await rememberNames(o.names, date);
+  // 20/11 : un bilan recalculé (app « voir le bilan », correction) perdait les repos / le défi / le nb d'exercices prévus
+  // envoyés par l'app à la fin de la séance → gardés à part et repris quand ils manquent
+  const INK = `kouider:sport:review-in:${date}`;
+  if (o.rests || o.challenge || o.planned) await kvSet(INK, JSON.stringify({ rests: o.rests, challenge: o.challenge, planned: o.planned }), 60 * 86_400).catch(() => {});
+  else { try { const k = JSON.parse((await kvGet(INK)) ?? 'null'); if (k) o = { ...o, rests: k.rests, challenge: k.challenge, planned: k.planned }; } catch { /* rien */ } }
   const names = { ...(JSON.parse((await kvGet(NAMES_K).catch(() => null)) ?? '{}') as Record<string, string>), ...(await namesOfDay(date)), ...Object.fromEntries(Object.entries(o.names ?? {}).map(([k, v]) => [base(k), v])) };
   const log0 = await readSportLog();
   // 17/11 : un même exercice peut avoir plusieurs identifiants → tout est ramené à un identifiant par NOM (records, « avant »)
