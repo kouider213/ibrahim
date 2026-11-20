@@ -229,10 +229,12 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
     if (e && e.prev?.e1rm) { const met = !!(e.e1rm && e.prev?.e1rm && e.e1rm > e.prev.e1rm) || e.pr; challenge = { name: e.name, met }; (met ? good : improve).push(met ? `🎯 Défi du jour réussi sur ${e.name}` : `🎯 Défi du jour pas réussi sur ${e.name} — on retente la prochaine fois`); }
   }
   // ── #13 Ce mois vs ton meilleur mois (volume) ──
-  const byMonth = new Map<string, number>();
-  for (const l of log) if (l.date <= date) byMonth.set(l.date.slice(0, 7), (byMonth.get(l.date.slice(0, 7)) ?? 0) + l.sets.reduce((a, z) => a + (z.kg ?? 0) * (z.reps ?? 0), 0));
+  // 20/11 : « ce mois bat ton meilleur mois » face à octobre = 1 509 kg (3 séances à peine notées) → un mois ne compte
+  // comme référence que s'il a au moins 6 séances notées
+  const byMonth = new Map<string, number>(), nMonth = new Map<string, number>();
+  for (const l of log) if (l.date <= date && l.sets.length) { const k = l.date.slice(0, 7); byMonth.set(k, (byMonth.get(k) ?? 0) + l.sets.reduce((a, z) => a + (z.kg ?? 0) * (z.reps ?? 0), 0)); nMonth.set(k, (nMonth.get(k) ?? 0) + 1); }
   const mNow = byMonth.get(date.slice(0, 7)) ?? 0;
-  const bestM = [...byMonth.entries()].filter(([m]) => m !== date.slice(0, 7)).sort((a, b) => b[1] - a[1])[0];
+  const bestM = [...byMonth.entries()].filter(([m]) => m !== date.slice(0, 7) && (nMonth.get(m) ?? 0) >= 6).sort((a, b) => b[1] - a[1])[0];
   const month = { volume: Math.round(mNow), best: bestM ? { month: bestM[0], volume: Math.round(bestM[1]) } : null };
   if (month.best && mNow > month.best.volume) good.push(`📅 Ce mois bat déjà ton meilleur mois (${month.volume.toLocaleString('fr-FR')} kg)`);
   // ── #16 Prévision : quand tu passeras le palier suivant (+5 kg) à ce rythme ──
@@ -240,12 +242,15 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
   const since42 = new Date(Date.parse(`${date}T12:00:00Z`) - 42 * 86_400_000).toISOString().slice(0, 10);
   for (const e of exercises.filter(x => x.topKg)) {
     const pts = log.filter(l => l.date >= since42 && l.date <= date).map(l => ({ t: Date.parse(`${l.date}T12:00:00Z`) / 86_400_000, kg: Math.max(0, ...l.sets.filter(z => base(z.ex) === e.id && z.kg).map(z => z.kg!)) })).filter(x => x.kg > 0);
+    // 20/11 : Papillon 45 → 66 → 66 → 66 donnait « 70 kg vers le 24/11 » (la pente venait du vieux 45 kg) :
+    // seulement les 3 dernières séances, et jamais moins d'une semaine pour le palier suivant
     if (pts.length < 3) continue;
+    pts.splice(0, pts.length - 3);
     const n = pts.length, mt = pts.reduce((a, x) => a + x.t, 0) / n, mk = pts.reduce((a, x) => a + x.kg, 0) / n;
     const slope = pts.reduce((a, x) => a + (x.t - mt) * (x.kg - mk), 0) / Math.max(1e-9, pts.reduce((a, x) => a + (x.t - mt) ** 2, 0));   // kg / jour
     if (slope <= 0.02) continue;
     const target = (Math.floor(e.topKg! / 5) + 1) * 5;
-    const days = Math.ceil((target - e.topKg!) / slope);
+    const days = Math.max(7, Math.ceil((target - e.topKg!) / slope));
     if (days > 120) continue;
     const eta = new Date(Date.parse(`${date}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
     forecast.push({ name: e.name, target, eta });
