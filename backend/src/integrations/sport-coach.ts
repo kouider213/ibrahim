@@ -147,13 +147,14 @@ let programInfo: { source?: string; updatedAt: string; count: number } | null = 
 const slug = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
 function guessMuscle(name: string, hint?: string): Muscle {
   const t = slug(`${hint ?? ''} ${name}`);
-  if (/cardio|velo|tapis|rameur|elliptique|course|corde_a_sauter|hiit|marche/.test(t)) return 'cardio';
+  // 20/11 : « velo » trouvé dans « deVELOppé couché » → séance pecs & dos affichée « CARDIO & DOS » dans l'agenda FORME
+  if (/cardio|(^|_)velo|tapis|rameur|elliptique|(^|_)course|corde_a_sauter|hiit|(^|_)marche(_|$)/.test(t)) return 'cardio';
   if (/abdo|gainage|planche|crunch|core|dead_bug|bird_dog|pallof|releve_de_jambes/.test(t)) return 'abdos';
   if (/squat|presse|fente|leg|cuisse|mollet|ischio|fessier|hip_thrust|jambe|soulev/.test(t)) return 'jambes';
   if (/curl|biceps|triceps|bras|dips|barre_au_front/.test(t)) return 'bras';
   if (/epaule|militaire|elevation|lateral|oiseau|face_pull|arnold/.test(t)) return 'epaules';
   if (/tirage|rowing|traction|dos|lombaire|pull_over|row/.test(t)) return 'dos';
-  if (/pec|couche|developpe|ecarte|pompe|chest|butterfly|bench/.test(t)) return 'pecs';
+  if (/pec|couche|developpe|ecarte|pompe|chest|butterfly|bench|papillon/.test(t)) return 'pecs';
   return 'abdos';
 }
 function toSession(p: ProgramSession, slot: SessionType): typeof SESSIONS[SessionType] {
