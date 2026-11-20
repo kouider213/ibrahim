@@ -1,3 +1,5 @@
+## 20/11 — FORME bilan : compte les séries faites À la charge max (16/11 élévations : 1 série à 8 kg puis 6, 6 → « = pareil » faux face à 3 × 8 kg). Graphique « 8 kg × 12 · 3 séries », tag « ▲ +2 séries à 8 kg », vert si même charge avec plus de séries, point fort ajouté. Bilan du 20/11 régénéré (sans renvoi Telegram).
+
 ## 20/11 — FORME bilan : nouveau graphique (barres horizontales, nom complet, meilleure série kg × reps vs la dernière fois sur CET exercice + date, ▲/▼ kg, vert/orange) ; noms par jour + accents ; « avant » retrouve le même exercice sous un autre nom
 
 ## 20/11 — FORME bilan : « Pas refait » = seulement les exercices du programme du jour non faits (plus de comparaison avec l'ancien programme du 16/11)
