@@ -143,12 +143,18 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
     else if (e.e1rm && e.prev?.e1rm && e.e1rm < e.prev.e1rm * 0.93) improve.push(`${e.name} : en baisse (${e.prev.topKg} → ${e.topKg} kg) — sommeil, repas ou repos entre séries ?`);
     if (e.sets <= 2 && (e.prev?.sets ?? 3) >= 3) improve.push(`${e.name} : seulement ${e.sets} série${e.sets > 1 ? 's' : ''} (${e.prev?.sets ?? 3} la dernière fois)`);
   }
-  const lost = prevS ? [...was.keys()].filter(k => !now.has(k)) : [];
+  // 20/11 (Kouider : « il me dit pas refait alors que je fais exactement tous les exercices de FORME ») : la séance d'avant
+  // venait d'un ancien programme. « Pas refait » = seulement les exercices du PROGRAMME DU JOUR qu'il n'a pas faits.
+  const doneKeys = new Set([...now.keys()].map(k => kx.key(k)));
+  const plan = await import('./sport-coach.js').then(m => m.liveSessionPlan(date)).catch(() => null);
+  const lost = plan?.exercises.length
+    ? plan.exercises.filter(e => e.muscle !== 'cardio' && !now.has(base(e.id)) && !doneKeys.has(kx.key(e.id))).map(e => e.id)
+    : [];
   if (lost.length) improve.push(`Pas refait : ${(await Promise.all(lost.slice(0, 3).map(k => nameOf(k, names)))).join(', ')}`);
   if (prevVol && volume >= prevVol * 1.05) good.push(`Volume total +${Math.round((volume / prevVol - 1) * 100)} % vs la même séance du ${prevS!.date.slice(8)}/${prevS!.date.slice(5, 7)}`);
   if (cur.rpe && cur.rpe <= 6) improve.push(`Effort ${cur.rpe}/10 : c'était facile → monte un peu les charges la prochaine fois`);
   if (cur.rpe === 10) improve.push('Effort 10/10 : garde 1-2 reps en réserve sur la plupart des séries, tu progresseras plus longtemps');
-  if (o.planned && exercises.length < o.planned) improve.push(`${o.planned - exercises.length} exercice(s) du programme non faits`);
+  if (o.planned && exercises.length < o.planned && !lost.length) improve.push(`${o.planned - exercises.length} exercice(s) du programme non faits`);
 
   // ── #5 Repos réel entre les séries (secondes mesurées par l'app) ──
   let rests: SessionReview['rests'] = null;

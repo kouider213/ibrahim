@@ -1,3 +1,5 @@
+## 20/11 — FORME bilan : « Pas refait » = seulement les exercices du programme du jour non faits (plus de comparaison avec l'ancien programme du 16/11)
+
 ## 20/11 — Famille : femme + Ibrahim toujours avec Kouider (jamais « en Algérie »), Algérie = s'y installer ensemble
 
 ## 20/11 — FORME : bonnes photos curl pupitre / écarté vis-à-vis / rowing incliné / abdos machine, fiche sans « exercice inconnu » (v285)
