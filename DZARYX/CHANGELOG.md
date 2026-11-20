@@ -1,3 +1,5 @@
+## 20/11 — Sport : PRÉCÉDENT reconnaît le même exercice sous un autre nom (tirage poulie basse = rowing assis poulie, poulie haute, papillon)
+
 ## 20/11 — FORME : photos visibles dans « Remplacer par… » (mode sombre), bouton muscle actif lisible (v284)
 
 ## 19/11/2026 (suite 9) — FORME Agenda plus pro, avec photos des exercices (app v283)
