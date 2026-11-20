@@ -1,3 +1,5 @@
+## 20/11 — FORME : photos visibles dans « Remplacer par… » (mode sombre), bouton muscle actif lisible (v284)
+
 ## 19/11/2026 (suite 9) — FORME Agenda plus pro, avec photos des exercices (app v283)
 - /api/sport/agenda renvoie la photo animée (2 images) de chaque exercice fait ou prévu (demoFor + fillDemos).
 - Cartes repensées : badge statut, chiffres en pastilles, aperçu des exercices en photos ; ouvertes = photo + tableau SÉRIE | OBJECTIF | DERNIÈRE FOIS (à venir) ou SÉRIE | POIDS | REPS (faites), record à battre / nouveau record ; toucher un exercice = sa fiche complète.
