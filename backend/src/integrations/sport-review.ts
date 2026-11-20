@@ -14,8 +14,8 @@ const base = (id: string) => id.replace(/~.*$/, '');
 const e1rm = (kg: number, reps: number) => Math.round(kg * (1 + Math.min(reps, 15) / 30));
 const clamp10 = (x: number) => Math.max(0, Math.min(10, Math.round(x)));
 
-export interface ExCompare { id: string; name: string; sets: number; volume: number; topKg: number | null; topReps: number | null; e1rm: number | null;
-  prev: { sets: number; volume: number; topKg: number | null; e1rm: number | null; topReps?: number | null; date?: string } | null; pr: boolean }
+export interface ExCompare { id: string; name: string; sets: number; volume: number; topKg: number | null; topReps: number | null; e1rm: number | null; topSets?: number;
+  prev: { sets: number; volume: number; topKg: number | null; e1rm: number | null; topReps?: number | null; topSets?: number; date?: string } | null; pr: boolean }
 export interface SessionReview {
   date: string; at: number; type: string; label: string; emoji: string;
   totals: { sets: number; volume: number; durationMin: number | null; rpe: number | null; exercises: number; density: number | null };
@@ -60,14 +60,16 @@ function nameOf(id: string, names: Record<string, string>): string {
   return names[b] ?? ALL_EXERCISES().find(e => e.id === b)?.name ?? pretty(b);
 }
 
-function perEx(s: SessionLog): Map<string, { sets: number; volume: number; topKg: number | null; topReps: number | null; e1rm: number | null }> {
-  const m = new Map<string, { sets: number; volume: number; topKg: number | null; topReps: number | null; e1rm: number | null }>();
+type PerEx = { sets: number; volume: number; topKg: number | null; topReps: number | null; e1rm: number | null; topSets: number };
+function perEx(s: SessionLog): Map<string, PerEx> {
+  const m = new Map<string, PerEx>();
   for (const z of s.sets) {
     const k = base(z.ex);
-    const x = m.get(k) ?? { sets: 0, volume: 0, topKg: null, topReps: null, e1rm: null };
+    const x = m.get(k) ?? { sets: 0, volume: 0, topKg: null, topReps: null, e1rm: null, topSets: 0 };
     x.sets++;
     x.volume += (z.kg ?? 0) * (z.reps ?? 0);
-    if (z.kg && (x.topKg == null || z.kg > x.topKg)) { x.topKg = z.kg; x.topReps = z.reps ?? null; }
+    if (z.kg && (x.topKg == null || z.kg > x.topKg)) { x.topKg = z.kg; x.topReps = z.reps ?? null; x.topSets = 1; }
+    else if (z.kg && z.kg === x.topKg) x.topSets++;   // 20/11 : séries faites à la charge max (1 à 8 kg puis 6, 6 ≠ 3 à 8 kg)
     if (z.kg && z.reps) x.e1rm = Math.max(x.e1rm ?? 0, e1rm(z.kg, z.reps));
     m.set(k, x);
   }
@@ -83,27 +85,28 @@ function chartUrl(r: Pick<SessionReview, 'exercises' | 'prev' | 'date' | 'totals
   const dm = (d?: string) => d ? `${d.slice(8)}/${d.slice(5, 7)}` : '';
   const set = (kg: number | null | undefined, reps: number | null | undefined) => kg ? `${String(kg).replace('.', ',')} kg × ${reps ?? '?'}` : '';
   const wrap = (t: string) => { const out: string[] = []; let line = ''; for (const w of t.split(' ')) { if ((line + ' ' + w).trim().length > 24) { out.push(line); line = w; } else line = `${line} ${w}`.trim(); } if (line) out.push(line); return out; };
+  const ts = (x?: { topSets?: number; sets: number } | null) => x?.topSets ?? x?.sets ?? 0;
+  const kgS = (kg: number | null | undefined) => `${String(kg ?? '').replace('.', ',')} kg`;
   const labels = ex.map(e => {
     const d = e.topKg && e.prev?.topKg ? Math.round((e.topKg - e.prev.topKg) * 10) / 10 : null;
     const tag = e.pr ? '🏆 record' : d == null ? '1ʳᵉ fois' : d > 0 ? `▲ +${String(d).replace('.', ',')} kg` : d < 0 ? `▼ ${String(d).replace('.', ',')} kg`
       : (e.topReps ?? 0) > (e.prev?.topReps ?? 0) ? `▲ +${(e.topReps ?? 0) - (e.prev?.topReps ?? 0)} reps`
       // 20/11 (Kouider : « il dit pareil alors que la dernière fois j'ai fait 1 série et là 3 ») : même charge → on compare les séries
-      : e.prev && e.sets > e.prev.sets ? `▲ +${e.sets - e.prev.sets} série${e.sets - e.prev.sets > 1 ? 's' : ''}`
-      : e.prev && e.sets < e.prev.sets ? `▼ ${e.sets - e.prev.sets} série${e.prev.sets - e.sets > 1 ? 's' : ''}` : '= pareil';
+      : ts(e) !== ts(e.prev) ? `${ts(e) > ts(e.prev) ? '▲ +' : '▼ '}${ts(e) - ts(e.prev)} série${Math.abs(ts(e) - ts(e.prev)) > 1 ? 's' : ''} à ${kgS(e.topKg)}` : '= pareil';
     return [...wrap(e.name), `${e.sets} séries · ${tag}`];
   });
-  const color = (e: ExCompare) => e.pr || (e.e1rm && e.prev?.e1rm && e.e1rm > e.prev.e1rm) || (e.prev && e.e1rm && e.prev.e1rm && e.e1rm >= e.prev.e1rm && e.sets > e.prev.sets) ? '#1f9d55' : e.e1rm && e.prev?.e1rm && e.e1rm < e.prev.e1rm * 0.97 ? '#e8833a' : '#2c63f2';
+  const color = (e: ExCompare) => e.pr || (e.e1rm && e.prev?.e1rm && e.e1rm > e.prev.e1rm) || (e.prev && e.e1rm && e.prev.e1rm && e.e1rm >= e.prev.e1rm && e.topKg === e.prev.topKg && (e.topSets ?? 0) > (e.prev.topSets ?? 0)) ? '#1f9d55' : e.e1rm && e.prev?.e1rm && e.e1rm < e.prev.e1rm * 0.97 ? '#e8833a' : '#2c63f2';
   const cfg = {
     type: 'horizontalBar',
     data: {
       labels,
       datasets: [
-        { label: "Aujourd'hui", data: ex.map(e => e.topKg ?? 0), backgroundColor: ex.map(color), lbl: ex.map(e => e.topKg ? `${set(e.topKg, e.topReps)} · ${e.sets} série${e.sets > 1 ? 's' : ''}` : '') },
-        { label: 'Dernière fois sur cet exercice', data: ex.map(e => e.prev?.topKg ?? 0), backgroundColor: '#c7cbd6', lbl: ex.map(e => e.prev?.topKg ? `${set(e.prev.topKg, e.prev.topReps)} · ${e.prev.sets} série${e.prev.sets > 1 ? 's' : ''} (le ${dm(e.prev.date)})` : '1ʳᵉ fois') },
+        { label: "Aujourd'hui", data: ex.map(e => e.topKg ?? 0), backgroundColor: ex.map(color), lbl: ex.map(e => e.topKg ? `${set(e.topKg, e.topReps)} · ${ts(e)} série${ts(e) > 1 ? 's' : ''}` : '') },
+        { label: 'Dernière fois sur cet exercice', data: ex.map(e => e.prev?.topKg ?? 0), backgroundColor: '#c7cbd6', lbl: ex.map(e => e.prev?.topKg ? `${set(e.prev.topKg, e.prev.topReps)} · ${ts(e.prev)} série${ts(e.prev) > 1 ? 's' : ''} (le ${dm(e.prev.date)})` : '1ʳᵉ fois') },
       ],
     },
     options: {
-      title: { display: true, fontSize: 20, fontColor: '#111', text: [`${r.label} du ${dm(r.date)} — ta meilleure série par exercice`,
+      title: { display: true, fontSize: 20, fontColor: '#111', text: [`${r.label} du ${dm(r.date)} — ta charge max par exercice (et combien de séries à cette charge)`,
         `${r.totals.sets} séries · ${r.totals.volume.toLocaleString('fr-FR')} kg soulevés${r.totals.durationMin ? ` · ${r.totals.durationMin} min` : ''}   |   vert = plus fort · orange = moins fort`] },
       legend: { position: 'bottom', labels: { fontSize: 15 } },
       layout: { padding: { right: 30 } },
@@ -152,7 +155,7 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
     const hit = (z: { ex: string }) => base(z.ex) === id || sameExercise(nameOf(z.ex, names), nm);
     const pS = was.has(id) ? prevS : log.filter(l => l.date < date && l.sets.some(hit)).sort((a, b) => b.date.localeCompare(a.date))[0];
     const p = pS ? (perEx(pS).get(id) ?? perEx({ ...pS, sets: pS.sets.filter(hit).map(z => ({ ...z, ex: id })) }).get(id)) : undefined;
-    exercises.push({ id, name: nameOf(id, names), ...x, prev: p ? { sets: p.sets, volume: p.volume, topKg: p.topKg, e1rm: p.e1rm, topReps: p.topReps, date: pS!.date } : null,
+    exercises.push({ id, name: nameOf(id, names), ...x, prev: p ? { sets: p.sets, volume: p.volume, topKg: p.topKg, e1rm: p.e1rm, topReps: p.topReps, topSets: p.topSets, date: pS!.date } : null,
       pr: !!x.e1rm && (bestBefore.get(id) ?? 0) > 0 && x.e1rm > (bestBefore.get(id) ?? 0) });
   }
   const volume = exercises.reduce((a, e) => a + e.volume, 0);
@@ -186,7 +189,7 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
   for (const e of exercises) {
     if (e.pr) good.push(`🏆 Record sur ${e.name} (${e.topKg} kg × ${e.topReps})`);
     else if (e.e1rm && e.prev?.e1rm && e.e1rm > e.prev.e1rm) good.push(`${e.name} : plus fort que la dernière fois (${e.prev.topKg ?? '?'} → ${e.topKg} kg)`);
-    else if (e.prev && e.e1rm && e.prev.e1rm && e.e1rm >= e.prev.e1rm && e.sets > e.prev.sets) good.push(`${e.name} : même charge mais ${e.sets} séries au lieu de ${e.prev.sets}`)
+    else if (e.prev && e.e1rm && e.prev.e1rm && e.e1rm >= e.prev.e1rm && e.topKg === e.prev.topKg && (e.topSets ?? 0) > (e.prev.topSets ?? 0)) good.push(`${e.name} : ${e.topSets} séries à ${e.topKg} kg (${e.prev.topSets} la dernière fois)`)
     else if (e.e1rm && e.prev?.e1rm && e.e1rm < e.prev.e1rm * 0.93) improve.push(`${e.name} : en baisse (${e.prev.topKg} → ${e.topKg} kg) — sommeil, repas ou repos entre séries ?`);
     if (e.sets <= 2 && (e.prev?.sets ?? 3) >= 3) improve.push(`${e.name} : seulement ${e.sets} série${e.sets > 1 ? 's' : ''} (${e.prev?.sets ?? 3} la dernière fois)`);
   }
@@ -271,7 +274,7 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
   // ── Avis du coach (cerveau gratuit, à partir des chiffres ci-dessus uniquement) ──
   const facts = {
     seance: r.label, duree_min: dur, effort: cur.rpe ?? null, series: sets, volume_kg: r.totals.volume, derniere_pareille: r.prev,
-    exercices: exercises.map(e => ({ nom: e.name, series: e.sets, max: e.topKg ? `${e.topKg} kg × ${e.topReps ?? '?'}` : null, avant: e.prev?.topKg ?? null, series_avant: e.prev?.sets ?? null, record: e.pr })),
+    exercices: exercises.map(e => ({ nom: e.name, series: e.sets, max: e.topKg ? `${e.topKg} kg × ${e.topReps ?? '?'}` : null, avant: e.prev?.topKg ?? null, series_avant: e.prev?.sets ?? null, series_a_la_charge_max: e.topSets ?? null, series_a_la_charge_max_avant: e.prev?.topSets ?? null, record: e.pr })),
     notes_sur_10: scores, points_forts: r.good, a_ameliorer: r.improve, seances_7_jours: week,
     sommeil_nuit_h: context.sleep, proteines_hier_g: context.protYday, repos_moyen_s: rests?.avgSec ?? null, previsions: r.forecast,
   };
