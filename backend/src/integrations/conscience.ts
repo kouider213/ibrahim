@@ -417,7 +417,8 @@ export async function snapshot(): Promise<Record<string, unknown>> {
     locations_aujourdhui_demain: (books as Array<Record<string, unknown>>).filter(b => !/REJECT|CANCEL/i.test(String(b['status']))).map(b => {
       const st = String(b['start_date']), en = String(b['end_date']);
       const state = st.slice(0, 10) < date ? (en.slice(0, 10) > date ? 'EN COURS (déjà partie, rien à faire au départ)' : en.slice(0, 10) === date ? 'RETOUR AUJOURD\'HUI' : 'finie') : st.slice(0, 10) === date ? 'DÉPART AUJOURD\'HUI' : 'départ demain';
-      return `${(b['cars'] as { name?: string } | null)?.name ?? ''} ${b['client_name']} : départ ${rel(st)} → retour ${rel(en)} — ${state}`;
+      // 20/11 Kouider : « Belarbi ramène la Clio à 10h chez toi (Rue du Laekenveld) » = faux → les voitures partent et reviennent TOUJOURS à l'aéroport d'Oran
+      return `${(b['cars'] as { name?: string } | null)?.name ?? ''} ${b['client_name']} : départ ${rel(st)} → retour ${rel(en)} @aéroport d'Oran (Ahmed Ben Bella) — ${state}`;
     }),
     vols_24h: trips.filter(t => t.departAt > Date.now() && t.departAt - Date.now() < 86_400_000).map(t => `${t.who} ${t.title} ${rel(new Date(t.departAt).toISOString())}`),
     whatsapp_en_attente: (drafts as Array<{ chat: string; at: string }>).map(d => `${d.chat} (message reçu ${rel(d.at)})`).slice(0, 6),
@@ -463,6 +464,7 @@ export async function jobConscience(): Promise<string> {
     + `Ce que Kouider a dit (kouider_a_dit_2h) PRIME sur l'agenda : s'il a dit qu'il n'a pas de RDV, qu'il est au travail ou que c'est réglé, n'en reparle plus. Son travail n'est jamais un « RDV ». Il ne quitte JAMAIS le travail avant fin_travail_aujourdhui : ne lui conseille pas de partir plus tôt. Une durée de trajet ou une heure d'arrivée ne se donne QUE si elle est dans les données (trajet_travail_maison_min) — jamais inventée. `
     + `Son humeur n'est JAMAIS un fait : si humeur_supposee est vide, n'en parle pas ; sinon pose une question, jamais de note sur 10. `
     + `Un sujet présent dans ignores_24h (il ne l'a pas relevé) ne se relance PAS, même reformulé, sauf danger réel ou échéance dans moins d'une heure. `
+    + `LOCATIONS : les voitures sont en Algérie ; un client récupère et RAMÈNE toujours la voiture à l'AÉROPORT D'ORAN, JAMAIS chez Kouider ni à son adresse en Belgique (cette adresse ne sert qu'à SES trajets). N'invente ni lieu, ni heure, ni « prépare les clés / la pièce d'identité » qui ne sont pas dans les données. `
     + `Pas de redite de ce qui a déjà été envoyé ces 3 h. Pas de banalité, pas de motivation creuse, pas de « bonne journée ». Si rien d'utile → speak:false (c'est le cas le plus fréquent).\n`
     + `Réponds UNIQUEMENT en JSON : {"speak":true|false,"kind":"type court (ex. retard-rdv, client-aeroport, promesse, sante, argent, famille, decision)","urgency":1|2|3,"text":"ce que tu lui dis, 1 à 3 phrases, tutoiement, concret","options":[{"label":"bouton court","tool":"outil Dzaryx facultatif","input":{}}]} (options facultatives, 2-3 max, seulement si un simple choix permet d'agir ; "tool" = UNIQUEMENT un vrai nom d'outil Dzaryx (ex. promesses avec input {"action":"list"}), sinon ne mets pas de "tool").`,
     { max: 500 }));
