@@ -86,17 +86,20 @@ function chartUrl(r: Pick<SessionReview, 'exercises' | 'prev' | 'date' | 'totals
   const labels = ex.map(e => {
     const d = e.topKg && e.prev?.topKg ? Math.round((e.topKg - e.prev.topKg) * 10) / 10 : null;
     const tag = e.pr ? '🏆 record' : d == null ? '1ʳᵉ fois' : d > 0 ? `▲ +${String(d).replace('.', ',')} kg` : d < 0 ? `▼ ${String(d).replace('.', ',')} kg`
-      : (e.topReps ?? 0) > (e.prev?.topReps ?? 0) ? `▲ +${(e.topReps ?? 0) - (e.prev?.topReps ?? 0)} reps` : '= pareil';
+      : (e.topReps ?? 0) > (e.prev?.topReps ?? 0) ? `▲ +${(e.topReps ?? 0) - (e.prev?.topReps ?? 0)} reps`
+      // 20/11 (Kouider : « il dit pareil alors que la dernière fois j'ai fait 1 série et là 3 ») : même charge → on compare les séries
+      : e.prev && e.sets > e.prev.sets ? `▲ +${e.sets - e.prev.sets} série${e.sets - e.prev.sets > 1 ? 's' : ''}`
+      : e.prev && e.sets < e.prev.sets ? `▼ ${e.sets - e.prev.sets} série${e.prev.sets - e.sets > 1 ? 's' : ''}` : '= pareil';
     return [...wrap(e.name), `${e.sets} séries · ${tag}`];
   });
-  const color = (e: ExCompare) => e.pr || (e.e1rm && e.prev?.e1rm && e.e1rm > e.prev.e1rm) ? '#1f9d55' : e.e1rm && e.prev?.e1rm && e.e1rm < e.prev.e1rm * 0.97 ? '#e8833a' : '#2c63f2';
+  const color = (e: ExCompare) => e.pr || (e.e1rm && e.prev?.e1rm && e.e1rm > e.prev.e1rm) || (e.prev && e.e1rm && e.prev.e1rm && e.e1rm >= e.prev.e1rm && e.sets > e.prev.sets) ? '#1f9d55' : e.e1rm && e.prev?.e1rm && e.e1rm < e.prev.e1rm * 0.97 ? '#e8833a' : '#2c63f2';
   const cfg = {
     type: 'horizontalBar',
     data: {
       labels,
       datasets: [
-        { label: "Aujourd'hui", data: ex.map(e => e.topKg ?? 0), backgroundColor: ex.map(color), lbl: ex.map(e => set(e.topKg, e.topReps)) },
-        { label: 'Dernière fois sur cet exercice', data: ex.map(e => e.prev?.topKg ?? 0), backgroundColor: '#c7cbd6', lbl: ex.map(e => e.prev?.topKg ? `${set(e.prev.topKg, e.prev.topReps)} (le ${dm(e.prev.date)})` : '1ʳᵉ fois') },
+        { label: "Aujourd'hui", data: ex.map(e => e.topKg ?? 0), backgroundColor: ex.map(color), lbl: ex.map(e => e.topKg ? `${set(e.topKg, e.topReps)} · ${e.sets} série${e.sets > 1 ? 's' : ''}` : '') },
+        { label: 'Dernière fois sur cet exercice', data: ex.map(e => e.prev?.topKg ?? 0), backgroundColor: '#c7cbd6', lbl: ex.map(e => e.prev?.topKg ? `${set(e.prev.topKg, e.prev.topReps)} · ${e.prev.sets} série${e.prev.sets > 1 ? 's' : ''} (le ${dm(e.prev.date)})` : '1ʳᵉ fois') },
       ],
     },
     options: {
@@ -183,6 +186,7 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
   for (const e of exercises) {
     if (e.pr) good.push(`🏆 Record sur ${e.name} (${e.topKg} kg × ${e.topReps})`);
     else if (e.e1rm && e.prev?.e1rm && e.e1rm > e.prev.e1rm) good.push(`${e.name} : plus fort que la dernière fois (${e.prev.topKg ?? '?'} → ${e.topKg} kg)`);
+    else if (e.prev && e.e1rm && e.prev.e1rm && e.e1rm >= e.prev.e1rm && e.sets > e.prev.sets) good.push(`${e.name} : même charge mais ${e.sets} séries au lieu de ${e.prev.sets}`)
     else if (e.e1rm && e.prev?.e1rm && e.e1rm < e.prev.e1rm * 0.93) improve.push(`${e.name} : en baisse (${e.prev.topKg} → ${e.topKg} kg) — sommeil, repas ou repos entre séries ?`);
     if (e.sets <= 2 && (e.prev?.sets ?? 3) >= 3) improve.push(`${e.name} : seulement ${e.sets} série${e.sets > 1 ? 's' : ''} (${e.prev?.sets ?? 3} la dernière fois)`);
   }
@@ -267,7 +271,7 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
   // ── Avis du coach (cerveau gratuit, à partir des chiffres ci-dessus uniquement) ──
   const facts = {
     seance: r.label, duree_min: dur, effort: cur.rpe ?? null, series: sets, volume_kg: r.totals.volume, derniere_pareille: r.prev,
-    exercices: exercises.map(e => ({ nom: e.name, series: e.sets, max: e.topKg ? `${e.topKg} kg × ${e.topReps ?? '?'}` : null, avant: e.prev?.topKg ?? null, record: e.pr })),
+    exercices: exercises.map(e => ({ nom: e.name, series: e.sets, max: e.topKg ? `${e.topKg} kg × ${e.topReps ?? '?'}` : null, avant: e.prev?.topKg ?? null, series_avant: e.prev?.sets ?? null, record: e.pr })),
     notes_sur_10: scores, points_forts: r.good, a_ameliorer: r.improve, seances_7_jours: week,
     sommeil_nuit_h: context.sleep, proteines_hier_g: context.protYday, repos_moyen_s: rests?.avgSec ?? null, previsions: r.forecast,
   };
