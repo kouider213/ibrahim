@@ -54,7 +54,7 @@ function DidSheet({ open, onClose, toast, onDone }: { open: boolean; onClose: ()
     } catch (e) { toast(errText(e)); } finally { setBusy(''); }
   };
   const close = () => { setDone(''); onClose(); };
-  const chip = (on: boolean) => ({ flex: 1, padding: '9px 0', borderRadius: 999, border: 'none', background: on ? F.ink : F.tile, color: on ? '#fff' : F.ink, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' });
+  const chip = (on: boolean) => ({ flex: 1, padding: '9px 0', borderRadius: 999, border: 'none', background: on ? F.ink : F.tile, color: on ? F.bg : F.ink, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' });
 
   return (
     <Sheet open={open} onClose={close} z={60} title={<div style={{ fontSize: 20, fontWeight: 700, paddingTop: 6 }}>Ce que j'ai vraiment fait</div>}>

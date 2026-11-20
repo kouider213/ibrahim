@@ -392,13 +392,13 @@ export function LibraryPicker({ open, onClose, onPick, multi = false, group: g0 
     <Sheet open={open} onClose={onClose} z={z} title={<div style={{ fontSize: 20, fontWeight: 700, paddingTop: 6 }}>{title}</div>}>
       <input value={q} onChange={e => setQ(e.target.value)} placeholder="Chercher un exercice" style={{ ...input, borderRadius: 12, background: F.tile, border: 'none', marginBottom: 8 }} />
       <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8, scrollbarWidth: 'none' }}>
-        {GROUPS.map(x => <button key={x.id} onClick={() => setGroup(group === x.id ? null : x.id)} style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 999, border: 'none', background: group === x.id ? F.ink : F.tile, color: group === x.id ? '#fff' : F.ink, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>{x.label}</button>)}
+        {GROUPS.map(x => <button key={x.id} onClick={() => setGroup(group === x.id ? null : x.id)} style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 999, border: 'none', background: group === x.id ? F.ink : F.tile, color: group === x.id ? F.bg : F.ink, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>{x.label}</button>)}
       </div>
       {!items && <div style={{ display: 'flex', justifyContent: 'center', padding: 30 }}><Spinner /></div>}
       <div style={{ display: 'grid', gap: 2 }}>
         {list.slice(0, n).map(x => { const on = sel.some(y => y.id === x.id); return (
           <button key={x.id} onClick={() => pick(x)} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '7px 6px', borderRadius: 12, border: 'none', background: on ? F.soft : 'transparent', cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit', color: F.ink }}>
-            <div style={{ width: 54, height: 54, borderRadius: 12, background: F.tile, flexShrink: 0, padding: 3, boxSizing: 'border-box', display: 'flex', alignItems: 'center' }}><Img src={x.img[0]} style={{ width: '100%', height: 46, objectFit: 'contain', background: 'transparent', mixBlendMode: 'multiply' }} /></div>
+            <div style={{ width: 54, height: 54, borderRadius: 12, background: F.tile, flexShrink: 0, padding: 3, boxSizing: 'border-box', display: 'flex', alignItems: 'center' }}><Img src={x.img[0]} style={{ width: '100%', height: 46, objectFit: 'contain', background: 'transparent', mixBlendMode: 'var(--f-blend)' as CSSProperties['mixBlendMode'], borderRadius: 8 }} /></div>
             <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14.5 }}>{x.fr}</div><div style={{ fontSize: 12, color: F.muted }}>{x.p.map(m => MUSCLE_FR[m] ?? m).join(', ')} · {EQ_FR[x.eq] ?? x.eq}</div></div>
             {multi && <div style={{ width: 24, height: 24, borderRadius: 12, border: on ? 'none' : `2px solid ${F.line}`, background: on ? F.accent : 'transparent', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>{on ? '✓' : ''}</div>}
           </button>); })}
