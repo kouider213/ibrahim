@@ -368,7 +368,7 @@ const SAME_EX: RegExp[] = [
   /^(?!.*(haltere|dumbbell|poulie|cable)).*(papillon|butterfly|pec deck|ecarte (assis )?machine)/,
 ];
 const exLabel = (id: string) => exNamesMap[id.replace(/~.*$/, '')] ?? id.replace(/~.*$/, '').replace(/^(push|pull|legs|cardio|upper|core)_/, '').replace(/[_-]+/g, ' ');
-const sameExercise = (a: string, b: string) => { const x = norm(a).replace(/[_-]+/g, ' '), y = norm(b).replace(/[_-]+/g, ' '); return SAME_EX.some(r => r.test(x) && r.test(y)); };
+export const sameExercise = (a: string, b: string) => { const x = norm(a).replace(/[_-]+/g, ' '), y = norm(b).replace(/[_-]+/g, ' '); return SAME_EX.some(r => r.test(x) && r.test(y)); };
 function suggestRaw(e: Exercise, log: SessionLog[]): Suggestion {
   for (let i = log.length - 1; i >= 0; i--) {
     // 17/11 : même exercice passé dans une autre séance du programme (« pull_curl_barre » → « cardio_curl_barre ») = mêmes charges

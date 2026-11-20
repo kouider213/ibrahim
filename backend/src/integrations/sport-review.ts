@@ -6,7 +6,7 @@
 import { kvGet, kvSet } from './app-store.js';
 import { ai, jsonOf } from './ai-util.js';
 import { queueTelegramMessage, queueTelegramAlbum } from '../notifications/tg-outbox.js';
-import { readSportLog, findExercise, exKeyer, SESSIONS, type SessionLog } from './sport-coach.js';
+import { readSportLog, findExercise, exKeyer, sameExercise, SESSIONS, ALL_EXERCISES, type SessionLog } from './sport-coach.js';
 
 const RK = (date: string) => `kouider:sport:review:${date}`;
 const NAMES_K = 'kouider:sport:exnames';
@@ -15,7 +15,7 @@ const e1rm = (kg: number, reps: number) => Math.round(kg * (1 + Math.min(reps, 1
 const clamp10 = (x: number) => Math.max(0, Math.min(10, Math.round(x)));
 
 export interface ExCompare { id: string; name: string; sets: number; volume: number; topKg: number | null; topReps: number | null; e1rm: number | null;
-  prev: { sets: number; volume: number; topKg: number | null; e1rm: number | null } | null; pr: boolean }
+  prev: { sets: number; volume: number; topKg: number | null; e1rm: number | null; topReps?: number | null; date?: string } | null; pr: boolean }
 export interface SessionReview {
   date: string; at: number; type: string; label: string; emoji: string;
   totals: { sets: number; volume: number; durationMin: number | null; rpe: number | null; exercises: number; density: number | null };
@@ -32,16 +32,32 @@ export interface SessionReview {
   forecast?: Array<{ name: string; target: number; eta: string }>;
 }
 
-/** L'app envoie les noms des exercices (bibliothèque, machines scannées) : gardés pour les bilans suivants. */
-export async function rememberNames(names: Record<string, string>): Promise<void> {
+/** L'app envoie les noms des exercices (bibliothèque, machines scannées) : gardés pour les bilans suivants.
+ *  20/11 : aussi PAR JOUR — un même identifiant a porté deux noms différents selon le programme (« incline_press » =
+ *  incliné machine un jour, haltères un autre) ; le nom du jour de la séance passe d'abord. */
+export async function rememberNames(names: Record<string, string>, date?: string): Promise<void> {
   const cur = JSON.parse((await kvGet(NAMES_K).catch(() => null)) ?? '{}') as Record<string, string>;
-  for (const [k, v] of Object.entries(names)) if (k && v) cur[base(k)] = String(v).slice(0, 60);
+  const day: Record<string, string> = {};
+  for (const [k, v] of Object.entries(names)) if (k && v) { cur[base(k)] = String(v).slice(0, 60); day[base(k)] = String(v).slice(0, 60); }
   await kvSet(NAMES_K, JSON.stringify(cur)).catch(() => {});
+  if (date && Object.keys(day).length) {
+    const old = JSON.parse((await kvGet(`${NAMES_K}:${date}`).catch(() => null)) ?? '{}') as Record<string, string>;
+    await kvSet(`${NAMES_K}:${date}`, JSON.stringify({ ...old, ...day }), 400 * 86_400).catch(() => {});
+  }
 }
-async function nameOf(id: string, names: Record<string, string>): Promise<string> {
+async function namesOfDay(date: string): Promise<Record<string, string>> {
+  try { return JSON.parse((await kvGet(`${NAMES_K}:${date}`)) ?? '{}') as Record<string, string>; } catch { return {}; }
+}
+// 20/11 : un identifiant sans nom (« legs_elevations_posterieures_machine ») s'affichait « elevations posterieures machine »
+const ACCENTS: Record<string, string> = { elevation: 'élévation', elevations: 'élévations', developpe: 'développé', incline: 'incliné', decline: 'décliné',
+  halteres: 'haltères', haltere: 'haltère', couche: 'couché', laterales: 'latérales', laterale: 'latérale', posterieures: 'postérieures', posterieur: 'postérieur',
+  alternees: 'alternées', alterne: 'alterné', ecarte: 'écarté', epaules: 'épaules', epaule: 'épaule', assis: 'assis', debout: 'debout', pecs: 'pecs', dos: 'dos' };
+const pretty = (id: string) => { const t = base(id).replace(/^(push|pull|legs|lib|cardio|abdos)_/, '').replace(/[_-]+/g, ' ').trim().split(/\s+/).map(w => ACCENTS[w.toLowerCase()] ?? w).join(' ');
+  return t.charAt(0).toUpperCase() + t.slice(1); };
+function nameOf(id: string, names: Record<string, string>): string {
   // 07/11 : recherche EXACTE par id (la recherche floue donnait « Face pull poulie » à 3 exercices différents)
-  const f = findExercise(base(id));
-  return names[base(id)] ?? (f && f.id.toLowerCase() === base(id).toLowerCase() ? f.name : base(id).replace(/^(push|pull|legs|lib)_/, '').replace(/_/g, ' '));
+  const b = base(id);
+  return names[b] ?? ALL_EXERCISES().find(e => e.id === b)?.name ?? pretty(b);
 }
 
 function perEx(s: SessionLog): Map<string, { sets: number; volume: number; topKg: number | null; topReps: number | null; e1rm: number | null }> {
@@ -58,23 +74,44 @@ function perEx(s: SessionLog): Map<string, { sets: number; volume: number; topKg
   return m;
 }
 
-/** Graphique (image) : volume par exercice, cette séance vs la dernière du même type — QuickChart (gratuit, sans clé). */
-function chartUrl(r: Pick<SessionReview, 'exercises' | 'prev' | 'date'>): string | null {
-  const ex = r.exercises.filter(e => e.volume > 0 || (e.prev?.volume ?? 0) > 0).slice(0, 10);
+/** Graphique (image) — 20/11 refait (Kouider : « je comprends rien, plus de détails utiles, il se trompe dans les noms ») :
+ *  barres horizontales avec le NOM COMPLET, la charge max d'aujourd'hui vs la DERNIÈRE FOIS sur CET exercice (date à côté),
+ *  « kg × reps » écrit sur chaque barre et la flèche ↑/↓ en kg. QuickChart (gratuit, sans clé). */
+function chartUrl(r: Pick<SessionReview, 'exercises' | 'prev' | 'date' | 'totals' | 'label'>): string | null {
+  const ex = r.exercises.filter(e => e.topKg || e.prev?.topKg).slice(0, 10);
   if (!ex.length) return null;
-  const short = (n: string) => n.length > 18 ? `${n.slice(0, 17)}…` : n;
+  const dm = (d?: string) => d ? `${d.slice(8)}/${d.slice(5, 7)}` : '';
+  const set = (kg: number | null | undefined, reps: number | null | undefined) => kg ? `${String(kg).replace('.', ',')} kg × ${reps ?? '?'}` : '';
+  const wrap = (t: string) => { const out: string[] = []; let line = ''; for (const w of t.split(' ')) { if ((line + ' ' + w).trim().length > 24) { out.push(line); line = w; } else line = `${line} ${w}`.trim(); } if (line) out.push(line); return out; };
+  const labels = ex.map(e => {
+    const d = e.topKg && e.prev?.topKg ? Math.round((e.topKg - e.prev.topKg) * 10) / 10 : null;
+    const tag = e.pr ? '🏆 record' : d == null ? '1ʳᵉ fois' : d > 0 ? `▲ +${String(d).replace('.', ',')} kg` : d < 0 ? `▼ ${String(d).replace('.', ',')} kg`
+      : (e.topReps ?? 0) > (e.prev?.topReps ?? 0) ? `▲ +${(e.topReps ?? 0) - (e.prev?.topReps ?? 0)} reps` : '= pareil';
+    return [...wrap(e.name), `${e.sets} séries · ${tag}`];
+  });
+  const color = (e: ExCompare) => e.pr || (e.e1rm && e.prev?.e1rm && e.e1rm > e.prev.e1rm) ? '#1f9d55' : e.e1rm && e.prev?.e1rm && e.e1rm < e.prev.e1rm * 0.97 ? '#e8833a' : '#2c63f2';
   const cfg = {
-    type: 'bar',
+    type: 'horizontalBar',
     data: {
-      labels: ex.map(e => short(e.name)),
+      labels,
       datasets: [
-        ...(r.prev ? [{ label: `Dernière (${r.prev.date.slice(8)}/${r.prev.date.slice(5, 7)})`, data: ex.map(e => Math.round(e.prev?.volume ?? 0)), backgroundColor: '#c7cbd6' }] : []),
-        { label: `Aujourd'hui (${r.date.slice(8)}/${r.date.slice(5, 7)})`, data: ex.map(e => Math.round(e.volume)), backgroundColor: '#2c63f2' },
+        { label: "Aujourd'hui", data: ex.map(e => e.topKg ?? 0), backgroundColor: ex.map(color), lbl: ex.map(e => set(e.topKg, e.topReps)) },
+        { label: 'Dernière fois sur cet exercice', data: ex.map(e => e.prev?.topKg ?? 0), backgroundColor: '#c7cbd6', lbl: ex.map(e => e.prev?.topKg ? `${set(e.prev.topKg, e.prev.topReps)} (le ${dm(e.prev.date)})` : '1ʳᵉ fois') },
       ],
     },
-    options: { plugins: { title: { display: true, text: 'Volume par exercice (kg × reps)' }, legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } },
+    options: {
+      title: { display: true, fontSize: 20, fontColor: '#111', text: [`${r.label} du ${dm(r.date)} — ta meilleure série par exercice`,
+        `${r.totals.sets} séries · ${r.totals.volume.toLocaleString('fr-FR')} kg soulevés${r.totals.durationMin ? ` · ${r.totals.durationMin} min` : ''}   |   vert = plus fort · orange = moins fort`] },
+      legend: { position: 'bottom', labels: { fontSize: 15 } },
+      layout: { padding: { right: 30 } },
+      scales: { xAxes: [{ ticks: { beginAtZero: true, suggestedMax: Math.ceil(Math.max(...ex.map(e => Math.max(e.topKg ?? 0, e.prev?.topKg ?? 0))) * 1.35 / 5) * 5, fontSize: 13, callback: '__KG__' }, scaleLabel: { display: true, labelString: 'Charge (kg)', fontSize: 14 } }],
+        yAxes: [{ ticks: { fontSize: 14, fontColor: '#111' } }] },
+      plugins: { datalabels: { anchor: 'end', align: 'end', color: '#111', font: { size: 13, weight: 'bold' }, formatter: '__FMT__' } },
+    },
   };
-  return `https://quickchart.io/chart?v=4&w=800&h=480&bkg=white&f=png&c=${encodeURIComponent(JSON.stringify(cfg))}`;
+  const js = JSON.stringify(cfg).replace('"__FMT__"', '(v, c) => c.dataset.lbl[c.dataIndex]').replace('"__KG__"', '(v) => v + " kg"');
+  const h = Math.max(520, 140 + ex.length * 110);
+  return `https://quickchart.io/chart?v=2&w=1000&h=${h}&bkg=white&f=png&c=${encodeURIComponent(js)}`;
 }
 
 export async function getReview(date: string): Promise<SessionReview | null> {
@@ -83,8 +120,8 @@ export async function getReview(date: string): Promise<SessionReview | null> {
 
 /** Construit le bilan de la séance du jour `date` (après /api/sport/log), le garde et l'envoie sur Telegram. */
 export async function buildReview(date: string, o: { names?: Record<string, string>; send?: boolean; planned?: number; extra?: string; rests?: Record<string, number[]>; challenge?: string } = {}): Promise<SessionReview | null> {
-  if (o.names) await rememberNames(o.names);
-  const names = { ...(JSON.parse((await kvGet(NAMES_K).catch(() => null)) ?? '{}') as Record<string, string>), ...Object.fromEntries(Object.entries(o.names ?? {}).map(([k, v]) => [base(k), v])) };
+  if (o.names) await rememberNames(o.names, date);
+  const names = { ...(JSON.parse((await kvGet(NAMES_K).catch(() => null)) ?? '{}') as Record<string, string>), ...(await namesOfDay(date)), ...Object.fromEntries(Object.entries(o.names ?? {}).map(([k, v]) => [base(k), v])) };
   const log0 = await readSportLog();
   // 17/11 : un même exercice peut avoir plusieurs identifiants → tout est ramené à un identifiant par NOM (records, « avant »)
   const kx = await exKeyer(names);
@@ -105,8 +142,14 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
   for (const l of log) if (l.date < date) for (const z of l.sets) if (z.kg && z.reps) bestBefore.set(base(z.ex), Math.max(bestBefore.get(base(z.ex)) ?? 0, e1rm(z.kg, z.reps)));
   const exercises: ExCompare[] = [];
   for (const [id, x] of now) {
-    const p = was.get(id);
-    exercises.push({ id, name: await nameOf(id, names), ...x, prev: p ? { sets: p.sets, volume: p.volume, topKg: p.topKg, e1rm: p.e1rm } : null,
+    // 20/11 (Kouider : « le graphique je comprends rien ») : « avant » = la dernière fois qu'il a fait CET exercice,
+    // pas seulement la séance d'avant (ancien programme → 4 exercices sur 6 sans comparaison)
+    // … y compris sous un autre nom (« Tirage poulie basse assis » = « Rowing assis poulie », même règle que PRÉCÉDENT)
+    const nm = nameOf(id, names);
+    const hit = (z: { ex: string }) => base(z.ex) === id || sameExercise(nameOf(z.ex, names), nm);
+    const pS = was.has(id) ? prevS : log.filter(l => l.date < date && l.sets.some(hit)).sort((a, b) => b.date.localeCompare(a.date))[0];
+    const p = pS ? (perEx(pS).get(id) ?? perEx({ ...pS, sets: pS.sets.filter(hit).map(z => ({ ...z, ex: id })) }).get(id)) : undefined;
+    exercises.push({ id, name: nameOf(id, names), ...x, prev: p ? { sets: p.sets, volume: p.volume, topKg: p.topKg, e1rm: p.e1rm, topReps: p.topReps, date: pS!.date } : null,
       pr: !!x.e1rm && (bestBefore.get(id) ?? 0) > 0 && x.e1rm > (bestBefore.get(id) ?? 0) });
   }
   const volume = exercises.reduce((a, e) => a + e.volume, 0);
@@ -150,7 +193,7 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
   const lost = plan?.exercises.length
     ? plan.exercises.filter(e => e.muscle !== 'cardio' && !now.has(base(e.id)) && !doneKeys.has(kx.key(e.id))).map(e => e.id)
     : [];
-  if (lost.length) improve.push(`Pas refait : ${(await Promise.all(lost.slice(0, 3).map(k => nameOf(k, names)))).join(', ')}`);
+  if (lost.length) improve.push(`Pas refait : ${lost.slice(0, 3).map(k => nameOf(k, names)).join(', ')}`);
   if (prevVol && volume >= prevVol * 1.05) good.push(`Volume total +${Math.round((volume / prevVol - 1) * 100)} % vs la même séance du ${prevS!.date.slice(8)}/${prevS!.date.slice(5, 7)}`);
   if (cur.rpe && cur.rpe <= 6) improve.push(`Effort ${cur.rpe}/10 : c'était facile → monte un peu les charges la prochaine fois`);
   if (cur.rpe === 10) improve.push('Effort 10/10 : garde 1-2 reps en réserve sur la plupart des séries, tu progresseras plus longtemps');
@@ -167,7 +210,7 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
       const ex = findExercise(base(id)); const plan = ex && ex.id.toLowerCase() === base(id).toLowerCase() ? ex.rest : 90;
       planned += plan; nP++;
       const m = v.reduce((a, b) => a + b, 0) / v.length;
-      if (m > plan * 1.6 && m - plan > 45) slow.push(`${await nameOf(id, names)} (${fmtS(Math.round(m))} au lieu de ${fmtS(plan)})`);
+      if (m > plan * 1.6 && m - plan > 45) slow.push(`${nameOf(id, names)} (${fmtS(Math.round(m))} au lieu de ${fmtS(plan)})`);
     }
     if (all.length >= 3) rests = { avgSec: Math.round(all.reduce((a, b) => a + b, 0) / all.length), plannedSec: Math.round(planned / Math.max(1, nP)), slow: slow.slice(0, 3) };
   }
@@ -259,7 +302,7 @@ export async function buildReview(date: string, o: { names?: Record<string, stri
     ].join('\n');
     await queueTelegramMessage(text).catch(() => {});
     if (r.chartUrl) {
-      await queueTelegramAlbum(`📈 ${r.label} : aujourd'hui (bleu) vs la dernière (gris) — volume par exercice`, [r.chartUrl]).catch(() => {});
+      await queueTelegramAlbum(`📈 ${r.label} : ta meilleure série sur chaque exercice, aujourd'hui (couleur) vs la dernière fois (gris)`, [r.chartUrl]).catch(() => {});
     }
     // #1 Bilan vocal (voix du coach, gratuit) — pas pendant le travail
     const atWork = await import('./grand-coach-plus.js').then(m => m.atWorkNow()).catch(() => false);

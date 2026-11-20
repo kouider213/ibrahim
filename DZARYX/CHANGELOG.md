@@ -1,3 +1,5 @@
+## 20/11 — FORME bilan : nouveau graphique (barres horizontales, nom complet, meilleure série kg × reps vs la dernière fois sur CET exercice + date, ▲/▼ kg, vert/orange) ; noms par jour + accents ; « avant » retrouve le même exercice sous un autre nom
+
 ## 20/11 — FORME bilan : « Pas refait » = seulement les exercices du programme du jour non faits (plus de comparaison avec l'ancien programme du 16/11)
 
 ## 20/11 — Famille : femme + Ibrahim toujours avec Kouider (jamais « en Algérie »), Algérie = s'y installer ensemble
