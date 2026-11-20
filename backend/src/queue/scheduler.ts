@@ -967,6 +967,7 @@ async function runJob(name: string, slot: string): Promise<void> {
     await (await import('../integrations/bg-context.js')).runInBackground(name, () => handler({ name, id: `${name}:${slot}`, data: {} } as unknown as Job));   // 07/11 : gros Gemini gardé pour Kouider
     console.log(`[scheduler] ✅ ${name} done`);
     void kvDel(`jobfail:${name}`).catch(() => {});
+    if (RESUMABLE.includes(name)) void kvSet(`jobdone:${name}:${slot.replace(/:retry$/, '')}`, '1', 2 * 86_400).catch(() => {});
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[scheduler] ❌ ${name} failed:`, msg);
@@ -993,6 +994,25 @@ async function firstTransientFailure(name: string, msg: string): Promise<boolean
   } catch { return false; }
 }
 
+// 20/11 : une mise en ligne à 10h03 a coupé le démarchage de 10h00 en pleine recherche → 0 mail ce jour-là, sans alerte.
+// Tâches du jour SANS DOUBLON possible (elles comptent elles-mêmes ce qui est déjà fait) : si la dernière a démarré il y a
+// moins de 3 h sans finir, on la relance une fois, 3 min après le démarrage (l'ancienne instance est arrêtée d'ici là).
+const RESUMABLE = ['prospect-outreach'];
+async function resumeInterrupted(): Promise<void> {
+  const { supabase } = await import('../integrations/supabase.js');
+  for (const name of RESUMABLE) {
+    try {
+      const { data } = await supabase.from('job_runs').select('slot, started_at').eq('job', name).not('slot', 'like', 'manual:%')
+        .order('started_at', { ascending: false }).limit(1);
+      const last = data?.[0] as { slot: string; started_at: string } | undefined;
+      if (!last || last.slot.endsWith(':retry') || Date.now() - Date.parse(last.started_at) > 3 * 3600_000) continue;
+      if (await kvGet(`jobdone:${name}:${last.slot}`)) continue;
+      console.warn(`[scheduler] ${name} (${last.slot}) interrompu par un redémarrage → relance`);
+      await runJob(name, `${last.slot}:retry`);
+    } catch (err) { console.error(`[scheduler] reprise ${name}:`, err instanceof Error ? err.message : err); }
+  }
+}
+
 export async function initScheduler(): Promise<void> {
   await ensureAppStoreTables();
 
@@ -1005,6 +1025,7 @@ export async function initScheduler(): Promise<void> {
     console.log(`[scheduler] Registered: ${job.name} (${job.cron})`);
   }
   console.log('[scheduler] All proactive jobs registered (cron in-process)');
+  setTimeout(() => { void resumeInterrupted(); }, 3 * 60_000).unref?.();
 }
 
 // Manual trigger (for testing/admin)

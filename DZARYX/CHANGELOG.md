@@ -1,3 +1,5 @@
+## 20/11 — Scheduler : reprise du démarchage interrompu par un redémarrage (mise en ligne 10h03 → 0 mail le 20/11). jobdone:NAME:SLOT à la fin ; au démarrage +3 min, si prospect-outreach a démarré < 3 h sans finir → relancé une fois (slot :retry). Pas de doublon : il compte les mails du jour en base.
+
 ## 20/11 — FORME bilan : repos / défi / exercices prévus envoyés par l app gardés (kouider:sport:review-in:DATE) et repris quand le bilan est recalculé.
 
 ## 20/11 — FORME bilan : prévision « prochain palier » sur les 3 dernières séances seulement (Papillon 66/66/66 ne prédit plus 70 kg en 4 j), délai min 7 j ; « meilleur mois » seulement face à un mois avec ≥ 6 séances notées (octobre = 1 509 kg ignoré).
