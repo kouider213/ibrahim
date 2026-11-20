@@ -1,3 +1,5 @@
+## 20/11 — Conscience : retours de voiture toujours à l'aéroport d'Oran, plus jamais « chez toi »
+
 ## 20/11 — Sport : PRÉCÉDENT reconnaît le même exercice sous un autre nom (tirage poulie basse = rowing assis poulie, poulie haute, papillon)
 
 ## 20/11 — FORME : photos visibles dans « Remplacer par… » (mode sombre), bouton muscle actif lisible (v284)
