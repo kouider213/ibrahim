@@ -124,10 +124,16 @@ export function ExerciseSheet({ session, id, onClose, z = 65 }: { session?: Sess
   useEffect(() => {
     setD(null); setErr(''); setTab('about');
     if (!open) return;
-    const db = id ?? session?.id ?? dbIdOf(session?.demo ?? session?.img);
+    // 20/11 : l'id d'un exercice du programme (« cardio_curl_pupitre_halteres ») n'est pas dans la bibliothèque → « exercice inconnu ».
+    // On essaie l'id, puis la photo, puis le nom, jusqu'à trouver la fiche.
+    const ids = [...new Set([id, session?.id, dbIdOf(session?.demo ?? session?.img)].filter((x): x is string => !!x))];
     setBusy(true);
-    (db ? get<{ ex: LibDetail }>(`/api/forme/exlib/${encodeURIComponent(db)}`) : get<{ ex: LibDetail | null }>(`/api/forme/exlib-match?name=${encodeURIComponent(session!.name)}`))
-      .then(r => setD(r.ex)).catch(e => setErr(errText(e))).finally(() => setBusy(false));
+    void (async () => {
+      let last: unknown = null;
+      for (const db of ids) { try { setD((await get<{ ex: LibDetail }>(`/api/forme/exlib/${encodeURIComponent(db)}`)).ex); return; } catch (e) { last = e; } }
+      if (session?.name) { try { const r = await get<{ ex: LibDetail | null }>(`/api/forme/exlib-match?name=${encodeURIComponent(session.name)}`); if (r.ex) { setD(r.ex); return; } } catch (e) { last = e; } }
+      if (last) setErr(errText(last));
+    })().finally(() => setBusy(false));
   }, [open, id, session?.name]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!open) return; const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [open, onClose]);
   const img = session?.demo?.length ? session.demo : session?.img?.length ? session.img : d?.img ?? [];

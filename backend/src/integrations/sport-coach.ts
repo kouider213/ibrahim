@@ -1,4 +1,5 @@
 import { kvGet, kvSet } from './app-store.js';
+import { knownExerciseId } from './exercise-lib.js';
 import { listAgendaRange, updateAgendaEvent, deleteAgendaEvent, type AgendaEvent } from './google-calendar.js';
 import { getLocation } from './location.js';
 import { geocode, drive, km } from './departures.js';
@@ -754,7 +755,13 @@ export function sameMove(a: string, b: string): boolean {
 }
 /** Nom d'origine de l'exercice de base qui porte cet identifiant (pour savoir si sa photo convient au nom affiché). */
 const baseNameOf = (id: string): string | null => Object.values(DEFAULT_SESSIONS).flatMap(x => x.exercises).find(e => e.id === id)?.name ?? null;
-const demoFor = (e: { id: string; name: string }): string[] => { const b = baseNameOf(e.id); return b && !sameMove(e.name, b) ? [] : demoOf(e.id); };
+// 20/11 Kouider : « Curl pupitre (haltères) » montrait un curl debout, « Écarté poulie vis-à-vis » le papillon → le nom précis (exercise-lib KNOWN) passe d'abord
+const demoFor = (e: { id: string; name: string }): string[] => {
+  const b = baseNameOf(e.id);
+  const k = b && !sameName(b, e.name) ? knownExerciseId(e.name) : null;   // rattaché à un exercice de base d'un autre nom → photo du nom exact
+  if (k) return [0, 1].map(i => `${DEMO_BASE}/${k}/${i}.jpg`);
+  return b && !sameMove(e.name, b) ? [] : demoOf(e.id);
+};
 
 function findExerciseIn(list: Exercise[], q: string, minScore = 1): Exercise | null {
   const n = norm(q);

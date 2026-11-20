@@ -1,3 +1,5 @@
+## 20/11 — FORME : bonnes photos curl pupitre / écarté vis-à-vis / rowing incliné / abdos machine, fiche sans « exercice inconnu » (v285)
+
 ## 20/11 — Conscience : retours de voiture toujours à l'aéroport d'Oran, plus jamais « chez toi »
 
 ## 20/11 — Sport : PRÉCÉDENT reconnaît le même exercice sous un autre nom (tirage poulie basse = rowing assis poulie, poulie haute, papillon)
