@@ -359,11 +359,20 @@ export function suggestFor(e: Exercise, log: SessionLog[], date?: string): Sugge
 let exNamesMap: Record<string, string> = {};   // noms réels notés par l'appli (kouider:sport:exnames), rafraîchis par getState()
 const sameName = (a: string | undefined, b: string) => !!a && norm(a).replace(/\s+/g, ' ').trim() === norm(b).replace(/\s+/g, ' ').trim();
 const slotless = (id: string) => id.replace(/~.*$/, '').replace(/^(push|pull|legs|cardio|upper|core)_/, '');
+// 20/11 Kouider : même exercice noté sous d'autres noms (« Tirage poulie basse assis » = « Rowing assis poulie » = « Seated Cable Rows »)
+// → la colonne PRÉCÉDENT reprend quand même la dernière fois. Groupes volontairement étroits (pas d'unilatéral ni d'autre matériel).
+const SAME_EX: RegExp[] = [
+  /^(?!.*(unilateral|one arm|1 bras|haltere|dumbbell|barre|barbell|machine|t-bar|inverse)).*(tirage poulie basse|tirage horizontal|tirage assis|rowing (assis )?poulie|rowing assis|seated (cable )?row|cable seated row)/,
+  /^(?!.*(unilateral|one arm|1 bras|serre|close|neutre|inverse|reverse)).*(tirage poulie haute|tirage vertical|wide grip lat pulldown|lat pulldown)/,
+  /^(?!.*(haltere|dumbbell|poulie|cable)).*(papillon|butterfly|pec deck|ecarte (assis )?machine)/,
+];
+const exLabel = (id: string) => exNamesMap[id.replace(/~.*$/, '')] ?? id.replace(/~.*$/, '').replace(/^(push|pull|legs|cardio|upper|core)_/, '').replace(/[_-]+/g, ' ');
+const sameExercise = (a: string, b: string) => { const x = norm(a).replace(/[_-]+/g, ' '), y = norm(b).replace(/[_-]+/g, ' '); return SAME_EX.some(r => r.test(x) && r.test(y)); };
 function suggestRaw(e: Exercise, log: SessionLog[]): Suggestion {
   for (let i = log.length - 1; i >= 0; i--) {
     // 17/11 : même exercice passé dans une autre séance du programme (« pull_curl_barre » → « cardio_curl_barre ») = mêmes charges
     // … mais pas un AUTRE exercice qui portait le même identifiant (« shoulder_press » noté « Écarté assis machine » ≠ « Développé épaules machine »)
-    const sets = log[i]!.sets.filter(s => (s.ex === e.id || slotless(s.ex) === slotless(e.id) || sameName(exNamesMap[s.ex.replace(/~.*$/, '')], e.name)) && s.kg != null && (!exNamesMap[s.ex.replace(/~.*$/, '')] || sameMove(exNamesMap[s.ex.replace(/~.*$/, '')]!, e.name)));
+    const sets = log[i]!.sets.filter(s => (s.ex === e.id || slotless(s.ex) === slotless(e.id) || sameName(exNamesMap[s.ex.replace(/~.*$/, '')], e.name) || sameExercise(exLabel(s.ex), e.name)) && s.kg != null && (!exNamesMap[s.ex.replace(/~.*$/, '')] || sameMove(exNamesMap[s.ex.replace(/~.*$/, '')]!, e.name) || sameExercise(exLabel(s.ex), e.name)));
     if (!sets.length) continue;
     const work = sets.filter(x => (x as { t?: string }).t !== 'w');
     const top = Math.max(...sets.map(s => s.kg!));
