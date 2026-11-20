@@ -1,3 +1,5 @@
+## 20/11 — FORME repas : appel meal_text en double dans le même tour (< 2 min) → réponse « ✅ Noté (une seule fois) » + bilan du jour, au lieu de « PAS compté une 2e fois » (19h58 : Kouider a cru que sa tartine + barre n était pas notée).
+
 ## 20/11 — Scheduler : reprise du démarchage interrompu par un redémarrage (mise en ligne 10h03 → 0 mail le 20/11). jobdone:NAME:SLOT à la fin ; au démarrage +3 min, si prospect-outreach a démarré < 3 h sans finir → relancé une fois (slot :retry). Pas de doublon : il compte les mails du jour en base.
 
 ## 20/11 — FORME bilan : repos / défi / exercices prévus envoyés par l app gardés (kouider:sport:review-in:DATE) et repris quand le bilan est recalculé.

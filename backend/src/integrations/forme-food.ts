@@ -324,7 +324,15 @@ export async function logMealText(uid: Uid, text: string, slot?: MealSlot, date?
   // meal_text) → on ne le compte pas une 2e fois
   const kcalNew = cleanItems(j.items).reduce((a, x) => a + x.kcal, 0);
   const twin = (await mealsOf(uid)).find(m => m.src === 'texte' && Date.now() - m.at < 5 * 60_000 && kcalNew > 0 && Math.abs(m.kcal - kcalNew) <= Math.max(25, kcalNew * 0.15));
-  if (twin) { const b = await foodBudget(uid, twin.date); return { meal: twin, budget: b, message: `ℹ️ Déjà noté à ${twin.time} : ${twin.title} (${twin.kcal} kcal) — PAS compté une 2e fois. Si c'en est vraiment un autre, redis-le dans 5 min.` }; }
+  // 20/11 : le cerveau avait appelé meal_text 2× pour UN message et a lu ce message à Kouider (« je ne l'ai pas compté une
+  // deuxième fois ») → il a cru que rien n'était noté. Moins de 2 min = même message : on répond « ✅ noté », comme un 1er appel.
+  if (twin) {
+    const b = await foodBudget(uid, twin.date);
+    const message = Date.now() - twin.at < 2 * 60_000
+      ? `✅ Noté (une seule fois) : ${twin.title} — ${twin.kcal} kcal · ${twin.p} g protéines.\n📊 Aujourd'hui : ${b.eaten.kcal} / ${b.target} kcal → ${b.left >= 0 ? `il te reste ${b.left} kcal` : `dépassé de ${-b.left} kcal`} · protéines ${b.eaten.p}/${b.proteinGoal} g.`
+      : `ℹ️ Déjà noté à ${twin.time} : ${twin.title} (${twin.kcal} kcal) — PAS compté une 2e fois. Si c'en est vraiment un autre, redis-le dans 5 min.`;
+    return { meal: twin, budget: b, message };
+  }
   const meal = await storeMeal(uid, j, { src: 'texte', note: text, slot, ...(date ? { date } : {}) });   // 07/11 : repas oublié noté après coup sur son jour
   return afterMeal(uid, meal);
 }
