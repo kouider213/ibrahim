@@ -1,3 +1,5 @@
+## 20/11 — Famille : femme + Ibrahim toujours avec Kouider (jamais « en Algérie »), Algérie = s'y installer ensemble
+
 ## 20/11 — FORME : bonnes photos curl pupitre / écarté vis-à-vis / rowing incliné / abdos machine, fiche sans « exercice inconnu » (v285)
 
 ## 20/11 — Conscience : retours de voiture toujours à l'aéroport d'Oran, plus jamais « chez toi »
