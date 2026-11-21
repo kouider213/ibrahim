@@ -1,3 +1,5 @@
+## 21/11 — Routine : « 📸 Radar fixe dans 950 m » à la maison. Cause : le 20/11 au soir une lecture app_kv en échec (kvGet renvoie null sur erreur) → routine:config par défaut (maison « Bruxelles, Belgique », réveil 6h40) ré-enregistrée par la resync agenda → maison inconnue (garde radar 500 m, présence, gym…). Fix : kvGetStrict (erreur = exception), rawRoutineConfig garde la dernière config lue, saveConfig refuse d'écraser les vraies adresses par celles par défaut. Config à restaurer depuis la sauvegarde VPS du 20/11.
+
 ## 20/11 — FORME agenda : guessMuscle prenait « velo » dans « deVELOppé » → séance pecs & dos du 20/11 nommée « CARDIO & DOS ». Cardio = mot entier (velo/course/marche), papillon = pecs.
 
 ## 20/11 — FORME repas : appel meal_text en double dans le même tour (< 2 min) → réponse « ✅ Noté (une seule fois) » + bilan du jour, au lieu de « PAS compté une 2e fois » (19h58 : Kouider a cru que sa tartine + barre n était pas notée).

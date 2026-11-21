@@ -63,6 +63,17 @@ export async function kvGet(key: string): Promise<string | null> {
   return row.value;
 }
 
+/** Comme kvGet, mais une ERREUR Supabase lève une exception au lieu de passer pour « clé absente ».
+ *  21/11 : une lecture en échec le 20/11 au soir → routine:config = défaut (« Bruxelles, Belgique », réveil 6h40) ré-enregistré
+ *  par-dessus la vraie → maison inconnue → alerte radar à la maison. À utiliser partout où « absent » déclenche une écriture. */
+export async function kvGetStrict(key: string): Promise<string | null> {
+  const { data, error } = await supabase.from('app_kv').select('value, expires_at').eq('key', key).maybeSingle();
+  if (error) throw new Error(`app_kv ${key}: ${error.message}`);
+  const row = data as { value: string; expires_at: string | null } | null;
+  if (!row || (row.expires_at && new Date(row.expires_at).getTime() < Date.now())) return null;
+  return row.value;
+}
+
 export async function kvSet(key: string, value: string, ttlSeconds?: number): Promise<void> {
   const expires_at = ttlSeconds ? new Date(Date.now() + ttlSeconds * 1000).toISOString() : null;
   const { error } = await supabase.from('app_kv').upsert({ key, value, expires_at, updated_at: new Date().toISOString() });

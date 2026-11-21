@@ -1,4 +1,4 @@
-import { kvGet, kvSet } from './app-store.js';
+import { kvGet, kvGetStrict, kvSet } from './app-store.js';
 import { createAnthropic, QUALITY } from './anthropic-compat.js';
 import { kouiderDossierText, kouiderDossierTool } from './kouider-dossier.js';
 import { createAgendaEvent, deleteAgendaEvent, listAgendaRange, updateAgendaSeries, shiftAgendaSeries, restoreAgendaRange } from './google-calendar.js';
@@ -107,13 +107,30 @@ const addDays = (date: string, n: number) => new Date(Date.parse(`${date}T12:00:
 
 /** La routine HABITUELLE (semaine type), sans les changements d'un seul jour. À utiliser pour la modifier / l'enregistrer. */
 async function rawRoutineConfig(): Promise<RoutineConfig> {
-  try {
-    const raw = await kvGet(CONFIG_KEY);
-    if (raw) return { ...DEFAULT_CONFIG, ...(JSON.parse(raw) as Partial<RoutineConfig>) };
-  } catch { /* défaut */ }
-  return DEFAULT_CONFIG;
+  // 21/11 : avant, une ERREUR de lecture renvoyait la config par défaut, qui était ensuite ré-enregistrée (resync agenda) :
+  // vraies adresses + horaires perdus le 20/11. Maintenant : erreur → dernière config lue (mémoire), sinon exception.
+  let raw: string | null;
+  try { raw = await kvGetStrict(CONFIG_KEY); }
+  catch (e) { if (lastGoodConfig) return lastGoodConfig; throw e; }
+  if (!raw) return DEFAULT_CONFIG;
+  try { lastGoodConfig = { ...DEFAULT_CONFIG, ...(JSON.parse(raw) as Partial<RoutineConfig>) }; }
+  catch { if (lastGoodConfig) return lastGoodConfig; throw new Error('routine:config illisible'); }
+  return lastGoodConfig;
 }
-const saveConfig = (c: RoutineConfig) => kvSet(CONFIG_KEY, JSON.stringify(c));
+let lastGoodConfig: RoutineConfig | null = null;
+const isDefaultAddr = (a: RoutineConfig['addresses']) => a.home === DEFAULT_CONFIG.addresses.home && a.work === DEFAULT_CONFIG.addresses.work && a.gym === DEFAULT_CONFIG.addresses.gym;
+async function saveConfig(c: RoutineConfig): Promise<void> {
+  // Garde-fou : jamais écraser les vraies adresses par celles par défaut (seul set_addresses peut changer les adresses).
+  if (isDefaultAddr(c.addresses)) {
+    const cur = await kvGetStrict(CONFIG_KEY).then(r => r ? JSON.parse(r) as Partial<RoutineConfig> : null);
+    if (cur?.addresses && !isDefaultAddr(cur.addresses as RoutineConfig['addresses'])) {
+      console.error('[routine] REFUSÉ : écriture de la config par défaut par-dessus la vraie (lecture en échec ?)');
+      throw new Error('config par défaut refusée (la vraie est en base)');
+    }
+  }
+  await kvSet(CONFIG_KEY, JSON.stringify(c));
+  lastGoodConfig = c;
+}
 
 // 11/11 (Kouider, 10/11 : « déplace ma séance de demain à jeudi et enlève mon jour de travail jeudi », répété 4 fois) :
 // un changement pour UNE date (séance déplacée, jour de travail enlevé) sans toucher la semaine type. Avant, le seul moyen
@@ -335,25 +352,25 @@ async function alignFamilyToWorkEnd(): Promise<string> {
 /** Une seule fois : séries de l'agenda recréées pour ne commencer qu'après la pause (sport à partir du lundi 19/10). */
 export async function ensureRoutineStart(): Promise<void> {
   // Nouveaux horaires (v4) : appliqués une fois dès le prochain passage (departure-watch, toutes les 5 min, jour et soir)
-  if ((await kvGet(CALENDAR_FLAG).catch(() => '0')) === '1' && (await kvGet(DAYS_V2_FLAG).catch(() => '1')) !== '1') {
+  if ((await kvGetStrict(CALENDAR_FLAG).catch(() => '0')) === '1' && (await kvGetStrict(DAYS_V2_FLAG).catch(() => '1')) !== '1') {
     const r = await syncRoutineCalendar({ ...(await rawRoutineConfig()), days: DEFAULT_CONFIG.days }).catch(e => String(e));
     if (/^\d+\/\d+ séries/.test(r) && !r.startsWith('0/')) await kvSet(DAYS_V2_FLAG, '1');
     console.log(`[routine] horaires v4 (réveil 6h40, départ 7h, sauf jeudi) : ${r}`);
   }
   // 05/11 soir : séance raccourcie pour être à la maison à 07:30 → séries recréées tout de suite (une fois)
-  if ((await kvGet('routine:resync:2026-11-05c').catch(() => '1')) !== '1') {
+  if ((await kvGetStrict('routine:resync:2026-11-05c').catch(() => '1')) !== '1') {
     const r = await syncRoutineCalendar().catch(e => String(e));
     if (/^\d+\/\d+ séries/.test(r) && !r.startsWith('0/')) await kvSet('routine:resync:2026-11-05c', '1', 30 * 86_400).catch(() => {});
     console.log(`[routine] maison à 07:30 (samedi 08:30) : ${r}`);
   }
   // 07/11 : « travail jusqu'à 21h, puis temps famille » alors qu'il finit à 20h (mar/mer/ven/sam) → séries recalées une fois
-  if ((await kvGet(FAMILY_FIX_FLAG).catch(() => '1')) !== '1') {
+  if ((await kvGetStrict(FAMILY_FIX_FLAG).catch(() => '1')) !== '1') {
     const r = await alignFamilyToWorkEnd().catch(e => `erreur : ${e instanceof Error ? e.message : String(e)}`);
     if (!r.startsWith('agenda') && !r.startsWith('erreur')) await kvSet(FAMILY_FIX_FLAG, '1', 60 * 86_400).catch(() => {});
     await kvSet('routine:fix:famille-20h:result', r, 30 * 86_400).catch(() => {});
     console.log(`[routine] temps famille / fin du travail : ${r}`);
   }
-  if ((await kvGet(START_FLAG).catch(() => '1')) === '1') return;
+  if ((await kvGetStrict(START_FLAG).catch(() => '1')) === '1') return;
   const r = await syncRoutineCalendar().catch(e => String(e));
   if (/^\d+\/\d+ séries/.test(r) && !r.startsWith('0/')) await kvSet(START_FLAG, '1');
   console.log(`[routine] séries après la pause : ${r}`);
@@ -361,9 +378,9 @@ export async function ensureRoutineStart(): Promise<void> {
 
 export async function jobMorningRoutine(): Promise<void> {
   await ensureRoutineStart();
-  if ((await kvGet(CALENDAR_FLAG).catch(() => '1')) !== '1') await setupRoutineCalendar().catch(e => console.error('[routine] agenda:', e));
+  if ((await kvGetStrict(CALENDAR_FLAG).catch(() => '1')) !== '1') await setupRoutineCalendar().catch(e => console.error('[routine] agenda:', e));
   // Une fois : séries de l'agenda recréées après la remise du jeudi en jour de magasin (05/11)
-  if ((await kvGet('routine:resync:2026-11-05').catch(() => '1')) !== '1') {
+  if ((await kvGetStrict('routine:resync:2026-11-05').catch(() => '1')) !== '1') {
     await kvSet('routine:resync:2026-11-05', '1', 30 * 86_400).catch(() => {});
     await syncRoutineCalendar().then(r => console.log(`[routine] agenda resynchronisé : ${r}`)).catch(e => console.error('[routine] resync:', e));
   }
