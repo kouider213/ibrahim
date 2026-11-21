@@ -559,7 +559,7 @@ export async function eveningSleepMessage(): Promise<string | null> {
   const b = await foodBudget('kouider', date);
   const cfg = await import('./morning-routine.js').then(m => m.getRoutineConfig()).catch(() => null);
   const tomorrow = cfg?.days[(weekday + 1) % 7];
-  const wake = tomorrow?.wake ?? null;
+  const wake = tomorrow?.kind !== 'none' ? tomorrow?.wake ?? null : null;   // 21/11 : dimanche « none » gardait réveil 05:00 → coucher conseillé trop tôt
   const adv = await import('./sleep-coach.js').then(m => m.bedtimeAdvance()).catch(() => ({ minutes: 0, why: '' }));
   const bed = wake ? (() => { const [h, m] = wake.split(':').map(Number); const t = (h! * 60 + m! - 7.5 * 60 - 15 - adv.minutes + 1440) % 1440; return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; })() : null;
   const all = await health();

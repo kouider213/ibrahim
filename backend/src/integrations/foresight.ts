@@ -54,16 +54,23 @@ export async function simulateTomorrow(send = true): Promise<string> {
   const pts = await Promise.all((['home', 'gym', 'work'] as const).map(k => geocode(cfg.addresses[k]).catch(() => null)));
   if (pts[0] && pts[1]) { const d = await drive(pts[0], pts[1]).catch(() => null); if (d) legs.push(`maison→salle ${d.min} min`); }
   if (pts[0] && pts[2]) { const d = await drive(pts[0], pts[2]).catch(() => null); if (d) legs.push(`maison→travail ${d.min} min`); }
+  const noSport = cfg.days[wd]?.kind !== 'sport' || /^Pas de sport/i.test(sport ?? '');
   const facts = {
     date, jour: ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'][wd], lieu: oran ? 'Oran (Algérie)' : 'Bruxelles',
-    routine: cfg.days[wd], agenda: evs.map(e => `${e.start?.dateTime?.slice(11, 16) ?? 'journée'}-${e.end?.dateTime?.slice(11, 16) ?? ''} ${e.summary ?? ''}${e.location ? ` @${e.location}` : ''}`),
-    seance: sport, locations: (books ?? []).filter((b: Record<string, unknown>) => !/REJECT|CANCEL/i.test(String(b['status']))),
-    vols: trips.map(t => `${t.who} ${t.title} ${localNow(t.departAt).hhmm}`), prieres: prayers, trajets: legs, energie: energy,
+    // 21/11 : dimanche = kind 'none' mais heures sport/réveil restées dans la config → l'IA inventait « sport 06:00 à Wemmel ».
+    // Pas de séance demain (routine ≠ sport, repos, séance absente) → on n'envoie AUCUNE heure de sport/réveil/départ.
+    routine: (() => { const r = cfg.days[wd]; if (!r || !noSport) return r;
+      if (r.kind === 'work') return { kind: r.kind, wake: r.wake, shower: r.shower, eat: r.eat, leave: r.leave, next: r.next, sport: 'AUCUNE séance (pas de salle)' };
+      return { kind: r.kind, eat: r.eat, next: r.next, sport: 'AUCUNE séance demain : pas de salle, pas de trajet vers la salle, pas de réveil sport' }; })(),
+    agenda: evs.map(e => `${e.start?.dateTime?.slice(11, 16) ?? 'journée'}-${e.end?.dateTime?.slice(11, 16) ?? ''} ${e.summary ?? ''}${e.location ? ` @${e.location}` : ''}`),
+    seance: noSport ? 'aucune' : sport, locations: (books ?? []).filter((b: Record<string, unknown>) => !/REJECT|CANCEL/i.test(String(b['status']))),
+    vols: trips.map(t => `${t.who} ${t.title} ${localNow(t.departAt).hhmm}`), prieres: prayers, trajets: noSport ? legs.filter(l => !/salle/.test(l)) : legs, energie: energy,
     // 05/11 il a corrigé le planning : « retour 07:30-07:50 » (il doit être À la maison à 07:30), « déjeuner + micro-sieste au travail » (aucune pause là-bas), « coucher 22:30 » (il dort vers 23h)
     contraintes: [
-      ...(sport ? [`séance le matin → à la maison à ${await import('./gym-live.js').then(async m => (await m.getHomeBy(date)) ?? m.defaultHomeBy(date)).catch(() => '07:30')} AU PLUS TARD (trajet retour terminé avant)`] : []),
+      ...(!noSport && sport ? [`séance le matin → à la maison à ${await import('./gym-live.js').then(async m => (await m.getHomeBy(date)) ?? m.defaultHomeBy(date)).catch(() => '07:30')} AU PLUS TARD (trajet retour terminé avant)`] : []),
       'au travail : AUCUNE pause (ni repas, ni sieste, ni repos) — repas avant ou après le travail',
       'coucher : 23:00 (il dort vers 23h au plus tôt), jamais plus tôt dans le planning',
+      ...(!noSport ? [] : ['PAS de sport demain : n\'ajoute ni séance, ni salle de Wemmel, ni trajet vers la salle']),
     ],
   };
   const o = jsonOf<{ timeline?: string[]; collisions?: Array<{ what: string; fix: string }>; tip?: string }>(await ai(

@@ -369,7 +369,7 @@ async function onHomeEvening(st: PresenceState, now: number): Promise<void> {
   const first = (evs ?? []).find(e => e.start.dateTime && !/^(🟢|🚿|⏰|🚗)/u.test(e.summary ?? ''));
   const care = await (await import('../notifications/dnd.js')).takeFamilyFollowup();
   const kid = await (await import('./papa-time.js')).homeEveningLine().catch(() => '');
-  await queueTelegramMessage(`🏠 Bien rentré ! Profite de ta famille.${care ? `\n❤️ Et depuis hier (${care.toLowerCase()}), comment ça va à la maison ce soir ?` : ''}${kid}\nDemain : ${!paused && plan?.wake ? `réveil ${plan.wake.replace(':', 'h')}` : 'pas de réveil prévu'}${first ? `, ${hm(Date.parse(first.start.dateTime!))} ${first.summary}` : ''}.`);
+  await queueTelegramMessage(`🏠 Bien rentré ! Profite de ta famille.${care ? `\n❤️ Et depuis hier (${care.toLowerCase()}), comment ça va à la maison ce soir ?` : ''}${kid}\nDemain : ${!paused && plan?.kind !== 'none' && plan?.wake ? `réveil ${plan.wake.replace(':', 'h')}` : 'pas de réveil prévu'}${first ? `, ${hm(Date.parse(first.start.dateTime!))} ${first.summary}` : ''}.`);
 }
 
 // ── Boucle : chaque position reçue (≤ 1 fois / 45 s) + toutes les 5 min ──────
