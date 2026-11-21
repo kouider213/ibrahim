@@ -380,7 +380,9 @@ export async function handleWaYesNo(message: string): Promise<{ reply?: string; 
   if (p.kind) void import('./autonomy.js').then(m => m.noteDecision(p.kind!, yes ? 'yes' : no ? 'no' : 'edit')).catch(() => {});
   if (short && VOICE_RE.test(message)) return { reply: await sendWaVoice(p.chat, p.draft) };
   if (!yes && !no) return { chat: p.chat, note: `[Contexte : tu viens de lui proposer cette réponse WhatsApp pour ${p.chat} : « ${p.draft} ». S'il demande un changement, réécris-la puis outil whatsapp_web send (relecture, puis confirmed:true après son oui).]` };
-  if (no) return { reply: `👍 Je n'envoie rien à ${p.chat}. La réponse reste prête si tu changes d'avis (« envoie la réponse à ${p.chat} »).` };
+  // 21/11 relances clients : après chaque oui / non, la relance suivante de la file du matin
+  const next = () => import('./relance-clients.js').then(m => m.nextRelance()).catch(() => '');
+  if (no) return { reply: `👍 Je n'envoie rien à ${p.chat}. La réponse reste prête si tu changes d'avis (« envoie la réponse à ${p.chat} »).${await next()}` };
   if (!isCloudPcOnline()) return { reply: '❌ Le PC cloud ne répond pas : WhatsApp injoignable, rien n\'est parti. Réessaie dans un moment.' };
   const r = await cloudEmit<R & { chat?: string }>('cloud:wa', { action: 'send', chat: p.chat, text: p.draft }, 80_000)
     .catch(err => ({ ok: false, error: err instanceof Error ? err.message : String(err) } as R));
@@ -388,7 +390,7 @@ export async function handleWaYesNo(message: string): Promise<{ reply?: string; 
   void import('./foresight.js').then(m => m.logWa(p.chat, 'out', p.draft)).catch(() => {});
   const d = await drafts(); delete d[p.chat.toLowerCase()]; await kvSet(DRAFTS_KEY, JSON.stringify(d), 3 * 86_400);
   void import('./night-guard.js').then(m => m.clearClientWaiting(p.chat)).catch(() => {});
-  return { reply: `✅ Envoyé sur WhatsApp à ${r['chat'] || p.chat}.` };
+  return { reply: `✅ Envoyé sur WhatsApp à ${r['chat'] || p.chat}.${await next()}` };
 }
 
 /** 13/11 : le cerveau (surtout le gratuit) réécrit le brouillon dans sa réponse SANS appeler send → le « oui » suivant ne trouvait
@@ -417,8 +419,8 @@ export async function clearWaPending(): Promise<void> {
 }
 
 /** Brouillon proposé ailleurs (décision à boutons…) : devient la réponse en attente (« montre-moi le message », « oui »). */
-export async function setWaPending(chat: string, draft: string): Promise<void> {
-  await kvSet(PENDING_KEY, JSON.stringify({ chat, draft }), 12 * 3600);
+export async function setWaPending(chat: string, draft: string, extra: Record<string, unknown> = {}): Promise<void> {
+  await kvSet(PENDING_KEY, JSON.stringify({ ...extra, chat, draft }), 12 * 3600);
   await saveWaDraft(chat, (await drafts())[chat.toLowerCase()]?.preview ?? '', draft);
 }
 

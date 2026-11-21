@@ -14,11 +14,12 @@ export async function coldLeads(minH = 48, maxDays = 21): Promise<Row[]> {
       let b = supabase.from(table).select(sel).gte('created_at', from).lte('created_at', to).limit(100);
       if (extra) b = extra(b as never) as typeof b;
       const { data } = await b;
-      return ((data ?? []) as unknown as Array<Record<string, unknown>>).map(r => ({ id: `${table}:${r['id']}`, client_name: (r['client_name'] as string) ?? null, status: (r['status'] as string) ?? null, created_at: String(r['created_at']), what: what(r) }));
+      // paniers du site (« 🛒 panier ») : relancés par relance-clients.ts, pas ici
+      return ((data ?? []) as unknown as Array<Record<string, unknown>>).filter(r => !String(r['notes'] ?? '').startsWith('🛒')).map(r => ({ id: `${table}:${r['id']}`, client_name: (r['client_name'] as string) ?? null, status: (r['status'] as string) ?? null, created_at: String(r['created_at']), what: what(r) }));
     } catch { return []; }
   };
   const all = (await Promise.all([
-    q('client_leads', 'id, client_name, status, created_at, criteria, category', r => String(r['criteria'] || r['category'] || 'demande')),
+    q('client_leads', 'id, client_name, status, created_at, criteria, category, notes', r => String(r['criteria'] || r['category'] || 'demande')),
     q('dossiers', 'id, client_name, status, created_at, subject, kind', r => String(r['subject'] || r['kind'] || 'dossier')),
     q('import_orders', 'id, client_name, status, created_at, vehicle_brand, vehicle_model', r => `import ${[r['vehicle_brand'], r['vehicle_model']].filter(Boolean).join(' ')}`.trim()),
     q('bookings', 'id, client_name, status, created_at', () => 'réservation en attente', b => (b as unknown as { eq: (c: string, v: string) => unknown }).eq('status', 'PENDING')),
