@@ -168,6 +168,21 @@ export async function jobHabitsLearn(): Promise<string> {
   return `${habits.length} habitude(s)`;
 }
 
+/** Séance du jour / de demain d'après le VRAI plan du coach sport (jamais devinée dans l'agenda). */
+async function sportPlanText(inDays: number): Promise<string> {
+  const sc = await import('./sport-coach.js');
+  const day = new Date(Date.parse(`${localNow().date}T12:00:00Z`) + inDays * 86_400_000).toISOString().slice(0, 10);
+  const fmt = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-FR', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long' });
+  const nx = await sc.nextSessionDate(day).catch(() => null);   // recalcule le plan s'il est vieux
+  const skipped = await sc.isSportSkipped(day).catch(() => false);
+  const s = skipped ? null : await sc.sportSessionFor(day).catch(() => null);
+  const when = inDays ? 'Demain' : 'Aujourd\'hui';
+  if (s && !/^Pas de sport/.test(s)) return `🏋️ ${when} (${fmt(day)}) : ${s}`;
+  let next = nx && nx.date > day ? nx : null;
+  if (!next) next = await sc.nextSessionDate(new Date(Date.parse(`${day}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10)).catch(() => null);
+  return `😴 ${when} (${fmt(day)}) : pas d'entraînement, repos.${next ? ` Prochaine séance : ${fmt(next.date)}.` : ''}`;
+}
+
 /** Toutes les 15 min : une habitude arrive → il prépare et l'envoie avant qu'on demande. */
 export async function jobHabitsRun(): Promise<string> {
   const habits = await kvJson<Habit[]>('habits', []);
@@ -176,7 +191,12 @@ export async function jobHabitsRun(): Promise<string> {
   for (const h of habits) {
     if (h.lastRun === date || (h.weekday !== -1 && h.weekday !== weekday) || hhmm < h.hour || hhmm > `${String(Number(h.hour.slice(0, 2)) + 1).padStart(2, '0')}${h.hour.slice(2)}`) continue;
     h.lastRun = date; n++;
-    const out = await research(`Prépare pour Kouider, AVANT qu'il le demande (il le demande d'habitude à cette heure) : « ${h.prompt} ». Réponse directe, courte, avec les vrais chiffres.`, { rounds: 5, sessionId: 'habits' });
+    // 21/11 19h30 : « planning sport de demain » deviné par l'IA dans l'agenda → « 07:00 Départ pour la salle, 07:05 Retour
+    // maison » alors qu'il n'y avait PAS d'entraînement le dimanche. Le sport vient maintenant du vrai plan du coach sport.
+    const out = /sport|s[ée]ance|salle|muscu|entra[iî]n|gym/i.test(`${h.what} ${h.prompt}`)
+      ? await sportPlanText(/demain/i.test(`${h.what} ${h.prompt}`) ? 1 : 0)
+      : await research(`Prépare pour Kouider, AVANT qu'il le demande (il le demande d'habitude à cette heure) : « ${h.prompt} ». Réponse directe, courte, avec les vrais chiffres.`, { rounds: 5, sessionId: 'habits' });
+    if (!out) continue;
     await tg(`🔮 Je te l'ai préparé avant que tu demandes (${h.what}) :\n\n${out}`);
   }
   if (n) await kvPut('habits', habits);
