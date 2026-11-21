@@ -420,6 +420,29 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
   if (sportCancel) {
     const r = await (await import('../integrations/sport-coach.js')).runSportCancel(sportCancel).catch(e => `❌ échec de l'annulation : ${e instanceof Error ? e.message : e}`);
     if (!/^❌/.test(r)) codeActions.push({ name: 'sport_coach', success: true, result: `✅ ${r}` });
+    // 21/11 7h27 : « Je pas été m'entraîner aujourd'hui annulé ma séance » → séance bien annulée par le code, mais le cerveau
+    // a répondu « comme demain c'est ton jour de repos… » sans jamais dire « annulée ». Message court = juste l'annulation
+    // → le CODE répond lui-même, clair et sûr.
+    const own = userMessage.replace(/\[[^\]]*\]/g, ' ').trim();
+    if (!/^❌/.test(r) && own.length <= 140 && !own.includes('?')) {
+      const sc = await import('../integrations/sport-coach.js');
+      const dayAfter = new Date(Date.parse(`${sportCancel.date}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+      let nx = await sc.nextSessionDate(dayAfter).catch(() => null);
+      if (nx && await sc.isSportSkipped(nx.date).catch(() => false)) nx = null;   // jamais annoncer une séance déjà annulée
+      const fmtD = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-FR', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long' });
+      const msg = `✅ C'est noté : séance du ${fmtD(sportCancel.date)} annulée (${sportCancel.reason}). Pas d'appel ni d'alerte de départ pour ce jour.`
+        + (nx ? ` Prochaine séance : ${fmtD(nx.date)}.` : '');
+      console.log(`[orch:${requestId}] SPORT_CANCEL code reply ${sportCancel.date}`);
+      _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: msg });
+      saveConversationTurn(sessionId, 'assistant', msg, { tools: ['sport_coach ✅'] }).catch(() => {});
+      if (!textOnly) {
+        _io?.emit(SOCKET_EVENTS.STATUS, { status: 'speaking', sessionId });
+        await streamAudioSentences(msg, sessionId);
+        _io?.emit(SOCKET_EVENTS.AUDIO_COMPLETE, { sessionId });
+      }
+      _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+      return { text: msg, status: 'done' };
+    }
     pre.unshift(`DÉJÀ FAIT PAR LE CODE pour ce message (ne rappelle PAS sport_coach skip/rest pour ce jour) : ${r}\nConfirme-le-lui en une phrase avec CE résultat exact, puis réponds au reste de son message.`);
   }
   // 03/11 question de conseil → réponse « comme ChatGPT » (personnalisée FORME, illustrée, format Telegram propre). La consigne

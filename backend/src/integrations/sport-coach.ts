@@ -1709,8 +1709,11 @@ export function parseSportCancel(raw: string): { date: string; reason: string } 
   if (raw.includes('?') || raw.length > 400) return null;
   const s = norm(raw);
   if (/remet|reprend|unskip|annule l.annulation|finalement je (vais|fais)/.test(s)) return null;
-  const cancel = /\b(annul\w*|supprim\w*|enl[eè]v\w*|retir\w*|saut\w*|pas de (sport|salle|seance|muscu)|je (ne )?(fais|vais) pas (a la )?(sport|salle|seance|muscu)|pas (a la )?salle)\b/.test(s);
-  const sport = /\b(seance|sport|salle|muscu|entrainement|training)\b/.test(s);
+  // 21/11 : « j'ai pas été à la salle ce matin », « je suis pas allé au sport aujourd'hui » = séance pas faite
+  const notGone = /\b(pas|jamais) (ete|alle|allee|pu aller|pu y aller|pu m.?entrainer)( (m.?entrainer|a la (salle|muscu|gym)|au (sport|gym)|a l.?entrainement|faire (du sport|ma seance)))?\b/.test(s)
+    && /\b(seance|sport|salle|muscu|gym|entrainer|entrainement|training)\b/.test(s);
+  const cancel = notGone || /\b(annul\w*|supprim\w*|enl[eè]v\w*|retir\w*|saut\w*|pas de (sport|salle|seance|muscu)|je (ne )?(fais|vais) pas (a la )?(sport|salle|seance|muscu)|pas (a la )?salle)\b/.test(s);
+  const sport = /\b(seance|sport|salle|muscu|gym|entrainer|entrainement|training)\b/.test(s);
   if (!cancel || !sport) return null;
   // le jour le plus PROCHE du mot séance/sport (« prise de sang lundi … ma séance de demain » → demain)
   const at = s.search(/\b(seance|sport|salle|muscu|entrainement|training)\b/);
@@ -1719,7 +1722,7 @@ export function parseSportCancel(raw: string): { date: string; reason: string } 
   const dw = ds[0]?.[1];
   if (!dw) return null;
   const date = /aujourd|ce matin/.test(dw) ? localNow().date : parseDate(dw);
-  const reason = /malade/.test(s) ? 'malade' : /fatigu|creve/.test(s) ? 'fatigué' : 'repos demandé';
+  const reason = /malade/.test(s) ? 'malade' : /fatigu|creve/.test(s) ? 'fatigué' : notGone ? 'pas allé' : 'repos demandé';
   return { date, reason };
 }
 export async function runSportCancel(c: { date: string; reason: string }): Promise<string> {
