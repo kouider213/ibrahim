@@ -96,6 +96,8 @@ export interface FormeDay {
   meals: Record<string, boolean>;       // `${recipeId}:${slot}` → mangé
   extra: FoodItem[];
   water: number; weight?: number;
+  weightAt?: string;                     // 21/11 : heure de la pesée (HH:MM) ; weightPm = pesée de l'après-midi/soir gardée à part
+  weightPm?: number;
   measures?: Partial<Record<'taille' | 'hanches' | 'poitrine' | 'bras' | 'cuisse' | 'cou', number>>;
   injection?: { at: number; site: string; dose?: string };
   sides?: Array<{ what: string; level: number; at: number }>;
@@ -465,6 +467,7 @@ VÉRITÉ AVANT TOUT (Kouider 01/11 : « une vraie analyse, pas une invention »)
 4) Comparaison avant/maintenant seulement si même pose, tenue et cadrage comparables ; sinon dis-le et score 50. Le score ne reflète QUE des différences réellement visibles. Jamais de chiffre inventé (pas de % de gras, pas de kg de muscle). Jamais de phrase générique qui irait à n'importe qui.
 GROS PLAN (13/11, Kouider : « je lui montre mon bras pour les veines, une partie de mon dos, le ventre, les pecs ») : une photo d'UNE partie (bras, dos, ventre, côtés, pecs) est valable → body_visible "partiel" et tu analyses À FOND cette partie : muscle visible (forme, séparation, volume) vs gras qui la couvre (pli, ventre qui déborde, côtés, gras sous les pecs), et ce qui manque pour qu'elle devienne « du muscle et plus du gras ».
 VEINES : s'il parle de veines / vascularité, dis honnêtement ce qui se voit (veines visibles ou non sur l'avant-bras, le biceps, l'épaule) et donne les vrais leviers : 1) moins de gras sous la peau = le levier n°1 (sa sèche, déficit raisonnable), 2) plus de muscle sur avant-bras / biceps / triceps (curls marteau, curls inversés, flexions de poignets, tractions, farmer walk), 3) la congestion : séries longues (15-20 reps) en fin de séance, 4) bien hydraté, assez de glucides autour de la séance, sel normal. JAMAIS de diurétique, de déshydratation volontaire ni de produit dopant.
+PROTÉINES : si tu en parles, le seul chiffre est ${formeTargets(p).p} g/jour (objectif FORME) — jamais un autre calcul. BRAS : jamais de promesse de cm de tour de bras.
 Analyse objectivement et avec bienveillance ce qui a changé : épaules, bras, ventre/taille, dos, hanches, jambes, posture. Ne commente jamais le visage. Pas de jugement sur le corps, juste du concret et motivant.
 Réponds UNIQUEMENT en JSON :
 {"seen":"ce que tu vois vraiment (1-2 phrases)","body_visible":"oui|partiel|non","pose":"face|profil|dos|bras|ventre|pecs","summary":"2-3 phrases : ce qui a changé (ou point de départ)","score":0-100 (progression visible, 50 = pareil),
@@ -729,10 +732,17 @@ export async function formeOverview(uid: Uid = 'kouider') {
 
 export async function logForme(kind: string, b: Record<string, unknown>, date = localNow().date, uid: Uid = 'kouider'): Promise<FormeDay> {
   const n = (v: unknown) => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
+  let pmKept = false;
   const d = await updateDay(uid, date, d => {
     if (kind === 'water') d.water = Math.max(0, Math.min(30, d.water + (n(b.delta) || 1)));
     else if (kind === 'water-set') d.water = Math.max(0, Math.min(30, Math.round(n(b.glasses))));
-    else if (kind === 'weight' && n(b.kg) > 30) d.weight = Math.round(n(b.kg) * 10) / 10;
+    else if (kind === 'weight' && n(b.kg) > 30) {
+      // 21/11 : une pesée de l'après-midi/soir n'écrase plus celle du matin (la seule qui compte)
+      const kg = Math.round(n(b.kg) * 10) / 10, now = localNow();
+      const pm = date === now.date && now.hhmm >= '12:00' && b.force !== true;
+      if (pm && d.weight && (!d.weightAt || d.weightAt < '12:00')) { d.weightPm = kg; pmKept = true; }
+      else { d.weight = kg; d.weightAt = date === now.date ? now.hhmm : undefined; }
+    }
     else if (kind === 'weight-del') delete d.weight;   // 17/11 : pesée tapée par erreur → supprimée
     else if (kind === 'meal') d.meals[String(b.key)] = !!b.eaten;
     else if (kind === 'food') d.extra.push({ name: String(b.name ?? 'Aliment').slice(0, 60), kcal: Math.round(n(b.kcal)), p: Math.round(n(b.p)), c: Math.round(n(b.c)), f: Math.round(n(b.f)), at: Date.now(), src: String(b.src ?? 'manuel').slice(0, 20) });
@@ -747,7 +757,7 @@ export async function logForme(kind: string, b: Record<string, unknown>, date = 
     else if (kind === 'workout') d.workout = { session: n(b.session), label: String(b.label ?? '').slice(0, 40), sets: (Array.isArray(b.sets) ? b.sets as WorkoutLog['sets'] : []).slice(0, 80).map(s => ({ ex: String(s.ex), ...(n(s.kg) > 0 ? { kg: n(s.kg) } : {}), ...(n(s.reps) > 0 ? { reps: n(s.reps) } : {}) })), ...(n(b.durationMin) > 0 ? { durationMin: n(b.durationMin) } : {}), ...(n(b.rpe) > 0 ? { rpe: n(b.rpe) } : {}), at: Date.now() };
   });
   // 07/11 : une pesée oubliée notée après coup ne remplace pas le poids actuel s'il y a une pesée plus récente
-  if (kind === 'weight' && n(b.kg) > 30) {
+  if (kind === 'weight' && n(b.kg) > 30 && !pmKept) {
     const later = Object.entries(await readDays(uid).catch(() => ({} as Record<string, FormeDay>))).some(([k, x]) => k > date && x.weight);
     if (!later) await setFormeProfile({ weightKg: Math.round(n(b.kg) * 10) / 10 }, uid).catch(() => {});
   }
@@ -1018,7 +1028,10 @@ export async function formeTool(input: Record<string, unknown>): Promise<string>
     if (!['weight', 'weight-del', 'injection', 'side', 'measures'].includes(kind)) return 'kind invalide (weight, weight-del, injection, side, measures) — FORME ne suit plus la nourriture';
     // 17/11 : « je me suis trompé, c'est 76,9 » → kind weight + kg (même date = remplace) ; date YYYY-MM-DD pour un autre jour ; weight-del = supprimer
     const date = /^\d{4}-\d{2}-\d{2}$/.test(String(input.date ?? '')) ? String(input.date) : undefined;
-    await logForme(kind, input, date);
+    const day = await logForme(kind, input, date);
+    const kg = Math.round(Number(input.kg) * 10) / 10;
+    if (kind === 'weight' && day.weightPm === kg && day.weight !== kg)
+      return `✅ Pesée du soir ${kg} kg notée à part. Ta pesée du matin (${day.weight} kg) reste la référence : 1 à 2 kg de plus le soir, c'est normal (eau, repas, sel). Si c'était une CORRECTION de la pesée du matin, refais avec force: true.`;
     return kind === 'weight-del' ? `✅ Pesée du ${date ?? "jour"} supprimée dans FORME.` : kind === 'weight' ? `✅ Poids ${input.kg} kg noté dans FORME pour le ${date ?? "jour"} (remplace l'ancienne pesée de ce jour).` : `✅ Noté dans FORME (${kind}).`;
   }
   if (a === 'machines') {

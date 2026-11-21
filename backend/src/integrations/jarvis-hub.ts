@@ -130,13 +130,16 @@ export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok
     })).catch(() => {});
   }
   // FORME : pas, poids, calories actives du jour
+  let morningKept = false;
   await import('./forme.js').then(async f => {
     await f.updateDay('kouider', date, x => {
       if (d.steps) x.steps = Math.min(80000, d.steps);
-      if (d.weight && d.weight > 30) x.weight = Math.round(d.weight * 10) / 10;
+      // 21/11 : la santé synchronisée le soir n'écrase plus la pesée du matin (1-2 kg d'écart = normal)
+      if (d.weight && d.weight > 30 && !(x.weight && (!x.weightAt || x.weightAt < '12:00') && localNow().hhmm >= '12:00' && date === localNow().date)) { x.weight = Math.round(d.weight * 10) / 10; x.weightAt = date === localNow().date ? localNow().hhmm : undefined; }
+      else if (d.weight && d.weight > 30) { x.weightPm = Math.round(d.weight * 10) / 10; morningKept = true; }
       if (d.active_kcal) x.activeKcal = Math.round(d.active_kcal);
     });
-    if (d.weight && d.weight > 30) await f.setFormeProfile({ weightKg: Math.round(d.weight * 10) / 10 }, 'kouider');
+    if (d.weight && d.weight > 30 && !morningKept) await f.setFormeProfile({ weightKg: Math.round(d.weight * 10) / 10 }, 'kouider');
   }).catch(() => {});
   if (d.active_kcal && d.active_kcal > 500) notes.push(`🔥 ${Math.round(d.active_kcal)} kcal brûlées : ton budget calories du jour dans FORME en tient compte.`);
   if (notes.length) await tg(`🩺 Jarvis santé — ${date}\n${notes.join('\n')}`);
