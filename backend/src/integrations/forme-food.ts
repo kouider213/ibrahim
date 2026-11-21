@@ -323,7 +323,10 @@ export async function logMealText(uid: Uid, text: string, slot?: MealSlot, date?
   // Même repas déjà noté il y a moins de 5 min (03/11 : « 250 g de skyr » noté 2× à 24 s d'écart — le cerveau a rappelé
   // meal_text) → on ne le compte pas une 2e fois
   const kcalNew = cleanItems(j.items).reduce((a, x) => a + x.kcal, 0);
-  const twin = (await mealsOf(uid)).find(m => m.src === 'texte' && Date.now() - m.at < 5 * 60_000 && kcalNew > 0 && Math.abs(m.kcal - kcalNew) <= Math.max(25, kcalNew * 0.15));
+  // 21/11 : « 3 œufs avec 2 morceaux d'emmental » noté 2× à 20 s (458 puis 368 kcal : l'IA chiffre différemment) → même phrase = même repas
+  const same = (a?: string) => (a ?? '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const twin = (await mealsOf(uid)).find(m => m.src === 'texte' && Date.now() - m.at < 5 * 60_000 && kcalNew > 0
+    && (Math.abs(m.kcal - kcalNew) <= Math.max(25, kcalNew * 0.15) || (!!same(text) && same(m.note) === same(text))));
   // 20/11 : le cerveau avait appelé meal_text 2× pour UN message et a lu ce message à Kouider (« je ne l'ai pas compté une
   // deuxième fois ») → il a cru que rien n'était noté. Moins de 2 min = même message : on répond « ✅ noté », comme un 1er appel.
   if (twin) {
