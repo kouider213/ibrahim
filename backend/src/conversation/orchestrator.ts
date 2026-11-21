@@ -8,6 +8,7 @@ import { proceduresContext }                      from '../integrations/procedur
 import { openTasksContext }                       from '../integrations/team-tasks.js';
 import { trackEpisode }                           from './episode-tracker.js';
 import { type OrgMember, DEFAULT_MEMBER }        from '../orchestrator/org-resolver.js';
+import { scrubBanned } from './banned-words.js';
 import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL, earlyToolAvailabilityCheck, stripWorkBreak, fixLanguageSlips } from './response-guard.js';
 import { checkAntiHallucination, fastPathGuard, localizeGuard, FAST_PATH_REFUSAL, type HallucinationCheck, type GuardLang } from '../orchestrator/anti-hallucination.js';
 import { detectLanguage } from './language-detector.js';
@@ -539,6 +540,26 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
   // (« Tu voit une différence » + 3 photos du corps → retouche lancée à cause de « « modifie mon agenda » » du contexte ne-pas-déranger).
   const ownWords = userMessage.replace(/\[[^\]]*\]/g, ' ').trim();
 
+  // ── Surnoms / mots interdits (21/11) : « Plus jamais tu m'appelle mon rebeu » était compris comme « ne m'appelle plus
+  // au téléphone » → réponse fausse puis « ⚠️ Je n'ai pas exécuté cette action ». Le CODE comprend et enregistre.
+  const bw = await import('./banned-words.js');
+  const bannedList = await bw.loadBanned().catch(() => [] as string[]);
+  const banReq = !imageBase64 && actorUserId === 'kouider' ? bw.detectBanRequest(ownWords) : null;
+  if (banReq) {
+    const msg = sandbox ? `Compris, je ne t'appellerai plus jamais « ${banReq.word} ».` : await bw.applyBanRequest(banReq).catch(() => `Compris, je ne t'appellerai plus jamais « ${banReq.word} ».`);
+    console.log(`[orch:${requestId}] BANNED_WORD pre-route ${banReq.kind} "${banReq.word}"`);
+    _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: msg });
+    saveConversationTurn(sessionId, 'assistant', msg).catch(() => {});
+    if (!textOnly) {
+      _io?.emit(SOCKET_EVENTS.STATUS, { status: 'speaking', sessionId });
+      await streamAudioSentences(msg, sessionId);
+      _io?.emit(SOCKET_EVENTS.AUDIO_COMPLETE, { sessionId });
+    }
+    _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+    return { text: msg, status: 'done' };
+  }
+  if (bannedList.length && actorUserId === 'kouider') ctx.systemExtra = `${bw.bannedFact(bannedList)}\n\n${ctx.systemExtra ?? ''}`.trim();
+
   // ── Raccourci ALARME iPhone (18/11) : « mets une alarme à 23h59 » ─────────────
   // Le cerveau de secours (Claude sans crédit, Gemini 503) avait créé un RAPPEL au lieu de l'alarme.
   // Ici le code met l'alarme dans la file du raccourci « Dzaryx Faire », quel que soit le modèle.
@@ -856,8 +877,18 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
         redis.incr(`provider:calls:${today}:agentic-${agRes.provider}`).catch(() => {});
         redis.incr(`provider:fallback:${today}:agentic-${agRes.provider}:success`).catch(() => {});
         console.warn(`[MOBILE_RUNTIME] channel=${source_channel} session=${sessionId} provider=agentic-${agRes.provider} fast_path=false fallback=true router_used=true legacy=false`);
-        const agGuarded = guardResponse(agRes.text, userMessage, requestId);
-        const agPhantom = phantomGuard(agGuarded, [...agRes.toolsExecuted, ...codeActions], userMessage, requestId);
+        let agGuarded = guardResponse(agRes.text, userMessage, requestId);
+        let agPhantom = phantomGuard(agGuarded, [...agRes.toolsExecuted, ...codeActions], userMessage, requestId);
+        // 21/11 : « Plus jamais tu m'appelle mon rebeu » → « j'ai annulé ton appel » inventé → message mort « ⚠️ Je n'ai pas
+        // exécuté cette action ». Comme le cerveau principal : 1 relance qui relit SON message et agit vraiment ou répond simplement.
+        if (agPhantom === PHANTOM_REFUSAL) {
+          const again = await runAg(`${agentSystemExtra ?? ''}\n\n[OBLIGATOIRE À CE TOUR : ton brouillon affirmait une action faite SANS outil. Relis SON DERNIER message mot à mot : « ${userMessage.slice(-300)} ». Comprends-le comme un humain (sens le plus naturel ; « m'appelle X » peut vouloir dire « me nommer X »). Ne traite pas les sujets des messages précédents. Si une action est demandée, appelle l'outil qui la fait ; sinon réponds simplement, sans prétendre avoir fait quoi que ce soit. Si c'est vraiment ambigu, pose UNE question courte.]`, [...skip]).catch(() => null);
+          if (again?.text) {
+            const g = guardResponse(again.text, userMessage, requestId);
+            const p = phantomGuard(g, [...again.toolsExecuted, ...codeActions], userMessage, requestId);
+            if (p !== PHANTOM_REFUSAL) { agRes = again; agGuarded = g; agPhantom = p; console.log(`[orch:${requestId}] agentic phantom retry SUCCESS`); }
+          }
+        }
         // fastPathGuard = « aucun outil n'a tourné » : ici les vrais outils ont lu Supabase, ne pas bloquer leur réponse
         // Demande d'avis (« quel tarif lui proposer ? », « tu en penses quoi ? ») : un montant conseillé n'est pas une donnée
         // inventée → pas de blocage (22/10 : deux conseils remplacés par « je n'ai pas accès aux données en temps réel »)
@@ -1138,5 +1169,5 @@ function oranize(text: string, _actor?: { ownerKey?: string }): string {
     .replace(/\bdyal\b/gi, 'ta3')
     .replace(/\bwakha\b/gi, 'yesah');
   for (const [ma, dz] of MOROCCAN_AR) out = out.replace(new RegExp(`(^|[^\\u0600-\\u06FF])${ma}(?![\\u0600-\\u06FF])`, 'g'), `$1${dz}`);
-  return fixLanguageSlips(stripWorkBreak(out), _actor?.ownerKey === 'kouider');
+  return scrubBanned(fixLanguageSlips(stripWorkBreak(out), _actor?.ownerKey === 'kouider'));
 }

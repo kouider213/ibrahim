@@ -23,6 +23,9 @@ async function aiOnce(prompt: string, opts: { system?: string; quality?: boolean
   // 07/11 Kouider : « je t'ai dit hier que je n'ai JAMAIS de pause au travail, et aujourd'hui il m'en reparle » → fait fixe ajouté
   // à tous les textes générés qui parlent de lui (coach, mentor, matin, missions…), pas seulement au cerveau principal.
   if (/kouider/i.test(prompt) || /kouider/i.test(opts.system ?? '')) opts = { ...opts, system: `${opts.system ? `${opts.system}\n\n` : ''}${WORK_FACT}` };
+  const bw = await import('../conversation/banned-words.js');
+  const banned = await bw.loadBanned().catch(() => [] as string[]);
+  if (banned.length) opts = { ...opts, system: `${opts.system ? `${opts.system}\n\n` : ''}${bw.bannedFact(banned)}` };
   const content = [
     ...(opts.images ?? []).map(i => ({ type: 'image' as const, source: { type: 'base64' as const, media_type: (/png|webp|gif/.test(i.mime) ? i.mime : 'image/jpeg') as 'image/jpeg', data: i.base64 } })),
     { type: 'text' as const, text: prompt },
@@ -31,7 +34,7 @@ async function aiOnce(prompt: string, opts: { system?: string; quality?: boolean
     model: opts.quality ? CLAUDE_MAIN : CLAUDE_FAST, max_tokens: opts.max ?? 1200,
     ...(opts.system ? { system: opts.system } : {}), messages: [{ role: 'user', content }],
   }, opts.quality ? QUALITY : undefined);
-  return r.content.map(b => (b.type === 'text' ? b.text : '')).join('').trim();
+  return bw.scrubBanned(r.content.map(b => (b.type === 'text' ? b.text : '')).join('').trim(), banned);
 }
 
 export async function kvJson<T>(key: string, fallback: T): Promise<T> {

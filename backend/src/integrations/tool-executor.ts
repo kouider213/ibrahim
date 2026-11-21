@@ -2334,6 +2334,20 @@ async function callMeTool(input: Record<string, unknown>, sessionId?: string): P
   try {
     const r = JSON.parse(raw) as { status?: string; local_time?: string; timezone_used?: string; remind_at_utc?: string };
     // Il a dit quand le rappeler → il n'est pas dispo d'ici là : les appels auto non urgents attendent (vu le 17/10 : rappels à 9h30 et 9h41)
+    // 21/11 : « Appelle-moi pour le rappel » → call_me appelé 2 fois avec 2 motifs différents → 2 appels à 20h05.
+    // Un seul appel par créneau (±10 min) : le plus récent (le plus complet) gagne, les autres sont annulés.
+    if (r.status === 'created' && r.remind_at_utc) {
+      const t = new Date(r.remind_at_utc).getTime();
+      const { data: same } = await supabase.from('reminders').select('id, created_at')
+        .eq('status', 'PENDING').like('message', '[APPEL]%')
+        .gte('remind_at', new Date(t - 10 * 60_000).toISOString()).lte('remind_at', new Date(t + 10 * 60_000).toISOString())
+        .order('created_at', { ascending: false });
+      const older = (same ?? []).slice(1).map(x => x.id);
+      if (older.length) {
+        await supabase.from('reminders').update({ status: 'CANCELLED' }).in('id', older);
+        console.log(`[call_me] doublon : ${older.length} appel(s) au même créneau annulé(s)`);
+      }
+    }
     if (r.status === 'created' && r.remind_at_utc && input['busy_until_then'] !== false) {
       const { setQuietUntil } = await import('../notifications/auto-call.js');
       await setQuietUntil(new Date(r.remind_at_utc).getTime() - 60_000).catch(() => {});

@@ -48,6 +48,10 @@ async function logSent(text: string): Promise<void> {
 }
 
 export async function queueTelegramMessage(text: string, image?: string, actor = 'kouider', file?: TgOutMessage['file'], bypassDigest = false): Promise<void> {
+  if (actor === 'kouider') {   // 21/11 : surnoms interdits (« mon rebeu ») retirés de tout ce qui part
+    const bw = await import('../conversation/banned-words.js');
+    text = bw.scrubBanned(text, await bw.loadBanned().catch(() => []));
+  }
   if (actor === 'kouider' && !bypassDigest && !image && !file) {   // tri anti-bruit (digest.ts)
     const { routeOf, addToDigest } = await import('./digest.js');
     const route = routeOf(text);
