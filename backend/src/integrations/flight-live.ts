@@ -1,10 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import { kvGet, kvSet } from './app-store.js';
 import { supabase } from './supabase.js';
-import { readTrips, writeTrips, type Trip } from './trips.js';
+import { readTrips, writeTrips, guessTz, type Trip } from './trips.js';
 import { updateAgendaEvent } from './google-calendar.js';
 import { geocode, drive } from './departures.js';
-import { getRoutineConfig, lastKouiderActivity, localNow, hm, TZ } from './morning-routine.js';
+import { getRoutineConfig, lastKouiderActivity, localNow, localTs, hm, TZ } from './morning-routine.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { autoCall, setQuietUntil, quietUntil } from '../notifications/auto-call.js';
@@ -204,9 +204,18 @@ Si tu ne trouves pas d'info fiable pour CE vol à CETTE date : {"found": false}.
 }
 
 async function airportPoint(name: string): Promise<{ lat: number; lon: number } | null> {
+  const k = norm(name).replace(/a[ée]roport( d[e'])?\s*|airport\s*/g, '').trim();
+  const fixed = AIRPORTS[k] ?? AIRPORTS[k.toUpperCase()];
+  if (fixed) return { lat: fixed[0], lon: fixed[1] };
   const g = await geocode(/a[ée]roport|airport/i.test(name) ? name : `Aéroport ${name}`);
   return g ? { lat: g.lat, lon: g.lng } : null;
 }
+const AIRPORTS: Record<string, [number, number]> = {
+  'paris orly': [48.7262, 2.3652], ORY: [48.7262, 2.3652], 'paris charles de gaulle': [49.0097, 2.5479], CDG: [49.0097, 2.5479], 'paris beauvais': [49.4544, 2.1128],
+  oran: [35.6239, -0.6212], ORN: [35.6239, -0.6212], alger: [36.691, 3.2154], ALG: [36.691, 3.2154], tlemcen: [35.0167, -1.45],
+  lille: [50.5633, 3.0869], LIL: [50.5633, 3.0869], bruxelles: [50.901, 4.4844], BRU: [50.901, 4.4844], charleroi: [50.4592, 4.4538], CRL: [50.4592, 4.4538],
+  marseille: [43.4393, 5.2214], lyon: [45.7256, 5.0811], nice: [43.6584, 7.2159], toulouse: [43.6293, 1.3638], bordeaux: [44.8283, -0.7156], montpellier: [43.5762, 3.963],
+};
 const distKm = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) => {
   const R = Math.PI / 180, x = Math.sin((b.lat - a.lat) * R / 2) ** 2 + Math.cos(a.lat * R) * Math.cos(b.lat * R) * Math.sin((b.lon - a.lon) * R / 2) ** 2;
   return 12742 * Math.asin(Math.sqrt(Math.min(1, x)));
@@ -433,7 +442,7 @@ async function watchOne(t: Trip, list: Trip[], now: number): Promise<void> {
         const late = Math.round((now - t.departAt) / 60_000);
         if (t.arriveAt) st.etaAt = now + (t.arriveAt - t.departAt);
         else if (toKm && p.spd > 200) st.etaAt = now + (toKm / (Math.max(p.spd, 780) * 0.92)) * 3_600_000 + 12 * 60_000;
-        await tell(t, st, 'takeoff', `🛫 ${name} a DÉCOLLÉ (${at(now, t.tz)}${late >= 15 ? `, ${late} min de retard` : ''}).${st.etaAt ? `\n🛬 Arrivée estimée ≈ ${at(st.etaAt, guessTzOf(t.to))} heure ${/^[aeiouyéèh]/i.test(t.to ?? '') ? 'd’' : 'de '}${t.to}.` : ''}\n🌍 Suis-le en direct : app GLOBE › « 🧳 Mon vol »${mine(t) ? ` · lien famille ${PUBLIC}/api/vol/suivi/${st.token}` : ''}`, '🛫 Décollé');
+        await tell(t, st, 'takeoff', `🛫 ${name} a DÉCOLLÉ (${at(now, t.tz)}${late >= 15 ? `, ${late} min de retard` : ''}).${st.etaAt ? `\n🛬 Arrivée estimée ≈ ${at(st.etaAt, guessTzOf(t.to))} heure ${/^[aeiouyéèh]/i.test(t.to ?? '') ? 'd’' : 'de '}${t.to}.` : ''}\n🌍 Suis-le en direct : app GLOBE › « 🧳 Vols suivis »${mine(t) ? ` · lien famille ${PUBLIC}/api/vol/suivi/${st.token}` : ''}`, '🛫 Décollé');
         if (mine(t) && st.etaAt && (await quietUntil()) < st.etaAt) await setQuietUntil(st.etaAt + 30 * 60_000);   // mode avion : pas d'appels pendant le vol
       } else if (st.airborneAt && toKm != null && p.spd > 200) st.etaAt = now + (toKm / (p.spd * 0.92)) * 3_600_000 + 12 * 60_000;
       if (st.airborneAt && toKm != null && toKm < 15 && (p.ground || p.alt < 150)) await landed(t, st, name, now);
@@ -473,6 +482,7 @@ export interface FlightView {
   id: string; title: string; flight?: string; cs?: string; from?: string; to?: string; departAt: number; arriveAt?: number; tz: string;
   delay: number; status?: string; terminal?: string; gate?: string; cancelled?: boolean; airborne: boolean; landed: boolean;
   pos?: LiveState['pos']; fromPt?: { lat: number; lon: number }; toPt?: { lat: number; lon: number }; leftKm?: number; etaAt?: number; pct?: number;
+  who?: 'kouider' | 'client'; client?: string;
 }
 
 export async function flightView(t: Trip, refresh = true): Promise<FlightView> {
@@ -493,6 +503,70 @@ export async function flightView(t: Trip, refresh = true): Promise<FlightView> {
     airborne: !!st.airborneAt || (!!st.pos && !st.pos.ground && st.pos.alt > 300 && Date.now() - st.pos.at < 15 * 60_000), landed: !!st.landedAt,
     pos: st.pos && Date.now() - st.pos.at < 30 * 60_000 ? st.pos : undefined, fromPt: st.from, toPt: st.to, leftKm, etaAt,
     pct: tot && leftKm != null ? Math.max(0, Math.min(100, Math.round((1 - leftKm / tot) * 100))) : undefined };
+}
+
+// ── Vols des CLIENTS lus dans les notes des réservations (« vol AH1061, arrivée 14:05 », « ✈️ Voyage du client : … ») ──
+const IATA: Record<string, string> = { ORY: 'Paris Orly', CDG: 'Paris Charles de Gaulle', BVA: 'Paris Beauvais', ORN: 'Oran', ALG: 'Alger', TLM: 'Tlemcen', CZL: 'Constantine',
+  LIL: 'Lille', BRU: 'Bruxelles', CRL: 'Charleroi', MRS: 'Marseille', LYS: 'Lyon', NCE: 'Nice', TLS: 'Toulouse', BOD: 'Bordeaux', NTE: 'Nantes', MPL: 'Montpellier',
+  MLH: 'Bâle-Mulhouse', BSL: 'Bâle-Mulhouse', SXB: 'Strasbourg', GVA: 'Genève', BCN: 'Barcelone', ALC: 'Alicante', FRA: 'Francfort', LGW: 'Londres Gatwick', LHR: 'Londres Heathrow', IST: 'Istanbul' };
+const place = (code?: string, name?: string) => (code && IATA[code.toUpperCase()]) || name?.trim() || code || '';
+const ymdOf = (date: string, dd: string, mm: string) => {
+  const y = Number(date.slice(0, 4)); let ymd = `${y}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+  if (Date.parse(ymd) < Date.parse(date) - 200 * 86_400_000) ymd = `${y + 1}${ymd.slice(4)}`;       // décembre → janvier
+  return ymd;
+};
+
+export function clientFlightsFromNotes(b: { id: string; client_name?: string | null; start_date: string; end_date: string; notes?: string | null }): Trip[] {
+  const notes = b.notes ?? '', name = b.client_name ?? 'Client', out: Trip[] = [];
+  const segs = [...notes.matchAll(/([^|:\n→]*?)\(([A-Z]{3})\)\s*→\s*([^,(\n]*?)\(([A-Z]{3})\),\s*d[ée]part\s+(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})(?:,\s*arriv[ée]e\s+(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2}))?/g)]
+    .map(m => ({ fromCode: m[2]!, toCode: m[4]!, fromName: m[1]!.replace(/^.*?(retour\s+)?(air alg[eé]rie|transavia|vueling|ryanair|easyjet|volotea|air france|asl|tassili)\s*/i, ''), toName: m[3]!,
+      dep: { d: m[5]!, mo: m[6]!, h: m[7]!, mi: m[8]! }, arr: m[9] ? { d: m[9]!, mo: m[10]!, h: m[11]!, mi: m[12]! } : null }));
+  const mk = (id: string, flight: string | undefined, from: string, to: string, departAt: number, arriveAt: number | undefined, tz: string, way: string): Trip =>
+    ({ id, who: 'client', kind: 'flight', clientName: name, bookingId: b.id, flightNumber: flight, from, to, departAt, arriveAt, tz,
+      title: `${way} de ${name}${flight ? ` · ${flight}` : ''} · ${from} → ${to}`, checklist: [], validated: false, calendarIds: [], createdAt: '', source: 'booking' });
+  // Aller : arrivée du client à Oran (jour du début de location)
+  const fn = notes.match(/\bvol\s+([A-Z0-9]{2})\s?-?(\d{2,4})\b/i);
+  const arrH = notes.match(/prise[^\n]*?arriv[ée]e\s+(?:[àa]\s+)?(\d{1,2})\s*[:h]\s*(\d{2})/i);
+  const go = segs.find(sg => isDZ(place(sg.toCode, sg.toName)));
+  if (fn || go) {
+    const to = go ? place(go.toCode, go.toName) : 'Oran', tzTo = guessTz(to);
+    const from = go ? place(go.fromCode, go.fromName) : '';
+    const arriveAt = go?.arr ? localTs(ymdOf(b.start_date, go.arr.d, go.arr.mo), `${go.arr.h.padStart(2, '0')}:${go.arr.mi}`, tzTo)
+      : arrH ? localTs(b.start_date, `${arrH[1]!.padStart(2, '0')}:${arrH[2]}`, tzTo) : undefined;
+    const departAt = go ? localTs(ymdOf(b.start_date, go.dep.d, go.dep.mo), `${go.dep.h.padStart(2, '0')}:${go.dep.mi}`, guessTz(from))
+      : (arriveAt ?? localTs(b.start_date, '12:00', tzTo)) - 2.5 * 3600_000;
+    out.push(mk(`bk-${b.id}-in`, fn ? `${fn[1]}${fn[2]}`.toUpperCase() : undefined, from || '?', to, departAt, arriveAt, guessTz(from || to), 'Arrivée'));
+  }
+  // Retour : départ du client depuis l'Algérie
+  const back = segs.find(sg => isDZ(place(sg.fromCode, sg.fromName)));
+  const backH = notes.match(/avant son vol du\s+(\d{1,2})\/(\d{1,2})\s+(?:[àa]\s+)?(\d{1,2})\s*[:h]\s*(\d{2})/i);
+  const bfn = notes.match(/vol retour\s+([A-Z0-9]{2})\s?-?(\d{2,4})\b/i);
+  if (back || backH) {
+    const from = back ? place(back.fromCode, back.fromName) : 'Oran', to = back ? place(back.toCode, back.toName) : '?';
+    const d = back ? back.dep : { d: backH![1]!, mo: backH![2]!, h: backH![3]!, mi: backH![4]! };
+    const departAt = localTs(ymdOf(b.start_date, d.d, d.mo), `${d.h.padStart(2, '0')}:${d.mi}`, guessTz(from));
+    const arriveAt = back?.arr ? localTs(ymdOf(b.start_date, back.arr.d, back.arr.mo), `${back.arr.h.padStart(2, '0')}:${back.arr.mi}`, guessTz(to)) : undefined;
+    out.push(mk(`bk-${b.id}-out`, bfn ? `${bfn[1]}${bfn[2]}`.toUpperCase() : undefined, from, to, departAt, arriveAt, guessTz(from), 'Retour'));
+  }
+  return out;
+}
+
+async function clientBookingFlights(): Promise<Trip[]> {
+  const today = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10), soon = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
+  const { data } = await supabase.from('bookings').select('id, client_name, start_date, end_date, status, notes')
+    .gte('end_date', today).lte('start_date', soon).not('status', 'in', '(CANCELLED,REFUSED,REJECTED)');
+  return ((data ?? []) as any[]).flatMap(b => clientFlightsFromNotes(b));
+}
+
+/** Tous les vols à venir : Kouider d'abord, puis les clients (billets enregistrés + vols notés dans les réservations). */
+export async function upcomingFlights(): Promise<FlightView[]> {
+  const now = Date.now(), alive = (t: Trip) => (t.arriveAt ?? t.departAt + 4 * 3600_000) + 3 * 3600_000 > now;
+  const trips = (await readTrips()).filter(t => t.kind === 'flight' && alive(t));
+  const fromBookings = (await clientBookingFlights().catch(() => [] as Trip[])).filter(alive)
+    .filter(c => !trips.some(t => (c.flightNumber && t.flightNumber === c.flightNumber && Math.abs(t.departAt - c.departAt) < 12 * 3600_000)
+      || (t.who === 'client' && t.clientName && c.clientName && norm(t.clientName) === norm(c.clientName) && Math.abs(t.departAt - c.departAt) < 6 * 3600_000)));
+  const all = [...trips, ...fromBookings].sort((a, b) => (mine(b) ? 1 : 0) - (mine(a) ? 1 : 0) || a.departAt - b.departAt).slice(0, 8);
+  return Promise.all(all.map(t => flightView(t).then(v => ({ ...v, who: t.who, client: t.clientName } as FlightView))));
 }
 
 /** Le prochain vol suivi (Kouider d'abord), pour le globe. */

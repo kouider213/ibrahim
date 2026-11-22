@@ -244,8 +244,9 @@ async function cams(q: Q) {
 }
 
 async function myflight() {   // « 🧳 Mon vol » : le prochain vol suivi (Kouider d'abord), position radar en direct
-  const { nextFlight } = await import('./flight-live.js');
-  return { flight: await nextFlight() };
+  const { upcomingFlights } = await import('./flight-live.js');
+  const flights = await upcomingFlights();
+  return { flight: flights[0] ?? null, flights };
 }
 
 const KINDS: Record<string, (q: Q) => Promise<unknown>> = { planes, quakes, sats, weather, place, geocode, inbound, cams, world, catcams, myflight };
