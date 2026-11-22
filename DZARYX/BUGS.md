@@ -431,3 +431,6 @@ Cause : notes « [Contexte : …] » gardées en entier dans l'historique. Fix :
 ### B055 — Conseils inventés / incomplets sur des questions de vie (15/11) ✅ FIXÉ
 Belgique ou Algérie : seuils inventés au lieu de son plan ; douleur au flanc : « rein très peu probable » ; « je n'arrive plus à baisser » sans statut réel ni baisse du lendemain ; appel pour démarchage à sec pendant le travail. Fix : algerieAdviceHint, règle douleur health-advisor, liberteStruggleHint, worldChecked pour les faits du code, autoCall retiré (voir CHANGELOG 15/11).
 
+
+### B056 — Veille actu : événement déjà passé envoyé comme risque (brouillard 18-19/11 reçu le 22/11) ✅ FIXÉ
+Filtre date ≤ 3 j + date obligatoire + pastEvent() sur les dates citées (voir CHANGELOG 22/11).

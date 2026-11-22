@@ -172,8 +172,31 @@ Cherche AUSSI les occasions de gagner de l'argent, même hors de FIK : un busine
 Ne remonte QUE ce qui est vraiment important et nouveau. Si rien de tel : {"items":[]}.
 Réponds UNIQUEMENT avec ce JSON : {"items":[{"title":"...","country":"pays concerné (Algérie, Belgique, France, Europe, Monde…)","date":"date de l'annonce AAAA-MM-JJ","what":"ce qui se passe (2-3 phrases, avec la source)","impact":"risque|opportunite","why_for_kouider":"ce que ça change pour lui","action":"ce qu'il devrait faire","spoken":"3-4 phrases orales pour le lui dire au téléphone","urgent":true|false,"call":true|false}]}
 VÉRIFIE LE PAYS : une grève/loi/hausse en Tunisie, au Maroc ou ailleurs ne concerne PAS l'Algérie (03/11 : grève carburant TUNISIENNE annoncée comme algérienne). Dis le pays dans "spoken".
-NOUVEAU = annoncé dans les 7 derniers jours : une règle en vigueur depuis des mois (ex. seuil devises 1 000 € de la LF 2026) n'est PAS une actu.
+NOUVEAU = annoncé dans les 3 derniers jours : une règle en vigueur depuis des mois (ex. seuil devises 1 000 € de la LF 2026) n'est PAS une actu. "date" est OBLIGATOIRE.
+ÉVÉNEMENT DÉJÀ PASSÉ = INTERDIT : une perturbation, grève, météo, salon… dont les dates sont avant aujourd'hui n'est plus une actu (22/11 : brouillard « mercredi 18-19 nov » envoyé 3 jours après).
 call = true pour une VRAIE occasion de gagner de l'argent, concrète et chiffrable, qui mérite un appel (pas une simple info).`;
+
+const MONTHS: Record<string, number> = { janv: 0, jan: 0, fevr: 1, fev: 1, févr: 1, fév: 1, mars: 2, avr: 3, mai: 4, juin: 5,
+  juil: 6, aout: 7, août: 7, sept: 8, sep: 8, oct: 9, nov: 10, dec: 11, déc: 11 };
+/** Vrai si le texte cite des dates (« 18-19 nov », « 20 novembre ») et qu'elles sont TOUTES avant aujourd'hui. */
+export function pastEvent(text: string, now = new Date()): boolean {
+  const todayStr = now.toLocaleDateString('en-CA', { timeZone: TZ });
+  const [y, m, dd] = todayStr.split('-').map(Number);
+  const todayUtc = Date.UTC(y, m - 1, dd);
+  const dates: number[] = [];
+  const re = /\b(\d{1,2})(?:\s*(?:-|–|au|et)\s*(\d{1,2}))?(?:er)?\s+(janv|jan|févr|fevr|fév|fev|mars|avr|mai|juin|juil|août|aout|sept|sep|oct|nov|déc|dec)[a-zéû]*\.?/gi;
+  for (const mt of text.matchAll(re)) {
+    const mon = MONTHS[mt[3].toLowerCase()];
+    if (mon === undefined) continue;
+    for (const day of [mt[1], mt[2]].filter(Boolean).map(Number)) {
+      if (day < 1 || day > 31) continue;
+      let t = Date.UTC(y, mon, day);
+      if (t - todayUtc > 200 * 86_400_000) t = Date.UTC(y - 1, mon, day);   // « 28 déc » lu en janvier
+      dates.push(t);
+    }
+  }
+  return dates.length > 0 && dates.every(t => t < todayUtc);
+}
 
 /** Veille actu (2×/jour) : un risque/une opportunité URGENTE → appel tout de suite ; le reste par message. */
 export async function jobMentorNewsWatch(): Promise<void> {
@@ -205,9 +228,11 @@ export async function jobMentorNewsWatch(): Promise<void> {
     const c = `${i.country ?? ''}`.toLowerCase();
     const where = `${c} ${i.title} ${i.what}`.toLowerCase();
     const foreign = /tunisi|maroc|marocain|libye|egypte|mauritanie|senegal|sénégal/.test(where) && !/alg[ée]ri|oran|belgi|france|europ|monde/.test(c);
+    // 22/11 : « brouillard 18-19 nov » envoyé le 22 → date obligatoire, ≤ 3 jours, et un événement dont
+    // toutes les dates citées sont passées (veille comprise) = écarté
     const d = i.date ? Date.parse(i.date) : NaN;
-    const old = Number.isFinite(d) && Date.now() - d > 8 * 86_400_000;
-    if (foreign || old) console.warn(`[mentor] veille : actu écartée (${foreign ? `pays ${i.country ?? '?'}` : `ancienne ${i.date}`}) — ${i.title}`);
+    const old = !Number.isFinite(d) || Date.now() - d > 3 * 86_400_000 || pastEvent(`${i.title} ${i.what}`);
+    if (foreign || old) console.warn(`[mentor] veille : actu écartée (${foreign ? `pays ${i.country ?? '?'}` : `ancienne/passée ${i.date ?? 'sans date'}`}) — ${i.title}`);
     return foreign || old;
   };
   const fresh = items.filter(i => !seen.includes(norm(i.title)) && !fxWrong(i) && !offTopic(i)).slice(0, 3);
