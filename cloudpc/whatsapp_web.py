@@ -667,12 +667,21 @@ async def save_contact(phone: str, first: str, last: str = '', dry: bool = False
               if (!el) return null; el.scrollIntoView({{ block: 'center' }}); const r = el.getBoundingClientRect();
               return {{ x: r.x + r.width / 2, y: r.y + r.height / 2 }}; }})()""")
             picked = bool(box)
-            if box:   # vrai clic de souris (un clic JS ne choisit pas le pays)
+            cur_js = """(([...document.querySelectorAll('button, [role=button]')].find(b => /^[A-Z]{2} \\+\\d+$/.test((b.innerText || '').trim())) || {}).innerText || '').trim()"""
+            country = ''
+            # vrai clic de souris (un clic JS ne choisit pas le pays). 22/11 : les 3 événements d'un coup ne marchaient pas
+            # (resté sur « BE +32 » au 1er vrai essai) → survol puis appui puis relâche avec de petites pauses, 2e essai décalé.
+            for dx in (0, -60):
+                if not box:
+                    break
                 for t in ('mouseMoved', 'mousePressed', 'mouseReleased'):
-                    await p.call('Input.dispatchMouseEvent', {'type': t, 'x': box['x'], 'y': box['y'],
+                    await p.call('Input.dispatchMouseEvent', {'type': t, 'x': box['x'] + dx, 'y': box['y'],
                                                               'button': 'none' if t == 'mouseMoved' else 'left', 'clickCount': 1})
-            await asyncio.sleep(1)
-            country = await p.js("""(([...document.querySelectorAll('button, [role=button]')].find(b => /^[A-Z]{2} \\+\\d+$/.test((b.innerText || '').trim())) || {}).innerText || '').trim()""")
+                    await asyncio.sleep(0.12)
+                await asyncio.sleep(1)
+                country = await p.js(cur_js)
+                if country.endswith('+' + code) or not await p.js("!!document.querySelector('[role=listbox]')"):
+                    break
             if not picked or not country.endswith('+' + code):
                 await back()
                 return {'ok': False, 'error': f'Pays +{code} pas sélectionné (affiché : {country or "?"}).'}
