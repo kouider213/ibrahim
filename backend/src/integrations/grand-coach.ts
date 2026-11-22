@@ -266,7 +266,22 @@ function sageOfDay(date: string, used: string[]): Sage {
   return pool[Math.floor(Date.parse(date) / 86_400_000) % pool.length]!;
 }
 const sageText = (s: Sage) => `${s.name} (${s.from}) — ${s.story}\nPrincipes : ${s.principles.join(' ; ')}\nPour Kouider : ${s.fik}${s.storm ? `\nÉpreuve : ${s.storm}` : ''}`;
-const COACH_SYS = `Tu es le GRAND COACH de Kouider : déterminé, chaleureux, exigeant, comme un grand frère qui a lu la vie de tous les grands entrepreneurs. Kouider : Algérien d'Oran installé en Belgique, salarié dans une librairie à Jette (Bruxelles), marié, un fils (Ibrahim, 1 an et demi) — quand tu parles de sa famille, cite TOUJOURS sa femme ET Ibrahim, jamais Ibrahim seul ; il bâtit FIK Conciergerie (location de voitures à Oran) et FIK Sites, sport le matin, et il veut devenir un grand businessman en Algérie : indépendant, bon statut, bien financièrement, quitter la Belgique fin 2028. Tutoiement, phrases courtes, français simple. Jamais de nutrition ni de médicaments. N'invente ni chiffre, ni citation douteuse, ni nom de client.`;
+const COACH_SYS = `Tu es le GRAND COACH de Kouider : déterminé, chaleureux, exigeant, comme un grand frère qui a lu la vie de tous les grands entrepreneurs. Kouider : Algérien d'Oran installé en Belgique, salarié dans une librairie à Jette (Bruxelles), marié à FATIMA, un fils (Ibrahim, 1 an et demi). Fatima et Ibrahim vivent AVEC lui et le suivent partout : ils ne sont PAS en Algérie, il ne va jamais « les rejoindre » ; l'Algérie = s'y installer TOUS LES TROIS. Quand tu parles de sa famille, dis « Fatima et Ibrahim » (jamais Ibrahim seul) ; il bâtit FIK Conciergerie (location de voitures à Oran) et FIK Sites, sport le matin, et il veut devenir un grand businessman en Algérie : indépendant, bon statut, bien financièrement, quitter la Belgique fin 2028. Tutoiement, phrases COURTES, mots de tous les jours (comme à un ami), jamais de phrase compliquée ni de mots savants. Jamais de nutrition ni de médicaments. N'invente ni chiffre, ni citation douteuse, ni nom de client.`;
+
+/** Retire une consigne recopiée par le modèle et les paragraphes répétés (20/11). */
+export function cleanCoachText(t: string): string {
+  let x = String(t ?? '').trim();
+  const cut = Math.max(x.lastIndexOf('Pas de titre'), x.lastIndexOf('sans recopier ces consignes'));
+  if (cut >= 0) x = x.slice(x.indexOf('\n', cut) + 1 || x.length).trim();
+  const seen = new Set<string>(); const out: string[] = [];
+  for (const p of x.split(/\n\s*\n/)) {
+    if (/Écris son|^\s*[•\-\d]\)?\s*(commence|PUIS|la leçon|finis|l'histoire vraie|une phrase qui)/im.test(p)) continue;
+    const k = p.toLowerCase().replace(/[^a-zà-ÿ]/g, '').slice(0, 80);
+    if (!k || seen.has(k)) continue;
+    seen.add(k); out.push(p.trim());
+  }
+  return out.join('\n\n').replace(/[ ]+—[ ]+/g, ', ').trim();
+}
 
 // L1 — Texte du matin
 export async function texteDuJour(force = false): Promise<string> {
@@ -282,7 +297,16 @@ export async function texteDuJour(force = false): Promise<string> {
   const [vision, ex, pil] = await Promise.all([kvJson<{ ten?: string; one?: string; month?: string } | null>(K.vision, null), kvJson<Record<string, string>>(K.examen, {}), piliers().catch(() => null)]);
   const lastExam = Object.entries(ex).sort().at(-1);
   const weak = pil ? Object.entries(pil).sort((a, b) => a[1] - b[1])[0]?.[0] : '';
-  const body = await ai(`${sageText(sage)}\n\n${vision ? `Sa vision : 10 ans = ${vision.ten ?? '?'} ; cette année = ${vision.one ?? '?'} ; ce mois = ${vision.month ?? '?'}.` : ''}\n${lastExam ? `Son examen d'hier soir : ${lastExam[1]}` : ''}\n${weak ? `Pilier le plus faible cette semaine : ${weak}.` : ''}\nAujourd'hui : ${dayDesc}.\n\nÉcris son TEXTE DE MOTIVATION DU JOUR (8 à 12 lignes) :\n- commence par l'histoire vraie de ${sage.name} en 2 phrases qui accrochent\n- PUIS LE RAPPROCHEMENT, OBLIGATOIRE et explicite (Kouider 05/11 : « il me raconte juste une histoire, pas ce que ça a à voir avec moi ») : une phrase qui commence par « Toi, Kouider, » et relie l'histoire à SA vraie situation (salarié en librairie qui construit FIK à distance avec Houari, épargne pour partir à Oran, mari et papa d'Ibrahim…) : qu'est-ce qui est PAREIL entre lui et ${sage.name} ?\n- la leçon en UNE action concrète à faire AUJOURD'HUI, qui colle au moment de sa journée (à la librairie, avec FIK, au sport ou en famille selon le jour et son pilier faible) — jamais « demain »\n- finis par une phrase forte de détermination\nPas de titre, pas de liste à puces.`, { system: COACH_SYS, max: 600 }).catch(() => '');
+  // 20/11 Kouider : « je comprends rien à ce texte, faut que ça soit plus simple, et surtout il se répète 2× »
+  // (le modèle avait recopié la consigne puis écrit le texte) → consigne courte + nettoyage (consigne recopiée, paragraphes en double).
+  const raw = await ai(`${sageText(sage)}\n\n${vision ? `Sa vision : 10 ans = ${vision.ten ?? '?'} ; cette année = ${vision.one ?? '?'} ; ce mois = ${vision.month ?? '?'}.` : ''}\n${lastExam ? `Son examen d'hier soir : ${lastExam[1]}` : ''}\n${weak ? `Pilier le plus faible cette semaine : ${weak}.` : ''}\nAujourd'hui : ${dayDesc}.\n\n`
+    + `Écris son petit texte du matin, 4 à 6 lignes COURTES, en français très simple (mots de tous les jours, une idée par phrase) :\n`
+    + `1) l'histoire vraie de ${sage.name} en 1 ou 2 phrases simples ;\n`
+    + `2) une phrase qui commence par « Toi, Kouider, » : ce qui est PAREIL entre lui et ${sage.name} (sa vraie vie : la librairie, FIK construit à distance, l'épargne pour s'installer à Oran avec Fatima et Ibrahim) ;\n`
+    + `3) UNE petite action claire à faire AUJOURD'HUI, qui colle à sa journée ;\n`
+    + `4) une phrase forte pour finir.\n`
+    + `Pas de titre, pas de puces, pas de tirets longs. Réponds SEULEMENT avec le texte, sans recopier ces consignes.`, { system: COACH_SYS, max: 400 }).catch(() => '');
+  const body = cleanCoachText(raw);
   const text = body || `${sage.name} — ${sage.story}\n\n${sage.fik}\n\nAujourd'hui, une seule règle : avance, même d'un petit pas. Les grands ne sont pas nés grands, ils ont continué.`;
   await kvPut(K.used, [...used, sage.id].slice(-30));
   await kvPut(K.text(date), text, 3 * 86_400);
@@ -341,7 +365,7 @@ export async function livre(): Promise<string> {
   const st = await kvJson<{ month: string; ideas: string[]; today?: string; date?: string }>(K.book, { month: '', ideas: [] });
   if (st.month !== date.slice(0, 7)) { st.month = date.slice(0, 7); st.ideas = []; }
   if (st.date === date && st.today) return st.today;
-  const idea = await ai(`Livre : « ${bk.title} » de ${bk.author}. Thèse : ${bk.thesis}\nDéjà donné ce mois : ${st.ideas.join(' | ') || 'rien'}.\nDonne UNE idée clé de ce livre (vraie, fidèle au livre) en 2 lignes + une question pour l'appliquer aujourd'hui à FIK ou à sa vie. Format : « 📚 ${bk.title} — jour ${st.ideas.length + 1} : … ➡️ … »`, { max: 200 }).catch(() => '');
+  const idea = await ai(`Livre : « ${bk.title} » de ${bk.author}. Thèse : ${bk.thesis}\nDéjà donné ce mois : ${st.ideas.join(' | ') || 'rien'}.\nDonne UNE idée clé de ce livre (vraie, fidèle au livre) en 1 ou 2 phrases simples, puis une question courte pour l'appliquer aujourd'hui à FIK ou à sa vie. Tutoiement (« tu », jamais « vous »), mots de tous les jours. Réponds seulement avec la ligne. Format : « 📚 ${bk.title} — jour ${st.ideas.length + 1} : … ➡️ … »`, { system: COACH_SYS, max: 200 }).catch(() => '');
   const out = idea || `📚 Livre du mois : « ${bk.title} » (${bk.author}) — ${bk.thesis}`;
   st.ideas = [...st.ideas, out.slice(0, 120)]; st.today = out; st.date = date;
   await kvPut(K.book, st);

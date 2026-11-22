@@ -2,9 +2,14 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : **2026-11-19**.
+> Dernière mise à jour : **2026-11-22**.
 
 ---
+
+## ⚡ Session 2026-11-22 — Veille actu + Grand Coach (51e25614 → suivant)
+
+- **Veille actu (B056)** : plus d'actu sur un événement déjà passé (brouillard 18-19/11 reçu le 22/11). business-mentor.ts : date obligatoire, ≤ 3 jours, `pastEvent()` sur les dates citées.
+- **Grand Coach** : correctif du 20/11 (texte du matin simple, sans consigne recopiée ni doublon, « Fatima et Ibrahim ») enfin commité et mis en ligne.
 
 ## ⚡ Session 2026-11-19 — Revue de la semaine (e892809e → a4824f36, app v279)
 - GPS : point après un trou > 10 min = position en retard (gps-life `fresh`) → pas de « bien arrivé », check-list ni sas. Un seul message d'arrivée au travail (presence + workMissionLine du Grand Coach).
