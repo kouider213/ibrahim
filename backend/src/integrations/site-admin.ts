@@ -67,7 +67,15 @@ export async function siteAdminTool(input: R): Promise<string> {
     const price = Number(input['price']);
     const r = await siteApi<{ error?: string }>('/api/update-booking-status', { bookingId: b.id, status: action === 'accept' ? 'ACCEPTED' : 'REJECTED', ...(price > 0 ? { finalPrice: price } : {}) });
     if (!r.ok) return `❌ Pas fait (site : ${r.data.error ?? r.status}). La demande de ${b.client_name} est toujours en attente.`;
-    if (action === 'reject') return `✅ Demande de ${b.client_name} REFUSÉE sur le site. L'email « indisponible » part au client s'il a laissé son email.`;
+    if (action === 'reject') {
+      // 22/11 : lien WhatsApp avec le message poli « pas disponible » déjà écrit (même texte que le bouton Telegram du site)
+      let d = String(b.client_phone ?? '').replace(/\D/g, '');
+      if (d.startsWith('00')) d = d.slice(2); else if (d.length === 10 && /^0[567]/.test(d)) d = `213${d.slice(1)}`; else if (d.length === 10 && d.startsWith('0')) d = `33${d.slice(1)}`;
+      const dm = (x: string) => `${x.slice(8, 10)}/${x.slice(5, 7)}`;
+      const first = String(b.client_name ?? '').trim().split(/\s+/)[0] ?? '';
+      const txt = `Bonjour ${first}, merci beaucoup pour votre demande de réservation chez FIK Conciergerie${b.cars?.name ? ` (${b.cars.name}, du ${dm(b.start_date)} au ${dm(b.end_date)})` : ''}. Malheureusement, ce véhicule n'est pas disponible à ces dates, nous en sommes vraiment désolés. Si vous le souhaitez, nous pouvons vous proposer un autre véhicule ou d'autres dates : dites-nous simplement ce qui vous arrange. Belle journée à vous !`;
+      return `✅ Demande de ${b.client_name} REFUSÉE sur le site. L'email « indisponible » part au client s'il a laissé son email.${d.length >= 9 ? `\n💬 Message WhatsApp poli déjà écrit (appuie, puis Envoyer) : https://wa.me/${d}?text=${encodeURIComponent(txt)}` : ''}`;
+    }
     const total = price > 0 ? price : Number(b.final_price ?? 0);
     const days = Number(b.nb_days) || 1;
     const cal = await siteApi<{ success?: boolean; error?: string }>('/api/calendar-event', {
