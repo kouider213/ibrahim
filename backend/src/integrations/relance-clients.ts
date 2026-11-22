@@ -222,6 +222,13 @@ export async function jobRelanceClients(force = false): Promise<string> {
   return `${fresh.length} relance(s) proposée(s)`;
 }
 
+/** Page Aujourd'hui de l'app : relances encore à voir aujourd'hui. */
+export async function relancesStatus(): Promise<{ pending: number; total: number; done: number; items: Array<{ kind: Relance['kind']; label: string; why: string }> }> {
+  const q = await kvJson<Queue | null>(QUEUE, null);
+  if (!q || Date.now() - q.at > 14 * 3600_000) return { pending: 0, total: 0, done: 0, items: [] };
+  return { pending: q.items.length, total: q.total, done: q.done, items: q.items.slice(0, 5).map(p => ({ kind: p.kind, label: p.label, why: p.why })) };
+}
+
 /** Outil « relances » : voir la file / la lancer maintenant. */
 export async function relancesTool(input: Record<string, unknown>): Promise<string> {
   const action = String(input['action'] ?? 'list');

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { openClient } from '../ClientSheet.tsx';
-import { business, type TodayItem, type Booking, type ProfitLedger } from '../../services/api.ts';
+import { business, apiFetch, type TodayItem, type Booking, type ProfitLedger } from '../../services/api.ts';
 import { SkeletonCards } from '../ui/Premium.tsx';
 import { T, tone, Screen, PageHeader, HeadBtn, Kpi, KpiGrid, SectionTitle, Row, Avatar, Badge, Empty, waLink, money, glass, CountUp } from '../ui/Kit.tsx';
 import { Icon, Ico } from '../ui/Icon.tsx';
@@ -30,12 +30,78 @@ function WaBtn({ phone }: { phone: string | null }) {
   );
 }
 
+type CalEv = { id?: string; summary: string; location?: string; source: string; start: { dateTime?: string; date?: string } };
+type RelSt = { pending: number; total: number; done: number; items: Array<{ kind: 'wa' | 'panier' | 'prolong'; label: string; why: string }> };
+const REL_ICON = { wa: '💬', panier: '🛒', prolong: '📅' } as const;
+const evDay = (e: CalEv) => e.start.dateTime ? new Date(e.start.dateTime).toLocaleDateString('sv-SE', { timeZone: 'Africa/Algiers' }) : (e.start.date ?? '');
+const evTime = (e: CalEv) => e.start.dateTime ? new Date(e.start.dateTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Algiers' }) : 'Journée';
+
+/** Relances clients du matin (préparées à 9h45) : la suivante s'ouvre sur Telegram, où tu réponds oui / non. */
+function RelancesCard({ st, onDone }: { st: RelSt; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  if (!st.pending) return null;
+  const run = async () => {
+    setBusy(true); setMsg('');
+    try { await apiFetch('/api/insights/relances/next', { method: 'POST' }); setMsg('Relance envoyée sur Telegram : réponds oui ou non là-bas.'); onDone(); }
+    catch { setMsg("Pas pu l'envoyer, réessaie."); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <SectionTitle right={<Badge color={T.accent2}>{st.pending} à voir</Badge>}><Ico e="🔁" />Relances du matin</SectionTitle>
+      <div style={{ ...glass(T.accent2), borderRadius: 20, padding: 14 }}>
+        {st.items.slice(0, 3).map((it, i) => (
+          <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '6px 0', borderTop: i ? `1px solid ${T.line}` : 'none' }}>
+            <span style={{ fontSize: 18 }}>{REL_ICON[it.kind]}</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 14.5, fontWeight: 700 }}>{it.label}</div>
+              <div style={{ fontSize: 12.5, color: T.muted, lineHeight: 1.35 }}>{it.why}</div>
+            </div>
+          </div>
+        ))}
+        {st.pending > 3 && <div style={{ fontSize: 12.5, color: T.faint, marginTop: 4 }}>+ {st.pending - 3} autre{st.pending - 3 > 1 ? 's' : ''}</div>}
+        <button className="dz-press" disabled={busy} onClick={() => void run()} style={{ marginTop: 12, width: '100%', minHeight: 44, borderRadius: 14, border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 14.5, fontWeight: 700, color: '#fff', background: T.accent2, opacity: busy ? 0.6 : 1 }}>
+          {busy ? 'Envoi…' : 'Voir la suivante sur Telegram'}
+        </button>
+        {msg && <div style={{ fontSize: 12.5, color: T.muted, marginTop: 8 }}>{msg}</div>}
+      </div>
+    </div>
+  );
+}
+
+/** Agenda FIK du jour (jamais l'agenda perso). */
+function AgendaCard({ evs }: { evs: CalEv[] }) {
+  if (!evs.length) return null;
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <SectionTitle right={<Badge color={T.violet}>{evs.length}</Badge>}><Ico e="📅" />Ton agenda du jour</SectionTitle>
+      <div className="dz-press" role="button" onClick={() => go('calendar')} style={{ ...glass(T.violet), borderRadius: 20, padding: '8px 14px', cursor: 'pointer' }}>
+        {evs.slice(0, 4).map((e, i) => (
+          <div key={e.id ?? i} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '8px 0', borderTop: i ? `1px solid ${T.line}` : 'none' }}>
+            <span style={{ fontFamily: T.mono, fontSize: 13, fontWeight: 600, color: T.violet, minWidth: 52 }}>{evTime(e)}</span>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 14.5, fontWeight: 650, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.summary}</div>
+              {e.location && <div style={{ fontSize: 12.5, color: T.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.location}</div>}
+            </div>
+          </div>
+        ))}
+        {evs.length > 4 && <div style={{ fontSize: 12.5, color: T.faint, padding: '4px 0 6px' }}>+ {evs.length - 4} autre{evs.length - 4 > 1 ? 's' : ''} · ouvrir l'agenda ›</div>}
+      </div>
+    </div>
+  );
+}
+
 export default function CommandCenterScreen() {
   const [d, setD] = useState<Today | null>(null);
   const [loading, setLoading] = useState(true);
   const [ledger, setLedger] = useState<ProfitLedger | null>(null);
   const [monthCA, setMonthCA] = useState<number | null>(null);
   const [bks, setBks] = useState<Booking[]>([]);
+  const [evs, setEvs] = useState<CalEv[]>([]);
+  const [rel, setRel] = useState<RelSt | null>(null);
+  const [tick, setTick] = useState(0);
+  const loadRel = useCallback(() => { apiFetch<RelSt>('/api/insights/relances').then(setRel).catch(() => {}); }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -43,13 +109,31 @@ export default function CommandCenterScreen() {
     business.fetchLedger().then(setLedger).catch(() => {});
     business.fetchFinanceReport(now.getFullYear(), now.getMonth() + 1).then(r => setMonthCA(r.grossCA)).catch(() => {});
     business.fetchBookings().then(r => setBks(r.bookings ?? [])).catch(() => {});
+    apiFetch<{ events: CalEv[] }>('/api/calendar/all?actor=kouider').then(r => { const t = ymd(); setEvs((r.events ?? []).filter(e => e.source === 'fik' && evDay(e) === t)); }).catch(() => {});
+    loadRel();
+    setTick(x => x + 1);
     try { setD(await business.insightsToday()); } catch { setD(null); }
     finally { setLoading(false); }
-  }, []);
+  }, [loadRel]);
   useEffect(() => { void load(); }, [load]);
+  // Retour dans l'app (ou sur l'onglet) → la page se remet à jour toute seule (max 1 fois / 2 min)
+  useEffect(() => {
+    let last = Date.now();
+    const onShow = () => { if (document.visibilityState === 'visible' && Date.now() - last > 120_000) { last = Date.now(); void load(); } };
+    document.addEventListener('visibilitychange', onShow);
+    window.addEventListener('focus', onShow);
+    return () => { document.removeEventListener('visibilitychange', onShow); window.removeEventListener('focus', onShow); };
+  }, [load]);
 
   const due = d ? d.toCollect.reduce((s, x) => s + x.due, 0) : 0;
   const moves = d ? d.departures.length + d.returns.length : 0;
+
+  // En ce moment : voitures dehors (sans celles qui partent / rentrent aujourd'hui : elles sont déjà plus bas) + arrivées 7 j
+  const t = ymd();
+  const shownToday = new Set([...(d?.departures ?? []), ...(d?.returns ?? [])].map(x => x.id));
+  const live = bks.filter(b => /^(confirmed|accepted|active)$/i.test(b.status ?? ''));
+  const out = live.filter(b => b.start_date.slice(0, 10) <= t && b.end_date.slice(0, 10) >= t && !shownToday.has(b.id));
+  const soon = live.filter(b => b.start_date.slice(0, 10) > t && dayN(t, b.start_date) <= 7).sort((a, b) => a.start_date.localeCompare(b.start_date));
 
   const Section = ({ title, items, col, icon, empty, verb }: { title: string; items: Array<TodayItem & { due?: number }>; col: string; icon: string; empty: string; verb: string }) => (
     <div style={{ marginBottom: 18 }}>
@@ -110,11 +194,9 @@ export default function CommandCenterScreen() {
           </div>
 
           {/* En ce moment : voitures dehors + arrivées des 7 prochains jours */}
+          {rel && <RelancesCard st={rel} onDone={loadRel} />}
+
           {(() => {
-            const t = ymd();
-            const live = bks.filter(b => /^(confirmed|accepted|active)$/i.test(b.status ?? ''));
-            const out = live.filter(b => b.start_date.slice(0, 10) <= t && b.end_date.slice(0, 10) >= t);
-            const soon = live.filter(b => b.start_date.slice(0, 10) > t && dayN(t, b.start_date) <= 7).sort((a, b) => a.start_date.localeCompare(b.start_date));
             if (!out.length && !soon.length) return null;
             return (
               <div style={{ marginBottom: 18 }}>
@@ -151,16 +233,18 @@ export default function CommandCenterScreen() {
             );
           })()}
 
-          <MeCard />
+          <MeCard key={tick} />
+
+          <AgendaCard evs={evs} />
 
           <KpiGrid>
             <Kpi value={d.newDemands} label="Demandes (24 h)" color={T.accent2} sub={d.pendingBookings ? `${d.pendingBookings} résa à confirmer` : undefined} />
-            <Kpi value={money(due)} label="À encaisser aujourd'hui" color={T.warn} sub={d.toCollect.length ? `${d.toCollect.length} client${d.toCollect.length > 1 ? 's' : ''}` : 'Tout est payé'} />
+            <Kpi value={soon.length} label="Arrivées (7 j)" color={T.accent} sub={soon[0] ? `prochaine ${shortD(soon[0].start_date)}` : 'aucune prévue'} />
           </KpiGrid>
 
           {d.pendingBookings > 0 && (
-            <div style={{ marginBottom: 18, padding: '12px 14px', borderRadius: 14, background: tone(T.warn, 0.1), border: `1px solid ${tone(T.warn, 0.35)}`, fontSize: 14, color: T.text, lineHeight: 1.4 }}>
-              ⏳ <b>{d.pendingBookings} réservation{d.pendingBookings > 1 ? 's' : ''}</b> en attente de confirmation — onglet <b>Demandes</b>.
+            <div className="dz-press" role="button" onClick={() => go('leads')} style={{ cursor: 'pointer', marginBottom: 18, padding: '12px 14px', borderRadius: 14, background: tone(T.warn, 0.1), border: `1px solid ${tone(T.warn, 0.35)}`, fontSize: 14, color: T.text, lineHeight: 1.4 }}>
+              ⏳ <b>{d.pendingBookings} réservation{d.pendingBookings > 1 ? 's' : ''}</b> en attente de confirmation — <b>ouvrir Demandes ›</b>
             </div>
           )}
 

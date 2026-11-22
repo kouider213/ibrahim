@@ -7,7 +7,8 @@ import { supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 
 const router = Router();
-const ymd = (d: Date) => d.toISOString().slice(0, 10);
+// Date du jour en heure d'Oran (pas UTC : entre minuit et 1 h on voyait encore la veille)
+const ymd = (d: Date) => d.toLocaleDateString('sv-SE', { timeZone: 'Africa/Algiers' });
 const CONFIRMED = ['ACCEPTED', 'CONFIRMED', 'ACTIVE', 'COMPLETED', 'accepted', 'confirmed', 'active', 'completed'];
 
 type B = {
@@ -51,6 +52,22 @@ router.get('/today', requireMobileAuth, async (_req, res) => {
 // GET /api/insights/me — carte « Toi » + « Ta semaine » (page Aujourd'hui)
 router.get('/me', requireMobileAuth, async (_req, res) => {
   try { res.json(await (await import('../../integrations/me-week.js')).meCard()); } catch (e) { res.status(500).json({ error: (e as Error).message }); }
+});
+
+// GET /api/insights/relances — carte « Relances du matin » (page Aujourd'hui)
+router.get('/relances', requireMobileAuth, async (_req, res) => {
+  try { res.json(await (await import('../../integrations/relance-clients.js')).relancesStatus()); } catch (e) { res.status(500).json({ error: (e as Error).message }); }
+});
+// POST /api/insights/relances/next — montre la relance suivante sur Telegram (ou prépare celles du jour)
+router.post('/relances/next', requireMobileAuth, async (_req, res) => {
+  try {
+    const m = await import('../../integrations/relance-clients.js');
+    const st = await m.relancesStatus();
+    if (!st.pending) { res.json({ ok: true, text: await m.jobRelanceClients() }); return; }
+    const t = (await m.nextRelance()).trim();
+    if (t) { const { tg } = await import('../../integrations/ai-util.js'); await tg(t); }
+    res.json({ ok: true, text: t ? 'envoyée sur Telegram' : 'rien' });
+  } catch (e) { res.status(500).json({ error: (e as Error).message }); }
 });
 
 // GET /api/insights/forecast
