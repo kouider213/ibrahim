@@ -37,6 +37,7 @@ async function findBooking(input: R, statuses: string[]): Promise<Bk | string> {
   const q = String(input['client'] ?? '').trim();
   let req = supabase.from('bookings').select('id, client_name, client_phone, start_date, end_date, nb_days, final_price, status, notes, currency, cars(name)').in('status', statuses).order('created_at', { ascending: false }).limit(10);
   if (id) req = req.eq('id', id); else if (q) req = req.ilike('client_name', `%${q}%`);
+  if (statuses.includes('REJECTED')) req = req.gte('end_date', new Date().toLocaleDateString('sv-SE', { timeZone: 'Africa/Algiers' }));   // jamais une vieille demande refusée
   const { data, error } = await req;
   if (error) return `❌ ${error.message}`;
   const list = (data ?? []) as unknown as Bk[];
@@ -62,7 +63,8 @@ export async function siteAdminTool(input: R): Promise<string> {
     return l.length ? `📥 Demandes en attente sur le site (${l.length}) :\n${l.map(fmtBk).join('\n')}\n\n👉 « accepte <nom> » (prix final possible) ou « refuse <nom> ».` : '✅ Aucune demande en attente sur le site.';
   }
   if (action === 'accept' || action === 'reject') {
-    const b = await findBooking(input, ['PENDING']);
+    // 22/11 : « accepte X » marche aussi sur une demande refusée avant (client finalement accepté sur WhatsApp)
+    const b = await findBooking(input, action === 'accept' ? ['PENDING', 'REJECTED'] : ['PENDING']);
     if (typeof b === 'string') return b;
     const price = Number(input['price']);
     const r = await siteApi<{ error?: string }>('/api/update-booking-status', { bookingId: b.id, status: action === 'accept' ? 'ACCEPTED' : 'REJECTED', ...(price > 0 ? { finalPrice: price } : {}) });

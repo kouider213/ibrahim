@@ -839,6 +839,23 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
         out.push(c.ok ? `📇 Numéro ${phone} enregistré dans WhatsApp (et sur ton téléphone) sous « ${fullName} ».` : `⚠️ Contact WhatsApp pas enregistré : ${c.error}`);
       } else if (!phone) out.push(`📇 Déjà dans tes contacts WhatsApp sous « ${title} ».`);
       else out.push(`📇 Nom du client introuvable sur les papiers : DEMANDE À KOUIDER son nom, puis action save_contact (chat=${phone}, name=…).`);
+      // 22/11 : client accepté sur WhatsApp alors que sa demande du site était refusée / en attente → plus dans l'agenda
+      // ni dans les chiffres, voiture « libre » sur le site. On le dit et on propose de la confirmer.
+      try {
+        const { supabase } = await import('./supabase.js');
+        const d9 = String(phone || chat || '').replace(/\D/g, '').slice(-9);
+        const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Africa/Algiers' });
+        const last = (fullName || '').trim().split(/\s+/).pop() ?? '';
+        if (d9.length === 9 || last.length >= 3) {
+          let q = supabase.from('bookings').select('client_name, status, start_date, end_date, cars(name)').in('status', ['PENDING', 'REJECTED']).gte('end_date', today).order('created_at', { ascending: false }).limit(3);
+          q = d9.length === 9 ? q.ilike('client_phone', `%${d9}`) : q.ilike('client_name', `%${last}%`);
+          const { data: open } = await q;
+          for (const b of (open ?? []) as unknown as Array<{ client_name: string; status: string; start_date: string; end_date: string; cars: { name?: string } | null }>) {
+            const dm = (x: string) => `${x.slice(8, 10)}/${x.slice(5, 7)}`;
+            out.push(`📌 Sa demande ${b.cars?.name ?? ''} du ${dm(b.start_date)} au ${dm(b.end_date)} est encore ${b.status === 'REJECTED' ? 'REFUSÉE' : 'EN ATTENTE'} sur le site (pas dans l'agenda, voiture affichée libre). Dis « accepte ${b.client_name.trim()} » : je la confirme, je l'ajoute à l'agenda et le client reçoit l'email de confirmation.`);
+          }
+        }
+      } catch { /* non bloquant */ }
       const summary = `✅ Client ${fullName || title} validé :\n${out.join('\n')}`;
       await kvSet(doneKey, summary, 30 * 60).catch(() => {});
       return summary;

@@ -166,6 +166,27 @@ async function agendaAnything(raw: string): Promise<Direct | null> {
     .replace(/^\s*(la|le|les|l'|l’)\s+/i, '').replace(/\s+/g, ' ').trim();
   if (what.length < 3) return null;
   const birthday = /\banniv/.test(t);
+  // 22/11 : « Ajoute à l'agenda FIK : « 🚗 i10 — Client », du 23/11 à 14h05 au 26/11 à 6h00 (heure d'Oran), lieu aéroport… »
+  // → titre = toute la phrase, début perdu (« du au 26/11 »), 1 h seulement. Titre entre « », période du … au …, lieu, heure d'Oran.
+  const quoted = /[«"]\s*([^»"]{2,90}?)\s*[»"]/.exec(raw)?.[1];
+  const lieu = /\b(?:lieu|à l'adresse|adresse)\s*:?\s+([^.,;()]{3,80})/i.exec(raw)?.[1]?.trim();
+  const tz = /heure\s+d['’]\s*(oran|alg[ée]rie|alger)/i.test(raw) ? 'Africa/Algiers' : undefined;
+  const range = /\bdu\s+(.{3,40}?)\s+au\s+(.{3,40}?)(?=\s*[,.;(]|\s+(?:heure|lieu|pour|avec)\b|$)/i.exec(raw.replace(/[«»"][^«»"]*[«»"]/g, ' '));
+  if (range) {
+    const a = parseWhen(range[1]!), b = parseWhen(range[2]!);
+    if (a.date && b.date && b.date >= a.date) {
+      const title = (quoted ?? what).replace(/\s+/g, ' ').trim().slice(0, 90);
+      const rest = quoted ? raw.replace(/^[\s\S]*?[»"]\s*,?\s*/, '').trim() : '';
+      const desc = rest.replace(/\bdu\s+.{3,40}?\s+au\s+.{3,40}?(?=\s*[,.;(]|$)/i, '').replace(/\(?\s*heure\s+d['’]\s*\w+\s*\)?/i, '').replace(/\b(?:lieu|à l'adresse|adresse)\s*:?\s+[^.,;()]{3,80}/i, '').replace(/^[\s,.;]+/, '').replace(/\s+/g, ' ').trim().slice(0, 500);
+      const { createAgendaEvent } = await import('./google-calendar.js');
+      const allDay = !a.time && !b.time;
+      const start = allDay ? a.date : `${a.date}T${a.time ?? '09:00'}:00`;
+      const end = allDay ? addDays(b.date, 1) : `${b.date}T${b.time ?? '18:00'}:00`;
+      const id = await createAgendaEvent(title, start, end, desc || undefined, allDay, lieu, tz ? { timeZone: tz } : {}).catch(() => null);
+      if (!id) return { text: `❌ Pas ajouté : l'agenda FIK ne répond pas. Rien n'a changé.`, direct: true };
+      return { text: `✅ Ajouté à l'agenda FIK : ${title}\n📅 Du ${frDate(a.date)}${a.time ? ` à ${a.time}` : ''} au ${frDate(b.date)}${b.time ? ` à ${b.time}` : ''}${tz ? " (heure d'Oran)" : ''}${lieu ? `\n📍 ${lieu}` : ''}${desc ? `\n${desc}` : ''}`, direct: true };
+    }
+  }
   const add = async (title: string, date: string, time: string | null, desc: string, yearly: boolean): Promise<Direct> => {
     const { createAgendaEvent } = await import('./google-calendar.js');
     const end = time ? `${date}T${pad((Number(time.slice(0, 2)) + 1) % 24)}:${time.slice(3)}:00` : addDays(date, 1);
