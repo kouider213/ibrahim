@@ -73,8 +73,12 @@ export async function siteAdminTool(input: R): Promise<string> {
       if (d.startsWith('00')) d = d.slice(2); else if (d.length === 10 && /^0[567]/.test(d)) d = `213${d.slice(1)}`; else if (d.length === 10 && d.startsWith('0')) d = `33${d.slice(1)}`;
       const dm = (x: string) => `${x.slice(8, 10)}/${x.slice(5, 7)}`;
       const first = String(b.client_name ?? '').trim().split(/\s+/)[0] ?? '';
-      const txt = `Bonjour ${first}, merci beaucoup pour votre demande de réservation chez FIK Conciergerie${b.cars?.name ? ` (${b.cars.name}, du ${dm(b.start_date)} au ${dm(b.end_date)})` : ''}. Malheureusement, ce véhicule n'est pas disponible à ces dates, nous en sommes vraiment désolés. Si vous le souhaitez, nous pouvons vous proposer un autre véhicule ou d'autres dates : dites-nous simplement ce qui vous arrange. Belle journée à vous !`;
-      return `✅ Demande de ${b.client_name} REFUSÉE sur le site. L'email « indisponible » part au client s'il a laissé son email.${d.length >= 9 ? `\n💬 Message WhatsApp poli déjà écrit (appuie, puis Envoyer) : https://wa.me/${d}?text=${encodeURIComponent(txt)}` : ''}`;
+      const when = b.cars?.name ? ` (${b.cars.name}, du ${dm(b.start_date)} au ${dm(b.end_date)})` : ` (du ${dm(b.start_date)} au ${dm(b.end_date)})`;
+      // 22/11 : 2 choix — autre véhicule / complet à ces dates (jamais la vraie raison, ex. durée trop courte)
+      const autre = `Bonjour ${first}, merci beaucoup pour votre demande de réservation chez FIK Conciergerie${when}. Malheureusement, ce véhicule n'est pas disponible à ces dates, nous en sommes vraiment désolés. Nous pouvons vous proposer un autre véhicule pour les mêmes dates : souhaitez-vous que je vous envoie les modèles disponibles ? Belle journée à vous !`;
+      const complet = `Bonjour ${first}, merci beaucoup pour votre demande de réservation chez FIK Conciergerie${when}. Malheureusement, nous sommes complets à ces dates, nous en sommes vraiment désolés. Nous serions ravis de vous accueillir à d'autres dates si vous le souhaitez : dites-nous simplement lesquelles vous arrangent. Belle journée à vous !`;
+      const link = (t: string) => `https://wa.me/${d}?text=${encodeURIComponent(t)}`;
+      return `✅ Demande de ${b.client_name} REFUSÉE sur le site. L'email « indisponible » part au client s'il a laissé son email.${d.length >= 9 ? `\n💬 Message WhatsApp déjà écrit, choisis (appuie, puis Envoyer) :\n🚗 Autre véhicule : ${link(autre)}\n📅 Complet, autres dates : ${link(complet)}` : ''}`;
     }
     const total = price > 0 ? price : Number(b.final_price ?? 0);
     const days = Number(b.nb_days) || 1;
