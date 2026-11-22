@@ -222,6 +222,27 @@ export interface SportRule { text: string; at: string }
 export async function readSportRules(): Promise<SportRule[]> {
   try { const r = JSON.parse((await kvGet(RULES_KEY)) ?? '[]') as SportRule[]; return Array.isArray(r) ? r.filter(x => x?.text) : []; } catch { return []; }
 }
+// 22/11 Kouider : « les élévations latérales à 8 kg on m'a dit c'est trop, je veux diminuer » → une règle « <exercice> : maximum N kg »
+// plafonne la charge proposée (app, coach live, objectifs de la semaine). Il la change / l'enlève lui-même via les règles sport.
+export interface KgCap { words: string[]; kg: number; text: string }
+let kgCaps: KgCap[] = [];
+const capNorm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[_~-]+/g, ' ');
+export function parseKgCaps(rules: SportRule[]): KgCap[] {
+  const out: KgCap[] = [];
+  for (const r of rules) {
+    const m = r.text.match(/^(.+?)\s*[:,–-]?\s*(?:au\s+)?(?:max(?:imum)?|pas plus de|plafond(?:\s+[àa])?|jamais plus de)\s*(\d+(?:[.,]\d+)?)\s*kg/i);
+    if (!m) continue;
+    const words = capNorm(m[1]!).split(/[^a-z0-9]+/).filter(w => w.length > 3 && !/^(pour|avec|les|des|haltere|halteres|exercice)$/.test(w)).map(w => w.replace(/s$/, ''));
+    if (words.length) out.push({ words, kg: Number(m[2]!.replace(',', '.')), text: r.text });
+  }
+  return out;
+}
+async function refreshKgCaps(): Promise<void> { kgCaps = parseKgCaps(await readSportRules().catch(() => [])); }
+export function capFor(e: { id: string; name: string }): KgCap | undefined {
+  const hay = capNorm(`${e.name} ${exNamesMap[e.id.replace(/~.*$/, '')] ?? ''} ${e.id.replace(/~.*$/, '')}`).split(/[^a-z0-9]+/).map(w => w.replace(/s$/, ''));
+  const en = /lateral raise/.test(capNorm(e.id)) ? ['elevation', 'laterale'] : [];
+  return kgCaps.find(c => c.words.every(w => hay.some(h => h.startsWith(w) || w.startsWith(h) && h.length > 3) || en.some(x => x.startsWith(w))));
+}
 async function sportRuleTool(input: Record<string, unknown>): Promise<string> {
   const op = String(input['rule_op'] ?? 'list');
   const text = String(input['rule'] ?? '').trim().slice(0, 200);
@@ -240,6 +261,7 @@ async function sportRuleTool(input: Record<string, unknown>): Promise<string> {
     await kvSet(RULES_KEY, JSON.stringify(rules));
   }
   await import('./forme-cut.js').then(m => m.clearFormeSnapshot()).catch(() => null);
+  kgCaps = parseKgCaps(rules);
   return rules.length ? `${op === 'list' ? '📌' : '✅'} Règles sport de Kouider (gardées pour toujours, jusqu'à ce qu'il les enlève) :\n${rules.map((r, i) => `${i + 1}. ${r.text} (depuis le ${r.at.slice(8, 10)}/${r.at.slice(5, 7)})`).join('\n')}`
     : '✅ Aucune règle sport en cours.';
 }
@@ -276,6 +298,7 @@ const DEFAULT_STATE: SportState = { next: 0, plan: {}, overrides: {}, skips: {},
 
 async function getState(): Promise<SportState> {
   await loadProgram();
+  await refreshKgCaps();
   try {
     const s = JSON.parse((await kvGet(STATE_KEY)) ?? '{}') as Partial<SportState>;
     deloadWin = s.deload ?? null;
@@ -296,6 +319,7 @@ async function saveState(s: SportState): Promise<void> {
 }
 
 export async function readSportLog(): Promise<SessionLog[]> {
+  await refreshKgCaps();
   try { return JSON.parse((await kvGet(LOG_KEY)) ?? '[]') as SessionLog[]; } catch { return []; }
 }
 
@@ -354,9 +378,16 @@ export interface Suggestion {
 
 /** Dernière perf sur l'exercice ; toutes les séries au haut de la fourchette → + step kg. */
 export function suggestFor(e: Exercise, log: SessionLog[], date?: string): Suggestion {
-  const s = suggestRaw(e, log);
+  const s = capped(e, suggestRaw(e, log));
   const r9 = (k: number) => Math.round(k * 0.9 * 2) / 2;
   return (inDeload(date) || lowForm(date)) && s.kg ? { kg: r9(s.kg), last: s.last, ...(s.prev ? { prev: s.prev } : {}), ...(s.plan ? { plan: s.plan.map(r9) } : {}), goal: 'Semaine allégée : charges −10 %.' } : s;
+}
+function capped(e: Exercise, s: Suggestion): Suggestion {
+  const c = capFor(e);
+  if (!c) return s;
+  const fr = (k: number) => String(k).replace('.', ',');
+  return { ...s, kg: s.kg == null ? c.kg : Math.min(s.kg, c.kg), up: false, plan: (s.plan ?? Array(e.sets).fill(c.kg)).map(k => Math.min(k, c.kg)),
+    goal: `Maximum ${fr(c.kg)} kg (ta règle : « ${c.text} »). Ne monte pas la charge : fais les reps lentement, sans élan, et quand ${e.reps} passent facilement, ajoute 2-3 reps ou ralentis la descente.` };
 }
 let exNamesMap: Record<string, string> = {};   // noms réels notés par l'appli (kouider:sport:exnames), rafraîchis par getState()
 const sameName = (a: string | undefined, b: string) => !!a && norm(a).replace(/\s+/g, ' ').trim() === norm(b).replace(/\s+/g, ' ').trim();

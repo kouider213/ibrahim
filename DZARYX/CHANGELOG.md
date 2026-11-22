@@ -1,3 +1,6 @@
+## 22/11 (soir) — FORME : poids maximum par exercice (règle sport)
+Kouider : « un exercice du vendredi où je soulève 8 kg, on m'a dit c'est trop, je veux le diminuer » = Élévations latérales (20/11 : 3×12 à 8 kg ; la progression allait proposer 9 kg + objectif de la semaine « 9 kg »). Une règle sport « <exercice> : maximum N kg » (kouider:sport:rules) plafonne maintenant `suggestFor` (app FORME, coach live gym-live, objectif de la semaine, up=false). Règle posée : « Élévations latérales : maximum 6 kg » ; objectif semaine 23/11 corrigé en « 6 kg, lentement et sans élan ». Outil sport_coach rule documenté pour les poids max.
+
 ## 22/11 (soir) — App v288 : GLOBE « 🧳 Vols suivis » = vols de Kouider ET des clients
 Kouider : « il met que mes vols, faut les vols des clients aussi ». Le bouton « Mon vol » ne lisait que les billets enregistrés (trips:v1). Maintenant `upcomingFlights()` (flight-live.ts) ajoute les vols notés dans les réservations (notes « vol AH1061, arrivée 14:05 », « ✈️ Voyage du client : … (ORY) → … (ORN), départ …, arrivée … », « avant son vol du 26/11 à 08:00 ») : aller + retour, 14 jours devant, sans doublon avec les billets. Globe : liste de tous les vols (Toi / nom du client), toucher un vol = tracé + avion sur le globe (bleu clair = client, or = Kouider). Coordonnées fixes des aéroports courants (Orly ne se géocodait pas).
 
