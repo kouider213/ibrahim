@@ -149,7 +149,7 @@ export async function iphoneEvent(type: string, body: Record<string, unknown>): 
 
 /** Texte pour la voix de l'iPhone : sans emoji ni symbole (« Énoncer » coupe la phrase dessus), tirets → virgules. */
 export function speakable(t: string): string {
-  return t.replace(/[\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0F\u200D*_#`>|]/gu, '').replace(/\s*[—–]\s*/g, ', ').replace(/\s{2,}/g, ' ').trim();
+  return t.replace(/\bKouider\b/gi, 'Kwider').replace(/[\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0F\u200D*_#`>|]/gu, '').replace(/\s*[—–]\s*/g, ', ').replace(/\s{2,}/g, ' ').trim();
 }
 
 /** Point vocal de 20 s quand CarPlay se branche : trajet jusqu'à la prochaine étape, ce que veulent les clients, locations

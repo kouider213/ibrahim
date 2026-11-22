@@ -28,6 +28,9 @@ const CAR_PHONETICS: Array<[RegExp, string]> = [
 export function cleanTextForTTS(text: string): string {
   let t = text;
 
+  // 22/11 Kouider : son prénom se prononce « Kwi-dère », pas « Kou-i-dère » → écrit comme il se dit pour la voix
+  t = t.replace(/\bKouider\b/g, 'Kwider').replace(/\bKOUIDER\b/g, 'KWIDER').replace(/\bkouider\b/g, 'kwider');
+
   // 0. ARABIZI → son phonétique (darija écrite avec chiffres) AVANT lecture vocale.
   //    3=ع→"aa", 7=ح→"h", 9=ق→"k", 5=خ→"kh", 2=ء→"". UNIQUEMENT quand le chiffre touche
   //    une lettre (ex "3andek", "ch7al", "9adach") → on NE TOUCHE PAS aux vrais nombres (1200€, 150).

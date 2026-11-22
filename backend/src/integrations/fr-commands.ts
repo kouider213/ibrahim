@@ -790,13 +790,48 @@ async function toolIntent(raw: string): Promise<Direct | null> {
   return null;
 }
 
+/** 22/11 : « du 31 mai 2025 à aujourd'hui combien de mois ? » → le cerveau a répondu « aujourd'hui (26 novembre) » : calcul fait par le CODE. */
+const MOIS_N: Record<string, number> = { janvier: 1, fevrier: 2, mars: 3, avril: 4, mai: 5, juin: 6, juillet: 7, aout: 8, septembre: 9, octobre: 10, novembre: 11, decembre: 12 };
+export function dateDiffText(raw: string, today = localNow().date): string | null {
+  const t = raw.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’]/g, "'");
+  const unit = /combien\s+(?:de\s+|d')?(mois|jours?|semaines?|ans|annees?)|(?:ca|cela)\s+fait\s+combien/.exec(t);
+  if (!unit || /locat|lou[eé]|r[ée]serv|voiture|client|resa\b/.test(t)) return null;   // jours de location = rentalCount (règle 24 h)
+  const re = /\b(\d{1,2})(?:er)?\s+(janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre|octobre|novembre|decembre)(?:\s+(\d{4}))?|\b(\d{1,2})\/(\d{1,2})\/(\d{4}|\d{2})\b/g;
+  const ds: string[] = [];
+  for (const m of t.matchAll(re)) {
+    const d = Number(m[1] ?? m[4]), mo = m[2] ? MOIS_N[m[2]]! : Number(m[5]);
+    let y = Number(m[3] ?? m[6] ?? today.slice(0, 4)); if (y < 100) y += 2000;
+    if (d < 1 || d > 31 || mo < 1 || mo > 12) return null;
+    ds.push(`${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+  }
+  if (ds.length === 1 && /aujourd|maintenant|depuis|a\s+ce\s+jour/.test(t)) ds.push(today);
+  if (ds.length !== 2) return null;
+  const [a, b] = ds[0]! <= ds[1]! ? [ds[0]!, ds[1]!] : [ds[1]!, ds[0]!];
+  const P = (x: string) => x.split('-').map(Number) as [number, number, number];
+  const [ay, am, ad] = P(a), [by, bm, bd] = P(b);
+  let months = (by - ay) * 12 + (bm - am);
+  if (bd < ad) months--;
+  const addM = (n: number) => { const y = ay + Math.floor((am - 1 + n) / 12), mo = ((am - 1 + n) % 12) + 1; const last = new Date(Date.UTC(y, mo, 0)).getUTCDate(); return Date.UTC(y, mo - 1, Math.min(ad, last)); };
+  const day = 86_400_000, end = Date.UTC(by, bm - 1, bd);
+  const rest = Math.round((end - addM(months)) / day), total = Math.round((end - Date.UTC(ay, am - 1, ad)) / day);
+  const pl = (n: number, w: string, ws = `${w}s`) => `${n} ${n > 1 ? ws : w}`;
+  const full = (d: string) => `${frDate(d)}${d.slice(0, 4) === today.slice(0, 4) ? ` ${d.slice(0, 4)}` : ''}`;
+  const ym = months >= 12 ? ` (${pl(Math.floor(months / 12), 'an')}${months % 12 ? `, ${pl(months % 12, 'mois', 'mois')}` : ''}${rest ? ` et ${pl(rest, 'jour')}` : ''})` : '';
+  const head = months ? `${pl(months, 'mois', 'mois')}${rest ? ` et ${pl(rest, 'jour')}` : ''}` : pl(rest, 'jour');
+  return `📅 Du ${full(a)} au ${full(b)}${b === today ? " (aujourd'hui)" : ''} : ${head}${ym}.\nSoit ${total.toLocaleString('fr-FR')} jours ≈ ${pl(Math.floor(total / 7), 'semaine')}${total % 7 ? ` et ${pl(total % 7, 'jour')}` : ''}.`;
+}
+async function dateDiff(raw: string): Promise<Direct | null> {
+  const text = dateDiffText(raw);
+  return text ? { text, direct: true } : null;
+}
+
 export async function frCommand(raw: string, sessionId = 'telegram_kouider'): Promise<Direct | null> {
   SID = sessionId;
   const msg = raw.replace(/^\s*\[[\s\S]*?\]\s*/, '').trim();
   if (!msg) return null;
   // 13/11 : « mauvaise semaine, adapte la semaine prochaine » → coach de semaine dans l'orchestrateur (action + conseils), pas une commande courte
   if ((await import('./coach-week.js')).isWeekTalk(msg)) return null;
-  for (const f of [sharePub, pubTiktok, craving, noSales, carKm, formeBilan, formeProgram, workBack, sportMoveDay, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, agendaAnything, present, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
+  for (const f of [dateDiff, sharePub, pubTiktok, craving, noSales, carKm, formeBilan, formeProgram, workBack, sportMoveDay, sportSkip, water, rentalCount, rentalTotal, mindWeek, privacy, reminder, rdv, agendaAnything, present, dnd, dispoAt, sleep, couple, weather, islamicDates, flight, salary, financePlans, fikRevenue, siteVisits, bodyEta, skipJudge, toolIntent, businessAdvice]) {
     const r = await f(msg).catch(e => ({ text: `❌ ${e instanceof Error ? e.message : e}`, direct: true }));
     if (r) return r;
   }

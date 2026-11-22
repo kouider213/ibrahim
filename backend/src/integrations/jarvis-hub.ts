@@ -215,7 +215,7 @@ const WRITTEN_RE = /\b(sur |par |en )?(telegram|par (é|e)crit|envoie[- ]?(le|la
 function speakable(raw: string, _question: string): { say: string; url?: string; rest?: string } {
   let say = raw || 'Pardon, je n\'ai pas compris.';
   const m = /PHONE_URL:\s*(\S+)/i.exec(say);
-  say = say.replace(/PHONE_URL:\s*\S+/i, '').replace(/https?:\/\/\S+/g, '').replace(/[*_#`>|]/g, '').trim();
+  say = say.replace(/PHONE_URL:\s*\S+/i, '').replace(/\bKouider\b/gi, 'Kwider').replace(/https?:\/\/\S+/g, '').replace(/[*_#`>|]/g, '').trim();
   if (say.length <= 600) return { say, ...(m ? { url: m[1] } : {}) };
   const cut = say.slice(0, 600);
   const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('? '), cut.lastIndexOf('! '));
