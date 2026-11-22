@@ -394,6 +394,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'client-ids-cleanup',
+    cron:  '20 4 * * *',             // 22/11 : photos d'identité des réservations effacées (30 j après retour, 7 j après refus)
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'relance-clients',
     cron:  '45 9 * * 0-3,5,6',       // 21/11 : relances (WhatsApp silencieux, paniers du site, prolongations) une par une, avant le travail
     tz:    'Europe/Brussels',
@@ -875,6 +880,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'papa-time':               async () => { console.log(`[papa-time] ${await jobPapaTime()}`); },
   'papa-weekly':             async () => { await jobPapaWeekly(); },
   'week-card':                async () => { console.log(`[week-card] ${await (await import('../integrations/me-week.js')).jobWeekCard()}`); },
+  'client-ids-cleanup':       async () => { console.log(`[client-ids] ${await (await import('../integrations/client-ids-cleanup.js')).jobClientIdsCleanup()}`); },
   'relance-clients':          async () => { console.log(`[relance] ${await (await import('../integrations/relance-clients.js')).jobRelanceClients()}`); },
   'relance-clients-jeudi':    async () => { console.log(`[relance] ${await (await import('../integrations/relance-clients.js')).jobRelanceClients()}`); },
   'lead-cold':                async () => { console.log(`[lead-cold] ${await (await import('../integrations/lead-cold.js')).jobLeadCold()}`); },
