@@ -181,9 +181,12 @@ export async function kouiderAwayOn(date: string): Promise<string | null> {
 /** 13/11 (Belarbi : « arrivée 18:05 » dans la résa mais fiche d'arrivée à 10:00) : heures d'arrivée / de retour lues dans les notes
  *  de la réservation — la DERNIÈRE mention gagne (une correction est ajoutée à la fin). */
 export function bookingTimes(notes: string | null | undefined): { start?: string; end?: string } {
+  // 22/11 : la ligne brute du billet (« ✈️ Voyage du client : … arrivée 23/11 14:05 | retour … arrivée 26/11 10:30 ») n'est PAS l'heure
+  // de remise : « arrivée 26/11 10:30 » (arrivée à Paris du vol retour) écrasait « Prise : … arrivée 14:05 » → Faycel annoncé à 10h30.
+  const clean = (notes ?? '').split('\n').filter(l => !/^\s*✈️\s*Voyage du client/i.test(l)).join('\n');
   const last = (re: RegExp) => {
     let out: string | undefined;
-    for (const m of (notes ?? '').matchAll(re)) {
+    for (const m of clean.matchAll(re)) {
       const h = Number(m[1]), mi = Number(m[2] ?? 0);
       if (h <= 23 && mi <= 59) out = `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`;
     }
@@ -191,7 +194,7 @@ export function bookingTimes(notes: string | null | undefined): { start?: string
   };
   return {
     start: last(/(?:arriv\w*|atterri\w*|prise|r[ée]cup[ée]ration|remise)(?:[^\n\d]{0,25}?\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)?[^\n\d]{0,25}?(\d{1,2})\s*[:h]\s*(\d{2})?(?![\d/])/gi),
-    end: last(/(?:retour|rend|restitution|d[ée]part du client|vol retour)(?:[^\n\d]{0,25}?\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)?[^\n\d]{0,25}?(\d{1,2})\s*[:h]\s*(\d{2})?(?![\d/])/gi),
+    end: last(/(?:retour|rend|restitution|d[ée]part du client|vol retour|avant son vol)(?:[^\n\d]{0,25}?\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)?[^\n\d]{0,25}?(\d{1,2})\s*[:h]\s*(\d{2})?(?![\d/])/gi),
   };
 }
 
@@ -233,6 +236,7 @@ async function syncClientChecklists(): Promise<void> {
       list.push(t);
     }
     t.departAt = localTs(date, at, 'Africa/Algiers');
+    t.title = `${kind === 'booking-start' ? 'Arrivée' : 'Retour'} de ${b.client_name} (${b.cars?.name ?? 'voiture'})`;   // voiture changée sur la réservation
     const now = new Date().toISOString();
     for (const i of t.checklist) {
       const ok = i.auto === 'contract' ? signed.has(b.id) : i.auto === 'paid' ? paid(b) : i.auto === 'passport' ? !!b.client_passport

@@ -1,3 +1,6 @@
+## 22/11 (nuit) — Fix heure de remise client lue dans les notes + voiture de Faycel
+Kouider (capture Telegram 22:30) : « il dit la i10 alors que c'est la Clio essence ». Réservation Delli Faycel 23-26/11 passée de i10 → Clio 4 Essence (mêmes prix 16/25 €, Clio libre). Et le message annonçait 10h30 au lieu de 14:05 : `bookingTimes` prenait la DERNIÈRE heure après « arrivée », donc « arrivée 26/11 10:30 » (arrivée à Paris du vol retour, ligne « ✈️ Voyage du client »). La ligne brute du billet est maintenant ignorée ; « avant son vol du 26/11 à 08:00 » donne l'heure de retour. Le titre des check-lists client suit la voiture de la réservation.
+
 ## 22/11 (soir) — FORME : poids maximum par exercice (règle sport)
 Kouider : « un exercice du vendredi où je soulève 8 kg, on m'a dit c'est trop, je veux le diminuer » = Élévations latérales (20/11 : 3×12 à 8 kg ; la progression allait proposer 9 kg + objectif de la semaine « 9 kg »). Une règle sport « <exercice> : maximum N kg » (kouider:sport:rules) plafonne maintenant `suggestFor` (app FORME, coach live gym-live, objectif de la semaine, up=false). Règle posée : « Élévations latérales : maximum 6 kg » ; objectif semaine 23/11 corrigé en « 6 kg, lentement et sans élan ». Outil sport_coach rule documenté pour les poids max.
 
