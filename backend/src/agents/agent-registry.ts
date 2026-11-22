@@ -97,10 +97,10 @@ AGENDA RÉSULTAT: Texte "⚠️ Google Agenda non synchro" → répète EXACTEME
     'record_lead', 'list_leads', 'update_lead_status', 'match_lead', 'get_daily_report',
     // Phase extras
     'create_signature_link', 'apply_dynamic_pricing', 'estimate_damage',
-    'record_car_km', 'check_client', 'flash_offer', 'update_vehicle_maintenance', 'get_vehicle_maintenance',
+    'record_car_km', 'check_client', 'check_margin', 'flash_offer', 'update_vehicle_maintenance', 'get_vehicle_maintenance',
     'set_car_papers', 'get_car_papers',
   ],
-  keywords:  /\b(réservations?|booking|louer|location|disponib|voitures?|retard|flotte|clients?|arrivée|départ|véhicules?|agenda|synchro|marque.*dispo|est.*disponible|plus.*disponible|appartements?|immobilier|immo|biens?|maisons?|villas?|à\s+vendre|vente|acheté|acheteur|locataire)\b/i,
+  keywords:  /\b(réservations?|booking|louer|location|disponib|voitures?|retard|flotte|clients?|arrivée|départ|véhicules?|agenda|synchro|marque.*dispo|est.*disponible|plus.*disponible|appartements?|immobilier|immo|biens?|maisons?|villas?|à\s+vendre|vente|acheté|acheteur|locataire|offerts?|offre|remise|marge|rentable)\b/i,
   priority:  10,
   llm: { provider: 'claude', model: 'claude-sonnet-5-5', temperature: 0.5, maxTokens: 1500 },
 };

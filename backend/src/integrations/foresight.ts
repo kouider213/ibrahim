@@ -392,19 +392,50 @@ export async function calmVersion(text: string): Promise<string | null> {
 }
 
 /** Prix sous son plancher (prix propriétaire, ou plancher qu'il a réglé) → rappel ajouté au résultat. */
+/** 22/11 (Kouider : « préviens-moi AVANT de proposer un jour offert ou une remise ») : ce que coûte un prix sous le catalogue,
+ *  un jour offert ou une longue location, en euros de SON bénéfice. Code pur, jamais bloquant. Sert à check_margin (avant)
+ *  et après create_booking / update_booking. */
+export async function marginCheck(o: { car_id?: string; car_name?: string; price_per_day?: number; total?: number; days?: number; start_date?: string; end_date?: string; free_days?: number; owner_price_per_day?: number }): Promise<string> {
+  const q = supabase.from('cars').select('id, name, base_price, resale_price').limit(1);
+  const { data } = o.car_id ? await q.eq('id', o.car_id) : await q.ilike('name', `%${String(o.car_name ?? '').trim()}%`);
+  const car = (data ?? [])[0] as { name: string; base_price?: number | null; resale_price?: number | null } | undefined;
+  if (!car) return `❌ Voiture « ${o.car_name ?? o.car_id ?? '?'} » introuvable.`;
+  const { rentalDays } = await import('./finance.js');
+  const free = Math.max(0, Math.round(Number(o.free_days) || 0));
+  const real = o.start_date && o.end_date ? rentalDays(o.start_date.slice(0, 10), o.end_date.slice(0, 10)) : Math.max(1, Math.round(Number(o.days) || 0) + free);
+  const billed = Math.max(1, real - free);
+  const cat = Number(car.resale_price) || 0;
+  const owner = Number(o.owner_price_per_day) || Number(car.base_price) || 0;
+  const ppd = Number(o.price_per_day) || (Number(o.total) ? Number(o.total) / billed : cat);
+  if (!owner || !ppd) return '';
+  const r = (n: number) => Math.round(n * 100) / 100;
+  const profit = r(ppd * billed - owner * real);
+  const lines = [`📊 ${car.name} · ${real} j${free ? ` (${billed} payés + ${free} offert${free > 1 ? 's' : ''})` : ''} à ${r(ppd)} €/j, propriétaire ${owner} €/j → ton bénéfice ${profit} € (${r(profit / real)} €/jour)`];
+  if (cat && ppd < cat - 0.01) {
+    const lost = r((cat - ppd) * billed);
+    lines.push(`⚠️ Sous le prix du site (${cat} €/j) : tu perds ${lost} € sur cette location (au prix du site : ${r(profit + lost)} €).`);
+  }
+  if (free) lines.push(`🎁 ${free} jour${free > 1 ? 's' : ''} offert${free > 1 ? 's' : ''} = ${r(owner * free)} € payés au propriétaire de ta poche${profit + owner * free > 0 ? `, soit ${Math.round(owner * free / (profit + owner * free) * 100)} % de ce que tu aurais gagné` : ''}. Geste gratuit à la place : livraison à l'aéroport, heure de retour souple.`);
+  if (profit <= 0) lines.push('🛑 Tu PERDS de l\'argent sur cette location.');
+  if (real >= 10) lines.push(`💡 ${real} jours : demande au propriétaire 2-3 €/jour de moins (location longue, paiement sûr) → +${2 * real} à ${3 * real} € pour toi.`);
+  return lines.join('\n').replace(/(\d)\.(\d)/g, '$1,$2');   // 55,04 € à la française
+}
+
 export async function priceFloorNote(input: Record<string, unknown>): Promise<string> {
   const total = Number(input['final_price']);
   const s = String(input['start_date'] ?? ''), e = String(input['end_date'] ?? '');
   if (!total || !s || !e) return '';
-  const days = Math.max(1, Math.round((Date.parse(e.slice(0, 10)) - Date.parse(s.slice(0, 10))) / 86_400_000));
   const q = supabase.from('cars').select('id, name, base_price, resale_price').limit(1);
   const { data } = input['car_id'] ? await q.eq('id', String(input['car_id'])) : await q.ilike('name', `%${String(input['car_name'] ?? '').trim()}%`);
-  const car = (data ?? [])[0] as { name: string; base_price?: number; resale_price?: number } | undefined;
+  const car = (data ?? [])[0] as { id: string; name: string; base_price?: number; resale_price?: number } | undefined;
   if (!car) return '';
   const floors = await kvJson<Record<string, number>>('price:floors', {});
-  const perDay = total / days;
+  const { rentalDays } = await import('./finance.js');
+  const days = rentalDays(s.slice(0, 10), e.slice(0, 10));
+  const perDay = Number(input['client_price_per_day']) || total / days;
   const floor = floors[car.name.toLowerCase()] ?? Number(car.base_price ?? 0);
-  if (floor && perDay < floor) return `\n\n🧯 ANTI-REGRET : ${Math.round(perDay)}/jour pour la ${car.name}, c'est SOUS ton plancher (${floor}/jour). Tu es sûr ? (je n'ai rien bloqué)`;
-  if (car.resale_price && perDay < Number(car.resale_price) * 0.85) return `\n\n🧯 ANTI-REGRET : ${Math.round(perDay)}/jour, c'est ${Math.round((1 - perDay / Number(car.resale_price)) * 100)} % sous ton prix habituel (${car.resale_price}/jour). Volontaire ?`;
-  return '';
+  const m = await marginCheck({ car_id: car.id, price_per_day: perDay, start_date: s, end_date: e, owner_price_per_day: Number(input['owner_price_per_day']) || undefined }).catch(() => '');
+  const warn = /⚠️|🛑|💡/.test(m) ? `\n\n${m}` : '';
+  if (floor && perDay < floor) return `\n\n🧯 ANTI-REGRET : ${Math.round(perDay)}/jour pour la ${car.name}, c'est SOUS ton plancher (${floor}/jour). Tu es sûr ? (je n'ai rien bloqué)${warn}`;
+  return warn;
 }

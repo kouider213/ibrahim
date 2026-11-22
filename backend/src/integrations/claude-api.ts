@@ -232,7 +232,7 @@ const MONEY_WA_HINT =
   + "Après son oui : lance whatsapp_web send TOUT DE SUITE. Ne dis jamais « pas connecté » ou « je ne peux pas » sans qu'un outil l'ait répondu à CE tour.";
 const CORE_TOOLS = new Set([
   // Locations, flotte, clients, argent
-  'list_bookings', 'create_booking', 'update_booking', 'cancel_booking', 'check_car_availability', 'get_fleet_status',
+  'list_bookings', 'create_booking', 'update_booking', 'cancel_booking', 'check_car_availability', 'get_fleet_status', 'check_margin',
   'get_client_profile', 'get_client_brain', 'add_client_note', 'check_client', 'get_client_history',
   'get_payment_status', 'record_payment', 'get_unpaid_bookings', 'get_late_returns', 'get_financial_report',
   'get_revenue_report', 'get_daily_report', 'record_expense', 'get_expenses',

@@ -379,7 +379,21 @@ async function _dispatch(
   try {
     switch (name) {
       case 'list_bookings':         return await listBookings(input);
-      case 'update_booking':        return await updateBooking(input);
+      case 'update_booking': {
+        const res = await updateBooking(input);
+        // 22/11 : jour offert / prix changé → ce que ça lui coûte, en euros de son bénéfice
+        if (!res.startsWith('✅') || !['free_days', 'final_price', 'client_price_per_day', 'end_date', 'start_date', 'owner_price_per_day'].some(k => input[k] != null)) return res;
+        const { data: b } = await supabase.from('bookings').select('car_id, start_date, end_date, nb_days, client_price_per_day, owner_price_per_day, rented_by').eq('id', String(input['id'] ?? '')).single();
+        const bk = b as { car_id: string; start_date: string; end_date: string; nb_days: number | null; client_price_per_day: number | null; owner_price_per_day: number | null; rented_by?: string } | null;
+        if (!bk?.car_id || /houari/i.test(bk.rented_by ?? '')) return res;
+        const real = rentalDays(bk.start_date, bk.end_date);
+        const m = await import('./foresight.js').then(f => f.marginCheck({ car_id: bk.car_id, start_date: bk.start_date, end_date: bk.end_date, price_per_day: bk.client_price_per_day ?? undefined,
+          owner_price_per_day: bk.owner_price_per_day ?? undefined, free_days: bk.nb_days != null ? Math.max(0, real - bk.nb_days) : 0 })).catch(() => '');
+        return /⚠️|🛑|💡|🎁/.test(m) ? `${res}\n\n${m}` : res;
+      }
+      case 'check_margin':          return await import('./foresight.js').then(f => f.marginCheck({ car_name: String(input['car_name'] ?? ''), price_per_day: Number(input['price_per_day']) || undefined,
+        total: Number(input['total']) || undefined, days: Number(input['days']) || undefined, start_date: input['start_date'] as string | undefined, end_date: input['end_date'] as string | undefined,
+        free_days: Number(input['free_days']) || 0, owner_price_per_day: Number(input['owner_price_per_day']) || undefined }));
       case 'create_booking': {
         // Client refusé pour l'âge (< 35) sur ce numéro → bloqué, sauf accord EXPLICITE de Kouider (07/11, anti-contournement)
         if (input['client_phone'] && input['refus_age_leve'] !== true) {

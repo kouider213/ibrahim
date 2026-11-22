@@ -30,8 +30,26 @@ const ALL_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'check_margin',
+    description: 'AVANT d\'accepter un prix plus bas, une remise ou un JOUR OFFERT (Kouider : « je lui fais 40 € », « je lui offre un jour », « il demande combien la semaine »), calcule ce que ça lui coûte : bénéfice total et par jour, perte vs prix du site, coût du jour offert (le propriétaire est payé quand même), conseil pour les locations de 10 jours ou plus. Donne-lui ces chiffres AVANT de créer ou modifier la réservation. Code pur, instantané.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        car_name:            { type: 'string', description: 'Voiture (ex. « Fiat 500 X »)' },
+        price_per_day:       { type: 'number', description: 'Prix client par jour envisagé (sinon total)' },
+        total:               { type: 'number', description: 'Prix total envisagé pour les jours payés' },
+        days:                { type: 'number', description: 'Jours PAYÉS (sinon start_date/end_date)' },
+        start_date:          { type: 'string', description: 'YYYY-MM-DD' },
+        end_date:            { type: 'string', description: 'YYYY-MM-DD (le jour du retour ne compte pas)' },
+        free_days:           { type: 'number', description: 'Jours offerts envisagés' },
+        owner_price_per_day: { type: 'number', description: 'Prix propriétaire/jour s\'il est différent du prix habituel' },
+      },
+      required: ['car_name'],
+    },
+  },
+  {
     name: 'update_booking',
-    description: 'Modifier une réservation existante dans Supabase (nom, dates, voiture, montant, propriétaire, statut, HEURE D\'ARRIVÉE arrival_time, heure de retour return_time). Prolongation offerte/gratuite → end_date + free_days (le client ne paie pas ces jours). Heure donnée par le client sur WhatsApp (texte ou photo du billet) → arrival_time / return_time, jamais une heure inventée.',
+    description: 'Modifier une réservation existante dans Supabase (nom, dates, voiture, montant, propriétaire, statut, HEURE D\'ARRIVÉE arrival_time, heure de retour return_time). Prolongation offerte/gratuite → end_date + free_days (le client ne paie pas ces jours) — si Kouider n\'a pas encore vu le coût, check_margin en premier. Heure donnée par le client sur WhatsApp (texte ou photo du billet) → arrival_time / return_time, jamais une heure inventée.',
     input_schema: {
       type: 'object' as const,
       properties: {
