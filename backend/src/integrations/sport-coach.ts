@@ -1037,6 +1037,11 @@ export async function sportHistory(): Promise<{ history: Record<string, 'done' |
   const st = await getState();
   return { history: st.history, arrived: st.arrived };
 }
+/** 22/11 : jours réellement prévus (plan) ou en repos (skip) — pour les bilans FORME, au lieu des jours de repos fixes du profil. */
+export async function sportDayKinds(): Promise<{ planned: Set<string>; rest: Set<string> }> {
+  const st = await getState();
+  return { planned: new Set(Object.keys(st.plan ?? {})), rest: new Set(Object.keys(st.skips ?? {})) };
+}
 export async function isSportSkipped(date: string): Promise<boolean> {
   return !!(await getState()).skips[date];
 }

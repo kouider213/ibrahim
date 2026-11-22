@@ -43,7 +43,8 @@ async function sources() {
   ]);
   const exlog = await kvJson<Record<string, Array<{ date: string; kg?: number; reps?: number }>>>('kouider:forme:exlog', {}).catch(() => ({}));
   const live = await import('./workout-live.js').then(m => m.readWorkouts()).catch(() => []);
-  return { health: Array.isArray(health) ? health : [], days, profile, sport, exlog, live };
+  const noLegs = await import('./sport-coach.js').then(m => m.readSportRules()).then(r => r.some(x => /\b(plus de|pas de|sans)\s+jambes?\b/i.test(x.text))).catch(() => false);
+  return { health: Array.isArray(health) ? health : [], days, profile, sport, exlog, live, noLegs };
 }
 type Src = Awaited<ReturnType<typeof sources>>;
 
@@ -52,8 +53,8 @@ function muscleOf(id: string, s: Src): string | undefined {
   const m = s.sport?.mus[id]?.muscle; if (m) return m;
   const n = `${id} ${s.sport?.mus[id]?.name ?? ''}`.toLowerCase().replace(/[_~-]/g, ' ');
   if (/butterfly|crossover|cross over|pec|chest|bench|couch|dips|pompe|push ?up|fly\b/.test(n) && !/reverse|rear|arri/.test(n)) return 'pecs';
-  if (/triceps|biceps|curl|pushdown|extension triceps|marteau|hammer|avant[- ]bras|forearm/.test(n)) return 'bras';
-  if (/squat|leg|presse|press[ée] a cuisse|fente|lunge|mollet|calf|ischio|quadri|hip thrust|fessier|glute|deadlift|souleve/.test(n)) return 'jambes';
+  if (/triceps|biceps|curl|pushdown|extension triceps|marteau|hammer|avant[- ]bras|forearm/.test(n) && !/\bleg\b|ischio/.test(n)) return 'bras';   // « Seated Leg Curl » = jambes
+  if (/squat|leg|abductor|adductor|adducteur|abducteur|thigh|cuisse|presse|press[ée] a cuisse|fente|lunge|mollet|calf|ischio|quadri|hip thrust|fessier|glute|deadlift|souleve/.test(n)) return 'jambes';
   if (/row|tirage|pull|lat\b|lats|dos|traction|chin|rowing|shrug|trap/.test(n)) return 'dos';
   if (/lateral|deltoid|delto|shoulder|epaule|elevation|raise|military|overhead|reverse fly|rear delt|face pull|arnold/.test(n)) return 'epaules';
   if (/abs|crunch|gainage|plank|abdo|oblique|relev[ée] de jambes/.test(n)) return 'abdos';
@@ -90,7 +91,9 @@ async function dayStat(date: string, s: Src): Promise<DayStat> {
   const fw = fd?.workout;
   if (log.length || fw) {
     const type = log[0]?.type ?? 'libre';
-    const label = (s.sport?.sess as Record<string, { label: string }> | undefined)?.[type]?.label ?? fw?.label ?? type;
+    // 22/11 : 16/11 (pecs) et 17/11 (jambes) affichés « HAUT B · ÉPAULES & BRAS » = libellé ACTUEL du créneau, pas la vraie séance
+    const real = log[0] ? await import('./sport-coach.js').then(m => m.sessionLabel(log[0]!)).catch(() => null) : null;
+    const label = real ?? (s.sport?.sess as Record<string, { label: string }> | undefined)?.[type]?.label ?? fw?.label ?? type;
     const all = sets.length ? sets : (fw?.sets ?? []);
     const muscles = [...new Set(all.map(x => muscleOf(x.ex, s)).filter((x): x is string => !!x))];
     st.session = { type, label, sets: all.length, volume: Math.round(all.reduce((t, x) => t + (x.kg ?? 0) * (x.reps ?? 0), 0)),
@@ -120,14 +123,23 @@ function scores(ds: DayStat[], base: { hrv?: number; rhr?: number }, sessTarget:
     sc.recuperation = Math.max(0, Math.min(100, Math.round((a * 0.6 + b * 0.4) * 85)));
   }
   const fed = ds.filter(d => d.eaten);
-  if (fed.length) sc.nutrition = Math.round(avg(fed.map(d => ((d.realDeficit ?? 0) >= (d.deficitGoal ?? 0) - 30 ? 60 : Math.max(0, 60 * (d.realDeficit ?? 0) / Math.max(1, d.deficitGoal ?? 1))) + Math.min(40, 40 * (d.protein ?? 0) / Math.max(1, d.proteinGoal ?? 1)))));
+  // 22/11 : 721 / 818 kcal notées (repas pas tous notés) = « déficit tenu » 60/60 → nutrition « point fort ». Sous LOW_KCAL le déficit
+  // n'est pas mesurable : 30/60 (neutre), seules les protéines comptent vraiment.
+  if (fed.length) sc.nutrition = Math.round(avg(fed.map(d => ((d.eaten ?? 0) < LOW_KCAL ? 30 : (d.realDeficit ?? 0) >= (d.deficitGoal ?? 0) - 30 ? 60 : Math.max(0, 60 * (d.realDeficit ?? 0) / Math.max(1, d.deficitGoal ?? 1))) + Math.min(40, 40 * (d.protein ?? 0) / Math.max(1, d.proteinGoal ?? 1)))));
   const wt = ds.filter(d => d.water > 0); if (wt.length) sc.hydratation = Math.round(avg(wt.map(d => Math.min(1, d.water / d.waterGoal))) * 100);
   const parts = [sc.sommeil, sc.activite, sc.entrainement, sc.recuperation, sc.nutrition, sc.hydratation].filter((x): x is number => typeof x === 'number');
   sc.global = parts.length ? Math.round(avg(parts)) : 0;
   return sc;
 }
+const LOW_KCAL = 1200;   // en dessous : repas sûrement pas tous notés
 let restDays: number[] = [1, 4];
-const isTrainingDay = (d: string) => !restDays.includes(wdOf(d));
+// 22/11 : samedi 21/11 = « repos demandé » dans le planning sport, mais restDays du profil = lundi + jeudi → « pas de séance (jour
+// d'entraînement) », entraînement 0, coach « sans négocier ». Le planning du coach sportif décide d'abord ; restDays seulement s'il ne dit rien.
+let dayKinds: { planned: Set<string>; rest: Set<string> } = { planned: new Set(), rest: new Set() };
+const isTrainingDay = (d: string) => dayKinds.rest.has(d) ? false : dayKinds.planned.has(d) ? true : !restDays.includes(wdOf(d));
+async function loadDayKinds(): Promise<void> {
+  dayKinds = await import('./sport-coach.js').then(m => m.sportDayKinds()).catch(() => ({ planned: new Set<string>(), rest: new Set<string>() }));
+}
 
 export interface Report {
   kind: Kind; from: string; to: string; title: string; days: DayStat[]; scores: Scores; prevScores?: Scores;
@@ -162,6 +174,7 @@ function totals(ds: DayStat[], sessTarget: number, s: Src): Report['totals'] {
 function progression(s: Src, to: string): string[] {
   const out: Array<{ t: string; at: string }> = [];
   for (const [ex, l] of Object.entries(s.exlog)) {
+    if (s.noLegs && muscleOf(ex, s) === 'jambes') continue;   // 22/11 : « Leg Extensions → passe à 41,5 kg » malgré sa règle « plus de jambes »
     const dates = [...new Set(l.filter(x => x.date <= to).map(x => x.date))].sort();
     const last = dates.at(-1); if (!last || last < addDays(to, -21)) continue;
     const sets = l.filter(x => x.date === last && x.kg && x.reps);
@@ -187,14 +200,16 @@ function analyse(r: Omit<Report, 'strengths' | 'weaknesses' | 'actions' | 'coach
   const t = r.totals, sc = r.scores, one = r.kind === 'day', d0 = r.days[0];
   // Sommeil
   if (t.sleepAvg) {
-    if (t.sleepAvg >= 7) S.push(`Sommeil : ${fr(t.sleepAvg, 1)} h${one ? '' : ' en moyenne'} — c'est là que le muscle se construit.`);
-    else { W.push(`Sommeil court : ${fr(t.sleepAvg, 1)} h${one ? '' : ` en moyenne (dette ${fr(t.sleepDebt, 1)} h)`} pour 7 h 30 visées.`); A.push(`Sommeil : couche-toi 30 min plus tôt ${one ? 'ce soir' : 'la semaine prochaine'} (écran coupé 22 h 30) — +30 min par nuit = meilleure récup et moins de faim.`); }
+    const sN = one ? '' : r.days.filter(d => d.sleep_h).length < r.days.length ? ` (${r.days.filter(d => d.sleep_h).length} nuit${r.days.filter(d => d.sleep_h).length > 1 ? 's' : ''} mesurée${r.days.filter(d => d.sleep_h).length > 1 ? 's' : ''} sur ${r.days.length})` : '';
+    if (t.sleepAvg >= 7) S.push(`Sommeil : ${fr(t.sleepAvg, 1)} h${one ? '' : ' en moyenne'}${sN} — c'est là que le muscle se construit.`);
+    else { W.push(`Sommeil court : ${fr(t.sleepAvg, 1)} h${one ? '' : ` en moyenne (dette ${fr(t.sleepDebt, 1)} h)`}${sN} pour 7 h 30 visées.`); A.push(`Sommeil : couche-toi 30 min plus tôt ${one ? 'ce soir' : 'la semaine prochaine'} (écran coupé 22 h 30) — +30 min par nuit = meilleure récup et moins de faim.`); }
   } else if (!one && r.days.length >= 3) W.push('Sommeil pas mesuré la plupart des nuits : garde la montre ou dis « bonne nuit » / un message au réveil.');
   // Pas
   if (t.stepsAvg) {
     const g = r.days[0]?.stepsGoal ?? 8000;
-    if (t.stepsAvg >= g) S.push(`Activité : ${fr(t.stepsAvg)} pas${one ? '' : '/jour'} (objectif ${fr(g)}).`);
-    else { W.push(`Pas : ${fr(t.stepsAvg)}${one ? '' : '/jour'} pour ${fr(g)} visés.`); A.push(`Pas : ajoute une marche de 15 min après le repas (~2 000 pas).`); }
+    const nS = r.days.filter(d => d.steps).length, pN = one || nS >= r.days.length ? '' : ` (${nS} jour${nS > 1 ? 's' : ''} mesuré${nS > 1 ? 's' : ''} sur ${r.days.length} — envoie « Dzaryx Santé » chaque soir)`;
+    if (t.stepsAvg >= g) S.push(`Activité : ${fr(t.stepsAvg)} pas${one ? '' : '/jour'} (objectif ${fr(g)})${pN}.`);
+    else { W.push(`Pas : ${fr(t.stepsAvg)}${one ? '' : '/jour'} pour ${fr(g)} visés${pN}.`); A.push(`Pas : ajoute une marche de 15 min après le repas (~2 000 pas).`); }
   }
   // Cœur / récupération
   if (sc.recuperation !== undefined) {
@@ -221,9 +236,14 @@ function analyse(r: Omit<Report, 'strengths' | 'weaknesses' | 'actions' | 'coach
   }
   if (t.prs) S.push(`${t.prs} record${t.prs > 1 ? 's' : ''} de charge battu${t.prs > 1 ? 's' : ''} 💪`);
   // Nutrition / eau / poids
-  if (sc.nutrition !== undefined) (sc.nutrition >= 75 ? S : W).push(`Nutrition : note ${sc.nutrition}/100 (déficit et protéines).`);
   const fed = r.days.filter(d => d.eaten);
-  if (fed.length && avg(fed.map(d => (d.protein ?? 0) / Math.max(1, d.proteinGoal ?? 1))) < 0.8) A.push('Protéines : ajoute 1 portion par repas (poulet, œufs, thon, skyr) — tu es sous 80 % de ton objectif.');
+  // 22/11 : « Nutrition 82 (déficit et protéines) » en point fort + « tu es sous 80 % en protéines » dans le même bilan → chiffres séparés
+  const pRatio = fed.length ? avg(fed.map(d => (d.protein ?? 0) / Math.max(1, d.proteinGoal ?? 1))) : 0;
+  const pTxt = one && d0?.protein !== undefined ? `${d0.protein}/${d0.proteinGoal} g` : `${Math.round(pRatio * 100)} % de l'objectif en moyenne`;
+  const lowLog = fed.filter(d => (d.eaten ?? 0) < LOW_KCAL);
+  if (sc.nutrition !== undefined) (sc.nutrition >= 75 && pRatio >= 0.8 ? S : W).push(`Nutrition : note ${sc.nutrition}/100 — protéines ${pTxt}.`);
+  if (lowLog.length) W.push(one ? `Seulement ${fr(d0?.eaten ?? 0)} kcal notées : il manque sûrement des repas, ton déficit réel n'est pas mesurable.` : `${lowLog.length} jour${lowLog.length > 1 ? 's' : ''} avec moins de ${fr(LOW_KCAL)} kcal notées : repas sûrement pas tous notés, déficit pas mesurable ces jours-là.`);
+  if (fed.length && pRatio < 0.8) A.push('Protéines : ajoute 1 portion par repas (poulet, œufs, thon, skyr) — tu es sous 80 % de ton objectif.');
   if (!one && r.days.length - fed.length > r.days.length / 2) A.push('Repas : photographie au moins le repas du soir, sinon je ne peux pas suivre ton déficit.');
   if (sc.hydratation !== undefined) ((one ? sc.hydratation >= 90 : t.waterOkDays >= r.days.length * 0.7) ? S : W).push(`Eau : ${one ? `${fr((d0?.water ?? 0) * 0.25, 2)} L` : `objectif tenu ${t.waterOkDays}/${r.days.length} jours`}.`);
   if (t.weightStart && t.weightEnd && t.weightStart !== t.weightEnd) (t.weightEnd < t.weightStart ? S : W).push(`Poids : ${fr(t.weightStart, 1)} → ${fr(t.weightEnd, 1)} kg.`);
@@ -244,7 +264,7 @@ const range = (a: string, b: string) => { const o: string[] = []; for (let d = a
  *  Bilan du jour → les 7 derniers jours ; semaine / mois → la période. Chaque jour porte sa note globale. */
 export async function reportSeries(kind: Kind, end = localNow().date) {
   const s = await sources();
-  restDays = s.profile.restDays?.length ? s.profile.restDays : [1, 4];
+  restDays = s.profile.restDays?.length ? s.profile.restDays : [1, 4]; await loadDayKinds();
   const sessTarget = s.profile.sessionsPerWeek || 4;
   const p = periodOf(kind, end);
   const from = kind === 'day' ? addDays(p.to, -6) : p.from;
@@ -264,7 +284,7 @@ export async function reportSeries(kind: Kind, end = localNow().date) {
 
 export async function buildReport(kind: Kind, end = localNow().date, withCoach = true): Promise<Report> {
   const s = await sources();
-  restDays = s.profile.restDays?.length ? s.profile.restDays : [1, 4];
+  restDays = s.profile.restDays?.length ? s.profile.restDays : [1, 4]; await loadDayKinds();
   const sessTarget = s.profile.sessionsPerWeek || 4;
   const p = periodOf(kind, end);
   const days = await Promise.all(range(p.from, p.to).map(d => dayStat(d, s)));
@@ -274,6 +294,9 @@ export async function buildReport(kind: Kind, end = localNow().date, withCoach =
   const core = { kind, from: p.from, to: p.to, title: p.title, days, scores: scores(days, base, sessTarget, kind), prevScores: scores(prevDays, base, sessTarget, kind),
     totals: totals(days, sessTarget, s), prev: totals(prevDays, sessTarget, s), progression: progression(s, p.to) };
   const an = analyse(core);
+  // 22/11 : raccourci « Dzaryx Santé » muet depuis le 16/11 13h16 → pas/cœur/sommeil vides 6 jours sans que personne le dise
+  const lastH = s.health.filter(h => h.steps || h.active_kcal).map(h => h.date).sort().at(-1);
+  if (lastH && lastH < addDays(p.to, -1)) an.weaknesses.unshift(`Montre : rien reçu depuis le ${dm(lastH)} (pas, cœur, calories). Sur l'iPhone, lance le raccourci « Dzaryx Santé » et vérifie l'automatisation de 22 h.`);
   const gs = await import('./forme-adapt.js').then(m => m.goalStatus()).catch(() => null);
   const goal = gs && (gs.lines.length || gs.ifBehind.length) ? { lines: gs.lines, ifBehind: gs.ifBehind, behind: gs.behind } : undefined;
   let coach = '';
@@ -324,7 +347,8 @@ export function reportText(r: Report): string {
 }
 
 // ── PDF avec graphiques (pdfkit) ───────────────────────────────────────────────────────────────────────
-const ASCII = (s: string) => s.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, '').replace(/↗/g, '+').replace(/↘/g, '-').replace(/→/g, '->').replace(/[   ]/g, ' ').replace(/—/g, '-').replace(/≈/g, 'env.').replace(/×/g, 'x').trim();
+// 22/11 : ⏳ (U+23F3) sortait « #ò » dans le PDF → plage 2300-23FF retirée aussi
+const ASCII = (s: string) => s.replace(/[\u{1F300}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, '').replace(/↗/g, '+').replace(/↘/g, '-').replace(/→/g, '->').replace(/[   ]/g, ' ').replace(/—/g, '-').replace(/≈/g, 'env.').replace(/×/g, 'x').trim();
 
 export async function reportPdf(r: Report): Promise<Buffer> {
   const PDFDocument = (await import('pdfkit')).default;
@@ -339,18 +363,22 @@ export async function reportPdf(r: Report): Promise<Buffer> {
     if (o.gap) doc.moveDown(o.gap);
   };
   const room = (h: number) => { if (doc.y + h > 800) doc.addPage(); };
+  // 22/11 : graduations rondes (avant : 12 132 / 9 099 / 6 066…)
+  const nice = (v: number) => { const raw = Math.max(v, 1e-9) / 4, mag = 10 ** Math.floor(Math.log10(raw)); const st = [1, 2, 2.5, 5, 10].map(k => k * mag).find(k => k >= raw)!; return { step: st, top: st * 4 }; };
   /** Barres (une par jour) avec ligne d'objectif. */
-  const bars = (title: string, vals: Array<{ l: string; v: number }>, unit: string, goal?: number, color = ACC) => {
+  const bars = (title: string, vals: Array<{ l: string; v: number; missing?: boolean }>, unit: string, goal?: number, color = ACC) => {
     room(190);
-    say(title, { bold: true, size: 12, color: NAVY });
+    const miss = vals.filter(x => x.missing).length;
+    say(`${title}${miss ? `   (${vals.length - miss}/${vals.length} jours mesurés)` : ''}`, { bold: true, size: 12, color: NAVY });
     const y0 = doc.y + 6, h = 120, w = WID, n = Math.max(1, vals.length);
-    const max = Math.max(goal ?? 0, ...vals.map(x => x.v), 1) * 1.1;
+    const { step, top } = nice(Math.max(goal ?? 0, ...vals.map(x => x.v), 1) * 1.05), max = top;
     doc.save().strokeColor(GRID).lineWidth(0.5);
-    for (let i = 0; i <= 4; i++) { const y = y0 + h - h * i / 4; doc.moveTo(X0, y).lineTo(X0 + w, y).stroke(); doc.fontSize(7).fillColor(GREY).text(fr(max * i / 4 / 1.1 * 1.1, max < 20 ? 1 : 0), X0 - 34, y - 4, { width: 30, align: 'right' }); }
+    for (let i = 0; i <= 4; i++) { const y = y0 + h - h * i / 4; doc.moveTo(X0, y).lineTo(X0 + w, y).stroke(); doc.fontSize(7).fillColor(GREY).text(fr(step * i, step < 1 ? 1 : 0), X0 - 34, y - 4, { width: 30, align: 'right' }); }
     doc.restore();
     const bw = Math.min(36, w / n * 0.65);
     vals.forEach((x, i) => {
       const cx = X0 + w * (i + 0.5) / n, bh = h * x.v / max;
+      if (x.missing && n <= 16) { doc.fontSize(6.5).fillColor('#AAAAAA').text('pas de donnée', cx - 35, y0 + h - 10, { width: 70, align: 'center', lineBreak: false }); }
       doc.rect(cx - bw / 2, y0 + h - bh, bw, Math.max(0, bh)).fill(goal && x.v < goal ? `${color}88` : color);
       if (x.v && n <= 16) doc.fontSize(7).fillColor('#222222').text(fr(x.v, x.v < 20 ? 1 : 0), cx - 22, y0 + h - bh - 10, { width: 44, align: 'center' });
       if (n <= 16 || i % 3 === 0) doc.fontSize(7).fillColor(GREY).text(x.l, cx - 22, y0 + h + 4, { width: 44, align: 'center' });
@@ -359,14 +387,17 @@ export async function reportPdf(r: Report): Promise<Buffer> {
     doc.x = X0; doc.y = y0 + h + 22;
   };
   /** Courbes (1 ou 2 séries). */
-  const lines = (title: string, labels: string[], series: Array<{ name: string; v: Array<number | undefined>; color: string }>) => {
+  const lines = (title: string, labels: string[], series: Array<{ name: string; v: Array<number | undefined>; color: string; weak?: boolean[] }>, note = '') => {
     const pts = series.flatMap(s => nums(s.v)); if (pts.length < 2) return;
     room(190);
     say(title, { bold: true, size: 12, color: NAVY });
     const y0 = doc.y + 6, h = 120, w = WID, n = Math.max(2, labels.length);
-    const lo = Math.min(...pts) * 0.9, hi = Math.max(...pts) * 1.08;
+    const mn = Math.min(...pts), mx = Math.max(...pts);
+    const span = nice((mx - mn) * 1.1 || mx * 0.2 || 1);
+    const lo = Math.max(0, Math.floor(mn / span.step) * span.step - span.step), hi = Math.ceil(mx / span.step) * span.step + span.step;
+    const ticks = Math.max(1, Math.round((hi - lo) / span.step));
     doc.save().strokeColor(GRID).lineWidth(0.5);
-    for (let i = 0; i <= 4; i++) { const y = y0 + h - h * i / 4; doc.moveTo(X0, y).lineTo(X0 + w, y).stroke(); doc.fontSize(7).fillColor(GREY).text(fr(lo + (hi - lo) * i / 4), X0 - 34, y - 4, { width: 30, align: 'right' }); }
+    for (let i = 0; i <= ticks; i++) { const y = y0 + h - h * i / ticks; doc.moveTo(X0, y).lineTo(X0 + w, y).stroke(); doc.fontSize(7).fillColor(GREY).text(fr(lo + span.step * i, span.step < 1 ? 1 : 0), X0 - 34, y - 4, { width: 30, align: 'right' }); }
     doc.restore();
     for (const s of series) {
       const P = s.v.map((v, i) => v ? { x: X0 + w * i / (n - 1), y: y0 + h - h * (v - lo) / (hi - lo) } : null);
@@ -374,11 +405,12 @@ export async function reportPdf(r: Report): Promise<Buffer> {
       let started = false;
       for (const p of P) { if (!p) continue; if (!started) { doc.moveTo(p.x, p.y); started = true; } else doc.lineTo(p.x, p.y); }
       doc.stroke().restore();
-      for (const p of P) if (p) doc.circle(p.x, p.y, 2.5).fill(s.color);
+      P.forEach((p, i) => { if (!p) return; if (s.weak?.[i]) doc.save().circle(p.x, p.y, 3.5).lineWidth(1.2).fillAndStroke('#FFFFFF', s.color).restore(); else doc.circle(p.x, p.y, 2.5).fill(s.color); });
     }
     labels.forEach((l, i) => { if (labels.length <= 16 || i % 3 === 0) doc.fontSize(7).fillColor(GREY).text(l, X0 + w * i / (n - 1) - 20, y0 + h + 4, { width: 40, align: 'center' }); });
     let lx = X0; for (const s of series) { doc.rect(lx, y0 + h + 16, 8, 8).fill(s.color); doc.fontSize(8).fillColor('#222222').text(s.name, lx + 11, y0 + h + 16); lx += 130; }
-    doc.x = X0; doc.y = y0 + h + 32;
+    if (note) doc.fontSize(8).fillColor(GREY).text(ASCII(note), lx, y0 + h + 16, { width: X0 + WID - lx });
+    doc.x = X0; doc.y = y0 + h + (note ? 40 : 32);
   };
 
   // En-tête
@@ -411,15 +443,20 @@ export async function reportPdf(r: Report): Promise<Buffer> {
   const lab = ds.map(d => r.kind === 'month' ? d.date.slice(8) : `${DAYS[wdOf(d.date)].slice(0, 3)} ${d.date.slice(8)}`);
   doc.addPage();
   say(r.kind === 'day' ? 'Tes 7 derniers jours' : 'Graphiques de la période', { bold: true, size: 15, color: NAVY, gap: 0.4 });
-  bars('Pas par jour', ds.map((d, i) => ({ l: lab[i]!, v: d.steps ?? 0 })), 'pas', ds[0]?.stepsGoal, ACC);
-  bars('Sommeil (heures)', ds.map((d, i) => ({ l: lab[i]!, v: d.sleep_h ?? 0 })), 'h', 7.5, '#2E86AB');
+  const past = (d: DayStat) => d.date <= localNow().date;
+  bars('Pas par jour', ds.map((d, i) => ({ l: lab[i]!, v: d.steps ?? 0, missing: !d.steps && past(d) })), 'pas', ds[0]?.stepsGoal, ACC);
+  bars('Sommeil (heures)', ds.map((d, i) => ({ l: lab[i]!, v: d.sleep_h ?? 0, missing: !d.sleep_h && past(d) })), 'h', 7.5, '#2E86AB');
   lines('Cœur : fréquence au repos (bpm) et VFC (ms)', lab, [{ name: 'Repos (bpm)', v: ds.map(d => d.rhr), color: RED }, { name: 'VFC (ms)', v: ds.map(d => d.hrv), color: GREEN }]);
-  bars('Calories actives (montre)', ds.map((d, i) => ({ l: lab[i]!, v: d.activeKcal ?? 0 })), 'kcal', undefined, '#F18F01');
+  bars('Calories actives (montre)', ds.map((d, i) => ({ l: lab[i]!, v: d.activeKcal ?? 0, missing: !d.activeKcal && past(d) })), 'kcal', undefined, '#F18F01');
   if (ds.some(d => d.session)) bars('Volume soulevé par séance (kg × répétitions)', ds.map((d, i) => ({ l: lab[i]!, v: d.session?.volume ?? 0 })), 'kg', undefined, '#6A4C93');
-  if (ds.some(d => d.eaten)) lines('Calories : mangées vs brûlées', lab, [{ name: 'Mangées', v: ds.map(d => d.eaten), color: GOLD }, { name: 'Brûlées', v: ds.map(d => d.burned), color: ACC }]);
+  // 22/11 : jours à 721-818 kcal notées = repas manquants, pas un vrai déficit → point vide + légende
+  const weakE = ds.map(d => !!d.eaten && d.eaten < LOW_KCAL);
+  if (ds.some(d => d.eaten)) lines('Calories : mangées vs brûlées', lab, [{ name: 'Mangées', v: ds.map(d => d.eaten), color: GOLD, weak: weakE }, { name: 'Brûlées', v: ds.map(d => d.burned), color: ACC }],
+    weakE.some(Boolean) ? 'Point vide = moins de 1 200 kcal notées : repas sûrement pas tous notés' : '');
   if (ds.filter(d => d.weight).length >= 2) lines('Poids (kg)', lab, [{ name: 'Poids', v: ds.map(d => d.weight), color: NAVY }]);
   if (ds.some(d => d.water)) bars('Eau (litres)', ds.map((d, i) => ({ l: lab[i]!, v: r1(d.water * 0.25) })), 'L', r1((ds[0]?.waterGoal ?? 8) * 0.25), '#1B998B');
-  const ms = Object.entries(r.totals.muscleSets).filter(([m]) => MUSCLE_FR[m]);
+  const noLegs = (await sources()).noLegs;   // 22/11 : jambes retirées du programme → plus dans le graphique
+  const ms = Object.entries(r.totals.muscleSets).filter(([m]) => MUSCLE_FR[m] && !(noLegs && m === 'jambes'));
   if (ms.length && r.kind !== 'day') bars('Séries par muscle (10 à 20 / semaine pour progresser)', ms.map(([m, n]) => ({ l: MUSCLE_FR[m]!, v: n })), 'séries', r.kind === 'week' ? 10 : undefined, '#5B7F95');
   // Tableau des séances
   const sess = r.days.filter(d => d.session);
@@ -462,7 +499,7 @@ export async function jobFormeMonthReport(): Promise<void> { await sendReport('m
 /** Pour l'app : un jour du calendrier en détail (+ bilan déjà fait ce jour-là). */
 export async function formeDayDetail(date: string) {
   const s = await sources();
-  restDays = s.profile.restDays?.length ? s.profile.restDays : [1, 4];
+  restDays = s.profile.restDays?.length ? s.profile.restDays : [1, 4]; await loadDayKinds();
   const d = await dayStat(date, s);
   const r = await buildReport('day', date, false);
   const saved = await kvJson<{ text: string } | null>(STORE('day', date), null).catch(() => null);
