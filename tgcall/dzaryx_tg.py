@@ -513,7 +513,9 @@ async def remember_call(user_id: int, actor: str, rt: RealtimeCall) -> None:
     if not rt.lines:
         return
     try:
-        res = await api('/api/call/summary', {'lines': rt.lines, 'durationS': time.monotonic() - rt.started}, actor, 60)
+        # toolsTracked : les outils lancés sont dans rt.lines (role 'tool') → le résumé repère les « c'est noté » sans outil
+        res = await api('/api/call/summary', {'lines': rt.lines, 'durationS': time.monotonic() - rt.started,
+                                              'toolsTracked': True}, actor, 60)
         mem = res.get('memory')
         if not mem:
             log.info('appel sans rien à retenir')
@@ -521,6 +523,10 @@ async def remember_call(user_id: int, actor: str, rt: RealtimeCall) -> None:
         text = f"📞 Résumé de l'appel\n{mem['summary']}"
         if mem.get('todos'):
             text += '\n\nÀ faire :\n' + '\n'.join(f'• {t}' for t in mem['todos'])
+        if mem.get('unverified'):
+            text += ('\n\n⚠️ À vérifier (dit au téléphone, mais aucun outil ne l\'a fait) :\n'
+                     + '\n'.join(f'• {t}' for t in mem['unverified'])
+                     + '\nRedis-le-moi par écrit si tu le veux vraiment.')
         await app.send_message(user_id, text)
         log.info('appel retenu : %r', mem['summary'][:120])
     except Exception as e:

@@ -652,8 +652,8 @@ class RealtimeCall:
         await self.ws.receive(timeout=8)   # session.created
         self.responding = False
         log.info('voix temps réel reconnectée (%d, %s)', self.reconnects, self.live_model)
-        said = '\n'.join(f"{'Dzaryx' if l['role'] == 'dzaryx' else l.get('speaker') or self.actor.capitalize()} : {l['text']}"
-                         for l in self.lines[-16:])
+        said = '\n'.join(f"{'Dzaryx' if l['role'] == 'dzaryx' else '(outil) ' if l['role'] == 'tool' else l.get('speaker') or self.actor.capitalize()}"
+                         f"{'' if l['role'] == 'tool' else ' :'} {l['text']}" for l in self.lines[-16:])
         await self._send({'type': 'conversation.item.create', 'item': {'type': 'message', 'role': 'system', 'content': [
             {'type': 'input_text', 'text': 'La ligne a eu une micro-coupure technique, l\'appel continue. Conversation '
              f'jusqu\'ici :\n{said or "(rien encore)"}'}]}})
@@ -844,6 +844,9 @@ class RealtimeCall:
             except Exception as e:
                 result = f'Erreur technique : {e}. Essaie ask_dzaryx.'
         log.info('%s (%.1fs) %r → %r', name, time.monotonic() - t0, (args.get('request') or json.dumps(args, ensure_ascii=False))[:80], result[:120])
+        # 22/11 (veille : Hermes v0.23 « UNVERIFIED ») : l'outil et son résultat vont dans la transcription → le résumé
+        # de fin d'appel sait ce qui a VRAIMENT été fait, et signale les « c'est noté » dits sans aucun outil.
+        self.lines.append({'role': 'tool', 'text': f"{name} : {(args.get('request') or json.dumps(args, ensure_ascii=False))[:160]} → {result[:300]}"})
         await self._send({'type': 'conversation.item.create', 'item': {
             'type': 'function_call_output', 'call_id': call_id, 'output': result}})
         if follow_up:

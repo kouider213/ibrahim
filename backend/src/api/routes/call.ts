@@ -896,11 +896,11 @@ router.post('/voice', requireMobileAuth, async (req, res) => {
 // POST /api/call/summary { lines: [{role, text}], durationS } — fin d'un appel Telegram : résumé + choses à faire
 // retenus (mémoire des appels). Renvoie le résumé, que tgcall envoie à Kouider en message.
 router.post('/summary', requireCallerAuth, async (req, res) => {
-  const { lines, durationS } = req.body as { lines?: CallLine[]; durationS?: number };
+  const { lines, durationS, toolsTracked } = req.body as { lines?: CallLine[]; durationS?: number; toolsTracked?: boolean };
   if (!Array.isArray(lines)) { res.status(400).json({ error: 'lines required' }); return; }
   try {
     if (await isPrivate(callActor(req)).catch(() => false)) { res.json({ memory: null, private: true }); return; }
-    const mem = await summarizeCall(callActor(req), lines.slice(-200), Number(durationS) || 0);
+    const mem = await summarizeCall(callActor(req), lines.slice(-200), Number(durationS) || 0, toolsTracked === true);
     res.json({ memory: mem });
   } catch (err) {
     console.error('[call] summary:', err instanceof Error ? err.message : String(err));

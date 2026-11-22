@@ -1,3 +1,10 @@
+## 22/11/2026 nuit — Veille hebdo : résumé d'appel honnête (« À vérifier ») + secrets masqués
+- Constat : la voix temps réel dit « c'est noté / c'est ajouté à l'agenda » parfois sans lancer d'outil, et le résumé de fin d'appel (mémoire 30 j + message Telegram) le recopiait comme fait (ex. 13/11 « Dzaryx a confirmé l'ajout à l'agenda… »).
+- tgcall realtime.py : chaque outil lancé pendant l'appel (ask_dzaryx, outils rapides, outils locaux) va dans la transcription (role 'tool', nom + demande + résultat) ; la reprise après micro-coupure l'affiche « (outil) … ».
+- call-memory.ts : lignes [OUTIL] = seules actions vraiment faites ; champ `unverified` (idée Hermes Agent v0.23 : lignes UNVERIFIED dans les résumés) + filet du code `claimsWithoutTool` ; une action dite faite sans outil passe dans « À faire ». Telegram : bloc « ⚠️ À vérifier (dit au téléphone, mais aucun outil ne l'a fait) ». Les cerveaux voient « NON VÉRIFIÉ » dans DERNIERS APPELS et ne le redisent pas comme fait.
+- utils/redact-secrets.ts (idée OpenClaw 2026.10.33 : secrets masqués dans les résumés) : codes dictés, mots de passe, PIN/OTP, IBAN, cartes (Luhn), clés d'API masqués avant le résumé et la mémoire. Téléphones, montants, dates, vols intacts.
+- Test bac à sable src/tests/_x.ts (13/14 masquages attendus, le 14e = faux numéro de carte valide Luhn, masqué à raison ; résumé réel : faux « ajouté à l'agenda » repéré, code d'alarme absent).
+
 ## 22/11 (nuit) — Fix heure de remise client lue dans les notes + voiture de Faycel
 Kouider (capture Telegram 22:30) : « il dit la i10 alors que c'est la Clio essence ». Réservation Delli Faycel 23-26/11 passée de i10 → Clio 4 Essence (mêmes prix 16/25 €, Clio libre). Et le message annonçait 10h30 au lieu de 14:05 : `bookingTimes` prenait la DERNIÈRE heure après « arrivée », donc « arrivée 26/11 10:30 » (arrivée à Paris du vol retour, ligne « ✈️ Voyage du client »). La ligne brute du billet est maintenant ignorée ; « avant son vol du 26/11 à 08:00 » donne l'heure de retour. Le titre des check-lists client suit la voiture de la réservation.
 
