@@ -201,7 +201,7 @@ html,body{font-family:'Geist',Inter,-apple-system,system-ui,sans-serif;letter-sp
 <div id="acts">
   <button data-a="in" style="--c:#3d6bff"><span class="ic"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg></span><span class="lb">Vols vers</span></button>
   <button data-a="out" style="--c:#8b5cf6"><span class="ic"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg></span><span class="lb">Départs</span></button>
-  <button data-a="mine" style="--c:#f59e0b"><span class="ic"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z"/><path d="M14 6v12" stroke-dasharray="2 2.5"/></svg></span><span class="lb">Mon vol</span></button>
+  <button data-a="mine" style="--c:#f59e0b"><span class="ic"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z"/><path d="M14 6v12" stroke-dasharray="2 2.5"/></svg></span><span class="lb">Vols suivis</span></button>
   <button data-a="cams" style="--c:#22d3ee"><span class="ic"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7.5 6.5H4a2 2 0 0 0-2 2V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8.5a2 2 0 0 0-2-2h-3.5z"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="lb">Caméras ici</span></button>
   <button data-a="world" style="--c:#12b76a"><span class="ic"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5a14.5 14.5 0 0 1 0 19M12 2.5a14.5 14.5 0 0 0 0 19"/></svg></span><span class="lb">Monde</span></button>
   <button data-a="strip" style="--c:#ec4899"><span class="ic"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="3" width="19" height="18" rx="3"/><path d="M7 3v18M17 3v18M2.5 8H7M2.5 16H7M17 8h4.5M17 16h4.5M2.5 12h19"/></svg></span><span class="lb">Catégories</span></button>
@@ -589,14 +589,17 @@ async function showInbound(query, mode){
     await loadInbound(true);
   } catch(e){ reply('Recherche des vols impossible : ' + e.message); }
 }
-/* « 🧳 Mon vol » : le vol de Kouider (ou d'un client) enregistré par Dzaryx depuis le billet, suivi au radar en direct */
+/* « 🧳 Vols suivis » : les vols de Kouider ET des clients (billets + vols notés dans les réservations) enregistré par Dzaryx depuis le billet, suivi au radar en direct */
 const hmTz = (ts, tz) => new Date(ts).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit', timeZone: tz || undefined });
+const whoOf = f => f.who === 'client' ? (f.client || 'Client') : 'Toi';
+let mineSel = null;
 async function loadMine(first){
-  let r; try { r = await get('myflight'); } catch(e){ if(first) reply('Suivi du vol impossible : ' + e.message); return; }
-  const f = r && r.flight;
-  if(!f){ if(first){ reply('Aucun vol enregistré. Envoie ton billet à Dzaryx sur Telegram.'); closeInbound(); } return; }
+  let r; try { r = await get('myflight'); } catch(e){ if(first) reply('Suivi des vols impossible : ' + e.message); return; }
+  const list = (r && r.flights) || (r && r.flight ? [r.flight] : []);
+  if(!list.length){ if(first){ reply('Aucun vol à venir : ni billet enregistré, ni vol noté dans les réservations des clients.'); closeInbound(); } return; }
+  const f = list.find(x => x.id === mineSel) || list[0]; mineSel = f.id;
   clearInbound();
-  const gold = Cesium.Color.fromCssColorString('#ffc53d');
+  const gold = Cesium.Color.fromCssColorString(f.who === 'client' ? '#7dd3fc' : '#ffc53d');
   const pin = (p, txt) => p && inbound.ents.push(viewer.entities.add({ position:Cesium.Cartesian3.fromDegrees(p.lon, p.lat),
     point:{ pixelSize:10, color:gold, outlineColor:gold.withAlpha(.35), outlineWidth:9 },
     label:{ text:txt, font:'13px Segoe UI', fillColor:Cesium.Color.fromCssColorString('#ffe2a0'), outlineColor:Cesium.Color.BLACK, outlineWidth:3, style:Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new Cesium.Cartesian2(0,-20) } }));
@@ -608,22 +611,26 @@ async function loadMine(first){
     inBB.add({ position:pos, image:goldPlane, scale:1.25, rotation:-Cesium.Math.toRadians(f.pos.trk), alignedAxis:Cesium.Cartesian3.UNIT_Z });
     inLabels.add({ position:pos, text:f.cs || f.flight || '', font:'13px Segoe UI', fillColor:Cesium.Color.fromCssColorString('#ffe2a0'), outlineColor:Cesium.Color.BLACK, outlineWidth:2, style:Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new Cesium.Cartesian2(16,-10) });
   }
-  const dep = f.departAt + (f.delay || 0) * 60000, arrTz = /oran|alger|algiers|alg[eé]rie|tlemcen|constantine/i.test(f.to || '') ? 'Africa/Algiers' : 'Europe/Brussels';
-  const status = f.cancelled ? '❌ Annulé' : f.landed ? '🛬 Atterri' : f.airborne ? '✈️ En vol' : `🕐 Départ ${hmTz(dep, f.tz)}${f.delay ? ` (retard ${f.delay} min)` : ''}`;
-  $('fl-title').textContent = `🧳 ${f.flight || 'Mon vol'} · ${f.from} → ${f.to}`;
-  $('fl-sub').textContent = `${status}${f.status ? ' · ' + f.status : ''} · mis à jour ${new Date().toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })}`;
-  $('fl-list').innerHTML = `<div class="fl sel"><div class="r1"><span class="cs">${esc(f.cs || f.flight || '')}</span><span class="al">${esc(f.terminal ? 'Terminal ' + f.terminal : '')}${esc(f.gate ? ' · porte ' + f.gate : '')}</span><span class="eta">${f.etaAt && !f.landed ? esc(hmTz(f.etaAt, arrTz)) : ''}</span></div>
-    <div class="r2">${esc(f.title)}</div>
-    <div class="r3">${f.pos && !f.pos.ground ? `${f.pos.alt.toLocaleString('fr-FR')} m · ${f.pos.spd} km/h${f.leftKm != null ? ' · encore ' + fmtKm(f.leftKm) : ''}${f.pct != null ? ' · ' + f.pct + ' %' : ''}` : f.pos ? 'Au sol (radar)' : 'Pas encore au radar — visible ~30 min avant le départ'}</div></div>`;
+  const arrTzOf = v => /oran|alger|algiers|alg[eé]rie|tlemcen|constantine/i.test(v.to || '') ? 'Africa/Algiers' : 'Europe/Brussels';
+  const day = (ts, tz) => new Date(ts).toLocaleDateString('fr-FR', { weekday:'short', day:'numeric', month:'short', timeZone: tz || undefined });
+  const statusOf = v => { const dep = v.departAt + (v.delay || 0) * 60000;
+    return v.cancelled ? '❌ Annulé' : v.landed ? '🛬 Atterri' : v.airborne ? '✈️ En vol' : `🕐 ${day(dep, v.tz)} · départ ${hmTz(dep, v.tz)}${v.delay ? ` (retard ${v.delay} min)` : ''}`; };
+  $('fl-title').textContent = list.length > 1 ? `🧳 Vols suivis · ${list.length}` : `🧳 ${whoOf(f)} · ${f.flight || ''} ${f.from} → ${f.to}`;
+  $('fl-sub').textContent = `${whoOf(f)} : ${statusOf(f)}${f.status ? ' · ' + f.status : ''} · mis à jour ${new Date().toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })}`;
+  $('fl-list').innerHTML = list.map(v => `<div class="fl${v.id === f.id ? ' sel' : ''}" data-id="${esc(v.id)}"><div class="r1"><span class="cs">${esc(whoOf(v))}${v.flight ? ' · ' + esc(v.flight) : ''}</span><span class="al">${esc(v.terminal ? 'Terminal ' + v.terminal : '')}${esc(v.gate ? ' · porte ' + v.gate : '')}</span><span class="eta">${(v.etaAt || v.arriveAt) && !v.landed ? '🛬 ' + esc(hmTz(v.etaAt || v.arriveAt, arrTzOf(v))) : ''}</span></div>
+    <div class="r2">${esc(v.from || '?')} → ${esc(v.to || '?')} · ${esc(statusOf(v))}</div>
+    ${v.id === f.id ? `<div class="r3">${v.pos && !v.pos.ground ? `${v.pos.alt.toLocaleString('fr-FR')} m · ${v.pos.spd} km/h${v.leftKm != null ? ' · encore ' + fmtKm(v.leftKm) : ''}${v.pct != null ? ' · ' + v.pct + ' %' : ''}` : v.pos ? 'Au sol (radar)' : v.cs ? 'Pas encore au radar — visible ~30 min avant le départ' : 'Numéro de vol inconnu : horaires seulement'}</div>` : ''}</div>`).join('');
+  $('fl-list').querySelectorAll('.fl').forEach(el => el.onclick = () => { if(mineSel === el.dataset.id) return; mineSel = el.dataset.id; void loadMine(true); });
   if(!first) return;
   state.spin = false; syncButtons();
   if(f.pos) camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(f.pos.lon, f.pos.lat, 1_200_000), duration:2.5 });
   else if(f.fromPt && f.toPt) camera.flyTo({ destination:Cesium.Rectangle.fromDegrees(Math.min(f.fromPt.lon, f.toPt.lon) - 3, Math.min(f.fromPt.lat, f.toPt.lat) - 3, Math.max(f.fromPt.lon, f.toPt.lon) + 3, Math.max(f.fromPt.lat, f.toPt.lat) + 3), duration:2.5 });
-  reply(f.landed ? `Ton vol ${f.flight || ''} a atterri à ${f.to}.` : f.airborne ? `Ton vol ${f.flight || ''} est en vol vers ${f.to}${f.leftKm != null ? `, encore ${Math.round(f.leftKm)} kilomètres` : ''}${f.etaAt ? `, arrivée vers ${hmTz(f.etaAt, arrTz)}` : ''}.` : `Ton vol ${f.flight || ''} pour ${f.to} part à ${hmTz(dep, f.tz)}${f.delay ? `, avec ${f.delay} minutes de retard` : ''}.`);
+  const subj = f.who === 'client' ? `Le vol de ${f.client || 'ton client'}` : 'Ton vol', arrTz = arrTzOf(f), dep = f.departAt + (f.delay || 0) * 60000;
+  reply(f.landed ? `${subj} ${f.flight || ''} a atterri à ${f.to}.` : f.airborne ? `${subj} ${f.flight || ''} est en vol vers ${f.to}${f.leftKm != null ? `, encore ${Math.round(f.leftKm)} kilomètres` : ''}${f.etaAt ? `, arrivée vers ${hmTz(f.etaAt, arrTz)}` : ''}.` : `${subj} ${f.flight || ''} pour ${f.to} part ${day(dep, f.tz)} à ${hmTz(dep, f.tz)}${f.delay ? `, avec ${f.delay} minutes de retard` : ''}${list.length > 1 ? `. ${list.length} vols suivis, touche-en un dans la liste.` : '.'}`);
 }
 async function showMine(){
   closeInbound(); inbound.place = { name:'mine', lat:0, lon:0 }; inbound.mode = 'mine'; syncNexus();
-  $('fl-title').textContent = '🧳 Mon vol'; $('fl-sub').textContent = 'Je cherche ton avion…'; $('fl-list').innerHTML = ''; $('flights').classList.add('on');
+  $('fl-title').textContent = '🧳 Vols suivis'; $('fl-sub').textContent = 'Je cherche les avions (toi et tes clients)…'; $('fl-list').innerHTML = ''; $('flights').classList.add('on');
   clearInterval(inbound.timer); inbound.timer = setInterval(() => loadMine(false), 30000);
   await loadMine(true);
 }
