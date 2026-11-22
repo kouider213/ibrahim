@@ -178,13 +178,27 @@ async function agendaAnything(raw: string): Promise<Direct | null> {
       const title = (quoted ?? what).replace(/\s+/g, ' ').trim().slice(0, 90);
       const rest = quoted ? raw.replace(/^[\s\S]*?[»"]\s*,?\s*/, '').trim() : '';
       const desc = rest.replace(/\bdu\s+.{3,40}?\s+au\s+.{3,40}?(?=\s*[,.;(]|$)/i, '').replace(/\(?\s*heure\s+d['’]\s*\w+\s*\)?/i, '').replace(/\b(?:lieu|à l'adresse|adresse)\s*:?\s+[^.,;()]{3,80}/i, '').replace(/^[\s,.;]+/, '').replace(/\s+/g, ' ').trim().slice(0, 500);
-      const { createAgendaEvent } = await import('./google-calendar.js');
+      const { createAgendaEvent, listAgendaRange, deleteAgendaEvent } = await import('./google-calendar.js');
       const allDay = !a.time && !b.time;
       const start = allDay ? a.date : `${a.date}T${a.time ?? '09:00'}:00`;
       const end = allDay ? addDays(b.date, 1) : `${b.date}T${b.time ?? '18:00'}:00`;
+      // 22/11 : renvoyé après un 1er essai raté (17:36 « 📅 À l'agenda FIK : « 🚗 i10 — Delli Faycel »… » 1 h) → 2 événements.
+      // Même titre (entre « ») le même 1er jour = le même RDV : l'ancien est remplacé, pas doublé.
+      const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\p{L}\p{N}]+/gu, ' ').toLowerCase().trim();
+      let replaced = 0;
+      if (quoted && norm(title).length >= 4) {
+        const from = new Date(Date.parse(`${a.date}T00:00:00Z`) - 3 * 3600_000).toISOString();   // marge fuseau (Oran/Bruxelles)
+        const dayEvs = await listAgendaRange(from, `${a.date}T23:59:59Z`).catch(() => null);
+        for (const e of dayEvs ?? []) {
+          const s = (e.start?.dateTime ?? e.start?.date ?? '').slice(0, 10);
+          if (e.id && s === a.date && !e.recurringEventId && norm(e.summary ?? '').includes(norm(title))) {
+            if (await deleteAgendaEvent(e.id).catch(() => false)) replaced++;
+          }
+        }
+      }
       const id = await createAgendaEvent(title, start, end, desc || undefined, allDay, lieu, tz ? { timeZone: tz } : {}).catch(() => null);
-      if (!id) return { text: `❌ Pas ajouté : l'agenda FIK ne répond pas. Rien n'a changé.`, direct: true };
-      return { text: `✅ Ajouté à l'agenda FIK : ${title}\n📅 Du ${frDate(a.date)}${a.time ? ` à ${a.time}` : ''} au ${frDate(b.date)}${b.time ? ` à ${b.time}` : ''}${tz ? " (heure d'Oran)" : ''}${lieu ? `\n📍 ${lieu}` : ''}${desc ? `\n${desc}` : ''}`, direct: true };
+      if (!id) return { text: `❌ Pas ajouté : l'agenda FIK ne répond pas.${replaced ? ` (${replaced} ancien(s) « ${title} » supprimé(s) : renvoie le message.)` : ' Rien n\'a changé.'}`, direct: true };
+      return { text: `✅ ${replaced ? `Remplacé dans l'agenda FIK (l'ancien « ${title} » du même jour est supprimé, pas de doublon) : ` : 'Ajouté à l\'agenda FIK : '}${title}\n📅 Du ${frDate(a.date)}${a.time ? ` à ${a.time}` : ''} au ${frDate(b.date)}${b.time ? ` à ${b.time}` : ''}${tz ? " (heure d'Oran)" : ''}${lieu ? `\n📍 ${lieu}` : ''}${desc ? `\n${desc}` : ''}`, direct: true };
     }
   }
   const add = async (title: string, date: string, time: string | null, desc: string, yearly: boolean): Promise<Direct> => {
