@@ -211,7 +211,10 @@ export async function lifeGpsTool(input: Record<string, unknown>): Promise<strin
   for (const g of list) {
     const v = await metricValue(g) ?? g.start;
     if (g.metric !== 'manuel') { g.history.push({ date: localNow().date, value: v }); g.history = g.history.slice(-60); }
-    lines.push(`• ${g.name} : ${Math.round(v * 10) / 10}/${g.target} ${g.unit} (échéance ${g.deadline}) → ${chances(g, v)}`);
+    const fr = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
+    // 22/11 : un CA « du mois » repart de 0 chaque mois → pas de progression vers une échéance en 2028 ni de « % de chances »
+    if (g.metric === 'ca_mois') lines.push(`• ${g.name} : ${Math.round(v)} € ce mois-ci (but : ${g.target} €/mois d'ici le ${fr(g.deadline)})`);
+    else lines.push(`• ${g.name} : ${Math.round(v * 10) / 10}/${g.target} ${g.unit} (échéance ${fr(g.deadline)}) → ${chances(g, v)}`);
   }
   await kvPut('lifegps', list);
   const lever = await ai(`Objectifs de Kouider et où il en est :\n${lines.join('\n')}\nPour l'objectif le plus en retard, donne LA chose concrète cette semaine qui ferait le plus monter ses chances (chiffre l'effet : « passe à ~85 % »). 2 phrases.`, { max: 250 });
@@ -369,10 +372,13 @@ export async function salesLessons(send = true): Promise<string> {
     const did = booked.some(b => (digits(c).length >= 8 && digits(b.client_phone ?? '') === digits(c)) || b.client_name.toLowerCase().split(' ')[0] === c.toLowerCase().split(' ')[0]);
     return `### ${did ? 'RÉSERVÉ' : 'PAS RÉSERVÉ'} — délai 1re réponse ${firstIn && firstOut ? Math.round((firstOut.at - firstIn.at) / 60_000) : '?'} min\n${m.slice(0, 10).map(x => `${x.dir === 'in' ? 'C' : 'FIK'}: ${x.text.slice(0, 160)}`).join('\n')}`;
   });
-  const text = await ai(`Voici ${chats.length} discussions WhatsApp de FIK (location de voitures, Oran) sur 30 jours, marquées RÉSERVÉ ou PAS RÉSERVÉ, avec le délai de la 1re réponse :\n${lines.join('\n').slice(-28000)}\n\nCompare les deux groupes : ton, prix annoncé, délai de réponse, questions posées, voitures demandées, offres (livraison, sans caution…). Donne 4 leçons CHIFFRÉES et concrètes (« quand on répond en moins de 5 min, X fois plus de réservations »), puis 2 phrases types à utiliser. Pas de théorie.`, { quality: true, max: 1000 });
-  await kvPut('sales:lessons', text.slice(0, 2000));
-  if (send) await tg(`📈 Ce que j'ai appris de tes ventes cette semaine :\n\n${text}`);
-  return text;
+  const text = await ai(`Voici ${chats.length} discussions WhatsApp de FIK (location de voitures, Oran) sur 30 jours, marquées RÉSERVÉ ou PAS RÉSERVÉ, avec le délai de la 1re réponse :\n${lines.join('\n').slice(-28000)}\n\nCompare les deux groupes : ton, prix annoncé, délai de réponse, questions posées, voitures demandées, offres (livraison, sans caution…). Donne 4 leçons CHIFFRÉES et concrètes (« quand on répond en moins de 5 min, X fois plus de réservations »), puis 2 phrases types à utiliser. Pas de théorie. Message Telegram en texte simple : phrases courtes et puces « • », JAMAIS de ###, de tableau (|), de --- ni de **.`, { quality: true, max: 1000 });
+  // 22/11 : arrivé brut avec ### et un tableau → filet de sécurité côté code
+  const plain = text.replace(/^[ \t]*#{1,6}[ \t]*/gm, '').replace(/^[ \t]*\|[ \t]*:?-{3,}.*\n?/gm, '').replace(/^[ \t]*-{3,}[ \t]*$/gm, '').replace(/\*\*/g, '')
+    .replace(/^[ \t]*\|(.+)\|[ \t]*$/gm, (_m, row: string) => `• ${row.split('|').map(c => c.trim()).filter(Boolean).join(' · ')}`).replace(/\n{3,}/g, '\n\n').trim();
+  await kvPut('sales:lessons', plain.slice(0, 2000));
+  if (send) await tg(`📈 Ce que j'ai appris de tes ventes cette semaine :\n\n${plain}`);
+  return plain;
 }
 export async function jobSalesLessons(): Promise<string> { const t = await salesLessons(true); return t.slice(0, 50); }
 

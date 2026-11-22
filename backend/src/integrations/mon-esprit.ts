@@ -95,6 +95,7 @@ export async function writeJournal(date = localNow().date): Promise<EspritDay | 
     `Écris le journal de SA journée, uniquement d'après ces faits (rien d'inventé). Le sport compte même s'il l'a seulement dit dans un message (« j'ai fait 30 min de vélo »). ` +
     `famille = les vrais moments avec sa femme / son fils / sa famille cités dans ses messages (vide si aucun). ` +
     `JAMAIS de médicament, comprimé, traitement, sevrage, libido, sexualité, testostérone, prise de sang ni maladie dans aucun champ (le journal peut être lu à côté de sa femme) : écris « santé » ou « fatigue » à la place. ` +
+    `Tout est lu par Kouider lui-même : écris À LA 2e PERSONNE (« tu as géré… », « ta journée »), JAMAIS « il » ni « Kouider ». ` +
     `Réponds UNIQUEMENT : {"score":1-10,"moral":1-10,"energie":1-10,"stress":1-10,"sport":{"fait":true/false,"quoi":"…","ressenti":"…"},"famille":["…"],"top":"meilleur moment en 1 phrase","dur":"moment le plus dur (ou vide)","declencheurs":["2-3 mots : ce qui a pesé"],"gratitude":"une chose positive de sa journée","resume":"2 phrases"}`,
     { max: 700 }));
   if (!o || !(Number(o.score) >= 1)) return null;

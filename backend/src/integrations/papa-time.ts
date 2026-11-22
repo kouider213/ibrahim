@@ -100,7 +100,7 @@ export async function jobPapaTime(): Promise<string> {
   const [p, log, off] = await Promise.all([getKidProfile(), readLog(), isDayOff()]);
   let msg = '';
   if (hour < 12 && off) {
-    msg = `☀️ Jour off ! Une idée pour toi et ${p.name} aujourd'hui : ${idea('out', p.born)}.\nEt ce soir, une partie avec ${p.mascot} dans l'app (page ${p.mascot.toUpperCase()}).`;
+    msg = `☀️ Jour off ! Une idée pour toi et ${p.name} aujourd'hui : ${idea('out', p.born)}.`;   // 22/11 : plus d'invitation à la page Fennou (retirée du menu)
   } else if (hour >= 12 && !off) {
     const last = together(log).sort((a, b) => b.at - a.at)[0];
     if (last && last.at > Date.now() - 2 * 86_400_000) return 'temps passé récemment';
@@ -122,7 +122,8 @@ function weekText(p: KidProfile, log: LogEntry[]): string {
   const fav = [...byGame.entries()].sort((a, b) => b[1] - a[1])[0];
   return [
     `🦊 La semaine de ${p.name}`,
-    `• Jeux avec ${p.mascot} : ${games.length} partie${games.length > 1 ? 's' : ''} (${mins(games)} min)${fav ? `, son préféré : ${fav[0]}` : ''}${games.some(g => g.wins) ? `, ${games.reduce((s, g) => s + (g.wins ?? 0), 0)} réussites` : ''}`,
+    // 22/11 : page Fennou retirée du menu → la ligne des jeux n'apparaît que s'il y a vraiment joué
+    ...(games.length ? [`• Jeux avec ${p.mascot} : ${games.length} partie${games.length > 1 ? 's' : ''} (${mins(games)} min)${fav ? `, son préféré : ${fav[0]}` : ''}${games.some(g => g.wins) ? `, ${games.reduce((s, g) => s + (g.wins ?? 0), 0)} réussites` : ''}`] : []),
     `• Moments avec papa notés : ${papa.length}${papa.length ? ` (${papa.map(e => e.what).slice(-3).join(', ')})` : ''}`,
     ...(maman.length ? [`• Avec maman : ${maman.length}`] : []),
     `• Jours où vous avez partagé quelque chose : ${days}/7`,
