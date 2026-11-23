@@ -661,9 +661,27 @@ export async function sportDepartureNotice(o: { start: number; leaveBy: number; 
   await callOwner(`C'est l'heure du sport champion ! Aujourd'hui c'est ${label ? (label.focus && label.focus.trim().toLowerCase() !== label.label.trim().toLowerCase() ? `${label.label.toLowerCase()}, ${label.focus.replace(/·/g, ',').toLowerCase()}` : label.label.toLowerCase()) : 'ta séance'}. Pars à ${sayTime(o.leaveBy)}, il y a ${o.minutes} minutes de route,${o.traffic.replace(/[🔴🟡🟢]/gu, '')}. Je t'ai envoyé le lien Waze de la salle et ta séance sur Telegram. Allez, on y va !`);
 }
 
+/** 23/11 Kouider : « tous les lundis quand j'arrive à la salle (ma position Telegram), rappelle-moi de faire la balance » →
+ *  lundi, GPS frais à la salle, pas encore de composition notée ce jour → UN message Telegram (pas d'appel : lundi sans appel). */
+async function mondayScaleReminder(): Promise<void> {
+  const { date } = localNow();
+  if (new Date(`${date}T12:00:00Z`).getUTCDay() !== 1) return;
+  const flag = `kouider:forme:scale_reminded:${date}`;
+  if (await kvGet(flag).catch(() => null)) return;
+  const gym = await gymPoint(); if (!gym) return;
+  const loc = await getLocation('kouider').catch(() => null);
+  if (!loc || Date.now() - Date.parse(loc.updated_at) > 15 * 60_000 || km({ lat: loc.lat, lng: loc.lng }, gym) >= GYM_RADIUS_KM) return;
+  const days = JSON.parse((await kvGet('kouider:forme:days').catch(() => null)) ?? '{}') as Record<string, { compo?: unknown }>;
+  await kvSet(flag, '1').catch(() => {});
+  if (days[date]?.compo) return;
+  await queueTelegramMessage(`⚖️ C'est lundi : avant ta séance, passe sur la balance de la salle (composition corporelle), à jeun et avant l'effort.
+Envoie-moi la capture ici : je la note dans FORME → Sèche et je te dis si tu perds bien du gras sans perdre de muscle.`);
+}
+
 /** Toutes les 5 min : arrivé à la salle → séance sur Telegram ; séance commencée et GPS loin → appel « tu as oublié ? ». */
 export async function jobSportWatch(): Promise<void> {
   await import('./gym-live.js').then(m => m.liveTick()).catch(e => console.warn('[gym-live]', e instanceof Error ? e.message : e));
+  await mondayScaleReminder().catch(e => console.warn('[sport] balance lundi', e instanceof Error ? e.message : e));
   let st = await getState();
   if (!st.plannedAt || Date.now() - st.plannedAt > 3 * 3600_000) { await planSportWeek(true).catch(() => null); st = await getState(); }
   if (!st.settings.gymCheck) return;
