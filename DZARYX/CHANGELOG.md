@@ -1,3 +1,5 @@
+## 23/11 — FORME : composition corporelle (balance impédance de la salle) — capture Telegram → forme log kind compo (gras/muscle/eau, jour.compo), compoTrend (masse maigre kg, écart ≥ 6 j, verdict) dans cutStatus + formeSnapshot, carte « Balance de la salle » dans Sèche (app v289). 1re mesure 23/11 enregistrée.
+
 ## 23/11 — FORME : « Pull-over poulie haute » affichait la photo du face pull (rattaché à l'id face_pull) → exercise-lib reconnaît pull-over poulie/corde/haltère (Straight-Arm_Pulldown…), pull-over ≠ face pull dans sameMove. Charges gardées.
 
 ## 22/11/2026 nuit — Veille hebdo : résumé d'appel honnête (« À vérifier ») + secrets masqués

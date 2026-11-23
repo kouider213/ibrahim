@@ -98,6 +98,7 @@ export interface FormeDay {
   water: number; weight?: number;
   weightAt?: string;                     // 21/11 : heure de la pesée (HH:MM) ; weightPm = pesée de l'après-midi/soir gardée à part
   weightPm?: number;
+  compo?: { fat: number; muscle?: number; water?: number; at?: string };   // 23/11 : balance à impédance de la salle (capture d'écran)
   measures?: Partial<Record<'taille' | 'hanches' | 'poitrine' | 'bras' | 'cuisse' | 'cou', number>>;
   injection?: { at: number; site: string; dose?: string };
   sides?: Array<{ what: string; level: number; at: number }>;
@@ -758,6 +759,9 @@ export async function logForme(kind: string, b: Record<string, unknown>, date = 
     else if (kind === 'food-del') d.extra.splice(n(b.index), 1);
     else if (kind === 'protein') d.extra.push({ name: String(b.name ?? 'Protéines').slice(0, 60), kcal: Math.round(n(b.p) * 4.5), p: Math.round(n(b.p)), c: 0, f: 0, at: Date.now(), src: 'rapide' });
     else if (kind === 'measures') d.measures = { ...(d.measures ?? {}), ...Object.fromEntries(Object.entries(b.measures as Record<string, unknown> ?? {}).filter(([k, v]) => ['taille', 'hanches', 'poitrine', 'bras', 'cuisse', 'cou'].includes(k) && n(v) > 10).map(([k, v]) => [k, n(v)])) };
+    // 23/11 : composition corporelle (balance impédance de la salle) — % de gras / muscle / eau
+    else if (kind === 'compo' && n(b.fat) > 3 && n(b.fat) < 60) d.compo = { fat: Math.round(n(b.fat) * 10) / 10, ...(n(b.muscle) > 20 && n(b.muscle) < 95 ? { muscle: Math.round(n(b.muscle) * 10) / 10 } : {}), ...(n(b.water) > 30 && n(b.water) < 80 ? { water: Math.round(n(b.water) * 10) / 10 } : {}), ...(/^\d{2}:\d{2}$/.test(String(b.at ?? '')) ? { at: String(b.at) } : {}) };
+    else if (kind === 'compo-del') delete d.compo;
     else if (kind === 'injection' && uid !== 'ami') d.injection = { at: Date.now(), site: String(b.site ?? '').slice(0, 30), ...(b.dose ? { dose: String(b.dose).slice(0, 20) } : {}) };
     else if (kind === 'injection-del') delete d.injection;
     else if (kind === 'side') (d.sides ??= []).push({ what: String(b.what ?? '').slice(0, 40), level: Math.min(3, Math.max(1, n(b.level) || 1)), at: Date.now() });
@@ -1034,13 +1038,19 @@ export async function formeTool(input: Record<string, unknown>): Promise<string>
   if (a === 'status') return await formeText('kouider');
   if (a === 'log') {
     const kind = String(input.kind ?? '');
-    if (!['weight', 'weight-del', 'injection', 'side', 'measures'].includes(kind)) return 'kind invalide (weight, weight-del, injection, side, measures) — FORME ne suit plus la nourriture';
+    if (!['weight', 'weight-del', 'injection', 'side', 'measures', 'compo', 'compo-del'].includes(kind)) return 'kind invalide (weight, weight-del, injection, side, measures, compo, compo-del) — FORME ne suit plus la nourriture';
+    if (kind === 'compo' && !(Number(input.fat) > 3 && Number(input.fat) < 60)) return 'compo : il faut fat (% de masse grasse lu sur la capture, ex. 19).';
     // 17/11 : « je me suis trompé, c'est 76,9 » → kind weight + kg (même date = remplace) ; date YYYY-MM-DD pour un autre jour ; weight-del = supprimer
     const date = /^\d{4}-\d{2}-\d{2}$/.test(String(input.date ?? '')) ? String(input.date) : undefined;
     const day = await logForme(kind, input, date);
     const kg = Math.round(Number(input.kg) * 10) / 10;
     if (kind === 'weight' && day.weightPm === kg && day.weight !== kg)
       return `✅ Pesée du soir ${kg} kg notée à part. Ta pesée du matin (${day.weight} kg) reste la référence : 1 à 2 kg de plus le soir, c'est normal (eau, repas, sel). Si c'était une CORRECTION de la pesée du matin, refais avec force: true.`;
+    if (kind === 'compo') {
+      const c = await import('./forme-cut.js').then(m => { m.clearFormeSnapshot(); return m.compoTrend('kouider'); }).catch(() => null);
+      return `✅ Composition du ${date ?? 'jour'} notée dans FORME (onglet Sèche) : gras ${day.compo?.fat} %${day.compo?.muscle ? `, « muscle » ${day.compo.muscle} %` : ''}${day.compo?.water ? `, eau ${day.compo.water} %` : ''}.${c?.line ? ` ${c.line}` : ''} Rappel à lui dire en une phrase : ces balances varient de 3-5 points selon l'eau → même machine, le matin à jeun avant la séance, 1 fois/semaine ; on juge la courbe, pas un chiffre. Le « % muscle » de ces balances = tout sauf le gras (muscle + eau + organes), pas du vrai muscle.`;
+    }
+    if (kind === 'compo-del') return `✅ Mesure de composition du ${date ?? 'jour'} supprimée.`;
     return kind === 'weight-del' ? `✅ Pesée du ${date ?? "jour"} supprimée dans FORME.` : kind === 'weight' ? `✅ Poids ${input.kg} kg noté dans FORME pour le ${date ?? "jour"} (remplace l'ancienne pesée de ce jour).` : `✅ Noté dans FORME (${kind}).`;
   }
   if (a === 'machines') {

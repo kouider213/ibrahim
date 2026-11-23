@@ -19,6 +19,7 @@ export interface Cut {
   decision: { text: string; deficit: number | null; level: 'ok' | 'up' | 'down' | 'wait' | 'break' };
   waist: Array<{ date: string; cm: number }>; protein: { goal: number; perKg: number };
   fat?: { pct: number; fatKg: number; leanKg: number; absKg: number; atFloorPct: number | null; absEta: string | null; neck: number } | null; neck?: number | null;
+  compo?: { points: Array<{ date: string; fat: number; muscle?: number; water?: number; leanKg: number | null; fatKg: number | null }>; last: { date: string; fat: number; muscle?: number; water?: number; leanKg: number | null; fatKg: number | null } | null; ref?: string | null; dFat?: number | null; dLean?: number | null; verdict?: string } | null;
 }
 const H2 = ({ children }: { children: string }) => <div style={{ fontSize: 19, fontWeight: 700, margin: '22px 2px 10px' }}>{children}</div>;
 const fmt = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'UTC' });
@@ -166,6 +167,23 @@ export default function CutScreen({ toast }: { toast: (t: string) => void }) {
           <input value={neck} onChange={e => setNeck(e.target.value)} inputMode="decimal" placeholder={c.neck ? `Tour de cou (dernier : ${c.neck} cm)` : 'Tour de cou (cm)'} style={{ ...input, flex: 1 }} />
           <button disabled={busy || !neck} onClick={() => void logNeck()} style={{ ...btn, padding: '12px 18px' }}>📏</button>
         </div>
+      </div>
+
+      {/* 23/11 : balance à impédance de la salle (capture envoyée à Dzaryx sur Telegram) */}
+      <H2>Balance de la salle</H2>
+      <div style={card}>
+        {c.compo?.last ? <>
+          <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'baseline' }}>
+            <div><div style={{ fontSize: 30, fontWeight: 800 }}>{String(c.compo.last.fat).replace('.', ',')} <span style={{ fontSize: 15, color: F.muted }}>% gras</span></div>{c.compo.last.fatKg != null && <div style={{ fontSize: 12.5, color: F.muted }}>≈ {String(c.compo.last.fatKg).replace('.', ',')} kg de gras</div>}</div>
+            {c.compo.last.leanKg != null && <div><div style={{ fontSize: 22, fontWeight: 700 }}>{String(c.compo.last.leanKg).replace('.', ',')} <span style={{ fontSize: 14, color: F.muted }}>kg</span></div><div style={{ fontSize: 12.5, color: F.muted }}>masse maigre</div></div>}
+            {c.compo.last.water != null && <div><div style={{ fontSize: 22, fontWeight: 700 }}>{String(c.compo.last.water).replace('.', ',')} <span style={{ fontSize: 14, color: F.muted }}>%</span></div><div style={{ fontSize: 12.5, color: F.muted }}>eau</div></div>}
+          </div>
+          {c.compo.points.length >= 2 && <div style={{ marginTop: 12 }}><LineChart points={c.compo.points.map(x => ({ x: x.date, y: x.fat }))} unit="%" color={F.green} /></div>}
+          <div style={{ fontSize: 14, lineHeight: 1.45, marginTop: 10 }}>
+            {c.compo.dFat != null ? <>Depuis le {fmt(c.compo.ref!)} : gras <b>{c.compo.dFat > 0 ? '+' : ''}{String(c.compo.dFat).replace('.', ',')} pt</b>{c.compo.dLean != null && <>, masse maigre <b>{c.compo.dLean > 0 ? '+' : ''}{String(c.compo.dLean).replace('.', ',')} kg</b></>} — {c.compo.verdict}.</> : <>Mesure du {fmt(c.compo.last.date)} = ton point de départ. Abdos visibles vers 12-14 %.</>}
+          </div>
+        </> : <div style={{ fontSize: 14, color: F.muted, lineHeight: 1.45 }}>Envoie à Dzaryx sur Telegram la capture « Composition corporelle » de la balance de la salle : je note ton % de gras et je trace la courbe ici.</div>}
+        <div style={{ fontSize: 11.5, color: F.muted, marginTop: 8, lineHeight: 1.4 }}>Ces balances varient de 3-5 points selon l'eau : même machine, le matin à jeun avant la séance, 1 fois par semaine. On juge la courbe, pas un chiffre. Le « % muscle » de la balance = tout sauf le gras : le vrai repère, c'est la masse maigre en kg qui tient pendant que le gras baisse.</div>
       </div>
 
       {/* Règles */}

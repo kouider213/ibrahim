@@ -22,7 +22,25 @@ const r1 = (n: number) => Math.round(n * 10) / 10;
 const frN = (n: number | null) => n == null ? '?' : String(Number(n.toFixed(2))).replace('.', ',');
 const START_K = (u: Uid) => `${u}:forme:cutstart`;
 
-interface Day { weight?: number; measures?: Record<string, number>; workout?: { label: string } }
+interface Day { weight?: number; measures?: Record<string, number>; workout?: { label: string }; compo?: { fat: number; muscle?: number; water?: number; at?: string } }
+
+/** 23/11 Kouider (capture « Composition corporelle » de la salle) : courbe % gras / muscle / eau d'une balance à impédance.
+ *  Le vrai repère de la sèche = MASSE MAIGRE en kg (poids × (1 − gras %)) : si elle tient pendant que le gras baisse, il ne perd pas de muscle.
+ *  Ces balances varient de 3-5 points selon l'eau → on compare des mesures à ≥ 6 jours d'écart, jamais un chiffre seul. */
+export async function compoTrend(uid: Uid = 'kouider', days0?: Record<string, Day>) {
+  const days = days0 ?? await json<Record<string, Day>>(`${uid}:forme:days`, {});
+  const dates = Object.keys(days).sort();
+  const wAt = (d: string) => { const w = dates.filter(x => x <= d && days[x]!.weight).pop() ?? dates.find(x => days[x]!.weight); return w ? days[w]!.weight! : null; };
+  const points = dates.filter(d => days[d]!.compo?.fat).map(d => { const c = days[d]!.compo!, kg = wAt(d); return { date: d, ...c, kg, leanKg: kg ? r1(kg * (1 - c.fat / 100)) : null, fatKg: kg ? r1(kg * c.fat / 100) : null }; });
+  if (!points.length) return { points, last: null, line: '' };
+  const last = points[points.length - 1]!, ref = [...points].reverse().find(x => dayDiff(x.date, last.date) >= 6) ?? null;
+  const dFat = ref ? r1(last.fat - ref.fat) : null, dLean = ref && last.leanKg != null && ref.leanKg != null ? r1(last.leanKg - ref.leanKg) : null;
+  const verdict = dFat == null ? 'première mesure = point de départ' : dFat <= -0.5 && (dLean ?? 0) >= -0.5 ? 'le gras baisse sans perte de muscle : la sèche marche'
+    : dFat <= -0.5 ? 'le gras baisse mais la masse maigre aussi : protéines hautes, charges lourdes, pas plus de déficit'
+    : dFat >= 1 ? 'le gras remonte : regarde le déficit et les pesées de la semaine (ou mesure prise dans d\'autres conditions)' : 'stable (dans la marge d\'erreur de la balance)';
+  const line = `Composition (balance salle, ${last.date}) : gras ${last.fat} %${last.fatKg != null ? ` (≈ ${last.fatKg} kg)` : ''}${last.leanKg != null ? `, masse maigre ≈ ${last.leanKg} kg` : ''}${last.water ? `, eau ${last.water} %` : ''}${ref ? ` ; depuis le ${ref.date} : gras ${dFat! > 0 ? '+' : ''}${dFat} pt${dLean != null ? `, masse maigre ${dLean > 0 ? '+' : ''}${dLean} kg` : ''}` : ''} → ${verdict}. Abdos visibles vers 12-14 %.`;
+  return { points: points.slice(-26), last, ref: ref?.date ?? null, dFat, dLean, verdict, line };
+}
 interface Lift { name: string; now: number; before: number | null; pct: number | null; date: string; kg: number; reps: number }
 
 /** Tendance lissée (moyenne mobile exponentielle, ~10 % par jour, trous comblés) */
@@ -190,7 +208,7 @@ export async function cutStatus(uid: Uid = 'kouider') {
     today, start, weeksIn, deficit: cfg.deficit,
     weight: { current: r1(real), trend: r1(cur), last: weights[weights.length - 1] ?? null, goalKg, toLose, eta, rateWeek, ratePct, points: tr.slice(-60), loggedToday: !!days[today]?.weight },
     adaptive, avgEaten, avgBurnWatch, week, lifts, dropping: dropping.map(x => x.name),
-    score, parts, decision, waist: waist.slice(-12), fat, neck, protein: { goal: t.pGoal, perKg: r1(t.pGoal / cur) },
+    score, parts, decision, waist: waist.slice(-12), fat, neck, compo: await compoTrend(uid, days).catch(() => null), protein: { goal: t.pGoal, perKg: r1(t.pGoal / cur) },
   };
 }
 export type CutStatus = Awaited<ReturnType<typeof cutStatus>>;
@@ -229,6 +247,7 @@ export async function formeSnapshot(): Promise<string> {
     ins ? `semaine ${ins.week.done}/${ins.week.target} séances${notTrained.length ? `, muscles pas travaillés en 7 j : ${notTrained.join(', ')}` : ''}` : '',
     c ? `sèche semaine ${c.weeksIn + 1} : poids ${c.weight.current} kg (dernière pesée)${c.weight.rateWeek != null ? ` (${c.weight.rateWeek > 0 ? '−' : '+'}${Math.abs(c.weight.rateWeek)} kg/sem)` : ''}, objectif ${c.weight.goalKg ?? '?'} kg${c.weight.eta ? ` vers le ${c.weight.eta}` : ''} ; score du jour ${c.score}/100 (${c.parts.filter(p => !p.ok).map(p => `${p.k} manquant : ${p.hint}`).join(', ') || 'tout bon'})` : '',
     c?.dropping.length ? `force en baisse : ${c.dropping.join(', ')}` : '',
+    c?.compo?.line ?? '',
     c?.lifts?.length ? `meilleures séries réelles (dernière séance) : ${c.lifts.slice(0, 5).map((l: { name: string; now: number; pct: number | null; kg?: number; reps?: number }) => `${l.name} ${l.kg ? `${l.kg} kg × ${l.reps}` : `${l.now} kg (max estimé)`}${l.pct != null ? ` (${l.pct > 0 ? '+' : ''}${l.pct} % en 2 sem.)` : ''}`).join(', ')}` : '',
     c ? `déficit visé ${c.deficit} kcal/j, protéines visées ${c.protein.goal} g/j` : '',
     ready, sleep,
