@@ -1,3 +1,5 @@
+## 23/11 — Telegram : plus de réponse perdue ni vide — 17h50 Gemini saturé (503) → réponse prête en 3 min 28, tgcall lâchait à 3 min (« ⏳ renvoie ») et ne l'envoyait jamais : maintenant « je réfléchis encore » puis tgcall récupère la réponse via POST /api/call/turn-result (turn:done:<turnId>, jusqu'à +6 min). 18h28 : filtres → réponse vide « … » : le secours agentique ne renvoie plus jamais de texte vide. + Raccourci « Dzaryx santé » et widget Scriptable repassés sur la clé service:raccourcis-iphone (santé muette 16→23/11).
+
 ## 23/11 — FORME : SES produits dans « Protéines en 1 geste » — whey ESN Flexpresso caramel (30 g = 108 kcal / 22 g P) remplace « Shake whey », créatine Myprotein = bouton « pris aujourd'hui » (/food/supp). kv kouider:forme:products, forme action my_product (changement de marque) + supp_taken (app v290).
 
 ## 23/11 — Rappel balance du lundi : jobSportWatch → mondayScaleReminder (lundi + GPS Telegram à la salle + pas de compo ce jour → 1 message Telegram, pas d'appel).

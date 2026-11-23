@@ -917,7 +917,9 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
         // inventée → pas de blocage (22/10 : deux conseils remplacés par « je n'ai pas accès aux données en temps réel »)
         const agAdvice  = /tu en pense|penses?[- ]tu|tu pense|ton avis|conseil|propos|quel (tarif|prix)|combien (je|on) (devrais|peu|doi)|int[ée]ressant/i.test(userMessage);
         const agChecked = agRes.toolsExecuted.length > 0 || agAdvice || worldChecked ? agPhantom : fastPathGuard(agPhantom, userMessage, requestId);
-        const agSafe    = oranize(localizeGuardMessage(agChecked, null, guardLang), actor);
+        // 23/11 18h28 : les filtres ont vidé la réponse du secours → il a reçu « … ». Jamais de réponse vide.
+        const agSafe    = oranize(localizeGuardMessage(agChecked, null, guardLang), actor).trim()
+          || oranize(agRes.text, actor).trim() || 'Je t\'ai bien lu 👍';
         _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: agSafe });
         saveConversationTurn(sessionId, 'assistant', agSafe, { tools: agRes.toolsExecuted.map(t => `${t.name} ${t.success ? '✅' : '❌'}`) }).catch(() => {});
         // Gardé pour le retour de Claude (note de passation inverse)

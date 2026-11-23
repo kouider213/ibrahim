@@ -221,6 +221,24 @@ async def turn_with_resume(msg: Message, body: dict, actor: str, timeout: float 
     body = {**body, 'turnId': f'tg:{msg.chat.id}:{msg.id}'}
     try:
         return await api('/api/call/turn', body, actor, timeout)
+    except asyncio.TimeoutError:
+        # 23/11 17h50 : cerveau gratuit saturé → réponse prête 28 s après l'abandon, jamais envoyée.
+        # Le tour continue côté serveur : on va chercher sa réponse au lieu de lui dire « renvoie ».
+        log.warning('tour long (> %ss) → j\'attends la réponse du serveur', timeout)
+        try:
+            await msg.reply_text('⏳ Les cerveaux gratuits sont lents là, je réfléchis encore — ma réponse arrive.')
+        except Exception:
+            pass
+        for _ in range(36):   # jusqu'à 6 min de plus
+            await asyncio.sleep(10)
+            try:
+                res = await api('/api/call/turn-result', {'turnId': body['turnId']}, actor, 15)
+            except Exception:
+                continue
+            if res.get('done'):
+                return res
+            await app.send_chat_action(msg.chat.id, enums.ChatAction.TYPING)
+        raise
     except (RuntimeError, aiohttp.ClientConnectionError, aiohttp.ServerDisconnectedError) as e:
         if isinstance(e, RuntimeError) and not any(f'HTTP {c}' in str(e) for c in (502, 503, 504)):
             raise

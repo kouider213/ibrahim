@@ -242,6 +242,15 @@ async function photoCollage(imgs: Array<{ b64: string }>): Promise<string> {
   return c.toBuffer('image/jpeg', 82).toString('base64');
 }
 
+// 23/11 17h50 : Gemini saturé → réponse prête en 3 min 28, Telegram avait lâché à 3 min (« ⏳ renvoie ») et la réponse
+// n'est jamais partie. tgcall redemande ici (sans relancer de tour) jusqu'à ce que le tour en cours ait fini.
+router.post('/turn-result', requireCallerAuth, async (req, res) => {
+  const id = typeof req.body?.turnId === 'string' && /^[\w:-]{1,60}$/.test(req.body.turnId) ? req.body.turnId : '';
+  if (!id) { res.status(400).json({ error: 'turnId required' }); return; }
+  const done = await kvGet(`turn:done:${id}`).catch(() => null);
+  res.json(done ? { done: true, ...JSON.parse(done) } : { done: false });
+});
+
 router.post('/turn', requireCallerAuth, async (req, res) => {
   const { message, textOnly, stream, channel } = req.body as {
     message?: string; textOnly?: boolean; stream?: boolean; image?: string; imageMime?: string; channel?: 'call' | 'message' };
