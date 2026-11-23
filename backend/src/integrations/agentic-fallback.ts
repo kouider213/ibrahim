@@ -440,10 +440,20 @@ export async function runAgenticFallback(
     }
   };
 
+  // 23/11 17h50 : « high demand » (503) chez Google = le MODÈLE entier est saturé, pas une clé → le secours essayait
+  // 5 clés × 4 modèles Gemini (1-3 min) avant NVIDIA, et Telegram abandonnait. Un modèle en 503 = toutes ses clés sautées
+  // ce tour (+5 min) ; 2 modèles Gemini en 503 = tout Gemini sauté ce tour → on passe direct aux autres cerveaux.
+  const overloaded = new Set<string>();
+  const geminiSkipped = (ep: FallbackEndpoint) => ep.key === 'gemini' && (overloaded.has(ep.model) || overloaded.size >= 2);
   const noteFailure = (ep: FallbackEndpoint, err: unknown) => {
     // quota (429), surcharge (503) ou figé (timeout) → ce modèle est sauté 15 min au lieu de refaire attendre
     const st = (err as { response?: { status?: number }; code?: string });
     const code = st.response?.status;
+    if (ep.key === 'gemini' && code === 503 && !overloaded.has(ep.model)) {
+      overloaded.add(ep.model);
+      GEMINI_KEYS.forEach((_, k) => { const q = k ? `${ep.model}#${k}` : ep.model; if (usable(q)) markQuotaExhausted(q, 5 * 60_000); });
+      if (overloaded.size === 2) console.warn('[agentic-fallback] Gemini saturé (2 modèles en 503) → autres cerveaux directement');
+    }
     const res = (err as { response?: { status?: number; data?: unknown } }).response;
     if (ep.key !== 'groq' && ep.key !== 'openai' && (code === 429 || code === 503 || code === 404 || code === 410 || st.code === 'ECONNABORTED')) markFailure(ep.qid ?? ep.model, code, JSON.stringify(res?.data ?? ''));
     console.warn(`[agentic-fallback] ${ep.key}/${ep.model} FAILED status=${res?.status ?? 'network'} body=${JSON.stringify(res?.data ?? {}).slice(0, 200)} msg="${err instanceof Error ? err.message.slice(0, 120) : String(err)}" → provider suivant`);
@@ -455,7 +465,10 @@ export async function runAgenticFallback(
   let lastErr: unknown = null;
   let rest = visionFirst(eps, !!image);
   while (rest.length) {
+    rest = rest.filter(e => !geminiSkipped(e));
+    if (!rest.length) break;
     const race = await hedgedRace(rest, async (ep, signal) => {
+      if (geminiSkipped(ep)) throw new Error(`${ep.name} sauté (Gemini saturé)`);
       const history  = withImage([...(ep.compact ? compactHistory : fullHistory)], !!ep.vision);
       const oaiTools = toolsFor(ep);
       try {
@@ -480,6 +493,7 @@ export async function runAgenticFallback(
       for (;;) {
         try { if (skipCurrent) { skipCurrent = false; throw new Error(`${ep.name} réponse vide`); } data = await call(ep, history, oaiTools); return; } catch (err) {
           noteFailure(ep, err);
+          rest = rest.filter(e => !geminiSkipped(e));
           const to = rest.shift();
           if (!to) throw err;
           const done = toolsExecuted.map(t => `• ${t.name} → ${t.result.slice(0, to.compact ? 600 : 4_000)}`).join('\n');

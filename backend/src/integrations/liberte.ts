@@ -1099,10 +1099,25 @@ export async function runMedTake(c: { n: number; total: boolean; extra?: boolean
 // (« ne te culpabilise pas si tu as dû freiner » alors qu'il était à 5/5 dans le plan) et sans la baisse du lendemain.
 const LIB_MED = /m[ée]doc|m[ée]dicament|demis?\b|comprim[ée]|cachet|traitement|sevrage|lib[ée]rt[ée]/i;
 const LIB_HARD = /(n'|j'|j)?arrive (plus|pas)|y arrive pas|j'en peux plus|craqu|d[ée]prim|d[ée]pression|replong|trop dur|peux pas baisser|r[ée]ussi.{0,30}(diminuer|baisser)/i;
+// 23/11 19h06 : « Tu penses que comme je suis occupé j'arrête quand les médicaments ? » → réponse générique
+// (« n'arrête pas seul », Wegovy cité alors qu'il n'en prend pas), sans son plan ni la date. Question « quand/arrêter » = son plan réel.
+const LIB_WHEN = /\bquand\b|arr[êe]t|stopp|z[ée]ro|fini[rs]?\b|baiss|diminu|accél[ée]r|plus vite/i;
 export async function liberteStruggleHint(msg: string): Promise<string> {
-  if (!LIB_MED.test(msg) || !LIB_HARD.test(msg)) return '';
+  if (!LIB_MED.test(msg)) return '';
+  const hard = LIB_HARD.test(msg);
+  if (!hard && !LIB_WHEN.test(msg)) return '';
   const o = await libOverview().catch(() => null);
   if (!o?.state?.active || o.state.finishedAt) return '';
+  if (!hard) {
+    const zero = o.state.steps.find(s => s.max === 0)?.from;
+    return [
+      `IL PARLE DE SON PROGRAMME LIBERTÉ (arrêt de son ${o.state.med ?? 'médicament'}, privé) — réponds avec SON plan réel, pas un conseil général. Ne parle d'aucun autre médicament (pas de Wegovy).`,
+      statusText(o),
+      `• ${o.state.doctorPlan ? 'Ce plan vient de SON MÉDECIN (papier) : ' : ''}aujourd'hui max ${halvesShort(o.allowed)} (pris ${halvesShort(o.taken)})${o.nextDrop ? `, prochaine baisse le ${fmtDate(o.nextDrop.from)} → ${halvesShort(o.nextDrop.max)}/jour` : ''}${zero ? `, ZÉRO prévu le ${fmtDate(zero)}` : ''}. Donne-lui ces dates clairement.`,
+      '• S\'il veut aller plus vite parce qu\'il est occupé/motivé : être occupé aide (moins de moments d\'envie), mais on ne saute pas de palier sans l\'accord de son médecin ; il peut en parler à son prochain RDV. S\'il veut ralentir : liberte action palier (jamais remonter), seulement après son oui.',
+      '• 3-5 phrases, chaleureux, sans liste d\'avertissements.',
+    ].join('\n');
+  }
   return [
     'IL PARLE DE SON PROGRAMME LIBERTÉ ET DE SON MORAL — statut réel (privé) :',
     statusText(o),
