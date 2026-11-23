@@ -162,7 +162,16 @@ router.post('/food/text', async (req, res) => {
 });
 // 16/11 : protéines en 1 geste — aliments prêts + « refaire » un repas récent (sans IA)
 router.get('/food/quick', async (req, res) => {
-  try { const f = await food(); res.json({ presets: Object.entries(f.QUICK_FOODS).map(([id, q]) => ({ id, label: q.label, p: q.items.reduce((a, x) => a + x.p, 0), kcal: q.items.reduce((a, x) => a + x.kcal, 0) })), recent: await f.recentMeals(U(req)) }); } catch (err) { fail(res, err); }
+  try {
+    const f = await food(); const taken = await f.suppTaken(U(req));
+    res.json({ presets: Object.entries(await f.quickFoodsFor(U(req))).map(([id, q]) => ({ id, label: q.label, p: q.items.reduce((a, x) => a + x.p, 0), kcal: q.items.reduce((a, x) => a + x.kcal, 0), ...(q.supp ? { supp: true, dose: q.items[0]?.grams ?? 0, taken: taken.includes(id.slice(3)) } : {}) })), recent: await f.recentMeals(U(req)) });
+  } catch (err) { fail(res, err); }
+});
+// 23/11 : complément (créatine) coché « pris aujourd'hui »
+router.post('/food/supp', async (req, res) => {
+  const b = (req.body ?? {}) as { slot?: string; on?: boolean };
+  if (!b.slot) { fail(res, 'slot manquant', 400); return; }
+  try { res.json({ taken: await (await food()).takeSupp(U(req), String(b.slot).replace(/^my:/, '').slice(0, 30), b.on !== false) }); } catch (err) { fail(res, err, 400); }
 });
 router.post('/food/quick', async (req, res) => {
   const b = (req.body ?? {}) as { preset?: string; from?: { date?: string; id?: string } };

@@ -1058,6 +1058,13 @@ export async function formeTool(input: Record<string, unknown>): Promise<string>
     return h.length ? h.slice(0, 10).map(m => `${m.date} · ${m.machine} : ${m.exercises.map(e => e.name).join(', ')}`).join('\n') : 'Aucune machine scannée pour l\'instant (FORME → Scanner).';
   }
   if (a === 'ask') return await askFormeCoach(String(input.question ?? ''));
+  // 23/11 : SES produits (whey, créatine…) — changement de marque, prise du complément
+  if (a === 'my_product' || a === 'supp_taken') {
+    const f = await import('./forme-food.js');
+    if (a === 'supp_taken') { const slot = String(input.slot ?? 'creatine'); await f.takeSupp('kouider', slot, input.on !== false); return `✅ ${slot} ${input.on === false ? 'décoché' : 'coché pris aujourd\'hui'} dans FORME.`; }
+    if (!input.slot && !input.brand && !input.label) return (await f.myProducts('kouider')).map(x => `• ${x.slot} : ${x.brand} — ${x.dose} ${x.unit}${x.kind === 'food' ? ` = ${x.kcal} kcal · ${x.p} g P` : ' (complément)'}`).join('\n') || 'Aucun produit.';
+    return await f.setMyProduct('kouider', { slot: input.slot as string | undefined, brand: input.brand as string | undefined, label: input.label as string | undefined, dose: Number(input.dose_g ?? input.dose) || undefined, unit: input.unit as string | undefined, kcal: input.kcal as number | undefined, p: input.p as number | undefined, c: input.c as number | undefined, f: input.f as number | undefined, kind: input.product_kind as 'food' | 'supp' | undefined, remove: !!input.remove });
+  }
   // 🍽️ Compteur calories (31/10)
   if (a.startsWith('food') || a.startsWith('meal')) {
     const f = await import('./forme-food.js');

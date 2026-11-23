@@ -349,6 +349,66 @@ export const QUICK_FOODS: Record<string, { label: string; title: string; items: 
   thon:   { label: 'Thon 1 boîte', title: 'Thon au naturel', items: [{ name: 'Thon au naturel égoutté', grams: 140, kcal: 160, p: 36, c: 0, f: 2 }] },
   fblanc: { label: 'Fromage blanc', title: 'Fromage blanc 0 %', items: [{ name: 'Fromage blanc 0 %', grams: 250, kcal: 120, p: 20, c: 10, f: 0 }] },
 };
+// 23/11 : SES produits (Kouider : « il met juste shaker, il doit mettre ma whey ESN et ma créatine ; quand je change de marque
+// je dois pouvoir le dire »). Stockés en kv, modifiables par Dzaryx (forme action my_product). slot = whey remplace « Shake whey ».
+// kind supp = complément sans calories (créatine) → bouton « pris aujourd'hui », pas un repas.
+export interface MyProduct { slot: string; brand: string; label: string; dose: number; unit: string; kcal: number; p: number; c: number; f: number; kind: 'food' | 'supp' }
+const PRODUCTS_K = (uid: Uid) => `${uid}:forme:products`;
+const SUPP_K = (uid: Uid, date: string) => `${uid}:forme:supp:${date}`;
+const DEFAULT_PRODUCTS: Record<string, MyProduct[]> = {
+  kouider: [
+    { slot: 'whey', brand: 'ESN Flexpresso caramel', label: 'Whey ESN', dose: 30, unit: 'g', kcal: 108, p: 22, c: 3, f: 1, kind: 'food' },
+    { slot: 'creatine', brand: 'Myprotein Impact Creatine', label: 'Créatine', dose: 3, unit: 'g', kcal: 0, p: 0, c: 0, f: 0, kind: 'supp' },
+  ],
+};
+export async function myProducts(uid: Uid): Promise<MyProduct[]> {
+  const raw = await kvGet(PRODUCTS_K(uid)).catch(() => null);
+  if (raw) { try { return JSON.parse(raw) as MyProduct[]; } catch { /* défaut */ } }
+  return DEFAULT_PRODUCTS[uid] ?? [];
+}
+const slugOf = (x: string) => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'produit';
+export async function setMyProduct(uid: Uid, o: Partial<MyProduct> & { remove?: boolean }): Promise<string> {
+  const list = await myProducts(uid);
+  const text = `${o.slot ?? ''} ${o.brand ?? ''} ${o.label ?? ''}`.toLowerCase();
+  const slot = o.slot ? slugOf(o.slot) : /whey|prot[eé]ine|shake/.test(text) ? 'whey' : /cr[eé]atine/.test(text) ? 'creatine' : slugOf(o.label || o.brand || '');
+  const i = list.findIndex(x => x.slot === slot);
+  if (o.remove) {
+    if (i < 0) return `Aucun produit « ${slot} » à retirer.`;
+    const [gone] = list.splice(i, 1); await kvSet(PRODUCTS_K(uid), JSON.stringify(list));
+    return `✅ ${gone!.brand} retiré de « Protéines en 1 geste ».`;
+  }
+  const prev = i >= 0 ? list[i]! : null;
+  const n = (v: unknown, d: number) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Math.round(Number(v) * 10) / 10 : d);
+  const kind: 'food' | 'supp' = o.kind === 'supp' || o.kind === 'food' ? o.kind : prev?.kind ?? (slot === 'creatine' ? 'supp' : 'food');
+  const next: MyProduct = {
+    slot, kind, brand: String(o.brand ?? prev?.brand ?? o.label ?? slot).slice(0, 50),
+    label: String(o.label ?? (slot === 'whey' ? `Whey ${String(o.brand ?? '').split(' ')[0]}`.trim() : prev?.label ?? o.brand ?? slot)).slice(0, 22),
+    dose: n(o.dose, prev?.dose ?? 30), unit: String(o.unit ?? prev?.unit ?? 'g').slice(0, 6),
+    kcal: n(o.kcal, kind === 'supp' ? 0 : prev?.kcal ?? 0), p: n(o.p, kind === 'supp' ? 0 : prev?.p ?? 0), c: n(o.c, kind === 'supp' ? 0 : prev?.c ?? 0), f: n(o.f, kind === 'supp' ? 0 : prev?.f ?? 0),
+  };
+  if (kind === 'food' && !next.kcal) return `❌ Pas enregistré : il me faut les kcal et protéines PAR DOSE de « ${next.brand} » (lis l'étiquette ou cherche-les).`;
+  if (i >= 0) list[i] = next; else list.push(next);
+  await kvSet(PRODUCTS_K(uid), JSON.stringify(list));
+  return `✅ ${prev ? `« ${prev.brand} » remplacé par` : 'Ajouté :'} « ${next.brand} » — ${next.dose} ${next.unit}${kind === 'food' ? ` = ${next.kcal} kcal · ${next.p} g protéines` : ' (complément, coché « pris aujourd\'hui »)'}. Bouton « ${next.label} » dans FORME → Repas → Protéines en 1 geste.`;
+}
+export async function suppTaken(uid: Uid, date = localNow().date): Promise<string[]> {
+  try { return JSON.parse((await kvGet(SUPP_K(uid, date))) ?? '[]') as string[]; } catch { return []; }
+}
+export async function takeSupp(uid: Uid, slot: string, on = true, date = localNow().date): Promise<string[]> {
+  const cur = new Set(await suppTaken(uid, date));
+  if (on) cur.add(slot); else cur.delete(slot);
+  await kvSet(SUPP_K(uid, date), JSON.stringify([...cur]), 120 * 86_400);
+  return [...cur];
+}
+/** Boutons du jour : ses produits (whey remplace « Shake whey ») + les aliments fixes. */
+export async function quickFoodsFor(uid: Uid): Promise<Record<string, { label: string; title: string; items: FoodPart[]; supp?: boolean }>> {
+  const mine = await myProducts(uid);
+  const out: Record<string, { label: string; title: string; items: FoodPart[]; supp?: boolean }> = {};
+  for (const x of mine) out[`my:${x.slot}`] = { label: x.label, title: x.kind === 'supp' ? x.brand : `${x.brand} (${x.dose} ${x.unit})`, supp: x.kind === 'supp',
+    items: [{ name: `${x.brand} (${x.dose} ${x.unit})`, grams: x.dose, kcal: x.kcal, p: x.p, c: x.c, f: x.f }] };
+  for (const [k, q] of Object.entries(QUICK_FOODS)) if (!(k === 'shake' && mine.some(x => x.slot === 'whey'))) out[k] = q;
+  return out;
+}
 /** Repas des 14 derniers jours, sans doublon de titre (bouton « refaire ») — le plus récent d'abord. */
 export async function recentMeals(uid: Uid, n = 6): Promise<Array<{ date: string; id: string; title: string; kcal: number; p: number }>> {
   const today = localNow().date;
@@ -364,7 +424,9 @@ export async function recentMeals(uid: Uid, n = 6): Promise<Array<{ date: string
 }
 export async function quickMeal(uid: Uid, o: { preset?: string; from?: { date: string; id: string } }): Promise<{ meal: MealLog; budget: Budget; message: string }> {
   let raw: RawMeal | null = null;
-  if (o.preset && QUICK_FOODS[o.preset]) { const q = QUICK_FOODS[o.preset]!; raw = { title: q.title, items: q.items.map(x => ({ ...x })), confidence: 'haute' }; }
+  const presets = o.preset ? await quickFoodsFor(uid) : {};
+  if (o.preset && presets[o.preset]?.supp) throw new Error('complément : utilise supp');
+  if (o.preset && presets[o.preset]) { const q = presets[o.preset]!; raw = { title: q.title, items: q.items.map(x => ({ ...x })), confidence: 'haute' }; }
   else if (o.from) {
     const m = (await mealsOf(uid, o.from.date)).find(x => x.id === o.from!.id);
     if (m) raw = { title: m.title, items: m.items.map(x => ({ ...x })), confidence: m.confidence };

@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { get, postJson, errText, vibrate, type FoodBudget } from './api.ts';
 import { F, card } from './ui.tsx';
 
-type Preset = { id: string; label: string; p: number; kcal: number };
+type Preset = { id: string; label: string; p: number; kcal: number; supp?: boolean; dose?: number; taken?: boolean };
 type Recent = { date: string; id: string; title: string; kcal: number; p: number };
 
 export default function QuickProtein({ b, onBudget, toast }: { b: FoodBudget; onBudget: (b: FoodBudget) => void; toast: (t: string) => void }) {
@@ -25,6 +25,16 @@ export default function QuickProtein({ b, onBudget, toast }: { b: FoodBudget; on
       void load();
     } catch (e) { toast(errText(e)); } finally { setBusy(''); }
   };
+  // 23/11 : complément (créatine) = coché « pris aujourd'hui », pas un repas
+  const supp = async (p: Preset) => {
+    if (busy) return;
+    setBusy(p.id); vibrate(15);
+    try {
+      await postJson('/api/forme/food/supp', { slot: p.id, on: !p.taken }); vibrate(50);
+      toast(p.taken ? `${p.label} décochée` : `✅ ${p.label} prise aujourd'hui`);
+      await load();
+    } catch (e) { toast(errText(e)); } finally { setBusy(''); }
+  };
   const chip = (key: string, top: string, sub: string, onClick: () => void, strong = false) => (
     <motion.button key={key} whileTap={{ scale: 0.95 }} onClick={onClick} disabled={!!busy}
       style={{ border: `1px solid ${strong ? 'color-mix(in srgb, #7fb2ff 45%, transparent)' : F.line}`, background: strong ? 'color-mix(in srgb, #7fb2ff 12%, var(--f-card))' : 'var(--f-card)', color: F.ink, borderRadius: 14, padding: '9px 11px', textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer', opacity: busy && busy !== key ? 0.5 : 1, minWidth: 0 }}>
@@ -39,7 +49,9 @@ export default function QuickProtein({ b, onBudget, toast }: { b: FoodBudget; on
         <div style={{ fontSize: 12.5, fontWeight: 700, color: left > 0 ? '#7fb2ff' : F.green }}>{left > 0 ? `il manque ${left} g` : 'objectif atteint'}</div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 7 }}>
-        {d.presets.map(p => chip(p.id, p.label, `+${p.p} g · ${p.kcal} kcal`, () => void add(p.id, { preset: p.id }, p.label), p.p >= 24))}
+        {d.presets.map(p => p.supp
+          ? chip(p.id, `${p.taken ? '✓ ' : ''}${p.label}`, p.taken ? 'prise aujourd\'hui' : `${p.dose} g · à prendre`, () => void supp(p), !!p.taken)
+          : chip(p.id, p.label, `+${p.p} g · ${p.kcal} kcal`, () => void add(p.id, { preset: p.id }, p.label), p.p >= 20))}
       </div>
       {d.recent.length > 0 && <>
         <div style={{ fontSize: 12, color: F.muted, fontWeight: 600, margin: '12px 2px 7px' }}>REFAIRE UN REPAS RÉCENT</div>

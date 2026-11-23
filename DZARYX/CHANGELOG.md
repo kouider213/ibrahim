@@ -1,3 +1,5 @@
+## 23/11 — FORME : SES produits dans « Protéines en 1 geste » — whey ESN Flexpresso caramel (30 g = 108 kcal / 22 g P) remplace « Shake whey », créatine Myprotein = bouton « pris aujourd'hui » (/food/supp). kv kouider:forme:products, forme action my_product (changement de marque) + supp_taken (app v290).
+
 ## 23/11 — Rappel balance du lundi : jobSportWatch → mondayScaleReminder (lundi + GPS Telegram à la salle + pas de compo ce jour → 1 message Telegram, pas d'appel).
 
 ## 23/11 — FORME : composition corporelle (balance impédance de la salle) — capture Telegram → forme log kind compo (gras/muscle/eau, jour.compo), compoTrend (masse maigre kg, écart ≥ 6 j, verdict) dans cutStatus + formeSnapshot, carte « Balance de la salle » dans Sèche (app v289). 1re mesure 23/11 enregistrée.
