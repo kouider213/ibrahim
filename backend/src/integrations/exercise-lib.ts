@@ -84,6 +84,9 @@ const KNOWN: Array<[RegExp, string]> = [
   [/developpe.*(militaire|epaule).*halter|developpe.*halter.*epaule/, 'Dumbbell_Shoulder_Press'], [/developpe.*militaire/, 'Standing_Military_Press'], [/arnold/, 'Arnold_Dumbbell_Press'],
   [/ecarte.*(poulie|cable|vis a vis)|cable cross/, 'Cable_Crossover'], [/ecarte.*halter/, 'Dumbbell_Flyes'], [/ecarte|butterfly|pec deck|papillon/, 'Butterfly'],
   [/pompes?\b/, 'Pushups'], [/dips.*banc/, 'Bench_Dips'], [/\bdips\b/, 'Dips_-_Chest_Version'],
+  // 23/11 Kouider : « Pull-over poulie haute » montrait la photo du face pull (vidéo YouTube = le vrai pull-over debout)
+  [/pull ?over.*corde|corde.*pull ?over/, 'Rope_Straight-Arm_Pulldown'], [/pull ?over.*(poulie|cable)|(poulie|cable).*pull ?over|tirage.*bras tendus|straight arm pulldown/, 'Straight-Arm_Pulldown'],
+  [/pull ?over.*halter|halter.*pull ?over/, 'Straight-Arm_Dumbbell_Pullover'], [/pull ?over/, 'Bent-Arm_Barbell_Pullover'],
   [/rowing.*(poitrine|banc incline)|tirage haut incline|chest supported/, 'Dumbbell_Incline_Row'],
   [/tirage.*(serre|supination)/, 'Close-Grip_Front_Lat_Pulldown'], [/tirage.*(haut|vertical|poitrine|nuque)|lat pulldown/, 'Wide-Grip_Lat_Pulldown'], [/tirage.*(bas|horizontal|assis)|rowing.*(assis|poulie)/, 'Seated_Cable_Rows'],
   [/rowing.*barre.*t|t bar/, 'T-Bar_Row_with_Handle'], [/rowing.*barre/, 'Bent_Over_Barbell_Row'], [/rowing.*(halter|un bras|1 bras)/, 'One-Arm_Dumbbell_Row'],

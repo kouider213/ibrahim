@@ -1,3 +1,5 @@
+## 23/11 — FORME : « Pull-over poulie haute » affichait la photo du face pull (rattaché à l'id face_pull) → exercise-lib reconnaît pull-over poulie/corde/haltère (Straight-Arm_Pulldown…), pull-over ≠ face pull dans sameMove. Charges gardées.
+
 ## 22/11/2026 nuit — Veille hebdo : résumé d'appel honnête (« À vérifier ») + secrets masqués
 - Constat : la voix temps réel dit « c'est noté / c'est ajouté à l'agenda » parfois sans lancer d'outil, et le résumé de fin d'appel (mémoire 30 j + message Telegram) le recopiait comme fait (ex. 13/11 « Dzaryx a confirmé l'ajout à l'agenda… »).
 - tgcall realtime.py : chaque outil lancé pendant l'appel (ask_dzaryx, outils rapides, outils locaux) va dans la transcription (role 'tool', nom + demande + résultat) ; la reprise après micro-coupure l'affiche « (outil) … ».

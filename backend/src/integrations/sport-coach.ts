@@ -778,7 +778,7 @@ export async function exKeyer(extra: Record<string, string> = {}): Promise<{ key
  *  développé incliné. Si le matériel, le mouvement ou l'inclinaison sont nommés des deux côtés et diffèrent, ce n'est pas le même. */
 const MOVE_FAMILIES: RegExp[][] = [
   [/\bbarre\b|barbell/, /haltere|dumbbell/, /machine|convergent/, /poulie|cable|corde/, /elastique|bande/, /smith/, /kettlebell/],
-  [/developpe|press\b/, /ecarte|butterfly|pec deck|fly\b/, /curl/, /tirage|pulldown/, /rowing|\brow\b/, /elevation/, /extension/, /squat/, /fente/, /pompe/, /dips/, /traction/, /planche|gainage/, /crunch/],
+  [/developpe|press\b/, /ecarte|butterfly|pec deck|fly\b/, /curl/, /tirage|pulldown/, /rowing|\brow\b/, /elevation/, /extension/, /squat/, /fente/, /pompe/, /dips/, /traction/, /planche|gainage/, /crunch/, /pull ?over/, /face pull/],
   [/incline/, /decline/, /couche/, /militaire|epaules?\b/],
 ];
 export function sameMove(a: string, b: string): boolean {
