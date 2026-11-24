@@ -1866,13 +1866,17 @@ export async function sessionForType(type: SessionType, date: string) {
     finisher: fit.finisher ?? null, estMin: fit.estMin, start: `${date}T09:00:00.000Z`, end: `${date}T10:15:00.000Z`, minutes: 75, arrived: null };
 }
 /** Ce qui est prévu / fait ce jour-là (pour éviter les mêmes muscles 2 jours de suite). */
-export type DayInfo = { type: SessionType | null; skip: string | null; planned: boolean; logged: SessionType | null };
+export type DayInfo = { type: SessionType | null; skip: string | null; planned: boolean; logged: SessionType | null; missed: boolean };
 export async function dayInfos(dates: string[]): Promise<Record<string, DayInfo>> {
   const st = await getState();
   const log = await readSportLog();
+  const today = localNow().date;
   return Object.fromEntries(dates.map(date => {
     const l = log.find(x => x.date === date && x.sets.length);
-    return [date, { type: st.overrides[date] ?? st.plan[date]?.type ?? null, skip: st.skips[date] ?? null, planned: !!st.plan[date] && !st.skips[date], logged: l?.type ?? null }];
+    const p = st.plan[date];
+    // séance de salle ratée AUJOURD'HUI (créneau passé, pas venu à la salle, rien noté, rien dit) → la maison est encore possible ce soir
+    const missed = !!p && !st.skips[date] && date === today && Date.parse(p.end) < Date.now() && !st.arrived[date] && !l && !log.some(x => x.date === date);
+    return [date, { type: st.overrides[date] ?? p?.type ?? null, skip: st.skips[date] ?? null, planned: !!p && !st.skips[date] && !missed, logged: l?.type ?? null, missed }];
   }));
 }
 export async function dayInfo(date: string): Promise<DayInfo> { return (await dayInfos([date]))[date]!; }

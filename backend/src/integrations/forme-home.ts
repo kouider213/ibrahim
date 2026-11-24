@@ -158,7 +158,9 @@ export async function setHomeDays(days: number[]): Promise<number[]> {
 }
 const wd = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay();
 const addD = (date: string, n: number) => new Date(Date.parse(`${date}T12:00:00Z`) + n * 86400_000).toISOString().slice(0, 10);
-const NOT_HOME = /malad|🛌|repos|bless|douleur|vacances|voyage/i;
+// 24/11 Kouider : « et les jours où je repousse, annule ou autre ma séance » → TOUTE séance annulée / déplacée / ratée devient
+// un jour maison ; seulement pas quand il est malade, blessé, en mode repos (🛌) ou en voyage.
+const NOT_HOME = /malad|🛌|bless|douleur|vacances|voyage/i;
 type ST = import('./sport-coach.js').SessionType;
 const HOME_TYPES: ST[] = ['legs', 'push', 'cardio', 'pull'];   // HAUT B (bras) d'abord, puis HAUT A, HAUT C, ABDOS (jamais de jambes)
 
@@ -175,7 +177,7 @@ export async function homeDayPlans(dates: string[]): Promise<Record<string, { ty
   for (const date of dates) {
     const me = info[date]!;
     if (me.planned) continue;                                      // salle prévue ce jour-là → bouton Salle / Maison classique
-    const skippedForWork = !!me.skip && !NOT_HOME.test(me.skip);
+    const skippedForWork = (!!me.skip && !NOT_HOME.test(me.skip)) || me.missed;
     if (!skippedForWork && (!days.includes(wd(date)) || me.skip)) continue;
     if (me.logged) { out[date] = { type: me.logged, label: sc.SESSIONS[me.logged].label }; continue; }
     const near = [info[addD(date, -1)]!, info[addD(date, 1)]!];
