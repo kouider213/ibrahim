@@ -6,6 +6,7 @@ import { cloudEmit, isCloudPcOnline } from '../actions/handlers/cloudpc-relay.js
 import { emitProactive } from '../notifications/mobile-push.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { autoCall } from '../notifications/auto-call.js';
+import { recordWaDemande, looksLikeDemande } from './wa-demandes.js';
 import { callGroqVision, callOpenAIVision } from './llm-router.js';
 
 // WhatsApp Business de Kouider branché sur le PC cloud (web.whatsapp.com, appareil connecté — 2026-10-15).
@@ -176,6 +177,17 @@ export async function onWaNew(c: WaChat): Promise<void> {
   // Le client envoie une photo / un document → analysé tout seul : passeport, carte d'identité, permis → dossier client
   // (nom, n°, dates, âge), résa renommée et contact WhatsApp enregistré à son nom (Kouider 28/10)
   if (fromClient.some(m => /^\[(photo|document)\]/.test(m.text))) autoScanClientPapers(name);
+  // 24/11 : demande de client sur WhatsApp → aussi dans la page DEMANDES de l'app (comme celles du site)
+  {
+    const newText = fromClient.map(m => m.text).join('\n');
+    const allClient = msgs.filter(m => !m.me).map(m => m.text).join('\n') || preview;
+    const missed = MISSED_CALL_RE.test(c.preview ?? '');
+    const a = clientAge(allClient);
+    if ((newText || missed) && !DELICATE_RE.test(newText || preview) && !isComplaint(newText || preview)
+        && !/site\s*(web|internet)|sitek|fik\s*sites/i.test(allClient)
+        && (missed || isBookingRequest(allClient) || a !== null || looksLikeDemande(allClient)))
+      void recordWaDemande(name, newText || '📞 Appel WhatsApp manqué', a !== null && a < 35 ? 'refusé' : 'nouveau').catch(() => {});
+  }
   // Jarvis 4 : journal (chances de réservation, leçons de vente, promesses) + note du client
   if (fromClient.length) void import('./foresight.js').then(async f => {
     for (const m of fromClient) await f.logWa(name, 'in', m.text);
@@ -290,6 +302,7 @@ export async function onWaNew(c: WaChat): Promise<void> {
       ? '\nباش نشوفولك، عطينا التواريخ (من وقتاش لوقتاش) وعمر السائق من فضلك.'
       : '\nPour vérifier, pouvez-vous m\'indiquer vos dates (début et fin) et l\'âge du conducteur ?';
   }
+  if (kind === 'location' && fromClient.length) void recordWaDemande(name, fromClient.map(m => m.text).join('\n')).catch(() => {});
   if (reply) {
     const all = await drafts();
     all[name.toLowerCase()] = { chat: name, preview, draft: reply, at: new Date().toISOString() };

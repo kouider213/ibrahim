@@ -6,7 +6,7 @@ import { Ico } from '../ui/Icon.tsx';
 
 interface Demande {
   id: string;
-  source: 'lead' | 'dossier' | 'import' | 'booking';
+  source: 'lead' | 'dossier' | 'import' | 'booking' | 'whatsapp';
   ref?: string;
   title: string;
   client_name?: string;
@@ -18,8 +18,9 @@ interface Demande {
   meta?: string;
   admin_path: string;
   kind?: string;
+  fields?: { text?: string; chat?: string; first_at?: string };
 }
-interface Counts { total: number; lead: number; dossier: number; import: number; booking: number; }
+interface Counts { total: number; lead: number; dossier: number; import: number; booking: number; whatsapp?: number; }
 
 // Parcours d'étapes — codes identiques au site (lib/importStatus.js + lib/dossierStatus.js)
 type Stage = { key: string; fr: string };
@@ -77,6 +78,7 @@ const SRC: Record<Demande['source'], { label: string; color: string; icon: strin
   dossier: { label: 'Dossier',     color: '#2f5bff', icon: '📁' },
   import:  { label: 'Importation', color: '#2f5bff', icon: '🛳️' },
   booking: { label: 'Réservation', color: '#0a9a5e', icon: '🚗' },
+  whatsapp: { label: 'WhatsApp', color: '#1fa855', icon: '💬' },
 };
 const LANG_FLAG: Record<string, string> = { fr: '🇫🇷', ar: '🇩🇿', en: '🇬🇧' };
 const SITE = 'https://fikconciergerie.com';
@@ -95,7 +97,7 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   if (!res.ok) throw new Error(`API ${res.status}`);
   return res.json() as Promise<T>;
 }
-const rawId = (id: string) => id.replace(/^(booking|dossier|import|lead)-/, '');
+const rawId = (id: string) => id.replace(/^(booking|dossier|import|lead|whatsapp)-/, '');
 
 export default function DemandesScreen() {
   const [demandes, setDemandes] = useState<Demande[]>([]);
@@ -154,8 +156,10 @@ export default function DemandesScreen() {
   const waRelance = (d: Demande) => {
     const phone = intlPhone(d.client_phone);
     if (!phone) { showToast('Numéro sans indicatif pays : corrige-le sur le site'); return; }
+    // Demande arrivée par WhatsApp : on ouvre simplement la discussion (le client a déjà écrit)
+    if (d.source === 'whatsapp' && !isStale(d)) { window.open(`https://wa.me/${phone}`, '_blank'); return; }
     const lg = d.lang === 'ar' ? 'ar' : d.lang === 'en' ? 'en' : 'fr';
-    const obj = d.title;
+    const obj = d.source === 'whatsapp' ? (lg === 'ar' ? 'كراء السيارة' : lg === 'en' ? 'your car rental' : 'votre location de voiture') : d.title;
     const name = (d.client_name || '').trim().split(/\s+/)[0] ?? '';
     // 16/11 : demande ouverte depuis plus de 48 h → vraie relance (le client est en Europe, il prépare sa venue à Oran)
     const late = isStale(d);
@@ -222,7 +226,7 @@ export default function DemandesScreen() {
 
   return (
     <Screen toast={toast} header={<>
-      <PageHeader eyebrow="Site & dossiers" title="Demandes"
+      <PageHeader eyebrow="Site, WhatsApp & dossiers" title="Demandes"
         subtitle={loading ? 'Chargement…' : `${open.length} demande${open.length !== 1 ? 's' : ''} en cours${closedN ? ` · ${closedN} terminée${closedN > 1 ? 's' : ''}` : ''}`}
         right={<div style={{ display: 'flex', gap: 8 }}>
           <HeadBtn icon="↻" label="Actualiser" onClick={() => void load()} busy={loading} />
@@ -232,6 +236,7 @@ export default function DemandesScreen() {
         <Chips<'all' | Demande['source']> value={filter} onChange={setFilter} items={[
           { id: 'all', label: 'Tout', count: cnt() },
           { id: 'booking', label: '🚗 Réservations', count: cnt('booking') },
+          { id: 'whatsapp', label: '💬 WhatsApp', count: cnt('whatsapp') },
           { id: 'lead', label: '🔔 Leads', count: cnt('lead') },
           { id: 'dossier', label: '📁 Dossiers', count: cnt('dossier') },
           { id: 'import', label: '🛳️ Imports', count: cnt('import') },
@@ -240,7 +245,7 @@ export default function DemandesScreen() {
     </>}>
       {loading && !demandes.length && <SkeletonCards count={4} height={150} />}
       {error && !loading && <Empty icon="📡" title="Impossible de charger" text={error} action={<Btn onClick={() => void load()}>Réessayer</Btn>} />}
-      {!loading && !error && shown.length === 0 && <Empty icon="📭" title={showClosed ? 'Rien de terminé ici' : 'Aucune demande en cours'} text={showClosed ? 'Les demandes conclues, perdues ou annulées apparaissent ici.' : 'Les nouvelles demandes du site arrivent ici automatiquement.'} />}
+      {!loading && !error && shown.length === 0 && <Empty icon="📭" title={showClosed ? 'Rien de terminé ici' : 'Aucune demande en cours'} text={showClosed ? 'Les demandes conclues, perdues ou annulées apparaissent ici.' : 'Les nouvelles demandes du site et de WhatsApp arrivent ici automatiquement.'} />}
       {!loading && closedN > 0 && (
         <button onClick={() => setShowClosed(v => !v)} style={{ width: '100%', margin: '0 0 12px', padding: '10px 14px', borderRadius: 14, border: '1px solid var(--dz-line)', background: 'transparent', color: T.muted, fontFamily: T.font, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>
           {showClosed ? '← Revenir aux demandes en cours' : `Voir les ${closedN} terminée${closedN > 1 ? 's' : ''} (conclues, perdues, annulées)`}
@@ -273,6 +278,10 @@ export default function DemandesScreen() {
                   </div>
                 </div>
 
+                {d.source === 'whatsapp' && d.fields?.text && d.fields.text.includes('\n') && (
+                  <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 12, background: 'rgba(var(--dz-ink-rgb),0.04)', fontSize: 13.5, color: T.muted, lineHeight: 1.4, whiteSpace: 'pre-wrap', maxHeight: 140, overflow: 'auto' }}>{d.fields.text}</div>
+                )}
+
                 {/* Parcours d'étapes (dossier / import) */}
                 {flow && d.status !== 'CANCELLED' && (
                   <div style={{ marginTop: 14 }}>
@@ -283,7 +292,7 @@ export default function DemandesScreen() {
                   </div>
                 )}
                 {d.status === 'CANCELLED' && <div style={{ marginTop: 10 }}><Badge color={T.bad}>Annulée</Badge></div>}
-                {!flow && d.status && d.status !== 'CANCELLED' && <div style={{ marginTop: 10 }}><Badge color={d.status === 'conclu' ? T.ok : d.status === 'perdu' ? T.bad : T.faint}>{({ new: 'Nouveau', nouveau: 'Nouveau', contacte: 'Contacté', contacté: 'Contacté', conclu: 'Conclu', perdu: 'Perdu', PENDING: 'En attente' } as Record<string, string>)[d.status] ?? d.status}</Badge></div>}
+                {!flow && d.status && d.status !== 'CANCELLED' && <div style={{ marginTop: 10 }}><Badge color={d.status === 'conclu' ? T.ok : d.status === 'perdu' ? T.bad : T.faint}>{({ new: 'Nouveau', nouveau: 'Nouveau', contacte: 'Contacté', contacté: 'Contacté', conclu: 'Conclu', perdu: 'Perdu', refusé: 'Refusé (âge)', PENDING: 'En attente' } as Record<string, string>)[d.status] ?? d.status}</Badge></div>}
               </div>
 
               {/* Actions */}
@@ -307,8 +316,9 @@ export default function DemandesScreen() {
                 )}
                 <div style={{ display: 'flex', gap: 8 }}>
                   {d.client_phone && <Btn color="#25D366" onClick={() => waRelance(d)} style={{ flex: 1.2 }}><Ico e="💬" />{isStale(d) ? 'Relancer' : 'WhatsApp'}</Btn>}
-                  {d.source === 'lead' && d.status !== 'conclu' && <Btn color={T.ok} disabled={!!busy} onClick={() => void act(d, 'conclu', 'Lead marqué conclu ✅')} style={{ flex: 1 }}>✓ Conclu</Btn>}
-                  <a href={`${SITE}${d.admin_path}`} target="_blank" rel="noopener noreferrer" style={{ ...btnStyle('ghost'), flex: 1, textDecoration: 'none' }}><Ico e="⚙️" />Gérer</a>
+                  {(d.source === 'lead' || d.source === 'whatsapp') && d.status !== 'conclu' && <Btn color={T.ok} disabled={!!busy} onClick={() => void act(d, 'conclu', 'Demande marquée conclue ✅')} style={{ flex: 1 }}>✓ Conclu</Btn>}
+                  {d.source === 'whatsapp' && !isClosed(d) && <Btn variant="ghost" disabled={!!busy} onClick={() => void act(d, 'perdu', 'Demande marquée perdue')} style={{ flex: 1 }}>✕ Perdu</Btn>}
+                  {d.admin_path && <a href={`${SITE}${d.admin_path}`} target="_blank" rel="noopener noreferrer" style={{ ...btnStyle('ghost'), flex: 1, textDecoration: 'none' }}><Ico e="⚙️" />Gérer</a>}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {flow && d.status !== 'CANCELLED' && <Btn variant="ghost" disabled={!!busy} onClick={() => void act(d, 'CANCELLED', 'Demande annulée')} style={{ flex: 1, minHeight: 40, fontSize: 13 }}>✕ Annuler</Btn>}

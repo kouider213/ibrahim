@@ -4,11 +4,19 @@ import { Router } from 'express';
 import { supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { createCalendarEvent } from '../../integrations/google-calendar.js';
+import { listWaDemandes, updateWaDemande, deleteWaDemande, looksLikeDemande } from '../../integrations/wa-demandes.js';
+
+/** Titre d'une demande WhatsApp : la dernière vraie demande du client (pas « Non merci » ni « [photo] »). */
+function waTitle(text: string): string {
+  const lines = text.split('\n').filter(l => !/^\[/.test(l));
+  const pick = [...lines].reverse().find(l => looksLikeDemande(l)) ?? [...lines].reverse().find(l => l.length >= 20) ?? lines[lines.length - 1];
+  return (pick || 'Message WhatsApp').slice(0, 140);
+}
 
 const router = Router();
 
 type Demande = {
-  id: string; source: 'lead' | 'dossier' | 'import' | 'booking';
+  id: string; source: 'lead' | 'dossier' | 'import' | 'booking' | 'whatsapp';
   ref?: string; title: string; client_name?: string; client_phone?: string;
   client_email?: string; status?: string; lang?: string; created_at?: string;
   meta?: string; admin_path: string; kind?: string;
@@ -72,6 +80,16 @@ router.get('/', requireMobileAuth, async (_req, res) => {
         admin_path: '/admin/bookings',
       });
     }),
+    safe(async () => {
+      // 24/11 : demandes reçues sur WhatsApp (enregistrées par whatsapp-web.ts → wa-demandes.ts)
+      for (const w of await listWaDemandes()) out.push({
+        id: 'whatsapp-' + w.id, source: 'whatsapp',
+        title: waTitle(w.text),
+        client_name: w.chat, client_phone: w.phone, status: w.status, lang: w.lang, created_at: w.updated_at,
+        meta: w.count > 1 ? `${w.count} messages` : '',
+        admin_path: '', fields: { text: w.text, chat: w.chat, first_at: w.created_at },
+      });
+    }),
   ]);
 
   out.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
@@ -82,6 +100,7 @@ router.get('/', requireMobileAuth, async (_req, res) => {
     dossier: out.filter(d => d.source === 'dossier').length,
     import: out.filter(d => d.source === 'import').length,
     booking: out.filter(d => d.source === 'booking').length,
+    whatsapp: out.filter(d => d.source === 'whatsapp').length,
   };
 
   res.json({ demandes: out, counts });
@@ -110,6 +129,10 @@ router.post('/update', requireMobileAuth, async (req, res) => {
     return;
   }
   if (!status) { res.status(400).json({ error: 'status requis' }); return; }
+
+  if (source === 'whatsapp') {
+    res.json({ ok: await updateWaDemande(id, status) }); return;
+  }
 
   try {
     if (source === 'booking') {
@@ -165,6 +188,7 @@ router.post('/update', requireMobileAuth, async (req, res) => {
 // POST /api/demandes/delete — supprimer une demande (lead/dossier/import/réservation) DEPUIS l'app.
 router.post('/delete', requireMobileAuth, async (req, res) => {
   const { source, id } = (req.body ?? {}) as { source?: string; id?: string };
+  if (source === 'whatsapp' && id) { res.json({ ok: await deleteWaDemande(id) }); return; }
   const TABLE: Record<string, string> = { lead: 'client_leads', dossier: 'dossiers', import: 'import_orders', booking: 'bookings' };
   const table = source ? TABLE[source] : undefined;
   if (!table || !id) { res.status(400).json({ error: 'source valide + id requis' }); return; }
