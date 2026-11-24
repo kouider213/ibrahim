@@ -132,12 +132,71 @@ const ABS_FINISH = (): HomeAppEx[] => [
   { id: 'home_gainage', name: 'Gainage planche', muscle: 'abdos', sets: 3, reps: '45 s', rest: 45, alt: [], kg: null, from: 'Abdos (tu l\'as demandé)', tip: 'Fesses serrées, ventre rentré, corps droit.' },
 ];
 
-/** La séance de salle de ce jour-là (ou la prochaine) traduite exercice par exercice, prête pour l'app (même format que /api/sport). */
+// 24/11 Kouider (capture 10h43) : photos de MACHINES pour la maison → chaque exercice maison a SA photo (haltères / poids du corps)
+const DEMO = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises';
+const IMG: Record<string, string> = {
+  pompes_planche_larges: 'Pushups_Close_and_Wide_Hand_Positions', pompes_mains_surelevees: 'Incline_Push-Up', pompes_pieds_sureleves: 'Push-Ups_With_Feet_Elevated',
+  dips_chaises: 'Dips_-_Chest_Version', ecarte_sol: 'Dumbbell_Flyes', pullover_sol: 'Bent-Arm_Dumbbell_Pullover',
+  rowing_1_bras: 'One-Arm_Dumbbell_Row', rowing_coude_large: 'Bent_Over_Two-Dumbbell_Row_With_Palms_In', rowing_2_bras_penche: 'Bent_Over_Two-Dumbbell_Row',
+  lat_bouteilles: 'Side_Lateral_Raise', oiseau: 'Seated_Bent-Over_Rear_Delt_Raise', dev_epaules: 'Seated_Dumbbell_Press',
+  curl_1_bras: 'Dumbbell_Alternate_Bicep_Curl', curl_concentre: 'Concentration_Curls', curl_marteau: 'Hammer_Curls',
+  ext_triceps_tete: 'Standing_Dumbbell_Triceps_Extension', kickback: 'Tricep_Dumbbell_Kickback', pompes_serrees: 'Push-Ups_-_Close_Triceps_Position',
+  curl_poignets: 'Seated_Dumbbell_Palms-Up_Wrist_Curl', crunch: 'Crunches', crunch_leste: 'Weighted_Crunches', releves_jambes: 'Flat_Bench_Lying_Leg_Raise',
+  gainage: 'Plank', gainage_lateral: 'Side_Bridge', maison: 'Arm_Circles',
+};
+const imgOf = (id: string): string[] => { const k = IMG[id.replace(/^home_|^warmup_/, '')]; return k ? [0, 1].map(i => `${DEMO}/${k}/${i}.jpg`) : []; };
+
+// ── Jours MAISON (24/11 : « quand je vais pas à la salle je les fais, comme aujourd'hui, dimanche et jeudi ») ──────────
+const DAYS_K = 'kouider:forme:home_days';
+export async function homeDays(): Promise<number[]> {   // 0 = dimanche … 6 = samedi
+  try { const v = JSON.parse((await kvGet(DAYS_K)) ?? 'null') as number[] | null; return Array.isArray(v) ? v : [0, 4]; } catch { return [0, 4]; }
+}
+export async function setHomeDays(days: number[]): Promise<number[]> {
+  const d = [...new Set(days.filter(x => Number.isInteger(x) && x >= 0 && x <= 6))].sort();
+  await kvSet(DAYS_K, JSON.stringify(d));
+  return d;
+}
+const wd = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay();
+const addD = (date: string, n: number) => new Date(Date.parse(`${date}T12:00:00Z`) + n * 86400_000).toISOString().slice(0, 10);
+const NOT_HOME = /malad|🛌|repos|bless|douleur|vacances|voyage/i;
+type ST = import('./sport-coach.js').SessionType;
+const HOME_TYPES: ST[] = ['legs', 'push', 'cardio', 'pull'];   // HAUT B (bras) d'abord, puis HAUT A, HAUT C, ABDOS (jamais de jambes)
+
+/** Jour maison ? (jour de la semaine choisi sans salle, ou séance de salle annulée pour un empêchement) → séance choisie pour ne pas
+ *  refaire les mêmes muscles que la veille / le lendemain. null = pas un jour maison. */
+export async function homeDayPlan(date: string): Promise<{ type: ST; label: string } | null> {
+  return (await homeDayPlans([date]))[date] ?? null;
+}
+export async function homeDayPlans(dates: string[]): Promise<Record<string, { type: ST; label: string }>> {
+  const sc = await import('./sport-coach.js');
+  const info = await sc.dayInfos([...new Set(dates.flatMap(d => [-3, -2, -1, 0, 1, 2, 3].map(k => addD(d, k))))]);
+  const days = await homeDays();
+  const out: Record<string, { type: ST; label: string }> = {};
+  for (const date of dates) {
+    const me = info[date]!;
+    if (me.planned) continue;                                      // salle prévue ce jour-là → bouton Salle / Maison classique
+    const skippedForWork = !!me.skip && !NOT_HOME.test(me.skip);
+    if (!skippedForWork && (!days.includes(wd(date)) || me.skip)) continue;
+    if (me.logged) { out[date] = { type: me.logged, label: sc.SESSIONS[me.logged].label }; continue; }
+    const near = [info[addD(date, -1)]!, info[addD(date, 1)]!];
+    const busy = new Set(near.flatMap(n => [n.type, n.logged]).filter(Boolean).flatMap(t => sc.sessionMuscles(t as ST)).filter(m => m !== 'cardio'));
+    // même séance déjà prévue / faite à ± 3 jours → +1 (pas 2 fois ABDOS + CARDIO dans la même semaine)
+    const around = new Set([-3, -2, -1, 1, 2, 3].flatMap(k => { const x = info[addD(date, k)]!; return [x.type, x.logged]; }).filter(Boolean));
+    const score = (t: ST) => sc.sessionMuscles(t).filter(m => busy.has(m)).length + (around.has(t) ? 1 : 0);
+    const type = [...HOME_TYPES].sort((a, b) => score(a) - score(b))[0]!;
+    out[date] = { type, label: sc.SESSIONS[type].label };
+  }
+  return out;
+}
+
+/** La séance de salle de ce jour-là traduite exercice par exercice — ou, un jour MAISON, la séance du jour choisie. Même format que /api/sport. */
 export async function homeSportSession(date?: string) {
   const sc = await import('./sport-coach.js');
   const o = await sc.sportOverview();
   const all = [o.today, o.next, ...(o.planned ?? [])].filter(Boolean) as Array<NonNullable<typeof o.today>>;
-  const base = (date ? all.find(x => x.date === date) : null) ?? o.today ?? o.next ?? all[0];
+  const hd = date ? await homeDayPlan(date).catch(() => null) : null;
+  const base = hd && date ? await sc.sessionForType(hd.type, date) as unknown as NonNullable<typeof o.today>
+    : (date ? all.find(x => x.date === date) : null) ?? o.today ?? o.next ?? all[0];
   if (!base) return null;
   const g = await homeGear();
   const used = new Set<string>();
@@ -149,11 +208,13 @@ export async function homeSportSession(date?: string) {
     const kg = exs[i]!.kg;
     const sug = kg == null ? { kg: null, ...(e.suggestion.last ? { last: e.suggestion.last } : {}), ...(e.suggestion.prev ? { prev: e.suggestion.prev } : {}) }
       : { ...e.suggestion, kg, plan: Array(e.sets).fill(kg), goal: `À la maison : ${kg} kg → monte les reps, descente lente.` };
-    return { ...e, suggestion: sug, tip: `${e.tip}${exs[i]!.from && !e.id.startsWith('warmup_') ? ` (remplace « ${exs[i]!.from} »)` : ''}` };
+    return { ...e, demo: imgOf(e.id), suggestion: sug, tip: `${e.tip}${exs[i]!.from && !e.id.startsWith('warmup_') && !/demandé/.test(exs[i]!.from) ? ` (à la salle : « ${exs[i]!.from} »)` : ''}` };
   });
   const sets = exercises.reduce((a, e) => a + e.sets, 0);
   const estMin = Math.round(5 + sets * 2.3 + (exercises.some(e => e.muscle === 'cardio' && e.id !== 'warmup_maison') ? 20 : 0));
-  return { ...base, date: date ?? base.date, label: `🏠 ${base.label}`, emoji: '🏠', focus: `${base.focus} · à la maison`, custom: `Ta séance de salle traduite avec 2 haltères de ${g.dumbbellKg} kg + planche à pompes`, home: true, exercises, finisher: null, estMin, warmup: 'Échauffement maison 5 min' };
+  return { ...base, date: date ?? base.date, label: `🏠 ${base.label}`, emoji: '🏠', focus: `${base.focus} · à la maison`,
+    custom: hd ? `Jour maison : ${base.label} choisie pour ne pas refaire les muscles de la veille ni du lendemain (2 haltères de ${g.dumbbellKg} kg + planche à pompes)` : `Ta séance de salle traduite avec 2 haltères de ${g.dumbbellKg} kg + planche à pompes`,
+    home: true, homeDay: !!hd, exercises, finisher: null, estMin, warmup: 'Échauffement maison 5 min' };
 }
 
 export interface HomeSession { date: string; from: string; label: string; minutes: number; kcal: number; exercises: HomeEx[] }

@@ -27,7 +27,10 @@ router.get('/', async (_req, res) => {
     const { fillDemos } = await import('../../integrations/exercise-lib.js');
     const sessions = [o.today, o.next, ...(o.planned ?? [])].filter(Boolean) as Array<{ exercises: Array<{ name: string; demo: string[] }> }>;
     await fillDemos(sessions.flatMap(x => x.exercises)).catch(() => {});
-    res.json(o);
+    // 24/11 : jours MAISON (séance annulée pour un empêchement, jeudi, dimanche) → visibles et cliquables dans la semaine
+    const dates = [...(o.past ?? []), ...o.week].map(w => w.date);
+    const homeDays = await import('../../integrations/forme-home.js').then(h => h.homeDayPlans(dates)).catch(() => ({}));
+    res.json({ ...o, homeDays });
   } catch (err) { fail(res, err); }
 });
 
@@ -36,7 +39,6 @@ router.get('/home', async (req, res) => {
   try {
     const h = await import('../../integrations/forme-home.js');
     const s = await h.homeSportSession(isDate(req.query['date']) ? String(req.query['date']) : undefined);
-    if (s) { const { fillDemos } = await import('../../integrations/exercise-lib.js'); await fillDemos(s.exercises).catch(() => {}); }
     res.json({ session: s });
   } catch (err) { fail(res, err); }
 });

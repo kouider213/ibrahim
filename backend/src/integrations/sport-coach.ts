@@ -1856,3 +1856,24 @@ export async function decorateExercises(exs: Exercise[], date: string) {
   const log = await readSportLog();
   return exs.map(e => ({ ...e, suggestion: suggestFor(e, log, date), timed: isTimed(e), demo: knownExerciseId(e.name) ? [0, 1].map(i => `${DEMO_BASE}/${knownExerciseId(e.name)}/${i}.jpg`) : [] as string[], video: videoOf(e.name) }));
 }
+
+/** 24/11 — séance d'un TYPE donné pour une date sans créneau (jour MAISON : mardi annulé, jeudi, dimanche). */
+export async function sessionForType(type: SessionType, date: string) {
+  await loadProgram();
+  const log = await readSportLog();
+  const fit = fitSession(type, 75, date);
+  return { date, type, ...SESSIONS[type], deload: fit.deload, low: fit.low, form: null, exercises: fit.exercises.map(e => ({ ...e, suggestion: suggestFor(e, log, date), timed: isTimed(e), demo: demoFor(e), video: videoOf(e.name) })),
+    finisher: fit.finisher ?? null, estMin: fit.estMin, start: `${date}T09:00:00.000Z`, end: `${date}T10:15:00.000Z`, minutes: 75, arrived: null };
+}
+/** Ce qui est prévu / fait ce jour-là (pour éviter les mêmes muscles 2 jours de suite). */
+export type DayInfo = { type: SessionType | null; skip: string | null; planned: boolean; logged: SessionType | null };
+export async function dayInfos(dates: string[]): Promise<Record<string, DayInfo>> {
+  const st = await getState();
+  const log = await readSportLog();
+  return Object.fromEntries(dates.map(date => {
+    const l = log.find(x => x.date === date && x.sets.length);
+    return [date, { type: st.overrides[date] ?? st.plan[date]?.type ?? null, skip: st.skips[date] ?? null, planned: !!st.plan[date] && !st.skips[date], logged: l?.type ?? null }];
+  }));
+}
+export async function dayInfo(date: string): Promise<DayInfo> { return (await dayInfos([date]))[date]!; }
+export const sessionMuscles = (t: SessionType): string[] => SESSIONS[t]?.muscles ?? [];

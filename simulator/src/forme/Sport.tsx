@@ -850,9 +850,13 @@ export default function SportScreen({ toast, go, o }: { toast: (t: string) => vo
   const picked = pick ? (d.planned ?? []).find(x => x.date === pick) ?? (pick === d.today?.date ? d.today : pick === d.next?.date ? d.next : null) : null;
   // 02/11 (Kouider : « j'enregistre ma séance mais il me dit encore la séance d'aujourd'hui ») : faite → on passe à la suivante
   const doneToday = d.week[0]?.status === 'done';
-  const s = pick ? picked : doneToday ? d.next : d.today ?? d.next;
+  // 24/11 : jours MAISON (séance annulée, jeudi, dimanche) → la séance maison DU JOUR, pas la version maison de demain
+  const hDays = (d as unknown as { homeDays?: Record<string, { type: string; label: string }> }).homeDays ?? {};
+  const homeDate = pick && hDays[pick] ? pick : !pick && today && hDays[today] && !doneToday ? today : null;
+  if (homeDate && hs[homeDate] === undefined) queueMicrotask(() => fetchHome(homeDate));
+  const s = homeDate ? hs[homeDate] ?? null : pick ? picked : doneToday ? d.next : d.today ?? d.next;
   const isToday = !!s && s.date === today;
-  const homeOn = !!s && !!home[s.date];
+  const homeOn = !homeDate && !!s && !!home[s.date];
   const setHomeOn = (on: boolean) => {
     if (!s) return;
     vibrate(10);
@@ -884,12 +888,12 @@ export default function SportScreen({ toast, go, o }: { toast: (t: string) => vo
         {strip.map(w => {
           const done = w.status === 'done', sel = s?.date === w.date, live = w.status === 'en_cours', missed = w.status === 'missed';
           return (
-            <button key={w.date} onClick={() => { vibrate(10); setPick(w.type ? w.date : null); }} style={{ background: 'none', border: 'none', padding: 0, cursor: w.type ? 'pointer' : 'default', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, fontFamily: 'inherit' }}>
+            <button key={w.date} onClick={() => { vibrate(10); setPick(w.type || hDays[w.date] ? w.date : null); }} style={{ background: 'none', border: 'none', padding: 0, cursor: w.type || hDays[w.date] ? 'pointer' : 'default', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, fontFamily: 'inherit' }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: sel ? F.accent : F.muted }}>{SHORT_DAYS[dayOf(w.date)]!.slice(0, 1)}</div>
               <div style={{ width: 38, height: 38, borderRadius: 19, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700,
                 background: done ? F.accent : w.type && !w.skip ? 'var(--f-card)' : 'transparent', color: done ? '#fff' : missed ? F.red : F.ink,
                 border: sel ? `2.5px solid ${F.accent}` : live ? `2px dashed ${F.accent}` : w.type && !w.skip ? `1.5px solid ${missed ? F.red : F.line}` : `1.5px dashed ${F.line}` }}>
-                {w.skip ? '·' : done ? '✓' : Number(w.date.slice(8))}
+                {done ? '✓' : hDays[w.date] ? '🏠' : w.skip ? '·' : Number(w.date.slice(8))}
               </div>
             </button>
           );
@@ -904,16 +908,17 @@ export default function SportScreen({ toast, go, o }: { toast: (t: string) => vo
       {o && <Dashboard o={o} weeks={d.stats.weeks} weekDone={strip.filter(w => w.status === 'done').length} weekGoal={o.profile?.sessionsPerWeek || strip.filter(w => w.type && !w.skip).length || 4} streak={d.stats.streak} />}
       <TodayForm />
       {doneToday && !pick && <div style={{ ...card, marginTop: 14, display: 'flex', alignItems: 'center', gap: 12 }}><div style={{ width: 40, height: 40, borderRadius: 20, background: F.green, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 800 }}>✓</div><div><div style={{ fontWeight: 700 }}>Séance du jour faite{d.today?.label ? ` : ${d.today.label}` : ''}</div><div style={{ fontSize: 13, color: F.muted }}>Bravo. Récupère bien — voici la prochaine.</div></div></div>}
-      {s && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 14, background: 'var(--f-card)', borderRadius: 14, padding: 4, border: `1px solid ${F.line}` }}>
+      {s && !homeDate && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 14, background: 'var(--f-card)', borderRadius: 14, padding: 4, border: `1px solid ${F.line}` }}>
         {([['🏋️ Salle', false], ['🏠 Maison', true]] as const).map(([t, on]) => (
           <button key={t} onClick={() => setHomeOn(on)} style={{ border: 'none', borderRadius: 11, padding: '10px 0', fontWeight: 700, fontSize: 14.5, cursor: 'pointer', fontFamily: 'inherit', background: homeOn === on ? F.accent : 'transparent', color: homeOn === on ? '#fff' : F.ink }}>{t}</button>
         ))}
       </div>}
+      {homeDate && <div style={{ fontSize: 12.5, color: F.muted, margin: '14px 4px 0' }}>🏠 <b>Jour maison</b> : pas de salle ce jour-là, voici ta séance avec tes 2 haltères et ta planche à pompes. Lance « Renforcement musculaire » sur ta montre.</div>}
       {homeOn && <div style={{ fontSize: 12.5, color: F.muted, margin: '6px 4px 0' }}>Même séance que la salle, exercice par exercice, avec tes 2 haltères et ta planche à pompes. Lance « Renforcement musculaire » sur ta montre.</div>}
-      {s ? <SessionCard s={shown ?? s} kicker={isToday ? (doneToday ? 'Aujourd\'hui · faite ✓' : "Aujourd'hui") : `${pick ? '' : 'Prochaine · '}${SHORT_DAYS[dayOf(s.date)]} ${s.date.slice(8)} · ${new Date(s.start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' })}`} onStart={() => { if (homeOn && !shown) return; setPlay(shown ?? s); }} onEx={setEx} start={homeOn && !shown ? 'Chargement de la version maison…' : homeOn ? (isToday ? '🏠 Démarrer à la maison' : '🏠 Voir / faire à la maison') : isToday ? 'Démarrer l\'entraînement' : 'Voir / faire cette séance'} />
-        : <div style={{ ...card, marginTop: 14 }}>Pas de séance prévue cette semaine. Dis à Dzaryx « cale mes séances » 💬</div>}
-      {s && s.date <= (today ?? '') && <DoneToggle date={s.date} label={s.label} done={statusOf(s.date) === 'done'} live={statusOf(s.date) === 'en_cours'} toast={toast} onD={x => { setD(x); setPick(s.date); }} />}
-      {s && s.date >= (today ?? '') && statusOf(s.date) !== 'done' && <SwapRow d={d} date={s.date} current={s.type} toast={toast} onD={x => { setD(x); setPick(s.date); }} />}
+      {s ? <SessionCard s={shown ?? s} kicker={homeDate ? `${homeDate === today ? "Aujourd'hui" : `${SHORT_DAYS[dayOf(homeDate)]} ${homeDate.slice(8)}`} · jour maison${statusOf(homeDate) === 'done' ? ' · faite ✓' : ''}` : isToday ? (doneToday ? 'Aujourd\'hui · faite ✓' : "Aujourd'hui") : `${pick ? '' : 'Prochaine · '}${SHORT_DAYS[dayOf(s.date)]} ${s.date.slice(8)} · ${new Date(s.start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' })}`} onStart={() => { if (homeOn && !shown) return; setPlay(shown ?? s); }} onEx={setEx} start={homeDate ? (homeDate === today ? '🏠 Démarrer à la maison' : '🏠 Voir / faire à la maison') : homeOn && !shown ? 'Chargement de la version maison…' : homeOn ? (isToday ? '🏠 Démarrer à la maison' : '🏠 Voir / faire à la maison') : isToday ? 'Démarrer l\'entraînement' : 'Voir / faire cette séance'} />
+        : homeDate ? <div style={{ ...card, marginTop: 14, display: 'flex', justifyContent: 'center' }}><Spinner /></div> : <div style={{ ...card, marginTop: 14 }}>Pas de séance prévue cette semaine. Dis à Dzaryx « cale mes séances » 💬</div>}
+      {s && !homeDate && s.date <= (today ?? '') && <DoneToggle date={s.date} label={s.label} done={statusOf(s.date) === 'done'} live={statusOf(s.date) === 'en_cours'} toast={toast} onD={x => { setD(x); setPick(s.date); }} />}
+      {s && !homeDate && s.date >= (today ?? '') && statusOf(s.date) !== 'done' && <SwapRow d={d} date={s.date} current={s.type} toast={toast} onD={x => { setD(x); setPick(s.date); }} />}
       {s && <>
         <H2 right={<span style={{ fontSize: 13, color: F.muted }}>{(shown ?? s).exercises.length}</span>}>{homeOn ? 'Exercices à la maison' : 'Exercices'}</H2>
         <div style={{ ...card, padding: '4px 14px' }}>{(shown ?? s).exercises.map((e, k, a) => <div key={e.id} style={{ borderBottom: k < a.length - 1 ? `1px solid ${F.line}` : 'none' }}><ExRow e={e} onClick={() => setEx(e)} /></div>)}</div>
