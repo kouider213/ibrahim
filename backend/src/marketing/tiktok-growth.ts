@@ -27,10 +27,59 @@ export interface Analysis {
   summary?: string; winning_patterns?: string[]; hooks_bank?: string[]; formats?: string[];
   ideas?: Array<{ title: string; hook: string; format: string; why: string }>; keywords?: string[]; hashtags?: string[]; avoid?: string[];
   creators?: Array<{ handle: string; why: string }>;
+  selling_points?: string[]; client_questions?: string[];
 }
 export interface Growth {
   at: string; followers?: number; hours?: number[]; slots?: Array<{ day: number; h: number; m: number; prime: boolean; why: string }>;
   audience?: string; videos: Video[]; searches: string[]; trends: Trend[]; analysis: Analysis; views7?: number; followers7?: number;
+  fik?: string;   // ce que Dzaryx sait de FIK (conditions exactes, flotte, saisons, réservations, questions des clients)
+}
+
+/** 24/11 Kouider : « tu connais toutes les conditions via Dzaryx, où on est, Oran… aide-toi aussi de ça ».
+ *  Tout ce que Dzaryx sait de FIK, résumé pour l'équipe : elle ne promet que ce qui est VRAI et parle des vraies questions des clients. */
+export async function fikKnowledge(): Promise<string> {
+  const parts: string[] = [];
+  try {
+    const info = await (await import('../integrations/night-guard.js')).publicInfo();
+    const a = info.indexOf('CONDITIONS DE LOCATION'), b = info.indexOf('CONDITIONS ET FAQ DU SITE');
+    parts.push(`CONDITIONS EXACTES (site + agence) :\n${(a >= 0 ? info.slice(0, 600) + '\n' + info.slice(a, b > a ? b : a + 3500) : info.slice(0, 4000)).trim()}`);
+  } catch { /* site injoignable */ }
+  try {
+    const { supabase } = await import('../integrations/supabase.js');
+    const { data: cars } = await supabase.from('cars').select('name, category, seats, transmission').eq('available', true);
+    if (cars?.length) parts.push(`FLOTTE DISPONIBLE (${cars.length}) : ${(cars as Array<{ name: string; category?: string; seats?: number; transmission?: string }>).map(c => `${c.name}${c.category ? ` [${c.category}]` : ''}${c.seats && c.seats >= 7 ? ` ${c.seats} places` : ''}${/auto/i.test(c.transmission ?? '') ? ' auto' : ''}`).join(', ')}`);
+    const since = new Date(Date.now() - 180 * 86_400_000).toISOString().slice(0, 10);
+    const { data: bk } = await supabase.from('bookings').select('start_date, end_date, cars(name)').gte('start_date', since).in('status', ['CONFIRMED', 'COMPLETED', 'ACTIVE', 'ACCEPTED']);
+    const rows = (bk ?? []) as Array<{ start_date: string; end_date: string; cars?: { name?: string } }>;
+    if (rows.length) {
+      const by = new Map<string, number>(), months = new Map<string, number>();
+      let days = 0;
+      for (const r of rows) {
+        by.set(r.cars?.name ?? '?', (by.get(r.cars?.name ?? '?') ?? 0) + 1);
+        months.set(r.start_date.slice(0, 7), (months.get(r.start_date.slice(0, 7)) ?? 0) + 1);
+        days += Math.max(1, Math.round((Date.parse(r.end_date) - Date.parse(r.start_date)) / 86_400_000));
+      }
+      parts.push(`RÉSERVATIONS (6 derniers mois) : ${rows.length} locations, durée moyenne ${Math.round(days / rows.length)} jours. Voitures les plus louées : ${[...by].sort((x, y) => y[1] - x[1]).slice(0, 5).map(([n, c]) => `${n} (${c})`).join(', ')}. Par mois : ${[...months].sort().map(([m, c]) => `${m} ${c}`).join(', ')}.`);
+    }
+  } catch { /* base */ }
+  try {
+    const { seasonsBetween } = await import('../integrations/seasons.js');
+    const today = new Date().toISOString().slice(0, 10), to = new Date(Date.now() + 150 * 86_400_000).toISOString().slice(0, 10);
+    const ss = seasonsBetween(today, to);
+    if (ss.length) parts.push(`SAISONS À VENIR (à préparer 3-4 semaines avant) : ${ss.slice(0, 8).map(x => `${x.name} ${x.start}→${x.end} (${x.note})`).join(' ; ')}`);
+  } catch { /* */ }
+  try {
+    // vraies questions / objections des clients (WhatsApp 30 j + DM et commentaires TikTok) — sans noms ni numéros
+    const { kvJson } = await import('../integrations/ai-util.js');
+    const log = (await kvJson<Array<{ at: number; dir: string; text: string }>>('wa:convlog', [])).filter(x => x.dir === 'in' && Date.now() - x.at < 30 * 86_400_000);
+    const { listWaDemandes } = await import('../integrations/wa-demandes.js');
+    const tt = (await listWaDemandes('tiktok')).map(d => d.text);
+    const qs = [...log.map(x => x.text), ...tt].map(t => t.replace(/\+?\d[\d\s.-]{7,}/g, '…').replace(/\s+/g, ' ').trim())
+      .filter(t => t.length >= 12 && !/^\[/.test(t) && /\?|combien|prix|dispo|caution|aéroport|aeroport|âge|age|papier|passeport|permis|kilom|assurance|livr|wach|chhal|شحال/i.test(t));
+    if (qs.length) parts.push(`CE QUE LES CLIENTS DEMANDENT VRAIMENT (WhatsApp + TikTok, ${qs.length} messages) :\n${[...new Set(qs)].slice(-40).map(q => `- ${q.slice(0, 160)}`).join('\n')}`);
+  } catch { /* */ }
+  parts.push('OÙ : agence à Hay Badr (Oran), livraison gratuite UNIQUEMENT à l\'aéroport Ahmed Ben Bella (Es-Sénia). Contact : WhatsApp +32 466 31 14 69. Clients : surtout la diaspora algérienne en France qui atterrit à Oran ; aussi logement possible (à voir sur WhatsApp).');
+  return parts.join('\n\n');
 }
 
 const val = (x: unknown): number => (x && typeof x === 'object' && 'value' in (x as Record<string, unknown>) ? Number((x as { value: unknown }).value) || 0 : 0);
@@ -100,6 +149,7 @@ export async function buildGrowth(r: { insight?: Record<string, unknown>; videos
     videos, searches, trends, analysis: {},
     views7: vv.slice(-7).reduce((s, x) => s + x, 0), followers7: fol.length > 7 ? fol[fol.length - 1]! - fol[fol.length - 8]! : undefined,
   };
+  g.fik = await fikKnowledge().catch(() => '');
   g.analysis = await analyse(g).catch(e => { console.warn('[tt-growth] analyse', e instanceof Error ? e.message : e); return {}; });
   return g;
 }
@@ -107,8 +157,11 @@ export async function buildGrowth(r: { insight?: Record<string, unknown>; videos
 const fmtVid = (v: Video) => `${(v.plays ?? 0).toLocaleString('fr-FR')} vues · ${v.likes ?? 0} j'aime · ${v.saves ?? 0} enregistr. · ${v.shares ?? 0} partages · ${Math.round((v.duration ?? 0) / 1000)} s · ${new Date(v.create_time * 1000).toLocaleDateString('fr-FR')} — « ${v.desc.replace(/#\S+/g, '').replace(/\s+/g, ' ').trim().slice(0, 140)} »`;
 
 async function analyse(g: Growth): Promise<Analysis> {
-  const system = `Tu es l'équipe marketing TikTok de FIK Conciergerie (location de voitures à Oran, livraison à l'aéroport, clientèle surtout diaspora algérienne en France). L'équipe : ${TEAM.join(' ; ')}. Vous êtes les meilleurs du métier. Vous travaillez UNIQUEMENT à partir des chiffres fournis. Inspiration ≠ copie : vous reprenez des MÉCANIQUES (structure, type de hook, rythme, format), jamais le texte, la musique ou la vidéo d'un autre. Règles FIK : jamais de prix, jamais de date précise, jamais la Belgique, vouvoiement, pas d'argot. Réponds UNIQUEMENT en JSON valide, en français.`;
-  const user = `NOS VIDÉOS (triées par vues) :
+  const system = `Tu es l'équipe marketing TikTok de FIK Conciergerie (location de voitures à Oran, livraison à l'aéroport, clientèle surtout diaspora algérienne en France). L'équipe : ${TEAM.join(' ; ')}. Vous êtes les meilleurs du métier. Vous travaillez UNIQUEMENT à partir des chiffres fournis. Inspiration ≠ copie : vous reprenez des MÉCANIQUES (structure, type de hook, rythme, format), jamais le texte, la musique ou la vidéo d'un autre. Règles FIK : jamais de prix, jamais de date précise, jamais la Belgique, vouvoiement, pas d'argot. Vous ne promettez QUE ce qui est dans « CE QUE DZARYX SAIT DE FIK » (conditions exactes) : si un argument n'y est pas, vous ne l'utilisez pas. Les vraies questions des clients = vos meilleurs sujets de vidéos (une question fréquente = une vidéo qui y répond). Réponds UNIQUEMENT en JSON valide, en français.`;
+  const user = `CE QUE DZARYX SAIT DE FIK (vrai, à jour) :
+${(g.fik ?? '').slice(0, 7000) || '—'}
+
+NOS VIDÉOS (triées par vues) :
 ${g.videos.slice(0, 15).map(fmtVid).join('\n')}
 
 AUDIENCE : ${g.audience || 'inconnue'} · ${g.followers ?? '?'} abonnés · vues 7 derniers jours : ${g.views7 ?? '?'}
@@ -123,7 +176,9 @@ Rends : {
  "winning_patterns": ["5 choses qui marchent CHEZ NOUS, chiffres à l'appui (ex. « sans caution + aéroport = nos 2 meilleures vidéos, 97 k et 71 k vues »)"],
  "hooks_bank": ["12 hooks de 2 à 7 mots, inspirés des mécaniques qui marchent (curiosité, POV diaspora, problème→solution), adaptés à FIK"],
  "formats": ["6 formats repris des tendances, adaptés à FIK, avec la mécanique expliquée en 1 phrase"],
- "ideas": [{"title":"…","hook":"…","format":"…","why":"pourquoi ça va marcher, avec un chiffre"}],
+ "ideas": [{"title":"…","hook":"…","format":"…","why":"pourquoi ça va marcher, avec un chiffre ou une vraie question de client"}],
+ "selling_points": ["6 arguments VRAIS tirés des conditions exactes, classés du plus fort au moins fort pour la diaspora (ex. aucune caution, livraison gratuite à l'aéroport, kilométrage illimité, toute l'Algérie)"],
+ "client_questions": ["6 vraies questions/objections de clients à transformer en vidéos-réponses"],
  "keywords": ["8 mots-clés de recherche à mettre dans la légende ET dans le texte à l'écran (SEO TikTok)"],
  "hashtags": ["8 hashtags"],
  "avoid": ["4 choses qui ne marchent pas chez nous, chiffres à l'appui"],
@@ -147,6 +202,8 @@ export async function growthContext(): Promise<string> {
     a.avoid?.length ? `• À éviter : ${a.avoid.join(' ; ')}` : '',
     g.searches.length ? `• Mots tapés pour nous trouver (à mettre dans la légende ET à l'écran) : ${g.searches.slice(0, 8).join(', ')}` : '',
     a.keywords?.length ? `• Mots-clés SEO TikTok : ${a.keywords.join(', ')}` : '',
+    a.selling_points?.length ? `• Arguments VRAIS de FIK (n'en promets aucun autre) : ${a.selling_points.join(' ; ')}` : '',
+    a.client_questions?.length ? `• Vraies questions des clients (une vidéo peut y répondre) : ${a.client_questions.join(' ; ')}` : '',
     a.hooks_bank?.length ? `• Banque de hooks (inspiration, à adapter) : ${a.hooks_bank.slice(0, 8).map(h => `« ${h} »`).join(' · ')}` : '',
     a.formats?.length ? `• Formats tendance à adapter (mécanique, jamais copie) : ${a.formats.slice(0, 4).join(' ; ')}` : '',
   ].filter(Boolean).join('\n');
