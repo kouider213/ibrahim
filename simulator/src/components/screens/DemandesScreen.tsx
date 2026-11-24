@@ -18,7 +18,7 @@ interface Demande {
   meta?: string;
   admin_path: string;
   kind?: string;
-  fields?: { text?: string; chat?: string; first_at?: string };
+  fields?: { text?: string; chat?: string; first_at?: string; video?: string };
 }
 interface Counts { total: number; lead: number; dossier: number; import: number; booking: number; whatsapp?: number; }
 
@@ -318,7 +318,7 @@ export default function DemandesScreen() {
                 )}
                 <div style={{ display: 'flex', gap: 8 }}>
                   {d.client_phone && <Btn color="#25D366" onClick={() => waRelance(d)} style={{ flex: 1.2 }}><Ico e="💬" />{isStale(d) ? 'Relancer' : 'WhatsApp'}</Btn>}
-                  {d.source === 'tiktok' && <a href="https://www.tiktok.com/messages" target="_blank" rel="noopener noreferrer" style={{ ...btnStyle('ghost'), flex: 1.2, textDecoration: 'none' }}><Ico e="🎵" />Ouvrir TikTok</a>}
+                  {d.source === 'tiktok' && <a href={d.fields?.video ? `https://www.tiktok.com/@fik_conciergerie/video/${d.fields.video}` : 'https://www.tiktok.com/messages'} target="_blank" rel="noopener noreferrer" style={{ ...btnStyle('ghost'), flex: 1.2, textDecoration: 'none' }}><Ico e="🎵" />Ouvrir TikTok</a>}
                   {(d.source === 'lead' || d.source === 'whatsapp' || d.source === 'tiktok') && d.status !== 'conclu' && <Btn color={T.ok} disabled={!!busy} onClick={() => void act(d, 'conclu', 'Demande marquée conclue ✅')} style={{ flex: 1 }}>✓ Conclu</Btn>}
                   {(d.source === 'whatsapp' || d.source === 'tiktok') && !isClosed(d) && <Btn variant="ghost" disabled={!!busy} onClick={() => void act(d, 'perdu', 'Demande marquée perdue')} style={{ flex: 1 }}>✕ Perdu</Btn>}
                   {d.admin_path && <a href={`${SITE}${d.admin_path}`} target="_blank" rel="noopener noreferrer" style={{ ...btnStyle('ghost'), flex: 1, textDecoration: 'none' }}><Ico e="⚙️" />Gérer</a>}

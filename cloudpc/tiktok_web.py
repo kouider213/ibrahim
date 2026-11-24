@@ -35,23 +35,16 @@ JS_STATE = r"""(() => ({
   captcha: /Drag the slider|fit the puzzle|Faites glisser|Fais glisser|puzzle/i.test(document.body ? document.body.innerText : ''),
 }))()"""
 
-# Activité → Commentaires : chaque ligne = pseudo, « a commenté : … », date, (vidéo)
-JS_COMMENTS = r"""(() => {
-  const l = document.querySelector('[data-e2e=inbox-list]');
-  if (!l) return null;
-  const items = [...l.querySelectorAll('[data-e2e*=inbox-list-item], [data-e2e*=notification-item], li, [role=listitem]')];
-  const rows = items.length ? items : [...l.children].flatMap(c => [...c.children]);
-  return rows.map(r => {
-    const lines = (r.innerText || '').split('\n').map(x => x.trim()).filter(Boolean);
-    if (lines.length < 2) return null;
-    const name = lines[0];
-    const c = lines.find(x => /a commenté|commented|a répondu|replied/i.test(x)) || lines[1];
-    const text = c.replace(/^.*?(a commenté|commented|a répondu à ton commentaire|replied to your comment|a répondu)\s*:?\s*/i, '').trim();
-    const time = lines.find(x => /^\d|il y a|ago|hier/i.test(x) && x.length < 20) || '';
-    const a = r.querySelector('a[href*="/video/"]');
-    return { name, text, time, video: a ? a.getAttribute('href').split('/video/')[1] : '' };
-  }).filter(x => x && x.text && !/^Commentaires sur tes vidéos/.test(x.name));
-})()"""
+# Activité → Commentaires : [data-e2e=inbox-list-item] = pseudo (inbox-title) + « a commenté : … · 9-26 » (inbox-content) + lien vidéo
+JS_COMMENTS = r"""(() => [...document.querySelectorAll('[data-e2e=inbox-list] [data-e2e=inbox-list-item]')].map(r => {
+  const name = ((r.querySelector('[data-e2e=inbox-title]') || {}).innerText || '').trim();
+  const raw = ((r.querySelector('[data-e2e=inbox-content]') || {}).innerText || '').trim();
+  const m = raw.match(/^(?:a commenté|commented|a répondu à ton commentaire|a répondu|replied to your comment|replied)\s*:\s*([\s\S]*?)\s*·\s*([^·]+)$/i);
+  if (!name || !m) return null;   // « a aimé », mentions… : pas des commentaires
+  const a = [...r.querySelectorAll('a[href*="/video/"]')].pop();
+  const video = a ? a.getAttribute('href').split('/video/')[1].split('?')[0] : '';
+  return { name, text: m[1].trim(), time: m[2].trim(), video };
+}).filter(x => x && x.text))()"""
 
 
 def _load() -> dict:
@@ -77,6 +70,14 @@ def _when(t: str) -> str | None:
         if t.count('/') == 2:
             d, mo, y = t.split('/')
             return datetime(int(y), int(mo), int(d), 12).isoformat()
+        if len(t) <= 5 and t.count('-') == 1:   # commentaires : « 9-26 » = 26 septembre (année en cours, sinon l'an dernier)
+            mo, d = t.split('-')
+            dt = datetime(now.year, int(mo), int(d), 12)
+            return (dt if dt <= now + timedelta(days=1) else dt.replace(year=now.year - 1)).isoformat()
+        rel = __import__('re').match(r'(\d+)\s*(min|m|h|j|d)\b', t.lower().replace('il y a ', ''))
+        if rel:
+            n, u = int(rel.group(1)), rel.group(2)
+            return (now - (timedelta(minutes=n) if u in ('min', 'm') else timedelta(hours=n) if u == 'h' else timedelta(days=n))).isoformat()
         if t.lower() == 'hier':
             return (now - timedelta(days=1)).replace(hour=12).isoformat()
     except ValueError:
@@ -131,8 +132,13 @@ async def scan(emit, first: bool) -> None:
                 if key in seen:
                     continue
                 seen[key] = datetime.now().isoformat()
+                at = _when(c['time'])
+                age = (datetime.now() - datetime.fromisoformat(at)).days if at else 0
+                if age > 45:
+                    continue
+                # vieux commentaire (reprise / liste qui remonte) : dans DEMANDES mais pas de Telegram
                 await emit('cloud:tt_new', {'kind': 'comment', 'name': c['name'], 'text': c['text'], 'time': c['time'],
-                                            'video': c['video'], 'backfill': first})
+                                            'video': c['video'], 'backfill': first or age > 2, 'at': at})
         except Exception as e:
             log.info('commentaires TikTok illisibles : %s', e)
         _save(seen)

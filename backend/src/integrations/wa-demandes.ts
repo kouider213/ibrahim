@@ -100,3 +100,31 @@ export function deleteWaDemande(id: string, ch: Channel = 'whatsapp'): Promise<b
   return true;
   });
 }
+
+/** Même client ? Nom de discussion identique, ou mêmes 9 derniers chiffres pour un numéro. */
+function sameClient(a: string, b: string): boolean {
+  if (a.toLowerCase() === b.toLowerCase()) return true;
+  const da = a.replace(/\D/g, ''), db = b.replace(/\D/g, '');
+  return da.length >= 9 && db.length >= 9 && da.slice(-9) === db.slice(-9);
+}
+
+/** 24/11 : statut mis à jour tout seul — réponse WhatsApp envoyée → « contacté » ; réservation créée → « conclu ».
+ *  Seulement si la demande est encore à un statut de `from` (on ne rouvre jamais une demande close). */
+export function markDemande(chatOrPhone: string, status: string, from: string[], ch: Channel = 'whatsapp'): Promise<boolean> {
+  return serial(async () => {
+    if (!chatOrPhone) return false;
+    const list = await all(ch);
+    const d = list.find(x => sameClient(x.chat, chatOrPhone) && from.includes(x.status));
+    if (!d) return false;
+    d.status = status;
+    await save(list, ch);
+    return true;
+  });
+}
+
+/** Titre d'une demande : la dernière vraie demande du client (pas « Non merci » ni « [photo] »). */
+export function demandeTitle(text: string): string {
+  const lines = text.split('\n').filter(l => !/^\[/.test(l));
+  const pick = [...lines].reverse().find(l => looksLikeDemande(l)) ?? [...lines].reverse().find(l => l.length >= 20) ?? lines[lines.length - 1];
+  return (pick || 'Message').slice(0, 140);
+}

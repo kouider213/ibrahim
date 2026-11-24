@@ -1787,7 +1787,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'list_leads',
-    description: 'Lister les demandes/leads clients (recherches en cours). Utiliser quand Kouider demande "les demandes", "qui cherche quoi", "mes leads". Filtrable par statut.',
+    description: 'Lister les demandes/leads clients (recherches en cours). Utiliser quand Kouider demande "les demandes", "qui cherche quoi", "mes leads". Inclut aussi les demandes WhatsApp et TikTok (messages privés + commentaires) de la page DEMANDES. Filtrable par statut.',
     input_schema: {
       type: 'object' as const,
       properties: {

@@ -6,7 +6,7 @@ import { cloudEmit, isCloudPcOnline } from '../actions/handlers/cloudpc-relay.js
 import { emitProactive } from '../notifications/mobile-push.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { autoCall } from '../notifications/auto-call.js';
-import { recordWaDemande, looksLikeDemande } from './wa-demandes.js';
+import { recordWaDemande, looksLikeDemande, markDemande } from './wa-demandes.js';
 import { callGroqVision, callOpenAIVision } from './llm-router.js';
 
 // WhatsApp Business de Kouider branché sur le PC cloud (web.whatsapp.com, appareil connecté — 2026-10-15).
@@ -250,6 +250,7 @@ export async function onWaNew(c: WaChat): Promise<void> {
       if (sent.ok) {
         if (declined) await markAgeRefused(name, age!);
         await kvSet(`wa:first:${name}`, '1', 30 * 86_400);
+        void markDemande(name, 'contacté', ['nouveau']).catch(() => {});
         await kvSet(`wa:handled:${name.toLowerCase()}`, String(Date.now()), 86_400);
         void import('./foresight.js').then(f => f.logWa(name, 'out', first)).catch(() => {});
         const t = `📲 WhatsApp — ${name} (nouveau client)\n« ${missedCall && !fromClient.length ? 'appel manqué' : preview.slice(0, 400)} »\n\n`
@@ -322,6 +323,7 @@ export async function onWaNew(c: WaChat): Promise<void> {
     const sent = await cloudEmit<R>('cloud:wa', { action: 'send', chat: name, text: reply }, 80_000).catch(() => ({ ok: false } as R));
     if (sent.ok) {
       const d = await drafts(); delete d[name.toLowerCase()]; await kvSet(DRAFTS_KEY, JSON.stringify(d), 3 * 86_400);
+      void markDemande(name, 'contacté', ['nouveau']).catch(() => {});
       const t = `🧠 WhatsApp — ${name} : « ${preview.slice(0, 300)} »
 ✅ Répondu SEUL (autonomie activée pour ce type) :
 ${reply}`;
@@ -401,6 +403,7 @@ export async function handleWaYesNo(message: string): Promise<{ reply?: string; 
     .catch(err => ({ ok: false, error: err instanceof Error ? err.message : String(err) } as R));
   if (!r.ok) return { reply: `❌ Pas envoyé à ${p.chat} : ${r.error ?? 'erreur'}` };
   void import('./foresight.js').then(m => m.logWa(p.chat, 'out', p.draft)).catch(() => {});
+  void markDemande(p.chat, 'contacté', ['nouveau']).catch(() => {});
   const d = await drafts(); delete d[p.chat.toLowerCase()]; await kvSet(DRAFTS_KEY, JSON.stringify(d), 3 * 86_400);
   void import('./night-guard.js').then(m => m.clearClientWaiting(p.chat)).catch(() => {});
   return { reply: `✅ Envoyé sur WhatsApp à ${r['chat'] || p.chat}.${await next()}` };
@@ -453,6 +456,7 @@ export async function sendWaDirect(number: string, text: string): Promise<void> 
   if (!isCloudPcOnline()) throw new Error('le PC cloud ne répond pas (WhatsApp injoignable)');
   const r = await cloudEmit<R>('cloud:wa', { action: 'send', chat: `+${number.replace(/\D/g, '')}`, text }, 80_000);
   if (!r.ok) throw new Error(r.error ?? 'pas envoyé');
+  void markDemande(number, 'contacté', ['nouveau']).catch(() => {});
   const d = await drafts(); delete d[`+${number.replace(/\D/g, '')}`]; await kvSet(DRAFTS_KEY, JSON.stringify(d), 3 * 86_400);
 }
 
@@ -712,6 +716,7 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
       const d = await drafts(); delete d[chat.toLowerCase()]; await kvSet(DRAFTS_KEY, JSON.stringify(d), 3 * 86_400);
       void import('./foresight.js').then(m => m.logWa(String(r['chat'] || chat), 'out', text)).catch(() => {});
       void import('./night-guard.js').then(m => m.clearClientWaiting(chat)).catch(() => {});
+      void markDemande(chat, 'contacté', ['nouveau']).catch(() => {});
       return `✅ Envoyé sur WhatsApp à ${r['chat'] || chat}.`;
     }
     if (action === 'send_file') {

@@ -4,14 +4,7 @@ import { Router } from 'express';
 import { supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { createCalendarEvent } from '../../integrations/google-calendar.js';
-import { listWaDemandes, updateWaDemande, deleteWaDemande, looksLikeDemande } from '../../integrations/wa-demandes.js';
-
-/** Titre d'une demande WhatsApp : la dernière vraie demande du client (pas « Non merci » ni « [photo] »). */
-function waTitle(text: string): string {
-  const lines = text.split('\n').filter(l => !/^\[/.test(l));
-  const pick = [...lines].reverse().find(l => looksLikeDemande(l)) ?? [...lines].reverse().find(l => l.length >= 20) ?? lines[lines.length - 1];
-  return (pick || 'Message WhatsApp').slice(0, 140);
-}
+import { listWaDemandes, updateWaDemande, deleteWaDemande, demandeTitle as waTitle } from '../../integrations/wa-demandes.js';
 
 const router = Router();
 
@@ -97,7 +90,7 @@ router.get('/', requireMobileAuth, async (_req, res) => {
         title: waTitle(w.text),
         client_name: w.chat, status: w.status, lang: w.lang, created_at: w.updated_at,
         meta: [w.via === 'comment' ? `commentaire${w.video ? ` · ${w.video}` : ''}` : 'message privé', w.count > 1 ? `${w.count} messages` : ''].filter(Boolean).join(' · '),
-        admin_path: '', kind: w.via, fields: { text: w.text, chat: w.chat, first_at: w.created_at },
+        admin_path: '', kind: w.via, fields: { text: w.text, chat: w.chat, first_at: w.created_at, video: w.video },
       });
     }),
   ]);

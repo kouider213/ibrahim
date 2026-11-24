@@ -1136,6 +1136,8 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
     }).catch(() => {});
   }
 
+  // 24/11 : la demande WhatsApp de ce client (page DEMANDES) passe « conclu »
+  if (input['client_phone']) void import('./wa-demandes.js').then(m => m.markDemande(String(input['client_phone']), 'conclu', ['nouveau', 'contacté'])).catch(() => {});
   // Papiers WhatsApp → dossier + vrai nom + contact WhatsApp, sans attendre que Dzaryx y pense (28/10)
   let papersNote = '';
   if (input['client_phone'] && rentedBy === 'Kouider') {
@@ -6118,12 +6120,22 @@ async function listLeadsTool(input: Record<string, unknown>): Promise<string> {
   else q = q.in('status', ['nouveau', 'en_cours']);
   const { data, error } = await q.limit(50);
   if (error) return `❌ Erreur: ${error.message}`;
-  if (!data || data.length === 0) return status ? `Aucune demande "${status}".` : 'Aucune demande en cours.';
-  const lines = (data as any[]).map(l => {
+  const lines = ((data ?? []) as any[]).map(l => {
     const b = l.budget_max ? ` · ≤${Number(l.budget_max).toLocaleString()} ${l.currency === 'DZD' ? 'DA' : '€'}` : '';
     return `📥 ${l.client_name} — ${LEAD_CAT_LABEL[l.category] || l.category} : ${l.criteria}${l.city ? ` (${l.city})` : ''}${b} · ${l.status}`;
   });
-  return `${data.length} demande(s) :\n${lines.join('\n')}`;
+  // 24/11 : demandes arrivées par WhatsApp et TikTok (même liste que la page DEMANDES de l'app)
+  if (!status || status === 'nouveau') {
+    const { listWaDemandes, WA_CLOSED, demandeTitle } = await import('./wa-demandes.js');
+    for (const ch of ['whatsapp', 'tiktok'] as const) for (const d of await listWaDemandes(ch)) {
+      if (WA_CLOSED.has(d.status)) continue;
+      const last = demandeTitle(d.text);
+      const days = Math.floor((Date.now() - Date.parse(d.updated_at)) / 86_400_000);
+      lines.push(`${ch === 'whatsapp' ? '💬 WhatsApp' : d.via === 'comment' ? '🎵 TikTok (commentaire)' : '🎵 TikTok'} ${d.chat} : « ${last.slice(0, 120)} » · ${d.status}${days >= 1 ? ` · il y a ${days} j` : ''}`);
+    }
+  }
+  if (!lines.length) return status ? `Aucune demande "${status}".` : 'Aucune demande en cours.';
+  return `${lines.length} demande(s) (site + WhatsApp + TikTok) :\n${lines.join('\n')}`;
 }
 
 async function updateLeadStatusTool(input: Record<string, unknown>): Promise<string> {
