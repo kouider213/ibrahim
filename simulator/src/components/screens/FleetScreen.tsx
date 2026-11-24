@@ -27,6 +27,7 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
   const [msg, setMsgRaw]   = useState('');
   const [inspect, setInspect] = useState<InspectOpen | null>(null);
   const [editCar, setEditCar] = useState<Car | null>(null);
+  const [formCar, setFormCar] = useState<Car | 'new' | null>(null);   // fiche complète (ajout / modification)
   const [bookCar, setBookCar] = useState<Car | null>(null);
   const [detail, setDetail] = useState<Car | null>(null);
   const [gallery, setGallery] = useState<{ kind: GalleryKind; id: string; name: string } | null>(null);
@@ -105,9 +106,10 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
           compact
           title={tab === 'cars' ? 'Mes véhicules' : tab === 'immo' ? 'Immobilier' : 'Vente auto'}
           subtitle={tab === 'cars' ? (isHouari ? 'Prix en dinars (DA)' : 'Prix Houari, prix client et marge par jour') : tab === 'immo' ? 'Biens publiés sur le site' : 'Voitures à vendre sur le site'}
-          right={tab === 'cars' ? (
+          right={tab === 'cars' ? (<div style={{ display: 'flex', gap: 8 }}>
+            {!isHouari && <button onClick={() => setFormCar('new')} aria-label="Ajouter une voiture" title="Ajouter une voiture" style={{ height: 40, padding: '0 14px', borderRadius: 12, border: 'none', background: T.accent, color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>＋ Ajouter</button>}
             <button onClick={() => void load()} aria-label="Actualiser" title="Actualiser le parc" style={{ width: 40, height: 40, borderRadius: 12, border: `1px solid ${T.line}`, background: T.surface2, color: T.accent, fontSize: 18, cursor: 'pointer', flexShrink: 0, animation: loading ? 'dzSpin 1s linear infinite' : 'none' }}>↻</button>
-          ) : undefined}
+          </div>) : undefined}
         />
         <style>{'@keyframes dzSpin{to{transform:rotate(360deg)}}'}</style>
         <div style={{ padding: '0 16px 12px' }}>
@@ -150,7 +152,7 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
         {loading && !cars.length ? (
           <SkeletonCards count={3} height={250} />
         ) : shown.length === 0 ? (
-          <Empty icon="🚗" title={cars.length ? 'Aucune voiture dans ce filtre' : 'Aucun véhicule'} text={cars.length ? 'Change de filtre pour voir le reste du parc.' : 'Ajoute une voiture en le disant à Dzaryx.'} />
+          <Empty icon="🚗" title={cars.length ? 'Aucune voiture dans ce filtre' : 'Aucun véhicule'} text={cars.length ? 'Change de filtre pour voir le reste du parc.' : 'Appuie sur « ＋ Ajouter » en haut.'} />
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', gap: 14 }}>
             {shown.map(car => {
@@ -204,7 +206,7 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
                   {/* Actions */}
                   <div style={{ display: 'flex', gap: 8, padding: 14 }}>
                     <ActionBtn icon="📅" label="Réserver" color={T.accent} onClick={() => setBookCar(car)} />
-                    <ActionBtn icon="✏️" label="Prix" color={T.accent} onClick={() => setEditCar(car)} />
+                    <ActionBtn icon="✏️" label={isHouari ? 'Prix' : 'Modifier'} color={T.accent} onClick={() => isHouari ? setEditCar(car) : setFormCar(car)} />
                     <ActionBtn icon="🖼️" label="Photos" color={T.ok} onClick={() => setGallery({ kind: 'car', id: car.id, name: car.name })} />
                     <ActionBtn icon="📷" label="État" color={T.warn} onClick={() => setInspect({ kind: 'vehicle', name: car.name })} />
                   </div>
@@ -225,7 +227,7 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
           onClose={() => setDetail(null)}
           onToggle={(c) => void toggle(c)}
           onBook={(c) => setBookCar(c)}
-          onPrice={(c) => setEditCar(c)}
+          onPrice={(c) => isHouari ? setEditCar(c) : setFormCar(c)}
           onPhotos={(c) => setGallery({ kind: 'car', id: c.id, name: c.name })}
           onInspect={(c) => setInspect({ kind: 'vehicle', name: c.name })}
         />
@@ -245,6 +247,19 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
           isHouari={isHouari}
           onClose={() => setEditCar(null)}
           onSaved={(updated) => { setCars(cs => cs.map(c => c.id === updated.id ? updated : c)); setEditCar(null); setMsg('✅ Prix mis à jour partout (site, admin, Dzaryx)'); }}
+        />
+      )}
+
+      {formCar && (
+        <CarFormModal
+          car={formCar === 'new' ? null : (cars.find(c => c.id === formCar.id) ?? formCar)}
+          onClose={() => setFormCar(null)}
+          onSaved={(saved, isNew) => {
+            setFormCar(null);
+            setCars(cs => isNew ? [...cs, saved] : cs.map(c => c.id === saved.id ? saved : c));
+            if (isNew) { setMsg(`✅ ${saved.name} ajoutée au site — ajoute les photos`, 3500); setGallery({ kind: 'car', id: saved.id, name: saved.name }); }
+            else setMsg('✅ Fiche mise à jour partout (site, Dzaryx)');
+          }}
         />
       )}
 
@@ -653,6 +668,106 @@ function CarEditModal({ car, isHouari, onClose, onSaved }: {
           <span style={{ fontSize: 22, fontWeight: 800, color: marge > 0 ? T.ok : T.bad }}>{marge > 0 ? '+' : ''}{fmt(marge)} {cur}/j</span>
         </div>
       )}
+      {err && <div style={{ fontSize: 13.5, fontWeight: 600, color: T.bad, textAlign: 'center', marginTop: 10 }}>{err}</div>}
+    </Sheet>
+  );
+}
+
+
+// ── Fiche complète : ajouter / modifier une voiture (24/11 « ça doit être plus simple à partir de PARC ») ──
+// Tout en un seul écran, en euros (le site affichait « 25 DA » quand l'admin du site laissait la devise sur Dinar).
+const CATS: [string, string][] = [['citadine', 'Citadine'], ['berline', 'Berline'], ['SUV', 'SUV'], ['familiale', 'Familiale'], ['premium', 'Premium'], ['utilitaire', 'Utilitaire']];
+function Pills({ items, value, onChange }: { items: [string, string][]; value: string; onChange: (v: string) => void }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {items.map(([v, l]) => {
+        const on = value.toLowerCase() === v.toLowerCase();
+        return <button key={v} type="button" onClick={() => onChange(v)} style={{ padding: '9px 14px', borderRadius: 12, border: `1px solid ${on ? T.accent : T.line}`, background: on ? tone(T.accent, 0.14) : T.surface2, color: on ? T.accent : T.text, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{l}</button>;
+      })}
+    </div>
+  );
+}
+function CarFormModal({ car, onClose, onSaved }: { car: Car | null; onClose: () => void; onSaved: (c: Car, isNew: boolean) => void }) {
+  const isNew = !car;
+  const [name, setName] = useState(car?.name ?? '');
+  const [category, setCategory] = useState(car?.category ?? 'citadine');
+  const [fuel, setFuel] = useState(car?.fuel ?? 'essence');
+  const [box, setBox] = useState(car?.transmission ?? 'manuelle');
+  const [seats, setSeats] = useState(String(car?.seats ?? 5));
+  const [owner, setOwner] = useState(car?.base_price != null ? String(car.base_price) : '');
+  const [client, setClient] = useState(car?.resale_price != null ? String(car.resale_price) : '');
+  const [desc, setDesc] = useState(car?.description ?? '');
+  const [saving, setSaving] = useState(false);
+  const [writing, setWriting] = useState(false);
+  const [err, setErr] = useState('');
+  const o = owner ? Number(owner) : null;
+  const c = client ? Number(client) : null;
+  const marge = o != null && c != null ? c - o : null;
+
+  const write = async () => {
+    if (!name.trim()) { setErr('Mets d\'abord le nom de la voiture.'); return; }
+    setWriting(true); setErr('');
+    try { const r = await business.describeCar({ name: name.trim(), category, fuel, transmission: box, seats: Number(seats) || 5 }); setDesc(r.description); }
+    catch { setErr('Description impossible, réessaie.'); }
+    setWriting(false);
+  };
+
+  const save = async () => {
+    if (!name.trim()) { setErr('Le nom est obligatoire.'); return; }
+    if (c == null || c <= 0) { setErr('Mets le prix client par jour (en €).'); return; }
+    setSaving(true); setErr('');
+    const payload: Record<string, unknown> = {
+      name: name.trim(), category, fuel, transmission: box, seats: Number(seats) || 5,
+      base_price: o ?? 0, resale_price: c, currency: 'EUR', description: desc.trim() || undefined,
+    };
+    try {
+      if (isNew) {
+        delete payload.currency;   // le serveur force EUR à la création
+        const r = await business.createCar(payload);
+        onSaved(r.car, true);
+      } else {
+        if (!desc.trim()) delete payload.description;
+        const r = await business.updateCar(car.id, payload);
+        onSaved(r.car ?? { ...car, ...payload } as Car, false);
+      }
+    } catch { setErr('Échec de l\'enregistrement. Réessaie.'); setSaving(false); }
+  };
+
+  return (
+    <Sheet
+      title={isNew ? 'Ajouter une voiture' : `Modifier · ${car.name}`}
+      subtitle={isNew ? 'Elle apparaît tout de suite sur le site. Les photos juste après.' : 'Changé ici = changé partout : site, Dzaryx'}
+      onClose={onClose}
+      footer={<>
+        <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Annuler</Btn>
+        <Btn variant="primary" onClick={() => void save()} disabled={saving} style={{ flex: 2 }}>{saving ? 'Enregistrement…' : isNew ? 'Ajouter au site' : 'Enregistrer'}</Btn>
+      </>}
+    >
+      <Field label="Nom de la voiture">
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="ex. Clio 5 essence" style={inputStyle} />
+      </Field>
+      <Field label="Catégorie"><Pills items={CATS} value={category} onChange={setCategory} /></Field>
+      <Field label="Carburant"><Pills items={[['essence', 'Essence'], ['diesel', 'Diesel'], ['hybride', 'Hybride']]} value={fuel} onChange={setFuel} /></Field>
+      <Field label="Boîte"><Pills items={[['manuelle', 'Manuelle'], ['automatique', 'Automatique']]} value={box} onChange={setBox} /></Field>
+      <Field label="Places"><Pills items={[['4', '4'], ['5', '5'], ['7', '7'], ['9', '9']]} value={seats} onChange={setSeats} /></Field>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <Field label="Prix Houari / jour (€)">
+          <input value={owner} onChange={e => setOwner(e.target.value)} type="number" inputMode="decimal" placeholder="ex. 16" style={inputStyle} />
+        </Field>
+        <Field label="Prix client / jour (€)">
+          <input value={client} onChange={e => setClient(e.target.value)} type="number" inputMode="decimal" placeholder="ex. 25" style={inputStyle} />
+        </Field>
+      </div>
+      {marge != null && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: 14, marginBottom: 12, background: tone(marge > 0 ? T.ok : T.bad, 0.1), border: `1px solid ${tone(marge > 0 ? T.ok : T.bad, 0.3)}` }}>
+          <span style={{ fontSize: 14, color: T.muted, fontWeight: 600 }}>Ta marge</span>
+          <span style={{ fontSize: 20, fontWeight: 800, color: marge > 0 ? T.ok : T.bad }}>{marge > 0 ? '+' : ''}{fmt(marge)} €/j</span>
+        </div>
+      )}
+      <Field label="Description (affichée sur le site, traduite en anglais/arabe)" hint={isNew && !desc ? 'Laisse vide : Dzaryx en écrit une automatiquement.' : undefined}>
+        <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={6} placeholder="Quelques lignes sur la voiture…" style={{ ...inputStyle, height: 'auto', minHeight: 130, resize: 'vertical', lineHeight: 1.45, paddingTop: 10 }} />
+      </Field>
+      <Btn variant="soft" onClick={() => void write()} disabled={writing} style={{ width: '100%' }}>{writing ? 'J\'écris…' : '✨ Écrire la description pour moi'}</Btn>
       {err && <div style={{ fontSize: 13.5, fontWeight: 600, color: T.bad, textAlign: 'center', marginTop: 10 }}>{err}</div>}
     </Sheet>
   );

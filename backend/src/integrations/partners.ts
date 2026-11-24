@@ -200,7 +200,7 @@ export async function addOffer(partnerId: string, b: Record<string, unknown>, ex
   if (type === 'vehicle' && (b['add_to_fleet'] === true || b['add_to_fleet'] === 'true')) {
     const { data, error } = await supabase.from('cars').insert({
       name: offer.title, category: str(b['category'], 30) ?? 'citadine', available: offer.available,
-      base_price: offer.owner_price ?? 0, resale_price: offer.client_price ?? 0, description: offer.description ?? null,
+      base_price: offer.owner_price ?? 0, resale_price: offer.client_price ?? 0, description: offer.description || (await import('./car-describe.js')).carDescription({ name: offer.title, category: str(b['category'], 30) ?? 'citadine', fuel: str(b['fuel'], 20), transmission: str(b['transmission'], 20), seats: num(b['seats']) ?? offer.capacity ?? 5 }), currency: 'EUR',
       seats: num(b['seats']) ?? offer.capacity ?? 5, fuel: str(b['fuel'], 20) ?? null, transmission: str(b['transmission'], 20) ?? null,
       image_url: photos[0] ?? null, created_at: now(),
     }).select('id').single();

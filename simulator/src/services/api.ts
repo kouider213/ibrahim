@@ -1321,6 +1321,10 @@ export const business = {
   deleteCarReminder: (id: string, rid: string) =>
     apiFetch<{ ok: boolean }>(`/api/cars/${encodeURIComponent(id)}/reminders/${encodeURIComponent(rid)}`, { method: 'DELETE' }),
 
+  createCar: (data: Record<string, unknown>) =>
+    apiFetch<{ car: Car }>('/api/cars', { method: 'POST', body: JSON.stringify(data) }),
+  describeCar: (data: { name: string; category?: string; fuel?: string; transmission?: string; seats?: number }) =>
+    apiFetch<{ description: string }>('/api/cars/describe', { method: 'POST', body: JSON.stringify(data) }),
   updateCar: (id: string, data: Record<string, unknown>) =>
     apiFetch<{ car: Car }>(`/api/cars/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
 

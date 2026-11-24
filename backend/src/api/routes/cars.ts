@@ -7,6 +7,7 @@ import { redis } from '../../queue/queue.js';
 import { env } from '../../config/env.js';
 import { insertReminder, updateReminderStatus } from '../../db/reminders.js';
 import { resolveTimezone, getUTCOffsetString, toLocalISO } from '../../utils/timezone.js';
+import { carDescription } from '../../integrations/car-describe.js';
 import { resolveMedia, deleteMediaPhoto, setMediaCover, sendMediaToTelegram, type MediaKind } from '../../integrations/media-photos.js';
 
 cloudinary.config({
@@ -166,6 +167,14 @@ const carCreateSchema = z.object({
   fuel:         z.string().optional(),
   transmission: z.string().optional(),
   image_url:    z.string().url().optional(),
+  houari_base_price: z.number().min(0).nullable().optional(),
+});
+
+// POST /api/cars/describe — description prête à coller (bouton « ✨ Écrire pour moi » de l'app)
+router.post('/describe', requireMobileAuth, (req, res) => {
+  const b = (req.body ?? {}) as { name?: string; category?: string; fuel?: string; transmission?: string; seats?: number };
+  if (!b.name) { res.status(400).json({ error: 'name requis' }); return; }
+  res.json({ description: carDescription({ name: b.name, category: b.category, fuel: b.fuel, transmission: b.transmission, seats: b.seats }) });
 });
 
 // POST /api/cars — create a new car
@@ -178,7 +187,8 @@ router.post('/', requireMobileAuth, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('cars')
-      .insert({ ...parsed.data, created_at: new Date().toISOString() })
+      // Location = toujours en euros (sinon le site affiche « 25 DA ») + description auto si vide
+      .insert({ ...parsed.data, currency: 'EUR', description: parsed.data.description?.trim() || carDescription(parsed.data), created_at: new Date().toISOString() })
       .select()
       .single();
     if (error) throw new Error(error.message);

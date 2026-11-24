@@ -7274,14 +7274,14 @@ async function addCarTool(input: Record<string, unknown>, sessionId?: string): P
   const category     = (input['category']   as string) || 'berline';
   const fuel         = (input['fuel']       as string) || 'essence';
   const transmission = (input['transmission'] as string) || 'manuelle';
-  const description  = (input['description'] as string) || null;
+  const description  = (input['description'] as string) || (await import('./car-describe.js')).carDescription({ name, category, fuel, transmission, seats });
   const imageUrl     = (input['image_url']  as string) || null;
 
   const { data, error } = await supabase
     .from('cars')
     .insert({
       name, base_price: basePrice, resale_price: resalePrice,
-      seats, category, fuel, transmission, description,
+      seats, category, fuel, transmission, description, currency: 'EUR',
       image_url: imageUrl, available: true,
       created_at: new Date().toISOString(),
     })
