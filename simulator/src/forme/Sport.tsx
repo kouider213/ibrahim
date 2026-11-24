@@ -75,7 +75,7 @@ function SessionCard({ s, kicker, onStart, onEx, start }: { s: SportSession; kic
           <button key={e.id} onClick={() => onEx(e)} style={{ ...thumb, width: 78, height: 78, border: 'none', cursor: 'pointer' }}>{e.demo.length ? <Anim img={e.demo} alt={e.name} h={70} /> : <span style={{ margin: 'auto' }}>🏋️</span>}</button>
         ))}
       </div>
-      <div style={{ padding: '6px 16px 0', fontSize: 12.5, color: F.muted }}><Ico e="🔥" />Échauffement : {warmupFor({ muscles: s.muscles, exercises: s.exercises }, 8).name.replace('Échauffement — ', '')} (1er exercice de la séance){finisher ? ` · Fin : ${finisher}` : ''}</div>
+      <div style={{ padding: '6px 16px 0', fontSize: 12.5, color: F.muted }}><Ico e="🔥" />Échauffement : {s.exercises[0]?.id.startsWith('warmup_') ? `${s.exercises[0].name} · ${s.exercises[0].reps}` : warmupFor({ muscles: s.muscles, exercises: s.exercises }, 8).name.replace('Échauffement — ', '')} (1er exercice de la séance){finisher ? ` · Fin : ${finisher}` : ''}</div>
       <div style={{ padding: 16 }}><button onClick={onStart} style={{ ...btn, width: '100%' }}>{start}</button></div>
     </div>
   );
@@ -662,7 +662,7 @@ function ResumeBanner({ toast, onDone }: { toast: (t: string) => void; onDone?: 
       </div>
       {play && <Player s={live.s} resume={live} kind={live.kind} onClose={() => { setPlay(false); setLive(readLive()); }} onFinished={msg => { setPlay(false); setLive(null); toast(msg); onDone?.(); }} save={async (sets, durationMin, rpe, exs, rws, note) => {
         if (live.kind === 'coach') {
-          const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date: live.s.date, type: live.s.type, ...(live.s.focus === 'zones' ? { label: live.s.label } : {}), sets, durationMin, rpe, ...logExtras(exs, rws, live.s.date), ...(note ? { note } : {}) }) });
+          const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date: live.s.date, type: live.s.type, ...(live.s.focus === 'zones' || live.s.label.startsWith('🏠') ? { label: live.s.label } : {}), sets, durationMin, rpe, ...logExtras(exs, rws, live.s.date), ...(note ? { note } : {}) }) });
           return `💪 Séance enregistrée${r.prs.length ? ` — 🏆 record : ${r.prs.join(', ')}` : ''} · Dzaryx est prévenu`;
         }
         if (!formeToken()) return saveRoutineToSport(live.s, sets, durationMin, rpe, exs, rws, note);
@@ -831,6 +831,10 @@ export default function SportScreen({ toast, go, o }: { toast: (t: string) => vo
   const [bump, setBump] = useState(0);
   const [hist, setHist] = useState<string | null>(null);
   const [agenda, setAgenda] = useState(false);
+  // 24/11 Kouider : « tout doit être comme à la salle, exactement pareil, sauf une version pour la maison » → bouton Salle / Maison
+  const [home, setHome] = useState<Record<string, boolean>>(() => { try { return JSON.parse(localStorage.getItem('forme:home-mode') ?? '{}') as Record<string, boolean>; } catch { return {}; } });
+  const [hs, setHs] = useState<Record<string, SportSession | null>>({});
+  const asked = useRef(new Set<string>());
   // 17/11 : séance faite pour les muscles touchés sur la carte du corps → même lecteur, enregistrée avec son vrai nom
   const startZone = async (z: ZoneSession) => {
     const base = await routineSession({ id: 'zones', name: z.label, at: 0, exercises: z.exercises.map(e => ({ id: e.id, name: e.name, img: e.img, sets: e.sets, reps: e.reps, rest: e.rest })) });
@@ -848,6 +852,21 @@ export default function SportScreen({ toast, go, o }: { toast: (t: string) => vo
   const doneToday = d.week[0]?.status === 'done';
   const s = pick ? picked : doneToday ? d.next : d.today ?? d.next;
   const isToday = !!s && s.date === today;
+  const homeOn = !!s && !!home[s.date];
+  const setHomeOn = (on: boolean) => {
+    if (!s) return;
+    vibrate(10);
+    const nx = { ...home, [s.date]: on };
+    setHome(nx); try { localStorage.setItem('forme:home-mode', JSON.stringify(Object.fromEntries(Object.entries(nx).filter(([k, v]) => v && k >= (today ?? ''))))); } catch { /* */ }
+    if (on) fetchHome(s.date);
+  };
+  function fetchHome(date: string) {
+    if (asked.current.has(date)) return;
+    asked.current.add(date);
+    void apiFetch<{ session: SportSession | null }>(`/api/sport/home?date=${date}`).then(r => setHs(h => ({ ...h, [date]: r.session }))).catch(e => { toast(`❌ ${errText(e)}`); asked.current.delete(date); setHs(h => ({ ...h, [date]: null })); });
+  }
+  if (homeOn && s && hs[s.date] === undefined) queueMicrotask(() => fetchHome(s.date));
+  const shown = s && homeOn ? hs[s.date] ?? null : s;
   // 07/11 : semaine lundi → dimanche (jours passés + à venir), chaque jour cochable « faite / pas faite »
   const strip = [...(d.past ?? []), ...d.week].slice(0, 7);
   const statusOf = (date: string) => strip.find(w => w.date === date)?.status ?? null;
@@ -885,13 +904,19 @@ export default function SportScreen({ toast, go, o }: { toast: (t: string) => vo
       {o && <Dashboard o={o} weeks={d.stats.weeks} weekDone={strip.filter(w => w.status === 'done').length} weekGoal={o.profile?.sessionsPerWeek || strip.filter(w => w.type && !w.skip).length || 4} streak={d.stats.streak} />}
       <TodayForm />
       {doneToday && !pick && <div style={{ ...card, marginTop: 14, display: 'flex', alignItems: 'center', gap: 12 }}><div style={{ width: 40, height: 40, borderRadius: 20, background: F.green, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 800 }}>✓</div><div><div style={{ fontWeight: 700 }}>Séance du jour faite{d.today?.label ? ` : ${d.today.label}` : ''}</div><div style={{ fontSize: 13, color: F.muted }}>Bravo. Récupère bien — voici la prochaine.</div></div></div>}
-      {s ? <SessionCard s={s} kicker={isToday ? (doneToday ? 'Aujourd\'hui · faite ✓' : "Aujourd'hui") : `${pick ? '' : 'Prochaine · '}${SHORT_DAYS[dayOf(s.date)]} ${s.date.slice(8)} · ${new Date(s.start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' })}`} onStart={() => setPlay(s)} onEx={setEx} start={isToday ? 'Démarrer l\'entraînement' : 'Voir / faire cette séance'} />
+      {s && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 14, background: 'var(--f-card)', borderRadius: 14, padding: 4, border: `1px solid ${F.line}` }}>
+        {([['🏋️ Salle', false], ['🏠 Maison', true]] as const).map(([t, on]) => (
+          <button key={t} onClick={() => setHomeOn(on)} style={{ border: 'none', borderRadius: 11, padding: '10px 0', fontWeight: 700, fontSize: 14.5, cursor: 'pointer', fontFamily: 'inherit', background: homeOn === on ? F.accent : 'transparent', color: homeOn === on ? '#fff' : F.ink }}>{t}</button>
+        ))}
+      </div>}
+      {homeOn && <div style={{ fontSize: 12.5, color: F.muted, margin: '6px 4px 0' }}>Même séance que la salle, exercice par exercice, avec tes 2 haltères et ta planche à pompes. Lance « Renforcement musculaire » sur ta montre.</div>}
+      {s ? <SessionCard s={shown ?? s} kicker={isToday ? (doneToday ? 'Aujourd\'hui · faite ✓' : "Aujourd'hui") : `${pick ? '' : 'Prochaine · '}${SHORT_DAYS[dayOf(s.date)]} ${s.date.slice(8)} · ${new Date(s.start).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' })}`} onStart={() => { if (homeOn && !shown) return; setPlay(shown ?? s); }} onEx={setEx} start={homeOn && !shown ? 'Chargement de la version maison…' : homeOn ? (isToday ? '🏠 Démarrer à la maison' : '🏠 Voir / faire à la maison') : isToday ? 'Démarrer l\'entraînement' : 'Voir / faire cette séance'} />
         : <div style={{ ...card, marginTop: 14 }}>Pas de séance prévue cette semaine. Dis à Dzaryx « cale mes séances » 💬</div>}
       {s && s.date <= (today ?? '') && <DoneToggle date={s.date} label={s.label} done={statusOf(s.date) === 'done'} live={statusOf(s.date) === 'en_cours'} toast={toast} onD={x => { setD(x); setPick(s.date); }} />}
       {s && s.date >= (today ?? '') && statusOf(s.date) !== 'done' && <SwapRow d={d} date={s.date} current={s.type} toast={toast} onD={x => { setD(x); setPick(s.date); }} />}
       {s && <>
-        <H2 right={<span style={{ fontSize: 13, color: F.muted }}>{s.exercises.length}</span>}>Exercices</H2>
-        <div style={{ ...card, padding: '4px 14px' }}>{s.exercises.map((e, k) => <div key={e.id} style={{ borderBottom: k < s.exercises.length - 1 ? `1px solid ${F.line}` : 'none' }}><ExRow e={e} onClick={() => setEx(e)} /></div>)}</div>
+        <H2 right={<span style={{ fontSize: 13, color: F.muted }}>{(shown ?? s).exercises.length}</span>}>{homeOn ? 'Exercices à la maison' : 'Exercices'}</H2>
+        <div style={{ ...card, padding: '4px 14px' }}>{(shown ?? s).exercises.map((e, k, a) => <div key={e.id} style={{ borderBottom: k < a.length - 1 ? `1px solid ${F.line}` : 'none' }}><ExRow e={e} onClick={() => setEx(e)} /></div>)}</div>
       </>}
       <DidButton toast={toast} onDone={() => void load()} />
       <Routines toast={toast} prs={prs} onDone={() => void load()} />
@@ -923,7 +948,7 @@ export default function SportScreen({ toast, go, o }: { toast: (t: string) => vo
       </>}
       <ExerciseSheet session={ex} onClose={() => setEx(null)} />
       {play && <Player s={play} prs={prs} onClose={() => setPlay(null)} onFinished={msg => { setPlay(null); toast(msg); void load(); setBump(b => b + 1); }} save={async (sets, durationMin, rpe, exs, rws, note) => {
-        const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date: play.focus === 'zones' ? play.date : d.week[0]?.date ?? play.date, type: play.type, ...(play.focus === 'zones' ? { label: play.label } : {}), sets, durationMin, rpe, ...logExtras(exs, rws, play.date), ...(note ? { note } : {}) }) });
+        const r = await apiFetch<{ prs: string[] }>('/api/sport/log', { method: 'POST', body: JSON.stringify({ date: play.focus === 'zones' ? play.date : d.week[0]?.date ?? play.date, type: play.type, ...(play.focus === 'zones' || play.label.startsWith('🏠') ? { label: play.label } : {}), sets, durationMin, rpe, ...logExtras(exs, rws, play.date), ...(note ? { note } : {}) }) });
         return `💪 Séance enregistrée${r.prs.length ? ` — 🏆 record : ${r.prs.join(', ')}` : ''} · Dzaryx est prévenu`;
       }} />}
       <HistorySheet date={hist} onClose={() => setHist(null)} />

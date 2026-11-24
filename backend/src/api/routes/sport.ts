@@ -31,6 +31,16 @@ router.get('/', async (_req, res) => {
   } catch (err) { fail(res, err); }
 });
 
+// GET /api/sport/home?date= — 24/11 la MÊME séance que la salle, version maison (2 haltères + planche à pompes), même format
+router.get('/home', async (req, res) => {
+  try {
+    const h = await import('../../integrations/forme-home.js');
+    const s = await h.homeSportSession(isDate(req.query['date']) ? String(req.query['date']) : undefined);
+    if (s) { const { fillDemos } = await import('../../integrations/exercise-lib.js'); await fillDemos(s.exercises).catch(() => {}); }
+    res.json({ session: s });
+  } catch (err) { fail(res, err); }
+});
+
 // POST /api/sport/log { date?, type, sets: [{ ex, kg?, reps? }], durationMin?, rpe?, note? } — fin de séance
 router.post('/log', async (req, res) => {
   const b = req.body as { date?: string; type?: string; label?: string; sets?: SetLog[]; durationMin?: number; rpe?: number; note?: string; names?: Record<string, string>; planned?: number; rests?: Record<string, number[]>; challenge?: string };

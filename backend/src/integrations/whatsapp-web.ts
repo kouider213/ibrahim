@@ -414,6 +414,10 @@ export async function waPendingDrafts(maxH = 24): Promise<Array<{ chat: string; 
 }
 
 /** Une autre question (assistant GPS) vient d'être répondue : le « oui » suivant ne doit pas envoyer un vieux brouillon. */
+/** 24/11 : une réponse WhatsApp attend son « oui » ? (la question du brief ne doit pas la manger) */
+export async function hasWaPending(): Promise<boolean> {
+  return !!(await kvGet(PENDING_KEY).catch(() => null));
+}
 export async function clearWaPending(): Promise<void> {
   await kvSet(PENDING_KEY, '', 60);
 }

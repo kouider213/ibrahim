@@ -450,6 +450,11 @@ export async function handlePresenceReply(message: string): Promise<{ reply?: st
   const now = Date.now();
   if (!a || now - a.at > ASK_TTL) return null;
   const msg = message.trim();
+  // 24/11 09h51 : réponse WhatsApp proposée à 09h48 (client Clio 4), question du brief à 09h50, puis « Envoie le message »
+  // → pris pour « écris-le » (brief écrit) ET la réponse WhatsApp effacée : le client n'a jamais rien reçu.
+  // Un message qui parle du message / de WhatsApp / du client va à WhatsApp ; la question du brief reste ouverte.
+  if (a.kind === 'brief' && !/brief|[ée]cri/i.test(msg) && /message|whats|wa\b|client|r[ée]ponse|envoie[- ]?(la|lui)\b/i.test(msg)
+    && await import('./whatsapp-web.js').then(m => m.hasWaPending()).catch(() => false)) return null;
   st.ask = undefined;
   const busy = NO.test(msg) || LATER.test(msg);
   if (!busy) st.aloneUntil = now + 45 * 60_000;

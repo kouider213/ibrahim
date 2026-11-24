@@ -908,6 +908,8 @@ export async function sportOverview() {
   // 07/11 Kouider : « il note ma séance d'aujourd'hui comme faite alors qu'elle est pas faite » → arrivé à la salle (GPS) = « en cours »,
   // faite seulement quand la séance est enregistrée / notée, ou une fois l'heure de fin passée ; décochée à la main = jamais faite.
   const dayStatus = (d: string): 'done' | 'missed' | 'skip' | 'en_cours' | null => {
+    // 24/11 : séance MAISON faite un jour annulé (« pas de salle ») → le jour est fait ; la séance de salle reste pour la prochaine fois
+    if (st.skips[d] && !st.undone?.[d] && log.some(l => l.date === d && l.sets.length)) return 'done';
     if (st.skips[d]) return 'skip';
     if (st.undone?.[d]) return d < today ? 'missed' : null;
     if (log.some(l => l.date === d)) return 'done';
@@ -1847,4 +1849,10 @@ export async function plannedSessionLabel(date: string): Promise<{ type: Session
   const st = await getState();
   const type: SessionType = st.overrides[date] ?? st.plan[date]?.type ?? (await nextSessionDate(date))?.type ?? ROTATION[st.next % ROTATION.length] ?? 'push';
   return { type, label: SESSIONS[type]?.label ?? type };
+}
+
+/** 24/11 — séance MAISON dans l'app : mêmes exercices habillés comme ceux de la salle (dernière fois, photos, vidéo). */
+export async function decorateExercises(exs: Exercise[], date: string) {
+  const log = await readSportLog();
+  return exs.map(e => ({ ...e, suggestion: suggestFor(e, log, date), timed: isTimed(e), demo: knownExerciseId(e.name) ? [0, 1].map(i => `${DEMO_BASE}/${knownExerciseId(e.name)}/${i}.jpg`) : [] as string[], video: videoOf(e.name) }));
 }

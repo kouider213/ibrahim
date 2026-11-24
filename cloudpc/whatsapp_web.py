@@ -164,17 +164,32 @@ async def _click_text(p: Page, pattern: str) -> bool:
 
 
 async def status() -> dict:
-    async with await _page() as p:
-        s = await p.js(JS_STATE)
+    # 24/11 10h00 : vérifié PENDANT qu'un envoi rechargeait la page (send?phone=) → « déconnecté » à tort, fausse alerte,
+    # puis l'auto-réparation a re-navigué la page. On attend la fin de l'action en cours, et une page qui charge n'est pas « déconnectée ».
+    try:
+        await asyncio.wait_for(LOCK.acquire(), 150)
+        locked = True
+    except asyncio.TimeoutError:
+        locked = False
+    try:
+        async with await _page() as p:
+            s = await p.js(JS_STATE)
+            for _ in range(15):   # jusqu'à 30 s : écran de chargement (ni liste, ni QR / code) → on attend
+                if s['logged'] or s['code'] or await p.js("!!document.querySelector('canvas[aria-label], [data-ref], [data-testid=link-device-qrcode]')"):
+                    break
+                await asyncio.sleep(2)
+                s = await p.js(JS_STATE)
+    finally:
+        if locked:
+            LOCK.release()
     return {'ok': True, 'logged_in': bool(s['logged']), 'screen': s['text']}
 
 
 async def link_code(phone: str) -> dict:
     """Connexion par numéro : renvoie le code à 8 caractères à taper dans WhatsApp Business."""
+    if (await status())['logged_in']:   # 24/11 : page en train de charger ≠ déconnecté → ne pas la re-naviguer
+        return {'ok': True, 'logged_in': True}
     async with await _page() as p:
-        s = await p.js(JS_STATE)
-        if s['logged']:
-            return {'ok': True, 'logged_in': True}
         await p.call('Page.navigate', {'url': URL})
         await asyncio.sleep(10)
         # La page met parfois > 2 s à afficher le champ du numéro (25/10 : « null.focus ») → on attend jusqu'à 15 s
@@ -215,8 +230,44 @@ async def _open_chat(p: Page, chat: str) -> bool:
     """Ouvre une discussion : clic dans la liste si visible, sinon recherche. Numéro → lien direct."""
     digits = ''.join(ch for ch in chat if ch.isdigit())
     if len(digits) >= 9 and len(digits) == len(chat.replace('+', '').replace(' ', '')):
+        # 24/11 : « +33749766304 » = discussion « +33 7 49 76 63 04 » déjà dans la liste → on l'ouvre SANS recharger WhatsApp
+        # (le rechargement send?phone= dépassait 30 s avec 52 non lus → « introuvable », message client jamais parti).
+        tail = digits[-9:]
+        head_js = "((document.querySelector('#main header span[title], #main header span[dir=auto]') || {}).innerText || '').replace(/\\D/g, '')"
+
+        async def opened_num() -> bool:
+            return (await p.js(head_js) or '').endswith(tail) and await p.js("!!document.querySelector('#main footer [contenteditable=true]')")
+
+        if await opened_num():
+            return True
+        box = await p.js(f"""(() => {{ const tail = {json.dumps(tail)};
+          const span = [...document.querySelectorAll('#pane-side span[title]')].find(s => (s.getAttribute('title') || '').replace(/\\D/g, '').endsWith(tail));
+          if (!span) return null;
+          const row = span.closest('[role="listitem"], [role="row"]') || span;
+          row.scrollIntoView({{ block: 'center' }});
+          const r = row.getBoundingClientRect();
+          return {{ x: r.left + r.width / 2, y: r.top + r.height / 2 }}; }})()""")
+        if box:
+            for t in ('mouseMoved', 'mousePressed', 'mouseReleased'):
+                await p.call('Input.dispatchMouseEvent', {'type': t, 'x': box['x'], 'y': box['y'],
+                                                          'button': 'none' if t == 'mouseMoved' else 'left', 'clickCount': 1})
+            for _ in range(10):
+                await asyncio.sleep(0.5)
+                if await opened_num():
+                    return True
+        if await p.js("!!document.querySelector('#side [contenteditable=true], #side input')"):
+            await p.js("(document.querySelector('#side [contenteditable=true]') || document.querySelector('#side input')).focus()")
+            await _key(p, 'a', 'KeyA', 65, 2)
+            await _key(p, 'Backspace', 'Backspace', 8)
+            await p.call('Input.insertText', {'text': digits})
+            await asyncio.sleep(2.5)
+            await _key(p, 'Enter', 'Enter', 13)
+            for _ in range(10):
+                await asyncio.sleep(0.5)
+                if await opened_num():
+                    return True
         await p.call('Page.navigate', {'url': f'{URL}send?phone={digits}'})
-        for _ in range(30):
+        for _ in range(75):   # rechargement complet : jusqu'à 75 s
             await asyncio.sleep(1)
             if await p.js("!!document.querySelector('#main footer [contenteditable=true]')"):
                 return True
