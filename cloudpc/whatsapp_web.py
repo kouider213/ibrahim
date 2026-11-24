@@ -358,7 +358,12 @@ async def send(chat: str, text: str) -> dict:
             if not await _open_chat(p, chat):
                 return {'ok': False, 'error': f'Discussion « {chat} » introuvable.'}
             title = await p.js("((document.querySelector('#main header span[title], #main header span[dir=\"auto\"]') || {}).innerText || '')")
-            await p.js("document.querySelector('#main footer [contenteditable=true]').focus()")
+            comp = "document.querySelector('#main footer [contenteditable=true]')"
+            await p.js(f"{comp}.focus()")
+            # 24/11 10h12 : Entrée n'envoyait plus rien → le texte restait dans la zone de saisie et s'empilait à chaque essai
+            # (5 brouillons collés). On vide d'abord la zone, on clique le vrai bouton « Envoyer », et on vide si ça n'est pas parti.
+            await _key(p, 'a', 'KeyA', 65, 2)
+            await _key(p, 'Backspace', 'Backspace', 8)
             lines = text.split('\n')
             for i, line in enumerate(lines):
                 if line:
@@ -367,10 +372,29 @@ async def send(chat: str, text: str) -> dict:
                     await _key(p, 'Enter', 'Enter', 13, 8)       # Maj+Entrée = retour à la ligne
                 await asyncio.sleep(0.2)
             await asyncio.sleep(0.6)
-            await _key(p, 'Enter', 'Enter', 13)
-            await asyncio.sleep(2)
-            last = await p.js(f'({JS_MESSAGES})(1)')
-    sent = bool(last and last['messages'] and last['messages'][-1]['me'])
+            btn = await p.js("""(() => { const b = document.querySelector('#main footer [aria-label="Envoyer"], #main footer [aria-label="Send"], #main footer [data-testid=compose-btn-send], #main footer [data-icon=send], #main footer [data-icon=wds-ic-send-filled]');
+              const el = b && (b.closest('button,[role=button]') || b); if (!el) return null; const r = el.getBoundingClientRect();
+              return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()""")
+            if btn:
+                for t in ('mouseMoved', 'mousePressed', 'mouseReleased'):
+                    await p.call('Input.dispatchMouseEvent', {'type': t, 'x': btn['x'], 'y': btn['y'],
+                                                              'button': 'none' if t == 'mouseMoved' else 'left', 'clickCount': 1})
+            else:
+                await _key(p, 'Enter', 'Enter', 13)
+            want = text.split('\n')[0].strip()[:30]
+            sent = False
+            for _ in range(8):
+                await asyncio.sleep(1)
+                last = await p.js(f'({JS_MESSAGES})(1)')
+                m = (last or {}).get('messages') or []
+                left = (await p.js(f"({comp} || {{}}).innerText") or '').strip()
+                if m and m[-1]['me'] and want[:20] in (m[-1].get('text') or '') and not left:
+                    sent = True
+                    break
+            if not sent:   # jamais laisser un brouillon dans la zone : le prochain envoi l'enverrait avec
+                await p.js(f"{comp} && {comp}.focus()")
+                await _key(p, 'a', 'KeyA', 65, 2)
+                await _key(p, 'Backspace', 'Backspace', 8)
     return {'ok': sent, 'chat': title or chat, **({} if sent else {'error': "Le message n'apparaît pas comme envoyé."})}
 
 
