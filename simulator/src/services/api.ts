@@ -1520,6 +1520,8 @@ export const business = {
 /** 24/11 : équipe TikTok (page MONTAGE › 📈 TikTok) */
 export interface TiktokGrowth {
   at: string; followers?: number; followers7?: number; views7?: number; audience?: string; bestHour: string | null; hours: number[] | null;
+  traffic?: string | null;
+  week?: Array<{ date: string; label: string; stars: number; prime: string; second: string; idea?: { title: string; hook: string; format: string; why: string } }>;
   videos: Array<{ id: string; desc: string; plays?: number; likes?: number; saves?: number; shares?: number }>; searches: string[];
   analysis: { summary?: string; winning_patterns?: string[]; avoid?: string[]; hooks_bank?: string[]; formats?: string[]; keywords?: string[]; hashtags?: string[];
     ideas?: Array<{ title: string; hook: string; format: string; why: string }>; selling_points?: string[]; client_questions?: string[]; creators?: Array<{ handle: string; why: string }> };

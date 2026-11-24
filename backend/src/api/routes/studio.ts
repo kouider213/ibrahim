@@ -104,14 +104,15 @@ router.post('/ai-edit', async (req, res) => {
 // 24/11 : onglet 📈 TikTok de la page MONTAGE — chiffres + idées de l'équipe TikTok (tiktok-growth.ts)
 router.get('/tiktok', async (_req, res) => {
   try {
-    const g = await (await import('../../marketing/tiktok-growth.js')).getGrowth();
+    const tg = await import('../../marketing/tiktok-growth.js');
+    const g = await tg.getGrowth();
     if (!g) { res.json({ growth: null }); return; }
     const best = g.slots?.find(s => s.prime);
     res.json({ growth: {
       at: g.at, followers: g.followers, followers7: g.followers7, views7: g.views7, audience: g.audience,
       bestHour: best ? `${best.h}h${String(best.m).padStart(2, '0')}` : null, hours: g.hours ?? null,
       videos: g.videos.slice(0, 5).map(v => ({ id: v.id, desc: v.desc.replace(/#\S+/g, '').replace(/\s+/g, ' ').trim().slice(0, 120), plays: v.plays, likes: v.likes, saves: v.saves, shares: v.shares })),
-      searches: g.searches.slice(0, 8), analysis: g.analysis,
+      searches: g.searches.slice(0, 8), analysis: g.analysis, traffic: g.traffic ?? null, week: tg.weekPlan(g),
     } });
   } catch (err) { fail(res, err); }
 });

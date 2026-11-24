@@ -32,6 +32,8 @@ export interface Analysis {
 export interface Growth {
   at: string; followers?: number; hours?: number[]; slots?: Array<{ day: number; h: number; m: number; prime: boolean; why: string }>;
   audience?: string; videos: Video[]; searches: string[]; trends: Trend[]; analysis: Analysis; views7?: number; followers7?: number;
+  traffic?: string;   // sources de trafic (24/11 : 76 % recherche)
+  weekdays?: Array<{ day: number; score: number; h1: number; h2: number }>;   // profil par jour de la semaine (heure d'Oran)
   fik?: string;   // ce que Dzaryx sait de FIK (conditions exactes, flotte, saisons, réservations, questions des clients)
 }
 
@@ -104,11 +106,68 @@ function slotsFrom(hours: number[]): Growth['slots'] {
   return out;
 }
 
+const DAY = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+const peaks = (v: number[]) => {
+  const order = v.map((x, h) => ({ h, x })).sort((a, b) => b.x - a.x);
+  const top = order[0]!, second = order.find(o => Math.abs(o.h - top.h) >= 4 && o.h >= 9) ?? order[1]!;
+  return { h1: top.h, h2: second.h };
+};
+/** Profil par jour de la semaine : activité des abonnés (moyenne des mêmes jours) + bonus pour les jours où NOS vidéos ont le mieux marché. */
+function weekdayProfile(hist: Record<string, number[]>, videos: Video[]): NonNullable<Growth['weekdays']> {
+  const by: Record<number, number[][]> = {};
+  for (const [date, v] of Object.entries(hist)) (by[new Date(`${date}T12:00:00Z`).getUTCDay()] ??= []).push(v);
+  const all = Object.values(hist);
+  if (!all.length) return [];
+  const avg = (arr: number[][]) => Array.from({ length: 24 }, (_, h) => arr.reduce((s, d) => s + d[h]!, 0) / arr.length);
+  const global = avg(all);
+  // nos vidéos : vues médianes par jour de publication (heure d'Oran) → petit bonus (max +15 %)
+  const vp: Record<number, number[]> = {};
+  for (const v of videos) if (v.create_time) (vp[new Date((v.create_time + ORAN_UTC_OFFSET * 3600) * 1000).getUTCDay()] ??= []).push(v.plays ?? 0);
+  const med = (a: number[]) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)]! : 0; };
+  const allMed = med(videos.map(v => v.plays ?? 0)) || 1;
+  const out = [];
+  for (let d = 0; d < 7; d++) {
+    const prof = by[d]?.length ? avg(by[d]!) : global;
+    const evening = prof.slice(18, 23).reduce((s, x) => s + x, 0);
+    const bonus = vp[d]?.length ? Math.min(0.15, Math.max(-0.15, (med(vp[d]!) / allMed - 1) * 0.1)) : 0;
+    out.push({ day: d, score: Math.round(evening * (1 + bonus)), ...peaks(prof) });
+  }
+  return out;
+}
+function slotsFromWeek(w: NonNullable<Growth['weekdays']>): Growth['slots'] {
+  const out: NonNullable<Growth['slots']> = [];
+  for (const d of w) {
+    out.push({ day: d.day, h: (d.h2 + 23) % 24, m: 30, prime: false, why: `${DAY[d.day]} : 2e pic de tes abonnés vers ${d.h2}h` });
+    out.push({ day: d.day, h: (d.h1 + 23) % 24, m: 30, prime: true, why: `${DAY[d.day]} : tes abonnés sont les plus nombreux vers ${d.h1}h (données TikTok)` });
+  }
+  return out;
+}
+
+/** 🗓️ Les 7 prochains jours : meilleure heure de chaque jour, étoiles (meilleurs jours de la semaine), idée de vidéo prévue. */
+export function weekPlan(g: Growth): Array<{ date: string; label: string; stars: number; prime: string; second: string; idea?: { title: string; hook: string; format: string; why: string } }> {
+  const w = g.weekdays ?? [];
+  if (!w.length) return [];
+  const ranked = [...w].sort((a, b) => b.score - a.score).map(x => x.day);
+  const ideas = g.analysis?.ideas ?? [];
+  const rows = [];
+  for (let i = 0; i < 7; i++) {
+    const dt = new Date(Date.now() + ORAN_UTC_OFFSET * 3600_000 + i * 86_400_000);
+    const d = dt.getUTCDay(), p = w.find(x => x.day === d)!;
+    const rank = ranked.indexOf(d);
+    rows.push({ date: dt.toISOString().slice(0, 10), label: i === 0 ? "aujourd'hui" : i === 1 ? 'demain' : `${DAY[d]} ${dt.getUTCDate()}`,
+      stars: rank < 2 ? 3 : rank < 4 ? 2 : 1, prime: `${(p.h1 + 23) % 24}h30`, second: `${(p.h2 + 23) % 24}h30`, rank });
+  }
+  // les idées vont sur les meilleurs jours (5 posts / semaine : on laisse les 2 jours les plus faibles)
+  const order = [...rows].sort((a, b) => a.rank - b.rank);
+  order.slice(0, 5).forEach((r, k) => { if (ideas[k]) (r as { idea?: unknown }).idea = ideas[k]; });
+  return rows.map(({ rank: _r, ...x }) => x);
+}
+
 /** Lecture complète (≈ 1-2 min sur le PC cloud) + analyse de l'équipe. */
 export async function refreshGrowth(): Promise<Growth | string> {
   const { cloudEmit, isCloudPcOnline } = await import('../actions/handlers/cloudpc-relay.js');
   if (!isCloudPcOnline()) return 'PC cloud hors ligne';
-  type Raw = { ok: boolean; error?: string; insight?: Record<string, unknown>; videos?: Video[]; searches?: string; trends?: Record<string, Trend[]> };
+  type Raw = { ok: boolean; error?: string; insight?: Record<string, unknown>; videos?: Video[]; searches?: string; traffic?: string; trends?: Record<string, Trend[]> };
   const r = await cloudEmit<Raw>('cloud:tt', { action: 'insights' }, 240_000)
     .catch(e => ({ ok: false, error: e instanceof Error ? e.message : String(e) } as Raw));
   if (!r.ok) return r.error ?? 'lecture TikTok impossible';
@@ -117,11 +176,23 @@ export async function refreshGrowth(): Promise<Growth | string> {
   return g;
 }
 
-export async function buildGrowth(r: { insight?: Record<string, unknown>; videos?: Video[]; searches?: string; trends?: Record<string, Trend[]> }): Promise<Growth> {
+export async function buildGrowth(r: { insight?: Record<string, unknown>; videos?: Video[]; searches?: string; traffic?: string; trends?: Record<string, Trend[]> }): Promise<Growth> {
   const ins = r.insight ?? {};
   // heures : un tableau de 24 valeurs (UTC) par jour → moyenne, puis décalage en heure d'Oran
   const days = (Array.isArray(ins['follower_active_history_hours']) ? ins['follower_active_history_hours'] as Array<{ value?: number[] }> : [])
     .map(d => d.value ?? []).filter(v => v.length === 24);
+  // 24/11 : historique jour par jour (le dernier tableau = aujourd'hui, incomplet, souvent null) → meilleures heures PAR JOUR DE LA SEMAINE,
+  // de plus en plus fiables au fil des semaines (kv tt:activity, 120 jours)
+  const raw = (Array.isArray(ins['follower_active_history_hours']) ? ins['follower_active_history_hours'] as Array<{ value?: number[] | null }> : []);
+  const history = JSON.parse((await kvGet('tt:activity').catch(() => null)) ?? '{}') as Record<string, number[]>;
+  raw.forEach((d, i) => {
+    if (!d.value || d.value.length !== 24 || i === raw.length - 1) return;
+    const date = new Date(Date.now() - (raw.length - 1 - i) * 86_400_000).toISOString().slice(0, 10);
+    history[date] = Array.from({ length: 24 }, (_, h) => d.value![(h - ORAN_UTC_OFFSET + 24) % 24]!);   // heure d'Oran
+  });
+  const keep = Object.keys(history).sort().slice(-120);
+  const hist = Object.fromEntries(keep.map(k => [k, history[k]!]));
+  await kvSet('tt:activity', JSON.stringify(hist)).catch(() => {});
   let hours: number[] | undefined;
   if (days.length) {
     const utc = Array.from({ length: 24 }, (_, h) => Math.round(days.reduce((s, d) => s + d[h]!, 0) / days.length));
@@ -144,8 +215,10 @@ export async function buildGrowth(r: { insight?: Record<string, unknown>; videos
   const vv = series(ins['vv_history']), fol = series(ins['follower_num_history']);
   const trends = Object.values(r.trends ?? {}).flat().filter((t, i, a) => t.desc && a.findIndex(x => x.id === t.id) === i).sort((a, b) => b.plays - a.plays).slice(0, 40);
   const videos = (r.videos ?? []).filter(v => v.id).sort((a, b) => (b.plays ?? 0) - (a.plays ?? 0));
+  const weekdays = weekdayProfile(hist, r.videos ?? []);
   const g: Growth = {
-    at: new Date().toISOString(), followers: val(ins['follower_num']), hours, slots: hours ? slotsFrom(hours) : undefined, audience,
+    at: new Date().toISOString(), followers: val(ins['follower_num']), hours, slots: weekdays.length ? slotsFromWeek(weekdays) : hours ? slotsFrom(hours) : undefined, audience,
+    traffic: String(r.traffic ?? '').replace(/\s+/g, ' ').replace(/^Sources de trafic\s*/, '').slice(0, 200), weekdays,
     videos, searches, trends, analysis: {},
     views7: vv.slice(-7).reduce((s, x) => s + x, 0), followers7: fol.length > 7 ? fol[fol.length - 1]! - fol[fol.length - 8]! : undefined,
   };
@@ -167,6 +240,7 @@ ${g.videos.slice(0, 15).map(fmtVid).join('\n')}
 AUDIENCE : ${g.audience || 'inconnue'} · ${g.followers ?? '?'} abonnés · vues 7 derniers jours : ${g.views7 ?? '?'}
 HEURES D'ACTIVITÉ (heure d'Oran, 0→23) : ${g.hours?.join(', ') ?? 'inconnues'}
 CE QUE LES GENS TAPENT POUR NOUS TROUVER : ${g.searches.join(' | ') || '—'}
+D'OÙ VIENNENT NOS VUES : ${g.traffic || 'inconnu'} (si la RECHERCHE domine : le SEO — mots tapés dans la légende, le texte à l'écran et la voix — compte plus que l'heure ; viser aussi « Pour toi » avec des hooks forts)
 
 VIDÉOS TENDANCE « Véhicules » (France + monde) — inspiration :
 ${g.trends.slice(0, 30).map(t => `${t.plays.toLocaleString('fr-FR')} vues · @${t.author} — « ${t.desc.slice(0, 150)} »`).join('\n')}
@@ -200,6 +274,7 @@ export async function growthContext(): Promise<string> {
     g.videos[0] ? `• Nos 3 meilleures vidéos : ${g.videos.slice(0, 3).map(fmtVid).join(' | ')}` : '',
     a.winning_patterns?.length ? `• Ce qui marche chez nous : ${a.winning_patterns.join(' ; ')}` : '',
     a.avoid?.length ? `• À éviter : ${a.avoid.join(' ; ')}` : '',
+    g.traffic ? `• D'où viennent nos vues : ${g.traffic}` : '',
     g.searches.length ? `• Mots tapés pour nous trouver (à mettre dans la légende ET à l'écran) : ${g.searches.slice(0, 8).join(', ')}` : '',
     a.keywords?.length ? `• Mots-clés SEO TikTok : ${a.keywords.join(', ')}` : '',
     a.selling_points?.length ? `• Arguments VRAIS de FIK (n'en promets aucun autre) : ${a.selling_points.join(' ; ')}` : '',
@@ -241,7 +316,12 @@ export async function weeklyMeeting(refresh = true): Promise<string> {
     a.summary ? `🧭 CMO : ${a.summary}` : '',
     a.winning_patterns?.length ? `\n✅ Ce qui marche chez nous :\n${a.winning_patterns.slice(0, 4).map(x => `• ${x}`).join('\n')}` : '',
     a.avoid?.length ? `\n⛔ À arrêter :\n${a.avoid.slice(0, 3).map(x => `• ${x}`).join('\n')}` : '',
-    best ? `\n⏰ Head of Social Media : poste vers ${best.h}h${String(best.m).padStart(2, '0')} (heure d'Oran = heure de France) — ${best.why}.` : '',
+    (() => {
+      const wk = weekPlan(g);
+      if (!wk.length) return best ? `\n⏰ Head of Social Media : poste vers ${best.h}h${String(best.m).padStart(2, '0')} (heure d'Oran = heure de France) — ${best.why}.` : '';
+      return `\n🗓️ Head of Social Media — ta semaine (heure d'Oran = heure de France, 5 posts) :\n${wk.map(r => `${'⭐'.repeat(r.stars)} ${r.label} : ${r.prime}${r.idea ? ` → « ${r.idea.title} »` : ' (repos ou repost)'}`).join('\n')}`
+        + (g.traffic && /Recherche\s*\d/.test(g.traffic) ? `\n   ${g.traffic.split(' ').slice(0, 2).join(' ')} : la plupart de tes vues viennent de la RECHERCHE → les mots-clés dans la légende et à l'écran comptent autant que l'heure.` : '');
+    })(),
     a.ideas?.length ? `\n💡 Creative Director — les vidéos de la semaine :\n${a.ideas.slice(0, 3).map((i, n) => `${n + 1}. ${i.title} — hook « ${i.hook} » (${i.format}). ${i.why}`).join('\n')}` : '',
     a.keywords?.length ? `\n🔎 SEO : mets ces mots dans tes légendes et à l'écran : ${a.keywords.slice(0, 6).join(', ')}.` : '',
     `\n💬 Community Manager : ${tt.length ? `${tt.length} message(s) / commentaire(s) TikTok attendent une réponse (page DEMANDES → 🎵 TikTok).` : 'aucun message TikTok en attente 👍'} Réponds dans la 1re heure après chaque post.`,
@@ -266,6 +346,12 @@ export async function teamTool(input: Record<string, unknown>): Promise<string> 
   if (a === 'actualiser') { const g = await refreshGrowth(); return typeof g === 'string' ? `❌ ${g}` : `✅ Stats TikTok mises à jour : ${g.followers} abonnés, ${g.videos.length} vidéos analysées, ${g.trends.length} vidéos tendance étudiées.`; }
   const g = await getGrowth();
   if (!g) return 'Pas encore de stats TikTok : dis « actualise les stats TikTok » (1-2 min).';
+  if (a === 'semaine') {
+    const wk = weekPlan(g);
+    if (!wk.length) return 'Pas encore assez de données sur les jours : dis « actualise les stats TikTok ».';
+    return [`🗓️ Ta semaine TikTok (heure d'Oran = heure de France) :`, ...wk.map(r => `${'⭐'.repeat(r.stars)} ${r.label} : ${r.prime} (ou ${r.second})${r.idea ? ` → « ${r.idea.title} » — hook « ${r.idea.hook} »` : ' — repos'}`),
+      g.traffic ? `D'où viennent tes vues : ${g.traffic}` : ''].filter(Boolean).join('\n');
+  }
   if (a === 'idees') {
     const x = g.analysis ?? {};
     return [`💡 Idées de l'équipe :`, ...(x.ideas ?? []).map((i, n) => `${n + 1}. ${i.title} — hook « ${i.hook} » (${i.format}) : ${i.why}`),
@@ -300,3 +386,25 @@ async function pubFollowUp(g: Growth): Promise<void> {
   await kvSet('tt:followup:done', JSON.stringify([...done].slice(-50)));
 }
 export async function jobWeeklyMeeting(): Promise<void> { await weeklyMeeting(true).catch(e => console.warn('[tt-growth] réunion', e)); }
+
+/** 24/11 « booster mon TikTok » : la régularité d'abord. Jour prévu dans le calendrier → le matin, la vidéo du jour + bouton (message, jamais d'appel).
+ *  Rien si une pub a déjà été créée ou publiée aujourd'hui. */
+export async function jobDailyPlan(): Promise<void> {
+  const g = await getGrowth();
+  if (!g) return;
+  const today = weekPlan(g)[0];
+  if (!today?.idea) return;
+  const day = new Date().toISOString().slice(0, 10);
+  if (await kvGet(`tt:dailyplan:${day}`).catch(() => null)) return;
+  const { postedPubIds } = await import('./tiktok-pub.js');
+  if ((await postedPubIds()).some(p => p.at.slice(0, 10) === day)) return;
+  const { listStudioJobs } = await import('./video-studio.js');
+  if ((await listStudioJobs().catch(() => ({ jobs: [] as Array<{ planId?: string; createdAt: string }> }))).jobs.some(j => j.planId === 'pub' && j.createdAt.slice(0, 10) === day)) return;
+  await kvSet(`tt:dailyplan:${day}`, '1', 2 * 86_400).catch(() => {});
+  const { createDecision } = await import('../integrations/conscience.js');
+  const i = today.idea;
+  await createDecision(`🗓️ TikTok aujourd'hui ${'⭐'.repeat(today.stars)} : poste vers ${today.prime} (heure d'Oran). Vidéo prévue par l'équipe : « ${i.title} » — hook « ${i.hook} ».`, [
+    { label: '🎬 Crée-la (prête dans 10 min)', tool: 'video_studio', input: { action: 'pub_tiktok', idea: `${i.title}. Hook : « ${i.hook} ». Format : ${i.format}. ${i.why}` } },
+    { label: 'Pas aujourd\'hui', say: 'OK, pas de vidéo aujourd\'hui.' },
+  ]);
+}

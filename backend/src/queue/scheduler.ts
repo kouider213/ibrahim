@@ -569,6 +569,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'tt-daily-plan',
+    cron:  '15 10 * * *',           // 24/11 : jour prévu du calendrier TikTok → vidéo du jour proposée (bouton), message seulement
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'tt-weekly-meeting',
     cron:  '30 17 * * 0',           // 24/11 : réunion de l'équipe TikTok, dimanche 17h30 (message, jamais d'appel)
     tz:    'Europe/Brussels',
@@ -930,6 +935,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'commercial':               async () => { console.log(`[commercial] ${await (await import('../integrations/builders.js')).jobCommercial()}`); },
   'night-guard-recap':       async () => { await (await import('../integrations/night-guard.js')).jobNightGuardRecap(); },
   'tt-growth-refresh':       async () => { await (await import('../marketing/tiktok-growth.js')).jobGrowthRefresh(); },
+  'tt-daily-plan':           async () => { await (await import('../marketing/tiktok-growth.js')).jobDailyPlan(); },
   'tt-weekly-meeting':       async () => { await (await import('../marketing/tiktok-growth.js')).jobWeeklyMeeting(); },
   'pub-tiktok-slots':        async () => { await (await import('../marketing/tiktok-pub.js')).jobPubSlots(); },
   'client-waiting-reply':    async () => { await (await import('../integrations/night-guard.js')).jobClientWaitingReply(); },

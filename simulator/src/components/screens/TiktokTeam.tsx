@@ -64,6 +64,29 @@ export default function TiktokTeam({ say }: { say: (t: string) => void }) {
         <button style={{ ...btn(C.pink, '#fff'), width: '100%', marginTop: 10, opacity: busy === 'meet' ? 0.6 : 1 }} disabled={!!busy} onClick={() => void meeting()}>📊 Réunion d'équipe maintenant (Telegram)</button>
       </div>
 
+      {!!g.week?.length && (
+        <div style={card}>
+          <div style={h}>🗓️ Ta semaine TikTok</div>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 8, lineHeight: 1.4 }}>Heure d'Oran (= heure de France). ⭐⭐⭐ = les jours où tes abonnés sont le plus là. 5 vidéos par semaine, les 2 jours les plus calmes en repos.</div>
+          {g.week.map((r, n) => (
+            <div key={r.date} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 0', borderTop: n ? `1px solid ${C.border}` : 'none' }}>
+              <div style={{ width: 92, flexShrink: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.text, textTransform: 'capitalize' }}>{r.label}</div>
+                <div style={{ fontSize: 11.5 }}>{'⭐'.repeat(r.stars)}</div>
+              </div>
+              <div style={{ width: 62, flexShrink: 0, textAlign: 'center' }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: C.pink }}>{r.prime}</div>
+                <div style={{ fontSize: 10.5, color: C.muted }}>ou {r.second}</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: r.idea ? C.text : C.muted }}>{r.idea ? r.idea.title : 'Repos (ou reposte une vidéo qui a marché)'}</div>
+              {r.idea && <button style={{ ...btn('rgba(232,38,94,0.12)', C.pink), padding: '6px 9px', fontSize: 12 }} disabled={!!busy}
+                onClick={() => void create(`w${n}`, `${r.idea!.title}. Hook : « ${r.idea!.hook} ». Format : ${r.idea!.format}. ${r.idea!.why}. À poster ${r.label} vers ${r.prime}.`)}>🎬</button>}
+            </div>
+          ))}
+          {g.traffic && <div style={{ fontSize: 12, color: C.muted, marginTop: 8, lineHeight: 1.4 }}>🔎 D'où viennent tes vues : {g.traffic}{/Recherche\s*[5-9]\d/.test(g.traffic) ? ' — la plupart viennent de la recherche : les mots-clés comptent autant que l\'heure.' : ''}</div>}
+        </div>
+      )}
+
       {!!a.ideas?.length && (
         <div style={card}>
           <div style={h}>💡 Les vidéos que l'équipe te propose</div>

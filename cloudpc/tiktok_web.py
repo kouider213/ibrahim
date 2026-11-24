@@ -314,7 +314,7 @@ async def _capture(p: Page, url: str, needle: str, wait: float = 14) -> list[dic
 
 async def insights() -> dict:
     merged: dict = {}
-    searches = ''
+    searches = traffic = ''
     async with LOCK:
         async with Page('https://www.tiktok.com', URL) as p:
             for url in INSIGHT_PAGES:
@@ -326,6 +326,8 @@ async def insights() -> dict:
                     t = await p.js('document.body.innerText') or ''
                     i = t.find('Recherches effectuées')
                     searches = t[i:i + 900] if i >= 0 else ''
+                    k = t.find('Sources de trafic')
+                    traffic = t[k:k + 220] if k >= 0 else ''
             st = await p.js(JS_STATE) or {}
             if st.get('captcha') or '/login' in str(st.get('href')):
                 return {'ok': False, 'error': 'puzzle anti-robot ou déconnexion TikTok', 'captcha': st.get('captcha')}
@@ -348,7 +350,7 @@ async def insights() -> dict:
     keep = {k: merged.get(k) for k in ('follower_num', 'follower_active_history_hours', 'follower_active_history_days', 'follower_gender_percent',
                                        'follower_age_distribution', 'follower_location_percent', 'follower_num_history', 'net_follower_history',
                                        'pv_history', 'vv_history', 'like_history', 'share_history', 'user_search_terms', 'unique_viewer_num', 'video_page_percent')}
-    return {'ok': True, 'insight': keep, 'videos': items, 'searches': searches, 'trends': trends, 'all_keys': sorted(merged.keys())}
+    return {'ok': True, 'insight': keep, 'videos': items, 'searches': searches, 'traffic': traffic, 'trends': trends, 'all_keys': sorted(merged.keys())}
 
 
 async def action(d: dict) -> dict:
