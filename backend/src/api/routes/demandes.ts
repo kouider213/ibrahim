@@ -4,7 +4,7 @@ import { Router } from 'express';
 import { supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { createCalendarEvent } from '../../integrations/google-calendar.js';
-import { listWaDemandes, updateWaDemande, deleteWaDemande, demandeTitle as waTitle } from '../../integrations/wa-demandes.js';
+import { listWaDemandes, updateWaDemande, deleteWaDemande, archiveStale, demandeTitle as waTitle } from '../../integrations/wa-demandes.js';
 
 const router = Router();
 
@@ -18,6 +18,7 @@ type Demande = {
 
 router.get('/', requireMobileAuth, async (_req, res) => {
   const out: Demande[] = [];
+  await archiveStale(30).catch(() => 0);   // 24/11 : WhatsApp / TikTok sans nouvelles depuis 30 j → « sans suite »
 
   const safe = async (fn: () => Promise<void>) => { try { await fn(); } catch (e) { console.warn('[demandes]', (e as Error).message); } };
 

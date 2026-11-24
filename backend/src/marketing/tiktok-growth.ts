@@ -275,5 +275,28 @@ export async function teamTool(input: Record<string, unknown>): Promise<string> 
 }
 
 /** Job quotidien 4h30 : stats fraîches pour les pubs du jour ; dimanche 18h : réunion. */
-export async function jobGrowthRefresh(): Promise<void> { await refreshGrowth().catch(e => console.warn('[tt-growth]', e)); }
+export async function jobGrowthRefresh(): Promise<void> {
+  const g = await refreshGrowth().catch(e => { console.warn('[tt-growth]', e); return null; });
+  if (g && typeof g !== 'string') await pubFollowUp(g).catch(e => console.warn('[tt-growth] suivi pub', e));
+}
+
+/** 24/11 : le lendemain d'une pub publiée → ses chiffres comparés à la médiane de nos vidéos (1 seul message par pub). */
+async function pubFollowUp(g: Growth): Promise<void> {
+  const { postedPubIds } = await import('./tiktok-pub.js');
+  const done = new Set<string>(JSON.parse((await kvGet('tt:followup:done').catch(() => null)) ?? '[]') as string[]);
+  const posted = (await postedPubIds()).filter(p => p.id && !done.has(p.id) && Date.now() - Date.parse(p.at) > 18 * 3600_000 && Date.now() - Date.parse(p.at) < 5 * 86_400_000);
+  if (!posted.length) return;
+  const plays = g.videos.map(v => v.plays ?? 0).sort((a, b) => a - b);
+  const median = plays.length ? plays[Math.floor(plays.length / 2)]! : 0;
+  for (const p of posted) {
+    const t = Date.parse(p.at) / 1000;
+    const v = g.videos.find(x => Math.abs(x.create_time - t) < 3 * 3600);
+    if (!v) continue;   // pas (encore) dans les vidéos lues
+    done.add(p.id!);
+    const ratio = median ? Math.round((v.plays ?? 0) / median * 100) : 0;
+    await queueTelegramMessage(`📊 Ta pub « ${p.title ?? 'TikTok'} », 1 jour après : ${fmtVid(v)}\n`
+      + (median ? (ratio >= 100 ? `🔥 ${ratio} % d'une vidéo normale chez toi (médiane ${median.toLocaleString('fr-FR')} vues) : ce format marche, l'équipe va le refaire.` : `📉 ${ratio} % d'une vidéo normale chez toi (médiane ${median.toLocaleString('fr-FR')} vues) : l'équipe change de hook la prochaine fois.`) : '')).catch(() => {});
+  }
+  await kvSet('tt:followup:done', JSON.stringify([...done].slice(-50)));
+}
 export async function jobWeeklyMeeting(): Promise<void> { await weeklyMeeting(true).catch(e => console.warn('[tt-growth] réunion', e)); }

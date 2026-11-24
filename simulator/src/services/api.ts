@@ -1197,6 +1197,9 @@ export const business = {
   studioRender: (plan: StudioPlan, options: StudioRenderOptions) =>
     apiFetch<{ job: StudioJob; estimateUsd: number }>('/api/studio/render', { method: 'POST', body: JSON.stringify({ plan, options }) }),
   studioJobs: () => apiFetch<{ jobs: StudioJob[]; spentUsd: number }>('/api/studio/jobs'),
+  studioTiktok: () => apiFetch<{ growth: TiktokGrowth | null }>('/api/studio/tiktok'),
+  studioPubTiktok: (idea: string) => apiFetch<{ message: string }>('/api/studio/pub-tiktok', { method: 'POST', body: JSON.stringify({ idea }) }),
+  studioTiktokMeeting: () => apiFetch<{ message: string }>('/api/studio/tiktok-meeting', { method: 'POST', body: '{}' }),
   studioPublishTiktok: (jobId: string) => apiFetch<{ message: string }>('/api/studio/publish-tiktok', { method: 'POST', body: JSON.stringify({ job_id: jobId }) }),
   studioEditOptions: () => apiFetch<EditOptions>('/api/studio/edit/options'),
   studioUploadUrl: (name: string) => apiFetch<{ uploadUrl: string; publicUrl: string; type: 'video' | 'image' | 'audio' }>('/api/studio/upload-url', { method: 'POST', body: JSON.stringify({ name }) }),
@@ -1513,3 +1516,11 @@ export const business = {
   weather: () =>
     apiFetch<{ temperature: number; apparent_temp: number; humidity: number; wind_speed: number; condition: string; icon: string; is_day: boolean }>('/api/weather'),
 };
+
+/** 24/11 : équipe TikTok (page MONTAGE › 📈 TikTok) */
+export interface TiktokGrowth {
+  at: string; followers?: number; followers7?: number; views7?: number; audience?: string; bestHour: string | null; hours: number[] | null;
+  videos: Array<{ id: string; desc: string; plays?: number; likes?: number; saves?: number; shares?: number }>; searches: string[];
+  analysis: { summary?: string; winning_patterns?: string[]; avoid?: string[]; hooks_bank?: string[]; formats?: string[]; keywords?: string[]; hashtags?: string[];
+    ideas?: Array<{ title: string; hook: string; format: string; why: string }>; selling_points?: string[]; client_questions?: string[]; creators?: Array<{ handle: string; why: string }> };
+}

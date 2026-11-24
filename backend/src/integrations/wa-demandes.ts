@@ -12,7 +12,7 @@ export type Channel = 'whatsapp' | 'tiktok';
 
 const KEYS: Record<Channel, string> = { whatsapp: 'wa:demandes', tiktok: 'tt:demandes' };
 const MAX = 200;
-export const WA_CLOSED = new Set(['conclu', 'perdu', 'refusé']);
+export const WA_CLOSED = new Set(['conclu', 'perdu', 'refusé', 'sans suite']);
 
 async function all(ch: Channel = 'whatsapp'): Promise<WaDemande[]> {
   try { const r = await kvGet(KEYS[ch]); return r ? JSON.parse(r) as WaDemande[] : []; } catch { return []; }
@@ -63,7 +63,10 @@ async function recordDemandeNow(ch: Channel, chat: string, text: string, status:
   const i = list.findIndex(d => d.chat.toLowerCase() === chat.toLowerCase() && !WA_CLOSED.has(d.status) && (d.via ?? 'dm') === (extra.via ?? 'dm'));
   if (i >= 0) {
     const d = list[i]!;
-    if (d.text.endsWith(clean)) return false;   // même message signalé deux fois
+    if (d.text.endsWith(clean)) {   // même message signalé deux fois (seul le statut peut changer : « sans suite »)
+      if (status === 'nouveau' || d.status === status) return false;
+      d.status = status; await save(list, ch); return true;
+    }
     d.text = `${d.text}\n${clean}`.slice(-800);
     d.updated_at = now; d.count += 1;
     if (status !== 'nouveau') d.status = status;
@@ -127,4 +130,19 @@ export function demandeTitle(text: string): string {
   const lines = text.split('\n').filter(l => !/^\[/.test(l));
   const pick = [...lines].reverse().find(l => looksLikeDemande(l)) ?? [...lines].reverse().find(l => l.length >= 20) ?? lines[lines.length - 1];
   return (pick || 'Message').slice(0, 140);
+}
+
+/** 24/11 Kouider : « relance pas les anciens messages, note-les en sans suite ». Demande ouverte sans nouveau message
+ *  depuis `days` jours → « sans suite » (rangée dans les terminées, jamais relancée automatiquement). */
+export function archiveStale(days = 30): Promise<number> {
+  return serial(async () => {
+    let n = 0;
+    for (const ch of ['whatsapp', 'tiktok'] as Channel[]) {
+      const list = await all(ch);
+      let changed = false;
+      for (const d of list) if (!WA_CLOSED.has(d.status) && Date.now() - Date.parse(d.updated_at) > days * 86_400_000) { d.status = 'sans suite'; changed = true; n++; }
+      if (changed) await save(list, ch);
+    }
+    return n;
+  });
 }

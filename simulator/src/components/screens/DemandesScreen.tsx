@@ -48,7 +48,7 @@ const DOSSIER_FLOWS: Record<string, Stage[]> = {
   ],
 };
 // 16/11 : les leads « perdu »/« conclu » et dossiers terminés étaient comptés « en cours » → rangés à part.
-const CLOSED = new Set(['perdu', 'conclu', 'lost', 'won', 'refuse', 'refusé', 'CANCELLED', 'DELIVERED', 'FINALIZED', 'COMPLETED', 'REJECTED', 'DECLINED']);
+const CLOSED = new Set(['perdu', 'conclu', 'sans suite', 'lost', 'won', 'refuse', 'refusé', 'CANCELLED', 'DELIVERED', 'FINALIZED', 'COMPLETED', 'REJECTED', 'DECLINED']);
 const isClosed = (d: Demande) => !!d.status && CLOSED.has(d.status);
 const ageDays = (d: Demande) => d.created_at ? Math.floor((Date.now() - Date.parse(d.created_at)) / 86_400_000) : 0;
 const isStale = (d: Demande) => !isClosed(d) && ageDays(d) >= 2;
@@ -294,7 +294,7 @@ export default function DemandesScreen() {
                   </div>
                 )}
                 {d.status === 'CANCELLED' && <div style={{ marginTop: 10 }}><Badge color={T.bad}>Annulée</Badge></div>}
-                {!flow && d.status && d.status !== 'CANCELLED' && <div style={{ marginTop: 10 }}><Badge color={d.status === 'conclu' ? T.ok : d.status === 'perdu' ? T.bad : T.faint}>{({ new: 'Nouveau', nouveau: 'Nouveau', contacte: 'Contacté', contacté: 'Contacté', conclu: 'Conclu', perdu: 'Perdu', refusé: 'Refusé (âge)', PENDING: 'En attente' } as Record<string, string>)[d.status] ?? d.status}</Badge></div>}
+                {!flow && d.status && d.status !== 'CANCELLED' && <div style={{ marginTop: 10 }}><Badge color={d.status === 'conclu' ? T.ok : d.status === 'perdu' ? T.bad : T.faint}>{({ new: 'Nouveau', nouveau: 'Nouveau', contacte: 'Contacté', contacté: 'Contacté', conclu: 'Conclu', perdu: 'Perdu', refusé: 'Refusé (âge)', 'sans suite': 'Sans suite', PENDING: 'En attente' } as Record<string, string>)[d.status] ?? d.status}</Badge></div>}
               </div>
 
               {/* Actions */}

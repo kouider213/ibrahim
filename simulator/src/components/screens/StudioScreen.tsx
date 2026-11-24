@@ -3,6 +3,7 @@ import { business, type StudioOptions, type StudioPlan, type StudioJob, type Stu
 import { Hero, StatCard, SkeletonCards } from '../ui/Premium.tsx';
 import MontageEditor, { uploadFile } from './MontageEditor.tsx';
 import AiRetouche from './AiRetouche.tsx';
+import TiktokTeam from './TiktokTeam.tsx';
 import { Ico } from '../ui/Icon.tsx';
 
 // « STUDIO VIDÉO » : vidéos virales 9:16 niveau Higgsfield. Dzaryx écrit le scénario, génère les plans IA
@@ -38,7 +39,7 @@ export default function StudioScreen() {
   const [spent, setSpent] = useState(0);
   const [toast, setToast] = useState('');
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<'editor' | 'retouche' | 'ia'>('editor');
+  const [tab, setTab] = useState<'editor' | 'retouche' | 'ia' | 'tiktok'>('editor');
 
   // Création
   const [mode, setMode] = useState<'viral' | 'single'>('viral');
@@ -148,7 +149,9 @@ export default function StudioScreen() {
             <button style={{ ...chip(tab === 'editor'), flex: 1, padding: '9px 6px' }} onClick={() => setTab('editor')}><Ico e="✂️" />Éditeur</button>
             <button style={{ ...chip(tab === 'retouche'), flex: 1, padding: '9px 6px' }} onClick={() => setTab('retouche')}><Ico e="🪄" />Retouche IA</button>
             <button style={{ ...chip(tab === 'ia'), flex: 1, padding: '9px 6px' }} onClick={() => setTab('ia')}><Ico e="🤖" />Pub IA</button>
+            <button style={{ ...chip(tab === 'tiktok'), flex: 1, padding: '9px 6px' }} onClick={() => setTab('tiktok')}><Ico e="📈" />TikTok</button>
           </div>
+          {tab === 'tiktok' && <TiktokTeam say={say} />}
           {tab === 'retouche' && <AiRetouche say={say} onLaunched={() => void loadJobs()} />}
           {tab === 'editor' && <MontageEditor say={say} onExported={() => void loadJobs()} />}
 

@@ -101,6 +101,33 @@ router.post('/ai-edit', async (req, res) => {
   try { res.json({ job: await startAiEdit(req.body as AiEditRequest, 'kouider') }); } catch (err) { fail(res, err, 400); }
 });
 
+// 24/11 : onglet 📈 TikTok de la page MONTAGE — chiffres + idées de l'équipe TikTok (tiktok-growth.ts)
+router.get('/tiktok', async (_req, res) => {
+  try {
+    const g = await (await import('../../marketing/tiktok-growth.js')).getGrowth();
+    if (!g) { res.json({ growth: null }); return; }
+    const best = g.slots?.find(s => s.prime);
+    res.json({ growth: {
+      at: g.at, followers: g.followers, followers7: g.followers7, views7: g.views7, audience: g.audience,
+      bestHour: best ? `${best.h}h${String(best.m).padStart(2, '0')}` : null, hours: g.hours ?? null,
+      videos: g.videos.slice(0, 5).map(v => ({ id: v.id, desc: v.desc.replace(/#\S+/g, '').replace(/\s+/g, ' ').trim().slice(0, 120), plays: v.plays, likes: v.likes, saves: v.saves, shares: v.shares })),
+      searches: g.searches.slice(0, 8), analysis: g.analysis,
+    } });
+  } catch (err) { fail(res, err); }
+});
+// Créer une pub depuis une idée de l'équipe (plan ≈ 1 min → la pub arrive sur Telegram + ici, avec les boutons de publication)
+router.post('/pub-tiktok', async (req, res) => {
+  const idea = String((req.body ?? {}).idea ?? '').slice(0, 800);
+  res.json({ message: '🎬 Pub lancée : prête dans 5 à 12 min sur Telegram et ici, avec le choix de la publier sur TikTok.' });
+  void import('../../marketing/tiktok-pub.js').then(m => m.tiktokPubTool({ idea }, 'kouider'))
+    .catch(e => console.warn('[studio] pub-tiktok', e instanceof Error ? e.message : e));
+});
+// Réunion d'équipe tout de suite (relit TikTok ≈ 2 min) → Telegram
+router.post('/tiktok-meeting', async (_req, res) => {
+  res.json({ message: '📊 Réunion lancée : je relis ton TikTok, le compte-rendu arrive sur Telegram dans 2-3 min.' });
+  void import('../../marketing/tiktok-growth.js').then(m => m.weeklyMeeting(true)).catch(e => console.warn('[studio] réunion', e instanceof Error ? e.message : e));
+});
+
 // 24/11 : bouton « Publier sur TikTok » de la page MONTAGE — publication 1-5 min sur le PC cloud → résultat sur Telegram.
 router.post('/publish-tiktok', async (req, res) => {
   const b = (req.body ?? {}) as { job_id?: string; at?: string; decline?: boolean };
