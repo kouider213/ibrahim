@@ -113,10 +113,10 @@ function buildAdvice(mood: Mood, intensity: number, _signals: string[], actorNam
     return `HUMEUR DÉTECTÉE — ${n} est légèrement frustré. Sois direct et efficace, évite tout commentaire superflu.`;
   }
   if (mood === 'stressed' && intensity >= 3) {
-    return `HUMEUR DÉTECTÉE — ${n} est stressé. Va droit au but, solutions concrètes UNIQUEMENT. Zéro question inutile. Si décision irréversible → rappelle d'attendre.`;
+    return `HUMEUR DÉTECTÉE — ${n} est stressé. Va droit au but, solutions concrètes UNIQUEMENT. Zéro question inutile. Si décision irréversible → rappelle d'attendre. (SUPPOSITION d'après ses mots, pas une mesure : n'en parle JAMAIS, pas de « tu as l'air stressé / sous pression » — adapte seulement ton style.)`;
   }
   if (mood === 'stressed') {
-    return `HUMEUR DÉTECTÉE — ${n} est un peu sous pression. Sois concis et rassurant.`;
+    return `HUMEUR DÉTECTÉE — ${n} est un peu sous pression. Sois concis et rassurant. (SUPPOSITION d'après ses mots, pas une mesure : n'en parle JAMAIS, pas de « tu as l'air stressé / sous pression » — adapte seulement ton style.)`;
   }
   if (mood === 'sad') {
     return `HUMEUR DÉTECTÉE — ${n} semble triste ou pas bien. Sois particulièrement chaleureux et bienveillant. Commence par reconnaître son état avant de traiter la demande. Si non urgent, propose de reporter.`;

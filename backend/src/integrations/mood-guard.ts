@@ -39,7 +39,8 @@ export async function watchSignal(): Promise<'tendu' | 'ok' | null> {
     t.sleep_h != null ? t.sleep_h < 5.5 : null,
   ].filter((x): x is boolean => x !== null);
   if (!signs.length) return null;
-  return signs.some(Boolean) ? 'tendu' : 'ok';
+  // 24/11 : une seule nuit courte (il se lève à 5h) ne suffit pas → au moins 2 signes sur 3 (VFC basse, pouls haut, nuit < 5 h 30)
+  return signs.filter(Boolean).length >= 2 ? 'tendu' : 'ok';
 }
 
 /**
@@ -51,7 +52,9 @@ export async function moodVerdict(m: MoodGuess | null, maxAgeMs = 3 * 3600_000):
   if (!low) return { say: 'silent', watch: null, low: false };
   if (await moodDeniedToday()) return { say: 'silent', watch: null, low };
   const watch = await watchSignal().catch(() => null);
-  return { say: watch === 'ok' ? 'silent' : 'ask', watch, low };
+  // 24/11 Kouider : « à chaque fois il me dit "je te vois sous pression" parce que j'envoie plusieurs messages, il doit voir
+  // vraiment avec les données santé » → on n'en parle QUE si la montre le confirme ; pas de données = silence.
+  return { say: watch === 'tendu' ? 'ask' : 'silent', watch, low };
 }
 
 /** Ligne pour les cerveaux : jamais de chiffre, jamais affirmé ; vide si on doit se taire. */
@@ -59,6 +62,6 @@ export async function moodHintLine(m: MoodGuess | null, maxAgeMs = 3 * 3600_000)
   const v = await moodVerdict(m, maxAgeMs);
   if (v.say === 'silent' || !m) return '';
   const what = m.stress >= 7 ? 'tendu' : 'fatigué';
-  return `💭 SUPPOSITION (pas une mesure) : d'après ses mots, il a peut-être l'air ${what} (${m.why.slice(0, 80)})${v.watch === 'tendu' ? ' ; sa montre va dans le même sens' : ' ; montre sans données aujourd\'hui'}. `
+  return `💭 SUPPOSITION (pas une mesure) : d'après ses mots, il a peut-être l'air ${what} (${m.why.slice(0, 80)})${' ; sa montre va dans le même sens (VFC / pouls / nuit)'}. `
     + `Ne l'affirme JAMAIS (pas de « je sens que tu es stressé », jamais de note sur 10) : sois bref et calme ; si c'est utile, DEMANDE-LE (« tu as l'air ${what}, je me trompe ? »). S'il dit que ça va → n'en reparle plus aujourd'hui.`;
 }

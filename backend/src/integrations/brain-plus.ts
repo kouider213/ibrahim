@@ -128,7 +128,7 @@ export async function jobMood(): Promise<string> {
   const { date } = localNow();
   const turns = await kouiderTurns(`${date}T00:00:00`);
   if (turns.length < 4) return 'pas assez de messages';
-  const o = jsonOf<{ stress?: number; energy?: number; mood?: string; why?: string }>(await ai(`Voici les messages que Kouider a envoyés aujourd'hui à son assistant (dans l'ordre, avec l'heure) :\n${turns.map(t => `${t.created_at.slice(11, 16)} ${t.content}`).join('\n').slice(-9000)}\n\nÉvalue avec tact son état du jour d'après ses mots, la longueur et le ton (impatience, fatigue, joie, inquiétude), l'heure (messages très tard / très tôt). Réponds UNIQUEMENT : {"stress":1-10,"energy":1-10,"mood":"un mot","why":"une phrase, factuelle, bienveillante"}`, { max: 300 })) ?? {};
+  const o = jsonOf<{ stress?: number; energy?: number; mood?: string; why?: string }>(await ai(`Voici les messages que Kouider a envoyés aujourd'hui à son assistant (dans l'ordre, avec l'heure) :\n${turns.map(t => `${t.created_at.slice(11, 16)} ${t.content}`).join('\n').slice(-9000)}\n\nÉvalue avec tact son état du jour d'après ce qu'il DIT de lui (fatigue, joie, inquiétude, colère). Plusieurs messages d'affilée, des messages courts, des fautes de frappe ou des demandes de correction = il TRAVAILLE vite avec son assistant, PAS du stress : ça ne compte pas. Dans le doute : stress 4. Réponds UNIQUEMENT : {"stress":1-10,"energy":1-10,"mood":"un mot","why":"une phrase, factuelle, bienveillante"}`, { max: 300 })) ?? {};
   const log = await kvJson<Mood[]>('mood:log', []);
   log.push({ date, stress: Number(o.stress ?? 5), energy: Number(o.energy ?? 5), mood: String(o.mood ?? ''), why: String(o.why ?? '') });
   await kvPut('mood:log', log.filter(m => m.date !== date || m === log[log.length - 1]).slice(-120));
@@ -136,7 +136,7 @@ export async function jobMood(): Promise<string> {
   const alerted = await kvJson<string>('mood:alerted', '');
   const mg = await import('./mood-guard.js');
   if (last3.length === 3 && last3.every(m => m.stress >= 7) && (!alerted || Date.parse(date) - Date.parse(alerted) > 5 * 86_400_000)
-    && !(await mg.moodDeniedToday()) && (await mg.watchSignal().catch(() => null)) !== 'ok') {
+    && !(await mg.moodDeniedToday()) && (await mg.watchSignal().catch(() => null)) === 'tendu') {   // 24/11 : seulement si la montre le confirme
     await kvPut('mood:alerted', date);
     await tg(`💭 Kouider, d'après tes messages de ces 3 derniers jours, tu as l'air sous pression — je me trompe ?\nSi c'est le cas, je peux décaler ce qui peut attendre demain et te garder une vraie pause : dis-moi juste « allège ma journée ». Si ça va, dis-le-moi et je n'en parle plus.`);
   }

@@ -263,10 +263,10 @@ async function moodNowTick(): Promise<MoodNow | null> {
   const prev = await kvJson<MoodNow | null>('mood:now', null);
   if (turns.length < 3) return prev && Date.now() - prev.at < 3 * 3600_000 ? prev : null;
   if (prev && Date.now() - prev.at < 30 * 60_000) return prev;
-  const o = jsonOf<{ stress?: number; energy?: number; why?: string }>(await ai(`Messages de Kouider à son assistant ces 90 dernières minutes (heure + texte, souvent dictés à la voix) :\n${turns.join('\n')}\n\nÉvalue son état MAINTENANT d'après les mots, le ton, l'impatience, la longueur, les fautes de fatigue, l'heure. Réponds UNIQUEMENT : {"stress":1-10,"energy":1-10,"why":"une phrase factuelle"}`, { max: 150 })) ?? {};
+  const o = jsonOf<{ stress?: number; energy?: number; why?: string }>(await ai(`Messages de Kouider à son assistant ces 90 dernières minutes (heure + texte, souvent dictés à la voix) :\n${turns.join('\n')}\n\nÉvalue son état MAINTENANT d'après ce qu'il DIT de lui (fatigue, inquiétude, colère, « j'en peux plus »…). Plusieurs messages d'affilée, des messages courts, des fautes de frappe ou des demandes de correction = il TRAVAILLE vite avec son assistant, PAS du stress : ça ne compte pas. Dans le doute : stress 4. Réponds UNIQUEMENT : {"stress":1-10,"energy":1-10,"why":"une phrase factuelle"}`, { max: 150 })) ?? {};
   const m: MoodNow = { at: Date.now(), stress: Number(o.stress ?? 5), energy: Number(o.energy ?? 5), why: String(o.why ?? ''), offered: prev?.offered && Date.now() - prev.at < 6 * 3600_000 };
   await kvPut('mood:now', m, 12 * 3600);
-  if ((m.stress >= 8 || m.energy <= 2) && !m.offered && (await mg.moodVerdict(m)).say === 'ask') {
+  if ((m.stress >= 8 || m.energy <= 2) && !m.offered && (await mg.moodVerdict(m)).say === 'ask') {   // = montre 'tendu' obligatoire
     m.offered = true;
     await kvPut('mood:now', m, 12 * 3600);
     // Une QUESTION, pas une affirmation (c'est deviné d'après ses mots) ; « Non, ça va » → silence jusqu'à demain
