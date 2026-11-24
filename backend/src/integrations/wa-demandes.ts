@@ -41,8 +41,21 @@ export async function recordWaDemande(chat: string, text: string, status = 'nouv
 }
 
 /** Même chose pour n'importe quel canal. `at` = date réelle du message (reprise de l'historique). */
-export async function recordDemande(ch: Channel, chat: string, text: string, status = 'nouveau',
+// Plusieurs messages arrivent en même temps (reprise TikTok : 5 d'un coup → 1 seul gardé) : on écrit l'un après l'autre.
+let chain: Promise<unknown> = Promise.resolve();
+function serial<T>(fn: () => Promise<T>): Promise<T> {
+  const next = chain.then(fn, fn);
+  chain = next.catch(() => {});
+  return next;
+}
+
+export function recordDemande(ch: Channel, chat: string, text: string, status = 'nouveau',
   extra: { via?: WaDemande['via']; video?: string; at?: string } = {}): Promise<boolean> {
+  return serial(() => recordDemandeNow(ch, chat, text, status, extra));
+}
+
+async function recordDemandeNow(ch: Channel, chat: string, text: string, status: string,
+  extra: { via?: WaDemande['via']; video?: string; at?: string }): Promise<boolean> {
   const clean = text.split('\n').map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n').slice(0, 500);
   if (!chat || !clean) return false;
   const list = await all(ch);
@@ -67,19 +80,23 @@ export async function recordDemande(ch: Channel, chat: string, text: string, sta
 
 export async function listWaDemandes(ch: Channel = 'whatsapp'): Promise<WaDemande[]> { return all(ch); }
 
-export async function updateWaDemande(id: string, status: string, ch: Channel = 'whatsapp'): Promise<boolean> {
+export function updateWaDemande(id: string, status: string, ch: Channel = 'whatsapp'): Promise<boolean> {
+  return serial(async () => {
   const list = await all(ch);
   const d = list.find(x => x.id === id);
   if (!d) return false;
   d.status = status;
   await save(list, ch);
   return true;
+  });
 }
 
-export async function deleteWaDemande(id: string, ch: Channel = 'whatsapp'): Promise<boolean> {
+export function deleteWaDemande(id: string, ch: Channel = 'whatsapp'): Promise<boolean> {
+  return serial(async () => {
   const list = await all(ch);
   const next = list.filter(x => x.id !== id);
   if (next.length === list.length) return false;
   await save(next, ch);
   return true;
+  });
 }
