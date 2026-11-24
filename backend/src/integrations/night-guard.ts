@@ -64,6 +64,13 @@ const pageText = (html: string) => html.replace(/<script[\s\S]*?<\/script>|<styl
 const between = (t: string, from: string, to: string) => { const a = t.indexOf(from); const z = t.indexOf(to, a + from.length); return a < 0 ? '' : t.slice(a, z > a ? z : a + 4000); };
 
 /** TOUTES les conditions FIK : celles du site (pages Conditions + FAQ, relues toutes les 6 h) + la fiche du widget. */
+/** 24/11 : juste les CONDITIONS DE LOCATION exactes + FAQ agence (pour les réponses proposées aux clients). */
+export async function exactConditions(): Promise<string> {
+  const info = await publicInfo().catch(() => '');
+  const i = info.indexOf('CONDITIONS DE LOCATION'), j = info.indexOf('CONDITIONS ET FAQ DU SITE');
+  return (i >= 0 ? info.slice(i, j > i ? j : i + 3000) : info.slice(0, 3000)).trim();
+}
+
 export async function publicInfo(): Promise<string> {
   let site = (await kvGet('nightguard:site').catch(() => null)) ?? '';
   if (!site) {

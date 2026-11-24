@@ -291,7 +291,7 @@ export async function onWaNew(c: WaChat): Promise<void> {
   try {
     const run = await runReadOnlyAgent(`Client WhatsApp « ${name} » (${c.unread} message(s) non lu(s)). Nouveau(x) message(s) du client :\n« ${preview} »`
       + (convo ? `\n\nDiscussion récente (contexte) :\n${convo}` : ''),
-      { system: REPLY_SYSTEM, sessionId: 'wa_web_draft', maxRounds: 4, maxTokens: 900 });
+      { system: `${REPLY_SYSTEM}\n\nCONDITIONS EXACTES DE FIK (24/11 : n'en cite aucune autre — ex. il n'y a AUCUNE caution) :\n${await import('./night-guard.js').then(m => m.exactConditions()).catch(() => '')}`, sessionId: 'wa_web_draft', maxRounds: 4, maxTokens: 900 });
     const a = run.text.indexOf('{'), z = run.text.lastIndexOf('}');
     const o = JSON.parse(run.text.slice(a, z + 1)) as { summary?: string; reply?: string; kind?: string; translation?: string };
     summary = String(o.summary ?? preview); reply = String(o.reply ?? '').trim(); kind = String(o.kind ?? 'autre');

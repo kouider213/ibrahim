@@ -23,7 +23,9 @@ export async function onTtNew(it: TtItem): Promise<void> {
   const added = await recordDemande('tiktok', it.name, it.text, 'nouveau', { via: it.kind, video: it.video, at: it.at });
   if (!added || it.backfill) return;
   const where = it.kind === 'dm' ? 'message privé' : `commentaire${it.video ? ` (${it.video})` : ''}`;
+  const draft = await ttDraft(it).catch(() => '');
   const t = `🎵 TikTok — ${it.name} (${where})\n« ${it.text.slice(0, 500)} »\n\n`
+    + (draft ? `✍️ Réponse à copier-coller dans TikTok :\n${draft}\n\n` : '')
     + `Ajouté dans DEMANDES. Réponds-lui depuis l'app TikTok (Dzaryx ne répond pas sur TikTok).`;
   await queueTelegramMessage(t).catch(() => {});
   emitProactive(`TikTok — ${it.name} : ${it.text.slice(0, 70)}`, 'info', t);
@@ -39,4 +41,18 @@ export async function onTtState(st: { logged_in?: boolean; captcha?: boolean }):
     ? '⚠️ TikTok s\'est déconnecté du PC cloud : je ne vois plus tes messages TikTok. Dis-moi « connecte TikTok » pour un nouveau code QR.'
     : '🧩 TikTok affiche un puzzle anti-robot sur le PC cloud. Ouvre l\'app → MON PC → écran du PC cloud et fais glisser la pièce, sinon je ne vois plus les commentaires TikTok.';
   await queueTelegramMessage(msg, undefined, 'kouider', undefined, true).catch(() => {});
+}
+
+/** 24/11 : réponse proposée (Kouider la copie dans TikTok) — mêmes règles que WhatsApp, conditions exactes via l'outil. */
+export async function ttDraft(it: TtItem): Promise<string> {
+  const { runReadOnlyAgent } = await import('./readonly-agent.js');
+  // Les conditions EXACTES dans le prompt (24/11 : sans elles, il a écrit « la caution est obligatoire » — FIK n'en demande aucune)
+  const cond = await import('./night-guard.js').then(m => m.exactConditions()).catch(() => '');
+  const system = `Tu prépares la réponse de FIK Conciergerie (location de voitures à Oran, livraison gratuite à l'aéroport d'Oran) à un ${it.kind === 'dm' ? 'MESSAGE PRIVÉ' : 'COMMENTAIRE PUBLIC'} TikTok. Kouider la copiera lui-même.
+Règles : MÊME langue que le client (s'il écrit en français, même avec « salem », réponds en français ; arabe seulement s'il écrit en arabe), vouvoiement, chaleureux, court (1 à 3 phrases), zéro argot. Ne promets JAMAIS qu'une voiture est disponible (Kouider vérifie). Conditions EXACTES ci-dessous — n'en cite aucune autre, n'invente rien :
+${cond}
+ Demande de location → demande les dates (début et fin) et l'âge du conducteur (35 ans minimum). Jamais de prix${it.kind === 'comment' ? ' en public' : ''}. Pour réserver : WhatsApp +32466311469 (écris le numéro tel quel, en chiffres latins).${it.kind === 'comment' ? ' Commentaire public : réponse très courte qui invite à écrire en privé ou sur WhatsApp.' : ''}
+Réponds UNIQUEMENT avec le texte de la réponse, rien d'autre.`;
+  const r = await runReadOnlyAgent(`${it.kind === 'dm' ? 'Message privé' : 'Commentaire'} TikTok de « ${it.name} » :\n« ${it.text.slice(0, 800)} »`, { system, sessionId: 'tt_draft', maxRounds: 1, maxTokens: 400 });
+  return r.text.trim().replace(/^["«]\s*|\s*["»]$/g, '').slice(0, 700);
 }
