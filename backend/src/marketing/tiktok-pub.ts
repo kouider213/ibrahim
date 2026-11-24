@@ -672,7 +672,7 @@ async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: 
       '✍️ Légende :', caption,
       '',
       plan.pinned_comment ? `📌 Commentaire à épingler juste après la publication :\n${plan.pinned_comment}\n` : '',
-      prime ? `⏰ Meilleur moment pour poster : ${prime.label} — ${prime.why}.${slots.filter(s => s !== prime).slice(0, 2).map(s => `\n   Autre créneau : ${s.label}`).join('')}\n   Je te préviens à l'heure.\n` : '',
+      prime ? `⏰ Meilleur moment pour poster : ${prime.label} — ${prime.why}.${slots.filter(s => s !== prime).slice(0, 2).map(s => `\n   Autre créneau : ${s.label}`).join('')}\n   Choisis avec les boutons ci-dessous : je la publie moi-même sur ton TikTok, maintenant ou à ce moment-là.\n` : '',
       `🎣 Hook utilisé : « ${plan.hook} » (pris sur le moment le plus fort des vidéos de voitures).${plan.alt_hooks.length ? `\n   Hooks de secours pour un 2e post : ${plan.alt_hooks.map(h => `« ${h} »`).join(' · ')}` : ''}`,
       '',
       team ? team : '',
@@ -683,15 +683,8 @@ async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: 
     ].filter(x => x !== '').join('\n').replace(/\n{3,}/g, '\n\n'));
     emitProactive(`🎬 Pub TikTok « ${plan.title} » prête (page MONTAGE)`, 'info', `🎬 Pub TikTok prête : ${url}\n\n${caption}`);
 
-    if (prime) {
-      try {
-        const { executeTool } = await import('../integrations/tool-executor.js');
-        const at = prime.at;
-        const d = at.toLocaleDateString('sv-SE', { timeZone: 'Europe/Brussels' });
-        const t = at.toLocaleTimeString('fr-FR', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
-        await executeTool('schedule_reminder', { message: `📲 C'est l'heure de poster ta pub TikTok « ${plan.title} » ! La vidéo, la miniature et la légende sont dans Telegram. Après la publication : épingle le commentaire et réponds aux premiers commentaires pendant 30 min.`, at_date: d, at_time: t, timezone: 'Europe/Brussels' }, 'telegram_kouider');
-      } catch (e) { console.warn('[pub] rappel :', e instanceof Error ? e.message : e); }
-    }
+    // 24/11 : choix [publier maintenant] [publier au meilleur moment] [ne pas publier] (+ rappel au créneau s'il ne choisit rien)
+    await offerPubChoice(job, prime).catch(e => console.warn('[pub] choix :', e instanceof Error ? e.message : e));
   } catch (e) {
     const m = e instanceof Error ? e.message : String(e);
     console.error(`[pub] job ${job.id}:`, m);
@@ -841,5 +834,104 @@ export async function pubStatusContext(): Promise<string> {
       : stale ? 'bloquée (rendu interrompu, ne compte pas dessus)' : `en cours (${j.step})`;
     return `• « ${j.title} » lancée à ${fmt(j.createdAt)} : ${st}`;
   });
-  return `🎬 PUBS TIKTOK DES 12 DERNIÈRES HEURES (état réel) :\n${lines.join('\n')}\n→ Ne propose PAS d'en lancer une nouvelle si une est prête ou en cours (sauf s'il le demande). « J'ai partagé / je partager / j'ai posté la pub » = INFO (il l'a publiée) → félicite, ne renvoie rien. « Renvoie / envoie-moi / partage-moi la pub » = outil publish_to_socials (renvoie la dernière pub prête), JAMAIS create_marketing_video ni animate_car_photo.\n${RULE}${postedLine}`;
+  return `🎬 PUBS TIKTOK DES 12 DERNIÈRES HEURES (état réel) :\n${lines.join('\n')}\n→ Ne propose PAS d'en lancer une nouvelle si une est prête ou en cours (sauf s'il le demande). « J'ai partagé / je partager / j'ai posté la pub » = INFO (il l'a publiée) → félicite, ne renvoie rien. « Renvoie / envoie-moi / partage-moi la pub » = outil publish_to_socials (renvoie la dernière pub prête), JAMAIS create_marketing_video ni animate_car_photo. « Publie-la sur TikTok / mets-la en ligne / poste-la toi-même » = video_studio action publish_tiktok (Dzaryx la publie LUI-MÊME sur le TikTok FIK ; at = ISO pour plus tard ; jamais sans qu'il le demande).\n${RULE}${postedLine}`;
+}
+
+// ─── 24/11 : « quand il crée une vidéo pub, j'ai le choix entre valider et la partager sur TikTok, ou pas » ───
+// À la livraison : boutons [Publier maintenant] [Publier à <meilleur créneau>] [Ne pas publier]. Rien ne part sans son choix.
+// Publication = cloudpc/tiktok_web.py (compte fik_conciergerie connecté dans le Chrome du PC cloud) : import + légende + Publier.
+
+interface PubSlot { jobId: string; at: string; mode: 'remind' | 'publish'; title: string }
+const SLOTS_KEY = 'pub:tiktok:slots';
+
+async function pubSlots(): Promise<PubSlot[]> {
+  const { kvGet } = await import('../integrations/app-store.js');
+  try { return JSON.parse((await kvGet(SLOTS_KEY)) ?? '[]') as PubSlot[]; } catch { return []; }
+}
+async function savePubSlots(l: PubSlot[]): Promise<void> {
+  const { kvSet } = await import('../integrations/app-store.js');
+  await kvSet(SLOTS_KEY, JSON.stringify(l.slice(-20)), 7 * 86_400);
+}
+
+/** Pub prête → choix sur Telegram + rappel au meilleur créneau (remplacé par la publication s'il choisit « plus tard »). */
+export async function offerPubChoice(job: StudioJob, prime?: { at: Date; label: string }): Promise<void> {
+  const { createDecision } = await import('../integrations/conscience.js');
+  const opts: Array<{ label: string; tool: string; input: Record<string, unknown> }> = [
+    { label: '✅ Valider et publier sur TikTok maintenant', tool: 'video_studio', input: { action: 'publish_tiktok', job_id: job.id } },
+  ];
+  if (prime && prime.at.getTime() - Date.now() > 20 * 60_000)
+    opts.push({ label: `⏰ Valider et publier ${prime.label.replace(/\s*\(.*\)\s*$/, '')} (heure d'Oran)`, tool: 'video_studio', input: { action: 'publish_tiktok', job_id: job.id, at: prime.at.toISOString() } });
+  opts.push({ label: '❌ Ne pas la publier', tool: 'video_studio', input: { action: 'publish_tiktok', job_id: job.id, decline: true } });
+  if (prime) await savePubSlots([...(await pubSlots()).filter(s => s.jobId !== job.id), { jobId: job.id, at: prime.at.toISOString(), mode: 'remind', title: job.title }]);
+  await createDecision(`🎬 Ta pub « ${job.title} » est prête (vidéo juste au-dessus). Tu la valides et je la publie sur ton TikTok ?`, opts);
+}
+
+async function findPub(jobId?: string): Promise<StudioJob | null> {
+  const { listStudioJobs } = await import('./video-studio.js');
+  const { jobs } = await listStudioJobs();
+  const pubs = jobs.filter(j => j.status === 'done' && j.url && (j.planId === 'pub' || /\/studio\/pub-/.test(j.url)))
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+  return (jobId ? pubs.find(j => j.id === jobId) : pubs.find(j => Date.now() - Date.parse(j.updatedAt) < 7 * 86_400_000)) ?? null;
+}
+
+/** video_studio action=publish_tiktok : job_id (sinon la dernière pub), at (ISO = plus tard), decline (= ne pas publier). */
+export async function publishPubTool(input: Record<string, unknown>): Promise<string> {
+  const job = await findPub(input['job_id'] ? String(input['job_id']) : undefined);
+  if (!job) return '❌ Aucune pub prête à publier (7 derniers jours).';
+  const slots = (await pubSlots()).filter(s => s.jobId !== job.id);
+  if (input['decline'] === true) {
+    await savePubSlots(slots);
+    return `👍 Je ne publie pas « ${job.title} ». Elle reste dans la page MONTAGE si tu changes d'avis (« publie la pub sur TikTok »).`;
+  }
+  if ((await postedPubIds()).some(p => p.id === job.id)) { await savePubSlots(slots); return `ℹ️ « ${job.title} » est déjà publiée sur TikTok.`; }
+  const at = input['at'] ? Date.parse(String(input['at'])) : NaN;
+  if (at && at - Date.now() > 5 * 60_000) {
+    await savePubSlots([...slots, { jobId: job.id, at: new Date(at).toISOString(), mode: 'publish', title: job.title }]);
+    const h = new Date(at).toLocaleString('fr-FR', { timeZone: 'Europe/Brussels', weekday: 'long', hour: '2-digit', minute: '2-digit' });
+    return `⏰ C'est validé : je publie « ${job.title} » sur ton TikTok ${h}, et je te préviens quand c'est en ligne.`;
+  }
+  await savePubSlots(slots);
+  // Double clic / bouton + Telegram en même temps : une seule publication à la fois par pub
+  const { kvGet, kvSet } = await import('../integrations/app-store.js');
+  const lock = `pub:publishing:${job.id}`;
+  if (await kvGet(lock).catch(() => null)) return `⏳ « ${job.title} » est déjà en train d'être publiée sur TikTok.`;
+  await kvSet(lock, '1', 10 * 60).catch(() => {});
+  try { return await publishNow(job); } finally { await kvSet(lock, '', 1).catch(() => {}); }
+}
+
+async function publishNow(job: StudioJob): Promise<string> {
+  const { cloudEmit, isCloudPcOnline } = await import('../actions/handlers/cloudpc-relay.js');
+  if (!isCloudPcOnline()) return '❌ Le PC cloud ne répond pas : je n\'ai pas pu publier. Réessaie dans un moment (« publie la pub sur TikTok »).';
+  const base = (job.caption ?? '').trim();
+  const caption = `${base}${/\bbio\b/i.test(base) ? '' : '\n\n📲 Notre numéro est en bio.'}`.trim();
+  const r = await cloudEmit<{ ok: boolean; error?: string; shot?: string }>('cloud:tt', { action: 'publish', url: job.url, caption }, 480_000)
+    .catch(e => ({ ok: false, error: e instanceof Error ? e.message : String(e) } as { ok: boolean; error?: string; shot?: string }));
+  if (!r.ok) {
+    if (r.shot) await queueTelegramMessage(`📸 Écran TikTok au moment du blocage (pub « ${job.title} »)`, r.shot).catch(() => {});
+    return `❌ Pas publiée sur TikTok : ${r.error ?? 'erreur'}. La vidéo est toujours dans Telegram si tu veux la poster toi-même.`;
+  }
+  const { kvGet, kvSet } = await import('../integrations/app-store.js');
+  const list = JSON.parse((await kvGet('pub:posted').catch(() => null)) ?? '[]') as Array<{ id?: string; title?: string; at: string }>;
+  list.unshift({ id: job.id, title: job.title, at: new Date().toISOString() });
+  await kvSet('pub:posted', JSON.stringify(list.slice(0, 30)), 30 * 86_400).catch(() => {});
+  return `✅ « ${job.title} » est publiée sur ton TikTok, avec la légende.\n👉 La 1re heure compte : réponds vite aux commentaires (ils arrivent aussi dans DEMANDES) et épingle le commentaire prévu dans le pack.`;
+}
+
+/** Job toutes les 10 min : publication programmée arrivée → publier ; simple rappel → le prévenir s'il n'a ni publié ni refusé. */
+export async function jobPubSlots(): Promise<void> {
+  const all = await pubSlots();
+  const due = all.filter(s => Date.parse(s.at) <= Date.now());
+  if (!due.length) return;
+  await savePubSlots(all.filter(s => !due.includes(s)));
+  for (const s of due) {
+    if (Date.now() - Date.parse(s.at) > 6 * 3600_000) continue;   // créneau raté depuis longtemps (serveur arrêté…)
+    if ((await postedPubIds()).some(p => p.id === s.jobId)) continue;
+    if (s.mode === 'publish') {
+      const job = await findPub(s.jobId);
+      const msg = job ? await publishPubTool({ job_id: job.id }) : `❌ Pub « ${s.title} » introuvable, pas publiée.`;
+      await queueTelegramMessage(msg, undefined, 'kouider', undefined, true).catch(() => {});
+    } else {
+      await queueTelegramMessage(`📲 C'est le meilleur moment pour ta pub TikTok « ${s.title} ». Réponds « publie la pub sur TikTok » et je la mets en ligne, ou poste-la toi-même (vidéo + légende dans Telegram).`).catch(() => {});
+    }
+  }
 }

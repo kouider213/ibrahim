@@ -1197,6 +1197,7 @@ export const business = {
   studioRender: (plan: StudioPlan, options: StudioRenderOptions) =>
     apiFetch<{ job: StudioJob; estimateUsd: number }>('/api/studio/render', { method: 'POST', body: JSON.stringify({ plan, options }) }),
   studioJobs: () => apiFetch<{ jobs: StudioJob[]; spentUsd: number }>('/api/studio/jobs'),
+  studioPublishTiktok: (jobId: string) => apiFetch<{ message: string }>('/api/studio/publish-tiktok', { method: 'POST', body: JSON.stringify({ job_id: jobId }) }),
   studioEditOptions: () => apiFetch<EditOptions>('/api/studio/edit/options'),
   studioUploadUrl: (name: string) => apiFetch<{ uploadUrl: string; publicUrl: string; type: 'video' | 'image' | 'audio' }>('/api/studio/upload-url', { method: 'POST', body: JSON.stringify({ name }) }),
   studioUploadJoin: (urls: string[], name: string) => apiFetch<{ publicUrl: string; type: 'video' | 'image' | 'audio' }>('/api/studio/upload-join', { method: 'POST', body: JSON.stringify({ urls, name }) }),

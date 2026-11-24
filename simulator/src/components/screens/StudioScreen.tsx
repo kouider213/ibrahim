@@ -316,6 +316,12 @@ export default function StudioScreen() {
                   {j.caption && <button style={{ ...btn('rgba(var(--dz-ink-rgb),0.072)', C.text), flex: 1 }}
                     onClick={() => { void navigator.clipboard?.writeText(j.caption ?? '').then(() => say('📋 Légende copiée')).catch(() => say(j.caption ?? '')); }}><Ico e="📋" />Copier la légende</button>}
                 </div>
+                {j.planId === 'pub' && (
+                  <button style={{ ...btn('#e8265e', '#ffffff'), width: '100%', marginTop: 6 }}
+                    onClick={() => { void business.studioPublishTiktok(j.id).then(r => say(r.message)).catch(() => say('❌ Publication impossible pour le moment')); }}>
+                    <Ico e="🎵" />Valider et publier sur TikTok
+                  </button>
+                )}
               </>)}
             </div>
           ))}

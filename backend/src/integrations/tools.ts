@@ -1480,9 +1480,12 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     input_schema: {
       type: 'object' as const,
       properties: {
-        action:        { type: 'string', enum: ['pub_tiktok', 'plan', 'render', 'edit', 'retouche', 'status'], description: 'pub_tiktok (pub TikTok complète prête à poster : idea = son message, car_names optionnel, my_voice optionnel), plan (scénario IA), render (gratuit par défaut ; payant seulement après accord), edit (MONTAGE de vraies vidéos/photos de Kouider façon CapCut : media_urls + idea), retouche (modifier SA photo/vidéo par l\'IA : media_urls[0] + idea), status.' },
+        action:        { type: 'string', enum: ['pub_tiktok', 'publish_tiktok', 'plan', 'render', 'edit', 'retouche', 'status'], description: 'pub_tiktok (pub TikTok complète prête à poster : idea = son message, car_names optionnel, my_voice optionnel), publish_tiktok (Dzaryx PUBLIE LUI-MÊME la pub prête sur le TikTok FIK — seulement quand Kouider le demande : « publie-la sur TikTok », « mets la pub en ligne » ; job_id optionnel = dernière pub ; at = date ISO pour la publier plus tard ; decline:true = il ne veut pas la publier), plan (scénario IA), render (gratuit par défaut ; payant seulement après accord), edit (MONTAGE de vraies vidéos/photos de Kouider façon CapCut : media_urls + idea), retouche (modifier SA photo/vidéo par l\'IA : media_urls[0] + idea), status.' },
         car_names:     { type: 'array', items: { type: 'string' }, description: 'pub_tiktok : voitures qu\'il veut montrer (sinon Dzaryx choisit 3 voitures complémentaires).' },
         my_voice:      { type: 'boolean', description: 'pub_tiktok : true si Kouider veut SA propre voix (clone) en voix off.' },
+        job_id:        { type: 'string', description: 'publish_tiktok : id de la pub (sinon la dernière prête).' },
+        at:            { type: 'string', description: 'publish_tiktok : date ISO pour publier plus tard (sinon maintenant).' },
+        decline:       { type: 'boolean', description: 'publish_tiktok : true = il ne veut pas la publier.' },
         confirm:       { type: 'boolean', description: 'retouche vidéo : true seulement après que Kouider a accepté le prix.' },
         quality:       { type: 'string', enum: ['gratuit', 'max'], description: 'retouche photo : gratuit (défaut) ou max (Nano Banana ≈ 0,04 $) si le résultat gratuit ne lui plaît pas.' },
         media_urls:    { type: 'array', items: { type: 'string' }, description: 'edit : liens des rushes (vidéos/photos) à monter.' },

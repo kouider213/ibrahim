@@ -571,6 +571,13 @@ async def on_wa(d):
     return await asyncio.wait_for(whatsapp_web.action(d), 90)
 
 
+@sio.on('cloud:tt', namespace=NS)
+@safe
+async def on_tt(d):
+    """TikTok : publication d'une pub validée par Kouider (24/11) — import + légende + Publier (~1-5 min)."""
+    return await asyncio.wait_for(tiktok_web.action(d), 480)
+
+
 _face = None
 
 

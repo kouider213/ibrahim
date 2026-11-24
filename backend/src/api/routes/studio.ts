@@ -101,6 +101,16 @@ router.post('/ai-edit', async (req, res) => {
   try { res.json({ job: await startAiEdit(req.body as AiEditRequest, 'kouider') }); } catch (err) { fail(res, err, 400); }
 });
 
+// 24/11 : bouton « Publier sur TikTok » de la page MONTAGE — publication 1-5 min sur le PC cloud → résultat sur Telegram.
+router.post('/publish-tiktok', async (req, res) => {
+  const b = (req.body ?? {}) as { job_id?: string; at?: string; decline?: boolean };
+  const m = await import('../../marketing/tiktok-pub.js');
+  if (b.at || b.decline) { try { res.json({ message: await m.publishPubTool(b) }); } catch (err) { fail(res, err); } return; }
+  res.json({ message: '⏳ Publication sur TikTok en cours (1 à 5 min) : je te confirme sur Telegram.' });
+  void m.publishPubTool(b).then(r => import('../../notifications/tg-outbox.js').then(t => t.queueTelegramMessage(r, undefined, 'kouider', undefined, true)))
+    .catch(e => console.warn('[studio] publish-tiktok', e instanceof Error ? e.message : e));
+});
+
 router.get('/jobs', async (_req, res) => {
   try { res.json(await listStudioJobs()); } catch (err) { fail(res, err); }
 });

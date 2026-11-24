@@ -564,6 +564,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'pub-tiktok-slots',
+    cron:  '*/10 * * * *',          // 24/11 : pub validée « plus tard » → publiée sur TikTok à l'heure ; sinon rappel au meilleur créneau
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'client-waiting-reply',
     cron:  '*/10 * * * *',          // 11/11 : client sans réponse depuis 1 h (bouclier / nuit) → l'assistant IA répond (conditions, dates + âge)
     tz:    'Europe/Brussels',
@@ -914,6 +919,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'factory':                   async () => { console.log(`[factory] ${await (await import('../integrations/jarvis4.js')).jobFactory()}`); },
   'commercial':               async () => { console.log(`[commercial] ${await (await import('../integrations/builders.js')).jobCommercial()}`); },
   'night-guard-recap':       async () => { await (await import('../integrations/night-guard.js')).jobNightGuardRecap(); },
+  'pub-tiktok-slots':        async () => { await (await import('../marketing/tiktok-pub.js')).jobPubSlots(); },
   'client-waiting-reply':    async () => { await (await import('../integrations/night-guard.js')).jobClientWaitingReply(); },
   'nego-watch':              async () => { await (await import('../integrations/negotiator.js')).jobNegoWatch(); },
   'predictions':             async () => { await (await import('../integrations/predictions.js')).jobPredictions(); },
