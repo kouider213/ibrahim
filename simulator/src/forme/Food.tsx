@@ -107,7 +107,7 @@ export default function FoodScreen({ toast, o, onO }: { toast: (t: string) => vo
           <div style={{ flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 1.55 }}>
             <div><b>{b.eaten.kcal}</b> / {b.target} kcal mangées</div>
             <div style={{ opacity: 0.75 }}>{b.burnedNow != null ? <>Brûlé à {b.asOf} : <b style={{ color: '#ffb38a' }}>{b.burnedNow}</b> · journée ≈ {b.burn}</> : <>Dépense {b.burn} kcal</>}</div>
-            <div style={{ opacity: 0.75 }}>{bulk ? `Surplus visé +${b.surplus} kcal (prise de masse)` : `Objectif : déficit d'au moins ${b.deficit} kcal`}</div>
+            <div style={{ opacity: 0.75 }}>{bulk ? `Surplus visé +${b.surplus} kcal (prise de masse)` : `Objectif : déficit d'au moins ${b.deficit} kcal · ce soir : ${b.burn - b.eaten.kcal} kcal`}</div>
             <div style={{ marginTop: 6, fontSize: 12.5, fontWeight: 600, color: over || late ? (late ? '#ffd27a' : '#ff8a80') : near ? '#ffd27a' : '#8ff0b8' }}>{bulk ? (b.left <= 0 ? '✅ Objectif atteint : tu construis du muscle' : late ? `⚠️ Il te manque ${b.left} kcal ce soir — mange encore !` : `💪 Encore ${b.left} kcal à manger aujourd'hui`) : over ? '⚠️ Déficit dépassé' : near ? '⚠️ Bientôt la limite — garde de la place pour ce soir' : '✅ Tu es dans ton déficit'}</div>
           </div>
         </div>
@@ -286,7 +286,7 @@ function DeficitCard({ b, me, onRefresh }: { b: FoodBudget; me: boolean; onRefre
       <div style={{ marginTop: 10 }}><Bar value={Math.max(0, real)} max={Math.max(1, goal)} color={ok ? F.green : '#e8590c'} /></div>
       <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 8, color: ok ? F.green : F.red }}>
         {b.burnedNow != null && (evening
-          ? <div style={{ fontSize: 12.5, color: F.muted, fontWeight: 500, marginBottom: 2 }}>Objectif : au moins {goal} kcal de déficit. Pour l'instant ({b.asOf}) : {now} brûlées − {b.eaten.kcal} = {realNow >= 0 ? realNow : `+${-realNow}`} ; ton corps brûle encore ≈ {b.burn - now} kcal d'ici minuit.</div>
+          ? <div style={{ fontSize: 12.5, color: F.muted, fontWeight: 500, marginBottom: 2 }}>Objectif : au moins {goal} kcal de déficit. {real} − {goal} = {b.left > 0 ? `tu peux encore manger ${b.left} kcal (le même chiffre que « kcal restantes » en haut)` : b.left === 0 ? 'pile à l\'objectif' : `${-b.left} kcal de trop`}.</div>
           : <div style={{ fontSize: 12.5, color: F.muted, fontWeight: 500, marginBottom: 2 }}>Ce soir si tu ne manges plus rien : {b.burn} brûlées − {b.eaten.kcal} mangées = {real >= 0 ? real : `+${-real}`} kcal de déficit (objectif {goal})</div>)}
         {ok ? (b.left > 0 ? `✅ Objectif atteint. Si tu manges tes ${b.left} kcal restantes, ton déficit retombe à ${goal} kcal : c'est ton minimum, pile dans l'objectif.` : `✅ Déficit du jour : ${real} kcal (objectif ${goal})`) : real < 0 ? `⚠️ Tu as mangé ${-real} kcal de plus que ta dépense — il manque ${missing} kcal pour ton déficit` : `⚠️ Déficit ${real} / ${goal} kcal — il manque ${missing} kcal`}
       </div>
