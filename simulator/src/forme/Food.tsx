@@ -255,6 +255,9 @@ function DeficitCard({ b, me, onRefresh }: { b: FoodBudget; me: boolean; onRefre
   const [busy, setBusy] = useState(false);
   const real = b.burn - b.eaten.kcal, goal = b.deficit, missing = Math.max(0, goal - real), ok = missing <= 30;
   const now = b.burnedNow ?? b.burn, realNow = now - b.eaten.kcal;   // 02/11 : chiffres EN DIRECT ; « ok » reste jugé sur la journée entière
+  // 24/11 (Kouider : « les déficits c'est pas pareil ») : à 22h25 la carte disait « Déficit à 22:25 : 465 » (sous l'objectif 496)
+  // ET « ✅ Objectif atteint » (jugé sur la journée : 577). Le soir, les grands chiffres = la JOURNÉE, comme le verdict.
+  const evening = b.burnedNow != null && (b.asOf ?? '00:00') >= '18:00';
   const measured = b.activeSource === 'montre';
   useEffect(() => {   // retour du Raccourci Santé → on recharge
     const f = () => { if (document.visibilityState === 'visible') onRefresh(); };
@@ -271,16 +274,20 @@ function DeficitCard({ b, me, onRefresh }: { b: FoodBudget; me: boolean; onRefre
     <div style={{ ...card, marginBottom: 14 }}>
       <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 10 }}><Ico e="🔥" />Calories brûlées aujourd'hui{b.asOf ? <span style={{ fontSize: 12.5, fontWeight: 500, color: F.muted }}> · en direct {b.asOf}</span> : null}</div>
       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-        {cell('Brûlé jusqu\'ici', String(now), '#e8590c')}
+        {evening ? cell('Brûlé (journée)', String(b.burn), '#e8590c') : cell('Brûlé jusqu\'ici', String(now), '#e8590c')}
         <div style={{ color: F.muted, fontWeight: 700 }}>−</div>
         {cell('Mangé', String(b.eaten.kcal))}
         <div style={{ color: F.muted, fontWeight: 700 }}>=</div>
-        {cell(`Déficit à ${b.asOf ?? 'maintenant'}`, realNow >= 0 ? String(realNow) : `+${-realNow}`, realNow >= 0 ? F.green : F.red)}
+        {evening
+          ? cell('Déficit du jour', real >= 0 ? String(real) : `+${-real}`, ok ? F.green : F.red)
+          : cell(`Déficit à ${b.asOf ?? 'maintenant'}`, realNow >= 0 ? String(realNow) : `+${-realNow}`, realNow >= 0 ? F.green : F.red)}
       </div>
       {b.burnedNow != null && b.eaten.kcal === 0 && (b.asOf ?? '99') < '12:00' && <div style={{ fontSize: 12.5, color: F.muted, marginTop: 6 }}>Normal le matin : même en dormant ton corps brûle ≈ {Math.round(b.bmr / 24)} kcal/h depuis minuit. Ce chiffre n'est pas ton déficit du jour : celui qui compte, c'est ce soir.</div>}
       <div style={{ marginTop: 10 }}><Bar value={Math.max(0, real)} max={Math.max(1, goal)} color={ok ? F.green : '#e8590c'} /></div>
       <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 8, color: ok ? F.green : F.red }}>
-        {b.burnedNow != null && <div style={{ fontSize: 12.5, color: F.muted, fontWeight: 500, marginBottom: 2 }}>Ce soir si tu ne manges plus rien : {b.burn} brûlées − {b.eaten.kcal} mangées = {real >= 0 ? real : `+${-real}`} kcal de déficit</div>}
+        {b.burnedNow != null && (evening
+          ? <div style={{ fontSize: 12.5, color: F.muted, fontWeight: 500, marginBottom: 2 }}>Objectif : au moins {goal} kcal de déficit. Pour l'instant ({b.asOf}) : {now} brûlées − {b.eaten.kcal} = {realNow >= 0 ? realNow : `+${-realNow}`} ; ton corps brûle encore ≈ {b.burn - now} kcal d'ici minuit.</div>
+          : <div style={{ fontSize: 12.5, color: F.muted, fontWeight: 500, marginBottom: 2 }}>Ce soir si tu ne manges plus rien : {b.burn} brûlées − {b.eaten.kcal} mangées = {real >= 0 ? real : `+${-real}`} kcal de déficit (objectif {goal})</div>)}
         {ok ? (b.left > 0 ? `✅ Objectif atteint. Si tu manges tes ${b.left} kcal restantes, ton déficit retombe à ${goal} kcal : c'est ton minimum, pile dans l'objectif.` : `✅ Déficit du jour : ${real} kcal (objectif ${goal})`) : real < 0 ? `⚠️ Tu as mangé ${-real} kcal de plus que ta dépense — il manque ${missing} kcal pour ton déficit` : `⚠️ Déficit ${real} / ${goal} kcal — il manque ${missing} kcal`}
       </div>
       <div style={{ fontSize: 12, color: F.muted, marginTop: 4 }}>{b.burnedNow != null ? `Jusqu'ici : ${b.burnedNow - (b.activeNow ?? 0)} kcal brûlées par ton corps seul depuis minuit (même en dormant) + ${b.activeNow ?? 0} d'activité (${b.nowSource === 'montre' ? 'montre ⌚' : 'estimée, la montre précise quand elle envoie'}). ` : ''}Journée : base {b.bmr} + activité {b.active} kcal — {measured ? 'mesurée par ta montre ⌚' : 'estimation : ta montre n\'a pas encore envoyé ta journée'}.</div>

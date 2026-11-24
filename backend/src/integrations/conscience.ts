@@ -19,7 +19,7 @@ import { supabase } from './supabase.js';
 
 // ── Décisions à boutons ──────────────────────────────────────────────────────
 export interface DecisionOption { label: string; tool?: string; input?: Record<string, unknown>; say?: string }
-export interface Decision { id: string; at: number; title: string; options: DecisionOption[]; done?: string }
+export interface Decision { id: string; at: number; title: string; options: DecisionOption[]; done?: string; startedAt?: number; finished?: boolean }
 const DEC_KEY = 'decisions';
 const MED_RE = /comprim|cachet|m[ée]doc|m[ée]dicament|traitement|lib[ée]rt[ée]|\bdemis?\b|prise autoris/i;
 
@@ -113,16 +113,21 @@ export async function chooseDecision(id: string | null, n: number): Promise<stri
   if (!d || d.done) return '❌ Plus de choix en attente.';
   const o = d.options[n - 1];
   if (!o) return `❌ Choix entre 1 et ${d.options.length}.`;
-  d.done = o.label;
+  d.done = o.label; d.startedAt = Date.now(); d.finished = false;
   await kvPut(DEC_KEY, list);
   await learn(`decision:${d.title.slice(0, 30)}`, 1);
+  // 24/11 : « 1 » envoyé pendant une mise à jour → l'ancien serveur a noté le choix puis s'est arrêté avant de le faire.
+  // finished = l'action est allée au bout ; sinon un « 1 » renvoyé la relance (handleDecisionReply).
+  const finish = async () => { const l2 = await kvJson<Decision[]>(DEC_KEY, []); const x = l2.find(y => y.id === d.id); if (x) { x.finished = true; await kvPut(DEC_KEY, l2); } };
   if (o.tool) {
     const { executeTool } = await import('./tool-executor.js');
     // Son choix vaut validation : un envoi WhatsApp passe d'abord par la relecture (signature) puis part
     if (o.tool === 'whatsapp_web' && o.input?.['action'] === 'send') await executeTool(o.tool, { ...o.input }, 'voice_kouider').catch(() => '');
     const r = await executeTool(o.tool, { ...(o.input ?? {}), confirmed: true }, 'voice_kouider').catch(e => `❌ ${e instanceof Error ? e.message : e}`);
+    await finish().catch(() => {});
     if (!String(r).startsWith('Outil inconnu')) return `✅ ${o.label}\n${String(r).slice(0, 1500)}`;
   }
+  await finish().catch(() => {});
   if (o.say) return `✅ ${o.label} — ${o.say}`;
   // Bouton sans outil valide → le cerveau fait l'action demandée avec ses vrais outils (au lieu d'un simple « Noté »)
   try {
@@ -139,9 +144,20 @@ export async function chooseDecision(id: string | null, n: number): Promise<stri
 export async function handleDecisionReply(message: string): Promise<{ reply: string } | null> {
   const m = /^\s*([1-4])\s*(?:️⃣)?\s*$/.exec(message);
   if (!m) return null;
-  const open = (await kvJson<Decision[]>(DEC_KEY, [])).filter(x => !x.done && Date.now() - x.at < 3 * 3600_000);
-  if (!open.length) return null;
-  return { reply: await chooseDecision(null, Number(m[1])) };
+  const all = await kvJson<Decision[]>(DEC_KEY, []);
+  const open = all.filter(x => !x.done && Date.now() - x.at < 3 * 3600_000);
+  if (open.length) return { reply: await chooseDecision(null, Number(m[1])) };
+  // 24/11 : choix fait il y a moins de 15 min → un chiffre seul n'est JAMAIS envoyé au cerveau (il avait inventé un envoi WhatsApp).
+  const recent = all.filter(x => x.done && x.startedAt && Date.now() - x.startedAt < 15 * 60_000).pop();
+  if (!recent) return null;
+  if (!recent.finished && Date.now() - recent.startedAt! > 2 * 60_000) {
+    // l'action a été coupée (redémarrage du serveur) → on la refait avec le même choix
+    const n = recent.options.findIndex(o => o.label === recent.done) + 1;
+    recent.done = undefined;
+    await kvPut(DEC_KEY, all);
+    return { reply: await chooseDecision(recent.id, n || Number(m[1])) };
+  }
+  return { reply: recent.finished ? `✅ C'est déjà fait : « ${recent.done} ».` : `⏳ « ${recent.done} » est en cours, je te donne le résultat dès que c'est fini.` };
 }
 
 // ── Apprentissage ────────────────────────────────────────────────────────────
