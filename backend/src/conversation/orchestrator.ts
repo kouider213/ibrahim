@@ -419,7 +419,10 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
   const sportCancel = actorUserId === 'kouider' && !sandbox ? (await import('../integrations/sport-coach.js')).parseSportCancel(userMessage) : null;
   if (sportCancel) {
     const r = await (await import('../integrations/sport-coach.js')).runSportCancel(sportCancel).catch(e => `❌ échec de l'annulation : ${e instanceof Error ? e.message : e}`);
-    if (!/^❌/.test(r)) codeActions.push({ name: 'sport_coach', success: true, result: `✅ ${r}` });
+    // 23/11 Kouider : « je vais pas à la salle demain mais il faut quand même qu'il me fasse des exercices maison »
+    const homeTxt = !/^❌/.test(r) && sportCancel.reason !== 'malade' && sportCancel.date >= (await import('../integrations/morning-routine.js')).localNow().date
+      ? await import('../integrations/forme-home.js').then(async h => `\n\n${h.homeSessionText(await h.homeSessionFor(sportCancel.date))}`).catch(() => '') : '';
+    if (!/^❌/.test(r)) codeActions.push({ name: 'sport_coach', success: true, result: `✅ ${r}${homeTxt ? `${homeTxt}\n(→ donne-lui cette séance maison telle quelle)` : ''}` });
     // 21/11 7h27 : « Je pas été m'entraîner aujourd'hui annulé ma séance » → séance bien annulée par le code, mais le cerveau
     // a répondu « comme demain c'est ton jour de repos… » sans jamais dire « annulée ». Message court = juste l'annulation
     // → le CODE répond lui-même, clair et sûr.
@@ -431,7 +434,7 @@ INTERDIT : lui dire de rentrer chez lui ou de quitter le travail, proposer d'app
       if (nx && await sc.isSportSkipped(nx.date).catch(() => false)) nx = null;   // jamais annoncer une séance déjà annulée
       const fmtD = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-FR', { timeZone: 'Europe/Brussels', weekday: 'long', day: 'numeric', month: 'long' });
       const msg = `✅ C'est noté : séance du ${fmtD(sportCancel.date)} annulée (${sportCancel.reason}). Pas d'appel ni d'alerte de départ pour ce jour.`
-        + (nx ? ` Prochaine séance : ${fmtD(nx.date)}.` : '');
+        + (nx ? ` Prochaine séance : ${fmtD(nx.date)}.` : '') + homeTxt;
       console.log(`[orch:${requestId}] SPORT_CANCEL code reply ${sportCancel.date}`);
       _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: msg });
       saveConversationTurn(sessionId, 'assistant', msg, { tools: ['sport_coach ✅'] }).catch(() => {});

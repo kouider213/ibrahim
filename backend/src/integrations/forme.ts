@@ -1080,6 +1080,16 @@ export async function formeTool(input: Record<string, unknown>): Promise<string>
     if (a === 'food_today') return `${await f.foodText()}\n${f.budgetFacts(await f.foodBudget('kouider', typeof input.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? input.date : undefined))}`;
     if (a === 'food_settings') { const c = await f.setFoodCfg({ ...(input.deficit != null ? { deficit: Number(input.deficit) } : {}), ...(input.on != null ? { on: !!input.on } : {}), ...(input.telegram != null ? { telegram: !!input.telegram } : {}) }); return `✅ Calories : ${c.on ? 'actif' : 'coupé'}, déficit visé ${c.deficit} kcal/j, messages Telegram ${c.telegram ? 'oui' : 'non'}.`; }
     if (a === 'home_burn') return (await f.deficitCheckText('kouider')) ?? 'Pas de bilan.';
+    // 23/11 : pas de salle ce jour-là → la séance prévue refaite À LA MAISON avec son matériel (haltères 7 kg + planche à pompes)
+    if (a === 'home_session' || a === 'home_gear') {
+      const h = await import('./forme-home.js');
+      if (a === 'home_gear') {
+        const g = await h.setHomeGear({ ...(input.dumbbell_kg != null ? { dumbbellKg: Number(input.dumbbell_kg) } : {}), ...(input.pushup_board != null ? { pushupBoard: !!input.pushup_board } : {}), ...(typeof input.text === 'string' && input.text ? { note: String(input.text).slice(0, 200) } : {}) });
+        return `✅ Matériel maison : ${g.dumbbells} haltères de ${g.dumbbellKg} kg${g.pushupBoard ? ' + planche à pompes' : ''}${g.note ? ` + ${g.note}` : ''}.`;
+      }
+      const d = typeof input.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? input.date : localNow().date;
+      return `${h.homeSessionText(await h.homeSessionFor(d))}\n\n(Recopie la séance telle quelle.)`;
+    }
     if (a === 'food_morning') return (await f.morningSleepMessage(true)) ?? 'Pas de message (cerveau indisponible).';
   }
   if (a === 'profile') {

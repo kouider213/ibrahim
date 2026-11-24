@@ -1766,7 +1766,7 @@ export function parseSportCancel(raw: string): { date: string; reason: string } 
   // 21/11 : « j'ai pas été à la salle ce matin », « je suis pas allé au sport aujourd'hui » = séance pas faite
   const notGone = /\b(pas|jamais) (ete|alle|allee|pu aller|pu y aller|pu m.?entrainer)( (m.?entrainer|a la (salle|muscu|gym)|au (sport|gym)|a l.?entrainement|faire (du sport|ma seance)))?\b/.test(s)
     && /\b(seance|sport|salle|muscu|gym|entrainer|entrainement|training)\b/.test(s);
-  const cancel = notGone || /\b(annul\w*|supprim\w*|enl[eè]v\w*|retir\w*|saut\w*|pas de (sport|salle|seance|muscu)|je (ne )?(fais|vais) pas (a la )?(sport|salle|seance|muscu)|pas (a la )?salle)\b/.test(s);
+  const cancel = notGone || /\b(annul\w*|supprim\w*|enl[eè]v\w*|retir\w*|saut\w*|pas de (sport|salle|seance|muscu)|je (ne )?(fais|vais) pas (a la )?(sport|salle|seance|muscu)|pas (a la )?salle|je (ne )?(vais|peux|pourrai|pourrais|serai) pas (aller|y aller|pouvoir aller|la)\b)\b/.test(s);   // 23/11 « je vais pas aller demain à la salle »
   const sport = /\b(seance|sport|salle|muscu|gym|entrainer|entrainement|training)\b/.test(s);
   if (!cancel || !sport) return null;
   // le jour le plus PROCHE du mot séance/sport (« prise de sang lundi … ma séance de demain » → demain)
@@ -1776,7 +1776,7 @@ export function parseSportCancel(raw: string): { date: string; reason: string } 
   const dw = ds[0]?.[1];
   if (!dw) return null;
   const date = /aujourd|ce matin/.test(dw) ? localNow().date : parseDate(dw);
-  const reason = /malade/.test(s) ? 'malade' : /fatigu|creve/.test(s) ? 'fatigué' : notGone ? 'pas allé' : 'repos demandé';
+  const reason = /malade/.test(s) ? 'malade' : /fatigu|creve/.test(s) ? 'fatigué' : notGone ? 'pas allé' : /regl|occup|truc|chose|rdv|rendez|boulot|travail/.test(s) ? 'empêché' : 'repos demandé';
   return { date, reason };
 }
 export async function runSportCancel(c: { date: string; reason: string }): Promise<string> {
@@ -1839,4 +1839,12 @@ export async function setSessionDone(date: string, done: boolean): Promise<strin
   await kvSet(BK, 'null').catch(() => {});
   await planSportWeek(true).catch(() => null);
   return `✅ ${SESSIONS[type].label} du ${date.slice(8)}/${date.slice(5, 7)} cochée : faite.`;
+}
+
+/** 23/11 : séance prévue (ou qui aurait eu lieu) ce jour-là → type + nom du programme, pour la version maison. */
+export async function plannedSessionLabel(date: string): Promise<{ type: SessionType; label: string }> {
+  await loadProgram();
+  const st = await getState();
+  const type: SessionType = st.overrides[date] ?? st.plan[date]?.type ?? (await nextSessionDate(date))?.type ?? ROTATION[st.next % ROTATION.length] ?? 'push';
+  return { type, label: SESSIONS[type]?.label ?? type };
 }
