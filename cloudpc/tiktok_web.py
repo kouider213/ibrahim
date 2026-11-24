@@ -275,7 +275,85 @@ async def publish(url: str, caption: str, dry: bool = False) -> dict:
             pass
 
 
+# ── Statistiques + inspiration pour l'équipe TikTok (24/11) ─────────────────────
+INSIGHT_PAGES = ['https://www.tiktok.com/tiktokstudio/analytics', 'https://www.tiktok.com/tiktokstudio/analytics/content',
+                 'https://www.tiktok.com/tiktokstudio/analytics/followers']
+JS_TRENDS = r"""(async (region, vertical, page) => {
+  const u = new URL('https://www.tiktok.com/creator_studio/inspiration/trending/video/v2?locale=fr&aid=1988&app_name=tiktok_creator_center&app_language=fr&device_platform=web_pc&channel=tiktok_web&PageSize=12&TrendingType=0&key=x');
+  u.searchParams.set('Region', region); u.searchParams.set('Vertical', vertical); u.searchParams.set('PageNum', String(page));
+  const j = await (await fetch(u, {credentials: 'include'})).json();
+  return (j.TrendingVideos || []).map(x => ({ id: x.ItemId, desc: x.ItemName || '', plays: x.PlayCount || 0, likes: x.LikeCount || 0, author: x.UniqueId || '' }));
+})"""
+
+
+async def _capture(p: Page, url: str, needle: str, wait: float = 14) -> list[dict]:
+    """Ouvre `url` et renvoie le JSON de chaque réponse dont l'adresse contient `needle`."""
+    await p.call('Network.enable')
+    p.seq += 1
+    await p.ws.send_json({'id': p.seq, 'method': 'Page.navigate', 'params': {'url': url}})
+    ids, end = [], asyncio.get_event_loop().time() + wait
+    while asyncio.get_event_loop().time() < end:
+        try:
+            m = await asyncio.wait_for(p.ws.receive_json(), 2)
+        except asyncio.TimeoutError:
+            continue
+        if m.get('method') == 'Network.loadingFinished' and m['params']['requestId'] in [i for i, _ in ids]:
+            pass
+        if m.get('method') == 'Network.responseReceived' and needle in m['params']['response']['url']:
+            ids.append((m['params']['requestId'], m['params']['response']['url']))
+    out = []
+    for rid, _ in ids:
+        try:
+            r = await p.call('Network.getResponseBody', {'requestId': rid})
+            out.append(json.loads(r.get('body') or '{}'))
+        except Exception:
+            pass
+    await p.call('Network.disable')
+    return out
+
+
+async def insights() -> dict:
+    merged: dict = {}
+    searches = ''
+    async with LOCK:
+        async with Page('https://www.tiktok.com', URL) as p:
+            for url in INSIGHT_PAGES:
+                for body in await _capture(p, url, '/aweme/v2/data/insight/'):
+                    for k, v in body.items():
+                        if v is not None and k not in ('extra', 'log_pb', 'status_code', 'status_msg') and k not in merged:
+                            merged[k] = v
+                if url.endswith('/analytics'):
+                    t = await p.js('document.body.innerText') or ''
+                    i = t.find('Recherches effectuées')
+                    searches = t[i:i + 900] if i >= 0 else ''
+            st = await p.js(JS_STATE) or {}
+            if st.get('captcha') or '/login' in str(st.get('href')):
+                return {'ok': False, 'error': 'puzzle anti-robot ou déconnexion TikTok', 'captcha': st.get('captcha')}
+            trends = {}
+            for region, vertical, pages in (('FR', 'Auto_Vehicle', 2), ('All', 'Auto_Vehicle', 1), ('FR', 'All', 1)):
+                lst = []
+                for pg in range(pages):
+                    try:
+                        lst += await p.js(f'({JS_TRENDS})({json.dumps(region)}, {json.dumps(vertical)}, {pg})') or []
+                    except Exception as e:
+                        log.info('tendances %s/%s : %s', region, vertical, e)
+                trends[f'{region}/{vertical}'] = lst
+    items = []
+    for it in ((merged.get('top_items') or {}).get('value') or []):
+        v = it.get('value') or it
+        stt = v.get('statistics') or {}
+        items.append({'id': v.get('aweme_id'), 'desc': (v.get('desc') or '')[:300], 'create_time': v.get('create_time'),
+                      'duration': (v.get('video') or {}).get('duration'), 'plays': stt.get('play_count'), 'likes': stt.get('digg_count'),
+                      'comments': stt.get('comment_count'), 'shares': stt.get('share_count'), 'saves': stt.get('collect_count')})
+    keep = {k: merged.get(k) for k in ('follower_num', 'follower_active_history_hours', 'follower_active_history_days', 'follower_gender_percent',
+                                       'follower_age_distribution', 'follower_location_percent', 'follower_num_history', 'net_follower_history',
+                                       'pv_history', 'vv_history', 'like_history', 'share_history', 'user_search_terms', 'unique_viewer_num', 'video_page_percent')}
+    return {'ok': True, 'insight': keep, 'videos': items, 'searches': searches, 'trends': trends, 'all_keys': sorted(merged.keys())}
+
+
 async def action(d: dict) -> dict:
+    if d.get('action') == 'insights':
+        return await insights()
     if d.get('action') == 'publish':
         return await publish(str(d.get('url') or ''), str(d.get('caption') or ''), bool(d.get('dry')))
     if d.get('action') == 'status':

@@ -564,6 +564,16 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'tt-growth-refresh',
+    cron:  '30 4 * * *',            // 24/11 : stats TikTok + tendances relues chaque nuit (créneaux, brief des pubs)
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'tt-weekly-meeting',
+    cron:  '30 17 * * 0',           // 24/11 : réunion de l'équipe TikTok, dimanche 17h30 (message, jamais d'appel)
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'pub-tiktok-slots',
     cron:  '*/10 * * * *',          // 24/11 : pub validée « plus tard » → publiée sur TikTok à l'heure ; sinon rappel au meilleur créneau
     tz:    'Europe/Brussels',
@@ -919,6 +929,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'factory':                   async () => { console.log(`[factory] ${await (await import('../integrations/jarvis4.js')).jobFactory()}`); },
   'commercial':               async () => { console.log(`[commercial] ${await (await import('../integrations/builders.js')).jobCommercial()}`); },
   'night-guard-recap':       async () => { await (await import('../integrations/night-guard.js')).jobNightGuardRecap(); },
+  'tt-growth-refresh':       async () => { await (await import('../marketing/tiktok-growth.js')).jobGrowthRefresh(); },
+  'tt-weekly-meeting':       async () => { await (await import('../marketing/tiktok-growth.js')).jobWeeklyMeeting(); },
   'pub-tiktok-slots':        async () => { await (await import('../marketing/tiktok-pub.js')).jobPubSlots(); },
   'client-waiting-reply':    async () => { await (await import('../integrations/night-guard.js')).jobClientWaitingReply(); },
   'nego-watch':              async () => { await (await import('../integrations/negotiator.js')).jobNegoWatch(); },

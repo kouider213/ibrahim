@@ -64,6 +64,11 @@ const SLOTS: Record<number, Array<{ h: number; m: number; prime: boolean; why: s
   5: [{ h: 15, m: 0, prime: false, why: 'après la prière du vendredi' }, { h: 21, m: 0, prime: true, why: 'vendredi soir, week-end' }],
   6: [{ h: 11, m: 0, prime: false, why: 'samedi matin, week-end' }, { h: 20, m: 30, prime: true, why: 'samedi soir, dernier soir du week-end' }],
 };
+// 24/11 : créneaux appris des heures d'activité RÉELLES des followers (tiktok-growth.ts), sinon les habitudes générales ci-dessus
+let LEARNED: Record<number, Array<{ h: number; m: number; prime: boolean; why: string }>> | null = null;
+export async function loadLearnedSlots(): Promise<void> {
+  LEARNED = await import('./tiktok-growth.js').then(m => m.learnedSlots()).catch(() => null);
+}
 const DAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 
 /** 06/11 job 775e4b18 : « #noel2024 » en novembre 2026 → toute année passée devient l'année en cours. */
@@ -74,7 +79,7 @@ export function bestPostSlots(now = new Date(), minLeadMin = 40): Array<{ at: Da
   const alg = new Date(now.getTime() + 3600_000);           // « horloge » d'Alger lue en UTC
   for (let d = 0; d < 4 && out.length < 4; d++) {
     const day = new Date(Date.UTC(alg.getUTCFullYear(), alg.getUTCMonth(), alg.getUTCDate() + d));
-    for (const s of SLOTS[day.getUTCDay()]!) {
+    for (const s of (LEARNED ?? SLOTS)[day.getUTCDay()] ?? SLOTS[day.getUTCDay()]!) {
       const at = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), s.h, s.m) - 3600_000);
       if (at.getTime() < now.getTime() + minLeadMin * 60_000) continue;
       const be = at.toLocaleTimeString('fr-FR', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
@@ -265,12 +270,15 @@ export async function teamBrief(all: Car[], message: string): Promise<TeamBrief>
     history.length ? `PUBS DÉJÀ FAITES (NE RÉPÈTE NI le hook, NI les décors, NI la structure) :
 ${history.slice(0, 6).map(h => `- ${h.at.slice(0, 10)} « ${h.title} » angle ${h.angle} · hook « ${h.hook} » · décors : ${h.decors.join(' / ').slice(0, 160)}`).join('\n')}` : 'Première pub de la série.',
   ].filter(Boolean).join('\n');
-  return { angle, push: top, moment, history, text };
+  // 24/11 : l'équipe travaille sur les VRAIES stats TikTok de FIK + les tendances (tiktok-growth.ts)
+  const data = await import('./tiktok-growth.js').then(m => m.growthContext()).catch(() => '');
+  return { angle, push: top, moment, history, text: data ? `${text}\n\n${data}` : text };
 }
 
 /** Le comité de relecture : note la pub comme une équipe d'agence et rend la version corrigée. */
 export async function review(plan: PubPlan, brief: TeamBrief, message: string): Promise<{ plan: PubPlan; scores: Record<string, number>; verdict: string }> {
-  const system = `Tu es le COMITÉ de relecture d'une agence TikTok qui fait des vidéos virales en Algérie : un stratège viral, un monteur, un community manager, un directeur artistique et un comédien voix off. Tu réponds UNIQUEMENT avec un JSON valide.`;
+  const { TEAM } = await import('./tiktok-growth.js');
+  const system = `Tu es le COMITÉ de relecture de la meilleure équipe TikTok du marché (public : diaspora algérienne en France + Algérie) : ${TEAM.join(' ; ')}, plus un comédien voix off. Chacun juge avec son œil d'expert ; vous visez le maximum de vues, d'abonnés et de messages WhatsApp. Si des DONNÉES TIKTOK RÉELLES sont dans le brief, elles priment sur vos intuitions. Tu réponds UNIQUEMENT avec un JSON valide.`;
   const user = `Brief de l'équipe :
 ${brief.text}
 
@@ -287,8 +295,9 @@ Note chaque point sur 10 puis CORRIGE tout ce qui est sous 8 :
 - voix : texte de voix off écrit pour être DIT (rythme, respiration, ≤ 2,5 mots/s, chaleureux, vouvoiement, zéro argot) ?
 - cta : clair, une seule action (WhatsApp) ?
 - cm : légende qui fait commenter, hashtags pertinents, commentaire épinglé utile ?
+- seo : les mots que les gens TAPENT pour nous trouver (voir données réelles) sont dans la légende ET dans le texte à l'écran ?
 Règles inchangées : jamais de prix, jamais de date, jamais de Belgique, noms de voitures EXACTS.
-Rends : { "scores": {"hook":0,"retention":0,"originalite":0,"visuel":0,"voix":0,"cta":0,"cm":0}, "verdict": "1 phrase", "plan": { …le projet COMPLET corrigé, MÊMES clés, + "angle": "${brief.angle.id}", + "team_notes": ["3 à 5 décisions expliquées simplement au patron : pourquoi ce hook, pourquoi cette voiture, pourquoi cet ordre, ce qui a été coupé"] } }`;
+Rends : { "scores": {"hook":0,"retention":0,"originalite":0,"visuel":0,"voix":0,"cta":0,"cm":0,"seo":0}, "verdict": "1 phrase", "plan": { …le projet COMPLET corrigé, MÊMES clés, + "angle": "${brief.angle.id}", + "team_notes": ["3 à 5 décisions expliquées simplement au patron : pourquoi ce hook, pourquoi cette voiture, pourquoi cet ordre, ce qui a été coupé"] } }`;
   try {
     const r = await askJson<{ scores?: Record<string, number>; verdict?: string; plan?: Partial<PubPlan> }>(system, user, 3500);
     const fixed = r.plan ? shapePlan({ ...plan, ...r.plan }) : plan;
@@ -679,7 +688,7 @@ async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: 
       plan.replies.length ? `💬 Réponses toutes prêtes aux commentaires :\n${plan.replies.map(r => `• ${r}`).join('\n')}\n` : '',
       plan.tips.length ? `🧠 Conseils pour ce post :\n${plan.tips.map(t => `• ${t}`).join('\n')}` : '',
       '',
-      'ℹ️ Les heures viennent des habitudes TikTok en Algérie (soirée, week-end jeudi→samedi). Après 3 ou 4 posts, envoie-moi tes stats TikTok et je les ajuste à TON public.',
+      'ℹ️ Les heures viennent des heures d\'activité réelles de tes followers sur TikTok (mises à jour chaque nuit).',
     ].filter(x => x !== '').join('\n').replace(/\n{3,}/g, '\n\n'));
     emitProactive(`🎬 Pub TikTok « ${plan.title} » prête (page MONTAGE)`, 'info', `🎬 Pub TikTok prête : ${url}\n\n${caption}`);
 
@@ -729,6 +738,7 @@ export async function tiktokPubTool(input: Record<string, unknown>, actor = 'kou
     scenes = cars.map(c => ({ cars: [c], label: c.category.toUpperCase(), scene: 'Oran seafront corniche at golden hour, Mediterranean sea, palm trees', action: 'the car drives slowly toward the camera, headlights on', camera: 'travelling' }));
   }
   const model = await bestModel();
+  await loadLearnedSlots();
   const slots = bestPostSlots();
   const now = new Date().toISOString();
   const est = Math.round((scenes.length * (5 * STUDIO_MODELS[model].perSec + (model === 'gratuit' ? 0 : 0.15)) + (model === 'gratuit' ? 0 : 0.02)) * 100) / 100;

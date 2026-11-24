@@ -543,6 +543,7 @@ async function _dispatch(
       case 'prospect_replies':          return await prospectRepliesTool(input);
       case 'prospect_autopilot':        return await prospectAutopilotTool(input);
       case 'billing':                   return await (await import('./billing.js')).billingTool(input);
+      case 'equipe_tiktok':             return sessionId?.includes('houari') ? 'Réservé à Kouider.' : await (await import('../marketing/tiktok-growth.js')).teamTool(input);
       case 'video_studio':              return sessionId?.includes('houari') ? 'Le studio vidéo est réservé à Kouider.' : await (await import('../marketing/video-studio.js')).videoStudioTool(input, 'kouider');
       case 'delete_calendar_event':     return await deleteCalendarEventTool(input);
       case 'update_calendar_event':     return await updateCalendarEventTool(input);
