@@ -16,7 +16,7 @@ function waTitle(text: string): string {
 const router = Router();
 
 type Demande = {
-  id: string; source: 'lead' | 'dossier' | 'import' | 'booking' | 'whatsapp';
+  id: string; source: 'lead' | 'dossier' | 'import' | 'booking' | 'whatsapp' | 'tiktok';
   ref?: string; title: string; client_name?: string; client_phone?: string;
   client_email?: string; status?: string; lang?: string; created_at?: string;
   meta?: string; admin_path: string; kind?: string;
@@ -90,6 +90,16 @@ router.get('/', requireMobileAuth, async (_req, res) => {
         admin_path: '', fields: { text: w.text, chat: w.chat, first_at: w.created_at },
       });
     }),
+    safe(async () => {
+      // 24/11 : messages privés + commentaires TikTok (cloudpc/tiktok_web.py → tiktok-web.ts)
+      for (const w of await listWaDemandes('tiktok')) out.push({
+        id: 'tiktok-' + w.id, source: 'tiktok',
+        title: waTitle(w.text),
+        client_name: w.chat, status: w.status, lang: w.lang, created_at: w.updated_at,
+        meta: [w.via === 'comment' ? `commentaire${w.video ? ` · ${w.video}` : ''}` : 'message privé', w.count > 1 ? `${w.count} messages` : ''].filter(Boolean).join(' · '),
+        admin_path: '', kind: w.via, fields: { text: w.text, chat: w.chat, first_at: w.created_at },
+      });
+    }),
   ]);
 
   out.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
@@ -101,6 +111,7 @@ router.get('/', requireMobileAuth, async (_req, res) => {
     import: out.filter(d => d.source === 'import').length,
     booking: out.filter(d => d.source === 'booking').length,
     whatsapp: out.filter(d => d.source === 'whatsapp').length,
+    tiktok: out.filter(d => d.source === 'tiktok').length,
   };
 
   res.json({ demandes: out, counts });
@@ -132,6 +143,9 @@ router.post('/update', requireMobileAuth, async (req, res) => {
 
   if (source === 'whatsapp') {
     res.json({ ok: await updateWaDemande(id, status) }); return;
+  }
+  if (source === 'tiktok') {
+    res.json({ ok: await updateWaDemande(id, status, 'tiktok') }); return;
   }
 
   try {
@@ -189,6 +203,7 @@ router.post('/update', requireMobileAuth, async (req, res) => {
 router.post('/delete', requireMobileAuth, async (req, res) => {
   const { source, id } = (req.body ?? {}) as { source?: string; id?: string };
   if (source === 'whatsapp' && id) { res.json({ ok: await deleteWaDemande(id) }); return; }
+  if (source === 'tiktok' && id) { res.json({ ok: await deleteWaDemande(id, 'tiktok') }); return; }
   const TABLE: Record<string, string> = { lead: 'client_leads', dossier: 'dossiers', import: 'import_orders', booking: 'bookings' };
   const table = source ? TABLE[source] : undefined;
   if (!table || !id) { res.status(400).json({ error: 'source valide + id requis' }); return; }

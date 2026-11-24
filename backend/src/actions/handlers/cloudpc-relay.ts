@@ -28,6 +28,13 @@ export function initCloudPcRelay(io: SocketServer): void {
       void import('../../integrations/whatsapp-web.js').then(m => m.onWaNew(c))
         .catch(err => console.error('[CLOUDPC] WhatsApp:', err instanceof Error ? err.message : err));
     });
+    socket.on('cloud:tt_new', (it: import('../../integrations/tiktok-web.js').TtItem) => {
+      void import('../../integrations/tiktok-web.js').then(m => m.onTtNew(it))
+        .catch(err => console.error('[CLOUDPC] TikTok:', err instanceof Error ? err.message : err));
+    });
+    socket.on('cloud:tt_state', (st: { logged_in?: boolean; captcha?: boolean }) => {
+      void import('../../integrations/tiktok-web.js').then(m => m.onTtState(st)).catch(() => {});
+    });
     socket.on('cloud:wa_code', (c: { code?: string }) => {
       if (!c.code) return;
       void import('../../notifications/tg-outbox.js').then(({ queueTelegramMessage }) => queueTelegramMessage(

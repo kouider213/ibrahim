@@ -29,6 +29,7 @@ from pathlib import Path
 
 import socketio
 
+import tiktok_web
 import whatsapp_web
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -611,6 +612,7 @@ async def main() -> None:
         raise SystemExit('PC_AGENT_TOKEN manquant dans .env')
     asyncio.create_task(watch_downloads())
     asyncio.create_task(whatsapp_web.watch(wa_emit))
+    asyncio.create_task(tiktok_web.watch(wa_emit))   # 24/11 : messages + commentaires TikTok → DEMANDES
     delay = 2
     while True:
         try:
