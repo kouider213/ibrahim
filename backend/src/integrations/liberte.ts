@@ -1344,7 +1344,7 @@ export async function jobLiberte(): Promise<void> {
       const p = libPattern(s, await readLibLog());
       if (await once(`bigdrop:${drop.from}`, 5 * 86_400)) {
         const { createDecision } = await import('./conscience.js');
-        await createDecision(`🕊️ ${fmtDate(drop.from)}, tu passes de ${halvesShort(prev)} à ${halvesShort(drop.max)} d'un coup${prev >= 2 * drop.max ? ' (la moitié)' : ''}. ${p.rebound.overAfter ? `Tes chiffres : après un jour trop bas, ${p.rebound.overAfter} fois ça a remonté fort le lendemain. ` : ''}Une grosse marche, c'est souvent du manque… puis un rattrapage. Tu préfères :`, [
+        await createDecision(`🕊️ ${fmtDate(drop.from)}, tu passes de ${halvesShort(prev)} à ${halvesShort(drop.max)} d'un coup${prev >= 2 * drop.max ? ' (la moitié)' : ''}. ${p.rebound.overAfter ? `Tes chiffres : après un jour trop bas, ${p.rebound.overAfter} fois ça a remonté fort le lendemain. ` : ''}Une grosse marche, c'est souvent du manque… puis un rattrapage.${(await readLibLog()).some(l => l.kind === 'note' && l.note === 'veut aller plus vite' && Date.now() - Date.parse(l.at) < 30 * 86_400_000) ? ' Tu m\'as dit vouloir arrêter AU PLUS VITE : garder la marche est le chemin le plus court (les marches de 1 repoussent ton zéro).' : ''} Tu préfères :`, [
           { label: '👍 Je garde la marche', tool: 'liberte', input: { action: 'victoire', text: `prêt pour la marche du ${drop.from}` } },
           { label: `🪜 Des marches de 1 (${prev}→${prev - 1}→…→${drop.max})`, tool: 'liberte', input: { action: 'adoucir', days: 3 } },
           { label: '💬 On en parle', say: `On parle de ma baisse du ${fmtDate(drop.from)} (${prev} → ${drop.max}) : j'ai peur du rebond.` },
