@@ -1,3 +1,5 @@
+## 25/11 22h30 — Revue 24-25/11 : le VPS s'est figé de 02h10 à 12h56 (heure de Paris ; aucune trace d'arrêt, ni mémoire ni charge anormale → côté hébergeur ; redémarré sur noyau 6.8.0-149). Railway voyait « coupé : cloudpc, telegram » toutes les 15 min mais les alertes partaient par Telegram… qui passe par le VPS. connections-watch tell() : si le battement tgcall a > 12 min, l'alerte part AUSSI par le bot des notifs FIK (createDecision → fikconciergerie.com, indépendant du VPS). Constats sans code : crédit fal.ai épuisé (pub « Le Convoi Illimité » de 9h30 faite sans décor/voiture IA), crédit Claude épuisé (tout passe par les cerveaux gratuits), aucune publication TikTok tentée.
+
 ## 25/11 22h15 — LIBERTÉ « moins d'un mois » : plan_rapide = 8 j par marche (zéro 22/12) + alt 10 j (zéro 28/12) ; matin 9h : 2 boutons de validation (version 8 j / 10 j), plan_rapide_valide alt:true.
 
 ## 25/11 22h — LIBERTÉ : plan rapide préparé (zéro 28/12) en attente du médecin → chaque matin de semaine 9h (≤ 7 j) : phrase à dire au médecin + boutons « il valide » (plan_rapide_valide) / « autres dates » / « pas encore joint ». Plan actuel inchangé tant qu'il n'a pas validé CE plan.

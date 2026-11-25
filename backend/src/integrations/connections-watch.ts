@@ -64,6 +64,13 @@ async function tell(text: string): Promise<void> {
   emitProactive(text, 'alert', undefined, 'kouider', undefined, true);
   const { queueTelegramMessage } = await import('../notifications/tg-outbox.js');
   await queueTelegramMessage(text, undefined, 'kouider', undefined, true).catch(() => {});
+  // 25/11 : le VPS est tombé de 2h10 à 12h56 — les alertes partaient par Telegram… qui passe PAR le VPS : rien n'est arrivé.
+  // Service Telegram muet → l'alerte passe aussi par le bot des notifs FIK (hébergé avec le site, indépendant du VPS).
+  const beat = await kvGet('tgcall:heartbeat').catch(() => null);
+  if (!beat || Date.now() - Date.parse(beat) > 12 * 60_000) {
+    const { createDecision } = await import('./conscience.js');
+    await createDecision(`${text}\n\n(Message envoyé par le bot des notifs FIK, car Telegram Dzaryx est coupé.)`, [{ label: '👍 Vu', say: 'je redémarre le serveur dans l\'espace client si ça dure' }]).catch(() => {});
+  }
 }
 
 const since = (ts: number) => { const h = (Date.now() - ts) / 3600_000; return h < 1 ? `${Math.max(1, Math.round(h * 60))} min` : h < 48 ? `${Math.round(h)} h` : `${Math.round(h / 24)} jours`; };
