@@ -1108,6 +1108,36 @@ PASSCODE_CMD = re.compile(r'^code secret\s*[:=]?\s*(\S.{1,40})$', re.I)
 
 OFFICE_EXT = ('.docx', '.xlsx', '.csv', '.txt')
 SPORT_CODE_CMD = re.compile(r'sport|s[ée]ance|muscu|salle|tapis|elliptique|programme|code|coder|appli|site|bug', re.I)
+# 25/11 : vidéo d'une voiture pour les pubs (« pub Clio », « rush duster », « pour les pubs CLS »)
+RUSH_CMD = re.compile(r'^\s*(pub|rush)\b|\brush(es)?\b|pour (la |les )?pubs?\b|vid[ée]o (de |pour )?pub', re.I)
+
+
+def rush_compress(path: str) -> str:
+    """Vidéo de téléphone → mp4 léger pour le stockage (≤ 60 s, côté long ≤ 1920 px, sans son, < 50 Mo)."""
+    out = tempfile.mktemp(prefix='dzrush_', suffix='.mp4')
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', path, '-t', '60', '-an',
+                    '-vf', "scale='if(gt(iw,ih),min(1920,iw),-2)':'if(gt(iw,ih),-2,min(1920,ih))'",
+                    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '19', '-maxrate', '6M', '-bufsize', '12M',
+                    '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out], check=True, timeout=600)
+    return out
+
+
+async def save_rush(path: str, caption: str, frames: list[str], actor: str) -> dict:
+    small = await asyncio.to_thread(rush_compress, path)
+    try:
+        up = await api('/api/studio/upload-url', {'name': 'rush.mp4'}, actor, 30)
+        assert http is not None
+        async with http.put(up['uploadUrl'], data=Path(small).read_bytes(), headers={'Content-Type': 'video/mp4', 'x-upsert': 'true'},
+                            timeout=aiohttp.ClientTimeout(total=300)) as r:
+            if r.status >= 400:
+                raise RuntimeError(f'stockage HTTP {r.status}: {(await r.text())[:150]}')
+        mid = len(frames) // 2
+        pick = [frames[i] for i in sorted({len(frames) // 5, mid, max(0, len(frames) * 4 // 5 - 1)}) if 0 <= i < len(frames)]
+        return await api('/api/studio/rush', {'text': caption, 'url': up['publicUrl'], 'frames': pick}, actor, 180)
+    finally:
+        os.unlink(small)
+
+
 EDL_CMD = re.compile(r'[ée]tat|edl|d[ée]part|retour|inspection|lieux|livraison|rendu', re.I)
 
 
@@ -1341,16 +1371,26 @@ async def on_message(_, msg: Message) -> None:
                 try:
                     frames = await asyncio.to_thread(video_frames, path, 16)
                     audio = await asyncio.to_thread(video_audio, path)
+                    if caption_wait is not None:
+                        try:
+                            caption = await asyncio.wait_for(asyncio.shield(caption_wait), max(0.5, VIDEO_TEXT_WAIT_S - (time.monotonic() - t_vid)))
+                        except asyncio.TimeoutError:
+                            caption = ''
+                        finally:
+                            if photo_wait.get(uid) is caption_wait:
+                                del photo_wait[uid]
+                    # 25/11 : « pub Clio » = VRAIE vidéo de la voiture pour les pubs TikTok → stockage FIK + bibliothèque
+                    if caption and RUSH_CMD.search(caption):
+                        await msg.reply_text('🎥 Vidéo pour les pubs : je la range (30 s environ)…')
+                        try:
+                            out = await save_rush(path, caption, frames, actor)
+                        except Exception as e:
+                            log.warning('rush: %s', e)
+                            out = {'text': f'❌ Vidéo pas rangée : {str(e)[:150]}'}
+                        await msg.reply_text(str(out.get('text') or out.get('error') or 'OK'))
+                        return
                 finally:
                     os.unlink(path)
-                if caption_wait is not None:
-                    try:
-                        caption = await asyncio.wait_for(asyncio.shield(caption_wait), max(0.5, VIDEO_TEXT_WAIT_S - (time.monotonic() - t_vid)))
-                    except asyncio.TimeoutError:
-                        caption = ''
-                    finally:
-                        if photo_wait.get(uid) is caption_wait:
-                            del photo_wait[uid]
                 seen = await api('/api/jarvis/video-read', {'frames': [{'base64': f, 'mime': 'image/jpeg'} for f in frames], 'caption': caption,
                                                             **({'audio': audio, 'audioMime': 'audio/mpeg'} if audio else {})}, actor, 240)
                 if seen.get('kind') == 'car' and (not caption or EDL_CMD.search(caption)):

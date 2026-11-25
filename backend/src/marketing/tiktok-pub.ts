@@ -27,8 +27,9 @@ import { askJson } from '../integrations/pro-doc.js';
 import { synthesizeVoice, synthesizeVoiceGemini, synthesizeVoiceFree } from '../notifications/dispatcher.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
+import { rushClip, photoClip, rushesSummary, SHOT_LIST, FILM_TIPS } from './car-rushes.js';
 import {
-  STUDIO_MODELS, STUDIO_CAMERAS, bestModel, falRun, shotInput, describeSubject, freeShot, markFalEmpty,
+  STUDIO_MODELS, STUDIO_CAMERAS, bestModel, falRun, shotInput, describeSubject, markFalEmpty,
   run, probe, ensureFonts, FONT_DIR, assTime, assText, appendOutro, saveJob, launchJob, addSpent,
   type ModelId, type StudioJob, type StudioShot,
 } from './video-studio.js';
@@ -106,7 +107,7 @@ function findCar(all: Car[], name: string): Car | undefined {
   return all.find(c => norm(c.name) === n) ?? all.find(c => norm(c.name).includes(n) || n.includes(norm(c.name)));
 }
 
-export async function direct(message: string, cars: Car[], wanted: string[], seconds: number, brief?: TeamBrief): Promise<PubPlan> {
+export async function direct(message: string, cars: Car[], wanted: string[], seconds: number, brief?: TeamBrief, filmed: string[] = []): Promise<PubPlan> {
   const system = `Tu es à la fois le meilleur réalisateur de pubs TikTok, le meilleur monteur motion design et le meilleur community manager du marché algérien (location de voitures, Oran).
 Tu réponds UNIQUEMENT avec un JSON valide, sans texte autour.`;
   const user = `Entreprise : FIK Conciergerie — location de voitures à Oran (Algérie), clients locaux et diaspora (France).
@@ -114,7 +115,7 @@ ${message ? `Message de Kouider (le patron), à transformer en pub — corrige l
 « ${message} »` : 'Kouider n\'a pas donné de texte : PUB LIBRE, c\'est l\'équipe qui décide du message (donner envie de louer chez FIK, en suivant l\'angle et le moment ci-dessous).'}
 ${brief ? `\n${brief.text}\n` : ''}
 Voitures disponibles (avec vraie photo) : ${cars.map(c => `${c.name} [${c.category}]`).join(' · ')}
-${wanted.length ? `Voitures imposées par Kouider : ${wanted.join(', ')}.` : 'Choisis 3 voitures qui se complètent (une sportive/premium, une prestige, une familiale ou SUV).'}
+${filmed.length ? `VOITURES FILMÉES EN VRAI (leurs plans sont de VRAIES vidéos, zéro défaut IA) : ${filmed.join(', ')}. Construis la pub autour d'elles en priorité ; les autres voitures n'auront qu'un plan photo.\n` : ''}${wanted.length ? `Voitures imposées par Kouider : ${wanted.join(', ')}.` : 'Choisis 3 voitures qui se complètent (une sportive/premium, une prestige, une familiale ou SUV).'}
 Durée totale visée : ${seconds} s (hook 1,6 s + intro motion design + scènes vidéo IA ${CAR_S} s chacune + CTA ${CTA_S} s).
 
 Rends ce JSON :
@@ -582,7 +583,7 @@ export async function keyframe(sc: Scene, allowPaid: boolean): Promise<{ url: st
   return { url: sc.cars[0]!.url, cost: 0 };
 }
 
-async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: ModelId, myVoice: boolean, slots: ReturnType<typeof bestPostSlots>, team = ''): Promise<void> {
+async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: ModelId, myVoice: boolean, slots: ReturnType<typeof bestPostSlots>, team = '', rushFilmed: string[] = []): Promise<void> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), `pub-${job.id}-`));
   const free = model === 'gratuit';
   const rate = STUDIO_MODELS[model].perSec;
@@ -594,12 +595,27 @@ async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: 
     const musicP = free ? Promise.resolve(null) : falRun(MUSIC_MODEL, { prompt: plan.music_prompt, duration: 40 }, 240_000)
       .then(r => (r['audio_file'] as { url?: string } | undefined)?.url ?? null).catch(e => { console.warn('[pub] musique:', e.message); return null; });
     const clips: Array<string | null> = new Array(scenes.length).fill(null);
-    let falEmpty = false, cursor = 0;
+    let falEmpty = false, cursor = 0, realScenes = 0;
     const worker = async () => {
       while (cursor < scenes.length) {
         const i = cursor++;
         const sc = scenes[i]!;
         const car = { name: sc.cars.map(c => c.name).join(' + ') };
+        // 25/11 « qualité nulle, ça doit être ultra réaliste » : 0) VRAIE vidéo de la voiture si elle a été filmée (zéro défaut IA)
+        const real = await rushClip(sc.cars, dir, i, 5).catch(e => { console.warn(`[pub] vraie vidéo ${car.name} :`, e instanceof Error ? e.message : e); return null; });
+        if (real) {
+          clips[i] = real; realScenes++;
+          job.shotsDone++; job.progress = 5 + Math.round((job.shotsDone / job.shotsTotal) * 55);
+          job.step = `Scènes : ${job.shotsDone}/${job.shotsTotal}`; await saveJob(job);
+          continue;
+        }
+        // pas de crédit IA : plus de vidéo IA gratuite (voitures qui se déforment) → plan showroom sur la VRAIE photo
+        if (free || falEmpty) {
+          clips[i] = await photoClip(sc.cars, dir, i, 5).catch(e => { console.warn(`[pub] plan photo ${car.name} :`, e instanceof Error ? e.message : e); return null; });
+          job.shotsDone++; job.progress = 5 + Math.round((job.shotsDone / job.shotsTotal) * 55);
+          job.step = `Scènes : ${job.shotsDone}/${job.shotsTotal}`; await saveJob(job);
+          continue;
+        }
         // 1) les vraies voitures dans le décor  2) elles roulent (Kling)
         const kf = await keyframe(sc, !free && !falEmpty);
         job.costUsd += kf.cost;
@@ -628,7 +644,7 @@ async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: 
             if (/crédit|refusé|balance|exhausted|locked|402|403/i.test(m)) { falEmpty = true; await markFalEmpty(); }
           }
         }
-        if (!clips[i]) clips[i] = await freeShot(shot, kf.url, dir, i, 7, subject).catch(() => null);
+        if (!clips[i]) clips[i] = await photoClip(sc.cars, dir, i, 5).catch(() => null);
         job.shotsDone++; job.progress = 5 + Math.round((job.shotsDone / job.shotsTotal) * 55);
         job.step = `Scènes vidéo IA : ${job.shotsDone}/${job.shotsTotal}`; await saveJob(job);
       }
@@ -670,8 +686,15 @@ async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: 
 
     const prime = slots.find(s => s.prime) ?? slots[0];
     const missed = scenes.length - ok.length;
+    const usedCars = [...new Set(scenes.flatMap(s => s.cars.map(c => c.name)))];
+    const notFilmed = usedCars.filter(n => !(rushFilmed ?? []).includes(n));
     await queueTelegramMessage(`🎬 Ta pub TikTok « ${plan.title} » est prête — ${Math.round(finalDur)} s, ${free ? '0 €' : `≈ ${job.costUsd.toFixed(2)} $`}${missed ? ` (⚠️ ${missed} scène(s) ratée(s), montage fait sans)` : ''}`,
       undefined, 'kouider', { url, name: 'pub-tiktok-fik.mp4' });
+    if (notFilmed.length) {
+      const sum = await rushesSummary(await fleet()).catch(() => null);
+      await queueTelegramMessage(`🎥 ${realScenes}/${scenes.length} scènes viennent de VRAIES vidéos. Pas encore filmée(s) : ${notFilmed.join(', ')} → plan photo${free ? '' : ' ou IA'} à la place.\n` +
+        `Pour une pub 100 % réelle, filme-les une fois et envoie chaque vidéo ici avec « pub » + le nom (ex. « pub ${notFilmed[0]} »).${sum ? `\n\n📋 Les plans à filmer :\n${SHOT_LIST.map((x, k) => `${k + 1}. ${x}`).join('\n')}\n💡 ${FILM_TIPS}` : ''}`).catch(() => {});
+    }
     let cov: string | undefined;
     try { cov = (await fs.readFile(cover)).toString('base64'); } catch { /* pas de miniature */ }
     if (cov) await queueTelegramMessage(`🖼️ Miniature à choisir comme couverture sur TikTok : « ${plan.cover_text} »`, cov);
@@ -727,7 +750,8 @@ export async function tiktokPubTool(input: Record<string, unknown>, actor = 'kou
   const wanted = wantedRaw.map(n => findCar(all, n)?.name).filter((x): x is string => !!x);
   const seconds = Math.min(40, Math.max(18, Number(input['seconds']) || 26));
   const brief = await teamBrief(all, message);
-  const draft = await direct(message, all, wanted, seconds, brief);
+  const { filmed } = await rushesSummary(all).catch(() => ({ filmed: [] as string[] }));
+  const draft = await direct(message, all, wanted, seconds, brief, filmed);
   const rv = await review(draft, brief, message);
   const plan = rv.plan;
   plan.angle = brief.angle.id;
@@ -741,7 +765,8 @@ export async function tiktokPubTool(input: Record<string, unknown>, actor = 'kou
   await loadLearnedSlots();
   const slots = bestPostSlots();
   const now = new Date().toISOString();
-  const est = Math.round((scenes.length * (5 * STUDIO_MODELS[model].perSec + (model === 'gratuit' ? 0 : 0.15)) + (model === 'gratuit' ? 0 : 0.02)) * 100) / 100;
+  const aiScenes = scenes.filter(x => !x.cars.every(c => filmed.includes(c.name))).length;
+  const est = Math.round((aiScenes * (5 * STUDIO_MODELS[model].perSec + (model === 'gratuit' ? 0 : 0.15)) + (model === 'gratuit' ? 0 : 0.02)) * 100) / 100;
   const job: StudioJob = {
     id: randomUUID().slice(0, 8), planId: 'pub', title: plan.title, model, status: 'queued', step: 'En file…', progress: 2,
     estimateUsd: est, costUsd: 0, shotsDone: 0, shotsTotal: scenes.length, createdAt: now, updatedAt: now, actor,
@@ -755,7 +780,7 @@ export async function tiktokPubTool(input: Record<string, unknown>, actor = 'kou
     ...plan.team_notes.map(n => `• ${n}`),
     sc.length ? `• Note du comité : ${sc.map(([k, v]) => `${k} ${v}/10`).join(' · ')}${rv.verdict ? ` — ${rv.verdict}` : ''}` : '',
   ].filter(Boolean).join('\n') + '\n';
-  await launchJob(job, () => renderPub(job, plan, scenes, model, input['my_voice'] === true, slots, team));
+  await launchJob(job, () => renderPub(job, plan, scenes, model, input['my_voice'] === true, slots, team, filmed));
   await remember({ at: now, title: plan.title, angle: brief.angle.id, hook: plan.hook, cars: [...new Set(scenes.flatMap(x => x.cars.map(c => c.name)))],
     decors: scenes.map(x => x.scene.slice(0, 80)), brief: message.slice(0, 300) });
   const prime = slots.find(s => s.prime);
@@ -763,7 +788,7 @@ export async function tiktokPubTool(input: Record<string, unknown>, actor = 'kou
 Hook (1,6 s, sur le moment le plus fort) : « ${plan.hook} »
 Motion design fond noir : ${plan.lines.map(l => `« ${l.text} »`).join(' → ')}
 Angle : ${brief.angle.name} · moment : ${brief.moment.label}${brief.push[0] ? ` · voiture poussée : ${brief.push[0].name} (${brief.push[0].why})` : ''}.
-Scènes vidéo IA (vraies voitures placées dans le décor, qui roulent) : ${scenes.map(sc => `${sc.cars.map(c => c.name).join(' + ')} — ${sc.scene.slice(0, 60)}`).join(' | ')} → CTA « ${plan.cta} » → signature FIK.
+Scènes : ${scenes.map(sc => `${sc.cars.map(c => c.name).join(' + ')} — ${sc.cars.every(c => filmed.includes(c.name)) ? 'VRAIE vidéo filmée' : model === 'gratuit' ? 'vraie photo (pas encore filmée)' : `IA : ${sc.scene.slice(0, 50)}`}`).join(' | ')} → CTA « ${plan.cta} » → signature FIK.
 Il recevra : la vidéo, la miniature, la légende + hashtags, le commentaire à épingler, les réponses types et un rappel au meilleur moment${prime ? ` (${prime.label})` : ''}.
 Dis-lui tout ça simplement, sans détails techniques.`;
 }

@@ -84,6 +84,16 @@ router.post('/edit', async (req, res) => {
   try { res.json({ job: await startEdit(req.body as EditRequest, 'kouider') }); } catch (err) { fail(res, err, 400); }
 });
 
+// 25/11 POST /api/studio/rush { text, url, frames? } — vraie vidéo d'une voiture (Telegram « pub Clio ») → bibliothèque des pubs
+router.post('/rush', async (req, res) => {
+  const b = req.body as { text?: string; url?: string; frames?: string[] };
+  if (!b.url) { res.status(400).json({ error: 'url requise' }); return; }
+  try {
+    const { addRush } = await import('../../marketing/car-rushes.js');
+    res.json({ text: await addRush(String(b.text ?? ''), String(b.url), Array.isArray(b.frames) ? b.frames.map(String).slice(0, 3) : []) });
+  } catch (err) { fail(res, err); }
+});
+
 // POST /api/studio/upload-join { urls, name } — gros fichier envoyé en morceaux → recollé + compressé (< 50 Mo)
 router.post('/upload-join', async (req, res) => {
   const b = req.body as { urls?: string[]; name?: string };

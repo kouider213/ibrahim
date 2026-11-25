@@ -863,6 +863,11 @@ async function fleetPhoto(carName: string): Promise<{ name: string; url: string 
 
 export async function videoStudioTool(input: Record<string, unknown>, actor = 'kouider'): Promise<string> {
   const action = String(input['action'] ?? 'plan');
+  if (action === 'rushes' || action === 'rush_delete') {   // 25/11 vraies vidéos des voitures pour les pubs
+    const m = await import('./car-rushes.js');
+    if (action === 'rush_delete') return m.deleteRush(input['rush_id'] ? String(input['rush_id']) : undefined);
+    return (await m.rushesSummary(await (await import('./tiktok-pub.js')).fleet())).text;
+  }
   if (action === 'pub_tiktok') return (await import('./tiktok-pub.js')).tiktokPubTool(input, actor);
   if (action === 'publish_tiktok') return (await import('./tiktok-pub.js')).publishPubTool(input);   // 24/11 : valider + publier sur TikTok
   if (action === 'edit') {
