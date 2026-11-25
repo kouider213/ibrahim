@@ -697,6 +697,7 @@ export async function liberteText(): Promise<string> {
     '- Utilise tout : agenda (ses étapes y sont), sport (marcher / séance légère les jours durs : sport_coach), sommeil (outil sante), son moral (life_coach), FORME, sa famille comme raison (« ton fils, ta femme »), ses raisons à lui ci-dessus.',
     '- « Quels jours je prends le plus ? », « analyse mes prises », « hier presque rien et aujourd\'hui trop » → liberte action analyse, puis aide-le : la régularité compte plus qu\'un jour héroïque ; le lendemain d\'un jour bas = prises à l\'heure, pas de rattrapage.',
     '- CHERCHER LE POURQUOI : quand il a pris plus (ou le dit), ne te contente pas de noter. Mène l\'enquête avec lui, UNE question à la fois, sans juger : à quel moment ça a commencé ? qu\'est-ce qui s\'est passé juste avant ? où il était, avec qui ? ce qu\'il ressentait dans le corps (manque) ou dans la tête (stress, ennui, tristesse) ? ce qu\'il s\'est dit (« juste un demi, ça va passer ») ? Puis liberte action cause (trigger = manque|stress|travail|fatigue|famille|ennui|douleur|habitude|tristesse|angoisse, text = son récit en une phrase, date aujourd\'hui|hier). Croise avec ce que tu sais (nuit de la montre, veille basse, travail) en le présentant comme une piste (« je me demande si… »), puis construis AVEC lui un plan si-alors pour cette cause (action si_alors). « Pourquoi je prends plus ? » → action analyse.',
+    '- Grosse baisse qui l\'inquiète (≥ 2 demis d\'un coup) → propose-lui de CHOISIR : garder la marche, ou liberte action adoucir (marches de 1 demi tous les 3 jours — jamais plus haut, seul le jour zéro recule) ; en parler au médecin.',
     '- C\'est fini seulement quand LUI dit « c\'est bon, j\'ai arrêté » (action finish). D\'ici là tu ne lâches rien. Rechute = normal, jamais un échec : on note, on reprend.',
     '- EN APPEL / SIRI / VOCAL : s\'il a une envie pendant un appel, guide-le À VOIX HAUTE (« inspire… 2… 3… 4… bloque… souffle… »), phrases courtes, reste en ligne 10 minutes. Propose « je t\'envoie ta propre voix » (liberte action ma_voix).',
     '- Il te donne énergie / joie / clarté sur 10 (« 5 6 5 ») → liberte action retour. Ses réponses aux 2 questions du moral (« 1 2 », 0-3 chacune) → action phq2.',
@@ -846,6 +847,25 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
       return (await holdSteps(s, d, String(input['why'] ?? 'demandé')) || 'Rien à allonger (déjà au palier zéro). Au zéro, on ne revient pas en arrière : SOS + médecin.');
     }
 
+    case 'adoucir': {
+      // 25/11 : grosse marche (ex. 6 → 3 d'un coup) + effet rebond chez lui → il peut CHOISIR des marches de 1 demi tous les 3 jours.
+      // Jamais une remontée : chaque jour reste ≤ au jour d'avant ; seule la date du zéro recule.
+      const i = s.steps.findIndex(st => st.from > today);
+      if (i < 1) return 'Pas de prochaine baisse à adoucir.';
+      const prev = s.steps[i - 1]!.max, drop = s.steps[i]!;
+      const gap = prev - drop.max;
+      if (gap < 2) return `La prochaine baisse (${fmtDate(drop.from)} → ${halvesShort(drop.max)}) n'est que d'un demi : elle est déjà douce.`;
+      const every = Math.min(4, Math.max(2, Math.round(Number(input['days'] ?? 3))));
+      const shift = (gap - 1) * every;
+      const mids: LibStep[] = Array.from({ length: gap - 1 }, (_, k) => ({ from: addDays(drop.from, k * every), max: prev - 1 - k }));
+      for (const st of s.steps.slice(i)) st.from = addDays(st.from, shift);
+      s.steps.splice(i, 0, ...mids);
+      await saveLib(s);
+      await addLog({ kind: 'palier', n: shift, note: `marche adoucie : ${prev} → ${drop.max} en ${gap} marches de 1` });
+      await syncAgenda(s).catch(err => console.error('[liberte] agenda:', err instanceof Error ? err.message : err));
+      return `🪜 Marche adoucie : ${[...mids, s.steps[i + mids.length]!].map(st => `${fmtDate(st.from)} → ${halvesShort(st.max)}`).join(' · ')}. Jour zéro : ${fmtDate(zeroDay(s))}.${s.doctorPlan ? ' C\'est le plan de ton médecin : dis-lui ce changement au prochain RDV (il est plus doux, pas plus haut).' : ''}`;
+    }
+
     case 'medecin': {
       const st = String(input['status'] ?? '');
       if (!['a_appeler', 'rdv_pris', 'vu'].includes(st)) return '❌ status = a_appeler | rdv_pris (date AAAA-MM-JJTHH:MM) | vu (note = ce qu\'a dit le médecin).';
@@ -988,6 +1008,7 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
       const log = (await readLibLog()).filter(l => !(l.kind === 'prise' && dayOf(l.at) === d));
       const at = d === today ? new Date().toISOString() : new Date(localTs(d, '20:00')).toISOString();
       if (n > 0) log.push({ at, kind: 'prise', n, note: 'total corrigé' });
+      else log.push({ at, kind: 'note', note: 'total du jour : zéro' });   // 25/11 : un jour à zéro est un jour NOTÉ (pas « pas noté »)
       log.sort((a, b) => a.at.localeCompare(b.at));
       await kvSet(LOG_KEY, JSON.stringify(log.slice(-1500)));
       const allowed = allowedOn(s, d);
@@ -1069,7 +1090,7 @@ async function weeklyBilan(send: boolean): Promise<string> {
   const health = await import('./jarvis-hub.js').then(m => m.healthWeekLine()).catch(() => '');
   const text = [
     `🕊️ Bilan LIBERTÉ de la semaine — jour ${o.day}/${o.totalDays}`,
-    o.week.map(d => `${fmtDate(d.date)} : ${d.taken}/${d.allowed}${d.taken > d.allowed ? ' ⚠️' : ' ✅'}`).join('\n'),
+    o.week.map(d => !log.some(l => dayOf(l.at) === d.date) && d.date < o.today ? `${fmtDate(d.date)} : pas noté ❔` : `${fmtDate(d.date)} : ${d.taken}/${d.allowed}${d.taken > d.allowed ? ' ⚠️' : ' ✅'}`).join('\n'),
     `Envies : ${w.filter(l => l.kind === 'envie').length} (résistées : ${w.filter(l => l.kind === 'resiste').length})${o.triggers.length ? ` · déclencheur n°1 : ${o.triggers[0]!.trigger}` : ''}`,
     sym.length ? `Manque moyen : ${avg(sym)}/10` : '',
     moods.length ? `Moral moyen : ${avg(moods)}/10` : '',
@@ -1149,6 +1170,38 @@ export async function jobLiberte(): Promise<void> {
   if (hhmm >= '07:00' && hhmm < '10:00' && !(await kvGet(sentKey(`morning:${today}`)).catch(() => '1'))) {
     const line = await liberteMorningLine();
     if (line && !dnd) await queueTelegramMessage(line);
+  }
+
+  // 25/11 : hier rien de noté → le matin, on demande le vrai chiffre en un clic (un jour non noté = un jour qu'on ne peut pas comprendre)
+  if (hhmm >= '09:30' && hhmm < '12:00' && !dnd) {
+    const y = addDays(today, -1), log = await readLibLog();
+    if (y >= s.start && !log.some(l => dayOf(l.at) === y) && await once(`unlogged:${y}`, 3 * 86_400)) {
+      const ya = allowedOn(s, y);
+      const { createDecision } = await import('./conscience.js');
+      await createDecision(`🕊️ Hier (${fmtDate(y)}), je n'ai rien de noté. Tu en as pris combien, en vrai ? Sans jugement — c'est ce qui me permet de comprendre tes journées.`, [
+        { label: `✅ Comme prévu (${halvesShort(ya)})`, tool: 'liberte', input: { action: 'total', date: y, n: ya } },
+        { label: '0️⃣ Rien du tout', tool: 'liberte', input: { action: 'total', date: y, n: 0 } },
+        { label: '⬆️ Plus que prévu', say: `Hier (${fmtDate(y)}) j'ai pris plus que prévu, je te dis combien.` },
+        { label: '⬇️ Moins que prévu', say: `Hier (${fmtDate(y)}) j'ai pris moins que prévu, je te dis combien.` },
+      ]);
+    }
+  }
+
+  // 25/11 : grosse marche qui arrive (≥ 2 demis d'un coup) et il a déjà eu des rebonds → 2 jours avant, il CHOISIT
+  {
+    const i = s.steps.findIndex(st => st.from > today);
+    const drop = i >= 1 ? s.steps[i]! : null, prev = i >= 1 ? s.steps[i - 1]!.max : 0;
+    if (drop && prev - drop.max >= 2 && daysBetween(today, drop.from) <= 2 && hhmm >= '19:00' && hhmm < '21:00' && !dnd) {
+      const p = libPattern(s, await readLibLog());
+      if (await once(`bigdrop:${drop.from}`, 5 * 86_400)) {
+        const { createDecision } = await import('./conscience.js');
+        await createDecision(`🕊️ ${fmtDate(drop.from)}, tu passes de ${halvesShort(prev)} à ${halvesShort(drop.max)} d'un coup${prev >= 2 * drop.max ? ' (la moitié)' : ''}. ${p.rebound.overAfter ? `Tes chiffres : après un jour trop bas, ${p.rebound.overAfter} fois ça a remonté fort le lendemain. ` : ''}Une grosse marche, c'est souvent du manque… puis un rattrapage. Tu préfères :`, [
+          { label: '👍 Je garde la marche', tool: 'liberte', input: { action: 'victoire', text: `prêt pour la marche du ${drop.from}` } },
+          { label: `🪜 Des marches de 1 (${prev}→${prev - 1}→…→${drop.max})`, tool: 'liberte', input: { action: 'adoucir', days: 3 } },
+          { label: '💬 On en parle', say: `On parle de ma baisse du ${fmtDate(drop.from)} (${prev} → ${drop.max}) : j'ai peur du rebond.` },
+        ]);
+      }
+    }
   }
 
   // Le soir d'un jour où il a pris plus (ou le lendemain matin si raté) : lui demander POURQUOI, avec des boutons (25/11)
