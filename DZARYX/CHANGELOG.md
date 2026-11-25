@@ -1,3 +1,5 @@
+## 25/11 22h15 — LIBERTÉ « moins d'un mois » : plan_rapide = 8 j par marche (zéro 22/12) + alt 10 j (zéro 28/12) ; matin 9h : 2 boutons de validation (version 8 j / 10 j), plan_rapide_valide alt:true.
+
 ## 25/11 22h — LIBERTÉ : plan rapide préparé (zéro 28/12) en attente du médecin → chaque matin de semaine 9h (≤ 7 j) : phrase à dire au médecin + boutons « il valide » (plan_rapide_valide) / « autres dates » / « pas encore joint ». Plan actuel inchangé tant qu'il n'a pas validé CE plan.
 
 ## 25/11 21h30 — LIBERTÉ « au plus vite » : la date du zéro ne recule plus toute seule (dépassement → plus de +2 j ; manque fort 2 j → choix tenir / +3 j / médecin) ; action `plan_rapide` (mêmes marches que le médecin, 10 j chacune → proposition sur Telegram, rien appliqué), `plan_rapide_valide` (confirm, seulement si le médecin a validé) ; `plus_vite` prépare aussi le plan rapide ; message du matin : 🏁 zéro le … (J-n).

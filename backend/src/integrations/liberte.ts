@@ -29,7 +29,7 @@ export interface LibState {
   wakeDose?: number;           // demis pris d'un coup au réveil (1re heure) — 30/10 : « 2 comprimés et demi déjà au réveil, donc 5 demis »
   holdDays: number;            // jours ajoutés par les paliers (manque fort, dépassement)
   doctorPlan?: boolean;        // plan donné par le médecin : Dzaryx ne l'accélère jamais
-  fastProposal?: { at: string; steps: LibStep[] };   // 25/11 plan plus rapide PRÉPARÉ pour le médecin — appliqué seulement s'il dit que le médecin a validé
+  fastProposal?: { at: string; steps: LibStep[]; alt?: LibStep[] };   // alt = version un peu plus lente (si le médecin la préfère)   // 25/11 plan plus rapide PRÉPARÉ pour le médecin — appliqué seulement s'il dit que le médecin a validé
   doctor: { status: 'a_appeler' | 'rdv_pris' | 'vu'; date?: string; note?: string };
   why: string[];               // ses raisons à lui
   consequence?: string;        // ce qu'il a choisi lui-même s'il dépasse
@@ -944,16 +944,18 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
     case 'plan_rapide': {
       // Plan PLUS RAPIDE préparé pour le médecin : mêmes marches que son plan, mais 10 jours chacune (jamais moins de 7,
       // jamais une marche plus grosse que les siennes). Rien n'est appliqué : il le montre au médecin.
-      const days = Math.min(14, Math.max(7, Math.round(Number(input['days'] ?? 10))));
+      // 25/11 « moins d'un mois si possible » : 8 jours par marche (zéro ~22/12), et 10 jours en option si le médecin préfère
+      const days = Math.min(14, Math.max(7, Math.round(Number(input['days'] ?? 8))));
       const cur = s.steps.findIndex(st => st.from > today);
       if (cur < 0) return 'Il est déjà au palier zéro.';
       const levels = s.steps.slice(cur).map(st => st.max);
       const first = s.steps[cur]!.from;
-      const steps: LibStep[] = levels.map((max, k) => ({ from: addDays(first, k * days), max }));
-      s.fastProposal = { at: new Date().toISOString(), steps };
+      const mk = (d: number): LibStep[] => levels.map((max, k) => ({ from: addDays(first, k * d), max }));
+      const steps = mk(days), alt = days < 10 ? mk(10) : undefined;
+      s.fastProposal = { at: new Date().toISOString(), steps, ...(alt ? { alt } : {}) };
       await saveLib(s);
       const zeroNow = zeroDay(s), zeroFast = steps.at(-1)!.from;
-      const txt = `🏁 PLAN PLUS RAPIDE — À FAIRE VALIDER PAR MON MÉDECIN\nPlan actuel : ${s.steps.slice(cur).map(st => `${fmtDate(st.from)} → ${st.max}`).join(' · ')} (zéro le ${fmtDate(zeroNow)}).\nProposition (mêmes marches, ${days} jours chacune) : ${steps.map(st => `${fmtDate(st.from)} → ${st.max}`).join(' · ')}.\n➡️ Zéro le ${fmtDate(zeroFast)}, soit ${daysBetween(zeroFast, zeroNow)} jours plus tôt.\nQuestion au médecin : est-ce sûr pour moi ? Faut-il une aide pour le manque (dernières marches) ?`;
+      const txt = `🏁 PLAN PLUS RAPIDE — À FAIRE VALIDER PAR MON MÉDECIN\nPlan actuel : ${s.steps.slice(cur).map(st => `${fmtDate(st.from)} → ${st.max}`).join(' · ')} (zéro le ${fmtDate(zeroNow)}).\nProposition (mêmes marches, ${days} jours chacune) : ${steps.map(st => `${fmtDate(st.from)} → ${st.max}`).join(' · ')}.\n➡️ Zéro le ${fmtDate(zeroFast)}, soit ${daysBetween(zeroFast, zeroNow)} jours plus tôt.\n${alt ? `\nSi c'est trop rapide pour moi : 10 jours par marche → ${alt.map(st => `${fmtDate(st.from)} → ${st.max}`).join(' · ')} (zéro le ${fmtDate(alt.at(-1)!.from)}).` : ''}\nQuestion au médecin : est-ce sûr pour moi ? Faut-il une aide pour le manque (dernières marches) ?`;
       await queueTelegramMessage(txt);
       return `${txt}\n\n(Envoyé sur Telegram. Rien n'est changé tant qu'il ne dit pas « le médecin est d'accord » → action plan_rapide_valide confirm:true.)`;
     }
@@ -962,7 +964,8 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
       if (!s.fastProposal) return 'Aucun plan rapide préparé : action plan_rapide d\'abord.';
       if (input['confirm'] !== true) return 'Seulement si SON MÉDECIN a validé le plan rapide : demande-lui de confirmer (« oui le médecin est d\'accord ») puis confirm:true.';
       const keep = s.steps.filter(st => st.from <= today);
-      s.steps = [...keep, ...s.fastProposal.steps.filter(st => st.from > today)];
+      const chosen = input['alt'] === true && s.fastProposal.alt ? s.fastProposal.alt : s.fastProposal.steps;
+      s.steps = [...keep, ...chosen.filter(st => st.from > today)];
       s.doctorPlan = true;
       delete s.fastProposal;
       await saveLib(s);
@@ -1314,8 +1317,10 @@ export async function jobLiberte(): Promise<void> {
   if (s.fastProposal && hhmm >= '09:00' && hhmm < '10:00' && !dnd && wdOf(today) >= 1 && wdOf(today) <= 5 && daysBetween(dayOf(s.fastProposal.at), today) <= 7 && await once(`fastplan:${today}`)) {
     const fp = s.fastProposal.steps.filter(st => st.from > today || st.max === 0);
     const { createDecision } = await import('./conscience.js');
-    await createDecision(`🩺 Appel au médecin ce matin. Dis-lui juste :\n« Docteur, vous êtes d'accord pour que j'aille plus vite. Je propose : ${fp.map(st => `${fmtDate(st.from)} → ${st.max ? `${st.max} demi${st.max > 1 ? 's' : ''}` : 'zéro'}`).join(', ')}. Est-ce que c'est sûr pour moi ? Est-ce qu'il me faut une aide pour le manque ? »\nAprès l'appel, un clic :`, [
-      { label: '✅ Il valide ce plan', tool: 'liberte', input: { action: 'plan_rapide_valide', confirm: true } },
+    const alt = s.fastProposal.alt, z = (l: LibStep[]) => fmtDate(l.at(-1)!.from);
+    await createDecision(`🩺 Appel au médecin ce matin. Dis-lui juste :\n« Docteur, vous êtes d'accord pour que j'aille plus vite. Je voudrais arrêter en moins d'un mois : ${fp.map(st => `${fmtDate(st.from)} → ${st.max ? `${st.max} demi${st.max > 1 ? 's' : ''}` : 'zéro'}`).join(', ')}.${alt ? ` Ou, si c'est trop rapide, zéro le ${z(alt)} (10 jours par marche).` : ''} Est-ce que c'est sûr pour moi ? Est-ce qu'il me faut une aide pour le manque ? »\nAprès l'appel, un clic :`, [
+      { label: `✅ Il valide : zéro le ${z(s.fastProposal.steps)}`, tool: 'liberte', input: { action: 'plan_rapide_valide', confirm: true } },
+      ...(alt ? [{ label: `✅ Il préfère zéro le ${z(alt)}`, tool: 'liberte', input: { action: 'plan_rapide_valide', confirm: true, alt: true } }] : []),
       { label: '📝 Il a donné d\'autres dates', say: 'Mon médecin a donné d\'autres dates pour arrêter, je te les dis.' },
       { label: '⏳ Pas encore joint', tool: 'liberte', input: { action: 'victoire', text: 'a essayé d\'appeler le médecin' } },
     ]);
