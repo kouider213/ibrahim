@@ -41,7 +41,7 @@ export interface LibState {
   createdAt: string;
 }
 export type LibKind = 'prise' | 'envie' | 'resiste' | 'craque' | 'symptomes' | 'humeur' | 'note' | 'depassement' | 'palier' | 'retour' | 'phq2' | 'victoire' | 'mission' | 'calme' | 'cause';
-export interface LibLog { at: string; kind: LibKind; n?: number; score?: number; trigger?: string; symptoms?: string[]; note?: string; scores?: Record<string, number>; day?: string }
+export interface LibLog { at: string; kind: LibKind; n?: number; score?: number; trigger?: string; symptoms?: string[]; note?: string; scores?: Record<string, number>; day?: string; moment?: string }
 
 const DEFAULT_TIMES = ['07:30', '11:30', '15:30', '19:30'];
 // MISSION ANTI-ZOMBIE du jour : une petite action qui ramène ce qu'il veut retrouver (énergie, famille, rire). +1 € à la cagnotte.
@@ -239,6 +239,66 @@ export function riskHours(log: LibLog[], s?: LibState | null): number[] {
   // 25/11 : les prises EN TROP (au-delà de ce que le plan permettait à cette heure-là) comptent aussi — c'est là que ça se joue
   if (s) for (const hr of extraHours(s, log, since)) h.set(hr, (h.get(hr) ?? 0) + 1);
   return [...h.entries()].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([hr]) => hr).sort((a, b) => a - b);
+}
+
+// ── MOMENTS DE LA JOURNÉE (25/11, Kouider : « il doit voir à quel moment je prends le plus ») ──
+// Une prise notée en bloc (« total corrigé », ou 4 demis d'un coup en milieu de matinée) ne dit RIEN de l'heure réelle :
+// on ne compte que les prises avec un moment dit par lui (action journee / moment) ou notées à l'instant (≤ 3 demis).
+export const MOMENTS: Array<{ key: string; label: string; from: string; at: string }> = [
+  { key: 'reveil', label: 'au réveil', from: '04:00', at: '05:30' },
+  { key: 'matin', label: 'le matin', from: '08:00', at: '09:30' },
+  { key: 'midi', label: 'le midi', from: '11:30', at: '12:30' },
+  { key: 'aprem', label: 'l\'après-midi', from: '14:00', at: '15:30' },
+  { key: 'soir', label: 'le soir', from: '18:00', at: '19:30' },
+  { key: 'nuit', label: 'la nuit', from: '22:00', at: '23:00' },
+];
+export function momentOfTime(hhmm: string): string {
+  let k = 'nuit';
+  for (const m of MOMENTS) if (hhmm >= m.from) k = m.key;
+  return hhmm < '04:00' ? 'nuit' : k;
+}
+export function momentKey(raw: unknown): string | null {
+  const t = String(raw ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (!t) return null;
+  if (MOMENTS.some(m => m.key === t)) return t;
+  if (/reveil|leve/.test(t)) return 'reveil';
+  if (/midi|dejeuner/.test(t)) return 'midi';
+  if (/apres.?midi|aprem|aprm/.test(t)) return 'aprem';
+  if (/soir|diner/.test(t)) return 'soir';
+  if (/nuit|coucher|dormir/.test(t)) return 'nuit';
+  if (/matin|travail|boulot|arrive/.test(t)) return 'matin';
+  return null;
+}
+function momentOfLog(l: LibLog, times: string[] = DEFAULT_TIMES): string | null {
+  if (l.moment) return l.moment;
+  if (/total/i.test(l.note ?? '') || (l.n ?? 1) > 3) return null;
+  // heure sûre seulement si notée dans les 40 min après une heure de prise (bouton du rappel) : sinon c'est peut-être
+  // la prise du réveil notée en fin de matinée (« 4 » à 10h54) → on ne devine pas
+  const hm = toMin(localNow(Date.parse(l.at)).hhmm);
+  const slot = times.find(t => hm >= toMin(t) - 10 && hm <= toMin(t) + 40);
+  return slot ? momentOfTime(slot) : null;
+}
+export interface MomentStats { rows: Array<{ key: string; label: string; avg: number; plan: number; days: number }>; known: number; total: number; top: { key: string; label: string; avg: number; plan: number } | null }
+export function momentStats(s: LibState, log: LibLog[], days = 21): MomentStats {
+  const today = localNow().date, since = addDays(today, -days);
+  const ps = log.filter(l => l.kind === 'prise' && dayOf(l.at) > since && dayOf(l.at) >= s.start);
+  // seulement les journées COMPLÈTES (toutes les prises du jour ont un moment) — sinon la moyenne ment
+  const dset = new Set([...new Set(ps.map(l => dayOf(l.at)))].filter(d => ps.filter(l => dayOf(l.at) === d).every(l => momentOfLog(l, s.times))));
+  const known = ps.filter(l => dset.has(dayOf(l.at)));
+  const n = Math.max(1, dset.size);
+  const rows = MOMENTS.map(m => {
+    const sum = known.filter(l => momentOfLog(l, s.times) === m.key).reduce((a, l) => a + (l.n ?? 1), 0);
+    // ce que le plan donnait à ce moment-là, en moyenne sur les mêmes jours
+    const plan = [...dset].reduce((a, d) => a + slotPlan(allowedOn(s, d), s.times, s.wakeDose).filter(p => momentOfTime(p.time) === m.key).reduce((x, p) => x + p.n, 0), 0) / n;
+    return { key: m.key, label: m.label, avg: Math.round(sum / n * 10) / 10, plan: Math.round(plan * 10) / 10, days: dset.size };
+  });
+  const top = [...rows].filter(r => r.avg > 0).sort((a, b) => (b.avg - b.plan) - (a.avg - a.plan) || b.avg - a.avg)[0] ?? null;
+  return { rows, known: known.length, total: ps.length, top };
+}
+export function momentText(st: MomentStats): string {
+  if (st.rows[0]!.days < 4) return `⏰ À quel moment tu prends le plus : je ne peux pas encore le dire — seulement ${st.rows[0]!.days} journée(s) récente(s) où je connais l'heure de CHAQUE prise (il en faut 4). La plupart sont notées en un seul bloc. Dis-moi ta journée par moment (« réveil 3, midi 2, soir 3 ») ou note chaque prise au moment où tu la prends.`;
+  const rows = st.rows.filter(r => r.avg > 0 || r.plan > 0).map(r => `${r.label} : ${halvesShort(r.avg)}/jour${r.plan ? ` (plan ${String(r.plan).replace('.', ',')})` : ' (pas prévu)'}${r.avg > r.plan + 0.4 ? ' ⚠️' : ''}`).join('\n');
+  return [`⏰ TES MOMENTS (${st.rows[0]!.days} jours avec des heures sûres)`, rows, st.top && st.top.avg > st.top.plan ? `👉 Le moment où tu dépasses le plus : ${st.top.label}. C'est là qu'on met le paquet (rappel avant, plan si-alors, pilulier).` : '', st.total - st.known > 0 ? `(Journées notées en bloc, sans heures : pas comptées.)` : ''].filter(Boolean).join('\n');
 }
 
 // ── RYTHME DES PRISES (demande de Kouider 25/11 : « analyse les jours où je prends le plus » — hier presque rien, aujourd'hui trop).
@@ -488,6 +548,8 @@ async function doctorReport(s: LibState, log: LibLog[]): Promise<string> {
     `Envies : ${log.filter(l => l.kind === 'envie').length} (${log.filter(l => l.kind === 'resiste').length} tenues). Dépassements : ${log.filter(l => l.kind === 'depassement').length}.`,
     sym.length ? `Manque (0-10) : ${sym.map(l => `${fmtDate(dayOf(l.at))} ${l.score}${l.symptoms?.length ? ` (${l.symptoms.join(', ')})` : ''}`).join(' ; ')}` : '',
     await whyFacts(s, log).then(f => f.hi.length ? `Jours au-dessus du plan ou en forte hausse : ${f.hi.map(d => `${fmtDate(d.date)} ${d.taken}`).join(', ')}.${f.leads.length ? ` Ce qui revient : ${f.leads.slice(0, 3).map(l => l.txt.replace(/tu avais/g, "j'avais").replace(/tu prends/g, 'je prends')).join(' ; ')}.` : ''}${f.told.length ? ` Causes que je donne : ${f.told.map(c => `${c.label} (${c.n})`).join(', ')}.` : ''} Question : un effet rebond / manque entre deux prises — faut-il répartir autrement ?` : '').catch(() => ''),
+    (() => { const m = momentStats(s, log); return m.rows[0]!.days >= 4 ? `Moments de prise (moyenne/jour) : ${m.rows.filter(r => r.avg > 0).map(r => `${r.label} ${r.avg}`).join(', ')}.` : ''; })(),
+    log.some(l => l.kind === 'note' && l.note === 'veut aller plus vite' && Date.now() - Date.parse(l.at) < 30 * 86_400_000) ? 'Je veux arrêter le plus vite possible : quel rythme est sûr pour moi, et une aide pour le manque ?' : '',
     phq ? `Dépistage PHQ-2 (moral) : ${phq.score}/6${(phq.score ?? 0) >= 3 ? ' — positif' : ''}.` : '',
     health,
     'Plaintes : fatigue permanente, moral bas. Mes questions : valider ou adapter le plan ; aide pour le manque ; soutien moral / psychologue ; prise de sang (fer, vitamine D, thyroïde).',
@@ -604,7 +666,7 @@ export interface LibOverview {
   calm: number;
   pattern: string;
   why: string;
-  insight: null | { days: Array<{ date: string; taken: number; allowed: number; high: boolean; lowBefore: boolean; sleep: number | null; causes: string[] }>; leads: Array<{ key: string; txt: string }>; told: Array<{ cause: string; label: string; n: number }>; unknown: string[]; heavy: LibPattern['heavy']; rebound: LibPattern['rebound']; swing: number; avg7: number; allowed7: number; causes: Record<string, string> };
+  insight: null | { days: Array<{ date: string; taken: number; allowed: number; high: boolean; lowBefore: boolean; sleep: number | null; causes: string[] }>; leads: Array<{ key: string; txt: string }>; told: Array<{ cause: string; label: string; n: number }>; unknown: string[]; heavy: LibPattern['heavy']; rebound: LibPattern['rebound']; swing: number; avg7: number; allowed7: number; causes: Record<string, string>; moments: MomentStats };
 }
 
 export async function libOverview(): Promise<LibOverview> {
@@ -646,7 +708,7 @@ export async function libOverview(): Promise<LibOverview> {
     why: s ? await whyText(s, log, true).catch(() => '') : '',
     insight: s ? await (async () => {
       const f = await whyFacts(s, log), p = libPattern(s, log, today);
-      return { days: f.all.slice(-21).map(d => ({ date: d.date, taken: d.taken, allowed: d.allowed, high: d.high, lowBefore: d.lowBefore, sleep: d.sleep, causes: d.causes })), leads: f.leads.map(l => ({ key: l.key, txt: l.txt })), told: f.told, unknown: f.unknown, heavy: p.heavy, rebound: p.rebound, swing: p.swing, avg7: p.avg7, allowed7: p.allowed7, causes: CAUSES };
+      return { days: f.all.slice(-21).map(d => ({ date: d.date, taken: d.taken, allowed: d.allowed, high: d.high, lowBefore: d.lowBefore, sleep: d.sleep, causes: d.causes })), leads: f.leads.map(l => ({ key: l.key, txt: l.txt })), told: f.told, unknown: f.unknown, heavy: p.heavy, rebound: p.rebound, swing: p.swing, avg7: p.avg7, allowed7: p.allowed7, causes: CAUSES, moments: momentStats(s, log) };
     })().catch(() => null) : null,
   };
 }
@@ -697,6 +759,8 @@ export async function liberteText(): Promise<string> {
     '- Utilise tout : agenda (ses étapes y sont), sport (marcher / séance légère les jours durs : sport_coach), sommeil (outil sante), son moral (life_coach), FORME, sa famille comme raison (« ton fils, ta femme »), ses raisons à lui ci-dessus.',
     '- « Quels jours je prends le plus ? », « analyse mes prises », « hier presque rien et aujourd\'hui trop » → liberte action analyse, puis aide-le : la régularité compte plus qu\'un jour héroïque ; le lendemain d\'un jour bas = prises à l\'heure, pas de rattrapage.',
     '- CHERCHER LE POURQUOI : quand il a pris plus (ou le dit), ne te contente pas de noter. Mène l\'enquête avec lui, UNE question à la fois, sans juger : à quel moment ça a commencé ? qu\'est-ce qui s\'est passé juste avant ? où il était, avec qui ? ce qu\'il ressentait dans le corps (manque) ou dans la tête (stress, ennui, tristesse) ? ce qu\'il s\'est dit (« juste un demi, ça va passer ») ? Puis liberte action cause (trigger = manque|stress|travail|fatigue|famille|ennui|douleur|habitude|tristesse|angoisse, text = son récit en une phrase, date aujourd\'hui|hier). Croise avec ce que tu sais (nuit de la montre, veille basse, travail) en le présentant comme une piste (« je me demande si… »), puis construis AVEC lui un plan si-alors pour cette cause (action si_alors). « Pourquoi je prends plus ? » → action analyse.',
+    '- MOMENTS : quand il donne un total ou un gros chiffre d\'un coup, demande UNE fois « à quels moments ? (réveil, matin, midi, aprèm, soir, nuit) » puis liberte action journee (date, reveil, matin, midi, aprem, soir, nuit = demis). Prise au moment même → action prise avec moment si dit. « À quel moment je prends le plus ? » → action moments.',
+    '- « Je veux arrêter au plus vite » → liberte action plus_vite (rapport + question au médecin + rappel d\'appel), puis dis-lui que le chemin le plus court tout de suite = zéro dépassement, zéro yo-yo. Tu n\'accélères JAMAIS le plan toi-même.',
     '- Grosse baisse qui l\'inquiète (≥ 2 demis d\'un coup) → propose-lui de CHOISIR : garder la marche, ou liberte action adoucir (marches de 1 demi tous les 3 jours — jamais plus haut, seul le jour zéro recule) ; en parler au médecin.',
     '- C\'est fini seulement quand LUI dit « c\'est bon, j\'ai arrêté » (action finish). D\'ici là tu ne lâches rien. Rechute = normal, jamais un échec : on note, on reprend.',
     '- EN APPEL / SIRI / VOCAL : s\'il a une envie pendant un appel, guide-le À VOIX HAUTE (« inspire… 2… 3… 4… bloque… souffle… »), phrases courtes, reste en ligne 10 minutes. Propose « je t\'envoie ta propre voix » (liberte action ma_voix).',
@@ -774,7 +838,8 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
       // (30/10 : ses 5 demis du réveil notés à 5h25 puis encore à 6h05 → 10 comptés, faux dépassement, palier repoussé, appel)
       const dup = input['nouvelle'] !== true && (await readLibLog()).filter(l => l.kind === 'prise' && l.n === n && Date.now() - Date.parse(l.at) < 2 * 3_600_000).at(-1);
       if (dup) return `ℹ️ Déjà noté : ${halvesShort(n)} à ${localNow(Date.parse(dup.at)).hhmm} — PAS ajouté une 2e fois (aujourd'hui : ${halvesShort(takenOn(await readLibLog(), today))}). Si c'est vraiment une NOUVELLE prise en plus, demande-lui de confirmer puis rappelle liberte prise avec nouvelle:true.`;
-      const log = await addLog({ kind: 'prise', n, note: String(input['note'] ?? '').slice(0, 200) || undefined });
+      const mk = momentKey(input['moment']);
+      const log = await addLog({ kind: 'prise', n, note: String(input['note'] ?? '').slice(0, 200) || undefined, ...(mk ? { moment: mk } : {}) });
       const allowed = allowedOn(s, today), taken = takenOn(log, today);
       const plan = slotPlan(allowed, s.times, s.wakeDose), byNow = allowedByNow(plan, hhmm);
       if (s.finishedAt || taken > allowed) {
@@ -845,6 +910,36 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
     case 'palier': {
       const d = Math.min(7, Math.max(1, Math.round(Number(input['days'] ?? 3))));
       return (await holdSteps(s, d, String(input['why'] ?? 'demandé')) || 'Rien à allonger (déjà au palier zéro). Au zéro, on ne revient pas en arrière : SOS + médecin.');
+    }
+
+    case 'journee': {
+      // « ce matin 3, midi 2, ce soir 3 » → la journée entière par moment (remplace les prises notées ce jour-là)
+      const d = /hier/i.test(String(input['date'] ?? '')) ? addDays(today, -1) : /^\d{4}-\d{2}-\d{2}$/.test(String(input['date'] ?? '')) ? String(input['date']) : today;
+      const parts = MOMENTS.map(m => ({ m, n: Math.max(0, Math.round(Number(String(input[m.key] ?? 0).replace(',', '.')) * 2) / 2) })).filter(x => x.n > 0);
+      const log = (await readLibLog()).filter(l => !(l.kind === 'prise' && dayOf(l.at) === d));
+      for (const x of parts) log.push({ at: new Date(localTs(d, x.m.at)).toISOString(), kind: 'prise', n: x.n, moment: x.m.key, note: 'journée par moment' });
+      if (!parts.length) log.push({ at: new Date(localTs(d, '20:00')).toISOString(), kind: 'note', note: 'total du jour : zéro' });
+      log.sort((a, b) => a.at.localeCompare(b.at));
+      await kvSet(LOG_KEY, JSON.stringify(log.slice(-1500)));
+      const n = parts.reduce((a, x) => a + x.n, 0), allowed = allowedOn(s, d);
+      const fresh = await readLibLog();
+      if (n > allowed && !fresh.some(l => l.kind === 'depassement' && dayOf(l.at) === d)) await addLog({ kind: 'depassement', n: n - allowed, note: `total du ${d}` });
+      const undone = n <= allowed ? await undoOverrun(s, d) : '';
+      const plan = slotPlan(allowed, s.times, s.wakeDose);
+      const over = parts.filter(x => x.n > plan.filter(p => momentOfTime(p.time) === x.m.key).reduce((a, p) => a + p.n, 0)).map(x => x.m.label);
+      return `${undone}✅ ${d === today ? 'Aujourd\'hui' : fmtDate(d)} : ${parts.map(x => `${x.m.label} ${halvesShort(x.n)}`).join(' · ') || 'rien'} = ${halvesShort(n)} pour ${halvesShort(allowed)} autorisés.${over.length ? ` Au-delà du plan : ${over.join(', ')} — c'est ce moment-là qu'on va travailler.` : ''} Merci, avec les moments je vois enfin où ça se joue.`;
+    }
+
+    case 'plus_vite': {
+      // 25/11 « je dois arrêter au plus vite » : Dzaryx n'accélère JAMAIS seul (arrêt trop rapide = manque fort, rebonds, parfois dangereux).
+      // Il note l'envie, prépare la question pour le médecin (rapport) et met un rappel d'appel dans l'agenda.
+      await addLog({ kind: 'note', note: 'veut aller plus vite' });
+      let day = addDays(today, 1);
+      for (let k = 0; k < 6 && (wdOf(day) === 0 || wdOf(day) === 6); k++) day = addDays(day, 1);   // cabinet fermé le week-end
+      await createAgendaEvent('📞 Appel perso', new Date(localTs(day, '09:00')).toISOString(), new Date(localTs(day, '09:15')).toISOString(), 'Appeler le médecin (détails dans l\'app, page privée).').catch(() => null);
+      await queueTelegramMessage(`${await doctorReport(s, await readLibLog())}\n\n❓ MA DEMANDE : je veux arrêter le plus vite possible. Quel rythme de baisse est sûr pour moi ? Est-ce qu'un traitement peut m'aider à passer le manque pour aller plus vite ?`);
+      const p = libPattern(s, await readLibLog());
+      return `Noté : il veut aller plus vite. Rapport + sa question envoyés sur Telegram, rappel « appeler le médecin » le ${fmtDate(day)} à 9h. Dis-lui la vérité, simplement : 1) c'est son MÉDECIN qui peut accélérer le plan (tu ne le fais jamais seul : trop vite = manque fort, rebonds, parfois dangereux) ; 2) ce qui le fait aller plus vite DÈS AUJOURD'HUI, c'est zéro jour au-dessus du plan et zéro yo-yo : chaque dépassement repousse ses paliers de 2 jours${p.overDays ? ` (${p.overDays} dépassement(s) jusqu'ici)` : ''}, et chaque jour trop bas prépare un lendemain trop haut ; 3) tenir exactement son autorisé, à l'heure, chaque jour = le chemin le plus court. Propose-lui de noter sa journée par moment pour trouver le moment à travailler.`;
     }
 
     case 'adoucir': {
@@ -919,7 +1014,8 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
     }
 
     case 'bilan': return await weeklyBilan(false);
-    case 'analyse': { const log = await readLibLog(); return `${patternText(libPattern(s, log))}\n\n${await whyText(s, log)}`; }
+    case 'analyse': { const log = await readLibLog(); return `${patternText(libPattern(s, log))}\n\n${momentText(momentStats(s, log))}\n\n${await whyText(s, log)}`; }
+    case 'moments': return momentText(momentStats(s, await readLibLog()));
     case 'pourquoi_analyse': return await whyText(s, await readLibLog());
     case 'cause': {
       const raw = String(input['trigger'] ?? input['text'] ?? '').trim();

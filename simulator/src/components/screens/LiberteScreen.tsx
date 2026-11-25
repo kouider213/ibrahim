@@ -36,6 +36,7 @@ interface Overview {
     leads: Array<{ key: string; txt: string }>; told: Array<{ cause: string; label: string; n: number }>; unknown: string[];
     heavy: Array<{ wd: string; avg: number; n: number }>; rebound: { lows: number; after: number; overAfter: number; examples: string[] };
     swing: number; avg7: number; allowed7: number; causes: Record<string, string>;
+    moments?: { rows: Array<{ key: string; label: string; avg: number; plan: number; days: number }>; known: number; total: number; top: { key: string; label: string; avg: number; plan: number } | null };
   };
 }
 const eur = (n: number) => `${n.toFixed(1).replace('.', ',').replace(',0', '')} €`;
@@ -514,16 +515,41 @@ function BackSheet({ onClose, onSave }: { onClose: () => void; onSave: (b: Recor
 function TakeSheet({ o, busy, onClose, onAct }: { o: Overview; busy: boolean; onClose: () => void; onAct: (b: Record<string, unknown>, ok: string) => Promise<void> }) {
   const [halves, setHalves] = useState(1);
   const [mode, setMode] = useState<'now' | 'today' | 'hier'>('now');
+  const [byMoment, setByMoment] = useState(true);
+  const [parts, setParts] = useState<Record<string, number>>({});
+  const partsSum = Object.values(parts).reduce((a, b) => a + b, 0);
   const cp = (h: number) => `${String(h / 2).replace('.', ',')} comprimé${h > 2 ? 's' : ''}`;
   const after = mode === 'now' ? o.taken + halves : halves;
   return (
     <Sheet title="💊 Combien exactement ?" subtitle="La vérité, même si c'est plus. Pas de jugement." onClose={onClose} fixed z={90}
-      footer={<Btn variant="primary" style={{ flex: 1 }} disabled={busy} onClick={() => onAct(mode === 'now' ? { action: 'prise', n: halves } : { action: 'total', n: halves, date: mode === 'hier' ? 'hier' : undefined }, '✅ Noté. Merci de dire la vérité.')}>
+      footer={mode !== 'now' && byMoment
+        ? <Btn variant="primary" style={{ flex: 1 }} disabled={busy} onClick={() => onAct({ action: 'journee', date: mode === 'hier' ? 'hier' : undefined, ...parts }, '✅ Journée notée par moment. Merci.')}>{`${mode === 'hier' ? 'Hier' : "Aujourd'hui"} = ${demis(partsSum)}, par moment`}</Btn>
+        : <Btn variant="primary" style={{ flex: 1 }} disabled={busy} onClick={() => onAct(mode === 'now' ? { action: 'prise', n: halves } : { action: 'total', n: halves, date: mode === 'hier' ? 'hier' : undefined }, '✅ Noté. Merci de dire la vérité.')}>
         {mode === 'now' ? `Noter ${demis(halves)} (${cp(halves)})` : `Total ${mode === 'hier' ? "d'hier" : "d'aujourd'hui"} = ${demis(halves)}`}</Btn>}>
       <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
         {([['now', 'Je viens de prendre'], ['today', "Total d'aujourd'hui"], ['hier', "Total d'hier"]] as const).map(([k, l]) =>
           <Btn key={k} variant={mode === k ? 'primary' : 'soft'} style={{ flex: 1, padding: '0 6px', whiteSpace: 'normal', fontSize: 12.5 }} onClick={() => { setMode(k); setHalves(k === 'now' ? 1 : o.taken || 1); }}>{l}</Btn>)}
       </div>
+      {mode !== 'now' && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+          <Btn variant={byMoment ? 'primary' : 'soft'} style={{ flex: 1, fontSize: 12.5 }} onClick={() => setByMoment(true)}>⏰ Par moment (mieux)</Btn>
+          <Btn variant={!byMoment ? 'primary' : 'soft'} style={{ flex: 1, fontSize: 12.5 }} onClick={() => setByMoment(false)}>Juste le total</Btn>
+        </div>
+      )}
+      {mode !== 'now' && byMoment ? (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 12.5, color: T.muted, marginBottom: 8 }}>Combien de demis à chaque moment ? C'est ce qui permet de voir OÙ ça se joue.</div>
+          {MOMENT_ROWS.map(([k, l]) => (
+            <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0' }}>
+              <div style={{ flex: 1, fontSize: 14 }}>{l}</div>
+              <Btn onClick={() => setParts(p => ({ ...p, [k]: Math.max(0, (p[k] ?? 0) - 1) }))}>−</Btn>
+              <div style={{ width: 36, textAlign: 'center', fontWeight: 800, fontSize: 17 }}>{String(parts[k] ?? 0)}</div>
+              <Btn onClick={() => setParts(p => ({ ...p, [k]: Math.min(20, (p[k] ?? 0) + 1) }))}>+</Btn>
+            </div>
+          ))}
+          {mode === 'today' && <div style={{ textAlign: 'center', fontSize: 13, marginTop: 6, color: partsSum > o.allowed ? T.bad : T.muted }}>Total : {demis(partsSum)} sur {demis(o.allowed)} autorisés</div>}
+        </div>
+      ) : <>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
         {[0.5, 1, 2, 3, 4, 5, 6].map(h => <Btn key={h} variant={halves === h ? 'primary' : 'soft'} onClick={() => setHalves(h)}>{h === 0.5 ? '¼' : h % 2 ? `${(h - 1) / 2 || ''}½` : `${h / 2}`}</Btn>)}
       </div>
@@ -536,6 +562,7 @@ function TakeSheet({ o, busy, onClose, onAct }: { o: Overview; busy: boolean; on
         <Btn onClick={() => setHalves(h => Math.min(30, h + 0.5))}>+</Btn>
       </div>
       {mode !== 'hier' && <div style={{ textAlign: 'center', fontSize: 13, color: after > o.allowed ? T.bad : T.muted }}>Aujourd'hui ça fera {demis(after)} sur {demis(o.allowed)} autorisés{after > o.allowed ? ' — au-dessus du plan, mais note-le quand même.' : '.'}</div>}
+      </>}
       {o.taken > 0 && <Btn variant="ghost" style={{ width: '100%', marginTop: 14 }} onClick={() => onAct({ action: 'annuler' }, '↩️ Dernière prise annulée')}><Ico e="↩️" />Annuler la dernière prise notée (erreur)</Btn>}
     </Sheet>
   );
@@ -582,6 +609,7 @@ function WhyCard({ ins, today, onTell }: { ins: NonNullable<Overview['insight']>
           );
         })}
       </div>
+      <Moments m={ins.moments} />
       {ins.rebound.overAfter > 0 && (
         <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 10, background: 'rgba(var(--dz-ink-rgb),0.04)', fontSize: 13, lineHeight: 1.5 }}>
           <b>🔁 Effet rebond</b> : après un jour très bas, tu prends en moyenne {demis(ins.rebound.after)} le lendemain. {ins.rebound.examples.slice(-2).join(' · ')}.
@@ -621,5 +649,33 @@ function CauseSheet({ day, causes, busy, onClose, onSave }: { day: string; cause
       <Field label="Ce qui s'est passé (facultatif)"><textarea value={text} onChange={e => setText(e.target.value)} rows={3} placeholder="ex. réveil à 4h, journée chargée, je me suis dit « juste un demi »…" style={{ ...inputStyle, resize: 'vertical' }} /></Field>
       <Btn color={DOVE} disabled={!c || busy} onClick={() => void onSave({ trigger: c, date: day, ...(text.trim() ? { text: text.trim() } : {}), bouton: true })}>Enregistrer</Btn>
     </Sheet>
+  );
+}
+
+const MOMENT_ROWS: Array<[string, string]> = [['reveil', '🌅 Réveil'], ['matin', '☕ Matin'], ['midi', '🍽️ Midi'], ['aprem', '🌤️ Après-midi'], ['soir', '🌆 Soir'], ['nuit', '🌙 Nuit']];
+function Moments({ m }: { m?: NonNullable<Overview['insight']>['moments'] }) {
+  if (!m) return null;
+  const days = m.rows[0]?.days ?? 0;
+  if (days < 4) return (
+    <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 10, background: 'rgba(var(--dz-ink-rgb),0.04)', fontSize: 13, lineHeight: 1.5 }}>
+      <b>⏰ À quel moment tu prends le plus ?</b> Pas encore visible : {days} journée(s) où je connais l'heure de chaque prise (il en faut 4). Note ta journée <b>par moment</b> (💊 → Total → ⏰ Par moment), ou dis à Dzaryx « réveil 3, midi 2, soir 3 ».
+    </div>
+  );
+  const max = Math.max(1, ...m.rows.map(r => Math.max(r.avg, r.plan)));
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>⏰ Tes moments ({days} jours sûrs) — barre = toi, trait = plan</div>
+      {m.rows.filter(r => r.avg > 0 || r.plan > 0).map(r => (
+        <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
+          <div style={{ width: 92, fontSize: 12.5 }}>{MOMENT_ROWS.find(x => x[0] === r.key)?.[1] ?? r.label}</div>
+          <div style={{ flex: 1, position: 'relative', height: 12, borderRadius: 6, background: 'rgba(var(--dz-ink-rgb),0.05)' }}>
+            <div style={{ width: `${(r.avg / max) * 100}%`, height: '100%', borderRadius: 6, background: r.avg > r.plan + 0.4 ? T.bad : T.ok }} />
+            {r.plan > 0 && <div style={{ position: 'absolute', top: -3, bottom: -3, left: `${(r.plan / max) * 100}%`, width: 2, background: 'var(--dz-text)' }} />}
+          </div>
+          <div style={{ width: 54, fontSize: 12, textAlign: 'right', color: T.muted }}>{String(r.avg).replace('.', ',')}/{String(r.plan).replace('.', ',')}</div>
+        </div>
+      ))}
+      {m.top && m.top.avg > m.top.plan && <div style={{ fontSize: 13, marginTop: 4 }}>👉 C'est <b>{m.top.label}</b> que tu dépasses le plus.</div>}
+    </div>
   );
 }
