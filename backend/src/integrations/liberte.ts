@@ -1310,6 +1310,17 @@ export async function jobLiberte(): Promise<void> {
     if (line && !dnd) await queueTelegramMessage(line);
   }
 
+  // 25/11 : plan rapide préparé, pas encore validé → chaque matin de semaine 9h (5 jours max) : ce qu'il dit au médecin + 1 clic après l'appel
+  if (s.fastProposal && hhmm >= '09:00' && hhmm < '10:00' && !dnd && wdOf(today) >= 1 && wdOf(today) <= 5 && daysBetween(dayOf(s.fastProposal.at), today) <= 7 && await once(`fastplan:${today}`)) {
+    const fp = s.fastProposal.steps.filter(st => st.from > today || st.max === 0);
+    const { createDecision } = await import('./conscience.js');
+    await createDecision(`🩺 Appel au médecin ce matin. Dis-lui juste :\n« Docteur, vous êtes d'accord pour que j'aille plus vite. Je propose : ${fp.map(st => `${fmtDate(st.from)} → ${st.max ? `${st.max} demi${st.max > 1 ? 's' : ''}` : 'zéro'}`).join(', ')}. Est-ce que c'est sûr pour moi ? Est-ce qu'il me faut une aide pour le manque ? »\nAprès l'appel, un clic :`, [
+      { label: '✅ Il valide ce plan', tool: 'liberte', input: { action: 'plan_rapide_valide', confirm: true } },
+      { label: '📝 Il a donné d\'autres dates', say: 'Mon médecin a donné d\'autres dates pour arrêter, je te les dis.' },
+      { label: '⏳ Pas encore joint', tool: 'liberte', input: { action: 'victoire', text: 'a essayé d\'appeler le médecin' } },
+    ]);
+  }
+
   // 25/11 : hier rien de noté → le matin, on demande le vrai chiffre en un clic (un jour non noté = un jour qu'on ne peut pas comprendre)
   if (hhmm >= '09:30' && hhmm < '12:00' && !dnd) {
     const y = addDays(today, -1), log = await readLibLog();
