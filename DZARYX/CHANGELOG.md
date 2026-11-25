@@ -1,3 +1,5 @@
+## 25/11 19h — LIBERTÉ : le POURQUOI. dayFactors/whyText : jours où il prend plus (> plan ou +3 sur la veille) comparés aux autres (veille basse, nuit < 6 h de la montre, travail/congé, manque, moral, causes données). Action `cause` (+ causeKey), `analyse` = rythme + pourquoi. 21h30 un jour au-dessus (ou 9h le lendemain) : « c'était plutôt… » avec 4 boutons. Règle cerveau : enquête une question à la fois, puis plan si-alors.
+
 ## 25/11 18h — LIBERTÉ : rythme des prises (libPattern/patternText). Outil liberte action `analyse` : jours de la semaine au-dessus/en dessous du plan, effet yo-yo (jour bas ≤ autorisé−2 → lendemain), écart moyen jour à jour, moyenne 7 j vs plan, heures, jours non notés. Résumé court dans le dossier. Jour à surveiller (hier très bas, ou son jour le plus chargé) : ligne dans le message du matin + passage 14h avec boutons (job liberte). Données seulement dans app_kv.
 
 ## 25/11 12h55 — FORME carte Séance : « Protéines 0 / 154 g » toujours à 0 — formeOverview ne renvoyait jamais `eaten` (lu par Dashboard.tsx). Ajouté : total du jour depuis le compteur Repas (mealsOf), même source que FORME → Repas.

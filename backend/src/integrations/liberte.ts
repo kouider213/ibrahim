@@ -40,8 +40,8 @@ export interface LibState {
   eventIds: string[];
   createdAt: string;
 }
-export type LibKind = 'prise' | 'envie' | 'resiste' | 'craque' | 'symptomes' | 'humeur' | 'note' | 'depassement' | 'palier' | 'retour' | 'phq2' | 'victoire' | 'mission' | 'calme';
-export interface LibLog { at: string; kind: LibKind; n?: number; score?: number; trigger?: string; symptoms?: string[]; note?: string; scores?: Record<string, number> }
+export type LibKind = 'prise' | 'envie' | 'resiste' | 'craque' | 'symptomes' | 'humeur' | 'note' | 'depassement' | 'palier' | 'retour' | 'phq2' | 'victoire' | 'mission' | 'calme' | 'cause';
+export interface LibLog { at: string; kind: LibKind; n?: number; score?: number; trigger?: string; symptoms?: string[]; note?: string; scores?: Record<string, number>; day?: string }
 
 const DEFAULT_TIMES = ['07:30', '11:30', '15:30', '19:30'];
 // MISSION ANTI-ZOMBIE du jour : une petite action qui ramène ce qu'il veut retrouver (énergie, famille, rire). +1 € à la cagnotte.
@@ -305,6 +305,94 @@ export function patternText(p: LibPattern, short = false): string {
     '💡 Ce que ça veut dire : le corps aime la RÉGULARITÉ. Un jour presque à zéro, c\'est souvent du manque le lendemain… et le lendemain on compense. Mieux vaut ton autorisé, à l\'heure, tous les jours, qu\'un jour à 3 et un jour à 8. Le lendemain d\'un jour bas : prises à l\'heure, pas de rattrapage, et je passe te voir l\'après-midi.',
   ].filter(l => l !== null && l !== undefined).join('\n').replace(/\n{3,}/g, '\n\n');
 }
+
+// ── POURQUOI (25/11, Kouider : « il doit m'aider à arrêter, il cherche la cause, le pourquoi du comment ») ──
+// Pour chaque jour noté, on rassemble ce qu'on sait déjà (nuit de la montre, jour de travail ou de congé, veille basse,
+// envies et leurs déclencheurs, manque, moral, cause qu'il a donnée) puis on compare les jours où il prend PLUS
+// (au-dessus du plan, ou +3 demis sur la veille) aux autres. Ce sont des pistes à vérifier avec lui, jamais un verdict.
+export const CAUSES: Record<string, string> = {
+  manque: 'le manque (le corps qui réclame)', stress: 'le stress', travail: 'le travail', fatigue: 'la fatigue / mal dormi',
+  famille: 'une tension à la maison', ennui: 'l\'ennui / le vide', douleur: 'une douleur', habitude: 'l\'habitude, le geste automatique',
+  tristesse: 'la tristesse / le moral', angoisse: 'l\'angoisse', autre: 'autre chose',
+};
+export function causeKey(raw: string): string {
+  const t = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (/manque|reclam|tremble|frisson|sevrage/.test(t)) return 'manque';
+  if (/travail|boulot|taf|librairie|patron|client/.test(t)) return 'travail';
+  if (/fatig|dormi|sommeil|creve|nuit/.test(t)) return 'fatigue';
+  if (/femme|dispute|famille|maison|fils/.test(t)) return 'famille';
+  if (/ennui|vide|rien a faire/.test(t)) return 'ennui';
+  if (/douleur|mal (au|a la|aux|de)|dos|tete/.test(t)) return 'douleur';
+  if (/habitude|automat|reflexe|sans reflechir/.test(t)) return 'habitude';
+  if (/triste|moral|deprim|cafard/.test(t)) return 'tristesse';
+  if (/angoiss|anxi|panique|peur/.test(t)) return 'angoisse';
+  if (/stress|pression|nerv|enerv/.test(t)) return 'stress';
+  return CAUSES[t] ? t : 'autre';
+}
+interface DayWhy { date: string; taken: number; allowed: number; high: boolean; sleep: number | null; off: boolean; lowBefore: boolean; triggers: string[]; symptoms: number | null; mood: number | null; causes: string[]; notes: string[] }
+async function dayFactors(s: LibState, log: LibLog[], until = localNow().date): Promise<DayWhy[]> {
+  const p = libPattern(s, log, until);
+  const nights = parse<Array<{ date: string; sleep_h?: number }>>(await kvGet('health:daily').catch(() => null), []);
+  const sleepOf = new Map(nights.filter(n => (n.sleep_h ?? 0) > 2).map(n => [n.date, n.sleep_h!]));
+  const daysOff = await import('./kouider-dossier.js').then(m => m.getDaysOff()).catch(() => [] as number[]);
+  const byDate = new Map(p.days.map(d => [d.date, d]));
+  return p.days.map(d => {
+    const prev = byDate.get(addDays(d.date, -1));
+    const of = log.filter(l => (l.day ?? dayOf(l.at)) === d.date);
+    const sy = of.filter(l => l.kind === 'symptomes' && l.score != null).map(l => l.score!);
+    const mo = of.filter(l => l.kind === 'humeur' && l.score != null).map(l => l.score!);
+    return {
+      date: d.date, taken: d.taken, allowed: d.allowed,
+      high: d.taken > d.allowed || (!!prev && d.taken - prev.taken >= 3),
+      sleep: sleepOf.get(d.date) ?? null,
+      off: daysOff.includes(wdOf(d.date)),
+      lowBefore: !!prev && prev.taken <= prev.allowed - 2,
+      triggers: of.filter(l => l.kind === 'envie' && l.trigger).map(l => l.trigger!),
+      symptoms: sy.length ? Math.max(...sy) : null,
+      mood: mo.length ? Math.min(...mo) : null,
+      causes: of.filter(l => l.kind === 'cause' && l.trigger).map(l => l.trigger!),
+      notes: of.filter(l => l.kind === 'cause' && l.note).map(l => l.note!),
+    };
+  });
+}
+/** L'enquête : ce qui revient les jours où il prend plus, comparé aux autres jours. */
+export async function whyText(s: LibState, log: LibLog[], short = false): Promise<string> {
+  const all = (await dayFactors(s, log)).filter(d => d.date < localNow().date || d.high);
+  const hi = all.filter(d => d.high), lo = all.filter(d => !d.high);
+  if (!hi.length) return short ? '' : 'Aucun jour où tu as pris plus pour l\'instant : rien à expliquer.';
+  const pct = (a: DayWhy[], f: (d: DayWhy) => boolean | null) => { const k = a.filter(d => f(d) !== null); return k.length ? { n: k.filter(d => f(d)).length, of: k.length } : null; };
+  const leads: Array<{ txt: string; score: number }> = [];
+  const cmp = (label: string, f: (d: DayWhy) => boolean | null) => {
+    const h = pct(hi, f), l = pct(lo, f);
+    if (!h || h.n === 0) return;
+    const rh = h.n / h.of, rl = l ? l.n / l.of : 0;
+    if (rh >= 0.5 && rh - rl >= 0.2) leads.push({ txt: `${label} : ${h.n} fois sur ${h.of} les jours où tu prends plus${l ? `, contre ${l.n} sur ${l.of} les autres jours` : ''}`, score: rh - rl });
+  };
+  cmp('la veille, tu avais pris très peu (effet rebond)', d => d.lowBefore);
+  cmp('nuit de moins de 6 h', d => d.sleep == null ? null : d.sleep < 6);
+  cmp('jour de travail', d => !d.off);
+  cmp('jour de congé (temps libre, pas de cadre)', d => d.off);
+  cmp('manque fort (6/10 ou plus)', d => d.symptoms == null ? null : d.symptoms >= 6);
+  cmp('moral bas (4/10 ou moins)', d => d.mood == null ? null : d.mood <= 4);
+  const told = new Map<string, number>();
+  for (const d of hi) for (const c of d.causes) told.set(c, (told.get(c) ?? 0) + 1);
+  const trig = new Map<string, number>();
+  for (const d of hi) for (const t of d.triggers) trig.set(t, (trig.get(t) ?? 0) + 1);
+  const toldTxt = [...told.entries()].sort((a, b) => b[1] - a[1]).map(([c, n]) => `${CAUSES[c] ?? c} (${n})`).join(', ');
+  const trigTxt = [...trig.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t, n]) => `${t} (${n})`).join(', ');
+  const unknown = hi.filter(d => !d.causes.length && d.date < localNow().date).length;
+  leads.sort((a, b) => b.score - a.score);
+  if (short) return [leads.length ? `Pistes sur le pourquoi : ${leads.slice(0, 2).map(l => l.txt).join(' ; ')}.` : '', toldTxt ? `Causes qu'il a données : ${toldTxt}.` : '', unknown ? `${unknown} jour(s) où il a pris plus sans cause connue → creuse avec lui (une question à la fois).` : ''].filter(Boolean).join(' ');
+  return [
+    `🔎 POURQUOI TU PRENDS PLUS CERTAINS JOURS (${hi.length} jour(s) étudiés : ${hi.slice(-5).map(d => `${fmtDate(d.date)} ${halvesShort(d.taken)}`).join(', ')})`,
+    leads.length ? `Ce qui revient :\n${leads.slice(0, 4).map(l => `• ${l.txt}`).join('\n')}` : 'Rien ne ressort encore des chiffres (sommeil, travail, veille) : c\'est TOI qui as la réponse — dis-le-moi chaque fois.',
+    toldTxt ? `Ce que tu m'as dit toi-même : ${toldTxt}.` : '',
+    trigTxt ? `Tes envies ces jours-là venaient de : ${trigTxt}.` : '',
+    hi.flatMap(d => d.notes).slice(-3).map(n => `« ${n} »`).join('\n'),
+    unknown ? `❓ ${unknown} jour(s) où je ne sais pas encore pourquoi.` : '',
+    'Ce sont des pistes, pas un jugement. Pour chaque cause on prépare un plan « si… alors… » (ex. « si j\'ai mal dormi, alors je prends à l\'heure et je fais une sieste de 20 min, pas de rattrapage »).',
+  ].filter(Boolean).join('\n');
+}
 /** Hier très bas, ou jour de la semaine où il prend le plus → aujourd'hui = jour à surveiller. */
 function riskToday(s: LibState, log: LibLog[], today: string): { reason: string } | null {
   const y = addDays(today, -1);
@@ -459,6 +547,7 @@ export interface LibOverview {
   victories: Array<{ at: string; text: string }>;
   calm: number;
   pattern: string;
+  why: string;
 }
 
 export async function libOverview(): Promise<LibOverview> {
@@ -497,6 +586,7 @@ export async function libOverview(): Promise<LibOverview> {
     victories: log.filter(l => l.kind === 'victoire' && l.note).slice(-8).reverse().map(l => ({ at: l.at, text: l.note! })),
     calm: log.filter(l => l.kind === 'calme').length,
     pattern: s ? patternText(libPattern(s, log, today), true) : '',
+    why: s ? await whyText(s, log, true).catch(() => '') : '',
   };
 }
 
@@ -516,6 +606,7 @@ function statusText(o: LibOverview): string {
     s.why.length ? `Ses raisons : ${s.why.join(' · ')}.` : '',
     o.triggers.length ? `Ses déclencheurs : ${o.triggers.map(t => `${t.trigger} (${t.n})`).join(', ')}.` : '',
     o.pattern ? `Rythme : ${o.pattern}` : '',
+    o.why ? o.why : '',
     o.riskHours.length ? `Ses heures à risque : ${o.riskHours.map(h => `${h}h`).join(', ')}.` : '',
     s.ifThen?.length ? `Ses plans si-alors : ${s.ifThen.join(' · ')}.` : '',
     o.bank ? `Cagnotte : ${eur(o.bank.balance)} (gain du prochain jour validé : ${eur(o.bank.rate)})${s.rewards?.some(r => !r.at) ? ` · récompenses visées : ${s.rewards.filter(r => !r.at).map(r => `${r.name} (${r.cost} €)`).join(', ')}` : ''}.` : '',
@@ -544,6 +635,7 @@ export async function liberteText(): Promise<string> {
     '- Le médecin d\'abord : tant que le statut est « pas encore appelé », pousse-le (une fois par jour, pas plus) à appeler son médecin traitant : valider le plan, l\'aider pour le manque, soigner la fatigue et le moral. Psychologue de 1re ligne remboursé (11 €, 1re séance gratuite).',
     '- Utilise tout : agenda (ses étapes y sont), sport (marcher / séance légère les jours durs : sport_coach), sommeil (outil sante), son moral (life_coach), FORME, sa famille comme raison (« ton fils, ta femme »), ses raisons à lui ci-dessus.',
     '- « Quels jours je prends le plus ? », « analyse mes prises », « hier presque rien et aujourd\'hui trop » → liberte action analyse, puis aide-le : la régularité compte plus qu\'un jour héroïque ; le lendemain d\'un jour bas = prises à l\'heure, pas de rattrapage.',
+    '- CHERCHER LE POURQUOI : quand il a pris plus (ou le dit), ne te contente pas de noter. Mène l\'enquête avec lui, UNE question à la fois, sans juger : à quel moment ça a commencé ? qu\'est-ce qui s\'est passé juste avant ? où il était, avec qui ? ce qu\'il ressentait dans le corps (manque) ou dans la tête (stress, ennui, tristesse) ? ce qu\'il s\'est dit (« juste un demi, ça va passer ») ? Puis liberte action cause (trigger = manque|stress|travail|fatigue|famille|ennui|douleur|habitude|tristesse|angoisse, text = son récit en une phrase, date aujourd\'hui|hier). Croise avec ce que tu sais (nuit de la montre, veille basse, travail) en le présentant comme une piste (« je me demande si… »), puis construis AVEC lui un plan si-alors pour cette cause (action si_alors). « Pourquoi je prends plus ? » → action analyse.',
     '- C\'est fini seulement quand LUI dit « c\'est bon, j\'ai arrêté » (action finish). D\'ici là tu ne lâches rien. Rechute = normal, jamais un échec : on note, on reprend.',
     '- EN APPEL / SIRI / VOCAL : s\'il a une envie pendant un appel, guide-le À VOIX HAUTE (« inspire… 2… 3… 4… bloque… souffle… »), phrases courtes, reste en ligne 10 minutes. Propose « je t\'envoie ta propre voix » (liberte action ma_voix).',
     '- Il te donne énergie / joie / clarté sur 10 (« 5 6 5 ») → liberte action retour. Ses réponses aux 2 questions du moral (« 1 2 », 0-3 chacune) → action phq2.',
@@ -746,7 +838,19 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
     }
 
     case 'bilan': return await weeklyBilan(false);
-    case 'analyse': return patternText(libPattern(s, await readLibLog()));
+    case 'analyse': { const log = await readLibLog(); return `${patternText(libPattern(s, log))}\n\n${await whyText(s, log)}`; }
+    case 'pourquoi_analyse': return await whyText(s, await readLibLog());
+    case 'cause': {
+      const raw = String(input['trigger'] ?? input['text'] ?? '').trim();
+      if (!raw) return '❌ Quelle cause ? (manque, stress, travail, fatigue, famille, ennui, douleur, habitude, tristesse, angoisse) + son récit dans text.';
+      const day = /hier/i.test(String(input['date'] ?? '')) ? addDays(today, -1) : /^\d{4}-\d{2}-\d{2}$/.test(String(input['date'] ?? '')) ? String(input['date']) : today;
+      const key = CAUSES[raw] ? raw : causeKey(raw);
+      const text = String(input['text'] ?? '').trim();
+      await addLog({ kind: 'cause', trigger: key, day, ...(text && text !== raw ? { note: text.slice(0, 200) } : {}) });
+      const same = (await readLibLog()).filter(l => l.kind === 'cause' && l.trigger === key).length;
+      const ifThen = s.ifThen?.find(x => causeKey(x) === key);
+      return `🔎 Noté pour le ${fmtDate(day)} : ${CAUSES[key]}.${same >= 2 ? ` C'est la ${same}e fois que ça revient.` : ''} ${ifThen ? `Il a déjà un plan pour ça : « ${ifThen} » — demande-lui pourquoi il n'a pas marché cette fois et ajuste-le avec lui.` : 'Aide-le à écrire SON plan « si… alors… » pour la prochaine fois (action si_alors).'} Une seule question à la fois, sans juger.`;
+    }
 
     case 'si_alors': {
       const t = String(input['text'] ?? '').trim();
@@ -975,6 +1079,25 @@ export async function jobLiberte(): Promise<void> {
   if (hhmm >= '07:00' && hhmm < '10:00' && !(await kvGet(sentKey(`morning:${today}`)).catch(() => '1'))) {
     const line = await liberteMorningLine();
     if (line && !dnd) await queueTelegramMessage(line);
+  }
+
+  // Le soir d'un jour où il a pris plus (ou le lendemain matin si raté) : lui demander POURQUOI, avec des boutons (25/11)
+  {
+    const log = await readLibLog();
+    const ask = async (day: string, label: string) => {
+      const t = takenOn(log, day), a = allowedOn(s, day), prev = takenOn(log, addDays(day, -1));
+      const high = t > a || (log.some(l => dayOf(l.at) === addDays(day, -1)) && t - prev >= 3);
+      if (!high || log.some(l => l.kind === 'cause' && (l.day ?? dayOf(l.at)) === day) || !await once(`why:${day}`, 3 * 86_400)) return;
+      const { createDecision } = await import('./conscience.js');
+      await createDecision(`🕊️ ${label} tu as pris ${halvesShort(t)} (plan : ${halvesShort(a)}${prev ? `, la veille ${halvesShort(prev)}` : ''}). Pas de jugement : on cherche juste POURQUOI, pour que ça ne se reproduise pas. C'était plutôt…`, [
+        { label: '😣 Le manque, mon corps réclamait', tool: 'liberte', input: { action: 'cause', trigger: 'manque', date: day } },
+        { label: '😤 Stress / travail', tool: 'liberte', input: { action: 'cause', trigger: 'stress', date: day } },
+        { label: '😴 Fatigue, mal dormi', tool: 'liberte', input: { action: 'cause', trigger: 'fatigue', date: day } },
+        { label: '💬 Autre chose, je te raconte', say: `Je vais te raconter pourquoi j'ai pris plus le ${fmtDate(day)}. Pose-moi tes questions une par une.` },
+      ]);
+    };
+    if (hhmm >= '21:30' && hhmm < '22:30' && !dnd) await ask(today, 'Aujourd\'hui');
+    else if (hhmm >= '09:00' && hhmm < '12:00' && !dnd) await ask(addDays(today, -1), 'Hier');
   }
 
   // Jour à surveiller (hier très bas → rebond, ou son jour le plus chargé) : un passage vers 14h, avant que ça déborde (25/11)
