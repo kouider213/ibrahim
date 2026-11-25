@@ -223,6 +223,100 @@ export function riskHours(log: LibLog[]): number[] {
   return [...h.entries()].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([hr]) => hr).sort((a, b) => a - b);
 }
 
+// ── RYTHME DES PRISES (demande de Kouider 25/11 : « analyse les jours où je prends le plus » — hier presque rien, aujourd'hui trop).
+// Jours notés seulement (un jour sans aucune ligne = « pas noté », jamais compté comme zéro).
+const WEEKDAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+const wdOf = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay();
+export interface LibPattern {
+  days: Array<{ date: string; taken: number; allowed: number }>;
+  unlogged: number;
+  heavy: Array<{ wd: string; avg: number; n: number }>;      // jours de la semaine les plus chargés (≥ 2 semaines de recul)
+  light: Array<{ wd: string; avg: number; n: number }>;
+  overDays: number;
+  rebound: { lows: number; after: number; overAfter: number; examples: string[] };   // jour bas (≤ autorisé − 2) → le lendemain
+  swing: number;                                              // écart moyen d'un jour à l'autre (14 derniers jours notés)
+  avg7: number; allowed7: number;
+  heavyHours: number[];
+}
+export function libPattern(s: LibState, log: LibLog[], until = localNow().date): LibPattern {
+  const logged = new Set(log.map(l => dayOf(l.at)));
+  const days: LibPattern['days'] = [];
+  let unlogged = 0;
+  for (let d = s.start; d <= until; d = addDays(d, 1)) {
+    if (!logged.has(d)) { if (d < until) unlogged++; continue; }
+    days.push({ date: d, taken: takenOn(log, d), allowed: allowedOn(s, d) });
+  }
+  const done = days.filter(d => d.date < until);   // aujourd'hui pas fini : pas dans les moyennes
+  const byWd = new Map<number, number[]>();
+  for (const d of done) byWd.set(wdOf(d.date), [...(byWd.get(wdOf(d.date)) ?? []), d.taken - d.allowed]);
+  const wds = [...byWd.entries()].filter(([, v]) => v.length >= 2).map(([w, v]) => ({ wd: WEEKDAYS[w]!, avg: Math.round(v.reduce((a, b) => a + b, 0) / v.length * 10) / 10, n: v.length }));
+  const heavy = [...wds].sort((a, b) => b.avg - a.avg).filter(w => w.avg > 0).slice(0, 2);
+  const light = [...wds].sort((a, b) => a.avg - b.avg).filter(w => w.avg < 0).slice(0, 2);
+  const byDate = new Map(days.map(d => [d.date, d]));
+  const rebound = { lows: 0, after: 0, overAfter: 0, examples: [] as string[] };
+  const afters: number[] = [];
+  for (const d of days) {
+    if (d.date >= until || d.taken > d.allowed - 2) continue;
+    rebound.lows++;
+    const nx = byDate.get(addDays(d.date, 1));
+    if (!nx) continue;
+    afters.push(nx.taken);
+    if (nx.taken > nx.allowed || nx.taken - d.taken >= 4) { rebound.overAfter++; rebound.examples.push(`${fmtDate(d.date)} ${halvesShort(d.taken)} → lendemain ${halvesShort(nx.taken)}`); }
+  }
+  rebound.after = afters.length ? Math.round(afters.reduce((a, b) => a + b, 0) / afters.length * 10) / 10 : 0;
+  const last14 = days.slice(-14);
+  const diffs = last14.slice(1).map((d, i) => Math.abs(d.taken - last14[i]!.taken));
+  const last7 = done.slice(-7);
+  const hours = new Map<number, number>();
+  for (const l of log) if (l.kind === 'prise' && !/total/i.test(l.note ?? '')) { const h = Number(localNow(Date.parse(l.at)).hhmm.slice(0, 2)); hours.set(h, (hours.get(h) ?? 0) + (l.n ?? 1)); }
+  return {
+    days, unlogged, heavy, light,
+    overDays: done.filter(d => d.taken > d.allowed).length,
+    rebound: { ...rebound, examples: rebound.examples.slice(-3) },
+    swing: diffs.length ? Math.round(diffs.reduce((a, b) => a + b, 0) / diffs.length * 10) / 10 : 0,
+    avg7: last7.length ? Math.round(last7.reduce((a, d) => a + d.taken, 0) / last7.length * 10) / 10 : 0,
+    allowed7: last7.length ? Math.round(last7.reduce((a, d) => a + d.allowed, 0) / last7.length * 10) / 10 : 0,
+    heavyHours: [...hours.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([h]) => h).sort((a, b) => a - b),
+  };
+}
+/** Le texte d'analyse (outil liberte action analyse, et un résumé court dans son dossier). */
+export function patternText(p: LibPattern, short = false): string {
+  const done = p.days.length;
+  if (done < 5) return short ? '' : 'Pas encore assez de jours notés pour voir un rythme (il en faut 5).';
+  const sign = (n: number) => `${n > 0 ? '+' : ''}${String(n).replace('.', ',')}`;
+  const reb = p.rebound.lows ? `Après un jour très bas (${p.rebound.lows} fois), le lendemain il prend en moyenne ${halvesShort(p.rebound.after)}${p.rebound.overAfter ? ` — ${p.rebound.overAfter} fois ça a remonté fort (${p.rebound.examples.join(' ; ')})` : ''}.` : '';
+  if (short) return [
+    p.heavy.length ? `Ses jours les plus chargés : ${p.heavy.map(h => `${h.wd} (${sign(h.avg)} par rapport au plan)`).join(', ')}.` : '',
+    p.rebound.overAfter ? `EFFET YO-YO repéré : ${reb} → un jour trop bas n'est pas une victoire s'il fait remonter le lendemain ; vise la régularité.` : '',
+  ].filter(Boolean).join(' ');
+  const last = p.days.slice(-10).map(d => `${WEEKDAYS[wdOf(d.date)]!.slice(0, 3)} ${d.date.slice(8)}/${d.date.slice(5, 7)} : ${String(d.taken).replace('.', ',')}${d.taken > d.allowed ? ` ⚠️(max ${d.allowed})` : `/${d.allowed}`}`).join('\n');
+  return [
+    '📊 TON RYTHME DE PRISES (en demis, jours notés)',
+    last,
+    '',
+    p.heavy.length ? `🔴 Jours où tu prends le plus : ${p.heavy.map(h => `${h.wd} (${sign(h.avg)} demi par rapport au plan, sur ${h.n} semaines)`).join(' · ')}.` : 'Pas de jour de la semaine qui ressort encore.',
+    p.light.length ? `🟢 Jours les plus calmes : ${p.light.map(h => `${h.wd} (${sign(h.avg)})`).join(' · ')}.` : '',
+    reb ? `🔁 ${reb}` : '',
+    `↕️ D'un jour à l'autre, ça bouge en moyenne de ${halvesShort(p.swing)}${p.swing >= 2.5 ? ' : c\'est beaucoup, c\'est ça qui fatigue le corps' : ''}.`,
+    `7 derniers jours : ${halvesShort(p.avg7)}/jour en moyenne pour ${halvesShort(p.allowed7)} prévus. ${p.overDays} jour(s) au-dessus depuis le début.`,
+    p.heavyHours.length ? `Heures où tu prends le plus : ${p.heavyHours.map(h => `${h}h`).join(', ')}.` : '',
+    p.unlogged ? `${p.unlogged} jour(s) sans rien noté — ceux-là, je ne les vois pas.` : '',
+    '',
+    '💡 Ce que ça veut dire : le corps aime la RÉGULARITÉ. Un jour presque à zéro, c\'est souvent du manque le lendemain… et le lendemain on compense. Mieux vaut ton autorisé, à l\'heure, tous les jours, qu\'un jour à 3 et un jour à 8. Le lendemain d\'un jour bas : prises à l\'heure, pas de rattrapage, et je passe te voir l\'après-midi.',
+  ].filter(l => l !== null && l !== undefined).join('\n').replace(/\n{3,}/g, '\n\n');
+}
+/** Hier très bas, ou jour de la semaine où il prend le plus → aujourd'hui = jour à surveiller. */
+function riskToday(s: LibState, log: LibLog[], today: string): { reason: string } | null {
+  const y = addDays(today, -1);
+  const logged = log.some(l => dayOf(l.at) === y);
+  const yt = takenOn(log, y), ya = allowedOn(s, y);
+  if (logged && yt <= ya - 2) return { reason: `hier tu as pris peu (${halvesShort(yt)} pour ${halvesShort(ya)} autorisés) — bravo, mais c'est souvent le LENDEMAIN que ça remonte` };
+  const p = libPattern(s, log, today);
+  const wd = WEEKDAYS[wdOf(today)]!;
+  if (p.heavy[0]?.wd === wd && p.heavy[0].avg >= 1) return { reason: `le ${wd}, c'est le jour où tu dépasses le plus (${String(p.heavy[0].avg).replace('.', ',')} demi de plus en moyenne)` };
+  return null;
+}
+
 type Comeback = { week: number; energie?: number; desir?: number; joie?: number; clarte?: number };
 /** Ce qui revient (énergie, désir, joie, clarté) — moyenne par semaine depuis le début. */
 function comeback(log: LibLog[], start: string): Comeback[] {
@@ -364,6 +458,7 @@ export interface LibOverview {
   mission: { text: string; done: boolean } | null;
   victories: Array<{ at: string; text: string }>;
   calm: number;
+  pattern: string;
 }
 
 export async function libOverview(): Promise<LibOverview> {
@@ -401,6 +496,7 @@ export async function libOverview(): Promise<LibOverview> {
     mission: s ? { text: missionOf(s, today), done: log.some(l => l.kind === 'mission' && dayOf(l.at) === today) } : null,
     victories: log.filter(l => l.kind === 'victoire' && l.note).slice(-8).reverse().map(l => ({ at: l.at, text: l.note! })),
     calm: log.filter(l => l.kind === 'calme').length,
+    pattern: s ? patternText(libPattern(s, log, today), true) : '',
   };
 }
 
@@ -419,6 +515,7 @@ function statusText(o: LibOverview): string {
     `Médecin : ${s.doctor.status === 'a_appeler' ? 'PAS ENCORE APPELÉ — à pousser gentiment chaque jour' : s.doctor.status === 'rdv_pris' ? `RDV ${s.doctor.date ?? 'pris'}` : `vu${s.doctor.note ? ` (${s.doctor.note})` : ''}`}.`,
     s.why.length ? `Ses raisons : ${s.why.join(' · ')}.` : '',
     o.triggers.length ? `Ses déclencheurs : ${o.triggers.map(t => `${t.trigger} (${t.n})`).join(', ')}.` : '',
+    o.pattern ? `Rythme : ${o.pattern}` : '',
     o.riskHours.length ? `Ses heures à risque : ${o.riskHours.map(h => `${h}h`).join(', ')}.` : '',
     s.ifThen?.length ? `Ses plans si-alors : ${s.ifThen.join(' · ')}.` : '',
     o.bank ? `Cagnotte : ${eur(o.bank.balance)} (gain du prochain jour validé : ${eur(o.bank.rate)})${s.rewards?.some(r => !r.at) ? ` · récompenses visées : ${s.rewards.filter(r => !r.at).map(r => `${r.name} (${r.cost} €)`).join(', ')}` : ''}.` : '',
@@ -446,6 +543,7 @@ export async function liberteText(): Promise<string> {
     '- « Je n\'arrive plus à baisser », moral qui replonge (travail, dépression) : dis-lui la VÉRITÉ du statut (s\'il est dans le plan, il n\'a PAS « freiné » ni échoué : dis « tu es à X/Y, dans ton plan »). Annonce la prochaine baisse (date + quantité) et propose-lui de choisir : la garder, ou rester quelques jours de plus à ce palier (action palier, jamais remonter) en attendant de voir son médecin — c\'est LUI qui décide. Moral très bas → médecin cette semaine + psy de 1re ligne ; idées noires → 112.',
     '- Le médecin d\'abord : tant que le statut est « pas encore appelé », pousse-le (une fois par jour, pas plus) à appeler son médecin traitant : valider le plan, l\'aider pour le manque, soigner la fatigue et le moral. Psychologue de 1re ligne remboursé (11 €, 1re séance gratuite).',
     '- Utilise tout : agenda (ses étapes y sont), sport (marcher / séance légère les jours durs : sport_coach), sommeil (outil sante), son moral (life_coach), FORME, sa famille comme raison (« ton fils, ta femme »), ses raisons à lui ci-dessus.',
+    '- « Quels jours je prends le plus ? », « analyse mes prises », « hier presque rien et aujourd\'hui trop » → liberte action analyse, puis aide-le : la régularité compte plus qu\'un jour héroïque ; le lendemain d\'un jour bas = prises à l\'heure, pas de rattrapage.',
     '- C\'est fini seulement quand LUI dit « c\'est bon, j\'ai arrêté » (action finish). D\'ici là tu ne lâches rien. Rechute = normal, jamais un échec : on note, on reprend.',
     '- EN APPEL / SIRI / VOCAL : s\'il a une envie pendant un appel, guide-le À VOIX HAUTE (« inspire… 2… 3… 4… bloque… souffle… »), phrases courtes, reste en ligne 10 minutes. Propose « je t\'envoie ta propre voix » (liberte action ma_voix).',
     '- Il te donne énergie / joie / clarté sur 10 (« 5 6 5 ») → liberte action retour. Ses réponses aux 2 questions du moral (« 1 2 », 0-3 chacune) → action phq2.',
@@ -648,6 +746,7 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
     }
 
     case 'bilan': return await weeklyBilan(false);
+    case 'analyse': return patternText(libPattern(s, await readLibLog()));
 
     case 'si_alors': {
       const t = String(input['text'] ?? '').trim();
@@ -823,12 +922,14 @@ export async function liberteMorningLine(): Promise<string> {
   await kvSet(sentKey(`morning:${o.today}`), '1', 2 * 86_400);
   const plan = o.plan.filter(p => p.n).map(p => `${p.time} → ${halvesShort(p.n)}`).join(' · ');
   const drop = s.steps.find((st, i) => i > 0 && st.from === o.today);   // le 1er palier = dose de départ, pas une baisse (30/10)
+  const risk = o.allowed ? riskToday(s, await readLibLog(), o.today) : null;
   return [
     `🕊️ Liberté — jour ${o.day}/${o.totalDays}${drop ? ` · NOUVELLE ÉTAPE : ${drop.max === 0 ? 'JOUR ZÉRO, plus rien 💪' : `${halvesShort(drop.max)} max`}` : ''}`,
     o.allowed ? `Aujourd'hui : ${plan}.` : `Aujourd'hui : rien. Chaque envie → dis-moi « envie », je suis là.`,
     `🎯 Mission anti-zombie du jour (+1 €) : ${missionOf(s, o.today)}.`,
     '🌅 Rituel du réveil, à la place du comprimé : 2 grands verres d\'eau → 20 pompes → 30 s d\'eau froide en fin de douche → lumière du jour.',
-  ].join('\n');
+    risk ? `⚠️ Jour à surveiller : ${risk.reason}. Aujourd'hui : tes prises à l'heure, pas de rattrapage. Je passe te voir vers 14h.` : '',
+  ].filter(Boolean).join('\n');
 }
 
 // ── La tâche planifiée (toutes les 5 min, 5h–23h) ────────────────────────────
@@ -874,6 +975,18 @@ export async function jobLiberte(): Promise<void> {
   if (hhmm >= '07:00' && hhmm < '10:00' && !(await kvGet(sentKey(`morning:${today}`)).catch(() => '1'))) {
     const line = await liberteMorningLine();
     if (line && !dnd) await queueTelegramMessage(line);
+  }
+
+  // Jour à surveiller (hier très bas → rebond, ou son jour le plus chargé) : un passage vers 14h, avant que ça déborde (25/11)
+  if (o.allowed && hhmm >= '14:00' && hhmm < '15:00' && !dnd) {
+    const risk = riskToday(s, await readLibLog(), today);
+    if (risk && o.taken <= o.allowed && await once(`risk:${today}`)) {
+      const { createDecision } = await import('./conscience.js');
+      await createDecision(`🕊️ Petit passage : ${risk.reason}. Là tu en es à ${o.taken}/${o.allowed}${o.next ? `, prochaine prise ${o.next.time}` : ''}. Comment ça va ?`, [
+        { label: '👍 Ça va, je tiens le plan', tool: 'liberte', input: { action: 'victoire', text: 'jour à risque tenu à 14h' } },
+        { label: '🔥 Ça tire, aide-moi', tool: 'liberte', input: { action: 'envie', trigger: 'lendemain de jour bas' } },
+      ]);
+    }
   }
 
   // Heures de prise : rappel avec boutons (pris / je décale)
