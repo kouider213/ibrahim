@@ -29,6 +29,7 @@ export interface LibState {
   wakeDose?: number;           // demis pris d'un coup au réveil (1re heure) — 30/10 : « 2 comprimés et demi déjà au réveil, donc 5 demis »
   holdDays: number;            // jours ajoutés par les paliers (manque fort, dépassement)
   doctorPlan?: boolean;        // plan donné par le médecin : Dzaryx ne l'accélère jamais
+  fastProposal?: { at: string; steps: LibStep[] };   // 25/11 plan plus rapide PRÉPARÉ pour le médecin — appliqué seulement s'il dit que le médecin a validé
   doctor: { status: 'a_appeler' | 'rdv_pris' | 'vu'; date?: string; note?: string };
   why: string[];               // ses raisons à lui
   consequence?: string;        // ce qu'il a choisi lui-même s'il dépasse
@@ -760,6 +761,7 @@ export async function liberteText(): Promise<string> {
     '- « Quels jours je prends le plus ? », « analyse mes prises », « hier presque rien et aujourd\'hui trop » → liberte action analyse, puis aide-le : la régularité compte plus qu\'un jour héroïque ; le lendemain d\'un jour bas = prises à l\'heure, pas de rattrapage.',
     '- CHERCHER LE POURQUOI : quand il a pris plus (ou le dit), ne te contente pas de noter. Mène l\'enquête avec lui, UNE question à la fois, sans juger : à quel moment ça a commencé ? qu\'est-ce qui s\'est passé juste avant ? où il était, avec qui ? ce qu\'il ressentait dans le corps (manque) ou dans la tête (stress, ennui, tristesse) ? ce qu\'il s\'est dit (« juste un demi, ça va passer ») ? Puis liberte action cause (trigger = manque|stress|travail|fatigue|famille|ennui|douleur|habitude|tristesse|angoisse, text = son récit en une phrase, date aujourd\'hui|hier). Croise avec ce que tu sais (nuit de la montre, veille basse, travail) en le présentant comme une piste (« je me demande si… »), puis construis AVEC lui un plan si-alors pour cette cause (action si_alors). « Pourquoi je prends plus ? » → action analyse.',
     '- MOMENTS : quand il donne un total ou un gros chiffre d\'un coup, demande UNE fois « à quels moments ? (réveil, matin, midi, aprèm, soir, nuit) » puis liberte action journee (date, reveil, matin, midi, aprem, soir, nuit = demis). Prise au moment même → action prise avec moment si dit. « À quel moment je prends le plus ? » → action moments.',
+    '- La date du zéro ne recule plus toute seule (ni dépassement, ni manque : pour le manque, c\'est LUI qui choisit). Rappelle-lui souvent le compte à rebours (J-n).\n- « Le médecin est d\'accord pour le plan rapide » → liberte action plan_rapide_valide confirm:true. Jamais sans cette phrase.',
     '- « Je veux arrêter au plus vite » → liberte action plus_vite (rapport + question au médecin + rappel d\'appel), puis dis-lui que le chemin le plus court tout de suite = zéro dépassement, zéro yo-yo. Tu n\'accélères JAMAIS le plan toi-même.',
     '- Grosse baisse qui l\'inquiète (≥ 2 demis d\'un coup) → propose-lui de CHOISIR : garder la marche, ou liberte action adoucir (marches de 1 demi tous les 3 jours — jamais plus haut, seul le jour zéro recule) ; en parler au médecin.',
     '- C\'est fini seulement quand LUI dit « c\'est bon, j\'ai arrêté » (action finish). D\'ici là tu ne lâches rien. Rechute = normal, jamais un échec : on note, on reprend.',
@@ -845,7 +847,7 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
       if (s.finishedAt || taken > allowed) {
         const over = taken - allowed;
         await addLog({ kind: 'depassement', n: over });
-        const hold = s.finishedAt ? '' : await holdSteps(s, 2, 'dépassement');
+        const hold = s.finishedAt ? '' : 'La date du zéro NE BOUGE PAS (25/11 : il veut arrêter au plus vite) : demain on reprend le plan exact.';
         await autoCall(`liberte-over-${today}`, s.finishedAt
           ? 'Kouider, c\'est Dzaryx. Tu as repris un comprimé. Ce n\'est pas grave, ça arrive à presque tout le monde, et je suis là. Parle-moi : qu\'est-ce qui s\'est passé ?'
           : 'Kouider, c\'est Dzaryx. Tu as dépassé ton maximum du jour. Je ne te juge pas, je suis là. Dis-moi ce qui s\'est passé, et on trouve ensemble comment tenir jusqu\'à demain.');
@@ -895,7 +897,16 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
       }
       const recent = (await readLibLog()).filter(l => l.kind === 'symptomes' && Date.now() - Date.parse(l.at) < 48 * 3_600_000);
       let hold = '';
-      if (score >= 7 && recent.filter(l => (l.score ?? 0) >= 7).length >= 2) hold = await holdSteps(s, 3, 'manque fort 2 jours de suite');
+      if (score >= 7 && recent.filter(l => (l.score ?? 0) >= 7).length >= 2 && await once(`symhold:${today}`)) {
+        // 25/11 : il veut aller au plus vite → on n'allonge plus tout seul, il CHOISIT (et le médecin en premier)
+        const { createDecision } = await import('./conscience.js');
+        await createDecision('🕊️ Manque fort 2 jours de suite. Tu préfères :', [
+          { label: '💪 Je tiens la date', tool: 'liberte', input: { action: 'victoire', text: 'manque fort tenu sans repousser la date' } },
+          { label: '⏸️ 3 jours de plus à ce palier', tool: 'liberte', input: { action: 'palier', days: 3, why: 'manque fort 2 jours' } },
+          { label: '🩺 J\'appelle le médecin', tool: 'liberte', input: { action: 'plus_vite' } },
+        ]);
+        hold = 'Choix envoyé (tenir la date / 3 jours de plus / médecin). Pousse le médecin aujourd\'hui : des traitements aident le manque.';
+      }
       return `🤒 Manque ${score}/10 noté${symptoms.length ? ` (${symptoms.join(', ')})` : ''}. ${score >= 7 ? 'Fort : rassure-le (c\'est le corps qui se réhabitue, ça passe en quelques jours), eau, repos, douche chaude, marche douce, manger léger. Pousse-le vers le médecin aujourd\'hui (des traitements aident le manque).' : score >= 4 ? 'Moyen : normal les 2-4 jours après une baisse. Marche, eau, sommeil, rien de lourd à la salle.' : 'Léger : il gère bien, dis-le-lui.'} ${hold}`.trim();
     }
 
@@ -930,6 +941,36 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
       return `${undone}✅ ${d === today ? 'Aujourd\'hui' : fmtDate(d)} : ${parts.map(x => `${x.m.label} ${halvesShort(x.n)}`).join(' · ') || 'rien'} = ${halvesShort(n)} pour ${halvesShort(allowed)} autorisés.${over.length ? ` Au-delà du plan : ${over.join(', ')} — c'est ce moment-là qu'on va travailler.` : ''} Merci, avec les moments je vois enfin où ça se joue.`;
     }
 
+    case 'plan_rapide': {
+      // Plan PLUS RAPIDE préparé pour le médecin : mêmes marches que son plan, mais 10 jours chacune (jamais moins de 7,
+      // jamais une marche plus grosse que les siennes). Rien n'est appliqué : il le montre au médecin.
+      const days = Math.min(14, Math.max(7, Math.round(Number(input['days'] ?? 10))));
+      const cur = s.steps.findIndex(st => st.from > today);
+      if (cur < 0) return 'Il est déjà au palier zéro.';
+      const levels = s.steps.slice(cur).map(st => st.max);
+      const first = s.steps[cur]!.from;
+      const steps: LibStep[] = levels.map((max, k) => ({ from: addDays(first, k * days), max }));
+      s.fastProposal = { at: new Date().toISOString(), steps };
+      await saveLib(s);
+      const zeroNow = zeroDay(s), zeroFast = steps.at(-1)!.from;
+      const txt = `🏁 PLAN PLUS RAPIDE — À FAIRE VALIDER PAR MON MÉDECIN\nPlan actuel : ${s.steps.slice(cur).map(st => `${fmtDate(st.from)} → ${st.max}`).join(' · ')} (zéro le ${fmtDate(zeroNow)}).\nProposition (mêmes marches, ${days} jours chacune) : ${steps.map(st => `${fmtDate(st.from)} → ${st.max}`).join(' · ')}.\n➡️ Zéro le ${fmtDate(zeroFast)}, soit ${daysBetween(zeroFast, zeroNow)} jours plus tôt.\nQuestion au médecin : est-ce sûr pour moi ? Faut-il une aide pour le manque (dernières marches) ?`;
+      await queueTelegramMessage(txt);
+      return `${txt}\n\n(Envoyé sur Telegram. Rien n'est changé tant qu'il ne dit pas « le médecin est d'accord » → action plan_rapide_valide confirm:true.)`;
+    }
+
+    case 'plan_rapide_valide': {
+      if (!s.fastProposal) return 'Aucun plan rapide préparé : action plan_rapide d\'abord.';
+      if (input['confirm'] !== true) return 'Seulement si SON MÉDECIN a validé le plan rapide : demande-lui de confirmer (« oui le médecin est d\'accord ») puis confirm:true.';
+      const keep = s.steps.filter(st => st.from <= today);
+      s.steps = [...keep, ...s.fastProposal.steps.filter(st => st.from > today)];
+      s.doctorPlan = true;
+      delete s.fastProposal;
+      await saveLib(s);
+      await addLog({ kind: 'note', note: 'plan rapide validé par le médecin' });
+      await syncAgenda(s).catch(err => console.error('[liberte] agenda:', err instanceof Error ? err.message : err));
+      return `🏁 Plan rapide appliqué (validé par son médecin) : ${s.steps.filter(st => st.from > today).map(st => `${fmtDate(st.from)} → ${halvesShort(st.max)}`).join(' · ')}. JOUR ZÉRO : ${fmtDate(zeroDay(s))}. Dis-lui que tu seras là chaque jour jusque-là.`;
+    }
+
     case 'plus_vite': {
       // 25/11 « je dois arrêter au plus vite » : Dzaryx n'accélère JAMAIS seul (arrêt trop rapide = manque fort, rebonds, parfois dangereux).
       // Il note l'envie, prépare la question pour le médecin (rapport) et met un rappel d'appel dans l'agenda.
@@ -937,7 +978,8 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
       let day = addDays(today, 1);
       for (let k = 0; k < 6 && (wdOf(day) === 0 || wdOf(day) === 6); k++) day = addDays(day, 1);   // cabinet fermé le week-end
       await createAgendaEvent('📞 Appel perso', new Date(localTs(day, '09:00')).toISOString(), new Date(localTs(day, '09:15')).toISOString(), 'Appeler le médecin (détails dans l\'app, page privée).').catch(() => null);
-      await queueTelegramMessage(`${await doctorReport(s, await readLibLog())}\n\n❓ MA DEMANDE : je veux arrêter le plus vite possible. Quel rythme de baisse est sûr pour moi ? Est-ce qu'un traitement peut m'aider à passer le manque pour aller plus vite ?`);
+      await liberteTool({ action: 'plan_rapide' }, 'kouider').catch(() => '');
+      await queueTelegramMessage(`${await doctorReport(s, await readLibLog())}\n\n❓ MA DEMANDE : je veux arrêter le plus vite possible (proposition de plan rapide envoyée juste avant). Quel rythme de baisse est sûr pour moi ? Est-ce qu'un traitement peut m'aider à passer le manque pour aller plus vite ?`);
       const p = libPattern(s, await readLibLog());
       return `Noté : il veut aller plus vite. Rapport + sa question envoyés sur Telegram, rappel « appeler le médecin » le ${fmtDate(day)} à 9h. Dis-lui la vérité, simplement : 1) c'est son MÉDECIN qui peut accélérer le plan (tu ne le fais jamais seul : trop vite = manque fort, rebonds, parfois dangereux) ; 2) ce qui le fait aller plus vite DÈS AUJOURD'HUI, c'est zéro jour au-dessus du plan et zéro yo-yo : chaque dépassement repousse ses paliers de 2 jours${p.overDays ? ` (${p.overDays} dépassement(s) jusqu'ici)` : ''}, et chaque jour trop bas prépare un lendemain trop haut ; 3) tenir exactement son autorisé, à l'heure, chaque jour = le chemin le plus court. Propose-lui de noter sa journée par moment pour trouver le moment à travailler.`;
     }
@@ -1215,7 +1257,7 @@ export async function liberteMorningLine(): Promise<string> {
   const drop = s.steps.find((st, i) => i > 0 && st.from === o.today);   // le 1er palier = dose de départ, pas une baisse (30/10)
   const risk = o.allowed ? riskToday(s, await readLibLog(), o.today) : null;
   return [
-    `🕊️ Liberté — jour ${o.day}/${o.totalDays}${drop ? ` · NOUVELLE ÉTAPE : ${drop.max === 0 ? 'JOUR ZÉRO, plus rien 💪' : `${halvesShort(drop.max)} max`}` : ''}`,
+    `🕊️ Liberté — jour ${o.day}/${o.totalDays} · 🏁 zéro le ${fmtDate(o.zero)} (J-${daysBetween(o.today, o.zero)})${drop ? ` · NOUVELLE ÉTAPE : ${drop.max === 0 ? 'JOUR ZÉRO, plus rien 💪' : `${halvesShort(drop.max)} max`}` : ''}`,
     o.allowed ? `Aujourd'hui : ${plan}.` : `Aujourd'hui : rien. Chaque envie → dis-moi « envie », je suis là.`,
     `🎯 Mission anti-zombie du jour (+1 €) : ${missionOf(s, o.today)}.`,
     '🌅 Rituel du réveil, à la place du comprimé : 2 grands verres d\'eau → 20 pompes → 30 s d\'eau froide en fin de douche → lumière du jour.',
