@@ -31,6 +31,12 @@ interface Overview {
   mission: { text: string; done: boolean } | null;
   victories: Array<{ at: string; text: string }>;
   calm: number;
+  insight?: null | {
+    days: Array<{ date: string; taken: number; allowed: number; high: boolean; lowBefore: boolean; sleep: number | null; causes: string[] }>;
+    leads: Array<{ key: string; txt: string }>; told: Array<{ cause: string; label: string; n: number }>; unknown: string[];
+    heavy: Array<{ wd: string; avg: number; n: number }>; rebound: { lows: number; after: number; overAfter: number; examples: string[] };
+    swing: number; avg7: number; allowed7: number; causes: Record<string, string>;
+  };
 }
 const eur = (n: number) => `${n.toFixed(1).replace('.', ',').replace(',0', '')} €`;
 
@@ -56,7 +62,8 @@ export default function LiberteScreen() {
   const [err, setErr] = useState('');
   const [toast, setToast] = useState('');
   const [busy, setBusy] = useState(false);
-  const [sheet, setSheet] = useState<null | 'sos' | 'sym' | 'doc' | 'why' | 'plan' | 'bank' | 'back' | 'take' | 'calm'>(null);
+  const [sheet, setSheet] = useState<null | 'sos' | 'sym' | 'doc' | 'why' | 'plan' | 'bank' | 'back' | 'take' | 'calm' | 'cause'>(null);
+  const [causeDay, setCauseDay] = useState('');
 
   const load = useCallback(async () => {
     try { setO(await apiFetch<Overview>('/api/liberte')); setErr(''); } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); }
@@ -212,6 +219,8 @@ export default function LiberteScreen() {
         </Card>
       </>}
 
+      {o.insight && o.insight.days.length >= 5 && <WhyCard ins={o.insight} today={o.today} onTell={d => { setCauseDay(d); setSheet('cause'); }} />}
+
       {o.riskHours.length > 0 && (
         <Card accent={T.warn} style={{ marginBottom: 12 }}>
           <div style={{ fontWeight: 700 }}><Ico e="⏰" />Tes heures à risque : {o.riskHours.map(h => `${h}h`).join(', ')}</div>
@@ -255,6 +264,7 @@ export default function LiberteScreen() {
       {sheet === 'back' && <BackSheet onClose={() => setSheet(null)} onSave={async b => { await act({ action: 'retour', ...b }, '✨ Noté. On compare chaque semaine.'); setSheet(null); }} />}
       {sheet === 'take' && <TakeSheet o={o} busy={busy} onClose={() => setSheet(null)} onAct={async (b, ok) => { await act(b, ok); setSheet(null); }} />}
       {sheet === 'calm' && <CalmSheet onClose={() => setSheet(null)} onDone={() => void act({ action: 'calme', n: 5 }, '🌬️ 5 minutes de calme. Bien joué.')} />}
+      {sheet === 'cause' && o.insight && <CauseSheet day={causeDay} causes={o.insight.causes} busy={busy} onClose={() => setSheet(null)} onSave={async b => { await act({ action: 'cause', ...b }, '🔎 Noté. Dzaryx s\'en sert pour la prochaine fois.'); setSheet(null); }} />}
       {sheet === 'plan' && <PlanSheet o={o} onClose={() => setSheet(null)} onTimes={async t => { await act({ action: 'times', times: t }, '✅ Heures enregistrées'); }} />}
     </Screen>
   );
@@ -547,6 +557,69 @@ function CalmSheet({ onClose, onDone }: { onClose: () => void; onDone: () => voi
         <div style={{ fontSize: 19, fontWeight: 700, marginTop: 18 }}>{left ? (inhale ? 'Inspire par le nez…' : 'Souffle doucement…') : 'Bravo. Ton corps est plus calme.'}</div>
         <div style={{ fontSize: 12.5, color: T.muted, marginTop: 10, textAlign: 'center', lineHeight: 1.45 }}>La cohérence cardiaque (6 respirations par minute) fait baisser le stress en quelques minutes. Trois fois par jour, c'est encore mieux.</div>
       </div>
+    </Sheet>
+  );
+}
+
+// 25/11 : « il cherche la cause, le pourquoi du comment » — jours où il prend plus, pistes croisées, ce qu'il a dit.
+const CAUSE_EMOJI: Record<string, string> = { rebond: '🔁', manque: '😣', stress: '😤', travail: '💼', fatigue: '😴', famille: '🏠', ennui: '🫥', douleur: '🤕', habitude: '✋', tristesse: '🌧️', angoisse: '😰', autre: '💬' };
+function WhyCard({ ins, today, onTell }: { ins: NonNullable<Overview['insight']>; today: string; onTell: (d: string) => void }) {
+  const days = ins.days.slice(-14);
+  const max = Math.max(1, ...days.map(d => Math.max(d.taken, d.allowed)));
+  return (
+    <Card accent={DOVE} style={{ marginBottom: 12 }}>
+      <div style={{ fontWeight: 700, marginBottom: 4 }}><Ico e="🔎" />Pourquoi tu prends plus certains jours</div>
+      <div style={{ fontSize: 12, color: T.muted, marginBottom: 10 }}>14 derniers jours notés · rouge = au-dessus ou forte hausse · orange = jour très bas (risque de rebond le lendemain)</div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 90 }}>
+        {days.map(d => {
+          const low = d.taken <= d.allowed - 2;
+          return (
+            <div key={d.date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, height: '100%', justifyContent: 'flex-end' }}>
+              <div style={{ fontSize: 10, color: T.muted }}>{d.causes[0] ? CAUSE_EMOJI[d.causes[0]] ?? '•' : String(d.taken).replace('.', ',')}</div>
+              <div title={`${d.taken} / ${d.allowed}`} style={{ width: '75%', height: `${(d.taken / max) * 70}%`, minHeight: 3, borderRadius: 3, background: d.high ? T.bad : low ? T.warn : T.ok }} />
+              <div style={{ fontSize: 9.5, color: T.faint }}>{d.date.slice(8)}</div>
+            </div>
+          );
+        })}
+      </div>
+      {ins.rebound.overAfter > 0 && (
+        <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 10, background: 'rgba(var(--dz-ink-rgb),0.04)', fontSize: 13, lineHeight: 1.5 }}>
+          <b>🔁 Effet rebond</b> : après un jour très bas, tu prends en moyenne {demis(ins.rebound.after)} le lendemain. {ins.rebound.examples.slice(-2).join(' · ')}.
+          <div style={{ color: T.muted, marginTop: 4 }}>Le corps aime la régularité : ton autorisé à l'heure chaque jour vaut mieux qu'un jour à zéro suivi d'un jour à 8.</div>
+        </div>
+      )}
+      {ins.leads.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Ce qui revient ces jours-là</div>
+          {ins.leads.slice(0, 4).map(l => <div key={l.key} style={{ fontSize: 13, color: T.text, padding: '3px 0', lineHeight: 1.45 }}>{CAUSE_EMOJI[l.key] ?? '•'} {l.txt}</div>)}
+        </div>
+      )}
+      {ins.told.length > 0 && (
+        <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {ins.told.map(c => <Badge key={c.cause} color={DOVE}>{CAUSE_EMOJI[c.cause] ?? '•'} {c.label} · {c.n}</Badge>)}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+        {ins.unknown.slice(-3).map(d => <Btn key={d} onClick={() => onTell(d)}>❓ {fmt(d)} : pourquoi ?</Btn>)}
+        <Btn onClick={() => onTell(today)}>✍️ Dire pourquoi aujourd'hui</Btn>
+      </div>
+      <div style={{ fontSize: 11.5, color: T.faint, marginTop: 8 }}>Ce sont des pistes, pas un jugement. Dzaryx te propose un plan « si… alors… » pour chaque cause.</div>
+    </Card>
+  );
+}
+function CauseSheet({ day, causes, busy, onClose, onSave }: { day: string; causes: Record<string, string>; busy: boolean; onClose: () => void; onSave: (b: Record<string, unknown>) => Promise<void> }) {
+  const [c, setC] = useState('');
+  const [text, setText] = useState('');
+  return (
+    <Sheet title={`Pourquoi, le ${fmt(day)} ?`} onClose={onClose}>
+      <div style={{ fontSize: 13, color: T.muted, marginBottom: 10 }}>Sans te juger. Choisis ce qui colle le mieux, et raconte en une phrase si tu veux : à quel moment, ce qui s'est passé juste avant, ce que tu t'es dit.</div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+        {Object.entries(causes).map(([k, label]) => (
+          <button key={k} onClick={() => setC(k)} style={{ padding: '7px 11px', borderRadius: 999, border: `1px solid ${c === k ? DOVE : T.line}`, background: c === k ? DOVE : 'transparent', color: c === k ? '#fff' : T.text, fontSize: 13, cursor: 'pointer' }}>{CAUSE_EMOJI[k] ?? '•'} {label}</button>
+        ))}
+      </div>
+      <Field label="Ce qui s'est passé (facultatif)"><textarea value={text} onChange={e => setText(e.target.value)} rows={3} placeholder="ex. réveil à 4h, journée chargée, je me suis dit « juste un demi »…" style={{ ...inputStyle, resize: 'vertical' }} /></Field>
+      <Btn color={DOVE} disabled={!c || busy} onClick={() => void onSave({ trigger: c, date: day, ...(text.trim() ? { text: text.trim() } : {}), bouton: true })}>Enregistrer</Btn>
     </Sheet>
   );
 }
