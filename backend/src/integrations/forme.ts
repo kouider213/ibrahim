@@ -728,8 +728,15 @@ export async function formeOverview(uid: Uid = 'kouider') {
     { id: 'kg5', label: '−5 kg', emoji: '🏅', ok: weights.length > 0 && weights[0]!.kg - curW >= 5 },
     ...(uid === 'ami' ? [] : [{ id: 'inj4', label: '4 injections notées', emoji: '💉', ok: injections.length >= 4 }]),
   ];
+  // 25/11 (Kouider : « pourquoi les protéines sont pas notées là ») : la carte Séance lisait o.eaten, jamais renvoyé → 0 g
+  // pour toujours. Même source que FORME → Repas (compteur calories), objectif protéines compris.
+  const food = await import('./forme-food.js').then(async m => {
+    const meals = await m.mealsOf(uid, today);
+    const s = meals.reduce((a, x) => ({ kcal: a.kcal + (x.kcal || 0), p: a.p + (x.p || 0), c: a.c + (x.c || 0), f: a.f + (x.f || 0) }), { kcal: 0, p: 0, c: 0, f: 0 });
+    return { kcal: Math.round(s.kcal), p: Math.round(s.p), c: Math.round(s.c), f: Math.round(s.f) };
+  }).catch(() => ({ kcal: 0, p: 0, c: 0, f: 0 }));
   return {
-    uid, today, profile: p, targets: t, day, week7, streak, badges,
+    uid, today, profile: p, targets: t, day, week7, streak, badges, eaten: food,
     weights, measures, ...(uid === 'ami' ? { injections: [], sides: [], nextInjection: null, doses: [] } : { injections, sides, nextInjection: nextInjection(p, days), doses: WEGOVY_DOSES }),
     photos: shown.map(ph => ({ ...ph, url: urls[ph.id] ?? null })).reverse(), photoDue,
     weightRate: ratePerWeek != null ? Math.round(ratePerWeek * 100) / 100 : null,
