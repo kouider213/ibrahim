@@ -189,27 +189,33 @@ export default function FoodScreen({ toast, o, onO }: { toast: (t: string) => vo
 }
 
 function MealSheet({ meal, onClose, onBudget }: { meal: MealLog | null; onClose: () => void; onBudget: (b: FoodBudget) => void }) {
-  const [items, setItems] = useState<FoodPart[]>([]);
+  // 26/11 (Kouider : « je dois pouvoir supprimer des trucs comme la mayonnaise ») : chaque aliment garde sa valeur d'origine (_b)
+  // pour que le prorata reste juste même après une suppression (avant : base = meal.items[i], décalée si on retire une ligne)
+  const [items, setItems] = useState<Array<FoodPart & { _b: FoodPart }>>([]);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { setItems(meal?.items ?? []); }, [meal]);
+  useEffect(() => { setItems((meal?.items ?? []).map(x => ({ ...x, _b: x }))); }, [meal]);
   if (!meal) return <Sheet open={false} onClose={onClose}>{null}</Sheet>;
   // Grammes modifiés → kcal et macros recalculées au prorata (la valeur par gramme reste celle de l'analyse)
   const setG = (i: number, g: number) => setItems(list => list.map((x, k) => {
     if (k !== i) return x;
-    const base = meal.items[i] ?? x, r = base.grams > 0 ? g / base.grams : 1;
+    const base = x._b, r = base.grams > 0 ? g / base.grams : 1;
     return { ...x, grams: g, kcal: Math.round(base.kcal * r), p: Math.round(base.p * r), c: Math.round(base.c * r), f: Math.round(base.f * r) };
   }));
   const tot = items.reduce((a, x) => a + x.kcal, 0);
+  const remove = (i: number) => setItems(list => list.filter((_, k) => k !== i));
   const save = async (del = false) => {
+    // les aliments à 0 g (ex. « Mayonnaise 0 g ») sont retirés ; plus rien dans l'assiette = on supprime le repas
+    const keep = items.filter(x => x.grams > 0).map(({ _b, ...x }) => x);
+    if (!del && !keep.length) { if (!confirm('Plus aucun aliment : supprimer ce repas ?')) return; del = true; }
     setBusy(true);
-    try { onBudget((await forme.foodEdit({ date: meal.date, id: meal.id, ...(del ? { del: true } : { items }) })).budget); } catch (e) { alert(errText(e)); } finally { setBusy(false); }
+    try { onBudget((await forme.foodEdit({ date: meal.date, id: meal.id, ...(del ? { del: true } : { items: keep }) })).budget); } catch (e) { alert(errText(e)); } finally { setBusy(false); }
   };
   return (
     <Sheet open={!!meal} onClose={onClose} title={meal.title}>
       {meal.thumb && <img src={meal.thumb} alt="" style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 18, margin: '8px 0 12px' }} />}
       <div style={{ fontSize: 13, color: F.muted, marginBottom: 10 }}>{SLOT[meal.slot]} · {meal.time} · estimation {meal.confidence}{meal.note ? ` · « ${meal.note} »` : ''}</div>
       {items.map((x, i) => (
-        <div key={i} style={{ ...card, padding: 12, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div key={`${x._b.name}-${i}`} style={{ ...card, padding: 12, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 600, fontSize: 14.5 }}>{x.name}</div>
             <div style={{ fontSize: 12.5, color: F.muted }}>{x.kcal} kcal · P {x.p} · G {x.c} · L {x.f}</div>
@@ -218,9 +224,11 @@ function MealSheet({ meal, onClose, onBudget }: { meal: MealLog | null; onClose:
           <input value={x.grams} inputMode="numeric" onChange={e => setG(i, Math.max(0, Number(e.target.value.replace(/\D/g, '')) || 0))} style={{ ...input, width: 62, padding: '7px 6px', textAlign: 'center', fontSize: 15 }} />
           <span style={{ fontSize: 12, color: F.muted }}>g</span>
           <button onClick={() => setG(i, x.grams + 10)} style={{ ...ghostBtn, width: 34, height: 34, padding: 0 }}>+</button>
+          <button onClick={() => remove(i)} aria-label={`Retirer ${x.name}`} style={{ ...ghostBtn, width: 34, height: 34, padding: 0, color: F.red }}>✕</button>
         </div>
       ))}
       <div style={{ fontWeight: 700, fontSize: 16, margin: '10px 2px' }}>Total : {tot} kcal</div>
+      <div style={{ fontSize: 12, color: F.muted, margin: '-4px 2px 10px' }}>Total = somme des lignes. ✕ retire un aliment, puis « Enregistrer ».</div>
       {meal.coach && <div style={{ ...card, fontSize: 13.5, lineHeight: 1.5, whiteSpace: 'pre-wrap', marginBottom: 12 }}>{meal.coach}</div>}
       <button disabled={busy} onClick={() => void save()} style={{ ...btn, width: '100%' }}>{busy ? '…' : 'Enregistrer'}</button>
       <button disabled={busy} onClick={() => { if (confirm('Supprimer ce repas ?')) void save(true); }} style={{ ...ghostBtn, width: '100%', marginTop: 8, color: F.red }}>Supprimer ce repas</button>

@@ -1,3 +1,6 @@
+## 26/11 — FORME repas : ✕ pour retirer un aliment (v307)
+- Fiche repas : bouton ✕ par aliment, lignes à 0 g retirées à l’enregistrement, plus rien = repas supprimé ; prorata des grammes basé sur la valeur d’origine de chaque ligne.
+
 ## 26/11 — Dispo confirmée par Kouider → Dzaryx s'en sert
 Kouider : « si moi je lui dis cette voiture est dispo, Dzaryx le sait et répond avec ça ; si je confirme que j'ai des voitures, il demande au client ses préférences ». no-dispo.ts : kv dispo:confirmed (ses mots exacts, 72 h, par client ou général) ; noDispoRule(chat) ajoute l'exception aux prompts WA + TikTok, filtre levé si confirmé. Réponse à un brouillon « (oui) la Clio est dispo » / « j'ai des voitures » / « c'est complet » → retenu + réponse réécrite (draftFromConfirmation, Sonnet, exemples darija d'Oran) — avant, « oui la clio est dispo » aurait envoyé l'ancienne réponse. Outil dispo_confirmee (set/list/clear) toujours disponible.
 
