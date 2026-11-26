@@ -120,6 +120,9 @@ async def _dismiss(p: Page) -> None:
                 pass
 
 
+_STATE: dict = {}
+
+
 async def scan(emit, first: bool) -> None:
     async with LOCK:
         await _scan(emit, first)
@@ -132,9 +135,19 @@ async def _scan(emit, first: bool) -> None:
         await _dismiss(p)
         st = await p.js(JS_STATE) or {}
         if not st.get('logged'):
+            # 26/11 : fausse alerte « déconnecté » (onglet resté sur TikTok Studio) → on recharge et on revérifie avant d'alerter
+            await p.call('Page.navigate', {'url': URL})
+            await asyncio.sleep(15)
+            await _dismiss(p)
+            st = await p.js(JS_STATE) or {}
+        if not st.get('logged'):
             await emit('cloud:tt_state', {'logged_in': False})
+            _STATE['logged'] = False
             log.warning('TikTok non connecté (%s)', st.get('href'))
             return
+        if _STATE.get('logged') is not True:      # remet « connecté » une fois (sinon le dernier « 0 » restait)
+            _STATE['logged'] = True
+            await emit('cloud:tt_state', {'logged_in': True})
         if st.get('captcha'):
             await emit('cloud:tt_state', {'logged_in': True, 'captcha': True})
         seen = _load()
