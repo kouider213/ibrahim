@@ -1,3 +1,6 @@
+## 26/11 — FORME calories : plus d’huile devinée
+- Photo repas : huile/beurre/sauce comptés SEULEMENT si visibles (1 c. à soupe max/plat), sinon 5 g max (salade, sauté) et signalé ; toujours sur une ligne à part (✕). Lignes 0 g / 0 kcal retirées. Cas réel : bissara + pain-merguez + salade = 965 kcal dont 180 d’huile non visible → test texte 543 kcal.
+
 ## 26/11 — FORME repas : ✕ pour retirer un aliment (v307)
 - Fiche repas : bouton ✕ par aliment, lignes à 0 g retirées à l’enregistrement, plus rien = repas supprimé ; prorata des grammes basé sur la valeur d’origine de chaque ligne.
 
