@@ -1021,7 +1021,7 @@ async function runJob(name: string, slot: string): Promise<void> {
     await (await import('../integrations/bg-context.js')).runInBackground(name, () => handler({ name, id: `${name}:${slot}`, data: {} } as unknown as Job));   // 07/11 : gros Gemini gardé pour Kouider
     console.log(`[scheduler] ✅ ${name} done`);
     void kvDel(`jobfail:${name}`).catch(() => {});
-    if (RESUMABLE.includes(name)) void kvSet(`jobdone:${name}:${slot.replace(/:retry$/, '')}`, '1', 2 * 86_400).catch(() => {});
+    if (RESUMABLE.includes(name)) void kvSet(`jobdone:${name}:${slot.replace(/:retry\d*$/, '')}`, '1', 2 * 86_400).catch(() => {});
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[scheduler] ❌ ${name} failed:`, msg);
@@ -1059,10 +1059,15 @@ async function resumeInterrupted(): Promise<void> {
       const { data } = await supabase.from('job_runs').select('slot, started_at').eq('job', name).not('slot', 'like', 'manual:%')
         .order('started_at', { ascending: false }).limit(1);
       const last = data?.[0] as { slot: string; started_at: string } | undefined;
-      if (!last || last.slot.endsWith(':retry') || Date.now() - Date.parse(last.started_at) > 3 * 3600_000) continue;
-      if (await kvGet(`jobdone:${name}:${last.slot}`)) continue;
-      console.warn(`[scheduler] ${name} (${last.slot}) interrompu par un redémarrage → relance`);
-      await runJob(name, `${last.slot}:retry`);
+      // 26/11 : 2 mises en ligne de suite (10h03 puis 10h27) → la relance elle-même coupée, plus jamais relancée → 0 démarchage.
+      // Jusqu'à 3 relances (slot:retry, :retry2, :retry3), toujours dans les 3 h.
+      if (!last || Date.now() - Date.parse(last.started_at) > 3 * 3600_000) continue;
+      const base = last.slot.replace(/:retry\d*$/, '');
+      const n = /:retry(\d*)$/.test(last.slot) ? Number(last.slot.match(/:retry(\d*)$/)![1] || 1) : 0;
+      if (n >= 3) continue;
+      if (await kvGet(`jobdone:${name}:${base}`)) continue;
+      console.warn(`[scheduler] ${name} (${last.slot}) interrompu par un redémarrage → relance ${n + 1}/3`);
+      await runJob(name, `${base}:retry${n + 1 === 1 ? '' : n + 1}`);
     } catch (err) { console.error(`[scheduler] reprise ${name}:`, err instanceof Error ? err.message : err); }
   }
 }

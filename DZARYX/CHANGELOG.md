@@ -1,3 +1,6 @@
+## 26/11 — Démarchage relancé jusqu'à 3 fois après une mise en ligne
+2 mises en ligne de suite (10h03, 10h27) : la relance (slot:retry) a été coupée à son tour et n'était plus relancée → 0 démarchage le 26/11. resumeInterrupted : jusqu'à :retry3 dans les 3 h. Aussi : échéance VPS Hostinger fixée au 25 de chaque mois (coupé 11 h le 25/11 faute de paiement, aucune alerte car pas de date).
+
 ## 26/11 — Une pub TikTok fabriquée chaque jour, toute seule
 Kouider : « qu'il crée autant de vidéos que possible pour que je sois régulier ». jobDailyPlan (10h15) : chaque jour, pub_tiktok free_only (vraies vidéos/photos, 0 €, jamais de vidéo IA qui déforme), idée du calendrier de l'équipe sinon pub libre → boutons publier maintenant / meilleur moment / non. Saute si pub créée ou publiée aujourd'hui ; si 2 pubs prêtes depuis 48 h non publiées → simple rappel, pas d'empilement.
 
