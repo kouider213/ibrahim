@@ -1,3 +1,6 @@
+## 26/11 — Pubs en plans photo de nouveau autorisées (malentendu du matin corrigé)
+Kouider : « pas assez pro » = la pub d'hier où les voitures se déformaient et les plaques changeaient (vidéo IA), PAS les plans photo. Le blocage d'eff66bb8 (« pas de pub sans vidéo filmée quand le crédit IA est vide ») est retiré de pub_tiktok (+ force_photo, + description d'outil). Sans crédit : vraies vidéos filmées sinon VRAIE photo (photoClip). Gardé : bestModel vérifie fal ; vidéos auto du studio toujours sautées sans crédit.
+
 ## 26/11 — Dzaryx voit ses propres notifications + plus de pub en photos par erreur
 - tg-outbox.recentNotifNote : message court de Kouider sur Telegram → les notifications automatiques des 45 dernières minutes (tg:sentlog) sont mises en contexte (« la », « ça », « vas-y » = cette notification). Cause du « partage-la » → bilan calories.
 - video-studio.bestModel : un drapeau « fal vide » expiré ne veut plus dire « crédit rechargé » : on vérifie toujours chez fal. Sinon Kling échouait → pub montée en photos animées malgré la règle du 26/11 (pub 9f7a0969, 0/4 scènes réelles).

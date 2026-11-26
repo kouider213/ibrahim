@@ -762,17 +762,8 @@ export async function tiktokPubTool(input: Record<string, unknown>, actor = 'kou
     scenes = cars.map(c => ({ cars: [c], label: c.category.toUpperCase(), scene: 'Oran seafront corniche at golden hour, Mediterranean sea, palm trees', action: 'the car drives slowly toward the camera, headlights on', camera: 'travelling' }));
   }
   const model = await bestModel();
-  // 26/11 Kouider : « la pub d'hier (Le Convoi Illimité, faite en photos faute de crédit fal) est de mauvaise qualité,
-  // il faut un truc pro ». Sans crédit IA, une scène pas filmée = photo qui bouge = pas pro → on ne fabrique PAS la pub,
-  // on dit quoi filmer. Seulement s'il insiste (« même en photo » / force_photo) on la fait quand même.
-  const notFilmedCars = [...new Set(scenes.filter(x => !x.cars.every(c => filmed.includes(c.name))).flatMap(x => x.cars.map(c => c.name)))];
-  if (model === 'gratuit' && notFilmedCars.length && input['force_photo'] !== true && !/m[eê]me en photos?/i.test(message)) {
-    const usable = scenes.filter(x => x.cars.every(c => filmed.includes(c.name))).length;
-    return `🎬 Pas de pub cette fois : elle ne serait pas assez pro. Le crédit vidéo IA est vide (ou le plafond de 15 $ du mois est atteint), et ${notFilmedCars.join(', ')} ${notFilmedCars.length > 1 ? "n'ont" : "n'a"} pas encore été filmée(s) : ces scènes ne seraient que des photos qui bougent, comme la pub d'hier.` +
-      `${usable ? `\n(${usable} scène(s) sur ${scenes.length} ont déjà une vraie vidéo.)` : ''}\n\n` +
-      `Pour une pub de qualité pro, filme ${notFilmedCars.length > 1 ? 'ces voitures' : 'cette voiture'} une fois et envoie chaque vidéo sur Telegram avec « pub » + le nom (ex. « pub ${notFilmedCars[0]} ») :\n${SHOT_LIST.map((x, k) => `${k + 1}. ${x}`).join('\n')}\n💡 ${FILM_TIPS}\n\n` +
-      `Dès qu'elles sont filmées, redis « crée la pub TikTok » et je la monte avec les vraies images. Rien n'a été payé. Dis-lui tout ça simplement.`;
-  }
+  // 26/11 Kouider (corrige le malentendu du matin) : « pas pro » = la vidéo IA où les voitures se déformaient et les plaques
+  // changeaient — PAS les plans photo. Sans crédit IA, les scènes non filmées restent sur la VRAIE photo (photoClip).
   await loadLearnedSlots();
   const slots = bestPostSlots();
   const now = new Date().toISOString();
