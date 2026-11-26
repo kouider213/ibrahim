@@ -90,6 +90,7 @@ const isCreditError = (m: string) => /crédit|refusé|balance|exhausted|locked|4
 /** Kouider 31/10 : d'abord Kling (fal.ai) ; quand le crédit fal est épuisé → Hugging Face gratuit, tout seul. */
 export async function bestModel(): Promise<ModelId> {
   if (!env.FAL_KEY) return FREE_MODEL;
+  if (await monthCapReached()) return FREE_MODEL;   // 26/11 plafond mensuel accepté par Kouider
   if (Number((await kvGet(FAL_EMPTY_KEY).catch(() => null)) ?? 0) <= Date.now()) return PAID_DEFAULT;
   return (await falUnlocked()) ? PAID_DEFAULT : FREE_MODEL;
 }
@@ -675,6 +676,29 @@ export async function listStudioJobs(): Promise<{ jobs: StudioJob[]; spentUsd: n
 export async function addSpent(usd: number): Promise<void> {
   const cur = Number((await kvGet(SPENT_KEY).catch(() => null)) ?? 0);
   await kvSet(SPENT_KEY, String(Math.round((cur + usd) * 100) / 100)).catch(() => {});
+  await addMonthSpent(usd);
+}
+
+/** 26/11 Kouider : plafond vidéo IA (fal.ai) de 15 $ par mois. Atteint → plus de rendu payé jusqu'au mois suivant
+ *  (les pubs ne se font alors qu'avec ses vraies vidéos filmées) + un message pour le prévenir. Changer : kv studio:month_cap_usd. */
+const monthKey = () => `studio:spent_month:${new Date().toISOString().slice(0, 7)}`;
+export async function monthSpent(): Promise<{ spent: number; cap: number }> {
+  const spent = Number((await kvGet(monthKey()).catch(() => null)) ?? 0) || 0;
+  const cap = Number((await kvGet('studio:month_cap_usd').catch(() => null)) ?? 15) || 15;
+  return { spent, cap };
+}
+async function monthCapReached(): Promise<boolean> {
+  const { spent, cap } = await monthSpent();
+  return spent >= cap;
+}
+async function addMonthSpent(usd: number): Promise<void> {
+  if (!usd) return;
+  const { spent, cap } = await monthSpent();
+  const now = Math.round((spent + usd) * 100) / 100;
+  await kvSet(monthKey(), String(now), 40 * 86400).catch(() => {});
+  if (spent < cap && now >= cap) {
+    await queueTelegramMessage(`💰 Plafond vidéo IA du mois atteint (${now.toFixed(2)} $ / ${cap} $). Plus aucune dépense jusqu'au 1er du mois prochain : les pubs se feront seulement avec tes vraies vidéos filmées.`).catch(() => {});
+  }
 }
 
 const running = new Set<string>();

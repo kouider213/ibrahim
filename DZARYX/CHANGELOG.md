@@ -1,3 +1,6 @@
+## 26/11 — Plafond vidéo IA 15 $/mois
+Accord de Kouider : dépenses fal.ai comptées par mois (kv studio:spent_month:AAAA-MM, plafond kv studio:month_cap_usd = 15 par défaut). Plafond atteint → bestModel() = gratuit (donc pas de pub sans vraies vidéos) + message Telegram une seule fois. Contrôle du 26/11 : rappel VPS 13h du 25/11 bien envoyé (KO du replay = faux positif) ; auto-test = seulement Google plein (connu, action de Kouider).
+
 ## 26/11 — Pubs : plus jamais de pub « photo qui bouge »
 Kouider n'a pas partagé « Le Convoi Illimité » (25/11) : faite sans crédit fal = photos animées, pas pro. Désormais, sans crédit vidéo IA, si une voiture de la pub n'a pas de vraie vidéo filmée, video_studio pub_tiktok ne fabrique rien et répond quoi filmer (liste des plans). « même en photo » / force_photo:true = forcer. Les vidéos auto (mer/ven) sont sautées sans crédit IA.
 
