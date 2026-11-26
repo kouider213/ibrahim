@@ -8,6 +8,7 @@
  *  4. TikTok (26/11) : message privé sans réponse depuis > 24 h, ou FIK a répondu en dernier il y a 1 à 7 jours (envoi sur TikTok).
  * Chaque client n'est proposé qu'une fois par 21 jours (relance:done:<clé>). Données : app_kv relance:queue.
  */
+import * as CL from './client-lang.js';
 import { supabase } from './supabase.js';
 import { ai, jsonOf, kvJson, kvPut, tg } from './ai-util.js';
 import { kvGet, kvSet } from './app-store.js';
@@ -139,9 +140,12 @@ Réponds UNIQUEMENT avec ce JSON : {"relancer": true|false, "pourquoi": "en une 
 
 /** L'IA décide s'il faut relancer cette discussion et écrit la relance. */
 export async function judgeRelance(name: string, msgs: WaMsg[], today: string): Promise<{ relancer?: boolean; pourquoi?: string; message?: string } | null> {
+  const clientText = msgs.filter(m => !m.me).map(m => m.text).slice(-4).join('\n');
   const convo = msgs.map(m => `${m.me ? (AUTO.test(m.text) ? 'RÉPONSE AUTO' : 'FIK') : 'CLIENT'} ${(m.meta ?? '').replace(/\]\s.*$/, ']')} : ${m.text.slice(0, 400)}`).join('\n');
-  return jsonOf<{ relancer?: boolean; pourquoi?: string; message?: string }>(
-    await ai(`Aujourd'hui : ${today}. Discussion WhatsApp avec « ${name} » (du plus ancien au plus récent) :\n${convo}`, { system: RELANCE_SYSTEM, max: 500 }).catch(() => ''));
+  const o = jsonOf<{ relancer?: boolean; pourquoi?: string; message?: string }>(
+    await ai(`Aujourd'hui : ${today}. Discussion WhatsApp avec « ${name} » (du plus ancien au plus récent) :\n${convo}\n\n${CL.langRule(clientText)}`, { system: RELANCE_SYSTEM, max: 500 }).catch(() => ''));
+  if (o?.message && clientText && !CL.replyMatches(clientText, o.message)) o.message = await CL.rewriteInLang(o.message, clientText).catch(() => o.message);   // 26/11
+  return o;
 }
 
 async function waSilent(today: string): Promise<Relance[]> {

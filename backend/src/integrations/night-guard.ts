@@ -7,6 +7,7 @@
  * et une réponse qui parlerait quand même de dispo est remplacée par un message sûr. Au réveil : le récap de la nuit.
  * Réglages app_kv `nightguard:cfg` ; journal de la nuit `nightguard:log`.
  */
+import * as CL from './client-lang.js';
 import { kvGet, kvSet } from './app-store.js';
 import { supabase } from './supabase.js';
 import { createAnthropic, CLAUDE_MAIN, QUALITY, FAST } from './anthropic-compat.js';
@@ -110,16 +111,20 @@ Réponds UNIQUEMENT avec ce JSON : {"reply":"la réponse à envoyer","asked":"en
 // Filet de sécurité : la réponse ne doit ni annoncer une dispo, ni confirmer une réservation
 const FORBIDDEN = /\b(est|sont|reste|restent|serait|seront)\s+(bien\s+|encore\s+|toujours\s+)?(disponibles?|libres?|dispo)\b|\bdisponibles?\s+(du|le|les|à partir|ce|cette|pour)\b|\b(r[ée]serv[ée]e?s?|confirm[ée]e?s?|bloqu[ée]e?s?|not[ée]e?)\s+(pour vous|pour toi|c'est fait)|\bc'est (bon|not[ée]|r[ée]serv[ée]|confirm[ée])\b|\bis available\b|\bbooked\b|\bconfirmed\b|متوفرة?\b|محجوزة?\b/i;
 
-const SAFE = (lang: string) => /[؀-ۿ]/.test(lang)
-  ? 'السلام عليكم، شكرا على رسالتك 🙏 أنا المساعد الذكي (IA) تاع FIK Conciergerie، ما نقدرش ناخذ هذا القرار. شخص حقيقي غادي يجاوبك في أقرب وقت، صبر علينا شوية. تقدر تشوف السيارات والشروط هنا : https://fikconciergerie.com'
+const SAFE = (lang: string) => CL.detectClientLang(lang) === 'darija_latin'
+  ? 'Salam, merci 3la le message 🙏 Ana l\'assistant IA ta3 FIK Conciergerie, manqderch nakhod had la décision. Wahed men FIK rah yjawbek dorka, sbar 3lina chwiya. Les voitures w les conditions hna : https://fikconciergerie.com'
+  : /[؀-ۿ]/.test(lang)
+  ? 'السلام عليكم، شكرا على رسالتك 🙏 أنا المساعد الذكي (IA) تاع FIK Conciergerie، ما نقدرش ناخذ هذا القرار. شخص حقيقي راح يجاوبك في أقرب وقت، صبر علينا شوية. تقدر تشوف السيارات والشروط هنا : https://fikconciergerie.com'
   : 'Merci pour votre message 🙏 Je suis l\'assistant IA de FIK Conciergerie et je ne peux pas prendre ce genre de décision : une vraie personne va vous répondre dans les plus brefs délais, merci de patienter. En attendant, nos véhicules et conditions sont ici : https://fikconciergerie.com';
 
 // 13/11 (Kouider) : le même message IA envoyé 2 fois au même client (dont une fois à « Merci beaucoup / Également »).
 // → un simple merci / au revoir ne reçoit rien ; déjà présenté = 2e message différent (rappel IA court) ; jamais 2 fois le même texte.
 const JUST_THANKS = /^(?:[\s,.!…😊🙏👍🙂😉❤️🤲]|merci|beaucoup|bien|infiniment|à vous|a vous|également|egalement|de même|pareil(?:lement)?|de rien|avec plaisir|ok(?:ay|e)?|d'accord|parfait|top|super|génial|cool|ça marche|sa marche|bonne?\s+(?:soirée|journée|nuit|fin de journée|continuation)|au revoir|à (?:bientôt|demain|plus)|bisous?|barak(?:a)?\s*all?ah?(?:ou)?\s*f[iy]+k|saha|sahit|chokran|shukran|thanks?(?: you)?|bye|wa\s*f[iy]+k)+$/i;
 const norm = (t: string) => t.toLowerCase().replace(/https?:\S+/g, '').replace(/[^a-zà-ÿ؀-ۿ]+/g, ' ').trim();
-const SAFE_AGAIN = (said: string) => /[؀-ۿ]/.test(said)
-  ? 'وصلتنا رسالتك 👍 (المساعد الذكي تاع FIK). بلغناها، وشخص من FIK غادي يرجعلك في أقرب وقت إن شاء الله.'
+const SAFE_AGAIN = (said: string) => CL.detectClientLang(said) === 'darija_latin'
+  ? 'Wsel le message 👍 (c\'est toujours l\'assistant IA ta3 FIK). Wahed men FIK rah yrj3lek dorka nchallah.'
+  : /[؀-ۿ]/.test(said)
+  ? 'وصلتنا رسالتك 👍 (المساعد الذكي تاع FIK). بلغناها، وشخص من FIK راح يرجعلك في أقرب وقت إن شاء الله.'
   : 'Bien reçu 👍 (c\'est toujours l\'assistant IA de FIK). Votre message est transmis : une personne de FIK revient vers vous dans les plus brefs délais.';
 
 /** La réponse de nuit (sans l'envoyer) : infos/prix seulement ; une dispo ou une réservation → message sûr. reply vide = ne rien envoyer. */
@@ -132,7 +137,7 @@ export async function draftNightReply(chat: string, said: string, convo: string,
     try {
       const r = await createAnthropic().messages.create({
         model: CLAUDE_MAIN, max_tokens: 700, system: SYSTEM(info, fleet, !already),
-        messages: [{ role: 'user', content: `Client WhatsApp « ${chat} ». Discussion récente :\n${convo || '(aucune)'}\n\nNouveau(x) message(s) du client :\n« ${said} »` }],
+        messages: [{ role: 'user', content: `Client WhatsApp « ${chat} ». Discussion récente :\n${convo || '(aucune)'}\n\nNouveau(x) message(s) du client :\n« ${said} »\n\n${CL.langRule(said)}` }],
       }, mode);
       const o = jsonOf<{ reply?: string; asked?: string; needs?: string }>(r.content.map(b => (b.type === 'text' ? b.text : '')).join(''));
       if (!o) continue;
@@ -141,6 +146,7 @@ export async function draftNightReply(chat: string, said: string, convo: string,
       if (reply) break;
     } catch (err) { console.warn('[night-guard]', err instanceof Error ? err.message : err); }
   }
+  if (reply && !CL.replyMatches(said, reply)) reply = await CL.rewriteInLang(reply, said).catch(() => reply);   // 26/11 langue du client
   if (!reply || FORBIDDEN.test(reply)) { reply = already ? SAFE_AGAIN(said) : SAFE(said); needs = needs || 'disponibilité à confirmer'; }
   // Jamais deux fois le même texte au même client
   const sent = norm(reply);

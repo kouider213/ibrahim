@@ -75,7 +75,8 @@ export function clientAge(text: string): number | null {
 const hasDates = (t: string) => /\b\d{1,2}\s*[\/.-]\s*\d{1,2}\b|\b\d{1,2}(er)?\s+(janv|f[ée]v|mars|avr|mai|juin|juil|ao[uû]|sept|oct|nov|d[ée]c)|\b(du|from)\b.{1,20}\b(au|to)\b|demain|aujourd|ce\s+(week|soir|samedi|dimanche|lundi|mardi|mercredi|jeudi|vendredi)|غدوة|اليوم/i.test(t);
 const MISSED_CALL_RE = /appel\s+(vocal|vid[ée]o)?\s*manqu|missed\s+(voice|video)?\s*call|مكالمة\s+فائتة/i;
 const isArabic = (t: string) => /[\u0600-\u06FF]/.test(t);
-function declineText(ar: boolean): string {
+function declineText(ar: boolean | 'dz'): string {
+  if (ar === 'dz') return 'Merci 3la le message 🙏 Smahlna, l\'assurance ta3na tetlab 35 ans minimum bach nkriw. Smahlna 3la le dérangement, w triq salama.';
   return ar ? 'شكراً على رسالتك 🙏\nللأسف التأمين تاعنا يفرض عمر 35 سنة على الأقل للكراء. سمحلنا على الإزعاج، ونتمناولك طريق سالمة.'
     : 'Bonjour, merci pour votre message 🙏\nMalheureusement notre assurance impose un âge minimum de 35 ans pour la location. Désolé pour la gêne, et bonne route à vous.';
 }
@@ -114,7 +115,8 @@ const RED_FLAGS: Array<[RegExp, string]> = [
 ];
 export function redFlags(text: string): string[] { return RED_FLAGS.filter(([re]) => re.test(text)).map(([, l]) => l); }
 /** 1er message à un NOUVEAU client : ce qui manque (dates et/ou âge). */
-function firstContactText(ar: boolean, needDates: boolean, needAge: boolean, missedCall: boolean): string {
+function firstContactText(ar: boolean, needDates: boolean, needAge: boolean, missedCall: boolean, dzLatin = false): string {
+  if (ar === false && dzLatin) return `Salam, hna FIK Conciergerie 👋${missedCall ? ' Chefna l\'appel ta3ek, smahlna ma qdernach nhezzou.' : ''}\nBach nchoufoulek la dispo, a3tina svp ${[needDates ? 'les dates (men wakteh l wakteh)' : '', needAge ? 'l\'âge ta3 le conducteur' : ''].filter(Boolean).join(' w ')}.`;
   if (ar) return `السلام عليكم، FIK Conciergerie 👋${missedCall ? ' شفنا العيطة تاعك.' : ''}\nباش نشوفولك الدّيسپو، عطينا من فضلك ${[needDates ? 'التواريخ (من وقتاش لوقتاش)' : '', needAge ? 'عمر السائق' : ''].filter(Boolean).join(' و')}.`;
   const what = [needDates ? 'vos dates (jour de début et jour de fin)' : '', needAge ? 'l\'âge du conducteur' : ''].filter(Boolean).join(' et ');
   return `Bonjour, ici FIK Conciergerie 👋${missedCall ? ' Nous avons vu votre appel, désolé de ne pas avoir pu décrocher.' : ''}\nPour vérifier les disponibilités, pouvez-vous m'indiquer ${what} ?`;
@@ -253,7 +255,8 @@ export async function onWaNew(c: WaChat): Promise<void> {
     const declined = age !== null && age < 35;
     const needDates = !hasDates(clientText), needAge = age === null;
     if (declined || needDates || needAge) {
-      const first = declined ? declineText(ar) : firstContactText(ar, needDates, needAge, missedCall);
+      const dzL = !ar && CL.detectClientLang(clientText) === 'darija_latin';   // 26/11 « 18 hata 22 décembre »
+      const first = declined ? declineText(dzL ? 'dz' : ar) : firstContactText(ar, needDates, needAge, missedCall, dzL);
       const sent = await cloudEmit<R>('cloud:wa', { action: 'send', chat: name, text: first }, 80_000).catch(() => ({ ok: false } as R));
       if (sent.ok) {
         if (declined) await markAgeRefused(name, age!);
@@ -305,7 +308,7 @@ export async function onWaNew(c: WaChat): Promise<void> {
   // 26/11 Kouider : « 18 hata 22 décembre » → réponse proposée en français. On répond comme le client écrit, sinon on réécrit.
   if (reply && !CL.replyMatches(preview || clientText, reply)) reply = await CL.rewriteInLang(reply, preview || clientText).catch(() => reply);
   // Âge < 35 déclaré dans la discussion : JAMAIS de liste de voitures, refus poli (07/11 : « Parfait, t'as l'âge » à un 24 ans)
-  if (age !== null && age < 35 && (kind === 'location' || isBookingRequest(clientText) || reply)) { reply = declineText(isArabic(clientText)); kind = 'location'; await markAgeRefused(name, age); }
+  if (age !== null && age < 35 && (kind === 'location' || isBookingRequest(clientText) || reply)) { reply = declineText(CL.detectClientLang(clientText) === 'darija_latin' ? 'dz' : isArabic(clientText)); kind = 'location'; await markAgeRefused(name, age); }
   // Règle de Kouider (01/11) : 1re réponse à une demande de location = demander dates + âge (si le cerveau l'a oublié)
   const firstReply = !msgs.some(m => m.me && !isAuto(m));
   if (reply && firstReply && !(age !== null && age < 35) && (kind === 'location' || isBookingRequest(preview)) && !/[âa]ge|عمر/i.test(reply)) {

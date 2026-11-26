@@ -1,3 +1,6 @@
+## 26/11 — Langue du client partout (gardien de nuit, relances, 1er message, refus âge)
+client-lang appliqué aussi à : night-guard (réponse envoyée seule la nuit : langRule + réécriture, messages sûrs en darija latine), relance-clients (relances du matin), 1er message automatique aux nouveaux numéros et refus < 35 ans (version darija latine). « غادي » (marocain) remplacé par « راح » dans les messages sûrs. Testé : « salam, chhal la Clio l nhar ? » → réponse de nuit en darija latine.
+
 ## 26/11 — Réponses clients dans la langue du client
 Kouider : un client WA écrit « 18 hata 22 décembre » (darija en lettres latines), la réponse proposée était en français. Nouveau integrations/client-lang.ts : detectClientLang (darija_latin / darija_ar / arabe / fr / en), langRule ajoutée aux brouillons WhatsApp et TikTok, replyMatches → rewriteInLang si la langue ne colle pas (guide darija d'Oran + exemples, rejet des mots marocains), phrase dates+âge dans la langue du client. Testé : 11 phrases détectées correctement, réécriture « Saha, c'est noté men 18 hata 22 décembre… ».
 
