@@ -105,7 +105,7 @@ export async function cutStatus(uid: Uid = 'kouider') {
     const a = full[0]!.date, z = full[full.length - 1]!.date;
     const ta = trendAt(tr, a), tz = trendAt(tr, z), n = dayDiff(a, z);
     // 26/11 (Kouider : « regarde que tout ce qui est kcal brûlées est vrai ») : « vraie dépense 1625, la montre surestime de 884 »
-    // = repas pas tous notés (1125 kcal/j en moyenne) + plus de pesée depuis le 17/11. Affiché SEULEMENT si les pesées couvrent
+    // = plus de pesée depuis le 17/11 (ses repas, eux, sont tous notés). Affiché SEULEMENT si les pesées couvrent
     // la période et si le résultat est crédible (≥ 1,25 × métabolisme de base) ; sinon on dit pourquoi.
     const inWin = weights.filter(w => w.date >= addDays(a, -3) && w.date <= addDays(z, 3));
     const lastW = weights[weights.length - 1]?.date ?? '';
@@ -113,7 +113,8 @@ export async function cutStatus(uid: Uid = 'kouider') {
     if (ta != null && tz != null && n >= 9) {
       const tdee = Math.round(avgEaten! + (ta - tz) * 7700 / n);
       if (inWin.length < 3 || !lastW || dayDiff(lastW, z) > 4) adaptiveWhy = `Il me manque des pesées : la dernière date du ${lastW ? lastW.slice(8, 10) + '/' + lastW.slice(5, 7) : '—'}. Pèse-toi le matin à jeun 2-3 fois par semaine.`;
-      else if (bmr && tdee < bmr * 1.25) adaptiveWhy = `Pas encore fiable : tes repas notés font ${avgEaten} kcal/jour en moyenne, c'est trop bas pour être tout ce que tu manges. Note TOUT (boissons, grignotage, huile) quelques jours.`;
+      // 26/11 Kouider : « tous mes repas sont notés, je note vraiment tout » → jamais l'accuser d'oublier des repas
+      else if (bmr && tdee < bmr * 1.25) adaptiveWhy = `Pas encore fiable : le poids bouge aussi avec l'eau et le sel d'un jour à l'autre. Encore quelques pesées et le calcul se stabilise.`;
       else adaptive = { tdee, vsWatch: tdee - avgBurnWatch!, days: full.length };
     }
   }

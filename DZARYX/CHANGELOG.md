@@ -1,6 +1,6 @@
 ## 26/11 — FORME : chiffres faux retirés (vérif « kcal brûlées »)
 - Audit : métabolisme de base (Mifflin 1705), actif montre (785, cohérent 17 433 pas), brûlé « maintenant », objectif = dépense − 500 : justes.
-- FAUX corrigé : « vraie dépense mesurée 1625, la montre surestime de 884 » (repas pas tous notés = 1125 kcal/j + aucune pesée depuis le 17/11) → affiché seulement si pesées couvrent la période (dernière ≤ 4 j) et résultat ≥ 1,25 × métabolisme ; sinon adaptiveWhy dit pourquoi (app v308).
+- FAUX corrigé : « vraie dépense mesurée 1625, la montre surestime de 884 » (aucune pesée depuis le 17/11 ; Kouider note TOUS ses repas — ne jamais dire le contraire) → affiché seulement si pesées couvrent la période (dernière ≤ 4 j) et résultat ≥ 1,25 × métabolisme ; sinon adaptiveWhy dit pourquoi (app v308).
 - FAUX corrigé : « 0 kg/semaine » quand plus de pesée depuis > 5 j → vitesse inconnue + bilan « ta dernière pesée date du 17/11 » (au lieu de « il me faut 5 pesées (tu en as 9) »).
 - Échauffement rameur/vélo/elliptique compté dans les kcal de séance (seul le tapis l’était).
 
