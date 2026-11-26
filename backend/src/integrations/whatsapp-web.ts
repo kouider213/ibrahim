@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import * as CL from './client-lang.js';
 import { kvGet, kvSet } from './app-store.js';
 import { runReadOnlyAgent } from './readonly-agent.js';
 import { isBookingRequest, isComplaint } from './whatsapp.js';
@@ -292,7 +293,7 @@ export async function onWaNew(c: WaChat): Promise<void> {
   let summary = preview, reply = '', kind = 'autre', translation = '';
   try {
     const run = await runReadOnlyAgent(`Client WhatsApp « ${name} » (${c.unread} message(s) non lu(s)). Nouveau(x) message(s) du client :\n« ${preview} »`
-      + (convo ? `\n\nDiscussion récente (contexte) :\n${convo}` : ''),
+      + (convo ? `\n\nDiscussion récente (contexte) :\n${convo}` : '') + `\n\n${CL.langRule(preview || clientText)}`,
       { system: `${REPLY_SYSTEM}\n\nCONDITIONS EXACTES DE FIK (24/11 : n'en cite aucune autre — ex. il n'y a AUCUNE caution) :\n${await import('./night-guard.js').then(m => m.exactConditions()).catch(() => '')}`, sessionId: 'wa_web_draft', maxRounds: 4, maxTokens: 900 });
     const a = run.text.indexOf('{'), z = run.text.lastIndexOf('}');
     const o = JSON.parse(run.text.slice(a, z + 1)) as { summary?: string; reply?: string; kind?: string; translation?: string };
@@ -301,14 +302,14 @@ export async function onWaNew(c: WaChat): Promise<void> {
   } catch (err) {
     console.warn('[wa-web] proposition:', err instanceof Error ? err.message : err);
   }
+  // 26/11 Kouider : « 18 hata 22 décembre » → réponse proposée en français. On répond comme le client écrit, sinon on réécrit.
+  if (reply && !CL.replyMatches(preview || clientText, reply)) reply = await CL.rewriteInLang(reply, preview || clientText).catch(() => reply);
   // Âge < 35 déclaré dans la discussion : JAMAIS de liste de voitures, refus poli (07/11 : « Parfait, t'as l'âge » à un 24 ans)
   if (age !== null && age < 35 && (kind === 'location' || isBookingRequest(clientText) || reply)) { reply = declineText(isArabic(clientText)); kind = 'location'; await markAgeRefused(name, age); }
   // Règle de Kouider (01/11) : 1re réponse à une demande de location = demander dates + âge (si le cerveau l'a oublié)
   const firstReply = !msgs.some(m => m.me && !isAuto(m));
   if (reply && firstReply && !(age !== null && age < 35) && (kind === 'location' || isBookingRequest(preview)) && !/[âa]ge|عمر/i.test(reply)) {
-    reply += /[\u0600-\u06FF]/.test(reply)
-      ? '\nباش نشوفولك، عطينا التواريخ (من وقتاش لوقتاش) وعمر السائق من فضلك.'
-      : '\nPour vérifier, pouvez-vous m\'indiquer vos dates (début et fin) et l\'âge du conducteur ?';
+    reply += '\n' + CL.askDatesAge(CL.detectClientLang(preview || clientText));
   }
   if (kind === 'location' && fromClient.length) void recordWaDemande(name, fromClient.map(m => m.text).join('\n')).catch(() => {});
   if (reply) {

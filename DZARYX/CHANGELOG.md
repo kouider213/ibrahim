@@ -1,3 +1,6 @@
+## 26/11 — Réponses clients dans la langue du client
+Kouider : un client WA écrit « 18 hata 22 décembre » (darija en lettres latines), la réponse proposée était en français. Nouveau integrations/client-lang.ts : detectClientLang (darija_latin / darija_ar / arabe / fr / en), langRule ajoutée aux brouillons WhatsApp et TikTok, replyMatches → rewriteInLang si la langue ne colle pas (guide darija d'Oran + exemples, rejet des mots marocains), phrase dates+âge dans la langue du client. Testé : 11 phrases détectées correctement, réécriture « Saha, c'est noté men 18 hata 22 décembre… ».
+
 ## 26/11 — Plafond vidéo IA 15 $/mois
 Accord de Kouider : dépenses fal.ai comptées par mois (kv studio:spent_month:AAAA-MM, plafond kv studio:month_cap_usd = 15 par défaut). Plafond atteint → bestModel() = gratuit (donc pas de pub sans vraies vidéos) + message Telegram une seule fois. Contrôle du 26/11 : rappel VPS 13h du 25/11 bien envoyé (KO du replay = faux positif) ; auto-test = seulement Google plein (connu, action de Kouider).
 
