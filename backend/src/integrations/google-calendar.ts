@@ -348,10 +348,14 @@ export async function agendaAccess(): Promise<{ ok: boolean; calendar: string; r
 
 // ── Houari personal calendar ──────────────────────────────────
 
+// 26/11 : l'agenda de Houari n'est pas partagé (404 à chaque ouverture de l'Agenda) → on réessaie au plus 1 fois toutes les 12 h
+let houariSkipUntil = 0;
 export async function listHouariEvents(maxResults = 15): Promise<CalendarEvent[]> {
+  if (Date.now() < houariSkipUntil) return [];
   const calId = getHouariCalId();
   const res = await calendarRequest<{ items: CalendarEvent[] }>('GET',
     `/calendars/${encodeURIComponent(calId)}/events?maxResults=${maxResults}&orderBy=startTime&singleEvents=true&timeMin=${new Date().toISOString()}`);
+  if (!res) houariSkipUntil = Date.now() + 12 * 3600_000;
   return res?.items ?? [];
 }
 

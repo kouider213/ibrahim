@@ -303,7 +303,7 @@ async function freeBrain(body: Body, quality = false, strongOnly = false, fast =
       if (ep.descMax) for (const t of (oai.tools ?? []) as Body[]) t.function.description = String(t.function.description ?? '').slice(0, ep.descMax);
       const timeout = ep.key === 'groq' || ep.key === 'openai' ? 60_000 : ep.key === 'gemini' && !deep ? 30_000 : 60_000;
       const post = () => fetch(ep.url, { method: 'POST', headers: { 'content-type': 'application/json', Authorization: `Bearer ${ep.apiKey}` },
-        body: JSON.stringify(oai), signal: AbortSignal.any([signal, AbortSignal.timeout(timeout)]) });
+        body: wellFormedJson(oai), signal: AbortSignal.any([signal, AbortSignal.timeout(timeout)]) });
       let r = await post();
       const wait = Number(r.headers.get('retry-after') ?? NaN);
       if (ep.key === 'groq' && r.status === 429 && wait <= 30) {   // quota/minute : attendre vaut mieux que planter la tâche
@@ -463,4 +463,10 @@ export function adaptRawRequest(body: Body, headers: Record<string, string>): { 
     h['anthropic-beta'] = [...new Set([...cur, ...betas])].join(',');
   }
   return { body: b, headers: h };
+}
+
+/** 26/11 : un pseudo comme « 𝒁𝒂𝒌𝒊 » coupé par un .slice() laisse une moitié d'emoji (surrogate seul) ; NVIDIA/OpenRouter (Rust)
+ *  refusent alors TOUTE la requête (« unexpected end of hex escape »). JSON.stringify écrit ces moitiés en \udXXX : on les retire. */
+export function wellFormedJson(v: unknown): string {
+  return JSON.stringify(v).replace(/(?<!\\)\\ud[89a-f][0-9a-f]{2}/gi, '');
 }
