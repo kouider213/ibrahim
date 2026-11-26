@@ -1,3 +1,6 @@
+## 26/11 — « Écris-la en darija » géré par le code
+07:20 Kouider : « Change écris le en darija » → le cerveau libre a écrit « Ch-hal fi omrak t-3ich ? » (sens faux). handleWaYesNo / handleTtYesNo : askedLang() (darija / arabe / français / anglais / comme lui) → rewriteInLang forcé avec le guide darija d'Oran ; si la version en attente est déjà dans cette langue (ratée), on repart de la réponse d'origine.
+
 ## 26/11 — Langue du client partout (gardien de nuit, relances, 1er message, refus âge)
 client-lang appliqué aussi à : night-guard (réponse envoyée seule la nuit : langRule + réécriture, messages sûrs en darija latine), relance-clients (relances du matin), 1er message automatique aux nouveaux numéros et refus < 35 ans (version darija latine). « غادي » (marocain) remplacé par « راح » dans les messages sûrs. Testé : « salam, chhal la Clio l nhar ? » → réponse de nuit en darija latine.
 

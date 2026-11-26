@@ -75,8 +75,8 @@ const DARIJA_GUIDE = (l: ClientLang) => `Darija algérienne d'ORAN, jamais maroc
     : `Exemple : « صحا، سجلنا من 18 حتى 22 ديسمبر 👍 قداش عمر السائق من فضلك؟ التأمين تاعنا يطلب 35 سنة على الأقل. » `);
 
 /** Réécrit une réponse proposée dans la langue / l'alphabet du client (même fond, rien d'ajouté). */
-export async function rewriteInLang(reply: string, clientText: string): Promise<string> {
-  const l = detectClientLang(clientText);
+export async function rewriteInLang(reply: string, clientText: string, force?: ClientLang): Promise<string> {
+  const l = force ?? detectClientLang(clientText);
   const { runReadOnlyAgent } = await import('./readonly-agent.js');
   const r = await runReadOnlyAgent(`Message du client : « ${clientText.slice(-600)} »\nRéponse à réécrire : « ${reply} »`, {
     sessionId: 'client_lang', maxRounds: 1, maxTokens: 500,
@@ -87,5 +87,19 @@ export async function rewriteInLang(reply: string, clientText: string): Promise<
   });
   const t = String(r.text ?? '').trim().replace(/^[«"“]\s*|\s*[»"”]$/g, '');
   const moroccan = /\b(d[iy]al\w*|bghit|wakha|daba|bzzaf|kanbghi|ghadi|hna\s+f)\b|ديال|غادي|واخا|دابا/i.test(t);
-  return t && !moroccan && t.length < reply.length * 3 + 200 && replyMatches(clientText, t) ? t : reply;
+  const ok = force ? (force === 'darija_ar' || force === 'arabe' ? ARABIC.test(t) : detectClientLang(t) === force) : replyMatches(clientText, t);
+  return t && !moroccan && t.length < reply.length * 3 + 200 && ok ? t : reply;
+}
+
+/** « écris-la en darija / en arabe / en français / comme lui » → la langue voulue (null = pas une demande de langue). */
+export function askedLang(message: string, clientText: string): ClientLang | null {
+  const m = strip(message);
+  if (m.length > 80 || !/\b(ecri[st]?|mets?|met|change|traduis|reecri[st]?|fais|en|reponds?)\b/.test(m)) return null;
+  const clientAr = ARABIC.test(clientText);
+  if (/\b(darija|derja|dardja|dialecte|algerien)\b/.test(m)) return /lettres? arabes?|en arabe/.test(m) || clientAr ? 'darija_ar' : 'darija_latin';
+  if (/\b(comme (lui|elle|eux|le client)|sa (langue|facon)|meme langue)\b/.test(m)) return detectClientLang(clientText);
+  if (/\ben arabe\b/.test(m)) return 'arabe';
+  if (/\ben (francais|fr)\b/.test(m)) return 'fr';
+  if (/\ben anglais\b/.test(m)) return 'en';
+  return null;
 }

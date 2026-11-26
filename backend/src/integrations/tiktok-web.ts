@@ -185,6 +185,15 @@ export async function handleTtYesNo(message: string): Promise<{ reply?: string; 
   const yes = short && YES_RE.test(m), no = short && NO_RE.test(m);
   if (!yes && !no) {
     // « change … / ajoute … / plutôt … » (ou consigne courte) → réécrite ici, toujours en attente de son oui
+    // 26/11 « écris-la en darija / en arabe » → réécriture guidée (darija d'Oran)
+    const want = /darija|derja|arabe|fran[cç]ais|anglais/i.test(m) ? CL.askedLang(m, '') : null;
+    if (want) {
+      const nd = await CL.rewriteInLang(p.draft, '', want).catch(() => p.draft);
+      if (nd !== p.draft) {
+        await setTtPending(p.chat, nd, p.queue, p.relance);
+        return { reply: `✍️ Nouvelle réponse pour ${p.chat} :\n« ${nd} »\n\nRéponds « oui » pour l'envoyer sur TikTok, « non » pour passer, ou dis-moi quoi changer.` };
+      }
+    }
     if (CHANGE_RE.test(m) || m.length <= 120) {
       const { runReadOnlyAgent } = await import('./readonly-agent.js');
       const r = await runReadOnlyAgent(`Réponse actuelle : « ${p.draft} »\nConsigne de Kouider : « ${m} »`, { sessionId: 'tt_draft', maxRounds: 1, maxTokens: 400,

@@ -411,6 +411,21 @@ export async function handleWaYesNo(message: string): Promise<{ reply?: string; 
   // Autonomie progressive : on compte les « oui » sans changement, par type de message
   if (p.kind) void import('./autonomy.js').then(m => m.noteDecision(p.kind!, yes ? 'yes' : no ? 'no' : 'edit')).catch(() => {});
   if (short && VOICE_RE.test(message)) return { reply: await sendWaVoice(p.chat, p.draft) };
+  // 26/11 « change, écris-le en darija » : le cerveau libre avait écrit « Ch-hal fi omrak t-3ich ? » → réécriture par le code (guide darija d'Oran)
+  if (!yes && !no) {
+    const orig = (await drafts())[p.chat.toLowerCase()];
+    const clientTxt = orig?.preview ?? '';
+    const want = CL.askedLang(message, clientTxt);
+    if (want) {
+      // déjà dans cette langue = la version précédente était ratée → on repart de la réponse d'origine (sens propre)
+      const src = orig?.draft && orig.draft !== p.draft && CL.detectClientLang(p.draft) === want ? orig.draft : p.draft;
+      const nd = await CL.rewriteInLang(src, clientTxt, want).catch(() => p.draft);
+      if (nd !== p.draft) {
+        await kvSet(PENDING_KEY, JSON.stringify({ ...p, draft: nd }), 12 * 3600);
+        return { reply: `✍️ Nouvelle version pour ${p.chat} :\n« ${nd} »\n\nRéponds « oui » pour l'envoyer, « non » pour laisser, ou dis-moi quoi changer.` };
+      }
+    }
+  }
   if (!yes && !no) return { chat: p.chat, note: `[Contexte : tu viens de lui proposer cette réponse WhatsApp pour ${p.chat} : « ${p.draft} ». S'il demande un changement, réécris-la puis outil whatsapp_web send (relecture, puis confirmed:true après son oui).]` };
   // 21/11 relances clients : après chaque oui / non, la relance suivante de la file du matin
   const next = () => import('./relance-clients.js').then(m => m.nextRelance()).catch(() => '');
