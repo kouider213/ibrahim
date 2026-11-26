@@ -1,3 +1,9 @@
+## 26/11 — FORME : chiffres faux retirés (vérif « kcal brûlées »)
+- Audit : métabolisme de base (Mifflin 1705), actif montre (785, cohérent 17 433 pas), brûlé « maintenant », objectif = dépense − 500 : justes.
+- FAUX corrigé : « vraie dépense mesurée 1625, la montre surestime de 884 » (repas pas tous notés = 1125 kcal/j + aucune pesée depuis le 17/11) → affiché seulement si pesées couvrent la période (dernière ≤ 4 j) et résultat ≥ 1,25 × métabolisme ; sinon adaptiveWhy dit pourquoi (app v308).
+- FAUX corrigé : « 0 kg/semaine » quand plus de pesée depuis > 5 j → vitesse inconnue + bilan « ta dernière pesée date du 17/11 » (au lieu de « il me faut 5 pesées (tu en as 9) »).
+- Échauffement rameur/vélo/elliptique compté dans les kcal de séance (seul le tapis l’était).
+
 ## 26/11 — Pubs : musique douce automatique si pas de musique IA
 - Kouider : « beaucoup de temps sans son » (pub 9f7a0969 gratuite = 0 musique, 8,9 s de silence). Bibliothèque de 7 musiques douces libres de droits (Pixabay, usage commercial sans mention ; 60 s, -20 LUFS) dans Supabase videos/studio-music/. tiktok-pub : sans musique IA → pickLibraryMusic (pas les 3 dernières, kv pub:music:recent), volume 0,4 + baisse sous la voix. Échantillon envoyé sur Telegram. Musique TikTok + épinglage auto abandonnés (casse-tête anti-robot).
 

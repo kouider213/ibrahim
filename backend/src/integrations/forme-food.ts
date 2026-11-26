@@ -85,8 +85,10 @@ export async function sessionKcal(date: string, kg?: number): Promise<{ kcal: nu
   const w = kg ?? (await getFormeProfile('kouider')).weightKg;
   const min = s.durationMin && s.durationMin >= 10 ? Math.min(150, s.durationMin) : Math.max(20, s.sets.length * 2.5);
   const met = (s.rpe ?? 7) <= 5 ? 3.5 : (s.rpe ?? 7) <= 7 ? 5 : 6;
-  const tapis = Number(/tapis\s+(\d+)\s*min/i.exec(s.note ?? '')?.[1] ?? 0);
-  return { kcal: r0((met - 1) * w * min / 60 + 3.5 * w * Math.min(60, tapis) / 60), min: r0(min + tapis) };
+  // 26/11 : l'échauffement rameur / vélo / elliptique (« Échauffement — rameur 3 min ») n'était pas compté, seul le tapis l'était
+  const wu = /(tapis|rameur|v[ée]lo|elliptique)\s+(\d+)\s*min/i.exec(s.note ?? '');
+  const tapis = Number(wu?.[2] ?? 0), wuMet = /rameur|elliptique/i.test(wu?.[1] ?? '') ? 4.5 : /v[ée]lo/i.test(wu?.[1] ?? '') ? 4 : 3.5;
+  return { kcal: r0((met - 1) * w * min / 60 + wuMet * w * Math.min(60, tapis) / 60), min: r0(min + tapis) };
 }
 
 export async function activeFor(date: string): Promise<{ kcal: number; source: Budget['activeSource']; today?: number; woK?: number; at?: string; session?: { kcal: number; min: number; used: boolean } }> {

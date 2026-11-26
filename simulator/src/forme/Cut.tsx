@@ -12,7 +12,7 @@ import { EnergyChart, useFoodWeek } from './WeekCharts.tsx';
 export interface Cut {
   today: string; start: string; weeksIn: number; deficit: number;
   weight: { current: number; trend?: number; last: { date: string; kg: number } | null; goalKg: number | null; toLose: number; eta: string | null; rateWeek: number | null; ratePct: number | null; points: Array<{ date: string; kg: number; trend: number }>; loggedToday: boolean };
-  adaptive: { tdee: number; vsWatch: number; days: number } | null; avgEaten: number | null; avgBurnWatch: number | null;
+  adaptive: { tdee: number; vsWatch: number; days: number } | null; adaptiveWhy?: string; avgEaten: number | null; avgBurnWatch: number | null;
   week: Array<{ date: string; logged: boolean; deficitOk: boolean; proteinOk: boolean }>;
   lifts: Array<{ name: string; now: number; before: number | null; pct: number | null; date: string; kg?: number; reps?: number }>; dropping: string[];
   score: number; parts: Array<{ k: string; ok: boolean; pts: number; hint: string }>;
@@ -108,7 +108,7 @@ export default function CutScreen({ toast }: { toast: (t: string) => void }) {
         {c.adaptive ? <>
           <div style={{ fontSize: 30, fontWeight: 800 }}>{c.adaptive.tdee} <span style={{ fontSize: 15, color: F.muted }}>kcal/jour</span></div>
           <div style={{ fontSize: 13.5, lineHeight: 1.45, marginTop: 4 }}>Calculée sur {c.adaptive.days} jours : ce que tu as VRAIMENT mangé ({c.avgEaten} kcal en moyenne) + ce que ton poids a vraiment fait. Ta montre dit {c.avgBurnWatch} kcal → elle {c.adaptive.vsWatch >= 0 ? 'sous-estime' : 'surestime'} de {Math.abs(c.adaptive.vsWatch)} kcal.</div>
-        </> : <div style={{ fontSize: 14, lineHeight: 1.45 }}><Ico e="🧮" />Après <b>10 jours de repas notés</b> + tes pesées, je calcule ta dépense RÉELLE (pas celle de la montre, qui se trompe souvent de 10-20 %) et j'ajuste ton objectif dessus. {c.avgBurnWatch ? `Pour l'instant : montre ≈ ${c.avgBurnWatch} kcal/jour.` : ''}</div>}
+        </> : <div style={{ fontSize: 14, lineHeight: 1.45 }}><Ico e="🧮" />{c.adaptiveWhy ? <>{c.adaptiveWhy} </> : null}Après <b>10 jours de repas notés</b> + tes pesées, je calcule ta dépense RÉELLE (pas celle de la montre, qui se trompe souvent de 10-20 %) et j'ajuste ton objectif dessus. {c.avgBurnWatch ? `Pour l'instant : montre ≈ ${c.avgBurnWatch} kcal/jour.` : ''}</div>}
       </div>
 
       {/* 7 jours */}

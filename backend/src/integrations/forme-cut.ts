@@ -62,7 +62,9 @@ export function weightPace(weights: Array<{ date: string; kg: number }>, today: 
   const tr = trendOf(weights);
   const cur = tr.length ? tr[tr.length - 1]!.trend : fallbackKg;
   const wAgo = trendAt(tr, addDays(today, -7));
-  const rateWeek = wAgo != null && weights.length >= 5 && dayDiff(weights[0]!.date, today) >= 7 ? Number((wAgo - cur).toFixed(2)) : null;   // 13/11 : « 0.8099999999999999 kg/semaine » affiché
+  // 26/11 : dernière pesée le 17/11 → tendance plate → « 0 kg/sem » affiché (faux) : pas de vitesse sans pesée depuis > 5 jours
+  const fresh = weights.length > 0 && dayDiff(weights[weights.length - 1]!.date, today) <= 5;
+  const rateWeek = fresh && wAgo != null && weights.length >= 5 && dayDiff(weights[0]!.date, today) >= 7 ? Number((wAgo - cur).toFixed(2)) : null;   // 13/11 : « 0.8099999999999999 kg/semaine » affiché
   return { rateWeek, trend: cur, real: weights.length ? weights[weights.length - 1]!.kg : fallbackKg };
 }
 
@@ -98,12 +100,21 @@ export async function cutStatus(uid: Uid = 'kouider') {
   const avgBurnWatch = full.length ? Math.round(full.reduce((a, h) => a + h.burn, 0) / full.length) : null;
   // Dépense adaptative : il faut ≥ 10 jours notés ET ≥ 10 jours de tendance de poids
   let adaptive: { tdee: number; vsWatch: number; days: number } | null = null;
+  let adaptiveWhy = '';
   if (full.length >= 10 && tr.length >= 4) {
     const a = full[0]!.date, z = full[full.length - 1]!.date;
     const ta = trendAt(tr, a), tz = trendAt(tr, z), n = dayDiff(a, z);
+    // 26/11 (Kouider : « regarde que tout ce qui est kcal brûlées est vrai ») : « vraie dépense 1625, la montre surestime de 884 »
+    // = repas pas tous notés (1125 kcal/j en moyenne) + plus de pesée depuis le 17/11. Affiché SEULEMENT si les pesées couvrent
+    // la période et si le résultat est crédible (≥ 1,25 × métabolisme de base) ; sinon on dit pourquoi.
+    const inWin = weights.filter(w => w.date >= addDays(a, -3) && w.date <= addDays(z, 3));
+    const lastW = weights[weights.length - 1]?.date ?? '';
+    const bmr = budgets[budgets.length - 1]?.bmr ?? 0;
     if (ta != null && tz != null && n >= 9) {
       const tdee = Math.round(avgEaten! + (ta - tz) * 7700 / n);
-      adaptive = { tdee, vsWatch: tdee - avgBurnWatch!, days: full.length };
+      if (inWin.length < 3 || !lastW || dayDiff(lastW, z) > 4) adaptiveWhy = `Il me manque des pesées : la dernière date du ${lastW ? lastW.slice(8, 10) + '/' + lastW.slice(5, 7) : '—'}. Pèse-toi le matin à jeun 2-3 fois par semaine.`;
+      else if (bmr && tdee < bmr * 1.25) adaptiveWhy = `Pas encore fiable : tes repas notés font ${avgEaten} kcal/jour en moyenne, c'est trop bas pour être tout ce que tu manges. Note TOUT (boissons, grignotage, huile) quelques jours.`;
+      else adaptive = { tdee, vsWatch: tdee - avgBurnWatch!, days: full.length };
     }
   }
 
@@ -196,6 +207,7 @@ export async function cutStatus(uid: Uid = 'kouider') {
     ? `Tu es à ${real} kg, SOUS ton plancher de ${floor} kg : mange 200 kcal de plus par jour (féculents autour de la séance) jusqu'à revenir à ${floor}. Pas de déficit. On construit : abdos, bras, pecs.`
     : `${floor} kg atteint : c'est ton plancher, on ne descend plus. Déficit arrêté — tu manges à ta dépense, ${t.pGoal} g de protéines, et on construit : abdos, bras, pecs. Le chiffre à suivre maintenant, c'est ton tour de taille et tes charges, plus la balance.` };
   else if (nearFloor && cfg.deficit > 250) decision = { level: 'up', deficit: 250, text: `Plus que ${r1(real - floor!)} kg avant ton plancher de ${floor} kg : on freine pour arriver en douceur sans perdre de muscle. Déficit ramené à 250 kcal/jour.` };
+  else if (rateWeek == null && weights.length >= 5 && dayDiff(weights[weights.length - 1]!.date, today) > 5) decision = { level: 'wait', deficit: null, text: `Ta dernière pesée date du ${weights[weights.length - 1]!.date.slice(8, 10)}/${weights[weights.length - 1]!.date.slice(5, 7)} : pèse-toi demain matin (à jeun, après les toilettes), puis 2-3 fois par semaine, pour que je voie si tu perds vraiment.` };
   else if (rateWeek == null) decision = { level: 'wait', deficit: null, text: `Pèse-toi chaque matin (à jeun, après les toilettes) : il me faut 5 pesées sur au moins 7 jours pour calculer ta vraie vitesse de sèche (tu en as ${weights.length}).` };
   else if (logged7 < 4) decision = { level: 'wait', deficit: null, text: `Seulement ${logged7} jour(s) noté(s) sur 7 : note tous tes repas (photo) cette semaine, sinon on ne peut pas savoir si c'est le déficit ou les oublis.` };
   else if (weeksIn >= 12 || (dropping.length >= 2 && (ratePct ?? 0) > 0.7)) decision = { level: 'break', deficit: 0, text: weeksIn >= 12 ? `${weeksIn} semaines de sèche : fais 1 semaine de PAUSE DIÈTE au maintien (même sport, même protéines). Ton corps récupère, ta faim se calme, et la perte repart mieux après.` : `Ta force baisse sur ${dropping.length} exercices et tu perds vite : 1 semaine au maintien pour protéger ton muscle.` };
@@ -207,7 +219,7 @@ export async function cutStatus(uid: Uid = 'kouider') {
   return {
     today, start, weeksIn, deficit: cfg.deficit,
     weight: { current: r1(real), trend: r1(cur), last: weights[weights.length - 1] ?? null, goalKg, toLose, eta, rateWeek, ratePct, points: tr.slice(-60), loggedToday: !!days[today]?.weight },
-    adaptive, avgEaten, avgBurnWatch, week, lifts, dropping: dropping.map(x => x.name),
+    adaptive, adaptiveWhy, avgEaten, avgBurnWatch, week, lifts, dropping: dropping.map(x => x.name),
     score, parts, decision, waist: waist.slice(-12), fat, neck, compo: await compoTrend(uid, days).catch(() => null), protein: { goal: t.pGoal, perKg: r1(t.pGoal / cur) },
   };
 }
