@@ -1,3 +1,6 @@
+## 26/11 — Réponses clients : siège bébé offert, pas de carte SIM
+client-responder.ts disait « pas de siège bébé » alors qu'il est GRATUIT. Maintenant : famille avec bébé → siège bébé offert ; jamais de carte SIM proposée (le client l'active lui-même sur place).
+
 ## 26/11 — Parrainage = priorité en haute saison (plus de remise)
 Kouider choisit l'option 1. integrations/priority-referral.ts : client avec code parrain compté (referrals.uses ≥ 1) = prioritaire. Job priority-early-access 9h30 : 6 semaines avant chaque vague (WAVES), messages prêts (1 appui) pour les prioritaires s'il reste des voitures ; si tout est pris → pas de message, Kouider prévenu. Réservation annulée/refusée sur une vague → voiture proposée d'abord aux prioritaires. WhatsApp : « ⭐ Client prioritaire » + règle du brouillon (jamais retirer la voiture d'un client déjà réservé ; autres dates/voiture + premier prévenu). Remerciement après location (fr/ar/en) explique l'avantage. App : campagne diaspora et PARRAINAGE sans −5 %/−10 %.
 
