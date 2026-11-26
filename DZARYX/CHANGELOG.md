@@ -1,3 +1,6 @@
+## 26/11 — Pubs : musique douce automatique si pas de musique IA
+- Kouider : « beaucoup de temps sans son » (pub 9f7a0969 gratuite = 0 musique, 8,9 s de silence). Bibliothèque de 7 musiques douces libres de droits (Pixabay, usage commercial sans mention ; 60 s, -20 LUFS) dans Supabase videos/studio-music/. tiktok-pub : sans musique IA → pickLibraryMusic (pas les 3 dernières, kv pub:music:recent), volume 0,4 + baisse sous la voix. Échantillon envoyé sur Telegram. Musique TikTok + épinglage auto abandonnés (casse-tête anti-robot).
+
 ## 26/11 — Pub publiée : prévenu même pendant le bouclier famille
 - Kouider : « Dzaryx m’a pas prévenu qu’il a partagé la vidéo ». Le « ✅ publiée sur ton TikTok » de 19h30 (créneau choisi) était gardé par le bouclier famille jusqu’à 22h30. queueTelegramMessage(…, passShield) : résultat de publication + rappel « meilleur moment » passent le bouclier (pas le « ne me dérange pas » explicite).
 

@@ -431,12 +431,29 @@ async function writeAudio(dir: string, name: string, buf: Buffer | null): Promis
   return dur > 0 ? { file: f, dur } : null;
 }
 
+// Musiques douces libres de droits (Pixabay Content License : usage commercial, sans mention) — 60 s, volume égalisé (-20 LUFS)
+const MUSIC_LIBRARY = ['acoustique-folk', 'acoustique-fond', 'guitare-douce', 'piano-inspirant', 'piano-doux', 'lofi-calme', 'lofi-chill'];
+async function pickLibraryMusic(dir: string): Promise<string> {
+  const { kvGet, kvSet } = await import('../integrations/app-store.js');
+  let recent: string[] = [];
+  try { recent = JSON.parse((await kvGet('pub:music:recent')) ?? '[]') as string[]; } catch { /* vide */ }
+  const pool = MUSIC_LIBRARY.filter(n => !recent.includes(n));
+  const name = (pool.length ? pool : MUSIC_LIBRARY)[Math.floor(Math.random() * (pool.length || MUSIC_LIBRARY.length))]!;
+  const url = supabase.storage.from('videos').getPublicUrl(`studio-music/${name}.mp3`).data.publicUrl;
+  const file = path.join(dir, 'music-lib.mp3');
+  await fs.writeFile(file, Buffer.from((await axios.get<ArrayBuffer>(url, { responseType: 'arraybuffer', timeout: 60_000 })).data));
+  await kvSet('pub:music:recent', JSON.stringify([name, ...recent].slice(0, 3)), 60 * 86_400).catch(() => {});
+  console.log('[pub] musique bibliothèque :', name);
+  return file;
+}
+
 /** Montage complet (hook → motion design → voitures → CTA → signature) + mixage + miniature. Exporté pour le banc de test. */
 export async function buildPubVideo(o: {
   dir: string; plan: PubPlan; ok: Array<{ car: Car; file: string; label: string }>; wins: Array<{ start: number; score: number }>; hi: number;
-  vIntro: { file: string; dur: number } | null; vCars: { file: string; dur: number } | null; musicFile: string | null;
+  vIntro: { file: string; dur: number } | null; vCars: { file: string; dur: number } | null; musicFile: string | null; musicVol?: number;
 }): Promise<{ final: string; finalDur: number; cover: string }> {
   const { dir, plan, ok, wins, hi, vIntro, vCars, musicFile } = o;
+  const musicVol = o.musicVol ?? 0.55;
   await ensureFonts();
     const segs: string[] = [];
     const seg = async (name: string, args: string[]) => { const f = path.join(dir, `${name}.mp4`); await run([...args, '-an', ...ENC, f]); segs.push(f); };
@@ -529,7 +546,7 @@ export async function buildPubVideo(o: {
     parts.push(`${vo.join('')}amix=inputs=${vo.length}:normalize=0:duration=first[voice]`);
     if (musicFile) {
       ins.push('-stream_loop', '-1', '-i', musicFile);
-      parts.push(`[${k}:a]aresample=44100,aformat=channel_layouts=stereo,atrim=0:${total.toFixed(2)},volume=0.55,afade=t=out:st=${Math.max(0, total - 1.2).toFixed(2)}:d=1.2[mu]`,
+      parts.push(`[${k}:a]aresample=44100,aformat=channel_layouts=stereo,atrim=0:${total.toFixed(2)},volume=${musicVol},afade=t=out:st=${Math.max(0, total - 1.2).toFixed(2)}:d=1.2[mu]`,
         '[voice]asplit=2[vk][vm]', '[mu][vk]sidechaincompress=threshold=0.03:ratio=9:attack=15:release=350[duck]',
         '[vm][duck]amix=inputs=2:normalize=0:duration=first,loudnorm=I=-14:TP=-1.5:LRA=11[a]');
     } else parts.push('[voice]loudnorm=I=-14:TP=-1.5:LRA=11[a]');
@@ -670,7 +687,14 @@ async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: 
       await fs.writeFile(musicFile, Buffer.from((await axios.get<ArrayBuffer>(musicUrl, { responseType: 'arraybuffer', timeout: 60_000 })).data));
       job.costUsd += 0.02;
     }
-    const { final, finalDur, cover } = await buildPubVideo({ dir, plan, ok, wins, hi, vIntro, vCars, musicFile });
+    // 26/11 (Kouider : « beaucoup de temps sans son ») : pub gratuite / fal en panne = AUCUNE musique (9f7a0969 : 8,9 s de silence).
+    // Repli : musique douce libre de droits (Pixabay, usage commercial sans mention) stockée dans videos/studio-music/, plus basse.
+    let musicVol = 0.55;
+    if (!musicFile) {
+      const lib = await pickLibraryMusic(dir).catch(e => { console.warn('[pub] musique bibliothèque :', e instanceof Error ? e.message : e); return null; });
+      if (lib) { musicFile = lib; musicVol = 0.4; }
+    }
+    const { final, finalDur, cover } = await buildPubVideo({ dir, plan, ok, wins, hi, vIntro, vCars, musicFile, musicVol });
     // ── 6. Livraison : vidéo + pack community manager sur Telegram, rappel à la bonne heure ──
     job.step = 'Envoi…'; job.progress = 95; await saveJob(job);
     const name = `studio/pub-${job.id}.mp4`;
