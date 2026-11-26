@@ -304,6 +304,10 @@ router.post('/turn', requireCallerAuth, async (req, res) => {
     const dec = !gps && who === 'kouider' && channel === 'message' && !image && message
       ? await import('../../integrations/conscience.js').then(m => m.handleDecisionReply(message)).catch(() => null) : null;
     if (dec?.reply) { res.json({ text: dec.reply, audio: null }); return; }
+    // 26/11 « partage-la au meilleur moment » juste après une pub → publiée/programmée sur TikTok (sinon pris pour le dernier message)
+    const pubRep = !gps && !dec?.reply && who === 'kouider' && channel === 'message' && !image && message
+      ? await import('../../marketing/tiktok-pub.js').then(m => m.handlePubPublishReply(message)).catch(() => null) : null;
+    if (pubRep?.reply) { res.json({ text: pubRep.reply, audio: null }); return; }
     const wa = !gps && who === 'kouider' && channel === 'message' && !image && message
       ? await import('../../integrations/whatsapp-web.js').then(m => m.handleWaYesNo(message)).catch(() => null) : null;
     if (wa?.reply) { res.json({ text: wa.reply, audio: null }); return; }

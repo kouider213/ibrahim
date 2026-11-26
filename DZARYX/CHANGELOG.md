@@ -1,3 +1,6 @@
+## 26/11 — « Partage-la au meilleur moment » après une pub → programmée sur TikTok
+Il a répondu en texte (pas les boutons) 5 min après la pub ; le cerveau a cru que « la » = le bilan calories. tiktok-pub.handlePubPublishReply (pré-route call.ts) : verbe publier/partager/poster + pub/vidéo/« la », pub prête < 24 h non publiée → créneau prime (pub:tiktok:slots) ou maintenant. WhatsApp/photo/bilan/lien exclus. Fix aussi cloudpc : plus de fausse alerte « TikTok déconnecté ».
+
 ## 26/11 — « De la part de X » → X devient prioritaire tout seul
 Le remerciement promet la priorité si un ami « donne simplement votre nom », mais rien ne le repérait (il fallait créer un code + ＋ à la main). priority-referral.detectReferral, appelé par recordDemande (WhatsApp + TikTok) : mot de recommandation (FR + darija/arabe) + nom complet d'un ancien client (ou prénom unique) → +1 dans PARRAINAGE (fiche créée si besoin) + message Telegram ; 1 fois par discussion. Aussi : plus de message « 0 client prioritaire » ni d'alerte d'annulation quand il n'y a aucun prioritaire.
 

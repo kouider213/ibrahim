@@ -981,3 +981,29 @@ export async function jobPubSlots(): Promise<void> {
     }
   }
 }
+
+// 26/11 Kouider (Telegram, 5 min après la pub « L'Arrivée sans Stress ») : « Partage-la au meilleur moment » → le cerveau a pris
+// « la » pour le dernier message de la conversation (bilan calories) : la pub arrive par le bot des notifs, il ne la voit pas.
+// Ses mots « publie / partage / poste … » + une pub prête depuis < 24 h et pas encore publiée → décidé ici par le code.
+const PUB_VERB = /\b(partag|publi|post|balanc|mets?[- ]la|lance[- ]la)/i;
+const PUB_OBJ = /\b(pub|vid[ée]o|tiktok)\b|[- ]l[àa](?=$|[\s,.!?])/i;
+const NOT_PUB = /photo|bilan|lien|position|localisation|num[ée]ro|contact|document|pdf|fichier|facture|devis|story|statut/i;
+const PUB_BEST = /meilleur|bon (moment|cr[ée]neau|horaire)|bonne heure|au bon moment|plus tard|quand (c'est|il faut)|cr[ée]neau|programm/i;
+const PUB_NOW = /maintenant|tout de suite|direct|de suite|now/i;
+
+export async function handlePubPublishReply(message: string): Promise<{ reply: string } | null> {
+  const m = message.trim();
+  if (m.length > 120 || !PUB_VERB.test(m) || !PUB_OBJ.test(m)) return null;
+  if (/whats ?app|\bwa\b|instagram|facebook|snap/i.test(m) || NOT_PUB.test(m)) return null;      // pubs = TikTok seulement : on laisse le cerveau répondre
+  if (/\b(pas|ne|non)\b.*\b(publi|partag|post)/i.test(m)) return null;
+  const job = await findPub();
+  if (!job || Date.now() - Date.parse(job.updatedAt) > 24 * 3600_000) return null;
+  if ((await postedPubIds()).some(p => p.id === job.id)) return { reply: `ℹ️ « ${job.title} » est déjà publiée sur TikTok.` };
+  if (PUB_BEST.test(m) && !PUB_NOW.test(m)) {
+    const slot = (await pubSlots()).find(s => s.jobId === job.id && Date.parse(s.at) - Date.now() > 5 * 60_000);
+    if (!slot) return { reply: await publishPubTool({ job_id: job.id }) };       // créneau passé → maintenant
+    return { reply: await publishPubTool({ job_id: job.id, at: slot.at }) };
+  }
+  if (PUB_NOW.test(m) || m.length <= 40) return { reply: await publishPubTool({ job_id: job.id }) };
+  return null;
+}
