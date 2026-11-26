@@ -1,3 +1,6 @@
+## 26/11 — « De la part de X » → X devient prioritaire tout seul
+Le remerciement promet la priorité si un ami « donne simplement votre nom », mais rien ne le repérait (il fallait créer un code + ＋ à la main). priority-referral.detectReferral, appelé par recordDemande (WhatsApp + TikTok) : mot de recommandation (FR + darija/arabe) + nom complet d'un ancien client (ou prénom unique) → +1 dans PARRAINAGE (fiche créée si besoin) + message Telegram ; 1 fois par discussion. Aussi : plus de message « 0 client prioritaire » ni d'alerte d'annulation quand il n'y a aucun prioritaire.
+
 ## 26/11 — Réponses clients : siège bébé offert, pas de carte SIM
 client-responder.ts disait « pas de siège bébé » alors qu'il est GRATUIT. Maintenant : famille avec bébé → siège bébé offert ; jamais de carte SIM proposée (le client l'active lui-même sur place).
 

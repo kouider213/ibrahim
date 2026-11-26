@@ -51,6 +51,8 @@ function serial<T>(fn: () => Promise<T>): Promise<T> {
 
 export function recordDemande(ch: Channel, chat: string, text: string, status = 'nouveau',
   extra: { via?: WaDemande['via']; video?: string; at?: string } = {}): Promise<boolean> {
+  // 26/11 : « de la part de X » → X devient client prioritaire (priority-referral)
+  void import('./priority-referral.js').then(m => m.detectReferral(chat, text)).catch(() => {});
   return serial(() => recordDemandeNow(ch, chat, text, status, extra));
 }
 

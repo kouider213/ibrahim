@@ -67,6 +67,7 @@ export async function jobPriorityEarlyAccess(): Promise<string> {
       // Déjà réservés sur la vague : rien à leur envoyer
       const booked = new Set(B.filter(b => BUSY.includes(String(b.status).toUpperCase()) && b.start_date <= w.to && b.end_date >= w.from).map(b => key9(b.client_phone)));
       const todo = prio.filter(p => !booked.has(key9(p.phone)));
+      if (!todo.length) continue;
       if (!free.length) { out.push(`⭐ Priorité ${w.name} : toutes tes voitures sont déjà prises du ${dfr(w.from)} au ${dfr(w.to)}. Je ne préviens pas tes ${todo.length} client(s) prioritaire(s) : il n'y a rien à leur proposer. Si une réservation est annulée, je te les propose en premier.`); continue; }
       const lines = todo.map(p => { const lang = (B.find(b => key9(b.client_phone) === key9(p.phone))?.client_lang === 'ar') ? 'ar' : 'fr'; const l = wa(p.phone, earlyText(p, w, free.length, lang)); return l ? `⭐ ${p.name} (${p.uses} ami${p.uses > 1 ? 's' : ''} amené${p.uses > 1 ? 's' : ''})\n👉 ${l}` : `⭐ ${p.name} : pas de numéro valable`; });
       if (lines.length) out.push(`⭐ Accès prioritaire ${w.name} (${dfr(w.from)} – ${dfr(w.to)}) : il reste ${free.length} voiture(s) libre(s) sur ${C.length}. Tes clients prioritaires sont prévenus AVANT la campagne. Appuie sur chaque lien, le message est prêt :\n\n${lines.join('\n\n')}`);
@@ -76,7 +77,7 @@ export async function jobPriorityEarlyAccess(): Promise<string> {
     for (const b of freed) {
       if (await kvGet(`prio:freed:${b.id}`)) continue;
       await kvSet(`prio:freed:${b.id}`, '1', 120 * 86_400);
-      if (taken.has(b.car_id)) continue;   // déjà reprise par quelqu'un d'autre
+      if (taken.has(b.car_id) || !prio.length) continue;   // déjà reprise par quelqu'un d'autre / aucun prioritaire
       const car = C.find(c => c.id === b.car_id)?.name ?? 'une voiture';
       const who = prio.filter(p => key9(p.phone) !== key9(b.client_phone));
       out.push(`🔓 ${car} se libère du ${dfr(b.start_date)} au ${dfr(b.end_date)} (${w.name}, annulation de ${b.client_name}).`
@@ -85,4 +86,49 @@ export async function jobPriorityEarlyAccess(): Promise<string> {
   }
   if (out.length) await queueTelegramMessage(out.join('\n\n———\n\n')).catch(() => {});
   return out.length ? `${out.length} message(s)` : 'rien';
+}
+
+// ── Le nouveau client dit « de la part de X » → X devient prioritaire tout seul ─────────────────────────────────────────
+// Le remerciement promet : « il nous donne simplement votre nom ». Sans ça, personne ne devenait prioritaire (il fallait
+// créer un code et appuyer sur ＋ à la main). Un message WhatsApp/TikTok qui cite un ANCIEN client avec un mot de
+// recommandation → +1 dans PARRAINAGE (fiche créée si besoin) + Kouider prévenu. Une seule fois par discussion.
+const REF_WORDS = /de la part d[e'’]|envoy[ée]e?s? par|recommand[ée]e?s? par|conseill[ée]e?s? par|m'a donn[ée] (?:votre|ton|le) num|m'a parl[ée] de vous|من طرف|من عند|بعثني|men ?tarf|mn ?tarf|men ?3and|mn ?3nd|b3atni|ba3thni/i;
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+export async function detectReferral(chat: string, text: string, dry = false): Promise<string | null> {
+  if (!REF_WORDS.test(text)) return null;
+  const guard = `prio:refseen:${key9(chat) || norm(chat)}`;
+  if (!dry && await kvGet(guard)) return null;
+  const { data } = await supabase.from('bookings').select('client_name, client_phone, status').in('status', ['COMPLETED', 'ACTIVE', 'CONFIRMED']).limit(2000);
+  const t = ` ${norm(text)} `, me = key9(chat), meN = norm(chat);
+  const seen = new Map<string, { name: string; phone: string | null }>();
+  for (const b of (data ?? []) as Array<{ client_name: string | null; client_phone: string | null }>) {
+    const n = norm(b.client_name ?? ''); if (n.length < 3) continue;
+    if ((me && key9(b.client_phone) === me) || n === meN) continue;          // pas soi-même
+    if (!seen.has(n)) seen.set(n, { name: (b.client_name ?? '').trim(), phone: b.client_phone });
+  }
+  // 1) nom complet cité  2) sinon prénom seul, s'il n'y a qu'UN ancien client avec ce prénom (sinon on ne devine pas)
+  let hit = [...seen.entries()].filter(([n]) => n.includes(' ') && t.includes(` ${n} `));
+  if (!hit.length) {
+    const byFirst = new Map<string, Array<[string, { name: string; phone: string | null }]>>();
+    for (const e of seen) { const f = e[0].split(' ')[0]!; if (f.length >= 3) byFirst.set(f, [...(byFirst.get(f) ?? []), e]); }
+    hit = [...byFirst.entries()].filter(([f, l]) => l.length === 1 && t.includes(` ${f} `)).map(([, l]) => l[0]!);
+  }
+  if (hit.length !== 1) return null;
+  const who = hit[0]![1];
+  if (dry) return who.name;
+  await kvSet(guard, who.name, 365 * 86_400);
+  const { data: refs } = await supabase.from('referrals').select('id, code, referrer_phone, referrer_name, uses').limit(500);
+  const R = (refs ?? []) as Array<{ id: string; code: string; referrer_phone: string | null; referrer_name: string | null; uses: number }>;
+  const ex = R.find(r => (key9(who.phone) && key9(r.referrer_phone) === key9(who.phone)) || norm(r.referrer_name ?? '') === norm(who.name));
+  let uses = 1;
+  if (ex) { uses = (ex.uses ?? 0) + 1; await supabase.from('referrals').update({ uses }).eq('id', ex.id); }
+  else {
+    const base = who.name.replace(/[^A-Za-z]/g, '').slice(0, 4).toUpperCase() || 'FIK';
+    const code = base + Array.from({ length: 3 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
+    await supabase.from('referrals').insert({ code, referrer_name: who.name, referrer_phone: who.phone, uses: 1, note: `auto 26/11 : ${chat} vient de sa part` });
+  }
+  const msg = `⭐ ${chat} dit venir de la part de ${who.name}. ${who.name} devient client prioritaire (${uses} ami${uses > 1 ? 's' : ''} amené${uses > 1 ? 's' : ''}). Si c'est faux, corrige dans PARRAINAGE.`;
+  await queueTelegramMessage(msg).catch(() => {});
+  return msg;
 }
