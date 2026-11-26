@@ -396,24 +396,29 @@ async function pubFollowUp(g: Growth): Promise<void> {
 }
 export async function jobWeeklyMeeting(): Promise<void> { await weeklyMeeting(true).catch(e => console.warn('[tt-growth] réunion', e)); }
 
-/** 24/11 « booster mon TikTok » : la régularité d'abord. Jour prévu dans le calendrier → le matin, la vidéo du jour + bouton (message, jamais d'appel).
- *  Rien si une pub a déjà été créée ou publiée aujourd'hui. */
+/** 26/11 Kouider : « fais en sorte qu'il crée autant de vidéos que possible pour que je sois régulier ».
+ *  Chaque matin 10h15 : la pub du jour est FABRIQUÉE toute seule (idée du calendrier de l'équipe si elle existe, sinon pub libre),
+ *  en vraies vidéos filmées / vraies photos (free_only : 0 €, aucune voiture déformée). Prête → boutons publier maintenant /
+ *  au meilleur moment / non (offerPubChoice) : il ne reste qu'à appuyer. Rien n'est publié sans son choix.
+ *  Pas de pub si : déjà une créée ou publiée aujourd'hui, ou 2 pubs prêtes depuis 48 h pas encore publiées (pas d'empilement). */
 export async function jobDailyPlan(): Promise<void> {
-  const g = await getGrowth();
-  if (!g) return;
-  const today = weekPlan(g)[0];
-  if (!today?.idea) return;
   const day = new Date().toISOString().slice(0, 10);
   if (await kvGet(`tt:dailyplan:${day}`).catch(() => null)) return;
-  const { postedPubIds } = await import('./tiktok-pub.js');
-  if ((await postedPubIds()).some(p => p.at.slice(0, 10) === day)) return;
+  const { postedPubIds, tiktokPubTool } = await import('./tiktok-pub.js');
+  const posted = await postedPubIds();
+  if (posted.some(p => p.at.slice(0, 10) === day)) return;
   const { listStudioJobs } = await import('./video-studio.js');
-  if ((await listStudioJobs().catch(() => ({ jobs: [] as Array<{ planId?: string; createdAt: string }> }))).jobs.some(j => j.planId === 'pub' && j.createdAt.slice(0, 10) === day)) return;
+  const pubs = (await listStudioJobs().catch(() => ({ jobs: [] as Array<{ id: string; planId?: string; status: string; createdAt: string; updatedAt: string }> }))).jobs.filter(j => j.planId === 'pub');
+  if (pubs.some(j => j.createdAt.slice(0, 10) === day)) return;
+  const waiting = pubs.filter(j => j.status === 'done' && Date.now() - Date.parse(j.updatedAt) < 48 * 3600_000 && !posted.some(p => p.id === j.id));
   await kvSet(`tt:dailyplan:${day}`, '1', 2 * 86_400).catch(() => {});
-  const { createDecision } = await import('../integrations/conscience.js');
-  const i = today.idea;
-  await createDecision(`🗓️ TikTok aujourd'hui ${'⭐'.repeat(today.stars)} : poste vers ${today.prime} (heure d'Oran). Vidéo prévue par l'équipe : « ${i.title} » — hook « ${i.hook} ».`, [
-    { label: '🎬 Crée-la (prête dans 10 min)', tool: 'video_studio', input: { action: 'pub_tiktok', idea: `${i.title}. Hook : « ${i.hook} ». Format : ${i.format}. ${i.why}` } },
-    { label: 'Pas aujourd\'hui', say: 'OK, pas de vidéo aujourd\'hui.' },
-  ]);
+  if (waiting.length >= 2) {
+    await queueTelegramMessage(`🎬 Pas de nouvelle pub aujourd'hui : ${waiting.length} pubs prêtes t'attendent déjà. Appuie sur « publier » sous l'une d'elles (ou dis « publie la pub au meilleur moment »), et demain je t'en refais une.`).catch(() => {});
+    return;
+  }
+  const g = await getGrowth().catch(() => null);
+  const i = g ? weekPlan(g)[0]?.idea : undefined;
+  const r = await tiktokPubTool({ idea: i ? `${i.title}. Hook : « ${i.hook} ». Format : ${i.format}. ${i.why}` : '', free_only: true });
+  console.log(`[tt-daily-plan] ${r.slice(0, 160)}`);
+  if (/^🎬 Pub TikTok lancée/.test(r)) await queueTelegramMessage(`🎬 Pub du jour en préparation${i ? ` : « ${i.title} »` : ''} (tes vraies vidéos et photos, 0 €). Prête dans 10 min environ, tu choisiras quand la publier.`).catch(() => {});
 }

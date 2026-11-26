@@ -761,7 +761,8 @@ export async function tiktokPubTool(input: Record<string, unknown>, actor = 'kou
     const cars = (wanted.length ? wanted : DEFAULT_CARS).map(n => findCar(all, n)).filter((c): c is Car => !!c);
     scenes = cars.map(c => ({ cars: [c], label: c.category.toUpperCase(), scene: 'Oran seafront corniche at golden hour, Mediterranean sea, palm trees', action: 'the car drives slowly toward the camera, headlights on', camera: 'travelling' }));
   }
-  const model = await bestModel();
+  // 26/11 : pub automatique du jour = free_only → vraies vidéos / vraies photos seulement (0 €, aucune déformation IA)
+  const model = input['free_only'] === true ? 'gratuit' as const : await bestModel();
   // 26/11 Kouider (corrige le malentendu du matin) : « pas pro » = la vidéo IA où les voitures se déformaient et les plaques
   // changeaient — PAS les plans photo. Sans crédit IA, les scènes non filmées restent sur la VRAIE photo (photoClip).
   await loadLearnedSlots();

@@ -570,7 +570,7 @@ const JOBS = [
   },
   {
     name:  'tt-daily-plan',
-    cron:  '15 10 * * *',           // 24/11 : jour prévu du calendrier TikTok → vidéo du jour proposée (bouton), message seulement
+    cron:  '15 10 * * *',           // 26/11 : pub du jour FABRIQUÉE chaque matin (vraies vidéos/photos, 0 €) → boutons publier
     tz:    'Europe/Brussels',
   },
   {

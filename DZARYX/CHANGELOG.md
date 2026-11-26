@@ -1,3 +1,6 @@
+## 26/11 — Une pub TikTok fabriquée chaque jour, toute seule
+Kouider : « qu'il crée autant de vidéos que possible pour que je sois régulier ». jobDailyPlan (10h15) : chaque jour, pub_tiktok free_only (vraies vidéos/photos, 0 €, jamais de vidéo IA qui déforme), idée du calendrier de l'équipe sinon pub libre → boutons publier maintenant / meilleur moment / non. Saute si pub créée ou publiée aujourd'hui ; si 2 pubs prêtes depuis 48 h non publiées → simple rappel, pas d'empilement.
+
 ## 26/11 — Pubs en plans photo de nouveau autorisées (malentendu du matin corrigé)
 Kouider : « pas assez pro » = la pub d'hier où les voitures se déformaient et les plaques changeaient (vidéo IA), PAS les plans photo. Le blocage d'eff66bb8 (« pas de pub sans vidéo filmée quand le crédit IA est vide ») est retiré de pub_tiktok (+ force_photo, + description d'outil). Sans crédit : vraies vidéos filmées sinon VRAIE photo (photoClip). Gardé : bestModel vérifie fal ; vidéos auto du studio toujours sautées sans crédit.
 
