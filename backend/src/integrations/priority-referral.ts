@@ -35,12 +35,12 @@ export async function findPriority(chat: string): Promise<PriorityClient | null>
 export function priorityRule(p: PriorityClient): string {
   return `\n\nCE CLIENT EST PRIORITAIRE (il nous a déjà amené ${p.uses} ami(s)) : il a la priorité pour réserver en haute saison (fêtes, Aïd, vacances, été).
 - S'il y a une voiture libre sur ses dates : propose-la tout de suite et dis-lui qu'on la lui garde dès qu'il confirme.
-- Si TOUT EST PRIS sur ses dates : ne promets JAMAIS de retirer la voiture d'un autre client (le premier réservé garde sa voiture). Dis-le honnêtement, propose les dates les plus proches où une voiture est libre ou une autre voiture libre, et dis-lui qu'il est le PREMIER prévenu si une voiture se libère sur ses dates.`;
+- Si TOUT EST PRIS sur ses dates : ne promets JAMAIS de retirer la voiture d'un autre client (le premier réservé garde sa voiture). Dis-le honnêtement, dis qu'on regarde d'autres dates ou une autre voiture (sans jamais affirmer qu'une voiture est libre : Kouider vérifie), et dis-lui qu'il est le PREMIER prévenu si une voiture se libère sur ses dates.`;
 }
 
-function earlyText(c: PriorityClient, w: { name: string; short: string; from: string; to: string }, free: number, lang: 'fr' | 'ar'): string {
-  if (lang === 'ar') return `السلام عليكم ${first(c.name)} 👋 معاك قويدر من FIK Conciergerie. بفضلك جاونا كليان جداد، ولهذا عندك الأولوية: الحجز تاع ${w.name} (${dfr(w.from)} – ${dfr(w.to)}) مفتوح ليك قبل الناس كامل. باقي ${free} طوموبيل. إذا راك هابط، بعثلي التواريخ ونحجزلك 🙏`;
-  return `Salam ${first(c.name)} 👋 C'est Kouider, de FIK Conciergerie. Grâce à vous, de nouveaux clients nous ont fait confiance : vous avez donc la priorité. Les réservations pour ${w.short} (${dfr(w.from)} – ${dfr(w.to)}) vous sont ouvertes avant tout le monde, il reste ${free} voiture${free > 1 ? 's' : ''}. Si vous descendez, envoyez-moi vos dates et je vous la garde 🙏`;
+function earlyText(c: PriorityClient, w: { name: string; short: string; from: string; to: string }, _free: number, lang: 'fr' | 'ar'): string {
+  if (lang === 'ar') return `السلام عليكم ${first(c.name)} 👋 معاك قويدر من FIK Conciergerie. بفضلك جاونا كليان جداد، ولهذا عندك الأولوية: الحجز تاع ${w.name} (${dfr(w.from)} – ${dfr(w.to)}) مفتوح ليك قبل الناس كامل. إذا راك هابط، بعثلي التواريخ بالخف ونشوفلك بالأولوية 🙏`;
+  return `Salam ${first(c.name)} 👋 C'est Kouider, de FIK Conciergerie. Grâce à vous, de nouveaux clients nous ont fait confiance : vous avez donc la priorité. Les réservations pour ${w.short} (${dfr(w.from)} – ${dfr(w.to)}) vous sont ouvertes avant tout le monde. Si vous descendez, envoyez-moi vos dates au plus vite et je vérifie en priorité pour vous 🙏`;
 }
 const wa = (phone: string | null, text: string) => { const d = String(phone ?? '').replace(/\D/g, '').replace(/^00/, ''); return d.length >= 9 ? `https://wa.me/${d}?text=${encodeURIComponent(text)}` : ''; };
 

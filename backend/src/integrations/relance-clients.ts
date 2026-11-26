@@ -103,10 +103,10 @@ export async function paniers(today: string): Promise<Relance[]> {
     const car = info.car || (en ? 'a car' : 'une voiture');
     const ageAsk = info.age ? '' : en ? ' I will just need the driver\'s age.' : ' Il me faudra juste l\'âge du conducteur.';
     const draft = en
-      ? (free ? `Hello ${name}, Kouider from FIK Conciergerie 🙂 You started a booking for the ${car}${dates} on our website. It's still available: shall I hold it for you?${ageAsk}`
-        : `Hello ${name}, Kouider from FIK Conciergerie 🙂 You started a booking for the ${car}${dates} on our website. It has just been booked on those dates, ${alt ? `but the ${alt} is free and similar.` : 'but I can offer you another model.'} Shall I hold it for you?${ageAsk}`)
-      : (free ? `Bonjour ${name}, c'est Kouider de FIK Conciergerie 🙂 Vous avez commencé une réservation pour la ${car}${dates} sur notre site. Elle est toujours disponible : je vous la bloque ?${ageAsk}`
-        : `Bonjour ${name}, c'est Kouider de FIK Conciergerie 🙂 Vous avez commencé une réservation pour la ${car}${dates} sur notre site. Elle vient d'être réservée sur ces dates, ${alt ? `mais la ${alt} est libre et équivalente.` : 'mais je peux vous proposer un autre modèle.'} Je vous la bloque ?${ageAsk}`);
+      // 26/11 Kouider : jamais « toujours disponible / la X est libre » — il vérifie lui-même à chaque fois
+      ? `Hello ${name}, Kouider from FIK Conciergerie 🙂 You started a booking for the ${car}${dates} on our website. Are you still interested? If so, I'll check availability for your dates and get back to you quickly.${ageAsk}`
+      : `Bonjour ${name}, c'est Kouider de FIK Conciergerie 🙂 Vous avez commencé une réservation pour la ${car}${dates} sur notre site. Toujours intéressé(e) ? Si oui, je vérifie la disponibilité pour vos dates et je reviens vers vous rapidement.${ageAsk}`;
+    void free; void alt;
     const phone = waPhone(l['client_phone']);
     out.push({ key: `panier:${l['id']}`, kind: 'panier', chat: phone ?? String(l['client_phone'] ?? ''), ask: !phone,
       label: `${l['client_name']} — réservation pas terminée sur le site`,

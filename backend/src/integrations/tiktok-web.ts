@@ -3,6 +3,7 @@
 // 26/11 : « comme avec WhatsApp » → message privé = réponse proposée, « oui » = envoyée sur TikTok par le PC cloud (rien sans son oui).
 // Commentaires publics : réponse à copier (pas d'envoi).
 import * as CL from './client-lang.js';
+import * as ND from './no-dispo.js';
 import { kvGet, kvSet } from './app-store.js';
 import { recordDemande, looksLikeDemande, listWaDemandes, markDemande, WA_CLOSED } from './wa-demandes.js';
 import { cloudEmit, isCloudPcOnline } from '../actions/handlers/cloudpc-relay.js';
@@ -59,12 +60,14 @@ Règles : MÊME langue et même alphabet que le client (s'il écrit en français
 ${CL.langRule(it.text)} Ne promets JAMAIS qu'une voiture est disponible (Kouider vérifie). Conditions EXACTES ci-dessous — n'en cite aucune autre, n'invente rien :
 ${cond}
  Demande de location → demande les dates (début et fin) et l'âge du conducteur (35 ans minimum). Jamais de prix${it.kind === 'comment' ? ' en public' : ''}. Pour réserver : WhatsApp +32466311469 (écris le numéro tel quel, en chiffres latins).${it.kind === 'comment' ? ' Commentaire public : réponse très courte qui invite à écrire en privé ou sur WhatsApp.' : ''}
+${ND.NO_DISPO_RULE}
 Réponds UNIQUEMENT avec le texte de la réponse, rien d'autre.${extra ? `\n${extra}` : ''}`;
   const r = await runReadOnlyAgent(convo
     ? `Discussion privée TikTok avec « ${it.name} » (dans l'ordre ; « FIK » = nous). ${extra ? 'Écris le message de reprise décrit plus haut' : 'Réponds à son DERNIER message'}, sans redemander ce qu'il a déjà donné :\n${convo.slice(-2500)}`
     : `${it.kind === 'dm' ? 'Message privé' : 'Commentaire'} TikTok de « ${it.name} » :\n« ${it.text.slice(0, 800)} »`, { system, sessionId: 'tt_draft', maxRounds: 1, maxTokens: 400 });
   let out = r.text.trim().replace(/^["«]\s*|\s*["»]$/g, '').slice(0, 700);
   if (out && it.text && !CL.replyMatches(it.text, out)) out = await CL.rewriteInLang(out, it.text).catch(() => out);   // 26/11 langue du client
+  if (out && ND.claimsAvailability(out)) out = ND.checkingText(CL.detectClientLang(it.text || convo), `${it.text} ${convo.slice(-600)}`);   // 26/11 jamais de dispo promise
   return out;
 }
 

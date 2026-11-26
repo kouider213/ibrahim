@@ -1,3 +1,6 @@
+## 26/11 — Jamais de dispo annoncée à un client
+Kouider (capture WA : « Chendkom les voitures disponibles ?? » → réponse « nos véhicules… ») : « faut jamais qu'il dise qu'il a un véhicule de dispo, moi-même je dois demander à chaque fois à Houari ; à partir du 15 décembre on est presque au complet ». Nouveau integrations/no-dispo.ts : NO_DISPO_RULE dans les prompts WA + TikTok (plus de check_car_availability pour répondre au client), claimsAvailability() filtre la réponse proposée → checkingText() « on vérifie la dispo pour vos dates et on revient vers vous » dans la langue du client (+ « période très demandée » si décembre/janvier). Relance panier : plus de « toujours disponible / la X est libre ». Accès prioritaire : plus de « il reste N voitures ». Houari jamais nommé au client.
+
 ## 26/11 — Relances : jamais un message de plus d'une semaine
 Kouider : « si c'est un message de plus de 1 semaine on relance pas ». relance-clients : MAX_AGE 7 j pour le réveil TikTok (ttWinback, avant 200 j → Minou du 23/10 proposé) et ttSilent (avant 14 j ; client sans réponse > 7 j sauté). WhatsApp (1-7 j) et paniers (4 j) l'étaient déjà. Titre « 4 clients » au lieu de 5 corrigé (present() vidait le même tableau). File du 26/11 (5 anciens TikTok) vidée.
 
