@@ -704,6 +704,11 @@ const JOBS = [
     tz:    'Africa/Algiers',
   },
   {
+    name:  'priority-early-access',
+    cron:  '30 9 * * *',            // 26/11 parrainage = priorité haute saison : accès prioritaire 6 sem. avant une vague + voiture libérée → prioritaires d'abord
+    tz:    'Africa/Algiers',
+  },
+  {
     name:  'fik-google-post',
     cron:  '0 10 * * 1',            // lundi 10h (jour off) — 26/11 post Google Maps de la semaine pour la fiche FIK, prêt à coller + photo
     tz:    'Africa/Algiers',
@@ -967,6 +972,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'flash-offer':             async () => { console.log(`[flash-offer] ${await jobFlashOffer()}`); },
   'visibility-weekly':       async () => { console.log(`[visibility-weekly] ${await (await import('../integrations/site-visibility.js')).jobVisibilityWeekly()}`); },
   'review-whatsapp':         async () => { await jobReviewWhatsapp(); },
+  'priority-early-access':   async () => { console.log(`[priority-early-access] ${await (await import('../integrations/priority-referral.js')).jobPriorityEarlyAccess()}`); },
   'fik-google-post':         async () => { console.log(`[fik-google-post] ${await (await import('../marketing/fik-google-post.js')).fikGooglePost()}`); },
   'daily-recap-call':        async () => { await jobDailyRecapCall(); },
   'mail-reply-call':         async () => { await jobMailReplyCall(); },

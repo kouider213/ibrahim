@@ -233,9 +233,9 @@ export async function jobBirthdays(): Promise<void> {
 
 function reviewText(first: string, _id: string, lang: string): string {
   const link = GOOGLE_REVIEW_URL;
-  if (lang === 'ar') return `مرحباً ${first}، شكراً جزيلاً لثقتك في Fik Conciergerie 🙏 إذا كنت راضياً عن خدماتنا، لا تتردد في ترك تقييم على Google، فهو يساعدنا كثيراً: ${link}\nنتمنى رؤيتك قريباً!`;
-  if (lang === 'en') return `Hello ${first}, thank you so much for choosing Fik Conciergerie 🙏 If you were satisfied with our services, feel free to leave us a Google review, it really helps us: ${link}\nHope to see you again soon!`;
-  return `Bonjour ${first}, merci beaucoup d'avoir choisi Fik Conciergerie pour votre location 🙏 Si vous avez été satisfait de nos services, n'hésitez pas à nous laisser un avis Google, ça nous aide énormément : ${link}\nAu plaisir de vous revoir très bientôt !`;
+  if (lang === 'ar') return `مرحباً ${first}، شكراً جزيلاً لثقتك في Fik Conciergerie 🙏 إذا كنت راضياً عن خدماتنا، لا تتردد في ترك تقييم على Google، فهو يساعدنا كثيراً: ${link}\n⭐ إذا أحد من عائلتك أو أصحابك كرى عندنا من طرفك (يعطينا اسمك)، تولي عندك الأولوية في الحجز في الصيف والعيد والعطل.\nنتمنى رؤيتك قريباً!`;
+  if (lang === 'en') return `Hello ${first}, thank you so much for choosing Fik Conciergerie 🙏 If you were satisfied with our services, feel free to leave us a Google review, it really helps us: ${link}\n⭐ If a friend or relative rents with us on your behalf (they just give us your name), you get priority booking for summer, Eid and holidays.\nHope to see you again soon!`;
+  return `Bonjour ${first}, merci beaucoup d'avoir choisi Fik Conciergerie pour votre location 🙏 Si vous avez été satisfait de nos services, n'hésitez pas à nous laisser un avis Google, ça nous aide énormément : ${link}\n⭐ Si un proche ou un ami loue chez nous de votre part (il nous donne simplement votre nom), vous aurez la priorité pour réserver l'été, à l'Aïd et pendant les vacances.\nAu plaisir de vous revoir très bientôt !`;
 }
 
 /** Location terminée hier → remerciement + lien d'avis Google ENVOYÉ AUTOMATIQUEMENT sur WhatsApp (Kouider 05/11).

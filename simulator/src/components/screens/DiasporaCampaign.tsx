@@ -21,9 +21,9 @@ const readSent = (w: string): Record<string, number> => { try { return JSON.pars
 function clientMsg(c: Client, w: Wave, pct: number, code: string | null): string {
   const remise = pct > 0 && w.deadline ? ` −${pct} % si tu réserves avant le ${d(w.deadline, { day: 'numeric', month: 'long' })}.` : '';
   if (c.lang === 'ar') {
-    return `السلام عليكم ${first(c.name)} 👋 معاك قويدر من FIK Conciergerie. راك هابط لوهران في ${w.name} (${d(w.from)} – ${d(w.to)}) ؟ احجز طوموبيلك من دابا${pct > 0 && w.deadline ? ` : −${pct} % إلا حجزت قبل ${d(w.deadline)}` : ''}${w.free.length <= 5 ? `، بقاولنا ${w.free.length} طوموبيلات برك.` : '، الطوموبيلات يروحو بالخف فهاد الوقت.'}${code ? `\nعايلتك ولا صحابك هابطين تاني ؟ بالكود ${code} يديو −5 % وانت تاني في السفرة الجاية.` : ''}\nfikconciergerie.com`;
+    return `السلام عليكم ${first(c.name)} 👋 معاك قويدر من FIK Conciergerie. راك هابط لوهران في ${w.name} (${d(w.from)} – ${d(w.to)}) ؟ احجز طوموبيلك من دابا${pct > 0 && w.deadline ? ` : −${pct} % إلا حجزت قبل ${d(w.deadline)}` : ''}${w.free.length <= 5 ? `، بقاولنا ${w.free.length} طوموبيلات برك.` : '، الطوموبيلات يروحو بالخف فهاد الوقت.'}${code ? `\nعايلتك ولا صحابك هابطين تاني ؟ يعطونا الكود ${code} وتولي عندك الأولوية في الحجز في الصيف والعيد.` : ''}\nfikconciergerie.com`;
   }
-  return `Salam ${first(c.name)} 👋 C'est Kouider, de FIK Conciergerie. Tu descends à Oran pour ${w.short} (${d(w.from)} – ${d(w.to)}) ? Réserve ta voiture dès maintenant :${remise || ''} ${w.free.length <= 5 ? `Il ne nous reste que ${w.free.length} voiture${w.free.length > 1 ? 's' : ''} libre${w.free.length > 1 ? 's' : ''} sur cette période` : 'Les voitures partent vite à cette période'}, tout est prêt à ton arrivée.${code ? `\n\nTa famille ou tes amis descendent aussi ? Avec ton code ${code}, ils ont −5 %, et toi aussi au prochain voyage.` : ''}\n\nRéserve sur fikconciergerie.com ou réponds-moi ici.`;
+  return `Salam ${first(c.name)} 👋 C'est Kouider, de FIK Conciergerie. Tu descends à Oran pour ${w.short} (${d(w.from)} – ${d(w.to)}) ? Réserve ta voiture dès maintenant :${remise || ''} ${w.free.length <= 5 ? `Il ne nous reste que ${w.free.length} voiture${w.free.length > 1 ? 's' : ''} libre${w.free.length > 1 ? 's' : ''} sur cette période` : 'Les voitures partent vite à cette période'}, tout est prêt à ton arrivée.${code ? `\n\nTa famille ou tes amis descendent aussi ? Qu'ils nous donnent ton code ${code} : tu auras la priorité pour réserver l'été, à l'Aïd et pendant les vacances.` : ''}\n\nRéserve sur fikconciergerie.com ou réponds-moi ici.`;
 }
 const siteText = (w: Wave, pct: number) => `${w.name} à Oran (${d(w.from)} – ${d(w.to)}) : ${pct > 0 && w.deadline ? `réservez votre voiture avant le ${d(w.deadline, { day: 'numeric', month: 'long' })} et profitez de −${pct} %` : 'réservez votre voiture dès maintenant'}. Places limitées.`;
 const tiktokText = (w: Wave, pct: number) => `Tu descends à Oran pour ${w.short} ? 🇩🇿✈️\nTa voiture t'attend : ${w.free.slice(0, 4).map(c => c.name).join(', ')}${w.free.length > 4 ? '…' : ''}\n${pct > 0 && w.deadline ? `Réserve avant le ${d(w.deadline)} = −${pct} %` : 'Réserve tôt, les places partent vite'} 👉 lien en bio (fikconciergerie.com)\n\n#oran #wahran #diaspora #algerie #dz #locationvoiture #vacances #bladi`;
@@ -84,7 +84,7 @@ function Campaign({ w, data, onClose, onAnn }: { w: Wave; data: Data; onClose: (
     let code = codes[c.phone] ?? null;
     try {
       if (withCode && !code) {
-        const r = await apiFetch<{ referral: { code: string } }>('/api/referrals', { method: 'POST', body: JSON.stringify({ referrer_name: c.name, referrer_phone: '+' + c.phone, reward: '−5 % pour la famille, −5 % pour le parrain', note: `campagne ${w.name}` }) });
+        const r = await apiFetch<{ referral: { code: string } }>('/api/referrals', { method: 'POST', body: JSON.stringify({ referrer_name: c.name, referrer_phone: '+' + c.phone, reward: 'Priorité haute saison pour le parrain', note: `campagne ${w.name}` }) });
         code = r.referral.code; setCodes(x => ({ ...x, [c.phone]: code! }));
       }
     } catch { /* sans code : le message part quand même */ }
@@ -113,7 +113,7 @@ function Campaign({ w, data, onClose, onAnn }: { w: Wave; data: Data; onClose: (
         <Step n={2} title={`Tes anciens clients (${data.clients.length})`} sub="Un message perso sur WhatsApp, tu l'envoies toi-même. Ceux qui ont déjà réservé cette période ne sont pas dans la liste.">
           <label style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13.5, marginBottom: 10, cursor: 'pointer' }}>
             <input type="checkbox" checked={withCode} onChange={e => setWithCode(e.target.checked)} style={{ width: 18, height: 18, accentColor: '#f59e0b' }} />
-            <span>Ajouter un <b>code parrain</b> : sa famille et ses amis qui descendent ont −5 % (nouveaux clients)</span>
+            <span>Ajouter un <b>code parrain</b> : si sa famille ou ses amis louent avec, il a la priorité en haute saison (pas de remise)</span>
           </label>
           {data.clients.length === 0 && <div style={{ fontSize: 13, color: T.muted }}>Aucun ancien client avec un numéro WhatsApp valide.</div>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>

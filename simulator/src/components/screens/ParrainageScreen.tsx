@@ -11,7 +11,7 @@ export default function ParrainageScreen() {
   const [show, setShow] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [reward, setReward] = useState('10% de réduction');
+  const [reward, setReward] = useState('Priorité haute saison');
   const [busy, setBusy] = useState('');
   const [confirmDel, setConfirmDel] = useState('');
   const [toast, setToast] = useState('');
@@ -37,7 +37,7 @@ export default function ParrainageScreen() {
   const del = async (r: Referral) => { setBusy(r.id); try { await business.referralDelete(r.id); setList(xs => xs.filter(x => x.id !== r.id)); } catch { flash('Erreur'); } finally { setBusy(''); } };
 
   const share = (r: Referral) => {
-    const msg = `🎁 Profitez de mon code parrainage Fik Conciergerie : *${r.code}*\n${r.reward ? `→ ${r.reward} sur votre location/séjour à Oran !\n` : ''}Réservez et donnez ce code. wa.me / fikconciergerie.com 🙏`;
+    const msg = `🚗 Vous descendez à Oran ? Je loue mes voitures chez Fik Conciergerie, à l'aéroport d'Oran. Réservez sur fikconciergerie.com et donnez mon code : *${r.code}* 🙏`;
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
@@ -80,7 +80,7 @@ export default function ParrainageScreen() {
           ))}
         </div>
       )}
-      <div style={{ fontSize: 13, color: T.muted, marginTop: 16, lineHeight: 1.5 }}><Ico e="💡" />Quand un client réserve avec un code, touche ＋ sur ce code pour le compter et penser à la récompense du parrain.</div>
+      <div style={{ fontSize: 13, color: T.muted, marginTop: 16, lineHeight: 1.5 }}><Ico e="💡" />Quand un client réserve avec un code, touche ＋ sur ce code pour le compter : dès 1 ami amené, le parrain devient prioritaire en haute saison (Dzaryx le prévient avant tout le monde et le marque ⭐ sur WhatsApp).</div>
 
       {show && (
         <Sheet title="Nouveau code parrain" subtitle="Le code est créé à partir du nom" accent={T.warn} onClose={() => setShow(false)}

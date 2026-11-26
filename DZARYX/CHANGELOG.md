@@ -1,3 +1,6 @@
+## 26/11 — Parrainage = priorité en haute saison (plus de remise)
+Kouider choisit l'option 1. integrations/priority-referral.ts : client avec code parrain compté (referrals.uses ≥ 1) = prioritaire. Job priority-early-access 9h30 : 6 semaines avant chaque vague (WAVES), messages prêts (1 appui) pour les prioritaires s'il reste des voitures ; si tout est pris → pas de message, Kouider prévenu. Réservation annulée/refusée sur une vague → voiture proposée d'abord aux prioritaires. WhatsApp : « ⭐ Client prioritaire » + règle du brouillon (jamais retirer la voiture d'un client déjà réservé ; autres dates/voiture + premier prévenu). Remerciement après location (fr/ar/en) explique l'avantage. App : campagne diaspora et PARRAINAGE sans −5 %/−10 %.
+
 ## 26/11 — Traduction française sous les messages TikTok (et réponses non françaises)
 Kouider : message TikTok en arabe sans traduction. client-lang frTranslations/frLines : « 🇫🇷 Traduction » du message client + « 🇫🇷 En français » de la réponse proposée si elle n'est pas en français (TikTok nouveau message, file de propositions, réécriture ; WhatsApp réponse proposée + nouvelle version). Rien ajouté si tout est en français.
 

@@ -294,10 +294,12 @@ export async function onWaNew(c: WaChat): Promise<void> {
   if (fromClient.length && ng && !DELICATE_RE.test(preview) && !isComplaint(preview) && await ng.nightGuardActive().catch(() => false))
     await ng.noteClientWaiting(name, preview).catch(() => {});
   let summary = preview, reply = '', kind = 'autre', translation = '';
+  // 26/11 : client qui nous a amené un ami = prioritaire en haute saison (jamais au prix d'une voiture déjà réservée par un autre)
+  const prio = await import('./priority-referral.js').then(m => m.findPriority(name).then(p => p ? { p, rule: m.priorityRule(p) } : null)).catch(() => null);
   try {
     const run = await runReadOnlyAgent(`Client WhatsApp « ${name} » (${c.unread} message(s) non lu(s)). Nouveau(x) message(s) du client :\n« ${preview} »`
       + (convo ? `\n\nDiscussion récente (contexte) :\n${convo}` : '') + `\n\n${CL.langRule(preview || clientText)}`,
-      { system: `${REPLY_SYSTEM}\n\nCONDITIONS EXACTES DE FIK (24/11 : n'en cite aucune autre — ex. il n'y a AUCUNE caution) :\n${await import('./night-guard.js').then(m => m.exactConditions()).catch(() => '')}`, sessionId: 'wa_web_draft', maxRounds: 4, maxTokens: 900 });
+      { system: `${REPLY_SYSTEM}\n\nCONDITIONS EXACTES DE FIK (24/11 : n'en cite aucune autre — ex. il n'y a AUCUNE caution) :\n${await import('./night-guard.js').then(m => m.exactConditions()).catch(() => '')}${prio?.rule ?? ''}`, sessionId: 'wa_web_draft', maxRounds: 4, maxTokens: 900 });
     const a = run.text.indexOf('{'), z = run.text.lastIndexOf('}');
     const o = JSON.parse(run.text.slice(a, z + 1)) as { summary?: string; reply?: string; kind?: string; translation?: string };
     summary = String(o.summary ?? preview); reply = String(o.reply ?? '').trim(); kind = String(o.kind ?? 'autre');
@@ -324,7 +326,7 @@ export async function onWaNew(c: WaChat): Promise<void> {
   // Montant en dinars dans le message → aussi en euros (change du square)
   const money = await import('./dzd-convert.js').then(m => m.dzdLine(preview)).catch(() => '');
   const flags = redFlags(clientText);
-  const text = `📲 WhatsApp — ${name}${c.unread > 1 ? ` (${c.unread} non lus)` : ''}\n« ${preview} »${money ? `\n${money}` : ''}`
+  const text = `📲 WhatsApp — ${name}${c.unread > 1 ? ` (${c.unread} non lus)` : ''}${prio ? `\n⭐ Client prioritaire (${prio.p.uses} ami${prio.p.uses > 1 ? 's' : ''} amené${prio.p.uses > 1 ? 's' : ''})` : ''}\n« ${preview} »${money ? `\n${money}` : ''}`
     + (flags.length ? `\n🚩 Attention : ${flags.join(' · ')}.` : '')
     + (translation ? `\n🇫🇷 Traduction : ${translation}` : '')
     + (reply ? `\n\n✍️ Réponse proposée :\n${reply}\n${(await CL.frLines('', reply)).reply}\nRéponds « oui » pour l'envoyer à ${name}${voiceCount ? ', « vocal » pour la lui envoyer en message vocal' : ''}, « non » pour laisser, ou dis-moi quoi changer.` : '');
