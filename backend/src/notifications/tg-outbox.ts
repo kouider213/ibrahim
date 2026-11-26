@@ -24,9 +24,11 @@ async function readHeld(): Promise<Held[]> {
   catch { return []; }
 }
 
-async function push(actor: string, m: TgOutMessage): Promise<void> {
+async function push(actor: string, m: TgOutMessage, passShield = false): Promise<void> {
   // 09/11 : le bouclier famille (automatique) ne retient plus les messages des clients WhatsApp ; « ne me dérange pas » oui
-  const clientDuringShield = /^(📲 WhatsApp|🌙 Gardien de nuit) — /u.test(m.text) && (await getDnd())?.why === 'bouclier famille';
+  // 26/11 (Kouider : « Dzaryx m'a pas prévenu qu'il a partagé la vidéo ») : la réponse à SON choix (pub publiée à l'heure qu'il a
+  // choisie) était gardée par le bouclier jusqu'à 22h30 → passShield la laisse passer (bouclier seulement, pas « ne me dérange pas »)
+  const clientDuringShield = (passShield || /^(📲 WhatsApp|🌙 Gardien de nuit) — /u.test(m.text)) && (await getDnd())?.why === 'bouclier famille';
   if (actor === 'kouider' && !clientDuringShield && !(await dndAllowsMessage())) {
     const held = await readHeld();
     held.push({ ...m, at: Date.now() });
@@ -47,7 +49,7 @@ async function logSent(text: string): Promise<void> {
   await kvSet('tg:sentlog', JSON.stringify(l.filter(x => Date.now() - x.at < 3 * 3600_000).slice(-40)), 4 * 3600);
 }
 
-export async function queueTelegramMessage(text: string, image?: string, actor = 'kouider', file?: TgOutMessage['file'], bypassDigest = false): Promise<void> {
+export async function queueTelegramMessage(text: string, image?: string, actor = 'kouider', file?: TgOutMessage['file'], bypassDigest = false, passShield = false): Promise<void> {
   if (actor === 'kouider') {   // 21/11 : surnoms interdits (« mon rebeu ») retirés de tout ce qui part
     const bw = await import('../conversation/banned-words.js');
     text = bw.scrubBanned(text, await bw.loadBanned().catch(() => []));
@@ -58,7 +60,7 @@ export async function queueTelegramMessage(text: string, image?: string, actor =
     if (route === 'drop') return;
     if (route === 'digest') { await addToDigest(text); return; }
   }
-  await push(actor, { text: text.slice(0, 4000), ...(image && image.length <= MAX_IMAGE_B64 ? { image } : {}), ...(file ? { file } : {}) });
+  await push(actor, { text: text.slice(0, 4000), ...(image && image.length <= MAX_IMAGE_B64 ? { image } : {}), ...(file ? { file } : {}) }, passShield);
 }
 
 /** Album de photos (liens publics, ex. Cloudinary) : tgcall l'envoie par groupes de 10, légende sur la 1re. */

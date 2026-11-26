@@ -967,9 +967,9 @@ export async function jobPubSlots(): Promise<void> {
     if (s.mode === 'publish') {
       const job = await findPub(s.jobId);
       const msg = job ? await publishPubTool({ job_id: job.id }) : `❌ Pub « ${s.title} » introuvable, pas publiée.`;
-      await queueTelegramMessage(msg, undefined, 'kouider', undefined, true).catch(() => {});
+      await queueTelegramMessage(msg, undefined, 'kouider', undefined, true, true).catch(() => {});   // son choix → passe le bouclier famille
     } else {
-      await queueTelegramMessage(`📲 C'est le meilleur moment pour ta pub TikTok « ${s.title} ». Réponds « publie la pub sur TikTok » et je la mets en ligne, ou poste-la toi-même (vidéo + légende dans Telegram).`).catch(() => {});
+      await queueTelegramMessage(`📲 C'est le meilleur moment pour ta pub TikTok « ${s.title} ». Réponds « publie la pub sur TikTok » et je la mets en ligne, ou poste-la toi-même (vidéo + légende dans Telegram).`, undefined, 'kouider', undefined, true, true).catch(() => {});
     }
   }
 }

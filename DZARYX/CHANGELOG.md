@@ -1,3 +1,6 @@
+## 26/11 — Pub publiée : prévenu même pendant le bouclier famille
+- Kouider : « Dzaryx m’a pas prévenu qu’il a partagé la vidéo ». Le « ✅ publiée sur ton TikTok » de 19h30 (créneau choisi) était gardé par le bouclier famille jusqu’à 22h30. queueTelegramMessage(…, passShield) : résultat de publication + rappel « meilleur moment » passent le bouclier (pas le « ne me dérange pas » explicite).
+
 ## 26/11 — FORME calories : plus d’huile devinée
 - Photo repas : huile/beurre/sauce comptés SEULEMENT si visibles (1 c. à soupe max/plat), sinon 5 g max (salade, sauté) et signalé ; toujours sur une ligne à part (✕). Lignes 0 g / 0 kcal retirées. Cas réel : bissara + pain-merguez + salade = 965 kcal dont 180 d’huile non visible → test texte 543 kcal.
 
