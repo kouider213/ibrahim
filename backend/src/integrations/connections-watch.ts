@@ -69,7 +69,7 @@ async function tell(text: string): Promise<void> {
   const beat = await kvGet('tgcall:heartbeat').catch(() => null);
   if (!beat || Date.now() - Date.parse(beat) > 12 * 60_000) {
     const { createDecision } = await import('./conscience.js');
-    await createDecision(`${text}\n\n(Message envoyé par le bot des notifs FIK, car Telegram Dzaryx est coupé.)`, [{ label: '👍 Vu', say: 'je redémarre le serveur dans l\'espace client si ça dure' }]).catch(() => {});
+    await createDecision(`${text}\n\n(Message envoyé par le bot des notifs FIK, car Telegram Dzaryx est coupé. En attendant, écris-moi ICI : je te réponds par ce bot, texte seulement.)`, [{ label: '👍 Vu', say: 'je redémarre le serveur dans l\'espace client si ça dure' }]).catch(() => {});
   }
 }
 

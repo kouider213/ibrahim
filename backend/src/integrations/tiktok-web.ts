@@ -68,11 +68,44 @@ Réponds UNIQUEMENT avec le texte de la réponse, rien d'autre.`;
 type R = { ok: boolean; error?: string; [k: string]: unknown };
 const PENDING = 'tt:pending';   // { chat, draft, queue: [noms suivants] } — le prochain message de Kouider (oui / non) décide
 
-export async function setTtPending(chat: string, draft: string, queue: string[] = []): Promise<void> {
-  await kvSet(PENDING, JSON.stringify({ chat, draft, queue }), 12 * 3600);
+export async function setTtPending(chat: string, draft: string, queue: string[] = [], relance = false): Promise<void> {
+  await kvSet(PENDING, JSON.stringify({ chat, draft, queue, relance }), 12 * 3600);
   await import('./whatsapp-web.js').then(m => m.clearWaPending()).catch(() => {});   // un seul « oui » en attente à la fois
 }
 export async function clearTtPending(): Promise<void> { await kvSet(PENDING, '', 60).catch(() => {}); }
+
+export interface TtMsg { me: boolean; text: string; when?: string }
+/** Discussion privée lue sur le PC cloud (null = injoignable ; [] = introuvable). La lire la marque « lue » sur TikTok. */
+export async function readTtChat(chat: string): Promise<TtMsg[] | null> {
+  if (!isCloudPcOnline()) return null;
+  const r = await cloudEmit<R & { messages?: TtMsg[] }>('cloud:tt', { action: 'read_chat', name: chat }, 120_000).catch(() => null);
+  if (!r) return null;
+  return r.ok ? r.messages ?? [] : /introuvable/.test(String(r.error)) ? [] : null;
+}
+
+const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+const WDAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+/** Séparateur TikTok (« 24 novembre 2026 11:29 », « 24 novembre 11:29 », « Hier 14:02 », « lundi 14:02 », « 14:02 ») → AAAA-MM-JJ. */
+export function ttMsgDate(when: string | undefined, today: string): string | null {
+  const w = String(when ?? '').trim().toLowerCase();
+  if (!w) return null;
+  const add = (n: number) => new Date(Date.parse(`${today}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  const m = /^(\d{1,2})\s+([a-zéû]+)\.?(?:\s+(\d{4}))?/.exec(w);
+  if (m) {
+    const mo = MONTHS.findIndex(x => x.startsWith(m[2]!.slice(0, 3)));
+    if (mo >= 0) {
+      let y = Number(m[3] ?? today.slice(0, 4));
+      const iso = (yy: number) => `${yy}-${String(mo + 1).padStart(2, '0')}-${m[1]!.padStart(2, '0')}`;
+      if (!m[3] && iso(y) > today) y -= 1;
+      return iso(y);
+    }
+  }
+  if (/^(hier|yesterday)/.test(w)) return add(-1);
+  const wd = WDAYS.findIndex(x => w.startsWith(x));
+  if (wd >= 0) { const tw = new Date(`${today}T12:00:00Z`).getUTCDay(); return add(-(((tw - wd) + 7) % 7 || 7)); }
+  if (/^\d{1,2}:\d{2}$/.test(w) || /aujourd/.test(w)) return today;
+  return null;
+}
 
 /** Lit la discussion sur le PC cloud et prépare la réponse (contexte complet, pas seulement l'aperçu de la liste). */
 export async function draftFor(chat: string, preview: string): Promise<{ draft: string; last: string; missing?: boolean }> {
@@ -141,7 +174,7 @@ export async function handleTtYesNo(message: string): Promise<{ reply?: string; 
   if (TT_SHOW_RE.test(m) && SHOW_WORD_RE.test(m) && m.length <= 80 && !/\b(pub|vid[ée]o|publi|stat|abonn|post)/i.test(m)) return { reply: await showTiktokMessages() };
   const raw = await kvGet(PENDING).catch(() => null);
   if (!raw) return null;
-  let p: { chat: string; draft: string; queue?: string[] };
+  let p: { chat: string; draft: string; queue?: string[]; relance?: boolean };
   try { p = JSON.parse(raw); } catch { return null; }
   await clearTtPending();
   const short = m.length <= 40 && !CHANGE_RE.test(m);
@@ -154,15 +187,17 @@ export async function handleTtYesNo(message: string): Promise<{ reply?: string; 
         system: `Tu réécris la réponse de FIK Conciergerie à un message privé TikTok de « ${p.chat} » selon la consigne de Kouider. Garde la langue, le vouvoiement et ce qui n'est pas concerné. N'invente aucune condition ni prix. Si la consigne n'a rien à voir avec cette réponse, renvoie exactement : AUTRE. Sinon réponds UNIQUEMENT avec le nouveau texte.` }).catch(() => null);
       const t = (r?.text ?? '').trim().replace(/^["«]\s*|\s*["»]$/g, '').slice(0, 900);
       if (t && t !== 'AUTRE') {
-        await setTtPending(p.chat, t, p.queue);
+        await setTtPending(p.chat, t, p.queue, p.relance);
         return { reply: `✍️ Nouvelle réponse pour ${p.chat} :\n« ${t} »\n\nRéponds « oui » pour l'envoyer sur TikTok, « non » pour passer, ou dis-moi quoi changer.` };
       }
     }
     return null;   // autre sujet : il passe à Dzaryx normalement (« montre les messages tiktok » la repropose)
   }
   const queue = (await openDms()).filter(x => (p.queue ?? []).includes(x.chat));
-  if (no) return { reply: `👍 Rien envoyé à ${p.chat}.\n\n${await propose(queue)}`.trim() };
+  // Relance du matin : la suite vient de la file des relances (WhatsApp, site, TikTok)
+  const after = async () => p.relance ? await import('./relance-clients.js').then(m => m.nextRelance()).catch(() => '') : `\n\n${await propose(queue)}`;
+  if (no) return { reply: `👍 Rien envoyé à ${p.chat}.${await after()}`.trim() };
   const r = await sendTtReply(p.chat, p.draft);
-  if (!r.ok) { await setTtPending(p.chat, p.draft, p.queue); return { reply: `❌ Pas envoyé sur TikTok à ${p.chat} : ${r.error ?? 'erreur'}. Redis « oui » pour réessayer.` }; }
-  return { reply: `✅ Envoyé sur TikTok à ${p.chat}.\n\n${await propose(queue)}`.trim() };
+  if (!r.ok) { await setTtPending(p.chat, p.draft, p.queue, p.relance); return { reply: `❌ Pas envoyé sur TikTok à ${p.chat} : ${r.error ?? 'erreur'}. Redis « oui » pour réessayer.` }; }
+  return { reply: `✅ Envoyé sur TikTok à ${p.chat}.${await after()}`.trim() };
 }

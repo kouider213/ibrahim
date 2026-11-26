@@ -45,6 +45,16 @@ router.post('/decisions-button', async (req, res) => {
   const b = (req.body ?? {}) as { id?: string; n?: number };
   try { res.json(await import('../../integrations/conscience.js').then(m => m.chooseDecisionByButton(String(b.id ?? ''), Number(b.n) || 0))); } catch (e) { fail(res, e); }
 });
+// 26/11 BOT DE SECOURS : Kouider écrit au bot des notifs FIK (hébergé avec le site, indépendant du VPS) → site → ici.
+// Réponse immédiate 202, puis le même cerveau que Telegram (/api/call/turn) et la réponse repart par le bot des notifs.
+router.post('/backup-chat', async (req, res) => {
+  const tok = process.env['INTERNAL_API_TOKEN'];
+  if (!tok || req.headers['x-internal-token'] !== tok) { res.status(401).json({ error: 'non autorisé' }); return; }
+  const text = String((req.body as { text?: string } | undefined)?.text ?? '').trim().slice(0, 2000);
+  if (!text) { res.status(400).json({ error: 'texte vide' }); return; }
+  res.status(202).json({ ok: true });
+  void import('../../integrations/backup-bot.js').then(m => m.backupTurn(text)).catch(e => console.warn('[backup-bot]', e));
+});
 router.use(requireOwner);
 
 const fail = (res: Response, e: unknown) => res.status(500).json({ error: e instanceof Error ? e.message : String(e) });

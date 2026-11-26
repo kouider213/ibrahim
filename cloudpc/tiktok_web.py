@@ -373,12 +373,15 @@ JS_OPEN = r"""(async (name) => {
     if (norm(n) === norm(name) && d.querySelector('[data-e2e=dm-new-chat-item]')) break;
   }
   await new Promise(r => setTimeout(r, 800));
-  const msgs = [...d.querySelectorAll('[data-e2e=dm-new-chat-item]')].map(e => {
+  // 26/11 : chaque message garde la date du dernier séparateur affiché au-dessus (« 24 novembre 2026 11:29 », « Hier 14:02 »…)
+  let when = '';
+  const msgs = [...d.querySelectorAll('[data-e2e=dm-new-time-separator], [data-e2e=dm-new-chat-item]')].map(e => {
+    if (e.getAttribute('data-e2e') === 'dm-new-time-separator') { when = (e.innerText || '').trim(); return null; }
     const a = e.querySelector('[data-e2e=chat-avatar]');
     const href = a ? (a.getAttribute('href') || (a.closest('a') || {}).href || '') : '';
     const t = ((e.querySelector('[data-e2e=dm-new-message-text]') || {}).innerText || (e.querySelector('[data-e2e=dm-new-shared-video]') ? '[vidéo partagée]' : '')).trim();
-    return { me: /@fik_conciergerie/.test(href), text: t };
-  }).filter(m => m.text && m.text !== 'fik_conciergerie');
+    return { me: /@fik_conciergerie/.test(href), text: t, when };
+  }).filter(m => m && m.text && m.text !== 'fik_conciergerie');
   return { ok: true, chat: (d.querySelector('[data-e2e=dm-new-chat-nickname]') || {}).innerText, handle: (d.querySelector('[data-e2e=chat-uniqueid]') || {}).innerText, messages: msgs.slice(-20) };
 })""" % FRAME
 

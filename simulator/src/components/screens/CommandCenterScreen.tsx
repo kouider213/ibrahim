@@ -31,8 +31,8 @@ function WaBtn({ phone }: { phone: string | null }) {
 }
 
 type CalEv = { id?: string; summary: string; location?: string; source: string; start: { dateTime?: string; date?: string } };
-type RelSt = { pending: number; total: number; done: number; items: Array<{ kind: 'wa' | 'panier' | 'prolong'; label: string; why: string }> };
-const REL_ICON = { wa: '💬', panier: '🛒', prolong: '📅' } as const;
+type RelSt = { pending: number; total: number; done: number; items: Array<{ kind: 'wa' | 'panier' | 'prolong' | 'tt'; label: string; why: string }> };
+const REL_ICON = { wa: '💬', panier: '🛒', prolong: '📅', tt: '🎵' } as const;
 const evDay = (e: CalEv) => e.start.dateTime ? new Date(e.start.dateTime).toLocaleDateString('sv-SE', { timeZone: 'Africa/Algiers' }) : (e.start.date ?? '');
 const evTime = (e: CalEv) => e.start.dateTime ? new Date(e.start.dateTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Algiers' }) : 'Journée';
 

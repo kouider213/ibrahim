@@ -5,6 +5,7 @@
  *  1. WhatsApp silencieux : discussion de location où FIK a répondu en dernier (1 à 7 jours) et le client ne dit plus rien.
  *  2. Panier du site : nom + téléphone remplis à l'étape 2 de /reservation, jamais validé (client_leads, notes « 🛒 panier {json} »).
  *  3. Prolongation : location en cours qui se termine dans 1-2 jours, voiture libre après → proposer quelques jours de plus.
+ *  4. TikTok (26/11) : message privé sans réponse depuis > 24 h, ou FIK a répondu en dernier il y a 1 à 7 jours (envoi sur TikTok).
  * Chaque client n'est proposé qu'une fois par 21 jours (relance:done:<clé>). Données : app_kv relance:queue.
  */
 import { supabase } from './supabase.js';
@@ -14,7 +15,7 @@ import { cloudEmit, isCloudPcOnline } from '../actions/handlers/cloudpc-relay.js
 import { localNow } from './morning-routine.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 
-export interface Relance { key: string; kind: 'wa' | 'panier' | 'prolong'; chat: string; label: string; why: string; draft: string; ask?: boolean }
+export interface Relance { key: string; kind: 'wa' | 'panier' | 'prolong' | 'tt'; chat: string; label: string; why: string; draft: string; ask?: boolean }
 interface Queue { at: number; items: Relance[]; total: number; done: number }
 
 const QUEUE = 'relance:queue';
@@ -169,12 +170,46 @@ async function waSilent(today: string): Promise<Relance[]> {
   return out;
 }
 
+// ── 4. TikTok (messages privés) ─────────────────────────────────────────────
+async function ttSilent(today: string): Promise<Relance[]> {
+  if (!isCloudPcOnline()) return [];
+  const tt = await import('./tiktok-web.js');
+  const { listWaDemandes, WA_CLOSED, markDemande } = await import('./wa-demandes.js');
+  const cands = (await listWaDemandes('tiktok'))
+    .filter(d => (d.via ?? 'dm') === 'dm' && !WA_CLOSED.has(d.status) && Date.now() - Date.parse(d.updated_at) < 14 * 86_400_000).slice(0, 6);
+  const out: Relance[] = [];
+  for (const d of cands) {
+    const key = `tt:${d.chat.toLowerCase()}`;
+    if (await kvGet(DONE(key)).catch(() => null)) continue;
+    const msgs = await tt.readTtChat(d.chat);
+    if (!msgs?.length) continue;
+    const last = msgs[msgs.length - 1]!;
+    const day = tt.ttMsgDate(last.when, today);
+    if (!day) continue;
+    const days = Math.round((Date.parse(today) - Date.parse(day)) / 86_400_000);
+    if (!last.me) {
+      // Le client attend une réponse depuis plus de 24 h
+      if (days < 1) continue;
+      const convo = msgs.map(m => `${m.me ? 'FIK' : d.chat} : ${m.text.replace(/\s+/g, ' ').slice(0, 400)}`).join('\n');
+      const draft = await tt.ttDraft({ kind: 'dm', name: d.chat, text: last.text }, convo).catch(() => '');
+      if (!draft) continue;
+      out.push({ key, kind: 'tt', chat: d.chat, label: `${d.chat} (TikTok) — sans réponse depuis ${days} j`, why: `Son dernier message : « ${last.text.slice(0, 160)} »`, draft });
+      continue;
+    }
+    if (days < 1 || days > 7) { if (days > 7) await markDemande(d.chat, 'contacté', ['nouveau'], 'tiktok').catch(() => {}); continue; }
+    const j = await judgeRelance(d.chat, msgs.map(m => ({ me: m.me, text: m.text, meta: m.when ? `[00:00, ${m.when}]` : '' })), today);
+    if (!j?.relancer || !j.message?.trim()) { await kvSet(DONE(key), 'non', 7 * 86_400).catch(() => {}); continue; }
+    out.push({ key, kind: 'tt', chat: d.chat, label: `${d.chat} (TikTok) — plus de réponse depuis ${days} j`, why: j.pourquoi ?? '', draft: j.message.trim() });
+  }
+  return out;
+}
+
 // ── File de propositions ────────────────────────────────────────────────────
-const ICON: Record<Relance['kind'], string> = { wa: '💬', panier: '🛒', prolong: '📅' };
+const ICON: Record<Relance['kind'], string> = { wa: '💬', panier: '🛒', prolong: '📅', tt: '🎵' };
 function card(p: Relance, i: number, n: number): string {
   return `🔁 Relance ${i}/${n} ${ICON[p.kind]} ${p.label}\n${p.why}\n\n✍️ « ${p.draft} »\n\n`
     + (p.ask ? `⚠️ Numéro sans indicatif (${p.chat}) : je ne sais pas si c'est la France ou l'Algérie. Dis « envoie-le au +33… » ou « au +213… ».`
-      : 'Réponds « oui » pour l\'envoyer sur WhatsApp, « non » pour passer, ou dis-moi quoi changer.');
+      : `Réponds « oui » pour l'envoyer sur ${p.kind === 'tt' ? 'TikTok' : 'WhatsApp'}, « non » pour passer, ou dis-moi quoi changer.`);
 }
 
 async function present(q: Queue): Promise<string> {
@@ -183,6 +218,7 @@ async function present(q: Queue): Promise<string> {
     q.done++;
     await kvSet(DONE(p.key), String(Date.now()), 21 * 86_400).catch(() => {});
     await kvPut(QUEUE, q);
+    if (p.kind === 'tt') { await import('./tiktok-web.js').then(m => m.setTtPending(p.chat, p.draft, [], true)); return card(p, q.done, q.total); }
     const wa = await import('./whatsapp-web.js');
     if (p.ask) { await wa.saveWaDraft(p.chat, p.why, p.draft).catch(() => {}); return card(p, q.done, q.total); }
     await wa.setWaPending(p.chat, p.draft, { relance: true });
@@ -207,15 +243,16 @@ export async function jobRelanceClients(force = false): Promise<string> {
   await safe('prolongations', () => prolongations(today));
   await safe('paniers', () => paniers(today));
   await safe('whatsapp', () => waSilent(today));
+  await safe('tiktok', () => ttSilent(today));
   const fresh: Relance[] = [];
   for (const r of found) if (force || !(await kvGet(DONE(r.key)).catch(() => null))) fresh.push(r);
   // Prolongations d'abord (client déjà là = argent sûr), puis paniers du site, puis WhatsApp ; numéros sans pays à la fin
-  const order = { prolong: 0, panier: 1, wa: 2 } as const;
+  const order = { prolong: 0, panier: 1, wa: 2, tt: 3 } as const;
   fresh.sort((a, b) => Number(!!a.ask) - Number(!!b.ask) || order[a.kind] - order[b.kind]);
   if (!fresh.length) return 'aucune relance';
   const q: Queue = { at: Date.now(), items: fresh, total: fresh.length, done: 0 };
   const firstCard = await present(q);
-  const head = `🔁 ${fresh.length} client${fresh.length > 1 ? 's' : ''} à relancer ce matin (${[['prolong', 'prolongation'], ['panier', 'panier du site'], ['wa', 'WhatsApp silencieux']]
+  const head = `🔁 ${fresh.length} client${fresh.length > 1 ? 's' : ''} à relancer ce matin (${[['prolong', 'prolongation'], ['panier', 'panier du site'], ['wa', 'WhatsApp silencieux'], ['tt', 'TikTok']]
     .map(([k, l]) => [fresh.filter(f => f.kind === k).length, l] as const).filter(([n]) => n).map(([n, l]) => `${n} ${l}`).join(', ')}). Je te les montre un par un.\n\n`;
   await tg(head + firstCard);
   emitProactive('🔁 Relances clients', 'reminder', `${fresh.length} client(s) à relancer — réponds sur Telegram`, 'kouider', 'bookings');
@@ -234,6 +271,6 @@ export async function relancesTool(input: Record<string, unknown>): Promise<stri
   const action = String(input['action'] ?? 'list');
   if (action === 'run') return `✅ ${await jobRelanceClients()} (sur Telegram).`;
   const q = await kvJson<Queue | null>(QUEUE, null);
-  if (!q || !q.items.length) return 'Aucune relance en attente. Elles sont préparées chaque matin à 9h45 (jeudi 13h30) : WhatsApp silencieux, paniers du site, prolongations.';
+  if (!q || !q.items.length) return 'Aucune relance en attente. Elles sont préparées chaque matin à 9h45 (jeudi 13h30) : WhatsApp silencieux, paniers du site, prolongations, messages TikTok.';
   return `🔁 Encore ${q.items.length} relance(s) à voir :\n${q.items.map(p => `• ${ICON[p.kind]} ${p.label}`).join('\n')}\nRéponds « oui »/« non » à la relance affichée pour passer à la suivante.`;
 }
