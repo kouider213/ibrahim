@@ -1,3 +1,6 @@
+## 26/11 — Relances : jamais un message de plus d'une semaine
+Kouider : « si c'est un message de plus de 1 semaine on relance pas ». relance-clients : MAX_AGE 7 j pour le réveil TikTok (ttWinback, avant 200 j → Minou du 23/10 proposé) et ttSilent (avant 14 j ; client sans réponse > 7 j sauté). WhatsApp (1-7 j) et paniers (4 j) l'étaient déjà. Titre « 4 clients » au lieu de 5 corrigé (present() vidait le même tableau). File du 26/11 (5 anciens TikTok) vidée.
+
 ## 26/11 — Démarchage relancé jusqu'à 3 fois après une mise en ligne
 2 mises en ligne de suite (10h03, 10h27) : la relance (slot:retry) a été coupée à son tour et n'était plus relancée → 0 démarchage le 26/11. resumeInterrupted : jusqu'à :retry3 dans les 3 h. Aussi : échéance VPS Hostinger fixée au 25 de chaque mois (coupé 11 h le 25/11 faute de paiement, aucune alerte car pas de date).
 

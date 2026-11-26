@@ -20,6 +20,8 @@ export interface Relance { key: string; kind: 'wa' | 'panier' | 'prolong' | 'tt'
 interface Queue { at: number; items: Relance[]; total: number; done: number }
 
 const QUEUE = 'relance:queue';
+/** 26/11 Kouider : « si c'est un message de plus d'1 semaine on relance pas » — vaut pour TOUTES les relances. */
+const MAX_AGE = 7 * 86_400_000;
 const DONE = (k: string) => `relance:done:${k}`;
 const LIVE = ['PENDING', 'CONFIRMED', 'ACTIVE', 'ACCEPTED'];
 const OWN_NUMBERS = ['491115145', '466311469'];   // son WhatsApp privé, le WhatsApp Business FIK
@@ -180,7 +182,7 @@ async function ttSilent(today: string): Promise<Relance[]> {
   const tt = await import('./tiktok-web.js');
   const { listWaDemandes, WA_CLOSED, markDemande } = await import('./wa-demandes.js');
   const cands = (await listWaDemandes('tiktok'))
-    .filter(d => (d.via ?? 'dm') === 'dm' && !WA_CLOSED.has(d.status) && Date.now() - Date.parse(d.updated_at) < 14 * 86_400_000).slice(0, 6);
+    .filter(d => (d.via ?? 'dm') === 'dm' && !WA_CLOSED.has(d.status) && Date.now() - Date.parse(d.updated_at) < MAX_AGE).slice(0, 6);
   const out: Relance[] = [];
   for (const d of cands) {
     const key = `tt:${d.chat.toLowerCase()}`;
@@ -191,6 +193,7 @@ async function ttSilent(today: string): Promise<Relance[]> {
     const day = tt.ttMsgDate(last.when, today);
     if (!day) continue;
     const days = Math.round((Date.parse(today) - Date.parse(day)) / 86_400_000);
+    if (days > 7) continue;   // 26/11 : plus d'une semaine → on ne relance pas
     if (!last.me) {
       // Le client attend une réponse depuis plus de 24 h
       if (days < 1) continue;
@@ -223,7 +226,7 @@ async function ttWinback(today: string): Promise<Relance[]> {
   const tt = await import('./tiktok-web.js');
   const { listWaDemandes } = await import('./wa-demandes.js');
   const cands = (await listWaDemandes('tiktok'))
-    .filter(d => (d.via ?? 'dm') === 'dm' && d.status === 'sans suite' && t0 - Date.parse(d.updated_at) < 200 * 86_400_000)
+    .filter(d => (d.via ?? 'dm') === 'dm' && d.status === 'sans suite' && Date.now() - Date.parse(d.updated_at) < MAX_AGE)
     .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
   const fmt = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', timeZone: 'UTC' });
   const out: Relance[] = [];
@@ -294,7 +297,7 @@ export async function jobRelanceClients(force = false): Promise<string> {
   const order = { prolong: 0, panier: 1, wa: 2, tt: 3 } as const;
   fresh.sort((a, b) => Number(!!a.ask) - Number(!!b.ask) || order[a.kind] - order[b.kind]);
   if (!fresh.length) return 'aucune relance';
-  const q: Queue = { at: Date.now(), items: fresh, total: fresh.length, done: 0 };
+  const q: Queue = { at: Date.now(), items: [...fresh], total: fresh.length, done: 0 };   // copie : present() vide q.items (le titre disait 4 au lieu de 5)
   const firstCard = await present(q);
   const head = `🔁 ${fresh.length} client${fresh.length > 1 ? 's' : ''} à relancer ce matin (${[['prolong', 'prolongation'], ['panier', 'panier du site'], ['wa', 'WhatsApp silencieux'], ['tt', 'TikTok']]
     .map(([k, l]) => [fresh.filter(f => f.kind === k).length, l] as const).filter(([n]) => n).map(([n, l]) => `${n} ${l}`).join(', ')}). Je te les montre un par un.\n\n`;
