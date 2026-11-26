@@ -327,7 +327,7 @@ export async function onWaNew(c: WaChat): Promise<void> {
   const text = `📲 WhatsApp — ${name}${c.unread > 1 ? ` (${c.unread} non lus)` : ''}\n« ${preview} »${money ? `\n${money}` : ''}`
     + (flags.length ? `\n🚩 Attention : ${flags.join(' · ')}.` : '')
     + (translation ? `\n🇫🇷 Traduction : ${translation}` : '')
-    + (reply ? `\n\n✍️ Réponse proposée :\n${reply}\n\nRéponds « oui » pour l'envoyer à ${name}${voiceCount ? ', « vocal » pour la lui envoyer en message vocal' : ''}, « non » pour laisser, ou dis-moi quoi changer.` : '');
+    + (reply ? `\n\n✍️ Réponse proposée :\n${reply}\n${(await CL.frLines('', reply)).reply}\nRéponds « oui » pour l'envoyer à ${name}${voiceCount ? ', « vocal » pour la lui envoyer en message vocal' : ''}, « non » pour laisser, ou dis-moi quoi changer.` : '');
   // AUTONOMIE PROGRESSIVE : type activé par Kouider → envoyé seul (jamais dispo / réservation / paiement / plainte)
   const delicateNow = kind === 'plainte' || kind === 'urgence' || isComplaint(preview) || DELICATE_RE.test(preview) || flags.length > 0;
   if (reply && !delicateNow && await import('./autonomy.js').then(m => m.canAutoSend(kind, reply)).catch(() => false)) {
@@ -422,7 +422,7 @@ export async function handleWaYesNo(message: string): Promise<{ reply?: string; 
       const nd = await CL.rewriteInLang(src, clientTxt, want).catch(() => p.draft);
       if (nd !== p.draft) {
         await kvSet(PENDING_KEY, JSON.stringify({ ...p, draft: nd }), 12 * 3600);
-        return { reply: `✍️ Nouvelle version pour ${p.chat} :\n« ${nd} »\n\nRéponds « oui » pour l'envoyer, « non » pour laisser, ou dis-moi quoi changer.` };
+        return { reply: `✍️ Nouvelle version pour ${p.chat} :\n« ${nd} »\n${(await CL.frLines('', nd)).reply}\nRéponds « oui » pour l'envoyer, « non » pour laisser, ou dis-moi quoi changer.` };
       }
     }
   }

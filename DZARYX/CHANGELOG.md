@@ -1,3 +1,6 @@
+## 26/11 — Traduction française sous les messages TikTok (et réponses non françaises)
+Kouider : message TikTok en arabe sans traduction. client-lang frTranslations/frLines : « 🇫🇷 Traduction » du message client + « 🇫🇷 En français » de la réponse proposée si elle n'est pas en français (TikTok nouveau message, file de propositions, réécriture ; WhatsApp réponse proposée + nouvelle version). Rien ajouté si tout est en français.
+
 ## 26/11 — Post Google Maps FIK chaque lundi + client rassuré quand son vol est en retard
 - marketing/fik-google-post.ts + job fik-google-post (lundi 10h Alger) : texte « mise à jour » de la fiche Google FIK (voiture de la semaine qui tourne, moment de l'année, conditions exactes, mots « location voiture Oran / aéroport Oran ») + vraie photo de la voiture sur Telegram. Historique kv gbp:fik:history.
 - flight-live : vol d'un client vers Oran retardé ≥ 30 min (2 lectures concordantes) → message WhatsApp « votre voiture vous attend » (fr/ar/en selon client_lang) mis en attente du « oui » (ou lien wa.me si un autre brouillon attend). Une fois par palier de 30 min.

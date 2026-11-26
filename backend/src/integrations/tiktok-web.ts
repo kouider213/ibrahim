@@ -29,8 +29,9 @@ export async function onTtNew(it: TtItem): Promise<void> {
   const draft = await ttDraft(it).catch(() => '');
   const dm = it.kind === 'dm' && !!draft;
   if (dm) await setTtPending(it.name, draft);
-  const t = `🎵 TikTok — ${it.name} (${where})\n« ${it.text.slice(0, 500)} »\n\n`
-    + (dm ? `✍️ Réponse prête :\n« ${draft} »\n\nRéponds « oui » pour l'envoyer sur TikTok, « non » pour laisser, ou dis-moi quoi changer.`
+  const fr = await CL.frLines(it.text, draft);   // 26/11 traduction comme WhatsApp
+  const t = `🎵 TikTok — ${it.name} (${where})\n« ${it.text.slice(0, 500)} »\n${fr.client}\n`
+    + (dm ? `✍️ Réponse prête :\n« ${draft} »\n${fr.reply}\nRéponds « oui » pour l'envoyer sur TikTok, « non » pour laisser, ou dis-moi quoi changer.`
       : (draft ? `✍️ Réponse à copier-coller sous le commentaire :\n${draft}\n\n` : '') + `Ajouté dans DEMANDES.`);
   await queueTelegramMessage(t).catch(() => {});
   emitProactive(`TikTok — ${it.name} : ${it.text.slice(0, 70)}`, 'info', t);
@@ -144,7 +145,8 @@ async function propose(list: Array<{ chat: string; text: string }>, header = '')
     if (!draft) { await markDemande(c.chat, 'contacté', ['nouveau'], 'tiktok').catch(() => {}); header += `• ${c.chat} : ${last} → rangé.\n`; continue; }
     const rest = list.slice(i + 1).map(x => x.chat);
     await setTtPending(c.chat, draft, rest);
-    return `${header}🎵 ${c.chat} : « ${last.slice(0, 300)} »\n\n✍️ Réponse prête :\n« ${draft} »\n\nRéponds « oui » pour l'envoyer sur TikTok, « non » pour passer, ou dis-moi quoi changer.`
+    const fr = await CL.frLines(last, draft);
+    return `${header}🎵 ${c.chat} : « ${last.slice(0, 300)} »\n${fr.client}\n✍️ Réponse prête :\n« ${draft} »\n${fr.reply}\nRéponds « oui » pour l'envoyer sur TikTok, « non » pour passer, ou dis-moi quoi changer.`
       + (rest.length ? `\n(${rest.length} autre${rest.length > 1 ? 's' : ''} après : ${rest.join(', ')})` : '');
   }
   return header ? `${header}\nPlus aucun message TikTok en attente ✅` : '';
@@ -191,7 +193,8 @@ export async function handleTtYesNo(message: string): Promise<{ reply?: string; 
       const nd = await CL.rewriteInLang(p.draft, '', want).catch(() => p.draft);
       if (nd !== p.draft) {
         await setTtPending(p.chat, nd, p.queue, p.relance);
-        return { reply: `✍️ Nouvelle réponse pour ${p.chat} :\n« ${nd} »\n\nRéponds « oui » pour l'envoyer sur TikTok, « non » pour passer, ou dis-moi quoi changer.` };
+        const fr = await CL.frLines('', nd);
+        return { reply: `✍️ Nouvelle réponse pour ${p.chat} :\n« ${nd} »\n${fr.reply}\nRéponds « oui » pour l'envoyer sur TikTok, « non » pour passer, ou dis-moi quoi changer.` };
       }
     }
     if (CHANGE_RE.test(m) || m.length <= 120) {

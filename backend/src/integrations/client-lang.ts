@@ -103,3 +103,26 @@ export function askedLang(message: string, clientText: string): ClientLang | nul
   if (/\ben anglais\b/.test(m)) return 'en';
   return null;
 }
+
+/** 26/11 Kouider : « il me traduit pas le message » (TikTok en arabe). Traduction française du message du client et/ou
+ *  de la réponse proposée quand ils ne sont pas en français. Champs vides = déjà en français. */
+export async function frTranslations(client: string, reply = ''): Promise<{ client: string; reply: string }> {
+  const needC = !!client.trim() && detectClientLang(client) !== 'fr';
+  const needR = !!reply.trim() && detectClientLang(reply) !== 'fr';
+  if (!needC && !needR) return { client: '', reply: '' };
+  const { runReadOnlyAgent } = await import('./readonly-agent.js');
+  const r = await runReadOnlyAgent(
+    `${needC ? `MESSAGE DU CLIENT :\n${client.slice(0, 1200)}\n\n` : ''}${needR ? `RÉPONSE PROPOSÉE :\n${reply.slice(0, 1200)}` : ''}`,
+    { sessionId: 'client_lang_fr', maxRounds: 1, maxTokens: 600,
+      system: 'Traduis fidèlement en français simple (darija algérienne, arabe ou anglais → français). Ne réponds pas au message, traduis seulement. Réponds UNIQUEMENT en JSON : {"client":"traduction du message du client ou vide","reply":"traduction de la réponse proposée ou vide"}' });
+  try {
+    const t = String(r.text ?? ''); const o = JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1)) as { client?: string; reply?: string };
+    return { client: needC ? String(o.client ?? '').trim() : '', reply: needR ? String(o.reply ?? '').trim() : '' };
+  } catch { return { client: '', reply: '' }; }
+}
+
+/** Lignes à coller sous le message Telegram (vide si tout est en français). */
+export async function frLines(client: string, reply = '', clientAlready = ''): Promise<{ client: string; reply: string }> {
+  const t = await frTranslations(clientAlready ? '' : client, reply).catch(() => ({ client: '', reply: '' }));
+  return { client: t.client ? `🇫🇷 Traduction : ${t.client}\n` : '', reply: t.reply ? `🇫🇷 En français : ${t.reply}\n` : '' };
+}
