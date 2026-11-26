@@ -96,14 +96,27 @@ def _when(t: str) -> str | None:
 
 async def _dismiss(p: Page) -> None:
     """Bannière cookies (shadow DOM) + fenêtre « Outils professionnels débloqués »."""
-    await p.js(r"""(() => {
+    r = await p.js(r"""(() => {
       const b = document.querySelector('tiktok-cookie-banner');
       const d = b && b.shadowRoot ? [...b.shadowRoot.querySelectorAll('button')].find(x => /Décliner|Decline/i.test(x.innerText)) : null;
       if (d) d.click();
-      // 26/11 : fenêtre « Utiliser la carte de contact » (Conditions) → « Plus tard » ; elle bloquait le clavier de la boîte de messages
+      // 26/11 : fenêtre « Utiliser la carte de contact » (Conditions). Kouider a donné son accord (26/11 matin) → on ACCEPTE.
+      // Autre fenêtre à conditions inconnue → « Plus tard » (elle bloquait le clavier de la boîte de messages).
+      const dlg = [...document.querySelectorAll('[role=dialog], [data-testid*=term-modal]')].find(m => /carte de contact|contact card/i.test(m.innerText || ''));
+      const ok = dlg && [...dlg.querySelectorAll('button, [role=button]')].find(x => /^(Accepter|J'accepte|Accepter et continuer|Utiliser|Continuer|Confirmer|Activer|Agree|Accept|Use|Continue|Confirm|Turn on)/i.test(x.innerText.trim()));
+      if (ok) { const box = dlg.querySelector('input[type=checkbox]'); if (box && !box.checked) box.click(); ok.click(); return 'contact-card-accepted: ' + ok.innerText.trim(); }
       const later = [...document.querySelectorAll('[role=dialog] button, [data-testid*=term-modal] ')].find(x => /^(Plus tard|Later|Not now|Pas maintenant)$/i.test(x.innerText.trim()));
-      if (later) later.click();
+      if (later) { later.click(); return 'later: ' + ((later.closest('[role=dialog]') || {}).innerText || '').slice(0, 200); }
     })()""")
+    if r:
+        log.warning('TikTok fenêtre : %s', r)
+        if str(r).startswith('contact-card'):
+            try:
+                import base64
+                shot = await p.call('Page.captureScreenshot', {'format': 'png'})
+                (SEEN.parent / f"tt-contact-card-{datetime.now():%Y%m%d-%H%M}.png").write_bytes(base64.b64decode(shot['data']))
+            except Exception:
+                pass
 
 
 async def scan(emit, first: bool) -> None:
