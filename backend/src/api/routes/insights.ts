@@ -115,7 +115,7 @@ router.get('/reengage', requireMobileAuth, async (req, res) => {
 // seulement quand ils descendent ») → on vise les PROCHAINS VOYAGES (vacances scolaires FR/BE, Aïd, été), pas « cette semaine ».
 // Dates d'Aïd = estimations (calendrier lunaire, ± 1 jour). Canaux : anciens clients (WhatsApp, 1 appui chacun) + leur famille
 // (code parrain dans le message) + nouveaux clients (bandeau du site + légende TikTok — pubs = TikTok seulement).
-const WAVES = [
+export const WAVES = [
   { id: 'noel26',  name: 'Fêtes de fin d\'année', short: 'les fêtes', from: '2026-12-19', to: '2027-01-03', note: 'vacances scolaires France et Belgique' },
   { id: 'fitr27',  name: 'Aïd el-Fitr', short: 'l\'Aïd', from: '2027-03-05', to: '2027-03-15', note: 'date estimée (≈ 10 mars), fin du Ramadan' },
   { id: 'paq27',   name: 'Vacances de printemps', short: 'les vacances de printemps', from: '2027-04-03', to: '2027-05-09', note: 'Pâques Belgique + zones France, étalées' },

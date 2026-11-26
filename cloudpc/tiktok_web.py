@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import random
+import re
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -330,7 +331,7 @@ async def _capture(p: Page, url: str, needle: str, wait: float = 14) -> list[dic
 
 async def insights() -> dict:
     merged: dict = {}
-    searches = traffic = ''
+    searches = traffic = views7 = ''
     async with LOCK:
         async with Page('https://www.tiktok.com', URL) as p:
             for url in INSIGHT_PAGES:
@@ -339,7 +340,16 @@ async def insights() -> dict:
                         if v is not None and k not in ('extra', 'log_pb', 'status_code', 'status_msg') and k not in merged:
                             merged[k] = v
                 if url.endswith('/analytics'):
-                    t = await p.js('document.body.innerText') or ''
+                    t = ''
+                    for _ in range(12):   # 26/11 : la page se remplit après coup (sources de trafic / recherches)
+                        t = await p.js('document.body.innerText') or ''
+                        if 'Sources de trafic' in t and 'Recherches effectuées' in t:
+                            break
+                        await asyncio.sleep(1.5)
+                    # 26/11 : vv_history n'arrive plus (nouvelle API) → vues 7 j lues dans le texte « Vues de la vidéo\n205 »
+                    mv = re.search(r'Vues de la vid[ée]o\s*\n\s*([\d\s\u202f\u00a0.,]+[KkMm]?)\s*\n', t)
+                    if mv:
+                        views7 = mv.group(1).strip()
                     i = t.find('Recherches effectuées')
                     searches = t[i:i + 900] if i >= 0 else ''
                     k = t.find('Sources de trafic')
@@ -366,7 +376,7 @@ async def insights() -> dict:
     keep = {k: merged.get(k) for k in ('follower_num', 'follower_active_history_hours', 'follower_active_history_days', 'follower_gender_percent',
                                        'follower_age_distribution', 'follower_location_percent', 'follower_num_history', 'net_follower_history',
                                        'pv_history', 'vv_history', 'like_history', 'share_history', 'user_search_terms', 'unique_viewer_num', 'video_page_percent')}
-    return {'ok': True, 'insight': keep, 'videos': items, 'searches': searches, 'traffic': traffic, 'trends': trends, 'all_keys': sorted(merged.keys())}
+    return {'ok': True, 'insight': keep, 'videos': items, 'searches': searches, 'traffic': traffic, 'views7': views7, 'trends': trends, 'all_keys': sorted(merged.keys())}
 
 
 # ── Réponse à un message privé (26/11, Kouider : « comme avec WhatsApp, pour répondre au client directement ») ──
@@ -376,9 +386,22 @@ JS_OPEN = r"""(async (name) => {
   const d = %s;
   if (!d) return { error: 'boîte de messages TikTok introuvable' };
   const norm = s => (s || '').normalize('NFKC').trim().toLowerCase();
-  const items = [...d.querySelectorAll('[data-e2e=dm-new-conversation-item]')];
-  const it = items.find(e => norm((e.querySelector('[data-e2e=dm-new-conversation-nickname]') || {}).innerText) === norm(name));
-  if (!it) return { error: 'discussion « ' + name + ' » introuvable dans les 30 premières', names: items.slice(0, 30).map(e => (e.querySelector('[data-e2e=dm-new-conversation-nickname]') || {}).innerText) };
+  const find = () => [...d.querySelectorAll('[data-e2e=dm-new-conversation-item]')].find(e => norm((e.querySelector('[data-e2e=dm-new-conversation-nickname]') || {}).innerText) === norm(name));
+  let it = find();
+  // 26/11 : anciennes discussions (réveil des anciens clients) → on fait défiler la liste, qui se charge par paquets
+  for (let k = 0; !it && k < 25; k++) {
+    const items = d.querySelectorAll('[data-e2e=dm-new-conversation-item]');
+    const before = items.length;
+    const last = items[items.length - 1];
+    if (!last) break;
+    last.scrollIntoView({ block: 'end' });
+    let sc = last.parentElement; while (sc && sc.scrollHeight <= sc.clientHeight + 4) sc = sc.parentElement;
+    if (sc) sc.scrollTop = sc.scrollHeight;
+    await new Promise(r => setTimeout(r, 1200));
+    it = find();
+    if (!it && d.querySelectorAll('[data-e2e=dm-new-conversation-item]').length === before) { await new Promise(r => setTimeout(r, 1500)); if (d.querySelectorAll('[data-e2e=dm-new-conversation-item]').length === before) break; }
+  }
+  if (!it) { const all = [...d.querySelectorAll('[data-e2e=dm-new-conversation-item]')]; return { error: 'discussion « ' + name + ' » introuvable (' + all.length + ' discussions parcourues)', names: all.slice(0, 30).map(e => (e.querySelector('[data-e2e=dm-new-conversation-nickname]') || {}).innerText) }; }
   it.click();
   for (let i = 0; i < 20; i++) {
     await new Promise(r => setTimeout(r, 400));

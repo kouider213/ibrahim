@@ -85,7 +85,16 @@ export async function fikKnowledge(): Promise<string> {
 }
 
 const val = (x: unknown): number => (x && typeof x === 'object' && 'value' in (x as Record<string, unknown>) ? Number((x as { value: unknown }).value) || 0 : 0);
-const series = (x: unknown): number[] => (Array.isArray(x) ? x.map(val) : []);
+// 26/11 : la dernière case (aujourd'hui) arrive en { status: 2 } sans valeur → lue 0 → « -1111 abonnés cette semaine ». On ne garde que les cases remplies.
+const series = (x: unknown): number[] => (Array.isArray(x) ? x.filter(e => e && typeof e === 'object' && 'value' in e && (e as { value: unknown }).value != null).map(val) : []);
+/** « 205 », « 1 234 », « 1,2K », « 3.4M » → nombre. */
+const parseCount = (t?: string): number | undefined => {
+  const m = String(t ?? '').replace(/[\s\u202f\u00a0]/g, '').match(/^([\d.,]+)([KkMm]?)$/);
+  if (!m) return undefined;
+  const k = m[2] ? (/k/i.test(m[2]) ? 1e3 : 1e6) : 1;
+  const n = Number(m[1]!.replace(',', '.'));
+  return Number.isFinite(n) ? Math.round(k > 1 ? n * k : Number(m[1]!.replace(/[.,]/g, ''))) : undefined;
+};
 
 export async function getGrowth(): Promise<Growth | null> {
   try { const r = await kvGet(KEY); return r ? JSON.parse(r) as Growth : null; } catch { return null; }
@@ -167,7 +176,7 @@ export function weekPlan(g: Growth): Array<{ date: string; label: string; stars:
 export async function refreshGrowth(): Promise<Growth | string> {
   const { cloudEmit, isCloudPcOnline } = await import('../actions/handlers/cloudpc-relay.js');
   if (!isCloudPcOnline()) return 'PC cloud hors ligne';
-  type Raw = { ok: boolean; error?: string; insight?: Record<string, unknown>; videos?: Video[]; searches?: string; traffic?: string; trends?: Record<string, Trend[]> };
+  type Raw = { ok: boolean; error?: string; insight?: Record<string, unknown>; videos?: Video[]; searches?: string; traffic?: string; views7?: string; trends?: Record<string, Trend[]> };
   const r = await cloudEmit<Raw>('cloud:tt', { action: 'insights' }, 240_000)
     .catch(e => ({ ok: false, error: e instanceof Error ? e.message : String(e) } as Raw));
   if (!r.ok) return r.error ?? 'lecture TikTok impossible';
@@ -176,7 +185,7 @@ export async function refreshGrowth(): Promise<Growth | string> {
   return g;
 }
 
-export async function buildGrowth(r: { insight?: Record<string, unknown>; videos?: Video[]; searches?: string; traffic?: string; trends?: Record<string, Trend[]> }): Promise<Growth> {
+export async function buildGrowth(r: { insight?: Record<string, unknown>; videos?: Video[]; searches?: string; traffic?: string; views7?: string; trends?: Record<string, Trend[]> }): Promise<Growth> {
   const ins = r.insight ?? {};
   // heures : un tableau de 24 valeurs (UTC) par jour → moyenne, puis décalage en heure d'Oran
   const days = (Array.isArray(ins['follower_active_history_hours']) ? ins['follower_active_history_hours'] as Array<{ value?: number[] }> : [])
@@ -220,7 +229,7 @@ export async function buildGrowth(r: { insight?: Record<string, unknown>; videos
     at: new Date().toISOString(), followers: val(ins['follower_num']), hours, slots: weekdays.length ? slotsFromWeek(weekdays) : hours ? slotsFrom(hours) : undefined, audience,
     traffic: String(r.traffic ?? '').replace(/\s+/g, ' ').replace(/^Sources de trafic\s*/, '').slice(0, 200), weekdays,
     videos, searches, trends, analysis: {},
-    views7: vv.slice(-7).reduce((s, x) => s + x, 0), followers7: fol.length > 7 ? fol[fol.length - 1]! - fol[fol.length - 8]! : undefined,
+    views7: vv.length ? vv.slice(-7).reduce((s, x) => s + x, 0) : parseCount(r.views7), followers7: fol.length > 7 ? fol[fol.length - 1]! - fol[fol.length - 8]! : undefined,
   };
   g.fik = await fikKnowledge().catch(() => '');
   g.analysis = await analyse(g).catch(e => { console.warn('[tt-growth] analyse', e instanceof Error ? e.message : e); return {}; });

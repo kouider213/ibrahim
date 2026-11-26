@@ -204,6 +204,45 @@ async function ttSilent(today: string): Promise<Relance[]> {
   return out;
 }
 
+// ── 26/11 Réveil des anciens clients TikTok (« agrandir mon nombre de clients ») ─────────────────────────────
+// 24 clients ont écrit sur TikTok de juillet à octobre sans JAMAIS avoir de réponse (pastille non lue). Ce sont des gens de la
+// diaspora qui reviennent à chaque vague de voyages. Quand une vague approche (J-60 → J-7), 5 par matin : discussion lue sur le
+// PC cloud, message de reprise (excuses du retard + vague + conditions vraies), envoyé SEULEMENT après son « oui ».
+// Une seule fois par client et par vague (clé ttwb:<vague>:<pseudo>). Seulement les discussions encore visibles (≈ 28 sur TikTok web).
+const WINBACK_PER_DAY = 5;
+async function ttWinback(today: string): Promise<Relance[]> {
+  if (!isCloudPcOnline()) return [];
+  const { WAVES } = await import('../api/routes/insights.js');
+  const t0 = Date.parse(today);
+  const wave = WAVES.find(w => { const d = (Date.parse(w.from) - t0) / 86_400_000; return d >= 7 && d <= 60; });
+  if (!wave) return [];
+  const tt = await import('./tiktok-web.js');
+  const { listWaDemandes } = await import('./wa-demandes.js');
+  const cands = (await listWaDemandes('tiktok'))
+    .filter(d => (d.via ?? 'dm') === 'dm' && d.status === 'sans suite' && t0 - Date.parse(d.updated_at) < 200 * 86_400_000)
+    .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
+  const fmt = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const out: Relance[] = [];
+  let tried = 0;
+  for (const d of cands) {
+    if (out.length >= WINBACK_PER_DAY || tried >= WINBACK_PER_DAY + 4) break;
+    const key = `ttwb:${wave.id}:${d.chat.toLowerCase()}`;
+    if (await kvGet(DONE(key)).catch(() => null)) continue;
+    tried++;
+    const msgs = await tt.readTtChat(d.chat);
+    if (!msgs?.length) { await kvSet(DONE(key), 'introuvable', 30 * 86_400).catch(() => {}); continue; }
+    const answered = msgs.some(m => m.me);
+    const convo = msgs.map(m => `${m.me ? 'FIK' : d.chat} : ${m.text.replace(/\s+/g, ' ').slice(0, 400)}`).join('\n');
+    const extra = `CONTEXTE : MESSAGE DE REPRISE, pas une réponse normale. Ce client nous a écrit il y a longtemps (${fmt(d.updated_at.slice(0, 10))})${answered ? '' : ' et n\'a JAMAIS reçu de réponse : commence par t\'excuser simplement du retard (une demi-phrase, sans te justifier)'}. Ses dates d'alors sont passées : ne les reprends pas. `
+      + `Annonce que FIK prépare ${wave.name.toLowerCase()} (du ${fmt(wave.from)} au ${fmt(wave.to)}) et demande s'il vient à Oran : ses dates + l'âge du conducteur. Rappelle UN seul avantage vrai qui répond à sa demande d'alors (ex. sans caution, livraison gratuite à l'aéroport d'Oran, boîte auto si il en demandait une — seulement si c'est dans les conditions). 2-3 phrases maximum. Ne cite AUCUN modèle de voiture (Kouider vérifie le parc et les disponibilités).`;
+    const draft = await tt.ttDraft({ kind: 'dm', name: d.chat, text: d.text }, convo, extra).catch(() => '');
+    if (!draft) continue;
+    out.push({ key, kind: 'tt', chat: d.chat, label: `${d.chat} (TikTok) — ancien contact du ${fmt(d.updated_at.slice(0, 10))}${answered ? '' : ', jamais répondu'}`,
+      why: `Il demandait : « ${d.text.replace(/\s+/g, ' ').slice(0, 160)} » → je le relance pour ${wave.short}.`, draft });
+  }
+  return out;
+}
+
 // ── File de propositions ────────────────────────────────────────────────────
 const ICON: Record<Relance['kind'], string> = { wa: '💬', panier: '🛒', prolong: '📅', tt: '🎵' };
 function card(p: Relance, i: number, n: number): string {
@@ -244,6 +283,7 @@ export async function jobRelanceClients(force = false): Promise<string> {
   await safe('paniers', () => paniers(today));
   await safe('whatsapp', () => waSilent(today));
   await safe('tiktok', () => ttSilent(today));
+  await safe('tiktok-anciens', () => ttWinback(today));
   const fresh: Relance[] = [];
   for (const r of found) if (force || !(await kvGet(DONE(r.key)).catch(() => null))) fresh.push(r);
   // Prolongations d'abord (client déjà là = argent sûr), puis paniers du site, puis WhatsApp ; numéros sans pays à la fin
