@@ -60,14 +60,14 @@ Règles : MÊME langue et même alphabet que le client (s'il écrit en français
 ${CL.langRule(it.text)} Ne promets JAMAIS qu'une voiture est disponible (Kouider vérifie). Conditions EXACTES ci-dessous — n'en cite aucune autre, n'invente rien :
 ${cond}
  Demande de location → demande les dates (début et fin) et l'âge du conducteur (35 ans minimum). Jamais de prix${it.kind === 'comment' ? ' en public' : ''}. Pour réserver : WhatsApp +32466311469 (écris le numéro tel quel, en chiffres latins).${it.kind === 'comment' ? ' Commentaire public : réponse très courte qui invite à écrire en privé ou sur WhatsApp.' : ''}
-${ND.NO_DISPO_RULE}
+${await ND.noDispoRule(it.name)}
 Réponds UNIQUEMENT avec le texte de la réponse, rien d'autre.${extra ? `\n${extra}` : ''}`;
   const r = await runReadOnlyAgent(convo
     ? `Discussion privée TikTok avec « ${it.name} » (dans l'ordre ; « FIK » = nous). ${extra ? 'Écris le message de reprise décrit plus haut' : 'Réponds à son DERNIER message'}, sans redemander ce qu'il a déjà donné :\n${convo.slice(-2500)}`
     : `${it.kind === 'dm' ? 'Message privé' : 'Commentaire'} TikTok de « ${it.name} » :\n« ${it.text.slice(0, 800)} »`, { system, sessionId: 'tt_draft', maxRounds: 1, maxTokens: 400 });
   let out = r.text.trim().replace(/^["«]\s*|\s*["»]$/g, '').slice(0, 700);
   if (out && it.text && !CL.replyMatches(it.text, out)) out = await CL.rewriteInLang(out, it.text).catch(() => out);   // 26/11 langue du client
-  if (out && ND.claimsAvailability(out)) out = ND.checkingText(CL.detectClientLang(it.text || convo), `${it.text} ${convo.slice(-600)}`);   // 26/11 jamais de dispo promise
+  if (out && ND.claimsAvailability(out) && !(await ND.hasConfirmation(it.name).catch(() => false))) out = ND.checkingText(CL.detectClientLang(it.text || convo), `${it.text} ${convo.slice(-600)}`);   // 26/11 jamais de dispo promise
   return out;
 }
 
@@ -186,6 +186,14 @@ export async function handleTtYesNo(message: string): Promise<{ reply?: string; 
   let p: { chat: string; draft: string; queue?: string[]; relance?: boolean };
   try { p = JSON.parse(raw); } catch { return null; }
   await clearTtPending();
+  // 26/11 : « la Clio est dispo » / « c'est complet » → retenu + réponse réécrite avec ça (même précédé de « oui »)
+  if (ND.dispoWords(m)) {
+    const nd = await ND.draftFromConfirmation(p.chat, p.draft, `Réponse qu'on allait envoyer à « ${p.chat} » sur TikTok : ${p.draft}`, m).catch(() => '');
+    if (nd) {
+      await setTtPending(p.chat, nd, p.queue, p.relance);
+      return { reply: `📌 Retenu (72 h) : « ${m} »\n\n✍️ Nouvelle réponse pour ${p.chat} :\n« ${nd} »\n${(await CL.frLines('', nd)).reply}\nRéponds « oui » pour l'envoyer sur TikTok, « non » pour passer, ou dis-moi quoi changer.` };
+    }
+  }
   const short = m.length <= 40 && !CHANGE_RE.test(m);
   const yes = short && YES_RE.test(m), no = short && NO_RE.test(m);
   if (!yes && !no) {

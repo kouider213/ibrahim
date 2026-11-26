@@ -300,7 +300,7 @@ export async function onWaNew(c: WaChat): Promise<void> {
   try {
     const run = await runReadOnlyAgent(`Client WhatsApp « ${name} » (${c.unread} message(s) non lu(s)). Nouveau(x) message(s) du client :\n« ${preview} »`
       + (convo ? `\n\nDiscussion récente (contexte) :\n${convo}` : '') + `\n\n${CL.langRule(preview || clientText)}`,
-      { system: `${REPLY_SYSTEM}\n\nCONDITIONS EXACTES DE FIK (24/11 : n'en cite aucune autre — ex. il n'y a AUCUNE caution) :\n${await import('./night-guard.js').then(m => m.exactConditions()).catch(() => '')}${prio?.rule ?? ''}\n\n${ND.NO_DISPO_RULE}`, sessionId: 'wa_web_draft', maxRounds: 4, maxTokens: 900 });
+      { system: `${REPLY_SYSTEM}\n\nCONDITIONS EXACTES DE FIK (24/11 : n'en cite aucune autre — ex. il n'y a AUCUNE caution) :\n${await import('./night-guard.js').then(m => m.exactConditions()).catch(() => '')}${prio?.rule ?? ''}\n\n${await ND.noDispoRule(name)}`, sessionId: 'wa_web_draft', maxRounds: 4, maxTokens: 900 });
     const a = run.text.indexOf('{'), z = run.text.lastIndexOf('}');
     const o = JSON.parse(run.text.slice(a, z + 1)) as { summary?: string; reply?: string; kind?: string; translation?: string };
     summary = String(o.summary ?? preview); reply = String(o.reply ?? '').trim(); kind = String(o.kind ?? 'autre');
@@ -311,7 +311,7 @@ export async function onWaNew(c: WaChat): Promise<void> {
   // 26/11 Kouider : « 18 hata 22 décembre » → réponse proposée en français. On répond comme le client écrit, sinon on réécrit.
   if (reply && !CL.replyMatches(preview || clientText, reply)) reply = await CL.rewriteInLang(reply, preview || clientText).catch(() => reply);
   // 26/11 Kouider : jamais « nos véhicules / c'est dispo » — lui-même doit demander à chaque fois (presque complet dès le 15/12)
-  if (reply && ND.claimsAvailability(reply)) { console.log('[wa-web] dispo promise retirée:', reply.slice(0, 120)); reply = ND.checkingText(CL.detectClientLang(preview || clientText), clientText); }
+  if (reply && ND.claimsAvailability(reply) && !(await ND.hasConfirmation(name).catch(() => false))) { console.log('[wa-web] dispo promise retirée:', reply.slice(0, 120)); reply = ND.checkingText(CL.detectClientLang(preview || clientText), clientText); }
   // Âge < 35 déclaré dans la discussion : JAMAIS de liste de voitures, refus poli (07/11 : « Parfait, t'as l'âge » à un 24 ans)
   if (age !== null && age < 35 && (kind === 'location' || isBookingRequest(clientText) || reply)) { reply = declineText(CL.detectClientLang(clientText) === 'darija_latin' ? 'dz' : isArabic(clientText)); kind = 'location'; await markAgeRefused(name, age); }
   // Règle de Kouider (01/11) : 1re réponse à une demande de location = demander dates + âge (si le cerveau l'a oublié)
@@ -413,6 +413,17 @@ export async function handleWaYesNo(message: string): Promise<{ reply?: string; 
   const yes = short && YES_RE.test(message), no = short && NO_RE.test(message);
   let p: { chat: string; draft: string; voice?: boolean; kind?: string };
   try { p = JSON.parse(raw) as { chat: string; draft: string; voice?: boolean; kind?: string }; } catch { return null; }
+  // 26/11 Kouider : « la Clio est dispo » / « j'ai des voitures » / « c'est complet » → retenu + réponse réécrite avec ÇA
+  // (même « oui elle est dispo » : sinon le « oui » envoyait l'ancienne réponse « on vérifie »)
+  if (ND.dispoWords(message)) {
+    const orig = (await drafts())[p.chat.toLowerCase()];
+    const nd = await ND.draftFromConfirmation(p.chat, orig?.preview ?? '', `Client : ${orig?.preview ?? ''}\nRéponse qu'on allait envoyer : ${p.draft}`, message).catch(() => '');
+    if (nd) {
+      await kvSet(PENDING_KEY, JSON.stringify({ ...p, draft: nd }), 12 * 3600);
+      await saveWaDraft(p.chat, orig?.preview ?? '', nd).catch(() => {});
+      return { reply: `📌 Retenu (72 h) : « ${message.trim()} »\n\n✍️ Nouvelle réponse pour ${p.chat} :\n« ${nd} »\n${(await CL.frLines('', nd)).reply}\nRéponds « oui » pour l'envoyer, « non » pour laisser, ou dis-moi quoi changer.` };
+    }
+  }
   // Autonomie progressive : on compte les « oui » sans changement, par type de message
   if (p.kind) void import('./autonomy.js').then(m => m.noteDecision(p.kind!, yes ? 'yes' : no ? 'no' : 'edit')).catch(() => {});
   if (short && VOICE_RE.test(message)) return { reply: await sendWaVoice(p.chat, p.draft) };
