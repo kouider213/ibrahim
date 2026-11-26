@@ -19,7 +19,8 @@ const DEFAULT_PHONE = '+32466311469';     // WhatsApp Business FIK (site, widget
 const DRAFTS_KEY = 'wa:drafts';
 const PREVIEW_KEY = 'wa:send:preview';
 const PAPERS_SEEN_KEY = 'wa:papers:seen';    // photos / PDF de clients déjà analysés (empreinte)
-const PENDING_KEY = 'wa:pending';          // dernière réponse proposée : le PROCHAIN message de Kouider (oui / non) décide
+const PENDING_KEY = 'wa:pending';
+const clearTt = () => import('./tiktok-web.js').then(m => m.clearTtPending()).catch(() => {});   // 26/11 : un seul « oui » en attente (WhatsApp ou TikTok)          // dernière réponse proposée : le PROCHAIN message de Kouider (oui / non) décide
 const DELICATE_RE = /accident|accroch|panne|crev[ée]|police|gendarm|vol[ée]e?\b|amende|fourri[èe]re|bless|urgence|urgent|حادث|عطب|شرطة|سرقة/i;
 
 export interface WaChat { name: string; preview: string; unread: number; time: string; out?: boolean }
@@ -222,6 +223,7 @@ export async function onWaNew(c: WaChat): Promise<void> {
       const all = await drafts();
       all[name.toLowerCase()] = { chat: name, preview: newText.slice(0, 600), draft, at: new Date().toISOString() };
       await kvSet(DRAFTS_KEY, JSON.stringify(all), 3 * 86_400);
+      await clearTt();
       await kvSet(PENDING_KEY, JSON.stringify({ chat: name, draft, kind: 'plainte' }), 12 * 3600);
       const day = new Date(refused.at).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', day: '2-digit', month: '2-digit' });
       const t = `${trick ? '⚠️ RISQUE D\'ARNAQUE' : '🚫 Client déjà refusé'} — WhatsApp ${name}\n« ${newText.slice(0, 400)} »\n\n`
@@ -337,6 +339,7 @@ ${reply}`;
       return;
     }
   }
+  if (reply) await clearTt();
   if (reply) await kvSet(PENDING_KEY, JSON.stringify({ chat: name, draft: reply, voice: voiceCount > 0, kind }), 12 * 3600);
   await queueTelegramMessage(text).catch(() => {});
   void import('./copilot.js').then(m => m.copilotPush({ chat: name, text: translation || preview, reply })).catch(() => {});   // page COPILOTE : lu à voix haute
@@ -379,6 +382,9 @@ export async function sendWaVoice(chat: string, text: string, own = false): Prom
 /** Message écrit de Kouider juste après une réponse WhatsApp proposée : « oui » → envoi, « non » → on laisse.
  *  Tout autre message annule l'attente (il passe à Dzaryx normalement, le brouillon reste disponible). null = pas concerné. */
 export async function handleWaYesNo(message: string): Promise<{ reply?: string; note?: string; chat?: string } | null> {
+  // 26/11 : TikTok d'abord (« montre les messages tiktok » montrait le brouillon WhatsApp, puis lançait le navigateur)
+  const tt = await import('./tiktok-web.js').then(m => m.handleTtYesNo(message)).catch(() => null);
+  if (tt) return tt;
   const raw = await kvGet(PENDING_KEY).catch(() => null);
   // « montre-moi le message » (même mal tapé : « monte moi ») → le brouillon tel quel, sans IA (01/11 : 2 × « pas accès aux données »)
   if (SHOW_RE.test(message) && message.trim().length <= 60) {
@@ -386,6 +392,7 @@ export async function handleWaYesNo(message: string): Promise<{ reply?: string; 
     try { p = raw ? JSON.parse(raw) as { chat: string; draft: string } : null; } catch { /* */ }
     if (!p) { const last = Object.values(await drafts()).sort((x, y) => y.at.localeCompare(x.at))[0]; if (last && Date.now() - Date.parse(last.at) < 6 * 3600_000) p = last; }
     if (p) {
+      await clearTt();
       await kvSet(PENDING_KEY, JSON.stringify(p), 12 * 3600);   // reste en attente : « oui » l'envoie
       return { reply: `✍️ Message prêt pour ${p.chat} :\n« ${p.draft} »\n\nRéponds « oui » pour l'envoyer, « non » pour laisser, ou dis-moi quoi changer.` };
     }
@@ -446,6 +453,7 @@ export async function clearWaPending(): Promise<void> {
 
 /** Brouillon proposé ailleurs (décision à boutons…) : devient la réponse en attente (« montre-moi le message », « oui »). */
 export async function setWaPending(chat: string, draft: string, extra: Record<string, unknown> = {}): Promise<void> {
+  await import('./tiktok-web.js').then(m => m.clearTtPending()).catch(() => {});
   await kvSet(PENDING_KEY, JSON.stringify({ ...extra, chat, draft }), 12 * 3600);
   await saveWaDraft(chat, (await drafts())[chat.toLowerCase()]?.preview ?? '', draft);
 }
@@ -708,6 +716,7 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
         const refused = input['confirmed'] === true;
         await kvSet(PREVIEW_KEY, sig, 20 * 60);
         // Le texte relu devient LE brouillon en attente : « montre-moi le message » / « oui » portent sur la dernière version
+        await clearTt();
         await kvSet(PENDING_KEY, JSON.stringify({ chat, draft: text }), 12 * 3600).catch(() => {});
         await saveWaDraft(chat, (await drafts())[chat.toLowerCase()]?.preview ?? '', text).catch(() => {});
         // Anti-regret (Jarvis 4) : message écrit sous l'énervement → version calme proposée, il choisit

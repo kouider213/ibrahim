@@ -108,6 +108,24 @@ export default function DemandesScreen() {
   const [busy, setBusy] = useState('');
   const [confirmDel, setConfirmDel] = useState('');
   const [toast, setToast] = useState('');
+  // 26/11 : réponse TikTok envoyée depuis l'app (comme WhatsApp)
+  const [ttReply, setTtReply] = useState<{ d: Demande; draft: string; last: string; loading: boolean } | null>(null);
+  const openTtReply = async (d: Demande) => {
+    setTtReply({ d, draft: '', last: '', loading: true });
+    try {
+      const r = await postJson<{ draft: string; last: string; missing?: boolean }>('/api/demandes/tt-draft', { chat: d.client_name, text: d.fields?.text || '' });
+      setTtReply({ d, draft: r.draft, last: r.last, loading: false });
+    } catch (e) { setTtReply(null); showToast(e instanceof Error ? e.message : 'Erreur'); }
+  };
+  const sendTtReply = async () => {
+    if (!ttReply?.draft.trim()) return;
+    setBusy('tt');
+    try {
+      await postJson('/api/demandes/tt-reply', { chat: ttReply.d.client_name, text: ttReply.draft });
+      showToast('Envoyé sur TikTok ✅'); setTtReply(null); await load();
+    } catch (e) { showToast(e instanceof Error ? e.message : 'Pas envoyé'); }
+    finally { setBusy(''); }
+  };
   const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500); };
 
   // Formulaire de création (dossier / import)
@@ -318,6 +336,7 @@ export default function DemandesScreen() {
                 )}
                 <div style={{ display: 'flex', gap: 8 }}>
                   {d.client_phone && <Btn color="#25D366" onClick={() => waRelance(d)} style={{ flex: 1.2 }}><Ico e="💬" />{isStale(d) ? 'Relancer' : 'WhatsApp'}</Btn>}
+                  {d.source === 'tiktok' && d.kind !== 'comment' && !isClosed(d) && <Btn color="#e8265e" disabled={!!busy} onClick={() => void openTtReply(d)} style={{ flex: 1.2 }}><Ico e="✍️" />Répondre</Btn>}
                   {d.source === 'tiktok' && <a href={d.fields?.video ? `https://www.tiktok.com/@fik_conciergerie/video/${d.fields.video}` : 'https://www.tiktok.com/messages'} target="_blank" rel="noopener noreferrer" style={{ ...btnStyle('ghost'), flex: 1.2, textDecoration: 'none' }}><Ico e="🎵" />Ouvrir TikTok</a>}
                   {(d.source === 'lead' || d.source === 'whatsapp' || d.source === 'tiktok') && d.status !== 'conclu' && <Btn color={T.ok} disabled={!!busy} onClick={() => void act(d, 'conclu', 'Demande marquée conclue ✅')} style={{ flex: 1 }}>✓ Conclu</Btn>}
                   {(d.source === 'whatsapp' || d.source === 'tiktok') && !isClosed(d) && <Btn variant="ghost" disabled={!!busy} onClick={() => void act(d, 'perdu', 'Demande marquée perdue')} style={{ flex: 1 }}>✕ Perdu</Btn>}
@@ -333,6 +352,20 @@ export default function DemandesScreen() {
           );
         })}
       </div>
+
+      {ttReply && (
+        <Sheet title={`Répondre à ${ttReply.d.client_name || 'client'}`} subtitle="Message privé TikTok — envoyé par le PC cloud" onClose={() => setTtReply(null)}
+          footer={<>
+            <Btn variant="ghost" onClick={() => setTtReply(null)} style={{ flex: 1 }}>Annuler</Btn>
+            <Btn color="#e8265e" disabled={ttReply.loading || !ttReply.draft.trim() || busy === 'tt'} onClick={() => void sendTtReply()} style={{ flex: 2 }}>{busy === 'tt' ? '⏳ Envoi…' : '🎵 Envoyer sur TikTok'}</Btn>
+          </>}>
+          {ttReply.loading ? <div style={{ padding: 16, color: T.muted }}>Je lis la discussion sur TikTok…</div> : <>
+            {ttReply.last && <div style={{ fontSize: 13.5, color: T.muted, marginBottom: 10 }}>Dernier message : « {ttReply.last} »</div>}
+            <textarea value={ttReply.draft} onChange={e => setTtReply(r => r && { ...r, draft: e.target.value })} rows={6}
+              placeholder="Ta réponse…" style={{ ...inputStyle, width: '100%', resize: 'vertical', fontSize: 15, lineHeight: 1.4 }} />
+          </>}
+        </Sheet>
+      )}
 
       {showNew && (
         <Sheet title="Nouvelle demande" subtitle="Dossier d'achat, immo, pack ou importation" onClose={() => setShowNew(false)}

@@ -1,6 +1,6 @@
 """TikTok de FIK (fik_conciergerie) dans le Chrome du PC cloud — 24/11/2026, demande de Kouider.
 
-LECTURE SEULE : Dzaryx ne répond jamais sur TikTok et n'ouvre aucune discussion (elles restent « non lues » sur son téléphone).
+Lecture ~8 min sans ouvrir les discussions. 26/11 : réponse à un message privé (`reply`) SEULEMENT après le « oui » de Kouider.
 Toutes les ~8 min : liste des messages privés (Suite entreprise) + onglet Activité → Commentaires.
 Chaque nouveau message client / commentaire → `cloud:tt_new` → backend tiktok-web.ts → fiche 🎵 TikTok dans DEMANDES + Telegram.
 Puzzle anti-robot ou déconnexion → `cloud:tt_state` (le backend prévient Kouider ; on ne contourne jamais le puzzle).
@@ -100,6 +100,9 @@ async def _dismiss(p: Page) -> None:
       const b = document.querySelector('tiktok-cookie-banner');
       const d = b && b.shadowRoot ? [...b.shadowRoot.querySelectorAll('button')].find(x => /Décliner|Decline/i.test(x.innerText)) : null;
       if (d) d.click();
+      // 26/11 : fenêtre « Utiliser la carte de contact » (Conditions) → « Plus tard » ; elle bloquait le clavier de la boîte de messages
+      const later = [...document.querySelectorAll('[role=dialog] button, [data-testid*=term-modal] ')].find(x => /^(Plus tard|Later|Not now|Pas maintenant)$/i.test(x.innerText.trim()));
+      if (later) later.click();
     })()""")
 
 
@@ -353,7 +356,105 @@ async def insights() -> dict:
     return {'ok': True, 'insight': keep, 'videos': items, 'searches': searches, 'traffic': traffic, 'trends': trends, 'all_keys': sorted(merged.keys())}
 
 
+# ── Réponse à un message privé (26/11, Kouider : « comme avec WhatsApp, pour répondre au client directement ») ──
+# Toujours après SON « oui » (backend tiktok-web.ts). Ouvrir la discussion la marque « lue » sur TikTok.
+FRAME = "[...document.querySelectorAll('iframe')].map(f => { try { return f.contentDocument } catch(e) { return null } }).find(d => d && /\\/messages/.test(d.location.href)) || (/\\/messages/.test(location.href) ? document : null)"
+JS_OPEN = r"""(async (name) => {
+  const d = %s;
+  if (!d) return { error: 'boîte de messages TikTok introuvable' };
+  const norm = s => (s || '').normalize('NFKC').trim().toLowerCase();
+  const items = [...d.querySelectorAll('[data-e2e=dm-new-conversation-item]')];
+  const it = items.find(e => norm((e.querySelector('[data-e2e=dm-new-conversation-nickname]') || {}).innerText) === norm(name));
+  if (!it) return { error: 'discussion « ' + name + ' » introuvable dans les 30 premières', names: items.slice(0, 30).map(e => (e.querySelector('[data-e2e=dm-new-conversation-nickname]') || {}).innerText) };
+  it.click();
+  for (let i = 0; i < 20; i++) {
+    await new Promise(r => setTimeout(r, 400));
+    const n = (d.querySelector('[data-e2e=dm-new-chat-nickname]') || {}).innerText;
+    if (norm(n) === norm(name) && d.querySelector('[data-e2e=dm-new-chat-item]')) break;
+  }
+  await new Promise(r => setTimeout(r, 800));
+  const msgs = [...d.querySelectorAll('[data-e2e=dm-new-chat-item]')].map(e => {
+    const a = e.querySelector('[data-e2e=chat-avatar]');
+    const href = a ? (a.getAttribute('href') || (a.closest('a') || {}).href || '') : '';
+    const t = ((e.querySelector('[data-e2e=dm-new-message-text]') || {}).innerText || (e.querySelector('[data-e2e=dm-new-shared-video]') ? '[vidéo partagée]' : '')).trim();
+    return { me: /@fik_conciergerie/.test(href), text: t };
+  }).filter(m => m.text && m.text !== 'fik_conciergerie');
+  return { ok: true, chat: (d.querySelector('[data-e2e=dm-new-chat-nickname]') || {}).innerText, handle: (d.querySelector('[data-e2e=chat-uniqueid]') || {}).innerText, messages: msgs.slice(-20) };
+})""" % FRAME
+
+
+async def _open_chat(p: Page, name: str) -> dict:
+    if not await p.js(f'!!({FRAME})'):
+        await p.call('Page.navigate', {'url': URL})
+        await asyncio.sleep(12)
+    await _dismiss(p)
+    await asyncio.sleep(1)
+    st = await p.js(JS_STATE) or {}
+    if '/login' in str(st.get('href')):
+        return {'ok': False, 'error': 'TikTok déconnecté du PC cloud'}
+    if st.get('captcha'):
+        return {'ok': False, 'error': 'puzzle anti-robot TikTok à faire sur MON PC'}
+    return await p.js(f'({JS_OPEN})({json.dumps(name)})') or {'ok': False, 'error': 'page TikTok muette'}
+
+
+async def read_chat(name: str) -> dict:
+    async with LOCK:
+        async with Page('https://www.tiktok.com', URL) as p:
+            r = await _open_chat(p, name)
+            return r if r.get('ok') else {'ok': False, **r}
+
+
+async def reply(name: str, text: str, dry: bool = False) -> dict:
+    text = ' '.join(text.split())[:1500]
+    if not text:
+        return {'ok': False, 'error': 'texte vide'}
+    async with LOCK:
+        async with Page('https://www.tiktok.com', URL) as p:
+            r = await _open_chat(p, name)
+            if not r.get('ok'):
+                return {'ok': False, **r}
+            before = sum(1 for m in r['messages'] if m['me'])
+            p.activate()
+            await asyncio.sleep(0.5)
+            ok = await p.js(f"""(() => {{ const d = {FRAME}; const e = d && d.querySelector('[data-e2e=message-input-area] .public-DraftEditor-content, .public-DraftEditor-content');
+              if (!e) return false; e.focus(); const r = d.createRange(); r.selectNodeContents(e); const s = d.getSelection(); s.removeAllRanges(); s.addRange(r); return true; }})()""")
+            if not ok:
+                return {'ok': False, 'error': "zone d'écriture TikTok introuvable", 'shot': await _shot(p)}
+            await _key(p, 'Backspace', 'Backspace', 8)
+            await asyncio.sleep(0.4)
+            left = (await p.js(f"(() => {{ const d = {FRAME}; return (d.querySelector('.public-DraftEditor-content') || {{}}).innerText || ''; }})()") or '').strip()
+            if left:   # une fenêtre TikTok garde le clavier : on n'écrit rien par-dessus un vieux texte
+                return {'ok': False, 'error': "la zone d'écriture TikTok n'a pas pu être vidée (fenêtre ouverte ?)", 'shot': await _shot(p)}
+            await p.call('Input.insertText', {'text': text})
+            await asyncio.sleep(1)
+            typed = (await p.js(f"(() => {{ const d = {FRAME}; return (d.querySelector('.public-DraftEditor-content') || {{}}).innerText || ''; }})()") or '').strip()
+            if ' '.join(typed.split())[:40] != text[:40]:
+                return {'ok': False, 'error': "le message ne s'est pas écrit correctement", 'typed': typed[:200], 'shot': await _shot(p)}
+            if dry:
+                shot = await _shot(p)
+                await p.js(f"(() => {{ const d = {FRAME}; const e = d.querySelector('.public-DraftEditor-content'); e.focus(); const r = d.createRange(); r.selectNodeContents(e); const s = d.getSelection(); s.removeAllRanges(); s.addRange(r); }})()")
+                await _key(p, 'Backspace', 'Backspace', 8)
+                return {'ok': True, 'dry': True, 'chat': r.get('chat'), 'typed': typed, 'messages': r['messages'], 'shot': shot}
+            for t in ('keyDown', 'keyUp'):
+                ev = {'type': t, 'key': 'Enter', 'code': 'Enter', 'windowsVirtualKeyCode': 13}
+                if t == 'keyDown':
+                    ev['text'] = '\r'
+                await p.call('Input.dispatchKeyEvent', ev)
+            # envoyé = un message de plus de notre côté qui commence comme le texte
+            for _ in range(15):
+                await asyncio.sleep(1)
+                mine = await p.js(f"""(() => {{ const d = {FRAME}; return [...d.querySelectorAll('[data-e2e=dm-new-chat-item]')].filter(e => {{ const a = e.querySelector('[data-e2e=chat-avatar]');
+                  return a && /@fik_conciergerie/.test(a.getAttribute('href') || (a.closest('a') || {{}}).href || ''); }}).map(e => ((e.querySelector('[data-e2e=dm-new-message-text]') || {{}}).innerText || '').trim()); }})()""") or []
+                if len(mine) > before and ' '.join(mine[-1].split())[:30] == text[:30]:
+                    return {'ok': True, 'chat': r.get('chat')}
+            return {'ok': False, 'error': "TikTok n'a pas confirmé l'envoi (vérifie sur MON PC)", 'shot': await _shot(p)}
+
+
 async def action(d: dict) -> dict:
+    if d.get('action') == 'read_chat':
+        return await read_chat(str(d.get('name') or ''))
+    if d.get('action') == 'reply':
+        return await reply(str(d.get('name') or ''), str(d.get('text') or ''), bool(d.get('dry')))
     if d.get('action') == 'insights':
         return await insights()
     if d.get('action') == 'publish':

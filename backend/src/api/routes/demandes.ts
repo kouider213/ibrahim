@@ -111,6 +111,24 @@ router.get('/', requireMobileAuth, async (_req, res) => {
   res.json({ demandes: out, counts });
 });
 
+// 26/11 : répondre à un message privé TikTok depuis l'app (brouillon lu dans la vraie discussion, puis envoi par le PC cloud)
+router.post('/tt-draft', requireMobileAuth, async (req, res) => {
+  const chat = String(req.body?.chat ?? ''); const text = String(req.body?.text ?? '');
+  if (!chat) { res.status(400).json({ error: 'chat requis' }); return; }
+  try {
+    const { draftFor } = await import('../../integrations/tiktok-web.js');
+    res.json(await draftFor(chat, text.split('\n').pop() || text));
+  } catch (e) { res.status(500).json({ error: (e as Error).message }); }
+});
+router.post('/tt-reply', requireMobileAuth, async (req, res) => {
+  const chat = String(req.body?.chat ?? ''); const text = String(req.body?.text ?? '').trim();
+  if (!chat || !text) { res.status(400).json({ error: 'chat + texte requis' }); return; }
+  const { sendTtReply } = await import('../../integrations/tiktok-web.js');
+  const r = await sendTtReply(chat, text);
+  if (!r.ok) { res.status(502).json({ error: r.error || 'pas envoyé' }); return; }
+  res.json({ ok: true });
+});
+
 // POST /api/demandes/update — change le statut d'une demande DEPUIS l'app.
 // Proxy serveur→serveur vers les APIs du site (déclenche email/WhatsApp auto) — pas de CORS.
 const SITE = process.env['FIK_SITE_URL'] || 'https://fikconciergerie.com';

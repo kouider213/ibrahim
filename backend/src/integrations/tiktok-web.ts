@@ -1,8 +1,10 @@
 // TikTok de FIK (fik_conciergerie) lu dans le Chrome du PC cloud (cloudpc/tiktok_web.py) — 24/11, demande de Kouider :
-// « je voudrais ceux de TikTok aussi » (messages privés + commentaires). LECTURE SEULE : Dzaryx ne répond jamais sur TikTok.
-// Chaque demande → fiche 🎵 TikTok dans DEMANDES (wa-demandes.ts, kv tt:demandes) + Telegram.
+// « je voudrais ceux de TikTok aussi » (messages privés + commentaires). Chaque demande → fiche 🎵 TikTok dans DEMANDES + Telegram.
+// 26/11 : « comme avec WhatsApp » → message privé = réponse proposée, « oui » = envoyée sur TikTok par le PC cloud (rien sans son oui).
+// Commentaires publics : réponse à copier (pas d'envoi).
 import { kvGet, kvSet } from './app-store.js';
-import { recordDemande, looksLikeDemande } from './wa-demandes.js';
+import { recordDemande, looksLikeDemande, listWaDemandes, markDemande, WA_CLOSED } from './wa-demandes.js';
+import { cloudEmit, isCloudPcOnline } from '../actions/handlers/cloudpc-relay.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 
@@ -24,9 +26,11 @@ export async function onTtNew(it: TtItem): Promise<void> {
   if (!added || it.backfill) return;
   const where = it.kind === 'dm' ? 'message privé' : `commentaire${it.video ? ` (${it.video})` : ''}`;
   const draft = await ttDraft(it).catch(() => '');
+  const dm = it.kind === 'dm' && !!draft;
+  if (dm) await setTtPending(it.name, draft);
   const t = `🎵 TikTok — ${it.name} (${where})\n« ${it.text.slice(0, 500)} »\n\n`
-    + (draft ? `✍️ Réponse à copier-coller dans TikTok :\n${draft}\n\n` : '')
-    + `Ajouté dans DEMANDES. Réponds-lui depuis l'app TikTok (Dzaryx ne répond pas sur TikTok).`;
+    + (dm ? `✍️ Réponse prête :\n« ${draft} »\n\nRéponds « oui » pour l'envoyer sur TikTok, « non » pour laisser, ou dis-moi quoi changer.`
+      : (draft ? `✍️ Réponse à copier-coller sous le commentaire :\n${draft}\n\n` : '') + `Ajouté dans DEMANDES.`);
   await queueTelegramMessage(t).catch(() => {});
   emitProactive(`TikTok — ${it.name} : ${it.text.slice(0, 70)}`, 'info', t);
 }
@@ -44,7 +48,7 @@ export async function onTtState(st: { logged_in?: boolean; captcha?: boolean }):
 }
 
 /** 24/11 : réponse proposée (Kouider la copie dans TikTok) — mêmes règles que WhatsApp, conditions exactes via l'outil. */
-export async function ttDraft(it: TtItem): Promise<string> {
+export async function ttDraft(it: TtItem, convo = ''): Promise<string> {
   const { runReadOnlyAgent } = await import('./readonly-agent.js');
   // Les conditions EXACTES dans le prompt (24/11 : sans elles, il a écrit « la caution est obligatoire » — FIK n'en demande aucune)
   const cond = await import('./night-guard.js').then(m => m.exactConditions()).catch(() => '');
@@ -53,6 +57,112 @@ Règles : MÊME langue que le client (s'il écrit en français, même avec « sa
 ${cond}
  Demande de location → demande les dates (début et fin) et l'âge du conducteur (35 ans minimum). Jamais de prix${it.kind === 'comment' ? ' en public' : ''}. Pour réserver : WhatsApp +32466311469 (écris le numéro tel quel, en chiffres latins).${it.kind === 'comment' ? ' Commentaire public : réponse très courte qui invite à écrire en privé ou sur WhatsApp.' : ''}
 Réponds UNIQUEMENT avec le texte de la réponse, rien d'autre.`;
-  const r = await runReadOnlyAgent(`${it.kind === 'dm' ? 'Message privé' : 'Commentaire'} TikTok de « ${it.name} » :\n« ${it.text.slice(0, 800)} »`, { system, sessionId: 'tt_draft', maxRounds: 1, maxTokens: 400 });
+  const r = await runReadOnlyAgent(convo
+    ? `Discussion privée TikTok avec « ${it.name} » (dans l'ordre ; « FIK » = nous). Réponds à son DERNIER message, sans redemander ce qu'il a déjà donné :\n${convo.slice(-2500)}`
+    : `${it.kind === 'dm' ? 'Message privé' : 'Commentaire'} TikTok de « ${it.name} » :\n« ${it.text.slice(0, 800)} »`, { system, sessionId: 'tt_draft', maxRounds: 1, maxTokens: 400 });
   return r.text.trim().replace(/^["«]\s*|\s*["»]$/g, '').slice(0, 700);
+}
+
+
+// ── 26/11 : répondre aux messages privés TikTok depuis Telegram, comme WhatsApp ─────────────────────────────
+type R = { ok: boolean; error?: string; [k: string]: unknown };
+const PENDING = 'tt:pending';   // { chat, draft, queue: [noms suivants] } — le prochain message de Kouider (oui / non) décide
+
+export async function setTtPending(chat: string, draft: string, queue: string[] = []): Promise<void> {
+  await kvSet(PENDING, JSON.stringify({ chat, draft, queue }), 12 * 3600);
+  await import('./whatsapp-web.js').then(m => m.clearWaPending()).catch(() => {});   // un seul « oui » en attente à la fois
+}
+export async function clearTtPending(): Promise<void> { await kvSet(PENDING, '', 60).catch(() => {}); }
+
+/** Lit la discussion sur le PC cloud et prépare la réponse (contexte complet, pas seulement l'aperçu de la liste). */
+export async function draftFor(chat: string, preview: string): Promise<{ draft: string; last: string; missing?: boolean }> {
+  let convo = '', last = preview;
+  if (isCloudPcOnline()) {
+    const r = await cloudEmit<R & { messages?: Array<{ me: boolean; text: string }> }>('cloud:tt', { action: 'read_chat', name: chat }, 120_000).catch(() => null);
+    if (r && !r.ok && /introuvable/.test(String(r.error))) return { draft: '', last: 'discussion introuvable dans TikTok (pseudo changé ?)', missing: true };
+    const msgs = r?.ok ? r.messages ?? [] : [];
+    if (msgs.length) {
+      convo = msgs.map(m => `${m.me ? 'FIK' : chat} : ${m.text.replace(/\s+/g, ' ').slice(0, 400)}`).join('\n');
+      const theirs = msgs.filter(m => !m.me);
+      if (msgs[msgs.length - 1]!.me) return { draft: '', last: `déjà répondu (« ${msgs[msgs.length - 1]!.text.slice(0, 120)} »)` };
+      last = theirs.slice(-3).map(m => m.text).join(' / ') || preview;
+    }
+  }
+  const draft = await ttDraft({ kind: 'dm', name: chat, text: preview }, convo).catch(() => '');
+  return { draft, last };
+}
+
+/** Messages privés TikTok encore sans réponse (fiches ouvertes « nouveau », 14 derniers jours). */
+async function openDms(): Promise<Array<{ chat: string; text: string }>> {
+  return (await listWaDemandes('tiktok'))
+    .filter(d => (d.via ?? 'dm') === 'dm' && d.status === 'nouveau' && !WA_CLOSED.has(d.status) && Date.now() - Date.parse(d.updated_at) < 14 * 86_400_000)
+    .map(d => ({ chat: d.chat, text: d.text }));
+}
+
+async function propose(list: Array<{ chat: string; text: string }>, header = ''): Promise<string> {
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i]!;
+    const { draft, last, missing } = await draftFor(c.chat, c.text.split('\n').pop() || c.text);
+    if (missing) { header += `• ${c.chat} : ${last} → regarde-la sur ton téléphone.\n`; continue; }
+    if (!draft) { await markDemande(c.chat, 'contacté', ['nouveau'], 'tiktok').catch(() => {}); header += `• ${c.chat} : ${last} → rangé.\n`; continue; }
+    const rest = list.slice(i + 1).map(x => x.chat);
+    await setTtPending(c.chat, draft, rest);
+    return `${header}🎵 ${c.chat} : « ${last.slice(0, 300)} »\n\n✍️ Réponse prête :\n« ${draft} »\n\nRéponds « oui » pour l'envoyer sur TikTok, « non » pour passer, ou dis-moi quoi changer.`
+      + (rest.length ? `\n(${rest.length} autre${rest.length > 1 ? 's' : ''} après : ${rest.join(', ')})` : '');
+  }
+  return header ? `${header}\nPlus aucun message TikTok en attente ✅` : '';
+}
+
+/** « montre les messages TikTok » : tous les messages privés en attente, réponse proposée un par un. */
+export async function showTiktokMessages(): Promise<string> {
+  const list = await openDms();
+  if (!list.length) return '🎵 Aucun message privé TikTok en attente de réponse. (Les commentaires sont dans l\'app → DEMANDES → 🎵 TikTok.)';
+  const head = `🎵 ${list.length} message${list.length > 1 ? 's' : ''} TikTok en attente : ${list.map(x => x.chat).join(', ')}\n\n`;
+  return (await propose(list, head)) || head;
+}
+
+export async function sendTtReply(chat: string, text: string): Promise<{ ok: boolean; error?: string }> {
+  if (!isCloudPcOnline()) return { ok: false, error: 'le PC cloud ne répond pas' };
+  const r = await cloudEmit<R>('cloud:tt', { action: 'reply', name: chat, text }, 180_000)
+    .catch(err => ({ ok: false, error: err instanceof Error ? err.message : String(err) } as R));
+  if (r.ok) await markDemande(chat, 'contacté', ['nouveau'], 'tiktok').catch(() => {});
+  return { ok: r.ok, error: r.error };
+}
+
+const TT_SHOW_RE = /\b(tik ?tok|tiktok)\b/i;
+const SHOW_WORD_RE = /\b(montre|monte|motre|affiche|lis|voir|quels?|r[ée]pond|message|msg|dm)/i;
+const YES_RE = /^\s*(oui|ouais|wi|yes|ok|okay|d'?accord|vas[- ]y|envoie(-la|-le)?|go|c'?est bon|parfait|nickel|wah|ih|نعم|واه)(?=$|[\s,.!👍])/i;
+const NO_RE = /^\s*(non|no|nan|laisse|annule|passe|suivant|pas maintenant|لا)(?=$|[\s,.!])/i;
+const CHANGE_RE = /mais|change|modifi|plut[oô]t|sauf|ajoute|enl[eè]ve|corrige/i;
+
+/** Avant WhatsApp : « montre les messages TikTok » et le oui / non d'une réponse TikTok proposée. null = pas concerné. */
+export async function handleTtYesNo(message: string): Promise<{ reply?: string; note?: string } | null> {
+  const m = message.trim();
+  if (TT_SHOW_RE.test(m) && SHOW_WORD_RE.test(m) && m.length <= 80 && !/\b(pub|vid[ée]o|publi|stat|abonn|post)/i.test(m)) return { reply: await showTiktokMessages() };
+  const raw = await kvGet(PENDING).catch(() => null);
+  if (!raw) return null;
+  let p: { chat: string; draft: string; queue?: string[] };
+  try { p = JSON.parse(raw); } catch { return null; }
+  await clearTtPending();
+  const short = m.length <= 40 && !CHANGE_RE.test(m);
+  const yes = short && YES_RE.test(m), no = short && NO_RE.test(m);
+  if (!yes && !no) {
+    // « change … / ajoute … / plutôt … » (ou consigne courte) → réécrite ici, toujours en attente de son oui
+    if (CHANGE_RE.test(m) || m.length <= 120) {
+      const { runReadOnlyAgent } = await import('./readonly-agent.js');
+      const r = await runReadOnlyAgent(`Réponse actuelle : « ${p.draft} »\nConsigne de Kouider : « ${m} »`, { sessionId: 'tt_draft', maxRounds: 1, maxTokens: 400,
+        system: `Tu réécris la réponse de FIK Conciergerie à un message privé TikTok de « ${p.chat} » selon la consigne de Kouider. Garde la langue, le vouvoiement et ce qui n'est pas concerné. N'invente aucune condition ni prix. Si la consigne n'a rien à voir avec cette réponse, renvoie exactement : AUTRE. Sinon réponds UNIQUEMENT avec le nouveau texte.` }).catch(() => null);
+      const t = (r?.text ?? '').trim().replace(/^["«]\s*|\s*["»]$/g, '').slice(0, 900);
+      if (t && t !== 'AUTRE') {
+        await setTtPending(p.chat, t, p.queue);
+        return { reply: `✍️ Nouvelle réponse pour ${p.chat} :\n« ${t} »\n\nRéponds « oui » pour l'envoyer sur TikTok, « non » pour passer, ou dis-moi quoi changer.` };
+      }
+    }
+    return null;   // autre sujet : il passe à Dzaryx normalement (« montre les messages tiktok » la repropose)
+  }
+  const queue = (await openDms()).filter(x => (p.queue ?? []).includes(x.chat));
+  if (no) return { reply: `👍 Rien envoyé à ${p.chat}.\n\n${await propose(queue)}`.trim() };
+  const r = await sendTtReply(p.chat, p.draft);
+  if (!r.ok) { await setTtPending(p.chat, p.draft, p.queue); return { reply: `❌ Pas envoyé sur TikTok à ${p.chat} : ${r.error ?? 'erreur'}. Redis « oui » pour réessayer.` }; }
+  return { reply: `✅ Envoyé sur TikTok à ${p.chat}.\n\n${await propose(queue)}`.trim() };
 }
