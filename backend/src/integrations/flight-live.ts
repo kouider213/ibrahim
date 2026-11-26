@@ -399,6 +399,7 @@ async function watchOne(t: Trip, list: Trip[], now: number): Promise<void> {
           if (d >= 15) {
             const lp = mine(t) ? await leavePlan(t, st).catch(() => null) : null;
             await tell(t, st, tag, `⏳ ${name} ${t.from} → ${t.to} a du RETARD : ${d} min.\n🛫 Nouveau départ ≈ ${at(newDep, t.tz)} (au lieu de ${at(t.departAt, t.tz)})${s.est_arr ? ` · arrivée ≈ ${s.est_arr.replace(':', 'h')}` : t.arriveAt ? ` · arrivée ≈ ${at(t.arriveAt + d * 60_000, guessTzOf(t.to))}` : ''}${s.source ? `\nSource : ${s.source}` : ''}\n📅 Agenda FIK décalé${mine(t) ? ` — « être à l'aéroport » à ${at(newDep - 150 * 60_000, t.tz)}${lp ? `, partir vers ${at(lp.leave, TZ)}` : ''} (je te redis avec le trafic)` : ' — décale la remise de la voiture'}.`, `⏳ Vol retardé de ${d} min`);
+            if (!mine(t) && d >= 30) await clientDelayNotice(t, d, s.est_arr ? s.est_arr.replace(':', 'h') : t.arriveAt ? at(t.arriveAt + d * 60_000, guessTzOf(t.to)) : '').catch(e => console.warn('[flight] message client :', e instanceof Error ? e.message : e));
             if (mine(t) && d >= 60 && hBefore < 5) await autoCall(`flight-delay:${t.id}:${Math.round(d / 30)}`, `Kouider, ton vol pour ${t.to} a ${d} minutes de retard. Nouveau départ vers ${at(newDep, t.tz).replace('h', ' heures ')}. Pas besoin de partir aussi tôt, j'ai décalé l'agenda.`, { level: 'urgent' });
           } else await tell(t, st, tag, `✅ ${name} est de nouveau à l'heure : départ ${at(t.departAt, t.tz)}.`);
         } else st.pendingDelay = d;
@@ -661,3 +662,31 @@ export async function addRequest(person: string, items: string[], phase: 'out' |
 }
 
 export const _internals = { radar, webStatus, callsigns, eveBriefing };   // tests
+
+
+/** 26/11 Kouider : vol d'un CLIENT qui arrive à Oran en retard → message WhatsApp prêt pour le rassurer (« la voiture vous attend »).
+ *  Rien ne part sans son « oui » (ou le lien 1 clic). Une fois par palier de 30 min de retard. */
+async function clientDelayNotice(t: Trip, d: number, arr: string): Promise<void> {
+  if (!/oran|\bORN\b|ahmed ben bella/i.test(`${t.to ?? ''}`) || !t.bookingId) return;
+  const k = `flight:clientmsg:${t.id}:${Math.round(d / 30)}`;
+  if (await kvGet(k).catch(() => null)) return;
+  await kvSet(k, '1', 3 * 86_400);
+  const { data } = await supabase.from('bookings').select('client_name, client_phone, client_lang').eq('id', t.bookingId).maybeSingle();
+  const b = data as { client_name?: string; client_phone?: string | null; client_lang?: string | null } | null;
+  const { waLink } = await import('../notifications/client-care.js');
+  const first = (b?.client_name ?? t.clientName ?? '').split(/\s/)[0] ?? '';
+  const lang = b?.client_lang ?? 'fr';
+  const text = lang === 'ar'
+    ? `السلام عليكم ${first}، شفنا بلي الطيارة تاعك فيها تأخير${arr ? ` (الوصول حوالي ${arr})` : ''}. ما تقلقش، الطوموبيل راهي تستناك في مطار وهران 👍 FIK Conciergerie`
+    : lang === 'en'
+    ? `Hello ${first}, we saw your flight is delayed${arr ? ` (arrival around ${arr})` : ''}. No worries, your car will be waiting for you at Oran airport 👍 FIK Conciergerie`
+    : `Bonjour ${first}, on a vu que votre vol a du retard${arr ? ` (arrivée vers ${arr})` : ''}. Pas d'inquiétude, votre voiture vous attend à l'aéroport d'Oran 👍 FIK Conciergerie`;
+  const link = waLink(b?.client_phone, text);
+  if (!link) { await queueTelegramMessage(`✈️ Vol de ${t.clientName ?? 'ton client'} en retard de ${d} min : pas de numéro dans la réservation pour le prévenir.`).catch(() => {}); return; }
+  const num = `+${new URL(link).pathname.slice(1)}`;
+  const wa = await import('./whatsapp-web.js');
+  const free = !(await wa.hasWaPending().catch(() => true));
+  if (free) await wa.setWaPending(num, text);
+  await queueTelegramMessage(`✈️ Le vol de ${t.clientName ?? 'ton client'} a ${d} min de retard. Message prêt pour le rassurer :\n\n« ${text} »\n\n` +
+    (free ? `Réponds « oui » pour l'envoyer sur WhatsApp, « non » pour laisser.` : `Pour l'envoyer en 1 clic : ${link}`), undefined, 'kouider', undefined, true).catch(() => {});
+}

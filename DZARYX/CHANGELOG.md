@@ -1,3 +1,8 @@
+## 26/11 — Post Google Maps FIK chaque lundi + client rassuré quand son vol est en retard
+- marketing/fik-google-post.ts + job fik-google-post (lundi 10h Alger) : texte « mise à jour » de la fiche Google FIK (voiture de la semaine qui tourne, moment de l'année, conditions exactes, mots « location voiture Oran / aéroport Oran ») + vraie photo de la voiture sur Telegram. Historique kv gbp:fik:history.
+- flight-live : vol d'un client vers Oran retardé ≥ 30 min (2 lectures concordantes) → message WhatsApp « votre voiture vous attend » (fr/ar/en selon client_lang) mis en attente du « oui » (ou lien wa.me si un autre brouillon attend). Une fois par palier de 30 min.
+- Parrainage : Kouider refuse toute remise pour l'instant (marges) — rien fait. Avis Google après location existait déjà (client-care, 05/11).
+
 ## 26/11 — « Écris-la en darija » géré par le code
 07:20 Kouider : « Change écris le en darija » → le cerveau libre a écrit « Ch-hal fi omrak t-3ich ? » (sens faux). handleWaYesNo / handleTtYesNo : askedLang() (darija / arabe / français / anglais / comme lui) → rewriteInLang forcé avec le guide darija d'Oran ; si la version en attente est déjà dans cette langue (ratée), on repart de la réponse d'origine.
 
