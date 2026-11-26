@@ -1,3 +1,7 @@
+## 26/11 — Dzaryx voit ses propres notifications + plus de pub en photos par erreur
+- tg-outbox.recentNotifNote : message court de Kouider sur Telegram → les notifications automatiques des 45 dernières minutes (tg:sentlog) sont mises en contexte (« la », « ça », « vas-y » = cette notification). Cause du « partage-la » → bilan calories.
+- video-studio.bestModel : un drapeau « fal vide » expiré ne veut plus dire « crédit rechargé » : on vérifie toujours chez fal. Sinon Kling échouait → pub montée en photos animées malgré la règle du 26/11 (pub 9f7a0969, 0/4 scènes réelles).
+
 ## 26/11 — « Partage-la au meilleur moment » après une pub → programmée sur TikTok
 Il a répondu en texte (pas les boutons) 5 min après la pub ; le cerveau a cru que « la » = le bilan calories. tiktok-pub.handlePubPublishReply (pré-route call.ts) : verbe publier/partager/poster + pub/vidéo/« la », pub prête < 24 h non publiée → créneau prime (pub:tiktok:slots) ou maintenant. WhatsApp/photo/bilan/lien exclus. Fix aussi cloudpc : plus de fausse alerte « TikTok déconnecté ».
 

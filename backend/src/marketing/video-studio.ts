@@ -91,7 +91,8 @@ const isCreditError = (m: string) => /crédit|refusé|balance|exhausted|locked|4
 export async function bestModel(): Promise<ModelId> {
   if (!env.FAL_KEY) return FREE_MODEL;
   if (await monthCapReached()) return FREE_MODEL;   // 26/11 plafond mensuel accepté par Kouider
-  if (Number((await kvGet(FAL_EMPTY_KEY).catch(() => null)) ?? 0) <= Date.now()) return PAID_DEFAULT;
+  // 26/11 : drapeau « fal vide » expiré ≠ crédit rechargé → la pub « L'Arrivée sans Stress » est partie en Kling, a échoué
+  // et a été montée en photos animées (ce qu'il juge pas pro). On VÉRIFIE toujours chez fal avant de choisir le payant.
   return (await falUnlocked()) ? PAID_DEFAULT : FREE_MODEL;
 }
 /** 06/11 : Kouider a rechargé fal.ai mais le drapeau « fal vide » (6 h) a fait partir sa pub en gratuit

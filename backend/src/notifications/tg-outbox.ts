@@ -130,3 +130,15 @@ async function clearRecap(raw: string): Promise<string | null> {
   const out = res.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('').trim();
   return out.length > 20 ? out.slice(0, 4000) : null;
 }
+
+/** 26/11 : « Partage-la au meilleur moment » (pub reçue par notification) → le cerveau a pris « la » pour le bilan calories :
+ *  il ne voyait pas ses propres notifications. Message court de Kouider → les notifications des 45 dernières minutes en contexte. */
+export async function recentNotifNote(message: string): Promise<string> {
+  if (!message || message.trim().length > 140) return '';
+  let l: Array<{ at: number; text: string }> = [];
+  try { l = JSON.parse((await kvGet('tg:sentlog')) ?? '[]') as Array<{ at: number; text: string }>; } catch { return ''; }
+  const recent = l.filter(x => Date.now() - x.at < 45 * 60_000 && x.text.trim()).slice(-4);
+  if (!recent.length) return '';
+  const hm = (t: number) => new Date(t).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Algiers', hour: '2-digit', minute: '2-digit' });
+  return `[Notifications AUTOMATIQUES que tu lui as envoyées ces 45 dernières minutes (pas dans l'historique de la conversation) :\n${recent.map(x => `${hm(x.at)} « ${x.text.replace(/\s+/g, ' ').slice(0, 200)} »`).join('\n')}\nSi sa phrase y répond (« la », « ça », « vas-y », « partage-la »…), c'est de CETTE notification qu'il parle, pas du dernier message de la conversation. Sinon ignore ce bloc.]\n`;
+}
