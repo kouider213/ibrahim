@@ -40,6 +40,9 @@ export interface LibState {
   ally?: { name: string; phone?: string };   // SA personne de confiance (choisie par lui) — Dzaryx ne la contacte JAMAIS lui-même
   eventIds: string[];
   createdAt: string;
+  /** 27/11 « limite qui suit mes progrès » : 2 jours de suite sous la limite → nouvelle limite = le plus haut de ces 2 jours.
+   *  Ne remonte jamais seule, jamais au-dessus du plan du médecin ; retirée si manque fort ou s'il le demande. */
+  cap?: { from: string; max: number; at: string };
 }
 export type LibKind = 'prise' | 'envie' | 'resiste' | 'craque' | 'symptomes' | 'humeur' | 'note' | 'depassement' | 'palier' | 'retour' | 'phq2' | 'victoire' | 'mission' | 'calme' | 'cause';
 export interface LibLog { at: string; kind: LibKind; n?: number; score?: number; trigger?: string; symptoms?: string[]; note?: string; scores?: Record<string, number>; day?: string; moment?: string }
@@ -127,11 +130,28 @@ export function buildSteps(baseline: number, start: string, targetDays = 30): Li
   return steps;
 }
 
-export function allowedOn(s: LibState, date: string): number {
+/** Limite du plan (médecin), sans le plafond personnel. */
+export function planOn(s: LibState, date: string): number {
   if (date < s.start) return s.baseline;
   let max = s.baseline;
   for (const st of s.steps) if (st.from <= date) max = st.max;
   return max;
+}
+export function allowedOn(s: LibState, date: string): number {
+  const plan = planOn(s, date);
+  return s.cap && s.cap.from <= date ? Math.min(plan, s.cap.max) : plan;
+}
+
+/** 27/11 Kouider : « quand il voit qu'après 2 ou 3 jours je prends moins que la limite, il diminue… hier autorisé 6, j'ai pris 5,
+ *  si 2 jours pareil, aujourd'hui la limite passe à 5, puis m'aide à passer de 5 à 3… parfois j'arrive à 3 demis mais je
+ *  recommence à augmenter car je me dis : je suis autorisé à 6 ». Jours vides (rien noté) ignorés : jamais une limite à 0 par oubli. */
+export function capCheck(s: LibState, log: LibLog[], today: string): { max: number; days: [number, number] } | null {
+  const d1 = addDays(today, -1), d2 = addDays(today, -2);
+  const t1 = takenOn(log, d1), t2 = takenOn(log, d2);
+  if (!(t1 > 0 && t2 > 0)) return null;
+  if (!(t1 < allowedOn(s, d1) && t2 < allowedOn(s, d2))) return null;
+  const max = Math.max(t1, t2);
+  return max < allowedOn(s, today) ? { max, days: [t2, t1] } : null;
 }
 const zeroDay = (s: LibState) => s.steps.find(st => st.max === 0)?.from ?? s.steps.at(-1)?.from ?? s.start;
 
@@ -833,6 +853,11 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
 
   switch (action) {
     case 'status': return statusText(await libOverview());
+    case 'limite_plan': {
+      if (!s.cap) return `Pas de limite personnelle : tu suis le plan du médecin (${halvesShort(allowedOn(s, today))} aujourd'hui).`;
+      delete s.cap; await saveLib(s); await addLog({ kind: 'palier', note: 'limite personnelle retirée à sa demande' });
+      return `✅ Limite remise au plan du médecin : ${halvesShort(allowedOn(s, today))} aujourd'hui. Elle rebaissera toute seule dès que tu feras moins 2 jours de suite.`;
+    }
 
     case 'prise': {
       const n = qty(input) || 1;
@@ -844,6 +869,11 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
       const log = await addLog({ kind: 'prise', n, note: String(input['note'] ?? '').slice(0, 200) || undefined, ...(mk ? { moment: mk } : {}) });
       const allowed = allowedOn(s, today), taken = takenOn(log, today);
       const plan = slotPlan(allowed, s.times, s.wakeDose), byNow = allowedByNow(plan, hhmm);
+      // 27/11 : au-dessus de SA limite personnelle mais dans le plan du médecin → message ferme, pas d'appel ni de « dépassement »
+      if (!s.finishedAt && taken > allowed && s.cap && taken <= planOn(s, today)) {
+        await addLog({ kind: 'note', note: `au-dessus de sa limite personnelle (${taken}/${allowed}, plan ${planOn(s, today)})` });
+        return `🟠 Noté : ${halvesShort(taken)} aujourd'hui. C'est au-dessus de TA limite (${halvesShort(allowed)}, celle que tu as prouvée), encore dans le plan du médecin (${halvesShort(planOn(s, today))}). Rappelle-lui son piège à lui : « je suis autorisé, donc j'en prends » — il a déjà tenu ${halvesShort(allowed)} 2 jours. Demande ce qui se passe maintenant (manque fort ? → s'il note un manque ≥ 7, sa limite revient au plan).`;
+      }
       if (s.finishedAt || taken > allowed) {
         const over = taken - allowed;
         await addLog({ kind: 'depassement', n: over });
@@ -895,6 +925,12 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
         await queueTelegramMessage(`🚨 Ce que tu décris ne se gère pas seul.\n${SOS_NUMBERS.join('\n')}`);
         return '🚨 SIGNE GRAVE : dis-lui d\'appeler le 112 maintenant (ou 0800 32 123 s\'il s\'agit d\'idées noires), reste avec lui. Numéros envoyés sur Telegram.';
       }
+      // 27/11 : manque fort → la limite personnelle (plus basse que le plan) est retirée : on revient au rythme du médecin
+      let capOff = '';
+      if (score >= 7 && s.cap && s.cap.max < planOn(s, today)) {
+        delete s.cap; await saveLib(s); await addLog({ kind: 'palier', note: `limite personnelle retirée (manque ${score}/10)` });
+        capOff = ` Limite remise au plan du médecin (${halvesShort(allowedOn(s, today))} aujourd'hui) : ton corps décide, pas l'orgueil.`;
+      }
       const recent = (await readLibLog()).filter(l => l.kind === 'symptomes' && Date.now() - Date.parse(l.at) < 48 * 3_600_000);
       let hold = '';
       if (score >= 7 && recent.filter(l => (l.score ?? 0) >= 7).length >= 2 && await once(`symhold:${today}`)) {
@@ -907,7 +943,7 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
         ]);
         hold = 'Choix envoyé (tenir la date / 3 jours de plus / médecin). Pousse le médecin aujourd\'hui : des traitements aident le manque.';
       }
-      return `🤒 Manque ${score}/10 noté${symptoms.length ? ` (${symptoms.join(', ')})` : ''}. ${score >= 7 ? 'Fort : rassure-le (c\'est le corps qui se réhabitue, ça passe en quelques jours), eau, repos, douche chaude, marche douce, manger léger. Pousse-le vers le médecin aujourd\'hui (des traitements aident le manque).' : score >= 4 ? 'Moyen : normal les 2-4 jours après une baisse. Marche, eau, sommeil, rien de lourd à la salle.' : 'Léger : il gère bien, dis-le-lui.'} ${hold}`.trim();
+      return capOff + `🤒 Manque ${score}/10 noté${symptoms.length ? ` (${symptoms.join(', ')})` : ''}. ${score >= 7 ? 'Fort : rassure-le (c\'est le corps qui se réhabitue, ça passe en quelques jours), eau, repos, douche chaude, marche douce, manger léger. Pousse-le vers le médecin aujourd\'hui (des traitements aident le manque).' : score >= 4 ? 'Moyen : normal les 2-4 jours après une baisse. Marche, eau, sommeil, rien de lourd à la salle.' : 'Léger : il gère bien, dis-le-lui.'} ${hold}`.trim();
     }
 
     case 'humeur': {
@@ -1286,6 +1322,25 @@ export async function jobLiberte(): Promise<void> {
   }
   // Étapes pas encore dans l'agenda (plan lancé d'un endroit sans accès Google) : rattrapage, nouvel essai toutes les 6 h
   if (!s.finishedAt && !s.eventIds.length && await once('agenda-sync', 6 * 3600)) await syncAgenda(s).catch(err => console.error('[liberte] agenda:', err instanceof Error ? err.message : err));
+  // 27/11 : limite qui suit ses progrès — vérifiée une fois par jour dès 5h (avant sa 1re prise)
+  {
+    const today0 = localNow().date;
+    const c = !s.finishedAt && localNow().hhmm >= '05:00' ? capCheck(s, await readLibLog(), today0) : null;
+    if (c && await once(`cap:${today0}`)) {
+      const before = allowedOn(s, today0);
+      s.cap = { from: today0, max: c.max, at: new Date().toISOString() };
+      await saveLib(s);
+      await addLog({ kind: 'palier', note: `limite personnelle ${before} → ${c.max} (2 jours : ${c.days[0]} puis ${c.days[1]})` });
+      const next = Math.max(0, c.max - 1);
+      await queueTelegramMessage(`🕊️ Bravo : avant-hier ${halvesShort(c.days[0])}, hier ${halvesShort(c.days[1])}, alors que tu avais droit à plus.
+`
+        + `Ta limite passe à ${halvesShort(c.max)} à partir d'aujourd'hui (au lieu de ${halvesShort(before)}) : tu as prouvé que tu y arrives, on ne remonte plus.
+`
+        + `🎯 Prochaine marche : ${halvesShort(next)} deux jours de suite → ta limite passera à ${halvesShort(next)}.
+`
+        + `Si le manque devient fort, dis-le-moi : je remets le plan du médecin.`).catch(() => {});
+    }
+  }
   const o = await libOverview();
   const { today, hhmm } = o;
   const now = toMin(hhmm);

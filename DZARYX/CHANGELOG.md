@@ -1,3 +1,8 @@
+## 27/11 — Liberté : la limite suit ses progrès (2 jours sous la limite → elle baisse)
+- Kouider : « quand il voit qu'après 2-3 jours je prends moins que la limite, il diminue… parfois j'arrive à 3 demis mais je recommence à augmenter car je me dis : je suis autorisé à 6 ».
+- liberte.ts : LibState.cap ; allowedOn = min(plan du médecin, limite personnelle) ; capCheck chaque matin (≥ 5h) : 2 jours notés (> 0) sous la limite → limite = le plus haut des 2 jours, message Telegram + prochaine marche. Jamais au-dessus du plan, jamais remontée seule ; jours vides ignorés.
+- Manque ≥ 7/10 → limite personnelle retirée (retour au plan du médecin). Action 'limite_plan' pour la retirer. Au-dessus de sa limite mais dans le plan : message ferme, pas d'appel, pas de « dépassement ».
+
 ## 27/11 — MON ARGENT v2 : snus à la pièce, appartement = prix client − propriétaire, graphiques, départ, 20 repères, conseiller + carte sur Aujourd'hui (app v310)
 - Kouider : « le +1 c'est le nombre de pièces de snus : 6 € la pièce, 5 € pour certains clients, dès 10 = 50 € les 10 sauf certains (60 €) ; appartement = prix client − prix propriétaire ; vente voiture / autre (heures sup) = je donne le montant ; dans Aujourd'hui ; meilleurs graphiques ; un vrai suivi qui conseille, avance ou recule le départ ; 20 trucs auxquels je n'aurais pas pensé ».
 - Snus : +1/+2/+5/+10 pièces, tarifs Normal (6 €, ≥ 10 → 5 €), Client à 5 €, Sans ristourne (6 €) ; qty/unit/tarif gardés dans perso:journal ; marge réelle/pièce = prix moyen − coût du stock (perso:finances.side.order).
