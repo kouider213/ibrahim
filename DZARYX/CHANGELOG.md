@@ -1,3 +1,6 @@
+## 27/11 — Plan de départ : la maison passe toujours avant la voiture en Algérie
+- Kouider : « la maison doit toujours passer avant l'achat de la voiture en Algérie ». Étapes par défaut : réserve → maison → voiture → déménagement ; houseFirst() remet la maison avant la voiture même dans un ordre qu'il enregistre.
+
 ## 27/11 — MON ARGENT : départ = plan par étapes cliquable (3 scénarios, leviers, points faibles, 20 options) + conseiller corrigé (app v312)
 - Kouider : « il parle d'acheter une 2e voiture alors que je n'en ai même pas une : elles sont toutes à Houari, sauf l'Audi Q3 qui est ma voiture perso » + « au rythme actuel il doit rajouter des phases (maison Algérie, voiture, maison Belgique…), une vraie analyse, quand je clique plus d'infos, un départ potentiel, où je dois m'améliorer, + 20 options ».
 - Conseiller : fait ajouté (FIK ne possède aucune voiture, tout est à Houari ; Audi Q3 = voiture perso) + exemple corrigé.

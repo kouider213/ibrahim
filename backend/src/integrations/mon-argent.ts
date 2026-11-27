@@ -302,21 +302,28 @@ async function curves(force = false): Promise<Curves | null> {
 /** Ses étapes : les défauts du plan Algérie + celles qu'il ajoute (ordre = ordre de réalisation). */
 async function goals(c: Curves): Promise<Goal[]> {
   const saved = await kvJson<Goal[] | null>(GOALS_KEY, null);
-  if (saved?.length) return saved;
+  if (saved?.length) return houseFirst(saved);
   const part = (rx: RegExp) => c.parts.filter(([k]) => rx.test(k)).reduce((s, [, n]) => s + n, 0);
   return [
     { id: 'reserve', name: 'Réserve de sécurité (6 mois)', icon: '🛟', cost: c.fund, fixed: true },
-    { id: 'voiture', name: 'Ta voiture en Algérie', icon: '🚙', cost: part(/voiture/i) },
+    // 27/11 Kouider : « la maison doit toujours passer avant l'achat de la voiture en Algérie »
     { id: 'maison', name: 'Maison en Algérie (frais + meubles)', icon: '🏡', cost: part(/maison|frais|meubles/i) },
+    { id: 'voiture', name: 'Ta voiture en Algérie', icon: '🚙', cost: part(/voiture/i) },
     { id: 'depart', name: 'Déménagement → départ', icon: '✈️', cost: part(/déménag/i) },
   ].filter(g => g.cost > 0);
 }
 export async function setGoals(list: Goal[]): Promise<void> {
   const clean = list.filter(g => g && String(g.name).trim() && Number(g.cost) > 0).slice(0, 15)
     .map(g => ({ id: String(g.id || Math.random().toString(36).slice(2, 8)), name: String(g.name).slice(0, 60), icon: String(g.icon || '🎯').slice(0, 4), cost: Math.round(Number(g.cost)), ...(g.fixed ? { fixed: true } : {}) }));
-  await kvPut(GOALS_KEY, clean);
+  await kvPut(GOALS_KEY, houseFirst(clean));
 }
 
+/** La maison passe TOUJOURS avant la voiture en Algérie (règle de Kouider), même si l'ordre enregistré dit l'inverse. */
+function houseFirst(l: Goal[]): Goal[] {
+  const h = l.findIndex(g => g.id === 'maison'), c = l.findIndex(g => g.id === 'voiture');
+  if (h < 0 || c < 0 || h < c) return l;
+  const out = [...l]; const [house] = out.splice(h, 1); out.splice(c, 0, house!); return out;
+}
 /** 1er mois où la courbe (+ extra/mois) couvre la somme ; null = pas dans l'horizon. */
 const reachAt = (curve: number[], need: number, extra = 0, from = 0) => { for (let i = from; i < curve.length; i++) if (curve[i]! + extra * i >= need) return i; return null; };
 const MOISL = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
