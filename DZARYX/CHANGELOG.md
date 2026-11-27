@@ -1,3 +1,9 @@
+## 27/11 — PROMOS AIR ALGÉRIE : Dzaryx les trouve, les lit et dit si ça te concerne (app v318)
+- Kouider : « je reçois une notif de promo Air Algérie mais je sais pas de quoi ; Dzaryx doit me le dire ».
+- Constat : les promos n'arrivent pas dans la boîte pro (seule boîte lue) → Dzaryx va les chercher lui-même.
+- backend ah-promos.ts, job ah-promos 8h/13h/18h : offres du site (éditions Algérie, France, International : nouveau trajet / baisse ≥ 5 %), bannières de l'accueil + « Nouveautés et promotions » (rendues via r.jina.ai), presse 2×/jour. IA appelée seulement s'il y a du nouveau, après avoir LU la page de chaque promo ; « pour toi » seulement si elle couvre clairement Europe ↔ Oran/Alger ou tous les vols / les familles. Message avec boutons (cherche le prix / surveille / pas intéressé). 1re passe = mémorisation sans message.
+- Outil promos_air_algerie : list, check, explain (texte ou capture de la notif reçue), dismiss. Carte « À faire » : bandeau promo quand une promo te concerne.
+
 ## 27/11 — MES TÂCHES reliées aux clients et aux voyages + 20 options (app v317)
 - Kouider : « connecte ça avec les arrivées et départs des clients, et pour moi quand je vais en Algérie, + 20 options ».
 - backend taches-lies.ts : arrivées/retours clients 3 jours (check-lists trips.ts, téléphone de la résa), ses vols 10 jours (check-list + demandes Houari/famille), lieu actuel (mode Oran GPS ou voyage vers l'Algérie). trips.ts : tickTripItem + syncClientTrips.

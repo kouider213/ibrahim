@@ -359,6 +359,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'ah-promos',
+    cron:  '7 8,13,18 * * *',       // PROMOS AIR ALGÉRIE : site (offres, bannières) + presse → message si ça le concerne
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'taches',
     cron:  '*/15 6-22 * * *',       // MES TÂCHES : 8h liste du jour, à l'heure dite (boutons), 20h30 ce qui reste, dimanche 19h la semaine
     tz:    'Europe/Brussels',
@@ -907,6 +912,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'life-coach-evening':      jobLifeCoachEvening,
   'life-coach-weekly':       jobLifeCoachWeekly,
   'grand-coach':             async () => { await (await import('../integrations/grand-coach.js')).jobGrandCoach(); },
+  'ah-promos':               async () => { console.log(`[ah-promos] ${await (await import('../integrations/ah-promos.js')).jobAhPromos()}`); },
   'taches':                  async () => { console.log(`[taches] ${await (await import('../integrations/taches.js')).jobTaches()}`); },
   'argent':                  async () => { await (await import('../integrations/argent-coach.js')).jobArgent(); await (await import('../integrations/mon-argent.js')).jobMonArgent().catch(e => console.error('[mon-argent]', e)); },
   'life-plus':               async () => { await (await import('../integrations/life-plus.js')).jobLifePlus(); },

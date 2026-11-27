@@ -78,7 +78,7 @@ const line = (t: Tache, n?: number) => `${n != null ? `${n}. ` : '• '}${CAT[t.
 export interface TacheView extends Tache { label: string; late: boolean; today: boolean }
 export async function tachesList(): Promise<{ today: TacheView[]; late: TacheView[]; upcoming: TacheView[]; nodate: TacheView[]; done: TacheView[];
   promises: Array<{ id: string; text: string; due: string }>; reminders: Array<{ id: string; text: string; at: string }>; stats: { doneWeek: number; open: number };
-  here: 'algerie' | 'belgique'; ailleurs: TacheView[]; moves: import('./taches-lies.js').ClientMove[]; trips: import('./taches-lies.js').MyTrip[] }> {
+  here: 'algerie' | 'belgique'; promos: Array<{ id: string; title: string; what: string; bookBy?: string | null; why: string; url?: string | null }>; ailleurs: TacheView[]; moves: import('./taches-lies.js').ClientMove[]; trips: import('./taches-lies.js').MyTrip[] }> {
   const now = localNow();
   const L = await import('./taches-lies.js');
   const [l, here, moves, trips] = await Promise.all([all(), L.currentPlace(), L.clientMoves(3).catch(() => []), L.myTrips(10).catch(() => [])]);
@@ -99,6 +99,7 @@ export async function tachesList(): Promise<{ today: TacheView[]; late: TacheVie
     nodate: open.filter(t => !t.due).map(v),
     done: l.filter(t => t.done && t.done.slice(0, 10) >= addDays(now.date, -1)).map(v),
     promises, reminders, here, moves, trips,
+    promos: (await import('./ah-promos.js').then(m => m.activePromos()).catch(() => [])).slice(0, 2).map(p => ({ id: p.id, title: p.title, what: p.what, bookBy: p.bookBy, why: p.why, url: p.url })),
     ailleurs: sorted.filter(t => t.lieu && t.lieu !== here).map(v),
     stats: { doneWeek: l.filter(t => t.done && Date.now() - Date.parse(t.done) < 7 * 86_400_000).length, open: open.length },
   };

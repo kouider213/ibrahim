@@ -11,7 +11,7 @@ type Flag = { icon: string; text: string; tone: 'bad' | 'warn' | 'ok' | 'info' }
 type Move = { id: string; kind: 'arrivee' | 'retour'; client: string; car: string; date: string; time: string | null; label: string; missing: string[]; checklist: Array<{ label: string; done: boolean }>; phone: string | null; flags: Flag[]; validated: boolean };
 type Trip = { id: string; title: string; date: string; time: string; inDays: number; to: string; missing: string[]; checklist: Array<{ label: string; done: boolean }>; requests: string[] };
 const TONE = { bad: T.bad, warn: T.warn, ok: T.ok, info: T.accent } as const;
-type Data = { today: Task[]; late: Task[]; upcoming: Task[]; nodate: Task[]; done: Task[]; promises: Array<{ id: string; text: string; due: string }>; reminders: Array<{ id: string; text: string; at: string }>; stats: { doneWeek: number; open: number }; here: 'algerie' | 'belgique'; ailleurs: Task[]; moves: Move[]; trips: Trip[] };
+type Data = { today: Task[]; late: Task[]; upcoming: Task[]; nodate: Task[]; done: Task[]; promises: Array<{ id: string; text: string; due: string }>; reminders: Array<{ id: string; text: string; at: string }>; stats: { doneWeek: number; open: number }; here: 'algerie' | 'belgique'; promos?: Array<{ id: string; title: string; what: string; bookBy?: string | null; why: string; url?: string | null }>; ailleurs: Task[]; moves: Move[]; trips: Trip[] };
 const CAT: Record<string, string> = { famille: '👨‍👩‍👦', sante: '🩺', fik: '🚗', admin: '📄', maison: '🏠', perso: '📝' };
 const DAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 const nextDays = () => { const d = new Date().getDay(); return [2, 3, 4, 5, 6].map(n => DAYS[(d + n) % 7]!); };
@@ -161,6 +161,13 @@ export function TachesCard({ tick }: { tick?: number }) {
       <div style={{ ...glass(T.accent), borderRadius: 24, padding: '6px 16px 12px', border: '1px solid var(--dz-card-line)', boxShadow: T.shadow }}>
         {!data && <div style={{ padding: '14px 0', color: T.muted, fontSize: 13 }}>Chargement…</div>}
         {data?.trips.map(t => <TripBox key={t.id} t={t} onTick={tickItem} />)}
+        {data?.promos?.map(p => (
+          <a key={p.id} href={p.url ?? undefined} target="_blank" rel="noreferrer" style={{ display: 'block', textDecoration: 'none', borderRadius: 16, padding: '10px 13px', margin: '10px 0 2px', background: tone('#e11d48', 0.07), border: `1px solid ${tone('#e11d48', 0.25)}` }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>✈️ Promo Air Algérie · {p.title}</div>
+            <div style={{ fontSize: 12.5, color: T.muted, marginTop: 2 }}>{p.what}{p.bookBy ? ` · réserver avant le ${p.bookBy.slice(8, 10)}/${p.bookBy.slice(5, 7)}` : ''}</div>
+            <div style={{ fontSize: 12, color: '#e11d48', fontWeight: 600, marginTop: 3 }}>👉 {p.why}</div>
+          </a>
+        ))}
         {data && !now.length && !later.length && !doneToday.length && !data.moves.length && (
           <div style={{ padding: '12px 0 4px', color: T.muted, fontSize: 13.5, lineHeight: 1.45 }}>Rien à faire de noté. Dis à Dzaryx « lundi je dois appeler le médecin pour ma femme » ou ajoute-la ici.</div>
         )}
