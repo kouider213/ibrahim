@@ -708,6 +708,12 @@ export async function jobSportWatch(): Promise<void> {
     return;
   }
   if (now < start + 10 * 60_000) return;
+  // 27/11 : GPS figé pendant la séance (dernier point 05h30) → arrivée jamais vue ; à 07h00 sur le retour, appel
+  // « tu n'es pas à la salle » alors que le bilan 9/10 était parti à 06h46. Séance notée (bilan, journal, app) = il y est allé.
+  const doneToday = await import('./sport-review.js').then(m => m.getReview(date)).catch(() => null)
+    || (await readSportLog()).some(l => l.date === date)
+    || await import('./gym-live.js').then(m => m.appProgress()).catch(() => null);
+  if (doneToday) { st.arrived[date] = st.arrived[date] ?? now; await saveState(st); return; }
   if (fresh) {
     if (!(await alertOnce(st, date, 'forgot'))) return;
     const dist = km(fresh, gym);

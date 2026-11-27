@@ -1,3 +1,7 @@
+## 27/11 — Plus d'appel « tu n'es pas à la salle » quand la séance est déjà faite
+- Kouider : appel 07h00 « ta séance a commencé à 06h00, tu n'es pas à la salle » alors qu'il rentrait (bilan 9/10 envoyé 06h46). GPS figé depuis 05h30 → arrivée jamais vue ; au retour, position fraîche à 2,4 km → alerte.
+- jobSportWatch : séance notée ce jour (bilan sport-review, journal kouider:sport:log ou séance en cours dans l'app) → arrivée marquée, aucune alerte.
+
 ## 27/11 — Récap « tu n'avais pas décroché » : plus de rappel de départ périmé
 - Kouider : « il m'a dit d'aller à la salle alors que j'y étais ». Appel 05h30 « pars à 05h42 » refusé → silence 1 h → récap 06h45 reprenait « C'est l'heure du sport… pars à 05h42 » pendant qu'il finissait sa séance (bilan 06h46).
 - auto-call staleTimed : « pars/partir/départ … à HHhMM » périmé 10 min après cette heure ; réveil / « il faut partir maintenant » / « l'heure du sport » périmés 30 min après leur mise en boîte.
