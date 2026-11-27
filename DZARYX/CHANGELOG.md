@@ -1,3 +1,7 @@
+## 27/11 soir (2) — Revue du patron = tout son argent, « 0/3 » expliqué
+- Kouider : « la revue du patron prend juste la location, pas le snus, l'achat-revente, l'argent ». mon-argent `periodMoney(from,to)` (ventes hors FIK par source, pièces, achats de stock, dépenses) → revue : ligne hors location, achats, dépenses, total gagné locations + le reste ; le coach IA voit tout (snus Belgique ≠ locations Oran).
+- Bilan du soir : « Les 3 actions pour faire rentrer de l'argent que je t'ai proposées ce matin (7h15) » + plus de « 0/3 … règle des grands » ; aucune cochée → « écris fait 1 ».
+
 ## 27/11 soir — Dzaryx plus clair et plus présent (Kouider, capture 21h17)
 - Bilan du soir : plus de « vérifie avec Houari / réponds-lui » pour un client déjà répondu. wa-demandes garde `replied_at` (notre dernière réponse) ; une demande ne revient en action que si le client a RÉÉCRIT après. Les actions du jour se cochent seules à midi/au soir si le client a déjà eu sa réponse.
 - « Examen du soir (Franklin) » → « 3 questions pour finir ta journée ».

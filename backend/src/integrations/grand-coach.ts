@@ -381,10 +381,16 @@ export async function revue(): Promise<string> {
   let done = 0, total = 0;
   for (let i = 0; i < 7; i++) { const b = await kvJson<Big3 | null>(K.big3(addDays(today, -i)), null); if (b) { total += 3; done += b.items.filter(x => x.done).length; } }
   const arrow = (x: number, y: number) => x > y ? '📈' : x < y ? '📉' : '➡️';
-  const facts = `Semaine : ${cur.n} réservations (avant : ${prev.n}), CA réservé ${eur(cur.ca)} (avant ${eur(prev.ca)}), bénéfice ${eur(cur.pr)} (avant ${eur(prev.pr)}). Actions qui rapportent faites : ${done}/${total}.`;
-  const lesson = await ai(`${facts}\nTu es le coach de Kouider (FIK, Oran). En 3 lignes max, tutoiement : 1) LA leçon de la semaine 2) LA décision à prendre pour la semaine prochaine (une seule, concrète). Appuie-toi sur un principe d'un grand entrepreneur (nomme-le). N'invente aucun chiffre.`, { max: 220 }).catch(() => '');
+  // 27/11 : tout son argent, pas seulement les locations (snus, ventes, autres, achats, dépenses — MON ARGENT)
+  const ma = await import('./mon-argent.js');
+  const [mc, mp] = await Promise.all([ma.periodMoney(a, today).catch(() => null), ma.periodMoney(b0, a).catch(() => null)]);
+  const autres = mc ? [`${arrow(mc.ventes, mp?.ventes ?? 0)} Hors location : ${eur(mc.ventes)} gagnés (avant ${eur(mp?.ventes ?? 0)})${Object.keys(mc.by).length ? ` — ${Object.entries(mc.by).sort((x, y) => y[1] - x[1]).map(([k, v]) => `${k} ${eur(v)}`).join(', ')}` : ''}${mc.pieces ? ` · ${mc.pieces} pièces de snus` : ''}`,
+    ...(mc.achats ? [`📦 Achats de stock : ${eur(mc.achats)}`] : []), ...(mc.depenses ? [`💸 Dépenses notées : ${eur(mc.depenses)}`] : []),
+    `💰 Total gagné la semaine (locations + le reste) : ${eur(cur.pr + mc.ventes)} (avant ${eur(prev.pr + (mp?.ventes ?? 0))})`] : [];
+  const facts = `Semaine : ${cur.n} réservations (avant : ${prev.n}), CA réservé ${eur(cur.ca)} (avant ${eur(prev.ca)}), bénéfice locations ${eur(cur.pr)} (avant ${eur(prev.pr)}). ${mc ? `Hors location (snus, ventes, autres) : ${eur(mc.ventes)} (avant ${eur(mp?.ventes ?? 0)}), achats de stock ${eur(mc.achats)}, dépenses ${eur(mc.depenses)}. ` : ''}Actions du jour faites : ${done}/${total}.`;
+  const lesson = await ai(`${facts}\nTu es le coach de Kouider (FIK, Oran). En 3 lignes max, tutoiement : 1) LA leçon de la semaine 2) LA décision à prendre pour la semaine prochaine (une seule, concrète). Appuie-toi sur un principe d'un grand entrepreneur (nomme-le). N'invente aucun chiffre. Le snus se vend en Belgique et les locations sont à Oran : ce sont deux activités séparées, ne propose jamais de mélanger les deux.`, { max: 220 }).catch(() => '');
   return [`🗂️ Revue du patron — semaine du ${fmtD(a)}`, `${arrow(cur.n, prev.n)} Réservations : ${cur.n} (avant ${prev.n})`, `${arrow(cur.ca, prev.ca)} CA réservé : ${eur(cur.ca)} (avant ${eur(prev.ca)})`,
-    `${arrow(cur.pr, prev.pr)} Bénéfice : ${eur(cur.pr)} (avant ${eur(prev.pr)})`, `🎯 Actions qui rapportent : ${done}/${total}`, lesson ? `\n${lesson}` : '', `\n${await tresorerie().catch(() => '')}`].join('\n').trim();
+    `${arrow(cur.pr, prev.pr)} Bénéfice locations : ${eur(cur.pr)} (avant ${eur(prev.pr)})`, ...autres, `🎯 Actions du jour cochées : ${done}/${total}`, lesson ? `\n${lesson}` : '', `\n${await tresorerie().catch(() => '')}`].join('\n').trim();
 }
 
 // B10 — Trésorerie 30 jours
@@ -508,8 +514,9 @@ async function eveningCheck(): Promise<string> {
   const b = await autoDone(await makeBig3());
   const done = b.items.filter(i => i.done).length;
   const st = await kvJson<{ last: string; n: number }>(K.streak, { last: '', n: 0 });
-  const verdict = done === 3 ? `🏆 3/3. Série : ${st.n} jour(s). Journée de champion.` : done ? `💪 ${done}/3. Pas parfait, mais tu as avancé. Demain on finit le travail.` : '😤 0/3 aujourd\'hui. Pas grave une fois — la règle des grands : jamais deux jours de suite.';
-  return [`🌇 Bilan de ta journée`, big3Line(b), verdict, '', '📝 3 questions pour finir ta journée (2 min, réponds en un seul message, je le garde dans ton journal) :', '1. Qu\'est-ce que j\'ai fait de bien aujourd\'hui ?', '2. Qu\'est-ce que je ferais mieux demain ?', '3. Pour qui j\'ai été là (famille, ami, client) ?'].join('\n');
+  // 27/11 Kouider : « il dit 0/3 aujourd'hui, je sais même pas de quoi il parle » → on dit ce que c'est, sans reproche
+  const verdict = done === 3 ? `🏆 Les 3 faites. Série : ${st.n} jour(s).` : done ? `💪 ${done} sur 3 faites. Demain on finit le reste.` : 'Aucune cochée. Si tu en as fait une, écris « fait 1 » (ou 2, 3) et je la coche ; sinon elle revient demain.';
+  return [`🌇 Bilan de ta journée`, 'Les 3 actions pour faire rentrer de l\'argent que je t\'ai proposées ce matin (7h15) :', big3Line(b), verdict, '', '📝 3 questions pour finir ta journée (2 min, réponds en un seul message, je le garde dans ton journal) :', '1. Qu\'est-ce que j\'ai fait de bien aujourd\'hui ?', '2. Qu\'est-ce que je ferais mieux demain ?', '3. Pour qui j\'ai été là (famille, ami, client) ?'].join('\n');
 }
 
 // L3 — Que ferait X à ma place ?

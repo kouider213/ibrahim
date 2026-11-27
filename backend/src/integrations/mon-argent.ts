@@ -591,6 +591,17 @@ export async function monArgentTransfer(kind: 'depot' | 'retrait', amount: numbe
   return kind === 'depot' ? `🏦 ${eur(amount)} déposés sur le compte` : `💵 ${eur(amount)} retirés du compte${why ? ` (${why})` : ''}`;
 }
 
+/** 27/11 Kouider : « la revue du patron prend juste la location, pas le snus, l'achat-revente, l'argent… » → tout ce qui n'est
+ *  pas FIK sur une période (from exclu, to inclus) : ventes par source, pièces de snus, achats de stock, dépenses. */
+export async function periodMoney(from: string, to: string) {
+  const l = (await kvJson<Entry[]>(J, [])).filter(e => e.d > from && e.d <= to);
+  const by: Record<string, number> = {};
+  for (const e of l) if (e.t === 'vente' && e.cat !== 'fik') by[LABEL[e.cat] ?? e.cat] = r2((by[LABEL[e.cat] ?? e.cat] ?? 0) + e.amount);
+  const sum = (t: Entry['t']) => r2(l.filter(e => e.t === t).reduce((s, e) => s + e.amount, 0));
+  return { ventes: r2(Object.values(by).reduce((s, x) => s + x, 0)), by, pieces: l.filter(e => e.t === 'vente' && e.cat === 'snus').reduce((s, e) => s + (e.qty ?? 0), 0),
+    achats: sum('achat'), depenses: sum('depense'), pris: sum('prise') };
+}
+
 /** Données en plus pour la page (objectifs, stock, hier, dépenses, courbe réelle, âge des soldes, taux). */
 export async function monArgentExtras() {
   const today = localNow().date, m0 = `${today.slice(0, 7)}-01`, y = addDays(today, -1);
