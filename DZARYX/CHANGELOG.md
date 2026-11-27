@@ -2,7 +2,7 @@
 - Kouider : noter chaque vente hors FIK (snus, appartement, vente de voiture, autre) en +1/+10, total de tout son argent, meilleurs jours, ce qui rapporte le plus ; « rien ne doit être visible pour d'autres personnes ».
 - Backend mon-argent.ts + route /api/mon-argent (compte Kouider seulement, 403 sinon) sur le MÊME journal que Telegram (perso:journal / perso:finances) ; FIK = bénéfice des réservations automatiquement. Aucune donnée dans le dépôt.
 - App : page MON ARGENT (Plus › Perso) : soldes compte + cash modifiables, +1/+5/+10/+20/+50/+100 cumulables, aujourd'hui/semaine/mois, sources (mois + 12 mois), 30 derniers jours, moyenne par jour de semaine, records, dernières ventes avec ×.
-- argent-direct : « 14k sur le compte et 1000 en cash », « épargne 14 000 » compris (avant : rien, alors que la réponse disait de l'écrire ainsi).
+- argent-direct : « Xk sur le compte et Y en cash », « épargne X » compris (avant : rien, alors que la réponse disait de l'écrire ainsi).
 - Page CA : le bloc « Mon bénéfice depuis le début » ne s'affiche plus sur les autres mois (vu sur septembre avec les résas de novembre) ; voitures cliquables → leurs locations (client, dates, prix, marge) ; onglet Année : évolution réservations/mois + « quand les clients écrivent » (jour, moment, délai 1er message → réservation quand le numéro correspond).
 
 ## 27/11 — Cerveaux gratuits saturés à 07h33 : compteur par module + Conscience plus sobre la nuit

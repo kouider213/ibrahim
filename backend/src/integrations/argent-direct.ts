@@ -31,7 +31,7 @@ export type MoneyCommand = {
   out?: { amount: number; kind: 'achat' | 'depense'; cat: string; date: string; left?: number };
   /** 11/11 : « aucun / rien gagné aujourd'hui, pas eu le temps » → journée à 0 € (05/11 : « ⚠️ Je n'ai pas exécuté cette action ») */
   zero?: { date: string };
-  /** 27/11 « j'ai 14000 sur le compte », « épargne 14 000 » (la réponse elle-même disait de l'écrire comme ça, et rien n'était compris) */
+  /** 27/11 « j'ai 12000 sur le compte » (exemple), « épargne 12 000 » (la réponse elle-même disait de l'écrire comme ça, et rien n'était compris) */
   savings?: number;
 };
 
