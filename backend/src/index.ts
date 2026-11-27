@@ -93,6 +93,8 @@ import jarvisRoutes from './api/routes/jarvis.js';
 import coachRoutes from './api/routes/coach.js';
 import liberteRoutes from './api/routes/liberte.js';
 import monArgentRoutes from './api/routes/mon-argent.js';
+import inboxRoutes from './api/routes/inbox.js';
+import tachesRoutes from './api/routes/taches.js';
 import vitaliteRoutes from './api/routes/vitalite.js';
 import kidRoutes from './api/routes/kid.js';
 import formeRoutes from './api/routes/forme.js';
@@ -414,6 +416,8 @@ app.get('/atelier/:slug', async (req, res) => {
 app.use('/api/coach',      apiLimiter, coachRoutes);
 app.use('/api/liberte',    apiLimiter, liberteRoutes);
 app.use('/api/mon-argent', apiLimiter, monArgentRoutes);   // page MON ARGENT (Kouider, privé)
+app.use('/api/inbox',      apiLimiter, inboxRoutes);         // 27/11 boîte de réception (page Aujourd'hui)
+app.use('/api/taches',     apiLimiter, tachesRoutes);        // 27/11 mes tâches (page Aujourd'hui)
 app.use('/api/vitalite',   apiLimiter, vitaliteRoutes);   // COACH › Vitalité (Kouider, privé)   // page LIBERTÉ (Kouider, privé)
 app.use('/api/kid',        apiLimiter, kidRoutes);
 app.use('/api/forme',      apiLimiter, formeRoutes);

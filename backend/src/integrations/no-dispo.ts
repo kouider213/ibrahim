@@ -12,10 +12,12 @@ export const NO_DISPO_RULE = `RÈGLE ABSOLUE DE KOUIDER (26/11) — DISPONIBILIT
 export function claimsAvailability(reply: string): boolean {
   const t = reply.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
     // formulations de VÉRIFICATION, autorisées
-    .replace(/(verifi\w*|regard\w*|check\w*|nchouf\w*|nverif\w*|confirm\w*|voir)\s+(la |les |l')?(dispo\w*|availability)/g, ' ')
+    .replace(/(verifi\w*|regard\w*|check\w*|nchouf\w*|nverif\w*|confirm\w*|voir)\s+(la |les |l'|nos |notre )?(dispo\w*|availability)/g, ' ')
     .replace(/wa[cs]h\s+kayn?a?/g, ' ')
     .replace(/(si|s'il|whether|if)\s+(\w+\s+){0,4}(dispo\w*|libre|available|kayn?a?)/g, ' ');
-  return /\b(voici|voila|ci-dessous|here (are|is))\b[^.!?\n]{0,50}\b(vehicules?|voitures?|cars?|modeles?|tomobil\w*)\b/.test(t)
+  return /\b(voici|voila|ci-dessous|here (are|is))\b[^.!?\n]{0,25}\b(dispo\w*|availabilit\w*)/.test(t)   // 27/11 « Voici nos disponibilités… »
+    || /\bnos dispo\w*\b[^.!?\n]{0,60}(:|€)/.test(t)
+    || /\b(voici|voila|ci-dessous|here (are|is))\b[^.!?\n]{0,50}\b(vehicules?|voitures?|cars?|modeles?|tomobil\w*)\b/.test(t)
     || /\bnos (vehicules|voitures|modeles)\b[^.!?\n]{0,30}\b(dispo\w*|libres?)\b/.test(t)
     || /\b(dispo\w*|libres?|available)\s*:/.test(t)
     || /\b(est|sont|reste|restent|encore|toujours|is|are|still)\s+(encore\s+|toujours\s+)?(dispo\w*|libres?|available)\b/.test(t)

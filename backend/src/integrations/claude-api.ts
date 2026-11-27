@@ -237,7 +237,7 @@ const CORE_TOOLS = new Set([
   'get_payment_status', 'record_payment', 'get_unpaid_bookings', 'get_late_returns', 'get_financial_report',
   'get_revenue_report', 'get_daily_report', 'record_expense', 'get_expenses',
   // Communication, agenda, mails
-  'send_whatsapp_to_client', 'send_telegram_message', 'call_me', 'pause_calls', 'schedule_reminder',
+  'send_whatsapp_to_client', 'send_telegram_message', 'call_me', 'pause_calls', 'schedule_reminder', 'mes_taches',
   'list_emails', 'read_email', 'read_email_thread', 'read_email_attachment', 'manage_emails', 'draft_email', 'send_email', 'create_calendar_event', 'list_calendar_events',
   // Mémoire et PC
   'remember_info', 'recall_memory', 'search_conversations', 'create_intention', 'list_intentions',

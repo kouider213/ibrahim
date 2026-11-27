@@ -125,7 +125,7 @@ export function parseMoneyCommand(raw: string): MoneyCommand | null {
       const qty = Number(pc[1]);
       if (qty >= 1 && qty <= 500) return { pieces: { qty, tarif: pc[2] === '5' ? 'cinq' : pc[2] === '6' ? 'six' : pc[3] ? 'lot' : 'normal', date: dayOf(msg, today) ?? today, ...(aliasHit(msg) ? { pid: aliasHit(msg)! } : {}) } };
     }
-    // « 3 velo 5 », « hier 2 pablo ice à 5 » : un nombre + un produit de SON catalogue (privé) = des pièces de ce produit
+    // « 3 <modèle> », « hier 2 <modèle> à 5 » : un nombre + un produit de SON catalogue (privé) = des pièces de ce produit
     const pid = !/\?|combien/i.test(msg) ? aliasHit(msg) : null;
     const nq = pid ? msg.match(/(?:^|\s|\+)(\d{1,3})\s+(?![\d])/) : null;
     if (pid && nq) {

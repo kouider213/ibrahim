@@ -81,6 +81,10 @@ export async function setTtPending(chat: string, draft: string, queue: string[] 
   await import('./whatsapp-web.js').then(m => m.clearWaPending()).catch(() => {});   // un seul « oui » en attente à la fois
 }
 export async function clearTtPending(): Promise<void> { await kvSet(PENDING, '', 60).catch(() => {}); }
+/** 27/11 : client traité depuis l'app → son « oui » en attente sur Telegram ne doit plus partir. */
+export async function clearTtPendingFor(chat: string): Promise<void> {
+  try { const p = JSON.parse((await kvGet(PENDING)) ?? 'null') as { chat?: string } | null; if (p?.chat?.toLowerCase() === chat.toLowerCase()) await clearTtPending(); } catch { /* */ }
+}
 
 export interface TtMsg { me: boolean; text: string; when?: string }
 /** Discussion privée lue sur le PC cloud (null = injoignable ; [] = introuvable). La lire la marque « lue » sur TikTok. */

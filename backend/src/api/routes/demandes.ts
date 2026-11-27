@@ -3,7 +3,6 @@
 import { Router } from 'express';
 import { supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
-import { createCalendarEvent } from '../../integrations/google-calendar.js';
 import { listWaDemandes, updateWaDemande, deleteWaDemande, archiveStale, demandeTitle as waTitle } from '../../integrations/wa-demandes.js';
 
 const router = Router();
@@ -162,31 +161,7 @@ router.post('/update', requireMobileAuth, async (req, res) => {
 
   try {
     if (source === 'booking') {
-      const r = await fetch(`${SITE}/api/update-booking`, {
-        method: 'POST', headers: siteHeaders(),
-        body: JSON.stringify({ bookingId: id, patch: { status } }),
-      });
-      if (!r.ok) throw new Error(`site update-booking ${r.status}`);
-      // Accepter depuis l'app crée aussi l'événement Google Agenda (comme le site).
-      if (status === 'ACCEPTED' || status === 'CONFIRMED') {
-        try {
-          const { data: bk } = await supabase
-            .from('bookings')
-            .select('client_name, start_date, end_date, notes, cars(name)')
-            .eq('id', id).single();
-          const b = bk as (Record<string, unknown> & { cars?: { name?: string } }) | null;
-          if (b && b['start_date'] && b['end_date']) {
-            await createCalendarEvent(
-              id,
-              (b['client_name'] as string) || 'Client',
-              b.cars?.name || 'Véhicule',
-              b['start_date'] as string,
-              b['end_date'] as string,
-              (b['notes'] as string) || undefined,
-            );
-          }
-        } catch (e) { console.warn('[demandes] calendar', (e as Error).message); }
-      }
+      await (await import('../../integrations/booking-status.js')).setBookingStatus(id, status);
     } else if (source === 'dossier') {
       const r = await fetch(`${SITE}/api/update-dossier`, {
         method: 'POST', headers: siteHeaders(),

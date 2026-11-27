@@ -6,6 +6,8 @@ import { MonArgentMini } from './MonArgentMini.tsx';
 import { T, tone, Screen, PageHeader, HeadBtn, Kpi, KpiGrid, SectionTitle, Row, Avatar, Badge, Empty, waLink, money, glass, CountUp } from '../ui/Kit.tsx';
 import { Icon, Ico } from '../ui/Icon.tsx';
 import MeCard from './MeCard.tsx';
+import { InboxCard } from './InboxCard.tsx';
+import { TachesCard } from './TachesCard.tsx';
 
 const go = (p: string) => window.dispatchEvent(new CustomEvent('dz:go', { detail: p }));
 const ymd = (d = new Date()) => d.toLocaleDateString('sv-SE', { timeZone: 'Africa/Algiers' });
@@ -32,44 +34,8 @@ function WaBtn({ phone }: { phone: string | null }) {
 }
 
 type CalEv = { id?: string; summary: string; location?: string; source: string; start: { dateTime?: string; date?: string } };
-type RelSt = { pending: number; total: number; done: number; items: Array<{ kind: 'wa' | 'panier' | 'prolong' | 'tt'; label: string; why: string }> };
-const REL_ICON = { wa: '💬', panier: '🛒', prolong: '📅', tt: '🎵' } as const;
 const evDay = (e: CalEv) => e.start.dateTime ? new Date(e.start.dateTime).toLocaleDateString('sv-SE', { timeZone: 'Africa/Algiers' }) : (e.start.date ?? '');
 const evTime = (e: CalEv) => e.start.dateTime ? new Date(e.start.dateTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Algiers' }) : 'Journée';
-
-/** Relances clients du matin (préparées à 9h45) : la suivante s'ouvre sur Telegram, où tu réponds oui / non. */
-function RelancesCard({ st, onDone }: { st: RelSt; onDone: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState('');
-  if (!st.pending) return null;
-  const run = async () => {
-    setBusy(true); setMsg('');
-    try { await apiFetch('/api/insights/relances/next', { method: 'POST' }); setMsg('Relance envoyée sur Telegram : réponds oui ou non là-bas.'); onDone(); }
-    catch { setMsg("Pas pu l'envoyer, réessaie."); }
-    finally { setBusy(false); }
-  };
-  return (
-    <div style={{ marginBottom: 18 }}>
-      <SectionTitle right={<Badge color={T.accent2}>{st.pending} à voir</Badge>}><Ico e="🔁" />Relances du matin</SectionTitle>
-      <div style={{ ...glass(T.accent2), borderRadius: 20, padding: 14 }}>
-        {st.items.slice(0, 3).map((it, i) => (
-          <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '6px 0', borderTop: i ? `1px solid ${T.line}` : 'none' }}>
-            <span style={{ fontSize: 18 }}>{REL_ICON[it.kind]}</span>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 14.5, fontWeight: 700 }}>{it.label}</div>
-              <div style={{ fontSize: 12.5, color: T.muted, lineHeight: 1.35 }}>{it.why}</div>
-            </div>
-          </div>
-        ))}
-        {st.pending > 3 && <div style={{ fontSize: 12.5, color: T.faint, marginTop: 4 }}>+ {st.pending - 3} autre{st.pending - 3 > 1 ? 's' : ''}</div>}
-        <button className="dz-press" disabled={busy} onClick={() => void run()} style={{ marginTop: 12, width: '100%', minHeight: 44, borderRadius: 14, border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 14.5, fontWeight: 700, color: '#fff', background: T.accent2, opacity: busy ? 0.6 : 1 }}>
-          {busy ? 'Envoi…' : 'Voir la suivante sur Telegram'}
-        </button>
-        {msg && <div style={{ fontSize: 12.5, color: T.muted, marginTop: 8 }}>{msg}</div>}
-      </div>
-    </div>
-  );
-}
 
 /** Agenda FIK du jour (jamais l'agenda perso). */
 function AgendaCard({ evs }: { evs: CalEv[] }) {
@@ -100,9 +66,7 @@ export default function CommandCenterScreen() {
   const [monthCA, setMonthCA] = useState<number | null>(null);
   const [bks, setBks] = useState<Booking[]>([]);
   const [evs, setEvs] = useState<CalEv[]>([]);
-  const [rel, setRel] = useState<RelSt | null>(null);
   const [tick, setTick] = useState(0);
-  const loadRel = useCallback(() => { apiFetch<RelSt>('/api/insights/relances').then(setRel).catch(() => {}); }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -111,11 +75,10 @@ export default function CommandCenterScreen() {
     business.fetchFinanceReport(now.getFullYear(), now.getMonth() + 1).then(r => setMonthCA(r.grossCA)).catch(() => {});
     business.fetchBookings().then(r => setBks(r.bookings ?? [])).catch(() => {});
     apiFetch<{ events: CalEv[] }>('/api/calendar/all?actor=kouider').then(r => { const t = ymd(); setEvs((r.events ?? []).filter(e => e.source === 'fik' && evDay(e) === t)); }).catch(() => {});
-    loadRel();
     setTick(x => x + 1);
     try { setD(await business.insightsToday()); } catch { setD(null); }
     finally { setLoading(false); }
-  }, [loadRel]);
+  }, []);
   useEffect(() => { void load(); }, [load]);
   // Retour dans l'app (ou sur l'onglet) → la page se remet à jour toute seule (max 1 fois / 2 min)
   useEffect(() => {
@@ -184,6 +147,12 @@ export default function CommandCenterScreen() {
             </div>
           </div>
 
+          {/* 27/11 À traiter : WhatsApp, TikTok, relances, réservations — avec les boutons (envoyer, dispo, complet, réécrire…) */}
+          <InboxCard tick={tick} />
+
+          {/* 27/11 Mes tâches : ce que je lui ai demandé de me rappeler (médecin, banque…) — cocher, demain, autre jour */}
+          <TachesCard tick={tick} />
+
           {/* 27/11 Mon argent (privé, 403 pour un autre compte → caché) : snus +1 sans chercher la page */}
           <MonArgentMini />
 
@@ -198,7 +167,6 @@ export default function CommandCenterScreen() {
           </div>
 
           {/* En ce moment : voitures dehors + arrivées des 7 prochains jours */}
-          {rel && <RelancesCard st={rel} onDone={loadRel} />}
 
           {(() => {
             if (!out.length && !soon.length) return null;

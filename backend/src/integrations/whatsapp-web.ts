@@ -76,7 +76,7 @@ export function clientAge(text: string): number | null {
 const hasDates = (t: string) => /\b\d{1,2}\s*[\/.-]\s*\d{1,2}\b|\b\d{1,2}(er)?\s+(janv|f[ée]v|mars|avr|mai|juin|juil|ao[uû]|sept|oct|nov|d[ée]c)|\b(du|from)\b.{1,20}\b(au|to)\b|demain|aujourd|ce\s+(week|soir|samedi|dimanche|lundi|mardi|mercredi|jeudi|vendredi)|غدوة|اليوم/i.test(t);
 const MISSED_CALL_RE = /appel\s+(vocal|vid[ée]o)?\s*manqu|missed\s+(voice|video)?\s*call|مكالمة\s+فائتة/i;
 const isArabic = (t: string) => /[\u0600-\u06FF]/.test(t);
-function declineText(ar: boolean | 'dz'): string {
+export function declineText(ar: boolean | 'dz'): string {
   if (ar === 'dz') return 'Merci 3la le message 🙏 Smahlna, l\'assurance ta3na tetlab 35 ans minimum bach nkriw. Smahlna 3la le dérangement, w triq salama.';
   return ar ? 'شكراً على رسالتك 🙏\nللأسف التأمين تاعنا يفرض عمر 35 سنة على الأقل للكراء. سمحلنا على الإزعاج، ونتمناولك طريق سالمة.'
     : 'Bonjour, merci pour votre message 🙏\nMalheureusement notre assurance impose un âge minimum de 35 ans pour la location. Désolé pour la gêne, et bonne route à vous.';
@@ -498,6 +498,31 @@ export async function saveWaDraft(chat: string, preview: string, draft: string):
   all[chat.toLowerCase()] = { chat, preview, draft, at: new Date().toISOString() };
   const keep = Object.entries(all).sort((x, y) => y[1].at.localeCompare(x[1].at)).slice(0, 20);
   await kvSet(DRAFTS_KEY, JSON.stringify(Object.fromEntries(keep)), 3 * 86_400);
+}
+
+/** 27/11 boîte de réception (page Aujourd'hui) : tous les brouillons prêts + effacer celui d'un client traité dans l'app. */
+export async function waDraftList(): Promise<Draft[]> { return Object.values(await drafts()); }
+export async function dropWaDraft(chat: string): Promise<void> {
+  const d = await drafts(); delete d[chat.toLowerCase()]; await kvSet(DRAFTS_KEY, JSON.stringify(d), 3 * 86_400);
+  // la réponse en attente sur Telegram pour CE client ne doit plus partir sur un « oui » plus tard
+  try { const p = JSON.parse((await kvGet(PENDING_KEY)) ?? 'null') as { chat?: string } | null; if (p?.chat?.toLowerCase() === chat.toLowerCase()) await kvSet(PENDING_KEY, '', 60); } catch { /* */ }
+}
+/** Envoi par nom de discussion depuis l'app (déjà validé par Kouider) : mêmes suites qu'un « oui » sur Telegram. */
+export async function sendWaToChat(chat: string, text: string): Promise<{ ok: boolean; error?: string }> {
+  if (!isCloudPcOnline()) return { ok: false, error: 'le PC cloud ne répond pas (WhatsApp injoignable)' };
+  const r = await cloudEmit<R>('cloud:wa', { action: 'send', chat, text }, 80_000).catch(err => ({ ok: false, error: err instanceof Error ? err.message : String(err) } as R));
+  if (!r.ok) return { ok: false, error: r.error ?? 'pas envoyé' };
+  void import('./foresight.js').then(m => m.logWa(chat, 'out', text)).catch(() => {});
+  noteWaSent(); void markDemande(chat, 'contacté', ['nouveau']).catch(() => {});
+  await dropWaDraft(chat);
+  void import('./night-guard.js').then(m => m.clearClientWaiting(chat)).catch(() => {});
+  return { ok: true };
+}
+/** Les derniers messages d'une discussion (lus sur le PC cloud). null = injoignable. */
+export async function readWaChat(chat: string, n = 12): Promise<Array<{ me: boolean; text: string }> | null> {
+  if (!isCloudPcOnline()) return null;
+  const r = await cloudEmit<R & { messages?: Array<{ me: boolean; text: string }> }>('cloud:wa', { action: 'read', chat, n }, 70_000).catch(() => null);
+  return r?.ok ? (r['messages'] as Array<{ me: boolean; text: string }> | undefined) ?? [] : null;
 }
 
 /** Envoi direct, déjà validé par Kouider (bouton « Envoyer » de l'app). */

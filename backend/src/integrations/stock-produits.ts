@@ -108,7 +108,7 @@ function tips(rows: Array<{ label: string; sold30: number; profit30: number; mar
   const add = (icon: string, title: string, text: string) => out.push({ icon, title, text });
   const sold = rows.filter(r => r.sold30 > 0).sort((a, b) => b.sold30 - a.sold30);
   if (!counted) add('🧮', 'Compte ton stock', 'Fais le comptage modèle par modèle (bouton « Compter mon stock ») : ensuite chaque vente le fait baisser tout seul.');
-  if (unassigned > 0) add('🏷️', 'Ventes sans modèle', `${unassigned} pièces vendues ces 30 jours sans modèle. Choisis le modèle avant +1 (ou écris « 3 velo 5 ») pour savoir ce qui part vraiment.`);
+  if (unassigned > 0) add('🏷️', 'Ventes sans modèle', `${unassigned} pièces vendues ces 30 jours sans modèle. Choisis le modèle avant +1 (ou écris « 3 » + le nom du modèle sur Telegram) pour savoir ce qui part vraiment.`);
   if (sold[0]) add('🏆', 'Ton best-seller', `${sold[0].label} : ${sold[0].sold30} pièces en 30 jours. Ne sois jamais à court de celui-là.`);
   const best = [...rows].filter(r => r.sold30 > 0).sort((a, b) => b.profit30 - a.profit30)[0];
   if (best) add('💶', 'Celui qui rapporte le plus', `${best.label} : ${best.profit30.toFixed(0)} € de bénéfice en 30 jours (${best.marginPiece.toFixed(2)} € par pièce).`);
@@ -131,7 +131,7 @@ export async function jobStock(): Promise<string | null> {
   return `📦 C'est le moment de recommander${s.reorder.minDays !== null ? ` (un modèle tient encore ≈ ${s.reorder.minDays} j)` : ''}.\nCommande conseillée :\n${s.reorder.cart.map(c => `• ${c.label} × ${c.qty}${c.note ? ` — ${c.note}` : ''}`).join('\n')}\n≈ ${Math.round(s.reorder.cartCost)} € d'articles (+ DHL et taxes). Détails : MON ARGENT › Stock.`;
 }
 
-/** « 3 velo 5 », « 2 pablo ice » → produit (alias du catalogue privé). */
+/** « 3 <modèle> », « 2 <modèle> » → produit (alias du catalogue privé). */
 export async function findProduit(text: string): Promise<Produit | null> {
   const t = ` ${text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')} `;
   const cat = await catalog();

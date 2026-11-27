@@ -1,7 +1,14 @@
+## 27/11 — AUJOURD'HUI : boîte « À traiter » (WhatsApp, TikTok, relances, réservations) + MES TÂCHES (app v316)
+- Kouider : « sur la page Aujourd'hui je dois pouvoir accepter, refuser, répondre… pour TikTok et WhatsApp » + « des rappels des tâches que je lui demande (lundi appeler le médecin pour ma femme…) ».
+- backend inbox.ts + /api/inbox (Kouider seulement) : brouillons WhatsApp/TikTok, demandes, relances, réservations site → boutons Envoyer (5 s pour annuler), Dispo, Complet, réécrire (court, pro, darija, langues), réponses rapides, traduire, discussion, vocal, plus tard, conclu/perdu, note. booking-status.ts partagé avec demandes.ts.
+- no-dispo : « Voici nos disponibilités… » est maintenant reconnu comme une promesse de dispo (brouillon remplacé par « on vérifie »).
+- backend taches.ts + /api/taches + outil mes_taches : tâches perso (app_kv perso:taches) avec jour (« lundi », « demain », « 3 décembre »), heure, pour qui, catégorie, répétition semaine/mois. Messages : 8h liste du jour (boutons ✅ si ≤ 3), à l'heure dite (Fait / 1 h / Demain), 20h30 ce qui reste, dimanche 19h la semaine, tâche repoussée 3 fois → choix. « tâche 1 faite » (« fait 1 » reste au Grand Coach).
+- App : carte « À faire » sous « À traiter » : cocher, Demain, autre jour, supprimer, ajouter (jour + heure), promesses et rappels à heure fixe affichés à côté.
+
 ## 27/11 — STOCK & COMMANDES : stock par modèle (en points), factures, ruptures, commande conseillée (app v315)
 - Kouider : factures fournisseur + modèles qu'il vend, noter par nombre de points, comptage de l'après-midi, prévenir quand recommander, best-sellers, gains, meilleurs jours, ruptures et remplacements.
 - backend stock-produits.ts (générique, AUCUN nom de produit ni prix dans le dépôt) : catalogue / factures / comptage dans app_kv perso:stock:* (catalogue privé avec alias, points, couleur, rupture → remplacement) ; stock = comptage + arrivages − ventes par modèle ; coût réel par pièce = prix × total payé / articles (DHL + taxes répartis) ; rythme des commandes (écarts entre factures) ; commande conseillée (couvre rythme + délai 4 j, ruptures remplacées) ; best-sellers, bénéfice et marge par modèle, jours restants, meilleurs jours en pièces ; conseils (stock qui dort, marge faible, frais par pièce, ventes sans modèle…).
-- Ventes : modèle choisi avant +1 (gardé sur le téléphone, aussi sur la carte Aujourd'hui) ; Telegram « 3 velo 5 »-style via alias du catalogue privé (aliasHit en mémoire, jamais « 3 enfants »).
+- Ventes : modèle choisi avant +1 (gardé sur le téléphone, aussi sur la carte Aujourd'hui) ; Telegram « 3 + nom du modèle » via alias du catalogue privé (aliasHit en mémoire, jamais « 3 enfants »).
 - Alerte Telegram « c'est le moment de recommander » + commande conseillée (job argent, 1×/jour).
 - App : page STOCK (menu Perso, lien depuis la carte snus) : recommande, compter mon stock, nouvelle facture, modèles (rupture/remplacement/caché), best-sellers, conseils, jours, commandes.
 

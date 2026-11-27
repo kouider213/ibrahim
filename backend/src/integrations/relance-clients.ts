@@ -306,6 +306,22 @@ export async function jobRelanceClients(force = false): Promise<string> {
   return `${fresh.length} relance(s) proposée(s)`;
 }
 
+/** 27/11 boîte de réception : les relances encore en file, AVEC leur brouillon (boutons dans l'app). */
+export async function relanceItems(): Promise<Relance[]> {
+  const q = await kvJson<Queue | null>(QUEUE, null);
+  if (!q || Date.now() - q.at > 14 * 3600_000) return [];
+  return q.items;
+}
+/** Relance traitée dans l'app (envoyée / passée) : retirée de la file, plus jamais reproposée ces 21 jours. */
+export async function dropRelance(key: string): Promise<void> {
+  await kvSet(DONE(key), String(Date.now()), 21 * 86_400).catch(() => {});
+  const q = await kvJson<Queue | null>(QUEUE, null);
+  if (!q) return;
+  const before = q.items.length;
+  q.items = q.items.filter(x => x.key !== key);
+  if (q.items.length !== before) { q.done += before - q.items.length; await kvPut(QUEUE, q); }
+}
+
 /** Page Aujourd'hui de l'app : relances encore à voir aujourd'hui. */
 export async function relancesStatus(): Promise<{ pending: number; total: number; done: number; items: Array<{ kind: Relance['kind']; label: string; why: string }> }> {
   const q = await kvJson<Queue | null>(QUEUE, null);
