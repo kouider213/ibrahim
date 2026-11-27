@@ -29,15 +29,29 @@ export function MonArgentMini() {
     finally { setBusy(false); }
   };
   const p = qty ? snusPrice(qty, 'normal') : null;
+  // 27/11 soir (Kouider : « pourquoi ici 99 € au lieu de 79 € ») : l'argent du jour = ventes − ce qu'il a pris dessus, comme MON ARGENT
+  const day = o.today.day;
+  const net = o.today.total - (day?.pris ?? 0);
+  const last = day?.lines.length ? day.lines[day.lines.length - 1] : null;
+  const post = async (path: string, body: unknown, ok: string) => {
+    setBusy(true);
+    try { const r = await apiFetch<{ message?: string; overview?: MonArgent }>(path, { method: 'POST', body: JSON.stringify(body) }); if (r.overview) setO(r.overview); setMsg(`✅ ${r.message && r.message !== 'OK' ? r.message : ok}`); setTimeout(() => setMsg(''), 2600); }
+    catch { setMsg('Erreur, réessaie'); }
+    finally { setBusy(false); }
+  };
+  const take = () => { const v = window.prompt('Combien tu as pris sur l\'argent d\'aujourd\'hui (€) ?', ''); const n = Number(String(v ?? '').replace(',', '.')); if (n > 0) void post('/api/mon-argent/prise', { amount: n }, 'Noté'); };
+  const undoLast = () => { if (last && window.confirm(`Annuler « ${last.label} » (${last.time ?? ''}, ${money(Math.abs(last.amount))}) ?`)) void post('/api/mon-argent/undo', { key: last.key }, 'Annulé'); };
+  const stockLow = (o.extras?.stock?.pieces ?? 99) <= 30;
   return (
     <div style={{ ...glass(SRC_COL.snus), borderRadius: 22, padding: 14, marginBottom: 18 }}>
       <div className="dz-press" role="button" onClick={() => go('argent')} style={{ display: 'flex', alignItems: 'baseline', cursor: 'pointer' }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: '0.09em', textTransform: 'uppercase', color: T.muted }}>Mon argent · aujourd'hui</div>
-          <div style={{ fontFamily: T.display, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', marginTop: 4 }}>{fm(o.today.total)}</div>
+          <div style={{ fontFamily: T.display, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', marginTop: 4 }}>{fm(net)}</div>
+          <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{day?.pris ? <>ventes {fm(day.ventes)} − pris <b style={{ color: T.bad }}>{fm(day.pris)}</b></> : 'ventes du jour'}{last?.time ? ` · ${last.time}` : ''}{day?.readAt ? ` · lu à ${day.readAt}` : ''}</div>
         </div>
         <div style={{ textAlign: 'right', fontSize: 12.5, color: T.muted }}>
-          <div>🟢 {o.snus.today} snus{o.extras?.stock ? ` · stock ${o.extras.stock.pieces}` : ''}</div><div>Ce mois <b style={{ color: T.text }}>{fm(o.month.total)}</b></div>
+          <div>🟢 {o.snus.today} snus{o.extras?.stock ? <> · <span style={{ color: stockLow ? T.bad : undefined, fontWeight: stockLow ? 800 : undefined }}>stock {o.extras.stock.pieces}{stockLow ? ' ⚠️' : ''}</span></> : ''}</div><div>Ce mois <b style={{ color: T.text }}>{fm(o.month.total)}</b></div>
           <div style={{ color: T.accent, fontWeight: 700, marginTop: 2 }}>Détails ›</div>
         </div>
       </div>
@@ -48,6 +62,10 @@ export function MonArgentMini() {
         {qty === 0 && ([6, 5] as const).map(u => <button key={u} disabled={busy} onClick={() => void one(u)} style={{ flex: 1.2, padding: '11px 0', borderRadius: 14, border: `1px solid ${SRC_COL.snus}`, background: 'transparent', color: T.text, fontSize: 13, fontWeight: 800, fontFamily: T.font, cursor: 'pointer' }}>1 à {u} €</button>)}
         {qty > 0 && <button disabled={busy} onClick={() => void save()} style={{ flex: 1.6, padding: '11px 0', borderRadius: 14, border: `1px solid ${SRC_COL.snus}`, background: 'transparent', color: T.text, fontSize: 13.5, fontWeight: 800, fontFamily: T.font, cursor: 'pointer' }}>{busy ? '…' : `Noter ${qty} = ${money(p!.amount)}`}</button>}
       </div>
+      {qty === 0 && <div style={{ display: 'flex', gap: 14, marginTop: 10, fontSize: 12.5, fontWeight: 700 }}>
+        <span role="button" onClick={take} style={{ color: T.bad, cursor: 'pointer' }}>➖ J'ai pris dessus</span>
+        {last && <span role="button" onClick={undoLast} style={{ color: T.muted, cursor: 'pointer' }}>↩ Annuler la dernière</span>}
+      </div>}
       {msg ? <div style={{ fontSize: 12.5, color: T.ok, marginTop: 8 }}>{msg}</div>
         : qty > 0 ? <div style={{ fontSize: 12, color: T.muted, marginTop: 8 }}>Prix normal : 6 € la pièce. Lot dès 10 à 5 € : dans « Détails ». <span role="button" onClick={() => setQty(0)} style={{ color: T.bad, fontWeight: 700, cursor: 'pointer' }}>Effacer</span></div> : null}
     </div>

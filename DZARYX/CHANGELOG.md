@@ -1,3 +1,7 @@
+## 27/11 — Carte « Mon argent · aujourd'hui » (Aujourd'hui) = même chiffre que MON ARGENT
+- Kouider : la petite carte ne montrait pas le même montant du jour que MON ARGENT (ventes sans enlever ce qu'il a pris).
+- MonArgentMini (app v324) : montant = ventes − pris, ligne « ventes − pris · heure · lu à », lien « ➖ J'ai pris dessus », « ↩ Annuler la dernière » (avec confirmation), stock en rouge ≤ 30.
+
 ## 27/11 — PLAN DE DÉPART vérifié : chiffres en direct, repères corrigés, curseurs qui ne font plus bouger la page
 - Kouider : « vérifie que tout ce qu'il dit est correct, que les chiffres changent au fur et à mesure ; quand je bouge le curseur toute la page bouge ».
 - departDetail : courbes (cache 6 h) recalées sur son total du jour → chaque vente/prise/dépense change dates, % et « prochain point » tout de suite.
