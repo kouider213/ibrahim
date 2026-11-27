@@ -1,3 +1,8 @@
+## 27/11 — Grand Coach : le message de 7h15 devient un vrai point du jour
+- Kouider : « c'est pas très intéressant ce qu'il dit, faut que ce soit pertinent et compréhensible, un vrai truc pro ». Avant : histoire d'un grand (Hormozi 3× ce mois), 3 actions vagues (« publie la liste des seize voitures disponibles », contraire à la règle « jamais de dispo »), livre jour 26, compte à rebours, 8-10 blocs.
+- Maintenant (makeBrief / briefSignals, kv gc:brief:<date>) : 🎯 1 priorité choisie par le CODE dans les vraies données (demande client sans réponse > acompte avant départ > demande répondue pas conclue > remise à préparer > flotte vide 14 j > retard objectif > FIK Sites) + pourquoi chiffré ; 📊 5 chiffres (mois vs objectif, bénéfice, rythme, acomptes, demandes ouvertes, départs 7 j) ; ✅ 3 actions avec vrais noms (fallback = actions des signaux) ; 💡 leçon d'un grand appliquée à la priorité (2 phrases).
+- Défi + compte à rebours seulement le lundi, baraka le vendredi ; livre sur demande. Vocal = point du jour parlé. Grand du jour : pas le même avant 20 jours. Report des actions de la veille : seulement celles du point du jour, jamais « voitures disponibles ». « avant 20:00 » → « après 20:00 » (pas de pause au travail).
+
 ## 27/11 — Conseils et récaps : plus de location finie ni de texte de la veille
 - Kouider : « revient AUJOURD'HUI » répété le 26/11 (13h20, 19h20, 22h50) pour un client dont la voiture était déjà rendue à 08h00, avec un WhatsApp d'un autre numéro collé dessus ; récap 05h30 du 27/11 reprenait « AUJOURD'HUI … attend depuis 2 h » écrit la veille.
 - conscience : location COMPLETED (ou retour passé de 2 h) = « TERMINÉE, n'en parle pas » ; interdiction de relier un WhatsApp à un client sans nom/numéro exact.

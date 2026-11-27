@@ -122,19 +122,144 @@ async function makeBig3(): Promise<Big3> {
   const date = localNow().date;
   const ex = await kvJson<Big3 | null>(K.big3(date), null);
   if (ex) return ex;
-  const [t, r0] = await Promise.all([tableau().catch(() => ''), rythme().catch(() => '')]);
-  const r = r0.split('\n').filter(l => !/dis «/.test(l)).join('\n');
-  const txt = await ai(`Tu es le coach business de Kouider (FIK Conciergerie : location de voitures à Oran pour la diaspora et les Algériens + FIK Sites : sites pour petits commerces ; il travaille encore en Belgique). Voici ses vrais chiffres :\n${t}\n${r}\n\nDonne EXACTEMENT 3 actions pour aujourd'hui qui font rentrer de l'argent ou en protègent (relancer, vendre, encaisser, publier, prospecter), chacune faisable en moins de 20 min depuis son téléphone. Une par ligne, sans numéro, sans intro, verbe à l'impératif, max 14 mots. N'invente aucun nom de client.`, { max: 200 }).catch(() => '');
-  const items = txt.split('\n').map(l => l.replace(/^[\s\-•*\d.)]+/, '').trim()).filter(l => l.length > 12 && !/objectif du mois|dis «|^\d+\s*€/i.test(l)).slice(0, 3);
+  // 27/11 : les 3 actions viennent du point du jour (vrais clients, vraies voitures), plus d'actions vagues
+  const items = (await makeBrief().catch(() => null))?.actions ?? [];
   let list = items.length === 3 ? items : ['Relance un client qui n\'a pas encore payé', 'Publie la voiture libre demain en statut WhatsApp avec le prix', 'Envoie 5 messages de prospection FIK Sites'];
   // Report : une action pas faite hier revient en tête (une seule), avec son compteur
   const y = await kvJson<{ items: Array<{ text: string; done?: boolean; carried?: number }> } | null>(K.big3(addDays(date, -1)), null);
-  const left = y?.items.find(i => !i.done && (i.carried ?? 0) < 2);
+  const yBrief = await kvJson<Brief | null>(KB(addDays(date, -1)), null);   // report seulement des actions du point du jour (pas des anciennes vagues)
+  const left = yBrief && y?.items.find(i => !i.done && (i.carried ?? 0) < 2 && !/disponibles?\b/i.test(i.text));   // 27/11 : jamais « voitures disponibles » reporté
   if (left) list = [left.text, ...list.filter(t => t !== left.text)].slice(0, 3);
   const b: Big3 = { date, items: list.map(text => (left && text === left.text ? { text, carried: (left.carried ?? 0) + 1 } : { text })) };
   await kvPut(K.big3(date), b, 3 * 86_400);
   return b;
 }
+// ── POINT DU JOUR (27/11) ───────────────────────────────────────────────────
+// Kouider 27/11 : « c'est pas très intéressant ce qu'il dit, faut que ce soit pertinent et compréhensible, un vrai truc pro ».
+// Avant : histoire d'un grand + 3 actions vagues (« publie la liste des seize voitures disponibles ») + livre jour 26 + 6 blocs.
+// Maintenant : 1 priorité choisie par le CODE dans ses vraies données, les chiffres du mois, 3 actions qui citent un vrai
+// client / une vraie voiture, et une leçon d'un grand appliquée à CETTE priorité. Court, lisible en 30 secondes.
+interface Signal { score: number; prio: string; why: string; action: string }
+interface Brief { date: string; prio: string; why: string; actions: string[]; lecon: string; sage: string; stats: string[] }
+const KB = (d: string) => `gc:brief:${d}`;
+const hAgo = (iso: string) => Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 3_600_000));
+
+async function monthNumbers(books: Row[]): Promise<{ ca: number; pr: number; target: number; pace: number; miss: number; left: number; ppd: number; auto: boolean }> {
+  const today = localNow().date, m0 = `${today.slice(0, 7)}-01`;
+  const pm = addDays(m0, -1).slice(0, 7);
+  const lastMonth = books.filter(b => d10(b['start_date']).slice(0, 7) === pm).reduce((s, b) => s + price(b), 0);
+  const set = (await settings()).monthTarget;
+  const target = set || Math.max(500, Math.round(lastMonth * 1.2 / 50) * 50);
+  const month = books.filter(b => d10(b['start_date']).slice(0, 7) === today.slice(0, 7));
+  const ca = month.reduce((s, b) => s + price(b), 0), pr = month.reduce((s, b) => s + profitOf(b), 0);
+  const last = new Date(Date.UTC(+today.slice(0, 4), +today.slice(5, 7), 0)).getUTCDate();
+  const left = Math.max(1, last - +today.slice(8, 10) + 1);
+  const r = books.slice(-15); const d = r.reduce((s, b) => s + days(b), 0);
+  const ppd = d ? r.reduce((s, b) => s + price(b), 0) / d : 40;
+  return { ca, pr, target, pace: Math.round((ca / Math.max(1, +today.slice(8, 10))) * last), miss: Math.max(0, target - ca), left, ppd, auto: !set };
+}
+
+async function briefSignals(): Promise<{ signals: Signal[]; stats: string[] }> {
+  const today = localNow().date, in2 = addDays(today, 2), in7 = addDays(today, 7), in14 = addDays(today, 14);
+  const { books, cars } = await data();
+  const carName = (id: unknown) => cars.find(c => c.id === S(id))?.name ?? 'la voiture';
+  const first = (n: unknown) => S(n).trim() || 'le client';
+  const m = await monthNumbers(books);
+  const sig: Signal[] = [];
+  // Demandes clients (WhatsApp + TikTok) encore ouvertes
+  const dm = await import('./wa-demandes.js');
+  const open = (await Promise.all((['whatsapp', 'tiktok'] as const).map(async ch => (await dm.listWaDemandes(ch).catch(() => [])).map(d => ({ ...d, ch })))))
+    .flat().filter(d => !dm.WA_CLOSED.has(d.status) && Date.now() - Date.parse(d.updated_at) < 7 * 86_400_000);
+  const waiting = open.filter(d => d.status === 'nouveau' && hAgo(d.updated_at) >= 1).sort((a, b) => a.updated_at.localeCompare(b.updated_at));
+  for (const d of waiting.slice(0, 2)) sig.push({ score: 100 - Math.min(20, hAgo(d.updated_at) / 6), prio: `Réponds à ${d.chat} (${d.ch === 'tiktok' ? 'TikTok' : 'WhatsApp'})`,
+    why: `sa demande attend depuis ${hAgo(d.updated_at)} h ; un client sans réponse part chez un autre.`, action: `Réponds à ${d.chat} sur ${d.ch === 'tiktok' ? 'TikTok' : 'WhatsApp'} (demande ouverte depuis ${hAgo(d.updated_at)} h)` });
+  // Demandes déjà répondues mais pas conclues → à faire avancer (vérifier avec Houari puis revenir vers le client)
+  const leads = open.filter(d => d.status !== 'nouveau' && hAgo(d.updated_at) >= 10 && hAgo(d.updated_at) <= 96).sort((a, b) => b.text.length - a.text.length);
+  for (const d of leads.slice(0, 2)) {
+    const ask = d.text.split('\n').map(x => x.trim()).filter(x => x.length > 3 && !/^(slm|salam|bonjour|bonsoir|salut)\b.{0,20}$/i.test(x)).slice(0, 2).join(', ').slice(0, 70);
+    sig.push({ score: 80, prio: `Fais avancer la demande de ${d.chat}`, why: `${d.ch === 'tiktok' ? 'TikTok' : 'WhatsApp'}, il y a ${Math.round(hAgo(d.updated_at) / 24) || 1} j : « ${ask} ». Pas encore réservé.`,
+      action: `Vérifie avec Houari pour ${d.chat} (« ${ask.slice(0, 40)} ») puis réponds-lui` });
+  }
+  // Acomptes : une voiture prise = payée en entier, donc seulement les départs à venir
+  const unpaid = books.filter(b => d10(b['start_date']) > today && S(b['payment_status']) !== 'PAID' && N(b['amount_remaining']) > 0)
+    .sort((a, b) => d10(a['start_date']).localeCompare(d10(b['start_date'])));
+  for (const b of unpaid.slice(0, 2)) {
+    const soon = d10(b['start_date']) <= in2;
+    sig.push({ score: soon ? 95 : 70, prio: `Encaisse l'acompte de ${first(b['client_name'])}`, why: `départ le ${fmtD(d10(b['start_date']))} (${carName(b['car_id'])}), il reste ${eur(N(b['amount_remaining']))} à payer.`,
+      action: `Demande à ${first(b['client_name'])} de régler ${eur(N(b['amount_remaining']))} avant le ${fmtD(d10(b['start_date']))}` });
+  }
+  // Départs proches à préparer
+  const deps = books.filter(b => d10(b['start_date']) > today && d10(b['start_date']) <= in2 && !/COMPLET|CANCEL|REJECT/i.test(S(b['status'])));
+  for (const b of deps.slice(0, 2)) sig.push({ score: 75, prio: `Prépare la remise de ${first(b['client_name'])}`, why: `départ le ${fmtD(d10(b['start_date']))} avec la ${carName(b['car_id'])} : préviens Houari, heure et lieu confirmés.`,
+    action: `Confirme à Houari l'heure de remise de la ${carName(b['car_id'])} pour ${first(b['client_name'])} (${fmtD(d10(b['start_date']))})` });
+  // Voitures sans aucune location dans les 14 jours → pub TikTok (jamais « dispo » dit à un client) ; voitures phares d'abord
+  const idle = cars.filter(c => c.available !== false && !books.some(b => S(b['car_id']) === c.id && d10(b['start_date']) < in14 && d10(b['end_date']) > today)).map(c => c.name)
+    .sort((a, b) => Number(/creta|500 ?x|duster/i.test(b)) - Number(/creta|500 ?x|duster/i.test(a)));
+  const avail = cars.filter(c => c.available !== false).length;
+  if (idle.length && idle.length >= avail * 0.7) sig.push({ score: 55, prio: 'Remplis les 2 prochaines semaines', why: `aucune location prévue d'ici le ${fmtD(in14)} (${idle.length} voitures sur ${avail}).`,
+    action: `Prépare une pub TikTok pour la ${idle[0]}, une de tes voitures phares` });
+  else if (idle.length) sig.push({ score: 50, prio: `Fais tourner la ${idle[0]}`, why: `aucune location prévue pour elle d'ici le ${fmtD(in14)}${idle.length > 1 ? ` (${idle.length} voitures dans ce cas)` : ''}.`,
+    action: `Prépare une pub TikTok pour la ${idle[0]} (aucune location d'ici 14 jours)` });
+  // Retard sur l'objectif du mois
+  if (m.miss > 0 && m.left > 2) sig.push({ score: 45, prio: `Vends ${Math.ceil(m.miss / m.ppd)} jours de location`, why: `il manque ${eur(m.miss)} pour l'objectif du mois (${eur(m.target)}), ${m.left} jours pour le faire.`,
+    action: `Relance un ancien client avant ses vacances (il manque ${eur(m.miss)} ce mois)` });
+  sig.push({ score: 20, prio: 'Trouve ton prochain client FIK Sites', why: 'chaque site vendu = un revenu qui ne dépend pas des voitures.', action: 'Envoie 3 messages de prospection FIK Sites à des commerces d\'Oran' });
+  sig.sort((a, b) => b.score - a.score);
+  const mois = new Date(`${today}T12:00:00Z`).toLocaleDateString('fr-FR', { month: 'long', timeZone: 'UTC' });
+  const stats = [
+    `• ${mois[0]!.toUpperCase()}${mois.slice(1)} : ${eur(m.ca)} réservés sur ${eur(m.target)} visés (${Math.round(m.ca / m.target * 100)} %)${m.auto ? ' — objectif auto' : ''}`,
+    `• Bénéfice du mois : ${eur(m.pr)}${m.left > 2 ? ` · à ce rythme, fin du mois ≈ ${eur(m.pace)}` : ''}`,
+    unpaid.length ? `• À encaisser avant départ : ${eur(unpaid.reduce((s, b) => s + N(b['amount_remaining']), 0))} (${unpaid.length} client${unpaid.length > 1 ? 's' : ''})` : '• Aucun acompte en attente',
+    `• Demandes clients ouvertes : ${open.length}${waiting.length ? ` (dont ${waiting.length} sans réponse)` : ''}`,
+    `• Départs d'ici 7 jours : ${books.filter(b => d10(b['start_date']) > today && d10(b['start_date']) <= in7 && !/CANCEL|REJECT/i.test(S(b['status']))).length}`,
+  ];
+  return { signals: sig, stats };
+}
+
+async function makeBrief(force = false): Promise<Brief> {
+  const date = localNow().date;
+  if (!force) { const ex = await kvJson<Brief | null>(KB(date), null); if (ex) return ex; }
+  const { signals, stats } = await briefSignals();
+  const top = signals[0]!;
+  const used = await kvJson<string[]>(K.used, []);
+  const sage = sageOfDay(date, used);
+  const from = await offFrom();
+  const when = from ? `il travaille à la librairie jusqu'à ${from}` : (await isAfterWorkEnd()) ?? 'il travaille à la librairie la journée (aucune pause au travail) : actions à faire avant ou après le travail';
+  type Out = { actions?: string[]; lecon?: string };
+  const { jsonOf } = await import('./media-util.js');
+  const o = jsonOf<Out>(await ai(`Signaux RÉELS de FIK aujourd'hui, du plus important au moins important :\n${signals.slice(0, 6).map((x, k) => `${k + 1}. ${x.prio} — ${x.why} (action possible : ${x.action})`).join('\n')}\n\n`
+    + `Sa journée : ${when}.\nGrand entrepreneur du jour : ${sage.name}. Principes : ${sage.principles.join(' ; ')}.\n\n`
+    + `Réponds UNIQUEMENT en JSON : {"actions":["…","…","…"],"lecon":"…"}\n`
+    + `- actions : EXACTEMENT 3, tirées des signaux ci-dessus dans l'ordre (la 1re = signal 1). Chacune : verbe à l'impératif, max 16 mots, faisable en moins de 20 min depuis son téléphone, avec le VRAI nom (client, voiture, montant) donné dans le signal. N'invente aucun nom ni chiffre. `
+    + `Ne dis JAMAIS de dire à un client qu'une voiture est disponible ; les pubs, c'est TikTok seulement.\n`
+    + `- lecon : 2 phrases simples. Ce que ${sage.name} ferait face à la priorité n°1 (« ${top.prio} »), et pourquoi. Commence par « ${sage.name} ». Pas de biographie, pas de métaphore, pas de grande phrase : du concret.`,
+    { system: COACH_SYS, max: 350 }).catch(() => '')) ?? {};
+  const bad = /disponibles?\b.*(client|groupe|liste)|(liste|groupes?).*disponibles?/i;
+  const acts = (o.actions ?? []).map(a => S(a).replace(/^[\s\-•*\d.)]+/, '').trim()).filter(a => a.length > 12 && a.length < 160 && !bad.test(a));
+  const actions = (acts.length === 3 ? acts : signals.slice(0, 3).map(x => x.action)).map(a => a.replace(/[.\s]+$/, ''));
+  const lecon = S(o.lecon).trim().startsWith(sage.name.split(' ')[0]!) ? S(o.lecon).trim() : `${sage.name} : ${sage.principles[0]}.`;
+  // Au travail jusqu'à HH:MM, aucune pause : « avant 20:00 » → « après 20:00 »
+  const end = await import('./kouider-dossier.js').then(m => m.workEndToday()).catch(() => null);
+  if (end) for (let k = 0; k < actions.length; k++) actions[k] = actions[k]!.replace(new RegExp(`avant ${end.replace(':', '[h:]')}`, 'i'), `après ${end}`);
+  const b: Brief = { date, prio: top.prio, why: top.why, actions, lecon, sage: sage.name, stats };
+  await kvPut(K.used, [...used, sage.id].slice(-30));
+  await kvPut(KB(date), b, 3 * 86_400);
+  return b;
+}
+/** Fin de travail du jour en clair (pour placer les actions), null si inconnue. */
+async function isAfterWorkEnd(): Promise<string | null> {
+  const e = await import('./kouider-dossier.js').then(m => m.workEndToday()).catch(() => null);
+  return e ? `il travaille à la librairie jusqu'à ${e} (aucune pause au travail) : actions avant le travail ou après ${e}` : null;
+}
+/** Version parlée (audio du matin). */
+export async function briefVoice(): Promise<string> {
+  const b = await makeBrief();
+  const off = !(await offFrom()) && await dayOff();
+  if (off) return `Bonjour Kouider. Aujourd'hui c'est congé : Fatima et Ibrahim d'abord, et ta séance de sport. ${b.lecon}`;
+  const big = await makeBig3();
+  return `Bonjour Kouider. Ta priorité aujourd'hui : ${b.prio}. Pourquoi : ${b.why} Tes trois actions. ${big.items.map((i, k) => `${['Une', 'Deux', 'Trois'][k]} : ${i.text.replace(/[.\s]+$/, '')}.`).join(' ')} ${b.lecon}`.replace(/\b(lun|mar|mer|jeu|ven|sam|dim)\. /g, '');
+}
+
 async function big3Done(n: number): Promise<string> {
   const b = await makeBig3();
   const it = b.items[n - 1];
@@ -261,7 +386,7 @@ export async function tresorerie(): Promise<string> {
 // ── COACH DE VIE ─────────────────────────────────────────────────────────────
 
 function sageOfDay(date: string, used: string[]): Sage {
-  const fresh = SAGES.filter(s => !used.slice(-12).includes(s.id));
+  const fresh = SAGES.filter(s => !used.slice(-20).includes(s.id));
   const pool = fresh.length ? fresh : SAGES;
   return pool[Math.floor(Date.parse(date) / 86_400_000) % pool.length]!;
 }
@@ -316,20 +441,27 @@ export async function texteDuJour(force = false): Promise<string> {
 async function morningMessage(): Promise<string> {
   const from = await offFrom();
   const off = from ? false : await dayOff();   // 7h15 : le jeudi / dimanche il travaille encore (congé seulement à partir de « from »)
-  const [txt, defi, book] = await Promise.all([texteDuJour(), currentDefi(), livre().catch(() => '')]);
-  const parts = [`☀️ LE GRAND COACH — ${fmtD(localNow().date)}`, '', txt];
-  if (!off) {
-    const [b3, r] = await Promise.all([makeBig3(), rythme().catch(() => '')]);
-    parts.push('', '💼 TES 3 ACTIONS QUI RAPPORTENT AUJOURD\'HUI (réponds « fait 1 », « fait 2 »…) :', big3Line(b3), '', r);
+  const weekday = localNow().weekday;
+  const b = await makeBrief();
+  const parts = [`☀️ LE GRAND COACH — ${fmtD(localNow().date)}`];
+  if (off) {
+    parts.push('', '👨‍👩‍👦 Jour de congé : Fatima et Ibrahim d\'abord + ta séance de sport. Téléphone loin, Dzaryx garde la boutique.', '', `💡 ${b.lecon}`);
+  } else {
+    const b3 = await makeBig3();
+    parts.push('', '🎯 TA PRIORITÉ', `${b.prio}.`, `Pourquoi : ${b.why}`,
+      '', '📊 OÙ TU EN ES', ...b.stats,
+      '', '✅ TES 3 ACTIONS (réponds « fait 1 », « fait 2 »…)', big3Line(b3),
+      '', `💡 ${b.lecon}`);
     const rep = await repartition().catch(() => '');
     if (rep && !rep.includes('Rien d\'encaissé')) parts.push('', rep);
-  } else parts.push('', '👨‍👩‍👦 Jour de congé : ta femme et Ibrahim d\'abord + ta séance de sport. Téléphone loin, Dzaryx garde la boutique.');
-  if (from) parts.push('', `🕐 À partir de ${from}, c'est ton temps libre : 🏋️ garde ton créneau sport, et le reste 👨‍👩‍👦 avec ta femme et Ibrahim. Pas de business sauf urgence, Dzaryx garde la boutique.`);
+    if (from) parts.push('', `🕐 À partir de ${from} : temps libre, sport + Fatima et Ibrahim.`);
+  }
+  // Le reste seulement quand c'est neuf : défi le lundi, baraka le vendredi (le livre et le compte à rebours restent sur demande)
+  const defi = weekday === 1 ? await currentDefi() : null;
   if (defi) parts.push('', `🔥 Défi de la semaine : ${defi.text}`);
-  if (book) parts.push('', book);
-  const plus = await import('./grand-coach-plus.js').then(m => m.morningSections(localNow().weekday)).catch(() => [] as string[]);
-  for (const x of plus) parts.push('', x);
-  return parts.join('\n');
+  if (weekday === 1) { const c = await import('./grand-coach-plus.js').then(m => m.countdown()).catch(() => ''); if (c) parts.push('', c); }
+  if (weekday === 5) parts.push('', await import('./grand-coach-plus.js').then(m => m.baraka()).catch(() => ''));
+  return parts.filter((x, k, a) => !(x === '' && a[k - 1] === '')).join('\n').trim();
 }
 
 // L2 — Suivi de la journée
@@ -452,7 +584,7 @@ export async function jobGrandCoach(): Promise<void> {
     await kvPut(`gc:sent:${k}:${date}`, '1', 2 * 86_400);
     try {
       const t = await f();
-      if (t && !o.silent) { await tg(t); await plus.spoke(); if (o.voice) await plus.sendVoice(await texteDuJour()).catch(() => false); }
+      if (t && !o.silent) { await tg(t); await plus.spoke(); if (o.voice) await plus.sendVoice(await briefVoice()).catch(() => false); }
     } catch (e) { console.error(`[grand-coach] ${k}:`, e instanceof Error ? e.message : e); }
   };
   if (weekday === 1 && at('07:00')) await run('defi', async () => { await newDefi(); }, { silent: true });
@@ -559,7 +691,7 @@ export async function grandCoachTool(input: Row): Promise<string> {
     }
     case 'tempete': return tempete(text);
     case 'equilibre': return equilibre();
-    case 'vocal': { const ok = await (await import('./grand-coach-plus.js')).sendVoice(await texteDuJour()); return ok ? '🎧 Vocal du coach envoyé sur Telegram.' : '❌ Voix indisponible pour l\'instant.'; }
+    case 'vocal': { const ok = await (await import('./grand-coach-plus.js')).sendVoice(await briefVoice()); return ok ? '🎧 Vocal du coach envoyé sur Telegram.' : '❌ Voix indisponible pour l\'instant.'; }
     case 'compte_a_rebours': return (await import('./grand-coach-plus.js')).countdown();
     case 'lettre_2036': return (await import('./grand-coach-plus.js')).letter2036();
     case 'premortem': return (await import('./grand-coach-plus.js')).premortem();
