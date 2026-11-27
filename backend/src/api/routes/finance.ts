@@ -35,12 +35,12 @@ router.get('/ledger', requireMobileAuth, async (_req, res) => {
 
 // POST /api/finance/ledger/collect { id: string | 'all', collected: boolean }
 router.post('/ledger/collect', requireMobileAuth, async (req, res) => {
-  const { id, collected } = (req.body ?? {}) as { id?: string; collected?: boolean };
+  const { id, collected, dest, label } = (req.body ?? {}) as { id?: string; collected?: boolean; dest?: string; label?: string };
   if (!id) { res.status(400).json({ error: 'id requis' }); return; }
   try {
     const { setCollected } = await import('../../integrations/real-profit.js');
-    await setCollected(id, collected !== false);
-    res.json({ ok: true });
+    const message = await setCollected(id, collected !== false, dest === 'compte' || dest === 'utilise' ? dest : 'cash', label ? String(label).slice(0, 40) : undefined);
+    res.json({ ok: true, message });
   } catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : String(err) }); }
 });
 

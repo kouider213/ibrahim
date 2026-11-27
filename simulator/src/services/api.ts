@@ -1376,8 +1376,8 @@ export const business = {
   fetchLedger: () =>
     apiFetch<ProfitLedger>('/api/finance/ledger'),
 
-  setCollected: (id: string, collected: boolean) =>
-    apiFetch<{ ok: boolean }>('/api/finance/ledger/collect', { method: 'POST', body: JSON.stringify({ id, collected }) }),
+  setCollected: (id: string, collected: boolean, dest?: 'cash' | 'compte' | 'utilise', label?: string) =>
+    apiFetch<{ ok: boolean; message?: string }>('/api/finance/ledger/collect', { method: 'POST', body: JSON.stringify({ id, collected, dest, label }) }),
 
   clearCache: () =>
     apiFetch<{ deleted: number }>('/api/bi/cache/clear', { method: 'POST' }),

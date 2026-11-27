@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { ClientName } from '../ClientSheet.tsx';
 import { business, apiFetch, type RevenueSummary, type FinancialReport, type FinancialBooking, type ProfitLedger } from '../../services/api.ts';
 import { SkeletonCards } from '../ui/Premium.tsx';
-import { T, tone, Screen, PageHeader, Segmented, Kpi, KpiGrid, Card, Row, Avatar, Badge, Btn, SectionTitle, Empty, money } from '../ui/Kit.tsx';
+import { T, tone, Screen, PageHeader, Segmented, Kpi, KpiGrid, Card, Row, Avatar, Badge, Btn, SectionTitle, Empty, money, Sheet, Field, inputStyle } from '../ui/Kit.tsx';
 import { Ico } from '../ui/Icon.tsx';
 
 const SCORE_COL: Record<string, string> = {
@@ -71,6 +71,9 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
   };
 
   const fmt: Fmt = (n) => money(n);
+  const [dest, setDest] = useState<{ id: string; sum: number } | null>(null);
+  const [destBusy, setDestBusy] = useState(false);
+  const [usage, setUsage] = useState('');
 
   const isAtNow = isCurrentMonth;
 
@@ -103,9 +106,23 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
     </>}>
       {!loading && !isHouari && ledger && tab === 'overview' && isCurrentMonth && (
         <LedgerCard ledger={ledger} fmt={fmt} onToggle={async (id, c) => {
-          try { await business.setCollected(id, c); setLedger(await business.fetchLedger()); setMsg(c ? '✅ Noté comme récupéré' : 'Remis à récupérer'); setTimeout(() => setMsg(''), 1500); }
+          if (c) { setDest({ id, sum: id === 'all' ? ledger.toCollect : (ledger.rows.find(r => r.id === id)?.eur ?? 0) }); return; }   // 27/11 soir : où va l'argent ?
+          try { await business.setCollected(id, false); setLedger(await business.fetchLedger()); setMsg('Remis à récupérer'); setTimeout(() => setMsg(''), 1500); }
           catch { setMsg('Erreur — réessaie'); }
         }} />
+      )}
+      {dest && (
+        <Sheet title="💶 Argent récupéré : il va où ?" subtitle={`${fmt(dest.sum)} — ça met à jour MON ARGENT`} onClose={() => setDest(null)}>
+          {([['cash', '💵 Je le garde en cash', 'Ton cash monte'], ['compte', '🏦 Je l\'économise sur le compte', 'Ton compte monte'], ['utilise', '🛍️ Je l\'ai utilisé', 'Noté en dépense (ex. or), rien n\'entre']] as const).map(([k, l, h]) => (
+            <Btn key={k} variant={k === 'cash' ? 'primary' : 'ghost'} disabled={destBusy || (k === 'utilise' && !usage.trim())} onClick={async () => {
+              setDestBusy(true);
+              try { const r = await business.setCollected(dest.id, true, k, k === 'utilise' ? usage.trim() : undefined); setLedger(await business.fetchLedger()); setDest(null); setUsage(''); setMsg(`✅ ${r.message ?? 'Noté'}`); setTimeout(() => setMsg(''), 2200); }
+              catch { setMsg('Erreur — réessaie'); }
+              finally { setDestBusy(false); }
+            }} style={{ width: '100%', marginBottom: 8, flexDirection: 'column', alignItems: 'flex-start' }}><span>{l}</span><span style={{ fontSize: 11.5, opacity: 0.7, fontWeight: 500 }}>{h}</span></Btn>
+          ))}
+          <Field label="Utilisé pour quoi ?" hint="Obligatoire pour « Je l'ai utilisé »"><input value={usage} placeholder="or, voiture, famille…" onChange={e => setUsage(e.target.value)} style={inputStyle} /></Field>
+        </Sheet>
       )}
       {loading ? <SkeletonCards count={4} height={110} /> : tab === 'overview' ? (
         <OverviewTab rev={rev} report={report} caMonth={caMonth} profitK={profitK} caHouari={caHouari}

@@ -1,3 +1,9 @@
+## 27/11 — ARGENT FIK RÉCUPÉRÉ : il choisit où il va (cash / compte / utilisé)
+- Kouider : « quand je récupère l'argent des locations, parfois je l'utilise, parfois je l'économise (ex. je l'ai utilisé pour acheter de l'or) ».
+- real-profit.ts : setCollected/markAllCollected(dest, label) ; ProfitItem dest/destLabel/moved ; applyDest : cash → cash +, compte → épargne +, utilisé → dépense notée (mon-argent fikUsed, rien n'entre). Décocher défait seulement ce que Dzaryx avait déplacé.
+- Outil financial_report collected : destination + usage, le cerveau demande où va l'argent s'il ne le dit pas. Route /ledger/collect : dest + label.
+- App v322 (CA) : cocher « récupéré » ouvre « il va où ? » (cash / compte / utilisé + pour quoi).
+
 ## 27/11 — TOUT MON CASH sur Aujourd'hui + « chez Houari » compté + « Déjà répondu » dans À traiter
 - Kouider : le total ne comptait pas l'argent FIK à récupérer chez Houari ; la carte d'Aujourd'hui ne montrait que les locations ; il ne pouvait pas retirer des demandes auxquelles il avait déjà répondu.
 - mon-argent.ts : balances.aRecuperer (profitLedger.toCollect) inclus dans le total ; argent-direct totalText ajoute la ligne « À récupérer chez Houari ».

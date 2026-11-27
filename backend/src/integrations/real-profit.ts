@@ -7,7 +7,9 @@
  */
 import { supabase } from './supabase.js';
 
-export interface ProfitItem { da?: number; eur?: number; collected?: boolean }
+export interface ProfitItem { da?: number; eur?: number; collected?: boolean; dest?: Dest; destLabel?: string; moved?: boolean }
+/** 27/11 soir (Kouider : « parfois je vais les utiliser et parfois les économiser, ex. je les ai utilisés pour acheter de l'or ») */
+export type Dest = 'cash' | 'compte' | 'utilise';
 export interface ProfitCfg { rate: number; cutoff: string; items: Record<string, ProfitItem> }
 const DEFAULT: ProfitCfg = { rate: 275, cutoff: '2026-10-29', items: {} };
 const ACCEPTED = ['ACCEPTED', 'CONFIRMED', 'ACTIVE', 'COMPLETED'];
@@ -74,14 +76,14 @@ export async function formatLedger(): Promise<string> {
 }
 
 /** « J'ai récupéré mon argent » → toutes les locations à récupérer passent en récupéré : la case repart à zéro. */
-export async function markAllCollected(): Promise<string> {
+export async function markAllCollected(dest: Dest = 'cash', label?: string): Promise<string> {
   const l = await profitLedger();
   if (!l.pending.length) return 'Rien à récupérer : la case est déjà à zéro.';
   const items = { ...l.cfg.items };
-  for (const r of l.pending) items[r.id] = { ...(items[r.id] ?? {}), collected: true };
+  for (const r of l.pending) items[r.id] = { ...(items[r.id] ?? {}), collected: true, dest, ...(label ? { destLabel: label } : {}), moved: true };
   await saveCfg({ ...l.cfg, items });
-  await cashFromHouari(l.toCollect);
-  return `✅ Noté : ${fmtE(l.toCollect)} (${fmtD(l.toCollect * l.cfg.rate)}) récupérés (${l.pending.map(r => r.client).join(', ')}). « À récupérer » repart à zéro ; « gagné depuis le début » reste ${fmtE(l.total)}.`;
+  const where = await applyDest(l.toCollect, dest, label);
+  return `✅ Noté : ${fmtE(l.toCollect)} (${fmtD(l.toCollect * l.cfg.rate)}) récupérés (${l.pending.map(r => r.client).join(', ')}), ${where}. « À récupérer » repart à zéro ; « gagné depuis le début » reste ${fmtE(l.total)}.`;
 }
 
 /** Bénéfice réel d'une location (« Belarbi c'est 12 500 DA », « 1 250 000 » = centimes). */
@@ -103,19 +105,31 @@ export async function setRealProfit(client: string, amount: string): Promise<str
 }
 
 /** App CA (15/11) : marquer une location (ou toutes celles à récupérer) comme récupérée / pas encore. */
-export async function setCollected(id: string | 'all', collected: boolean): Promise<void> {
+export async function setCollected(id: string | 'all', collected: boolean, dest: Dest = 'cash', label?: string): Promise<string> {
   const l = await profitLedger();
   const items = { ...l.cfg.items };
   const targets = id === 'all' ? l.pending.map(r => r.id) : l.rows.filter(r => r.id === id).map(r => r.id);
   if (!targets.length) throw new Error('location introuvable');
-  const moved = l.rows.filter(r => targets.includes(r.id) && r.collected !== collected).reduce((x, r) => x + r.eur, 0);
-  for (const t of targets) items[t] = { ...(items[t] ?? {}), collected };
+  const changing = l.rows.filter(r => targets.includes(r.id) && r.collected !== collected);
+  if (collected) {
+    for (const t of targets) items[t] = { ...(items[t] ?? {}), collected: true, dest, ...(label ? { destLabel: label } : {}), moved: true };
+    await saveCfg({ ...l.cfg, items });
+    const sum = changing.reduce((x, r) => x + r.eur, 0);
+    return sum ? `${fmtE(sum)} ${await applyDest(sum, dest, label)}` : 'Déjà récupéré';
+  }
+  // Remis « à récupérer » : on défait ce qui avait été fait (seulement pour ce que Dzaryx avait déplacé)
+  for (const r of changing) { const o = items[r.id]; if (o?.moved) await applyDest(-r.eur, o.dest ?? 'cash', o.destLabel); }
+  for (const t of targets) items[t] = { ...(items[t] ?? {}), collected: false, dest: undefined, destLabel: undefined, moved: undefined };
   await saveCfg({ ...l.cfg, items });
-  await cashFromHouari(collected ? moved : -moved);
+  return 'Remis à récupérer';
 }
-/** 27/11 soir (Kouider : « il a pas compté le cash que je dois récupérer chez Houari ») : MON ARGENT compte « à récupérer » dans le total ;
- *  quand c'est récupéré, l'argent passe dans son cash (sinon il disparaîtrait du total). */
-async function cashFromHouari(eur: number): Promise<void> {
-  if (!eur) return;
-  await (await import('./mon-argent.js')).moveCash(eur).catch(() => {});
+/** 27/11 soir : MON ARGENT compte « à récupérer » (chez Houari) dans le total. Récupéré → il dit où va l'argent :
+ *  cash (cash +), compte (épargne +), ou utilisé (une dépense notée, ex. « or » ; rien n'entre). Montant négatif = annulation. */
+async function applyDest(eur: number, dest: Dest, label?: string): Promise<string> {
+  if (!eur) return '';
+  const ma = await import('./mon-argent.js');
+  if (dest === 'compte') { await ma.moveCash(0, eur).catch(() => {}); return eur > 0 ? 'mis sur le compte' : ''; }
+  if (dest === 'utilise') { await ma.fikUsed(eur, label).catch(() => {}); return eur > 0 ? `utilisés${label ? ` (${label})` : ''}` : ''; }
+  await ma.moveCash(eur).catch(() => {});
+  return eur > 0 ? 'mis dans le cash' : '';
 }

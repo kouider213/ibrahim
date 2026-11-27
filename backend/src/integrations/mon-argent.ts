@@ -262,6 +262,14 @@ export async function monArgentSetDay(target: number, date?: string): Promise<st
   return `Montant du jour corrigé : ${eur(m.net)} → ${eur(target)}`;
 }
 
+/** 27/11 soir : argent FIK récupéré et utilisé tout de suite (ex. de l'or) → une dépense notée, sans toucher au cash. Négatif = on l'enlève. */
+export async function fikUsed(eur: number, label?: string): Promise<void> {
+  const l = await kvJson<Entry[]>(J, []);
+  if (eur < 0) { const i = l.map(e => e.note === 'fik-utilise' && e.amount === r2(-eur)).lastIndexOf(true); if (i >= 0) { l.splice(i, 1); await kvPut(J, l); } return; }
+  l.push({ d: localNow().date, t: 'depense', cat: (label || 'argent FIK utilisé').slice(0, 40), amount: r2(eur), mode: 'carte', note: 'fik-utilise', at: Date.now(), label: `Argent FIK utilisé${label ? ` : ${label}` : ''}` });
+  await kvPut(J, l);
+}
+
 /** Annule une ligne ajoutée (repérée par son horodatage). */
 /** Clé d'une ligne du journal : son horodatage, sinon date|source|montant|n° d'occurrence (lignes anciennes sans heure). */
 function keyed(l: Entry[]): Array<{ e: Entry; key: string; i: number }> {

@@ -1192,7 +1192,7 @@ async function financialReport(input: Record<string, unknown>): Promise<string> 
   const month = input['month'] ? Number(input['month']) : undefined;
   const rp = await import('./real-profit.js');
   const action = String(input['action'] ?? 'report');
-  if (action === 'collected') return await rp.markAllCollected();
+  if (action === 'collected') return await rp.markAllCollected(input['destination'] === 'compte' || input['destination'] === 'utilise' ? input['destination'] : 'cash', input['usage'] ? String(input['usage']).slice(0, 40) : undefined);
   if (action === 'set_profit') return await rp.setRealProfit(String(input['client'] ?? ''), String(input['amount'] ?? ''));
   if (action === 'ledger') return await rp.formatLedger();
   const report = await getFinancialReport(year, month);
