@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireMobileAuth } from '../middleware/auth.js';
-import { monArgentOverview, monArgentAdd, monArgentUndo, monArgentBalances, monArgentAdvise, fikInsights, departDetail, setGoals, monArgentSettings, setSnusStock, snusArrivage, monArgentExpense, monArgentTransfer } from '../../integrations/mon-argent.js';
+import { monArgentOverview, monArgentAdd, monArgentUndo, monArgentBalances, monArgentAdvise, fikInsights, departDetail, setGoals, monArgentSettings, setSnusStock, snusArrivage, monArgentExpense, monArgentTransfer, monArgentTake, monArgentSetDay } from '../../integrations/mon-argent.js';
 
 // Page « MON ARGENT » de l'app (27/11) : ventes hors FIK, soldes, meilleurs jours. PRIVÉ : compte Kouider seulement.
 const router = Router();
@@ -34,6 +34,9 @@ router.post('/stock', act(b => setSnusStock(Number(b['pieces']))));
 router.post('/arrivage', act(b => snusArrivage(Number(b['pieces']), Number(b['cost']), b['cash'] !== false)));
 router.post('/depense', act(b => monArgentExpense(String(b['cat']), Number(b['amount']), b['cash'] === true, b['label'] ? String(b['label']) : undefined)));
 router.post('/transfert', act(b => monArgentTransfer(b['kind'] === 'retrait' ? 'retrait' : 'depot', Number(b['amount']), b['why'] ? String(b['why']) : undefined)));
+// 27/11 soir : argent du jour — « j'ai pris 20 € dessus » et « corrige le montant du jour »
+router.post('/prise', act(b => monArgentTake(Number(b['amount']), b['why'] ? String(b['why']) : undefined)));
+router.post('/jour', act(b => monArgentSetDay(Number(b['amount']))));
 router.post('/recap', act(async () => { const { localNow } = await import('../../integrations/morning-routine.js'); const t = localNow().date; await (await import('../../integrations/argent-recap.js')).sendRecap(`${t.slice(0, 7)}-01`, t, 'de ce mois'); return '📄 Récap du mois envoyé sur Telegram'; }));
 // 27/11 : stock par produit (catalogue privé), comptage, factures fournisseur, ruptures
 router.get('/stock', async (_req, res) => { try { res.json(await (await import('../../integrations/stock-produits.js')).stockOverview()); } catch (e) { fail(res, e); } });

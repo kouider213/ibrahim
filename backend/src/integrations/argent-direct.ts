@@ -36,6 +36,10 @@ export type MoneyCommand = {
   pieces?: { qty: number; tarif: string; date: string; pid?: string };
   /** 27/11 « j'ai 12000 sur le compte » (exemple), « épargne 12 000 » (la réponse elle-même disait de l'écrire comme ça, et rien n'était compris) */
   savings?: number;
+  /** 27/11 soir « j'ai dû prendre -20 € sur le cash d'aujourd'hui » = pris sur les VENTES DU JOUR (pas le cash global) */
+  take?: { amount: number; date: string };
+  /** 27/11 soir « aujourd'hui je suis à 70 », « corrige le montant du jour à 70 » = il fixe lui-même l'argent du jour */
+  setDay?: { amount: number; date: string };
 };
 
 const MONEY = /tous revenus confondus|montant total|gagn|vend|ventes?\b|encaiss|cash|caisse|liquide|snus|argent|€|euros?\b|capital|fortune|patrimoine|tout confondu|au total|en tout|combien d.argent|j.ai combien\s*\??\s*$|b[ée]n[ée]f|thune|rentr[ée]|[ée]pargne/i;   // 02/11 « j'ai combien au total ? » partait au cerveau (risque de chiffre inventé)
@@ -110,7 +114,7 @@ export function parseMoneyCommand(raw: string): MoneyCommand | null {
   let msg = raw;
   for (let i = 0; i < 3; i++) { const m = msg.match(/^\s*\[[\s\S]*?\]\s*/); if (!m) break; msg = msg.slice(m[0].length); }
   msg = msg.replace(/^CONFIRM[ÉE] AU T[ÉE]L[ÉE]PHONE\s*:\s*/i, '').trim();
-  msg = msg.replace(/\bsnu\b/gi, 'snus');
+  msg = msg.replace(/[’‘`´]/g, "'").replace(/\bsnu\b/gi, 'snus');
   // 06/11 fautes SMS : « cmb jai gagné ojd »
   msg = msg.replace(/\b(?:cmb|cbn|conbien)\b/gi, 'combien').replace(/\bjai\b/gi, "j'ai").replace(/\b(?:ojd|auj|ajd|aujourdhui|aujaurdhui)\b/gi, "aujourd'hui").replace(/\b(?:gagner|gagne)\b/gi, 'gagné');   // 05/11 banc : « snu 170 »
   // 07/11 « +200 euro en cas> aujourd'hui » : faute sur cash → rien noté, le cerveau a sorti la fortune. « en cas de » reste intact.
@@ -134,6 +138,22 @@ export function parseMoneyCommand(raw: string): MoneyCommand | null {
     }
   }
   {
+    // 27/11 soir : l'ARGENT DU JOUR (ventes du jour − ce qu'il a pris dessus)
+    const dayRef = /aujourd'hui|\bdu jour\b|de la journ[ée]e|\bce jour\b|\bhier\b/i.test(msg);
+    const noQ = !/\?|combien/i.test(msg) && !/au total|en tout|tout confondu|[ée]pargne|sur (?:le|mon) compte/i.test(msg);
+    if (dayRef && noQ && /cash|caisse|argent|ventes?\b|recette|sous\b|snus|thune/i.test(msg)) {
+      const tk = msg.match(/(?:pris|prendre|prends|pioch\p{L}*|retir\p{L}*|enlev\p{L}*|sorti\p{L}*|utilis\p{L}*|emprunt\p{L}*)\D{0,14}?(\d[\d\s.,]*)/iu)
+        ?? (/\b(?:sur|de|du|dans)\b/i.test(msg) ? msg.match(/(?:^|\s)(?:[−–-]|moins)\s*(\d[\d\s.,]*)/i) : null);
+      const tv = tk ? parseNum(tk[1]!) : null;
+      if (tv !== null && tv >= 1 && tv <= 100_000) return { take: { amount: Math.round(tv * 100) / 100, date: dayOf(msg, today) ?? today } };
+    }
+    const sd = noQ && dayRef ? (msg.match(/(?:aujourd'hui|du jour|de la journ[ée]e|hier)\D{0,40}?(?:je suis|j'en suis|on est|c'est|corrig\p{L}*|mets?|en vrai)\s*(?:(?:à|a)\s*)?(\d[\d\s.,]*)\s*(?:€|euros?)?\s*$/iu)
+      ?? msg.match(/(?:je suis|j'en suis|corrig\p{L}*)\D{0,40}?(?:(?:à|a)\s*)(\d[\d\s.,]*)\s*(?:€|euros?)?\s*(?:pour\s+)?(?:aujourd'hui|du jour|hier)\s*$/iu)) : null;
+    const sd2 = !sd && noQ && dayRef ? msg.match(/corrig\p{L}*\D{0,40}?(?:jour|aujourd'hui|hier)\D{0,10}?(?:à|a)\s*(\d[\d\s.,]*)/iu) : null;
+    const sv0 = (sd ?? sd2) ? parseNum((sd ?? sd2)![1]!) : null;
+    if (sv0 !== null && sv0 >= 0 && sv0 <= 100_000 && !/caisse|en cash/i.test(msg)) return { setDay: { amount: Math.round(sv0 * 100) / 100, date: dayOf(msg, today) ?? today } };
+  }
+  {
     const sv = msg.match(/(?:[ée]pargne|sur (?:le|mon) compte(?: en banque)?|en banque|compte bancaire)\D{0,25}?(\d[\d\s.,]*)\s*(k)?\b|(\d[\d\s.,]*)\s*(k)?\s*(?:€|euros?)?\s*(?:sur (?:le|mon) compte|en banque|d.[ée]pargne)/i);
     if (sv && !/\?|combien/i.test(msg)) {
       const n = Number(String(sv[1] ?? sv[3]).replace(/[\s.]/g, '').replace(',', '.')) * ((sv[2] ?? sv[4]) ? 1000 : 1);
@@ -142,6 +162,11 @@ export function parseMoneyCommand(raw: string): MoneyCommand | null {
         return { savings: Math.round(n), ...(cash ? { cash: Number(cash[1]!.replace(/[\s.]/g, '').replace(',', '.')) * (cash[2] ? 1000 : 1) } : {}) };
       }
     }
+  }
+  // 27/11 soir « je sais même pas à combien je suis aujourd'hui » (aucun mot d'argent → rien, puis le cerveau sortait le cash global)
+  if (msg.length <= 120 && /combien|j'en suis/i.test(msg) && /je suis|j'en suis|j'ai\b|on est|ça fait/i.test(msg) && !/au total|en tout|tout confondu|gagn|vendu|kg|kilos?|km|(?:de|mes|\d) pas\b|calori|séance|minutes?|heures?|clients?|messages?/i.test(msg)) {
+    const dq = dayOf(msg, today);
+    if (dq) return { ask: { kind: 'gains', from: dq, to: dq, title: dq === today ? "aujourd'hui" : dq === addDays(today, -1) ? 'hier' : label(dq) } };
   }
   const cashOut = msg ? parseCashOut(msg, today) : null;
   if (cashOut) return { out: cashOut };
@@ -165,7 +190,10 @@ export function parseMoneyCommand(raw: string): MoneyCommand | null {
   const out: MoneyCommand = {};
 
   if (question) {
+    const dq = dayOf(msg, today);
     if (/quel(?:le)?s? jours?|meilleur jour|jour o[ùu]/i.test(msg) && /gagn|vend|plus|meilleur|rapport/i.test(msg)) out.ask = { kind: 'best' };
+    // 27/11 soir « je sais même pas à combien je suis aujourd'hui » partait sur le cash global → l'argent DU JOUR
+    else if (dq && !/au total|en tout|tout confondu|capital|fortune|patrimoine|[ée]pargne|semaine|mois/i.test(msg)) out.ask = { kind: 'gains', from: dq, to: dq, title: dq === today ? "aujourd'hui" : dq === addDays(today, -1) ? 'hier' : label(dq) };
     else if (/tout confondu|tous revenus confondus|montant total|au total|en tout|capital|fortune|patrimoine|[ée]pargne|combien d.argent|j.ai combien|je suis (?:à|a) combien|combien j.ai(?! (?:gagn|vendu|fait|encaiss))/i.test(msg) && (!/gagn|vendu|encaiss/i.test(msg) || /confondu/i.test(msg))) out.ask = { kind: /cash|caisse|liquide/i.test(msg) && !/confondu|capital|patrimoine|(?:au total|en tout)(?!\s+(?:en|de|du)\s+(?:cash|liquide|caisse))/i.test(msg) ? 'cash' : 'total' };   // 08/11 « je suis à combien au total en cash » = la caisse, pas épargne + cash
     else if (/(?:combien.{0,25}|c.est quoi (?:mon|ma)\s+|quel(?:le)? est (?:mon|ma)\s+)(cash|caisse|liquide)/i.test(msg) && !/gagn|vendu/i.test(msg)) out.ask = { kind: 'cash' };
     else if (/gagn|vend|ventes?\b|encaiss|rentr|b[ée]n[ée]f|fait\b.{0,15}(€|euros?|snus)|snus/i.test(msg)) {
@@ -252,8 +280,16 @@ export async function gainsText(from?: string, to?: string, title?: string): Pro
   if (from && to) {
     const s = sumIn(from, to);
     if (from === to) {
-      const lines = l.filter(e => e.d === from);
-      return lines.length ? `💵 ${title ? title[0]!.toUpperCase() + title.slice(1) : label(from)} (${label(from)}) : ${eur(s)} — ${detail(from, to)}.` : `📒 Rien de noté pour ${title ?? label(from)} (${label(from)}). Si tu as vendu, dis-moi « snus 150 »${from !== today ? ` en précisant le jour` : ''} — je n'invente pas.`;
+      const m = await (await import('./mon-argent.js')).dayMoney(from);
+      if (!m.lines.length && !l.some(e => e.d === from)) return `📒 Rien de noté pour ${title ?? label(from)} (${label(from)}). Si tu as vendu, dis-moi « snus 150 »${from !== today ? ` en précisant le jour` : ''} — je n'invente pas.`;
+      const t = title ? title[0]!.toUpperCase() + title.slice(1) : label(from);
+      const fik = l.filter(e => e.d === from && e.cat === 'fik').reduce((a, e) => a + e.amount, 0);
+      const rows = m.lines.slice(-12).map(x => `• ${x.time ?? '--:--'} ${x.amount < 0 ? '−' : '+'}${eur(Math.abs(x.amount))} ${x.label}`);
+      return [`💵 ${t} (${label(from)}, lu à ${m.readAt}) : ${eur(m.net)}`,
+        m.pris ? `Ventes ${eur(m.ventes)} − pris ${eur(m.pris)} = ${eur(m.net)}` : '',
+        ...rows, m.lines.length > 12 ? `… et ${m.lines.length - 12} lignes avant` : '',
+        fik ? `(+ FIK ${eur(fik)})` : '',
+        `Pour corriger : « aujourd'hui je suis à 70 ».`].filter(Boolean).join('\n');
     }
     const days = new Set(l.filter(e => e.d >= from && e.d <= to).map(e => e.d)).size;
     return days ? `💵 ${title ? title[0]!.toUpperCase() + title.slice(1) : `Du ${dm(from)} au ${dm(to)}`} : ${eur(s)} sur ${days} jour${days > 1 ? 's' : ''} notés (${detail(from, to)}) — moyenne ${eur(s / days)}/jour noté.` : `📒 Rien de noté ${title ?? `du ${dm(from)} au ${dm(to)}`}.`;
@@ -296,6 +332,14 @@ export async function runMoneyCommand(c: MoneyCommand): Promise<string> {
     return gainsText(c.ask.from, c.ask.to, c.ask.title);
   }
   const out: string[] = [];
+  if (c.take || c.setDay) {
+    const ma = await import('./mon-argent.js');
+    const d = (c.take ?? c.setDay)!.date;
+    const msg = c.take ? await ma.monArgentTake(c.take.amount, undefined, d) : await ma.monArgentSetDay(c.setDay!.amount, d);
+    const m = await ma.dayMoney(d);
+    const t = d === localNow().date ? "aujourd'hui" : label(d);
+    return `✅ ${msg[0]!.toUpperCase()}${msg.slice(1)}.\n💵 Argent ${t === "aujourd'hui" ? "d'aujourd'hui" : `du ${t}`} (lu à ${m.readAt}) : ventes ${eur(m.ventes)}${m.pris ? ` − pris ${eur(m.pris)}` : ''} = ${eur(m.net)}${m.last ? ` · dernière ligne ${m.last}` : ''}.\nTon cash global n'a pas bougé.`;
+  }
   if (c.pieces) {
     const r = await (await import('./mon-argent.js')).monArgentAdd({ cat: 'snus', qty: c.pieces.qty, tarif: c.pieces.tarif, date: c.pieces.date, ...(c.pieces.pid ? { pid: c.pieces.pid } : {}) });
     const st = await (await import('./mon-argent.js')).snusStock().catch(() => null);

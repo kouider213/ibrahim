@@ -14,7 +14,7 @@ interface Part { id: string; amount: number }
 interface Src { id: string; label: string; amount: number }
 export interface MonArgent {
   balances: { compte: number; cash: number; total: number; compteAt: string | null; cashAt: string | null };
-  today: { total: number; bySource: Src[] }; week: { total: number };
+  today: { total: number; bySource: Src[]; day?: DayMoney }; week: { total: number };
   month: { total: number; prev: number; pace: number; bySource: Src[]; depenses: number }; year: { total: number; bySource: Src[] };
   snus: { today: number; todayEur: number; week: number; month: number; monthEur: number; avgUnit: number | null; costPiece: number | null; marginPiece: number | null; discount: number; perDay: number };
   depart: { moveAt: string | null; label: string | null; upfront: number; pct: number | null } | null;
@@ -23,7 +23,7 @@ export interface MonArgent {
   weekdays: Array<{ name: string; avg: number; n: number }>;
   last30: Array<{ d: string; amount: number; parts: Part[] }>;
   months6: Array<{ ym: string; label: string; amount: number; parts: Part[] }>;
-  recent: Array<{ key: string; at: number; d: string; cat: string; label: string; amount: number; qty: number | null; unit: number | null; via: 'app' | 'telegram' }>;
+  recent: Array<{ key: string; at: number; time?: string | null; d: string; cat: string; label: string; amount: number; qty: number | null; unit: number | null; via: 'app' | 'telegram' }>;
   sources: Array<{ id: string; label: string; icon: string }>;
   tarifs: Array<{ id: string; label: string; hint: string }>;
   extras: null | {
@@ -34,7 +34,10 @@ export interface MonArgent {
     realCurve: Array<{ ym: string; v: number }>; balancesAge: number; rate: number | null; depCats: Array<{ id: string; label: string; icon: string }>;
   };
 }
-export const SRC_COL: Record<string, string> = { fik: '#3d6bff', snus: '#12b76a', appartement: '#f97316', 'vente-voiture': '#8b5cf6', autre: '#f59e0b', cash: '#64748b' };
+export const SRC_COL: Record<string, string> = { prise: '#ef4444', fik: '#3d6bff', snus: '#12b76a', appartement: '#f97316', 'vente-voiture': '#8b5cf6', autre: '#f59e0b', cash: '#64748b' };
+// 27/11 soir : l'argent DU JOUR = ventes − ce qu'il a pris dessus, chaque ligne avec son heure
+type DayMoney = { date: string; ventes: number; pris: number; net: number; last: string | null; readAt: string | null;
+  lines: Array<{ key: string; at: number; time: string | null; kind: 'vente' | 'prise' | 'correction'; label: string; amount: number }> };
 const SRC_NAME: Record<string, string> = { fik: 'FIK', snus: 'Snus', appartement: 'Appart', 'vente-voiture': 'Voiture', autre: 'Autre', cash: 'Cash' };
 const dm = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 export const snusPrice = (qty: number, tarif: string) => { const unit = tarif === 'cinq' ? 5 : tarif === 'lot' ? (qty >= 10 ? 5 : 6) : 6; return { unit, amount: qty * unit }; };
@@ -82,7 +85,7 @@ export default function MonArgentScreen() {
   const [qty, setQty] = useState(0);
   const [tarif, setTarif] = useState('normal');
   const [busy, setBusy] = useState(false);
-  const [sheet, setSheet] = useState<'' | 'appartement' | 'vente-voiture' | 'autre' | 'soldes' | 'conseil' | 'objectifs' | 'arrivage' | 'stock' | 'depense' | 'depot' | 'retrait'>('');
+  const [sheet, setSheet] = useState<'' | 'appartement' | 'vente-voiture' | 'autre' | 'soldes' | 'conseil' | 'objectifs' | 'arrivage' | 'stock' | 'depense' | 'depot' | 'retrait' | 'prise' | 'jour'>('');
   const [f, setF] = useState({ amount: '', client: '', owner: '', label: '', compte: '', cash: '', q: '' });
   const [answer, setAnswer] = useState('');
   const [showAll, setShowAll] = useState(false);
@@ -90,6 +93,7 @@ export default function MonArgentScreen() {
   const [hide, setHide] = useState(() => localStorage.getItem('dz:argent:hide') === '1');   // mode discret (montants masqués)
   const [da, setDa] = useState(() => localStorage.getItem('dz:argent:da') === '1');         // montants en dinars (taux square)
   const [filter, setFilter] = useState('');
+  const [dayN, setDayN] = useState(6);
   const [g, setG] = useState({ dayPieces: '', monthEur: '', pieces: '', cost: '', amount: '', cat: 'courses', cash: true, why: '' });
   const setGG = (k: keyof typeof g, v: string | boolean) => setG(x => ({ ...x, [k]: v }));
   const rate = o?.extras?.rate ?? null;
@@ -128,7 +132,7 @@ export default function MonArgentScreen() {
   const monthDiff = o && o.month.prev ? Math.round((o.month.pace - o.month.prev) / o.month.prev * 100) : null;
 
   return (
-    <Screen toast={toast} header={<PageHeader eyebrow="Privé · toi seul" title="Mon argent" subtitle={o ? `${fm(o.today.total)} aujourd'hui · ${fm(o.month.total)} ce mois` : 'Tout ce que tu gagnes, hors salaire'}
+    <Screen toast={toast} header={<PageHeader eyebrow="Privé · toi seul" title="Mon argent" subtitle={o ? `${fm(o.today.day?.net ?? o.today.total)} aujourd'hui · ${fm(o.month.total)} ce mois` : 'Tout ce que tu gagnes, hors salaire'}
       right={<HeadBtn icon="↻" label="Actualiser" onClick={() => void load()} />} />}>
       {err ? <Empty icon="🔒" title="Indisponible" text={err} action={<Btn onClick={() => void load()}>Réessayer</Btn>} />
         : !o ? <SkeletonCards count={4} height={120} /> : <>
@@ -158,6 +162,35 @@ export default function MonArgentScreen() {
           ))}
         </div>
         {x && x.balancesAge > 7 && <div onClick={() => setSheet('soldes')} style={{ ...glass(T.warn), borderRadius: 14, padding: '10px 12px', marginBottom: 12, fontSize: 13, cursor: 'pointer' }}>🧾 Tes soldes datent de {x.balancesAge} jours : touche pour les mettre à jour (ton plan de départ en dépend).</div>}
+
+        {/* 27/11 soir : argent d'aujourd'hui — ventes − pris dessus, heures, modifiable */}
+        {o.today.day && (() => { const dd = o.today.day!; return (
+          <div style={{ ...glass(SRC_COL.snus), borderRadius: 22, padding: 16, marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <div style={{ flex: 1, fontSize: 16, fontWeight: 800 }}>💵 Argent d'aujourd'hui</div>
+              <span style={{ fontSize: 11.5, color: T.faint }}>lu à {dd.readAt ?? '—'}</span>
+            </div>
+            <div style={{ fontFamily: T.display, fontSize: 38, fontWeight: 700, letterSpacing: '-0.04em', marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>{fm(dd.net)}</div>
+            <div style={{ fontSize: 13, color: T.muted, marginTop: 2 }}>
+              {dd.pris ? <>ventes {fm(dd.ventes)} − pris <b style={{ color: T.bad }}>{fm(dd.pris)}</b></> : <>ventes {fm(dd.ventes)}</>}{dd.last ? ` · dernière ligne à ${dd.last}` : ' · rien noté encore'}
+            </div>
+            {dd.lines.length > 0 && <div style={{ marginTop: 10, borderTop: `1px solid ${T.line}` }}>
+              {[...dd.lines].reverse().slice(0, dayN).map(l => (
+                <div key={l.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderBottom: `1px solid ${T.line}` }}>
+                  <span style={{ fontFamily: T.mono, fontSize: 12.5, color: T.muted, width: 42 }}>{l.time ?? '--:--'}</span>
+                  <span style={{ flex: 1, fontSize: 13, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.label}</span>
+                  <b style={{ fontSize: 14, color: l.amount < 0 ? T.bad : T.text }}>{l.amount < 0 ? '−' : '+'}{fm(Math.abs(l.amount))}</b>
+                  <button onClick={() => { if (window.confirm(`Supprimer cette ligne (${l.time ?? ''} ${fm(Math.abs(l.amount))}) ?`)) void post('/api/mon-argent/undo', { key: l.key }, () => flash('🗑️ Ligne supprimée')); }}
+                    aria-label="Supprimer" style={{ background: 'none', border: 'none', color: T.faint, fontSize: 14, cursor: 'pointer', padding: 2 }}>✕</button>
+                </div>
+              ))}
+              {dd.lines.length > dayN && <button onClick={() => setDayN(n => n + 20)} style={{ background: 'none', border: 'none', color: T.accent, fontWeight: 700, fontSize: 12.5, cursor: 'pointer', fontFamily: T.font, padding: '8px 0 0' }}>Voir les {dd.lines.length - dayN} autres</button>}
+            </div>}
+            <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+              <Btn variant="ghost" onClick={() => { setG(v => ({ ...v, amount: '', why: '' })); setSheet('prise'); }} style={{ flex: 1 }}>➖ J'ai pris dessus</Btn>
+              <Btn variant="ghost" onClick={() => { setG(v => ({ ...v, amount: String(dd.net) })); setSheet('jour'); }} style={{ flex: 1 }}>✏️ Modifier le montant</Btn>
+            </div>
+          </div>); })()}
 
         {/* Hier + objectifs */}
         {x && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 8, marginBottom: 12 }}>
@@ -327,7 +360,7 @@ export default function MonArgentScreen() {
         {o.recent.length > 0 && <>
           <SectionTitle right={<span style={{ fontSize: 12, color: T.muted }}>{o.recent.length} ventes</span>}>Historique des ventes</SectionTitle>
           <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-            {[['', 'Tout'], ['snus', 'Snus'], ['appartement', 'Appart'], ['vente-voiture', 'Voiture'], ['autre', 'Autre']].map(([id, l]) => (
+            {[['', 'Tout'], ['snus', 'Snus'], ['prise', 'Pris'], ['appartement', 'Appart'], ['vente-voiture', 'Voiture'], ['autre', 'Autre']].map(([id, l]) => (
               <button key={id} onClick={() => setFilter(id!)} style={{ padding: '6px 12px', borderRadius: 99, border: `1px solid ${filter === id ? T.accent : T.line}`, background: filter === id ? tone(T.accent, 0.15) : 'transparent', color: T.text, fontSize: 12.5, fontWeight: 700, fontFamily: T.font, cursor: 'pointer' }}>{l}</button>
             ))}
           </div>
@@ -337,8 +370,8 @@ export default function MonArgentScreen() {
                 {(k === 0 || arr[k - 1]!.d !== r.d) && <div style={{ fontSize: 11.5, fontWeight: 800, color: T.faint, letterSpacing: '0.05em', padding: '10px 0 2px' }}>{dm(r.d).toUpperCase()}</div>}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 0', borderBottom: `1px solid ${T.line}` }}>
                   <Badge color={SRC_COL[r.cat] ?? T.accent}>{r.qty ? `${r.qty} × ${r.unit} €` : r.label}</Badge>
-                  <span style={{ flex: 1, fontSize: 12, color: T.faint }}>{r.via === 'telegram' ? 'Telegram' : ''}</span>
-                  <b style={{ fontSize: 15 }}>+{fm(r.amount)}</b>
+                  <span style={{ flex: 1, fontSize: 12, color: T.faint }}>{r.time ? `${r.time} · ` : ''}{r.via === 'telegram' ? 'Telegram' : ''}</span>
+                  <b style={{ fontSize: 15, color: r.amount < 0 ? T.bad : undefined }}>{r.amount < 0 ? '−' : '+'}{fm(Math.abs(r.amount))}</b>
                   <button onClick={() => { if (window.confirm(`Supprimer cette vente (${fm(r.amount)}, ${dm(r.d)}) ?`)) void post('/api/mon-argent/undo', { key: r.key }, () => flash('🗑️ Vente supprimée')); }}
                     aria-label="Supprimer" style={{ background: tone(T.bad, 0.12), border: 'none', color: T.bad, width: 30, height: 30, borderRadius: 10, fontSize: 16, cursor: 'pointer' }}>🗑</button>
                 </div>
@@ -349,6 +382,20 @@ export default function MonArgentScreen() {
         </>}
       </>}
 
+      {sheet === 'prise' && (
+        <Sheet title="➖ J'ai pris sur l'argent du jour" subtitle="Ça baisse l'argent d'aujourd'hui, pas ton cash global" onClose={() => setSheet('')}
+          footer={<Btn variant="primary" disabled={busy || !(Number(g.amount) > 0)} onClick={() => void post('/api/mon-argent/prise', { amount: Number(g.amount), why: g.why }, r => { setSheet(''); setG(v => ({ ...v, amount: '', why: '' })); flash(`✅ ${r.message}`); })} style={{ width: '100%' }}>Valider</Btn>}>
+          <Field label="Montant pris (€)"><input inputMode="decimal" autoFocus value={g.amount} onChange={e => setG(v => ({ ...v, amount: e.target.value.replace(',', '.') }))} style={inputStyle} /></Field>
+          <Field label="Pour quoi (facultatif)"><input value={g.why} placeholder="essence, manger…" onChange={e => setG(v => ({ ...v, why: e.target.value }))} style={inputStyle} /></Field>
+        </Sheet>
+      )}
+      {sheet === 'jour' && o?.today.day && (
+        <Sheet title="✏️ Montant d'aujourd'hui" subtitle={`Noté maintenant : ${fm(o.today.day.net)}. Mets ce que tu as vraiment, l'écart est ajouté comme correction (le stock ne bouge pas).`} onClose={() => setSheet('')}
+          footer={<Btn variant="primary" disabled={busy || g.amount === '' || !(Number(g.amount) >= 0)} onClick={() => void post('/api/mon-argent/jour', { amount: Number(g.amount) }, r => { setSheet(''); flash(`✅ ${r.message}`); })} style={{ width: '100%' }}>Enregistrer</Btn>}>
+          <Field label="J'ai vraiment aujourd'hui (€)" hint={g.amount !== '' && Number(g.amount) >= 0 ? `Écart : ${Number(g.amount) - o.today.day.net >= 0 ? '+' : '−'}${fm(Math.abs(Number(g.amount) - o.today.day.net))}` : undefined}>
+            <input inputMode="decimal" autoFocus value={g.amount} onChange={e => setG(v => ({ ...v, amount: e.target.value.replace(',', '.') }))} style={inputStyle} /></Field>
+        </Sheet>
+      )}
       {(sheet === 'appartement' || sheet === 'vente-voiture' || sheet === 'autre') && (
         <Sheet title={sheet === 'appartement' ? '🏠 Location d\'appartement' : sheet === 'vente-voiture' ? '🚘 Vente de voiture' : '⏱️ Heures sup / autre'}
           subtitle={sheet === 'appartement' ? 'Ton bénéfice = prix payé par le client − prix du propriétaire' : 'Le montant que tu as gagné'}

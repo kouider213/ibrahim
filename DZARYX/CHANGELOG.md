@@ -1,3 +1,11 @@
+## 27/11 — ARGENT DU JOUR : « j'ai pris 20 € sur le cash d'aujourd'hui » compris + heures + montant modifiable
+- Kouider : « je pris 20 € sur le cash d'aujourd'hui, il pense que j'ai [son cash global]… il a pas calculé les 20 €… je sais même pas à combien je suis aujourd'hui ».
+- Cause : la phrase retirait 20 € du cash GLOBAL ; « Cash +20€ » était noté comme une vente de snus ; « je suis à combien aujourd'hui » n'était pas compris.
+- argent-direct.ts : `take` (pris sur l'argent du jour, le cash global ne bouge pas), `setDay` (« aujourd'hui je suis à 70 », « corrige le montant du jour à 70 » → ligne de correction, stock inchangé), question du jour → ventes − pris = reste, chaque ligne avec l'heure, « lu à HH:MM ».
+- mon-argent.ts : dayMoney / monArgentTake / monArgentSetDay, entrée journal `prise` (supprimable) ; routes POST /prise et /jour.
+- App v319 : carte « Argent d'aujourd'hui » (reste, ventes − pris, heure de chaque ligne, lu à…), boutons « J'ai pris dessus » et « Modifier le montant » ; heures dans l'historique, filtre « Pris ».
+- Journal du jour corrigé à la main (fausse vente +20 € retirée, prise de 20 € ajoutée).
+
 ## 27/11 — DÉPART TRAVAIL : plus d'appel « pars maintenant » quand il est déjà au travail
 - Kouider : appelé à 11h55 « il faut partir pour le travail à 12h, 3 min de route » alors qu'il y était déjà.
 - Cause : la position en direct Telegram n'est mise à jour que quand il bouge. Immobile au travail → plus « fraîche » après 20 min → trajet calculé depuis la maison (450 m du travail, au-delà du rayon 350 m) → appel.

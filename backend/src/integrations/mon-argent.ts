@@ -10,7 +10,7 @@ import { kvJson, kvPut, ai } from './ai-util.js';
 import { localNow } from './morning-routine.js';
 import { supabase } from './supabase.js';
 
-type Entry = { d: string; t: 'vente' | 'achat' | 'depense'; cat: string; amount: number; mode: 'cash' | 'carte'; note?: string; at?: number;
+type Entry = { d: string; t: 'vente' | 'achat' | 'depense' | 'prise'; cat: string; amount: number; mode: 'cash' | 'carte'; note?: string; at?: number;
   pid?: string; qty?: number; unit?: number; tarif?: string; client?: number; owner?: number; label?: string };
 const J = 'perso:journal';
 export const SOURCES = [
@@ -116,15 +116,15 @@ export async function monArgentOverview() {
 
   return {
     balances: { compte: savings, cash, total, compteAt: fin.savingsAt ?? null, cashAt: fin.sideCashAt ?? null },
-    today: { total: sum(all.filter(e => e.d === today)), bySource: bySource(all.filter(e => e.d === today)) },
+    today: { total: sum(all.filter(e => e.d === today)), bySource: bySource(all.filter(e => e.d === today)), day: await dayMoney(today) },
     week: { total: sum(all.filter(e => e.d >= mon)) },
     month: { total: monthTotal, prev: prevTotal, pace: Math.round(monthTotal / Math.max(1, dom) * dim), bySource: bySource(all.filter(e => e.d >= m0)), depenses: depMonth },
     year: { total: sum(all), bySource: bySource(all) },
     snus: snusStats, depart, insights,
     bestDays, weekdays: wk, last30, months6,
     // 27/11 : TOUTES ses ventes (app + Telegram + anciennes), supprimables — clé stable même sans horodatage
-    recent: keyed(journal).filter(x => x.e.t === 'vente' && x.e.cat !== 'fik').sort((a, b) => b.e.d.localeCompare(a.e.d) || (b.e.at ?? 0) - (a.e.at ?? 0)).slice(0, 300)
-      .map(({ e, key }) => ({ key, at: e.at ?? 0, d: e.d, cat: e.cat, label: e.label || (LABEL[e.cat] ?? e.cat), amount: e.amount, qty: e.qty ?? null, unit: e.unit ?? null, via: e.note === 'app' ? 'app' : 'telegram' })),
+    recent: keyed(journal).filter(x => (x.e.t === 'vente' && x.e.cat !== 'fik') || x.e.t === 'prise').sort((a, b) => b.e.d.localeCompare(a.e.d) || (b.e.at ?? 0) - (a.e.at ?? 0)).slice(0, 300)
+      .map(({ e, key }) => ({ key, at: e.at ?? 0, time: hhmm(e.at), d: e.d, cat: e.t === 'prise' ? 'prise' : e.cat, label: e.t === 'prise' ? (e.label || 'Pris sur l\'argent du jour') : e.label || (LABEL[e.cat] ?? e.cat), amount: e.t === 'prise' ? -e.amount : e.amount, qty: e.qty || null, unit: e.unit ?? null, via: e.note === 'app' || e.note === 'correction' ? 'app' : 'telegram' })),
     sources: SOURCES, tarifs: SNUS_TARIFS,
     extras: await monArgentExtras().catch(() => null),
   };
@@ -219,6 +219,45 @@ export async function monArgentAdd(input: { cat: string; amount?: number; qty?: 
   return cat === 'snus' ? `+${e.qty} pièce${e.qty! > 1 ? 's' : ''}${e.label ? ` ${e.label}` : ''} (${eur(e.amount)})` : cat === 'appartement' ? `Appartement : bénéfice ${eur(e.amount)}` : `+${eur(e.amount)} ${LABEL[cat]}`;
 }
 
+/** 27/11 soir (Kouider : « je pris 20 € sur le cash d'aujourd'hui… il pense que j'ai [son cash global]… je sais même pas à combien je suis
+ *  aujourd'hui ») : l'ARGENT DU JOUR = ventes du jour (hors FIK) − ce qu'il a pris dessus, avec l'heure de chaque ligne.
+ *  Une « prise » ne touche PAS au cash global (les ventes ne l'augmentent pas non plus). */
+export const hhmm = (at?: number) => (at ? new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }).format(new Date(at)) : null);
+export async function dayMoney(date?: string) {
+  const d = date ?? localNow().date;
+  const rows = keyed(await kvJson<Entry[]>(J, [])).filter(x => x.e.d === d && ((x.e.t === 'vente' && x.e.cat !== 'fik') || x.e.t === 'prise'));
+  rows.sort((a, b) => (a.e.at ?? 0) - (b.e.at ?? 0));
+  const ventes = r2(rows.filter(x => x.e.t === 'vente').reduce((s, x) => s + x.e.amount, 0));
+  const pris = r2(rows.filter(x => x.e.t === 'prise').reduce((s, x) => s + x.e.amount, 0));
+  const lines = rows.map(({ e, key }) => ({ key, at: e.at ?? 0, time: hhmm(e.at), kind: e.t === 'prise' ? 'prise' : e.note === 'correction' ? 'correction' : 'vente',
+    label: e.t === 'prise' ? (e.label || 'Pris sur l\'argent du jour') : e.note === 'correction' ? 'Correction du montant du jour' : `${e.qty ? `${e.qty} × ` : ''}${e.label || (LABEL[e.cat] ?? e.cat)}`,
+    amount: e.t === 'prise' ? -e.amount : e.amount }));
+  const lastAt = rows.reduce((m, x) => Math.max(m, x.e.at ?? 0), 0);
+  return { date: d, ventes, pris, net: r2(ventes - pris), lines, last: hhmm(lastAt || undefined), readAt: hhmm(Date.now()) };
+}
+/** Il prend de l'argent sur les ventes du jour (« j'ai pris 20 € sur le cash d'aujourd'hui »). */
+export async function monArgentTake(amount: number, why?: string, date?: string): Promise<string> {
+  if (!(amount > 0) || amount > 100_000) throw new Error('Montant invalide');
+  const d = date ?? localNow().date;
+  const l = await kvJson<Entry[]>(J, []);
+  l.push({ d, t: 'prise', cat: 'jour', amount: r2(amount), mode: 'cash', note: 'app', at: Date.now(), ...(why ? { label: String(why).slice(0, 60) } : {}) });
+  await kvPut(J, l);
+  const m = await dayMoney(d);
+  return `−${eur(amount)} pris sur l'argent du jour → il te reste ${eur(m.net)}`;
+}
+/** Il corrige le montant du jour à la main (« aujourd'hui je suis à 70 ») : une ligne de correction = l'écart, sans toucher au stock. */
+export async function monArgentSetDay(target: number, date?: string): Promise<string> {
+  if (!(target >= 0) || target > 100_000) throw new Error('Montant invalide');
+  const d = date ?? localNow().date;
+  const m = await dayMoney(d);
+  const diff = r2(target - m.net);
+  if (diff === 0) return `Le montant du jour est déjà ${eur(target)}`;
+  const l = await kvJson<Entry[]>(J, []);
+  l.push({ d, t: 'vente', cat: 'snus', amount: diff, qty: 0, mode: 'cash', note: 'correction', at: Date.now(), label: 'Correction du jour' });
+  await kvPut(J, l);
+  return `Montant du jour corrigé : ${eur(m.net)} → ${eur(target)}`;
+}
+
 /** Annule une ligne ajoutée (repérée par son horodatage). */
 /** Clé d'une ligne du journal : son horodatage, sinon date|source|montant|n° d'occurrence (lignes anciennes sans heure). */
 function keyed(l: Entry[]): Array<{ e: Entry; key: string; i: number }> {
@@ -233,7 +272,7 @@ function keyed(l: Entry[]): Array<{ e: Entry; key: string; i: number }> {
 export async function monArgentUndo(key: string | number): Promise<boolean> {
   const l = await kvJson<Entry[]>(J, []);
   const k = typeof key === 'number' || /^\d+$/.test(String(key)) ? `a${key}` : String(key);
-  const hit = keyed(l).find(x => x.key === k && x.e.t === 'vente');
+  const hit = keyed(l).find(x => x.key === k && (x.e.t === 'vente' || x.e.t === 'prise'));
   if (!hit) return false;
   l.splice(hit.i, 1); await kvPut(J, l);
   return true;
