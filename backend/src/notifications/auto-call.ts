@@ -79,12 +79,15 @@ export async function removeFromCallInbox(text: string): Promise<void> {
  */
 // Alerte liée à une heure (« ton RDV est à 13h00… il est 13h10 ») : périmée 1 h après, ou 3 h après sa mise en boîte
 function staleTimed(text: string, at?: number): boolean {
+  const { hour } = localNow();
+  const nowMin = hour * 60 + Number(new Intl.DateTimeFormat('fr-BE', { timeZone: TZ, minute: '2-digit' }).format(new Date()));
   const m = text.match(/il est (\d{1,2}) ?h ?(\d{2})?/i);
-  if (m) {
-    const { hour } = localNow();
-    const minute = Number(new Intl.DateTimeFormat('fr-BE', { timeZone: TZ, minute: '2-digit' }).format(new Date()));
-    if (hour * 60 + minute - (Number(m[1]) * 60 + Number(m[2] ?? 0)) > 60) return true;
-  }
+  if (m && nowMin - (Number(m[1]) * 60 + Number(m[2] ?? 0)) > 60) return true;
+  // 27/11 : récap 06h45 « C'est l'heure du sport… pars à 05h42 » alors qu'il finissait sa séance → l'heure de départ passée = périmé
+  const dep = text.match(/\b(?:pars|partir|départ)\b[^.!?]{0,25}? à (\d{1,2}) ?h ?(\d{2})?/i);
+  if (dep && nowMin - (Number(dep[1]) * 60 + Number(dep[2] ?? 0)) > 10) return true;
+  // Réveil / « il faut partir maintenant » / « l'heure du sport » : ne vaut plus rien 30 min après
+  if (at && Date.now() - at > 30 * 60_000 && /il faut partir maintenant|l'heure du sport|debout champion|bien réveillé|départ dans/i.test(text)) return true;
   return !!at && Date.now() - at > 3 * 3_600_000 && /\b(rdv|rendez-vous|retard|départ dans)\b|\b\d{1,2} ?h ?\d{2}\b/i.test(text);
 }
 // Même alerte répétée (« ton RDV en Belgique est à 13h00… » ×3) → une seule fois

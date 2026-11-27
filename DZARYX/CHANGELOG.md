@@ -1,3 +1,7 @@
+## 27/11 — Récap « tu n'avais pas décroché » : plus de rappel de départ périmé
+- Kouider : « il m'a dit d'aller à la salle alors que j'y étais ». Appel 05h30 « pars à 05h42 » refusé → silence 1 h → récap 06h45 reprenait « C'est l'heure du sport… pars à 05h42 » pendant qu'il finissait sa séance (bilan 06h46).
+- auto-call staleTimed : « pars/partir/départ … à HHhMM » périmé 10 min après cette heure ; réveil / « il faut partir maintenant » / « l'heure du sport » périmés 30 min après leur mise en boîte.
+
 ## 26/11 — FORME : chiffres faux retirés (vérif « kcal brûlées »)
 - Audit : métabolisme de base (Mifflin 1705), actif montre (785, cohérent 17 433 pas), brûlé « maintenant », objectif = dépense − 500 : justes.
 - FAUX corrigé : « vraie dépense mesurée 1625, la montre surestime de 884 » (aucune pesée depuis le 17/11 ; Kouider note TOUS ses repas — ne jamais dire le contraire) → affiché seulement si pesées couvrent la période (dernière ≤ 4 j) et résultat ≥ 1,25 × métabolisme ; sinon adaptiveWhy dit pourquoi (app v308).
