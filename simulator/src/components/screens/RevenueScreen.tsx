@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ClientName } from '../ClientSheet.tsx';
-import { business, type RevenueSummary, type FinancialReport, type ProfitLedger } from '../../services/api.ts';
+import { business, apiFetch, type RevenueSummary, type FinancialReport, type FinancialBooking, type ProfitLedger } from '../../services/api.ts';
 import { SkeletonCards } from '../ui/Premium.tsx';
 import { T, tone, Screen, PageHeader, Segmented, Kpi, KpiGrid, Card, Row, Avatar, Badge, Btn, SectionTitle, Empty, money } from '../ui/Kit.tsx';
 import { Ico } from '../ui/Icon.tsx';
@@ -101,7 +101,7 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
         ]} />
       </div>
     </>}>
-      {!loading && !isHouari && ledger && tab !== 'detail' && (
+      {!loading && !isHouari && ledger && tab === 'overview' && isCurrentMonth && (
         <LedgerCard ledger={ledger} fmt={fmt} onToggle={async (id, c) => {
           try { await business.setCollected(id, c); setLedger(await business.fetchLedger()); setMsg(c ? '✅ Noté comme récupéré' : 'Remis à récupérer'); setTimeout(() => setMsg(''), 1500); }
           catch { setMsg('Erreur — réessaie'); }
@@ -113,7 +113,7 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
       ) : tab === 'detail' ? (
         <DetailTab report={report} fmt={fmt} />
       ) : (
-        <AnnualTab report={annualReport} year={viewYear} fmt={fmt} />
+        <AnnualTab report={annualReport} year={viewYear} fmt={fmt} isHouari={isHouari} />
       )}
 
       {!loading && report?.dzd && (isHouari || report.dzd.bookings > 0) && (
@@ -168,24 +168,50 @@ function Alert({ icon, text, col }: { icon: string; text: string; col: string })
   );
 }
 
-function Bars({ rows, fmt }: { rows: Array<{ name: string; ca: number; sub: string }>; fmt: Fmt }) {
+type BarItem = { id: string; title: string; sub: string; right: string };
+/** Barres par véhicule — 27/11 : touche une voiture → ses locations (client, dates, prix, ta marge). */
+function Bars({ rows, fmt }: { rows: Array<{ name: string; ca: number; sub: string; items?: BarItem[] }>; fmt: Fmt }) {
   const max = Math.max(...rows.map(r => r.ca), 1);
+  const [open, setOpen] = useState('');
   return (
     <Card>
       {rows.map((r, i) => (
         <div key={r.name} style={{ marginBottom: i < rows.length - 1 ? 14 : 0 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: 6 }}>
-            <span style={{ flex: 1, fontSize: 14.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
-            <span style={{ fontSize: 15, fontWeight: 800, marginLeft: 8 }}>{fmt(r.ca)}</span>
+          <div onClick={() => r.items?.length && setOpen(o => (o === r.name ? '' : r.name))} style={{ cursor: r.items?.length ? 'pointer' : 'default' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: 6 }}>
+              <span style={{ flex: 1, fontSize: 14.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
+              <span style={{ fontSize: 15, fontWeight: 800, marginLeft: 8 }}>{fmt(r.ca)}</span>
+              {!!r.items?.length && <span style={{ marginLeft: 8, color: T.faint, fontSize: 13, transform: open === r.name ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</span>}
+            </div>
+            <div style={{ height: 6, background: 'rgba(var(--dz-ink-rgb),0.045)', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${(r.ca / max) * 100}%`, background: `linear-gradient(90deg, ${tone(T.accent, 0.45)}, ${T.accent})`, borderRadius: 3 }} />
+            </div>
+            <div style={{ fontSize: 12, color: T.faint, marginTop: 4 }}>{r.sub}</div>
           </div>
-          <div style={{ height: 6, background: 'rgba(var(--dz-ink-rgb),0.045)', borderRadius: 3, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${(r.ca / max) * 100}%`, background: `linear-gradient(90deg, ${tone(T.accent, 0.45)}, ${T.accent})`, borderRadius: 3 }} />
-          </div>
-          <div style={{ fontSize: 12, color: T.faint, marginTop: 4 }}>{r.sub}</div>
+          {open === r.name && r.items && (
+            <div style={{ marginTop: 8, padding: '4px 10px', borderRadius: 12, background: 'rgba(var(--dz-ink-rgb),0.035)' }}>
+              {r.items.map((it, k) => (
+                <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: k < r.items!.length - 1 ? `1px solid ${T.line}` : 'none' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.title}</div>
+                    <div style={{ fontSize: 12, color: T.muted }}>{it.sub}</div>
+                  </div>
+                  <div style={{ fontSize: 13.5, fontWeight: 800, textAlign: 'right', whiteSpace: 'pre-line' }}>{it.right}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ))}
     </Card>
   );
+}
+const dShort = (x: string) => new Date(x).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+/** Locations d'une voiture pour le détail (plus récentes d'abord). */
+function carItems(bookings: FinancialBooking[], car: string, fmt: Fmt, isHouari: boolean): BarItem[] {
+  return bookings.filter(b => (b.car_name || '—') === car && b.status !== 'REJECTED').sort((a, b) => b.start_date.localeCompare(a.start_date))
+    .map(b => ({ id: b.id, title: b.client_name || 'Client', sub: `${dShort(b.start_date)} → ${dShort(b.end_date)} · ${b.nb_days} j${b.status ? ` · ${b.status.toLowerCase()}` : ''}`,
+      right: `${fmt(b.final_price ?? 0)}${!isHouari && b.kouider_profit != null ? `\nmarge ${fmt(b.kouider_profit)}` : ''}` }));
 }
 
 // ─── Mon bénéfice : déjà récupéré / à récupérer (même source que le tableau de bord du site) ───
@@ -258,7 +284,7 @@ function OverviewTab({ rev, report, caMonth, profitK, caHouari, nbBookings, enca
     byVehicle[v].ca += (b.final_price ?? 0) * w; byVehicle[v].profit += (b.kouider_profit ?? 0) * w; byVehicle[v].count += 1;
   }
   const vehicles = Object.entries(byVehicle).sort((a, b) => b[1].ca - a[1].ca)
-    .map(([name, st]) => ({ name, ca: st.ca, sub: `${st.count} résa${st.count > 1 ? 's' : ''}${!isHouari ? ` · ma marge ${fmt(st.profit)}` : ''}` }));
+    .map(([name, st]) => ({ name, ca: st.ca, sub: `${st.count} résa${st.count > 1 ? 's' : ''}${!isHouari ? ` · ma marge ${fmt(st.profit)}` : ''}`, items: carItems(report?.bookings ?? [], name, fmt, isHouari) }));
 
   return (
     <>
@@ -360,7 +386,7 @@ function DetailTab({ report, fmt }: { report: FinancialReport | null; fmt: Fmt }
 
 // ─── Année ────────────────────────────────────────────────────────────────────
 
-function AnnualTab({ report, year, fmt }: { report: FinancialReport | null; year: number; fmt: Fmt }) {
+function AnnualTab({ report, year, fmt, isHouari }: { report: FinancialReport | null; year: number; fmt: Fmt; isHouari: boolean }) {
   if (!report) return <Empty icon="📊" title="Aucune donnée pour l'année" />;
   const byVehicle: Record<string, { ca: number; profitK: number; caH: number; count: number }> = {};
   for (const b of report.bookings) {
@@ -372,7 +398,7 @@ function AnnualTab({ report, year, fmt }: { report: FinancialReport | null; year
     if (b.rented_by === 'Houari')  byVehicle[v].caH     += b.owner_total ?? 0;
   }
   const vehicles = Object.entries(byVehicle).sort((a, b) => b[1].ca - a[1].ca)
-    .map(([name, st]) => ({ name, ca: st.ca, sub: [`${st.count} résa${st.count > 1 ? 's' : ''}`, st.profitK > 0 ? `Kouider ${fmt(st.profitK)}` : '', st.caH > 0 ? `Houari ${fmt(st.caH)}` : ''].filter(Boolean).join(' · ') }));
+    .map(([name, st]) => ({ name, ca: st.ca, sub: [`${st.count} résa${st.count > 1 ? 's' : ''}`, st.profitK > 0 ? `Kouider ${fmt(st.profitK)}` : '', st.caH > 0 ? `Houari ${fmt(st.caH)}` : ''].filter(Boolean).join(' · '), items: carItems(report.bookings, name, fmt, isHouari) }));
 
   return (
     <>
@@ -387,10 +413,66 @@ function AnnualTab({ report, year, fmt }: { report: FinancialReport | null; year
         <PartnerCard who="H" value={fmt(report.ownerTotal)} label="Sa part sur l'année" sub={`${report.kouiderBookings} résas`} />
       </div>
       {report.missingOwnerPrice > 0 && <Alert icon="⚠️" col={T.warn} text={`${report.missingOwnerPrice} réservation${report.missingOwnerPrice > 1 ? 's' : ''} sans prix propriétaire : marge partielle.`} />}
+      <Evolution bookings={report.bookings} year={year} fmt={fmt} />
+      {!isHouari && <ClientTiming />}
       {vehicles.length > 0 && <>
         <SectionTitle>Par véhicule — {year}</SectionTitle>
         <Bars rows={vehicles} fmt={fmt} />
       </>}
     </>
   );
+}
+
+// ─── 27/11 : évolution mois par mois + quand les clients écrivent ─────────────
+const MOIS3 = ['janv', 'févr', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'];
+function Evolution({ bookings, year, fmt }: { bookings: FinancialBooking[]; year: number; fmt: Fmt }) {
+  const nowM = new Date().getFullYear() === year ? new Date().getMonth() : 11;
+  const months = Array.from({ length: nowM + 1 }, (_, i) => {
+    const bs = bookings.filter(b => b.status !== 'REJECTED' && b.start_date.startsWith(`${year}-${String(i + 1).padStart(2, '0')}`));
+    return { i, n: bs.length, ca: bs.reduce((s, b) => s + (b.final_price ?? 0), 0) };
+  });
+  const mx = Math.max(1, ...months.map(m => m.n));
+  const cur = months[nowM], prev3 = months[nowM - 2];
+  const diff = cur && prev3 ? cur.n - prev3.n : 0;
+  return (<>
+    <SectionTitle>Évolution — réservations par mois</SectionTitle>
+    <Card style={{ marginBottom: 12 }}>
+      {cur && prev3 && <div style={{ fontSize: 14, marginBottom: 12 }}>{diff > 0 ? '📈' : diff < 0 ? '📉' : '➖'} {MOIS3[prev3.i]} : <b>{prev3.n}</b> → {MOIS3[cur.i]} : <b>{cur.n}</b> réservation{cur.n > 1 ? 's' : ''}{diff ? ` (${diff > 0 ? '+' : ''}${diff})` : ''}</div>}
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 110 }}>
+        {months.map(m => (
+          <div key={m.i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, height: '100%', justifyContent: 'flex-end' }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: m.n ? T.text : T.faint }}>{m.n || ''}</span>
+            <div title={fmt(m.ca)} style={{ width: '100%', height: `${Math.max(3, m.n / mx * 80)}%`, background: m.i === nowM ? T.accent : tone(T.accent, 0.45), borderRadius: 4 }} />
+            <span style={{ fontSize: 10.5, color: T.faint }}>{MOIS3[m.i]}</span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  </>);
+}
+
+interface Insights { contacts: number; matched: number; medianDelayH: number | null; byWeekday: Array<{ name: string; n: number }>; byHour: Array<{ h: number; n: number }>; bestWeekday: string | null; bestSlot: string | null }
+function ClientTiming() {
+  const [d, setD] = useState<Insights | null>(null);
+  useEffect(() => { apiFetch<Insights>('/api/mon-argent/fik-insights').then(setD).catch(() => setD(null)); }, []);
+  if (!d || !d.contacts) return null;
+  const mx = Math.max(1, ...d.byWeekday.map(w => w.n));
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  const delay = d.medianDelayH == null ? null : d.medianDelayH < 1 ? `${Math.round(d.medianDelayH * 60)} min` : d.medianDelayH < 48 ? `${Math.round(d.medianDelayH)} h` : `${Math.round(d.medianDelayH / 24)} jours`;
+  return (<>
+    <SectionTitle>Quand les clients écrivent</SectionTitle>
+    <Card style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 14, marginBottom: 10, lineHeight: 1.45 }}>
+        Sur {d.contacts} premiers contacts (WhatsApp, TikTok, site) : le jour le plus fort est le <b>{(d.bestWeekday ?? '—').toLowerCase()}</b>{d.bestSlot ? <>, surtout l'<b>{d.bestSlot}</b></> : null}.
+        {delay ? <> Entre le 1er message et la réservation : <b>{delay}</b> en moyenne ({d.matched} client{d.matched > 1 ? 's' : ''}).</> : <> Délai message → réservation : pas encore assez de données (les messages WhatsApp ne sont suivis que depuis le 24/11).</>}
+      </div>
+      {order.map(i => d.byWeekday[i]!).map(w => (
+        <div key={w.name} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 13 }}>
+          <span style={{ width: 78, color: T.muted }}>{w.name}</span>
+          <div style={{ flex: 1, height: 8, background: 'rgba(var(--dz-ink-rgb),0.045)', borderRadius: 4 }}><div style={{ height: '100%', width: `${w.n / mx * 100}%`, background: T.violet, borderRadius: 4 }} /></div>
+          <span style={{ width: 28, textAlign: 'right', fontWeight: 700 }}>{w.n}</span>
+        </div>
+      ))}
+    </Card>
+  </>);
 }

@@ -31,6 +31,8 @@ export type MoneyCommand = {
   out?: { amount: number; kind: 'achat' | 'depense'; cat: string; date: string; left?: number };
   /** 11/11 : « aucun / rien gagné aujourd'hui, pas eu le temps » → journée à 0 € (05/11 : « ⚠️ Je n'ai pas exécuté cette action ») */
   zero?: { date: string };
+  /** 27/11 « j'ai 14000 sur le compte », « épargne 14 000 » (la réponse elle-même disait de l'écrire comme ça, et rien n'était compris) */
+  savings?: number;
 };
 
 const MONEY = /tous revenus confondus|montant total|gagn|vend|ventes?\b|encaiss|cash|caisse|liquide|snus|argent|€|euros?\b|capital|fortune|patrimoine|tout confondu|au total|en tout|combien d.argent|j.ai combien\s*\??\s*$|b[ée]n[ée]f|thune|rentr[ée]|[ée]pargne/i;   // 02/11 « j'ai combien au total ? » partait au cerveau (risque de chiffre inventé)
@@ -113,6 +115,16 @@ export function parseMoneyCommand(raw: string): MoneyCommand | null {
   const today = localNow().date;
   if (msg.length <= 160 && !/\?|[1-9]/.test(msg) && /\b(aucun|aucune|rien|z[ée]ro|0|pas)\b/i.test(msg)
     && /\b(gagn[ée]?\w*|vendu|vente|encaiss\w*)\b/i.test(msg) && !/\b(demain|hier|semaine|mois)\b/i.test(msg)) return { zero: { date: today } };
+  {
+    const sv = msg.match(/(?:[ée]pargne|sur (?:le|mon) compte(?: en banque)?|en banque|compte bancaire)\D{0,25}?(\d[\d\s.,]*)\s*(k)?\b|(\d[\d\s.,]*)\s*(k)?\s*(?:€|euros?)?\s*(?:sur (?:le|mon) compte|en banque|d.[ée]pargne)/i);
+    if (sv && !/\?|combien/i.test(msg)) {
+      const n = Number(String(sv[1] ?? sv[3]).replace(/[\s.]/g, '').replace(',', '.')) * ((sv[2] ?? sv[4]) ? 1000 : 1);
+      if (n >= 100 && n < 10_000_000) {
+        const cash = msg.match(/(\d[\d\s.,]*)\s*(k)?\s*(?:€|euros?)?\s*(?:en |de )?(?:cash|liquide|caisse)/i);
+        return { savings: Math.round(n), ...(cash ? { cash: Number(cash[1]!.replace(/[\s.]/g, '').replace(',', '.')) * (cash[2] ? 1000 : 1) } : {}) };
+      }
+    }
+  }
   const cashOut = msg ? parseCashOut(msg, today) : null;
   if (cashOut) return { out: cashOut };
   // 08/11 « fais-moi le récap de mon argent depuis le début », « bilan de mon cash du mois »
@@ -266,6 +278,11 @@ export async function runMoneyCommand(c: MoneyCommand): Promise<string> {
     return gainsText(c.ask.from, c.ask.to, c.ask.title);
   }
   const out: string[] = [];
+  if (c.savings != null) {
+    const f = await kvJson<Record<string, unknown>>('perso:finances', {});
+    await kvPut('perso:finances', { ...f, savings: c.savings, savingsAt: localNow().date });
+    out.push(`✅ Épargne (compte) mise à jour : ${eur(c.savings)}.`);
+  }
   if (c.out) {
     const o = c.out, f = await kvJson<Record<string, unknown> & { sideCash?: number }>('perso:finances', {});
     const l = await journal();
