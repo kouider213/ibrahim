@@ -1,3 +1,8 @@
+## 27/11 nuit — Fiche « Ton plan de départ » refaite (app v330)
+- Kouider (2 captures 19h49) : la fiche glissait de gauche à droite (bouton « Ajouter / modifier mes étapes (maison en Belgique, appartement…) » sans retour à la ligne) et le graphique en barres jusqu'en 2036 était « éclaté ».
+- Kit Sheet : overflowX hidden sur le contenu → plus aucune fiche ne peut glisser de côté.
+- DepartPlan : en-tête date + J-x + barre + M DA + au mieux/au pire ; « Ce que tu dois faire » (par mois/semaine, ce mois-ci) ; vraie courbe SVG (réel passé en orange, prévu, simulé en vert pointillé, lignes des étapes, repères aujourd'hui/départ, années, doigt = montant du mois), bornée au départ + 1 an ; étapes en frise avec barre de progression ; « Modifier » en lien ; simulateur regroupé ; leviers en liste ; points de contrôle ✅ si atteints ; 5 idées + « voir les autres ».
+
 ## 27/11 nuit — CarPlay + Mon argent + plan de départ (app v329)
 - Kouider (photo CarPlay 5h52) : l'agenda montrait « 🕊️ Liberté — étape » et le widget « Route fluide vers le travail » alors qu'il partait à la salle (séance 6h).
 - CarPlay : séance de l'agenda (🏋️, HAUT/BAS, séance, salle…) passe TOUJOURS avant l'heure de travail ; adresse floue → adresse de sa salle (routine) ; sinon « Séance dans X min » (car-widget-plus.ts).

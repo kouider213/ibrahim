@@ -272,7 +272,7 @@ export function Sheet({ title, subtitle, onClose, children, footer, accent: _acc
             <button onClick={onClose} aria-label="Fermer" style={{ width: 36, height: 36, borderRadius: 12, border: '1px solid var(--dz-card-line)', background: 'var(--dz-card)', color: T.text, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="x" size={16} stroke={2.2} /></button>
           </div>
         </div>
-        <div className="dz-scroll" style={{ overflowY: 'auto', padding: '4px 20px 16px', flex: 1, minHeight: 0 }}>{children}</div>
+        <div className="dz-scroll" style={{ overflowY: 'auto', overflowX: 'hidden', overscrollBehaviorX: 'none', padding: '4px 20px 16px', flex: 1, minHeight: 0, minWidth: 0 }}>{children}</div>
         {footer
           ? <div style={{ padding: '12px 20px calc(14px + env(safe-area-inset-bottom))', borderTop: '1px solid var(--dz-card-line)', display: 'flex', gap: 10, flexShrink: 0 }}>{footer}</div>
           : <div style={{ height: 'env(safe-area-inset-bottom)', flexShrink: 0 }} />}
