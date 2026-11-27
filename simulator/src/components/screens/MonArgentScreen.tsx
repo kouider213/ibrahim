@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../../services/api.ts';
 import { T, tone, PageHeader, Screen, SectionTitle, Btn, Sheet, Field, inputStyle, Badge, Empty, money, glass, CountUp, HeadBtn } from '../ui/Kit.tsx';
 import { SkeletonCards } from '../ui/Premium.tsx';
+import { DepartCard } from './DepartPlan.tsx';
 
 // MON ARGENT (27/11) : tout l'argent de Kouider hors salaire — snus (à la pièce), appartement (prix client − propriétaire),
 // vente de voiture, autre / heures sup + bénéfice FIK automatique. Soldes, graphiques, départ pour Oran, 20 repères, conseiller.
@@ -201,15 +202,9 @@ export default function MonArgentScreen() {
           <div style={{ display: 'flex', fontSize: 11.5, color: T.faint, marginTop: 6 }}><span style={{ flex: 1 }}>{dm(o.last30[0]!.d)}</span><span>aujourd'hui</span></div>
         </div>
 
-        {/* Départ */}
-        {o.depart?.label && <>
-          <SectionTitle>Ton départ pour Oran</SectionTitle>
-          <div style={{ ...glass('#0ea5e9'), borderRadius: 22, padding: 16, marginBottom: 12 }}>
-            <div style={{ fontSize: 14, lineHeight: 1.45 }}>Au rythme actuel : <b style={{ fontSize: 17 }}>{o.depart.label}</b>, maison et voiture payées, avec une réserve.</div>
-            <div style={{ height: 10, borderRadius: 5, background: 'rgba(var(--dz-ink-rgb),0.06)', marginTop: 12, overflow: 'hidden' }}><div style={{ height: '100%', width: `${o.depart.pct ?? 0}%`, background: 'linear-gradient(90deg,#22d3ee,#3d6bff)', borderRadius: 5 }} /></div>
-            <div style={{ display: 'flex', fontSize: 12.5, color: T.muted, marginTop: 6 }}><span style={{ flex: 1 }}>{money(o.balances.total)} réunis</span><span>{o.depart.pct ?? 0} % de {money(o.depart.upfront)}</span></div>
-          </div>
-        </>}
+        {/* Départ : plan par étapes (DepartPlan.tsx) */}
+        <SectionTitle>Ton départ pour Oran</SectionTitle>
+        <DepartCard />
 
         {/* Repères */}
         {o.insights.length > 0 && <>
@@ -229,7 +224,7 @@ export default function MonArgentScreen() {
         <SectionTitle>Ton conseiller</SectionTitle>
         <div className="dz-press" role="button" onClick={() => setSheet('conseil')} style={{ ...glass(T.violet), borderRadius: 22, padding: 16, marginBottom: 12, cursor: 'pointer' }}>
           <div style={{ fontSize: 15, fontWeight: 800 }}>💡 Une idée, un achat, un nouveau business ?</div>
-          <div style={{ fontSize: 13, color: T.muted, marginTop: 4, lineHeight: 1.45 }}>Il connaît ton capital, ce que tu gagnes et ton départ : il cherche les vrais prix, fait les calculs et te dit si ça avance ou recule ton départ.</div>
+          <div style={{ fontSize: 13, color: T.muted, marginTop: 4, lineHeight: 1.45 }}>Il connaît ton capital, ce que tu gagnes, que les voitures FIK sont à Houari et ton départ : il cherche les vrais prix, calcule, et te dit si ça avance ou recule ton départ.</div>
         </div>
 
         {/* Jours */}
@@ -284,7 +279,7 @@ export default function MonArgentScreen() {
       {sheet === 'conseil' && (
         <Sheet title="💡 Ton conseiller" subtitle="Ton idée, ton achat ou ta question d'argent" onClose={() => setSheet('')}
           footer={<Btn variant="primary" disabled={busy || f.q.trim().length < 5} onClick={() => { setAnswer(''); void post('/api/mon-argent/advise', { question: f.q }, r => setAnswer(r.answer ?? '')); }} style={{ width: '100%' }}>{busy ? 'Il cherche et calcule… (≈ 1 min)' : 'Demander'}</Btn>}>
-          <textarea value={f.q} onChange={e => setFF('q', e.target.value)} rows={4} placeholder="Ex. : je veux acheter une 2e voiture pour FIK à 8 000 €, ça vaut le coup ? / je veux lancer un lavage auto à Oran…" style={{ ...inputStyle, resize: 'vertical', minHeight: 90 }} />
+          <textarea value={f.q} onChange={e => setFF('q', e.target.value)} rows={4} placeholder="Ex. : acheter ma propre voiture pour la louer sur FIK, ça vaut le coup ? / lancer un lavage auto à Oran ? / acheter le terrain avant 2028 ?" style={{ ...inputStyle, resize: 'vertical', minHeight: 90 }} />
           {answer && <div style={{ marginTop: 12, fontSize: 14, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{answer}</div>}
         </Sheet>
       )}

@@ -239,7 +239,7 @@ export async function monArgentAdvise(question: string): Promise<string> {
   const o = await monArgentOverview();
   const ctx = `Capital : ${eur(o.balances.total)} (compte ${eur(o.balances.compte)} + cash ${eur(o.balances.cash)}). Gagné hors salaire ce mois : ${eur(o.month.total)} (${o.month.bySource.map(s => `${s.label} ${eur(s.amount)}`).join(', ')}), mois dernier ${eur(o.month.prev)}. Dépenses notées ce mois : ${eur(o.month.depenses)}. `
     + `Snus : marge ${o.snus.marginPiece ?? '?'} €/pièce, ${o.snus.perDay} pièces/jour. Départ pour Oran prévu : ${o.depart?.label ?? 'non calculé'} (somme à réunir ${o.depart ? eur(o.depart.upfront) : '?'}).`;
-  const sys = `Tu es le conseiller financier personnel de Kouider (salarié en Belgique, FIK location de voitures à Oran, il veut s'installer à Oran avec Fatima et Ibrahim). Tutoiement, phrases courtes, mots simples. Données PRIVÉES. Tu fais des calculs exacts à partir de SES chiffres, tu cherches les vrais prix et règles (Algérie/Belgique) si besoin, et tu ne promets rien. Jamais de conseil illégal.`;
+  const sys = `Tu es le conseiller financier personnel de Kouider (salarié en Belgique, FIK location de voitures à Oran, il veut s'installer à Oran avec Fatima et Ibrahim). FAITS : FIK ne possède AUCUNE voiture : toutes les voitures louées appartiennent à Houari (Kouider touche la marge client − prix propriétaire) ; l'Audi Q3 est sa voiture perso de tous les jours, pas une voiture de location. Ne parle jamais de « ta 2e voiture FIK ». Tutoiement, phrases courtes, mots simples. Données PRIVÉES. Tu fais des calculs exacts à partir de SES chiffres, tu cherches les vrais prix et règles (Algérie/Belgique) si besoin, et tu ne promets rien. Jamais de conseil illégal.`;
   const prompt = `Ses chiffres réels : ${ctx}\n\nSa question / son idée : « ${q} »\n\nRéponds en 5 parties courtes : 1) Mon avis franc en 1 phrase. 2) Les chiffres (mise de départ, ce que ça peut rapporter par mois, en combien de temps c'est remboursé) — dis d'où viennent les prix. 3) L'effet sur sa date de départ pour Oran (avance / recule, de combien à peu près). 4) Les 3 risques. 5) La première action à faire cette semaine (petite, sans tout risquer).`;
   const r = await (await import('./ai-util.js')).research(prompt, { system: sys, rounds: 5, max: 1400, sessionId: 'mon-argent' }).catch(() => '');
   return r || await ai(prompt, { system: sys, max: 900 });
@@ -275,4 +275,134 @@ export async function fikInsights() {
     .map(s => ({ ...s, n: byH.slice(s.a, s.b).reduce((x, y) => x + y.n, 0) })).sort((a, b) => b.n - a.n);
   return { contacts: real.length, matched: delays.length, medianDelayH: med === null ? null : Math.round(med * 10) / 10,
     byWeekday: byWd, byHour: byH, bestWeekday: bestWd && bestWd.n ? bestWd.name : null, bestSlot: slots[0]?.n ? slots[0].l : null, months };
+}
+
+// ── PLAN PAR ÉTAPES (27/11) ──────────────────────────────────────────────────────────────────────────────────────
+// Kouider : « au rythme actuel… il doit rajouter des phases, ex. maison Algérie 2027, voiture 2028, maison Belgique 2030,
+// les trucs possibles à réaliser avec une vraie analyse ; quand je clique, plus d'infos ; un départ potentiel ; où je dois
+// m'améliorer ; + 20 options ». Courbe d'épargne = projection réelle (algerie-plan → perso-projection, 3 scénarios).
+type Goal = { id: string; name: string; icon: string; cost: number; fixed?: boolean };
+const GOALS_KEY = 'perso:argent:goals';
+const ymAdd = (ym: string, n: number) => { const d = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1)); return d.toISOString().slice(0, 7); };
+type Curves = { at: number; now: string; rate: number; curves: Array<{ name: string; curve: number[] }>; parts: Array<[string, number]>; fund: number; m0: Record<string, number>; aptPriceDa: number; aptRentDa: number; houseDa: number; carEur: number };
+
+async function curves(force = false): Promise<Curves | null> {
+  const c = await kvJson<Curves | null>('perso:argent:curves', null);
+  if (!force && c && Date.now() - c.at < 6 * 3600_000) return c;
+  try {
+    const p = await (await import('./algerie-plan.js')).buildPlan();
+    const v: Curves = { at: Date.now(), now: localNow().date.slice(0, 7), rate: p.rate, curves: p.belgium.scenarios.map(s => ({ name: s.name, curve: s.curve.map(Math.round) })),
+      parts: p.upfront.map(([k, n]) => [k, Math.round(n)] as [string, number]), fund: Math.round(p.fundAtMove), m0: (p.belgium.months[0] ?? {}) as unknown as Record<string, number>,
+      aptPriceDa: p.cfg.aptPriceDa, aptRentDa: p.cfg.aptRentDa, houseDa: p.cfg.houseDa, carEur: p.cfg.carEur };
+    await kvPut('perso:argent:curves', v);
+    return v;
+  } catch { return c; }
+}
+
+/** Ses étapes : les défauts du plan Algérie + celles qu'il ajoute (ordre = ordre de réalisation). */
+async function goals(c: Curves): Promise<Goal[]> {
+  const saved = await kvJson<Goal[] | null>(GOALS_KEY, null);
+  if (saved?.length) return saved;
+  const part = (rx: RegExp) => c.parts.filter(([k]) => rx.test(k)).reduce((s, [, n]) => s + n, 0);
+  return [
+    { id: 'reserve', name: 'Réserve de sécurité (6 mois)', icon: '🛟', cost: c.fund, fixed: true },
+    { id: 'voiture', name: 'Ta voiture en Algérie', icon: '🚙', cost: part(/voiture/i) },
+    { id: 'maison', name: 'Maison en Algérie (frais + meubles)', icon: '🏡', cost: part(/maison|frais|meubles/i) },
+    { id: 'depart', name: 'Déménagement → départ', icon: '✈️', cost: part(/déménag/i) },
+  ].filter(g => g.cost > 0);
+}
+export async function setGoals(list: Goal[]): Promise<void> {
+  const clean = list.filter(g => g && String(g.name).trim() && Number(g.cost) > 0).slice(0, 15)
+    .map(g => ({ id: String(g.id || Math.random().toString(36).slice(2, 8)), name: String(g.name).slice(0, 60), icon: String(g.icon || '🎯').slice(0, 4), cost: Math.round(Number(g.cost)), ...(g.fixed ? { fixed: true } : {}) }));
+  await kvPut(GOALS_KEY, clean);
+}
+
+/** 1er mois où la courbe (+ extra/mois) couvre la somme ; null = pas dans l'horizon. */
+const reachAt = (curve: number[], need: number, extra = 0, from = 0) => { for (let i = from; i < curve.length; i++) if (curve[i]! + extra * i >= need) return i; return null; };
+const MOISL = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+const ymL = (ym: string) => `${MOISL[+ym.slice(5, 7) - 1]} ${ym.slice(0, 4)}`;
+
+export async function departDetail(force = false) {
+  const c = await curves(force);
+  if (!c) return null;
+  const o = await monArgentOverview();
+  const gl = await goals(c);
+  const real = c.curves[1]?.curve ?? c.curves[0]!.curve, best = c.curves[0]!.curve, slow = c.curves[2]?.curve ?? real;
+  const at = (i: number | null) => (i === null ? null : ymAdd(c.now, i));
+  const lab = (i: number | null) => (i === null ? 'pas avant 10 ans' : ymL(at(i)!));
+  // Étapes cumulées, dans l'ordre
+  let cum = 0;
+  const steps = gl.map(g => {
+    cum += g.cost;
+    const iR = reachAt(real, cum), iB = reachAt(best, cum), iS = reachAt(slow, cum);
+    return { ...g, cumul: cum, at: at(iR), label: lab(iR), best: lab(iB), slow: lab(iS), done: o.balances.total >= cum,
+      pct: Math.min(100, Math.round(o.balances.total / cum * 100)) };
+  });
+  const total = cum;
+  const iDep = reachAt(real, total);
+  // Leviers : combien de mois gagnés si + X €/mois
+  const m0 = c.m0;
+  const marge = o.snus.marginPiece ?? 2;
+  const fikDay = 8;   // marge FIK moyenne par jour de location (fik-margins : 3-9 €/j)
+  const lever = (label: string, perMonth: number, icon: string) => { const i = reachAt(real, total, perMonth); return { icon, label, perMonth: Math.round(perMonth), date: lab(i), gain: iDep !== null && i !== null ? iDep - i : null }; };
+  const levers = [
+    lever('+1 pièce de snus par jour', marge * 26, '🟢'),
+    lever('+3 pièces de snus par jour', marge * 26 * 3, '🟢'),
+    lever('+10 jours de location FIK par mois', fikDay * 10, '🚗'),
+    lever('−100 € de dépenses par mois', 100, '✂️'),
+    lever('−250 € de dépenses par mois', 250, '✂️'),
+    lever('+1 dimanche d\'heures sup par mois', 150, '⏱️'),
+    lever('Un appartement loué en plus (≈ +150 €/mois)', 150, '🏠'),
+  ];
+  // Où tu dois t'améliorer (calculé)
+  const weak: Array<{ icon: string; text: string }> = [];
+  const noted = o.last30.filter(d => d.amount > 0).length;
+  if (noted < 15) weak.push({ icon: '📝', text: `Seulement ${noted} jours avec une vente notée sur 30 : ton plan est calculé sur des chiffres incomplets. Note chaque vente (bouton +1).` });
+  if (!o.month.depenses) weak.push({ icon: '🧾', text: 'Aucune dépense notée ce mois : le plan suppose que tu dépenses tout le reste du salaire. Note tes grosses dépenses (« -200 courses ») pour un calcul juste.' });
+  const fikShare = o.month.total ? (o.month.bySource.find(s => s.id === 'fik')?.amount ?? 0) / o.month.total : 0;
+  if (fikShare < 0.3) weak.push({ icon: '🚗', text: `FIK = ${Math.round(fikShare * 100)} % de tes gains : le snus et les heures sup s'arrêtent au départ, FIK doit monter pour te faire vivre à Oran.` });
+  if (o.balances.cash > 1500) weak.push({ icon: '💤', text: `${eur(o.balances.cash)} en cash : mets ce qui dépasse ton fond de caisse sur le compte, sinon ça part sans que tu le voies.` });
+  if (o.month.prev && o.month.pace < o.month.prev) weak.push({ icon: '🐢', text: `Ce mois va finir plus bas que le précédent (${eur(o.month.pace)} contre ${eur(o.month.prev)}).` });
+  // Repère de contrôle : où tu devrais être dans 3, 6, 12 mois pour tenir la date
+  const checkpoints = [3, 6, 12].map(k => ({ label: ymL(ymAdd(c.now, k)), need: Math.round(real[k] ?? 0) }));
+  // 20 options (calculées sur ses chiffres)
+  const eurRate = (da: number) => da / c.rate;
+  const opt: Array<{ icon: string; title: string; text: string }> = [];
+  const add = (icon: string, title: string, text: string) => opt.push({ icon, title, text });
+  const tgtYm = '2028-12', tgtI = Math.max(1, (+tgtYm.slice(0, 4) - +c.now.slice(0, 4)) * 12 + (+tgtYm.slice(5, 7) - +c.now.slice(5, 7)));
+  const needMonthly = Math.max(0, (total - (real[tgtI] ?? 0)) / tgtI);
+  add('🎯', 'Partir fin 2028 (ton objectif)', needMonthly > 0 ? `Il faudrait ${eur(needMonthly)} de plus par mois que ton rythme actuel, pendant ${tgtI} mois.` : 'Ton rythme actuel suffit pour partir fin 2028.');
+  add('⚡', 'Au plus tôt / au plus tard', `Si tu gardes tout ton cash : ${lab(reachAt(best, total))}. Réaliste : ${lab(iDep)}. Si tu dépenses plus : ${lab(reachAt(slow, total))}.`);
+  const house = steps.find(s => s.id === 'maison');
+  if (house) {
+    const cheaper = reachAt(real, total - house.cost * 0.2);
+    add('🏘️', 'Maison 20 % moins chère', `Une maison à ${(c.houseDa * 0.8 / 1e6).toFixed(0)} M DA au lieu de ${(c.houseDa / 1e6).toFixed(0)} M : départ ${lab(cheaper)}${iDep !== null && cheaper !== null ? ` (${iDep - cheaper} mois plus tôt)` : ''}.`);
+    const apport = total - house.cost * 0.8;
+    add('🏦', 'Maison à crédit (apport 20 %)', `Avec un crédit en Algérie et 20 % d'apport, il te faut ${eur(apport)} au départ au lieu de ${eur(total)} : départ ${lab(reachAt(real, apport))}. Mais tu paies une mensualité à Oran : à étudier avec « plan Algérie crédit ».`);
+  }
+  const carStep = steps.find(s => s.id === 'voiture');
+  if (carStep) add('🚙', 'Voiture d\'occasion en Algérie', `Une voiture à ${eur(carStep.cost * 0.6)} au lieu de ${eur(carStep.cost)} : départ ${lab(reachAt(real, total - carStep.cost * 0.4))}.`);
+  add('💱', 'Le taux du dinar', `Ta maison est en dinars : si le square passe de ${Math.round(c.rate)} à ${Math.round(c.rate * 1.1)} DA/€, elle te coûte ${eur(eurRate(c.houseDa) - c.houseDa / (c.rate * 1.1))} de moins. Change ton argent quand le taux est haut (gold_watch suit le square).`);
+  add('📈', 'Si les prix montent de 5 % par an', `Maison + voiture +5 %/an : il te faudrait ≈ ${eur(total * Math.pow(1.05, (iDep ?? 36) / 12))} au lieu de ${eur(total)} à ta date de départ. Acheter le terrain/la maison plus tôt protège de la hausse.`);
+  const snusNet = (m0['side'] ?? 0);
+  if (snusNet > 0) add('🔁', 'Remplacer le snus à Oran', `Le snus te rapporte ≈ ${eur(snusNet)}/mois et s'arrête au départ. Pour le remplacer avec FIK à ${fikDay} € de marge par jour, il faudrait ≈ ${Math.round(snusNet / fikDay / 30)} voitures louées en permanence : FIK seul ne suffira pas tout de suite, prévois un 2e revenu à Oran (appartement, projet).`);
+  if (m0['salary']) add('💼', 'Remplacer ton salaire belge', `${eur(m0['salary'] + (m0['extra'] ?? 0))}/mois de salaire + heures sup = ≈ ${Math.round((m0['salary'] + (m0['extra'] ?? 0)) / fikDay / 30)} voitures FIK louées en permanence. À Oran tu en as besoin de moins (la vie coûte ≈ ${eur(eurRate(243_000))}/mois), mais il faut un vrai revenu là-bas.`);
+  if (c.aptPriceDa && c.aptRentDa) add('🏢', 'Un appartement à louer à Oran', `Un appartement à ${(c.aptPriceDa / 1e6).toFixed(1)} M DA (${eur(eurRate(c.aptPriceDa))}) loué ${(c.aptRentDa / 1000).toFixed(0)} 000 DA/mois = ${eur(eurRate(c.aptRentDa))}/mois, remboursé en ≈ ${Math.round(c.aptPriceDa / c.aptRentDa / 12)} ans. À faire APRÈS la maison.`);
+  add('🛟', 'Réserve 3 mois au lieu de 6', `Partir avec 3 mois de réserve au lieu de 6 : départ ${lab(reachAt(real, total - c.fund / 2))} — plus risqué si FIK met du temps à démarrer là-bas.`);
+  add('🤲', 'La zakat dans ton plan', `Sur l'épargne que tu gardes un an : ≈ 2,5 % par an (≈ ${eur(o.balances.total * 0.025)} aujourd'hui), à prévoir chaque année dans le calcul.`);
+  add('📊', 'Ton point de contrôle', `Pour tenir ${lab(iDep)}, tu dois avoir ≈ ${eur(checkpoints[0]!.need)} en ${checkpoints[0]!.label}, ${eur(checkpoints[1]!.need)} en ${checkpoints[1]!.label}, ${eur(checkpoints[2]!.need)} en ${checkpoints[2]!.label}.`);
+  add('🧱', 'Acheter en 2 fois', `Terrain/maison d'abord (pendant que tu es encore salarié en Belgique), voiture juste avant de partir : tu profites plus longtemps de ton salaire belge pour finir.`);
+  add('🧾', 'Frais cachés à prévoir', `Notaire + enregistrement (≈ 7 %), meubles, CASNOS, assurance CATNAT, école d'Ibrahim : déjà comptés dans « maison » et la réserve — vérifie les montants avec « plan Algérie ».`);
+  add('🧓', 'Ton âge et ta retraite', 'En partant, tu arrêtes de cotiser en Belgique : demande un relevé de tes années (mypension.be) pour savoir ce que tu garderas, et cotise à la CASNOS à Oran.');
+  add('👨‍👩‍👦', 'Ibrahim et l\'école', 'Le bon moment pour partir, c\'est aussi la rentrée scolaire : vise un départ en été pour qu\'Ibrahim commence l\'année à Oran.');
+  add('🗂️', 'Papiers avant le départ', 'Passeports, carte consulaire, permis (échange en Algérie), relevés bancaires et fiches de paie : prépare-les 6 mois avant, c\'est ce qui retarde le plus souvent.');
+  add('🏦', 'Compte en devises en Algérie', 'Un compte en devises (euros) à Oran te permet d\'apporter ton épargne proprement et de changer au bon moment.');
+  add('🧪', 'Tester la vie à Oran', 'Avant de vendre quoi que ce soit en Belgique : 1 mois à Oran en vrai (dépenses réelles notées) pour vérifier les 243 000 DA/mois du plan.');
+  add('🔒', 'Ce qui ne doit pas bouger', `Ton épargne du départ (${eur(o.balances.compte)}) ne sert qu'au départ : les nouveaux projets se financent avec ce qui rentre en plus, jamais avec elle.`);
+  return {
+    now: c.now, total, departLabel: lab(iDep), departBest: lab(reachAt(best, total)), departSlow: lab(reachAt(slow, total)),
+    have: o.balances.total, pct: Math.min(100, Math.round(o.balances.total / Math.max(1, total) * 100)),
+    steps, levers, weak, checkpoints, options: opt.slice(0, 20),
+    curve: real.slice(0, 120).filter((_, i) => i % 3 === 0).map((v, k) => ({ ym: ymAdd(c.now, k * 3), v })),
+  };
 }

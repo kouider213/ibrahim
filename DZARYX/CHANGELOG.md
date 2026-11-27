@@ -1,3 +1,9 @@
+## 27/11 — MON ARGENT : départ = plan par étapes cliquable (3 scénarios, leviers, points faibles, 20 options) + conseiller corrigé (app v312)
+- Kouider : « il parle d'acheter une 2e voiture alors que je n'en ai même pas une : elles sont toutes à Houari, sauf l'Audi Q3 qui est ma voiture perso » + « au rythme actuel il doit rajouter des phases (maison Algérie, voiture, maison Belgique…), une vraie analyse, quand je clique plus d'infos, un départ potentiel, où je dois m'améliorer, + 20 options ».
+- Conseiller : fait ajouté (FIK ne possède aucune voiture, tout est à Houari ; Audi Q3 = voiture perso) + exemple corrigé.
+- departDetail (GET /api/mon-argent/plan, POST /goals) : courbe d'épargne de la projection (3 scénarios), étapes cumulées (réserve, voiture, maison + frais + meubles, déménagement, + les siennes, ordre modifiable, kv perso:argent:goals) avec date au mieux / réaliste / prudent ; leviers (snus, FIK, dépenses, heures sup, appartement) en mois gagnés ; points faibles calculés ; points de contrôle 3/6/12 mois ; 20 options (fin 2028, maison −20 %, crédit 20 %, occasion, taux du dinar, inflation, remplacer snus/salaire, appartement à Oran, réserve 3 mois, zakat, papiers, école, retraite belge…).
+- App : carte « Départ potentiel » avec frise des étapes → fiche détaillée (courbe vs objectif, étapes cliquables, édition des étapes).
+
 ## 27/11 — MON ARGENT : tarifs snus corrigés + « 1 pièce à 6 € / à 5 € » en un appui (app v311)
 - Kouider : « 12 pièces au prix normal = 6 € × 12 = 72 € ; à partir de 10 c'est 10 × 5 et en plus 5 € aussi (11 = 55 €) ; pour les ristournes client, 2 touches : 1 pièce à 6 € et 1 pièce à 5 € ».
 - snusPrice : normal = × 6 ; lot = dès 10 pièces × 5 (sous 10 : × 6) ; cinq = 5 € ; six = 6 €. Boutons « 1 pièce à 6 € » / « 1 pièce à 5 € » (page + carte Aujourd'hui).
