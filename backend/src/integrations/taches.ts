@@ -15,6 +15,7 @@ export interface Tache {
   id: string; text: string; due: string | null; time?: string | null; cat: Cat; who?: string | null;
   repeat?: 'semaine' | 'mois' | null; created: string; source: 'telegram' | 'app' | 'appel' | 'auto';
   done?: string | null; reminded?: string | null; moved?: number;
+  lieu?: 'algerie' | 'belgique' | null;   // 27/11 « à faire en Algérie » / « au retour en Belgique » : sortie quand il y est
 }
 const KEY = 'perso:taches';
 const LAST = 'perso:taches:last';   // numéros de la dernière liste envoyée → « tâche 2 faite »
@@ -76,11 +77,14 @@ const line = (t: Tache, n?: number) => `${n != null ? `${n}. ` : '• '}${CAT[t.
 // ── Lecture ──────────────────────────────────────────────────────────────────
 export interface TacheView extends Tache { label: string; late: boolean; today: boolean }
 export async function tachesList(): Promise<{ today: TacheView[]; late: TacheView[]; upcoming: TacheView[]; nodate: TacheView[]; done: TacheView[];
-  promises: Array<{ id: string; text: string; due: string }>; reminders: Array<{ id: string; text: string; at: string }>; stats: { doneWeek: number; open: number } }> {
+  promises: Array<{ id: string; text: string; due: string }>; reminders: Array<{ id: string; text: string; at: string }>; stats: { doneWeek: number; open: number };
+  here: 'algerie' | 'belgique'; ailleurs: TacheView[]; moves: import('./taches-lies.js').ClientMove[]; trips: import('./taches-lies.js').MyTrip[] }> {
   const now = localNow();
-  const l = await all();
+  const L = await import('./taches-lies.js');
+  const [l, here, moves, trips] = await Promise.all([all(), L.currentPlace(), L.clientMoves(3).catch(() => []), L.myTrips(10).catch(() => [])]);
   const v = (t: Tache): TacheView => ({ ...t, label: dayLabel(t.due, now), late: !!t.due && t.due < now.date, today: t.due === now.date });
-  const open = l.filter(t => !t.done).sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999') || (a.time ?? '99').localeCompare(b.time ?? '99'));
+  const sorted = l.filter(t => !t.done).sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999') || (a.time ?? '99').localeCompare(b.time ?? '99'));
+  const open = sorted.filter(t => !t.lieu || t.lieu === here);   // une tâche « en Algérie » ne sort que quand il y est
   const promises = await import('./foresight.js').then(async () => (await kvJson<Array<{ id: string; to: string; what: string; due: string; done?: boolean }>>('promises', []))
     .filter(p => !p.done && Date.parse(p.due) - Date.now() < 7 * 86_400_000).map(p => ({ id: p.id, text: `${p.to} : ${p.what}`, due: p.due }))).catch(() => []);
   const reminders = await import('./supabase.js').then(async ({ supabase }) => {
@@ -94,13 +98,20 @@ export async function tachesList(): Promise<{ today: TacheView[]; late: TacheVie
     upcoming: open.filter(t => t.due && t.due > now.date).map(v),
     nodate: open.filter(t => !t.due).map(v),
     done: l.filter(t => t.done && t.done.slice(0, 10) >= addDays(now.date, -1)).map(v),
-    promises, reminders,
+    promises, reminders, here, moves, trips,
+    ailleurs: sorted.filter(t => t.lieu && t.lieu !== here).map(v),
     stats: { doneWeek: l.filter(t => t.done && Date.now() - Date.parse(t.done) < 7 * 86_400_000).length, open: open.length },
   };
 }
 
 // ── Écriture ─────────────────────────────────────────────────────────────────
-export async function tacheAdd(input: { text: string; due?: unknown; time?: unknown; cat?: string; who?: string; repeat?: string; source?: Tache['source'] }): Promise<Tache | { dup: Tache }> {
+export function guessLieu(text: string): Tache['lieu'] {
+  const t = norm(text);
+  if (/(en|a|quand je (suis|serai|vais) (en|a)) (algerie|oran|alger|au bled|bled)\b|\bau bled\b|\ba oran\b/.test(t)) return 'algerie';
+  if (/(au|a mon|des mon) retour|en belgique|a bruxelles|quand je rentre/.test(t)) return 'belgique';
+  return null;
+}
+export async function tacheAdd(input: { text: string; due?: unknown; time?: unknown; cat?: string; who?: string; repeat?: string; lieu?: string | null; source?: Tache['source'] }): Promise<Tache | { dup: Tache }> {
   const text = String(input.text ?? '').trim().replace(/^(je dois|il faut que je|faut que je|penser? a|n'oublie pas de|rappelle[- ]moi d[e'])\s*/i, '').slice(0, 200);
   if (!text) throw new Error('Quelle tâche ?');
   const l = await all();
@@ -108,6 +119,7 @@ export async function tacheAdd(input: { text: string; due?: unknown; time?: unkn
   const dup = l.find(t => !t.done && norm(t.text) === norm(text) && t.due === due);
   if (dup) return { dup };
   const t: Tache = { id: uid(), text: text[0]!.toUpperCase() + text.slice(1), due, time: parseTime(input.time), cat: (input.cat && input.cat in CAT ? input.cat : guessCat(text)) as Cat,
+    lieu: input.lieu === 'algerie' || input.lieu === 'belgique' ? input.lieu : input.lieu === '' ? null : guessLieu(String(input.text ?? '')),
     who: input.who ? String(input.who).slice(0, 40) : null, repeat: input.repeat === 'semaine' || input.repeat === 'mois' ? input.repeat : null,
     created: new Date().toISOString(), source: input.source ?? 'telegram' };
   l.push(t); await save(l);
@@ -157,11 +169,22 @@ export async function tachesTool(input: Record<string, unknown>): Promise<string
     const out: string[] = [];
     for (const it of items) {
       try {
-        const r = await tacheAdd({ text: String(it['text'] ?? ''), due: it['due'], time: it['time'], cat: it['cat'] as string, who: it['who'] as string, repeat: it['repeat'] as string, source: input['source'] === 'appel' ? 'appel' : 'telegram' });
-        out.push('dup' in r ? `déjà notée : ${r.dup.text} (${dayLabel(r.dup.due)})` : `${CAT[r.cat]} ${r.text} — ${dayLabel(r.due)}${r.time ? ` à ${r.time.replace(':', 'h')}` : ''}${r.repeat ? ` (chaque ${r.repeat})` : ''}`);
+        const r = await tacheAdd({ text: String(it['text'] ?? ''), due: it['due'], time: it['time'], cat: it['cat'] as string, who: it['who'] as string, repeat: it['repeat'] as string, lieu: (it['lieu'] as string) ?? undefined, source: input['source'] === 'appel' ? 'appel' : 'telegram' });
+        out.push('dup' in r ? `déjà notée : ${r.dup.text} (${dayLabel(r.dup.due)})` : `${CAT[r.cat]} ${r.text} — ${dayLabel(r.due)}${r.time ? ` à ${r.time.replace(':', 'h')}` : ''}${r.repeat ? ` (chaque ${r.repeat})` : ''}${r.lieu === 'algerie' ? ' — 🇩🇿 sortira quand tu seras en Algérie' : r.lieu === 'belgique' ? ' — 🇧🇪 à ton retour' : ''}`);
       } catch (e) { out.push(`❌ ${(e as Error).message}`); }
     }
     return `📝 Noté dans tes tâches :\n${out.join('\n')}\nJe te le rappelle le jour même à 8h${out.some(o => / à \d/.test(o)) ? ' et à l\'heure dite' : ''} ; c'est aussi sur la page Aujourd'hui. (Confirme-lui en une phrase, sans liste d'options.)`;
+  }
+  if (a === 'decaler_retour') {
+    const to = parseDue(input['due']); if (!to) return '❌ Pour quel jour ?';
+    const l = await all(); const today = localNow().date; let k = 0;
+    for (const t of l) if (!t.done && t.due && t.due >= today && t.due < to && t.lieu !== 'algerie') { t.due = to; t.reminded = null; k++; }
+    await save(l); return `📅 ${k} tâche(s) décalée(s) au ${to.slice(8)}/${to.slice(5, 7)}.`;
+  }
+  if (a === 'check') {
+    const { tickTripItem } = await import('./trips.js');
+    const r = await tickTripItem(String(input['id'] ?? ''), String(input['text'] ?? 'tout'), input['undo'] !== true);
+    return r.message;
   }
   if (['done', 'remove', 'tomorrow', 'move', 'undo', 'edit'].includes(a)) {
     let q = String(input['id'] ?? input['text'] ?? '');
@@ -189,7 +212,11 @@ async function listText(): Promise<string> {
   if (!seq.length && !r.promises.length) return '📝 Aucune tâche en cours. (« lundi je dois appeler… » et je la note.)';
   let i = 0;
   const block = (title: string, l: TacheView[], lab = false) => l.length ? `${title}\n${l.map(t => `${line(t, ++i)}${lab ? ` — ${t.label}` : ''}`).join('\n')}` : '';
+  const mv = r.moves.map(m => `${m.kind === 'arrivee' ? '🛬' : '🔑'} ${m.label} : ${m.client} (${m.car})${m.time ? ` ${m.time.replace(':', 'h')}` : ''}${m.missing.length ? ` — manque ${m.missing.map(x => x.toLowerCase()).join(', ')}` : ' ✅'}`);
+  const tr = r.trips.map(t => `✈️ ${t.title} — ${t.inDays === 0 ? "aujourd'hui" : t.inDays === 1 ? 'demain' : `dans ${t.inDays} j`}${t.missing.length ? ` — il manque ${t.missing.length} point(s)` : ' ✅'}`);
   return [block('⚠️ En retard', r.late, true), block("📌 Aujourd'hui", r.today), block('📅 À venir', r.upcoming, true), block('🗂 Sans date', r.nodate),
+    r.ailleurs.length ? `${r.here === 'algerie' ? '🇧🇪 Au retour' : '🇩🇿 En Algérie'}\n${r.ailleurs.map(t => line(t)).join('\n')}` : '',
+    tr.length ? `✈️ Tes voyages\n${tr.join('\n')}` : '', mv.length ? `🚗 Clients (3 jours)\n${mv.join('\n')}` : '',
     r.promises.length ? `🤝 Promesses\n${r.promises.map(p => `• ${p.text}`).join('\n')}` : ''].filter(Boolean).join('\n\n') + '\n\nRéponds « tâche 2 faite » pour cocher.';
 }
 
@@ -198,8 +225,13 @@ export async function jobTaches(): Promise<string> {
   const now = localNow();
   const once = async (k: string, ttl = 86_400) => { const key = `perso:taches:sent:${k}`; if (await kvJson<string | null>(key, null)) return false; await kvPut(key, '1', ttl); return true; };
   const l = await all();
-  const open = l.filter(t => !t.done);
+  const L = await import('./taches-lies.js');
+  const here = await L.currentPlace();
+  const open = l.filter(t => !t.done && (!t.lieu || t.lieu === here));
   const due = open.filter(t => t.due && t.due <= now.date);
+  const dzToday = localNow(Date.now(), 'Africa/Algiers').date;
+  const moves = await L.clientMoves(3).catch(() => [] as Awaited<ReturnType<typeof L.clientMoves>>);
+  const trips = await L.myTrips(3).catch(() => [] as Awaited<ReturnType<typeof L.myTrips>>);
   const out: string[] = [];
   // 1. À l'heure dite (15 min avant) : boutons
   for (const t of open.filter(x => x.due === now.date && x.time && !x.reminded)) {
@@ -218,6 +250,7 @@ export async function jobTaches(): Promise<string> {
   const numbered = async (list: Tache[]) => { await kvPut(LAST, list.map(t => t.id), 3 * 86_400); return list.map((t, i) => `${line(t, i + 1)}${t.due && t.due < now.date ? ' ⚠️ en retard' : ''}${t.who ? ` (pour ${t.who})` : ''}`).join('\n'); };
   // Boutons « ✅ <tâche> » (Telegram) quand il y en a ≤ 3 ; sinon texte numéroté (« fait 1 » seul = Grand Coach, d'où « tâche 1 faite »)
   const sendList = async (head: string, list: Tache[], hint: string) => {
+    if (!list.length) { await tg(head); return; }
     if (list.length <= 3) {
       const { createDecision } = await import('./conscience.js');
       const ok = await createDecision(head, [
@@ -229,20 +262,78 @@ export async function jobTaches(): Promise<string> {
     await tg(`${head}\n\n${hint}`);
   };
   // 2. 8h : la liste du jour (+ en retard)
-  if (now.hhmm >= '08:00' && now.hhmm < '11:00' && due.length && await once(`matin:${now.date}`)) {
-    await sendList(`📝 Aujourd'hui tu dois :\n${await numbered(due)}`, due, 'Touche quand c\'est fait, ou réponds « tâche 1 faite » / « tâche 2 demain ».');
+  const mvToday = L.movesLines(moves, dzToday);
+  const tripLine = trips.filter(t => t.inDays <= 1).map(t => `✈️ ${t.title} ${t.inDays === 0 ? "aujourd'hui" : 'demain'} à ${t.time.replace(':', 'h')}${t.missing.length ? ` — check-list : il manque ${t.missing.slice(0, 5).map(x => x.toLowerCase()).join(', ')}` : ' — check-list ✅'}`);
+  const extras = [...tripLine, ...(mvToday.length ? ['', '🚗 Clients aujourd\'hui :', ...mvToday] : [])].join('\n');
+  if (now.hhmm >= '08:00' && now.hhmm < '11:00' && (due.length || extras) && await once(`matin:${now.date}`)) {
+    const head = [due.length ? `📝 Aujourd'hui tu dois :\n${await numbered(due)}` : "📝 Pas de tâche perso aujourd'hui.", extras].filter(Boolean).join('\n\n');
+    await sendList(head, due, 'Touche quand c\'est fait, ou réponds « tâche 1 faite » / « tâche 2 demain ».');
     out.push('matin');
   }
   // 3. 20h30 : ce qui reste
+  const tomorrowMissing = L.movesLines(moves.filter(m => m.missing.length), addDays(dzToday, 1));
+  if (now.hhmm >= '20:30' && now.hhmm < '22:00' && !due.length && tomorrowMissing.length && await once(`soir:${now.date}`)) {
+    await tg(`🌙 Demain côté clients, il manque encore :\n${tomorrowMissing.join('\n')}\n\nDis « le contrat de X est signé » pour cocher, ou coche dans l'app (Aujourd'hui › À faire).`);
+    out.push('soir-clients');
+  }
   if (now.hhmm >= '20:30' && now.hhmm < '22:00' && due.length && await once(`soir:${now.date}`)) {
     const doneToday = l.filter(t => t.done?.slice(0, 10) === now.date).length;
-    await sendList(`🌙 ${doneToday ? `${doneToday} tâche(s) faite(s) aujourd'hui 👏. ` : ''}Il reste :\n${await numbered(due)}`, due, '« tâche 1 faite », « tâche 1 demain » ou « tâche 1 lundi ».');
+    await sendList(`🌙 ${doneToday ? `${doneToday} tâche(s) faite(s) aujourd'hui 👏. ` : ''}Il reste :\n${await numbered(due)}${tomorrowMissing.length ? `\n\n🚗 Demain, il manque encore :\n${tomorrowMissing.join('\n')}` : ''}`, due, '« tâche 1 faite », « tâche 1 demain » ou « tâche 1 lundi ».');
     out.push('soir');
   }
   // 4. Dimanche 19h : la semaine qui vient
   if (now.weekday === 0 && now.hhmm >= '19:00' && now.hhmm < '21:00' && await once(`semaine:${now.date}`, 2 * 86_400)) {
     const week = open.filter(t => t.due && t.due > now.date && t.due <= addDays(now.date, 7));
-    if (week.length) { await tg(`🗓 Ta semaine :\n${week.map(t => `• ${dayLabel(t.due, now)} : ${CAT[t.cat]} ${t.text}${t.time ? ` à ${t.time.replace(':', 'h')}` : ''}`).join('\n')}`); out.push('semaine'); }
+    const wkMoves = await L.clientMoves(7).catch(() => []);
+    const wkTrips = await L.myTrips(7).catch(() => []);
+    const lines = [
+      ...week.map(t => `• ${dayLabel(t.due, now)} : ${CAT[t.cat]} ${t.text}${t.time ? ` à ${t.time.replace(':', 'h')}` : ''}`),
+      ...wkTrips.map(t => `• ${L.dayLabel(t.date)} : ✈️ ${t.title} à ${t.time.replace(':', 'h')}`),
+      ...wkMoves.map(m => `• ${m.label} : ${m.kind === 'arrivee' ? '🛬' : '🔑'} ${m.client} (${m.car})${m.time ? ` ${m.time.replace(':', 'h')}` : ''}`),
+    ];
+    if (lines.length) { await tg(`🗓 Ta semaine :\n${lines.join('\n')}`); out.push('semaine'); }
+  }
+  // 9. 1 h avant une arrivée / un retour client (heure d'Oran) : ce qui manque encore
+  const dzNow = localNow(Date.now(), 'Africa/Algiers');
+  for (const m of moves.filter(x => x.date === dzToday && x.time && x.missing.length)) {
+    const [h, mi] = m.time!.split(':').map(Number); const [nh, nm] = dzNow.hhmm.split(':').map(Number);
+    const diff = h! * 60 + mi! - (nh! * 60 + nm!);
+    if (diff > 0 && diff <= 75 && await once(`move1h:${m.id}`)) {
+      await tg(`${m.kind === 'arrivee' ? '🛬' : '🔑'} Dans ${diff < 60 ? `${diff} min` : '1 h'} : ${m.kind === 'arrivee' ? 'arrivée' : 'retour'} de ${m.client} (${m.car}) à ${m.time!.replace(':', 'h')}. Il manque encore : ${m.missing.map(x => x.toLowerCase()).join(', ')}.`);
+      out.push(`move1h:${m.id}`);
+    }
+  }
+  // 6. Changement de pays (mode Oran GPS / voyage) : la liste « en Algérie » ou « au retour » sort une fois
+  const before = await L.lastPlace();
+  if (before !== here) {
+    await kvPut('perso:taches:lieu', here);
+    const list = l.filter(t => !t.done && t.lieu === here);
+    if (before && list.length) {
+      await sendList(here === 'algerie' ? `🇩🇿 Bienvenue ! Ce que tu voulais faire en Algérie :\n${await numbered(list)}` : `🇧🇪 Bon retour ! Ce que tu avais noté pour ton retour :\n${await numbered(list)}`, list, '« tâche 1 faite » quand c\'est fait.');
+      out.push(`lieu:${here}`);
+    }
+    if (before === 'algerie' && here === 'belgique') {
+      const left = l.filter(t => !t.done && t.lieu === 'algerie');
+      if (left.length) await tg(`📌 ${left.length} tâche(s) d'Algérie pas faite(s) (${left.slice(0, 3).map(t => t.text.toLowerCase()).join(', ')}${left.length > 3 ? '…' : ''}) : je les garde pour ton prochain voyage.`);
+    }
+  }
+  // 7. Jour de son départ en voyage : tâches datées pendant son absence → les décaler au retour ?
+  const { readTrips } = await import('./trips.js');
+  const myOut = (await readTrips()).find(t => t.who === 'kouider' && t.pauseFrom && t.pauseTo && t.pauseFrom >= now.date && t.pauseFrom <= addDays(now.date, 1));
+  if (myOut && now.hhmm >= '09:00' && await once(`absence:${myOut.id}`, 10 * 86_400)) {
+    const during = l.filter(t => !t.done && t.due && t.due >= myOut.pauseFrom! && t.due <= myOut.pauseTo! && t.lieu !== 'algerie');
+    if (during.length) {
+      const { createDecision } = await import('./conscience.js');
+      await createDecision(`✈️ Pendant ton voyage (${myOut.pauseFrom!.slice(8)}/${myOut.pauseFrom!.slice(5, 7)} → ${myOut.pauseTo!.slice(8)}/${myOut.pauseTo!.slice(5, 7)}), tu avais noté :\n${during.map(t => `• ${dayLabel(t.due)} : ${t.text}`).join('\n')}`, [
+        { label: `📅 Tout décaler au ${addDays(myOut.pauseTo!, 1).slice(8)}/${addDays(myOut.pauseTo!, 1).slice(5, 7)}`, tool: 'mes_taches', input: { action: 'decaler_retour', due: addDays(myOut.pauseTo!, 1) } },
+        { label: '👍 Je les garde (faisables de là-bas)', say: 'ok je garde mes tâches pendant le voyage' },
+      ]).catch(() => {});
+      out.push('absence');
+    }
+  }
+  // 8. J-2 de son vol : demandes (Houari, famille) pas encore prêtes
+  for (const t of trips.filter(x => x.inDays === 2 && x.requests.length)) {
+    if (await once(`demandes:${t.id}`, 4 * 86_400)) { await tg(`🎁 Dans 2 jours tu pars (${t.title}). On t'a demandé :\n${t.requests.map(r => `• ${r}`).join('\n')}\n\nDis « c'est acheté pour Houari » pour cocher.`); out.push('demandes'); }
   }
   // 5. Repoussée 3 fois ou plus : on propose de la caler vraiment (1×/semaine par tâche)
   for (const t of open.filter(x => (x.moved ?? 0) >= 3 && x.due === now.date)) {

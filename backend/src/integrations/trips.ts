@@ -561,3 +561,21 @@ export async function importTicket(material: string, image?: { b64: string; mime
   const ex = await extractFlights(material, image);
   return ex?.is_flight ? await saveExtracted(ex, 'billet reçu') : '';
 }
+
+// ── 27/11 MES TÂCHES : cocher un point de check-list depuis la carte « À faire » / un bouton Telegram ──
+export async function tickTripItem(tripId: string, label: string, done = true): Promise<{ ok: boolean; message: string }> {
+  if (tripId.startsWith('bs-') || tripId.startsWith('be-')) await syncClientChecklists().catch(() => {});
+  const list = await readTrips();
+  const t = list.find(x => x.id === tripId);
+  if (!t) return { ok: false, message: 'Check-list introuvable.' };
+  const items = /^(tout|all)$/i.test(label.trim()) ? t.checklist : t.checklist.filter(i => norm(i.label) === norm(label));
+  if (!items.length) return { ok: false, message: 'Point introuvable.' };
+  const now = new Date().toISOString();
+  for (const i of items) { i.done = done; i.doneAt = done ? now : undefined; }
+  t.validated = t.checklist.every(i => i.done); if (t.validated) t.validatedAt = now;
+  await writeTrips(list);
+  const left = t.checklist.filter(i => !i.done).length;
+  return { ok: true, message: done ? `✅ ${items.length > 1 ? 'Tout coché' : items[0]!.label} — ${t.title}${left ? ` (reste ${left})` : ' : check-list validée 👌'}` : `↩️ ${items[0]!.label} remis à faire` };
+}
+/** Synchronise les check-lists clients (réservations) sans envoyer de message. */
+export async function syncClientTrips(): Promise<void> { await syncClientChecklists(); }
