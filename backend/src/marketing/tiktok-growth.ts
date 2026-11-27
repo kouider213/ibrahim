@@ -431,7 +431,7 @@ export async function jobPubFollowUp(): Promise<void> {
       + (lesson ? `
 🧠 ${lesson}
 ` : '') + `
-Je garde cette leçon : l'équipe s'en sert pour la prochaine pub.`, undefined, 'kouider', undefined, true).catch(() => {});
+Je garde cette leçon : l'équipe s'en sert pour la prochaine pub.`, undefined, 'kouider', undefined, true, true).catch(() => {});
   }
   await kvSet(RESULTS, JSON.stringify(res.slice(0, 40)));
 }
