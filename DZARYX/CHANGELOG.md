@@ -1,3 +1,6 @@
+## 27/11 soir (4) — MES VOYAGES : « Mon budget » au lieu de « La dernière fois » (app v332)
+- Kouider (capture 21h41) : « je veux pas la dernière fois, je veux noter mon budget ». Champ « Mon budget (€) » → budget ; le plan doit tenir dedans (prompt) ; comparaison « en dessous / au-dessus de ton budget » (fiche, liste, dépenses, Telegram, PDF, impact départ). Anciens voyages avec « dernière fois » toujours affichés.
+
 ## 27/11 soir (3) — Relecture de tous les messages du jour avec Kouider
 - Liberté : la question « qu'est-ce qui a déclenché la prise ? » (boutons) part 30 min après une prise de trop dès qu'il n'est pas au travail (GPS), le bouclier famille ne la bloque plus (avant : seulement 21h30-22h30, bloquée par le silence du soir).
 - Conscience : « prendre de ses nouvelles » 1×/jour s'il n'a rien écrit depuis 5 h et qu'il est libre (heures_sans_message_de_kouider).

@@ -8,7 +8,7 @@ import { SkeletonCards } from '../ui/Premium.tsx';
 // Aussi depuis Telegram (outil voyage). PRIVÉ : /api/mon-argent/voyages (compte Kouider seulement).
 
 interface Voyage {
-  id: string; at: number; status: 'preparing' | 'ready' | 'failed'; request: string; title: string; dest: string; days: number; lastCost?: number | null;
+  id: string; at: number; status: 'preparing' | 'ready' | 'failed'; request: string; title: string; dest: string; days: number; lastCost?: number | null; budget?: number | null;
   resume?: string; route?: Array<{ day: string; title: string; text: string; km?: number; hours?: number; sleep?: string }>;
   lieux?: Array<{ name: string; city: string; why: string; for?: string; when?: string; price?: string }>; villes?: Array<{ name: string; nights: number; why: string }>;
   lignes?: Array<{ label: string; amount: number; note?: string }>; total?: number; departImpact?: string; error?: string;
@@ -47,7 +47,7 @@ export default function VoyagesScreen() {
   const post = async <R,>(path: string, body: unknown) => apiFetch<R>(path, { method: 'POST', body: JSON.stringify(body) });
   const create = async () => {
     try {
-      const r = await post<{ voyage: Voyage }>('/api/mon-argent/voyages', { request: form.request, days: Number(form.days) || 30, last_cost: Number(form.last) || undefined });
+      const r = await post<{ voyage: Voyage }>('/api/mon-argent/voyages', { request: form.request, days: Number(form.days) || 30, budget: Number(form.last) || undefined });
       setAsk(false); setForm({ request: '', days: '30', last: '' }); setList(l => [r.voyage, ...(l ?? [])]); flash('⏳ Je prépare ton voyage (3 à 5 min), le PDF arrivera aussi sur Telegram');
     } catch (e) { flash(`⚠️ ${(e as Error).message.replace(/^API \d+: /, '')}`); }
   };
@@ -73,7 +73,7 @@ export default function VoyagesScreen() {
     <Screen toast={msg} header={<PageHeader eyebrow="Vacances en famille" title="🧳 Mes voyages" subtitle="Dis où tu veux aller : je prépare la route, les lieux pour vous trois, le budget et le PDF."
       right={<HeadBtn icon="＋" label="Nouveau" onClick={() => setAsk(true)} />} />}>
       {!list ? <SkeletonCards count={3} /> : !list.length ? (
-        <Empty icon="🧳" title="Aucun voyage préparé" text="Exemple : « je veux aller en Algérie en voiture, je prends le bateau en Espagne, la dernière fois ça m'a coûté X €, 1 mois de vacances ». Ici ou sur Telegram." action={<Btn variant="primary" onClick={() => setAsk(true)}>Préparer un voyage</Btn>} />
+        <Empty icon="🧳" title="Aucun voyage préparé" text="Exemple : « je veux aller en Algérie en voiture, je prends le bateau en Espagne, mon budget c'est X €, 1 mois de vacances ». Ici ou sur Telegram." action={<Btn variant="primary" onClick={() => setAsk(true)}>Préparer un voyage</Btn>} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
           {list.map(x => (
@@ -82,7 +82,7 @@ export default function VoyagesScreen() {
                 <span style={{ fontSize: 24 }}>{x.status === 'preparing' ? '⏳' : x.status === 'failed' ? '❌' : '🧳'}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{x.title}</div>
-                  <div style={{ fontSize: 12.5, color: T.muted, marginTop: 2 }}>{x.status === 'preparing' ? 'Préparation en cours (3 à 5 min)…' : x.status === 'failed' ? (x.error ?? 'échec') : `${x.start && dayDiff(todayStr(), x.start) > 0 ? `J-${dayDiff(todayStr(), x.start)} · ` : ''}${x.days} jours · ${money(x.total ?? 0)}${x.lastCost ? ` (dernière fois ${money(x.lastCost)})` : ''}`}</div>
+                  <div style={{ fontSize: 12.5, color: T.muted, marginTop: 2 }}>{x.status === 'preparing' ? 'Préparation en cours (3 à 5 min)…' : x.status === 'failed' ? (x.error ?? 'échec') : `${x.start && dayDiff(todayStr(), x.start) > 0 ? `J-${dayDiff(todayStr(), x.start)} · ` : ''}${x.days} jours · ${money(x.total ?? 0)}${x.budget ? ` (budget ${money(x.budget)})` : x.lastCost ? ` (dernière fois ${money(x.lastCost)})` : ''}`}</div>
                 </div>
                 {x.status === 'ready' && <span style={{ color: T.muted }}>›</span>}
                 {x.status === 'failed' && <button onClick={e => { e.stopPropagation(); void del(x); }} style={{ border: 'none', background: 'transparent', color: T.bad, cursor: 'pointer' }}>🗑</button>}
@@ -95,10 +95,10 @@ export default function VoyagesScreen() {
       {ask && (
         <Sheet title="🧳 Nouveau voyage" subtitle="Écris comme tu parles : où, comment, combien de temps, ce que tu veux." onClose={() => setAsk(false)}
           footer={<Btn variant="primary" disabled={form.request.trim().length < 10} onClick={() => void create()} style={{ width: '100%' }}>Prépare-moi tout ça</Btn>}>
-          <Field label="Ta demande"><textarea value={form.request} onChange={e => setForm({ ...form, request: e.target.value })} rows={5} placeholder="Je veux aller en Algérie en voiture, je prends le bateau en Espagne, la dernière fois ça m'a coûté X €, cette fois je veux de bonnes vacances…" style={{ ...inputStyle, resize: 'vertical' }} /></Field>
+          <Field label="Ta demande"><textarea value={form.request} onChange={e => setForm({ ...form, request: e.target.value })} rows={5} placeholder="Je veux aller en Algérie en voiture, je prends le bateau en Espagne, cette fois je veux de bonnes vacances…" style={{ ...inputStyle, resize: 'vertical' }} /></Field>
           <div style={{ display: 'flex', gap: 10 }}>
             <Field label="Durée (jours)"><input inputMode="numeric" value={form.days} onChange={e => setForm({ ...form, days: e.target.value })} style={inputStyle} /></Field>
-            <Field label="La dernière fois (€)"><input inputMode="numeric" value={form.last} onChange={e => setForm({ ...form, last: e.target.value })} placeholder="ex. 5000" style={inputStyle} /></Field>
+            <Field label="Mon budget (€)"><input inputMode="numeric" value={form.last} onChange={e => setForm({ ...form, last: e.target.value })} placeholder="ex. 4000" style={inputStyle} /></Field>
           </div>
         </Sheet>
       )}
@@ -149,7 +149,8 @@ export default function VoyagesScreen() {
           {tab === 'budget' && <>
             {v.lignes?.map((l, i) => <div key={i} style={{ display: 'flex', gap: 10, padding: '8px 0', borderBottom: `1px solid ${T.line}`, fontSize: 13.5 }}><div style={{ flex: 1 }}>{l.label}{l.note && <div style={{ fontSize: 11.5, color: T.faint }}>{l.note}</div>}</div><b>{money(l.amount)}</b></div>)}
             <div style={{ display: 'flex', padding: '12px 0', fontSize: 16, fontWeight: 800 }}><span style={{ flex: 1 }}>Total</span><span>{money(v.total ?? 0)}</span></div>
-            {v.lastCost ? <div style={{ fontSize: 13.5, color: (v.total ?? 0) <= v.lastCost ? T.ok : T.warn, fontWeight: 700 }}>Dernière fois : {money(v.lastCost)} → {(v.total ?? 0) <= v.lastCost ? `${money(v.lastCost - (v.total ?? 0))} de moins` : `${money((v.total ?? 0) - v.lastCost)} de plus`}</div> : null}
+            {(() => { const ref = v.budget ?? v.lastCost; if (!ref) return null; const t = v.total ?? 0;
+              return <div style={{ fontSize: 13.5, color: t <= ref ? T.ok : T.warn, fontWeight: 700 }}>{v.budget ? 'Ton budget' : 'Dernière fois'} : {money(ref)} → {t <= ref ? `${money(ref - t)} en dessous` : `${money(t - ref)} au-dessus`}</div>; })()}
             {v.departImpact && <div style={{ fontSize: 13, color: T.muted, marginTop: 6 }}>{v.departImpact}</div>}
             <div style={{ fontSize: 11.5, color: T.faint, marginTop: 10 }}>Montants estimés : vérifie au moment de réserver.</div>
           </>}
@@ -161,7 +162,7 @@ export default function VoyagesScreen() {
                 <div style={{ display: 'flex', fontSize: 13.5 }}><span style={{ flex: 1 }}>Dépensé</span><b>{money(spent)} / {money(v.total ?? 0)}</b></div>
                 <div style={{ height: 8, borderRadius: 4, background: 'rgba(var(--dz-ink-rgb),0.07)', marginTop: 8 }}><div style={{ height: '100%', width: `${Math.min(100, spent / Math.max(1, v.total ?? 1) * 100)}%`, borderRadius: 4, background: left >= 0 ? T.ok : T.bad }} /></div>
                 <div style={{ fontSize: 13, marginTop: 8, color: left >= 0 ? T.text : T.bad, fontWeight: 700 }}>Reste {money(left)}{daysLeft && d !== null && d <= 0 ? ` · ${money(left / daysLeft)} par jour pour ${daysLeft} jours` : ''}</div>
-                {v.lastCost ? <div style={{ fontSize: 12, color: T.muted, marginTop: 4 }}>La dernière fois : {money(v.lastCost)}</div> : null}
+                {v.budget ? <div style={{ fontSize: 12, color: T.muted, marginTop: 4 }}>Ton budget : {money(v.budget)}</div> : v.lastCost ? <div style={{ fontSize: 12, color: T.muted, marginTop: 4 }}>La dernière fois : {money(v.lastCost)}</div> : null}
               </div>
               <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
                 <input inputMode="decimal" value={sp.amount} onChange={e => setSp({ ...sp, amount: e.target.value })} placeholder="€" style={{ ...inputStyle, width: 80 }} />

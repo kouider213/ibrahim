@@ -117,7 +117,7 @@ export async function buildVoyage(v: Voyage, notify = true): Promise<void> {
   const ctx = await context();
   const today = localNow().date;
   const mods = (v.changes ?? []).map(c => `- ${c.text}`).join('\n');
-  const ask = `Demande de Kouider (${today}) : « ${v.request} »${mods ? `\nMODIFICATIONS QU'IL A DEMANDÉES ENSUITE (prioritaires, à respecter) :\n${mods}` : ''}\nDurée totale : ${v.days} jours.${v.start ? ` Départ : ${v.start}.` : ''}${v.lastCost ? ` La dernière fois ce voyage lui a coûté ${eur(v.lastCost)}.` : ''}${v.budget ? ` Budget voulu : ${eur(v.budget)}.` : ''}`;
+  const ask = `Demande de Kouider (${today}) : « ${v.request} »${mods ? `\nMODIFICATIONS QU'IL A DEMANDÉES ENSUITE (prioritaires, à respecter) :\n${mods}` : ''}\nDurée totale : ${v.days} jours.${v.start ? ` Départ : ${v.start}.` : ''}${v.lastCost ? ` La dernière fois ce voyage lui a coûté ${eur(v.lastCost)}.` : ''}${v.budget ? ` SON BUDGET MAXIMUM : ${eur(v.budget)} pour tout le voyage — le total des lignes doit tenir dedans ; si c'est impossible, fais le plan le moins cher possible et dis clairement dans le résumé ce qui dépasse et pourquoi.` : ''}`;
 
   // 1) Recherche web : transport (bateau, route, prix actuels), périodes, nouveautés
   const facts = v.sources && v.changes?.length ? v.sources : await research(`${ask}\n\nCherche sur le web les infos PRATIQUES et RÉCENTES pour ce voyage en famille (2 adultes + 1 enfant${/voiture|bateau|ferry/i.test(v.request) ? ' + 1 voiture' : ''}) : `
@@ -165,11 +165,12 @@ export async function buildVoyage(v: Voyage, notify = true): Promise<void> {
   // Ce que le voyage change à son départ à Oran (même courbe que MON ARGENT) — calculé, pas inventé
   if (v.total) {
     const dd = await import('./mon-argent.js').then(m => m.departDetail()).catch(() => null);
-    const ref = v.lastCost ?? null;
+    // 27/11 Kouider : « je ne veux pas la dernière fois, je veux noter mon budget » → le plan se compare d'abord à SON budget
+    const ref = v.budget ?? v.lastCost ?? null, what = v.budget ? 'ton budget' : 'la dernière fois';
     if (dd && ref && ref > v.total) {
       const saved = ref - v.total;
-      v.departImpact = `En dépensant ${eur(v.total)} au lieu de ${eur(ref)}, tu gardes ${eur(saved)} : c'est ≈ ${Math.max(1, Math.round(saved / Math.max(1, (dd.monthly[12]! - dd.monthly[0]!) / 12) * 30))} jours d'épargne de ton plan de départ.`;
-    } else if (ref && ref <= v.total) v.departImpact = `Ce plan (${eur(v.total)}) dépasse la dernière fois (${eur(ref)}) : regarde les options « moins cher » pour descendre en dessous.`;
+      v.departImpact = `Ce plan (${eur(v.total)}) reste sous ${what} (${eur(ref)}) : tu gardes ${eur(saved)}, c'est ≈ ${Math.max(1, Math.round(saved / Math.max(1, (dd.monthly[12]! - dd.monthly[0]!) / 12) * 30))} jours d'épargne de ton plan de départ.`;
+    } else if (ref && ref <= v.total) v.departImpact = `Ce plan (${eur(v.total)}) dépasse ${what} (${eur(ref)}) de ${eur(v.total - ref)} : dis « moins cher » pour que je le refasse dans ton budget.`;
   }
   v.status = 'ready';
   await save(v);
@@ -188,7 +189,8 @@ export function voyageText(v: Voyage, short = false): string {
   if (v.status === 'preparing') return `⏳ Je prépare « ${v.title} » (recherche des bateaux, lieux, budget) : je t'envoie le plan et le PDF dans 3 à 5 minutes.`;
   if (v.status === 'failed') return `❌ « ${v.title} » : ${v.error ?? 'échec'}.`;
   const L: string[] = [`🧳 ${v.title.toUpperCase()}`, v.resume ?? ''];
-  if (v.total) L.push('', `💶 Budget prévu : ${eur(v.total)}${v.lastCost ? ` (dernière fois : ${eur(v.lastCost)} → ${v.total < v.lastCost ? `${eur(v.lastCost - v.total)} de moins` : `${eur(v.total - v.lastCost)} de plus`})` : ''}`);
+  const ref = v.budget ?? v.lastCost, refName = v.budget ? 'ton budget' : 'dernière fois';
+  if (v.total) L.push('', `💶 Coût prévu : ${eur(v.total)}${ref ? ` (${refName} : ${eur(ref)} → ${v.total <= ref ? `${eur(ref - v.total)} en dessous ✅` : `${eur(v.total - ref)} au-dessus ⚠️`})` : ''}`);
   if (v.departImpact) L.push(v.departImpact);
   if (v.villes?.length) L.push('', '📍 ' + v.villes.map(c => `${c.name} (${c.nights} nuits)`).join(' · '));
   if (v.objectifs?.length) L.push('', '🎯 OBJECTIFS', ...v.objectifs.map(o => `${o.icon ?? '•'} ${o.title}`));
@@ -331,7 +333,7 @@ export async function voyagePdf(v: Voyage): Promise<Buffer> {
   const P = (t: string, o: { size?: number; color?: string; bold?: boolean; indent?: number } = {}) => { ensure(28); doc.font(o.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(o.size ?? 10).fillColor(o.color ?? INK).text(latin(t), L + (o.indent ?? 0), doc.y, { width: W - (o.indent ?? 0), lineGap: 2 }); doc.font('Helvetica'); };
   header();
   if (v.resume) P(v.resume, { size: 11 });
-  if (v.total) { doc.moveDown(0.5); P(`Budget prévu : ${eur(v.total)}${v.lastCost ? `   (dernière fois : ${eur(v.lastCost)})` : ''}`, { bold: true, size: 12, color: v.lastCost && v.total > v.lastCost ? '#C73E1D' : GREEN }); }
+  if (v.total) { doc.moveDown(0.5); P(`Coût prévu : ${eur(v.total)}${v.budget ? `   (ton budget : ${eur(v.budget)})` : v.lastCost ? `   (dernière fois : ${eur(v.lastCost)})` : ''}`, { bold: true, size: 12, color: (v.budget ?? v.lastCost) && v.total > (v.budget ?? v.lastCost)! ? '#C73E1D' : GREEN }); }
   if (v.departImpact) P(v.departImpact, { color: GREY });
   if (v.objectifs?.length) { H('Objectifs du voyage'); v.objectifs.forEach((o, i) => { P(`${i + 1}. ${o.title}`, { bold: true }); if (o.text) P(o.text, { indent: 14, color: GREY }); }); }
   if (v.villes?.length) { H('Les villes'); v.villes.forEach(c => P(`${c.name} — ${c.nights} nuit${c.nights > 1 ? 's' : ''} : ${c.why}`)); }
