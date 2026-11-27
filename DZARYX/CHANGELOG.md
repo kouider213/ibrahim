@@ -1,3 +1,9 @@
+## 27/11 — Cerveaux gratuits saturés à 07h33 : compteur par module + Conscience plus sobre la nuit
+- Kouider : message « cerveaux gratuits saturés » le matin (Gemini 20 req/jour/modèle, remise à zéro ~9h). Seulement 2 appels Claude de secours (< 1 centime) : pas un problème de crédit Claude.
+- anthropic-compat : chaque appel gratuit compté par fichier appelant (app_kv free:calls:<jour>:<source>) pour savoir qui consomme.
+- conscience : la nuit (22h45-6h, urgence 3 seulement) une seule réflexion IA par heure au lieu de toutes les 10 min.
+- Grand Coach : demande qui finit par « d'accord merci » sans date = pas un lead (Halima classée « sans suite »).
+
 ## 27/11 — Grand Coach : le message de 7h15 devient un vrai point du jour
 - Kouider : « c'est pas très intéressant ce qu'il dit, faut que ce soit pertinent et compréhensible, un vrai truc pro ». Avant : histoire d'un grand (Hormozi 3× ce mois), 3 actions vagues (« publie la liste des seize voitures disponibles », contraire à la règle « jamais de dispo »), livre jour 26, compte à rebours, 8-10 blocs.
 - Maintenant (makeBrief / briefSignals, kv gc:brief:<date>) : 🎯 1 priorité choisie par le CODE dans les vraies données (demande client sans réponse > acompte avant départ > demande répondue pas conclue > remise à préparer > flotte vide 14 j > retard objectif > FIK Sites) + pourquoi chiffré ; 📊 5 chiffres (mois vs objectif, bénéfice, rythme, acomptes, demandes ouvertes, départs 7 j) ; ✅ 3 actions avec vrais noms (fallback = actions des signaux) ; 💡 leçon d'un grand appliquée à la priorité (2 phrases).

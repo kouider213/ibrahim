@@ -174,7 +174,9 @@ async function briefSignals(): Promise<{ signals: Signal[]; stats: string[] }> {
   for (const d of waiting.slice(0, 2)) sig.push({ score: 100 - Math.min(20, hAgo(d.updated_at) / 6), prio: `Réponds à ${d.chat} (${d.ch === 'tiktok' ? 'TikTok' : 'WhatsApp'})`,
     why: `sa demande attend depuis ${hAgo(d.updated_at)} h ; un client sans réponse part chez un autre.`, action: `Réponds à ${d.chat} sur ${d.ch === 'tiktok' ? 'TikTok' : 'WhatsApp'} (demande ouverte depuis ${hAgo(d.updated_at)} h)` });
   // Demandes déjà répondues mais pas conclues → à faire avancer (vérifier avec Houari puis revenir vers le client)
-  const leads = open.filter(d => d.status !== 'nouveau' && hAgo(d.updated_at) >= 10 && hAgo(d.updated_at) <= 96).sort((a, b) => b.text.length - a.text.length);
+  // 27/11 Halima : « pour 5 jours … d'accord merci », sans date = elle ne rentre pas dans les conditions → pas un lead
+  const closedByThanks = (t: string) => /(d'?accord|ok|merci|saha|baraka ?llahou?)[\s\w!.]{0,25}$/i.test(t.trim().split('\n').at(-1) ?? '') && !/\d{1,2}\s*(\/|au|→|-|hata|jusqu|déc|janv|fév|mars|avr|mai|juin|juil|août|sept|oct|nov)/i.test(t);
+  const leads = open.filter(d => d.status !== 'nouveau' && hAgo(d.updated_at) >= 10 && hAgo(d.updated_at) <= 96 && !closedByThanks(d.text)).sort((a, b) => b.text.length - a.text.length);
   for (const d of leads.slice(0, 2)) {
     const ask = d.text.split('\n').map(x => x.trim()).filter(x => x.length > 3 && !/^(slm|salam|bonjour|bonsoir|salut)\b.{0,20}$/i.test(x)).slice(0, 2).join(', ').slice(0, 70);
     sig.push({ score: 80, prio: `Fais avancer la demande de ${d.chat}`, why: `${d.ch === 'tiktok' ? 'TikTok' : 'WhatsApp'}, il y a ${Math.round(hAgo(d.updated_at) / 24) || 1} j : « ${ask} ». Pas encore réservé.`,

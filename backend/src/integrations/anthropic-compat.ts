@@ -398,6 +398,9 @@ export const compatFetch: typeof fetch = async (input, init) => {
     if (url.includes('count_tokens')) return json(200, { input_tokens: Math.ceil(String(init?.body ?? '').length / 3.5) });
     const lastU = parsed ? blockText([...((parsed.messages ?? []) as Array<{ role: string; content: unknown }>)].reverse().find(m => m.role === 'user')?.content) : '';
     const factual = !!parsed && factualQuestion(lastU);
+    // 27/11 : qui consomme le quota gratuit ? compteur par fichier appelant et par jour (billing claude_usage / free:calls:<jour>:<source>)
+    if (parsed) { const src = callerSource(parsed); const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Brussels' }).format(new Date());
+      void import('../queue/queue.js').then(m => m.redis.incr(`free:calls:${day}:${src}`)).catch(() => {}); }
     let r = parsed ? await freeBrain(parsed, quality, factual && !fast, fast) : null;
     if (r) return parsed!.stream ? toSSE(await r.json() as Body) : r;
     // 🚑 04/11 soir : tout le gratuit est mort → Claude Haiku prend le relais sur TOUT (quota 'tout'), sinon 503 comme avant

@@ -468,6 +468,8 @@ export async function jobConscience(): Promise<string> {
   const sig = JSON.stringify({ ...snap, heure: undefined, lieu: String(snap['lieu']).replace(/\d+ min/, ''), energie: undefined, deja_envoye_3h: undefined, vitesse_kmh: Math.round(Number(snap['vitesse_kmh']) / 30) });
   const last = await kvJson<{ sig: string; at: number } | null>('conscience:last', null);
   if (last && last.sig === sig && Date.now() - last.at < 60 * 60_000) return 'inchangé';
+  // 27/11 07h33 « cerveaux gratuits saturés » : la nuit (urgence 3 seulement) une seule réflexion IA par heure, pas toutes les 10 min
+  if (night && last && Date.now() - last.at < 60 * 60_000) return 'nuit (1/h)';
   await kvPut('conscience:last', { sig, at: Date.now() });
   const log = await kvJson<Nudge[]>(LOG, []);
   const todayN = log.filter(n => localNow(n.at).date === date && n.urgency < 3).length;
