@@ -4,7 +4,7 @@ import { business, apiFetch, type TodayItem, type Booking, type ProfitLedger } f
 import { SkeletonCards } from '../ui/Premium.tsx';
 import { MonArgentMini } from './MonArgentMini.tsx';
 import type { MonArgent } from './MonArgentScreen.tsx';
-import { T, tone, Screen, PageHeader, HeadBtn, Kpi, KpiGrid, SectionTitle, Row, Avatar, Badge, Empty, waLink, money, glass, CountUp } from '../ui/Kit.tsx';
+import { T, tone, Screen, PageHeader, HeadBtn, SectionTitle, Row, Avatar, Badge, waLink, money, glass, CountUp } from '../ui/Kit.tsx';
 import { Icon, Ico } from '../ui/Icon.tsx';
 import MeCard from './MeCard.tsx';
 import { InboxCard } from './InboxCard.tsx';
@@ -38,26 +38,61 @@ type CalEv = { id?: string; summary: string; location?: string; source: string; 
 const evDay = (e: CalEv) => e.start.dateTime ? new Date(e.start.dateTime).toLocaleDateString('sv-SE', { timeZone: 'Africa/Algiers' }) : (e.start.date ?? '');
 const evTime = (e: CalEv) => e.start.dateTime ? new Date(e.start.dateTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Algiers' }) : 'Journée';
 
-/** Agenda FIK du jour (jamais l'agenda perso). */
-function AgendaCard({ evs }: { evs: CalEv[] }) {
-  if (!evs.length) return null;
+type TkTask = { id: string; text: string; time?: string | null; done?: string | null };
+type TkMove = { id: string; kind: 'arrivee' | 'retour'; client: string; time: string | null; date: string };
+type Slot = { k: string; task?: boolean; time: string | null; icon: string; color: string; title: string; sub?: string; phone?: string | null; to?: () => void };
+const nowHM = () => new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Algiers' });
+
+/** 27/11 soir (« améliore la page Aujourd'hui ») : TOUTE la journée dans l'ordre des heures — RDV agenda FIK, départs, retours,
+ *  tâches à heure fixe, argent à encaisser — avec un repère « maintenant ». Avant, départs/retours/agenda étaient tout en bas. */
+function DayCard({ d, evs, tasks, moves }: { d: Today | null; evs: CalEv[]; tasks: TkTask[]; moves: TkMove[] }) {
+  const t = ymd();
+  const mvTime = (client: string, kind: TkMove['kind']) => moves.find(m => m.kind === kind && m.date?.slice(0, 10) === t && m.client === client)?.time ?? null;
+  const slots: Slot[] = [
+    ...evs.map((e, i) => ({ k: `e${e.id ?? i}`, time: e.start.dateTime ? evTime(e) : null, icon: 'calendar', color: T.violet, title: e.summary, sub: e.location, to: () => go('calendar') })),
+    ...(d?.departures ?? []).map(x => ({ k: `d${x.id}`, time: mvTime(x.client, 'arrivee'), icon: 'car', color: T.accent, title: `Départ · ${x.client}`, sub: x.car, phone: x.phone, to: () => openClient({ name: x.client, phone: x.phone }) })),
+    ...(d?.returns ?? []).map(x => ({ k: `r${x.id}`, time: mvTime(x.client, 'retour'), icon: 'car', color: T.ok, title: `Retour · ${x.client}`, sub: x.car, phone: x.phone, to: () => openClient({ name: x.client, phone: x.phone }) })),
+    ...tasks.filter(x => !x.done).map(x => ({ k: `t${x.id}`, time: x.time ?? null, icon: 'check', color: T.warn, title: x.text, sub: 'tâche', task: true })),
+    ...(d?.toCollect ?? []).map(x => ({ k: `c${x.id}`, time: null, icon: 'wallet', color: T.warn, title: `Encaisser ${money(x.due)} · ${x.client}`, sub: x.car, phone: x.phone, to: () => openClient({ name: x.client, phone: x.phone }) })),
+  ].sort((a, b) => (a.time ?? '99').localeCompare(b.time ?? '99'));
+  if (!slots.length) return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 18, border: `1px dashed ${T.lineStrong}`, color: T.muted, fontSize: 14, marginBottom: 18 }}>
+      <Icon name="sparkles" size={20} /> Journée libre : aucun RDV, aucun départ ni retour, rien à encaisser.
+    </div>);
+  const now = nowHM();
+  const nowAt = slots.findIndex(x => x.time && x.time > now);
+  const nowIdx = nowAt === -1 ? slots.filter(x => x.time).length : nowAt;
+  const NowLine = () => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+      <span style={{ fontFamily: T.mono, fontSize: 11.5, fontWeight: 700, color: T.bad, minWidth: 48 }}>{now}</span>
+      <span style={{ width: 8, height: 8, borderRadius: 99, background: T.bad, boxShadow: `0 0 8px ${T.bad}` }} />
+      <span style={{ flex: 1, height: 1.5, background: tone(T.bad, 0.5) }} />
+      <span style={{ fontSize: 11, fontWeight: 700, color: T.bad }}>maintenant</span>
+    </div>);
   return (
     <div style={{ marginBottom: 18 }}>
-      <SectionTitle right={<Badge color={T.violet}>{evs.length}</Badge>}><Ico e="📅" />Ton agenda du jour</SectionTitle>
-      <div className="dz-press" role="button" onClick={() => go('calendar')} style={{ ...glass(T.violet), borderRadius: 20, padding: '8px 14px', cursor: 'pointer' }}>
-        {evs.slice(0, 4).map((e, i) => (
-          <div key={e.id ?? i} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '8px 0', borderTop: i ? `1px solid ${T.line}` : 'none' }}>
-            <span style={{ fontFamily: T.mono, fontSize: 13, fontWeight: 600, color: T.violet, minWidth: 52 }}>{evTime(e)}</span>
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontSize: 14.5, fontWeight: 650, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.summary}</div>
-              {e.location && <div style={{ fontSize: 12.5, color: T.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.location}</div>}
-            </div>
-          </div>
-        ))}
-        {evs.length > 4 && <div style={{ fontSize: 12.5, color: T.faint, padding: '4px 0 6px' }}>+ {evs.length - 4} autre{evs.length - 4 > 1 ? 's' : ''} · ouvrir l'agenda ›</div>}
+      <SectionTitle right={<Badge color={T.accent}>{slots.length}</Badge>}><Ico e="📅" />Ta journée</SectionTitle>
+      <div style={{ ...glass(T.accent), borderRadius: 20, padding: '8px 14px' }}>
+        {slots.map((x, i) => {
+          const past = !!x.time && x.time <= now, late = past && x.task;
+          return (
+            <div key={x.k}>
+              {i === nowIdx && i > 0 && <NowLine />}
+              {x.time === null && (i === 0 || slots[i - 1].time !== null) && <div style={{ fontFamily: T.mono, fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.faint, padding: '8px 0 2px', borderTop: i ? `1px solid ${T.line}` : 'none' }}>Dans la journée</div>}
+              <div className={x.to ? 'dz-press' : undefined} role={x.to ? 'button' : undefined} onClick={x.to} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 0', cursor: x.to ? 'pointer' : 'default', opacity: past && !late ? 0.5 : 1 }}>
+                {x.time !== null && <span style={{ fontFamily: T.mono, fontSize: 13, fontWeight: 600, color: x.color, minWidth: 48 }}>{x.time}</span>}
+                <span style={{ width: 30, height: 30, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', color: x.color, background: tone(x.color, 0.14), flexShrink: 0 }}><Icon name={x.icon} size={15} stroke={2} /></span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 650, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.title}</div>
+                  {x.sub && <div style={{ fontSize: 12.5, color: late ? T.bad : T.muted, fontWeight: late ? 700 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{late ? 'tâche en retard · pas encore faite' : x.sub}</div>}
+                </div>
+                {x.phone !== undefined && <WaBtn phone={x.phone} />}
+              </div>
+            </div>);
+        })}
+        {nowIdx === slots.length && slots.some(x => x.time) && <NowLine />}
       </div>
-    </div>
-  );
+    </div>);
 }
 
 export default function CommandCenterScreen() {
@@ -75,6 +110,7 @@ export default function CommandCenterScreen() {
   const [bks, setBks] = useState<Booking[]>([]);
   const [evs, setEvs] = useState<CalEv[]>([]);
   const [tick, setTick] = useState(0);
+  const [tk, setTk] = useState<{ today: TkTask[]; moves: TkMove[] }>({ today: [], moves: [] });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -84,6 +120,7 @@ export default function CommandCenterScreen() {
     business.fetchFinanceReport(now.getFullYear(), now.getMonth() + 1).then(r => setMonthCA(r.grossCA)).catch(() => {});
     business.fetchBookings().then(r => setBks(r.bookings ?? [])).catch(() => {});
     apiFetch<{ events: CalEv[] }>('/api/calendar/all?actor=kouider').then(r => { const t = ymd(); setEvs((r.events ?? []).filter(e => e.source === 'fik' && evDay(e) === t)); }).catch(() => {});
+    apiFetch<{ today: TkTask[]; moves: TkMove[] }>('/api/taches').then(r => setTk({ today: r.today ?? [], moves: r.moves ?? [] })).catch(() => {});
     setTick(x => x + 1);
     try { setD(await business.insightsToday()); } catch { setD(null); }
     finally { setLoading(false); }
@@ -100,6 +137,10 @@ export default function CommandCenterScreen() {
 
   const due = d ? d.toCollect.reduce((s, x) => s + x.due, 0) : 0;
   const moves = d ? d.departures.length + d.returns.length : 0;
+  const openTasks = tk.today.filter(x => !x.done).length;
+  // 27/11 : le résumé du haut dit tout en une ligne (voitures, RDV, tâches, argent)
+  const summary = [moves ? `${moves} voiture${moves > 1 ? 's' : ''} qui bouge${moves > 1 ? 'nt' : ''}` : '', evs.length ? `${evs.length} RDV` : '', openTasks ? `${openTasks} tâche${openTasks > 1 ? 's' : ''}` : '', due ? `${money(due)} à encaisser` : '']
+    .filter(Boolean).join(' · ') || (d ? 'Journée calme : rien de prévu.' : 'Voitures indisponibles pour le moment.');
 
   // En ce moment : voitures dehors (sans celles qui partent / rentrent aujourd'hui : elles sont déjà plus bas) + arrivées 7 j
   const t = ymd();
@@ -108,36 +149,17 @@ export default function CommandCenterScreen() {
   const out = live.filter(b => b.start_date.slice(0, 10) <= t && b.end_date.slice(0, 10) >= t && !shownToday.has(b.id));
   const soon = live.filter(b => b.start_date.slice(0, 10) > t && dayN(t, b.start_date) <= 7).sort((a, b) => a.start_date.localeCompare(b.start_date));
 
-  const Section = ({ title, items, col, icon, empty, verb }: { title: string; items: Array<TodayItem & { due?: number }>; col: string; icon: string; empty: string; verb: string }) => (
-    <div style={{ marginBottom: 18 }}>
-      <SectionTitle right={<Badge color={items.length ? col : T.faint}>{items.length}</Badge>}>{icon} {title}</SectionTitle>
-      {items.length === 0 ? (
-        <div style={{ fontSize: 14, color: T.faint, padding: '4px 2px' }}>{empty}</div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {items.map(it => (
-            <Row key={it.id} accent={col} onClick={() => openClient({ name: it.client, phone: it.phone })}
-              left={<Avatar name={it.client} color={col} />}
-              title={it.client}
-              sub={<>{verb} · <span style={{ color: T.text }}>{it.car}</span>{it.due != null && <> · <b style={{ color: T.warn }}>{money(it.due)}</b></>}</>}
-              right={<WaBtn phone={it.phone} />}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
   return (
     <Screen header={
       <PageHeader eyebrow={longDate()} title={`${hello()} Kouider`}
-        subtitle={loading ? 'Je prépare ta journée…' : !d ? 'Données indisponibles' : moves || due ? `${moves} mouvement${moves > 1 ? 's' : ''} de voiture aujourd'hui${due ? ` · ${money(due)} à encaisser` : ''}` : 'Journée calme : aucun départ ni retour.'}
+        subtitle={loading && !d ? 'Je prépare ta journée…' : summary}
         right={<HeadBtn icon="↻" label="Actualiser" onClick={() => void load()} busy={loading} />} />
     }>
-      {loading && !d ? <SkeletonCards count={4} /> : !d ? (
-        <Empty icon="📡" title="Pas de connexion au serveur" text="Vérifie le réseau puis actualise." />
-      ) : (
+      {loading && !d && !ma ? <SkeletonCards count={4} /> : (
         <>
+          {/* 27/11 : si /api/insights/today tombe, le reste de la page (argent, messages, tâches) s'affiche quand même */}
+          {!d && !loading && <div className="dz-press" role="button" onClick={() => void load()} style={{ cursor: 'pointer', marginBottom: 14, padding: '10px 14px', borderRadius: 14, background: tone(T.warn, 0.1), border: `1px solid ${tone(T.warn, 0.35)}`, fontSize: 13.5, color: T.text }}>
+            <Ico e="📡" /> Départs et retours pas chargés — <b>toucher pour réessayer</b></div>}
           {/* 27/11 soir : TOUT son cash (en main + chez Houari), chaque morceau nommé — privé (Kouider seulement), sinon l'ancienne carte */}
           {ma && (() => {
             const hide = localStorage.getItem('dz:argent:hide') === '1', fm = (n: number) => (hide ? '•••• €' : money(n));
@@ -185,6 +207,8 @@ export default function CommandCenterScreen() {
           </div>
 
           </>}
+
+          <DayCard d={d} evs={evs} tasks={tk.today} moves={tk.moves} />
 
           {/* 27/11 À traiter : WhatsApp, TikTok, relances, réservations — avec les boutons (envoyer, dispo, complet, réécrire…) */}
           <InboxCard tick={tick} />
@@ -257,25 +281,10 @@ export default function CommandCenterScreen() {
 
           <MeCard key={tick} />
 
-          <AgendaCard evs={evs} />
-
-          <KpiGrid>
-            <Kpi value={d.newDemands} label="Demandes (24 h)" color={T.accent2} sub={d.pendingBookings ? `${d.pendingBookings} résa à confirmer` : undefined} />
-            <Kpi value={soon.length} label="Arrivées (7 j)" color={T.accent} sub={soon[0] ? `prochaine ${shortD(soon[0].start_date)}` : 'aucune prévue'} />
-          </KpiGrid>
-
-          {d.pendingBookings > 0 && (
+          {/* 27/11 : agenda, départs, retours, à encaisser → carte « Ta journée » en haut ; résas à confirmer → « À traiter » */}
+          {d && d.pendingBookings > 0 && (
             <div className="dz-press" role="button" onClick={() => go('leads')} style={{ cursor: 'pointer', marginBottom: 18, padding: '12px 14px', borderRadius: 14, background: tone(T.warn, 0.1), border: `1px solid ${tone(T.warn, 0.35)}`, fontSize: 14, color: T.text, lineHeight: 1.4 }}>
-              ⏳ <b>{d.pendingBookings} réservation{d.pendingBookings > 1 ? 's' : ''}</b> en attente de confirmation — <b>ouvrir Demandes ›</b>
-            </div>
-          )}
-
-          {d.departures.length > 0 && <Section title="Départs aujourd'hui" items={d.departures} col={T.accent} icon="🚗" empty="" verb="Part avec" />}
-          {d.returns.length > 0 && <Section title="Retours aujourd'hui" items={d.returns} col={T.violet} icon="↩️" empty="" verb="Rend" />}
-          {d.toCollect.length > 0 && <Section title="À encaisser" items={d.toCollect} col={T.warn} icon="💰" empty="" verb="Location" />}
-          {!d.departures.length && !d.returns.length && !d.toCollect.length && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 18, border: `1px dashed ${T.lineStrong}`, color: T.muted, fontSize: 14 }}>
-              <span style={{ fontSize: 22 }}>✨</span> Aucun départ, aucun retour, rien à encaisser aujourd'hui.
+              <Ico e="⏳" /> <b>{d.pendingBookings} réservation{d.pendingBookings > 1 ? 's' : ''}</b> en attente de confirmation — <b>ouvrir Demandes ›</b>
             </div>
           )}
         </>

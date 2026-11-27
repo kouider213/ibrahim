@@ -45,12 +45,12 @@ export function MonArgentMini() {
   return (
     <div style={{ ...glass(SRC_COL.snus), borderRadius: 22, padding: 14, marginBottom: 18 }}>
       <div className="dz-press" role="button" onClick={() => go('argent')} style={{ display: 'flex', alignItems: 'baseline', cursor: 'pointer' }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: '0.09em', textTransform: 'uppercase', color: T.muted }}>Mon argent · aujourd'hui</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: '0.09em', textTransform: 'uppercase', color: T.muted, lineHeight: 1.35 }}>Mon argent<br />aujourd'hui</div>
           <div style={{ fontFamily: T.display, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', marginTop: 4 }}>{fm(net)}</div>
           <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{day?.pris ? <>ventes {fm(day.ventes)} − pris <b style={{ color: T.bad }}>{fm(day.pris)}</b></> : 'ventes du jour'}{last?.time ? ` · ${last.time}` : ''}{day?.readAt ? ` · lu à ${day.readAt}` : ''}</div>
         </div>
-        <div style={{ textAlign: 'right', fontSize: 12.5, color: T.muted }}>
+        <div style={{ textAlign: 'right', fontSize: 12.5, color: T.muted, flexShrink: 0, marginLeft: 10 }}>
           <div>🟢 {o.snus.today} snus{o.extras?.stock ? <> · <span role="button" onClick={e => { e.stopPropagation(); go('stocksnus'); }} style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, color: stockLow ? T.bad : undefined, fontWeight: stockLow ? 800 : 700 }}>📦 stock {o.extras.stock.pieces}{stockLow ? ' ⚠️' : ''} ›</span></> : ''}</div><div>Ce mois <b style={{ color: T.text }}>{fm(o.month.total)}</b></div>
           <div style={{ color: T.accent, fontWeight: 700, marginTop: 2 }}>Détails ›</div>
         </div>

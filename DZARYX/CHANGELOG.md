@@ -1,3 +1,11 @@
+## 27/11 — Page Aujourd'hui réorganisée (app v328)
+- Kouider : « améliore la page Aujourd'hui ».
+- Nouvelle carte « Ta journée » juste sous la carte cash : RDV agenda FIK, départs, retours, tâches à heure fixe et argent à encaisser, dans l'ordre des heures, avec une ligne rouge « maintenant » ; heure des mouvements reprise de /api/taches (moves) ; tâche passée pas faite = « en retard » en rouge ; bouton WhatsApp sur les départs/retours.
+- Avant : agenda, départs, retours et « à encaisser » étaient tout en bas → supprimés là (doublons), tuiles « Demandes 24 h / Arrivées 7 j » retirées (déjà dans À traiter / En ce moment).
+- Si /api/insights/today ne répond pas, la page ne montre plus « Pas de connexion » en entier : argent, messages et tâches restent, bandeau « toucher pour réessayer ».
+- Résumé du haut : voitures qui bougent · RDV · tâches · à encaisser.
+- Carte Mon argent : « MON ARGENT · AUJOURD'HUI » ne chevauche plus « 16 snus · stock ».
+
 ## 27/11 — Algérie = Oran + tout est privé (app v327)
 - Kouider : « en Algérie je vis à Oran, j'arrive toujours à Oran ; tout ce qu'on fait et va faire, personne ne doit le voir à part moi ».
 - Règle SA VIE (constants.ts, tous les cerveaux) + dossier : arrivée toujours Oran, Oran = sa base (jamais d'hôtel à Oran), autres villes = sorties depuis Oran ; tout ce qui le concerne est privé (ni Houari, ni clients, ni quelqu'un sur son téléphone ; rien dans WhatsApp/mail/doc/post sans sa demande).
