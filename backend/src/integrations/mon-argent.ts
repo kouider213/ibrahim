@@ -216,7 +216,7 @@ export async function monArgentAdd(input: { cat: string; amount?: number; qty?: 
   }
   const l = await kvJson<Entry[]>(J, []);
   l.push(e); await kvPut(J, l);
-  await moveCash(e.amount);   // 27/11 soir : une vente met l'argent dans le cash (Kouider : « les 1000 € c'est pas juste, ça doit être 1079 »)
+  await moveCash(e.amount);   // 27/11 soir : une vente met l'argent dans le cash (Kouider : le cash doit inclure l'argent du jour)
   return cat === 'snus' ? `+${e.qty} pièce${e.qty! > 1 ? 's' : ''}${e.label ? ` ${e.label}` : ''} (${eur(e.amount)})` : cat === 'appartement' ? `Appartement : bénéfice ${eur(e.amount)}` : `+${eur(e.amount)} ${LABEL[cat]}`;
 }
 
