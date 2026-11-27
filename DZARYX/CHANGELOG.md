@@ -1,3 +1,8 @@
+## 27/11 soir (5) — Mails : prospects exclus ; argent hors location = net
+- Kouider : « aucune collaboration avec cette personne, elle a envoyé STOP à la prospection ». L'expéditeur était un prospect démarché (déjà en « refus ») ; mail-digest exclut les expéditeurs de la table prospects des sections « importants » et « sans réponse » (ils ont leur section « réponses de prospects »).
+- La revue comptait les ventes hors location sans retirer ce qu'il a pris dessus : periodMoney.net = ventes − pris ; revue « gardés — vendus − pris », total en net ; « Hier » du point du jour aussi en net.
+- Commentaires de code sans montants.
+
 ## 27/11 soir (4) — MES VOYAGES : « Mon budget » au lieu de « La dernière fois » (app v332)
 - Kouider (capture 21h41) : « je veux pas la dernière fois, je veux noter mon budget ». Champ « Mon budget (€) » → budget ; le plan doit tenir dedans (prompt) ; comparaison « en dessous / au-dessus de ton budget » (fiche, liste, dépenses, Telegram, PDF, impact départ). Anciens voyages avec « dernière fois » toujours affichés.
 

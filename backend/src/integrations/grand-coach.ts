@@ -147,7 +147,7 @@ const hAgo = (iso: string) => Math.max(0, Math.round((Date.now() - Date.parse(is
 async function monthNumbers(books: Row[]): Promise<{ ca: number; pr: number; target: number; pace: number; miss: number; left: number; ppd: number; auto: boolean }> {
   const today = localNow().date, m0 = `${today.slice(0, 7)}-01`;
   const pm = addDays(m0, -1).slice(0, 7);
-  // 27/11 : 3 chiffres différents le même jour (225 € ici, 555 € dans l'app, 665 € ailleurs) → UNE règle : getFinancialReport (finance.ts)
+  // 27/11 : 3 chiffres du mois différents le même jour (coach, app, récap) → UNE règle : getFinancialReport (finance.ts)
   const { getFinancialReport } = await import('./finance.js');
   const [rep, prevRep] = await Promise.all([getFinancialReport(+today.slice(0, 4), +today.slice(5, 7)).catch(() => null), getFinancialReport(+pm.slice(0, 4), +pm.slice(5, 7)).catch(() => null)]);
   const month = books.filter(b => d10(b['start_date']).slice(0, 7) === today.slice(0, 7));
@@ -387,10 +387,10 @@ export async function revue(): Promise<string> {
   // 27/11 : tout son argent, pas seulement les locations (snus, ventes, autres, achats, dépenses — MON ARGENT)
   const ma = await import('./mon-argent.js');
   const [mc, mp] = await Promise.all([ma.periodMoney(a, today).catch(() => null), ma.periodMoney(b0, a).catch(() => null)]);
-  const autres = mc ? [`${arrow(mc.ventes, mp?.ventes ?? 0)} Hors location : ${eur(mc.ventes)} gagnés (avant ${eur(mp?.ventes ?? 0)})${Object.keys(mc.by).length ? ` — ${Object.entries(mc.by).sort((x, y) => y[1] - x[1]).map(([k, v]) => `${k} ${eur(v)}`).join(', ')}` : ''}${mc.pieces ? ` · ${mc.pieces} pièces de snus` : ''}`,
+  const autres = mc ? [`${arrow(mc.net, mp?.net ?? 0)} Hors location : ${eur(mc.net)} gardés (avant ${eur(mp?.net ?? 0)})${mc.pris ? ` — ${eur(mc.ventes)} vendus − ${eur(mc.pris)} pris dessus` : ''}${Object.keys(mc.by).length > 1 ? ` · ${Object.entries(mc.by).sort((x, y) => y[1] - x[1]).map(([k, v]) => `${k} ${eur(v)}`).join(', ')}` : ''}${mc.pieces ? ` · ${mc.pieces} pièces de snus` : ''}`,
     ...(mc.achats ? [`📦 Achats de stock : ${eur(mc.achats)}`] : []), ...(mc.depenses ? [`💸 Dépenses notées : ${eur(mc.depenses)}`] : []),
-    `💰 Total gagné la semaine (locations + le reste) : ${eur(cur.pr + mc.ventes)} (avant ${eur(prev.pr + (mp?.ventes ?? 0))})`] : [];
-  const facts = `Semaine : ${cur.n} réservations (avant : ${prev.n}), CA réservé ${eur(cur.ca)} (avant ${eur(prev.ca)}), bénéfice locations ${eur(cur.pr)} (avant ${eur(prev.pr)}). ${mc ? `Hors location (snus, ventes, autres) : ${eur(mc.ventes)} (avant ${eur(mp?.ventes ?? 0)}), achats de stock ${eur(mc.achats)}, dépenses ${eur(mc.depenses)}. ` : ''}Actions du jour faites : ${done}/${total}.`;
+    `💰 Total gagné la semaine (locations + le reste) : ${eur(cur.pr + mc.net)} (avant ${eur(prev.pr + (mp?.net ?? 0))})`] : [];
+  const facts = `Semaine : ${cur.n} réservations (avant : ${prev.n}), CA réservé ${eur(cur.ca)} (avant ${eur(prev.ca)}), bénéfice locations ${eur(cur.pr)} (avant ${eur(prev.pr)}). ${mc ? `Hors location (snus, ventes, autres) : ${eur(mc.net)} gardés après ${eur(mc.pris)} pris dessus (avant ${eur(mp?.net ?? 0)}), achats de stock ${eur(mc.achats)}, dépenses ${eur(mc.depenses)}. ` : ''}Actions du jour faites : ${done}/${total}.`;
   const week = await import('./kouider-dossier.js').then(m => m.weekScheduleText()).catch(() => '');
   // 27/11 Kouider : « je comprends pas la leçon, elle n'a aucun sens » → français simple, pas de citation, une action un jour LIBRE
   const lesson = await ai(`${facts}\n${week}\nTu es le bras droit de Kouider (FIK : location de voitures à Oran ; il vit et travaille en Belgique ; le snus est une autre activité, en Belgique, ne mélange jamais les deux). `

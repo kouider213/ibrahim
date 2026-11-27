@@ -598,7 +598,9 @@ export async function periodMoney(from: string, to: string) {
   const by: Record<string, number> = {};
   for (const e of l) if (e.t === 'vente' && e.cat !== 'fik') by[LABEL[e.cat] ?? e.cat] = r2((by[LABEL[e.cat] ?? e.cat] ?? 0) + e.amount);
   const sum = (t: Entry['t']) => r2(l.filter(e => e.t === t).reduce((s, e) => s + e.amount, 0));
-  return { ventes: r2(Object.values(by).reduce((s, x) => s + x, 0)), by, pieces: l.filter(e => e.t === 'vente' && e.cat === 'snus').reduce((s, e) => s + (e.qty ?? 0), 0),
+  const ventes = r2(Object.values(by).reduce((s, x) => s + x, 0));
+  // 27/11 Kouider : la revue comptait les ventes sans retirer ce qu'il a pris dessus → net = ventes − pris
+  return { ventes, net: r2(ventes - sum('prise')), by, pieces: l.filter(e => e.t === 'vente' && e.cat === 'snus').reduce((s, e) => s + (e.qty ?? 0), 0),
     achats: sum('achat'), depenses: sum('depense'), pris: sum('prise') };
 }
 
@@ -621,7 +623,7 @@ export async function monArgentExtras() {
   const ageOf = (d?: string) => (d ? Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${d}T12:00:00Z`)) / 86_400_000) : null);
   return {
     settings: set, stock,
-    yesterday: { total: r2(salesY.reduce((s, e) => s + e.amount, 0) + fikY), pieces: salesY.filter(e => e.cat === 'snus').reduce((s, e) => s + piecesOf(e), 0) },
+    yesterday: { total: r2(salesY.reduce((s, e) => s + e.amount, 0) - l.filter(e => e.t === 'prise' && e.d === y).reduce((s, e) => s + e.amount, 0) + fikY) /* net : ce qu'il a pris dessus retiré (27/11) */, pieces: salesY.filter(e => e.cat === 'snus').reduce((s, e) => s + piecesOf(e), 0) },
     dayGoal: set.dayPieces ? { target: set.dayPieces, done: todayPieces } : null,
     monthGoal: set.monthEur ? { target: set.monthEur, done: r2(monthGain), perDayLeft: Math.max(0, Math.round((set.monthEur - monthGain) / Math.max(1, left))) } : null,
     expenses: { total: r2(dep.reduce((s, e) => s + e.amount, 0)), byCat: depBy, saveRate: monthGain > 0 && dep.length ? Math.round((1 - dep.reduce((s, e) => s + e.amount, 0) / monthGain) * 100) : null },

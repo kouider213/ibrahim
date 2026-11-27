@@ -47,16 +47,22 @@ export async function buildMailDigest(): Promise<string | null> {
     listInboxMessages('pro', `in:inbox older_than:3d newer_than:14d ${NOISE}`, 30),
   ]);
 
+  // 27/11 Kouider : « CARONLINE — partenaire demande arrêt collaboration » = une agence DÉMARCHÉE qui a répondu « STOP » (déjà en refus).
+  // Les réponses des prospects ont leur propre section → jamais dans « sans réponse » ni « importants ».
+  const { data: pr } = await supabase.from('prospects').select('email');
+  const prospectMails = new Set(((pr ?? []) as Array<{ email: string | null }>).map(p => String(p.email ?? '').toLowerCase().trim()).filter(Boolean));
+  const isProspect = (from: string) => { const e = (/<([^>]+)>/.exec(from)?.[1] ?? from).toLowerCase().trim(); return prospectMails.has(e); };
+
   // Sans réponse : le dernier mail du fil vient d'eux (pas de mail ENVOYÉ après)
   const unansweredCandidates: Array<InboxMessage & { text: string }> = [];
-  for (const m of latestPerThread(older).slice(0, 15)) {
+  for (const m of latestPerThread(older).filter(x => !isProspect(x.from)).slice(0, 15)) {
     const thread = await readThread('pro', m.threadId, 600).catch(() => []);
     const last = thread.at(-1);
     if (last && !last.sent && !/no-?reply|mailer-daemon|notification/i.test(last.from)) unansweredCandidates.push({ ...m, text: last.body });
   }
 
   const todayFull: Array<InboxMessage & { text: string }> = [];
-  for (const m of latestPerThread(today).slice(0, 20)) {
+  for (const m of latestPerThread(today).filter(x => !isProspect(x.from)).slice(0, 20)) {
     const thread = await readThread('pro', m.threadId, 600).catch(() => []);
     const last = thread.find(t => t.id === m.id) ?? thread.at(-1);
     todayFull.push({ ...m, text: last?.body ?? '' });
