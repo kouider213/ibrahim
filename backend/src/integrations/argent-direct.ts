@@ -7,6 +7,7 @@
 import { kvJson, kvPut } from './ai-util.js';
 import { localNow } from './morning-routine.js';
 import { loadFinances } from './perso-finances.js';
+import { aliasHit } from './stock-produits.js';
 
 type Entry = { d: string; t: 'vente' | 'achat' | 'depense'; cat: string; amount: number; mode: 'cash' | 'carte'; note?: string; at?: number };
 const J = 'perso:journal', CASH_LOG = 'perso:cash_log';
@@ -32,7 +33,7 @@ export type MoneyCommand = {
   /** 11/11 : « aucun / rien gagné aujourd'hui, pas eu le temps » → journée à 0 € (05/11 : « ⚠️ Je n'ai pas exécuté cette action ») */
   zero?: { date: string };
   /** 27/11 « 3 pièces », « 10 pièces à 5 », « 12 pièces lot » = des PIÈCES de snus (prix calculé comme dans l'app) */
-  pieces?: { qty: number; tarif: string; date: string };
+  pieces?: { qty: number; tarif: string; date: string; pid?: string };
   /** 27/11 « j'ai 12000 sur le compte » (exemple), « épargne 12 000 » (la réponse elle-même disait de l'écrire comme ça, et rien n'était compris) */
   savings?: number;
 };
@@ -122,7 +123,14 @@ export function parseMoneyCommand(raw: string): MoneyCommand | null {
     const pc = msg.match(/(?:^|\s|\+)(\d{1,3})\s*pi[eè]ces?\b(?:\s*(?:de\s*)?snus)?(?:[^\d?]{0,12}?(?:à|a)\s*([56])\s*(?:€|e\b|euros?)?)?(\s*(?:en\s*)?lot)?/i);
     if (pc && !/\?|combien|appart|logement|maison|chambre|\bf[1-6]\b|studio|pi[eè]ces? (?:détachée|auto|moteur)/i.test(msg)) {
       const qty = Number(pc[1]);
-      if (qty >= 1 && qty <= 500) return { pieces: { qty, tarif: pc[2] === '5' ? 'cinq' : pc[2] === '6' ? 'six' : pc[3] ? 'lot' : 'normal', date: dayOf(msg, today) ?? today } };
+      if (qty >= 1 && qty <= 500) return { pieces: { qty, tarif: pc[2] === '5' ? 'cinq' : pc[2] === '6' ? 'six' : pc[3] ? 'lot' : 'normal', date: dayOf(msg, today) ?? today, ...(aliasHit(msg) ? { pid: aliasHit(msg)! } : {}) } };
+    }
+    // « 3 velo 5 », « hier 2 pablo ice à 5 » : un nombre + un produit de SON catalogue (privé) = des pièces de ce produit
+    const pid = !/\?|combien/i.test(msg) ? aliasHit(msg) : null;
+    const nq = pid ? msg.match(/(?:^|\s|\+)(\d{1,3})\s+(?![\d])/) : null;
+    if (pid && nq) {
+      const qty = Number(nq[1]); const at = msg.match(/(?:à|a)\s*([56])\s*(?:€|e\b|euros?)?\s*$/i);
+      if (qty >= 1 && qty <= 500) return { pieces: { qty, tarif: at?.[1] === '5' ? 'cinq' : at?.[1] === '6' ? 'six' : /\blot\b/i.test(msg) ? 'lot' : 'normal', date: dayOf(msg, today) ?? today, pid } };
     }
   }
   {
@@ -289,7 +297,7 @@ export async function runMoneyCommand(c: MoneyCommand): Promise<string> {
   }
   const out: string[] = [];
   if (c.pieces) {
-    const r = await (await import('./mon-argent.js')).monArgentAdd({ cat: 'snus', qty: c.pieces.qty, tarif: c.pieces.tarif, date: c.pieces.date });
+    const r = await (await import('./mon-argent.js')).monArgentAdd({ cat: 'snus', qty: c.pieces.qty, tarif: c.pieces.tarif, date: c.pieces.date, ...(c.pieces.pid ? { pid: c.pieces.pid } : {}) });
     const st = await (await import('./mon-argent.js')).snusStock().catch(() => null);
     return `✅ ${r[0]!.toUpperCase()}${r.slice(1)}${c.pieces.date !== localNow().date ? ` le ${label(c.pieces.date)}` : ''}.${st ? ` Stock : ≈ ${st.pieces} pièces.` : ''}`;
   }

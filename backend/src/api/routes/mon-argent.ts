@@ -35,6 +35,15 @@ router.post('/arrivage', act(b => snusArrivage(Number(b['pieces']), Number(b['co
 router.post('/depense', act(b => monArgentExpense(String(b['cat']), Number(b['amount']), b['cash'] === true, b['label'] ? String(b['label']) : undefined)));
 router.post('/transfert', act(b => monArgentTransfer(b['kind'] === 'retrait' ? 'retrait' : 'depot', Number(b['amount']), b['why'] ? String(b['why']) : undefined)));
 router.post('/recap', act(async () => { const { localNow } = await import('../../integrations/morning-routine.js'); const t = localNow().date; await (await import('../../integrations/argent-recap.js')).sendRecap(`${t.slice(0, 7)}-01`, t, 'de ce mois'); return '📄 Récap du mois envoyé sur Telegram'; }));
+// 27/11 : stock par produit (catalogue privé), comptage, factures fournisseur, ruptures
+router.get('/stock', async (_req, res) => { try { res.json(await (await import('../../integrations/stock-produits.js')).stockOverview()); } catch (e) { fail(res, e); } });
+const sp = (f: (m: typeof import('../../integrations/stock-produits.js'), b: Record<string, unknown>) => Promise<unknown>) => async (req: import('express').Request, res: import('express').Response) => {
+  try { const m = await import('../../integrations/stock-produits.js'); await f(m, (req.body ?? {}) as Record<string, unknown>); res.json(await m.stockOverview()); } catch (e) { fail(res, e); }
+};
+router.post('/stock/count', sp((m, b) => m.setCount((b['counts'] ?? {}) as Record<string, number>)));
+router.post('/stock/order', sp((m, b) => m.addCommande({ d: String(b['d']), lines: (Array.isArray(b['lines']) ? b['lines'] : []).map((l: Record<string, unknown>) => ({ pid: String(l['pid']), qty: Number(l['qty']), unit: Number(l['unit']) })), shipping: Number(b['shipping'] ?? 0), taxes: Number(b['taxes'] ?? 0), total: Number(b['total'] ?? 0) })));
+router.post('/stock/order/delete', sp((m, b) => m.deleteCommande(String(b['id']))));
+router.post('/stock/product', sp(async (m, b) => { const c = await m.catalog(); const p = c.find(x => x.id === b['id']); if (!p) throw new Error('Produit inconnu'); if (b['rupture'] !== undefined) p.rupture = !!b['rupture']; if (b['remplace'] !== undefined) p.remplace = String(b['remplace']) || undefined; if (b['active'] !== undefined) p.active = !!b['active']; if (b['cost'] !== undefined) p.cost = Number(b['cost']); await m.saveCatalog(c); }));
 // Analyse FIK (quand les clients écrivent, délai avant réservation, évolution par mois)
 router.get('/fik-insights', async (_req, res) => { try { res.json(await fikInsights()); } catch (e) { fail(res, e); } });
 

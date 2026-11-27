@@ -43,6 +43,7 @@ import FormeScreen from './screens/FormeScreen.tsx';
 import FennouScreen from './screens/FennouScreen.tsx';
 import LiberteScreen from './screens/LiberteScreen.tsx';
 import MonArgentScreen from './screens/MonArgentScreen.tsx';
+import StockScreen from './screens/StockScreen.tsx';
 import JarvisScreen from './screens/JarvisScreen.tsx';
 import CoachScreen from './screens/CoachScreen.tsx';
 import JeuxScreen from './screens/JeuxScreen.tsx';
@@ -53,7 +54,7 @@ export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
   | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews' | 'blog' | 'devis' | 'reponse'
-  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'demarchage' | 'sites' | 'partners' | 'paiements' | 'studio' | 'carte' | 'nexus' | 'globe' | 'camera' | 'route' | 'sport' | 'coach' | 'fennou' | 'liberte' | 'argent' | 'jeux' | 'jarvis' | 'plus';
+  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'demarchage' | 'sites' | 'partners' | 'paiements' | 'studio' | 'carte' | 'nexus' | 'globe' | 'camera' | 'route' | 'sport' | 'coach' | 'fennou' | 'liberte' | 'argent' | 'stocksnus' | 'jeux' | 'jarvis' | 'plus';
 
 // Onglets du bas : pas de bouton retour
 const ROOT_PAGES: Page[] = ['voice', 'aujourdhui', 'text', 'leads', 'plus'];
@@ -79,6 +80,7 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'sport',         icon: '💪', label: 'FORME',   kouiderOnly: true, group: 'tool' },
   { id: 'liberte',       icon: '🕊️', label: 'LIBERTÉ', kouiderOnly: true, group: 'tool' },
   { id: 'argent',        icon: '💶', label: 'MON ARGENT', kouiderOnly: true, group: 'tool' },
+  { id: 'stocksnus',     icon: '📦', label: 'STOCK', kouiderOnly: true, group: 'tool' },
   { id: 'nexus',         icon: '🖥️', label: 'MON PC',  kouiderOnly: true, group: 'tool' },
   { id: 'globe',         icon: '🌍', label: 'GLOBE',   kouiderOnly: true, group: 'tool' },
   { id: 'camera',        icon: '👁️', label: 'CAMÉRA → PC', kouiderOnly: true, group: 'tool' },
@@ -346,7 +348,7 @@ export default function Phone() {
   const actor = loggedActor ?? 'kouider';
 
   const houariOnlyPages: Page[] = [];
-  const kouiderOnlyPages: Page[] = ['argent', 'coach', 'jarvis', 'jeux', 'fennou', 'liberte', 'documents', 'demarchage', 'sites', 'partners', 'paiements', 'studio', 'carte', 'camera', 'route'];
+  const kouiderOnlyPages: Page[] = ['argent', 'stocksnus', 'coach', 'jarvis', 'jeux', 'fennou', 'liberte', 'documents', 'demarchage', 'sites', 'partners', 'paiements', 'studio', 'carte', 'camera', 'route'];
 
   const safePage: Page = (() => {
     if (actor === 'houari' && kouiderOnlyPages.includes(page)) return 'voice';
@@ -393,6 +395,7 @@ export default function Phone() {
       case 'fennou':        return <FennouScreen onExit={exitFennou} />;
       case 'liberte':       return <LiberteScreen />;
       case 'argent':        return <MonArgentScreen />;
+      case 'stocksnus':     return <StockScreen />;
       case 'jeux':          return <JeuxScreen onExit={exitFennou} />;
       case 'coach':         return <CoachScreen onAsk={(prompt) => { try { localStorage.setItem('dz:ask_prompt', prompt); } catch { /* ignore */ } setPage('text'); }} />;
       case 'jarvis':        return <JarvisScreen onAsk={(prompt) => { try { localStorage.setItem('dz:ask_prompt', prompt); } catch { /* ignore */ } setPage('text'); }} />;
@@ -941,6 +944,7 @@ const TOOL_INFO: Partial<Record<Page, { name: string; hint: string; cat: string 
   pricing:       { name: 'Prix conseillés', hint: 'Selon la demande', cat: 'Pilotage' },
   partners:      { name: 'Partenaires',    hint: 'Houari et les autres', cat: 'Pilotage' },
   argent:        { name: 'Mon argent',     hint: 'Snus, appart, ventes, soldes', cat: 'Perso & PC' },
+  stocksnus:     { name: 'Stock',          hint: 'Modèles, commandes, ruptures', cat: 'Perso & PC' },
   search:        { name: 'Chercher',       hint: 'Partout dans Dzaryx', cat: 'Perso & PC' },
   coach:         { name: 'Coach de vie',   hint: 'Business, vie, discipline', cat: 'Perso & PC' },
   sport:         { name: 'Forme',          hint: 'Salle, exercices, scanner', cat: 'Perso & PC' },
@@ -959,7 +963,7 @@ const TOOL_ICON: Partial<Record<Page, IconName>> = {
   paiements: 'card', documents: 'file', devis: 'calc', voucher: 'ticket', reponse: 'reply', reengage: 'refresh', parrainage: 'gift', reviews: 'star',
   demarchage: 'send', sites: 'globe', social: 'smartphone', newsletter: 'megaphone', blog: 'pen', studio: 'film', opportunities: 'bulb', forecast: 'trend',
   pricing: 'tag', partners: 'handshake', search: 'search', coach: 'trophy', sport: 'dumbbell', carte: 'pin', nexus: 'monitor', camera: 'eye', globe: 'globe',
-  settings: 'settings', jarvis: 'bot', fennou: 'paw', liberte: 'feather', argent: 'wallet', route: 'route', jeux: 'gamepad',
+  settings: 'settings', jarvis: 'bot', fennou: 'paw', liberte: 'feather', argent: 'wallet', stocksnus: 'layers', route: 'route', jeux: 'gamepad',
 };
 // Couleurs d'icône propres à quelques outils (comme sur un écran d'accueil : chaque appli a sa couleur)
 const TOOL_HUE: Partial<Record<Page, [string, string]>> = {
@@ -970,7 +974,7 @@ const TOOL_HUE: Partial<Record<Page, [string, string]>> = {
   blog: ['#a855f7', '#6b21a8'], studio: ['#e11d48', '#4c0519'], opportunities: ['#fbbf24', '#b45309'], forecast: ['#22d3ee', '#0e7490'], pricing: ['#fb923c', '#c2410c'],
   partners: ['#8b5cf6', '#5b21b6'], search: ['#71717a', '#27272a'], coach: ['#f59e0b', '#92400e'], sport: ['#ff6a1f', '#e11d48'], nexus: ['#3d6bff', '#312e81'],
   camera: ['#06b6d4', '#164e63'], globe: ['#2563eb', '#0f172a'], settings: ['#9ca3af', '#374151'], jarvis: ['#8b5cf6', '#1e1b4b'], fennou: ['#fb923c', '#9a3412'],
-  liberte: ['#22d3ee', '#0e7490'], argent: ['#22c55e', '#166534'], route: ['#10b981', '#064e3b'], carte: ['#3d6bff', '#0c4a6e'], jeux: ['#ec4899', '#831843'],
+  liberte: ['#22d3ee', '#0e7490'], argent: ['#22c55e', '#166534'], stocksnus: ['#14b8a6', '#115e59'], route: ['#10b981', '#064e3b'], carte: ['#3d6bff', '#0c4a6e'], jeux: ['#ec4899', '#831843'],
 };
 
 /** Icône d'outil façon écran d'accueil iPhone : carré arrondi en dégradé, symbole blanc, reflet. */

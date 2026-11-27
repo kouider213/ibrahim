@@ -18,13 +18,13 @@ export function MonArgentMini() {
   const fm = (n: number) => (hide ? '•••• €' : money(n));
   const save = async () => {
     setBusy(true);
-    try { const r = await addSnus(qty, 'normal'); setO(r.overview); setQty(0); setMsg(`✅ ${r.message}`); setTimeout(() => setMsg(''), 2200); }
+    try { const r = await addSnus(qty, 'normal', localStorage.getItem('dz:argent:pid') || undefined); setO(r.overview); setQty(0); setMsg(`✅ ${r.message}`); setTimeout(() => setMsg(''), 2200); }
     catch { setMsg('Erreur, réessaie'); }
     finally { setBusy(false); }
   };
   const one = async (u: 5 | 6) => {
     setBusy(true);
-    try { const r = await addSnus(1, u === 5 ? 'cinq' : 'six'); setO(r.overview); setMsg(`✅ ${r.message}`); setTimeout(() => setMsg(''), 2200); }
+    try { const r = await addSnus(1, u === 5 ? 'cinq' : 'six', localStorage.getItem('dz:argent:pid') || undefined); setO(r.overview); setMsg(`✅ ${r.message}`); setTimeout(() => setMsg(''), 2200); }
     catch { setMsg('Erreur, réessaie'); }
     finally { setBusy(false); }
   };

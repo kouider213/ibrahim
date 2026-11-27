@@ -3,6 +3,7 @@ import { apiFetch } from '../../services/api.ts';
 import { T, tone, PageHeader, Screen, SectionTitle, Btn, Sheet, Field, inputStyle, Badge, Empty, money, glass, CountUp, HeadBtn } from '../ui/Kit.tsx';
 import { SkeletonCards } from '../ui/Premium.tsx';
 import { DepartCard } from './DepartPlan.tsx';
+import { ProdTag, type StockOv } from './StockScreen.tsx';
 
 // MON ARGENT (27/11) : tout l'argent de Kouider hors salaire — snus (à la pièce), appartement (prix client − propriétaire),
 // vente de voiture, autre / heures sup + bénéfice FIK automatique. Soldes, graphiques, départ pour Oran, 20 repères, conseiller.
@@ -37,7 +38,7 @@ export const SRC_COL: Record<string, string> = { fik: '#3d6bff', snus: '#12b76a'
 const SRC_NAME: Record<string, string> = { fik: 'FIK', snus: 'Snus', appartement: 'Appart', 'vente-voiture': 'Voiture', autre: 'Autre', cash: 'Cash' };
 const dm = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 export const snusPrice = (qty: number, tarif: string) => { const unit = tarif === 'cinq' ? 5 : tarif === 'lot' ? (qty >= 10 ? 5 : 6) : 6; return { unit, amount: qty * unit }; };
-export const addSnus = (qty: number, tarif: string) => apiFetch<{ message: string; overview: MonArgent }>('/api/mon-argent/add', { method: 'POST', body: JSON.stringify({ cat: 'snus', qty, tarif }) });
+export const addSnus = (qty: number, tarif: string, pid?: string) => apiFetch<{ message: string; overview: MonArgent }>('/api/mon-argent/add', { method: 'POST', body: JSON.stringify({ cat: 'snus', qty, tarif, ...(pid ? { pid } : {}) }) });
 
 /** Barres empilées par source (mois ou jours). */
 function Stacked({ cols, height = 120, labels }: { cols: Array<{ key: string; amount: number; parts: Part[]; label?: string; hi?: boolean }>; height?: number; labels?: boolean }) {
@@ -95,6 +96,12 @@ export default function MonArgentScreen() {
   const fm = (n: number) => (hide ? '•••• €' : da && rate ? `${Math.round(n * rate).toLocaleString('fr-FR')} DA` : money(n));
   const toggle = (k: 'hide' | 'da') => { if (k === 'hide') { localStorage.setItem('dz:argent:hide', hide ? '0' : '1'); setHide(!hide); } else { localStorage.setItem('dz:argent:da', da ? '0' : '1'); setDa(!da); } };
   const x = o?.extras ?? null;
+  // 27/11 : modèle vendu (catalogue privé) — gardé sur le téléphone
+  const [stock, setStock] = useState<StockOv | null>(null);
+  const [pid, setPid] = useState(() => localStorage.getItem('dz:argent:pid') ?? '');
+  useEffect(() => { apiFetch<StockOv>('/api/mon-argent/stock').then(setStock).catch(() => setStock(null)); }, [o]);
+  const pick = (id: string) => { setPid(id); localStorage.setItem('dz:argent:pid', id); };
+  const go = (p: string) => window.dispatchEvent(new CustomEvent('dz:go', { detail: p }));
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2400); };
   const setFF = (k: keyof typeof f, v: string) => setF(s => ({ ...s, [k]: v }));
 
@@ -109,8 +116,8 @@ export default function MonArgentScreen() {
     catch (e) { flash(e instanceof Error ? e.message : 'Erreur'); }
     finally { setBusy(false); }
   };
-  const saveSnus = () => qty > 0 && void post('/api/mon-argent/add', { cat: 'snus', qty, tarif }, r => { setQty(0); flash(`✅ ${r.message}`); });
-  const quickOne = (unit: 5 | 6) => void post('/api/mon-argent/add', { cat: 'snus', qty: 1, tarif: unit === 5 ? 'cinq' : 'six' }, r => flash(`✅ ${r.message}`));
+  const saveSnus = () => qty > 0 && void post('/api/mon-argent/add', { cat: 'snus', qty, tarif, ...(pid ? { pid } : {}) }, r => { setQty(0); flash(`✅ ${r.message}`); });
+  const quickOne = (unit: 5 | 6) => void post('/api/mon-argent/add', { cat: 'snus', qty: 1, tarif: unit === 5 ? 'cinq' : 'six', ...(pid ? { pid } : {}) }, r => flash(`✅ ${r.message}`));
   const saveOther = () => {
     if (!sheet) return;
     const body = sheet === 'appartement' ? { cat: sheet, client: Number(f.client), owner: Number(f.owner || 0), label: f.label } : { cat: sheet, amount: Number(f.amount), label: f.label || (sheet === 'autre' ? 'Heures sup' : '') };
@@ -175,6 +182,16 @@ export default function MonArgentScreen() {
             <div style={{ flex: 1, fontSize: 16, fontWeight: 800 }}>🟢 Snus vendus</div>
             <div style={{ fontSize: 13, color: T.muted }}>aujourd'hui <b style={{ color: T.text }}>{o.snus.today} pièce{o.snus.today > 1 ? 's' : ''}</b> · {fm(o.snus.todayEur)}</div>
           </div>
+          {stock && stock.products.some(p => p.active) && <>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}><span style={{ flex: 1, fontSize: 12, color: T.muted, fontWeight: 800 }}>QUEL MODÈLE ?</span><button onClick={() => go('stocksnus')} style={{ background: 'none', border: 'none', color: T.accent, fontWeight: 700, fontSize: 12.5, cursor: 'pointer', fontFamily: T.font }}>Stock & commandes ›</button></div>
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6, marginBottom: 8 }}>
+              {stock.products.filter(p => p.active).sort((a, b) => b.sold30 - a.sold30 || (a.brand + (a.points ?? 0)).localeCompare(b.brand + (b.points ?? 0))).map(p => (
+                <button key={p.id} onClick={() => pick(pid === p.id ? '' : p.id)} style={{ flexShrink: 0, padding: '7px 9px', borderRadius: 12, border: `2px solid ${pid === p.id ? SRC_COL.snus : T.line}`, background: pid === p.id ? tone(SRC_COL.snus, 0.15) : 'transparent', color: T.text, cursor: 'pointer', fontFamily: T.font, opacity: p.rupture && !(p.stock ?? 0) ? 0.5 : 1 }}>
+                  <ProdTag p={p} small />{p.stock != null && <div style={{ fontSize: 10.5, color: T.muted, marginTop: 2 }}>stock {p.stock}</div>}
+                </button>
+              ))}
+            </div>
+          </>}
           <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
             {o.tarifs.map(t => (
               <button key={t.id} onClick={() => setTarif(t.id)} style={{ flex: 1, padding: '8px 4px', borderRadius: 12, fontFamily: T.font, cursor: 'pointer', border: `1px solid ${tarif === t.id ? SRC_COL.snus : T.line}`, background: tarif === t.id ? tone(SRC_COL.snus, 0.18) : 'transparent', color: T.text }}>
@@ -191,7 +208,7 @@ export default function MonArgentScreen() {
             /* 27/11 : « je dois pouvoir valider la vente de 10 » → gros bouton bien visible juste sous les +N */
             <div style={{ marginTop: 10 }}>
               <button disabled={busy} onClick={saveSnus} className="dz-press" style={{ width: '100%', padding: '16px 12px', borderRadius: 16, border: 'none', background: `linear-gradient(135deg, ${SRC_COL.snus}, #0f7a4f)`, color: '#fff', fontFamily: T.font, cursor: 'pointer', boxShadow: `0 14px 28px -14px ${SRC_COL.snus}` }}>
-                <div style={{ fontSize: 18, fontWeight: 800 }}>{busy ? 'Enregistrement…' : `✅ Valider la vente : ${qty} pièce${qty > 1 ? 's' : ''}`}</div>
+                <div style={{ fontSize: 18, fontWeight: 800 }}>{busy ? 'Enregistrement…' : `✅ Valider la vente : ${qty} pièce${qty > 1 ? 's' : ''}${pid && stock ? ` ${stock.products.find(p => p.id === pid)?.label ?? ''}` : ''}`}</div>
                 <div style={{ fontSize: 13.5, opacity: 0.9, marginTop: 2 }}>{qty} × {preview.unit} € = {fm(preview.amount)}{tarif === 'lot' && qty < 10 ? ' (le lot à 5 € commence à 10)' : ''}</div>
               </button>
               <button onClick={() => setQty(0)} style={{ width: '100%', marginTop: 6, padding: 8, background: 'none', border: 'none', color: T.bad, fontWeight: 700, cursor: 'pointer', fontFamily: T.font, fontSize: 13.5 }}>Annuler ({qty} pièce{qty > 1 ? 's' : ''})</button>

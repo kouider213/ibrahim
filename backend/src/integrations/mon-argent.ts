@@ -11,7 +11,7 @@ import { localNow } from './morning-routine.js';
 import { supabase } from './supabase.js';
 
 type Entry = { d: string; t: 'vente' | 'achat' | 'depense'; cat: string; amount: number; mode: 'cash' | 'carte'; note?: string; at?: number;
-  qty?: number; unit?: number; tarif?: string; client?: number; owner?: number; label?: string };
+  pid?: string; qty?: number; unit?: number; tarif?: string; client?: number; owner?: number; label?: string };
 const J = 'perso:journal';
 export const SOURCES = [
   { id: 'snus', label: 'Snus', icon: '🟢' },
@@ -193,7 +193,7 @@ function buildInsights(x: {
   return out.slice(0, 20);
 }
 
-export async function monArgentAdd(input: { cat: string; amount?: number; qty?: number; tarif?: string; client?: number; owner?: number; label?: string; date?: string }): Promise<string> {
+export async function monArgentAdd(input: { cat: string; amount?: number; qty?: number; tarif?: string; client?: number; owner?: number; label?: string; date?: string; pid?: string }): Promise<string> {
   const { cat } = input;
   if (!SOURCES.some(s => s.id === cat)) throw new Error('Source inconnue');
   const d = /^\d{4}-\d{2}-\d{2}$/.test(input.date ?? '') ? input.date! : localNow().date;
@@ -203,7 +203,8 @@ export async function monArgentAdd(input: { cat: string; amount?: number; qty?: 
     if (!(qty >= 1 && qty <= 500)) throw new Error('Nombre de pièces invalide');
     const tarif = ['normal', 'lot', 'cinq', 'six'].includes(String(input.tarif)) ? String(input.tarif) : 'normal';
     const p = snusPrice(qty, tarif);
-    e = { d, t: 'vente', cat, amount: p.amount, mode: 'cash', note: 'app', at: Date.now(), qty, unit: p.unit, tarif };
+    const prod = input.pid ? (await (await import('./stock-produits.js')).catalog()).find(x => x.id === input.pid) : undefined;
+    e = { d, t: 'vente', cat, amount: p.amount, mode: 'cash', note: 'app', at: Date.now(), qty, unit: p.unit, tarif, ...(prod ? { pid: prod.id, label: (await import('./stock-produits.js')).label(prod) } : {}) };
   } else if (cat === 'appartement') {
     const client = Number(input.client), owner = Number(input.owner ?? 0);
     if (!(client > 0) || owner < 0 || owner > client) throw new Error('Prix client et prix propriétaire requis (client ≥ propriétaire)');
@@ -215,7 +216,7 @@ export async function monArgentAdd(input: { cat: string; amount?: number; qty?: 
   }
   const l = await kvJson<Entry[]>(J, []);
   l.push(e); await kvPut(J, l);
-  return cat === 'snus' ? `+${e.qty} pièce${e.qty! > 1 ? 's' : ''} de snus (${eur(e.amount)})` : cat === 'appartement' ? `Appartement : bénéfice ${eur(e.amount)}` : `+${eur(e.amount)} ${LABEL[cat]}`;
+  return cat === 'snus' ? `+${e.qty} pièce${e.qty! > 1 ? 's' : ''}${e.label ? ` ${e.label}` : ''} (${eur(e.amount)})` : cat === 'appartement' ? `Appartement : bénéfice ${eur(e.amount)}` : `+${eur(e.amount)} ${LABEL[cat]}`;
 }
 
 /** Annule une ligne ajoutée (repérée par son horodatage). */
@@ -446,6 +447,8 @@ export async function monArgentSettings(input: Settings): Promise<void> {
 
 /** Stock de snus : base qu'il a comptée (« il me reste X ») + arrivages − pièces vendues depuis. */
 export async function snusStock(): Promise<{ pieces: number; since: string } | null> {
+  const so = await (await import('./stock-produits.js')).stockOverview().catch(() => null);
+  if (so?.counted && so.totalStock !== null) return { pieces: so.totalStock, since: so.counted };
   const base = await kvJson<{ pieces: number; at: number } | null>(STOCK_KEY, null);
   if (!base) return null;
   const l = await kvJson<Entry[]>(J, []);
@@ -531,7 +534,10 @@ export async function jobMonArgent(): Promise<void> {
   const once = async (k: string, ttl: number) => { const key = `perso:argent:sent:${k}`; if (await kvJson<string | null>(key, null)) return false; await kvPut(key, '1', ttl); return true; };
   if (hhmm < '09:00' || hhmm >= '21:30') return;
   const st = await snusStock();
-  if (st && st.pieces <= 30 && await once(`stock:${date}`, 86_400)) await queueTelegramMessage(`📦 Stock de snus bas : il te reste ≈ ${st.pieces} pièces. Pense à recommander (dans MON ARGENT : « Arrivage » quand il arrive).`).catch(() => {});
+  const reoCounted = !!(await (await import('./stock-produits.js')).stockOverview().catch(() => null))?.counted;
+  if (st && st.pieces <= 30 && !reoCounted && await once(`stock:${date}`, 86_400)) await queueTelegramMessage(`📦 Stock de snus bas : il te reste ≈ ${st.pieces} pièces. Pense à recommander (dans MON ARGENT : « Arrivage » quand il arrive).`).catch(() => {});
+  const reo = await (await import('./stock-produits.js')).jobStock().catch(() => null);
+  if (reo && await once(`reorder:${date}`, 86_400)) await queueTelegramMessage(reo).catch(() => {});
   const f = await kvJson<{ sideCash?: number; savingsAt?: string; sideCashAt?: string }>('perso:finances', {});
   if ((f.sideCash ?? 0) >= 1500 && weekday === 6 && hhmm >= '11:00' && await once(`cash:${date.slice(0, 7)}-${Math.ceil(+date.slice(8, 10) / 7)}`, 8 * 86_400))
     await queueTelegramMessage(`💤 Tu as ${eur(f.sideCash ?? 0)} en cash. Garde un fond de caisse et dépose le reste sur le compte : il ne partira pas sans que tu le voies (MON ARGENT › Dépôt).`).catch(() => {});

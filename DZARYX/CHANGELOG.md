@@ -1,3 +1,10 @@
+## 27/11 — STOCK & COMMANDES : stock par modèle (en points), factures, ruptures, commande conseillée (app v315)
+- Kouider : factures fournisseur + modèles qu'il vend, noter par nombre de points, comptage de l'après-midi, prévenir quand recommander, best-sellers, gains, meilleurs jours, ruptures et remplacements.
+- backend stock-produits.ts (générique, AUCUN nom de produit ni prix dans le dépôt) : catalogue / factures / comptage dans app_kv perso:stock:* (catalogue privé avec alias, points, couleur, rupture → remplacement) ; stock = comptage + arrivages − ventes par modèle ; coût réel par pièce = prix × total payé / articles (DHL + taxes répartis) ; rythme des commandes (écarts entre factures) ; commande conseillée (couvre rythme + délai 4 j, ruptures remplacées) ; best-sellers, bénéfice et marge par modèle, jours restants, meilleurs jours en pièces ; conseils (stock qui dort, marge faible, frais par pièce, ventes sans modèle…).
+- Ventes : modèle choisi avant +1 (gardé sur le téléphone, aussi sur la carte Aujourd'hui) ; Telegram « 3 velo 5 »-style via alias du catalogue privé (aliasHit en mémoire, jamais « 3 enfants »).
+- Alerte Telegram « c'est le moment de recommander » + commande conseillée (job argent, 1×/jour).
+- App : page STOCK (menu Perso, lien depuis la carte snus) : recommande, compter mon stock, nouvelle facture, modèles (rupture/remplacement/caché), best-sellers, conseils, jours, commandes.
+
 ## 27/11 — MON ARGENT : 20 options en plus (app v314)
 - Kouider : « regarde s'il n'y a pas des trucs à améliorer, tu sais mes objectifs, rajoute 20 options ».
 - Saisie : (1) Telegram/Siri « 3 pièces », « 10 pièces à 5 », « 12 pièces lot », « hier 4 pièces » (jamais « appartement 3 pièces ») ; (2) question de 20h30 en pièces ; (3) dépense rapide par catégorie (cash → le cash baisse) ; (4) arrivage de stock (pièces + prix) ; (5) dépôt cash → compte / retrait compte → cash avec motif (cash_log).
