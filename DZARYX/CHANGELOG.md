@@ -1,6 +1,7 @@
 ## 27/11 — Conseils et récaps : plus de location finie ni de texte de la veille
 - Kouider : « revient AUJOURD'HUI » répété le 26/11 (13h20, 19h20, 22h50) pour un client dont la voiture était déjà rendue à 08h00, avec un WhatsApp d'un autre numéro collé dessus ; récap 05h30 du 27/11 reprenait « AUJOURD'HUI … attend depuis 2 h » écrit la veille.
 - conscience : location COMPLETED (ou retour passé de 2 h) = « TERMINÉE, n'en parle pas » ; interdiction de relier un WhatsApp à un client sans nom/numéro exact.
+- 07h20 encore « La Clio 4 arrive aujourd'hui… attend l'âge (35 ans) » : le modèle recopiait ses conseils ignorés de la veille. Garde dans le code : un conseil qui nomme un client dont la location est finie (sans autre location en cours) ou qui recopie à ≥ 50 % un conseil ignoré d'un autre jour n'est pas envoyé.
 - auto-call staleTimed : un texte en relatif (aujourd'hui, ce soir, maintenant, depuis X h, dans X min) mis en boîte un autre jour = périmé.
 
 ## 27/11 — Plus d'appel « tu n'es pas à la salle » quand la séance est déjà faite

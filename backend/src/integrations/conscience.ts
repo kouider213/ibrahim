@@ -500,6 +500,19 @@ export async function jobConscience(): Promise<string> {
   // Même type ignoré 2 fois de suite en 24 h → on se tait 24 h sur ce type (hors catégories fourre-tout)
   const lastSame = log.filter(n => n.kind === kind && Date.now() - n.at < 86_400_000).slice(-2);
   if (!/^(decision|autre)$/.test(kind) && lastSame.length === 2 && lastSame.every(n => n.reacted === false)) return `tu (${kind} ignoré 2× en 24 h)`;
+  // 27/11 07h20 : « La Clio 4 arrive aujourd'hui… <client> attend » alors que sa location (23→26/11) était TERMINÉE la veille :
+  // le modèle recopiait ses propres conseils ignorés d'hier. Garde code : client dont la location est finie (et sans autre en cours/à venir) = silence.
+  const past = await supabase.from('bookings').select('client_name, start_date, end_date, status')
+    .gte('end_date', localNow(Date.now() - 10 * 86_400_000).date).limit(60).then(r => (r.data ?? []) as Array<{ client_name: string; end_date: string; status: string }>, () => []);
+  const words = (x: unknown) => String(x ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z]+/).filter(w => w.length >= 4);
+  const live = new Set(past.filter(b => !/COMPLET|CANCEL|ANNUL|DONE|TERMIN/i.test(String(b.status)) && String(b.end_date).slice(0, 10) >= date).flatMap(b => words(b.client_name)));
+  const finished = past.filter(b => /COMPLET|DONE|TERMIN/i.test(String(b.status)) || String(b.end_date).slice(0, 10) < date).flatMap(b => words(b.client_name)).filter(w => !live.has(w));
+  const said = words(o.text);
+  const ghost = finished.find(w => said.includes(w));
+  if (ghost) return `tu (location finie : ${ghost})`;
+  // Un conseil ignoré un autre jour ne revient pas recopié (≥ 50 % des mots identiques)
+  const same = (a: string[], b: string[]) => { const B = new Set(b); return a.length > 0 && a.filter(w => B.has(w)).length / a.length >= 0.5; };
+  if (log.some(n => n.reacted === false && localNow(n.at).date !== date && Date.now() - n.at < 3 * 86_400_000 && same(said, words(n.text)))) return 'tu (déjà dit un autre jour)';
   // Au travail d'après le GPS → pas d'alerte « retard » (il est déjà là où il doit être)
   if (where === 'work' && /retard|rdv/i.test(kind)) return 'tu (au travail)';
   if (urgency < 3 && (night || snap['bouclier_famille'] || todayN >= MAX_PER_DAY)) return 'tu (limite)';
