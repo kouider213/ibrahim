@@ -176,11 +176,14 @@ async function briefSignals(): Promise<{ signals: Signal[]; stats: string[] }> {
   // Demandes déjà répondues mais pas conclues → à faire avancer (vérifier avec Houari puis revenir vers le client)
   // 27/11 Halima : « pour 5 jours … d'accord merci », sans date = elle ne rentre pas dans les conditions → pas un lead
   const closedByThanks = (t: string) => /(d'?accord|ok|merci|saha|baraka ?llahou?)[\s\w!.]{0,25}$/i.test(t.trim().split('\n').at(-1) ?? '') && !/\d{1,2}\s*(\/|au|→|-|hata|jusqu|déc|janv|fév|mars|avr|mai|juin|juil|août|sept|oct|nov)/i.test(t);
-  const leads = open.filter(d => d.status !== 'nouveau' && hAgo(d.updated_at) >= 10 && hAgo(d.updated_at) <= 96 && !closedByThanks(d.text)).sort((a, b) => b.text.length - a.text.length);
+  // 27/11 Kouider : « il me dit de répondre à des clients auxquels j'ai déjà répondu ». Répondu (contacté) et le client n'a rien
+  // réécrit depuis = la balle est chez le client → rien à faire. Seulement s'il a RÉÉCRIT après notre réponse (replied_at).
+  const leads = open.filter(d => d.status === 'contacté' && d.replied_at && d.updated_at > d.replied_at && hAgo(d.updated_at) >= 2 && hAgo(d.updated_at) <= 96 && !closedByThanks(d.text))
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   for (const d of leads.slice(0, 2)) {
-    const ask = d.text.split('\n').map(x => x.trim()).filter(x => x.length > 3 && !/^(slm|salam|bonjour|bonsoir|salut)\b.{0,20}$/i.test(x)).slice(0, 2).join(', ').slice(0, 70);
-    sig.push({ score: 80, prio: `Fais avancer la demande de ${d.chat}`, why: `${d.ch === 'tiktok' ? 'TikTok' : 'WhatsApp'}, il y a ${Math.round(hAgo(d.updated_at) / 24) || 1} j : « ${ask} ». Pas encore réservé.`,
-      action: `Vérifie avec Houari pour ${d.chat} (« ${ask.slice(0, 40)} ») puis réponds-lui` });
+    const ask = (d.text.split('\n').map(x => x.trim()).filter(x => x.length > 3 && !/^(slm|salam|bonjour|bonsoir|salut)\b.{0,20}$/i.test(x)).at(-1) ?? '').slice(0, 70);
+    sig.push({ score: 85, prio: `Réponds à ${d.chat}`, why: `${d.ch === 'tiktok' ? 'TikTok' : 'WhatsApp'} : il a réécrit après ta réponse (« ${ask} »), il attend.`,
+      action: `Réponds à ${d.chat} sur ${d.ch === 'tiktok' ? 'TikTok' : 'WhatsApp'} : il a réécrit après ta réponse (« ${ask.slice(0, 40)} »)` });
   }
   // Acomptes : une voiture prise = payée en entier, donc seulement les départs à venir
   const unpaid = books.filter(b => d10(b['start_date']) > today && S(b['payment_status']) !== 'PAID' && N(b['amount_remaining']) > 0)
@@ -219,6 +222,16 @@ async function briefSignals(): Promise<{ signals: Signal[]; stats: string[] }> {
     `• Départs d'ici 7 jours : ${books.filter(b => d10(b['start_date']) > today && d10(b['start_date']) <= in7 && !/CANCEL|REJECT/i.test(S(b['status']))).length}`,
   ];
   return { signals: sig, stats };
+}
+
+/** 27/11 : pistes business RÉELLES pour la Conscience (conseils dans la journée), recalculées au plus 1×/h. */
+export async function businessIdeas(): Promise<string[]> {
+  const c = await kvJson<{ at: number; l: string[] } | null>('gc:ideas', null);
+  if (c && Date.now() - c.at < 3600_000) return c.l;
+  const { signals, stats } = await briefSignals();
+  const l = [...signals.slice(0, 4).map(x => `${x.prio} — ${x.why}`), ...stats.slice(0, 3).map(x => x.replace(/^•\s*/, ''))];
+  await kvPut('gc:ideas', { at: Date.now(), l }, 7200);
+  return l;
 }
 
 async function makeBrief(force = false): Promise<Brief> {
@@ -470,8 +483,21 @@ async function morningMessage(): Promise<string> {
 }
 
 // L2 — Suivi de la journée
+/** 27/11 : une action « réponds à / vérifie pour <client> » est faite si ce client a déjà eu sa réponse depuis (et n'a rien réécrit). */
+async function autoDone(b: Big3): Promise<Big3> {
+  const dm = await import('./wa-demandes.js');
+  const all = (await Promise.all((['whatsapp', 'tiktok'] as const).map(ch => dm.listWaDemandes(ch).catch(() => [])))).flat();
+  let changed = false;
+  for (const it of b.items) {
+    if (it.done) continue;
+    const d = all.find(x => x.chat.length >= 3 && it.text.includes(x.chat));
+    if (d && d.status !== 'nouveau' && (!d.replied_at || d.replied_at >= d.updated_at)) { it.done = true; changed = true; }
+  }
+  if (changed) await kvPut(K.big3(b.date), b, 3 * 86_400);
+  return b;
+}
 async function middayCheck(): Promise<string> {
-  const b = await makeBig3();
+  const b = await autoDone(await makeBig3());
   const left = b.items.filter(i => !i.done);
   const weekday = localNow().weekday;
   const cercle = [weekday === 2 ? await cercleSuggestion().catch(() => '') : '', ...(await import('./grand-coach-plus.js').then(m => m.middaySections(weekday)).catch(() => [] as string[]))].filter(Boolean).join('\n\n');
@@ -479,11 +505,11 @@ async function middayCheck(): Promise<string> {
   return `🕛 Point de midi — il te reste ${left.length} action(s) :\n${big3Line(b)}\n${await import('./grand-coach-plus.js').then(m => m.atWorkNow()).catch(() => false) ? 'Tu es au travail (aucune pause là-bas) : rien maintenant. Dès que tu sors, la plus petite d\'abord, 10 minutes.' : 'La plus petite d\'abord, maintenant, 10 minutes.'} Réponds « fait 2 » quand c'est fait.${cercle ? `\n\n${cercle}` : ''}`;
 }
 async function eveningCheck(): Promise<string> {
-  const b = await makeBig3();
+  const b = await autoDone(await makeBig3());
   const done = b.items.filter(i => i.done).length;
   const st = await kvJson<{ last: string; n: number }>(K.streak, { last: '', n: 0 });
   const verdict = done === 3 ? `🏆 3/3. Série : ${st.n} jour(s). Journée de champion.` : done ? `💪 ${done}/3. Pas parfait, mais tu as avancé. Demain on finit le travail.` : '😤 0/3 aujourd\'hui. Pas grave une fois — la règle des grands : jamais deux jours de suite.';
-  return [`🌇 Bilan de ta journée`, big3Line(b), verdict, '', '📝 Examen du soir (Franklin, 2 min — réponds en un message) :', '1. Qu\'est-ce que j\'ai fait de bien aujourd\'hui ?', '2. Qu\'est-ce que je ferais mieux demain ?', '3. Pour qui j\'ai été là (famille, ami, client) ?'].join('\n');
+  return [`🌇 Bilan de ta journée`, big3Line(b), verdict, '', '📝 3 questions pour finir ta journée (2 min, réponds en un seul message, je le garde dans ton journal) :', '1. Qu\'est-ce que j\'ai fait de bien aujourd\'hui ?', '2. Qu\'est-ce que je ferais mieux demain ?', '3. Pour qui j\'ai été là (famille, ami, client) ?'].join('\n');
 }
 
 // L3 — Que ferait X à ma place ?

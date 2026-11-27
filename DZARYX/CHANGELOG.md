@@ -1,3 +1,10 @@
+## 27/11 soir — Dzaryx plus clair et plus présent (Kouider, capture 21h17)
+- Bilan du soir : plus de « vérifie avec Houari / réponds-lui » pour un client déjà répondu. wa-demandes garde `replied_at` (notre dernière réponse) ; une demande ne revient en action que si le client a RÉÉCRIT après. Les actions du jour se cochent seules à midi/au soir si le client a déjà eu sa réponse.
+- « Examen du soir (Franklin) » → « 3 questions pour finir ta journée ».
+- Mails du soir : chaque mail expliqué en une phrase (qui, ce qu'il veut, quoi faire) ; un mail sans réponse n'est signalé qu'une fois ; ligne « réponds au mail de X » seulement si un mail attend une réponse.
+- Bouclier famille : seulement quand il est À LA MAISON (plus dehors) ; message d'annonce expliqué en clair.
+- Conscience : le bouclier de journée ne bloque plus les conseils (seul le temps famille du soir = urgences). Nouveaux `pistes_business` (vrais signaux FIK, cache 1 h) → un conseil business concret si libre, rien depuis 3 h, < 4 conseils par jour.
+
 ## 27/11 nuit — Plan de départ : dépendance à un business projeté affichée (app v331)
 - departDetail renvoie `biz` (nom, clients/mois, gain/mois, début, date sans le business) depuis buildPlan ; carte + fiche affichent un avertissement. Cache `curves` recalculé s'il date de l'ancien format.
 - « Ce mois-ci » absent = normal tant qu'aucune photo perso:capital n'existe (1re au monthEndRecap de fin de mois).

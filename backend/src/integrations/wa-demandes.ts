@@ -7,6 +7,7 @@ export interface WaDemande {
   id: string; chat: string; phone?: string; text: string; status: string;
   lang: 'fr' | 'ar' | 'en'; created_at: string; updated_at: string; count: number;
   via?: 'dm' | 'comment'; video?: string;   // TikTok : message privé ou commentaire (+ vidéo commentée)
+  replied_at?: string;   // 27/11 : heure de NOTRE dernière réponse — le client réécrit après (updated_at > replied_at) = vraiment à traiter
 }
 export type Channel = 'whatsapp' | 'tiktok';
 
@@ -91,6 +92,7 @@ export function updateWaDemande(id: string, status: string, ch: Channel = 'whats
   const d = list.find(x => x.id === id);
   if (!d) return false;
   d.status = status;
+  if (status === 'contacté') d.replied_at = new Date().toISOString();
   await save(list, ch);
   return true;
   });
@@ -119,9 +121,10 @@ export function markDemande(chatOrPhone: string, status: string, from: string[],
   return serial(async () => {
     if (!chatOrPhone) return false;
     const list = await all(ch);
-    const d = list.find(x => sameClient(x.chat, chatOrPhone) && from.includes(x.status));
+    const d = list.find(x => sameClient(x.chat, chatOrPhone) && (from.includes(x.status) || (status === 'contacté' && x.status === 'contacté')));   // nouvelle réponse → replied_at rafraîchi
     if (!d) return false;
     d.status = status;
+    if (status === 'contacté') d.replied_at = new Date().toISOString();
     await save(list, ch);
     return true;
   });

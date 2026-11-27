@@ -235,7 +235,8 @@ export async function shieldTick(where: string): Promise<void> {
     if (evening && !s.quiet && !s.manual && s.until) { await kvPut('family:shield', { ...s, quiet: true }); await shieldQuiet(s.until); }
     return;
   }
-  if (where === 'gym' || where === 'work' || hhmm < SHIELD_FROM || hhmm >= SHIELD_TO) return;
+  // 27/11 Kouider : « le bouclier doit se faire quand je suis pas au travail, quand je suis à la maison en famille » → à la maison seulement
+  if (where !== 'home' || hhmm < SHIELD_FROM || hhmm >= SHIELD_TO) return;
   if (await import('./grand-coach-plus.js').then(m => m.atWorkNow()).catch(() => true)) return;
   if ((await kvJson<string>('family:shield:day', '')) === date) return;   // il l'a coupé lui-même aujourd'hui
   const [h, m] = hhmm.split(':').map(Number);
@@ -243,7 +244,8 @@ export async function shieldTick(where: string): Promise<void> {
   await kvPut('family:shield', { on: true, since: Date.now(), until, quiet: evening });
   if ((await kvJson<string>('family:shield:told', '')) !== date) {   // retour de la salle : pas de 2e annonce
     await kvPut('family:shield:told', date);
-    await tg('🛡️ Tu ne travailles pas : bouclier levé jusqu\'à 22h30 (coupé quand tu es à la salle). Je réponds seul aux nouveaux clients (infos, prix, conditions, jamais de dispo) ; les messages de tes clients connus t\'arrivent ici. Le soir à la maison, seules les vraies urgences t\'appellent. Dis « coupe le bouclier » si besoin.');
+    // 27/11 Kouider : « je sais même pas c'est quoi le bouclier » → expliqué en clair
+    await tg('🛡️ Bouclier famille activé jusqu\'à 22h30 — tu es à la maison, profite.\nÇa veut dire : je réponds moi-même aux NOUVEAUX clients (prix, conditions, jamais « c\'est dispo »), pour que tu ne sois pas sur ton téléphone. Tes clients connus, eux, t\'arrivent quand même ici.\nLe soir, je ne t\'appelle que pour une vraie urgence.\nPour l\'arrêter : écris « coupe le bouclier ».');
   }
   if (evening) await shieldQuiet(until);
 }
@@ -453,6 +455,9 @@ export async function snapshot(): Promise<Record<string, unknown>> {
     deja_envoye_3h: sent.filter(s => Date.now() - s.at < 3 * 3600_000).map(s => s.text.slice(0, 140)),
     // Sujets qu'il a laissés sans réponse : ne pas les relancer (« 3 refus clients » répété 5× en 24 h, 30/10)
     ignores_24h: (await kvJson<Nudge[]>(LOG, [])).filter(n => n.reacted === false && Date.now() - n.at < 86_400_000).map(n => n.text.slice(0, 120)),
+    // 27/11 « pas beaucoup de conseils » : de quoi conseiller (vrais chiffres FIK) + ce qui a déjà été conseillé aujourd'hui
+    pistes_business: await import('./grand-coach.js').then(m => m.businessIdeas()).catch(() => [] as string[]),
+    conseils_deja_donnes_aujourdhui: (await kvJson<Nudge[]>(LOG, [])).filter(n => localNow(n.at).date === date).map(n => `${localNow(n.at).hhmm} ${n.text.slice(0, 120)}`),
   };
 }
 
@@ -464,6 +469,9 @@ export async function jobConscience(): Promise<string> {
   await moodNowTick().catch(() => null);
   const night = hhmm < '06:00' || hhmm >= '22:45';
   const snap = await snapshot();
+  // 27/11 « Dzaryx a pas beaucoup parlé aujourd'hui » : le bouclier (levé dès qu'il ne travaillait pas) bloquait tout conseil
+  // de 9h à 22h30. Seul le temps famille du SOIR (bouclier en mode silence) réserve la parole aux urgences.
+  const familyQuiet = !!snap['bouclier_famille'] && !!(await kvJson<{ quiet?: boolean }>('family:shield', {})).quiet;
   // Rien de neuf depuis le dernier tour (hors heure) → pas d'appel IA
   const sig = JSON.stringify({ ...snap, heure: undefined, lieu: String(snap['lieu']).replace(/\d+ min/, ''), energie: undefined, deja_envoye_3h: undefined, vitesse_kmh: Math.round(Number(snap['vitesse_kmh']) / 30) });
   const last = await kvJson<{ sig: string; at: number } | null>('conscience:last', null);
@@ -477,7 +485,7 @@ export async function jobConscience(): Promise<string> {
   const o = jsonOf<{ speak?: boolean; kind?: string; urgency?: number; text?: string; options?: Array<{ label: string; tool?: string; input?: Record<string, unknown> }> }>(await ai(
     `Tu es LA CONSCIENCE de Dzaryx, l'assistant personnel (style Jarvis) de Kouider. Voici TOUT ce que tu vois maintenant :\n${JSON.stringify(snap, null, 1)}\n\n`
     + `Goûts appris (type de conseil → score, négatif = il ignore, positif = il apprécie) : ${JSON.stringify(scores)}\n`
-    + `Déjà ${todayN}/${MAX_PER_DAY} conseils aujourd'hui.${night ? ' C\'est la NUIT : seulement urgence 3.' : ''}${snap['bouclier_famille'] ? ' Bouclier famille : seulement urgence 3.' : ''}\n\n`
+    + `Déjà ${todayN}/${MAX_PER_DAY} conseils aujourd'hui.${night ? ' C\'est la NUIT : seulement urgence 3.' : ''}${familyQuiet ? ' Temps en famille du soir : seulement urgence 3.' : ''}\n\n`
     + `Cherche UNE chose qui vaut VRAIMENT la peine d'être dite maintenant, en CROISANT les infos (ex. client qui atterrit + Houari loin ; rendez-vous dans 40 min + 35 min de route ; promesse due aujourd'hui ; décision qui attend depuis longtemps ; santé mauvaise + grosse journée ; il roule vers un lieu alors qu'un truc l'attend ailleurs). `
     + `Sa position (lieu) est la vérité : « work » = il est à son poste de travail, c'est normal, jamais un retard ; ne lui annonce pas un RDV ailleurs pendant qu'il y est sauf s'il est noté hors travail. `
     + `Les dates sont déjà écrites en relatif (aujourd'hui / hier / demain) : ne dis JAMAIS qu'une chose se passe aujourd'hui si elle est notée « hier ». Une location « EN COURS » est déjà partie : ne parle pas de son départ. Un message WhatsApp reçu hier n'est pas « nouveau ». Une location « TERMINÉE » : n'en parle plus. Ne relie JAMAIS un WhatsApp à un client si le nom ou le numéro ne correspond pas exactement (un +213 inconnu n'est pas un client en cours). `
@@ -486,7 +494,9 @@ export async function jobConscience(): Promise<string> {
     + `Son humeur n'est JAMAIS un fait : si humeur_supposee est vide, n'en parle pas ; sinon pose une question, jamais de note sur 10. `
     + `Un sujet présent dans ignores_24h (il ne l'a pas relevé) ne se relance PAS, même reformulé, sauf danger réel ou échéance dans moins d'une heure. `
     + `LOCATIONS : les voitures sont en Algérie ; un client récupère et RAMÈNE toujours la voiture à l'AÉROPORT D'ORAN, JAMAIS chez Kouider ni à son adresse en Belgique (cette adresse ne sert qu'à SES trajets). N'invente ni lieu, ni heure, ni « prépare les clés / la pièce d'identité » qui ne sont pas dans les données. `
-    + `Pas de redite de ce qui a déjà été envoyé ces 3 h. Pas de banalité, pas de motivation creuse, pas de « bonne journée ». Si rien d'utile → speak:false (c'est le cas le plus fréquent).\n`
+    + `Pas de redite de ce qui a déjà été envoyé ces 3 h. Pas de banalité, pas de motivation creuse, pas de « bonne journée ». `
+    + `CONSEIL BUSINESS : s'il est libre (lieu ≠ work, pas la nuit, pas le temps famille du soir), qu'aucun conseil n'a été donné depuis 3 h et qu'il en a eu moins de 4 aujourd'hui, donne UN conseil concret tiré de pistes_business (kind "conseil-business", urgency 2) : le vrai nom (client, voiture, chiffre) + l'action précise en 10-20 min depuis son téléphone. Jamais une piste déjà dans conseils_deja_donnes_aujourdhui ou ignores_24h, jamais dire à un client qu'une voiture est dispo, les pubs = TikTok seulement. `
+    + `Sinon, si rien d'utile → speak:false.\n`
     + `Réponds UNIQUEMENT en JSON : {"speak":true|false,"kind":"type court (ex. retard-rdv, client-aeroport, promesse, sante, argent, famille, decision)","urgency":1|2|3,"text":"ce que tu lui dis, 1 à 3 phrases, tutoiement, concret","options":[{"label":"bouton court","tool":"outil Dzaryx facultatif","input":{}}]} (options facultatives, 2-3 max, seulement si un simple choix permet d'agir ; "tool" = UNIQUEMENT un vrai nom d'outil Dzaryx (ex. promesses avec input {"action":"list"}), sinon ne mets pas de "tool").`,
     { max: 500 }));
   if (!o?.speak || !o.text) return 'silence';
@@ -517,7 +527,8 @@ export async function jobConscience(): Promise<string> {
   if (log.some(n => n.reacted === false && localNow(n.at).date !== date && Date.now() - n.at < 3 * 86_400_000 && same(said, words(n.text)))) return 'tu (déjà dit un autre jour)';
   // Au travail d'après le GPS → pas d'alerte « retard » (il est déjà là où il doit être)
   if (where === 'work' && /retard|rdv/i.test(kind)) return 'tu (au travail)';
-  if (urgency < 3 && (night || snap['bouclier_famille'] || todayN >= MAX_PER_DAY)) return 'tu (limite)';
+  if (urgency < 3 && (night || familyQuiet || todayN >= MAX_PER_DAY)) return 'tu (limite)';
+  if (/conseil/i.test(kind) && urgency < 3 && (todayN >= 4 || log.some(n => Date.now() - n.at < 3 * 3600_000) || where === 'work')) return 'tu (conseil : trop tôt)';
   if (urgency < 2 && (scores[kind] ?? 0) <= -3) return `tu (${kind} ignoré d'habitude)`;
   if (urgency < 3 && await consciencePaused()) return 'tu (pause)';
   log.push({ id: uid(), at: Date.now(), kind, text: o.text, urgency });
