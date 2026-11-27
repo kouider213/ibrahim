@@ -1,3 +1,8 @@
+## 27/11 soir (6) — Bilan de chaque pub TikTok + l'équipe apprend de nos pubs
+- Kouider : « il n'a même pas fait le récap de la vidéo partagée hier » + « il doit apprendre le maximum des pubs pour booster mon compte ». Cause : le suivi lisait seulement les vidéos les PLUS VUES de TikTok Studio (la pub d'hier n'y était pas) et ne tournait qu'à 4h30 (9 h après la publication → trop tôt).
+- PC cloud : action `recent` (profil @fik_conciergerie, /api/post/item_list/ → vues, j'aime, partages, enregistrements des dernières vidéos) ; ajoutée aussi à `insights`.
+- tiktok-growth : vidéos récentes fusionnées dans tt:growth ; job `tt-pub-followup` (chaque heure 9h-22h) : pub ≥ 20 h → bilan Telegram (chiffres, % d'une vidéo normale, leçon simple de l'IA), relu à 7 jours ; tout gardé dans tt:pub:results et redonné à l'équipe pour chaque nouvelle pub (growthContext « Résultats de nos dernières pubs »).
+
 ## 27/11 soir (5) — Mails : prospects exclus ; argent hors location = net
 - Kouider : « aucune collaboration avec cette personne, elle a envoyé STOP à la prospection ». L'expéditeur était un prospect démarché (déjà en « refus ») ; mail-digest exclut les expéditeurs de la table prospects des sections « importants » et « sans réponse » (ils ont leur section « réponses de prospects »).
 - La revue comptait les ventes hors location sans retirer ce qu'il a pris dessus : periodMoney.net = ventes − pris ; revue « gardés — vendus − pris », total en net ; « Hier » du point du jour aussi en net.

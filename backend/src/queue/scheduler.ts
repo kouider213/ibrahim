@@ -574,6 +574,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'tt-pub-followup',
+    cron:  '20 9-22 * * *',         // 27/11 : bilan de chaque pub ~24 h après (vraies vues du profil) + leçon gardée pour l'équipe
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'tt-growth-refresh',
     cron:  '30 4 * * *',            // 24/11 : stats TikTok + tendances relues chaque nuit (créneaux, brief des pubs)
     tz:    'Europe/Brussels',
@@ -956,6 +961,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'factory':                   async () => { console.log(`[factory] ${await (await import('../integrations/jarvis4.js')).jobFactory()}`); },
   'commercial':               async () => { console.log(`[commercial] ${await (await import('../integrations/builders.js')).jobCommercial()}`); },
   'night-guard-recap':       async () => { await (await import('../integrations/night-guard.js')).jobNightGuardRecap(); },
+  'tt-pub-followup':         async () => { await (await import('../marketing/tiktok-growth.js')).jobPubFollowUp(); },
   'tt-growth-refresh':       async () => { await (await import('../marketing/tiktok-growth.js')).jobGrowthRefresh(); },
   'tt-daily-plan':           async () => { await (await import('../marketing/tiktok-growth.js')).jobDailyPlan(); },
   'tt-weekly-meeting':       async () => { await (await import('../marketing/tiktok-growth.js')).jobWeeklyMeeting(); },

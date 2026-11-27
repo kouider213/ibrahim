@@ -502,13 +502,45 @@ async def reply(name: str, text: str, dry: bool = False) -> dict:
             return {'ok': False, 'error': "TikTok n'a pas confirmé l'envoi (vérifie sur MON PC)", 'shot': await _shot(p)}
 
 
+PROFILE = 'https://www.tiktok.com/@fik_conciergerie'
+
+
+async def recent() -> dict:
+    """27/11 : les DERNIÈRES vidéos du profil avec leurs chiffres (Studio ne donne que les plus vues → la pub d'hier manquait)."""
+    async with LOCK:
+        async with Page(PROFILE, PROFILE) as p:
+            bodies = await _capture(p, PROFILE, '/api/post/item_list/', 18)
+            try:
+                cdp_json(f'/json/close/{p.target}')
+            except Exception:
+                pass
+    items = []
+    for b in bodies:
+        for it in (b.get('itemList') or []):
+            s = it.get('stats') or {}
+            items.append({'id': it.get('id'), 'desc': (it.get('desc') or '')[:300], 'create_time': it.get('createTime'),
+                          'duration': ((it.get('video') or {}).get('duration') or 0) * 1000, 'plays': s.get('playCount'), 'likes': s.get('diggCount'),
+                          'comments': s.get('commentCount'), 'shares': s.get('shareCount'), 'saves': s.get('collectCount')})
+    if not items:
+        return {'ok': False, 'error': 'vidéos du profil illisibles'}
+    return {'ok': True, 'videos': items}
+
+
 async def action(d: dict) -> dict:
     if d.get('action') == 'read_chat':
         return await read_chat(str(d.get('name') or ''))
     if d.get('action') == 'reply':
         return await reply(str(d.get('name') or ''), str(d.get('text') or ''), bool(d.get('dry')))
     if d.get('action') == 'insights':
-        return await insights()
+        r = await insights()
+        if r.get('ok'):
+            try:
+                r['recent'] = (await recent()).get('videos') or []
+            except Exception as e:
+                log.info('vidéos récentes : %s', e)
+        return r
+    if d.get('action') == 'recent':
+        return await recent()
     if d.get('action') == 'publish':
         return await publish(str(d.get('url') or ''), str(d.get('caption') or ''), bool(d.get('dry')))
     if d.get('action') == 'status':

@@ -176,7 +176,7 @@ export function weekPlan(g: Growth): Array<{ date: string; label: string; stars:
 export async function refreshGrowth(): Promise<Growth | string> {
   const { cloudEmit, isCloudPcOnline } = await import('../actions/handlers/cloudpc-relay.js');
   if (!isCloudPcOnline()) return 'PC cloud hors ligne';
-  type Raw = { ok: boolean; error?: string; insight?: Record<string, unknown>; videos?: Video[]; searches?: string; traffic?: string; views7?: string; trends?: Record<string, Trend[]> };
+  type Raw = { ok: boolean; error?: string; insight?: Record<string, unknown>; videos?: Video[]; recent?: Video[]; searches?: string; traffic?: string; views7?: string; trends?: Record<string, Trend[]> };
   const r = await cloudEmit<Raw>('cloud:tt', { action: 'insights' }, 240_000)
     .catch(e => ({ ok: false, error: e instanceof Error ? e.message : String(e) } as Raw));
   if (!r.ok) return r.error ?? 'lecture TikTok impossible';
@@ -223,7 +223,10 @@ export async function buildGrowth(r: { insight?: Record<string, unknown>; videos
   ])].slice(0, 15);
   const vv = series(ins['vv_history']), fol = series(ins['follower_num_history']);
   const trends = Object.values(r.trends ?? {}).flat().filter((t, i, a) => t.desc && a.findIndex(x => x.id === t.id) === i).sort((a, b) => b.plays - a.plays).slice(0, 40);
-  const videos = (r.videos ?? []).filter(v => v.id).sort((a, b) => (b.plays ?? 0) - (a.plays ?? 0));
+  // 27/11 : Studio ne donne que les plus vues → les dernières vidéos du profil (dont la pub d'hier) ajoutées
+  const byId = new Map<string, Video>();
+  for (const v of [...(r.videos ?? []), ...((r as { recent?: Video[] }).recent ?? [])]) if (v.id && (!byId.has(v.id) || (v.plays ?? 0) > (byId.get(v.id)!.plays ?? 0))) byId.set(v.id, v);
+  const videos = [...byId.values()].sort((a, b) => (b.plays ?? 0) - (a.plays ?? 0));
   const weekdays = weekdayProfile(hist, r.videos ?? []);
   const g: Growth = {
     at: new Date().toISOString(), followers: val(ins['follower_num']), hours, slots: weekdays.length ? slotsFromWeek(weekdays) : hours ? slotsFrom(hours) : undefined, audience,
@@ -290,6 +293,7 @@ export async function growthContext(): Promise<string> {
     a.client_questions?.length ? `• Vraies questions des clients (une vidéo peut y répondre) : ${a.client_questions.join(' ; ')}` : '',
     a.hooks_bank?.length ? `• Banque de hooks (inspiration, à adapter) : ${a.hooks_bank.slice(0, 8).map(h => `« ${h} »`).join(' · ')}` : '',
     a.formats?.length ? `• Formats tendance à adapter (mécanique, jamais copie) : ${a.formats.slice(0, 4).join(' ; ')}` : '',
+    ...(await pubResults().then(l => l.length ? [`• RÉSULTATS DE NOS DERNIÈRES PUBS (apprends-en : refais ce qui a marché, change ce qui a raté) :\n${l.slice(0, 8).map(x => `  - « ${x.title} » (angle ${x.angle ?? '?'}, hook « ${x.hook ?? '?'} », ${Math.round((x.duration ?? 0) / 1000)} s) : ${x.d7 ?? x.plays} vues${x.d7 ? ' en 7 j' : ' en 24 h'}, ${x.ratio} % de la médiane, ${x.saves} enregistr., ${x.shares} partages — leçon : ${x.lesson}`).join('\n')}`] : [], () => [])),
   ].filter(Boolean).join('\n');
 }
 
@@ -372,28 +376,66 @@ export async function teamTool(input: Record<string, unknown>): Promise<string> 
 /** Job quotidien 4h30 : stats fraîches pour les pubs du jour ; dimanche 18h : réunion. */
 export async function jobGrowthRefresh(): Promise<void> {
   const g = await refreshGrowth().catch(e => { console.warn('[tt-growth]', e); return null; });
-  if (g && typeof g !== 'string') await pubFollowUp(g).catch(e => console.warn('[tt-growth] suivi pub', e));
+  if (g && typeof g !== 'string') await jobPubFollowUp().catch(e => console.warn('[tt-growth] suivi pub', e));
 }
 
-/** 24/11 : le lendemain d'une pub publiée → ses chiffres comparés à la médiane de nos vidéos (1 seul message par pub). */
-async function pubFollowUp(g: Growth): Promise<void> {
-  const { postedPubIds } = await import('./tiktok-pub.js');
-  const done = new Set<string>(JSON.parse((await kvGet('tt:followup:done').catch(() => null)) ?? '[]') as string[]);
-  const posted = (await postedPubIds()).filter(p => p.id && !done.has(p.id) && Date.now() - Date.parse(p.at) > 18 * 3600_000 && Date.now() - Date.parse(p.at) < 5 * 86_400_000);
-  if (!posted.length) return;
-  const plays = g.videos.map(v => v.plays ?? 0).sort((a, b) => a - b);
-  const median = plays.length ? plays[Math.floor(plays.length / 2)]! : 0;
-  for (const p of posted) {
-    const t = Date.parse(p.at) / 1000;
-    const v = g.videos.find(x => Math.abs(x.create_time - t) < 3 * 3600);
-    if (!v) continue;   // pas (encore) dans les vidéos lues
-    done.add(p.id!);
+// ── 27/11 Kouider : « il n'a même pas fait le récap de la vidéo partagée hier » + « il doit apprendre le maximum des pubs » ──
+// Chaque heure (9h-22h) : une pub publiée depuis ≥ 20 h → ses vrais chiffres (vidéos récentes du profil), comparés à nos vidéos,
+// + une leçon simple. Tout est gardé (tt:pub:results) et redonné à l'équipe pour chaque nouvelle pub (growthContext).
+interface PubResult { id: string; title: string; at: string; angle?: string; hook?: string; cars?: string[]; caption?: string; duration?: number;
+  plays: number; likes: number; comments: number; shares: number; saves: number; ratio: number; lesson: string; checked: string; d7?: number }
+const RESULTS = 'tt:pub:results';
+export async function pubResults(): Promise<PubResult[]> { try { return JSON.parse((await kvGet(RESULTS)) ?? '[]') as PubResult[]; } catch { return []; } }
+
+export async function jobPubFollowUp(): Promise<void> {
+  const { postedPubIds, pubHistory } = await import('./tiktok-pub.js');
+  const res = await pubResults();
+  const posted = (await postedPubIds()).filter(p => p.id && Date.now() - Date.parse(p.at) < 8 * 86_400_000);
+  const due = posted.filter(p => !res.some(r => r.id === p.id) && Date.now() - Date.parse(p.at) >= 20 * 3600_000);
+  const week = res.filter(r => !r.d7 && Date.now() - Date.parse(r.at) >= 7 * 86_400_000);   // 7 jours après : chiffres finaux, sans message
+  if (!due.length && !week.length) return;
+  const { cloudEmit, isCloudPcOnline } = await import('../actions/handlers/cloudpc-relay.js');
+  if (!isCloudPcOnline()) return;
+  const r = await cloudEmit<{ ok: boolean; videos?: Video[]; error?: string }>('cloud:tt', { action: 'recent' }, 90_000).catch(() => null);
+  if (!r?.ok || !r.videos?.length) { console.warn('[tt-pub] vidéos récentes illisibles', r?.error); return; }
+  const g = await getGrowth().catch(() => null);
+  const find = (at: string) => { const t = Date.parse(at) / 1000; return r.videos!.filter(v => v.create_time >= t - 4 * 3600 && v.create_time <= t + 3 * 3600).sort((a, b) => Math.abs(a.create_time - t) - Math.abs(b.create_time - t))[0]; };
+  for (const w of week) { const v = r.videos.find(x => x.id && w.caption && x.desc === w.caption) ?? find(w.at); if (v) w.d7 = v.plays ?? 0; }
+  const memos = await pubHistory().catch(() => []);
+  for (const p of due) {
+    const v = find(p.at);
+    if (!v) continue;
+    const others = [...new Map([...(g?.videos ?? []), ...r.videos].filter(x => x.id && x.id !== v.id).map(x => [x.id, x])).values()].map(x => x.plays ?? 0).sort((a, b) => a - b);
+    const median = others.length ? others[Math.floor(others.length / 2)]! : 0;
     const ratio = median ? Math.round((v.plays ?? 0) / median * 100) : 0;
-    await queueTelegramMessage(`📊 Ta pub « ${p.title ?? 'TikTok'} », 1 jour après : ${fmtVid(v)}\n`
-      + (median ? (ratio >= 100 ? `🔥 ${ratio} % d'une vidéo normale chez toi (médiane ${median.toLocaleString('fr-FR')} vues) : ce format marche, l'équipe va le refaire.` : `📉 ${ratio} % d'une vidéo normale chez toi (médiane ${median.toLocaleString('fr-FR')} vues) : l'équipe change de hook la prochaine fois.`) : '')).catch(() => {});
+    const memo = memos.find(m => m.title === p.title);
+    const past = res.slice(0, 6).map(x => `« ${x.title} » (${x.angle ?? '?'}, hook « ${x.hook ?? '?'} ») : ${x.plays} vues, ${x.ratio} % de la médiane`).join(' ; ');
+    const lesson = (await (await import('../integrations/ai-util.js')).ai(`Pub TikTok de FIK (location de voitures à Oran, public : diaspora en France + Algérie) publiée il y a ${Math.round((Date.now() - Date.parse(p.at)) / 3_600_000)} h.
+`
+      + `Titre : « ${p.title} ». Angle : ${memo?.angle ?? '?'}. Hook : « ${memo?.hook ?? '?'} ». Voitures : ${memo?.cars?.join(', ') || '?'}. Durée : ${Math.round((v.duration ?? 0) / 1000)} s. Légende : « ${v.desc.slice(0, 200)} ».
+`
+      + `Résultat : ${v.plays ?? 0} vues, ${v.likes ?? 0} j'aime, ${v.comments ?? 0} commentaires, ${v.shares ?? 0} partages, ${v.saves ?? 0} enregistrements. Médiane de nos vidéos : ${median} vues (${ratio} %).
+`
+      + `${past ? `Nos pubs précédentes : ${past}.
+` : ''}${g?.videos?.[0] ? `Nos meilleures vidéos : ${g.videos.slice(0, 2).map(fmtVid).join(' | ')}
+` : ''}`
+      + `En 2 phrases très simples (tutoiement, comme à un ami, sans jargon ni anglais) : 1) pourquoi elle a marché ou pas, 2) ce qu'on change ou garde pour la PROCHAINE pub (hook, durée, voiture, moment…). N'invente aucun chiffre.`, { max: 200 }).catch(() => '')).trim();
+    res.unshift({ id: p.id!, title: p.title ?? 'pub', at: p.at, angle: memo?.angle, hook: memo?.hook, cars: memo?.cars, caption: v.desc, duration: v.duration,
+      plays: v.plays ?? 0, likes: v.likes ?? 0, comments: v.comments ?? 0, shares: v.shares ?? 0, saves: v.saves ?? 0, ratio, lesson, checked: new Date().toISOString() });
+    await queueTelegramMessage(`📊 Bilan de ta pub « ${p.title} » (${Math.round((Date.now() - Date.parse(p.at)) / 3_600_000)} h après) :
+`
+      + `👀 ${(v.plays ?? 0).toLocaleString('fr-FR')} vues · ❤️ ${v.likes ?? 0} · 💬 ${v.comments ?? 0} · 🔁 ${v.shares ?? 0} · 🔖 ${v.saves ?? 0}
+`
+      + (median ? `${ratio >= 100 ? '🔥' : '📉'} ${ratio} % d'une vidéo normale chez toi (en général ${median.toLocaleString('fr-FR')} vues).
+` : '')
+      + (lesson ? `
+🧠 ${lesson}
+` : '') + `
+Je garde cette leçon : l'équipe s'en sert pour la prochaine pub.`, undefined, 'kouider', undefined, true).catch(() => {});
   }
-  await kvSet('tt:followup:done', JSON.stringify([...done].slice(-50)));
+  await kvSet(RESULTS, JSON.stringify(res.slice(0, 40)));
 }
+
 export async function jobWeeklyMeeting(): Promise<void> { await weeklyMeeting(true).catch(e => console.warn('[tt-growth] réunion', e)); }
 
 /** 26/11 Kouider : « fais en sorte qu'il crée autant de vidéos que possible pour que je sois régulier ».
