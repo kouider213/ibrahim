@@ -122,8 +122,9 @@ export async function monArgentOverview() {
     year: { total: sum(all), bySource: bySource(all) },
     snus: snusStats, depart, insights,
     bestDays, weekdays: wk, last30, months6,
-    recent: sales.filter(s => s.at).sort((a, b) => (b.at ?? 0) - (a.at ?? 0)).slice(0, 25)
-      .map(s => ({ at: s.at!, d: s.d, cat: s.cat, label: s.label || (LABEL[s.cat] ?? s.cat), amount: s.amount, qty: s.qty ?? null, unit: s.unit ?? null })),
+    // 27/11 : TOUTES ses ventes (app + Telegram + anciennes), supprimables — clé stable même sans horodatage
+    recent: keyed(journal).filter(x => x.e.t === 'vente' && x.e.cat !== 'fik').sort((a, b) => b.e.d.localeCompare(a.e.d) || (b.e.at ?? 0) - (a.e.at ?? 0)).slice(0, 300)
+      .map(({ e, key }) => ({ key, at: e.at ?? 0, d: e.d, cat: e.cat, label: e.label || (LABEL[e.cat] ?? e.cat), amount: e.amount, qty: e.qty ?? null, unit: e.unit ?? null, via: e.note === 'app' ? 'app' : 'telegram' })),
     sources: SOURCES, tarifs: SNUS_TARIFS,
   };
 }
@@ -217,11 +218,22 @@ export async function monArgentAdd(input: { cat: string; amount?: number; qty?: 
 }
 
 /** Annule une ligne ajoutée (repérée par son horodatage). */
-export async function monArgentUndo(at: number): Promise<boolean> {
+/** Clé d'une ligne du journal : son horodatage, sinon date|source|montant|n° d'occurrence (lignes anciennes sans heure). */
+function keyed(l: Entry[]): Array<{ e: Entry; key: string; i: number }> {
+  const seen = new Map<string, number>();
+  return l.map((e, i) => {
+    if (e.at) return { e, key: `a${e.at}`, i };
+    const b = `x${e.d}|${e.cat}|${e.amount}`; const n = (seen.get(b) ?? 0) + 1; seen.set(b, n);
+    return { e, key: `${b}|${n}`, i };
+  });
+}
+/** Supprime une vente (n'importe laquelle : app, Telegram, ancienne). Accepte la clé ou l'ancien horodatage. */
+export async function monArgentUndo(key: string | number): Promise<boolean> {
   const l = await kvJson<Entry[]>(J, []);
-  const i = l.findIndex(e => e.at === at && e.t === 'vente');
-  if (i < 0) return false;
-  l.splice(i, 1); await kvPut(J, l);
+  const k = typeof key === 'number' || /^\d+$/.test(String(key)) ? `a${key}` : String(key);
+  const hit = keyed(l).find(x => x.key === k && x.e.t === 'vente');
+  if (!hit) return false;
+  l.splice(hit.i, 1); await kvPut(J, l);
   return true;
 }
 

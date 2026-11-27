@@ -1,3 +1,8 @@
+## 27/11 — MON ARGENT : gros bouton « Valider la vente » + historique de toutes les ventes supprimables (app v313)
+- Kouider : « je dois pouvoir valider la vente de 10 et supprimer des anciennes ventes ».
+- Après +1/+2/+5/+10 : grand bouton vert « ✅ Valider la vente : N pièces » (N × prix = total) + « Annuler ».
+- Historique de TOUTES ses ventes (app + Telegram + anciennes sans heure), groupé par jour, 🗑 avec confirmation ; clé stable keyed() (horodatage, sinon date|source|montant|occurrence) ; undo accepte key.
+
 ## 27/11 — Plan de départ : la maison passe toujours avant la voiture en Algérie
 - Kouider : « la maison doit toujours passer avant l'achat de la voiture en Algérie ». Étapes par défaut : réserve → maison → voiture → déménagement ; houseFirst() remet la maison avant la voiture même dans un ordre qu'il enregistre.
 

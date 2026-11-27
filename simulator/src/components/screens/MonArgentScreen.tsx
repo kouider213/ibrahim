@@ -22,7 +22,7 @@ export interface MonArgent {
   weekdays: Array<{ name: string; avg: number; n: number }>;
   last30: Array<{ d: string; amount: number; parts: Part[] }>;
   months6: Array<{ ym: string; label: string; amount: number; parts: Part[] }>;
-  recent: Array<{ at: number; d: string; cat: string; label: string; amount: number; qty: number | null; unit: number | null }>;
+  recent: Array<{ key: string; at: number; d: string; cat: string; label: string; amount: number; qty: number | null; unit: number | null; via: 'app' | 'telegram' }>;
   sources: Array<{ id: string; label: string; icon: string }>;
   tarifs: Array<{ id: string; label: string; hint: string }>;
 }
@@ -78,6 +78,7 @@ export default function MonArgentScreen() {
   const [f, setF] = useState({ amount: '', client: '', owner: '', label: '', compte: '', cash: '', q: '' });
   const [answer, setAnswer] = useState('');
   const [showAll, setShowAll] = useState(false);
+  const [histN, setHistN] = useState(20);
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2400); };
   const setFF = (k: keyof typeof f, v: string) => setF(s => ({ ...s, [k]: v }));
 
@@ -144,18 +145,23 @@ export default function MonArgentScreen() {
               <button key={n} disabled={busy} onClick={() => setQty(q => q + n)} className="dz-press" style={{ padding: '16px 0', borderRadius: 16, border: 'none', background: SRC_COL.snus, color: '#fff', fontSize: 20, fontWeight: 800, fontFamily: T.font, cursor: 'pointer', boxShadow: `0 10px 22px -12px ${SRC_COL.snus}` }}>+{n}</button>
             ))}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 8, marginTop: 8 }}>
-            {([6, 5] as const).map(u => (
-              <button key={u} disabled={busy} onClick={() => quickOne(u)} className="dz-press" style={{ padding: '12px 0', borderRadius: 14, border: `1px solid ${SRC_COL.snus}`, background: 'transparent', color: T.text, fontSize: 14.5, fontWeight: 800, fontFamily: T.font, cursor: 'pointer' }}>1 pièce à {u} € <span style={{ fontSize: 11.5, color: T.muted, fontWeight: 600 }}>· tout de suite</span></button>
-            ))}
-          </div>
           {preview ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
-              <div style={{ flex: 1, fontSize: 14 }}><b>{qty} pièce{qty > 1 ? 's' : ''}</b> × {preview.unit} € = <b style={{ fontSize: 17 }}>{money(preview.amount)}</b></div>
-              <button onClick={() => setQty(0)} style={{ background: 'none', border: 'none', color: T.bad, fontWeight: 700, cursor: 'pointer', fontFamily: T.font }}>Effacer</button>
-              <Btn variant="primary" color={SRC_COL.snus} disabled={busy} onClick={saveSnus}>{busy ? '…' : 'Noter'}</Btn>
+            /* 27/11 : « je dois pouvoir valider la vente de 10 » → gros bouton bien visible juste sous les +N */
+            <div style={{ marginTop: 10 }}>
+              <button disabled={busy} onClick={saveSnus} className="dz-press" style={{ width: '100%', padding: '16px 12px', borderRadius: 16, border: 'none', background: `linear-gradient(135deg, ${SRC_COL.snus}, #0f7a4f)`, color: '#fff', fontFamily: T.font, cursor: 'pointer', boxShadow: `0 14px 28px -14px ${SRC_COL.snus}` }}>
+                <div style={{ fontSize: 18, fontWeight: 800 }}>{busy ? 'Enregistrement…' : `✅ Valider la vente : ${qty} pièce${qty > 1 ? 's' : ''}`}</div>
+                <div style={{ fontSize: 13.5, opacity: 0.9, marginTop: 2 }}>{qty} × {preview.unit} € = {money(preview.amount)}{tarif === 'lot' && qty < 10 ? ' (le lot à 5 € commence à 10)' : ''}</div>
+              </button>
+              <button onClick={() => setQty(0)} style={{ width: '100%', marginTop: 6, padding: 8, background: 'none', border: 'none', color: T.bad, fontWeight: 700, cursor: 'pointer', fontFamily: T.font, fontSize: 13.5 }}>Annuler ({qty} pièce{qty > 1 ? 's' : ''})</button>
             </div>
-          ) : <div style={{ fontSize: 12.5, color: T.muted, marginTop: 10 }}>Plusieurs pièces : +1, +2… puis « Noter » (prix normal 6 €, ou « Lot dès 10 » à 5 € la pièce). Ristourne client : « 1 pièce à 5 € ».</div>}
+          ) : <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 8, marginTop: 8 }}>
+              {([6, 5] as const).map(u => (
+                <button key={u} disabled={busy} onClick={() => quickOne(u)} className="dz-press" style={{ padding: '12px 0', borderRadius: 14, border: `1px solid ${SRC_COL.snus}`, background: 'transparent', color: T.text, fontSize: 14.5, fontWeight: 800, fontFamily: T.font, cursor: 'pointer' }}>1 pièce à {u} € <span style={{ fontSize: 11.5, color: T.muted, fontWeight: 600 }}>· tout de suite</span></button>
+              ))}
+            </div>
+            <div style={{ fontSize: 12.5, color: T.muted, marginTop: 10 }}>Plusieurs pièces : appuie sur +1, +2, +5, +10 (ils s'additionnent), puis « Valider la vente ». Ristourne client : « 1 pièce à 5 € ».</div>
+          </>}
           {o.snus.marginPiece != null && <div style={{ display: 'flex', gap: 14, marginTop: 12, paddingTop: 10, borderTop: `1px solid ${T.line}`, fontSize: 12.5, color: T.muted, flexWrap: 'wrap' }}>
             <span>Ce mois <b style={{ color: T.text }}>{o.snus.month} pièces</b></span>
             <span>Prix moyen <b style={{ color: T.text }}>{o.snus.avgUnit?.toFixed(2)} €</b></span>
@@ -242,19 +248,24 @@ export default function MonArgentScreen() {
           </div>}
         </div>
 
-        {/* Dernières notes */}
+        {/* 27/11 : historique de TOUTES ses ventes (app + Telegram), chacune supprimable */}
         {o.recent.length > 0 && <>
-          <SectionTitle>Dernières ventes notées</SectionTitle>
+          <SectionTitle right={<span style={{ fontSize: 12, color: T.muted }}>{o.recent.length} ventes</span>}>Historique des ventes</SectionTitle>
           <div style={{ ...glass(), borderRadius: 22, padding: '4px 14px' }}>
-            {o.recent.map(r => (
-              <div key={r.at} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0', borderBottom: `1px solid ${T.line}` }}>
-                <Badge color={SRC_COL[r.cat] ?? T.accent}>{r.qty ? `${r.qty} × ${r.unit} €` : r.label}</Badge>
-                <span style={{ flex: 1, fontSize: 13, color: T.muted }}>{dm(r.d)}</span>
-                <b style={{ fontSize: 15 }}>+{money(r.amount)}</b>
-                <button onClick={() => void post('/api/mon-argent/undo', { at: r.at }, () => flash('Ligne retirée'))} aria-label="Retirer" style={{ background: 'none', border: 'none', color: T.faint, fontSize: 18, cursor: 'pointer' }}>×</button>
+            {o.recent.slice(0, histN).map((r, k, arr) => (
+              <div key={r.key}>
+                {(k === 0 || arr[k - 1]!.d !== r.d) && <div style={{ fontSize: 11.5, fontWeight: 800, color: T.faint, letterSpacing: '0.05em', padding: '10px 0 2px' }}>{dm(r.d).toUpperCase()}</div>}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 0', borderBottom: `1px solid ${T.line}` }}>
+                  <Badge color={SRC_COL[r.cat] ?? T.accent}>{r.qty ? `${r.qty} × ${r.unit} €` : r.label}</Badge>
+                  <span style={{ flex: 1, fontSize: 12, color: T.faint }}>{r.via === 'telegram' ? 'Telegram' : ''}</span>
+                  <b style={{ fontSize: 15 }}>+{money(r.amount)}</b>
+                  <button onClick={() => { if (window.confirm(`Supprimer cette vente (${money(r.amount)}, ${dm(r.d)}) ?`)) void post('/api/mon-argent/undo', { key: r.key }, () => flash('🗑️ Vente supprimée')); }}
+                    aria-label="Supprimer" style={{ background: tone(T.bad, 0.12), border: 'none', color: T.bad, width: 30, height: 30, borderRadius: 10, fontSize: 16, cursor: 'pointer' }}>🗑</button>
+                </div>
               </div>
             ))}
           </div>
+          {o.recent.length > histN && <Btn variant="ghost" onClick={() => setHistN(n => n + 30)} style={{ width: '100%', marginTop: 8 }}>Voir plus ({o.recent.length - histN})</Btn>}
         </>}
       </>}
 

@@ -15,7 +15,7 @@ router.post('/add', async (req, res) => {
   try { const b = req.body ?? {}; const message = await monArgentAdd(b); res.json({ message, overview: await monArgentOverview() }); } catch (e) { fail(res, e); }
 });
 router.post('/undo', async (req, res) => {
-  try { const ok = await monArgentUndo(Number(req.body?.at)); res.json({ ok, overview: await monArgentOverview() }); } catch (e) { fail(res, e); }
+  try { const ok = await monArgentUndo(req.body?.key != null ? String(req.body.key) : Number(req.body?.at)); res.json({ ok, overview: await monArgentOverview() }); } catch (e) { fail(res, e); }
 });
 router.post('/balances', async (req, res) => {
   try { const b = req.body ?? {}; await monArgentBalances(b.compte != null ? Number(b.compte) : undefined, b.cash != null ? Number(b.cash) : undefined); res.json({ overview: await monArgentOverview() }); } catch (e) { fail(res, e); }
