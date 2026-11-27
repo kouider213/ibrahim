@@ -1,3 +1,8 @@
+## 27/11 — DÉPART TRAVAIL : plus d'appel « pars maintenant » quand il est déjà au travail
+- Kouider : appelé à 11h55 « il faut partir pour le travail à 12h, 3 min de route » alors qu'il y était déjà.
+- Cause : la position en direct Telegram n'est mise à jour que quand il bouge. Immobile au travail → plus « fraîche » après 20 min → trajet calculé depuis la maison (450 m du travail, au-delà du rayon 350 m) → appel.
+- departures.ts : dernière position de moins de 4 h sans mouvement depuis, à moins de 350 m du RDV = déjà sur place → aucun message ni appel.
+
 ## 27/11 — PROMOS AIR ALGÉRIE : Dzaryx les trouve, les lit et dit si ça te concerne (app v318)
 - Kouider : « je reçois une notif de promo Air Algérie mais je sais pas de quoi ; Dzaryx doit me le dire ».
 - Constat : les promos n'arrivent pas dans la boîte pro (seule boîte lue) → Dzaryx va les chercher lui-même.

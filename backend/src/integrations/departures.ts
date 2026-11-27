@@ -78,6 +78,10 @@ export async function jobDepartureWatch(): Promise<void> {
   const home = await geocode(cfg.addresses.home);
   const loc = await getLocation('kouider').catch(() => null);
   const fresh = loc && now - Date.parse(loc.updated_at) < 20 * 60_000 ? { lat: loc.lat, lng: loc.lng } : null;
+  // 27/11 (appel « pars au travail, 3 min » alors qu'il y était) : la position en direct Telegram ne se met à jour que
+  // quand il BOUGE. Immobile au travail = pas de mise à jour → plus « fraîche » après 20 min → calcul depuis la maison
+  // (à 450 m du travail). Dernière position de moins de 4 h, sans mouvement depuis = il est encore là.
+  const still = !fresh && loc && now - Date.parse(loc.updated_at) < 4 * 3600_000 ? { lat: loc.lat, lng: loc.lng } : null;
   const origin = fresh ?? home;
   if (!origin) return;
 
@@ -101,6 +105,7 @@ export async function jobDepartureWatch(): Promise<void> {
     if (st.done || st.called) continue;
     const dest = await geocode(e.location);
     if (!dest) continue;
+    if (still && km(still, dest) < HOME_RADIUS_KM) { await kvSet(key, JSON.stringify({ ...st, done: true }), 86_400); continue; }   // immobile sur place
     const far = km(origin, dest);
     if (far < HOME_RADIUS_KM) { await kvSet(key, JSON.stringify({ ...st, done: true }), 86_400); continue; }   // déjà sur place
     if (far > MAX_KM) continue;
