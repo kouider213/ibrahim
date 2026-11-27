@@ -19,14 +19,14 @@ export const SOURCES = [
   { id: 'vente-voiture', label: 'Vente voiture', icon: '🚘' },
   { id: 'autre', label: 'Autre / heures sup', icon: '➕' },
 ] as const;
-/** Tarifs snus (27/11) : normal = 6 €/pièce, 50 € les 10 dès 10 pièces ; « 5 € » = clients à 5 € ; « sans ristourne » = toujours 6 €. */
+/** Tarifs snus (27/11, corrigé par Kouider) : normal = pièces × 6 € (12 = 72 €) ; lot = dès 10 pièces 5 € la pièce, au-delà aussi
+ *  (10 = 50 €, 11 = 55 €), sous 10 = 6 € ; « cinq » = une ristourne client à 5 € la pièce. */
 export const SNUS_TARIFS = [
-  { id: 'normal', label: 'Normal', hint: '6 € · 10 = 50 €' },
-  { id: 'cinq', label: 'Client à 5 €', hint: '5 € la pièce' },
-  { id: 'six', label: 'Sans ristourne', hint: '6 € toujours' },
+  { id: 'normal', label: 'Prix normal', hint: '6 € la pièce' },
+  { id: 'lot', label: 'Lot dès 10', hint: '5 € la pièce dès 10' },
 ] as const;
 export const snusPrice = (qty: number, tarif: string) => {
-  const unit = tarif === 'cinq' ? 5 : tarif === 'six' ? 6 : qty >= 10 ? 5 : 6;
+  const unit = tarif === 'cinq' ? 5 : tarif === 'six' ? 6 : tarif === 'lot' ? (qty >= 10 ? 5 : 6) : 6;
   return { unit, amount: qty * unit };
 };
 const LABEL: Record<string, string> = { cash: 'Autre (cash)', fik: 'Locations FIK', snus: 'Snus', appartement: 'Appartement', 'vente-voiture': 'Vente voiture', autre: 'Autre / heures sup' };
@@ -199,7 +199,7 @@ export async function monArgentAdd(input: { cat: string; amount?: number; qty?: 
   if (cat === 'snus') {
     const qty = Math.round(Number(input.qty));
     if (!(qty >= 1 && qty <= 500)) throw new Error('Nombre de pièces invalide');
-    const tarif = SNUS_TARIFS.some(t => t.id === input.tarif) ? input.tarif! : 'normal';
+    const tarif = ['normal', 'lot', 'cinq', 'six'].includes(String(input.tarif)) ? String(input.tarif) : 'normal';
     const p = snusPrice(qty, tarif);
     e = { d, t: 'vente', cat, amount: p.amount, mode: 'cash', note: 'app', at: Date.now(), qty, unit: p.unit, tarif };
   } else if (cat === 'appartement') {

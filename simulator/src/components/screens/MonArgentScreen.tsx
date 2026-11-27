@@ -28,7 +28,7 @@ export interface MonArgent {
 export const SRC_COL: Record<string, string> = { fik: '#3d6bff', snus: '#12b76a', appartement: '#f97316', 'vente-voiture': '#8b5cf6', autre: '#f59e0b', cash: '#64748b' };
 const SRC_NAME: Record<string, string> = { fik: 'FIK', snus: 'Snus', appartement: 'Appart', 'vente-voiture': 'Voiture', autre: 'Autre', cash: 'Cash' };
 const dm = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
-export const snusPrice = (qty: number, tarif: string) => { const unit = tarif === 'cinq' ? 5 : tarif === 'six' ? 6 : qty >= 10 ? 5 : 6; return { unit, amount: qty * unit }; };
+export const snusPrice = (qty: number, tarif: string) => { const unit = tarif === 'cinq' ? 5 : tarif === 'lot' ? (qty >= 10 ? 5 : 6) : 6; return { unit, amount: qty * unit }; };
 export const addSnus = (qty: number, tarif: string) => apiFetch<{ message: string; overview: MonArgent }>('/api/mon-argent/add', { method: 'POST', body: JSON.stringify({ cat: 'snus', qty, tarif }) });
 
 /** Barres empilées par source (mois ou jours). */
@@ -92,6 +92,7 @@ export default function MonArgentScreen() {
     finally { setBusy(false); }
   };
   const saveSnus = () => qty > 0 && void post('/api/mon-argent/add', { cat: 'snus', qty, tarif }, r => { setQty(0); flash(`✅ ${r.message}`); });
+  const quickOne = (unit: 5 | 6) => void post('/api/mon-argent/add', { cat: 'snus', qty: 1, tarif: unit === 5 ? 'cinq' : 'six' }, r => flash(`✅ ${r.message}`));
   const saveOther = () => {
     if (!sheet) return;
     const body = sheet === 'appartement' ? { cat: sheet, client: Number(f.client), owner: Number(f.owner || 0), label: f.label } : { cat: sheet, amount: Number(f.amount), label: f.label || (sheet === 'autre' ? 'Heures sup' : '') };
@@ -142,13 +143,18 @@ export default function MonArgentScreen() {
               <button key={n} disabled={busy} onClick={() => setQty(q => q + n)} className="dz-press" style={{ padding: '16px 0', borderRadius: 16, border: 'none', background: SRC_COL.snus, color: '#fff', fontSize: 20, fontWeight: 800, fontFamily: T.font, cursor: 'pointer', boxShadow: `0 10px 22px -12px ${SRC_COL.snus}` }}>+{n}</button>
             ))}
           </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 8, marginTop: 8 }}>
+            {([6, 5] as const).map(u => (
+              <button key={u} disabled={busy} onClick={() => quickOne(u)} className="dz-press" style={{ padding: '12px 0', borderRadius: 14, border: `1px solid ${SRC_COL.snus}`, background: 'transparent', color: T.text, fontSize: 14.5, fontWeight: 800, fontFamily: T.font, cursor: 'pointer' }}>1 pièce à {u} € <span style={{ fontSize: 11.5, color: T.muted, fontWeight: 600 }}>· tout de suite</span></button>
+            ))}
+          </div>
           {preview ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
               <div style={{ flex: 1, fontSize: 14 }}><b>{qty} pièce{qty > 1 ? 's' : ''}</b> × {preview.unit} € = <b style={{ fontSize: 17 }}>{money(preview.amount)}</b></div>
               <button onClick={() => setQty(0)} style={{ background: 'none', border: 'none', color: T.bad, fontWeight: 700, cursor: 'pointer', fontFamily: T.font }}>Effacer</button>
               <Btn variant="primary" color={SRC_COL.snus} disabled={busy} onClick={saveSnus}>{busy ? '…' : 'Noter'}</Btn>
             </div>
-          ) : <div style={{ fontSize: 12.5, color: T.muted, marginTop: 10 }}>Appuie sur +1, +2… puis « Noter ». Dès 10 pièces au tarif normal : 5 € la pièce (50 € les 10).</div>}
+          ) : <div style={{ fontSize: 12.5, color: T.muted, marginTop: 10 }}>Plusieurs pièces : +1, +2… puis « Noter » (prix normal 6 €, ou « Lot dès 10 » à 5 € la pièce). Ristourne client : « 1 pièce à 5 € ».</div>}
           {o.snus.marginPiece != null && <div style={{ display: 'flex', gap: 14, marginTop: 12, paddingTop: 10, borderTop: `1px solid ${T.line}`, fontSize: 12.5, color: T.muted, flexWrap: 'wrap' }}>
             <span>Ce mois <b style={{ color: T.text }}>{o.snus.month} pièces</b></span>
             <span>Prix moyen <b style={{ color: T.text }}>{o.snus.avgUnit?.toFixed(2)} €</b></span>

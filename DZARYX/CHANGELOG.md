@@ -1,3 +1,7 @@
+## 27/11 — MON ARGENT : tarifs snus corrigés + « 1 pièce à 6 € / à 5 € » en un appui (app v311)
+- Kouider : « 12 pièces au prix normal = 6 € × 12 = 72 € ; à partir de 10 c'est 10 × 5 et en plus 5 € aussi (11 = 55 €) ; pour les ristournes client, 2 touches : 1 pièce à 6 € et 1 pièce à 5 € ».
+- snusPrice : normal = × 6 ; lot = dès 10 pièces × 5 (sous 10 : × 6) ; cinq = 5 € ; six = 6 €. Boutons « 1 pièce à 6 € » / « 1 pièce à 5 € » (page + carte Aujourd'hui).
+
 ## 27/11 — Liberté : la limite suit ses progrès (2 jours sous la limite → elle baisse)
 - Kouider : « quand il voit qu'après 2-3 jours je prends moins que la limite, il diminue… parfois j'arrive à 3 demis mais je recommence à augmenter car je me dis : je suis autorisé à 6 ».
 - liberte.ts : LibState.cap ; allowedOn = min(plan du médecin, limite personnelle) ; capCheck chaque matin (≥ 5h) : 2 jours notés (> 0) sous la limite → limite = le plus haut des 2 jours, message Telegram + prochaine marche. Jamais au-dessus du plan, jamais remontée seule ; jours vides ignorés.
