@@ -51,7 +51,7 @@ export function MonArgentMini() {
           <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{day?.pris ? <>ventes {fm(day.ventes)} − pris <b style={{ color: T.bad }}>{fm(day.pris)}</b></> : 'ventes du jour'}{last?.time ? ` · ${last.time}` : ''}{day?.readAt ? ` · lu à ${day.readAt}` : ''}</div>
         </div>
         <div style={{ textAlign: 'right', fontSize: 12.5, color: T.muted }}>
-          <div>🟢 {o.snus.today} snus{o.extras?.stock ? <> · <span style={{ color: stockLow ? T.bad : undefined, fontWeight: stockLow ? 800 : undefined }}>stock {o.extras.stock.pieces}{stockLow ? ' ⚠️' : ''}</span></> : ''}</div><div>Ce mois <b style={{ color: T.text }}>{fm(o.month.total)}</b></div>
+          <div>🟢 {o.snus.today} snus{o.extras?.stock ? <> · <span role="button" onClick={e => { e.stopPropagation(); go('stocksnus'); }} style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, color: stockLow ? T.bad : undefined, fontWeight: stockLow ? 800 : 700 }}>📦 stock {o.extras.stock.pieces}{stockLow ? ' ⚠️' : ''} ›</span></> : ''}</div><div>Ce mois <b style={{ color: T.text }}>{fm(o.month.total)}</b></div>
           <div style={{ color: T.accent, fontWeight: 700, marginTop: 2 }}>Détails ›</div>
         </div>
       </div>

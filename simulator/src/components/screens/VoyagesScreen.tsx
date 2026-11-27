@@ -1,0 +1,150 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { apiFetch } from '../../services/api.ts';
+import { T, PageHeader, Screen, SectionTitle, Badge, Empty, glass, HeadBtn, Btn, Sheet, Field, inputStyle, money } from '../ui/Kit.tsx';
+import { SkeletonCards } from '../ui/Premium.tsx';
+
+// MES VOYAGES (27/11) : « je veux aller en Algérie en voiture, bateau en Espagne, la dernière fois X €, 1 mois… »
+// → Dzaryx prépare route, villes, lieux pour les trois, budget, objectifs, check-list, 30 options + PDF.
+// Aussi depuis Telegram (outil voyage). PRIVÉ : /api/mon-argent/voyages (compte Kouider seulement).
+
+interface Voyage {
+  id: string; at: number; status: 'preparing' | 'ready' | 'failed'; request: string; title: string; dest: string; days: number; lastCost?: number | null;
+  resume?: string; route?: Array<{ day: string; title: string; text: string; km?: number; hours?: number; sleep?: string }>;
+  lieux?: Array<{ name: string; city: string; why: string; for?: string; when?: string; price?: string }>; villes?: Array<{ name: string; nights: number; why: string }>;
+  lignes?: Array<{ label: string; amount: number; note?: string }>; total?: number; departImpact?: string; error?: string;
+  objectifs?: Array<{ icon: string; title: string; text: string; done?: boolean }>; options?: Array<{ icon: string; title: string; text: string; done?: boolean; no?: boolean }>;
+  checklist?: Array<{ label: string; when?: string; done?: boolean }>;
+}
+const TABS: Array<[string, string]> = [['plan', 'Le plan'], ['lieux', 'À visiter'], ['budget', 'Budget'], ['options', '30 options'], ['check', 'Check-list']];
+
+export default function VoyagesScreen() {
+  const [list, setList] = useState<Voyage[] | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
+  const [tab, setTab] = useState('plan');
+  const [ask, setAsk] = useState(false);
+  const [form, setForm] = useState({ request: '', days: '30', last: '' });
+  const [msg, setMsg] = useState('');
+  const timer = useRef<number | null>(null);
+
+  const load = useCallback(async () => {
+    try { const r = await apiFetch<{ voyages: Voyage[] }>('/api/mon-argent/voyages'); setList(r.voyages); return r.voyages; } catch { setList(l => l ?? []); return []; }
+  }, []);
+  useEffect(() => { void load(); return () => { if (timer.current) window.clearInterval(timer.current); }; }, [load]);
+  // Un plan en préparation → on revérifie toutes les 10 s
+  useEffect(() => {
+    if (timer.current) { window.clearInterval(timer.current); timer.current = null; }
+    if (list?.some(v => v.status === 'preparing')) timer.current = window.setInterval(() => void load(), 10_000);
+  }, [list, load]);
+  const flash = (t: string) => { setMsg(t); window.setTimeout(() => setMsg(''), 3000); };
+
+  const post = async <R,>(path: string, body: unknown) => apiFetch<R>(path, { method: 'POST', body: JSON.stringify(body) });
+  const create = async () => {
+    try {
+      const r = await post<{ voyage: Voyage }>('/api/mon-argent/voyages', { request: form.request, days: Number(form.days) || 30, last_cost: Number(form.last) || undefined });
+      setAsk(false); setForm({ request: '', days: '30', last: '' }); setList(l => [r.voyage, ...(l ?? [])]); flash('⏳ Je prépare ton voyage (3 à 5 min), le PDF arrivera aussi sur Telegram');
+    } catch (e) { flash(`⚠️ ${(e as Error).message.replace(/^API \d+: /, '')}`); }
+  };
+  const tick = async (id: string, kind: string, i: number, value: string) => {
+    try { const r = await post<{ voyage: Voyage }>('/api/mon-argent/voyages/tick', { id, kind, i, value }); setList(l => (l ?? []).map(v => (v.id === id ? r.voyage : v))); } catch { /* */ }
+  };
+  const pdf = async (v: Voyage, telegram: boolean) => {
+    try {
+      const r = await post<{ ok: boolean; name?: string; base64?: string }>('/api/mon-argent/voyages/pdf', { id: v.id, telegram });
+      if (telegram) { flash('📄 PDF envoyé sur Telegram'); return; }
+      if (r.base64) { const a = document.createElement('a'); a.href = `data:application/pdf;base64,${r.base64}`; a.download = r.name ?? 'voyage.pdf'; a.click(); }
+    } catch (e) { flash(`⚠️ ${(e as Error).message}`); }
+  };
+  const del = async (v: Voyage) => { if (!window.confirm(`Supprimer « ${v.title} » ?`)) return; await post('/api/mon-argent/voyages/delete', { id: v.id }).catch(() => {}); setOpen(null); void load(); };
+
+  const v = list?.find(x => x.id === open) ?? null;
+  return (
+    <Screen toast={msg} header={<PageHeader eyebrow="Vacances en famille" title="🧳 Mes voyages" subtitle="Dis où tu veux aller : je prépare la route, les lieux pour vous trois, le budget et le PDF."
+      right={<HeadBtn icon="＋" label="Nouveau" onClick={() => setAsk(true)} />} />}>
+      {!list ? <SkeletonCards count={3} /> : !list.length ? (
+        <Empty icon="🧳" title="Aucun voyage préparé" text="Exemple : « je veux aller en Algérie en voiture, je prends le bateau en Espagne, la dernière fois ça m'a coûté X €, 1 mois de vacances ». Ici ou sur Telegram." action={<Btn variant="primary" onClick={() => setAsk(true)}>Préparer un voyage</Btn>} />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+          {list.map(x => (
+            <div key={x.id} role="button" onClick={() => { if (x.status === 'ready') { setOpen(x.id); setTab('plan'); } }} style={{ ...glass(x.status === 'ready' ? T.accent : x.status === 'failed' ? T.bad : T.warn), borderRadius: 20, padding: 14, cursor: x.status === 'ready' ? 'pointer' : 'default' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 24 }}>{x.status === 'preparing' ? '⏳' : x.status === 'failed' ? '❌' : '🧳'}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{x.title}</div>
+                  <div style={{ fontSize: 12.5, color: T.muted, marginTop: 2 }}>{x.status === 'preparing' ? 'Préparation en cours (3 à 5 min)…' : x.status === 'failed' ? (x.error ?? 'échec') : `${x.days} jours · ${money(x.total ?? 0)}${x.lastCost ? ` (dernière fois ${money(x.lastCost)})` : ''}`}</div>
+                </div>
+                {x.status === 'ready' && <span style={{ color: T.muted }}>›</span>}
+                {x.status === 'failed' && <button onClick={e => { e.stopPropagation(); void del(x); }} style={{ border: 'none', background: 'transparent', color: T.bad, cursor: 'pointer' }}>🗑</button>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {ask && (
+        <Sheet title="🧳 Nouveau voyage" subtitle="Écris comme tu parles : où, comment, combien de temps, ce que tu veux." onClose={() => setAsk(false)}
+          footer={<Btn variant="primary" disabled={form.request.trim().length < 10} onClick={() => void create()} style={{ width: '100%' }}>Prépare-moi tout ça</Btn>}>
+          <Field label="Ta demande"><textarea value={form.request} onChange={e => setForm({ ...form, request: e.target.value })} rows={5} placeholder="Je veux aller en Algérie en voiture, je prends le bateau en Espagne, la dernière fois ça m'a coûté X €, cette fois je veux de bonnes vacances…" style={{ ...inputStyle, resize: 'vertical' }} /></Field>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <Field label="Durée (jours)"><input inputMode="numeric" value={form.days} onChange={e => setForm({ ...form, days: e.target.value })} style={inputStyle} /></Field>
+            <Field label="La dernière fois (€)"><input inputMode="numeric" value={form.last} onChange={e => setForm({ ...form, last: e.target.value })} placeholder="ex. 5000" style={inputStyle} /></Field>
+          </div>
+        </Sheet>
+      )}
+
+      {v && (
+        <Sheet title={`🧳 ${v.title}`} subtitle={`${v.days} jours · ${money(v.total ?? 0)}`} onClose={() => setOpen(null)}
+          footer={<div style={{ display: 'flex', gap: 8 }}><Btn variant="primary" onClick={() => void pdf(v, true)} style={{ flex: 1 }}>📄 PDF sur Telegram</Btn><Btn onClick={() => void pdf(v, false)}>⬇ PDF</Btn><Btn variant="ghost" onClick={() => void del(v)}>🗑</Btn></div>}>
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8, marginBottom: 8 }}>
+            {TABS.map(([id, l]) => <button key={id} onClick={() => setTab(id)} style={{ flexShrink: 0, border: 'none', borderRadius: 99, padding: '7px 13px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: T.font, background: tab === id ? T.accent : 'var(--dz-card)', color: tab === id ? '#fff' : T.text }}>{l}</button>)}
+          </div>
+          {tab === 'plan' && <>
+            {v.resume && <div style={{ fontSize: 14, lineHeight: 1.5, color: T.text, marginBottom: 12 }}>{v.resume}</div>}
+            {v.objectifs?.length ? <><SectionTitle>🎯 Objectifs</SectionTitle>
+              {v.objectifs.map((o, i) => <Check key={i} done={o.done} onClick={() => void tick(v.id, 'objectif', i, o.done ? 'undo' : 'done')} title={`${o.icon ?? ''} ${o.title}`} text={o.text} />)}</> : null}
+            {v.villes?.length ? <><SectionTitle>📍 Les villes</SectionTitle>{v.villes.map(c => <div key={c.name} style={{ fontSize: 13.5, marginBottom: 6 }}><b>{c.name}</b> · {c.nights} nuits — <span style={{ color: T.muted }}>{c.why}</span></div>)}</> : null}
+            <SectionTitle>🗓️ Jour par jour</SectionTitle>
+            {(v.route ?? []).map((r, i) => (
+              <div key={i} style={{ ...glass(), borderRadius: 16, padding: '10px 12px', marginBottom: 8 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700 }}><Badge>{r.day}</Badge> {r.title}</div>
+                <div style={{ fontSize: 13, color: T.muted, marginTop: 4, lineHeight: 1.45 }}>{r.text}{r.km ? ` · ${r.km} km` : ''}{r.hours ? `, ${r.hours} h` : ''}{r.sleep ? ` · Nuit : ${r.sleep}` : ''}</div>
+              </div>
+            ))}
+          </>}
+          {tab === 'lieux' && (v.lieux ?? []).map((l, i) => (
+            <div key={i} style={{ ...glass(), borderRadius: 16, padding: '10px 12px', marginBottom: 8 }}>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>{l.name} <span style={{ color: T.muted, fontWeight: 500 }}>· {l.city}</span></div>
+              <div style={{ fontSize: 13, color: T.muted, marginTop: 3, lineHeight: 1.45 }}>{l.why}{l.when ? ` · ${l.when}` : ''}</div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>{l.for && <Badge color={T.violet}>{l.for}</Badge>}{l.price && <Badge color={T.ok}>{l.price}</Badge>}</div>
+            </div>
+          ))}
+          {tab === 'budget' && <>
+            {v.lignes?.map((l, i) => <div key={i} style={{ display: 'flex', gap: 10, padding: '8px 0', borderBottom: `1px solid ${T.line}`, fontSize: 13.5 }}><div style={{ flex: 1 }}>{l.label}{l.note && <div style={{ fontSize: 11.5, color: T.faint }}>{l.note}</div>}</div><b>{money(l.amount)}</b></div>)}
+            <div style={{ display: 'flex', padding: '12px 0', fontSize: 16, fontWeight: 800 }}><span style={{ flex: 1 }}>Total</span><span>{money(v.total ?? 0)}</span></div>
+            {v.lastCost ? <div style={{ fontSize: 13.5, color: (v.total ?? 0) <= v.lastCost ? T.ok : T.warn, fontWeight: 700 }}>Dernière fois : {money(v.lastCost)} → {(v.total ?? 0) <= v.lastCost ? `${money(v.lastCost - (v.total ?? 0))} de moins` : `${money((v.total ?? 0) - v.lastCost)} de plus`}</div> : null}
+            {v.departImpact && <div style={{ fontSize: 13, color: T.muted, marginTop: 6 }}>{v.departImpact}</div>}
+            <div style={{ fontSize: 11.5, color: T.faint, marginTop: 10 }}>Montants estimés : vérifie au moment de réserver.</div>
+          </>}
+          {tab === 'options' && (v.options ?? []).map((o, i) => (
+            <div key={i} style={{ ...glass(o.done ? T.ok : undefined), borderRadius: 16, padding: '10px 12px', marginBottom: 8, opacity: o.no ? 0.45 : 1 }}>
+              <div style={{ display: 'flex', gap: 8 }}><span style={{ fontSize: 18 }}>{o.icon}</span><div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 700 }}>{i + 1}. {o.title}</div><div style={{ fontSize: 13, color: T.muted, marginTop: 3, lineHeight: 1.45 }}>{o.text}</div></div></div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <Btn variant={o.done ? 'primary' : 'soft'} onClick={() => void tick(v.id, 'option', i, o.done ? 'undo' : 'done')}>{o.done ? '✓ Je le fais' : 'Je le fais'}</Btn>
+                <Btn variant="ghost" onClick={() => void tick(v.id, 'option', i, o.no ? 'undo' : 'no')}>{o.no ? 'Remettre' : 'Pas pour moi'}</Btn>
+              </div>
+            </div>
+          ))}
+          {tab === 'check' && (v.checklist ?? []).map((c, i) => <Check key={i} done={c.done} onClick={() => void tick(v.id, 'check', i, c.done ? 'undo' : 'done')} title={c.label} text={c.when} />)}
+        </Sheet>
+      )}
+    </Screen>
+  );
+}
+
+function Check({ done, onClick, title, text }: { done?: boolean; onClick: () => void; title: string; text?: string }) {
+  return (
+    <div role="button" onClick={onClick} style={{ display: 'flex', gap: 10, padding: '9px 2px', borderBottom: `1px solid ${T.line}`, cursor: 'pointer' }}>
+      <span style={{ width: 22, height: 22, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: done ? T.ok : 'transparent', border: `2px solid ${done ? T.ok : T.line}`, color: '#fff', fontSize: 13 }}>{done ? '✓' : ''}</span>
+      <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600, textDecoration: done ? 'line-through' : 'none', color: done ? T.muted : T.text }}>{title}</div>{text && <div style={{ fontSize: 12.5, color: T.muted, marginTop: 2 }}>{text}</div>}</div>
+    </div>
+  );
+}

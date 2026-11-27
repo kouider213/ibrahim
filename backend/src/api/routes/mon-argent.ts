@@ -50,4 +50,27 @@ router.post('/stock/product', sp(async (m, b) => { const c = await m.catalog(); 
 // Analyse FIK (quand les clients écrivent, délai avant réservation, évolution par mois)
 router.get('/fik-insights', async (_req, res) => { try { res.json(await fikInsights()); } catch (e) { fail(res, e); } });
 
+// 27/11 MON ANALYSE (objectifs + 20 options « si tu fais ça ») et MES VOYAGES (plan + PDF + 30 options)
+router.get('/analyse', async (_req, res) => { try { res.json(await (await import('../../integrations/analyse-vie.js')).analyseVie()); } catch (e) { fail(res, e); } });
+router.get('/analyse/avis', async (req, res) => { try { res.json({ text: await (await import('../../integrations/analyse-vie.js')).analyseAvis(req.query['force'] === '1') }); } catch (e) { fail(res, e); } });
+const vp = () => import('../../integrations/voyage-plan.js');
+router.get('/voyages', async (_req, res) => { try { res.json({ voyages: await (await vp()).voyages() }); } catch (e) { fail(res, e); } });
+router.post('/voyages', async (req, res) => {
+  try { const b = (req.body ?? {}) as Record<string, unknown>; const r = String(b['request'] ?? '').trim(); if (r.length < 10) throw new Error('Décris ton voyage (où, comment, combien de temps)');
+    res.json({ voyage: await (await vp()).startVoyage({ request: r, days: Number(b['days']) || undefined, last_cost: Number(b['last_cost']) || undefined, budget: Number(b['budget']) || undefined, start: b['start'] ? String(b['start']) : undefined }) }); }
+  catch (e) { fail(res, e); }
+});
+router.post('/voyages/tick', async (req, res) => {
+  try { const b = (req.body ?? {}) as Record<string, unknown>; const k = String(b['kind']); if (!['option', 'objectif', 'check'].includes(k)) throw new Error('kind ?');
+    res.json({ voyage: await (await vp()).tickVoyage(String(b['id']), k as 'option', Number(b['i']), (['done', 'no', 'undo'].includes(String(b['value'])) ? b['value'] : 'done') as 'done') }); }
+  catch (e) { fail(res, e); }
+});
+router.post('/voyages/delete', async (req, res) => { try { await (await vp()).deleteVoyage(String(req.body?.id ?? '')); res.json({ ok: true }); } catch (e) { fail(res, e); } });
+router.post('/voyages/pdf', async (req, res) => {
+  try { const m = await vp(); const v = await m.getVoyage(String(req.body?.id ?? '')); if (!v || v.status !== 'ready') throw new Error('Plan pas prêt');
+    const pdf = await m.voyagePdf(v);
+    if (req.body?.telegram) { const { queueTelegramFile } = await import('../../actions/handlers/nexus-relay.js'); await queueTelegramFile(pdf.toString('base64'), `Voyage-${(v.dest || 'vacances').replace(/[^\w-]+/g, '_')}.pdf`, `🧳 ${v.title}`); res.json({ ok: true }); return; }
+    res.json({ ok: true, name: `Voyage-${(v.dest || 'vacances').replace(/[^\w-]+/g, '_')}.pdf`, base64: pdf.toString('base64') }); }
+  catch (e) { fail(res, e); }
+});
 export default router;

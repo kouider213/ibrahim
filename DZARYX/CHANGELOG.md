@@ -1,3 +1,10 @@
+## 27/11 — Tout mon cash sans « 127 », raccourci Stock snus, MON ANALYSE, MES VOYAGES
+- Kouider : « la 1re fois il reste à 127, il va pas direct au total » → la carte de secours « À récupérer » s'affichait tant que /api/mon-argent n'avait pas répondu. Dernier chiffre gardé sur le téléphone (dz:ma:last) et affiché tout de suite ; ancienne carte seulement sur un vrai 403. CountUp part du chiffre affiché (plus de retour à 0).
+- Stock snus : « 📦 stock › » cliquable dans la carte argent du jour + 3 raccourcis sur Aujourd'hui (Stock snus, Mon analyse, Mes voyages) ; menu renommé STOCK SNUS.
+- MON ANALYSE (analyse-vie.ts, GET /api/mon-argent/analyse + /analyse/avis, outil mon_analyse, page app) : objectifs calculés (départ Oran, record du mois, poids, sommeil, stock, part FIK) + 20 options « si tu fais ça → tu atteins ça au lieu de ça » (même courbe que le plan de départ) + avis IA court (cache 6 h, seulement les chiffres calculés).
+- MES VOYAGES (voyage-plan.ts, outil voyage, /api/mon-argent/voyages, page app) : demande libre (Telegram ou app) → recherche web + plan JSON (route jour par jour, villes, 20+ lieux pour lui + sa femme + Ibrahim, budget ligne par ligne vs la dernière fois, objectifs, check-list) + 30 options (+ secours Algérie en voiture) → PDF + résumé Telegram. 3-5 min en fond. Testé hors envoi : 30 options, 20 lieux, PDF OK ; la ligne « TOTAL » de l'IA est ignorée (doublait le budget).
+- App v325.
+
 ## 27/11 — Carte « Mon argent · aujourd'hui » (Aujourd'hui) = même chiffre que MON ARGENT
 - Kouider : la petite carte ne montrait pas le même montant du jour que MON ARGENT (ventes sans enlever ce qu'il a pris).
 - MonArgentMini (app v324) : montant = ventes − pris, ligne « ventes − pris · heure · lu à », lien « ➖ J'ai pris dessus », « ↩ Annuler la dernière » (avec confirmation), stock en rouge ≤ 30.

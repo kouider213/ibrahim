@@ -66,7 +66,12 @@ export default function CommandCenterScreen() {
   const [ledger, setLedger] = useState<ProfitLedger | null>(null);
   const [monthCA, setMonthCA] = useState<number | null>(null);
   // 27/11 soir : « il devrait me montrer tout l'argent cash, pas que des locations, et dire quoi est de quoi »
-  const [ma, setMa] = useState<MonArgent | null>(null);
+  // 27/11 (Kouider : « la 1re fois il reste à 127, il va pas direct au total ») : tant que /api/mon-argent n'avait pas répondu,
+  // l'ancienne carte « À récupérer » (127 € chez Houari) s'affichait. → dernière réponse gardée sur le téléphone, affichée tout
+  // de suite, et l'ancienne carte seulement si le serveur refuse (autre compte).
+  const [ma, setMaState] = useState<MonArgent | null>(() => { try { return JSON.parse(localStorage.getItem('dz:ma:last') ?? 'null') as MonArgent | null; } catch { return null; } });
+  const [maDenied, setMaDenied] = useState(false);
+  const setMa = (v: MonArgent) => { setMaState(v); setMaDenied(false); try { localStorage.setItem('dz:ma:last', JSON.stringify({ balances: v.balances, today: v.today })); } catch { /* plein */ } };
   const [bks, setBks] = useState<Booking[]>([]);
   const [evs, setEvs] = useState<CalEv[]>([]);
   const [tick, setTick] = useState(0);
@@ -75,7 +80,7 @@ export default function CommandCenterScreen() {
     setLoading(true);
     const now = new Date();
     business.fetchLedger().then(setLedger).catch(() => {});
-    apiFetch<MonArgent>('/api/mon-argent').then(setMa).catch(() => setMa(null));
+    apiFetch<MonArgent>('/api/mon-argent').then(setMa).catch((e: unknown) => { if (/403|réservé/i.test(String((e as Error)?.message ?? e))) { setMaState(null); setMaDenied(true); } });
     business.fetchFinanceReport(now.getFullYear(), now.getMonth() + 1).then(r => setMonthCA(r.grossCA)).catch(() => {});
     business.fetchBookings().then(r => setBks(r.bookings ?? [])).catch(() => {});
     apiFetch<{ events: CalEv[] }>('/api/calendar/all?actor=kouider').then(r => { const t = ymd(); setEvs((r.events ?? []).filter(e => e.source === 'fik' && evDay(e) === t)); }).catch(() => {});
@@ -160,7 +165,8 @@ export default function CommandCenterScreen() {
               </div>);
           })()}
           {/* Carte argent (façon carte bancaire, à l'encre) : ce que je dois récupérer + CA du mois — pour les autres comptes */}
-          {!ma && <>
+          {!ma && !maDenied && <div style={{ height: 250, borderRadius: 28, marginBottom: 18, background: 'linear-gradient(145deg, #2442ff 0%, #2a1878 100%)', opacity: 0.55 }} />}
+          {!ma && maDenied && <>
           <div className="dz-press" onClick={() => go('revenue')} role="button" style={{ position: 'relative', overflow: 'hidden', borderRadius: 28, padding: '20px 20px 18px', marginBottom: 18, cursor: 'pointer',
             background: 'radial-gradient(120% 90% at 100% 0%, rgba(34,211,238,0.42), transparent 52%), radial-gradient(110% 90% at 0% 100%, rgba(139,92,246,0.6), transparent 58%), linear-gradient(145deg, #2442ff 0%, #2a1878 100%)', boxShadow: '0 24px 44px -24px rgba(var(--dz-shadow-rgb),0.7)' }}>
             <div style={{ position: 'absolute', top: -70, right: -50, width: 220, height: 220, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.09)', pointerEvents: 'none' }} />
@@ -188,6 +194,15 @@ export default function CommandCenterScreen() {
 
           {/* 27/11 Mon argent (privé, 403 pour un autre compte → caché) : snus +1 sans chercher la page */}
           <MonArgentMini />
+
+          {/* 27/11 : ses pages perso à un geste (Kouider : « je veux une page où je vois mon stock de snus », analyse, voyages) */}
+          {ma && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 8, marginBottom: 18 }}>
+            {([['📦', 'Stock snus', 'stocksnus', '#14b8a6'], ['🧭', 'Mon analyse', 'analyse', '#3d6bff'], ['🧳', 'Mes voyages', 'voyages', '#f59e0b']] as const).map(([i, l, p, c]) => (
+              <button key={p} onClick={() => go(p)} className="dz-press" style={{ border: '1px solid var(--dz-card-line)', background: 'var(--dz-card)', borderRadius: 18, padding: '12px 6px', cursor: 'pointer', fontFamily: T.font, color: T.text, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, boxShadow: `${T.shadow}, 0 10px 24px -16px ${c}` }}>
+                <span style={{ fontSize: 22 }}>{i}</span><span style={{ fontSize: 12.5, fontWeight: 700 }}>{l}</span>
+              </button>
+            ))}
+          </div>}
 
           {/* Raccourcis : ronds blancs, libellé dessous */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 6, marginBottom: 22 }}>

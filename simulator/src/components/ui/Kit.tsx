@@ -3,7 +3,7 @@
 // typo Geist + étiquettes en Geist Mono, bouton principal monochrome (blanc sur noir / noir sur blanc), icônes au trait
 // à la place des emojis, lueur de couleur en haut de chaque page, barre du bas flottante. Règles : texte ≥ 11 px,
 // champs à 16 px (pas de zoom iPhone), zones tactiles ≥ 40 px, une seule famille de couleurs d'état (ok / warn / bad).
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon, Label, splitEmoji } from './Icon.tsx';
 
@@ -76,8 +76,12 @@ export const glass = (accent?: string): CSSProperties => ({
 /** Chiffre qui défile jusqu'à sa valeur (5 490 €, 10,93 €, 14 / 15…). Le texte autour est gardé tel quel. */
 export function CountUp({ value }: { value: ReactNode }) {
   const s = typeof value === 'number' ? String(value) : typeof value === 'string' ? value : null;
-  const m = s?.match(/-?\d[\d\s  ]*(?:[.,]\d+)?/);
+  const m = s?.match(/-?\d[\d\s\u202f\u00a0]*(?:[.,]\d+)?/);
   const [k, setK] = useState(m ? 0 : 1);
+  // 27/11 : quand la valeur change (chiffre gardé → chiffre frais), on part du chiffre affiché, pas de 0
+  // (avant : le total sautait d'abord sur la nouvelle valeur, puis repartait de 0).
+  const from = useRef(0), shown = useRef(0), target = useRef<string | null>(null);
+  if (target.current !== s) { from.current = shown.current; target.current = s; if (k !== 0 && m) setK(0); }
   useEffect(() => {
     if (!m) return;
     let raf = 0; const t0 = performance.now();
@@ -88,11 +92,12 @@ export function CountUp({ value }: { value: ReactNode }) {
   }, [s]);
   if (!s || !m) return <>{value}</>;
   const raw = m[0].trimEnd();
-  const clean = raw.replace(/[\s  ]/g, '');
+  const clean = raw.replace(/[\s\u202f\u00a0]/g, '');
   const dec = (clean.split(/[.,]/)[1] ?? '').length;
   const num = parseFloat(clean.replace(',', '.'));
   if (!isFinite(num)) return <>{value}</>;
-  const cur = num * k;
+  const cur = from.current + (num - from.current) * k;
+  shown.current = cur;
   const txt = dec ? cur.toFixed(dec).replace('.', clean.includes(',') ? ',' : '.') : Math.round(cur).toLocaleString('fr-FR');
   return <>{s.replace(raw, txt)}</>;
 }
