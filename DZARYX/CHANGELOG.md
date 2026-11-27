@@ -1,3 +1,8 @@
+## 27/11 — Conseils et récaps : plus de location finie ni de texte de la veille
+- Kouider : « revient AUJOURD'HUI » répété le 26/11 (13h20, 19h20, 22h50) pour un client dont la voiture était déjà rendue à 08h00, avec un WhatsApp d'un autre numéro collé dessus ; récap 05h30 du 27/11 reprenait « AUJOURD'HUI … attend depuis 2 h » écrit la veille.
+- conscience : location COMPLETED (ou retour passé de 2 h) = « TERMINÉE, n'en parle pas » ; interdiction de relier un WhatsApp à un client sans nom/numéro exact.
+- auto-call staleTimed : un texte en relatif (aujourd'hui, ce soir, maintenant, depuis X h, dans X min) mis en boîte un autre jour = périmé.
+
 ## 27/11 — Plus d'appel « tu n'es pas à la salle » quand la séance est déjà faite
 - Kouider : appel 07h00 « ta séance a commencé à 06h00, tu n'es pas à la salle » alors qu'il rentrait (bilan 9/10 envoyé 06h46). GPS figé depuis 05h30 → arrivée jamais vue ; au retour, position fraîche à 2,4 km → alerte.
 - jobSportWatch : séance notée ce jour (bilan sport-review, journal kouider:sport:log ou séance en cours dans l'app) → arrivée marquée, aucune alerte.

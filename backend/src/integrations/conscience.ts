@@ -397,7 +397,7 @@ export async function snapshot(): Promise<Record<string, unknown>> {
   const tomorrow = localNow(Date.now() + 86_400_000).date;
   const [agenda, books, drafts, promises, where, trips, oran, sent, decisions, crisis] = await Promise.all([
     import('./google-calendar.js').then(m => m.listAgendaRange(now.toISOString(), in4h.toISOString())).catch(() => null),
-    supabase.from('bookings').select('client_name, start_date, end_date, status, cars(name)').or(`start_date.gte.${date},end_date.gte.${date}`).lte('start_date', `${tomorrow}T23:59`).limit(15).then(r => r.data ?? []),
+    supabase.from('bookings').select('id, client_name, start_date, end_date, status, cars(name)').or(`start_date.gte.${date},end_date.gte.${date}`).lte('start_date', `${tomorrow}T23:59`).limit(15).then(r => r.data ?? []),
     import('./whatsapp-web.js').then(m => m.waPendingDrafts(12)).catch(() => []),   // 30/10 : brouillon de la veille annoncé comme « nouveau message »
     import('./foresight.js').then(m => m.promisesDue()).catch(() => []),
     kvJson<{ where: string; since: number } | null>('conscience:where', null),
@@ -432,7 +432,10 @@ export async function snapshot(): Promise<Record<string, unknown>> {
       .map(e => `${e.start?.dateTime?.slice(11, 16) ?? ''} ${e.summary ?? ''}${e.location ? ` @${e.location}${!oran && /oran|alg[ée]rie|\bdz\b/i.test(e.location) ? ' (en Algérie, il est en Belgique : à distance, AUCUN trajet ni départ)' : ''}` : ''}${e.start?.dateTime && Date.parse(e.start.dateTime) < Date.now() ? ' (déjà commencé)' : ''}`),
     locations_aujourdhui_demain: (books as Array<Record<string, unknown>>).filter(b => !/REJECT|CANCEL/i.test(String(b['status']))).map(b => {
       const st = String(b['start_date']), en = String(b['end_date']);
-      const state = st.slice(0, 10) < date ? (en.slice(0, 10) > date ? 'EN COURS (déjà partie, rien à faire au départ)' : en.slice(0, 10) === date ? 'RETOUR AUJOURD\'HUI' : 'finie') : st.slice(0, 10) === date ? 'DÉPART AUJOURD\'HUI' : 'départ demain';
+      // 26/11 : location rendue à 08:00 (COMPLETED) → « revient AUJOURD'HUI » répété à 13h20, 19h20, 22h50 + un WhatsApp d'un autre numéro collé dessus
+      const retEnd = trips.find(t => t.kind === 'booking-end' && (t as { bookingId?: string }).bookingId === b['id'])?.departAt ?? 0;
+      const done = /COMPLET|DONE|TERMIN|RETURN/i.test(String(b['status'])) || (en.slice(0, 10) === date && retEnd > 0 && Date.now() - retEnd > 2 * 3600_000);
+      const state = done ? 'TERMINÉE (voiture déjà rendue, plus rien à faire, n\'en parle pas)' : st.slice(0, 10) < date ? (en.slice(0, 10) > date ? 'EN COURS (déjà partie, rien à faire au départ)' : en.slice(0, 10) === date ? 'RETOUR AUJOURD\'HUI' : 'finie') : st.slice(0, 10) === date ? 'DÉPART AUJOURD\'HUI' : 'départ demain';
       // 20/11 Kouider : « Belarbi ramène la Clio à 10h chez toi (Rue du Laekenveld) » = faux → les voitures partent et reviennent TOUJOURS à l'aéroport d'Oran
       return `${(b['cars'] as { name?: string } | null)?.name ?? ''} ${b['client_name']} : départ ${rel(st)} → retour ${rel(en)} @aéroport d'Oran (Ahmed Ben Bella) — ${state}`;
     }),
@@ -475,7 +478,7 @@ export async function jobConscience(): Promise<string> {
     + `Déjà ${todayN}/${MAX_PER_DAY} conseils aujourd'hui.${night ? ' C\'est la NUIT : seulement urgence 3.' : ''}${snap['bouclier_famille'] ? ' Bouclier famille : seulement urgence 3.' : ''}\n\n`
     + `Cherche UNE chose qui vaut VRAIMENT la peine d'être dite maintenant, en CROISANT les infos (ex. client qui atterrit + Houari loin ; rendez-vous dans 40 min + 35 min de route ; promesse due aujourd'hui ; décision qui attend depuis longtemps ; santé mauvaise + grosse journée ; il roule vers un lieu alors qu'un truc l'attend ailleurs). `
     + `Sa position (lieu) est la vérité : « work » = il est à son poste de travail, c'est normal, jamais un retard ; ne lui annonce pas un RDV ailleurs pendant qu'il y est sauf s'il est noté hors travail. `
-    + `Les dates sont déjà écrites en relatif (aujourd'hui / hier / demain) : ne dis JAMAIS qu'une chose se passe aujourd'hui si elle est notée « hier ». Une location « EN COURS » est déjà partie : ne parle pas de son départ. Un message WhatsApp reçu hier n'est pas « nouveau ». `
+    + `Les dates sont déjà écrites en relatif (aujourd'hui / hier / demain) : ne dis JAMAIS qu'une chose se passe aujourd'hui si elle est notée « hier ». Une location « EN COURS » est déjà partie : ne parle pas de son départ. Un message WhatsApp reçu hier n'est pas « nouveau ». Une location « TERMINÉE » : n'en parle plus. Ne relie JAMAIS un WhatsApp à un client si le nom ou le numéro ne correspond pas exactement (un +213 inconnu n'est pas un client en cours). `
     + `Tu ne réponds JAMAIS à une question ou demande de kouider_a_dit_2h : il a déjà eu sa réponse, tu n'es pas la conversation. `
     + `Ce que Kouider a dit (kouider_a_dit_2h) PRIME sur l'agenda : s'il a dit qu'il n'a pas de RDV, qu'il est au travail ou que c'est réglé, n'en reparle plus. Son travail n'est jamais un « RDV ». Il ne quitte JAMAIS le travail avant fin_travail_aujourdhui : ne lui conseille pas de partir plus tôt. Une durée de trajet ou une heure d'arrivée ne se donne QUE si elle est dans les données (trajet_travail_maison_min) — jamais inventée. `
     + `Son humeur n'est JAMAIS un fait : si humeur_supposee est vide, n'en parle pas ; sinon pose une question, jamais de note sur 10. `

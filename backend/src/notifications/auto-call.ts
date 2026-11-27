@@ -47,6 +47,8 @@ async function readList(key: string): Promise<string[]> {
 }
 const readQueue = () => readList(QUEUE_KEY);
 
+const localDay = (t: number) => new Intl.DateTimeFormat('fr-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t));
+
 type InboxItem = { at: number; text: string };
 const sameInfo = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
@@ -88,7 +90,10 @@ function staleTimed(text: string, at?: number): boolean {
   if (dep && nowMin - (Number(dep[1]) * 60 + Number(dep[2] ?? 0)) > 10) return true;
   // Réveil / « il faut partir maintenant » / « l'heure du sport » : ne vaut plus rien 30 min après
   if (at && Date.now() - at > 30 * 60_000 && /il faut partir maintenant|l'heure du sport|debout champion|bien réveillé|départ dans/i.test(text)) return true;
-  return !!at && Date.now() - at > 3 * 3_600_000 && /\b(rdv|rendez-vous|retard|départ dans)\b|\b\d{1,2} ?h ?\d{2}\b/i.test(text);
+  // 27/11 : récap 05h30 « La Clio … AUJOURD'HUI … WhatsApp (17:08) qui attend depuis 2 h », écrit la veille à 19h20 → un texte daté
+  // en relatif (aujourd'hui, ce soir, maintenant, depuis 2 h, dans 40 min) ne vaut plus rien le lendemain
+  if (at && localDay(at) !== localNow().day && /aujourd'hui|ce soir|cet après-midi|ce matin|maintenant|tout de suite|depuis \d+ ?(h|min)|dans ~?\d+ ?(h|min)/i.test(text)) return true;
+  return !!at && Date.now() - at > 3 * 3_600_000 && /\b(rdv|rendez-vous|retard|départ dans)\b|\b\d{1,2} ?[h:] ?\d{2}\b/i.test(text);
 }
 // Même alerte répétée (« ton RDV en Belgique est à 13h00… » ×3) → une seule fois
 const sameTopic = (a: string, b: string) => sameInfo(a, b) || a.trim().toLowerCase().slice(0, 32) === b.trim().toLowerCase().slice(0, 32);
