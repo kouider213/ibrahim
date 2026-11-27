@@ -12,6 +12,9 @@ interface Plan {
   weak: Array<{ icon: string; text: string }>; checkpoints: Array<{ label: string; need: number }>;
   options: Array<{ icon: string; title: string; text: string }>; curve: Array<{ ym: string; v: number }>;
   monthly: number[]; next: { label: string; need: number; have: number; missing: number };
+  // 27/11 nuit : ce qu'il faut faire (serveur) — anciennes versions du serveur : champs absents
+  marge?: number; fikDay?: number; perMonth?: number | null; perWeek?: number | null; daysLeft?: number | null; left?: number;
+  thisMonth?: { saved: number; target: number } | null; nextStep?: { name: string; icon: string; missing: number; label: string } | null; totalDa?: number;
 }
 type Fm = (n: number) => string;
 const MOISL = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
@@ -30,8 +33,20 @@ export function DepartCard({ real, fm }: { real: Array<{ ym: string; v: number }
         <div style={{ flex: 1, fontSize: 13, color: T.muted, fontWeight: 600 }}>Départ potentiel</div>
         <span style={{ fontSize: 12.5, fontWeight: 700, color: T.accent }}>Détails ›</span>
       </div>
-      <div style={{ fontFamily: T.display, fontSize: 26, fontWeight: 800, letterSpacing: '-0.03em', marginTop: 2 }}>{p.departLabel}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 2 }}>
+        <div style={{ fontFamily: T.display, fontSize: 26, fontWeight: 800, letterSpacing: '-0.03em' }}>{p.departLabel}</div>
+        {p.daysLeft != null && <Badge color={T.accent}>J-{p.daysLeft}</Badge>}
+      </div>
       <div style={{ fontSize: 12.5, color: T.muted }}>entre {p.departBest} (tu gardes tout) et {p.departSlow} (tu dépenses plus)</div>
+      {/* 27/11 nuit : ce qu'il faut faire concrètement */}
+      {p.perMonth != null && p.perMonth > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 8, marginTop: 12 }}>
+        <div style={{ background: 'rgba(var(--dz-ink-rgb),0.05)', borderRadius: 14, padding: '10px 12px' }}><div style={{ fontSize: 11.5, color: T.muted, fontWeight: 600 }}>À mettre de côté</div><div style={{ fontSize: 18, fontWeight: 800 }}>{fm(p.perMonth)}<span style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}> /mois</span></div><div style={{ fontSize: 11.5, color: T.faint }}>soit {fm(p.perWeek ?? 0)} par semaine</div></div>
+        {p.thisMonth ? (() => { const tm = p.thisMonth!, ok = tm.saved >= tm.target, pc = tm.target ? Math.max(0, Math.min(100, tm.saved / tm.target * 100)) : 100; return (
+          <div style={{ background: 'rgba(var(--dz-ink-rgb),0.05)', borderRadius: 14, padding: '10px 12px' }}><div style={{ fontSize: 11.5, color: T.muted, fontWeight: 600 }}>Ce mois-ci</div><div style={{ fontSize: 18, fontWeight: 800, color: tm.saved < 0 ? T.bad : ok ? T.ok : T.text }}>{tm.saved < 0 ? '−' : '+'}{fm(Math.abs(tm.saved))}</div>
+            <div style={{ height: 5, borderRadius: 3, background: 'rgba(var(--dz-ink-rgb),0.08)', marginTop: 4 }}><div style={{ height: '100%', width: `${pc}%`, borderRadius: 3, background: ok ? T.ok : T.warn }} /></div>
+            <div style={{ fontSize: 11.5, color: T.faint, marginTop: 3 }}>{ok ? 'dans les temps ✅' : `prévu ${fm(tm.target)}`}</div></div>); })()
+          : p.nextStep && <div style={{ background: 'rgba(var(--dz-ink-rgb),0.05)', borderRadius: 14, padding: '10px 12px' }}><div style={{ fontSize: 11.5, color: T.muted, fontWeight: 600 }}>Prochaine étape</div><div style={{ fontSize: 14, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.nextStep.icon} {p.nextStep.name}</div><div style={{ fontSize: 11.5, color: T.faint }}>encore {fm(p.nextStep.missing)}</div></div>}
+      </div>}
       {/* Frise des étapes */}
       <div style={{ marginTop: 14 }}>
         {p.steps.map((s, i) => (
@@ -49,16 +64,20 @@ export function DepartCard({ real, fm }: { real: Array<{ ym: string; v: number }
       </div>
       <div style={{ height: 8, borderRadius: 4, background: 'rgba(var(--dz-ink-rgb),0.06)', marginTop: 4, overflow: 'hidden' }}><div style={{ height: '100%', width: `${p.pct}%`, background: 'linear-gradient(90deg,#22d3ee,#3d6bff)' }} /></div>
       <div style={{ display: 'flex', fontSize: 12, color: T.muted, marginTop: 6 }}><span style={{ flex: 1 }}>{fm(p.have)} réunis</span><span>{p.pct} % de {fm(p.total)}</span></div>
-      {p.next && <div style={{ fontSize: 12.5, marginTop: 8, color: p.next.missing ? T.warn : T.ok }}>📍 Prochain point : {fm(p.next.need)} en {p.next.label}{p.next.missing ? ` — il manque ${fm(p.next.missing)}` : ' — tu es dans les temps ✅'}</div>}
+      {/* 27/11 nuit : « il manque X » faisait croire à un retard — c'est ce qu'il reste à mettre de côté d'ici là */}
+      {p.next && <div style={{ fontSize: 12.5, marginTop: 8, color: p.next.missing ? T.muted : T.ok }}>📍 Repère {p.next.label} : avoir {fm(p.next.need)}{p.next.missing ? ` — encore ${fm(p.next.missing)} à mettre de côté d'ici là` : ' — déjà atteint ✅'}</div>}
+      {p.nextStep && p.thisMonth && <div style={{ fontSize: 12.5, marginTop: 4, color: T.muted }}>{p.nextStep.icon} Prochaine étape : {p.nextStep.name} — encore {fm(p.nextStep.missing)} ({p.nextStep.label})</div>}
     </div>
     {open && <PlanSheet plan={p} onClose={() => setOpen(false)} onChange={setP} real={real} fm={fm} />}
   </>);
 }
 
 function PlanSheet({ plan: p, onClose, onChange, real, fm }: { plan: Plan; onClose: () => void; onChange: (p: Plan) => void; real: Array<{ ym: string; v: number }>; fm: Fm }) {
-  const [sim, setSim] = useState({ pieces: 0, fik: 0, cut: 0 });
-  const marge = 2.25, extra = sim.pieces * marge * 26 + sim.fik * 8 + sim.cut;
-  const simI = reach(p.monthly ?? [], p.total, extra), baseI = reach(p.monthly ?? [], p.total, 0);
+  const [sim, setSim] = useState({ pieces: 0, fik: 0, cut: 0, buy: 0 });
+  // 27/11 nuit : la VRAIE marge du snus et de FIK (avant : 2,25 € figé dans l'app ≠ serveur) + « et si j'achète un truc à X € ? »
+  const marge = p.marge ?? 2.25, fikDay = p.fikDay ?? 8, extra = sim.pieces * marge * 26 + sim.fik * fikDay + sim.cut;
+  const simI = reach(p.monthly ?? [], p.total + sim.buy, extra), baseI = reach(p.monthly ?? [], p.total, 0);
+  const touched = extra > 0 || sim.buy > 0;
   const simLabel = simI === null ? 'pas avant 15 ans' : (() => { const ym = ymAdd(p.now, simI); return `${MOISL[+ym.slice(5, 7) - 1]} ${ym.slice(0, 4)}`; })();
   const [step, setStep] = useState('');
   const [edit, setEdit] = useState(false);
@@ -84,24 +103,29 @@ function PlanSheet({ plan: p, onClose, onChange, real, fm }: { plan: Plan; onClo
 
       {/* Simulateur « et si… » */}
       <H>Et si… (simulateur)</H>
-      {([['pieces', 'pièces de snus en plus / jour', 0, 10, 1], ['fik', 'jours de location FIK en plus / mois', 0, 60, 5], ['cut', '€ de dépenses en moins / mois', 0, 800, 50]] as const).map(([k, l, a, b, st]) => (
+      {([['pieces', 'pièces de snus en plus / jour', 0, 10, 1], ['fik', 'jours de location FIK en plus / mois', 0, 60, 5], ['cut', '€ de dépenses en moins / mois', 0, 800, 50], ['buy', '€ d\'un achat maintenant (or, voiture, voyage…)', 0, 5000, 100]] as const).map(([k, l, a, b, st]) => (
         <div key={k} style={{ marginBottom: 10 }}>
           <div style={{ display: 'flex', fontSize: 13.5 }}><span style={{ flex: 1 }}>{l}</span><b>{sim[k]}</b></div>
           <Slider min={a} max={b} step={st} value={sim[k]} onChange={n => setSim(v => ({ ...v, [k]: n }))} />
         </div>
       ))}
       <div style={{ ...glass(extra ? T.ok : T.accent), borderRadius: 14, padding: 12, fontSize: 14 }}>
-        {extra ? <>+{fm(extra)}/mois → départ <b>{simLabel}</b>{baseI !== null && simI !== null && baseI > simI ? <> (<b style={{ color: T.ok }}>{baseI - simI} mois plus tôt</b>)</> : ''}</> : 'Bouge un curseur pour voir ta nouvelle date de départ.'}
+        {touched ? <>{extra ? `+${fm(extra)}/mois` : ''}{extra && sim.buy ? ' et ' : ''}{sim.buy ? `un achat de ${fm(sim.buy)}` : ''} → départ <b>{simLabel}</b>
+          {baseI !== null && simI !== null && baseI > simI ? <> (<b style={{ color: T.ok }}>{baseI - simI} mois plus tôt</b>)</> : baseI !== null && simI !== null && simI > baseI ? <> (<b style={{ color: T.bad }}>{simI - baseI} mois plus tard</b>)</> : ' (même mois)'}</>
+          : 'Bouge un curseur pour voir ta nouvelle date de départ.'}
+        {touched && <button onClick={() => setSim({ pieces: 0, fik: 0, cut: 0, buy: 0 })} style={{ display: 'block', marginTop: 6, background: 'none', border: 'none', padding: 0, color: T.accent, fontWeight: 700, fontSize: 12.5, cursor: 'pointer', fontFamily: T.font }}>Remettre à zéro</button>}
       </div>
 
       {/* Courbe de l'épargne vs objectif */}
       <H>Ton épargne prévue (réaliste)</H>
-      <div style={{ position: 'relative', height: 110, display: 'flex', alignItems: 'flex-end', gap: 2 }}>
-        <div style={{ position: 'absolute', left: 0, right: 0, bottom: `${p.total / mx * 100}%`, borderTop: `1px dashed ${T.warn}` }}><span style={{ position: 'absolute', right: 0, top: -16, fontSize: 10.5, color: T.warn }}>départ {fm(p.total)}</span></div>
+      <div style={{ position: 'relative', height: 110, display: 'flex', alignItems: 'flex-end', gap: 2, marginTop: 18 }}>
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: `${p.total / mx * 100}%`, borderTop: `1px dashed ${T.warn}` }}><span style={{ position: 'absolute', left: 0, top: -17, fontSize: 10.5, fontWeight: 700, color: T.warn, background: 'var(--dz-bg)', padding: '0 4px', borderRadius: 4 }}>objectif départ {fm(p.total)}</span></div>
         {p.curve.map(c => <div key={c.ym} title={`${c.ym} : ${fm(c.v)}`} style={{ flex: 1, height: `${Math.max(2, c.v / mx * 100)}%`, background: c.v >= p.total ? T.ok : tone(T.accent, 0.6), borderRadius: 2 }} />)}
       </div>
+      {/* 27/11 nuit : les années sous les barres (avant : aucune date, on ne savait pas où on était) */}
+      <div style={{ display: 'flex', gap: 2, marginTop: 3 }}>{p.curve.map((c, i) => <span key={c.ym} style={{ flex: 1, fontSize: 9.5, color: T.faint, textAlign: 'left', whiteSpace: 'nowrap', overflow: 'visible' }}>{i && c.ym.slice(5, 7) <= '03' && p.curve[i - 1]!.ym.slice(0, 4) !== c.ym.slice(0, 4) ? c.ym.slice(0, 4) : ''}</span>)}</div>
       {real.length > 1 && <div style={{ fontSize: 12.5, color: T.muted, marginTop: 8 }}>Réel (fin de chaque mois) : {real.map(r => `${MOISL[+r.ym.slice(5, 7) - 1]} ${fm(r.v)}`).join(' · ')}</div>}
-      <div style={{ display: 'flex', fontSize: 11, color: T.faint, marginTop: 4 }}><span style={{ flex: 1 }}>maintenant</span><span>{p.curve[p.curve.length - 1]?.ym.slice(0, 4)}</span></div>
+      {p.totalDa ? <div style={{ fontSize: 12, color: T.faint, marginTop: 4 }}>Objectif total {fm(p.total)} ≈ {(p.totalDa / 1e6).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} M DA au taux d'aujourd'hui</div> : null}
 
       {/* Étapes cliquables */}
       <H>Les étapes</H>
@@ -120,7 +144,7 @@ function PlanSheet({ plan: p, onClose, onChange, real, fm }: { plan: Plan; onClo
           <div key={g.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
             <select value={g.icon} onChange={e => setList(l => l.map((x, k) => (k === i ? { ...x, icon: e.target.value } : x)))} style={{ ...inputStyle, width: 52, padding: 6 }}>{[g.icon, ...ICONS.filter(x => x !== g.icon)].map(x => <option key={x}>{x}</option>)}</select>
             <input value={g.name} onChange={e => setList(l => l.map((x, k) => (k === i ? { ...x, name: e.target.value } : x)))} style={{ ...inputStyle, flex: 1 }} />
-            <input inputMode="decimal" value={g.cost} onChange={e => setList(l => l.map((x, k) => (k === i ? { ...x, cost: e.target.value.replace(/[^\d.]/g, '') } : x)))} style={{ ...inputStyle, width: 90 }} />
+            <input inputMode="decimal" value={g.cost} onChange={e => setList(l => l.map((x, k) => (k === i ? { ...x, cost: e.target.value.replace(',', '.').replace(/[^\d.]/g, '') } : x)))} style={{ ...inputStyle, width: 90 }} />
             <button onClick={() => move(i, -1)} style={{ background: 'none', border: 'none', color: T.muted, cursor: 'pointer', fontSize: 16 }}>↑</button>
             <button onClick={() => setList(l => l.filter((_, k) => k !== i))} style={{ background: 'none', border: 'none', color: T.bad, cursor: 'pointer', fontSize: 16 }}>×</button>
           </div>
@@ -180,7 +204,7 @@ function Slider({ min, max, step, value, onChange }: { min: number; max: number;
       style={{ position: 'relative', height: 40, touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none', cursor: 'pointer' }}>
       <div style={{ position: 'absolute', left: 0, right: 0, top: 17, height: 6, borderRadius: 3, background: 'rgba(var(--dz-ink-rgb),0.12)' }} />
       <div style={{ position: 'absolute', left: 0, width: `${pct}%`, top: 17, height: 6, borderRadius: 3, background: T.accent }} />
-      <div style={{ position: 'absolute', left: `calc(${pct}% - 14px)`, top: 6, width: 28, height: 28, borderRadius: '50%', background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.35)' }} />
+      <div style={{ position: 'absolute', left: `calc(${pct}% - ${pct * 0.28}px)`, top: 6, width: 28, height: 28, borderRadius: '50%', background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.35)' }} />
     </div>
   );
 }

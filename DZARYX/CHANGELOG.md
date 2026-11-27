@@ -1,3 +1,10 @@
+## 27/11 nuit — CarPlay + Mon argent + plan de départ (app v329)
+- Kouider (photo CarPlay 5h52) : l'agenda montrait « 🕊️ Liberté — étape » et le widget « Route fluide vers le travail » alors qu'il partait à la salle (séance 6h).
+- CarPlay : séance de l'agenda (🏋️, HAUT/BAS, séance, salle…) passe TOUJOURS avant l'heure de travail ; adresse floue → adresse de sa salle (routine) ; sinon « Séance dans X min » (car-widget-plus.ts).
+- Agenda : garde-fou dans createAgendaEvent/updateAgendaEvent (titre avec Liberté/🕊️/médicament/sevrage/dose → « 🎯 Objectif perso ») ; nettoyage des anciens titres Liberté chaque jour au lieu d'une seule fois (liberte.ts).
+- Plan de départ : J-x, à mettre de côté par mois/semaine, « ce mois-ci » (épargne depuis la photo de fin de mois vs prévu), prochaine étape et ce qui manque, objectif en M DA, années sous la courbe ; simulateur avec la VRAIE marge snus/FIK du serveur (avant 2,25 € figé), curseur « achat maintenant » (mois plus tard), remise à zéro ; « il manque X » → « encore X à mettre de côté d'ici là ».
+- Mon argent : carte départ remontée ; virgule dans les soldes/étapes (14000,50 devenait 1 400 050) ; plus de crash si 30 jours / jours de semaine vides ; curseur collé au bord corrigé.
+
 ## 27/11 — Page Aujourd'hui réorganisée (app v328)
 - Kouider : « améliore la page Aujourd'hui ».
 - Nouvelle carte « Ta journée » juste sous la carte cash : RDV agenda FIK, départs, retours, tâches à heure fixe et argent à encaisser, dans l'ordre des heures, avec une ligne rouge « maintenant » ; heure des mouvements reprise de /api/taches (moves) ; tâche passée pas faite = « en retard » en rouge ; bouton WhatsApp sur les départs/retours.

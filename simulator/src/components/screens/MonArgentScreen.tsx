@@ -249,7 +249,7 @@ export default function MonArgentScreen() {
           ) : <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 8, marginTop: 8 }}>
               {([6, 5] as const).map(u => (
-                <button key={u} disabled={busy} onClick={() => quickOne(u)} className="dz-press" style={{ padding: '12px 0', borderRadius: 14, border: `1px solid ${SRC_COL.snus}`, background: 'transparent', color: T.text, fontSize: 14.5, fontWeight: 800, fontFamily: T.font, cursor: 'pointer' }}>1 pièce à {u} € <span style={{ fontSize: 11.5, color: T.muted, fontWeight: 600 }}>· tout de suite</span></button>
+                <button key={u} disabled={busy} onClick={() => quickOne(u)} className="dz-press" style={{ padding: '12px 0', borderRadius: 14, border: `1px solid ${SRC_COL.snus}`, background: 'transparent', color: T.text, fontSize: 14.5, fontWeight: 800, fontFamily: T.font, cursor: 'pointer' }}>1 pièce à {u} €<div style={{ fontSize: 11, color: T.muted, fontWeight: 600 }}>enregistrée tout de suite</div></button>
               ))}
             </div>
             <div style={{ fontSize: 12.5, color: T.muted, marginTop: 10 }}>Plusieurs pièces : appuie sur +1, +2, +5, +10 (ils s'additionnent), puis « Valider la vente ». Ristourne client : « 1 pièce à 5 € ».</div>
@@ -274,6 +274,10 @@ export default function MonArgentScreen() {
             </button>
           ))}
         </div>
+
+        {/* Départ : plan par étapes (DepartPlan.tsx) — 27/11 nuit : remonté, c'est son objectif n°1 */}
+        <SectionTitle>Ton départ pour Oran</SectionTitle>
+        <DepartCard real={x?.realCurve ?? []} fm={fm} />
 
         {/* Dépenses */}
         <SectionTitle right={<button onClick={() => setSheet('depense')} style={{ background: 'none', border: 'none', color: T.accent, fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: T.font }}>＋ Dépense</button>}>Tes dépenses ce mois</SectionTitle>
@@ -311,12 +315,8 @@ export default function MonArgentScreen() {
         <SectionTitle>30 derniers jours</SectionTitle>
         <div style={{ ...glass(T.ok), borderRadius: 22, padding: 16, marginBottom: 12 }}>
           <Stacked height={90} cols={o.last30.map(d => ({ key: d.d, amount: d.amount, parts: d.parts, label: dm(d.d) }))} />
-          <div style={{ display: 'flex', fontSize: 11.5, color: T.faint, marginTop: 6 }}><span style={{ flex: 1 }}>{dm(o.last30[0]!.d)}</span><span>aujourd'hui</span></div>
+          {o.last30[0] && <div style={{ display: 'flex', fontSize: 11.5, color: T.faint, marginTop: 6 }}><span style={{ flex: 1 }}>{dm(o.last30[0].d)}</span><span>aujourd'hui</span></div>}
         </div>
-
-        {/* Départ : plan par étapes (DepartPlan.tsx) */}
-        <SectionTitle>Ton départ pour Oran</SectionTitle>
-        <DepartCard real={x?.realCurve ?? []} fm={fm} />
 
         {/* Repères */}
         {o.insights.length > 0 && <>
@@ -344,7 +344,7 @@ export default function MonArgentScreen() {
         {/* Jours */}
         <SectionTitle>Tes meilleurs jours</SectionTitle>
         <div style={{ ...glass(T.accent), borderRadius: 22, padding: 16, marginBottom: 12 }}>
-          {[1, 2, 3, 4, 5, 6, 0].map(i => o.weekdays[i]!).map(w => (
+          {[1, 2, 3, 4, 5, 6, 0].map(i => o.weekdays[i]).filter((w): w is NonNullable<typeof w> => !!w).map(w => (
             <div key={w.name} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7, fontSize: 13 }}>
               <span style={{ width: 78, color: T.muted }}>{w.name}</span>
               <div style={{ flex: 1, height: 9, background: 'rgba(var(--dz-ink-rgb),0.05)', borderRadius: 5 }}><div style={{ height: '100%', width: `${w.avg / maxWd * 100}%`, background: `linear-gradient(90deg, ${tone(T.accent, 0.5)}, ${T.accent})`, borderRadius: 5 }} /></div>
@@ -445,8 +445,8 @@ export default function MonArgentScreen() {
       {sheet === 'soldes' && (
         <Sheet title="Mes soldes" subtitle="Ce que tu as maintenant sur ton compte et en cash" onClose={() => setSheet('')}
           footer={<Btn variant="primary" disabled={busy} onClick={() => void post('/api/mon-argent/balances', { ...(f.compte !== '' ? { compte: Number(f.compte) } : {}), ...(f.cash !== '' ? { cash: Number(f.cash) } : {}) }, () => { setSheet(''); flash('✅ Soldes mis à jour'); })} style={{ width: '100%' }}>Enregistrer</Btn>}>
-          <Field label="Sur le compte (€)"><input inputMode="decimal" value={f.compte} onChange={e => setFF('compte', e.target.value.replace(/[^\d.]/g, ''))} style={inputStyle} /></Field>
-          <Field label="En cash (€)"><input inputMode="decimal" value={f.cash} onChange={e => setFF('cash', e.target.value.replace(/[^\d.]/g, ''))} style={inputStyle} /></Field>
+          <Field label="Sur le compte (€)"><input inputMode="decimal" value={f.compte} onChange={e => setFF('compte', e.target.value.replace(',', '.').replace(/[^\d.]/g, ''))} style={inputStyle} /></Field>
+          <Field label="En cash (€)"><input inputMode="decimal" value={f.cash} onChange={e => setFF('cash', e.target.value.replace(',', '.').replace(/[^\d.]/g, ''))} style={inputStyle} /></Field>
         </Sheet>
       )}
       {sheet === 'conseil' && (

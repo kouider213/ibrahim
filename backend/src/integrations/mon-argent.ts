@@ -494,7 +494,22 @@ export async function departDetail(force = false) {
   add('🏦', 'Compte en devises en Algérie', 'Un compte en devises (euros) à Oran te permet d\'apporter ton épargne proprement et de changer au bon moment.');
   add('🧪', 'Tester la vie à Oran', 'Avant de vendre quoi que ce soit en Belgique : 1 mois à Oran en vrai (dépenses réelles notées) pour vérifier les 243 000 DA/mois du plan.');
   add('🔒', 'Ce qui ne doit pas bouger', `Ton épargne du départ (${eur(o.balances.compte)}) ne sert qu'au départ : les nouveaux projets se financent avec ce qui rentre en plus, jamais avec elle.`);
+  // 27/11 nuit (« améliore le plan de départ ») : ce qu'il faut FAIRE — par mois, par semaine, ce mois-ci, prochaine étape, J-x
+  const today = localNow().date;
+  const left = Math.max(0, total - o.balances.total);
+  const monthsLeft = iDep !== null ? Math.max(1, iDep) : null;
+  const perMonth = monthsLeft ? Math.round(left / monthsLeft) : null;
+  const daysLeft = iDep !== null ? Math.max(0, Math.round((Date.parse(`${at(iDep)}-01T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`)) / 86_400_000)) : null;
+  const prevYm = ymAdd(today.slice(0, 7), -1);
+  const snap = await kvJson<{ savings?: number; cash?: number } | null>(`perso:capital:${prevYm}`, null);
+  // Ce mois : ce qu'il a déjà mis de côté depuis la fin du mois dernier (compte + cash, comme les photos de fin de mois)
+  const savedNow = o.balances.compte + o.balances.cash;
+  const thisMonth = snap ? { saved: Math.round(savedNow - (snap.savings ?? 0) - (snap.cash ?? 0)), target: Math.max(0, Math.round((real[1] ?? 0) - (real[0] ?? 0))) } : null;
+  const nx = steps.find(st => !st.done);
+  const nextStep = nx ? { name: nx.name, icon: nx.icon, missing: Math.max(0, nx.cumul - o.balances.total), label: nx.label } : null;
   return {
+    marge, fikDay, perMonth, perWeek: perMonth != null ? Math.round(perMonth * 12 / 52) : null, daysLeft, thisMonth, nextStep, left,
+    totalDa: Math.round(total * c.rate), rate: c.rate,
     now: c.now, total, departLabel: lab(iDep), departBest: lab(reachAt(best, total)), departSlow: lab(reachAt(slow, total)),
     have: o.balances.total, pct: Math.min(100, Math.round(o.balances.total / Math.max(1, total) * 100)),
     steps, levers, weak, checkpoints, options: opt.slice(0, 20),
