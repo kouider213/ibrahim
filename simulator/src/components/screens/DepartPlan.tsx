@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../../services/api.ts';
 import { T, tone, Sheet, Btn, Field, inputStyle, glass, Badge } from '../ui/Kit.tsx';
 
@@ -87,7 +87,7 @@ function PlanSheet({ plan: p, onClose, onChange, real, fm }: { plan: Plan; onClo
       {([['pieces', 'pièces de snus en plus / jour', 0, 10, 1], ['fik', 'jours de location FIK en plus / mois', 0, 60, 5], ['cut', '€ de dépenses en moins / mois', 0, 800, 50]] as const).map(([k, l, a, b, st]) => (
         <div key={k} style={{ marginBottom: 10 }}>
           <div style={{ display: 'flex', fontSize: 13.5 }}><span style={{ flex: 1 }}>{l}</span><b>{sim[k]}</b></div>
-          <input type="range" min={a} max={b} step={st} value={sim[k]} onChange={e => setSim(v => ({ ...v, [k]: Number(e.target.value) }))} style={{ width: '100%' }} />
+          <Slider min={a} max={b} step={st} value={sim[k]} onChange={n => setSim(v => ({ ...v, [k]: n }))} />
         </div>
       ))}
       <div style={{ ...glass(extra ? T.ok : T.accent), borderRadius: 14, padding: 12, fontSize: 14 }}>
@@ -158,5 +158,29 @@ function PlanSheet({ plan: p, onClose, onChange, real, fm }: { plan: Plan; onClo
         </div>
       ))}
     </Sheet>
+  );
+}
+
+/** 27/11 soir (Kouider : « quand je bouge le curseur, toute la page bouge ») : curseur maison — le doigt ne fait JAMAIS défiler la page
+ *  (touch-action none + capture du pointeur), on peut toucher n'importe où sur la barre, gros bouton facile à attraper. */
+function Slider({ min, max, step, value, onChange }: { min: number; max: number; step: number; value: number; onChange: (n: number) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const pick = (x: number) => {
+    const r = ref.current?.getBoundingClientRect(); if (!r) return;
+    const f = Math.min(1, Math.max(0, (x - r.left) / r.width));
+    const n = Math.round((min + f * (max - min)) / step) * step;
+    if (n !== value) onChange(n);
+  };
+  const pct = (value - min) / (max - min) * 100;
+  return (
+    <div ref={ref} role="slider" aria-valuemin={min} aria-valuemax={max} aria-valuenow={value}
+      onPointerDown={e => { e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId); pick(e.clientX); }}
+      onPointerMove={e => { if ((e.currentTarget as HTMLDivElement).hasPointerCapture(e.pointerId)) { e.preventDefault(); pick(e.clientX); } }}
+      onTouchMove={e => e.stopPropagation()}
+      style={{ position: 'relative', height: 40, touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none', cursor: 'pointer' }}>
+      <div style={{ position: 'absolute', left: 0, right: 0, top: 17, height: 6, borderRadius: 3, background: 'rgba(var(--dz-ink-rgb),0.12)' }} />
+      <div style={{ position: 'absolute', left: 0, width: `${pct}%`, top: 17, height: 6, borderRadius: 3, background: T.accent }} />
+      <div style={{ position: 'absolute', left: `calc(${pct}% - 14px)`, top: 6, width: 28, height: 28, borderRadius: '50%', background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.35)' }} />
+    </div>
   );
 }

@@ -87,15 +87,22 @@ export async function monArgentOverview() {
 
   // ── Snus ──
   const snus = sales.filter(e => e.cat === 'snus');
-  const pieces = (l: Entry[]) => l.reduce((s, e) => s + (e.qty ?? Math.round(e.amount / 6)), 0);
+  // Ventes en euros (Telegram « snus 150 ») → pièces estimées à 6 € SANS arrondi (l'arrondi donnait une moyenne > 6 €, impossible)
+  const piecesF = (l: Entry[]) => l.reduce((s, e) => s + (e.qty ?? e.amount / 6), 0);
+  const pieces = (l: Entry[]) => Math.round(piecesF(l));
   const o = fin.side?.order;
   const costPiece = o?.pieces && o.cost ? o.cost / o.pieces : null;
   const snusMonth = snus.filter(e => e.d >= m0), snusPrev = snus.filter(e => e.d >= pm0 && e.d <= pmEnd);
   const pM = pieces(snusMonth), aM = sum(snusMonth);
-  const avgUnit = pM ? aM / pM : null;
+  // Prix moyen : seulement les ventes comptées en pièces (bouton +1, « 3 pièces ») — les ventes en euros ne disent pas le prix
+  const withQty = snusMonth.filter(e => (e.qty ?? 0) > 0);
+  const qN = withQty.reduce((s, e) => s + e.qty!, 0);
+  const avgUnit = qN >= 5 ? withQty.reduce((s, e) => s + e.amount, 0) / qN : null;
   const discount = snusMonth.reduce((s, e) => s + (e.qty ? e.qty * 6 - e.amount : 0), 0);
-  const days7 = snus.filter(e => e.d > addDays(today, -7));
-  const perDayPieces = pieces(days7) / 7;
+  // Pièces par jour de vente : sur les jours NOTÉS des 30 derniers jours (sur 7 jours, les jours non notés comptaient comme 0 → 2,1/jour, faux)
+  const days30 = snus.filter(e => e.d > addDays(today, -30));
+  const notedDays = new Set(days30.filter(e => e.amount > 0).map(e => e.d)).size;
+  const perDayPieces = notedDays ? piecesF(days30) / notedDays : 0;
   const snusStats = { today: pieces(snus.filter(e => e.d === today)), todayEur: sum(snus.filter(e => e.d === today)), week: pieces(snus.filter(e => e.d >= mon)),
     month: pM, monthEur: aM, prevMonthEur: sum(snusPrev), avgUnit: avgUnit ? r2(avgUnit) : null, costPiece: costPiece ? r2(costPiece) : null,
     marginPiece: avgUnit && costPiece ? r2(avgUnit - costPiece) : null, discount: r2(discount), perDay: r2(perDayPieces) };
@@ -108,12 +115,21 @@ export async function monArgentOverview() {
   const dom = +today.slice(8, 10), dim = new Date(Date.UTC(+today.slice(0, 4), +today.slice(5, 7), 0)).getUTCDate();
 
   // ── Départ (plan Algérie) ──
-  const depart = plan ? {
+  // 27/11 soir : MÊME calcul que la fiche « Ton plan de départ » (étapes + courbe réaliste recalée sur son total du jour) —
+  // avant, ce repère disait « janv. 2030 » pendant que la fiche disait « déc. 2029 ».
+  const cv = await curves().catch(() => null);
+  const depart = cv ? await (async () => {
+    const need = (await goals(cv)).reduce((x, g) => x + g.cost, 0);
+    const rc = cv.curves[1]?.curve ?? cv.curves[0]!.curve, d0 = total - (rc[0] ?? 0);
+    const i = reachAt(rc.map(v => v + d0), need);
+    const moveAt = i === null ? null : ymAdd(cv.now, i);
+    return { moveAt, label: moveAt ? ymL(moveAt) : null, upfront: need, pct: need ? Math.min(100, Math.round(total / need * 100)) : null };
+  })() : plan ? {
     moveAt: plan.moveAt, label: plan.moveAt ? ymLabel(plan.moveAt) : null, upfront: plan.upfront,
     pct: plan.upfront ? Math.min(100, Math.round(total / plan.upfront * 100)) : null,
   } : null;
 
-  const insights = buildInsights({ today, dom, dim, snusStats, monthTotal, prevTotal, total, savings, cash, depMonth, fin, wk, bestDays, months6, depart, perDay, all, order: o, fikMonth: sum(fik.filter(e => e.d >= m0)) });
+  const insights = buildInsights({ today, dom, dim, snusStats, monthTotal, prevTotal, total, savings, cash, depMonth, fin, wk, bestDays, months6, depart, perDay, all, order: o, fikMonth: sum(fik.filter(e => e.d >= m0)), planMonthly: cv ? Math.round((cv.m0['charges'] ?? 0) + (cv.m0['living'] ?? 0)) || undefined : undefined });
 
   return {
     balances: { compte: savings, cash, aRecuperer, total, compteAt: fin.savingsAt ?? null, cashAt: fin.sideCashAt ?? null },
@@ -137,7 +153,7 @@ function buildInsights(x: {
   today: string; dom: number; dim: number; snusStats: { month: number; monthEur: number; prevMonthEur: number; avgUnit: number | null; costPiece: number | null; marginPiece: number | null; discount: number; perDay: number; week: number };
   monthTotal: number; prevTotal: number; total: number; savings: number; cash: number; depMonth: number;
   fin: { salary?: number; monthlySaving?: number }; wk: Array<{ name: string; avg: number; n: number }>; bestDays: Array<{ d: string; amount: number }>;
-  months6: Array<{ ym: string; amount: number }>; depart: { label: string | null; upfront: number; pct: number | null } | null;
+  months6: Array<{ ym: string; amount: number }>; planMonthly?: number; depart: { label: string | null; upfront: number; pct: number | null } | null;
   perDay: Map<string, number>; all: Array<{ d: string; cat: string; amount: number }>; order?: { pieces?: number; cost?: number; everyDays?: number }; fikMonth: number;
 }): Ins[] {
   const out: Ins[] = [];
@@ -146,11 +162,11 @@ function buildInsights(x: {
   // 1. Marge réelle par pièce
   if (s.marginPiece != null && s.costPiece != null) push('🧮', 'Ta vraie marge par pièce', `Tu vends en moyenne ${s.avgUnit!.toFixed(2)} € la pièce, elle te coûte ${s.costPiece.toFixed(2)} € : il te reste ${s.marginPiece.toFixed(2)} € par pièce.`, s.marginPiece > 1.5 ? 'ok' : 'warn');
   // 2. Bénéfice snus du mois (après stock)
-  if (s.costPiece != null && s.month) push('💶', 'Bénéfice snus du mois', `${s.month} pièces vendues = ${eur(s.monthEur)} encaissés, dont ${eur(s.month * s.costPiece)} de stock : ${eur(s.monthEur - s.month * s.costPiece)} de vrai bénéfice.`, 'ok');
+  if (s.costPiece != null && s.month) push('💶', 'Bénéfice snus du mois', `≈ ${s.month} pièces vendues = ${eur(s.monthEur)} encaissés, dont ${eur(s.month * s.costPiece)} de stock : ${eur(s.monthEur - s.month * s.costPiece)} de vrai bénéfice.`, 'ok');
   // 3. Coût des ristournes
   if (s.discount > 0) push('🏷️', 'Ce que te coûtent les ristournes', `Ce mois, les prix à 5 € t'ont fait ${eur(s.discount)} de moins qu'à 6 €. Garde-les pour les gros clients fidèles.`, s.discount > 50 ? 'warn' : 'info');
   // 4. Prochaine commande de stock
-  if (x.order?.pieces && s.perDay > 0) push('📦', 'Prochaine commande', `À ${s.perDay.toFixed(1)} pièces/jour, un stock de ${x.order.pieces} pièces dure ≈ ${Math.round(x.order.pieces / s.perDay)} jours. Prévois ${eur(x.order.cost ?? 0)} de côté avant.`);
+  if (x.order?.pieces && s.perDay > 0) push('📦', 'Prochaine commande', `À ${s.perDay.toFixed(1)} pièces par jour de vente (moyenne de tes jours notés), un stock de ${x.order.pieces} pièces dure ≈ ${Math.round(x.order.pieces / s.perDay)} jours de vente. Prévois ${eur(x.order.cost ?? 0)} de côté avant.`);
   // 5. Fin de mois au rythme actuel
   const pace = Math.round(x.monthTotal / Math.max(1, x.dom) * x.dim);
   push('📈', 'Fin du mois à ce rythme', `${eur(x.monthTotal)} gagnés en ${x.dom} jours → ≈ ${eur(pace)} fin du mois${x.prevTotal ? ` (mois dernier : ${eur(x.prevTotal)})` : ''}.`, x.prevTotal && pace < x.prevTotal ? 'warn' : 'ok');
@@ -164,7 +180,8 @@ function buildInsights(x: {
   const noted = new Set(x.all.filter(e => e.d.startsWith(x.today.slice(0, 7))).map(e => e.d)).size;
   if (x.dom - noted >= 3) push('📝', 'Jours sans rien noté', `${x.dom - noted} jours sur ${x.dom} sans vente notée ce mois. Si tu as vendu, note-le : sinon tes chiffres sont faux.`, 'warn');
   // 9. Coussin de sécurité
-  const monthly = x.depMonth > 0 ? x.depMonth / Math.max(1, x.dom) * 30 : (x.fin.salary ?? 0);
+  // 27/11 soir : même base que la « Réserve de sécurité (6 mois) » du plan (charges + vie courante), pas le salaire entier
+  const monthly = x.depMonth > 0 ? x.depMonth / Math.max(1, x.dom) * 30 : (x.planMonthly ?? x.fin.salary ?? 0);
   if (monthly > 0) { const mths = x.total / monthly; push('🛟', 'Coussin de sécurité', `Avec ${eur(x.total)}, tu tiens ≈ ${mths.toFixed(1)} mois sans aucun revenu (à ${eur(monthly)}/mois de dépenses).`, mths >= 6 ? 'ok' : 'warn'); }
   // 10. Cash qui dort
   if (x.cash >= 1500) push('💤', 'Cash qui dort', `${eur(x.cash)} en cash : au-delà d'un fond de caisse, mets le reste de côté (épargne ou projet) pour ne pas le dépenser sans t'en rendre compte.`, 'warn');
@@ -402,7 +419,10 @@ export async function departDetail(force = false) {
   if (!c) return null;
   const o = await monArgentOverview();
   const gl = await goals(c);
-  const real = c.curves[1]?.curve ?? c.curves[0]!.curve, best = c.curves[0]!.curve, slow = c.curves[2]?.curve ?? real;
+  // 27/11 soir (Kouider : « que les chiffres changent au fur et à mesure ») : la courbe (recalculée toutes les 6 h) part de
+  // SON argent d'au moment du calcul → on la recale sur son total d'AUJOURD'HUI (chaque vente, prise, dépense compte tout de suite).
+  const live = (cv: number[]) => { const d = o.balances.total - (cv[0] ?? 0); return cv.map(v => Math.round(v + d)); };
+  const best = live(c.curves[0]!.curve), real = c.curves[1] ? live(c.curves[1].curve) : best, slow = c.curves[2] ? live(c.curves[2].curve) : real;
   const at = (i: number | null) => (i === null ? null : ymAdd(c.now, i));
   const lab = (i: number | null) => (i === null ? 'pas avant 10 ans' : ymL(at(i)!));
   // Étapes cumulées, dans l'ordre

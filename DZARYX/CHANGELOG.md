@@ -1,3 +1,11 @@
+## 27/11 — PLAN DE DÉPART vérifié : chiffres en direct, repères corrigés, curseurs qui ne font plus bouger la page
+- Kouider : « vérifie que tout ce qu'il dit est correct, que les chiffres changent au fur et à mesure ; quand je bouge le curseur toute la page bouge ».
+- departDetail : courbes (cache 6 h) recalées sur son total du jour → chaque vente/prise/dépense change dates, % et « prochain point » tout de suite.
+- Repère « Départ pour Oran » = même calcul que la fiche (avant : janv. 2030 contre déc. 2029).
+- Snus : prix moyen seulement sur les ventes en pièces (l'arrondi des ventes en euros donnait > 6 €/pièce) ; pièces/jour = moyenne des jours de vente NOTÉS sur 30 j (avant : 7 j avec les jours non notés à 0 → 2,1/jour, stock « 112 jours » faux).
+- Coussin de sécurité : charges + vie courante du plan, pas le salaire entier.
+- App v323 : DepartPlan curseur maison (touch-action none, capture du doigt, gros bouton) — la page ne défile plus.
+
 ## 27/11 — ARGENT FIK RÉCUPÉRÉ : il choisit où il va (cash / compte / utilisé)
 - Kouider : « quand je récupère l'argent des locations, parfois je l'utilise, parfois je l'économise (ex. je l'ai utilisé pour acheter de l'or) ».
 - real-profit.ts : setCollected/markAllCollected(dest, label) ; ProfitItem dest/destLabel/moved ; applyDest : cash → cash +, compte → épargne +, utilisé → dépense notée (mon-argent fikUsed, rien n'entre). Décocher défait seulement ce que Dzaryx avait déplacé.
