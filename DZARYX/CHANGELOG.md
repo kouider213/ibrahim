@@ -1,3 +1,7 @@
+## 27/11 — Voiture : récap global du matin (WhatsApp, TikTok, réservations, priorité)
+- Kouider : « le matin quand je vais à la salle… un récap global WhatsApp, TikTok, réservations et autre sur le CarPlay ou en appel ».
+- jarvis4 carBrief avant 11h : + recap_matin (TikTok sans réponse / en cours, demandes WhatsApp ouvertes, réservations des 7 jours, priorité du Grand Coach), 4 phrases / 65 mots. Numéros jamais lus (priorité anonymisée), demandes « sans suite » plus annoncées, plus de « je ne peux pas vous annoncer… ».
+
 ## 27/11 — MON ARGENT (privé) + page CA : véhicules cliquables, évolution, quand les clients écrivent (app v309)
 - Kouider : noter chaque vente hors FIK (snus, appartement, vente de voiture, autre) en +1/+10, total de tout son argent, meilleurs jours, ce qui rapporte le plus ; « rien ne doit être visible pour d'autres personnes ».
 - Backend mon-argent.ts + route /api/mon-argent (compte Kouider seulement, 403 sinon) sur le MÊME journal que Telegram (perso:journal / perso:finances) ; FIK = bénéfice des réservations automatiquement. Aucune donnée dans le dépôt.

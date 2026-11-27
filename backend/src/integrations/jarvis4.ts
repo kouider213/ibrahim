@@ -192,7 +192,9 @@ export async function carBrief(body: Record<string, unknown> = {}, prep = false)
       trip = `${d.min} min de route${d.min - d.normal >= 5 ? ` (${d.min - d.normal} min de bouchons)` : ''}, ${margin >= 0 ? `marge ${margin} min` : `RETARD probable de ${-margin} min`}`;
     }
   }
-  const clients = (drafts as Array<{ chat: string; preview: string }>).map(d => {
+  // 27/11 : demande classée « sans suite » / « perdu » dans DEMANDES → plus annoncée en voiture (Halima)
+  const closedChats = await import('./wa-demandes.js').then(async m => new Set((await m.listWaDemandes('whatsapp')).filter(d => m.WA_CLOSED.has(d.status)).map(d => d.chat.toLowerCase()))).catch(() => new Set<string>());
+  const clients = (drafts as Array<{ chat: string; preview: string }>).filter(d => !closedChats.has(d.chat.toLowerCase()) && !closedChats.has(`@${d.chat.toLowerCase()}`)).map(d => {
     const sc = scores[d.chat.toLowerCase()];
     return { who: /^[+\d\s().-]+$/.test(d.chat) ? 'un numéro inconnu' : d.chat, wants: d.preview.replace(/\s+/g, ' ').slice(0, 120), pct: sc?.pct ?? null };
   }).sort((x, y) => (y.pct ?? 0) - (x.pct ?? 0));
@@ -215,8 +217,25 @@ export async function carBrief(body: Record<string, unknown> = {}, prep = false)
   }
   // 06/11 préparé avant le départ : l'heure exacte de départ n'est pas connue → l'heure de l'étape, pas « dans X min » ni la marge
   if (prep && nextStep) nextStep = { ...nextStep, dans_minutes: null, trajet: nextStep.trajet?.split(',')[0]?.replace(/\s*\(.*\)/, '') ?? null };
+  // 27/11 Kouider : « le matin quand je vais à la salle ou autre… un récap global WhatsApp, TikTok, réservations et autre »
+  const morning = localNow().hhmm < '11:00';
+  const extra = morning ? await (async () => {
+    const dm = await import('./wa-demandes.js');
+    const open = async (ch: 'whatsapp' | 'tiktok') => (await dm.listWaDemandes(ch).catch(() => [])).filter(d => !dm.WA_CLOSED.has(d.status) && Date.now() - Date.parse(d.updated_at) < 4 * 86_400_000);
+    const [wa, tt, soon, brief] = await Promise.all([open('whatsapp'), open('tiktok'),
+      supabase.from('bookings').select('client_name, start_date, status, cars(name)').gt('start_date', date).lte('start_date', new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10)).then(r => r.data ?? []),
+      kvJson<{ prio?: string; why?: string } | null>(`gc:brief:${date}`, null)]);
+    const who = (c: string) => (/^[+\d\s().-]+$/.test(c) ? 'un numéro inconnu' : c.replace(/^@/, ''));
+    return {
+      tiktok: { sans_reponse: tt.filter(d => d.status === 'nouveau').length, en_cours: tt.length, exemple: tt[0] ? `${who(tt[0].chat)} : ${tt[0].text.split('\n').at(-1)?.slice(0, 80)}` : null },
+      demandes_whatsapp_ouvertes: wa.length,
+      reservations_7_jours: (soon as Array<Record<string, unknown>>).filter(b => !/REJECT|CANCEL/i.test(String(b['status']))).map(b => `${b['client_name']} (${(b['cars'] as { name?: string } | null)?.name ?? ''}) le ${String(b['start_date']).slice(8, 10)}/${String(b['start_date']).slice(5, 7)}`),
+      priorite_du_jour: brief?.prio ? brief.prio.replace(/\+?\d[\d\s().-]{7,}\d/g, 'un numéro inconnu').replace(/@/g, '') : null,
+    };
+  })().catch(() => null) : null;
   const facts = {
     heure: localNow().hhmm,
+    ...(extra ? { recap_matin: extra } : {}),
     prochaine_etape: nextStep,
     clients_whatsapp_en_attente: { nombre: clients.length, les_plus_chauds: clients.slice(0, 2) },
     locations_du_jour: (books as Array<Record<string, unknown>>).filter(b => !/REJECT|CANCEL/i.test(String(b['status']))).map(b => `${(b['cars'] as { name?: string } | null)?.name ?? ''} ${b['client_name']} ${String(b['start_date']).startsWith(date) ? 'départ' : 'retour'}`),
@@ -224,9 +243,9 @@ export async function carBrief(body: Record<string, unknown> = {}, prep = false)
   };
   void dec;
   const said = await ai(`Kouider vient de monter en voiture (CarPlay). Fais-lui son point en 2 à 3 phrases courtes à l'ORAL (12 secondes, 45 mots maximum), comme JARVIS d'Iron Man : calme, précis, élégant, VOUVOIEMENT :
-d'abord sa prochaine étape et ${prep ? "À QUELLE HEURE elle commence (« le travail commence à 13 heures »), avec le temps de route ; JAMAIS « dans X minutes » ni de marge ou de retard (ce point est préparé avant son départ)" : "COMBIEN DE TEMPS IL LUI RESTE avant (dans_minutes, dit en mots simples : « le travail commence dans 25 minutes », « dans 1 heure 10 »), avec le temps de route et la marge (ou le retard)"} ; puis ce que veulent les 1-2 clients les plus chauds sur WhatsApp et combien attendent en tout ; puis la location ou la promesse du jour s'il y en a. JAMAIS de « décision » ni de proposition à choisir (resto, soirée…) : il conduit.
-Ne redis PAS l'heure (déjà dite). JAMAIS un mot sur médicament, pharmacie, santé, Liberté ou sevrage (c'est privé). S'il n'y a aucun fait, dis seulement « Rien d'urgent à signaler. Bonne route. ». Uniquement ces faits, n'invente rien. Ce qui est vide ou null : n'en parle PAS du tout (jamais « pas de… »). Pas de « salut », pas de numéro de téléphone, pas d'emoji, pas de liste. Termine par « Bonne route. »
-Faits : ${JSON.stringify(facts)}`, { max: 300, emergency: 'voix' }).catch(() => '');
+d'abord sa prochaine étape et ${prep ? "À QUELLE HEURE elle commence (« le travail commence à 13 heures »), avec le temps de route ; JAMAIS « dans X minutes » ni de marge ou de retard (ce point est préparé avant son départ)" : "COMBIEN DE TEMPS IL LUI RESTE avant (dans_minutes, dit en mots simples : « le travail commence dans 25 minutes », « dans 1 heure 10 »), avec le temps de route et la marge (ou le retard)"} ; puis ce que veulent les 1-2 clients les plus chauds sur WhatsApp et combien attendent en tout ; puis la location ou la promesse du jour s'il y en a.${extra ? ` C'est le MATIN : fais un RÉCAP GLOBAL (4 phrases, 65 mots maximum au lieu de 45) avec aussi recap_matin : TikTok (combien sans réponse), les demandes ouvertes, les réservations des 7 prochains jours, et termine par la priorité du jour.` : ''} JAMAIS de « décision » ni de proposition à choisir (resto, soirée…) : il conduit.
+Ne redis PAS l'heure (déjà dite). JAMAIS un mot sur médicament, pharmacie, santé, Liberté ou sevrage (c'est privé). S'il n'y a aucun fait, dis seulement « Rien d'urgent à signaler. Bonne route. ». Ne dis JAMAIS que tu ne peux pas annoncer quelque chose ni qu'une info manque : passe directement à ce que tu sais. Uniquement ces faits, n'invente rien. Ce qui est vide ou null : n'en parle PAS du tout (jamais « pas de… »). Pas de « salut », pas de numéro de téléphone, pas d'emoji, pas de liste. Termine par « Bonne route. »
+Faits : ${JSON.stringify(facts)}`, { max: extra ? 420 : 300, emergency: 'voix' }).catch(() => '');
   if (said) return speakable(said);
   const parts = [next ? `Prochaine étape : ${next.summary} à ${facts.prochaine_etape?.heure?.replace(':', 'h') ?? 'bientôt'}${trip ? `, ${trip}` : ''}.` : '', clients.length ? `${clients.length} clients attendent sur WhatsApp.` : '', facts.promesse ? `Promesse à tenir : ${facts.promesse}.` : ''].filter(Boolean);
   return speakable(parts.length ? `En route. ${parts.join(' ')} Bonne route.` : 'En route, rien d\'urgent. Bonne route.');
