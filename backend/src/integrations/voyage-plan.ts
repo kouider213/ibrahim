@@ -80,7 +80,10 @@ const FALLBACK_ALGERIE: Option[] = [
   { icon: '🌅', title: 'Un dernier jour calme', text: 'Garde le dernier jour avant le bateau du retour sans visite : valises, voiture, repos — tu repars sans stress.' },
 ];
 
-const SYS = 'Tu es Dzaryx, l\'organisateur de voyages de Kouider. Tu écris en français simple, tutoiement. Tu ne cites que des lieux qui existent vraiment. Les prix sont des ESTIMATIONS (écris « env. ») sauf s\'ils viennent de la recherche. Sa femme ET son fils Ibrahim voyagent TOUJOURS avec lui : chaque proposition doit plaire aux trois. Il est musulman pratiquant (halal, prières). Jamais de bars, alcool, boîtes de nuit.';
+const SYS = 'Tu es Dzaryx, l\'organisateur de voyages de Kouider. Tu écris en français simple, tutoiement. Tu ne cites que des lieux qui existent vraiment. Les prix sont des ESTIMATIONS (écris « env. ») sauf s\'ils viennent de la recherche. Sa femme ET son fils Ibrahim voyagent TOUJOURS avec lui : chaque proposition doit plaire aux trois. Il est musulman pratiquant (halal, prières). Jamais de bars, alcool, boîtes de nuit. '
+  // 27/11 Kouider : « quand je suis en Algérie je vis à Oran, quand j'arrive en Algérie c'est toujours Oran »
+  + 'ALGÉRIE = ORAN : quand il va en Algérie, il arrive TOUJOURS à Oran (bateau → port d\'Oran, avion → aéroport d\'Oran) et il VIT à Oran, chez lui : Oran est sa base, JAMAIS d\'hôtel ni de location à Oran, jamais « installation à Oran » comme si c\'était nouveau. Les autres villes (Tlemcen, Mostaganem, Alger…) = sorties à la journée ou petits séjours DEPUIS Oran, avec retour à Oran. Le budget ne compte aucun logement à Oran. '
+  + 'CONFIDENTIEL : le plan est pour lui seul ; dans les recherches web, ne mets JAMAIS son nom, sa famille, ses montants ou sa ville de résidence — seulement des mots généraux (ex. « ferry Alicante Oran prix famille voiture été 2027 »).';
 
 /** Lance la préparation en tâche de fond ; renvoie tout de suite. */
 export async function startVoyage(input: { request: string; dest?: string; mode?: string; days?: number; start?: string; last_cost?: number; budget?: number }): Promise<Voyage> {
@@ -104,7 +107,7 @@ async function context(): Promise<string> {
   return [
     'CE QUE TU SAIS DE KOUIDER (privé, pour personnaliser — ne recopie pas ces lignes dans le plan) :',
     (dossier ?? '').slice(0, 2500), fam,
-    'Il vit en Belgique (Bruxelles) avec sa femme et son fils Ibrahim. Projet : s\'installer à Oran plus tard (maison puis voiture). Il a une agence de location FIK à Oran (voitures de son associé Houari).',
+    'Il vit en Belgique (Bruxelles) avec sa femme et son fils Ibrahim. En Algérie il vit à ORAN (sa base, il y va souvent ; arrivée toujours à Oran). Projet : s\'installer à Oran pour de bon plus tard (maison puis voiture). Il a une agence de location FIK à Oran (voitures de son associé Houari).',
     'Il parle darija oranaise et français. Voiture perso : un SUV (Audi Q3).',
     money ? `Argent : il économise pour son départ à Oran (départ prévu ${money.depart ?? '—'}) — chaque euro dépensé en vacances le recule un peu.` : '',
   ].filter(Boolean).join('\n');

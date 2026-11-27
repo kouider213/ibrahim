@@ -123,9 +123,15 @@ export async function loginDevice(user: string, password: string): Promise<{ tok
   throw lastErr ?? new Error('Connexion impossible');
 }
 
+/** Efface du téléphone toutes les copies gardées (argent, analyse, voyages, pages…) — à la déconnexion. */
+export function wipePrivateCache(): void {
+  try { for (const k of Object.keys(localStorage)) if (k.startsWith(OFFLINE_PREFIX) || k.startsWith('dz:ma:') || k.startsWith('dz:analyse:')) localStorage.removeItem(k); } catch { /* */ }
+}
+
 export async function logoutDevice(): Promise<void> {
   const t = getDeviceToken();
   setDeviceToken(null);
+  wipePrivateCache();
   if (t) await fetch(`${BACKEND_URL}/api/auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${t}` } }).catch(() => {});
 }
 
@@ -231,7 +237,8 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}, _atte
   }
   if (!res.ok) {
     if (res.status === 401 || res.status === 403) signalAuthExpired();
-    if (isGet) { const cached = readOfflineCache<T>(path); if (cached) { setOffline(true); return cached.data; } }
+    // 27/11 (Kouider : « personne ne doit le voir à part moi ») : un accès REFUSÉ ne ressert jamais la copie gardée
+    if (isGet && res.status !== 401 && res.status !== 403) { const cached = readOfflineCache<T>(path); if (cached) { setOffline(true); return cached.data; } }
     throw new Error(`API ${res.status}: ${await res.text()}`);
   }
   const data = (await res.json()) as T;

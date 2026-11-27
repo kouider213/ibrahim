@@ -1,3 +1,10 @@
+## 27/11 — Algérie = Oran + tout est privé (app v327)
+- Kouider : « en Algérie je vis à Oran, j'arrive toujours à Oran ; tout ce qu'on fait et va faire, personne ne doit le voir à part moi ».
+- Règle SA VIE (constants.ts, tous les cerveaux) + dossier : arrivée toujours Oran, Oran = sa base (jamais d'hôtel à Oran), autres villes = sorties depuis Oran ; tout ce qui le concerne est privé (ni Houari, ni clients, ni quelqu'un sur son téléphone ; rien dans WhatsApp/mail/doc/post sans sa demande).
+- MES VOYAGES : même règle Oran dans le planificateur ; recherches web sans son nom, sa famille, ses montants ni sa ville.
+- App : un accès refusé (401/403) ne ressert plus la copie gardée hors-ligne ; déconnexion = copies privées effacées du téléphone (dz:cache:*, dz:ma:*, dz:analyse:*).
+- Vérifié : outils perso (Jarvis 4 : finances, voyages, analyse, tâches…) déjà refusés aux sessions Houari ; routes app = compte Kouider seulement.
+
 ## 27/11 — Améliorations MES VOYAGES + MON ANALYSE (app v326)
 - Kouider : « rajoute des améliorations au maximum ».
 - VOYAGES : modifier le plan en une phrase (« moins cher », « ajoute Tlemcen », « 3 semaines » → refait avec les mêmes recherches, coches gardées), 30 nouvelles options (garde celles cochées), date de départ → J-x + combien mettre de côté par semaine, onglet Dépenses (budget restant, par jour pendant le voyage), dépenses « -50 essence » ajoutées seules au voyage en cours, check-list → À faire (datée depuis le départ : « 1 mois avant », « la veille »…), lieux → Google Maps (app + liens dans le PDF), PDF avec dépenses. Outil voyage : modifier/options/date/taches/depense.
