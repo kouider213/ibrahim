@@ -419,7 +419,7 @@ export async function jobPubFollowUp(): Promise<void> {
       + `${past ? `Nos pubs précédentes : ${past}.
 ` : ''}${g?.videos?.[0] ? `Nos meilleures vidéos : ${g.videos.slice(0, 2).map(fmtVid).join(' | ')}
 ` : ''}`
-      + `En 2 phrases très simples (tutoiement, comme à un ami, sans jargon ni anglais) : 1) pourquoi elle a marché ou pas, 2) ce qu'on change ou garde pour la PROCHAINE pub (hook, durée, voiture, moment…). N'invente aucun chiffre.`, { max: 200 }).catch(() => '')).trim();
+      + `En 2 phrases très simples (tutoiement, comme à un ami, sans jargon ni mot anglais : jamais « flop », « hook », « scroller », dis « l'accroche », « les gens passent ») : 1) pourquoi elle a marché ou pas, 2) ce qu'on change ou garde pour la PROCHAINE pub (hook, durée, voiture, moment…). N'invente aucun chiffre.`, { max: 200 }).catch(() => '')).trim();
     res.unshift({ id: p.id!, title: p.title ?? 'pub', at: p.at, angle: memo?.angle, hook: memo?.hook, cars: memo?.cars, caption: v.desc, duration: v.duration,
       plays: v.plays ?? 0, likes: v.likes ?? 0, comments: v.comments ?? 0, shares: v.shares ?? 0, saves: v.saves ?? 0, ratio, lesson, checked: new Date().toISOString() });
     await queueTelegramMessage(`📊 Bilan de ta pub « ${p.title} » (${Math.round((Date.now() - Date.parse(p.at)) / 3_600_000)} h après) :
