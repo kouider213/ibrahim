@@ -148,6 +148,7 @@ function Card({ it, onGone, onToast }: { it: Item; onGone: (id: string) => void;
               {it.kind === 'ttc' && draft && <Btn variant="primary" color={ch.color} onClick={() => void copy()} style={{ flex: 2 }}>📋 Copier la réponse</Btn>}
               {has('accept') && <Btn variant="soft" color={T.ok} disabled={!!busy} onClick={() => setOpen(o => o === 'accept' ? '' : 'accept')} style={{ flex: 1 }}>✅ Dispo</Btn>}
               {has('refuse') && <Btn variant="soft" color={T.bad} disabled={!!busy} onClick={() => void act('refuse')} style={{ flex: 1 }}>{b('refuse') ? '…' : '⛔ Complet'}</Btn>}
+              {has('ignore') && <Btn variant="ghost" disabled={!!busy} onClick={() => void act('repondu')} style={{ flexBasis: '100%' }}>{b('repondu') ? '…' : '✓ Déjà répondu — retirer'}</Btn>}
             </div>
           )}
 

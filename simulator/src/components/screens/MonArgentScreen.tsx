@@ -13,7 +13,7 @@ import { ProdTag, type StockOv } from './StockScreen.tsx';
 interface Part { id: string; amount: number }
 interface Src { id: string; label: string; amount: number }
 export interface MonArgent {
-  balances: { compte: number; cash: number; total: number; compteAt: string | null; cashAt: string | null };
+  balances: { compte: number; cash: number; aRecuperer?: number; total: number; compteAt: string | null; cashAt: string | null };
   today: { total: number; bySource: Src[]; day?: DayMoney }; week: { total: number };
   month: { total: number; prev: number; pace: number; bySource: Src[]; depenses: number }; year: { total: number; bySource: Src[] };
   snus: { today: number; todayEur: number; week: number; month: number; monthEur: number; avgUnit: number | null; costPiece: number | null; marginPiece: number | null; discount: number; perDay: number };
@@ -147,7 +147,7 @@ export default function MonArgentScreen() {
           </div>
           <div style={{ position: 'relative', fontFamily: T.display, fontSize: 50, fontWeight: 600, letterSpacing: '-0.055em', lineHeight: 1, color: '#fff', marginTop: 10, fontVariantNumeric: 'tabular-nums' }}><CountUp value={fm(o.balances.total)} /></div>
           <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 8, marginTop: 18, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.14)' }}>
-            {[{ l: 'Compte', v: fm(o.balances.compte) }, { l: 'Cash', v: fm(o.balances.cash) }, { l: 'Gagné ce mois', v: fm(o.month.total), c: '#9ef0c6' }].map(x => (
+            {[{ l: 'Compte', v: fm(o.balances.compte) }, { l: 'Cash', v: fm(o.balances.cash) }, ...(o.balances.aRecuperer ? [{ l: 'Chez Houari', v: fm(o.balances.aRecuperer), c: '#ffd78a' }] : [{ l: 'Gagné ce mois', v: fm(o.month.total), c: '#9ef0c6' }])].map(x => (
               <div key={x.l}><div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>{x.l}</div>
                 <div style={{ fontFamily: T.display, fontSize: 17, fontWeight: 800, color: x.c ?? '#fff', marginTop: 3, whiteSpace: 'nowrap' }}><CountUp value={x.v} /></div></div>
             ))}

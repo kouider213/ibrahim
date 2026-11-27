@@ -329,6 +329,12 @@ export async function inboxAct(inp: ActInput): Promise<ActResult> {
     return { ok: true, gone: true, message: `${a === 'voice' ? 'Vocal envoyé' : 'Envoyé'} sur ${tiktok ? 'TikTok' : 'WhatsApp'} à ${it.name} ✅` };
   }
 
+  // 27/11 soir (Kouider : « je dois pouvoir les zapper, j'ai déjà répondu ») : répondu ailleurs (WhatsApp/TikTok à la main)
+  if (a === 'repondu') {
+    await closeDemande(it, 'contacté');
+    await edit(s => { s.done[it.id] = Date.now(); });
+    return { ok: true, gone: true, message: 'Noté : déjà répondu ✅' };
+  }
   if (a === 'ignore' || a === 'conclu' || a === 'perdu') {
     const status = a === 'ignore' ? 'sans suite' : a;
     await closeDemande(it, status);

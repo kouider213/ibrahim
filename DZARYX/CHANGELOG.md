@@ -1,3 +1,9 @@
+## 27/11 — TOUT MON CASH sur Aujourd'hui + « chez Houari » compté + « Déjà répondu » dans À traiter
+- Kouider : le total ne comptait pas l'argent FIK à récupérer chez Houari ; la carte d'Aujourd'hui ne montrait que les locations ; il ne pouvait pas retirer des demandes auxquelles il avait déjà répondu.
+- mon-argent.ts : balances.aRecuperer (profitLedger.toCollect) inclus dans le total ; argent-direct totalText ajoute la ligne « À récupérer chez Houari ».
+- real-profit.ts : marquer récupéré (une location ou tout) → l'argent passe dans le cash (moveCash), décocher → retiré.
+- App v321 : carte « Tout mon cash » (cash en main + chez Houari, détail : cash en main / chez Houari / aujourd'hui, ligne FIK en dessous ; ancienne carte pour les autres comptes) ; MON ARGENT affiche « Chez Houari » ; InboxCard bouton « ✓ Déjà répondu — retirer » (action inbox `repondu` → demande fermée « contacté »).
+
 ## 27/11 — CASH À JOUR : chaque vente entre dans le cash, chaque « pris » en sort
 - Kouider (capture MON ARGENT) : le cash n'incluait pas l'argent du jour, il doit être cash + argent du jour.
 - mon-argent.ts : moveCash() exporté ; monArgentAdd (+montant), monArgentTake (−), monArgentSetDay (±écart), monArgentUndo (inverse, seulement si la ligne est après le dernier cash donné à la main = sideCashTs).

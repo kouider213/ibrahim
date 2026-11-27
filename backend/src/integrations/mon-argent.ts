@@ -102,7 +102,8 @@ export async function monArgentOverview() {
 
   const dep = journal.filter(e => e.t === 'depense' || e.t === 'achat');
   const depMonth = sum(dep.filter(e => e.d >= m0));
-  const savings = fin.savings ?? 0, cash = fin.sideCash ?? 0, total = savings + cash;
+  const aRecuperer = await (await import('./real-profit.js')).profitLedger().then(l => l.toCollect).catch(() => 0);   // FIK chez Houari, pas encore récupéré
+  const savings = fin.savings ?? 0, cash = fin.sideCash ?? 0, total = savings + cash + aRecuperer;
   const monthTotal = sum(all.filter(e => e.d >= m0)), prevTotal = sum(all.filter(e => e.d >= pm0 && e.d <= pmEnd));
   const dom = +today.slice(8, 10), dim = new Date(Date.UTC(+today.slice(0, 4), +today.slice(5, 7), 0)).getUTCDate();
 
@@ -115,7 +116,7 @@ export async function monArgentOverview() {
   const insights = buildInsights({ today, dom, dim, snusStats, monthTotal, prevTotal, total, savings, cash, depMonth, fin, wk, bestDays, months6, depart, perDay, all, order: o, fikMonth: sum(fik.filter(e => e.d >= m0)) });
 
   return {
-    balances: { compte: savings, cash, total, compteAt: fin.savingsAt ?? null, cashAt: fin.sideCashAt ?? null },
+    balances: { compte: savings, cash, aRecuperer, total, compteAt: fin.savingsAt ?? null, cashAt: fin.sideCashAt ?? null },
     today: { total: sum(all.filter(e => e.d === today)), bySource: bySource(all.filter(e => e.d === today)), day: await dayMoney(today) },
     week: { total: sum(all.filter(e => e.d >= mon)) },
     month: { total: monthTotal, prev: prevTotal, pace: Math.round(monthTotal / Math.max(1, dom) * dim), bySource: bySource(all.filter(e => e.d >= m0)), depenses: depMonth },
@@ -296,7 +297,7 @@ export async function monArgentAdvise(question: string): Promise<string> {
   const q = String(question ?? '').trim().slice(0, 600);
   if (q.length < 5) throw new Error('Écris ton idée ou ta question');
   const o = await monArgentOverview();
-  const ctx = `Capital : ${eur(o.balances.total)} (compte ${eur(o.balances.compte)} + cash ${eur(o.balances.cash)}). Gagné hors salaire ce mois : ${eur(o.month.total)} (${o.month.bySource.map(s => `${s.label} ${eur(s.amount)}`).join(', ')}), mois dernier ${eur(o.month.prev)}. Dépenses notées ce mois : ${eur(o.month.depenses)}. `
+  const ctx = `Capital : ${eur(o.balances.total)} (compte ${eur(o.balances.compte)} + cash ${eur(o.balances.cash)}${o.balances.aRecuperer ? ` + à récupérer chez Houari ${eur(o.balances.aRecuperer)}` : ''}). Gagné hors salaire ce mois : ${eur(o.month.total)} (${o.month.bySource.map(s => `${s.label} ${eur(s.amount)}`).join(', ')}), mois dernier ${eur(o.month.prev)}. Dépenses notées ce mois : ${eur(o.month.depenses)}. `
     + `Snus : marge ${o.snus.marginPiece ?? '?'} €/pièce, ${o.snus.perDay} pièces/jour. Départ pour Oran prévu : ${o.depart?.label ?? 'non calculé'} (somme à réunir ${o.depart ? eur(o.depart.upfront) : '?'}).`;
   const sys = `Tu es le conseiller financier personnel de Kouider (salarié en Belgique, FIK location de voitures à Oran, il veut s'installer à Oran avec Fatima et Ibrahim). FAITS : FIK ne possède AUCUNE voiture : toutes les voitures louées appartiennent à Houari (Kouider touche la marge client − prix propriétaire) ; l'Audi Q3 est sa voiture perso de tous les jours, pas une voiture de location. Ne parle jamais de « ta 2e voiture FIK ». Tutoiement, phrases courtes, mots simples. Données PRIVÉES. Tu fais des calculs exacts à partir de SES chiffres, tu cherches les vrais prix et règles (Algérie/Belgique) si besoin, et tu ne promets rien. Jamais de conseil illégal.`;
   const prompt = `Ses chiffres réels : ${ctx}\n\nSa question / son idée : « ${q} »\n\nRéponds en 5 parties courtes : 1) Mon avis franc en 1 phrase. 2) Les chiffres (mise de départ, ce que ça peut rapporter par mois, en combien de temps c'est remboursé) — dis d'où viennent les prix. 3) L'effet sur sa date de départ pour Oran (avance / recule, de combien à peu près). 4) Les 3 risques. 5) La première action à faire cette semaine (petite, sans tout risquer).`;

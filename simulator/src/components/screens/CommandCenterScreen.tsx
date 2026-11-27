@@ -3,6 +3,7 @@ import { openClient } from '../ClientSheet.tsx';
 import { business, apiFetch, type TodayItem, type Booking, type ProfitLedger } from '../../services/api.ts';
 import { SkeletonCards } from '../ui/Premium.tsx';
 import { MonArgentMini } from './MonArgentMini.tsx';
+import type { MonArgent } from './MonArgentScreen.tsx';
 import { T, tone, Screen, PageHeader, HeadBtn, Kpi, KpiGrid, SectionTitle, Row, Avatar, Badge, Empty, waLink, money, glass, CountUp } from '../ui/Kit.tsx';
 import { Icon, Ico } from '../ui/Icon.tsx';
 import MeCard from './MeCard.tsx';
@@ -64,6 +65,8 @@ export default function CommandCenterScreen() {
   const [loading, setLoading] = useState(true);
   const [ledger, setLedger] = useState<ProfitLedger | null>(null);
   const [monthCA, setMonthCA] = useState<number | null>(null);
+  // 27/11 soir : « il devrait me montrer tout l'argent cash, pas que des locations, et dire quoi est de quoi »
+  const [ma, setMa] = useState<MonArgent | null>(null);
   const [bks, setBks] = useState<Booking[]>([]);
   const [evs, setEvs] = useState<CalEv[]>([]);
   const [tick, setTick] = useState(0);
@@ -72,6 +75,7 @@ export default function CommandCenterScreen() {
     setLoading(true);
     const now = new Date();
     business.fetchLedger().then(setLedger).catch(() => {});
+    apiFetch<MonArgent>('/api/mon-argent').then(setMa).catch(() => setMa(null));
     business.fetchFinanceReport(now.getFullYear(), now.getMonth() + 1).then(r => setMonthCA(r.grossCA)).catch(() => {});
     business.fetchBookings().then(r => setBks(r.bookings ?? [])).catch(() => {});
     apiFetch<{ events: CalEv[] }>('/api/calendar/all?actor=kouider').then(r => { const t = ymd(); setEvs((r.events ?? []).filter(e => e.source === 'fik' && evDay(e) === t)); }).catch(() => {});
@@ -129,7 +133,34 @@ export default function CommandCenterScreen() {
         <Empty icon="📡" title="Pas de connexion au serveur" text="Vérifie le réseau puis actualise." />
       ) : (
         <>
-          {/* Carte argent (façon carte bancaire, à l'encre) : ce que je dois récupérer + CA du mois */}
+          {/* 27/11 soir : TOUT son cash (en main + chez Houari), chaque morceau nommé — privé (Kouider seulement), sinon l'ancienne carte */}
+          {ma && (() => {
+            const hide = localStorage.getItem('dz:argent:hide') === '1', fm = (n: number) => (hide ? '•••• €' : money(n));
+            const rec = ma.balances.aRecuperer ?? ledger?.toCollect ?? 0, day = ma.today.day;
+            const rows = [{ l: 'Cash en main', v: fm(ma.balances.cash), sub: day && day.net ? `dont ${fm(day.net)} aujourd'hui` : 'snus, ventes…', to: 'argent', c: '#ffffff' },
+              { l: 'Chez Houari', v: fm(rec), sub: 'locations FIK à récupérer', to: 'revenue', c: '#ffd78a' },
+              { l: 'Aujourd\'hui', v: fm(day?.net ?? 0), sub: day?.last ? `dernière ligne ${day.last}` : 'rien noté', to: 'argent', c: '#5fe0a8' }];
+            return (
+              <div className="dz-press" onClick={() => go('argent')} role="button" style={{ position: 'relative', overflow: 'hidden', borderRadius: 28, padding: '20px 20px 18px', marginBottom: 18, cursor: 'pointer',
+                background: 'radial-gradient(120% 90% at 100% 0%, rgba(34,211,238,0.42), transparent 52%), radial-gradient(110% 90% at 0% 100%, rgba(139,92,246,0.6), transparent 58%), linear-gradient(145deg, #2442ff 0%, #2a1878 100%)', boxShadow: '0 24px 44px -24px rgba(var(--dz-shadow-rgb),0.7)' }}>
+                <div style={{ position: 'absolute', top: -70, right: -50, width: 220, height: 220, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.09)', pointerEvents: 'none' }} />
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, fontFamily: T.mono, fontSize: 11, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.75)', fontWeight: 500 }}>Tout mon cash <span style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 700, color: '#ffffff', background: 'rgba(255,255,255,0.14)', padding: '6px 12px', borderRadius: 99 }}>Détails ›</span></div>
+                <div style={{ position: 'relative', fontFamily: T.display, fontSize: 52, fontWeight: 600, letterSpacing: '-0.055em', lineHeight: 1, color: '#ffffff', fontVariantNumeric: 'tabular-nums', marginTop: 10 }}><CountUp value={fm(ma.balances.cash + rec)} /></div>
+                <div style={{ position: 'relative', fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6 }}>cash en main + chez Houari{ledger && !hide ? ` · ${Math.round((ma.balances.cash + rec) * ledger.rate).toLocaleString('fr-FR')} DA` : ''}</div>
+                <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 8, marginTop: 18, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.12)' }}>
+                  {rows.map(x => (
+                    <div key={x.l} onClick={e => { e.stopPropagation(); go(x.to); }} style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>{x.l}</div>
+                      <div style={{ fontFamily: T.display, fontSize: 17, fontWeight: 800, color: x.c, marginTop: 3, letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}><CountUp value={x.v} /></div>
+                      <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.5)', marginTop: 2, lineHeight: 1.25 }}>{x.sub}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ position: 'relative', fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 12 }}>FIK : CA ce mois {monthCA != null ? fm(monthCA) : '—'} · gagné en tout {ledger ? fm(ledger.total) : '—'} · déjà récupéré {ledger ? fm(ledger.collected) : '—'}</div>
+              </div>);
+          })()}
+          {/* Carte argent (façon carte bancaire, à l'encre) : ce que je dois récupérer + CA du mois — pour les autres comptes */}
+          {!ma && <>
           <div className="dz-press" onClick={() => go('revenue')} role="button" style={{ position: 'relative', overflow: 'hidden', borderRadius: 28, padding: '20px 20px 18px', marginBottom: 18, cursor: 'pointer',
             background: 'radial-gradient(120% 90% at 100% 0%, rgba(34,211,238,0.42), transparent 52%), radial-gradient(110% 90% at 0% 100%, rgba(139,92,246,0.6), transparent 58%), linear-gradient(145deg, #2442ff 0%, #2a1878 100%)', boxShadow: '0 24px 44px -24px rgba(var(--dz-shadow-rgb),0.7)' }}>
             <div style={{ position: 'absolute', top: -70, right: -50, width: 220, height: 220, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.09)', pointerEvents: 'none' }} />
@@ -146,6 +177,8 @@ export default function CommandCenterScreen() {
               ))}
             </div>
           </div>
+
+          </>}
 
           {/* 27/11 À traiter : WhatsApp, TikTok, relances, réservations — avec les boutons (envoyer, dispo, complet, réécrire…) */}
           <InboxCard tick={tick} />

@@ -313,9 +313,11 @@ export async function bestDayText(): Promise<string> {
 export async function totalText(): Promise<string> {
   const f = await loadFinances() as Awaited<ReturnType<typeof loadFinances>> & { sideCashAt?: string; savingsAt?: string };
   const save = f.savings ?? 0, cash = f.sideCash ?? 0;
-  const lines = [`💰 TOTAL TOUT CONFONDU : ${eur(save + cash)}`,
+  const rec = await (await import('./real-profit.js')).profitLedger().then(l => l.toCollect).catch(() => 0);   // 27/11 soir : FIK chez Houari compté
+  const lines = [`💰 TOTAL TOUT CONFONDU : ${eur(save + cash + rec)}`,
     `• Épargne : ${save ? eur(save) : 'pas notée'}${f.savingsAt ? ` (au ${dm(f.savingsAt)})` : ''}`,
-    `• Cash (caisse ${f.side?.label ?? 'appoint'}) : ${cash ? eur(cash) : 'pas noté'}${f.sideCashAt ? ` (au ${dm(f.sideCashAt)})` : ''}`];
+    `• Cash (caisse ${f.side?.label ?? 'appoint'}) : ${cash ? eur(cash) : 'pas noté'}${f.sideCashAt ? ` (au ${dm(f.sideCashAt)})` : ''}`,
+    ...(rec ? [`• À récupérer chez Houari (locations FIK) : ${eur(rec)}`] : [])];
   if (f.salary) lines.push(`Revenus : salaire ${eur(f.salary)}/mois${f.side ? ` + ${f.side.label} ≈ ${eur(f.side.dailyMin)}/jour` : ''} (pas comptés dans le total, c'est ce qui rentre).`);
   lines.push('Pour corriger : « cash 2400 », « épargne 15 000 ».');
   return lines.join('\n');

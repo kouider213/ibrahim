@@ -80,6 +80,7 @@ export async function markAllCollected(): Promise<string> {
   const items = { ...l.cfg.items };
   for (const r of l.pending) items[r.id] = { ...(items[r.id] ?? {}), collected: true };
   await saveCfg({ ...l.cfg, items });
+  await cashFromHouari(l.toCollect);
   return `✅ Noté : ${fmtE(l.toCollect)} (${fmtD(l.toCollect * l.cfg.rate)}) récupérés (${l.pending.map(r => r.client).join(', ')}). « À récupérer » repart à zéro ; « gagné depuis le début » reste ${fmtE(l.total)}.`;
 }
 
@@ -107,6 +108,14 @@ export async function setCollected(id: string | 'all', collected: boolean): Prom
   const items = { ...l.cfg.items };
   const targets = id === 'all' ? l.pending.map(r => r.id) : l.rows.filter(r => r.id === id).map(r => r.id);
   if (!targets.length) throw new Error('location introuvable');
+  const moved = l.rows.filter(r => targets.includes(r.id) && r.collected !== collected).reduce((x, r) => x + r.eur, 0);
   for (const t of targets) items[t] = { ...(items[t] ?? {}), collected };
   await saveCfg({ ...l.cfg, items });
+  await cashFromHouari(collected ? moved : -moved);
+}
+/** 27/11 soir (Kouider : « il a pas compté le cash que je dois récupérer chez Houari ») : MON ARGENT compte « à récupérer » dans le total ;
+ *  quand c'est récupéré, l'argent passe dans son cash (sinon il disparaîtrait du total). */
+async function cashFromHouari(eur: number): Promise<void> {
+  if (!eur) return;
+  await (await import('./mon-argent.js')).moveCash(eur).catch(() => {});
 }
