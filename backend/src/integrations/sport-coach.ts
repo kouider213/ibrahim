@@ -869,13 +869,16 @@ export async function logSportSession(entry0: Omit<SessionLog, 'at'> & { at?: st
     if (st.history[entry.date] === 'missed') st.history[entry.date] = 'done';
     await saveState(st);
   }
-  const prs: string[] = [];
+  // 27/11 : la 1re série au-dessus du record était gardée (« Pull-over 13.5 kg ») alors que le bilan disait 15.8 kg → la plus lourde
+  const best = new Map<string, { name: string; kg: number }>();
   const kx = await exKeyer(entry0.names ?? {});
   for (const s of entry.sets) {
     if (s.kg == null) continue;
     const before = prev.flatMap(l => l.sets).filter(x => kx.key(x.ex) === kx.key(s.ex) && x.kg != null).map(x => x.kg!);
-    if (before.length && s.kg > Math.max(...before) && !prs.some(p => p.startsWith(kx.name(s.ex)))) prs.push(`${kx.name(s.ex)} : ${s.kg} kg`);
+    const k = kx.key(s.ex);
+    if (before.length && s.kg > Math.max(...before) && s.kg > (best.get(k)?.kg ?? 0)) best.set(k, { name: kx.name(s.ex), kg: s.kg });
   }
+  const prs = [...best.values()].map(b => `${b.name} : ${b.kg} kg`);
   return { prs, total: merged.sets.length };
 }
 

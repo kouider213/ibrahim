@@ -140,8 +140,8 @@ export async function atWorkNow(): Promise<boolean> {
 
 // ── 8. Anti-procrastination ──────────────────────────────────────────────────
 export async function antiProcrastination(): Promise<string> {
-  const date = localNow().date;
-  const b = await kvJson<{ items: Array<{ text: string; done?: boolean; carried?: number }> } | null>(`gc:big3:${date}`, null);
+  // 27/11 : « vérifie avec Houari… » envoyé à 16h pour un client déjà répondu → actions déjà faites cochées d'abord
+  const b = await import('./grand-coach.js').then(m => m.big3Fresh()).catch(() => null);
   const stuck = b?.items.find(i => !i.done);
   if (!stuck) return '';
   const step = await ai(`Kouider repousse cette action : « ${stuck.text} »${stuck.carried ? ` (déjà reportée ${stuck.carried} fois)` : ''}. Règle des 2 minutes : donne UNE toute première étape ridicule, faisable en 2 minutes sur son téléphone, qui lance l'action. Une phrase à l'impératif.`, { max: 70 }).catch(() => '');

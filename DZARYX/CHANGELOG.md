@@ -1,3 +1,13 @@
+## 27/11 soir (3) — Relecture de tous les messages du jour avec Kouider
+- Liberté : la question « qu'est-ce qui a déclenché la prise ? » (boutons) part 30 min après une prise de trop dès qu'il n'est pas au travail (GPS), le bouclier famille ne la bloque plus (avant : seulement 21h30-22h30, bloquée par le silence du soir).
+- Conscience : « prendre de ses nouvelles » 1×/jour s'il n'a rien écrit depuis 5 h et qu'il est libre (heures_sans_message_de_kouider).
+- Revue du patron : leçon en français simple (« Cette semaine : … / Semaine prochaine : … »), sans citation ni jargon, action un jour LIBRE (kouider-dossier weekScheduleText) ; « Payé par les clients » ; trésorerie vide = une phrase claire.
+- Chiffres du mois du coach = getFinancialReport (une seule règle, comme l'app).
+- Réveil : la ligne 💼 n'est plus écrite par l'IA (elle inventait « 2 dossiers en attente d'acompte ») → « Priorité FIK du jour » du point du jour.
+- 16h anti-procrastination : actions déjà faites cochées avant (big3Fresh).
+- Records de séance : la série la plus lourde (pas la 1re au-dessus du record).
+- « kcal brûlées » : une fois par jour, après 19h (6 messages aujourd'hui).
+
 ## 27/11 soir (2) — Revue du patron = tout son argent, « 0/3 » expliqué
 - Kouider : « la revue du patron prend juste la location, pas le snus, l'achat-revente, l'argent ». mon-argent `periodMoney(from,to)` (ventes hors FIK par source, pièces, achats de stock, dépenses) → revue : ligne hors location, achats, dépenses, total gagné locations + le reste ; le coach IA voit tout (snus Belgique ≠ locations Oran).
 - Bilan du soir : « Les 3 actions pour faire rentrer de l'argent que je t'ai proposées ce matin (7h15) » + plus de « 0/3 … règle des grands » ; aucune cochée → « écris fait 1 ».

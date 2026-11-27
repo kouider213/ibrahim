@@ -147,11 +147,14 @@ const hAgo = (iso: string) => Math.max(0, Math.round((Date.now() - Date.parse(is
 async function monthNumbers(books: Row[]): Promise<{ ca: number; pr: number; target: number; pace: number; miss: number; left: number; ppd: number; auto: boolean }> {
   const today = localNow().date, m0 = `${today.slice(0, 7)}-01`;
   const pm = addDays(m0, -1).slice(0, 7);
-  const lastMonth = books.filter(b => d10(b['start_date']).slice(0, 7) === pm).reduce((s, b) => s + price(b), 0);
+  // 27/11 : 3 chiffres différents le même jour (225 € ici, 555 € dans l'app, 665 € ailleurs) → UNE règle : getFinancialReport (finance.ts)
+  const { getFinancialReport } = await import('./finance.js');
+  const [rep, prevRep] = await Promise.all([getFinancialReport(+today.slice(0, 4), +today.slice(5, 7)).catch(() => null), getFinancialReport(+pm.slice(0, 4), +pm.slice(5, 7)).catch(() => null)]);
+  const month = books.filter(b => d10(b['start_date']).slice(0, 7) === today.slice(0, 7));
+  const lastMonth = prevRep?.grossCA ?? books.filter(b => d10(b['start_date']).slice(0, 7) === pm).reduce((s, b) => s + price(b), 0);
   const set = (await settings()).monthTarget;
   const target = set || Math.max(500, Math.round(lastMonth * 1.2 / 50) * 50);
-  const month = books.filter(b => d10(b['start_date']).slice(0, 7) === today.slice(0, 7));
-  const ca = month.reduce((s, b) => s + price(b), 0), pr = month.reduce((s, b) => s + profitOf(b), 0);
+  const ca = rep?.grossCA ?? month.reduce((s, b) => s + price(b), 0), pr = rep?.kouiderProfit ?? month.reduce((s, b) => s + profitOf(b), 0);
   const last = new Date(Date.UTC(+today.slice(0, 4), +today.slice(5, 7), 0)).getUTCDate();
   const left = Math.max(1, last - +today.slice(8, 10) + 1);
   const r = books.slice(-15); const d = r.reduce((s, b) => s + days(b), 0);
@@ -388,8 +391,13 @@ export async function revue(): Promise<string> {
     ...(mc.achats ? [`📦 Achats de stock : ${eur(mc.achats)}`] : []), ...(mc.depenses ? [`💸 Dépenses notées : ${eur(mc.depenses)}`] : []),
     `💰 Total gagné la semaine (locations + le reste) : ${eur(cur.pr + mc.ventes)} (avant ${eur(prev.pr + (mp?.ventes ?? 0))})`] : [];
   const facts = `Semaine : ${cur.n} réservations (avant : ${prev.n}), CA réservé ${eur(cur.ca)} (avant ${eur(prev.ca)}), bénéfice locations ${eur(cur.pr)} (avant ${eur(prev.pr)}). ${mc ? `Hors location (snus, ventes, autres) : ${eur(mc.ventes)} (avant ${eur(mp?.ventes ?? 0)}), achats de stock ${eur(mc.achats)}, dépenses ${eur(mc.depenses)}. ` : ''}Actions du jour faites : ${done}/${total}.`;
-  const lesson = await ai(`${facts}\nTu es le coach de Kouider (FIK, Oran). En 3 lignes max, tutoiement : 1) LA leçon de la semaine 2) LA décision à prendre pour la semaine prochaine (une seule, concrète). Appuie-toi sur un principe d'un grand entrepreneur (nomme-le). N'invente aucun chiffre. Le snus se vend en Belgique et les locations sont à Oran : ce sont deux activités séparées, ne propose jamais de mélanger les deux.`, { max: 220 }).catch(() => '');
-  return [`🗂️ Revue du patron — semaine du ${fmtD(a)}`, `${arrow(cur.n, prev.n)} Réservations : ${cur.n} (avant ${prev.n})`, `${arrow(cur.ca, prev.ca)} CA réservé : ${eur(cur.ca)} (avant ${eur(prev.ca)})`,
+  const week = await import('./kouider-dossier.js').then(m => m.weekScheduleText()).catch(() => '');
+  // 27/11 Kouider : « je comprends pas la leçon, elle n'a aucun sens » → français simple, pas de citation, une action un jour LIBRE
+  const lesson = await ai(`${facts}\n${week}\nTu es le bras droit de Kouider (FIK : location de voitures à Oran ; il vit et travaille en Belgique ; le snus est une autre activité, en Belgique, ne mélange jamais les deux). `
+    + `Écris en français très simple, comme à un ami, 2 phrases courtes, tutoiement, sans citation, sans nom de célébrité, sans jargon (pas de « conversion », « haute valeur », « provoquer »).\n`
+    + `Phrase 1 commence par « Cette semaine : » et dit en clair ce qui s'est passé, avec les vrais chiffres ci-dessus.\n`
+    + `Phrase 2 commence par « Semaine prochaine : » et donne UNE seule action concrète, un JOUR où il est LIBRE d'après sa semaine (jamais pendant ses heures de travail), et ce qu'elle doit rapporter. N'invente aucun chiffre.`, { max: 220 }).catch(() => '');
+  return [`🗂️ Revue du patron — semaine du ${fmtD(a)}`, `${arrow(cur.n, prev.n)} Réservations : ${cur.n} (avant ${prev.n})`, `${arrow(cur.ca, prev.ca)} Payé par les clients : ${eur(cur.ca)} (avant ${eur(prev.ca)})`,
     `${arrow(cur.pr, prev.pr)} Bénéfice locations : ${eur(cur.pr)} (avant ${eur(prev.pr)})`, ...autres, `🎯 Actions du jour cochées : ${done}/${total}`, lesson ? `\n${lesson}` : '', `\n${await tresorerie().catch(() => '')}`].join('\n').trim();
 }
 
@@ -402,6 +410,8 @@ export async function tresorerie(): Promise<string> {
   const owners = future.reduce((s, b) => s + N(b['owner_total']), 0);
   const monthlyCosts = costs.reduce((s, x) => s + N(x['amount']), 0) / 4;
   const net = toCash - owners - monthlyCosts;
+  // 27/11 : « 0 € … 🟢 Bien, mets la part épargne de côté » n'avait aucun sens → rien à encaisser ni à payer = une ligne claire
+  if (!toCash && !owners && !monthlyCosts) return '🏦 Les 30 prochains jours : aucune location réservée, donc rien à encaisser ni à reverser pour l\'instant.';
   return [`🏦 Trésorerie 30 jours`, `• À encaisser : ${eur(toCash)} (${future.length} location(s) à venir)`, `• À reverser aux propriétaires : ${eur(owners)}`,
     `• Frais habituels (moyenne/mois) : ${eur(monthlyCosts)}`, `= ${net >= 0 ? '🟢' : '🔴'} ${eur(net)} sur 30 jours`,
     net < 0 ? '⚠️ Mois serré : relance les impayés et vends 2-3 jours de location avant toute dépense.' : 'Bien. Mets la part épargne de côté avant qu\'elle disparaisse.'].join('\n');
@@ -490,6 +500,11 @@ async function morningMessage(): Promise<string> {
 
 // L2 — Suivi de la journée
 /** 27/11 : une action « réponds à / vérifie pour <client> » est faite si ce client a déjà eu sa réponse depuis (et n'a rien réécrit). */
+export async function briefPrio(): Promise<string> { const b = await makeBrief(); return `${b.prio} — ${b.why}`; }
+export async function big3Fresh(): Promise<Big3 | null> {
+  const b = await kvJson<Big3 | null>(K.big3(localNow().date), null);
+  return b ? autoDone(b) : null;
+}
 async function autoDone(b: Big3): Promise<Big3> {
   const dm = await import('./wa-demandes.js');
   const all = (await Promise.all((['whatsapp', 'tiktok'] as const).map(ch => dm.listWaDemandes(ch).catch(() => [])))).flat();

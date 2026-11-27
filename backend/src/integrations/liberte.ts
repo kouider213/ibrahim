@@ -1435,8 +1435,14 @@ export async function jobLiberte(): Promise<void> {
         { label: '💬 Autre chose, je te raconte', say: `Je vais te raconter pourquoi j'ai pris plus le ${fmtDate(day)}. Pose-moi tes questions une par une.` },
       ]);
     };
-    if (hhmm >= '21:30' && hhmm < '22:30' && !dnd) await ask(today, 'Aujourd\'hui');
-    else if (hhmm >= '09:00' && hhmm < '12:00' && !dnd) await ask(addDays(today, -1), 'Hier');
+    // 27/11 Kouider : « quand il voit que je prends plus que la dose autorisée, je veux qu'il cherche après moi et que je lui dise
+    // ce qui a déclenché la prise ». Avant : seulement 21h30-22h30, et le bouclier du soir (« ne pas déranger ») le bloquait.
+    // Maintenant : 30 min après la prise de trop, dès qu'il n'est pas au travail ; le bouclier famille ne bloque pas (boutons privés).
+    const realDnd = dnd && dnd.why !== 'bouclier famille';
+    const lastTake = log.filter(l => dayOf(l.at) === today && (l.kind === 'prise' || l.kind === 'depassement')).reduce((m, l) => Math.max(m, Date.parse(l.at)), 0);
+    const atWork = await kvGet('conscience:where').then(v => /"where":"work"/.test(String(v ?? '')), () => false);   // GPS : vraiment à son poste
+    if (hhmm >= '07:00' && hhmm < '22:30' && !realDnd && !atWork && lastTake && Date.now() - lastTake >= 30 * 60_000) await ask(today, 'Aujourd\'hui');
+    else if (hhmm >= '09:00' && hhmm < '12:00' && !realDnd) await ask(addDays(today, -1), 'Hier');
   }
 
   // Jour à surveiller (hier très bas → rebond, ou son jour le plus chargé) : un passage vers 14h, avant que ça déborde (25/11)

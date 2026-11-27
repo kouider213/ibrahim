@@ -141,7 +141,11 @@ export async function receiveHealth(body: Record<string, unknown>): Promise<{ ok
     });
     if (d.weight && d.weight > 30 && !morningKept) await f.setFormeProfile({ weightKg: Math.round(d.weight * 10) / 10 }, 'kouider');
   }).catch(() => {});
-  if (d.active_kcal && d.active_kcal > 500) notes.push(`🔥 ${Math.round(d.active_kcal)} kcal brûlées : ton budget calories du jour dans FORME en tient compte.`);
+  // 27/11 : envoyé à chaque synchro (6× dans la journée, 592 deux fois) → une seule fois par jour, le soir (le total est alors juste)
+  if (d.active_kcal && d.active_kcal > 500 && localNow().hhmm >= '19:00') {
+    const { kvGet: g, kvSet: st } = await import('./app-store.js');
+    if (!(await g(`jh:kcal:${date}`).catch(() => null))) { await st(`jh:kcal:${date}`, '1', 2 * 86_400).catch(() => {}); notes.push(`🔥 ${Math.round(d.active_kcal)} kcal brûlées aujourd'hui : ton budget calories dans FORME en tient compte.`); }
+  }
   if (notes.length) await tg(`🩺 Jarvis santé — ${date}\n${notes.join('\n')}`);
   // Envoi du matin avec la nuit (automatisation « réveil arrêté ») → message du réveil tout de suite (sommeil → journée + calories)
   if (d.sleep_h && localNow().hhmm >= '04:00' && localNow().hhmm < '11:00') {

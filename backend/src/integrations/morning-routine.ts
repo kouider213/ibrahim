@@ -249,10 +249,9 @@ function planLine(p: DayPlan, addrs: RoutineConfig['addresses']): string {
 }
 
 const WAKE_SYSTEM = `Tu es Dzaryx, le bras droit de Kouider. Chaque matin tu le réveilles avec un message qui lui donne la niaque.
-Tu le connais par cœur (dossier ci-dessous). Écris EXACTEMENT 5 lignes, chacune commence par son émoji, tutoiement, français, phrases courtes et percutantes :
+Tu le connais par cœur (dossier ci-dessous). Écris EXACTEMENT 4 lignes, chacune commence par son émoji, tutoiement, français simple (mots de tous les jours), phrases courtes :
 🔥 Motivation famille : fais-le pour sa femme et son fils (prénoms dans le dossier ; varie l'angle : exemple pour son fils, fierté de sa femme, l'avenir qu'il construit pour eux…)
 💪 Santé : un conseil concret pour aujourd'hui (sport, sommeil, récupération, mobilité du dos… — jamais de nutrition)
-💼 Business : un conseil concret et actionnable pour FIK Conciergerie / FIK Sites aujourd'hui
 🧠 Mental : un conseil de gagnant (discipline, focus, résilience, confiance…)
 ✨ Citation : une vraie citation qui accroche, avec son auteur (pas inventée)
 Ne répète JAMAIS une citation ou un conseil déjà utilisé (liste fournie). N'invente aucun chiffre, prospect, client ni règle de l'entreprise : le conseil business reste une action générale ou s'appuie sur le dossier. Pas de titre, pas d'intro, pas de conclusion.`;
@@ -280,9 +279,12 @@ export async function motivationLines(cfg: RoutineConfig, plan: DayPlan, date: s
       return r;
     });
     const text = res.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('').trim();
-    if (text.split('\n').filter(l => l.trim()).length >= 4) {
+    if (text.split('\n').filter(l => l.trim()).length >= 3) {
       await kvSet(HISTORY_KEY, JSON.stringify([...history, text.replace(/\n+/g, ' | ').slice(0, 400)].slice(-30)));
-      return text;
+      // 27/11 : « 💼 10h Agence FIK : appelle les 2 dossiers en attente d'acompte » (inventé, 0 acompte en attente) → la ligne business
+      // vient maintenant du point du jour (vraies données), jamais de l'IA du réveil
+      const prio = await import('./grand-coach.js').then(m => m.briefPrio()).catch(() => '');
+      return prio ? `${text.split('\n').filter(l => !/^💼/u.test(l.trim())).join('\n')}\n💼 Priorité FIK du jour : ${prio}` : text.split('\n').filter(l => !/^💼/u.test(l.trim())).join('\n');
     }
   } catch (err) {
     console.error('[routine] motivation:', err instanceof Error ? err.message : err);

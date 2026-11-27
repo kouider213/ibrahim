@@ -141,6 +141,18 @@ export async function workEndToday(offsetDays = 0): Promise<string | null> {
   return typeof end === 'string' && /^\d{2}:\d{2}$/.test(end) ? end : null;
 }
 
+/** 27/11 (revue : « lundi 8h avant le travail » alors qu'il ne travaille pas le lundi) : sa semaine type en clair, pour les textes IA. */
+export async function weekScheduleText(): Promise<string> {
+  const names = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+  const out: Array<[number, string]> = [];
+  const off = await getDaysOff();
+  for (let i = 0; i < 7; i++) {
+    const wd = brusselsWeekday(i), from = await dayOffFrom(i), end = await workEndToday(i);
+    out.push([wd, `${names[wd]} : ${off.includes(wd) ? (from ? `travaille le matin, libre dès ${from}` : 'CONGÉ, il ne travaille pas') : `travaille (librairie, de 12h${end ? ` à ${end.replace(':', 'h')}` : ''}), libre avant`}`]);
+  }
+  return `Sa semaine (il est salarié en Belgique, FIK se fait sur son temps libre) — ${out.sort((a, b) => ((a[0] + 6) % 7) - ((b[0] + 6) % 7)).map(x => x[1]).join(' ; ')}.`;
+}
+
 /** Soirée libre MAINTENANT : un jour travaillé (mar/mer/ven/sam) après sa fin de travail (20h). */
 export async function isAfterWork(): Promise<boolean> {
   let map = DEFAULT_WORK_END;

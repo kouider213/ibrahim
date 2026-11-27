@@ -456,6 +456,9 @@ export async function snapshot(): Promise<Record<string, unknown>> {
     // Sujets qu'il a laissés sans réponse : ne pas les relancer (« 3 refus clients » répété 5× en 24 h, 30/10)
     ignores_24h: (await kvJson<Nudge[]>(LOG, [])).filter(n => n.reacted === false && Date.now() - n.at < 86_400_000).map(n => n.text.slice(0, 120)),
     // 27/11 « pas beaucoup de conseils » : de quoi conseiller (vrais chiffres FIK) + ce qui a déjà été conseillé aujourd'hui
+    // 27/11 « il cherche pas après moi » : depuis quand il ne m'a rien écrit
+    heures_sans_message_de_kouider: await supabase.from('conversations').select('created_at').eq('session_id', 'voice_kouider').eq('role', 'user').order('created_at', { ascending: false }).limit(1)
+      .then(r => { const t = Date.parse(String((r.data?.[0] as { created_at?: string } | undefined)?.created_at ?? '')); return Number.isFinite(t) ? Math.round((Date.now() - t) / 3_600_000) : null; }, () => null),
     pistes_business: await import('./grand-coach.js').then(m => m.businessIdeas()).catch(() => [] as string[]),
     conseils_deja_donnes_aujourdhui: (await kvJson<Nudge[]>(LOG, [])).filter(n => localNow(n.at).date === date).map(n => `${localNow(n.at).hhmm} ${n.text.slice(0, 120)}`),
   };
@@ -496,6 +499,7 @@ export async function jobConscience(): Promise<string> {
     + `LOCATIONS : les voitures sont en Algérie ; un client récupère et RAMÈNE toujours la voiture à l'AÉROPORT D'ORAN, JAMAIS chez Kouider ni à son adresse en Belgique (cette adresse ne sert qu'à SES trajets). N'invente ni lieu, ni heure, ni « prépare les clés / la pièce d'identité » qui ne sont pas dans les données. `
     + `Pas de redite de ce qui a déjà été envoyé ces 3 h. Pas de banalité, pas de motivation creuse, pas de « bonne journée ». `
     + `CONSEIL BUSINESS : s'il est libre (lieu ≠ work, pas la nuit, pas le temps famille du soir), qu'aucun conseil n'a été donné depuis 3 h et qu'il en a eu moins de 4 aujourd'hui, donne UN conseil concret tiré de pistes_business (kind "conseil-business", urgency 2) : le vrai nom (client, voiture, chiffre) + l'action précise en 10-20 min depuis son téléphone. Jamais une piste déjà dans conseils_deja_donnes_aujourdhui ou ignores_24h, jamais dire à un client qu'une voiture est dispo, les pubs = TikTok seulement. `
+    + `PRENDRE DE SES NOUVELLES (tu es son bras droit, comme un frère) : une fois par jour maximum, s'il est libre (pas au travail, pas la nuit, pas le temps famille du soir) et que heures_sans_message_de_kouider ≥ 5, demande-lui simplement comment ça va, en lien avec SA vraie journée (sa séance, son travail, sa fatigue, un client, Ibrahim…) et propose ton aide pour une chose précise (kind "nouvelles", urgency 2). Jamais d'humeur affirmée, jamais de note, jamais les médicaments. `
     + `Sinon, si rien d'utile → speak:false.\n`
     + `Réponds UNIQUEMENT en JSON : {"speak":true|false,"kind":"type court (ex. retard-rdv, client-aeroport, promesse, sante, argent, famille, decision)","urgency":1|2|3,"text":"ce que tu lui dis, 1 à 3 phrases, tutoiement, concret","options":[{"label":"bouton court","tool":"outil Dzaryx facultatif","input":{}}]} (options facultatives, 2-3 max, seulement si un simple choix permet d'agir ; "tool" = UNIQUEMENT un vrai nom d'outil Dzaryx (ex. promesses avec input {"action":"list"}), sinon ne mets pas de "tool").`,
     { max: 500 }));
@@ -528,6 +532,7 @@ export async function jobConscience(): Promise<string> {
   // Au travail d'après le GPS → pas d'alerte « retard » (il est déjà là où il doit être)
   if (where === 'work' && /retard|rdv/i.test(kind)) return 'tu (au travail)';
   if (urgency < 3 && (night || familyQuiet || todayN >= MAX_PER_DAY)) return 'tu (limite)';
+  if (/nouvelles/i.test(kind) && log.some(n => /nouvelles/i.test(n.kind) && localNow(n.at).date === date)) return 'tu (nouvelles déjà prises aujourd\'hui)';
   if (/conseil/i.test(kind) && urgency < 3 && (todayN >= 4 || log.some(n => Date.now() - n.at < 3 * 3600_000) || where === 'work')) return 'tu (conseil : trop tôt)';
   if (urgency < 2 && (scores[kind] ?? 0) <= -3) return `tu (${kind} ignoré d'habitude)`;
   if (urgency < 3 && await consciencePaused()) return 'tu (pause)';
