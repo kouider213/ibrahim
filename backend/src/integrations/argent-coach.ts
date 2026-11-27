@@ -297,7 +297,7 @@ export async function jobArgent(): Promise<void> {
     const noted = (await journal()).some(e => e.d === date && e.t === 'vente' && e.cat === cat);
     if (worked && !noted) await once('soir', async () => {
       const st = await stockInfo(cat);
-      return `💵 Combien de ${cat} aujourd'hui ? Réponds juste « ${cat} 170 » (et « FIK 100 » si tu as encaissé pour FIK).${st.dueIn !== undefined && st.dueIn <= 2 ? `\n📦 Ton stock : d'habitude tu recommandes tous les ${st.avgDays} j, la dernière fois c'était le ${st.last!.slice(8)}/${st.last!.slice(5, 7)} → pense à recommander.` : ''}`;
+      return `💵 Combien de pièces de ${cat} aujourd'hui ? Réponds « 7 pièces » (« 10 pièces à 5 », « 12 pièces lot ») ou « ${cat} 170 » en euros — ou appuie dans MON ARGENT.${st.dueIn !== undefined && st.dueIn <= 2 ? `\n📦 Ton stock : d'habitude tu recommandes tous les ${st.avgDays} j, la dernière fois c'était le ${st.last!.slice(8)}/${st.last!.slice(5, 7)} → pense à recommander.` : ''}`;
     });
   }
   if (weekday === 0 && between('18:00', '20:00')) await once('semaine', bilanSemaine);

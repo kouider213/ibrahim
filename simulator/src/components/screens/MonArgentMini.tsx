@@ -14,6 +14,8 @@ export function MonArgentMini() {
   const [msg, setMsg] = useState('');
   useEffect(() => { apiFetch<MonArgent>('/api/mon-argent').then(setO).catch(() => setO(null)); }, []);
   if (!o) return null;
+  const hide = localStorage.getItem('dz:argent:hide') === '1';
+  const fm = (n: number) => (hide ? '•••• €' : money(n));
   const save = async () => {
     setBusy(true);
     try { const r = await addSnus(qty, 'normal'); setO(r.overview); setQty(0); setMsg(`✅ ${r.message}`); setTimeout(() => setMsg(''), 2200); }
@@ -32,10 +34,10 @@ export function MonArgentMini() {
       <div className="dz-press" role="button" onClick={() => go('argent')} style={{ display: 'flex', alignItems: 'baseline', cursor: 'pointer' }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: T.mono, fontSize: 11, letterSpacing: '0.09em', textTransform: 'uppercase', color: T.muted }}>Mon argent · aujourd'hui</div>
-          <div style={{ fontFamily: T.display, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', marginTop: 4 }}>{money(o.today.total)}</div>
+          <div style={{ fontFamily: T.display, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', marginTop: 4 }}>{fm(o.today.total)}</div>
         </div>
         <div style={{ textAlign: 'right', fontSize: 12.5, color: T.muted }}>
-          <div>🟢 {o.snus.today} snus</div><div>Ce mois <b style={{ color: T.text }}>{money(o.month.total)}</b></div>
+          <div>🟢 {o.snus.today} snus{o.extras?.stock ? ` · stock ${o.extras.stock.pieces}` : ''}</div><div>Ce mois <b style={{ color: T.text }}>{fm(o.month.total)}</b></div>
           <div style={{ color: T.accent, fontWeight: 700, marginTop: 2 }}>Détails ›</div>
         </div>
       </div>

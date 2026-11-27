@@ -1,3 +1,11 @@
+## 27/11 — MON ARGENT : 20 options en plus (app v314)
+- Kouider : « regarde s'il n'y a pas des trucs à améliorer, tu sais mes objectifs, rajoute 20 options ».
+- Saisie : (1) Telegram/Siri « 3 pièces », « 10 pièces à 5 », « 12 pièces lot », « hier 4 pièces » (jamais « appartement 3 pièces ») ; (2) question de 20h30 en pièces ; (3) dépense rapide par catégorie (cash → le cash baisse) ; (4) arrivage de stock (pièces + prix) ; (5) dépôt cash → compte / retrait compte → cash avec motif (cash_log).
+- Suivi : (6) stock de snus en direct (« Compter » puis − ventes + arrivages) + alerte Telegram ≤ 30 ; (7) objectif pièces/jour ; (8) objectif du mois € + reste par jour ; (9) carte « Hier » ; (10) dépenses du mois par catégorie + taux d'épargne réel ; (11) courbe réelle (perso:capital) dans le plan ; (12) âge des soldes + rappel dimanche si > 7 j ; (13) filtre de l'historique.
+- Confidentialité : (14) mode discret (montants masqués, aussi sur Aujourd'hui) ; (15) € ↔ DA au taux square.
+- Plan : (16) simulateur « et si… » (pièces, jours FIK, dépenses) → date de départ en direct ; (17) bouton récap PDF du mois ; (18) « Hier : X € » dans le Grand Coach ; (19) alerte cash qui dort (samedi, ≥ 1 500 €) ; (20) prochain point de contrôle sur la carte départ.
+- jobMonArgent branché sur le job « argent » existant (pas de nouveau cron). Pas de doublon avec argent-coach (20h30, dimanche, PDF fin de mois, zakat).
+
 ## 27/11 — MON ARGENT : gros bouton « Valider la vente » + historique de toutes les ventes supprimables (app v313)
 - Kouider : « je dois pouvoir valider la vente de 10 et supprimer des anciennes ventes ».
 - Après +1/+2/+5/+10 : grand bouton vert « ✅ Valider la vente : N pièces » (N × prix = total) + « Annuler ».

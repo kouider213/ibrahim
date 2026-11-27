@@ -208,7 +208,10 @@ async function briefSignals(): Promise<{ signals: Signal[]; stats: string[] }> {
   sig.push({ score: 20, prio: 'Trouve ton prochain client FIK Sites', why: 'chaque site vendu = un revenu qui ne dépend pas des voitures.', action: 'Envoie 3 messages de prospection FIK Sites à des commerces d\'Oran' });
   sig.sort((a, b) => b.score - a.score);
   const mois = new Date(`${today}T12:00:00Z`).toLocaleDateString('fr-FR', { month: 'long', timeZone: 'UTC' });
+  // 27/11 : ce qu'il a gagné hier (tout confondu, MON ARGENT) — une ligne
+  const hier = await import('./mon-argent.js').then(m => m.monArgentExtras()).then(x => x.yesterday).catch(() => null);
   const stats = [
+    ...(hier && hier.total > 0 ? [`• Hier : ${eur(hier.total)} gagnés${hier.pieces ? ` (${hier.pieces} pièces)` : ''}`] : []),
     `• ${mois[0]!.toUpperCase()}${mois.slice(1)} : ${eur(m.ca)} réservés sur ${eur(m.target)} visés (${Math.round(m.ca / m.target * 100)} %)${m.auto ? ' — objectif auto' : ''}`,
     `• Bénéfice du mois : ${eur(m.pr)}${m.left > 2 ? ` · à ce rythme, fin du mois ≈ ${eur(m.pace)}` : ''}`,
     unpaid.length ? `• À encaisser avant départ : ${eur(unpaid.reduce((s, b) => s + N(b['amount_remaining']), 0))} (${unpaid.length} client${unpaid.length > 1 ? 's' : ''})` : '• Aucun acompte en attente',

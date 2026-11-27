@@ -31,6 +31,8 @@ export type MoneyCommand = {
   out?: { amount: number; kind: 'achat' | 'depense'; cat: string; date: string; left?: number };
   /** 11/11 : « aucun / rien gagné aujourd'hui, pas eu le temps » → journée à 0 € (05/11 : « ⚠️ Je n'ai pas exécuté cette action ») */
   zero?: { date: string };
+  /** 27/11 « 3 pièces », « 10 pièces à 5 », « 12 pièces lot » = des PIÈCES de snus (prix calculé comme dans l'app) */
+  pieces?: { qty: number; tarif: string; date: string };
   /** 27/11 « j'ai 12000 sur le compte » (exemple), « épargne 12 000 » (la réponse elle-même disait de l'écrire comme ça, et rien n'était compris) */
   savings?: number;
 };
@@ -115,6 +117,14 @@ export function parseMoneyCommand(raw: string): MoneyCommand | null {
   const today = localNow().date;
   if (msg.length <= 160 && !/\?|[1-9]/.test(msg) && /\b(aucun|aucune|rien|z[ée]ro|0|pas)\b/i.test(msg)
     && /\b(gagn[ée]?\w*|vendu|vente|encaiss\w*)\b/i.test(msg) && !/\b(demain|hier|semaine|mois)\b/i.test(msg)) return { zero: { date: today } };
+  {
+    // 27/11 : pièces de snus (l'app compte en pièces : 6 €, lot dès 10 à 5 €, ristourne 5 €)
+    const pc = msg.match(/(?:^|\s|\+)(\d{1,3})\s*pi[eè]ces?\b(?:\s*(?:de\s*)?snus)?(?:[^\d?]{0,12}?(?:à|a)\s*([56])\s*(?:€|e\b|euros?)?)?(\s*(?:en\s*)?lot)?/i);
+    if (pc && !/\?|combien|appart|logement|maison|chambre|\bf[1-6]\b|studio|pi[eè]ces? (?:détachée|auto|moteur)/i.test(msg)) {
+      const qty = Number(pc[1]);
+      if (qty >= 1 && qty <= 500) return { pieces: { qty, tarif: pc[2] === '5' ? 'cinq' : pc[2] === '6' ? 'six' : pc[3] ? 'lot' : 'normal', date: dayOf(msg, today) ?? today } };
+    }
+  }
   {
     const sv = msg.match(/(?:[ée]pargne|sur (?:le|mon) compte(?: en banque)?|en banque|compte bancaire)\D{0,25}?(\d[\d\s.,]*)\s*(k)?\b|(\d[\d\s.,]*)\s*(k)?\s*(?:€|euros?)?\s*(?:sur (?:le|mon) compte|en banque|d.[ée]pargne)/i);
     if (sv && !/\?|combien/i.test(msg)) {
@@ -278,6 +288,11 @@ export async function runMoneyCommand(c: MoneyCommand): Promise<string> {
     return gainsText(c.ask.from, c.ask.to, c.ask.title);
   }
   const out: string[] = [];
+  if (c.pieces) {
+    const r = await (await import('./mon-argent.js')).monArgentAdd({ cat: 'snus', qty: c.pieces.qty, tarif: c.pieces.tarif, date: c.pieces.date });
+    const st = await (await import('./mon-argent.js')).snusStock().catch(() => null);
+    return `✅ ${r[0]!.toUpperCase()}${r.slice(1)}${c.pieces.date !== localNow().date ? ` le ${label(c.pieces.date)}` : ''}.${st ? ` Stock : ≈ ${st.pieces} pièces.` : ''}`;
+  }
   if (c.savings != null) {
     const f = await kvJson<Record<string, unknown>>('perso:finances', {});
     await kvPut('perso:finances', { ...f, savings: c.savings, savingsAt: localNow().date });

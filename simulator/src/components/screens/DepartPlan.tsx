@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../../services/api.ts';
-import { T, tone, Sheet, Btn, Field, inputStyle, money, glass, Badge } from '../ui/Kit.tsx';
+import { T, tone, Sheet, Btn, Field, inputStyle, glass, Badge } from '../ui/Kit.tsx';
 
 // PLAN PAR ÉTAPES (27/11) : réserve → voiture → maison → départ (+ ses propres projets), dates en 3 scénarios,
 // leviers, points faibles, points de contrôle, 20 options. Tout est calculé côté serveur sur ses chiffres (privé).
@@ -11,10 +11,15 @@ interface Plan {
   steps: Step[]; levers: Array<{ icon: string; label: string; perMonth: number; date: string; gain: number | null }>;
   weak: Array<{ icon: string; text: string }>; checkpoints: Array<{ label: string; need: number }>;
   options: Array<{ icon: string; title: string; text: string }>; curve: Array<{ ym: string; v: number }>;
+  monthly: number[]; next: { label: string; need: number; have: number; missing: number };
 }
+type Fm = (n: number) => string;
+const MOISL = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+const ymAdd = (ym: string, n: number) => { const d = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1)); return d.toISOString().slice(0, 7); };
+const reach = (m: number[], need: number, extra: number) => { for (let i = 0; i < m.length; i++) if (m[i]! + extra * i >= need) return i; return null; };
 const ICONS = ['🎯', '🏠', '🚙', '🏢', '💍', '🕋', '🎓', '🏖️', '💼'];
 
-export function DepartCard() {
+export function DepartCard({ real, fm }: { real: Array<{ ym: string; v: number }>; fm: Fm }) {
   const [p, setP] = useState<Plan | null>(null);
   const [open, setOpen] = useState(false);
   useEffect(() => { apiFetch<Plan>('/api/mon-argent/plan').then(setP).catch(() => setP(null)); }, []);
@@ -37,19 +42,24 @@ export function DepartCard() {
             </div>
             <div style={{ flex: 1, paddingBottom: 10, minWidth: 0 }}>
               <div style={{ display: 'flex', gap: 8 }}><span style={{ flex: 1, fontSize: 14, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span><b style={{ fontSize: 13.5, color: s.done ? T.ok : T.text }}>{s.done ? 'atteint' : s.label}</b></div>
-              <div style={{ fontSize: 12, color: T.faint }}>{money(s.cost)}</div>
+              <div style={{ fontSize: 12, color: T.faint }}>{fm(s.cost)}</div>
             </div>
           </div>
         ))}
       </div>
       <div style={{ height: 8, borderRadius: 4, background: 'rgba(var(--dz-ink-rgb),0.06)', marginTop: 4, overflow: 'hidden' }}><div style={{ height: '100%', width: `${p.pct}%`, background: 'linear-gradient(90deg,#22d3ee,#3d6bff)' }} /></div>
-      <div style={{ display: 'flex', fontSize: 12, color: T.muted, marginTop: 6 }}><span style={{ flex: 1 }}>{money(p.have)} réunis</span><span>{p.pct} % de {money(p.total)}</span></div>
+      <div style={{ display: 'flex', fontSize: 12, color: T.muted, marginTop: 6 }}><span style={{ flex: 1 }}>{fm(p.have)} réunis</span><span>{p.pct} % de {fm(p.total)}</span></div>
+      {p.next && <div style={{ fontSize: 12.5, marginTop: 8, color: p.next.missing ? T.warn : T.ok }}>📍 Prochain point : {fm(p.next.need)} en {p.next.label}{p.next.missing ? ` — il manque ${fm(p.next.missing)}` : ' — tu es dans les temps ✅'}</div>}
     </div>
-    {open && <PlanSheet plan={p} onClose={() => setOpen(false)} onChange={setP} />}
+    {open && <PlanSheet plan={p} onClose={() => setOpen(false)} onChange={setP} real={real} fm={fm} />}
   </>);
 }
 
-function PlanSheet({ plan: p, onClose, onChange }: { plan: Plan; onClose: () => void; onChange: (p: Plan) => void }) {
+function PlanSheet({ plan: p, onClose, onChange, real, fm }: { plan: Plan; onClose: () => void; onChange: (p: Plan) => void; real: Array<{ ym: string; v: number }>; fm: Fm }) {
+  const [sim, setSim] = useState({ pieces: 0, fik: 0, cut: 0 });
+  const marge = 2.25, extra = sim.pieces * marge * 26 + sim.fik * 8 + sim.cut;
+  const simI = reach(p.monthly ?? [], p.total, extra), baseI = reach(p.monthly ?? [], p.total, 0);
+  const simLabel = simI === null ? 'pas avant 15 ans' : (() => { const ym = ymAdd(p.now, simI); return `${MOISL[+ym.slice(5, 7) - 1]} ${ym.slice(0, 4)}`; })();
   const [step, setStep] = useState('');
   const [edit, setEdit] = useState(false);
   const [list, setList] = useState(p.steps.map(s => ({ id: s.id, name: s.name, icon: s.icon, cost: String(s.cost), fixed: s.fixed })));
@@ -72,12 +82,25 @@ function PlanSheet({ plan: p, onClose, onChange }: { plan: Plan; onClose: () => 
         ))}
       </div>
 
+      {/* Simulateur « et si… » */}
+      <H>Et si… (simulateur)</H>
+      {([['pieces', 'pièces de snus en plus / jour', 0, 10, 1], ['fik', 'jours de location FIK en plus / mois', 0, 60, 5], ['cut', '€ de dépenses en moins / mois', 0, 800, 50]] as const).map(([k, l, a, b, st]) => (
+        <div key={k} style={{ marginBottom: 10 }}>
+          <div style={{ display: 'flex', fontSize: 13.5 }}><span style={{ flex: 1 }}>{l}</span><b>{sim[k]}</b></div>
+          <input type="range" min={a} max={b} step={st} value={sim[k]} onChange={e => setSim(v => ({ ...v, [k]: Number(e.target.value) }))} style={{ width: '100%' }} />
+        </div>
+      ))}
+      <div style={{ ...glass(extra ? T.ok : T.accent), borderRadius: 14, padding: 12, fontSize: 14 }}>
+        {extra ? <>+{fm(extra)}/mois → départ <b>{simLabel}</b>{baseI !== null && simI !== null && baseI > simI ? <> (<b style={{ color: T.ok }}>{baseI - simI} mois plus tôt</b>)</> : ''}</> : 'Bouge un curseur pour voir ta nouvelle date de départ.'}
+      </div>
+
       {/* Courbe de l'épargne vs objectif */}
       <H>Ton épargne prévue (réaliste)</H>
       <div style={{ position: 'relative', height: 110, display: 'flex', alignItems: 'flex-end', gap: 2 }}>
-        <div style={{ position: 'absolute', left: 0, right: 0, bottom: `${p.total / mx * 100}%`, borderTop: `1px dashed ${T.warn}` }}><span style={{ position: 'absolute', right: 0, top: -16, fontSize: 10.5, color: T.warn }}>départ {money(p.total)}</span></div>
-        {p.curve.map(c => <div key={c.ym} title={`${c.ym} : ${money(c.v)}`} style={{ flex: 1, height: `${Math.max(2, c.v / mx * 100)}%`, background: c.v >= p.total ? T.ok : tone(T.accent, 0.6), borderRadius: 2 }} />)}
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: `${p.total / mx * 100}%`, borderTop: `1px dashed ${T.warn}` }}><span style={{ position: 'absolute', right: 0, top: -16, fontSize: 10.5, color: T.warn }}>départ {fm(p.total)}</span></div>
+        {p.curve.map(c => <div key={c.ym} title={`${c.ym} : ${fm(c.v)}`} style={{ flex: 1, height: `${Math.max(2, c.v / mx * 100)}%`, background: c.v >= p.total ? T.ok : tone(T.accent, 0.6), borderRadius: 2 }} />)}
       </div>
+      {real.length > 1 && <div style={{ fontSize: 12.5, color: T.muted, marginTop: 8 }}>Réel (fin de chaque mois) : {real.map(r => `${MOISL[+r.ym.slice(5, 7) - 1]} ${fm(r.v)}`).join(' · ')}</div>}
       <div style={{ display: 'flex', fontSize: 11, color: T.faint, marginTop: 4 }}><span style={{ flex: 1 }}>maintenant</span><span>{p.curve[p.curve.length - 1]?.ym.slice(0, 4)}</span></div>
 
       {/* Étapes cliquables */}
@@ -86,7 +109,7 @@ function PlanSheet({ plan: p, onClose, onChange }: { plan: Plan; onClose: () => 
         <div key={s.id} onClick={() => setStep(x => (x === s.id ? '' : s.id))} style={{ ...glass(s.done ? T.ok : T.accent), borderRadius: 14, padding: 12, marginBottom: 8, cursor: 'pointer' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 18 }}>{s.icon}</span><b style={{ flex: 1, fontSize: 14 }}>{s.name}</b>{s.done ? <Badge color={T.ok}>atteint</Badge> : <b style={{ fontSize: 14 }}>{s.label}</b>}</div>
           {step === s.id && <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.5, marginTop: 8 }}>
-            Coût : <b style={{ color: T.text }}>{money(s.cost)}</b> · total cumulé à réunir : <b style={{ color: T.text }}>{money(s.cumul)}</b><br />
+            Coût : <b style={{ color: T.text }}>{fm(s.cost)}</b> · total cumulé à réunir : <b style={{ color: T.text }}>{fm(s.cumul)}</b><br />
             Tu en as {s.pct} %. Au mieux : {s.best} · réaliste : {s.label} · si tu dépenses plus : {s.slow}.
           </div>}
         </div>
@@ -110,7 +133,7 @@ function PlanSheet({ plan: p, onClose, onChange }: { plan: Plan; onClose: () => 
       <H>Ce qui avance ton départ</H>
       {p.levers.map(l => (
         <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: `1px solid ${T.line}`, fontSize: 13.5 }}>
-          <span>{l.icon}</span><span style={{ flex: 1 }}>{l.label} <span style={{ color: T.faint }}>(+{money(l.perMonth)}/mois)</span></span>
+          <span>{l.icon}</span><span style={{ flex: 1 }}>{l.label} <span style={{ color: T.faint }}>(+{fm(l.perMonth)}/mois)</span></span>
           <b style={{ color: l.gain ? T.ok : T.muted }}>{l.gain ? `−${l.gain} mois` : '≈ pareil'}</b>
         </div>
       ))}
@@ -123,7 +146,7 @@ function PlanSheet({ plan: p, onClose, onChange }: { plan: Plan; onClose: () => 
       {/* Points de contrôle */}
       <H>Tes points de contrôle</H>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 8 }}>
-        {p.checkpoints.map(c => <div key={c.label} style={{ ...glass(T.violet), borderRadius: 14, padding: 10 }}><div style={{ fontSize: 15, fontWeight: 800 }}>{money(c.need)}</div><div style={{ fontSize: 11.5, color: T.muted }}>en {c.label}</div></div>)}
+        {p.checkpoints.map(c => <div key={c.label} style={{ ...glass(T.violet), borderRadius: 14, padding: 10 }}><div style={{ fontSize: 15, fontWeight: 800 }}>{fm(c.need)}</div><div style={{ fontSize: 11.5, color: T.muted }}>en {c.label}</div></div>)}
       </div>
 
       {/* 20 options */}

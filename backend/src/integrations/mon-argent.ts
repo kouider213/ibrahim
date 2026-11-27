@@ -126,6 +126,7 @@ export async function monArgentOverview() {
     recent: keyed(journal).filter(x => x.e.t === 'vente' && x.e.cat !== 'fik').sort((a, b) => b.e.d.localeCompare(a.e.d) || (b.e.at ?? 0) - (a.e.at ?? 0)).slice(0, 300)
       .map(({ e, key }) => ({ key, at: e.at ?? 0, d: e.d, cat: e.cat, label: e.label || (LABEL[e.cat] ?? e.cat), amount: e.amount, qty: e.qty ?? null, unit: e.unit ?? null, via: e.note === 'app' ? 'app' : 'telegram' })),
     sources: SOURCES, tarifs: SNUS_TARIFS,
+    extras: await monArgentExtras().catch(() => null),
   };
 }
 
@@ -423,5 +424,118 @@ export async function departDetail(force = false) {
     have: o.balances.total, pct: Math.min(100, Math.round(o.balances.total / Math.max(1, total) * 100)),
     steps, levers, weak, checkpoints, options: opt.slice(0, 20),
     curve: real.slice(0, 120).filter((_, i) => i % 3 === 0).map((v, k) => ({ ym: ymAdd(c.now, k * 3), v })),
+    monthly: real.slice(0, 180),   // simulateur « et si… » côté app
+    next: { label: checkpoints[0]!.label, need: checkpoints[0]!.need, have: o.balances.total, missing: Math.max(0, checkpoints[0]!.need - o.balances.total) },
   };
+}
+
+// ── 20 OPTIONS (27/11 soir) : saisie, stock, objectifs, dépenses, dépôt/retrait, courbe réelle, rappels ──────────────
+type Settings = { dayPieces?: number; monthEur?: number };
+const SET_KEY = 'perso:argent:settings', STOCK_KEY = 'perso:argent:stock';
+export const DEP_CATS = [
+  { id: 'courses', label: 'Courses', icon: '🛒' }, { id: 'essence', label: 'Essence', icon: '⛽' }, { id: 'maison', label: 'Maison', icon: '🏠' },
+  { id: 'famille', label: 'Famille', icon: '👨‍👩‍👦' }, { id: 'voiture', label: 'Voiture', icon: '🔧' }, { id: 'sante', label: 'Santé', icon: '💊' },
+  { id: 'loisirs', label: 'Sorties', icon: '🍽️' }, { id: 'autre', label: 'Autre', icon: '📌' },
+] as const;
+const piecesOf = (e: Entry) => e.qty ?? Math.round(e.amount / 6);
+
+export async function monArgentSettings(input: Settings): Promise<void> {
+  const s = await kvJson<Settings>(SET_KEY, {});
+  await kvPut(SET_KEY, { ...s, ...(input.dayPieces != null ? { dayPieces: Math.max(0, Math.round(Number(input.dayPieces))) } : {}), ...(input.monthEur != null ? { monthEur: Math.max(0, Math.round(Number(input.monthEur))) } : {}) });
+}
+
+/** Stock de snus : base qu'il a comptée (« il me reste X ») + arrivages − pièces vendues depuis. */
+export async function snusStock(): Promise<{ pieces: number; since: string } | null> {
+  const base = await kvJson<{ pieces: number; at: number } | null>(STOCK_KEY, null);
+  if (!base) return null;
+  const l = await kvJson<Entry[]>(J, []);
+  const after = l.filter(e => e.cat === 'snus' && (e.at ?? 0) > base.at);
+  const inn = after.filter(e => e.t === 'achat').reduce((s, e) => s + (e.qty ?? 0), 0);
+  const out = after.filter(e => e.t === 'vente').reduce((s, e) => s + piecesOf(e), 0);
+  return { pieces: Math.max(0, base.pieces + inn - out), since: new Date(base.at).toISOString().slice(0, 10) };
+}
+export async function setSnusStock(pieces: number): Promise<void> { await kvPut(STOCK_KEY, { pieces: Math.max(0, Math.round(pieces)), at: Date.now() }); }
+
+/** Arrivage de stock : pièces + prix payé → journal « achat » (compté dans le stock et la marge). */
+export async function snusArrivage(pieces: number, cost: number, cash = true): Promise<string> {
+  if (!(pieces > 0 && cost >= 0)) throw new Error('Pièces et prix requis');
+  const l = await kvJson<Entry[]>(J, []);
+  l.push({ d: localNow().date, t: 'achat', cat: 'snus', amount: r2(cost), qty: Math.round(pieces), mode: cash ? 'cash' : 'carte', note: 'app', at: Date.now() });
+  await kvPut(J, l);
+  if (cash && cost > 0) await moveCash(-cost);
+  if (!(await kvJson<unknown>(STOCK_KEY, null))) await kvPut(STOCK_KEY, { pieces: 0, at: Date.now() - 1000 });
+  return `📦 Arrivage : ${Math.round(pieces)} pièces pour ${eur(cost)}${cash ? ' (sorti du cash)' : ''}`;
+}
+
+async function moveCash(delta: number, savingsDelta = 0): Promise<void> {
+  const f = await kvJson<Record<string, unknown> & { sideCash?: number; savings?: number }>('perso:finances', {});
+  const d = localNow().date;
+  await kvPut('perso:finances', { ...f, ...(delta ? { sideCash: Math.max(0, Math.round((f.sideCash ?? 0) + delta)), sideCashAt: d } : {}), ...(savingsDelta ? { savings: Math.max(0, Math.round((f.savings ?? 0) + savingsDelta)), savingsAt: d } : {}) });
+}
+
+/** Dépense rapide (catégorie) ; payée en cash → le cash baisse. Le plan de départ l'utilise. */
+export async function monArgentExpense(cat: string, amount: number, cash: boolean, label?: string): Promise<string> {
+  if (!DEP_CATS.some(c => c.id === cat)) throw new Error('Catégorie inconnue');
+  if (!(amount > 0 && amount <= 100_000)) throw new Error('Montant invalide');
+  const l = await kvJson<Entry[]>(J, []);
+  l.push({ d: localNow().date, t: 'depense', cat, amount: r2(amount), mode: cash ? 'cash' : 'carte', note: 'app', at: Date.now(), ...(label ? { label: String(label).slice(0, 60) } : {}) });
+  await kvPut(J, l);
+  if (cash) await moveCash(-amount);
+  return `−${eur(amount)} ${DEP_CATS.find(c => c.id === cat)!.label}${cash ? ' (cash)' : ''}`;
+}
+
+/** Dépôt du cash sur le compte, ou retrait du compte vers le cash (ex. carrelage de la douche payé en cash). */
+export async function monArgentTransfer(kind: 'depot' | 'retrait', amount: number, why?: string): Promise<string> {
+  if (!(amount > 0)) throw new Error('Montant invalide');
+  if (kind === 'depot') await moveCash(-amount, amount); else await moveCash(amount, -amount);
+  const log = await kvJson<Array<Record<string, unknown>>>('perso:cash_log', []);
+  const f = await kvJson<{ sideCash?: number }>('perso:finances', {});
+  log.push({ at: Date.now(), d: localNow().date, delta: kind === 'depot' ? -amount : amount, cash: f.sideCash ?? 0, why: `${kind === 'depot' ? 'déposé sur le compte' : 'retiré du compte'}${why ? ` — ${why}` : ''}`, kind: kind === 'depot' ? 'retrait' : 'ajout' });
+  await kvPut('perso:cash_log', log.slice(-3000));
+  return kind === 'depot' ? `🏦 ${eur(amount)} déposés sur le compte` : `💵 ${eur(amount)} retirés du compte${why ? ` (${why})` : ''}`;
+}
+
+/** Données en plus pour la page (objectifs, stock, hier, dépenses, courbe réelle, âge des soldes, taux). */
+export async function monArgentExtras() {
+  const today = localNow().date, m0 = `${today.slice(0, 7)}-01`, y = addDays(today, -1);
+  const [set, stock, l, fin, plan] = await Promise.all([kvJson<Settings>(SET_KEY, {}), snusStock(), kvJson<Entry[]>(J, []),
+    kvJson<{ savingsAt?: string; sideCashAt?: string; savings?: number; sideCash?: number }>('perso:finances', {}), kvJson<{ v?: { rate?: number } } | null>('perso:argent:plan', null)]);
+  const fikY = (await fikEntries(y)).filter(e => e.d === y).reduce((s, e) => s + e.amount, 0);
+  const salesY = l.filter(e => e.t === 'vente' && e.d === y);
+  const dep = l.filter(e => e.t === 'depense' && e.d >= m0);
+  const depBy = DEP_CATS.map(c => ({ ...c, amount: r2(dep.filter(e => e.cat === c.id).reduce((s, e) => s + e.amount, 0)) })).filter(c => c.amount > 0).sort((a, b) => b.amount - a.amount);
+  const todayPieces = l.filter(e => e.t === 'vente' && e.cat === 'snus' && e.d === today).reduce((s, e) => s + piecesOf(e), 0);
+  const monthGain = l.filter(e => e.t === 'vente' && e.d >= m0).reduce((s, e) => s + e.amount, 0) + (await fikEntries(m0)).reduce((s, e) => s + e.amount, 0);
+  const dim = new Date(Date.UTC(+today.slice(0, 4), +today.slice(5, 7), 0)).getUTCDate(), left = dim - +today.slice(8, 10) + 1;
+  // Courbe réelle : photos de fin de mois (perso:capital:YYYY-MM) + aujourd'hui
+  const months = Array.from({ length: 12 }, (_, k) => { const d = new Date(`${m0}T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() - (12 - k)); return d.toISOString().slice(0, 7); });
+  const snaps = (await Promise.all(months.map(async ym => ({ ym, s: await kvJson<{ savings: number; cash: number } | null>(`perso:capital:${ym}`, null) }))))
+    .filter(x => x.s).map(x => ({ ym: x.ym, v: Math.round((x.s!.savings ?? 0) + (x.s!.cash ?? 0)) }));
+  const ageOf = (d?: string) => (d ? Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${d}T12:00:00Z`)) / 86_400_000) : null);
+  return {
+    settings: set, stock,
+    yesterday: { total: r2(salesY.reduce((s, e) => s + e.amount, 0) + fikY), pieces: salesY.filter(e => e.cat === 'snus').reduce((s, e) => s + piecesOf(e), 0) },
+    dayGoal: set.dayPieces ? { target: set.dayPieces, done: todayPieces } : null,
+    monthGoal: set.monthEur ? { target: set.monthEur, done: r2(monthGain), perDayLeft: Math.max(0, Math.round((set.monthEur - monthGain) / Math.max(1, left))) } : null,
+    expenses: { total: r2(dep.reduce((s, e) => s + e.amount, 0)), byCat: depBy, saveRate: monthGain > 0 && dep.length ? Math.round((1 - dep.reduce((s, e) => s + e.amount, 0) / monthGain) * 100) : null },
+    realCurve: [...snaps, { ym: today.slice(0, 7), v: Math.round((fin.savings ?? 0) + (fin.sideCash ?? 0)) }],
+    balancesAge: Math.max(ageOf(fin.savingsAt) ?? 99, ageOf(fin.sideCashAt) ?? 99),
+    rate: plan?.v?.rate ?? null, depCats: DEP_CATS,
+  };
+}
+
+/** Rappels (job toutes les 15 min) : stock bas, cash qui dort (1×/semaine), soldes pas mis à jour depuis 7 j (dimanche). Privé → Telegram seulement. */
+export async function jobMonArgent(): Promise<void> {
+  const { date, hhmm, weekday } = localNow();
+  const { queueTelegramMessage } = await import('../notifications/tg-outbox.js');
+  const once = async (k: string, ttl: number) => { const key = `perso:argent:sent:${k}`; if (await kvJson<string | null>(key, null)) return false; await kvPut(key, '1', ttl); return true; };
+  if (hhmm < '09:00' || hhmm >= '21:30') return;
+  const st = await snusStock();
+  if (st && st.pieces <= 30 && await once(`stock:${date}`, 86_400)) await queueTelegramMessage(`📦 Stock de snus bas : il te reste ≈ ${st.pieces} pièces. Pense à recommander (dans MON ARGENT : « Arrivage » quand il arrive).`).catch(() => {});
+  const f = await kvJson<{ sideCash?: number; savingsAt?: string; sideCashAt?: string }>('perso:finances', {});
+  if ((f.sideCash ?? 0) >= 1500 && weekday === 6 && hhmm >= '11:00' && await once(`cash:${date.slice(0, 7)}-${Math.ceil(+date.slice(8, 10) / 7)}`, 8 * 86_400))
+    await queueTelegramMessage(`💤 Tu as ${eur(f.sideCash ?? 0)} en cash. Garde un fond de caisse et dépose le reste sur le compte : il ne partira pas sans que tu le voies (MON ARGENT › Dépôt).`).catch(() => {});
+  const age = (d?: string) => (d ? (Date.parse(date) - Date.parse(d)) / 86_400_000 : 99);
+  if (weekday === 0 && hhmm >= '17:00' && Math.max(age(f.savingsAt), age(f.sideCashAt)) > 7 && await once(`soldes:${date}`, 2 * 86_400))
+    await queueTelegramMessage(`🧾 Tes soldes datent de plus d'une semaine : combien sur le compte et en cash ? Réponds « 14k sur le compte et 900 en cash » (ou MON ARGENT › Modifier). Ton plan de départ se recalcule avec.`).catch(() => {});
 }
