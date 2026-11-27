@@ -618,7 +618,8 @@ async function holdSteps(s: LibState, days: number, why: string): Promise<string
 
 export async function resyncLiberteAgenda(): Promise<number> { const s = await getLib(); if (!s) return 0; await syncAgenda(s); return s.eventIds.length; }
 // 03/11 : anciens titres « 🕊️ Liberté — … » visibles sur CarPlay → supprimés de l'agenda (une fois, là où Google répond).
-const OLD_TITLES = /^🕊️ Liberté —|^🕊️ Appeler le médecin \(Liberté\)|^🩺 Médecin \(Liberté\)/;
+// 27/11 : un « 🕊️ Liberté — étape » est réapparu sur CarPlay → tout titre avec Liberté / 🕊️ est effacé, et la vérification tourne chaque jour.
+const OLD_TITLES = /libert[ée]|🕊️/i;
 async function purgeOldLiberteEvents(): Promise<number | null> {
   const evs = await listAgendaRange(new Date(Date.now() - 3 * 86_400_000).toISOString(), new Date(Date.now() + 120 * 86_400_000).toISOString(), 250).catch(() => null);
   if (!evs) return null;
@@ -1316,9 +1317,13 @@ const once = async (what: string, ttl = 2 * 86_400) => {
 export async function jobLiberte(): Promise<void> {
   const s = await getLib();
   if (!s?.active) return;
-  if (!(await kvGet('liberte:agenda-neutral-v1').catch(() => null))) {
+  if (!(await kvGet(`liberte:agenda-neutral:${localNow().date}`).catch(() => null))) {
     const n = await purgeOldLiberteEvents();
-    if (n !== null) { await syncAgenda(s).catch(() => {}); if (s.eventIds.length || !s.steps.length) await kvSet('liberte:agenda-neutral-v1', String(n)); console.log(`[liberte] agenda neutre : ${n} ancien(s) supprimé(s), ${s.eventIds.length} recréé(s)`); }
+    if (n !== null) {
+      if (n > 0) await syncAgenda(s).catch(() => {});
+      await kvSet(`liberte:agenda-neutral:${localNow().date}`, String(n), 2 * 86_400);
+      if (n > 0) console.log(`[liberte] agenda neutre : ${n} ancien(s) supprimé(s), ${s.eventIds.length} recréé(s)`);
+    }
   }
   // Étapes pas encore dans l'agenda (plan lancé d'un endroit sans accès Google) : rattrapage, nouvel essai toutes les 6 h
   if (!s.finishedAt && !s.eventIds.length && await once('agenda-sync', 6 * 3600)) await syncAgenda(s).catch(err => console.error('[liberte] agenda:', err instanceof Error ? err.message : err));

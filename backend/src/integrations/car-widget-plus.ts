@@ -13,6 +13,8 @@ import { localNow } from './morning-routine.js';
 
 type LatLng = { lat: number; lng: number };
 const ROUTINE = /^(🟢|🏠|🚿|⏰|🍽️|😴|🕌|🧘|📚)/u;
+// 27/11 : séance de sport dans l'agenda (« 🏋️ HAUT C · PECS… ») — CarPlay disait « Route fluide vers le travail » à 5h52 en partant à la salle
+const SPORT = /^🏋|\bs[ée]ance\b|\bsalle\b|\bhaut [a-c]\b|\bbas [a-c]\b|\bpecs\b|\bjambes\b|\babdos\b|\bcardio\b|\bleg day\b|basic.?fit/iu;
 const PRIVATE = /libert[ée]|m[ée]dic|pharma|traitement|dose|sant[ée]|vitalit|🕊️|objectif perso|appel perso|rdv perso/i;
 
 async function homePos(): Promise<LatLng | null> {
@@ -59,17 +61,22 @@ export async function carRoad(here: LatLng, fresh: boolean, homeward: boolean): 
   const now = Date.now();
   const { listAgendaRange } = await import('./google-calendar.js');
   const evs = await listAgendaRange(new Date(now).toISOString(), new Date(now + 3 * 3600_000).toISOString(), 20).catch(() => null);
-  const ev = (evs ?? []).find(e => e.start.dateTime && e.location?.trim() && e.transparency !== 'transparent' && !ROUTINE.test(e.summary ?? '') && Date.parse(e.start.dateTime) > now);
+  const isSport = (e: { summary?: string | null }) => SPORT.test(e.summary ?? '');
+  const ev = (evs ?? []).find(e => e.start.dateTime && (e.location?.trim() || isSport(e)) && e.transparency !== 'transparent' && !ROUTINE.test(e.summary ?? '') && Date.parse(e.start.dateTime) > now);
   const home = await homePos();
   const { geocode, km } = await import('./departures.js');
+  const gymAddr = await import('./morning-routine.js').then(m => m.getRoutineConfig()).then(c => c.addresses?.gym ?? '').catch(() => '');
   if (ev) {
-    const dest = await geocode(ev.location!).catch(() => null);
+    const origin0 = fresh ? here : home ?? here;
+    let dest = ev.location?.trim() ? await geocode(ev.location).catch(() => null) : null;
+    // Séance : adresse floue (« Chaussée de Bruxelles… » existe partout) → l'adresse de SA salle (routine)
+    if (isSport(ev) && gymAddr && (!dest || km(origin0, dest) >= 150)) dest = await geocode(gymAddr).catch(() => null);
     const origin = fresh ? here : home ?? here;
     if (dest && km(origin, dest) > 0.4 && km(origin, dest) < 150) {
       const t = await cachedDrive(origin, dest);
       if (t) {
         const raw = (ev.summary ?? 'RDV').replace(/^[^\p{L}\d]+/u, '').split(' — ')[0]!.trim();
-        const name = PRIVATE.test(raw) ? 'votre rendez-vous' : /^belgique$/i.test(raw) || /wemmel/i.test(ev.location!) ? 'le travail' : raw.slice(0, 28);
+        const name = PRIVATE.test(raw) ? 'votre rendez-vous' : isSport(ev) ? 'la salle' : /^belgique$/i.test(raw) || /wemmel/i.test(ev.location ?? '') ? 'le travail' : raw.slice(0, 28);
         const start = Date.parse(ev.start.dateTime!);
         const leaveIn = (start - (t.min + 5) * 60_000 - now) / 60_000;
         const lateBy = (now + (t.min + 3) * 60_000 - start) / 60_000;
@@ -79,6 +86,12 @@ export async function carRoad(here: LatLng, fresh: boolean, homeward: boolean): 
         return out;
       }
     }
+  }
+  // Une séance arrive (même sans trajet calculable) : on ne parle JAMAIS du travail avant elle
+  if (ev && isSport(ev)) {
+    const mins = Math.round((Date.parse(ev.start.dateTime!) - now) / 60_000);
+    out.go = mins <= 15 ? 'Cap sur la salle' : `Séance dans ${mins >= 60 ? `${Math.floor(mins / 60)} h ${String(mins % 60).padStart(2, '0')}` : `${mins} min`}`;
+    return out;
   }
   // Pas de RDV dans l'agenda : l'heure de travail de la routine (Kouider 04/11 : « je dois être au travail à 13h, 3 h avant minimum »)
   const work = await routineWork(now).catch(() => null);

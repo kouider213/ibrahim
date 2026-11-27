@@ -211,10 +211,17 @@ export interface AgendaEvent {
 const fikPath = (rest = '') => `/calendars/${encodeURIComponent(CALENDAR_ID)}${rest}`;
 
 // RDV avec heure, lieu, notes (pas une réservation de voiture : pour ça createCalendarEvent)
+// 27/11 : CarPlay affichait encore « 🕊️ Liberté — étape » (l'écran de la voiture est vu par les passagers).
+// Garde-fou à la source : AUCUN événement d'agenda ne peut porter Liberté / médicament dans son titre, quel que soit le chemin (outil, cerveau…).
+export const PRIVATE_AGENDA_TITLE = /libert[ée]|🕊️|m[ée]dicament|sevrage|\bdoses?\b/i;
+export const neutralAgendaTitle = (t: string) => PRIVATE_AGENDA_TITLE.test(t) ? '🎯 Objectif perso' : t;
+
 export async function createAgendaEvent(
   title: string, startDateTime: string, endDateTime: string, description?: string, allDay?: boolean, location?: string,
   opts: { recurrence?: string[]; transparent?: boolean; timeZone?: string } = {},
 ): Promise<string | null> {
+  title = neutralAgendaTitle(title);
+  if (description && PRIVATE_AGENDA_TITLE.test(description)) description = 'Détails dans l\'app Dzaryx.';
   const body: Record<string, unknown> = { summary: title };
   if (opts.recurrence?.length) body['recurrence'] = opts.recurrence;      // ex. ['RRULE:FREQ=WEEKLY;BYDAY=TH']
   if (opts.transparent) body['transparency'] = 'transparent';            // « libre » : ne bloque pas les créneaux
@@ -257,7 +264,7 @@ export async function listAgendaRange(fromIso: string, toIso: string, max = 50):
 // Modifier un RDV : titre, horaires (avec l'heure), lieu, notes — seuls les champs donnés changent
 export async function updateAgendaEvent(googleEventId: string, u: Partial<{ title: string; start: string; end: string; description: string; location: string; allDay: boolean }>): Promise<boolean> {
   const patch: Record<string, unknown> = {};
-  if (u.title) patch['summary'] = u.title;
+  if (u.title) patch['summary'] = neutralAgendaTitle(u.title);
   if (u.description !== undefined) patch['description'] = u.description;
   if (u.location !== undefined) patch['location'] = u.location;
   const when = (v: string, dflt: string) => u.allDay ? { date: v.slice(0, 10) } : { dateTime: v.includes('T') ? v : `${v}T${dflt}`, timeZone: 'Africa/Algiers' };
@@ -279,7 +286,7 @@ export async function updateAgendaSeries(anyId: string, u: { title?: string; sta
   const m = await calendarRequest<AgendaEvent>('GET', fikPath(`/events/${encodeURIComponent(masterId)}`));
   if (!m) return false;
   const patch: Record<string, unknown> = {};
-  if (u.title) patch['summary'] = u.title;
+  if (u.title) patch['summary'] = neutralAgendaTitle(u.title);
   if (u.location !== undefined) patch['location'] = u.location;
   const at = (orig: { dateTime?: string; timeZone?: string }, hhmm: string) => ({ dateTime: `${orig.dateTime!.slice(0, 10)}T${hhmm}:00`, timeZone: orig.timeZone ?? 'Europe/Brussels' });
   if (u.startTime && m.start.dateTime) patch['start'] = at(m.start, u.startTime);
