@@ -338,7 +338,7 @@ export async function runMoneyCommand(c: MoneyCommand): Promise<string> {
     const msg = c.take ? await ma.monArgentTake(c.take.amount, undefined, d) : await ma.monArgentSetDay(c.setDay!.amount, d);
     const m = await ma.dayMoney(d);
     const t = d === localNow().date ? "aujourd'hui" : label(d);
-    return `✅ ${msg[0]!.toUpperCase()}${msg.slice(1)}.\n💵 Argent ${t === "aujourd'hui" ? "d'aujourd'hui" : `du ${t}`} (lu à ${m.readAt}) : ventes ${eur(m.ventes)}${m.pris ? ` − pris ${eur(m.pris)}` : ''} = ${eur(m.net)}${m.last ? ` · dernière ligne ${m.last}` : ''}.\nTon cash global n'a pas bougé.`;
+    return `✅ ${msg[0]!.toUpperCase()}${msg.slice(1)}.\n💵 Argent ${t === "aujourd'hui" ? "d'aujourd'hui" : `du ${t}`} (lu à ${m.readAt}) : ventes ${eur(m.ventes)}${m.pris ? ` − pris ${eur(m.pris)}` : ''} = ${eur(m.net)}${m.last ? ` · dernière ligne ${m.last}` : ''}.\n💵 Cash : ${eur(((await loadFinances()) as { sideCash?: number }).sideCash ?? 0)}.`;
   }
   if (c.pieces) {
     const r = await (await import('./mon-argent.js')).monArgentAdd({ cat: 'snus', qty: c.pieces.qty, tarif: c.pieces.tarif, date: c.pieces.date, ...(c.pieces.pid ? { pid: c.pieces.pid } : {}) });
@@ -365,7 +365,11 @@ export async function runMoneyCommand(c: MoneyCommand): Promise<string> {
   if (c.sale) {
     const l = await journal();
     const dup = l.some(e => e.t === 'vente' && e.d === c.sale!.date && e.cat === c.sale!.cat && e.amount === c.sale!.amount && e.note === 'auto' && e.at !== undefined && Date.now() - e.at < 120_000);   // 08/11 : doublon = même phrase rejouée en 2 min ; deux « +35 » dans la journée sont deux ventes
-    if (!dup) { l.push({ d: c.sale.date, t: 'vente', cat: c.sale.cat, amount: c.sale.amount, mode: 'cash', note: 'auto', at: Date.now() }); await kvPut(J, l); }
+    if (!dup) {
+      l.push({ d: c.sale.date, t: 'vente', cat: c.sale.cat, amount: c.sale.amount, mode: 'cash', note: 'auto', at: Date.now() }); await kvPut(J, l);
+      // 27/11 soir : la vente entre dans le cash (sauf « cash +20 » qui le fait déjà, et le FIK)
+      if (c.cashDelta === undefined && c.cash === undefined && c.sale.cat !== 'fik') await (await import('./mon-argent.js')).moveCash(c.sale.amount);
+    }
     const day = l.filter(e => e.t === 'vente' && e.d === c.sale!.date).reduce((s, e) => s + e.amount, 0);
     out.push(`✅ Enregistré : ${c.sale.cat} +${eur(c.sale.amount)} le ${label(c.sale.date)}${day !== c.sale.amount ? ` (total ce jour-là ${eur(day)})` : ''}.`);
   }
@@ -377,7 +381,7 @@ export async function runMoneyCommand(c: MoneyCommand): Promise<string> {
   }
   if (c.cash !== undefined) {
     const f = await kvJson<Record<string, unknown> & { sideCash?: number }>('perso:finances', {});
-    await kvPut('perso:finances', { ...f, sideCash: c.cash, sideCashAt: localNow().date, updated: localNow().date });
+    await kvPut('perso:finances', { ...f, sideCash: c.cash, sideCashAt: localNow().date, updated: localNow().date, ...(c.cashDelta === undefined ? { sideCashTs: Date.now() } : {}) });
     if (f.sideCash != null && f.sideCash !== c.cash) {
       const delta = c.cash - f.sideCash;
       await logCash({ d: localNow().date, delta, cash: c.cash, ...(c.sale && delta === c.sale.amount ? { why: `vente ${c.sale.cat}`, kind: 'vente' as const } : c.cashDelta !== undefined || c.cashCalc ? { why: delta > 0 ? 'ajout' : 'retrait sans motif', kind: delta > 0 ? 'ajout' as const : 'retrait' as const } : delta < 0 ? { why: 'cash corrigé à la baisse', kind: 'retrait' as const } : { why: 'cash corrigé à la hausse', kind: 'correction' as const }) });

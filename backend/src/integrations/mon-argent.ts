@@ -216,12 +216,13 @@ export async function monArgentAdd(input: { cat: string; amount?: number; qty?: 
   }
   const l = await kvJson<Entry[]>(J, []);
   l.push(e); await kvPut(J, l);
+  await moveCash(e.amount);   // 27/11 soir : une vente met l'argent dans le cash (Kouider : « les 1000 € c'est pas juste, ça doit être 1079 »)
   return cat === 'snus' ? `+${e.qty} pièce${e.qty! > 1 ? 's' : ''}${e.label ? ` ${e.label}` : ''} (${eur(e.amount)})` : cat === 'appartement' ? `Appartement : bénéfice ${eur(e.amount)}` : `+${eur(e.amount)} ${LABEL[cat]}`;
 }
 
 /** 27/11 soir (Kouider : « je pris 20 € sur le cash d'aujourd'hui… il pense que j'ai [son cash global]… je sais même pas à combien je suis
  *  aujourd'hui ») : l'ARGENT DU JOUR = ventes du jour (hors FIK) − ce qu'il a pris dessus, avec l'heure de chaque ligne.
- *  Une « prise » ne touche PAS au cash global (les ventes ne l'augmentent pas non plus). */
+ *  Ventes, prises et corrections font bouger le cash (moveCash) ; un cash donné à la main (sideCashTs) fait foi. */
 export const hhmm = (at?: number) => (at ? new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' }).format(new Date(at)) : null);
 export async function dayMoney(date?: string) {
   const d = date ?? localNow().date;
@@ -242,6 +243,7 @@ export async function monArgentTake(amount: number, why?: string, date?: string)
   const l = await kvJson<Entry[]>(J, []);
   l.push({ d, t: 'prise', cat: 'jour', amount: r2(amount), mode: 'cash', note: 'app', at: Date.now(), ...(why ? { label: String(why).slice(0, 60) } : {}) });
   await kvPut(J, l);
+  await moveCash(-amount);
   const m = await dayMoney(d);
   return `−${eur(amount)} pris sur l'argent du jour → il te reste ${eur(m.net)}`;
 }
@@ -255,6 +257,7 @@ export async function monArgentSetDay(target: number, date?: string): Promise<st
   const l = await kvJson<Entry[]>(J, []);
   l.push({ d, t: 'vente', cat: 'snus', amount: diff, qty: 0, mode: 'cash', note: 'correction', at: Date.now(), label: 'Correction du jour' });
   await kvPut(J, l);
+  await moveCash(diff);
   return `Montant du jour corrigé : ${eur(m.net)} → ${eur(target)}`;
 }
 
@@ -275,13 +278,16 @@ export async function monArgentUndo(key: string | number): Promise<boolean> {
   const hit = keyed(l).find(x => x.key === k && (x.e.t === 'vente' || x.e.t === 'prise'));
   if (!hit) return false;
   l.splice(hit.i, 1); await kvPut(J, l);
+  // Le cash l'avait compté → on l'enlève, sauf si la ligne est plus ancienne que son dernier cash donné à la main (il l'a compté en vrai)
+  const f = await kvJson<{ sideCashTs?: number }>('perso:finances', {});
+  if (hit.e.at && hit.e.at > (f.sideCashTs ?? 0) && hit.e.cat !== 'fik') await moveCash(hit.e.t === 'prise' ? hit.e.amount : -hit.e.amount);
   return true;
 }
 
 export async function monArgentBalances(compte?: number, cash?: number): Promise<void> {
   const f = await kvJson<Record<string, unknown>>('perso:finances', {});
   const d = localNow().date;
-  await kvPut('perso:finances', { ...f, ...(compte != null && compte >= 0 ? { savings: Math.round(compte), savingsAt: d } : {}), ...(cash != null && cash >= 0 ? { sideCash: Math.round(cash), sideCashAt: d } : {}) });
+  await kvPut('perso:finances', { ...f, ...(compte != null && compte >= 0 ? { savings: Math.round(compte), savingsAt: d } : {}), ...(cash != null && cash >= 0 ? { sideCash: Math.round(cash), sideCashAt: d, sideCashTs: Date.now() } : {}) });
   await kvPut('perso:argent:plan', null);   // le départ se recalcule avec les nouveaux soldes
 }
 
@@ -509,10 +515,10 @@ export async function snusArrivage(pieces: number, cost: number, cash = true): P
   return `📦 Arrivage : ${Math.round(pieces)} pièces pour ${eur(cost)}${cash ? ' (sorti du cash)' : ''}`;
 }
 
-async function moveCash(delta: number, savingsDelta = 0): Promise<void> {
+export async function moveCash(delta: number, savingsDelta = 0): Promise<void> {
   const f = await kvJson<Record<string, unknown> & { sideCash?: number; savings?: number }>('perso:finances', {});
   const d = localNow().date;
-  await kvPut('perso:finances', { ...f, ...(delta ? { sideCash: Math.max(0, Math.round((f.sideCash ?? 0) + delta)), sideCashAt: d } : {}), ...(savingsDelta ? { savings: Math.max(0, Math.round((f.savings ?? 0) + savingsDelta)), savingsAt: d } : {}) });
+  await kvPut('perso:finances', { ...f, ...(delta ? { sideCash: Math.max(0, r2((f.sideCash ?? 0) + delta)), sideCashAt: d } : {}), ...(savingsDelta ? { savings: Math.max(0, Math.round((f.savings ?? 0) + savingsDelta)), savingsAt: d } : {}) });
 }
 
 /** Dépense rapide (catégorie) ; payée en cash → le cash baisse. Le plan de départ l'utilise. */

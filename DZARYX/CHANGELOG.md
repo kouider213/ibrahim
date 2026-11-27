@@ -1,3 +1,9 @@
+## 27/11 — CASH À JOUR : chaque vente entre dans le cash, chaque « pris » en sort
+- Kouider (capture MON ARGENT) : le cash n'incluait pas l'argent du jour, il doit être cash + argent du jour.
+- mon-argent.ts : moveCash() exporté ; monArgentAdd (+montant), monArgentTake (−), monArgentSetDay (±écart), monArgentUndo (inverse, seulement si la ligne est après le dernier cash donné à la main = sideCashTs).
+- argent-direct.ts : vente Telegram (« snus 150 ») → +cash (pas pour « cash +20 » qui le fait déjà, ni FIK) ; cash donné à la main → sideCashTs ; réponse « pris » affiche le cash.
+- Données : cash du jour ajouté une fois à la main. App v320 (texte du formulaire « pris »).
+
 ## 27/11 — ARGENT DU JOUR : « j'ai pris 20 € sur le cash d'aujourd'hui » compris + heures + montant modifiable
 - Kouider : « je pris 20 € sur le cash d'aujourd'hui, il pense que j'ai [son cash global]… il a pas calculé les 20 €… je sais même pas à combien je suis aujourd'hui ».
 - Cause : la phrase retirait 20 € du cash GLOBAL ; « Cash +20€ » était noté comme une vente de snus ; « je suis à combien aujourd'hui » n'était pas compris.

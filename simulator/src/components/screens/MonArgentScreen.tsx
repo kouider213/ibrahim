@@ -383,7 +383,7 @@ export default function MonArgentScreen() {
       </>}
 
       {sheet === 'prise' && (
-        <Sheet title="➖ J'ai pris sur l'argent du jour" subtitle="Ça baisse l'argent d'aujourd'hui, pas ton cash global" onClose={() => setSheet('')}
+        <Sheet title="➖ J'ai pris sur l'argent du jour" subtitle="Ça baisse l'argent d'aujourd'hui et ton cash" onClose={() => setSheet('')}
           footer={<Btn variant="primary" disabled={busy || !(Number(g.amount) > 0)} onClick={() => void post('/api/mon-argent/prise', { amount: Number(g.amount), why: g.why }, r => { setSheet(''); setG(v => ({ ...v, amount: '', why: '' })); flash(`✅ ${r.message}`); })} style={{ width: '100%' }}>Valider</Btn>}>
           <Field label="Montant pris (€)"><input inputMode="decimal" autoFocus value={g.amount} onChange={e => setG(v => ({ ...v, amount: e.target.value.replace(',', '.') }))} style={inputStyle} /></Field>
           <Field label="Pour quoi (facultatif)"><input value={g.why} placeholder="essence, manger…" onChange={e => setG(v => ({ ...v, why: e.target.value }))} style={inputStyle} /></Field>
