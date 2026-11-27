@@ -1,3 +1,7 @@
+## 27/11 soir (7) — FORME : la prochaine séance peut être une séance MAISON (app v333)
+- Kouider (capture 22h13) : en Maison, la séance était « LUN 30 · ABDOS + CARDIO » (la prochaine séance de SALLE traduite) alors que samedi (séance annulée) et dimanche sont des jours maison. Sport.tsx : séance du jour faite → la prochaine = le premier jour à venir, jour maison compris (homeDays du backend).
+- presence « Bien rentré » : une séance annulée demain n'est plus annoncée (« Demain 06h00 HAUT C » alors que samedi = repos).
+
 ## 27/11 soir (6) — Bilan de chaque pub TikTok + l'équipe apprend de nos pubs
 - Kouider : « il n'a même pas fait le récap de la vidéo partagée hier » + « il doit apprendre le maximum des pubs pour booster mon compte ». Cause : le suivi lisait seulement les vidéos les PLUS VUES de TikTok Studio (la pub d'hier n'y était pas) et ne tournait qu'à 4h30 (9 h après la publication → trop tôt).
 - PC cloud : action `recent` (profil @fik_conciergerie, /api/post/item_list/ → vues, j'aime, partages, enregistrements des dernières vidéos) ; ajoutée aussi à `insights`.

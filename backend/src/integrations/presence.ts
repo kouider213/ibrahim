@@ -366,7 +366,10 @@ async function onHomeEvening(st: PresenceState, now: number): Promise<void> {
   const plan = cfg.days[tomorrow.weekday];
   const paused = await routinePausedReason(tomorrow.date, cfg).catch(() => null);
   const evs = await listAgendaRange(new Date(localTs(tomorrow.date, '00:00')).toISOString(), new Date(localTs(tomorrow.date, '23:59')).toISOString(), 20).catch(() => null);
-  const first = (evs ?? []).find(e => e.start.dateTime && !/^(🟢|🚿|⏰|🚗)/u.test(e.summary ?? ''));
+  // 27/11 : « Demain 06h00 🏋️ HAUT C » alors que la séance de demain était annulée (repos) → la séance annulée n'est pas annoncée
+  const skipTxt = await import('./sport-coach.js').then(m => m.sportSessionFor(tomorrow.date)).catch(() => null);
+  const skipped = !!skipTxt && skipTxt.startsWith('Pas de sport');
+  const first = (evs ?? []).find(e => e.start.dateTime && !/^(🟢|🚿|⏰|🚗)/u.test(e.summary ?? '') && !(skipped && /🏋|HAUT|BAS|ABDOS|séance|salle/i.test(e.summary ?? '')));
   const care = await (await import('../notifications/dnd.js')).takeFamilyFollowup();
   const kid = await (await import('./papa-time.js')).homeEveningLine().catch(() => '');
   await queueTelegramMessage(`🏠 Bien rentré ! Profite de ta famille.${care ? `\n❤️ Et depuis hier (${care.toLowerCase()}), comment ça va à la maison ce soir ?` : ''}${kid}\nDemain : ${!paused && plan?.kind !== 'none' && plan?.wake ? `réveil ${plan.wake.replace(':', 'h')}` : 'pas de réveil prévu'}${first ? `, ${hm(Date.parse(first.start.dateTime!))} ${first.summary}` : ''}.`);

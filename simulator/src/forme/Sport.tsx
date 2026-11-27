@@ -850,9 +850,14 @@ export default function SportScreen({ toast, go, o }: { toast: (t: string) => vo
   const picked = pick ? (d.planned ?? []).find(x => x.date === pick) ?? (pick === d.today?.date ? d.today : pick === d.next?.date ? d.next : null) : null;
   // 02/11 (Kouider : « j'enregistre ma séance mais il me dit encore la séance d'aujourd'hui ») : faite → on passe à la suivante
   const doneToday = d.week[0]?.status === 'done';
+  const strip0 = (x: string) => [...(d.past ?? []), ...d.week].find(w => w.date === x)?.status ?? null;
   // 24/11 : jours MAISON (séance annulée, jeudi, dimanche) → la séance maison DU JOUR, pas la version maison de demain
   const hDays = (d as unknown as { homeDays?: Record<string, { type: string; label: string }> }).homeDays ?? {};
-  const homeDate = pick && hDays[pick] ? pick : !pick && today && hDays[today] && !doneToday ? today : null;
+  // 27/11 Kouider : « la séance maison est notée pour lundi alors qu'elle doit remplacer les séances annulées et les jours sans
+  // séance (dimanche, jeudi…) » → séance du jour faite : la PROCHAINE est le premier jour à venir, maison ou salle
+  const nextHome = Object.keys(hDays).filter(x => x > (today ?? '') && strip0(x) !== 'done').sort()[0];
+  const homeDate = pick && hDays[pick] ? pick : !pick && today && hDays[today] && !doneToday ? today
+    : !pick && nextHome && (!d.today || doneToday || !d.today.date || d.today.date > nextHome) && (!d.next || nextHome < d.next.date) && (doneToday || !d.today || d.today.date !== today) ? nextHome : null;
   if (homeDate && hs[homeDate] === undefined) queueMicrotask(() => fetchHome(homeDate));
   const s = homeDate ? hs[homeDate] ?? null : pick ? picked : doneToday ? d.next : d.today ?? d.next;
   const isToday = !!s && s.date === today;
