@@ -2,9 +2,15 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : **2026-11-22**.
+> Dernière mise à jour : **2026-11-27**.
 
 ---
+
+## ⚡ Session 2026-11-27 soir — Aujourd'hui, CarPlay, Mon argent, plan de départ (app v331)
+- Aujourd'hui : carte « Ta journée » (agenda FIK, départs/retours, tâches à heure, à encaisser, ligne « maintenant ») ; page jamais bloquée si /api/insights/today tombe.
+- CarPlay : séance de l'agenda passe avant le travail (car-widget-plus SPORT) ; titres privés interdits dans createAgendaEvent/updateAgendaEvent ; nettoyage quotidien des anciens titres (liberte.ts).
+- Plan de départ : fiche refaite (courbe SVG, étapes avec progression, J-x, par mois/semaine, achat simulé, vraie marge) ; avertissement quand la date réaliste dépend d'un business projeté (date sans lui affichée).
+- À suivre : « Ce mois-ci » apparaît après la 1re photo de fin de mois (monthEndRecap) ; widget CarPlay salle à confirmer sur une vraie séance.
 
 ## ⚡ Session 2026-11-22 — Veille actu + Grand Coach (51e25614 → suivant)
 

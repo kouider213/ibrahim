@@ -369,16 +369,19 @@ export async function fikInsights() {
 type Goal = { id: string; name: string; icon: string; cost: number; fixed?: boolean };
 const GOALS_KEY = 'perso:argent:goals';
 const ymAdd = (ym: string, n: number) => { const d = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1)); return d.toISOString().slice(0, 7); };
-type Curves = { at: number; now: string; rate: number; curves: Array<{ name: string; curve: number[] }>; parts: Array<[string, number]>; fund: number; m0: Record<string, number>; aptPriceDa: number; aptRentDa: number; houseDa: number; carEur: number };
+type Curves = { at: number; now: string; rate: number; curves: Array<{ name: string; curve: number[] }>; parts: Array<[string, number]>; fund: number; m0: Record<string, number>; aptPriceDa: number; aptRentDa: number; houseDa: number; carEur: number;
+  biz?: { name: string; clients: number; perMonth: number; start: string; partner?: string; noBiz: string | null } | null };
 
 async function curves(force = false): Promise<Curves | null> {
   const c = await kvJson<Curves | null>('perso:argent:curves', null);
-  if (!force && c && Date.now() - c.at < 6 * 3600_000) return c;
+  if (!force && c && 'biz' in c && Date.now() - c.at < 6 * 3600_000) return c;
   try {
     const p = await (await import('./algerie-plan.js')).buildPlan();
     const v: Curves = { at: Date.now(), now: localNow().date.slice(0, 7), rate: p.rate, curves: p.belgium.scenarios.map(s => ({ name: s.name, curve: s.curve.map(Math.round) })),
       parts: p.upfront.map(([k, n]) => [k, Math.round(n)] as [string, number]), fund: Math.round(p.fundAtMove), m0: (p.belgium.months[0] ?? {}) as unknown as Record<string, number>,
-      aptPriceDa: p.cfg.aptPriceDa, aptRentDa: p.cfg.aptRentDa, houseDa: p.cfg.houseDa, carEur: p.cfg.carEur };
+      aptPriceDa: p.cfg.aptPriceDa, aptRentDa: p.cfg.aptRentDa, houseDa: p.cfg.houseDa, carEur: p.cfg.carEur,
+      // 27/11 nuit : la date réaliste peut compter sur un business pas encore lancé → on le DIT dans le plan
+      biz: p.bizName && p.belgium.biz ? { name: p.bizName, clients: p.adblueClients, perMonth: Math.round(p.adblueClients * p.perClient * p.share / 100), start: String(p.belgium.biz.start ?? ''), partner: p.belgium.biz.partner, noBiz: p.moveAtNoBiz } : null };
     await kvPut('perso:argent:curves', v);
     return v;
   } catch { return c; }
@@ -508,6 +511,7 @@ export async function departDetail(force = false) {
   const nx = steps.find(st => !st.done);
   const nextStep = nx ? { name: nx.name, icon: nx.icon, missing: Math.max(0, nx.cumul - o.balances.total), label: nx.label } : null;
   return {
+    biz: c.biz ? { ...c.biz, startLabel: c.biz.start ? ymL(c.biz.start) : '', noBizLabel: c.biz.noBiz ? ymL(c.biz.noBiz) : 'pas avant 15 ans' } : null,
     marge, fikDay, perMonth, perWeek: perMonth != null ? Math.round(perMonth * 12 / 52) : null, daysLeft, thisMonth, nextStep, left,
     totalDa: Math.round(total * c.rate), rate: c.rate,
     now: c.now, total, departLabel: lab(iDep), departBest: lab(reachAt(best, total)), departSlow: lab(reachAt(slow, total)),

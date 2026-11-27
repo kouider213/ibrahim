@@ -14,6 +14,7 @@ interface Plan {
   monthly: number[]; next: { label: string; need: number; have: number; missing: number };
   // 27/11 nuit : ce qu'il faut faire (serveur) — anciennes versions du serveur : champs absents
   marge?: number; fikDay?: number; perMonth?: number | null; perWeek?: number | null; daysLeft?: number | null; left?: number;
+  biz?: { name: string; clients: number; perMonth: number; startLabel: string; partner?: string; noBizLabel: string } | null;
   thisMonth?: { saved: number; target: number } | null; nextStep?: { name: string; icon: string; missing: number; label: string } | null; totalDa?: number;
 }
 type Fm = (n: number) => string;
@@ -38,6 +39,7 @@ export function DepartCard({ real, fm }: { real: Array<{ ym: string; v: number }
         {p.daysLeft != null && <Badge color={T.accent}>J-{p.daysLeft}</Badge>}
       </div>
       <div style={{ fontSize: 12.5, color: T.muted }}>entre {p.departBest} (tu gardes tout) et {p.departSlow} (tu dépenses plus)</div>
+      {p.biz && <div style={{ fontSize: 12, color: T.warn, marginTop: 2 }}>⚠️ avec {p.biz.name} ({p.biz.clients} clients/mois) · sans : {p.biz.noBizLabel}</div>}
       {/* 27/11 nuit : ce qu'il faut faire concrètement */}
       {p.perMonth != null && p.perMonth > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 8, marginTop: 12 }}>
         <div style={{ background: 'rgba(var(--dz-ink-rgb),0.05)', borderRadius: 14, padding: '10px 12px' }}><div style={{ fontSize: 11.5, color: T.muted, fontWeight: 600 }}>À mettre de côté</div><div style={{ fontSize: 18, fontWeight: 800 }}>{fm(p.perMonth)}<span style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}> /mois</span></div><div style={{ fontSize: 11.5, color: T.faint }}>soit {fm(p.perWeek ?? 0)} par semaine</div></div>
@@ -169,6 +171,13 @@ function PlanSheet({ plan: p, onClose, onChange, real, fm }: { plan: Plan; onClo
           ))}
         </div>
       </div>
+
+      {/* 27/11 nuit : la date réaliste compte sur un business pas encore lancé → le dire clairement */}
+      {p.biz && <div style={{ ...glass(T.warn), borderRadius: 16, padding: 12, marginTop: 10, fontSize: 13.5, lineHeight: 1.45, display: 'flex', gap: 10 }}>
+        <span style={{ flexShrink: 0 }}>⚠️</span>
+        <div style={{ minWidth: 0 }}>Cette date compte sur <b>{p.biz.name}</b>{p.biz.partner ? ` avec ${p.biz.partner}` : ''} : <b>{p.biz.clients} clients/mois</b> dès {p.biz.startLabel || 'bientôt'}, soit <b>+{fm(p.biz.perMonth)}/mois</b> pour toi.
+          <div style={{ marginTop: 4 }}>Sans ce business : départ <b style={{ color: T.bad }}>{p.biz.noBizLabel}</b>.</div></div>
+      </div>}
 
       {/* 2. Ce qu'il faut faire */}
       {p.perMonth != null && p.perMonth > 0 && <>

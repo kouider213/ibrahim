@@ -1,3 +1,7 @@
+## 27/11 nuit — Plan de départ : dépendance à un business projeté affichée (app v331)
+- departDetail renvoie `biz` (nom, clients/mois, gain/mois, début, date sans le business) depuis buildPlan ; carte + fiche affichent un avertissement. Cache `curves` recalculé s'il date de l'ancien format.
+- « Ce mois-ci » absent = normal tant qu'aucune photo perso:capital n'existe (1re au monthEndRecap de fin de mois).
+
 ## 27/11 nuit — Fiche « Ton plan de départ » refaite (app v330)
 - Kouider (2 captures 19h49) : la fiche glissait de gauche à droite (bouton « Ajouter / modifier mes étapes (maison en Belgique, appartement…) » sans retour à la ligne) et le graphique en barres jusqu'en 2036 était « éclaté ».
 - Kit Sheet : overflowX hidden sur le contenu → plus aucune fiche ne peut glisser de côté.
