@@ -53,6 +53,7 @@ router.get('/fik-insights', async (_req, res) => { try { res.json(await fikInsig
 // 27/11 MON ANALYSE (objectifs + 20 options « si tu fais ça ») et MES VOYAGES (plan + PDF + 30 options)
 router.get('/analyse', async (_req, res) => { try { res.json(await (await import('../../integrations/analyse-vie.js')).analyseVie()); } catch (e) { fail(res, e); } });
 router.get('/analyse/avis', async (req, res) => { try { res.json({ text: await (await import('../../integrations/analyse-vie.js')).analyseAvis(req.query['force'] === '1') }); } catch (e) { fail(res, e); } });
+router.post('/analyse/engage', async (req, res) => { try { res.json({ engaged: await (await import('../../integrations/analyse-vie.js')).engage(String(req.body?.id ?? ''), req.body?.on !== false) }); } catch (e) { fail(res, e); } });
 const vp = () => import('../../integrations/voyage-plan.js');
 router.get('/voyages', async (_req, res) => { try { res.json({ voyages: await (await vp()).voyages() }); } catch (e) { fail(res, e); } });
 router.post('/voyages', async (req, res) => {
@@ -65,6 +66,14 @@ router.post('/voyages/tick', async (req, res) => {
     res.json({ voyage: await (await vp()).tickVoyage(String(b['id']), k as 'option', Number(b['i']), (['done', 'no', 'undo'].includes(String(b['value'])) ? b['value'] : 'done') as 'done') }); }
   catch (e) { fail(res, e); }
 });
+const vAct = (fn: (m: Awaited<ReturnType<typeof vp>>, b: Record<string, unknown>) => Promise<unknown>) => async (req: import('express').Request, res: import('express').Response) => {
+  try { const m = await vp(); const r = await fn(m, (req.body ?? {}) as Record<string, unknown>); res.json(r && typeof r === 'object' && 'added' in (r as object) ? r : { voyage: r }); } catch (e) { fail(res, e); }
+};
+router.post('/voyages/modify', vAct((m, b) => m.modifyVoyage(String(b['id']), String(b['instruction'] ?? ''))));
+router.post('/voyages/options', vAct((m, b) => m.moreOptions(String(b['id']))));
+router.post('/voyages/spend', vAct((m, b) => m.voyageSpend(String(b['id']), Number(b['amount']), String(b['label'] ?? ''), b['remove'] ? String(b['remove']) : undefined)));
+router.post('/voyages/start', vAct((m, b) => m.setVoyageStart(String(b['id']), String(b['start'] ?? ''))));
+router.post('/voyages/tasks', vAct((m, b) => m.checklistToTasks(String(b['id']))));
 router.post('/voyages/delete', async (req, res) => { try { await (await vp()).deleteVoyage(String(req.body?.id ?? '')); res.json({ ok: true }); } catch (e) { fail(res, e); } });
 router.post('/voyages/pdf', async (req, res) => {
   try { const m = await vp(); const v = await m.getVoyage(String(req.body?.id ?? '')); if (!v || v.status !== 'ready') throw new Error('Plan pas prêt');

@@ -14,8 +14,12 @@ interface Voyage {
   lignes?: Array<{ label: string; amount: number; note?: string }>; total?: number; departImpact?: string; error?: string;
   objectifs?: Array<{ icon: string; title: string; text: string; done?: boolean }>; options?: Array<{ icon: string; title: string; text: string; done?: boolean; no?: boolean }>;
   checklist?: Array<{ label: string; when?: string; done?: boolean }>;
+  start?: string | null; spent?: Array<{ id: string; d: string; label: string; amount: number }>; changes?: Array<{ at: number; text: string }>; tasksSent?: number; version?: number;
 }
-const TABS: Array<[string, string]> = [['plan', 'Le plan'], ['lieux', 'À visiter'], ['budget', 'Budget'], ['options', '30 options'], ['check', 'Check-list']];
+const maps = (l: { name: string; city: string }) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${l.name} ${l.city}`)}`;
+const todayStr = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Brussels' });
+const dayDiff = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86_400_000);
+const TABS: Array<[string, string]> = [['plan', 'Le plan'], ['lieux', 'À visiter'], ['budget', 'Budget'], ['depenses', 'Dépenses'], ['options', 'Options'], ['check', 'Check-list']];
 
 export default function VoyagesScreen() {
   const [list, setList] = useState<Voyage[] | null>(null);
@@ -24,6 +28,9 @@ export default function VoyagesScreen() {
   const [ask, setAsk] = useState(false);
   const [form, setForm] = useState({ request: '', days: '30', last: '' });
   const [msg, setMsg] = useState('');
+  const [mod, setMod] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [sp, setSp] = useState({ amount: '', label: '' });
   const timer = useRef<number | null>(null);
 
   const load = useCallback(async () => {
@@ -54,6 +61,11 @@ export default function VoyagesScreen() {
       if (r.base64) { const a = document.createElement('a'); a.href = `data:application/pdf;base64,${r.base64}`; a.download = r.name ?? 'voyage.pdf'; a.click(); }
     } catch (e) { flash(`⚠️ ${(e as Error).message}`); }
   };
+  const act = async (path: string, body: Record<string, unknown>, ok: string) => {
+    setBusy(true);
+    try { const r = await post<{ voyage?: Voyage; added?: number }>(`/api/mon-argent/voyages/${path}`, body); if (r.voyage) setList(l => (l ?? []).map(x => (x.id === r.voyage!.id ? r.voyage! : x))); flash(ok.replace('{n}', String(r.added ?? ''))); return r; }
+    catch (e) { flash(`⚠️ ${(e as Error).message.replace(/^API \d+: /, '')}`); return null; } finally { setBusy(false); }
+  };
   const del = async (v: Voyage) => { if (!window.confirm(`Supprimer « ${v.title} » ?`)) return; await post('/api/mon-argent/voyages/delete', { id: v.id }).catch(() => {}); setOpen(null); void load(); };
 
   const v = list?.find(x => x.id === open) ?? null;
@@ -70,7 +82,7 @@ export default function VoyagesScreen() {
                 <span style={{ fontSize: 24 }}>{x.status === 'preparing' ? '⏳' : x.status === 'failed' ? '❌' : '🧳'}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{x.title}</div>
-                  <div style={{ fontSize: 12.5, color: T.muted, marginTop: 2 }}>{x.status === 'preparing' ? 'Préparation en cours (3 à 5 min)…' : x.status === 'failed' ? (x.error ?? 'échec') : `${x.days} jours · ${money(x.total ?? 0)}${x.lastCost ? ` (dernière fois ${money(x.lastCost)})` : ''}`}</div>
+                  <div style={{ fontSize: 12.5, color: T.muted, marginTop: 2 }}>{x.status === 'preparing' ? 'Préparation en cours (3 à 5 min)…' : x.status === 'failed' ? (x.error ?? 'échec') : `${x.start && dayDiff(todayStr(), x.start) > 0 ? `J-${dayDiff(todayStr(), x.start)} · ` : ''}${x.days} jours · ${money(x.total ?? 0)}${x.lastCost ? ` (dernière fois ${money(x.lastCost)})` : ''}`}</div>
                 </div>
                 {x.status === 'ready' && <span style={{ color: T.muted }}>›</span>}
                 {x.status === 'failed' && <button onClick={e => { e.stopPropagation(); void del(x); }} style={{ border: 'none', background: 'transparent', color: T.bad, cursor: 'pointer' }}>🗑</button>}
@@ -99,6 +111,22 @@ export default function VoyagesScreen() {
           </div>
           {tab === 'plan' && <>
             {v.resume && <div style={{ fontSize: 14, lineHeight: 1.5, color: T.text, marginBottom: 12 }}>{v.resume}</div>}
+            {/* Date de départ → compte à rebours + combien mettre de côté par semaine */}
+            <div style={{ ...glass(T.warn), borderRadius: 18, padding: 12, marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>📅 Départ</span>
+                <input type="date" value={v.start ?? ''} onChange={e => e.target.value && void act('start', { id: v.id, start: e.target.value }, '📅 Date de départ notée')} style={{ ...inputStyle, width: 160, padding: '6px 8px' }} />
+              </div>
+              {v.start && (() => { const d = dayDiff(todayStr(), v.start!), w = Math.max(1, Math.ceil(d / 7)); return d > 0
+                ? <div style={{ fontSize: 13, color: T.muted, marginTop: 8 }}>⏳ <b style={{ color: T.text }}>J-{d}</b> · pour payer {money(v.total ?? 0)} sans toucher à ton épargne du départ : <b style={{ color: T.text }}>{money(Math.ceil((v.total ?? 0) / w))} par semaine</b> pendant {w} semaine{w > 1 ? 's' : ''}.</div>
+                : d > -v.days ? <div style={{ fontSize: 13, color: T.ok, marginTop: 8, fontWeight: 700 }}>🌴 Tu es en vacances : jour {1 - d} sur {v.days}. Note tes dépenses dans l'onglet Dépenses.</div>
+                : <div style={{ fontSize: 13, color: T.muted, marginTop: 8 }}>Voyage terminé.</div>; })()}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <input value={mod} onChange={e => setMod(e.target.value)} placeholder="Changer le plan : moins cher, ajoute Tlemcen, 3 semaines…" style={{ ...inputStyle, flex: 1 }} />
+              <Btn variant="primary" disabled={busy || mod.trim().length < 3} onClick={() => void act('modify', { id: v.id, instruction: mod }, '✏️ Je refais le plan (1 à 3 min)').then(r => { if (r) { setMod(''); setOpen(null); } })}>✏️</Btn>
+            </div>
+            {v.changes?.length ? <div style={{ fontSize: 12, color: T.faint, marginBottom: 10 }}>Modifié : {v.changes.map(c => `« ${c.text} »`).join(', ')}</div> : null}
             {v.objectifs?.length ? <><SectionTitle>🎯 Objectifs</SectionTitle>
               {v.objectifs.map((o, i) => <Check key={i} done={o.done} onClick={() => void tick(v.id, 'objectif', i, o.done ? 'undo' : 'done')} title={`${o.icon ?? ''} ${o.title}`} text={o.text} />)}</> : null}
             {v.villes?.length ? <><SectionTitle>📍 Les villes</SectionTitle>{v.villes.map(c => <div key={c.name} style={{ fontSize: 13.5, marginBottom: 6 }}><b>{c.name}</b> · {c.nights} nuits — <span style={{ color: T.muted }}>{c.why}</span></div>)}</> : null}
@@ -112,7 +140,8 @@ export default function VoyagesScreen() {
           </>}
           {tab === 'lieux' && (v.lieux ?? []).map((l, i) => (
             <div key={i} style={{ ...glass(), borderRadius: 16, padding: '10px 12px', marginBottom: 8 }}>
-              <div style={{ fontSize: 14, fontWeight: 700 }}>{l.name} <span style={{ color: T.muted, fontWeight: 500 }}>· {l.city}</span></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div style={{ fontSize: 14, fontWeight: 700, flex: 1 }}>{l.name} <span style={{ color: T.muted, fontWeight: 500 }}>· {l.city}</span></div>
+                <a href={maps(l)} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, fontWeight: 700, color: T.accent, textDecoration: 'none' }}>🗺 Maps</a></div>
               <div style={{ fontSize: 13, color: T.muted, marginTop: 3, lineHeight: 1.45 }}>{l.why}{l.when ? ` · ${l.when}` : ''}</div>
               <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>{l.for && <Badge color={T.violet}>{l.for}</Badge>}{l.price && <Badge color={T.ok}>{l.price}</Badge>}</div>
             </div>
@@ -124,6 +153,30 @@ export default function VoyagesScreen() {
             {v.departImpact && <div style={{ fontSize: 13, color: T.muted, marginTop: 6 }}>{v.departImpact}</div>}
             <div style={{ fontSize: 11.5, color: T.faint, marginTop: 10 }}>Montants estimés : vérifie au moment de réserver.</div>
           </>}
+          {tab === 'depenses' && (() => {
+            const spent = (v.spent ?? []).reduce((a, x) => a + x.amount, 0), left = (v.total ?? 0) - spent;
+            const d = v.start ? dayDiff(todayStr(), v.start) : null, daysLeft = d !== null ? Math.max(1, Math.min(v.days, v.days + d)) : null;
+            return <>
+              <div style={{ ...glass(left >= 0 ? T.ok : T.bad), borderRadius: 18, padding: 14, marginBottom: 12 }}>
+                <div style={{ display: 'flex', fontSize: 13.5 }}><span style={{ flex: 1 }}>Dépensé</span><b>{money(spent)} / {money(v.total ?? 0)}</b></div>
+                <div style={{ height: 8, borderRadius: 4, background: 'rgba(var(--dz-ink-rgb),0.07)', marginTop: 8 }}><div style={{ height: '100%', width: `${Math.min(100, spent / Math.max(1, v.total ?? 1) * 100)}%`, borderRadius: 4, background: left >= 0 ? T.ok : T.bad }} /></div>
+                <div style={{ fontSize: 13, marginTop: 8, color: left >= 0 ? T.text : T.bad, fontWeight: 700 }}>Reste {money(left)}{daysLeft && d !== null && d <= 0 ? ` · ${money(left / daysLeft)} par jour pour ${daysLeft} jours` : ''}</div>
+                {v.lastCost ? <div style={{ fontSize: 12, color: T.muted, marginTop: 4 }}>La dernière fois : {money(v.lastCost)}</div> : null}
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <input inputMode="decimal" value={sp.amount} onChange={e => setSp({ ...sp, amount: e.target.value })} placeholder="€" style={{ ...inputStyle, width: 80 }} />
+                <input value={sp.label} onChange={e => setSp({ ...sp, label: e.target.value })} placeholder="essence, resto, bateau…" style={{ ...inputStyle, flex: 1 }} />
+                <Btn variant="primary" disabled={busy || !(Number(sp.amount.replace(',', '.')) > 0)} onClick={() => void act('spend', { id: v.id, amount: Number(sp.amount.replace(',', '.')), label: sp.label }, '🧾 Dépense notée').then(r => { if (r) setSp({ amount: '', label: '' }); })}>＋</Btn>
+              </div>
+              {[...(v.spent ?? [])].reverse().map(x => (
+                <div key={x.id} style={{ display: 'flex', gap: 8, padding: '8px 0', borderBottom: `1px solid ${T.line}`, fontSize: 13.5 }}>
+                  <span style={{ color: T.faint, width: 44 }}>{x.d.slice(8, 10)}/{x.d.slice(5, 7)}</span><span style={{ flex: 1 }}>{x.label}</span><b>{money(x.amount)}</b>
+                  <button onClick={() => void act('spend', { id: v.id, remove: x.id }, 'Supprimée')} style={{ border: 'none', background: 'transparent', color: T.faint, cursor: 'pointer' }}>✕</button>
+                </div>))}
+              <div style={{ fontSize: 12, color: T.faint, marginTop: 10 }}>Sur Telegram : « voyage -60 essence ».</div>
+            </>;
+          })()}
+          {tab === 'options' && <Btn disabled={busy} onClick={() => void act('options', { id: v.id }, '💡 30 nouvelles options')} style={{ width: '100%', marginBottom: 10 }}>{busy ? 'Je cherche…' : '💡 30 nouvelles options (garde celles cochées)'}</Btn>}
           {tab === 'options' && (v.options ?? []).map((o, i) => (
             <div key={i} style={{ ...glass(o.done ? T.ok : undefined), borderRadius: 16, padding: '10px 12px', marginBottom: 8, opacity: o.no ? 0.45 : 1 }}>
               <div style={{ display: 'flex', gap: 8 }}><span style={{ fontSize: 18 }}>{o.icon}</span><div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 700 }}>{i + 1}. {o.title}</div><div style={{ fontSize: 13, color: T.muted, marginTop: 3, lineHeight: 1.45 }}>{o.text}</div></div></div>
@@ -133,6 +186,7 @@ export default function VoyagesScreen() {
               </div>
             </div>
           ))}
+          {tab === 'check' && <Btn disabled={busy} onClick={() => void act('tasks', { id: v.id }, '✅ {n} points ajoutés à À faire')} style={{ width: '100%', marginBottom: 10 }}>{v.tasksSent ? '✅ Renvoyer ce qui reste dans À faire' : '✅ Mettre la check-list dans À faire (Aujourd\'hui)'}</Btn>}
           {tab === 'check' && (v.checklist ?? []).map((c, i) => <Check key={i} done={c.done} onClick={() => void tick(v.id, 'check', i, c.done ? 'undo' : 'done')} title={c.label} text={c.when} />)}
         </Sheet>
       )}

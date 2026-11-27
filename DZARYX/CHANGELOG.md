@@ -1,3 +1,10 @@
+## 27/11 — Améliorations MES VOYAGES + MON ANALYSE (app v326)
+- Kouider : « rajoute des améliorations au maximum ».
+- VOYAGES : modifier le plan en une phrase (« moins cher », « ajoute Tlemcen », « 3 semaines » → refait avec les mêmes recherches, coches gardées), 30 nouvelles options (garde celles cochées), date de départ → J-x + combien mettre de côté par semaine, onglet Dépenses (budget restant, par jour pendant le voyage), dépenses « -50 essence » ajoutées seules au voyage en cours, check-list → À faire (datée depuis le départ : « 1 mois avant », « la veille »…), lieux → Google Maps (app + liens dans le PDF), PDF avec dépenses. Outil voyage : modifier/options/date/taches/depense.
+- PDF : le signe € était effacé (filtre Latin-1) → gardé.
+- ANALYSE : engagements « je le fais » gardés sur le serveur (perso:analyse:engage, « je m'engage sur la 3 » sur Telegram) et repris dans l'avis ; historique quotidien (perso:analyse:hist) → « le JJ/MM : … » sur chaque objectif ; simulateur « et si » (pièces/jour, dépenses, jours FIK, autre revenu → date de départ) ; options numérotées.
+- Aujourd'hui : la tuile Stock snus montre pièces + jours restants (rouge sous 7 j).
+
 ## 27/11 — Tout mon cash sans « 127 », raccourci Stock snus, MON ANALYSE, MES VOYAGES
 - Kouider : « la 1re fois il reste à 127, il va pas direct au total » → la carte de secours « À récupérer » s'affichait tant que /api/mon-argent n'avait pas répondu. Dernier chiffre gardé sur le téléphone (dz:ma:last) et affiché tout de suite ; ancienne carte seulement sur un vrai 403. CountUp part du chiffre affiché (plus de retour à 0).
 - Stock snus : « 📦 stock › » cliquable dans la carte argent du jour + 3 raccourcis sur Aujourd'hui (Stock snus, Mon analyse, Mes voyages) ; menu renommé STOCK SNUS.

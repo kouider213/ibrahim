@@ -358,11 +358,14 @@ export async function runMoneyCommand(c: MoneyCommand): Promise<string> {
     l.push({ d: o.date, t: o.kind, cat: o.cat, amount: o.amount, mode: 'cash', note: 'auto', at: Date.now() });
     await kvPut(J, l);
     const name = o.kind === 'achat' ? `commande ${o.cat}` : o.cat;
-    if (f.sideCash == null && o.left === undefined) return `✅ −${eur(o.amount)} pour ${name} noté. Ton cash n'est pas encore noté : dis « cash 2400 » avec le total.`;
+    // 27/11 : pendant un voyage (MES VOYAGES, dates en cours) la dépense compte aussi dans le budget du voyage
+    const trip = o.kind === 'depense' ? await import('./voyage-plan.js').then(m => m.activeTripSpend(o.amount, o.cat, o.date)).catch(() => '') : '';
+    const tl = trip ? `\n${trip}` : '';
+    if (f.sideCash == null && o.left === undefined) return `✅ −${eur(o.amount)} pour ${name} noté. Ton cash n'est pas encore noté : dis « cash 2400 » avec le total.${tl}`;
     const before = f.sideCash ?? 0, after = Math.max(0, o.left ?? Math.round(before - o.amount));
     await kvPut('perso:finances', { ...f, sideCash: after, sideCashAt: localNow().date, updated: localNow().date });
     await logCash({ d: o.date, delta: after - before, cash: after, why: name, kind: o.kind === 'achat' ? 'commande' : 'depense' });
-    return `✅ −${eur(o.amount)} en cash pour ${name}. Cash : ${eur(before)} → ${eur(after)}.\n${(await totalText()).split('\n')[0]!}`;
+    return `✅ −${eur(o.amount)} en cash pour ${name}. Cash : ${eur(before)} → ${eur(after)}.\n${(await totalText()).split('\n')[0]!}${tl}`;
   }
   if (c.sale) {
     const l = await journal();

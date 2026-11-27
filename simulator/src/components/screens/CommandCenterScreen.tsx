@@ -200,6 +200,8 @@ export default function CommandCenterScreen() {
             {([['📦', 'Stock snus', 'stocksnus', '#14b8a6'], ['🧭', 'Mon analyse', 'analyse', '#3d6bff'], ['🧳', 'Mes voyages', 'voyages', '#f59e0b']] as const).map(([i, l, p, c]) => (
               <button key={p} onClick={() => go(p)} className="dz-press" style={{ border: '1px solid var(--dz-card-line)', background: 'var(--dz-card)', borderRadius: 18, padding: '12px 6px', cursor: 'pointer', fontFamily: T.font, color: T.text, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, boxShadow: `${T.shadow}, 0 10px 24px -16px ${c}` }}>
                 <span style={{ fontSize: 22 }}>{i}</span><span style={{ fontSize: 12.5, fontWeight: 700 }}>{l}</span>
+                {p === 'stocksnus' && ma.extras?.stock && (() => { const pcs = ma.extras!.stock!.pieces, days = ma.snus?.perDay ? Math.floor(pcs / ma.snus.perDay) : null;
+                  return <span style={{ fontSize: 11, fontWeight: 700, color: days !== null && days < 7 ? T.bad : T.muted }}>{pcs} pcs{days !== null ? ` · ≈ ${days} j` : ''}</span>; })()}
               </button>
             ))}
           </div>}

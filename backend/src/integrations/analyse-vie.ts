@@ -15,6 +15,16 @@ const ymL = (ym: string) => `${MOIS[+ym.slice(5, 7) - 1]} ${ym.slice(0, 4)}`;
 const dL = (d: string) => `${+d.slice(8, 10)} ${MOIS[+d.slice(5, 7) - 1]} ${d.slice(0, 4)}`;
 const addDays = (d: string, n: number) => { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
 
+const HIST = 'perso:analyse:hist', ENG = 'perso:analyse:engage';
+
+/** « Je le fais » sur une option (app ou Telegram) — Dzaryx s'en sert dans son avis. */
+export async function engage(id: string, on: boolean): Promise<Record<string, { at: string }>> {
+  const e = await kvJson<Record<string, { at: string }>>(ENG, {});
+  if (on) e[id] = { at: localNow().date }; else delete e[id];
+  await kvPut(ENG, e); await kvPut('perso:analyse:avis', null).catch(() => {});
+  return e;
+}
+
 export interface Objectif { id: string; icon: string; title: string; now: string; target: string; pct: number | null; by: string | null; text: string; tone: 'ok' | 'warn' | 'info' }
 export interface OptionSi { id: string; icon: string; cat: 'argent' | 'depart' | 'snus' | 'fik' | 'corps' | 'sommeil' | 'famille'; si: string; alors: string; auLieu?: string; gain?: string; effort: 1 | 2 | 3 }
 
@@ -130,7 +140,18 @@ export async function analyseVie() {
   if (need && i0 !== null) { const i5 = reach(-(avgMonth * 0.1));
     add({ id: 'piege', icon: '⚠️', cat: 'depart', si: 'Tu laisses filer 10 % de plus chaque mois en petites dépenses', alors: `départ en ${dateOf(i5)}`, auLieu: dd?.departLabel, gain: i5 !== null ? `${i5 - i0} mois perdus` : 'départ repoussé de plusieurs années', effort: 1 }); }
 
-  return { today, objectifs: obj, options: opts.slice(0, 20), depart: dd ? { label: dd.departLabel, best: dd.departBest, slow: dd.departSlow, pct: dd.pct } : null };
+  // 27/11 v2 : historique (1 photo par jour) → « il y a 7 jours » sur chaque objectif ; engagements « je le fais »
+  const hist = await kvJson<Record<string, Record<string, { now: string; by: string | null; pct: number | null }>>>(HIST, {});
+  hist[today] = Object.fromEntries(obj.map(x => [x.id, { now: x.now, by: x.by, pct: x.pct }]));
+  const keep = Object.keys(hist).sort().slice(-60);
+  await kvPut(HIST, Object.fromEntries(keep.map(k => [k, hist[k]!]))).catch(() => {});
+  const ref = keep.filter(k => k <= addDays(today, -7)).pop() ?? (keep[0] !== today ? keep[0] : undefined);
+  const before = ref ? { date: ref, items: hist[ref]! } : null;
+  const engaged = await kvJson<Record<string, { at: string }>>(ENG, {});
+  return { today, objectifs: obj, options: opts.slice(0, 20), depart: dd ? { label: dd.departLabel, best: dd.departBest, slow: dd.departSlow, pct: dd.pct } : null,
+    before, engaged,
+    // simulateur « et si… » côté app : même courbe que le plan de départ
+    sim: dd && need ? { curve: curve.slice(0, 180), need, nowYm, marge: marge ?? 2, fikDay: 8, departLabel: dd.departLabel } : null };
 }
 
 /** « Mon avis » : 5-6 lignes écrites à partir des calculs (gardé 6 h). */
@@ -139,7 +160,10 @@ export async function analyseAvis(force = false): Promise<string> {
   const c = await kvJson<{ at: number; text: string } | null>(key, null);
   if (!force && c && Date.now() - c.at < 6 * 3600_000) return c.text;
   const a = await analyseVie();
+  const eng = Object.keys(a.engaged ?? {});
   const facts = [
+    ...(eng.length ? [`IL S'EST ENGAGÉ À : ${a.options.filter(o => eng.includes(o.id)).map(o => `${o.si} (depuis le ${a.engaged[o.id]!.at})`).join(' ; ')} — encourage-le sur ça en premier.`] : []),
+    ...(a.before ? a.objectifs.filter(x => a.before!.items[x.id] && a.before!.items[x.id]!.now !== x.now).map(x => `Évolution depuis le ${a.before!.date} : ${x.title} ${a.before!.items[x.id]!.now} → ${x.now}`) : []),
     ...a.objectifs.map(x => `${x.title} : ${x.now} → ${x.target}${x.by ? ` (${x.by})` : ''}. ${x.text}`),
     ...a.options.map(x => `SI ${x.si} → ${x.alors}${x.auLieu ? ` au lieu de ${x.auLieu}` : ''}${x.gain ? ` (${x.gain})` : ''}`),
   ].join('\n');
@@ -151,15 +175,25 @@ export async function analyseAvis(force = false): Promise<string> {
 }
 
 /** Texte pour Telegram (outil mon_analyse). */
+export async function analyseTool(input: Record<string, unknown>): Promise<string> {
+  if (input['action'] === 'engage' || input['action'] === 'desengage') {
+    const a = await analyseVie(); const n = Number(input['n']); const o = a.options[n - 1];
+    if (!o) return `Option ${n} introuvable (1 à ${a.options.length}).`;
+    await engage(o.id, input['action'] === 'engage');
+    return input['action'] === 'engage' ? `✅ Engagé : « ${o.si} » → ${o.alors}. Je te suis dessus.` : `Option ${n} retirée de tes engagements.`;
+  }
+  return analyseText();
+}
+
 export async function analyseText(): Promise<string> {
   const [a, avis] = await Promise.all([analyseVie(), analyseAvis().catch(() => '')]);
   return [
     '🧭 MON ANALYSE',
     '', 'OBJECTIFS',
-    ...a.objectifs.map(x => `${x.icon} ${x.title} : ${x.now} → ${x.target}${x.by ? ` · ${x.by}` : ''}\n   ${x.text}`),
+    ...a.objectifs.map(x => `${x.icon} ${x.title} : ${x.now} → ${x.target}${x.by ? ` · ${x.by}` : ''}${a.before?.items[x.id] && a.before.items[x.id]!.now !== x.now ? ` (le ${a.before.date.slice(8, 10)}/${a.before.date.slice(5, 7)} : ${a.before.items[x.id]!.now})` : ''}\n   ${x.text}`),
     '', '20 OPTIONS — SI TU FAIS ÇA…',
-    ...a.options.map((x, i) => `${i + 1}. ${x.icon} Si ${x.si.charAt(0).toLowerCase()}${x.si.slice(1)} → ${x.alors}${x.auLieu ? ` (au lieu de ${x.auLieu})` : ''}${x.gain ? ` · ${x.gain}` : ''}`),
+    ...a.options.map((x, i) => `${i + 1}. ${a.engaged[x.id] ? '✅ ' : ''}${x.icon} Si ${x.si.charAt(0).toLowerCase()}${x.si.slice(1)} → ${x.alors}${x.auLieu ? ` (au lieu de ${x.auLieu})` : ''}${x.gain ? ` · ${x.gain}` : ''}`),
     ...(avis ? ['', '💬 MON AVIS', avis] : []),
-    '', 'Tout est aussi dans l\'app : Plus › MON ANALYSE.',
+    '', 'Dis « je m\'engage sur la 3 » pour que je te suive dessus. Tout est aussi dans l\'app : MON ANALYSE (simulateur « et si » compris).',
   ].join('\n');
 }
