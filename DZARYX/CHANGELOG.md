@@ -1,3 +1,10 @@
+## 27/11 — MON ARGENT v2 : snus à la pièce, appartement = prix client − propriétaire, graphiques, départ, 20 repères, conseiller + carte sur Aujourd'hui (app v310)
+- Kouider : « le +1 c'est le nombre de pièces de snus : 6 € la pièce, 5 € pour certains clients, dès 10 = 50 € les 10 sauf certains (60 €) ; appartement = prix client − prix propriétaire ; vente voiture / autre (heures sup) = je donne le montant ; dans Aujourd'hui ; meilleurs graphiques ; un vrai suivi qui conseille, avance ou recule le départ ; 20 trucs auxquels je n'aurais pas pensé ».
+- Snus : +1/+2/+5/+10 pièces, tarifs Normal (6 €, ≥ 10 → 5 €), Client à 5 €, Sans ristourne (6 €) ; qty/unit/tarif gardés dans perso:journal ; marge réelle/pièce = prix moyen − coût du stock (perso:finances.side.order).
+- Appartement : prix client − prix propriétaire (pas encore relié à IMMO : les biens n'ont ni prix propriétaire ni réservations). Vente voiture / Autre : montant + note.
+- Page : carte verte façon Aujourd'hui, anneau des sources du mois, barres empilées 6 mois + 30 jours, départ pour Oran (algerie-plan buildPlan, cache 6 h) avec barre de progression, 20 repères calculés par le code (marge, ristournes, stock, rythme, coussin, cash qui dort, 50/30/20, taux d'épargne, part FIK, ce qui suit à Oran, zakat…), conseiller (POST /api/mon-argent/advise : capital + revenus + départ, recherche web, 5 parties).
+- Aujourd'hui : carte « Mon argent » (total du jour, snus du jour, +1/+5/+10 → Noter), cachée pour un autre compte.
+
 ## 27/11 — Voiture : récap global du matin (WhatsApp, TikTok, réservations, priorité)
 - Kouider : « le matin quand je vais à la salle… un récap global WhatsApp, TikTok, réservations et autre sur le CarPlay ou en appel ».
 - jarvis4 carBrief avant 11h : + recap_matin (TikTok sans réponse / en cours, demandes WhatsApp ouvertes, réservations des 7 jours, priorité du Grand Coach), 4 phrases / 65 mots. Numéros jamais lus (priorité anonymisée), demandes « sans suite » plus annoncées, plus de « je ne peux pas vous annoncer… ».

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { openClient } from '../ClientSheet.tsx';
 import { business, apiFetch, type TodayItem, type Booking, type ProfitLedger } from '../../services/api.ts';
 import { SkeletonCards } from '../ui/Premium.tsx';
+import { MonArgentMini } from './MonArgentMini.tsx';
 import { T, tone, Screen, PageHeader, HeadBtn, Kpi, KpiGrid, SectionTitle, Row, Avatar, Badge, Empty, waLink, money, glass, CountUp } from '../ui/Kit.tsx';
 import { Icon, Ico } from '../ui/Icon.tsx';
 import MeCard from './MeCard.tsx';
@@ -182,6 +183,9 @@ export default function CommandCenterScreen() {
               ))}
             </div>
           </div>
+
+          {/* 27/11 Mon argent (privé, 403 pour un autre compte → caché) : snus +1 sans chercher la page */}
+          <MonArgentMini />
 
           {/* Raccourcis : ronds blancs, libellé dessous */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 6, marginBottom: 22 }}>
