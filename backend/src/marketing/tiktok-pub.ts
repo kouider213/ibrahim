@@ -728,7 +728,7 @@ async function renderPub(job: StudioJob, plan: PubPlan, scenes: Scene[], model: 
       '✍️ Légende :', caption,
       '',
       plan.pinned_comment ? `📌 Commentaire à épingler juste après la publication :\n${plan.pinned_comment}\n` : '',
-      prime ? `⏰ Meilleur moment pour poster : ${prime.label} — ${prime.why}.${slots.filter(s => s !== prime).slice(0, 2).map(s => `\n   Autre créneau : ${s.label}`).join('')}\n   Choisis avec les boutons ci-dessous : je la publie moi-même sur ton TikTok, maintenant ou à ce moment-là.\n` : '',
+      prime ? `⏰ Meilleur moment pour poster : ${prime.label} — ${prime.why}.${slots.filter(s => s !== prime).slice(0, 2).map(s => `\n   Autre créneau : ${s.label}`).join('')}\n   👉 Tu la valides ? Réponds ici « je valide » : je la publie moi-même sur ton TikTok à ce moment-là (ou « publie-la maintenant »).\n` : '',
       `🎣 Hook utilisé : « ${plan.hook} » (pris sur le moment le plus fort des vidéos de voitures).${plan.alt_hooks.length ? `\n   Hooks de secours pour un 2e post : ${plan.alt_hooks.map(h => `« ${h} »`).join(' · ')}` : ''}`,
       '',
       team ? team : '',
@@ -1007,19 +1007,36 @@ const NOT_PUB = /photo|bilan|lien|position|localisation|num[ée]ro|contact|docum
 const PUB_BEST = /meilleur|bon (moment|cr[ée]neau|horaire)|bonne heure|au bon moment|plus tard|quand (c'est|il faut)|cr[ée]neau|programm/i;
 const PUB_NOW = /maintenant|tout de suite|direct|de suite|now/i;
 
+// 28/11 Kouider : « pour les pubs TikTok, il doit me proposer de la partager à la bonne heure si je valide la vidéo ».
+// Les boutons partent par le bot des notifs (autre chat) → dans le chat Dzaryx il répond avec ses mots : « je valide », « elle est bien »,
+// « partage-la » = publiée AU MEILLEUR CRÉNEAU (jamais tout de suite sauf « maintenant »). Créneau passé → le prochain bon créneau.
+const PUB_OK = /^(je (la )?valide|valid[ée]e?|valide[- ]la|c'?est valid[ée]|elle est (bien|top|parfaite|bonne|nickel|valid[ée]e)|top|parfait|nickel|j'?aime bien|ok (pour )?(la )?(pub|vid[ée]o))(?![a-zà-ÿ])/i;
+async function nextSlot(job: StudioJob): Promise<{ at: string; label: string }> {
+  const saved = (await pubSlots()).find(x => x.jobId === job.id && Date.parse(x.at) - Date.now() > 5 * 60_000);
+  const at = saved ? new Date(saved.at) : (bestPostSlots().find(x => x.prime) ?? bestPostSlots()[0])?.at;
+  const d = at ?? new Date(Date.now() + 3600_000);
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Algiers' }) === d.toLocaleDateString('en-CA', { timeZone: 'Africa/Algiers' });
+  const h = d.toLocaleTimeString('fr-FR', { timeZone: 'Africa/Algiers', hour: '2-digit', minute: '2-digit' });
+  return { at: d.toISOString(), label: `${today ? 'aujourd\'hui' : d.toLocaleDateString('fr-FR', { timeZone: 'Africa/Algiers', weekday: 'long' })} à ${h} (heure d'Oran)` };
+}
 export async function handlePubPublishReply(message: string): Promise<{ reply: string } | null> {
-  const m = message.trim();
-  if (m.length > 120 || !PUB_VERB.test(m) || !PUB_OBJ.test(m)) return null;
+  let m = message.trim(); for (let i = 0; i < 3; i++) { const x = m.match(/^\s*\[[\s\S]*?\]\s*/); if (!x) break; m = m.slice(x[0].length); }
+  if (m.length > 120) return null;
+  const ok = PUB_OK.test(m);
+  if (!ok && (!PUB_VERB.test(m) || !PUB_OBJ.test(m))) return null;
   if (/whats ?app|\bwa\b|instagram|facebook|snap/i.test(m) || NOT_PUB.test(m)) return null;      // pubs = TikTok seulement : on laisse le cerveau répondre
-  if (/\b(pas|ne|non)\b.*\b(publi|partag|post)/i.test(m)) return null;
+  if (/\b(pas|ne|non)\b.*\b(publi|partag|post|valid)/i.test(m)) return null;
   const job = await findPub();
   if (!job || Date.now() - Date.parse(job.updatedAt) > 24 * 3600_000) return null;
-  if ((await postedPubIds()).some(p => p.id === job.id)) return { reply: `ℹ️ « ${job.title} » est déjà publiée sur TikTok.` };
-  if (PUB_BEST.test(m) && !PUB_NOW.test(m)) {
-    const slot = (await pubSlots()).find(s => s.jobId === job.id && Date.parse(s.at) - Date.now() > 5 * 60_000);
-    if (!slot) return { reply: await publishPubTool({ job_id: job.id }) };       // créneau passé → maintenant
-    return { reply: await publishPubTool({ job_id: job.id, at: slot.at }) };
+  if (ok && !PUB_OBJ.test(m)) {
+    // « je valide » tout seul : seulement si la pub est le dernier sujet (< 3 h) et qu'aucun brouillon WhatsApp/TikTok n'attend un oui
+    if (Date.now() - Date.parse(job.updatedAt) > 3 * 3600_000) return null;
+    const { kvGet } = await import('../integrations/app-store.js');
+    if ((await kvGet('wa:pending').catch(() => null))?.trim()) return null;
   }
-  if (PUB_NOW.test(m) || m.length <= 40) return { reply: await publishPubTool({ job_id: job.id }) };
-  return null;
+  if ((await postedPubIds()).some(p => p.id === job.id)) return { reply: `ℹ️ « ${job.title} » est déjà publiée sur TikTok.` };
+  if (PUB_NOW.test(m) && !PUB_BEST.test(m)) return { reply: await publishPubTool({ job_id: job.id }) };
+  const slot = await nextSlot(job);
+  await publishPubTool({ job_id: job.id, at: slot.at });
+  return { reply: `✅ Pub « ${job.title} » validée.\n⏰ Le meilleur moment pour la partager : ${slot.label} (quand tes followers sont le plus actifs). Je la publie moi-même sur ton TikTok à cette heure-là et je te préviens quand elle est en ligne.\nTu préfères tout de suite ? Dis « publie-la maintenant ». Tu changes d'avis ? « ne publie pas la pub ».` };
 }

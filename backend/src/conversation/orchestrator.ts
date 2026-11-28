@@ -381,6 +381,16 @@ async function processMessageInner(
   }
   // LIBERTÉ en phrase normale (03/11 : « Je pris 6 demi aujourd'hui » → le cerveau a noté 6 DATTES dans le compteur calories)
   // → la prise est notée par le CODE dans Liberté, réponse directe
+  // 28/11 « Augmente le programme à 4 demi autorisé » → le cerveau a répondu « c'est mis à jour » sans rien changer → fait par le CODE
+  const allowRaise = actorUserId === 'kouider' && !sandbox ? (await import('../integrations/liberte.js')).parseAllowRaise(userMessage) : null;
+  if (allowRaise) {
+    const lib = await import('../integrations/liberte.js');
+    const done = await lib.liberteTool({ action: 'autoriser', n: allowRaise }, 'kouider').catch(e => `❌ échec : ${e instanceof Error ? e.message : e}`);
+    _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: done });
+    saveConversationTurn(sessionId, 'assistant', done).catch(() => {});
+    _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+    return { text: done, status: 'done' };
+  }
   const medCmd = actorUserId === 'kouider' && !sandbox ? (await import('../integrations/liberte.js')).parseMedTake(userMessage) : null;
   if (medCmd?.rest) {
     // Il dit autre chose que la prise (moral, travail…) : le code note, le cerveau RÉPOND à ce qu'il vit

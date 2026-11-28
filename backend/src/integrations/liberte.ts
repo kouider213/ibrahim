@@ -1043,6 +1043,34 @@ export async function liberteTool(input: Record<string, unknown>, sessionId?: st
       return `🪜 Marche adoucie : ${[...mids, s.steps[i + mids.length]!].map(st => `${fmtDate(st.from)} → ${halvesShort(st.max)}`).join(' · ')}. Jour zéro : ${fmtDate(zeroDay(s))}.${s.doctorPlan ? ' C\'est le plan de ton médecin : dis-lui ce changement au prochain RDV (il est plus doux, pas plus haut).' : ''}`;
     }
 
+    case 'autoriser': {
+      // 28/11 Kouider « Augmente le programme à 4 demi autorisé » (plan 6 → 3 d'un coup ce matin) → le cerveau a dit « c'est mis à jour »
+      // sans outil. SA décision : la marche du jour devient n, puis redescend d'1 demi tous les `days` jours jusqu'au niveau prévu ;
+      // la suite du plan recule d'autant. Jamais au-dessus de ce qu'il avait AVANT la baisse en cours.
+      const n = Math.round(Number(String(input['n'] ?? '').replace(',', '.')) * 2) / 2;
+      const i = s.steps.reduce((k, st, j) => st.from <= today ? j : k, -1);
+      if (!(n > 0)) return '❌ n = demis autorisés par jour (ex. 4).';
+      if (i < 0) return 'Le plan n\'a pas encore commencé.';
+      const cur = s.steps[i]!, prevMax = i > 0 ? s.steps[i - 1]!.max : s.baseline;
+      if (n <= cur.max) {
+        if (s.cap && s.cap.max < n) { delete s.cap; await saveLib(s); }
+        return `Le plan autorise déjà ${halvesShort(allowedOn(s, today))} aujourd'hui.`;
+      }
+      if (n > prevMax) return `❌ ${halvesShort(n)} c'est plus que ce qu'il avait avant la baisse (${halvesShort(prevMax)}) : impossible de remonter au-dessus. Maximum possible : ${halvesShort(prevMax)}.`;
+      const every = Math.min(7, Math.max(2, Math.round(Number(input['days'] ?? 3))));
+      const gap = Math.ceil(n - cur.max), shift = gap * every;
+      const mids: LibStep[] = Array.from({ length: gap }, (_, k) => ({ from: addDays(today, k * every), max: n - k }));
+      const after = s.steps.slice(i + 1).map(st => ({ from: addDays(st.from, shift), max: st.max }));
+      s.steps = [...s.steps.slice(0, cur.from < today ? i + 1 : i), ...mids, { from: addDays(today, shift), max: cur.max }, ...after];
+      delete s.cap;
+      await saveLib(s);
+      await addLog({ kind: 'palier', n: shift, note: `autorisé remonté à ${n} demis à sa demande (${cur.max} prévu), redescente 1 demi / ${every} j` });
+      const undone = await undoOverrun(s, today);
+      await syncAgenda(s).catch(err => console.error('[liberte] agenda:', err instanceof Error ? err.message : err));
+      const next = s.steps.filter(st => st.from > today);
+      return `${undone}✅ Fait : ${halvesShort(n)} autorisés par jour à partir d'aujourd'hui. Suite : ${next.map(st => `${fmtDate(st.from)} → ${halvesShort(st.max)}`).join(' · ')}. Jour zéro : ${fmtDate(zeroDay(s))}.${s.doctorPlan ? ' Dis-le à ton médecin au prochain RDV (c\'est plus doux que son plan).' : ''}`;
+    }
+
     case 'medecin': {
       const st = String(input['status'] ?? '');
       if (!['a_appeler', 'rdv_pris', 'vu'].includes(st)) return '❌ status = a_appeler | rdv_pris (date AAAA-MM-JJTHH:MM) | vu (note = ce qu\'a dit le médecin).';
@@ -1707,4 +1735,17 @@ export async function liberteStruggleHint(msg: string): Promise<string> {
     o.nextDrop ? `• Annonce la prochaine baisse (${fmtDate(o.nextDrop.from)} → ${halvesShort(o.nextDrop.max)}/jour) et laisse-le CHOISIR : la garder, ou rester quelques jours de plus au palier actuel (liberte action palier, jamais remonter) le temps de voir son médecin. N'appelle pas palier sans son oui.` : '',
     '• Puis son moral : médecin cette semaine (moral + travail + plan), psy de 1re ligne (11 €) ; idées noires → 112. Activités de repos AVANT ou APRÈS le travail, jamais pendant (aucune pause au travail).',
   ].filter(Boolean).join('\n');
+}
+
+/** 28/11 « Augmente le programme à 4 demi autorisé » → n (demis/jour) ; null si ce n'est pas une demande d'augmenter l'autorisé. */
+export function parseAllowRaise(text: string): number | null {
+  let raw = text; for (let i = 0; i < 3; i++) { const m = raw.match(/^\s*\[[\s\S]*?\]\s*/); if (!m) break; raw = raw.slice(m[0].length); }
+  const t = raw.toLowerCase().replace(/[’`]/g, "'").replace(/\bdemies?\b/g, 'demi').trim();
+  if (t.length > 200 || /\?/.test(t)) return null;
+  if (!/\b(augment\w*|remont\w*|monte|mets?|passe|change)\b/.test(t)) return null;
+  if (!/autoris|programme|plan\b|limite|droit|max/.test(t) && !/\b(augment\w*|remont\w*)\b/.test(t)) return null;
+  const m = /(\d+(?:[.,]5)?|un|une|deux|trois|quatre|cinq|six|sept|huit)\s*demis?\b/.exec(t);
+  if (!m) return null;
+  const n = Number(String(m[1]).replace(',', '.')) || NUM_WORDS[m[1]!] || 0;
+  return n > 0 && n <= 20 ? n : null;
 }

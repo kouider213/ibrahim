@@ -590,27 +590,81 @@ async function saveExamen(text: string): Promise<string> {
 }
 
 // L10 — Équilibre des 4 piliers (sur 10, 7 derniers jours, à partir des vraies données)
-async function piliers(): Promise<Record<string, number>> {
-  const today = localNow().date;
+// 28/11 Kouider (Business 0/10, Famille 0/10, Amis 0/10 alors qu'il a vendu et vit avec sa famille) : « faut qu'il donne les vraies infos,
+// le business ça doit être tout le cash ». Business = TOUT l'argent gagné de la semaine (ventes nettes du journal + bénéfice FIK)
+// face à ce qu'il doit mettre de côté par semaine pour le plan Algérie ; Santé = séances + sommeil ; Famille = vrais moments
+// (journal Mon esprit + temps avec Ibrahim) ; Amis = proches vus. Sans donnée → null (« pas de donnée »), jamais un faux 0.
+type Pilier = { score: number | null; info: string };
+async function piliersDetail(): Promise<Record<string, Pilier>> {
+  const today = localNow().date, from = addDays(today, -7);
+  const c = (x: number) => Math.max(0, Math.min(10, Math.round(x)));
   const votes = await kvJson<Record<string, Record<string, string[]>>>('life:votes', {});
   const ids = await kvJson<Array<{ name: string; kind: string }>>('life:identities', []);
   const count = (kind: string) => { let n = 0; for (let i = 0; i < 7; i++) { const v = votes[addDays(today, -i)] ?? {}; for (const id of ids.filter(x => x.kind === kind)) n += v[id.name]?.length ?? 0; } return n; };
-  let done = 0, total = 0;
-  for (let i = 0; i < 7; i++) { const b = await kvJson<Big3 | null>(K.big3(addDays(today, -i)), null); if (b) { total += 3; done += b.items.filter(x => x.done).length; } }
-  const cercle = (await kvJson<Person[]>(K.cercle, [])).filter(p => p.last && p.last >= addDays(today, -7)).length;
+  const esprit = (await import('./mon-esprit.js').then(m => m.readDays()).catch(() => [])).filter(d => d.date > from && d.date <= today);
+
+  // Business : tout le cash de la semaine
+  const ma = await import('./mon-argent.js');
+  const pm = await ma.periodMoney(from, today).catch(() => null);
+  const { data: bk } = await supabase.from('bookings').select('start_date, status, profit, profit_kouider').gt('start_date', from).lte('start_date', today);
+  const fik = ((bk ?? []) as Row[]).filter(r => !/REJECT|CANCEL/i.test(S(r['status']))).reduce((a, r) => a + profitOf(r), 0);
+  const side = pm?.net ?? 0, week = side + fik;
+  const per = await ma.departDetail().then(d => d?.perWeek ?? null).catch(() => null);
+  let target = per && per > 0 ? per : null, tLabel = 'à mettre de côté / semaine pour l\'Algérie';
+  if (!target) {   // repli : sa moyenne des 4 semaines d'avant
+    let sum = 0; for (let w = 1; w <= 4; w++) sum += (await ma.periodMoney(addDays(from, -7 * w), addDays(today, -7 * w)).catch(() => null))?.net ?? 0;
+    target = sum > 0 ? sum / 4 : null; tLabel = 'ta moyenne / semaine';
+  }
+  const parts = [pm ? Object.entries(pm.by).filter(([, v]) => v).map(([k, v]) => `${k} ${eur(v)}`).join(' + ') : '', fik ? `FIK ${eur(fik)}` : ''].filter(Boolean).join(' + ');
+  const pris = pm?.pris ? ` (− ${eur(pm.pris)} pris dessus)` : '';
+  const tot = await ma.monArgentOverview().then(o => o.balances.total).catch(() => null);
+  const business: Pilier = { score: target ? c(week / target * 10) : (week > 0 ? null : 0),
+    info: `${eur(week)} gagnés${parts ? ` : ${parts}${pris}` : ''}${target ? ` — objectif ${eur(target)} (${tLabel})` : ''}${tot != null ? `\n   💰 Tout ton cash (compte + cash + chez Houari) : ${eur(tot)}` : ''}` };
+
+  // Santé : séances (objectif 4) + sommeil moyen (objectif 7 h)
+  const sportDays = esprit.filter(d => d.sport?.fait).length;
+  const sleeps = esprit.map(d => d.sommeil).filter((x): x is number => typeof x === 'number' && x > 0);
+  const sleep = sleeps.length ? sleeps.reduce((a, b) => a + b, 0) / sleeps.length : null;
+  const sante: Pilier = esprit.length || count('forme')
+    ? { score: c(Math.min(1, Math.max(sportDays, Math.round(count('forme') / 2)) / 4) * 6 + (sleep != null ? Math.min(1, sleep / 7) * 4 : 2)),
+        info: `${sportDays} séance(s)${sleep != null ? ` · sommeil ${String(Math.round(sleep * 10) / 10).replace('.', ',')} h/nuit` : ''}` }
+    : { score: null, info: 'pas de donnée' };
+
+  // Famille : jours avec un vrai moment (journal) + temps avec Ibrahim
+  const famDays = esprit.filter(d => (d.famille ?? []).length).length;
+  const kid = await import('./ai-util.js').then(m => m.kvJson<Array<{ date: string; minutes: number }>>('kouider:kid:log', [])).catch(() => []);
+  const kidMin = kid.filter(k => k.date > from && k.date <= today).reduce((a, k) => a + (k.minutes || 0), 0);
+  const famMoments = esprit.flatMap(d => d.famille ?? []).slice(-2);
+  const famille: Pilier = esprit.length || kidMin || count('pere')
+    ? { score: c(famDays / 5 * 8 + Math.min(2, kidMin / 60) + Math.min(2, count('pere') * 0.5)),
+        info: `${famDays} jour(s) avec un vrai moment en famille${kidMin ? ` · ${kidMin} min avec Ibrahim` : ''}${famMoments.length ? ` (ex. ${famMoments.join(' ; ').slice(0, 120)})` : ''}` }
+    : { score: null, info: 'pas de donnée' };
+
+  // Amis : proches vus (cercle), examens du soir, journal
+  const cercle = (await kvJson<Person[]>(K.cercle, [])).filter(p => p.last && p.last >= from);
   const ex = await kvJson<Record<string, string>>(K.examen, {});
-  const friends = Object.entries(ex).filter(([d, t]) => d >= addDays(today, -7) && /ami|pote|fr[eè]re|s[oœ]ur|cousin|parent|m[eè]re|p[eè]re/i.test(t)).length;
-  const c = (x: number) => Math.max(0, Math.min(10, Math.round(x)));
-  return { Business: c(total ? done / total * 10 : count('business') * 2), Santé: c(count('forme') * 1.5), Famille: c(count('pere') * 1.5), Amis: c((cercle + friends) * 2.5) };
+  const AMI = /\b(ami|amis|pote|potes|copain|fr[eè]re|cousin|voisin|coll[eè]gue)/i;
+  const exDays = Object.entries(ex).filter(([d, t]) => d >= from && AMI.test(t)).length;
+  const espDays = esprit.filter(d => [...(d.famille ?? []), d.top ?? '', d.resume ?? ''].some(x => AMI.test(x))).length;
+  const seen = cercle.length + Math.max(exDays, espDays);
+  const amis: Pilier = seen ? { score: c(seen * 3), info: `${seen} moment(s) avec des proches${cercle.length ? ` (${cercle.map(p => p.name).join(', ')})` : ''}` }
+    : { score: null, info: 'aucun moment noté — dis-moi « j\'ai vu X » quand tu vois un ami' };
+  return { Business: business, Santé: sante, Famille: famille, Amis: amis };
+}
+async function piliers(): Promise<Record<string, number>> {
+  const d = await piliersDetail();
+  return Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v.score ?? 0]));
 }
 export async function piliersNow(): Promise<Record<string, number>> { return piliers(); }
 export async function equilibre(): Promise<string> {
-  const p = await piliers();
-  if (Object.values(p).reduce((x, y) => x + y, 0) <= 2) return '⚖️ Équilibre de ta semaine : pas encore assez de données (tout commence aujourd\'hui). Coche tes 3 actions (« fait 1 »), réponds à l\'examen du soir et dis-moi quand tu vois un proche : samedi prochain tu auras ton vrai score sur 10 pour le business, la santé, la famille et les amis.';
+  const p = await piliersDetail();
   const bar = (n: number) => '█'.repeat(n) + '░'.repeat(10 - n);
-  const weak = Object.entries(p).sort((a, b) => a[1] - b[1])[0]!;
-  const tip = await ai(`Pilier le plus faible de Kouider cette semaine : ${weak[0]} (${weak[1]}/10). Donne EXACTEMENT 2 lignes : 2 actions très concrètes pour la semaine prochaine, ton encourageant (pas de reproche), chacune inspirée d'un grand (nomme-le). Rien d'autre.`, { system: COACH_SYS, max: 160 }).catch(() => '');
-  return ['⚖️ Équilibre de ta semaine (tes vraies données)', ...Object.entries(p).map(([k, v]) => `${k.padEnd(9)} ${bar(v)} ${v}/10`), `\nÀ renforcer : ${weak[0]}.`, tip].join('\n').trim();
+  const scored = Object.entries(p).filter(([, v]) => v.score != null) as Array<[string, { score: number; info: string }]>;
+  const weak = scored.sort((a, b) => a[1].score - b[1].score)[0];
+  const lines = Object.entries(p).map(([k, v]) => `${k} ${v.score != null ? `${bar(v.score)} ${v.score}/10` : '— pas de donnée'}\n   ${v.info}`);
+  const facts = Object.entries(p).map(([k, v]) => `${k} : ${v.score ?? '?'}/10 — ${v.info}`).join('\n');
+  const tip = weak ? await ai(`Ses vrais chiffres de la semaine :\n${facts}\nPilier le plus faible : ${weak[0]}. Donne EXACTEMENT 2 lignes : 2 actions très concrètes pour la semaine prochaine, basées sur CES chiffres (cite-les), ton encourageant (pas de reproche). Rien d'inventé, pas de nom de célébrité.`, { system: COACH_SYS, max: 200 }).catch(() => '') : '';
+  return ['⚖️ Équilibre de ta semaine (tes vraies données, 7 derniers jours)', ...lines, weak ? `\nÀ renforcer : ${weak[0]}.` : '', tip].filter(Boolean).join('\n').trim();
 }
 
 // L9 — Mode tempête
