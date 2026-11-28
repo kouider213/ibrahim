@@ -1,3 +1,6 @@
+## 28/11 (4) — Démarchage : plus de fausse alerte
+- « 2 mails de démarchage n'ont pas pu partir » = 2 adresses sans serveur mail écartées exprès (pas une panne) → plus comptées comme échec d'envoi.
+
 ## 28/11 (3) — Relecture des messages du jour
 - « Ta parole 0 % … tu te promets plus que tu ne tiens » alors qu'aucune action n'était cochée : rien coché = « je ne peux pas mesurer », plus de reproche.
 - Conscience : « 🎯 Objectif perso — étape 6/9 » (programme privé, titre neutre) retiré de son agenda (elle proposait « préparer le TikTok » pour cette étape) ; le cerveau sait que ces titres = étapes du programme.

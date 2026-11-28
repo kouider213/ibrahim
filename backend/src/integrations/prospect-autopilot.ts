@@ -532,7 +532,8 @@ export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<
     }
     if (i < batch.length - 1) await sendGap();
   }
-  const sendErrors = failed.filter(f => !f.endsWith('(texte non généré)'));
+  // 28/11 : « 2 mails n'ont pas pu partir » = 2 adresses mortes écartées exprès (Kadi Tours, Hôtel Liberté) → pas une panne
+  const sendErrors = failed.filter(f => !f.endsWith('(texte non généré)') && !f.includes('écartée'));
   if (sendErrors.length) {
     void reportIncident('outreach-send-failed', `${sendErrors.length} mail${sendErrors.length > 1 ? 's' : ''} de démarchage n'ont pas pu partir.`,
       `Envois de démarchage en échec (Gmail) :\n${sendErrors.map(f => `• ${f}`).join('\n')}`);
