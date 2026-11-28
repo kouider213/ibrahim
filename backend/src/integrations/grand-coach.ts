@@ -593,7 +593,7 @@ async function saveExamen(text: string): Promise<string> {
 // 28/11 Kouider (Business 0/10, Famille 0/10, Amis 0/10 alors qu'il a vendu et vit avec sa famille) : « faut qu'il donne les vraies infos,
 // le business ça doit être tout le cash ». Business = TOUT l'argent gagné de la semaine (ventes nettes du journal + bénéfice FIK)
 // face à ce qu'il doit mettre de côté par semaine pour le plan Algérie ; Santé = séances + sommeil ; Famille = vrais moments
-// (journal Mon esprit + temps avec Ibrahim) ; Amis = proches vus. Sans donnée → null (« pas de donnée »), jamais un faux 0.
+// (journal Mon esprit + temps avec Ibrahim). Pas de pilier Amis (sa demande 28/11). Sans donnée → null (« pas de donnée »), jamais un faux 0.
 type Pilier = { score: number | null; info: string };
 async function piliersDetail(): Promise<Record<string, Pilier>> {
   const today = localNow().date, from = addDays(today, -7);
@@ -640,16 +640,8 @@ async function piliersDetail(): Promise<Record<string, Pilier>> {
         info: `${famDays} jour(s) avec un vrai moment en famille${kidMin ? ` · ${kidMin} min avec Ibrahim` : ''}${famMoments.length ? ` (ex. ${famMoments.join(' ; ').slice(0, 120)})` : ''}` }
     : { score: null, info: 'pas de donnée' };
 
-  // Amis : proches vus (cercle), examens du soir, journal
-  const cercle = (await kvJson<Person[]>(K.cercle, [])).filter(p => p.last && p.last >= from);
-  const ex = await kvJson<Record<string, string>>(K.examen, {});
-  const AMI = /\b(ami|amis|pote|potes|copain|fr[eè]re|cousin|voisin|coll[eè]gue)/i;
-  const exDays = Object.entries(ex).filter(([d, t]) => d >= from && AMI.test(t)).length;
-  const espDays = esprit.filter(d => [...(d.famille ?? []), d.top ?? '', d.resume ?? ''].some(x => AMI.test(x))).length;
-  const seen = cercle.length + Math.max(exDays, espDays);
-  const amis: Pilier = seen ? { score: c(seen * 3), info: `${seen} moment(s) avec des proches${cercle.length ? ` (${cercle.map(p => p.name).join(', ')})` : ''}` }
-    : { score: null, info: 'aucun moment noté — dis-moi « j\'ai vu X » quand tu vois un ami' };
-  return { Business: business, Santé: sante, Famille: famille, Amis: amis };
+  // 28/11 Kouider : « pas de truc sur les amis, que la famille et l'argent, pas le temps de faire des amis » → pilier Amis retiré
+  return { Business: business, Santé: sante, Famille: famille };
 }
 async function piliers(): Promise<Record<string, number>> {
   const d = await piliersDetail();

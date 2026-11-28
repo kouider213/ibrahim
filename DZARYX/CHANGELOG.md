@@ -1,3 +1,6 @@
+## 28/11 (2) — Plus de pilier « Amis »
+- Kouider : « pas de truc sur les amis, que la famille et l'argent, pas le temps de faire des amis ». Équilibre = Business, Santé, Famille ; score d'évolution /100 = moyenne des 3 ; mission Liberté « appelle un ami » → « appelle ta mère ou un frère ».
+
 ## 28/11 — Équilibre de la semaine en vrais chiffres, « augmente mon autorisé » appliqué, pub TikTok validée → meilleure heure
 - Kouider (capture du bilan de samedi) : Business 0/10, Famille 0/10, Amis 0/10 = faux. grand-coach piliersDetail : Business = tout l'argent gagné de la semaine (ventes nettes du journal + bénéfice FIK) face à l'objectif par semaine du plan Algérie, + ligne « tout ton cash » ; Santé = séances + sommeil ; Famille = vrais moments (journal Mon esprit) + temps avec Ibrahim ; Amis = proches vus. Sans donnée → « pas de donnée » (plus de faux 0). Chaque pilier montre ses chiffres ; conseil basé sur ces chiffres, sans célébrité.
 - Programme privé : il a demandé d'augmenter son autorisé du jour, le cerveau a répondu « c'est mis à jour » sans rien changer. Nouvelle action `autoriser` (n) : la marche du jour devient n puis redescend d'1 demi tous les 3 jours (jamais au-dessus du niveau d'avant la baisse), le reste du plan recule d'autant, le dépassement du jour est effacé. Pré-route code (parseAllowRaise) → plus de « fait » inventé.

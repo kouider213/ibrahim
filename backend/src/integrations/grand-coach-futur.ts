@@ -4,7 +4,7 @@ import { supabase } from './supabase.js';
 
 // MIROIR DU FUTUR (Kouider 31/10 : « le but c'est d'évoluer, être une meilleure personne, un meilleur entrepreneur ;
 // si je continue comme ça, où se trouve mon évolution, je serai quoi dans 1 an, 2 ans… »).
-//  • Chaque dimanche soir : photo de la semaine (score d'évolution /100 sur 4 piliers + chiffres) → courbe dans le temps.
+//  • Chaque dimanche soir : photo de la semaine (score d'évolution /100 sur 3 piliers (business, santé, famille) + chiffres) → courbe dans le temps.
 //  • « Mon futur » : projection 1/2/3/5/10 ans À PARTIR DE SES VRAIS CHIFFRES — « si tu continues comme ça » contre
 //    « ta meilleure version » (le chemin vers ses objectifs) + portrait de qui il sera + les 3 changements qui font la différence.
 // Honnête : la fiabilité dépend du nombre de mois de données, toujours affichée.
@@ -19,7 +19,7 @@ const EVO = 'gc:evo';
 interface Snap { date: string; score: number; piliers: Record<string, number>; ca30: number; wins: number; principles: number; parole: number }
 
 async function piliers(): Promise<Record<string, number>> {
-  return import('./grand-coach.js').then(m => m.piliersNow()).catch(() => ({ Business: 0, Santé: 0, Famille: 0, Amis: 0 }));
+  return import('./grand-coach.js').then(m => m.piliersNow()).catch(() => ({ Business: 0, Santé: 0, Famille: 0 }));
 }
 
 /** CA et bénéfice des 12 derniers mois, mois par mois. */
@@ -49,7 +49,7 @@ export async function snapshot(): Promise<Snap> {
     piliers(), monthly(), kvJson<unknown[]>('gc:wins', []), kvJson<unknown[]>('gc:principles', []),
     import('./grand-coach-plus.js').then(m => m.wordScore()).then(t => Number(/(\d+) %/.exec(t)?.[1] ?? 0)).catch(() => 0),
   ]);
-  const snap: Snap = { date, score: Math.round(Object.values(p).reduce((s, v) => s + v, 0) * 2.5), piliers: p, ca30: mo.months.at(-1)?.ca ?? 0, wins: wins.length, principles: pr.length, parole };
+  const snap: Snap = { date, score: Math.round(Object.values(p).reduce((s, v) => s + v, 0) / Math.max(1, Object.keys(p).length) * 10), piliers: p, ca30: mo.months.at(-1)?.ca ?? 0, wins: wins.length, principles: pr.length, parole };
   const l = (await kvJson<Snap[]>(EVO, [])).filter(x => x.date !== date);
   l.push(snap);
   await kvPut(EVO, l.slice(-520));

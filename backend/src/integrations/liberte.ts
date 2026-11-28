@@ -54,7 +54,7 @@ const MISSIONS = [
   'marche de 20 minutes dehors, à la lumière du jour',
   'un vrai compliment à ta femme, en la regardant dans les yeux',
   'regarde un truc qui te fait rire aux larmes (un sketch, une vidéo)',
-  'appelle un ami ou un frère juste pour prendre des nouvelles',
+  'appelle ta mère ou un frère juste pour prendre des nouvelles',
   'cuisine un plat avec ta femme ce soir',
   'téléphone posé à 21h30, au lit à 22h15',
   'une douche qui finit par 30 secondes d\'eau froide',
