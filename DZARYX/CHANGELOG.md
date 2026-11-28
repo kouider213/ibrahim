@@ -1,3 +1,7 @@
+## 28/11 (5) — Client déjà répondu : plus de rappel
+- « Vérifie avec Houari la demande de +213 794… » revenait le matin alors que Kouider avait déjà répondu sur WhatsApp (pas de dispo) : l'action d'hier est maintenant re-vérifiée (demande déjà répondue = faite) avant d'être reportée, plus seulement à midi.
+- Point de midi : n'affiche plus que les actions qui restent (plus les ✅ déjà faites), « fait N » avec le bon numéro.
+
 ## 28/11 (4) — Démarchage : plus de fausse alerte
 - « 2 mails de démarchage n'ont pas pu partir » = 2 adresses sans serveur mail écartées exprès (pas une panne) → plus comptées comme échec d'envoi.
 

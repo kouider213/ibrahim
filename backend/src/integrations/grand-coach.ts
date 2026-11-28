@@ -126,7 +126,10 @@ async function makeBig3(): Promise<Big3> {
   const items = (await makeBrief().catch(() => null))?.actions ?? [];
   let list = items.length === 3 ? items : ['Relance un client qui n\'a pas encore payé', 'Publie la voiture libre demain en statut WhatsApp avec le prix', 'Envoie 5 messages de prospection FIK Sites'];
   // Report : une action pas faite hier revient en tête (une seule), avec son compteur
-  const y = await kvJson<{ items: Array<{ text: string; done?: boolean; carried?: number }> } | null>(K.big3(addDays(date, -1)), null);
+  // 28/11 Kouider : « il me parle de ce client alors que je lui ai déjà répondu » → l'action d'hier est re-vérifiée (demande
+  // déjà répondue sur WhatsApp/TikTok = faite) AVANT d'être reportée, pas seulement à midi.
+  const yRaw = await kvJson<Big3 | null>(K.big3(addDays(date, -1)), null);
+  const y = yRaw ? await autoDone(yRaw).catch(() => yRaw) : null;
   const yBrief = await kvJson<Brief | null>(KB(addDays(date, -1)), null);   // report seulement des actions du point du jour (pas des anciennes vagues)
   const left = yBrief && y?.items.find(i => !i.done && (i.carried ?? 0) < 2 && !/disponibles?\b/i.test(i.text));   // 27/11 : jamais « voitures disponibles » reporté
   if (left) list = [left.text, ...list.filter(t => t !== left.text)].slice(0, 3);
@@ -523,7 +526,9 @@ async function middayCheck(): Promise<string> {
   const weekday = localNow().weekday;
   const cercle = [weekday === 2 ? await cercleSuggestion().catch(() => '') : '', ...(await import('./grand-coach-plus.js').then(m => m.middaySections(weekday)).catch(() => [] as string[]))].filter(Boolean).join('\n\n');
   if (!left.length) return `🕛 Point de midi : tes 3 actions sont déjà faites 🏆 Après le travail : une action bonus ou du temps pour ta famille.${cercle ? `\n\n${cercle}` : ''}`;
-  return `🕛 Point de midi — il te reste ${left.length} action(s) :\n${big3Line(b)}\n${await import('./grand-coach-plus.js').then(m => m.atWorkNow()).catch(() => false) ? 'Tu es au travail (aucune pause là-bas) : rien maintenant. Dès que tu sors, la plus petite d\'abord, 10 minutes.' : 'La plus petite d\'abord, maintenant, 10 minutes.'} Réponds « fait 2 » quand c'est fait.${cercle ? `\n\n${cercle}` : ''}`;
+  // 28/11 : seulement ce qui reste (une action déjà faite n'est plus réaffichée), avec son numéro d'origine pour « fait N »
+  const leftLines = b.items.map((i, k) => (i.done ? '' : `${k + 1}. ${i.text}`)).filter(Boolean).join('\n');
+  return `🕛 Point de midi — il te reste ${left.length} action(s) :\n${leftLines}\n${await import('./grand-coach-plus.js').then(m => m.atWorkNow()).catch(() => false) ? 'Tu es au travail (aucune pause là-bas) : rien maintenant. Dès que tu sors, la plus petite d\'abord, 10 minutes.' : 'La plus petite d\'abord, maintenant, 10 minutes.'} Réponds « fait ${b.items.indexOf(left[0]) + 1} » quand c'est fait.${cercle ? `\n\n${cercle}` : ''}`;
 }
 async function eveningCheck(): Promise<string> {
   const b = await autoDone(await makeBig3());
