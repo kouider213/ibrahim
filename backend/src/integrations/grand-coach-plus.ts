@@ -161,6 +161,8 @@ export async function wordScore(): Promise<string> {
   const all = total + (d ? 7 : 0) + iTot, ok = done + defi + iDone;
   if (!all) return '🤝 Score de parole : pas encore de promesse à mesurer cette semaine. Il démarre avec tes 3 actions du jour.';
   const pct = all ? Math.round(ok / all * 100) : 0;
+  // 28/11 : 0/9 actions cochées → « tu te promets plus que tu ne tiens » alors qu'il n'avait juste rien coché : rien coché = on ne sait pas, jamais un reproche
+  if (!ok) return `🤝 Ta parole envers toi-même : je ne peux pas la mesurer cette semaine — aucune de tes ${total ? `${total} actions` : 'promesses'} n'a été cochée, je ne sais donc pas lesquelles tu as faites. Quand tu en fais une, dis-moi juste « fait 1 » (ou 2, 3).`;
   return `🤝 Ta parole envers toi-même cette semaine : ${pct} % (actions ${done}/${total}${d ? `, défi ${defi}/7` : ''}${iTot ? `, intentions ${iDone}/${iTot}` : ''}).\n${pct >= 80 ? 'Un homme de parole. C\'est la base de toute confiance — la tienne d\'abord.' : pct >= 50 ? 'Correct. Promets-toi moins, mais tiens tout.' : 'Tu te promets plus que tu ne tiens. Cette semaine : une seule promesse par jour, tenue à 100 %.'}`;
 }
 

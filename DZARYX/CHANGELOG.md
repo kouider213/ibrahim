@@ -1,3 +1,8 @@
+## 28/11 (3) — Relecture des messages du jour
+- « Ta parole 0 % … tu te promets plus que tu ne tiens » alors qu'aucune action n'était cochée : rien coché = « je ne peux pas mesurer », plus de reproche.
+- Conscience : « 🎯 Objectif perso — étape 6/9 » (programme privé, titre neutre) retiré de son agenda (elle proposait « préparer le TikTok » pour cette étape) ; le cerveau sait que ces titres = étapes du programme.
+- Dossier Liberté du cerveau : « on ne remonte JAMAIS » contredisait sa demande → s'il le demande lui-même, action autoriser.
+
 ## 28/11 (2) — Plus de pilier « Amis »
 - Kouider : « pas de truc sur les amis, que la famille et l'argent, pas le temps de faire des amis ». Équilibre = Business, Santé, Famille ; score d'évolution /100 = moyenne des 3 ; mission Liberté « appelle un ami » → « appelle ta mère ou un frère ».
 
